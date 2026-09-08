@@ -2556,10 +2556,8 @@ fn a_retained_token_keeps_its_children() {
 fn a_retained_token_keeps_its_variables() {
     // The token's variables ride with it; every name-addressed probe fails
     // because the name is gone. Exact Tcl 9.0.4 oracle result (identical on
-    // 8.6.16). (`catch {set ::N::v}` is not pinned here: the VM keeps namespace
-    // variables in one flat global table, so the retained token's cells are
-    // still addressable by their canonical name — see the milestone note in
-    // `interp.rs`.)
+    // 8.6.16). The relative link still addresses the retained token's exact
+    // variable cell even though neither absolute glob can reach it.
     assert_eq!(
         run(r"namespace eval N {
                  variable v V
@@ -2571,6 +2569,106 @@ fn a_retained_token_keeps_its_variables() {
              }
              ::N::p"),
         r"V {} {}"
+    );
+}
+
+#[test]
+fn retained_and_recreated_namespace_variables_have_distinct_cells() {
+    // Exact Tcl 9.0.4 oracle from #1753. This pins the variable-table half of
+    // stable namespace identity; command-token retirement has separate
+    // coverage and remains tracked independently.
+    assert_eq!(
+        run(r"set answer [namespace eval N {
+                 variable v OLD
+                 proc q {} {return OLDQ}
+                 proc p {} {
+                     namespace delete ::N
+                     namespace eval ::N {variable v NEW; proc q {} {return NEWQ}}
+                     variable v
+                     list [q] [::N::q] $v [set v OLD2] [set ::N::v] \
+                          [info commands q] [info commands ::N::q] \
+                          [namespace current] [namespace exists {}] [namespace exists ::N]
+                 }
+                 p
+             }]
+             list $answer [set ::N::v] [::N::q]"),
+        "{OLDQ NEWQ OLD OLD2 NEW q ::N::q ::N 0 1} NEW NEWQ"
+    );
+}
+
+#[test]
+fn retained_and_recreated_namespace_variable_traces_are_isolated() {
+    // Exact Tcl 9.0.4 oracle. Final teardown of the old token fires only its
+    // old trace; its callback sees the same-spelled recreation as live, and
+    // that new token keeps both its value and trace.
+    assert_eq!(
+        run(r"proc rec {tag n1 n2 op} {
+                 lappend ::events [list $tag [namespace exists ::N] $n1 $n2 $op]
+             }
+             set events {}
+             namespace eval N {
+                 variable v old
+                 trace add variable v unset {::rec old}
+                 proc p {} {
+                     namespace delete ::N
+                     namespace eval ::N {
+                         variable v new
+                         trace add variable v unset {::rec new}
+                     }
+                     variable v
+                     list [namespace exists {}] $v [set ::N::v]
+                 }
+             }
+             set inside [::N::p]
+             set after [list [namespace exists ::N] [set ::N::v] $events \
+                             [trace info variable ::N::v]]
+             namespace delete ::N
+             list $inside $after $events"),
+        "{0 old new} {1 new {{old 1 ::N::v {} unset}} {{unset {::rec new}}}} {{old 1 ::N::v {} unset} {new 0 ::N::v {} unset}}"
+    );
+}
+
+#[test]
+fn namespace_teardown_fires_trace_only_undefined_cells() {
+    // Tcl 9.0.4 trace-18.3: registration itself materialises an undefined
+    // namespace cell, which still participates in namespace destruction.
+    assert_eq!(
+        run(r"set events {}
+             proc rec {n1 n2 op} {lappend ::events [list $n1 $n2 $op]}
+             namespace eval N {}
+             trace add variable ::N::var unset rec
+             namespace delete ::N
+             set events"),
+        "{::N::var {} unset}"
+    );
+}
+
+#[test]
+fn namespace_teardown_removes_one_cell_then_purges_its_recreation() {
+    // Exact Tcl 9.0.4 oracle. Each callback sees its own cell absent and the
+    // namespace already unpublished. The remaining-count multiset proves the
+    // cells are removed one at a time without pinning the hash-table order.
+    // Recreating either removed name and attaching a new trace does not give it
+    // a second callback during the dying token's fixed-point purge.
+    assert_eq!(
+        run(r"set events {}
+             set remaining {}
+             proc R {n1 n2 op} {
+                 lappend ::events [list $n1 [info exists $n1] [namespace exists ::N]]
+                 lappend ::remaining [expr {[info exists ::N::a] + [info exists ::N::b]}]
+                 set $n1 revived
+                 trace add variable $n1 unset {lappend ::events NEW;#}
+             }
+             namespace eval N {
+                 variable a A
+                 variable b B
+                 trace add variable a unset R
+                 trace add variable b unset R
+             }
+             namespace delete ::N
+             list [lsort $events] [lsort -integer $remaining] \
+                  [namespace exists ::N] [info exists ::N::a] [info exists ::N::b]"),
+        "{{::N::a 0 0} {::N::b 0 0}} {0 1} 0 0 0"
     );
 }
 

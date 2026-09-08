@@ -76,6 +76,7 @@ mod expr;
 mod frame;
 mod interp;
 mod subst;
+mod vars;
 
 pub use cmd_thread::{CompileFactory, ThreadedOutput};
 pub use command::NativeCommand;

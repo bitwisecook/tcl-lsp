@@ -107,6 +107,7 @@ fn run(vm: &mut Vm, asm: Asm) -> Completion<Value> {
 /// Run a hand-built function on a fresh `Vm`, returning `(vm, completion)`.
 fn run_fresh(asm: Asm) -> (Vm, Completion<Value>) {
     let mut vm = Vm::new();
+    vm.set_compiler(Box::new(compiler::svc()));
     let c = run(&mut vm, asm);
     (vm, c)
 }
@@ -519,13 +520,35 @@ fn variable_links_local_to_namespace_var() {
     let slot = a.slot("v");
     a.push("ns::v").op(Op::VARIABLE, &[slot]);
     a.push("42").op(Op::STORE_SCALAR1, &[slot]);
-    let (vm, c) = run_fresh(a);
+    let mut vm = Vm::new();
+    vm.set_compiler(Box::new(compiler::svc()));
+    assert_eq!(ok_str(&eval(&mut vm, "namespace eval ns {}")), "");
+    let c = run(&mut vm, a);
     assert_eq!(ok_str(&c), "42");
     assert_eq!(
         vm.get_var("ns::v").map(|v| v.to_str().to_string()),
         Some("42".into()),
         "the write must reach the namespace variable"
     );
+}
+
+/// `variable` resolves only through a namespace token that already exists.
+/// The opcode must not manufacture the missing parent as a side effect of
+/// creating its local link.
+#[test]
+fn variable_rejects_a_missing_parent_namespace() {
+    let mut a = Asm::new();
+    let slot = a.slot("v");
+    a.push("::missing::v").op(Op::VARIABLE, &[slot]);
+    let mut vm = Vm::new();
+    vm.set_compiler(Box::new(compiler::svc()));
+    let c = run(&mut vm, a);
+    assert_eq!(
+        err_str(&c),
+        "can't access \"::missing::v\": parent namespace doesn't exist"
+    );
+    assert_eq!(err_code(&c), "TCL LOOKUP VARNAME ::missing::v");
+    assert_eq!(ok_str(&eval(&mut vm, "namespace exists ::missing")), "0");
 }
 
 // -- currentNamespace / infoLevelNumber / infoLevelArgs -------------------

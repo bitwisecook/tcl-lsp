@@ -783,6 +783,23 @@ fn my_variable_links_instance_state() {
     );
 }
 
+#[test]
+fn automatic_instance_variable_link_yields_to_a_formal_local() {
+    // Exact Tcl 9.0.4 transcript. Declaring x as an instance variable does not
+    // replace the method's already-bound formal x.
+    assert_eq!(
+        result("oo::class create C {variable x; method m {x} {return $x}}; [C new] m ARG"),
+        "ARG"
+    );
+
+    // Explicit linking is different: it still reaches the shared upvar
+    // collision check and refuses to replace the formal.
+    let (ok, message, _) =
+        run("oo::class create D {variable x; method m {x} {my variable x}}; [D new] m ARG");
+    assert!(!ok);
+    assert_eq!(message, "variable \"x\" already exists");
+}
+
 // Export / unexport, unknown-method errors
 
 #[test]

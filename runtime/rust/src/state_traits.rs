@@ -28,7 +28,7 @@
 
 use tcl_runtime_api::{
     CommandId, Commands, Completion, FrameId, Frames, Introspect, Namespaces, NsId, ProcInfo,
-    ProcParam, Procs, Traces, VarStore,
+    ProcParam, Procs, Traces, VarStore, VarUnsetError,
 };
 
 use crate::frame::Link;
@@ -73,6 +73,13 @@ impl VarStore for Interp {
         } else {
             self.var_unset_at(name.as_bytes(), frame.0)
         }
+    }
+
+    fn unset_command(&mut self, frame: FrameId, name: &str) -> Result<bool, VarUnsetError> {
+        if self.is_constant_at(name.as_bytes(), frame.0) {
+            return Err(VarUnsetError::IsConstant);
+        }
+        Ok(self.unset(frame, name))
     }
 
     fn exists(&self, frame: FrameId, name: &str) -> bool {
@@ -362,6 +369,17 @@ impl Frames for Interp {
             .map(|s| String::from_utf8_lossy(s).into_owned())
             .collect()
     }
+
+    fn const_names(&self) -> Vec<String> {
+        crate::vars::const_names(&self.frames.borrow(), &self.namespaces())
+            .iter()
+            .map(|name| String::from_utf8_lossy(name).into_owned())
+            .collect()
+    }
+
+    fn const_names_bytes(&self) -> Vec<Vec<u8>> {
+        crate::vars::const_names(&self.frames.borrow(), &self.namespaces())
+    }
 }
 
 /// Namespace name resolution. `NsId` is native (the contract's `u32` newtype
@@ -451,6 +469,14 @@ impl Namespaces for Interp {
             .collect()
     }
 
+    fn consts_in(&self, ns: NsId) -> Vec<String> {
+        self.namespaces()
+            .const_names(ns.0 as usize)
+            .iter()
+            .map(|name| String::from_utf8_lossy(name).into_owned())
+            .collect()
+    }
+
     // `Tcl_FindNamespaceVar`'s single probe: the namespace's own `varTable`,
     // including a `variable`-declared but as-yet-unset cell, and never a call
     // frame.
@@ -489,6 +515,14 @@ impl Namespaces for Interp {
 
     fn command_name_bytes(&self, cmd: CommandId) -> Option<Vec<u8>> {
         self.command_fqn(cmd.0)
+    }
+
+    fn vars_in_bytes(&self, ns: NsId) -> Vec<Vec<u8>> {
+        self.namespaces().var_names(ns.0 as usize)
+    }
+
+    fn consts_in_bytes(&self, ns: NsId) -> Vec<Vec<u8>> {
+        self.namespaces().const_names(ns.0 as usize)
     }
 
     fn command_origin(&self, cmd: CommandId) -> Option<CommandId> {

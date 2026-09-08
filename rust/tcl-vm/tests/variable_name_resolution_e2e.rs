@@ -490,6 +490,29 @@ puts "element=[catch {upvar #0 x local(k)} m]:$m:$::errorCode"
                   local=1:can't create \"::missing::local\": parent namespace doesn't exist:TCL LOOKUP VARNAME ::missing::local\n\
                   element=1:bad variable name \"local(k)\": can't create a scalar variable that looks like an array element:TCL UPVAR LOCAL_ELEMENT",
     },
+    Vector {
+        name: "upvar preserves defined and traced locals while reusing undefined shells",
+        script: r"set ::one 1
+set ::two 2
+proc p {} {
+    set x value
+    set c1 [catch {upvar #0 one x} m]
+    set r1 [list $c1 $m $::errorCode]
+    unset x
+    trace add variable x unset {apply {{n1 n2 op} {}}}
+    set c2 [catch {upvar #0 one x} m]
+    set r2 [list $c2 $m $::errorCode]
+    upvar #0 one y
+    upvar #0 two y
+    variable z
+    upvar #0 one z
+    list $r1 $r2 $y $z
+}
+puts [p]
+",
+        want_8x: "{1 {variable \"x\" already exists} {TCL UPVAR EXISTS}} {1 {variable \"x\" has traces: can't use for upvar} {TCL UPVAR TRACED}} 2 1",
+        want_90: "{1 {variable \"x\" already exists} {TCL UPVAR EXISTS}} {1 {variable \"x\" has traces: can't use for upvar} {TCL UPVAR TRACED}} 2 1",
+    },
 ];
 
 #[test]

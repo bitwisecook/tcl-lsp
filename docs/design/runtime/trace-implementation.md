@@ -64,21 +64,42 @@ one firing site. Both runtimes funnel accordingly.
 
 | Trace kind | Storage | Fired from |
 |---|---|---|
-| variable | keyed by resolved variable identity — home namespace *or* local call-frame level, plus the simple name | `Interp::fire_var_trace` / `fire_var_trace_resolved`, called from the scalar and array-element read/write/unset paths |
+| variable | keyed by resolved variable location — home namespace *or* local call-frame level, plus the simple name and optional element | `Interp::fire_var_trace` / `fire_var_trace_resolved`, called from the scalar and array-element read/write/unset paths |
 | command | keyed by resolved FQN (`Interp::resolve_cmd_fqn`) | `Interp::fire_cmd_trace`, from the `rename` and command-delete paths |
 | execution | keyed by resolved FQN | `Interp::dispatch` — `enter`/`leave` around the traced command's own invocation, `enterstep`/`leavestep` around every command executed while a step-traced command is on the stack |
 
-Because the key is the *resolved* identity rather than the written name, a
+Because the key is the resolved location rather than the written name, a
 trace follows the variable or command through `upvar`/`global` links and
 through a `rename` (`move_cmd_traces`), and is dropped when the command is
 deleted (`remove_cmd_traces`) or its frame is popped
-(`clear_frame_var_traces`).
+(`clear_frame_var_traces`). The variable location does not yet carry a stable
+cell generation: an unset callback that recreates the same spelling can still
+collide with the old active scope. That remaining #1574 work is why this
+section does not describe the key as a variable identity.
 
 ### `rust/tcl-vm` (bytecode VM)
 
-The VM keeps the same three tables (`cmd_traces` / `exec_traces` on the
-interpreter) keyed by resolved FQN, plus one extra piece of state that the
-tree-walker does not need: because the VM executes compiled proc bodies,
+The VM stores frame and namespace bindings as simple-name → monotonic `VarId`
+tables. Namespace tables belong to `NsId`, while an interpreter-global sparse
+arena owns scalar, array, link and undefined cells; array element tables point
+to their own `VarId`s. Variable traces and their active stack use the resolved
+`VarId`, so parked coroutine frames and retained/recreated same-name namespace
+tokens cannot collide. Link cells retain a target ID rather than a
+frame/name pair, and unbound/unlinked/unpinned cells are collected without ID
+reuse.
+
+The representation owner is `rust/tcl-vm/src/vars.rs`; the single
+name→owner→cell resolver and lifecycle transitions live in `interp.rs`.
+`cmd_array.rs` derives array-operation targets from the active profile's
+registry argument roles, and `exec.rs` routes dedicated array opcodes through
+the same owner. The Tcl 9.0.4 transcripts and direct consumer checks are in
+`variable_trace_semantics_e2e.rs`, `variable_name_resolution_e2e.rs`,
+`namespace_surface_e2e.rs`, and `opcode_c_parity.rs`; arena/storage retirement
+invariants are unit-tested beside the owners.
+
+Command/execution traces remain the command-side tables described below. The
+VM also needs one extra piece of state that the tree-walker does not: because
+it executes compiled proc bodies,
 installing a new `enterstep`/`leavestep`-capable trace has to invalidate the
 compiled bodies that would otherwise skip the per-command step hook. An
 epoch counter, bumped on every `trace add|remove execution … enterstep`,
@@ -187,7 +208,16 @@ goes. Every removal site therefore searches from the newest end (`rposition`
 over our oldest-first Vecs), as does the teardown path that collects a
 namespace's unset traces before firing them.
 
-Namespace teardown fires **command**-delete traces one command at a time, in
+In `rust/tcl-vm`, namespace teardown removes and fires **variable** unset traces
+before command retirement, one variable cell at a time. The callback sees its
+own cell absent but later cells still present; an exact-name recreation/new
+trace is forcibly purged without a second callback. Trace-only undefined cells
+participate too. The callback name is the variable's fully-qualified namespace
+spelling, and a retained token is addressed by `NsId`, never by resolving a
+possibly recreated public name. This paragraph does not claim the same stable
+cell-generation implementation for `runtime/rust`.
+
+Namespace teardown then fires **command**-delete traces one command at a time, in
 the order `TclTeardownNamespace` snapshots `nsPtr->cmdTable` — the retained
 `TCL_STRING_KEYS` bucket order, not registration or lexical order (issue
 #1752). Each token's traces fire while its entry is still in the table, then

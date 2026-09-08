@@ -266,7 +266,7 @@ pub(crate) struct CatchReq {
 }
 
 /// A `subst` deferred to the explicit stack: the template plus its three
-/// substitution switches. Parked in `Vm.pending_subst` by `cmd_subst` and drained
+/// substitution switches. Parked in `Vm.pending.subst` by `cmd_subst` and drained
 /// into a subst activation (see [`Frame::subst`]), so a `yield` inside a `[…]`
 /// stays yieldable.
 pub(crate) struct SubstReq {
@@ -288,7 +288,7 @@ pub(crate) struct EachLoopGroup {
 /// — this is what a value-consumed `lmap`, e.g. `set r [lmap x {1 2} { yield
 /// $x }]`, needs: reached via generic command dispatch rather than the
 /// compiler's inline `LMAP_COLLECT` loop, its body used to run through
-/// `Vm::eval_source`'s nested drive). Parked in `Vm.pending_each_loop` by
+/// `Vm::eval_source`'s nested drive). Parked in `Vm.pending.each_loop` by
 /// `each_loop` and drained into an each-loop activation (see
 /// [`Frame::each_loop`]).
 pub(crate) struct EachLoopReq {
@@ -547,22 +547,22 @@ enum Tick {
     },
     /// Run a `catch` body on the explicit stack (yieldable) via a catch
     /// activation ([`Frame::new_catch`]); its completion is absorbed by the catch
-    /// epilogue. Drained from `Vm.pending_catch`, mirroring `PushScript`.
+    /// epilogue. Drained from `Vm.pending.catch`, mirroring `PushScript`.
     PushCatch(CatchReq),
     /// Run a `subst` on the explicit stack (yieldable) via a subst activation
     /// ([`Frame::new_subst`]); its `[…]` bodies run as child script frames and are
-    /// folded back by subst rules. Drained from `Vm.pending_subst`.
+    /// folded back by subst rules. Drained from `Vm.pending.subst`.
     PushSubst(SubstReq),
     /// Run a `foreach`/`lmap` runtime-fallback loop on the explicit stack
     /// (yieldable) via an each-loop activation ([`Frame::new_each_loop`]); each
     /// iteration's body runs as a child script frame and is folded back by
     /// `each_loop`'s collect/continue/break rules. Drained from
-    /// `Vm.pending_each_loop` (issue #1311).
+    /// `Vm.pending.each_loop` (issue #1311).
     PushEachLoop(EachLoopReq),
     /// Run one phase (body/handler/`finally`) of a `try` on the explicit stack
     /// (yieldable) via a try-phase activation ([`Frame::new_try`]); its
     /// completion decides the next phase via `cmd_try::advance_try`. Drained
-    /// from `Vm.pending_try` (issue #1311).
+    /// from `Vm.pending.try_phase` (issue #1311).
     PushTry(crate::cmd_try::TryReq),
     /// `tailcall cmd ?arg …?` — the current proc finishes and `cmd args` runs in
     /// its place (in the caller's activation), its result becoming the proc's.
@@ -2550,8 +2550,7 @@ impl Vm {
             // to carry no `(index)` part), so they are the same arm here.
             Op::LOAD_STK | Op::LOAD_SCALAR_STK => {
                 let name = pop(f).to_str();
-                try_op!(self.fire_var_traces(&name, "read"));
-                match self.get_var(&name) {
+                match try_op!(self.read_var_traced(&name)) {
                     Some(v) => f.stack.push(v),
                     None => {
                         return Tick::Return(err(format!(
@@ -2582,8 +2581,7 @@ impl Vm {
             // -- variables (LVT form, proc bodies) --
             Op::LOAD_SCALAR1 | Op::LOAD_SCALAR4 => {
                 let name = lvt_name(imm0(instr));
-                try_op!(self.fire_var_traces(&name, "read"));
-                match self.get_var(&name) {
+                match try_op!(self.read_var_traced(&name)) {
                     Some(v) => f.stack.push(v),
                     None => {
                         return Tick::Return(err(format!(
@@ -2649,13 +2647,11 @@ impl Vm {
                 let name = lvt_name(imm0(instr));
                 // `info exists` fires read traces (a trace may create the
                 // variable); a trace error does not abort the existence check.
-                let _ = self.fire_var_traces(&name, "read");
-                f.stack.push(Value::bool(self.exists_var(&name)));
+                f.stack.push(Value::bool(self.exists_var_traced(&name)));
             }
             Op::EXIST_STK => {
                 let name = pop(f).to_str();
-                let _ = self.fire_var_traces(&name, "read");
-                f.stack.push(Value::bool(self.exists_var(&name)));
+                f.stack.push(Value::bool(self.exists_var_traced(&name)));
             }
             // The array-element existence tests fire the element's read traces
             // first (C `INST_EXIST_ARRAY`: a trace may create it) and never
@@ -2664,23 +2660,20 @@ impl Vm {
                 let name = lvt_name(imm0(instr));
                 let key = pop(f).to_str();
                 let full = format!("{name}({key})");
-                let _ = self.fire_var_traces(&full, "read");
-                f.stack.push(Value::bool(self.exists_var(&full)));
+                f.stack.push(Value::bool(self.exists_var_traced(&full)));
             }
             Op::EXIST_ARRAY_STK => {
                 let key = pop(f).to_str();
                 let name = pop(f).to_str();
                 let full = format!("{name}({key})");
-                let _ = self.fire_var_traces(&full, "read");
-                f.stack.push(Value::bool(self.exists_var(&full)));
+                f.stack.push(Value::bool(self.exists_var_traced(&full)));
             }
 
             // -- arrays --
             Op::LOAD_ARRAY_STK => {
                 let key = pop(f).to_str();
                 let name = pop(f).to_str();
-                try_op!(self.fire_var_traces(&format!("{name}({key})"), "read"));
-                match self.get_array_elem(&name, &key) {
+                match try_op!(self.read_elem_traced(&name, &key)) {
                     Some(v) => f.stack.push(v),
                     None => {
                         return Tick::Return(err(format!(
@@ -2699,8 +2692,7 @@ impl Vm {
             Op::LOAD_ARRAY1 | Op::LOAD_ARRAY4 => {
                 let name = lvt_name(imm0(instr));
                 let key = pop(f).to_str();
-                try_op!(self.fire_var_traces(&format!("{name}({key})"), "read"));
-                match self.get_array_elem(&name, &key) {
+                match try_op!(self.read_elem_traced(&name, &key)) {
                     Some(v) => f.stack.push(v),
                     None => {
                         return Tick::Return(err(format!(
@@ -2718,13 +2710,29 @@ impl Vm {
             }
             Op::ARRAY_EXISTS_IMM => {
                 let name = lvt_name(imm0(instr));
-                f.stack.push(Value::bool(self.array_is(&name)));
+                let completion = self.with_array_trace_target(&name, |vm, target| {
+                    ok(Value::bool(
+                        tcl_runtime_api::VarStore::array_keys_at(vm, target).is_some(),
+                    ))
+                });
+                if completion.code != Code::Ok {
+                    return Tick::Return(completion);
+                }
+                f.stack.push(completion.result);
             }
             Op::ARRAY_EXISTS_STK => {
                 // The stack form resolves an arbitrary (possibly qualified) name,
                 // so it honours the namespace-variable fallback `array_is` skips.
                 let name = pop(f).to_str();
-                f.stack.push(Value::bool(self.var_is_array(&name)));
+                let completion = self.with_array_trace_target(&name, |vm, target| {
+                    ok(Value::bool(
+                        tcl_runtime_api::VarStore::array_keys_at(vm, target).is_some(),
+                    ))
+                });
+                if completion.code != Code::Ok {
+                    return Tick::Return(completion);
+                }
+                f.stack.push(completion.result);
             }
             // `array set`'s materialising half (C `INST_ARRAY_MAKE_*`): make the
             // variable an empty array when undefined, no-op when it already is
@@ -3120,13 +3128,14 @@ impl Vm {
             }
             // `variable` (C `INST_VARIABLE`): link the local slot to the
             // namespace variable named by the popped name. The link machinery is
-            // the `variable` command's (`cmd_variable`) — namespace variables
-            // live in the global frame under their canonical qualified name.
+            // the `variable` command's (`cmd_variable`) and resolves the exact
+            // namespace token once.
             Op::VARIABLE => {
                 let local = lvt_name(imm0(instr));
                 let var = pop(f).to_str();
-                let target = self.qualify_name(&var);
-                self.add_link(&local, 0, &target);
+                if let Err(error) = self.link_namespace_variable(&local, &var) {
+                    return Tick::Return(crate::command::upvar_link_error(error, &var, &local));
+                }
             }
 
             // -- concat (stack form): Tcl-concat the top N values. --
@@ -4989,7 +4998,7 @@ impl Vm {
         // An `eval`/`uplevel`/`apply`-style builtin defers its body to the
         // explicit stack (yieldable): drain it into a `PushScript`, whose
         // frame result replaces this builtin's placeholder (as for yield).
-        if let Some((script, label, cleanup_proc)) = self.pending_eval.take() {
+        if let Some((script, label, cleanup_proc)) = self.pending.eval.take() {
             return Ok(Some(Tick::PushScript {
                 script,
                 label,
@@ -4999,24 +5008,24 @@ impl Vm {
         }
         // A `catch` defers its body the same way, but into a catch frame
         // whose completion the epilogue absorbs (see `Frame::catch`).
-        if let Some(req) = self.pending_catch.take() {
+        if let Some(req) = self.pending.catch.take() {
             return Ok(Some(Tick::PushCatch(req)));
         }
         // A `subst` defers to a scanner-driven subst frame, whose `[…]`
         // bodies run yieldably as child frames (see `Frame::subst`).
-        if let Some(req) = self.pending_subst.take() {
+        if let Some(req) = self.pending.subst.take() {
             return Ok(Some(Tick::PushSubst(req)));
         }
         // A `foreach`/`lmap` runtime-fallback loop defers to a
         // scanner-driven each-loop frame, whose iterations run yieldably
         // as child frames (see `Frame::each_loop`, issue #1311).
-        if let Some(req) = self.pending_each_loop.take() {
+        if let Some(req) = self.pending.each_loop.take() {
             return Ok(Some(Tick::PushEachLoop(req)));
         }
         // A `try` defers its body (and, from `advance_try`, each
         // subsequent phase) to a try-phase frame (see `Frame::try_ctx`,
         // issue #1311).
-        if let Some(req) = self.pending_try.take() {
+        if let Some(req) = self.pending.try_phase.take() {
             return Ok(Some(Tick::PushTry(req)));
         }
         Self::deliver_sync(f, res)
@@ -5332,11 +5341,11 @@ impl Vm {
     /// only in having a trampoline to push onto.
     fn settle_native_invoke(&mut self, res: Completion<Value>) -> Completion<Value> {
         // An `eval`/`uplevel`/`apply`-style builtin deferred its body to
-        // `pending_eval`. This call site is on the native Rust stack (no
+        // the pending eval request. This call site is on the native Rust stack (no
         // trampoline to push onto), so run the body via a nested drive —
         // a `yield` inside cannot cross it, exactly like every other
         // `invoke_command` re-entry.
-        if let Some((script, label, cleanup_proc)) = self.pending_eval.take() {
+        if let Some((script, label, cleanup_proc)) = self.pending.eval.take() {
             let comp = self.run_activation(Frame::new_script(script, label));
             if let Some(name) = cleanup_proc {
                 self.take_command_unchecked(&name);
@@ -5346,7 +5355,7 @@ impl Vm {
         // A `catch` deferred its body: run it via a nested drive (a `yield`
         // inside cannot cross this native re-entry), then absorb its
         // completion with the catch epilogue.
-        if let Some(req) = self.pending_catch.take() {
+        if let Some(req) = self.pending.catch.take() {
             let mut comp = self.run_activation(Frame::new_script(req.script, None));
             if comp.code == Code::Ok
                 && let Some(message) = req.fatal_tail
@@ -5358,7 +5367,7 @@ impl Vm {
         // A `subst` deferred: run the scanner-driven subst frame via a
         // nested drive (its `[…]` bodies can't yield across this native
         // re-entry), returning its accumulated result.
-        if let Some(req) = self.pending_subst.take() {
+        if let Some(req) = self.pending.subst.take() {
             let namespace = self.current_ns().to_owned();
             let placeholder = self.compiled_unit(Rc::new(FunctionAsm::default()), namespace);
             return self.run_activation(Frame::new_subst(req, placeholder));
@@ -5366,7 +5375,7 @@ impl Vm {
         // A `foreach`/`lmap` runtime-fallback loop deferred: run the
         // scanner-driven each-loop frame via a nested drive (a `yield` in
         // its body can't cross this native re-entry either).
-        if let Some(req) = self.pending_each_loop.take() {
+        if let Some(req) = self.pending.each_loop.take() {
             let namespace = self.current_ns().to_owned();
             let placeholder = self.compiled_unit(Rc::new(FunctionAsm::default()), namespace);
             return self.run_activation(Frame::new_each_loop(req, placeholder));
@@ -5378,7 +5387,7 @@ impl Vm {
         // next phase onto the same nested `acts`, so one
         // `run_activation` call carries the whole construct through to
         // its final completion.
-        if let Some(req) = self.pending_try.take() {
+        if let Some(req) = self.pending.try_phase.take() {
             return self.run_activation(Frame::new_try(req));
         }
         res
@@ -5490,9 +5499,8 @@ impl Vm {
     /// instance-variable linking the runtime's `run_proc` does.
     ///
     /// `link_vars` are `(local, storage-fqn)` pairs: each links a method-local
-    /// name to the object namespace's variable of that FQN (namespace variables
-    /// live in the global frame keyed by their qualified name, so the link is at
-    /// level 0). The `frame` carries the resolved method chain that `self`/`my`/
+    /// name to the object namespace's variable of that FQN. The `frame` carries
+    /// the resolved method chain that `self`/`my`/
     /// `next` consult while the body runs.
     pub(crate) fn oo_run_method(
         &mut self,
@@ -5505,7 +5513,11 @@ impl Vm {
             return c;
         }
         for (local, storage) in link_vars {
-            self.add_link(local, 0, storage);
+            if let Err(error) = self.add_tcloo_instance_link(local, 0, storage) {
+                self.pop_call_frame();
+                self.pop_ns();
+                return crate::command::upvar_link_error(error, storage, local);
+            }
         }
         self.oo.call_stack.push(frame);
         let result = self.run_activation(Frame::new(proc.body.clone(), true));

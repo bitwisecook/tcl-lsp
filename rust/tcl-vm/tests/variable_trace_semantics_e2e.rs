@@ -510,6 +510,618 @@ fn vm_matches_the_pinned_trace_vectors() {
     }
 }
 
+#[test]
+fn array_operations_fire_the_registry_resolved_array_trace() {
+    // Exact Tcl 9.0.4 transcript. This covers all seven members implemented
+    // and advertised by this VM adapter; Tcl 9's `default` is not implemented
+    // by the adapter yet.
+    // Wrong arity and array-for's malformed variable list fail before
+    // LocateArray; callback errors retain their Tcl message and error code.
+    let script = r"
+set events {}
+proc A {tag n1 n2 op} {lappend ::events [list $tag $n1 $n2 $op]}
+array set exists {x 1}
+trace add variable exists array {A exists}
+array exists exists
+array set forvar {x 1}
+trace add variable forvar array {A for}
+array for {k v} forvar {}
+array set get {x 1}
+trace add variable get array {A get}
+array get get
+array set names {x 1}
+trace add variable names array {A names}
+array names names
+array set setvar {x 1}
+trace add variable setvar array {A set}
+array set setvar {y 2}
+array set size {x 1}
+trace add variable size array {A size}
+array size size
+array set unsetvar {x 1}
+trace add variable unsetvar array {A unset}
+array unset unsetvar nomatch
+set before $events
+catch {array exists exists extra} m
+set wrong [expr {$before eq $events}]
+catch {array for x forvar {}} fm
+set forbad [expr {$before eq $events}]
+puts [list $events $wrong $forbad $m $fm]
+array set a {x 1}
+proc B {n1 n2 op} {return -code error -errorcode {APP ARRAY} boom}
+trace add variable a array B
+catch {array exists a} em eo
+puts [list $em [dict get $eo -errorcode]]
+";
+    assert_eq!(
+        vm_output(script),
+        "{{exists exists {} array} {for forvar {} array} {get get {} array} {names names {} array} {set setvar {} array} {size size {} array} {unset unsetvar {} array}} 1 1 {wrong # args: should be \"array exists arrayName\"} {must have two variable names}\n{can't trace array \"a\": boom} {APP ARRAY}"
+    );
+}
+
+#[test]
+fn read_and_write_trace_wrappers_publish_their_lookup_error_codes() {
+    // Exact Tcl 9.0.4 transcript. Unlike the array operation, scalar
+    // read/write wrapping replaces the callback's code with the variable
+    // lookup class while still committing a write before its callback.
+    let script = r"
+proc R {n1 n2 op} {return -code error -errorcode {APP READ} nope}
+set x 1
+trace add variable x read R
+catch {set x} rm ro
+proc W {n1 n2 op} {return -code error -errorcode {APP WRITE} bad}
+set y 1
+trace add variable y write W
+catch {set y 2} wm wo
+puts [list $rm [dict get $ro -errorcode] $wm [dict get $wo -errorcode] $y]
+";
+    assert_eq!(
+        vm_output(script),
+        "{can't read \"x\": nope} {TCL READ VARNAME x} {can't set \"y\": bad} {TCL WRITE VARNAME y} 2"
+    );
+}
+
+#[test]
+fn array_trace_resolution_handles_undefined_scalar_and_alias_cells() {
+    // Exact Tcl 9.0.4 transcript. LocateArray reaches an undefined traced
+    // shell, rejects a scalar without tracing, and reports an upvar's spelling
+    // while retaining the target array's stable trace identity.
+    let script = r"
+set events {}
+proc A {tag n1 n2 op} {lappend ::events [list $tag $n1 $n2 $op]}
+trace add variable absent array {A absent}
+set ae [array exists absent]
+set scalar value
+trace add variable scalar array {A scalar}
+set se [array exists scalar]
+proc aliasprobe {} {upvar #0 target a; return [array size a]}
+array set target {x 1}
+trace add variable target array {A alias}
+set av [aliasprobe]
+puts [list $ae $se $av $events]
+";
+    assert_eq!(
+        vm_output(script),
+        "0 0 1 {{absent absent {} array} {alias a {} array}}"
+    );
+}
+
+#[test]
+fn array_trace_resolution_distinguishes_direct_and_linked_elements() {
+    // Exact Tcl 9.0.4 transcript. LocateArray gates on the reached cell's own
+    // trace and state. A direct undefined element walks parent then element,
+    // while an alias reaches only that element; scalar elements and an
+    // untraced element under a traced parent do not fire.
+    let script = r"
+set events {}
+proc A {tag n1 n2 op} {lappend ::events [list $tag $n1 $n2 $op]}
+array set a {}
+trace add variable a array {A parent}
+trace add variable a(k) array {A elem}
+set direct [array exists a(k)]
+set directevents $events
+set events {}
+proc aliasprobe {} {upvar #0 a(k) e; array exists e}
+set alias [aliasprobe]
+set aliasevents $events
+set events {}
+set a(k) value
+set defined [array exists a(k)]
+set definedevents $events
+array set b {}
+trace add variable b array {A onlyparent}
+set parentonly [array exists b(k)]
+puts [list $direct $directevents $alias $aliasevents $defined $definedevents $parentonly $events]
+";
+    assert_eq!(
+        vm_output(script),
+        "0 {{parent a k array} {elem a k array}} 0 {{elem e k array}} 0 {} 0 {}"
+    );
+}
+
+#[test]
+fn array_trace_alias_retarget_uses_located_cell_policy() {
+    // Tcl 9.0.4's LocateArray retains the original cell for key enumeration,
+    // while set and whole-array unset deliberately re-resolve the spelling.
+    // `get` combines the two (old keys, live values), patterned unset stays on
+    // the located cell, and `for` detects a changed search identity.
+    let script = r"
+proc R {target n1 n2 op} {uplevel 1 [list upvar #0 $target x]}
+array set as {a 1}
+array set bs {b1 1 b2 2}
+proc PS {} {
+    upvar #0 as x
+    trace add variable x array {R bs}
+    list [array size x] [array size x]
+}
+set size [PS]
+array set an {a 1}
+array set bn {b1 1 b2 2}
+proc PN {} {
+    upvar #0 an x
+    trace add variable x array {R bn}
+    list [array exists x] [lsort [array names x]] [array size x]
+}
+set names [PN]
+array set ag {a 1}
+array set bg {b 2}
+proc PG {} {
+    upvar #0 ag x
+    trace add variable x array {R bg}
+    array get x
+}
+set get [PG]
+array set aset {a 1}
+array set bset {b 2}
+proc PSET {} {
+    upvar #0 aset x
+    trace add variable x array {R bset}
+    array set x {new 3}
+}
+PSET
+set setrow [list [info exists aset(new)] [info exists bset(new)]]
+array set au {a 1}
+array set bu {b 2}
+proc PU {} {
+    upvar #0 au x
+    trace add variable x array {R bu}
+    array unset x
+}
+PU
+set unsetrow [list [array exists au] [array exists bu]]
+array set ap {a 1}
+array set bp {b 2}
+proc PP {} {
+    upvar #0 ap x
+    trace add variable x array {R bp}
+    array unset x a
+}
+PP
+set pattern [list [array size ap] [array size bp]]
+array set af {a 1}
+array set bf {b 2}
+proc PF {} {
+    upvar #0 af x
+    trace add variable x array {R bf}
+    catch {array for {k v} x {}} msg
+    list $msg
+}
+set forrow [PF]
+puts [list $size $names $get $setrow $unsetrow $pattern $forrow]
+";
+    assert_eq!(
+        vm_output(script),
+        "{1 2} {1 {b1 b2} 2} {} {0 1} {1 0} {0 1} {{array changed during iteration}}"
+    );
+}
+
+#[test]
+fn whole_array_unset_retargets_live_alias_and_preserves_const_error() {
+    // Exact Tcl 9.0.4 transcript. LocateArray retains `old` for the array
+    // operation, but whole-array mutation re-resolves the live spelling after
+    // its array trace retargets `x`. The scalar constant rejects that unset;
+    // both it and the originally located array remain unchanged.
+    let script = r"
+proc RCONST {n1 n2 op} {uplevel 1 {upvar #0 c x}}
+array set old {k v}
+const c locked
+proc P {} {
+    upvar #0 old x
+    trace add variable x array RCONST
+    set code [catch {array unset x} message options]
+    list $code $message [dict get $options -errorcode] [array get ::old] $::c
+}
+puts [P]
+";
+    assert_eq!(
+        vm_output(script),
+        r#"1 {can't unset "x": variable is a constant} {TCL UNSET CONST} {k v} locked"#
+    );
+}
+
+#[test]
+fn array_operation_reference_preserves_same_binding_recreation() {
+    // Tcl's LocateArray operation reference keeps the direct binding shell,
+    // not merely the allocation, so a callback's same-name recreation refills
+    // the cell observed by both command and compiler-opcode paths. The target
+    // binding is retained through an alias too, nested operations release only
+    // the final reference, and final cleanup never removes a replacement array
+    // element. A scalar recreation is not removed by whole-array `unset`.
+    let script = r"
+proc R {n1 n2 op} {
+    trace remove variable ::a array R
+    unset ::a
+    array set ::a {new1 2 new2 3}
+}
+array set a {old 1}
+trace add variable a array R
+set direct [list [lsort [array names a]] [lsort [array names a]]]
+proc RI {n1 n2 op} {
+    uplevel 1 [list trace remove variable $n1 array RI]
+    uplevel 1 [list unset $n1]
+    uplevel 1 [list array set $n1 {x 1}]
+}
+proc compiled {} {
+    array set local {old 1}
+    trace add variable local array RI
+    list [array exists local] [lsort [array names local]]
+}
+proc RS {n1 n2 op} {
+    trace remove variable ::s array RS
+    unset ::s
+    set ::s scalar
+}
+array set s {old 1}
+trace add variable s array RS
+array unset s
+array set aa {old 1}
+array set bb {new 2}
+proc RA {n1 n2 op} {
+    trace remove variable ::aa array RA
+    uplevel 1 {upvar #0 bb x}
+    unset ::aa
+}
+proc PA {} {
+    upvar #0 aa x
+    trace add variable x array RA
+    list [array names x] [info vars ::aa] [array names x]
+}
+set aliasrow [PA]
+array set nestedA {old 1}
+set nestedResult unset
+proc RN {n1 n2 op} {
+    trace remove variable ::nestedA array RN
+    unset ::nestedA
+    set ::nestedResult [array exists ::nestedA]
+    array set ::nestedA {new 2}
+}
+trace add variable nestedA array RN
+set nestedrow [list [array names nestedA] [array names nestedA] $nestedResult]
+array set elem {}
+upvar #0 elem keep
+proc RELEM {n1 n2 op} {
+    trace remove variable ::elem(missing) array RELEM
+    unset ::elem
+    array set ::elem {missing fresh}
+}
+trace add variable elem(missing) array RELEM
+set elemrow [list [array exists elem(missing)] [array get elem] [array get keep]]
+puts [list $direct [compiled] [info exists s] [array exists s] $s \
+    $aliasrow $nestedrow $elemrow]
+";
+    assert_eq!(
+        vm_output(script),
+        "{{new1 new2} {new1 new2}} {1 x} 1 0 scalar {{} {} new} {new new 0} {0 {missing fresh} {missing fresh}}"
+    );
+}
+
+#[test]
+fn array_for_tracks_structural_revision_and_read_trace_deletion() {
+    // A delete/recreate of the same key invalidates Tcl's active search even
+    // though the final key set is unchanged. A read trace that deletes the
+    // current value still leaves the key assigned, preserves the prior value
+    // variable, and runs the body once before that invalidation is reported.
+    // Defining a physical-but-undefined trace/link shell does not invalidate
+    // the search and makes that candidate visible if it has not been visited.
+    let script = r#"
+array set a {x 1}
+set churnCode [catch {array for {k v} a {unset a($k); set a($k) 2}} churnMsg churnOpts]
+array set b {x 1}
+set k oldk
+set v oldv
+set events {}
+proc RD {n1 n2 op} {
+    trace remove variable ::b($n2) read RD
+    unset ::b($n2)
+}
+trace add variable b(x) read RD
+set readCode [catch {array for {k v} b {lappend ::events [list $k $v]}} readMsg readOpts]
+array set c {x 1}
+set errEvents {}
+set ek oldk
+set ev oldv
+proc RE {n1 n2 op} {error boom}
+trace add variable c(x) read RE
+set errCode [catch {array for {ek ev} c {lappend ::errEvents [list $ek $ev]}} errMsg]
+set keptErrorInfo [string match {*read trace on "c(x)"*} $::errorInfo]
+proc N args {}
+array set d {x 1}
+trace add variable d(y) read N
+set dEvents {}
+set dCode [catch {array for {dk dv} d {
+    lappend ::dEvents [list $dk $dv]
+    if {$dk eq "x"} {set d(y) 2}
+}} dMsg]
+array set e {x 1}
+upvar #0 e(y) eAlias
+set eEvents {}
+set eCode [catch {array for {ekey eval} e {
+    lappend ::eEvents [list $ekey $eval]
+    if {$ekey eq "x"} {set eAlias 2}
+}} eMsg]
+array set f {x 1}
+upvar #0 f(y) fAlias
+set fCode [catch {array for {fkey fval} f {
+    if {$fkey eq "x"} {unset -nocomplain f(y)}
+}} fMsg]
+array set g {x 1}
+upvar #0 g(y) gAlias
+set gCode [catch {array for {gkey gval} g {
+    if {$gkey eq "x"} {unset -nocomplain gAlias}
+}} gMsg]
+proc RSEARCH {n1 n2 op} {trace remove variable ::h(y) array RSEARCH}
+array set h {x 1}
+trace add variable h(y) array RSEARCH
+set hEvents {}
+set hCode [catch {array for {hkey hval} h {
+    lappend ::hEvents [list $hkey $hval]
+    if {$hkey eq "x"} {array exists h(y); set h(y) 2}
+}} hMsg]
+array set i {x 1}
+trace add variable i(y) read N
+trace remove variable i(y) read N
+set iEvents {}
+set iCode [catch {array for {ikey ival} i {
+    lappend ::iEvents [list $ikey $ival]
+    if {$ikey eq "x"} {set i(y) 2}
+}} iMsg iOpts]
+proc RKEEP {n1 n2 op} {trace remove variable ::j(y) array RKEEP}
+array set j {x 1}
+trace add variable j(y) array RKEEP
+array for {jkey jval} j {
+    if {$jkey eq "x"} {array exists j(y)}
+}
+set jEvents {}
+set jCode [catch {array for {jkey jval} j {
+    lappend ::jEvents [list $jkey $jval]
+    if {$jkey eq "x"} {set j(y) 2}
+}} jMsg]
+array set z {x 1}
+trace add variable z(y) read N
+set zCode1 [catch {array for {zkey zval} z {
+    if {$zkey eq "x"} {trace remove variable z(y) read N}
+}} zMsg1]
+set zEvents {}
+set zCode2 [catch {array for {zkey zval} z {
+    lappend ::zEvents [list $zkey $zval]
+    if {$zkey eq "x"} {set z(y) 2}
+}} zMsg2 zOpts2]
+puts [list $churnCode $churnMsg [dict get $churnOpts -errorcode] [array get a] \
+    $readCode $readMsg [dict get $readOpts -errorcode] $events $k $v \
+    $errCode $errMsg $errEvents $ek $ev $keptErrorInfo \
+    $dCode $dMsg $dEvents [array get d] $eCode $eMsg $eEvents [array get e] \
+    $fCode $fMsg [array get f] $gCode $gMsg [array get g] \
+    $hCode $hMsg $hEvents [array get h] $iCode $iMsg \
+    [dict get $iOpts -errorcode] $iEvents [array get i] \
+    $jCode $jMsg $jEvents [array get j] $zCode1 $zMsg1 $zCode2 $zMsg2 \
+    [dict get $zOpts2 -errorcode] $zEvents [array get z]]
+"#;
+    assert_eq!(
+        vm_output(script),
+        "1 {array changed during iteration} {TCL READ array for} {x 2} 1 {array changed during iteration} {TCL READ array for} {{x oldv}} x oldv 0 {} {{x oldv}} x oldv 1 0 {} {{x 1} {y 2}} {x 1 y 2} 0 {} {{x 1} {y 2}} {x 1 y 2} 1 {array changed during iteration} {x 1} 1 {array changed during iteration} {x 1} 0 {} {{x 1} {y 2}} {x 1 y 2} 1 {array changed during iteration} {TCL READ array for} {{x 1}} {x 1 y 2} 0 {} {{x 1} {y 2}} {x 1 y 2} 0 {} 1 {array changed during iteration} {TCL READ array for} {{x 1}} {x 1 y 2}"
+    );
+}
+
+#[test]
+fn array_for_non_array_errors_have_the_lookup_identity() {
+    let script = r"
+set missingCode [catch {array for {k v} missing {}} missingMsg missingOpts]
+set scalar 1
+set scalarCode [catch {array for {k v} scalar {}} scalarMsg scalarOpts]
+proc RSF {n1 n2 op} {
+    trace remove variable ::traced array RSF
+    unset ::traced
+    set ::traced scalar
+}
+array set traced {x 1}
+trace add variable traced array RSF
+set tracedCode [catch {array for {k v} traced {}} tracedMsg tracedOpts]
+puts [list $missingCode $missingMsg [dict get $missingOpts -errorcode] \
+    $scalarCode $scalarMsg [dict get $scalarOpts -errorcode] \
+    $tracedCode $tracedMsg [dict get $tracedOpts -errorcode]]
+";
+    assert_eq!(
+        vm_output(script),
+        "1 {\"missing\" isn't an array} {TCL LOOKUP ARRAY missing} 1 {\"scalar\" isn't an array} {TCL LOOKUP ARRAY scalar} 1 {\"traced\" isn't an array} {TCL LOOKUP ARRAY traced}"
+    );
+}
+
+#[test]
+fn whole_array_teardown_visits_trace_only_undefined_elements() {
+    // TraceVarEx materialises an undefined element cell, and DeleteArray walks
+    // that cell even though it has no value and is absent from `array names`.
+    let script = r"
+set events {}
+proc U {n1 n2 op} {lappend ::events [list $n1 $n2 $op]}
+array set a {}
+trace add variable a(missing) unset U
+unset a
+puts $events
+";
+    assert_eq!(vm_output(script), "{a missing unset}");
+}
+
+#[test]
+fn every_advertised_array_member_validates_arity_before_tracing() {
+    // Exact Tcl 9.0.4 transcript for all seven members implemented by the VM.
+    // The registry arity check precedes LocateArray, so none reaches its trace.
+    let script = r"
+set events {}
+proc A {tag n1 n2 op} {lappend ::events [list $tag $n1 $n2 $op]}
+foreach n {exists forvar get names setvar size unsetvar} {
+    array set $n {x 1}
+    trace add variable $n array [list A $n]
+}
+set outcomes {}
+lappend outcomes [catch {array exists exists extra}] [expr {$events eq {}}]
+lappend outcomes [catch {array for {k v} forvar}] [expr {$events eq {}}]
+lappend outcomes [catch {array get get p extra}] [expr {$events eq {}}]
+lappend outcomes [catch {array names names -glob p extra}] [expr {$events eq {}}]
+lappend outcomes [catch {array set setvar}] [expr {$events eq {}}]
+lappend outcomes [catch {array size size extra}] [expr {$events eq {}}]
+lappend outcomes [catch {array unset unsetvar p extra}] [expr {$events eq {}}]
+puts $outcomes
+";
+    assert_eq!(vm_output(script), "1 1 1 1 1 1 1 1 1 1 1 1 1 1");
+}
+
+#[test]
+fn compiled_proc_local_array_exists_fires_the_array_trace() {
+    // Exact Tcl 9.0.4 transcript. A proc-local `array exists` lowers to the
+    // dedicated ARRAY_EXISTS_IMM opcode, which must share array_op's trace
+    // owner rather than query the local slot directly.
+    let script = r"
+set events {}
+proc A {n1 n2 op} {lappend ::events [list $n1 $n2 $op]}
+proc p {} {
+    array set a {k v}
+    trace add variable a array A
+    array exists a
+}
+puts [list [p] $events]
+";
+    assert_eq!(vm_output(script), "1 {{a {} array}}");
+}
+
+#[test]
+fn trace_reentrancy_is_per_resolved_variable_cell() {
+    // Exact Tcl 9.0.4 transcript: entering a sibling element from a write
+    // callback is not suppressed by the first element's active bit.
+    let script = r#"
+set events {}
+proc E {tag n1 n2 op} {
+    lappend ::events [list $tag $n1 $n2 $op]
+    if {$tag eq "x"} {set ::a(y) nested}
+}
+set a(x) old
+set a(y) old
+trace add variable a(x) write {E x}
+trace add variable a(y) write {E y}
+set a(x) outer
+puts $events
+"#;
+    assert_eq!(vm_output(script), "{x a x write} {y ::a y write}");
+}
+
+#[test]
+fn whole_array_write_trace_can_enter_a_sibling_element() {
+    // Exact Tcl 9.0.4 transcript. The parent trace list is selected for both
+    // writes, but activity belongs to each resolved element cell, so x does
+    // not suppress the nested write to y.
+    let script = r#"
+set events {}
+proc W {n1 n2 op} {
+    lappend ::events [list $n1 $n2 $op]
+    if {$n2 eq "x"} {set ::c(y) nested}
+}
+array set c {x old y old}
+trace add variable c write W
+set c(x) outer
+puts [list $c(x) $c(y) $events]
+"#;
+    assert_eq!(
+        vm_output(script),
+        "outer nested {{c x write} {::c y write}}"
+    );
+}
+
+#[test]
+fn array_operation_trace_self_gates_on_the_parent_cell() {
+    // Exact Tcl 9.0.4 transcript. Array operations resolve to the parent cell,
+    // so a callback's recursive operation on that same parent is suppressed.
+    let script = r"
+set events {}
+proc P {n1 n2 op} {lappend ::events [list $n1 $n2 $op]; array size ::p}
+array set p {x 1}
+trace add variable p array P
+puts [list [array exists p] $events]
+";
+    assert_eq!(vm_output(script), "1 {{p {} array}}");
+}
+
+#[test]
+fn unset_from_an_active_write_trace_fires_the_taken_unset_list() {
+    // Exact Tcl 9.0.4 transcript. Unset moves the trace list to a dummy cell
+    // whose active bit is clear, so the nested unset callback still runs.
+    let script = r#"
+set events {}
+proc W {n1 n2 op} {
+    lappend ::events [list W $n1 $n2 $op]
+    if {$op eq "write"} {unset ::a(k)}
+}
+trace add variable a(k) {write unset} W
+set a(k) v
+puts $events
+"#;
+    assert_eq!(vm_output(script), "{W a k write} {W ::a k unset}");
+}
+
+#[test]
+fn whole_array_unset_fires_each_old_element_cell() {
+    // Exact Tcl 9.0.4 transcript. The parent fires once, every old element
+    // fires even when an earlier callback errors, and unset-trace errors do not
+    // fail `unset`. Sorting removes only Tcl hash iteration order.
+    let script = r#"
+set events {}
+proc U {tag n1 n2 op} {
+    lappend ::events [list $tag $n1 $n2 $op]
+    if {$tag eq "x"} {error boom}
+}
+array set a {x X y Y}
+trace add variable a unset {U parent}
+trace add variable a(x) unset {U x}
+trace add variable a(y) unset {U y}
+set code [catch {unset a} message]
+puts [list $code $message [lsort $events] [info exists a]]
+"#;
+    assert_eq!(
+        vm_output(script),
+        "0 {} {{parent a {} unset} {x a x unset} {y a y unset}} 0"
+    );
+}
+
+#[test]
+fn whole_array_unset_detaches_old_element_aliases() {
+    // Exact Tcl 9.0.4 transcript. The alias keeps the old element identity and
+    // must not retarget the fresh same-name element created afterwards.
+    let script = r"
+set events {}
+proc U {n1 n2 op} {lappend ::events [list $n1 $n2 $op]}
+set x(k) old
+upvar #0 x(k) alias
+trace add variable x(k) unset U
+unset x
+set x(k) fresh
+set code [catch {set alias rewritten} msg opts]
+puts [list $events $code $msg [dict get $opts -errorcode] \
+           [set x(k)] [trace info variable x(k)]]
+";
+    assert_eq!(
+        vm_output(script),
+        "{{x k unset}} 1 {can't set \"alias\": upvar refers to element in deleted array} {TCL WRITE VARNAME} fresh {}"
+    );
+}
+
 /// The table itself is pinned to C Tcl (8.6.16 and 9.0.4 agree on every line).
 #[test]
 fn vectors_match_real_tclsh() {

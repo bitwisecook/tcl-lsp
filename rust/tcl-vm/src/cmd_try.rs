@@ -99,7 +99,7 @@ pub(crate) struct TryState {
 
 /// One phase of a `try` deferred to the explicit stack: the phase's compiled
 /// script plus the state to resume from once it completes. Parked in
-/// `Vm.pending_try` by `cmd_try`/[`advance_try`], drained into a try activation
+/// `Vm.pending.try_phase` by `cmd_try`/[`advance_try`], drained into a try activation
 /// (see [`Frame::new_try`](crate::exec::Frame::new_try)).
 pub(crate) struct TryReq {
     pub(crate) script: crate::compiled::CompiledUnit,
@@ -287,7 +287,7 @@ fn parse_clauses(rest: &[Value]) -> Result<(Vec<Handler>, Option<Value>), Comple
 /// `try body ?handler ...? ?finally script?` — structured exception handling.
 ///
 /// Parses and validates the grammar synchronously (unchanged), then defers the
-/// body to the explicit stack via `vm.pending_try` (issue #1311) instead of
+/// body to the explicit stack via `vm.pending.try_phase` (issue #1311) instead of
 /// running it through `Vm::eval_source`. [`advance_try`] carries the
 /// handler-matching / `finally` logic forward from there, one phase per
 /// `Vm::unwind` fold.
@@ -303,7 +303,7 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let plan = Rc::new(TryPlan { handlers, finally });
     match vm.prepare_script_commands(&body.to_str()) {
         Ok(prepared) if prepared.prefix.is_some() => {
-            vm.pending_try = Some(TryReq {
+            vm.pending.try_phase = Some(TryReq {
                 script: prepared.prefix.expect("checked above"),
                 state: TryState {
                     plan,
@@ -317,7 +317,7 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             let body_completion = prepared.fatal_tail.map_or_else(|| ok(Value::empty()), err);
             match advance_after_body(vm, &plan, body_completion) {
                 TryOutcome::Push(req) => {
-                    vm.pending_try = Some(req);
+                    vm.pending.try_phase = Some(req);
                     ok(Value::empty())
                 }
                 TryOutcome::Deliver(c) => c,
@@ -331,7 +331,7 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // failure that skips it (try-body-parse-error tclsh-pinned test).
         Err(e) => match advance_after_body(vm, &plan, err(e.message)) {
             TryOutcome::Push(req) => {
-                vm.pending_try = Some(req);
+                vm.pending.try_phase = Some(req);
                 ok(Value::empty())
             }
             TryOutcome::Deliver(c) => c,

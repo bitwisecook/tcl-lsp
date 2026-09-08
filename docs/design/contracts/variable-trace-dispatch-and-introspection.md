@@ -1,8 +1,8 @@
 # Contract: variable-trace dispatch & introspection coherence
 
-> The firing, ordering, error, and re-entrancy contract both runtimes
-> implement for variable traces, and the rule that introspection (`info`,
-> `trace info`) reads live state. Builds on
+> The Tcl firing, ordering, error, and re-entrancy contract variable-trace
+> implementations target, and the rule that introspection (`info`, `trace
+> info`) reads live state. Runtime-specific gaps are called out below. Builds on
 > [runtime-variable-frame-model.md](runtime-variable-frame-model.md); the
 > as-built dispatch is
 > [runtime/trace-implementation.md](../runtime/trace-implementation.md). The
@@ -32,8 +32,9 @@ array}`, `name1`/`name2` are the array-and-element (scalar ⇒ `name2` empty):
 1. **Order.** Whole-array (`name1`) traces fire **before** element
    (`name1(name2)`) traces — as *groups*, so registration order never puts an
    element trace ahead of an array one. Within a group, **newest-first
-   (LIFO)**, for every op. A re-entrancy guard (`active` flag per record)
-   skips a record already on the stack.
+   (LIFO)**, for every op. A re-entrancy guard belongs to the resolved `Var`
+   cell: recursive access to that exact scalar/array/element is suppressed,
+   while a callback may enter a different element of the same array.
 2. **Callback shape.** Each callback is evaluated as a *script*: the verbatim
    command prefix with `name1`, `name2`, and the **full op word**
    (`read`/`write`/`unset`/`array`) appended as list elements. (This is what
@@ -78,9 +79,11 @@ Where C commits the operation around the trace, the runtime must too:
   `lappend` — on scalars and array elements alike, **including a variable or
   element the failing write itself created**: it stays in existence, holding
   the new value.
-* **Unset:** the cell is torn down as part of the unset; unset traces fire
-  *during* teardown and their errors are ignored (#4). The variable is gone
-  regardless — a subsequent read must error `no such variable`.
+* **Ordinary unset:** the old cell is detached as part of the unset; unset
+  traces fire *during* teardown and their errors are ignored (#4). A value
+  recreated by a callback survives as a replacement binding, without the
+  taken trace list. Owner teardown is intentionally stronger: frame/namespace
+  destruction purges callback recreation because the owner itself is dying.
 
 * **The result is the value read back *after* the write traces**, not the
   value the store was handed: C's `TclPtrSetVarIdx` returns
@@ -116,6 +119,33 @@ Where C commits the operation around the trace, the runtime must too:
   carries no traces (not even a write trace that would otherwise have fired on
   that store). A whole-array trace is not the element's, so an element unset
   leaves it in place.
+* Moving an unset list to C's dummy cell clears the old cell's active bit. An
+  unset initiated by that same cell's write callback therefore still runs the
+  taken unset callbacks; the ordinary exact-cell guard continues to suppress
+  other recursive operations.
+* Destroying a whole array detaches its old element table and tears down those
+  element cells one at a time. Each element's unset callbacks run, later old
+  elements remain observable until their own turn, and an alias to an old
+  element becomes dangling rather than retargeting a same-name element in a
+  newly created array.
+* In `rust/tcl-vm`, every array subcommand implemented and advertised by the VM
+  adapter runs the array-operation trace through one LocateArray-equivalent
+  owner after dialect-aware subcommand and arity resolution. The target comes
+  from registry argument roles, so direct, lowered and dedicated-opcode
+  consumers agree. An operation reference retains the reached `VarId` and its
+  direct binding shell, so unset-and-recreate refills the same cell. That target
+  is passed to the shared `array` core: `exists`/`size`/`names`, `get` key
+  enumeration, and patterned `unset` retain it when a callback retargets an alias. Tcl
+  deliberately re-resolves `get` values, `array set`, and whole-array `unset`;
+  `array for` rejects a changed identity or active-search revision as `array
+  changed during iteration` even when key deletion/recreation leaves the same
+  final set. Its search snapshots physical element-table keys, including
+  undefined trace/link shells, then skips or reads each candidate live; defining
+  an existing shell does not invalidate the search and can make a later row
+  visible.
+  `array for` validates its two-variable list before firing, as Tcl does. Tcl
+  9's `array default` is not yet in the adapter surface. This describes the VM
+  change only; tree-walker parity remains tracked separately.
 * **A trace a callback removes does not fire in the same pass**, whether it is
   older and not yet reached or newer and already run; one a callback adds does
   not fire until the next access. `trace info` reflects both at once. This
@@ -145,8 +175,13 @@ compile-time-foldable:
   have their own fixed orders (`rename delete`; `enter leave enterstep
   leavestep`). 8.x's `trace vinfo` reports the same live list with each op set
   collapsed to its `rwua` letters.
-* `info vars` / `info locals` / `info level` read the current cell table and
-  call stack.
+* `info vars` / `info locals` / `info consts` / `info level` read the current
+  cell table and call stack. `info consts` enumerates direct constant bindings
+  plus typed TclOO instance projections, but not ordinary link targets, and
+  namespace-scope scans include unshadowed global constants. Tcl's observable
+  direct-lookup fast path is retained too: a metacharacter-free exact pattern
+  falls through to a global constant even past a same-named non-constant local
+  binding. Both runtimes use the same byte-preserving Family-B core.
 
 **Rule:** any compile-time const/liveness map MUST be invalidated by `unset`,
 `upvar`, `global`, `variable`, `trace add variable`, and every
@@ -164,7 +199,7 @@ interpreter can't see by name can't be traced.
 | Full `arr(key)` name reported even for a whole-array trace | **Contract** | The accessed element's name, not the matched key. |
 | Unset-trace error ignored; unset succeeds; later unset traces still fire | **Contract** | C disposes the result, leaves code OK, continues. |
 | Read/write error stops further trace firing; whole-array before element; LIFO | **Contract** | Ordering is observable. |
-| Value stored before write trace; cell gone after unset regardless of trace | **Contract** | Mutation not gated on trace outcome — a failed write keeps the new value and any cell it created. |
+| Value stored before write trace; ordinary unset detaches the old cell before tracing | **Contract** | Mutation is not gated on trace outcome. A failed write keeps the new value; an unset callback may create a distinct replacement cell that survives ordinary unset. Owner teardown forcibly purges such recreation. |
 | `trace info` op order is C's fixed per-kind order, not the spelled order | **Contract** | `array read write unset` / `rename delete` / `enter leave enterstep leavestep`. |
 | 8.x `trace variable`/`vdelete`/`vinfo` exist ≤8.6 and are `bad option` at 9.0+ | **Contract** | The registry's `DialectSet::TCL8X` gate states the boundary; the option enumeration follows it. |
 | An old-style-installed callback gets the `rwua` letter, not the op word | **Contract** | `TCL_TRACE_OLD_STYLE`; matching still ignores the flag. |

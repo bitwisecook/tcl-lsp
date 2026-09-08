@@ -11,6 +11,8 @@ rename/alias layer ([`rename-alias.md`](rename-alias.md)):
   probes, plus ``namespace current``.
 - ``info commands ?pattern?`` / ``info procs ?pattern?`` listings that
   consume the same command tables dispatch resolves against.
+- ``info consts ?pattern?`` over constant-visible bindings in frames and
+  direct constant bindings in namespaces.
 - ``info body`` / ``info args`` / ``info default proc arg var``
   for interpreted procs.
 - ``info level`` / ``info script``.
@@ -21,7 +23,8 @@ live here, not in ``tclInterp.c``, which holds only the ``ChildHide`` /
 ``ChildExpose`` / ``ChildInvokeHidden`` argument wrappers),
 ``tmp/tcl9.0.4/generic/tclNamesp.c`` (``Tcl_NamespaceWhichObjCmd``,
 ``Tcl_GetCommandFullName``), and ``tmp/tcl9.0.4/generic/tclCmdIL.c``
-(``InfoCommandsCmd``, ``InfoProcsCmd``, ``InfoDefaultCmd``).
+(``InfoCommandsCmd``, ``InfoProcsCmd``, ``InfoDefaultCmd``), and
+``tmp/tcl9.0.4/generic/tclVar.c`` (``InfoConstsCmd``).
 
 ## 1. Scope
 
@@ -31,6 +34,7 @@ In:
   addressing the interpreter named by a (possibly nested) path.
 - ``namespace which`` (find-only) + ``namespace current``.
 - ``info commands`` / ``info procs`` listings over the ns tree.
+- ``info consts`` listings over procedure and namespace bindings.
 - ``info body`` / ``info args`` / ``info default`` for
   interpreted procs, following ``namespace import`` redirects to the
   underlying proc.
@@ -237,6 +241,21 @@ Hidden-table entries never appear in ``info commands`` — tclsh
 treats hidden commands as invisible to the resolver.  The
 listing consults only the namespace command tables and never probes
 the hidden side-table.
+
+### 3.4 Constant bindings
+
+``info consts`` is the shared `tcl_cmd_core::info::consts` core over the
+Family-B `Frames` and `Namespaces` roles. Its enumeration is deliberately
+binding-specific: automatic TclOO instance-variable projections are included
+when their target is constant, while a local `upvar`/`global` alias may make
+``info constant alias`` true but remains absent from ``info consts``. The link
+origin is typed in the shared runtime contract rather than inferred from a
+command name. At namespace scope, unqualified scans include global constants
+not shadowed by any current-namespace variable; a metacharacter-free exact
+pattern preserves Tcl's direct-lookup fallback to a global constant even past a
+same-named non-constant local binding. Qualified patterns select one namespace
+and return qualified names. Enumeration, glob matching, and value construction
+remain byte-preserving for the standalone runtime.
 
 ## 4. Compiled procs and rename
 

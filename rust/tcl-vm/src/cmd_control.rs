@@ -246,7 +246,7 @@ fn cmd_lmap(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// is appended to the result list; without, the result is the empty string.
 ///
 /// Parses the grammar up front (same validation, same errors) then defers the
-/// actual iteration to the explicit stack via `vm.pending_each_loop`
+/// actual iteration to the explicit stack via `vm.pending.each_loop`
 /// (`crate::exec::EachLoopReq`/`Frame::each_loop`), so each iteration's body
 /// runs as a yieldable child script frame instead of through
 /// `Vm::eval_source`'s nested drive — issue #1311: a value-consumed `lmap`
@@ -289,12 +289,12 @@ fn each_loop(vm: &mut Vm, args: &[Value], collect: bool) -> Completion<Value> {
     // longer runs via a nested nested-drive nested-native re-entry (it is
     // deferred to the explicit stack below), so it does not need
     // `enter_control_fallback`'s native-stack recursion guard — matching
-    // `eval`/`uplevel`'s own `pending_eval` deferral, which likewise has none.
+    // `eval`/`uplevel`'s own pending deferral, which likewise has none.
     let script = match vm.compile_script_cached(&body.to_str()) {
         Ok(script) => script,
         Err(e) => return err(e.message),
     };
-    vm.pending_each_loop = Some(crate::exec::EachLoopReq {
+    vm.pending.each_loop = Some(crate::exec::EachLoopReq {
         name,
         collect,
         groups,

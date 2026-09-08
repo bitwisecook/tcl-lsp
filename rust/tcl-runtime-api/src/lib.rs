@@ -41,6 +41,87 @@ pub use tcl_core_types::{
     Code, CommandId, Completion, FrameId, GLOBAL_FRAME, NsId, ROOT_NS, VarId,
 };
 
+/// A command-level variable removal rejected by the store.
+///
+/// Storage-only consumers use [`VarStore::unset`] when they have already
+/// performed the Tcl command's policy checks. Command implementations use
+/// [`VarStore::unset_command`] so runtimes preserve structured failures such
+/// as Tcl 9's immutable-variable rejection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VarUnsetError {
+    /// The resolved variable cell is a Tcl 9 `const`.
+    IsConstant,
+}
+
+/// Why a call-frame link exists.
+///
+/// Tcl's `info consts` excludes ordinary `global`/`upvar`/`variable` aliases,
+/// but includes the automatic instance-variable projections installed for a
+/// `TclOO` method when their target is constant. Keeping this on the binding
+/// makes that distinction available to every runtime without teaching the
+/// shared `info` command core about `TclOO` command names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FrameLinkOrigin {
+    /// An ordinary Tcl variable alias.
+    #[default]
+    Ordinary,
+    /// An automatic `TclOO` method-frame instance-variable projection.
+    TclOoInstance,
+}
+
+/// One array name located for the duration of an `array` ensemble operation.
+///
+/// Tcl's `LocateArray` resolves the spelling once before firing an `array`
+/// trace. Enumeration continues against that exact cell even when the callback
+/// retargets an `upvar` alias; runtimes without stable variable identities use
+/// the name-addressed form until they acquire that capability.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArrayTarget {
+    frame: FrameId,
+    name: String,
+    cell: Option<VarId>,
+}
+
+impl ArrayTarget {
+    /// Construct a name-addressed target.
+    #[must_use]
+    pub fn named(frame: FrameId, name: impl Into<String>) -> Self {
+        Self {
+            frame,
+            name: name.into(),
+            cell: None,
+        }
+    }
+
+    /// Construct a target backed by one stable variable cell.
+    #[must_use]
+    pub fn cell(frame: FrameId, name: impl Into<String>, cell: VarId) -> Self {
+        Self {
+            frame,
+            name: name.into(),
+            cell: Some(cell),
+        }
+    }
+
+    /// The frame in which the source spelling was resolved.
+    #[must_use]
+    pub const fn frame(&self) -> FrameId {
+        self.frame
+    }
+
+    /// The source spelling used for paths that Tcl deliberately re-resolves.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// The stable reached cell, when the runtime provides one.
+    #[must_use]
+    pub const fn cell_id(&self) -> Option<VarId> {
+        self.cell
+    }
+}
+
 /// A compiler assumption about one runtime command binding.
 ///
 /// `resolution_namespace` is the unrooted constructed namespace key at the
@@ -513,6 +594,14 @@ pub trait VarStore {
     fn set(&mut self, frame: FrameId, name: &str, value: Self::Value);
     /// Remove a variable in `frame`; returns whether it existed.
     fn unset(&mut self, frame: FrameId, name: &str) -> bool;
+    /// Remove a variable as a Tcl command operation, preserving policy errors.
+    ///
+    /// An absent variable is not an error and returns `Ok(false)`. The default
+    /// keeps storage implementations source-compatible; runtimes with
+    /// immutable bindings override it to reject them before mutation.
+    fn unset_command(&mut self, frame: FrameId, name: &str) -> Result<bool, VarUnsetError> {
+        Ok(self.unset(frame, name))
+    }
     /// Whether a variable exists in `frame`.
     fn exists(&self, frame: FrameId, name: &str) -> bool;
 
@@ -539,6 +628,47 @@ pub trait VarStore {
     /// otherwise-deliberately-listing-free state traits expose for the `array`
     /// family (`names`/`get`/`size`/`exists`/`unset`).
     fn array_keys(&self, frame: FrameId, name: &str) -> Option<Vec<String>>;
+
+    /// Locate an array spelling before its operation trace fires. The default
+    /// remains name-addressed; a stable-cell runtime overrides this and the
+    /// `*_at` methods below so callbacks cannot steer enumeration elsewhere.
+    fn array_target(&self, frame: FrameId, name: &str) -> ArrayTarget {
+        ArrayTarget::named(frame, name)
+    }
+
+    /// Enumerate the cell captured by [`array_target`](Self::array_target).
+    fn array_keys_at(&self, target: &ArrayTarget) -> Option<Vec<String>> {
+        self.array_keys(target.frame(), target.name())
+    }
+
+    /// Physical element-table keys captured for an active array search.
+    /// Unlike [`array_keys_at`](Self::array_keys_at), this includes attached
+    /// undefined cells created by traces or links: Tcl's hash iterator sees
+    /// those entries and skips them only when each candidate is reached.
+    fn array_search_keys_at(&self, target: &ArrayTarget) -> Option<Vec<String>> {
+        self.array_keys_at(target)
+    }
+
+    /// Whether one candidate in the captured array currently has a value,
+    /// without firing its read trace.
+    fn array_elem_exists_at(&self, target: &ArrayTarget, key: &str) -> bool {
+        self.exists_elem(target.frame(), target.name(), key)
+    }
+
+    /// Structural revision of the captured array cell, when the runtime can
+    /// distinguish invalidation of an active Tcl array search. The value
+    /// changes on Tcl-level key insertion/removal or an explicit element
+    /// unset; defining or replacing an attached element does not invalidate
+    /// the search, nor does garbage-collecting an undefined trace shell.
+    fn array_revision_at(&self, _target: &ArrayTarget) -> Option<u64> {
+        None
+    }
+
+    /// Remove an element from the cell captured by
+    /// [`array_target`](Self::array_target).
+    fn unset_elem_at(&mut self, target: &ArrayTarget, key: &str) -> bool {
+        self.unset_elem(target.frame(), target.name(), key)
+    }
 }
 
 /// The call-frame stack: proc-call frames and the `uplevel` active-level dance.
@@ -566,6 +696,19 @@ pub trait Frames {
     /// included iff `include_links` — `info vars` lists links (by their local
     /// alias), `info locals` does not.
     fn var_names(&self, include_links: bool) -> Vec<String>;
+
+    /// The active frame's `info consts` bindings: direct constants plus typed
+    /// `TclOO` instance projections whose target is constant. Ordinary link
+    /// aliases are excluded even though `info constant alias` follows them.
+    fn const_names(&self) -> Vec<String>;
+
+    /// [`const_names`](Self::const_names) without a lossy UTF-8 round trip.
+    fn const_names_bytes(&self) -> Vec<Vec<u8>> {
+        self.const_names()
+            .into_iter()
+            .map(String::into_bytes)
+            .collect()
+    }
 }
 
 /// The command table and dispatch: builtins, procs, aliases, imports,
@@ -649,6 +792,8 @@ pub trait Namespaces {
     /// global namespace's variables). The variable analogue of
     /// [`commands_in`](Self::commands_in).
     fn vars_in(&self, ns: NsId) -> Vec<String>;
+    /// The direct `const` bindings in `ns`; link aliases are excluded.
+    fn consts_in(&self, ns: NsId) -> Vec<String>;
 
     // -- resolution accessors the shared `namespace which -variable` / `origin`
     // cores need beyond navigation (`tcl_cmd_core::namespace`).
@@ -708,6 +853,22 @@ pub trait Namespaces {
     /// actually keyed by.
     fn command_name_bytes(&self, cmd: CommandId) -> Option<Vec<u8>> {
         self.command_name(cmd).map(String::into_bytes)
+    }
+
+    /// [`vars_in`](Self::vars_in) without a lossy UTF-8 round trip.
+    fn vars_in_bytes(&self, ns: NsId) -> Vec<Vec<u8>> {
+        self.vars_in(ns)
+            .into_iter()
+            .map(String::into_bytes)
+            .collect()
+    }
+
+    /// [`consts_in`](Self::consts_in) without a lossy UTF-8 round trip.
+    fn consts_in_bytes(&self, ns: NsId) -> Vec<Vec<u8>> {
+        self.consts_in(ns)
+            .into_iter()
+            .map(String::into_bytes)
+            .collect()
     }
 }
 

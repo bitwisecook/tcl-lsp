@@ -67,7 +67,19 @@ pub fn string_match_bytes(pattern: &[u8], text: &[u8]) -> bool {
 /// [`crate::glob`]'s `namespace export` consumers need (issue #1297).
 #[must_use]
 pub fn is_literal(pattern: &str) -> bool {
-    !pattern.contains(['*', '?', '[', '\\'])
+    is_literal_bytes(pattern.as_bytes())
+}
+
+/// [`is_literal`] for a byte-valued Tcl string.
+///
+/// This is the shared equivalent of C Tcl's `TclMatchIsTrivial`: the four
+/// ASCII metacharacters have the same byte representation in every valid Tcl
+/// string, and invalid UTF-8 must not be normalised before the decision.
+#[must_use]
+pub fn is_literal_bytes(pattern: &[u8]) -> bool {
+    !pattern
+        .iter()
+        .any(|byte| matches!(byte, b'*' | b'?' | b'[' | b'\\'))
 }
 
 /// Tcl `string match ?-nocase? pattern text`.
@@ -393,6 +405,19 @@ mod tests {
             assert!(!is_literal(pattern), "should not be literal: {pattern:?}");
             assert!(string_match(pattern, other), "{pattern:?} vs {other:?}");
             assert_ne!(pattern, other);
+        }
+    }
+
+    #[test]
+    fn byte_literal_detection_matches_tcl_match_is_trivial() {
+        for pattern in [&b""[..], &b"plain"[..], &b"raw\xff"[..], &b"]"[..]] {
+            assert!(is_literal_bytes(pattern), "should be literal: {pattern:?}");
+        }
+        for pattern in [&b"*"[..], &b"a?"[..], &b"[ab]"[..], &b"raw\xff\\x"[..]] {
+            assert!(
+                !is_literal_bytes(pattern),
+                "should not be literal: {pattern:?}"
+            );
         }
     }
 

@@ -16,10 +16,10 @@ them, so a consumer generic over the traits drives either runtime:
 
 | Trait | Surface |
 |-------|---------|
-| `VarStore` | `get`/`set`/`unset`/`exists` + the explicit array-element pairs `get_elem`/`set_elem`/`unset_elem`/`exists_elem`, addressed by `FrameId` |
-| `Frames` | `push(NsId)`/`pop`/`current`/`link` (the `upvar` install), plus active-frame variable enumeration `in_proc()`/`var_names(include_links)` |
+| `VarStore` | `get`/`set`/`unset`/`exists` + explicit array-element access, addressed by `FrameId`; `unset_command` preserves immutable-cell refusals for command consumers; `ArrayTarget` and the `*_at` rungs preserve a located array cell across callbacks when the runtime has stable `VarId`s |
+| `Frames` | `push(NsId)`/`pop`/`current`/`link` (the `upvar` install), plus active-frame variable enumeration `in_proc()`/`var_names(include_links)`/`const_names()` |
 | `Commands` | `dispatch(name, argv)` and `dispatch_id(CommandId, argv)` — the resolve-then-invoke pair with `find_command` |
-| `Namespaces` | `find_command(cxt, name) -> CommandId`, `current() -> NsId`, `name(NsId) -> String`, `command_name(CommandId) -> Option<String>`, tree nav `find_namespace`/`parent`/`children`, and member enumeration `commands_in(NsId)`/`procs_in(NsId)`/`vars_in(NsId)` |
+| `Namespaces` | `find_command(cxt, name) -> CommandId`, `current() -> NsId`, `name(NsId) -> String`, `command_name(CommandId) -> Option<String>`, tree nav `find_namespace`/`parent`/`children`, and member enumeration `commands_in(NsId)`/`procs_in(NsId)`/`vars_in(NsId)`/`consts_in(NsId)` |
 | `Traces` | `fire(var, op)` (read/write/unset; read/write errors abort) |
 | `Introspect` | `level()`, `level_argv(n)` |
 | `Procs` | `proc_info(name) -> Option<ProcInfo>` (a proc's body + formals, for `info body`/`args`/`default`) |
@@ -98,17 +98,34 @@ Shared in `tcl-cmd-core`:
   `commands_in`, and the frame rungs read the active frame's table. Routing split
   `info vars` from `info locals` on the VM (it had aliased them, so `info vars` in
   a proc dropped its links) and gave `info globals` the global-only filter.
-  `info consts` (TIP 677) stays per-adapter — the VM has no `const`.
-- `array::dispatch` — the `array` **read-side** (`exists`/`size`/`names`/`get`)
+  `info::consts` adds the binding-specific constant rungs
+  (`Frames::const_names`/`Namespaces::consts_in`). They inspect the direct
+  binding rather than following an ordinary link: `info constant alias` follows
+  an alias, but `info consts` enumerates only direct constants and typed TclOO
+  instance projections. At namespace scope the core merges unshadowed global
+  constants for scans and preserves Tcl's direct-lookup fallback for a
+  metacharacter-free exact pattern. Its byte entry points keep runtime names
+  lossless through glob matching and result construction.
+- `array::{dispatch, dispatch_at}` — the `array` **read-side** (`exists`/`size`/`names`/`get`)
   + `unset`, over `VarStore` + `Frames` + `ValueOps`. This is the first stateful
   *command* family shared over the interp-state seam (the `info`/`namespace`
   entries above are individual subcommands). It needed one new contract rung,
   `VarStore::array_keys` — the **enumeration** surface the otherwise-listing-free
   state traits expose, returning an array's element keys (or `None` for a
-  scalar/unset, the existence signal). `array set`'s per-element write-trace store
+  scalar/unset, the existence signal). `ArrayTarget` is the operation-scoped
+  LocateArray result. A stable-cell runtime retains the cell and its direct
+  binding shell across the command, and routes `exists`/`size`/`names`, the
+  key half of `get`, and patterned `unset` through its `VarId`; the shared core
+  deliberately re-resolves the spelling for `get` values and whole-array
+  `unset`, matching Tcl's post-operation-trace target policy. Whole-array
+  mutation uses the fallible `VarStore::unset_command` rung, so a trace that
+  retargets the live spelling to a Tcl 9 constant keeps its structured
+  `TCL UNSET CONST` refusal in either adapter. The trace-aware
+  value read required by `array get` remains tracked in #1932. `array set`'s per-element write-trace store
   stays per-adapter (`VarStore::set_elem` is storage-only, like `incr`/`append`);
   `array default`/`array for` stay per-adapter (TIP 508 state / Family-B
-  iteration). Routing fixed a VM bug: `array unset a` with no pattern now removes
+  iteration), with shared storage rungs for physical search keys, live candidate
+  existence, and active-search revision. Routing fixed a VM bug: `array unset a` with no pattern now removes
   the **whole array** (was: iterate-and-unset elements, leaving an empty array).
 - `namespace::{tail, qualifiers}` — pure byte ops.
 - `namespace::{current, which_command}` — over `Namespaces` (`current`/`name`/
@@ -321,12 +338,12 @@ manipulates list *element values*, never their string rep. This is the
   consumer needs cross-frame element access.
 - The enumeration surface is complete for the shared listing subcommands:
   `VarStore::array_keys` (array elements), `Namespaces::commands_in`/`procs_in`/
-  `vars_in` (a namespace's commands/procs/variables), and the active-frame
-  `Frames::var_names`/`in_proc` (frame locals + links). These back `info
-  commands`/`procs`/`vars`/`locals`/`globals` and `array names`. The one
-  listing left per-adapter is `info consts` (TIP 677, runtime-only — the VM
-  has no `const`). The VM stores namespace variables flat, in the global
-  frame keyed by qualified name, so the rungs read them directly.
+  `vars_in`/`consts_in` (a namespace's commands/procs/variables/constants), and
+  the active-frame `Frames::var_names`/`const_names`/`in_proc` (frame locals,
+  links, and constant-visible bindings). These back `info commands`/`procs`/
+  `vars`/`locals`/`globals`/`consts` and `array names`. Constant enumeration is
+  binding-specific: automatic TclOO instance projections are visible, while
+  ordinary links are not; the singular `info constant` query follows both.
 - `append`/`lappend` fire the write trace **once** over the whole operation, not
   per value (C's `append` fires per value). The user-visible common case — a
   write trace that runs on a mutating append — is covered; the exact count is

@@ -1372,8 +1372,9 @@ fn run_step_inner(
         .get(obj_key)
         .map(|o| o.ns.clone())
         .unwrap_or_default();
-    // Instance variables to auto-link: the providing entity's declared vars,
-    // plus the object's own declared vars.
+    // Instance variables to auto-link belong to the method's declaring
+    // provider. An object-defined method sees the object's declarations; a
+    // class-defined method sees that class's declarations.
     let mut decl: Vec<String> = Vec::new();
     if step.is_object {
         if let Some(o) = vm.oo.objects.get(&step.provider) {
@@ -1382,15 +1383,12 @@ fn run_step_inner(
     } else if let Some(c) = vm.oo.classes.get(&step.provider) {
         decl.extend(c.variables.iter().cloned());
     }
-    if let Some(o) = vm.oo.objects.get(obj_key) {
-        for v in &o.variables {
-            if !decl.contains(v) {
-                decl.push(v.clone());
-            }
-        }
-    }
     let link_vars: Vec<(String, String)> = decl
         .into_iter()
+        // TclOO's automatic instance-variable resolver yields to a method
+        // formal of the same name. Explicit `my variable x` still reaches the
+        // ordinary link installer and reports the collision.
+        .filter(|v| !m.params.iter().any(|param| param.name == *v))
         .map(|v| {
             let storage = format!("{obj_ns}::{v}");
             (v, storage)
@@ -1475,7 +1473,13 @@ fn builtin_method(vm: &mut Vm, obj_key: &str, method: &str, args: &[Value]) -> C
                         "variable name \"{name}\" illegal: must not contain namespace separator"
                     ));
                 }
-                vm.add_link(&name, 0, &format!("{ns}::{name}"));
+                if let Err(error) = vm.add_link(&name, 0, &format!("{ns}::{name}")) {
+                    return crate::command::upvar_link_error(
+                        error,
+                        &format!("{ns}::{name}"),
+                        &name,
+                    );
+                }
             }
             ok(Value::empty())
         }

@@ -26,7 +26,7 @@
 //! bound and wrap the `Result<V, CmdError>` in their own command ABI.
 
 use tcl_runtime_api::{Frames, Introspect, Namespaces, NsId, Procs, ROOT_NS, VarStore};
-use tcl_syntax::glob::string_match;
+use tcl_syntax::glob::{is_literal_bytes, string_match, string_match_bytes};
 use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
@@ -309,6 +309,91 @@ where
     build_name_list(ops, names)
 }
 
+/// `info consts ?pattern?` — enumerate constant **bindings**, not variables
+/// reached through links. Qualified patterns select exactly one namespace;
+/// a procedure lists its direct local bindings; namespace scope also exposes
+/// unshadowed global constants, matching Tcl's `InfoConstsCmd`.
+///
+/// This path stays byte-valued through enumeration, pattern matching, and
+/// result construction so a byte-native runtime does not corrupt a Tcl name.
+pub fn consts<O, V>(ops: &mut O, pattern: Option<&V>) -> V
+where
+    O: ValueOps<Value = V> + Namespaces + Frames,
+{
+    let pat = pattern.map(|p| ops.as_bytes(p).to_vec());
+    let cur = Namespaces::current(ops);
+    let names = if let Some((prefix, tail)) = pat.as_deref().and_then(split_last_qualifier_bytes) {
+        qualified_listing_bytes(ops, prefix, tail, cur, Namespaces::consts_in_bytes)
+    } else {
+        let mut names = if Frames::in_proc(ops) {
+            ops.const_names_bytes()
+        } else {
+            let mut current = ops.consts_in_bytes(cur);
+            if cur != ROOT_NS {
+                let global = ops.consts_in_bytes(ROOT_NS);
+                if let Some(exact) = pat.as_deref().filter(|pat| is_literal_bytes(pat)) {
+                    // `TclInfoConstsCmd` preserves its direct-lookup fast path
+                    // as observable behaviour: a non-constant local binding
+                    // hides a global constant from a glob scan, but an exact
+                    // unqualified lookup falls through to that global.
+                    current = current
+                        .into_iter()
+                        .find(|name| name.as_slice() == exact)
+                        .or_else(|| global.into_iter().find(|name| name.as_slice() == exact))
+                        .into_iter()
+                        .collect();
+                } else {
+                    let shadowed = ops.vars_in_bytes(cur);
+                    current.extend(global.into_iter().filter(|name| !shadowed.contains(name)));
+                }
+            }
+            current
+        };
+        names.sort();
+        names.dedup();
+        if let Some(pattern) = pat.as_deref() {
+            names.retain(|name| string_match_bytes(pattern, name));
+        }
+        names
+    };
+    build_name_list_bytes(ops, names)
+}
+
+fn qualified_listing_bytes<O, F>(
+    ops: &O,
+    prefix: &[u8],
+    tail: &[u8],
+    cur: NsId,
+    enumerate: F,
+) -> Vec<Vec<u8>>
+where
+    O: Namespaces,
+    F: Fn(&O, NsId) -> Vec<Vec<u8>>,
+{
+    let target = if prefix.is_empty() {
+        Some(ROOT_NS)
+    } else {
+        ops.find_namespace_bytes(cur, prefix)
+    };
+    let Some(id) = target else {
+        return Vec::new();
+    };
+    let mut raw = enumerate(ops, id);
+    raw.sort();
+    let mut prefix_bytes = ops.name_bytes(id);
+    if id != ROOT_NS {
+        prefix_bytes.extend_from_slice(b"::");
+    }
+    raw.into_iter()
+        .filter(|name| string_match_bytes(tail, name))
+        .map(|name| {
+            let mut full_name = prefix_bytes.clone();
+            full_name.extend_from_slice(&name);
+            full_name
+        })
+        .collect()
+}
+
 /// The qualified-pattern listing path shared by `info commands`/`procs`/`vars`:
 /// resolve `prefix` (relative to `cur`, or the global root if empty) to a
 /// namespace, enumerate its members via `enumerate`, re-qualify each to an
@@ -368,13 +453,37 @@ where
     ops.new_list(vals)
 }
 
+fn build_name_list_bytes<O, V>(ops: &mut O, names: Vec<Vec<u8>>) -> V
+where
+    O: ValueOps<Value = V>,
+{
+    let vals: Vec<V> = names.into_iter().map(|name| ops.new_bytes(&name)).collect();
+    ops.new_list(vals)
+}
+
 /// Split a listing pattern on its **last** `::` into `(ns_prefix, tail_glob)`, or
 /// `None` when the pattern is unqualified. An empty prefix (a leading `::pat`)
 /// denotes the global namespace. Matches C's `TclGetNamespaceForQualName` split
-/// on colon runs (`foo:::bar` → prefix `foo:`, tail `bar`, like the runtime's
-/// `rposition` of `::`).
+/// on colon runs (`foo:::bar` → prefix `foo`, tail `bar`).
 fn split_last_qualifier(p: &str) -> Option<(&str, &str)> {
-    p.rfind("::").map(|i| (&p[..i], &p[i + 2..]))
+    split_last_qualifier_bytes(p.as_bytes()).map(|(prefix, tail)| {
+        (
+            std::str::from_utf8(prefix).expect("subslice of valid UTF-8"),
+            std::str::from_utf8(tail).expect("subslice of valid UTF-8"),
+        )
+    })
+}
+
+fn split_last_qualifier_bytes(p: &[u8]) -> Option<(&[u8], &[u8])> {
+    use crate::namespace::Qualifier;
+
+    match crate::namespace::qualifier(p) {
+        Qualifier::Absolute(b"::") => Some((b"", crate::namespace::tail(p))),
+        Qualifier::Absolute(prefix) | Qualifier::Relative(prefix) => {
+            Some((prefix, crate::namespace::tail(p)))
+        }
+        Qualifier::Unqualified => None,
+    }
 }
 
 #[cfg(test)]
