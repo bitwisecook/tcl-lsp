@@ -99,8 +99,9 @@
 //! on either way.
 //!
 //! Set `SPECTCL_CORPUS_DIFF=1` to run the pre-#1940 two-unit path alongside the
-//! shared-unit path and assert identical diagnostics and raw optimisations for
-//! every corpus input.
+//! shared-unit path through the exact gate and compare a deterministic semantic
+//! snapshot of every per-pack report. This doubles the gate intentionally; the
+//! normal run remains single-path.
 //!
 //! ## Containment
 //!
@@ -755,35 +756,29 @@ fn canonicalise_optimisations(optimisations: &mut [Optimisation]) {
     });
 }
 
-/// Analyse through the shared-unit path by default.  The opt-in differential
-/// mode runs the old path alongside it for every corpus input, making the
-/// report-count equality a full-corpus assertion without doubling the normal
-/// gate's runtime.
-fn analyse(source: &str, dialect: &str, overlay: u64) -> (usize, usize) {
-    let shared = analyse_shared(source, dialect, overlay);
-    if std::env::var_os("SPECTCL_CORPUS_DIFF").is_some() {
-        let legacy = analyse_legacy(source, dialect, overlay);
-        assert_eq!(
-            shared.diagnostics, legacy.diagnostics,
-            "shared compilation-unit path changed diagnostics for {dialect} overlay {overlay}"
-        );
-        let mut shared_optimisations = shared.optimisations.clone();
-        let mut legacy_optimisations = legacy.optimisations;
-        canonicalise_optimisations(&mut shared_optimisations);
-        canonicalise_optimisations(&mut legacy_optimisations);
-        assert_eq!(
-            shared_optimisations, legacy_optimisations,
-            "shared compilation-unit path changed raw optimisations for {dialect} overlay {overlay}"
-        );
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AnalysisMode {
+    Legacy,
+    Shared,
+}
+
+fn analyse_with_mode(
+    source: &str,
+    dialect: &str,
+    overlay: u64,
+    mode: AnalysisMode,
+) -> AnalysisOutput {
+    match mode {
+        AnalysisMode::Legacy => analyse_legacy(source, dialect, overlay),
+        AnalysisMode::Shared => analyse_shared(source, dialect, overlay),
     }
-    (shared.diagnostics.len(), shared.optimisations.len())
 }
 
 /// Keep the old and shared pipelines permanently equivalent on a small,
-/// deterministic set of inputs. The full-corpus comparison remains opt-in
-/// (`SPECTCL_CORPUS_DIFF=1`) so the normal performance gate still builds one
-/// unit per document, while this always-run test covers the profile seams and
-/// proves that Tk's distinct unit/analyser profiles take the legacy route.
+/// deterministic set of inputs. The full-corpus report comparison remains
+/// opt-in (`SPECTCL_CORPUS_DIFF=1`) so the normal performance gate still builds
+/// one unit per document, while this always-run test covers the profile seams
+/// and proves that Tk's distinct unit/analyser profiles take the legacy route.
 #[test]
 fn shared_unit_matches_legacy_for_representative_profiles() {
     let cases = [
@@ -832,6 +827,156 @@ fn shared_unit_matches_legacy_for_representative_profiles() {
             "{dialect} raw optimisations"
         );
     }
+}
+
+/// The semantic part of a corpus report. Wall-clock timings are intentionally
+/// absent: they are useful telemetry, but cannot be expected to match between
+/// two sequential runs. Everything else is an observable gate result and is
+/// compared, including the selected file list and the full notices/errors.
+/// Hook attempt/success counters are deliberately telemetry-only: sharing the
+/// unit is expected to remove repeated hook calls while preserving their
+/// answers, and #1940's performance result is measured by that reduction.
+#[derive(Debug, PartialEq, Eq)]
+struct PackSnapshot {
+    file: String,
+    pack: String,
+    dialect: &'static str,
+    declared: usize,
+    installed: usize,
+    gated_out: usize,
+    collisions: usize,
+    notices: Vec<String>,
+    hook_bodies: usize,
+    hook_slots: usize,
+    hook_errors: Vec<String>,
+    quarantined: usize,
+    crashes: Vec<CrashRecord>,
+    corpus_files: usize,
+    corpus_paths: Vec<String>,
+    synthesised_calls: usize,
+    diagnostics: usize,
+    optimisations: usize,
+    unresolved: Vec<String>,
+}
+
+impl PackReport {
+    fn snapshot(&self) -> PackSnapshot {
+        PackSnapshot {
+            file: self.file.clone(),
+            pack: self.pack.clone(),
+            dialect: self.dialect,
+            declared: self.declared,
+            installed: self.installed,
+            gated_out: self.gated_out,
+            collisions: self.collisions,
+            notices: self.notices.clone(),
+            hook_bodies: self.hook_bodies,
+            hook_slots: self.hook_slots,
+            hook_errors: self.hook_errors.clone(),
+            quarantined: self.quarantined,
+            crashes: self.crashes.clone(),
+            corpus_files: self.corpus_files,
+            corpus_paths: self.corpus_paths.clone(),
+            synthesised_calls: self.synthesised_calls,
+            diagnostics: self.diagnostics,
+            optimisations: self.optimisations,
+            unresolved: self.unresolved.clone(),
+        }
+    }
+}
+
+/// Compare the exact semantic report emitted by the shared and pre-#1940
+/// paths. Sorting by pack file makes this a deterministic snapshot even if a
+/// future inventory implementation changes its traversal order.
+fn assert_report_snapshots_equal(shared: &[PackReport], legacy: &[PackReport]) {
+    let mut shared_snapshots: Vec<PackSnapshot> = shared.iter().map(PackReport::snapshot).collect();
+    let mut legacy_snapshots: Vec<PackSnapshot> = legacy.iter().map(PackReport::snapshot).collect();
+    shared_snapshots.sort_by(|a, b| a.file.cmp(&b.file));
+    legacy_snapshots.sort_by(|a, b| a.file.cmp(&b.file));
+    assert_eq!(
+        shared_snapshots, legacy_snapshots,
+        "shared compilation-unit corpus report differs from the pre-#1940 report"
+    );
+}
+
+/// Run the legacy path only when the caller asks for the full before/after
+/// proof. Both reports use the exact inventory, corpus and host lifecycle.
+fn compare_legacy_report(
+    packs: &[ShippedPackFile],
+    root: &Path,
+    corpus: &[CorpusFile],
+    shared: &[PackReport],
+) {
+    if std::env::var_os("SPECTCL_CORPUS_DIFF").is_none() {
+        return;
+    }
+    let legacy: Vec<PackReport> = packs
+        .iter()
+        .map(|pack| run_pack_with_mode(pack, root, corpus, AnalysisMode::Legacy))
+        .collect();
+    assert_report_snapshots_equal(shared, &legacy);
+}
+
+fn validate_reports(reports: &[PackReport]) -> Vec<String> {
+    let mut failures = Vec::new();
+    for report in reports {
+        if report.installed + report.gated_out != report.declared {
+            failures.push(format!(
+                "{}: installed ({}) + gated ({}) does not account for {} declared commands",
+                report.file, report.installed, report.gated_out, report.declared
+            ));
+        }
+        if report.collisions > report.declared {
+            failures.push(format!(
+                "{}: {} collision notices exceed {} declared commands",
+                report.file, report.collisions, report.declared
+            ));
+        }
+        if report.corpus_paths.len() != report.corpus_files {
+            failures.push(format!(
+                "{}: report lists {} selected files but counts {}",
+                report.file,
+                report.corpus_paths.len(),
+                report.corpus_files
+            ));
+        }
+        if report.hook_successes > report.hook_attempts {
+            failures.push(format!(
+                "{}: {} successful hook calls exceed {} attempts",
+                report.file, report.hook_successes, report.hook_attempts
+            ));
+        }
+        if report.quarantined > 0 {
+            failures.push(format!(
+                "{}: {} hook(s) quarantined — a shipped pack must never crash \
+                 or outspend its budget",
+                report.file, report.quarantined
+            ));
+        }
+        for crash in &report.crashes {
+            failures.push(format!(
+                "{}: crash record: {}",
+                report.file,
+                crash.headline()
+            ));
+        }
+        if report.hook_slots != report.hook_bodies {
+            failures.push(format!(
+                "{}: {} declared hook bodies but only {} got a slot — the \
+                 per-family slot budget is exhausted",
+                report.file, report.hook_bodies, report.hook_slots
+            ));
+        }
+        require_live_hook_execution(report, &mut failures);
+        if !report.unresolved.is_empty() {
+            failures.push(format!(
+                "{}: installed but unresolvable in the registry: {}",
+                report.file,
+                report.unresolved.join(", ")
+            ));
+        }
+    }
+    failures
 }
 
 /// Every load notice, in the baseline's line format.
@@ -977,24 +1122,34 @@ fn analyse_all(
     synthesised: &[String],
     dialect: &str,
     overlay: u64,
+    mode: AnalysisMode,
 ) -> (usize, usize, Duration) {
     let (mut diagnostics, mut optimisations) = (0usize, 0usize);
     let started = Instant::now();
     for file in selected {
-        let (diags, opts) = analyse(&file.text, dialect, overlay);
-        diagnostics += diags;
-        optimisations += opts;
+        let output = analyse_with_mode(&file.text, dialect, overlay, mode);
+        diagnostics += output.diagnostics.len();
+        optimisations += output.optimisations.len();
     }
     for chunk in synthesised.chunks(SYNTHESISED_CALLS_PER_SCRIPT) {
         let script = format!("{}\n", chunk.join("\n"));
-        let (diags, opts) = analyse(&script, dialect, overlay);
-        diagnostics += diags;
-        optimisations += opts;
+        let output = analyse_with_mode(&script, dialect, overlay, mode);
+        diagnostics += output.diagnostics.len();
+        optimisations += output.optimisations.len();
     }
     (diagnostics, optimisations, started.elapsed())
 }
 
 fn run_pack(pack: &ShippedPackFile, root: &Path, corpus: &[CorpusFile]) -> PackReport {
+    run_pack_with_mode(pack, root, corpus, AnalysisMode::Shared)
+}
+
+fn run_pack_with_mode(
+    pack: &ShippedPackFile,
+    root: &Path,
+    corpus: &[CorpusFile],
+    mode: AnalysisMode,
+) -> PackReport {
     let (mut set, load) = load_one(pack);
     let profile = tcl_spectcl::environment::profile_for_dialect(pack.dialect);
     let notices = notice_lines(&set, root);
@@ -1027,7 +1182,7 @@ fn run_pack(pack: &ShippedPackFile, root: &Path, corpus: &[CorpusFile]) -> PackR
 
     let (selected, synthesised) = corpus_and_synthesis(&set, corpus, corpus_family(pack.dialect));
     let (diagnostics, optimisations, analysis) =
-        analyse_all(&selected, &synthesised, pack.dialect, set.key);
+        analyse_all(&selected, &synthesised, pack.dialect, set.key, mode);
 
     let quarantined = slots
         .iter()
@@ -1246,6 +1401,10 @@ fn every_shipped_tclspec_loads_installs_and_analyses_against_corpus() {
                 .map(|pack| run_pack(pack, &root, &corpus_files))
                 .collect();
 
+            // This is the before/after proof for #1940. Keep it opt-in because
+            // it runs the exact gate twice.
+            compare_legacy_report(&packs, &root, &corpus_files, &reports);
+
             let mut failures: Vec<String> = Vec::new();
 
             let mut seen: Vec<String> = reports
@@ -1277,37 +1436,7 @@ fn every_shipped_tclspec_loads_installs_and_analyses_against_corpus() {
                 }
             }
 
-            for report in &reports {
-                if report.quarantined > 0 {
-                    failures.push(format!(
-                        "{}: {} hook(s) quarantined — a shipped pack must never crash \
-                     or outspend its budget",
-                        report.file, report.quarantined
-                    ));
-                }
-                for crash in &report.crashes {
-                    failures.push(format!(
-                        "{}: crash record: {}",
-                        report.file,
-                        crash.headline()
-                    ));
-                }
-                if report.hook_slots != report.hook_bodies {
-                    failures.push(format!(
-                        "{}: {} declared hook bodies but only {} got a slot — the \
-                     per-family slot budget is exhausted",
-                        report.file, report.hook_bodies, report.hook_slots
-                    ));
-                }
-                require_live_hook_execution(report, &mut failures);
-                if !report.unresolved.is_empty() {
-                    failures.push(format!(
-                        "{}: installed but unresolvable in the registry: {}",
-                        report.file,
-                        report.unresolved.join(", ")
-                    ));
-                }
-            }
+            failures.extend(validate_reports(&reports));
 
             (render(&reports, tmp), failures)
         },
