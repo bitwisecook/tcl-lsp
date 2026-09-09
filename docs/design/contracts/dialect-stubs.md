@@ -194,6 +194,18 @@ lowering asked.
   the same scan reads, so a declared `command_prefix` word names an edge too
   — at `AppendedArity::Unknown`, since a declaration states a position and
   no count.
+- **The call-site scan** (`unit_scope`) resolves a call's `CommandPrefix`,
+  `Body`, `LambdaLiteral` and `VarWrite` positions through
+  `CallSiteScanCtx::surface`, and `collect_scope_var_facts` reads the same
+  surface for the variables a call writes. The interprocedural parameter seed
+  folds a parameter only when every *caller* passes the same literal, so a
+  declared callback registration or script body has to count as a caller
+  there exactly as a catalogue one does — otherwise the seed sees a
+  uniformity that the runtime does not have and `I230` fires on a live
+  branch. `collect_call_site_constants` takes the surface from
+  `UnitBuildOptions`; `scan_source_call_sites` takes the scanned file's own,
+  since the declarations that bind a call site are the ones in the file the
+  call site is written in.
 - **The analyser** asks the same surface through `Analyser::command_surface`
   for its generic body walk and for its expression dispatch, so a declared
   body's commands resolve and a declared expression draws the expression
@@ -231,6 +243,7 @@ draft declared.
 | `rust/tcl-compiler/src/compilation_unit.rs` | `UnitBuildOptions::declared_commands`, `CompilationUnit::declared_commands` |
 | `rust/tcl-compiler/src/lowering/mod.rs` | `Lowerer::with_declared_commands`, `Lowerer::command_surface` |
 | `rust/tcl-compiler/src/interprocedural.rs` | `ScanCtx::surface`, `scan_role_code_arguments` |
+| `rust/tcl-compiler/src/unit_scope.rs` | `CallSiteScanCtx::surface`, `note_surface_var_writes` |
 | `rust/tcl-compiler/src/analyser/state.rs` | `Analyser::command_surface` |
 | `rust/tcl-compiler/src/analyser/types.rs` | `StubCommandDef`, `StubArgDef`, `StubExprDef`, `StubFlags` |
 | `rust/tcl-registry/src/model/declaration.rs` | `DeclaredCommand`, `DeclaredArgument`, `DeclaredSurface`, `DocumentCommandSurface`, `role_for_word` |

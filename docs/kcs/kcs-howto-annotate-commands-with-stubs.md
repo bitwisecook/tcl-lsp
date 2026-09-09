@@ -123,6 +123,11 @@ spec's does, so the two behave alike:
   that call onwards and reading it afterwards is not "read before it is set"
   (`W210`).
 
+A `body` or `command_prefix` word also counts as a *caller*: a proc called
+from inside a declared script, or named by a declared callback, may be handed
+anything at run time, so its parameters are not folded to the literal the
+file's other call sites happen to agree on.
+
 Roles follow the call, not the declaration text. An optional slot the call
 leaves out shifts every role after it, so `stub fetch {?table? row:var}`
 called as `fetch out` writes `out`.

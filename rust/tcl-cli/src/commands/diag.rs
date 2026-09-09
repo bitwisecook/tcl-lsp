@@ -165,9 +165,20 @@ fn cross_file_call_site_evidence(
     let mut merged = CallSiteEvidence::default();
     for document in documents {
         let dialect = document.effective_dialect(dialect_override);
+        let source = document.analysis_source();
+        let file_path = document.path.as_deref().map(|p| p.display().to_string());
+        // Each file's call sites are read on its *own* command surface: a
+        // stub declared there names the callbacks and script bodies this scan
+        // must credit, exactly as the catalogue does for a shipped command.
+        let declared = tcl_compiler::analyser::utils::document_declared_surface(
+            &source,
+            file_path.as_deref(),
+            dialect.name,
+        );
         merged.merge_from(&tcl_compiler::unit_scope::scan_source_call_sites(
-            &document.analysis_source(),
+            &source,
             &registry_for_dialect(dialect.name),
+            Some(&declared),
             dialect,
             &known,
             &reach,
