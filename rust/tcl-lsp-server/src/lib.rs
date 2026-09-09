@@ -927,12 +927,9 @@ impl<T> TrackedMutex<T> {
 
 /// A Tokio `RwLock` with holder/waiter attribution, for the workspace index.
 ///
-/// The document map records who holds it ([`DocumentStore`]) and the two
-/// Salsa stores record who holds them ([`TrackedMutex`]); the workspace index
-/// recorded nothing. A stall report could therefore name the task *waiting*
-/// for the index — `publish_diagnostics_result: workspace_index.write` for
-/// 188.7s in the capture that motivated this — but not who had it, which is
-/// the one fact that turns that line into a diagnosis.
+/// The stall line names who holds the document map ([`DocumentStore`]) and
+/// the Salsa stores ([`TrackedMutex`]); this lets it name who holds the index
+/// as well, rather than only who is waiting for it.
 ///
 /// A read/write lock has more than one holder at a time, so this keeps every
 /// live reader alongside the single writer, the last of each to release, and
@@ -6666,15 +6663,13 @@ async fn publish_diagnostics_result(
         // on the single consumer. The actual client await is below, after this
         // guard and `rehoming_guard` have been released (#1657).
         //
-        // The index writer is only ever *tried* under the map. Waiting for it
-        // there is the wedge in the CI capture behind this: a reader kept the
-        // index for 188s, this task sat on `documents` for all of it, the
-        // `didClose` holding the edit turn parked behind the map, and every
-        // request behind the turn. So on contention the map is released, the
-        // writer joins the index's fair queue holding nothing but the rehoming
-        // gate — the order `publish_rehomed_if_current` and `did_open` already
-        // use — and currency is re-checked under a fresh map guard before the
-        // update is applied.
+        // The index writer is only ever *tried* under the map: a publish
+        // parked on the index while holding `documents` stalls the edit turn
+        // behind the map and every request behind the turn. On contention the
+        // map is released, the writer joins the index's fair queue holding
+        // nothing but the rehoming gate (the order `publish_rehomed_if_current`
+        // and `did_open` use), and currency is re-checked under a fresh map
+        // guard before the update is applied.
         let (docs, mut index) = loop {
             let docs = delivery.documents.lock("publish_diagnostics_result").await;
             if !delivery.is_current(&docs).await {
@@ -11457,10 +11452,8 @@ impl Backend {
         let documents_holder = describe_documents_contention(&before, &after);
         let waiters =
             describe_documents_waiters(&self.documents.waiters(), after.held_by.is_some());
-        // The fourth reading. The map holder is very often parked on the
-        // workspace index (`publish_diagnostics_result: workspace_index.write`
-        // for 188.7s in the capture that added this), and until now the line
-        // could name that waiter but not who held the index against it.
+        // The fourth reading: a map holder parked on the workspace index is
+        // only explained by who holds the index against it.
         let index = self.workspace_index.contention();
         let db = self.db.contention();
         let db_files = self.db_files.contention();
@@ -40045,15 +40038,13 @@ proc p {} {
         .expect("the publishers must queue for the index writer");
     }
 
-    /// The wedge from the `test-ext` pack-removal run: a diagnostics publish
-    /// took `documents` and then waited 188s for the workspace index; the
-    /// `didClose` holding the edit turn parked behind the map, and every
-    /// request behind the turn. Constructed here with a held index reader
-    /// standing in for whatever held the index: with publishes for several
-    /// open documents in flight — the first parked on the index writer, the
-    /// rest behind it on the rehoming gate — an unrelated close must still
-    /// hand the barrier on, and a document-free request (`edits_settled`, the
-    /// wait every handler makes first) must answer inside the liveness budget.
+    /// A diagnostics publish that waits for the workspace index must not do so
+    /// holding `documents`, or the `didClose` holding the edit turn parks
+    /// behind the map and every request behind the turn. With a held index
+    /// reader and publishes for several open documents in flight — the first
+    /// parked on the index writer, the rest behind it on the rehoming gate —
+    /// an unrelated close must still hand the barrier on, and `edits_settled`
+    /// (the wait every handler makes first) must answer inside the budget.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn diagnostics_publish_waiting_for_the_index_never_holds_documents() {
         let backend = Arc::new(test_backend());
@@ -42804,8 +42795,7 @@ proc p {} {
     }
 
     /// The stall line's workspace-index clause names the holder, its phase,
-    /// and its queue — the reading the pack-removal capture lacked, where the
-    /// line could only say who was *waiting* for the index.
+    /// and its queue.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn the_workspace_index_clause_names_holders_phases_and_waiters() {
         let lock = Arc::new(TrackedRwLock::new("workspace_index", 0_u32));
@@ -42868,9 +42858,7 @@ proc p {} {
         );
     }
 
-    /// A stalled barrier report carries the index clause, so the next
-    /// occurrence of the pack-removal wedge names who held the index rather
-    /// than only who waited for it.
+    /// A stalled barrier report carries the index clause.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn the_stall_report_names_the_workspace_index_holder() {
         let backend = Arc::new(test_backend());
