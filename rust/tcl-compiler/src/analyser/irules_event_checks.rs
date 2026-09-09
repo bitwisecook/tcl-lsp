@@ -1189,7 +1189,9 @@ fn collect_written_variable_names(
         let words: Vec<&str> = args.iter().map(String::as_str).collect();
         let clause_list = case_list_clause_index(registry, &cmd_name, &words);
         for index in registry.arg_indices_for_role(&cmd_name, &words, ArgRole::Body) {
-            let Some(body) = args.get(index) else { continue };
+            let Some(body) = args.get(index) else {
+                continue;
+            };
             if clause_list == Some(index) {
                 for arm in case_list_arm_scripts(registry, &cmd_name, &words, body) {
                     collect_written_variable_names(registry, &arm, config, depth + 1, names);
