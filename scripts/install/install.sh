@@ -2341,7 +2341,7 @@ write_target() {
 install_cli() {
     # Install CLI $1 (tcl or f5) to its prefix_for() dir.  The CLIs ship as
     # native per-triple binaries (`tcl-<triple>` / `f5-query-<triple>`, per the
-    # publish-native-binaries CI job); the Python zipapp builds are retired.
+    # publish-native-binaries CI job).
     name="$1"
     final_name="${name}${INSTALL_SUFFIX}"
     dir="$(prefix_for "$name")"

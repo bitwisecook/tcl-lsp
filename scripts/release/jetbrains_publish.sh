@@ -42,8 +42,8 @@
 # Channel (scripts/release/prerelease.sh is the single source of truth): an
 # odd-minor 2.x tag (v2.1.x) uploads to the "eap" channel, only visible to
 # users who add the custom repository URL
-# https://plugins.jetbrains.com/plugins/eap/list; 1.x and even-minor 2.x
-# (v2.2.0) upload with an empty channel, which the Marketplace treats as the
+# https://plugins.jetbrains.com/plugins/eap/list; an even-minor 2.x tag
+# (v2.2.0) uploads with an empty channel, which the Marketplace treats as the
 # public Stable channel.  This mirrors the JETBRAINS_CHANNEL mapping in the
 # Makefile and the `channels` block in editors/jetbrains/build.gradle.kts.
 set -euo pipefail

@@ -350,8 +350,8 @@ the secret is reachable by no other job.
   fallback for riscv64 Linux and for any architecture with no prebuilt
   binary at all, and the artefact for a manual side-load), plus six
   platform-targeted packages built with `vsce package --target <platform>`,
-  each bundling only its own binary and deliberately NOT the module —
-  no `.pyz`. `make verify-vsix` asserts both halves of that split.
+  each bundling only its own binary and deliberately NOT the WASI
+  module. `make verify-vsix` asserts both halves of that split.
   `make package-vsix-all` builds the shared Spec Studio and browser
   language-server payload once before staging all seven packages. Every
   package rechecks a manifest covering that payload, `extension.browser.js`,

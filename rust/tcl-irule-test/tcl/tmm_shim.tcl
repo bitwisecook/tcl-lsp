@@ -39,7 +39,7 @@ namespace eval ::tmm {
     variable platform     "BIG-IP"
 
     # Tcl version TMM reports -- always 8.4 regardless of actual tclsh
-    variable reported_tcl_version "8.4.20"
+    variable reported_tcl_version "8.4.6"
     variable reported_tcl_major  "8.4"
 
     # Commands completely disabled on TMM -- from generated registry data.
