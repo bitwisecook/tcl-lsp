@@ -69,8 +69,11 @@
 //! * Cross-document refactors (move to file, split namespace)
 //!   are not supported.
 
+use std::collections::{HashMap, HashSet};
+use std::hash::BuildHasher;
+
 use rustc_hash::FxHashSet;
-use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::analyser::{AnalysisResult, line_suppressed};
 use tcl_compiler::compiler_checks::DiagCode;
 use tcl_dialect::model::{Family, SurfaceLayer};
 use tcl_lexer::{LineIndex, Utf16Col};
@@ -538,17 +541,21 @@ pub fn bigip_code_actions(source: &str, range: LspRange, uri: &str) -> Vec<CodeA
 /// (e.g. `CompilerDiagnostics::checks`).
 ///
 /// `disabled` is the resolved per-check toggle set
-/// (`tclLsp.diagnostics.<CODE> = false`).  A check whose code is disabled has
-/// its diagnostic suppressed from the published set, so its quick-fix must not
-/// be offered either — otherwise the lightbulb would re-surface a hidden
-/// warning.  The analyser path bakes this set into its build; this path is fed
-/// the raw `run_all_checks` output, so it applies the same filter here.
+/// (`tclLsp.diagnostics.<CODE> = false`) and `suppressed` the analyser's
+/// `# noqa` / `# tcl-lsp: disable=…` map.  A check silenced by either has no
+/// diagnostic in the published set, so its quick-fix must not be offered
+/// either — otherwise the lightbulb re-surfaces a hidden warning, and a
+/// shimmer code would offer to add a second `# noqa` above the one already
+/// silencing it.  The analyser path bakes the disabled set into its build and
+/// has its suppression applied by the caller; this path is fed the raw
+/// `run_all_checks` output, so it applies both filters here.
 #[must_use]
-pub fn check_diagnostic_actions<S: std::hash::BuildHasher>(
+pub fn check_diagnostic_actions<S: std::hash::BuildHasher, H: BuildHasher, I: BuildHasher>(
     source: &str,
     range: LspRange,
     checks: &[tcl_compiler::compiler_checks::Diagnostic],
     disabled: &std::collections::HashSet<String, S>,
+    suppressed: &HashMap<i32, HashSet<String, I>, H>,
 ) -> Vec<CodeAction> {
     let line_index = LineIndex::new(source);
     let mut actions = Vec::new();
@@ -557,6 +564,13 @@ pub fn check_diagnostic_actions<S: std::hash::BuildHasher>(
             continue;
         }
         let diag_start = line_index.position_at_utf16(diag.span.start(), source);
+        if line_suppressed(
+            diag.code.as_str(),
+            i32::try_from(diag_start.line).unwrap_or(i32::MAX),
+            suppressed,
+        ) {
+            continue;
+        }
         let diag_end = line_index.position_at_utf16(diag.span.end(), source);
         let diag_range = LspRange {
             start_line: diag_start.line,
@@ -3159,6 +3173,11 @@ mod tests {
         assert_eq!(package_named_by_namespace("httpget", &catalogue), None);
     }
 
+    /// A document with no `# noqa` and no file-level directive.
+    fn no_suppression() -> HashMap<i32, HashSet<String>> {
+        HashMap::new()
+    }
+
     // check_diagnostic_actions: IRULE5002/5004 flow-warning fixes
 
     #[test]
@@ -3190,8 +3209,13 @@ mod tests {
         );
 
         let none_disabled = std::collections::HashSet::new();
-        let actions =
-            check_diagnostic_actions(src, whole_document_range(src), &checks, &none_disabled);
+        let actions = check_diagnostic_actions(
+            src,
+            whole_document_range(src),
+            &checks,
+            &none_disabled,
+            &no_suppression(),
+        );
         let fix = actions
             .iter()
             .find(|a| a.title == "Add 'event disable all' + 'return'");
@@ -3214,8 +3238,14 @@ mod tests {
         let src = "set x 1\n";
         let none_disabled = std::collections::HashSet::new();
         assert!(
-            check_diagnostic_actions(src, whole_document_range(src), &[], &none_disabled)
-                .is_empty()
+            check_diagnostic_actions(
+                src,
+                whole_document_range(src),
+                &[],
+                &none_disabled,
+                &no_suppression(),
+            )
+            .is_empty()
         );
     }
 
@@ -3243,7 +3273,13 @@ mod tests {
 
         let mut disabled = std::collections::HashSet::new();
         disabled.insert("IRULE5002".to_string());
-        let actions = check_diagnostic_actions(src, whole_document_range(src), &checks, &disabled);
+        let actions = check_diagnostic_actions(
+            src,
+            whole_document_range(src),
+            &checks,
+            &disabled,
+            &no_suppression(),
+        );
         assert!(
             !actions
                 .iter()
@@ -3253,6 +3289,40 @@ mod tests {
     }
 
     // check_diagnostic_actions: shimmer-family noqa-suppress action
+
+    /// A check the document already silences offers nothing: neither its
+    /// quick-fix nor a suppress action for a line that is already suppressed.
+    #[test]
+    fn check_actions_skip_a_diagnostic_a_noqa_already_silences() {
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        use tcl_compiler::compiler_checks::run_all_checks;
+
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let src = "set x hello\n# noqa: S100\nincr x\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let checks = run_all_checks(&cu, &registry, None);
+        assert!(
+            checks.iter().any(|d| d.code == DiagCode::S100),
+            "the check itself still fires; only its actions are withheld: {checks:?}"
+        );
+        let suppressed = Analyser::new()
+            .analyse(src, "tcl8.6")
+            .suppressed_lines
+            .clone();
+
+        let actions = check_diagnostic_actions(
+            src,
+            whole_document_range(src),
+            &checks,
+            &std::collections::HashSet::new(),
+            &suppressed,
+        );
+        assert!(
+            actions.is_empty(),
+            "a silenced S100 must leave no action behind: {actions:?}"
+        );
+    }
 
     /// A shimmering `incr` on a String variable fires S100 with no
     /// `CodeFix` attached (there is no generally-safe automatic rewrite —
@@ -3278,8 +3348,13 @@ mod tests {
         );
 
         let none_disabled = std::collections::HashSet::new();
-        let actions =
-            check_diagnostic_actions(src, whole_document_range(src), &checks, &none_disabled);
+        let actions = check_diagnostic_actions(
+            src,
+            whole_document_range(src),
+            &checks,
+            &none_disabled,
+            &no_suppression(),
+        );
         let suppress = actions
             .iter()
             .find(|a| a.title == "Suppress S100 with a noqa comment");
@@ -3319,8 +3394,13 @@ mod tests {
         assert!(checks.iter().any(|d| d.code == DiagCode::S100));
 
         let none_disabled = std::collections::HashSet::new();
-        let actions =
-            check_diagnostic_actions(src, whole_document_range(src), &checks, &none_disabled);
+        let actions = check_diagnostic_actions(
+            src,
+            whole_document_range(src),
+            &checks,
+            &none_disabled,
+            &no_suppression(),
+        );
         let suppress = actions
             .iter()
             .find(|a| a.title == "Suppress S100 with a noqa comment")
@@ -3342,7 +3422,13 @@ mod tests {
 
         let mut disabled = std::collections::HashSet::new();
         disabled.insert("S100".to_string());
-        let actions = check_diagnostic_actions(src, whole_document_range(src), &checks, &disabled);
+        let actions = check_diagnostic_actions(
+            src,
+            whole_document_range(src),
+            &checks,
+            &disabled,
+            &no_suppression(),
+        );
         assert!(
             !actions.iter().any(|a| a.title.starts_with("Suppress S100")),
             "disabled S100 must not offer a suppress action, got {actions:?}",

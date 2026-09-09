@@ -178,6 +178,11 @@ fn selection(line: u32, start: u32, end: u32) -> LspRange {
     }
 }
 
+/// A document with no `# noqa` and no file-level directive.
+fn no_suppression() -> std::collections::HashMap<i32, std::collections::HashSet<String>> {
+    std::collections::HashMap::new()
+}
+
 /// A whole-document range (line 0..last, full width).
 fn whole(source: &str) -> LspRange {
     let last = source.lines().count().max(1) - 1;
@@ -736,7 +741,8 @@ fn check_actions_surface_irule5004_dns_return_fix() {
         "expected an IRULE5004 check carrying a fix; got {checks:?}",
     );
     let none_disabled = std::collections::HashSet::new();
-    let actions = check_diagnostic_actions(src, whole(src), &checks, &none_disabled);
+    let actions =
+        check_diagnostic_actions(src, whole(src), &checks, &none_disabled, &no_suppression());
     // Fix description is `Add 'return' after DNS::return`.
     let fix = find(&actions, "after DNS::return").expect("an IRULE5004 quick-fix");
     assert_eq!(fix.kind, ActionKind::QuickFix);
@@ -767,7 +773,7 @@ fn check_actions_irule5004_suppressed_when_disabled() {
     let checks = irules_checks(src, &registry);
     let mut disabled = std::collections::HashSet::new();
     disabled.insert("IRULE5004".to_string());
-    let actions = check_diagnostic_actions(src, whole(src), &checks, &disabled);
+    let actions = check_diagnostic_actions(src, whole(src), &checks, &disabled, &no_suppression());
     assert!(
         find(&actions, "after DNS::return").is_none(),
         "disabled IRULE5004 must offer no fix; got {:?}",
