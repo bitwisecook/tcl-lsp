@@ -209,6 +209,32 @@ fn document_proc_names(
 /// domain of the `optimise` verb, so they are dropped here — the same split the
 /// server draws with its optimiser toggle. Rows come back in a deterministic
 /// `(line, column, code)` order; `disabled` removes `--disable`d codes.
+/// Append the `SslicTcl` loader's own `SSLIC1xxx` findings, the same
+/// projection the server publishes.
+///
+/// It reads the same normalised `source` and maps through the same
+/// `line_index` as every other code here — the loader used to normalise for
+/// itself (#1794), which was correct but left every other code on the raw
+/// form.
+fn push_sslictcl_rows(
+    rows: &mut Vec<Row>,
+    source: &str,
+    line_index: &LineIndex,
+    disabled: &HashSet<String>,
+    suppressed_lines: &std::collections::HashMap<i32, HashSet<String>>,
+) {
+    for d in tcl_lsp_core::sslictcl_diagnostics::diagnostics(source, disabled, suppressed_lines) {
+        let pos = line_index.position_at_utf16(d.span.start(), source);
+        rows.push(Row {
+            line: pos.line + 1,
+            column: pos.character.get() + 1,
+            severity: d.severity,
+            code: d.code.to_string(),
+            message: d.message,
+        });
+    }
+}
+
 fn collect_rows(
     document: &InputDocument,
     dialect: &'static tcl_dialect::DialectProfile,
@@ -346,26 +372,14 @@ fn collect_rows(
         });
     }
 
-    // The `SslicTcl` loader's own `SSLIC1xxx` findings, the same projection the
-    // server publishes. It reads the same normalised `source` and maps through
-    // the same `line_index` as every other code here — the loader used to
-    // normalise for itself (#1794), which was correct but left every other code
-    // on the raw form.
     if sslictcl {
-        for d in tcl_lsp_core::sslictcl_diagnostics::diagnostics(
+        push_sslictcl_rows(
+            &mut rows,
             source,
+            &line_index,
             disabled,
             &result.suppressed_lines,
-        ) {
-            let pos = line_index.position_at_utf16(d.span.start(), source);
-            rows.push(Row {
-                line: pos.line + 1,
-                column: pos.character.get() + 1,
-                severity: d.severity,
-                code: d.code.to_string(),
-                message: d.message,
-            });
-        }
+        );
     }
 
     rows.sort_by(|a, b| {
