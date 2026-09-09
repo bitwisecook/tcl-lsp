@@ -78,6 +78,10 @@ User-facing compiler troubleshooting and how-tos live in
   drive the analyser, both code generators, and both runtimes; the four
   rungs of a pack claim reaching emitted code; the dialect, package, and
   C-extension consequences; and the rulings needed first.
+- [value-transfers-review.md](value-transfers-review.md) — review of those
+  proposals against registry-owned specialisation, with shared expression
+  and regexp evaluation, analysis/diagnostic separation, correctness findings,
+  adversarial attacks, and a revised delivery order.
 - [type-tracking.md](type-tracking.md) — the comprehensive value-type model
   (purity / first-use commitment, union nodes, container element types, the
   numeric tower) with its oracle corpus.

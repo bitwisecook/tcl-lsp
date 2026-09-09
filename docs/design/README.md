@@ -60,6 +60,10 @@ passes, and ownership matrices.
   — **proposal** companion: the description, identity, and implementation
   contracts under which the registry can drive the analyser, codegen, and the
   runtimes, with the dialect, package, and C-extension consequences.
+- [value-transfers-review.md](compiler/value-transfers-review.md) — review
+  of the value-transfer and consumer-contract proposals: registry-owned
+  specialisation, shared expression/regexp evaluation, correctness findings,
+  analysis/diagnostic separation, adversarial attacks, and delivery order.
 
 ## contracts/
 
