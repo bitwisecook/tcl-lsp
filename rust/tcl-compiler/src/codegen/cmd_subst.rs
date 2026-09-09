@@ -1201,7 +1201,7 @@ impl CodegenCtx<'_> {
         // A `{*}`-expanded command substitution in value position compiles to the
         // `expandStart … expandStkTop N; invokeExpanded` form (tclsh's), leaving
         // the result on the stack (no trailing `pop`, unlike the statement form).
-        if text.contains("{*}") {
+        if self.recognises_expand_syntax() && text.contains("{*}") {
             let parts = parse_cmd_parts_expand(text);
             if parts.iter().any(|(_, _, expand)| *expand) {
                 self.emit_expanded_cmd_subst(&parts);

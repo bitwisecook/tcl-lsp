@@ -79,46 +79,50 @@ fn command_head_expansion_matrix_matches_exact_tcl_9_0_4() {
 
 #[test]
 fn expansion_opcodes_follow_the_resolved_document_grammar() {
-    let source = "set head {list ok}\n{*}$head";
-    let release = "tcl8.4";
-    let profile = tcl_registry::model::ingress::resolve_environment(release).analyser_profile();
-    let failure = match BytecodeCompileService::for_profile(profile).compile(source) {
-        Ok(_) => panic!("{release} must not recognise Tcl 8.5 expansion syntax"),
-        Err(error) => error.0,
-    };
-    assert_eq!(
-        failure, "extra characters after close-brace",
-        "{release} must retain its resolved pre-8.5 word grammar",
-    );
+    for source in [
+        "set head {list ok}\n{*}$head",
+        "set head {list ok}\nset x [{*}$head ordinary]\nset x",
+    ] {
+        let release = "tcl8.4";
+        let profile = tcl_registry::model::ingress::resolve_environment(release).analyser_profile();
+        let failure = match BytecodeCompileService::for_profile(profile).compile(source) {
+            Ok(_) => panic!("{release} must not recognise Tcl 8.5 expansion syntax in {source:?}"),
+            Err(error) => error.0,
+        };
+        assert_eq!(
+            failure, "extra characters after close-brace",
+            "{release} must retain its resolved pre-8.5 word grammar for {source:?}",
+        );
 
-    // F5's Tcl 8.4-derived grammar has its own word-boundary rules, so this
-    // shape remains compilable there, but `{*}` is still ordinary text rather
-    // than an expansion marker.
-    let f5 = compile_for("f5-irules", source);
-    let f5_ops = f5
-        .top_level
-        .instructions
-        .iter()
-        .map(|instruction| instruction.op)
-        .collect::<Vec<_>>();
-    assert!(!f5_ops.contains(&tcl_bytecode::Op::EXPAND_STKTOP));
-    assert!(!f5_ops.contains(&tcl_bytecode::Op::INVOKE_EXPANDED));
-
-    for release in ["tcl8.5", "tcl8.6", "tcl9.0"] {
-        let asm = compile_for(release, source);
-        let ops = asm
+        // F5's Tcl 8.4-derived grammar has its own word-boundary rules, so
+        // these shapes remain compilable there, but `{*}` is still ordinary
+        // text rather than an expansion marker.
+        let f5 = compile_for("f5-irules", source);
+        let f5_ops = f5
             .top_level
             .instructions
             .iter()
             .map(|instruction| instruction.op)
             .collect::<Vec<_>>();
-        assert!(
-            ops.contains(&tcl_bytecode::Op::EXPAND_STKTOP),
-            "{release} expansion grammar: {ops:?}",
-        );
-        assert!(
-            ops.contains(&tcl_bytecode::Op::INVOKE_EXPANDED),
-            "{release} invocation grammar: {ops:?}",
-        );
+        assert!(!f5_ops.contains(&tcl_bytecode::Op::EXPAND_STKTOP));
+        assert!(!f5_ops.contains(&tcl_bytecode::Op::INVOKE_EXPANDED));
+
+        for release in ["tcl8.5", "tcl8.6", "tcl9.0"] {
+            let asm = compile_for(release, source);
+            let ops = asm
+                .top_level
+                .instructions
+                .iter()
+                .map(|instruction| instruction.op)
+                .collect::<Vec<_>>();
+            assert!(
+                ops.contains(&tcl_bytecode::Op::EXPAND_STKTOP),
+                "{release} expansion grammar for {source:?}: {ops:?}",
+            );
+            assert!(
+                ops.contains(&tcl_bytecode::Op::INVOKE_EXPANDED),
+                "{release} invocation grammar for {source:?}: {ops:?}",
+            );
+        }
     }
 }

@@ -379,6 +379,15 @@ impl<'r> CodegenCtx<'r> {
         tcl_lexer::LexerConfig::for_profile(self.registry.profile())
     }
 
+    /// Whether nested source reparsed by codegen recognises TIP 157 argument
+    /// expansion. A named compile follows its resolved grammar; a dialect-less
+    /// compile retains the ambient, permissive Tcl grammar.
+    #[must_use]
+    pub(crate) fn recognises_expand_syntax(&self) -> bool {
+        self.dialect
+            .is_none_or(|profile| profile.grammar.expand_syntax)
+    }
+
     /// Set the rooted constructed command-resolution namespace for direct
     /// codegen specialisations in this function.
     pub(crate) fn set_resolution_namespace(&mut self, namespace: &str) {
