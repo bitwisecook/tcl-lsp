@@ -7164,6 +7164,18 @@ impl Interp {
     /// (auto-load / `package` / friendly errors — the pure-Tcl `unknown` proc),
     /// matching C's `TclEvalObjvInternal`.
     pub(crate) fn dispatch(&mut self, argv: &[*mut TclObj]) -> Code {
+        self.dispatch_prebound(argv, None)
+    }
+
+    /// The central dispatch boundary, optionally with a command binding whose
+    /// table is not visible to normal namespace lookup (`interp invokehidden`).
+    /// Pre-resolved bindings still pass through command counting and execution
+    /// traces; their stored generation selects the exact trace sidecar.
+    fn dispatch_prebound(
+        &mut self,
+        argv: &[*mut TclObj],
+        prebound: Option<(Vec<u8>, CommandBinding)>,
+    ) -> Code {
         // TclEvalObjvInternal resets the interpreter result before execution
         // traces and command dispatch. This is the central entry used by parsed
         // commands, canonical-list eval, aliases/ensembles, callbacks and the
@@ -7179,16 +7191,23 @@ impl Interp {
         // `dispatch_traced`.
         let traced = !self.traces.borrow().cmd_traces.is_empty();
         if !traced {
-            return self.dispatch_inner(argv);
+            return match prebound {
+                Some((_, binding)) => self.invoke(binding.command, argv),
+                None => self.dispatch_inner(argv),
+            };
         }
-        self.dispatch_traced(argv)
+        self.dispatch_traced(argv, prebound)
     }
 
     /// Slow path: the command may carry execution (enter/leave/step) traces, or
     /// a step trace is active. Mirrors C's `TclEvalObjvInternal` order: interp
     /// (step) enter traces fire before per-command enter; per-command leave
     /// fires before interp (step) leave.
-    fn dispatch_traced(&mut self, argv: &[*mut TclObj]) -> Code {
+    fn dispatch_traced(
+        &mut self,
+        argv: &[*mut TclObj],
+        prebound: Option<(Vec<u8>, CommandBinding)>,
+    ) -> Code {
         use crate::cmd_trace::ops;
         let name = obj_bytes(argv[0]);
         // Inside a rename's callbacks the vacating name still resolves, but the
@@ -7197,10 +7216,16 @@ impl Interp {
         // `Command` from either hash entry. Only the *key* is canonicalised:
         // the callback's own words stay the spelling the caller invoked
         // (`cmd_word` below), which is what tclsh passes.
-        let fqn = self
-            .resolve_cmd_fqn(&name)
-            .map(|fqn| self.renamed_cmd_key(&fqn).unwrap_or(fqn));
-        let token = fqn.as_deref().and_then(|fqn| self.resolve_cmd_token(fqn));
+        let (fqn, token, prebound_command) = match prebound {
+            Some((fqn, binding)) => (Some(fqn), Some(binding.generation), Some(binding.command)),
+            None => {
+                let fqn = self
+                    .resolve_cmd_fqn(&name)
+                    .map(|fqn| self.renamed_cmd_key(&fqn).unwrap_or(fqn));
+                let token = fqn.as_deref().and_then(|fqn| self.resolve_cmd_token(fqn));
+                (fqn, token, None)
+            }
+        };
         let (has_enter, has_leave, has_step) = match &fqn {
             Some(f) => {
                 let t = self.traces.borrow();
@@ -7226,7 +7251,10 @@ impl Interp {
             !t.step_active.is_empty() && t.exec_firing == 0
         };
         if !has_enter && !has_leave && !has_step && !stepping {
-            return self.dispatch_inner(argv);
+            return match prebound_command {
+                Some(command) => self.invoke(command, argv),
+                None => self.dispatch_inner(argv),
+            };
         }
         // The `{cmd arg ...}` word: argv rendered as a single list element (C's
         // `TraceExecutionProc` builds it via per-arg `DStringAppendElement`).
@@ -7255,7 +7283,10 @@ impl Interp {
         } else {
             0
         };
-        let mut code = self.dispatch_inner(argv);
+        let mut code = match prebound_command {
+            Some(command) => self.invoke(command, argv),
+            None => self.dispatch_inner(argv),
+        };
         // (D) remove the step traces installed above (they are the last pushed).
         if installed > 0 {
             self.remove_installed_step_traces(installed);
@@ -8166,13 +8197,13 @@ impl Interp {
 
     /// `interp invokehidden name ?arg ...?` — invoke a hidden command.
     pub(crate) fn invoke_hidden(&mut self, name: &[u8], argv: &[*mut TclObj]) -> Code {
-        let cmd = self
-            .hidden
-            .borrow()
-            .get(name)
-            .map(|binding| binding.command.clone());
-        match cmd {
-            Some(cmd) => self.invoke(cmd, argv),
+        let binding = self.hidden.borrow().get(name).cloned();
+        match binding {
+            Some(binding) => {
+                let mut fqn = b"::".to_vec();
+                fqn.extend_from_slice(name);
+                self.dispatch_prebound(argv, Some((fqn, binding)))
+            }
             None => {
                 let mut m = b"invalid hidden command name \"".to_vec();
                 m.extend_from_slice(name);

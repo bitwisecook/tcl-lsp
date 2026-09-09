@@ -1058,6 +1058,29 @@ mod tests {
         });
     }
 
+    /// `interp invokehidden` dispatches a real command token even though
+    /// namespace lookup cannot see it. Its execution trace sidecar follows the
+    /// hidden binding and is selected by that binding's generation.
+    #[test]
+    fn invokehidden_runs_the_hidden_commands_execution_traces() {
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    br#"set log {}
+                        proc cb args {global log; lappend log $args}
+                        proc foo {} {set x 1; return ok}
+                        trace add execution foo {enter leave enterstep leavestep} cb
+                        interp hide {} foo h
+                        set result [interp invokehidden {} h]
+                        interp expose {} h visible
+                        list $result $log [trace info execution visible]"#,
+                ),
+                br#"ok {{h enter} {{set x 1} enterstep} {{set x 1} 0 1 leavestep} {{return ok} enterstep} {{return ok} 2 ok leavestep} {h 0 ok leave}} {{{enter leave enterstep leavestep} cb}}"#,
+            );
+        });
+    }
+
     #[test]
     fn trace_errors_match_c() {
         leak_free(|i| {
