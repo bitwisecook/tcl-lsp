@@ -541,6 +541,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Callback assigning SameInvocation, Deferred, or ReferenceOnly to executable positions from the actual argument list.",
     ),
     f(
+        "substitution_resolver",
+        "Substitution resolver",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "Some(substitution::subst_substitutions)",
+        },
+        "Callback reporting which of backslash, command and variable substitution this call runs over its own argument text, for a PERFORMS_SUBSTITUTION command whose switches change the answer. Absent means every kind on every call.",
+    ),
+    f(
         "callback_taint_inputs",
         "Callback external inputs",
         TAINT,

@@ -1450,6 +1450,13 @@ fn command_identity(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
             spec.script_timing_resolver.is_some(),
         ),
     );
+    d.insert(
+        "substitution_resolver".into(),
+        lost.expr(
+            "substitution_resolver",
+            spec.substitution_resolver.is_some(),
+        ),
+    );
 }
 
 /// Return type, element structure, and per-argument type hints.
