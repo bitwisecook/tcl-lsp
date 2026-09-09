@@ -1153,10 +1153,20 @@ bodies run.
 
 A third `CONTROL_FLOW` consumer asks a narrower question: *what* the command
 selects on. The analyser's `irules_debug_gate_depth` reads the words a
-control-flow command evaluates rather than executes — every argument outside
-its `ArgRole::Body` positions — and rises when one of them reads a debug
-flag, which is what lets IRULE5001 stay quiet for a `log` already gated the
-way its own message prescribes.
+branch-selecting command evaluates rather than executes — every argument
+outside its `ArgRole::Body` positions — and rises when one of them reads a
+debug flag, which is what lets IRULE5001 stay quiet for a `log` already gated
+the way its own message prescribes.
+
+Two exclusions keep that depth off a body which runs regardless. It pairs
+`CONTROL_FLOW` with the absence of `HAS_LOOP_BODY`, because a loop's selector
+is a sequence rather than a decision: `foreach ip $static::allowlist`
+iterates a `static::` list without saying anything about debugging. And it
+drops the `ArgRole::VarWrite` words, which is what excludes `catch` — its
+body is unconditional and its remaining arguments are variable names it
+writes, so `catch { … } static::err` names a `static::` variable without any
+decision reading one. What survives both is `if`, `switch`, and `case`,
+each of which selects every body it has.
 
 ### Resolution priority
 

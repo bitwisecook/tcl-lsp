@@ -49,13 +49,21 @@ when HTTP_REQUEST {
 
 The gate clears the diagnostic. What counts as one:
 
-- Any enclosing `if`, `switch`, or loop whose condition reads a `static::`
+- Any enclosing `if`, `switch`, or `case` whose condition reads a `static::`
   variable — `$static::debug`, `${static::debug}`, or
   `[info exists static::debug]`.
 - Any enclosing condition that reads a variable set by an event that runs
   less often than once per request: `set debug 0` in `RULE_INIT` or in
   `CLIENT_ACCEPTED`, then `if {$debug}`. A flag the request path sets itself
-  does not count — gating on per-request state is not gating.
+  does not count — gating on per-request state is not gating. The flag may be
+  set in a `switch` arm or a nested body of that setup event.
+
+Only a command that chooses between bodies gates them. A loop does not:
+`foreach ip $static::allowlist { log local0. $ip }` iterates a `static::`
+list, which says nothing about debugging, and the `log` still runs on every
+request. Nor does `catch { log local0. hi } static::err`, whose body runs
+whatever happens — the `static::` word there is a variable it writes, not a
+decision it reads.
 
 Nested bodies inherit the gate, so a `log` deeper inside a gated branch stays
 quiet. Every arm of a gating command counts, `else` included.
