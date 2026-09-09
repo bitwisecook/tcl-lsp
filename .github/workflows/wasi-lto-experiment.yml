@@ -1,0 +1,80 @@
+# TEMPORARY: remove after the hosted LTO comparison is captured.
+# This workflow is deliberately pull_request-only and has no release or upload
+# steps. It is not part of the production tag/release pipeline.
+name: WASI LTO experiment (temporary)
+
+on:
+  pull_request:
+    paths:
+      - rust/tcl-lsp-server-wasi/**
+      - rust/tcl-lsp-server/**
+      - rust/tcl-*/**
+      - .github/workflows/wasi-lto-experiment.yml
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    if: github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - repetition: 1
+            order: "true thin"
+          - repetition: 2
+            order: "thin true"
+          - repetition: 3
+            order: "true thin"
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        with:
+          toolchain: stable
+          target: wasm32-wasip1
+          cache-key: wasi-lto-experiment-${{ matrix.repetition }}
+          cache-workspaces: rust/tcl-lsp-server-wasi
+
+      - name: Install wasmtime
+        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
+        with:
+          tool: wasmtime@48.0.1
+
+      - name: Install binaryen
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends binaryen
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+
+      - name: Clean and run the complete WASI functional suite
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" != refs/tags/* ]]
+          for mode in ${{ matrix.order }}; do
+            export CARGO_PROFILE_RELEASE_LTO="$mode"
+            rm -rf rust/tcl-lsp-server-wasi/target rust/tcl-lsp-server-wasi/dist
+            log="$RUNNER_TEMP/wasi-lto-${{ matrix.repetition }}-${mode}.log"
+            time_file="$RUNNER_TEMP/wasi-lto-${{ matrix.repetition }}-${mode}.time"
+            /usr/bin/time -p -o "$time_file" \
+              bash -c 'make lsp-server-wasi-test 2>&1 | tee "$1"' bash "$log"
+            suite="$(sed -n 's/^real //p' "$time_file")"
+            grep -Fq '26/26 checks passed' "$log"
+            grep -Fq 'test result: ok. 22 passed' "$log"
+            raw="$(sed -n 's/.*wasm \([0-9][0-9]*\) bytes raw, \([0-9][0-9]*\) bytes gzipped.*/\1/p' "$log" | tail -1)"
+            gzip="$(sed -n 's/.*wasm \([0-9][0-9]*\) bytes raw, \([0-9][0-9]*\) bytes gzipped.*/\2/p' "$log" | tail -1)"
+            cargo="$(sed -n 's/.*cargo build elapsed: \([0-9][0-9]*\)s/\1/p' "$log" | tail -1)"
+            opt="$(sed -n 's/.*wasm-opt elapsed: \([0-9][0-9]*\)s/\1/p' "$log" | tail -1)"
+            total="$(sed -n 's/.*total build elapsed: \([0-9][0-9]*\)s/\1/p' "$log" | tail -1)"
+            digest="$(sha256sum rust/tcl-lsp-server-wasi/dist/tcl-lsp-server-wasi.wasm | awk '{print $1}')"
+            test -n "$suite" -a -n "$raw" -a -n "$gzip" -a -n "$cargo" -a -n "$opt" -a -n "$total"
+            json="{\"lto\":\"$mode\",\"repetition\":${{ matrix.repetition }},\"order\":\"${{ matrix.order }}\",\"suite_seconds\":$suite,\"cargo_seconds\":$cargo,\"wasm_opt_seconds\":$opt,\"build_seconds\":$total,\"raw_bytes\":$raw,\"gzip_bytes\":$gzip,\"sha256\":\"$digest\",\"unit_tests\":22,\"e2e_checks\":26}"
+            printf '%s\n' "$json" | tee -a "$GITHUB_STEP_SUMMARY"
+          done
