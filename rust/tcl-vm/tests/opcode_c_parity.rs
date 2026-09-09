@@ -144,7 +144,7 @@ fn err_str(c: &Completion<Value>) -> String {
     c.result.to_str().to_string()
 }
 
-// LoadScalarStk / storeScalarStk.
+// `loadScalarStk` / `storeScalarStk`.
 
 /// `storeScalarStk` writes the named scalar and leaves the value on the stack;
 /// `loadScalarStk` reads it back. Both share C's `INST_STORE_STK` /
@@ -171,7 +171,7 @@ fn load_scalar_stk_missing_variable_errors() {
     assert_eq!(err_str(&c), "can't read \"nope\": no such variable");
 }
 
-// LoadArray4 / storeArray4.
+// `loadArray4` / `storeArray4`.
 
 /// `storeArray4`/`loadArray4` are the 4-byte-slot forms of the `*Array1` pair:
 /// the array is the LVT slot, the element key is on the stack.
@@ -262,7 +262,7 @@ fn incr_array_stk_creates_from_zero() {
     assert_eq!(ok_str(&c), "3");
 }
 
-// AppendStk / lappendStk / appendArrayStk / lappendArrayStk.
+// `appendStk` / `lappendStk` / `appendArrayStk` / `lappendArrayStk`.
 
 /// `appendStk` string-appends and `lappendStk` list-appends to the variable
 /// named on the stack, each leaving the new value on the stack.
@@ -363,7 +363,7 @@ fn lappend_list_array_forms() {
     assert_eq!(ok_str(&c), "a b c d");
 }
 
-// ExistArray / existArrayStk.
+// `existArray` / `existArrayStk`.
 
 /// The array existence tests push 1/0 and never error — not for a missing
 /// element, and not for a wholly missing array (C `INST_EXIST_ARRAY`).
@@ -406,7 +406,7 @@ fn exist_array_fires_read_traces() {
     );
 }
 
-// UnsetArrayStk.
+// `unsetArrayStk`.
 
 /// With the complain flag clear, unsetting a missing element is silent; the
 /// present element is still removed.
@@ -452,7 +452,7 @@ fn unset_array_stk_complain_flag_errors() {
     assert_eq!(err_str(&c), "can't unset \"nope(k)\": no such variable");
 }
 
-// ArrayExistsStk / arrayMakeImm / arrayMakeStk.
+// `arrayExistsStk` / `arrayMakeImm` / `arrayMakeStk`.
 
 /// `arrayMakeStk` materialises an empty array (so `arrayExistsStk` flips from
 /// 0 to 1) and is a no-op on an existing array.
@@ -551,7 +551,7 @@ fn variable_rejects_a_missing_parent_namespace() {
     assert_eq!(ok_str(&eval(&mut vm, "namespace exists ::missing")), "0");
 }
 
-// CurrentNamespace / infoLevelNumber / infoLevelArgs.
+// `currentNamespace` / `infoLevelNumber` / `infoLevelArgs`.
 
 /// `currentNamespace` pushes the fully-qualified name (`::` at global scope)
 /// and `infoLevelNumber` the call depth — the same values `namespace current`
@@ -592,7 +592,7 @@ fn info_level_args_matches_the_command() {
     assert_eq!(err_str(&c), "expected integer but got \"foo\"");
 }
 
-// ResolveCmd / originCmd.
+// `resolveCmd` / `originCmd`.
 
 /// `resolveCmd` pushes the fully-qualified command name, or the empty string
 /// when the name resolves to nothing — it never errors (C
@@ -637,7 +637,7 @@ fn origin_cmd_follows_import_chain() {
     assert_eq!(ok_str(&c), "::src::p");
 }
 
-// ClockRead.
+// `clockRead`.
 
 /// `clockRead` reads the same host clock `clock clicks`/`clock seconds` do, so
 /// the four readings agree with one another (0 = clicks = µs, 1 = µs, 2 = ms,
@@ -668,7 +668,7 @@ fn clock_read_units_agree() {
     );
 }
 
-// DictGetDef.
+// `dictGetDef`.
 
 /// `dictGetDef` reads the key path like `dictGet`, but a key missing at any
 /// depth yields the default instead of erroring (C `INST_DICT_GET_DEF`).
@@ -725,7 +725,7 @@ fn dict_get_def_rejects_malformed_dict() {
     assert_eq!(err_str(&c), "missing value to go with key");
 }
 
-// DictRecombineStk.
+// `dictRecombineStk`.
 
 /// `dictRecombineStk` is `dictRecombineImm` with the dict variable's name on
 /// the stack (`varName path state`): it writes each expanded key's local back
@@ -766,7 +766,7 @@ fn dict_recombine_stk_drops_unset_keys() {
     assert_eq!(ok_str(&c), "a 1");
 }
 
-// ConstImm / constStk.
+// `constImm` / `constStk`.
 
 /// `constImm` defines the LVT slot as a constant; re-defining an existing
 /// constant silently drops the value (C's `TclIsVarConstant` early exit).
@@ -833,7 +833,7 @@ fn const_blocks_later_writes() {
     assert_eq!(err_str(&c), "can't set \"k\": variable is a constant");
 }
 
-// ExpandDrop.
+// `expandDrop`.
 
 /// `expandDrop` abandons the innermost expansion, truncating the stack back to
 /// the depth its `expandStart` recorded (C `INST_EXPAND_DROP`).
@@ -865,7 +865,7 @@ fn expand_drop_leaves_marker_stack_clean() {
     assert_eq!(ok_str(&c), "ab");
 }
 
-// Strmap.
+// `strmap`.
 
 /// `strmap` is the one-pair, case-sensitive `string map`: the stack is
 /// `from to string` with the subject on top (C `INST_STR_MAP`).
@@ -913,7 +913,7 @@ fn str_map_matches_string_map_command() {
     assert_eq!(ok_str(&c), cmd);
 }
 
-// IRules dialect operators.
+// iRules dialect operators.
 
 /// The dialect string tests (`contains` / `starts_with` / `ends_with` /
 /// `equals` / `matches`), both outcomes each. The operands sit on the stack subject-first
@@ -1143,7 +1143,7 @@ fn irule_operators_agree_with_the_core_commands() {
     }
 }
 
-// Yield / yieldToInvoke / coroName.
+// `yield` / `yieldToInvoke` / `coroName`.
 
 /// Run `body` as the compiled body of a global proc `p`.
 ///
@@ -1404,7 +1404,7 @@ fn tcloo_next_at_the_end_of_the_chain_and_underflow() {
     assert_eq!(err_str(&c), "tclooNext: stack underflow");
 }
 
-// UnsetArray (LVT slot form)
+// `unsetArray` (LVT slot form).
 
 /// `unsetArray` honours its flags operand exactly as `unsetArrayStk` does: C
 /// reads `flags = TclGetUInt1AtPtr(pc + 1) ? TCL_LEAVE_ERR_MSG : 0`
@@ -1499,7 +1499,7 @@ fn unset_array_trace_only_miss_kind_precedes_callback_mutation() {
     }
 }
 
-// Strfind / strrfind.
+// `strfind` / `strrfind`.
 
 /// An **empty needle is a miss**. Both C helpers open with
 /// `if (ln == 0) { /* We don't find empty substrings.  Bizarre! */ … }` leaving
@@ -1546,7 +1546,7 @@ fn str_find_matches_string_first_last_commands() {
     }
 }
 
-// Strupper / strlower / strtitle.
+// `strupper` / `strlower` / `strtitle`.
 
 /// C `INST_STR_UPPER`/`LOWER`/`TITLE` (`tclExecute.c:5284-5334`) call
 /// `Tcl_UtfToUpper`/`ToLower`/`ToTitle`, which map **one code point to one code
@@ -1605,7 +1605,7 @@ fn str_case_ops_match_string_case_commands() {
     }
 }
 
-// TryCvtToBoolean.
+// `tryCvtToBoolean`.
 
 /// C `INST_TRY_CVT_TO_BOOLEAN` (`tclExecute.c:6404-6414`; table
 /// `tclCompile.c:616` — `{"tryCvtToBoolean", 1, +1, 0, {OPERAND_NONE}}`, "Try
@@ -1646,7 +1646,7 @@ fn try_cvt_to_boolean_pushes_flag_and_keeps_value() {
     }
 }
 
-// ListIndex / lindexMulti.
+// `listIndex` / `lindexMulti`.
 
 /// C `INST_LIST_INDEX` (`tclExecute.c:4696-4768`) only *fast-paths* an integer
 /// index; anything else falls through to `TclLindexList` (4754), so the index
@@ -1730,7 +1730,7 @@ fn list_index_matches_lindex_command() {
     assert_eq!(ok_str(&c), cmd);
 }
 
-// Strindex / strrange.
+// `strindex` / `strrange`.
 
 /// C `INST_STR_INDEX` (`tclExecute.c:5336-5380`) and `INST_STR_RANGE`
 /// (`:5382-5406`) both run their indices through `TclGetIntForIndexM` and treat
@@ -1792,7 +1792,7 @@ fn str_index_and_range_still_clamp_valid_indices() {
     }
 }
 
-// ExprStk.
+// `exprStk`.
 
 /// C `INST_EXPR_STK` (`tclExecute.c`) calls `TclCompileExpr` on the popped
 /// string, so an unparsable expression is a `TCL_ERROR` from `ParseExpr` — never
@@ -1846,7 +1846,7 @@ fn expr_stk_still_evaluates_a_valid_expression() {
     }
 }
 
-// ReturnImm / syntax.
+// `returnImm` / syntax.
 
 /// `returnImm`'s two immediates are the *merged* `(code, level)` pair
 /// (`TclMergeReturnOptions` strips `-code`/`-level` out of the literal options

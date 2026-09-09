@@ -18,7 +18,7 @@
 
 //! F5 profile and protocol namespace metadata.
 //!
-//! Static data tables describing the 57 profile types, 87 protocol
+//! Static data tables describing the 66 profile types, 113 protocol
 //! command namespaces, and stack modification commands.
 
 use rustc_hash::{FxHashMap, FxHashSet};

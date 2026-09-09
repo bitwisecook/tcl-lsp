@@ -160,7 +160,7 @@ fn errorstack_value(args: &[&str], start: usize) -> OptionValueOutcome {
 /// `return`'s argument roles: the bare `return VALUE` form's single word is
 /// the command's own [`ArgRole::Result`], and nothing else is.
 ///
-/// Restricted to that one shape on purpose (issue #1303).  With options in
+/// Restricted to that one shape on purpose.  With options in
 /// play the word is no longer simply "this command's result": `return -code
 /// error $msg` completes exceptionally with `$msg` as the error payload, and
 /// `return -level 0 $v` completes the *caller's* frame.  A leading `-` is

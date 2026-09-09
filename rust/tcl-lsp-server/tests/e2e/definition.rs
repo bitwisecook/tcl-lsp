@@ -543,23 +543,10 @@ fn deleting_the_source_command_kills_the_import_cross_document() {
     );
 }
 
-/// idx 33 (differential-audit main audit wave, high severity): a class
-/// *instantiation* call (`GSA new`, the real corpus's
-/// `georgtree_tclopt`'s `arbitaryTest.tcl` idiom — `GSA new -funct
-/// fRastrigin ...`) reached only through a cross-document wildcard
-/// `namespace import NS::*`. Same root cause as idx 18 — the finding's
-/// own root-cause citation is `WorkspaceIndex::index_command_links`'s
-/// glob-pattern skip, the exact mechanism idx 18 fixed — found
-/// independently before idx 18 landed. Verified fixed via this reliable
-/// `Lsp::tcl()` e2e harness after an *unreliable* CLI-script (`lsp_client.py`)
-/// verification pass initially reported this as still broken, even for
-/// same-document, non-wildcard, fully-qualified calls that the
-/// `tcl-lsp-core::definition::definition()` unit-level test harness (and
-/// this e2e test) both proved resolve correctly — the CLI script's result
-/// was misleading here (a tooling artifact, not a real regression), so
-/// treat any future CLI-only "class instantiation doesn't resolve" report
-/// with suspicion until cross-checked against the real server via this
-/// harness or the Rust unit-test level.
+/// A class *instantiation* call (`GSA new`, the `georgtree_tclopt`
+/// `arbitaryTest.tcl` idiom — `GSA new -funct fRastrigin ...`) must
+/// resolve when reached only through a cross-document wildcard
+/// `namespace import NS::*`, the same as a plain proc call.
 #[test]
 fn class_instantiation_resolves_cross_document_via_wildcard_import() {
     let mut lsp = Lsp::tcl();
@@ -581,17 +568,15 @@ fn class_instantiation_resolves_cross_document_via_wildcard_import() {
     assert_eq!(start_line(&locs[0]), 2, "oo::class create GSA is on line 2");
 }
 
-/// idx 52 (differential-audit main audit wave, high severity): a class
-/// created via `oo::class create` with no body, then extended by every
-/// one of its methods through a *separate*, later `oo::define ClassName {
-/// ... }` block — exactly the real corpus shape (`ticklecharts::chart`:
+/// A class created via `oo::class create` with no body, then extended by
+/// every one of its methods through a *separate*, later `oo::define
+/// ClassName { ... }` block — the real corpus shape (`ticklecharts::chart`:
 /// `oo::class create` at one line, every method — including the `my
 /// AddBarSeries`-style internal dispatch calls in its switch arms — added
-/// via a later, separate `oo::define` block). tclsh9.0/8.6 both prove `my
-/// Helper` genuinely dispatches to `Helper` here; go-to-definition
-/// previously abstained (0 locations) because `ClassDef::body_span` only
-/// ever covered the *first* block recorded for the class, so a cursor
-/// inside the separate `oo::define` block's own text never satisfied the
+/// via a later, separate `oo::define` block). tclsh 9.0/8.6 both prove `my
+/// Helper` genuinely dispatches to `Helper` here, so `ClassDef::body_span`
+/// must cover every block recorded for the class, not just the first, or
+/// a cursor inside the separate `oo::define` block's own text fails the
 /// "which class am I lexically inside" containment check `my`-dispatch
 /// resolution depends on.
 #[test]

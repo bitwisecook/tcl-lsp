@@ -79,7 +79,7 @@ use crate::signature_scan::types::ParamDef;
 /// the convention can be recognised.  The handler's own spellings are **not**
 /// here; they come from [`tcl_registry::Traits::UNRESOLVED_COMMAND_HANDLER`]
 /// via [`chains_original_unknown`], which is how `analyser::handlers` and
-/// `unit_scope` already answer the same question (issue #1390).
+/// `unit_scope` already answer the same question.
 const SAVED_ORIGINAL_HANDLER_NAMES: &[&str] =
     &["_original_unknown", "_orig_unknown", "original_unknown"];
 
@@ -547,7 +547,7 @@ impl Analyser {
     /// dynamic word (`superclass $base`) names no static command and is skipped.
     /// Whether one command of a definition body installs members this walk
     /// cannot read, making the class's recorded member tables a lower bound
-    /// ([`super::types::ClassDef::member_set_incomplete`], issue #923 idx 53).
+    /// ([`super::types::ClassDef::member_set_incomplete`], the audit).
     ///
     /// Two shapes qualify, neither matched by keyword:
     ///
@@ -638,7 +638,7 @@ impl Analyser {
     /// Record the per-name members a **literal** loop-installer declares,
     /// even though [`Self::member_declaration_is_opaque`] has already (and
     /// correctly) marked the class's member set incomplete because of it
-    /// (issue #1277).
+    ///.
     ///
     /// `foreach m {alpha beta gamma} { method $m {args} {…} }` computes
     /// each member's *name* from the loop variable, which is why the
@@ -878,7 +878,7 @@ impl Analyser {
         // The class-level `initialise` body runs first and in a scope of its
         // own, so the class-scoped variables it declares are visible to this
         // class's own method / accessor bodies below — and to no other
-        // class's (issue #923 idx 36).
+        // class's.
         let mut class_variables = class_variables;
         let mut var_decl_spans = var_decl_spans;
         for mb in &init_bodies {
@@ -1037,7 +1037,7 @@ impl Analyser {
     /// setter then resolved to whichever class came first in the file, and
     /// find-references merged both classes' declarations into a single
     /// symbol — a definitive wrong answer on a statically decidable case,
-    /// and one a rename would act on (issue #923 idx 36). tclsh 9.0.4 keeps
+    /// and one a rename would act on. tclsh 9.0.4 keeps
     /// the two independent: two `oo::configurable` classes whose setters
     /// each check their own `initialize`-declared list correctly reject the
     /// other's values.
@@ -1134,7 +1134,7 @@ impl Analyser {
     /// top-level statements for a `link`-headed call (`oo::Helpers::link`,
     /// a genuine core `TclOO` builtin since 8.6 — `TclOOLinkObjCmd`, on
     /// every method body's namespace path via `::oo::Helpers`), recording each
-    /// alias into [`ClassDef::linked_members`] (issue #923 idx 113).
+    /// alias into [`ClassDef::linked_members`].
     ///
     /// `link NAME` installs a per-object-namespace command `NAME` that
     /// dispatches to `my NAME`; `link {NAME TARGET}` dispatches to `my
@@ -1164,13 +1164,13 @@ impl Analyser {
             );
             for cmd in &cmds {
                 // `link` is deliberately *not* a method-dispatch keyword
-                // (issue #1050): it *creates* per-object bareword commands
+                //: it *creates* per-object bareword commands
                 // rather than dispatching one, so the barewords it installs
                 // are per-class data, not language keywords. That creation
                 // is itself a declared behavioural fact —
                 // `Traits::TCLOO_BINDS_METHOD_ALIAS` — so the head is
                 // recognised through the registry rather than by its
-                // spelling (issue #1026); a dialect without `link` (8.5, or
+                // spelling; a dialect without `link` (8.5, or
                 // 8.6 with no `ooutil`) therefore records no aliases here.
                 if cmd.is_partial
                     || !cmd.texts.first().is_some_and(|head| {
@@ -1231,7 +1231,7 @@ impl Analyser {
         // Instance-side `TclOO` method of a statically-named class:
         // `[self class]` answers the defining class in this frame, so
         // record the fact for the constant command-substitution fold
-        // (issue #1132). `oo_global_resolution` is exactly the
+        //. `oo_global_resolution` is exactly the
         // `TclOO`-family gate (snit / itcl walkers pass `false`);
         // class-side members abstain (`self class` never answers the
         // written class there); a synthetic key (`::@objdefine@…`) is
@@ -1304,7 +1304,7 @@ impl Analyser {
             // Same rule `handle_proc_command` records for a deferred proc body:
             // the command-resolution namespace, so the isolated per-item rebuild
             // and the whole-file walk agree even when the class definer ran
-            // inside a qualified-name proc (issue #923 idx 85).
+            // inside a qualified-name proc.
             let namespace = self.command_resolution_namespace(scope_path);
             let safe_interp_ctx = self.safe_interp_ctx_snapshot();
             self.deferred_bodies.push(super::per_item::DeferredBody {
@@ -1321,7 +1321,7 @@ impl Analyser {
                 // the deferred body pass only needs the names.
                 class_variables: class_variables.to_vec(),
                 // Attached later by `fill_deferred_bodies` for bodies with a
-                // fold candidate (issue #1132).
+                // fold candidate.
                 command_trust: None,
                 ensemble_targets: Vec::new(),
                 prefixless_ensembles: Vec::new(),
@@ -1368,14 +1368,14 @@ impl Analyser {
         let body = &args[1];
         // A relative type name homes to the namespace current at the call —
         // the command-resolution namespace, so a `snit::type` created inside
-        // `proc ::ns::p {}` becomes `::ns::T` (issue #923 idx 85).
+        // `proc ::ns::p {}` becomes `::ns::T`.
         let ns_prefix = self.command_resolution_namespace(scope_path);
-        // Constructed key in, construction-inverse tail out (#934): a colon
+        // Constructed key in, construction-inverse tail out: a colon
         // trim or `rsplit("::")` would collapse a lone-colon name.
         let qualified = super::handlers::qualify(&ns_prefix, raw_name);
         let simple = crate::naming::key_tail(&qualified).to_string();
         let name_span = arg_tokens[0].span;
-        // **W314** — the class name has no absolute written form (#934).
+        // **W314** — the class name has no absolute written form.
         self.emit_w314_no_absolute_name(raw_name, name_span);
         let body_tok = arg_tokens[1];
         let doc = std::mem::take(&mut self.last_comment);
@@ -1395,7 +1395,7 @@ impl Analyser {
                 body, body_tok, &mut class, &qualified, scope_path, &definer,
             );
         }
-        // For `my`-dispatch resolution (issue #923 idx 52) — see
+        // For `my`-dispatch resolution — see
         // `class_body_spans`'s doc.
         self.result
             .class_body_spans
@@ -1761,14 +1761,14 @@ impl Analyser {
         let raw_name = &args[0];
         let body = &args[1];
         // As for snit: a relative itcl class name homes to the namespace
-        // current at the call, not the lexical one (issue #923 idx 85).
+        // current at the call, not the lexical one.
         let ns_prefix = self.command_resolution_namespace(scope_path);
-        // Constructed key in, construction-inverse tail out (#934): a colon
+        // Constructed key in, construction-inverse tail out: a colon
         // trim or `rsplit("::")` would collapse a lone-colon name.
         let qualified = super::handlers::qualify(&ns_prefix, raw_name);
         let simple = crate::naming::key_tail(&qualified).to_string();
         let name_span = arg_tokens[0].span;
-        // **W314** — the class name has no absolute written form (#934).
+        // **W314** — the class name has no absolute written form.
         self.emit_w314_no_absolute_name(raw_name, name_span);
         let body_tok = arg_tokens[1];
         let doc = std::mem::take(&mut self.last_comment);
@@ -1787,7 +1787,7 @@ impl Analyser {
                 body, body_tok, &mut class, &qualified, scope_path, grammar,
             );
         }
-        // For `my`-dispatch resolution (issue #923 idx 52) — see
+        // For `my`-dispatch resolution — see
         // `class_body_spans`'s doc.
         self.result
             .class_body_spans
@@ -2251,7 +2251,7 @@ fn collect_class_level_bodies(
 /// the member grammar's fixed argument layout applies to those.  Without
 /// this normalisation `constructor {*}{args {…}}` / `method
 /// {*}{foo {} {…}}` look one word short of their grammar and the member is
-/// dropped entirely, with no diagnostic (issue #923 idx 53).  Verified
+/// dropped entirely, with no diagnostic.  Verified
 /// against tclsh 9.0.4 and 8.6.16: both forms define a real, callable
 /// member, in the `oo::class create` body *and* the `oo::define` body.
 ///
@@ -2278,7 +2278,7 @@ fn collect_class_level_bodies(
 /// private visibility).  Only the prefix form was ever walked, so every member
 /// declared in a block was invisible to the whole analysis — no `ClassDef`
 /// entry, hence no document-symbol node, no dispatch arity, and no body walk
-/// (issue #1081).
+///.
 ///
 /// Returns `Some(calls)` — each `(texts, argv)` being the block's inner command
 /// with the wrapper keyword (and its token) spliced back on at index 0 — for a
@@ -2420,7 +2420,7 @@ struct CollectedMethodBody {
     /// The body word token (carries the absolute span + `content_offset`).
     body_tok: Token,
     /// The raw param-list word token (`{a b}`), used to anchor each formal
-    /// parameter's definition span at its name (issue #727). `None` for
+    /// parameter's definition span at its name. `None` for
     /// `destructor` (no parameter list).
     params_tok: Option<Token>,
     /// True for a **class-side** member (`classmethod`, `self method`) —
@@ -2428,7 +2428,7 @@ struct CollectedMethodBody {
     /// invocation frame (class `initialise` scripts, `property` accessor
     /// bodies). Gates [`super::types::Scope::oo_defining_class`]: `[self
     /// class]` *raises* in a class-side frame, so no defining-class fact may
-    /// be recorded for one (issue #1132).
+    /// be recorded for one.
     class_side: bool,
 }
 
@@ -2620,7 +2620,7 @@ fn apply_oo_private(
 /// (see below), so it has to be reachable from the index the registry hands
 /// back.
 ///
-/// # The rename really moves the member (issue #1121)
+/// # The rename really moves the member
 ///
 /// `renamemethod old new` is not a deletion — it is a move, and the destination
 /// is a fully dispatchable member carrying the *source's* body, parameters and
@@ -2646,7 +2646,7 @@ fn apply_oo_private(
 /// own destination word — the natural go-to-definition target for a member
 /// whose sole textual mention of the new name is right there.
 ///
-/// # Definition-aborting shapes (issue #1120)
+/// # Definition-aborting shapes
 ///
 /// Real Tcl aborts the *whole* definition — no class is created at all — when a
 /// retracting word names a member that does not exist on its own side, or
@@ -2706,7 +2706,7 @@ fn retract_named_members(
         let Some(removed) = side.table(class_def).remove(name) else {
             // Nothing local to remove: the cross-file stub shape.  The
             // tombstone carries the *arrival* too when the retracting word was
-            // a move (issue #1167) — the stub has no `MethodDef` to re-key, so
+            // a move — the stub has no `MethodDef` to re-key, so
             // recording where the member goes is the only way the workspace
             // join can put it there.  Its own arrival word is the synthetic
             // declaration site, exactly as it is for a same-file move.
@@ -2792,12 +2792,12 @@ fn retract_named_members(
 /// `class_unexports` for the class-object side ([`MemberSide::visibility_sets`]).
 /// The pair is what carries the flip across documents: a `via_define` stub
 /// declares no member to flip, so without a recorded set a `self unexport m` in
-/// one file never reaches another file's class-command dispatch (issue #1119).
+/// one file never reaches another file's class-command dispatch.
 /// The two pairs stay strictly apart — `exports`/`unexports` are the
 /// *instance*-side record by contract (`workspace_index`'s effective-export
 /// union over `instance_method`, `rename_safety`'s "the class declares this
 /// name" test), so a class-object-side flip landing there would silently
-/// re-state an unrelated instance method's export bit (issue #1098).
+/// re-state an unrelated instance method's export bit.
 ///
 /// Within a pair the two sets are maintained **mutually exclusive**, because
 /// each is a record of the *last* writer for the name and the union consumer
@@ -2860,7 +2860,7 @@ fn apply_sided_member_effects(
 /// The two sides are separate slots that intercept different dispatches (see
 /// [`ClassDef::filters`] and [`ClassDef::class_filters`] for the oracle), so
 /// `filter` was the last member table still landing in one flat list regardless
-/// of the wrapper it was written under (issue #1119).
+/// of the wrapper it was written under.
 ///
 /// The keyword is matched here rather than read off the spec because *which
 /// `ClassDef` field a member routes to* is analyser-local semantics the registry
@@ -2890,7 +2890,7 @@ fn apply_filter_member(
 
 /// Fold one slot-member call (`filter` / `superclass` / `mixin` /
 /// `variable`) into `list` through the member's registry [`SlotSpec`]
-/// (issue #1169) — the one place the analyser applies slot semantics, so
+/// — the one place the analyser applies slot semantics, so
 /// the instance / class-object filter slots, the superclass list, the mixin
 /// list, and the declared-variable slot all take the identical fold.
 ///
@@ -2904,7 +2904,7 @@ fn apply_slot_member(member: Option<&MemberSpec>, args: &[String], list: &mut Ve
 }
 
 /// `self method NAME ARGS BODY` / `self classmethod NAME ARGS BODY`
-/// (issue #923 idx 120) — `TclOO`'s own spelling for a class-level method,
+/// — `TclOO`'s own spelling for a class-level method,
 /// the stock-library counterpart to `ooutil`'s `classmethod` keyword (both
 /// end up dispatched through the class's own bound command). Either inner
 /// spelling records into `class_methods`, tagged `is_self_method: true` so
@@ -2915,7 +2915,7 @@ fn apply_slot_member(member: Option<&MemberSpec>, args: &[String], list: &mut Ve
 /// Consumes the **prefix** form only.  `self { method NAME ARGS BODY; … }`'s
 /// block form (and `private`'s symmetric one) is normalised *into* this form
 /// by [`expand_wrapper_block_members`] before the member walker runs, so both
-/// spellings land here (issue #1081).
+/// spellings land here.
 fn apply_oo_self(
     grammar: &DefinitionBodyGrammar,
     sub_args: &[String],
@@ -2950,11 +2950,11 @@ fn apply_oo_self(
     // intercepts dispatches on the *class command* (`::B cls`, and even `::B
     // new`) while leaving instances unfiltered — `info object filters ::B` ->
     // `f`, `info class filters ::B` -> empty, on tclsh 9.0.4 and 8.6.14 alike
-    // (issue #1119). Handled before the declaration arms below so the wrapper's
+    //. Handled before the declaration arms below so the wrapper's
     // own side is the only table touched.
     //
     // `self unexport m` / `self { … unexport m … }` flip the class-object
-    // side's visibility and nothing else (issue #1098). Oracle, byte-identical
+    // side's visibility and nothing else. Oracle, byte-identical
     // on tclsh 9.0.4 and 8.6.14:
     //
     //   oo::class create C { method m {} {…}
@@ -3032,7 +3032,7 @@ fn declared_member_visibility(
 /// export-only stub has no declaration to navigate to, and — pinned on 9.0.4 and
 /// 8.6.14 alike — naming a method that exists only on the *other* side really is
 /// a no-op in Tcl, so skipping it is the faithful answer, not an abstention
-/// (issue #1098).
+///.
 fn set_member_visibility(
     class_def: &mut ClassDef,
     names: &[String],
@@ -3167,7 +3167,7 @@ pub(super) fn apply_oo_subcommand_in(
     // A member word that *removes* the members it names — `deletemethod m`,
     // `renamemethod old new` — written with no `self` / `private` wrapper acts
     // on the instance side, so the class must not keep describing what it
-    // deleted (issue #1101). Which words retract is registry data
+    // deleted. Which words retract is registry data
     // ([`MemberSpec::retraction`]), never a keyword matched here;
     // the wrapped spellings route to their wrapper's own side in
     // [`apply_oo_self`] / [`apply_oo_private`]. Neither `deletemethod` nor
@@ -3190,7 +3190,7 @@ pub(super) fn apply_oo_subcommand_in(
     // `oo::class create E2 { self { method onlyclass {} {…} } }` then
     // `oo::define E2 { unexport onlyclass }` leaves the class-object side's
     // `onlyclass` exported and dispatchable on 9.0.4 and 8.6.14 alike
-    // (issue #1098).
+    //.
     if let Some(m) = member {
         apply_sided_member_effects(
             m,
@@ -3208,7 +3208,7 @@ pub(super) fn apply_oo_subcommand_in(
         // recorded separately as `command_invocations` by
         // `record_member_command_references`, so no per-name span is kept here.
         //
-        // Both are slots (issue #1169): a bare list applies the slot's
+        // Both are slots: a bare list applies the slot's
         // C-pinned default operation — `-set` for `superclass` / `mixin`
         // (so the plain spelling still replaces), `-append` and friends
         // fold through the shared registry fold instead of being dropped
@@ -3284,13 +3284,13 @@ pub(super) fn apply_oo_subcommand_in(
             // itself would make, just issued once for the whole class
             // rather than per-call). A second `variable` statement in the
             // same class body must not silently discard the names the
-            // first one declared (issue #923 idx 32, main audit wave).
+            // first one declared (the audit, main audit wave).
             //
             // "Additive" because the class `variable` word is a slot whose
             // default operation is `-append` (with dedup — tclsh 9.0.4:
             // `variable a; variable a b` → `a b`); the explicit `-set` /
             // `-clear` / `-remove` operations fold through the same
-            // registry fold as every other slot (issue #1169).
+            // registry fold as every other slot.
             apply_slot_member(member, sub_args, &mut class_def.variables);
         }
         // `filter` has no arm of its own: it is one of the sided member effects
@@ -3568,7 +3568,7 @@ mod tests {
     }
 
     /// Apply a sequence of definition-body words to one class — the shape
-    /// slot folding (issue #1169) is about: later words must fold into,
+    /// slot folding is about: later words must fold into,
     /// not overwrite, earlier slot state.
     fn apply_words(cd: &mut super::ClassDef, calls: &[&[&str]]) {
         for words in calls {
@@ -3861,7 +3861,7 @@ mod tests {
 
     #[test]
     fn self_method_subcommand_records_class_method_tagged_is_self_method() {
-        // TP — issue #923 idx 120 Part 1: `self method NAME ARGS BODY`
+        // TP — the audit Part 1: `self method NAME ARGS BODY`
         // (TclOO's own spelling of a class-level method, the stock
         // counterpart to ooutil's `classmethod` keyword) previously had no
         // `apply_oo_subcommand` arm at all — `class_methods` never gained
@@ -3960,7 +3960,7 @@ mod tests {
 
     #[test]
     fn a_second_variable_subcommand_accumulates_rather_than_replacing() {
-        // TP — issue #923 idx 32 (main audit wave): the real corpus shape
+        // TP — the audit (main audit wave): the real corpus shape
         // (georgtree_tclopt's ::tclopt::Mpfit) has TWO separate `variable`
         // statements in the same class body (`variable funct m ftol ...`
         // then, separately, `variable Pars`). tclsh9.0-verified: both
@@ -4546,7 +4546,7 @@ mod tests {
         // ::E` empty while `-all -private` still lists `hidden`, and
         // `::E hidden` errors "unknown method" — so the block's `unexport`
         // really does apply to the class-object side. The member is recorded
-        // (issue #1081) *and* now carries the visibility the block gave it.
+        // *and* now carries the visibility the block gave it.
         let src = "oo::class create ::E {\n\
                    self {\n\
                    method hidden {} { return h }\n\
@@ -5229,7 +5229,7 @@ mod tests {
     #[test]
     fn per_object_cross_block_retraction_folds_and_stays_silent() {
         // The cross-block hazard that kept W315 out of `oo::objdefine`
-        // (issue #1170): a second block retracting what the first declared
+        //: a second block retracting what the first declared
         // is legal (tclsh 9.0.4 / 8.6.14 both accept it), so the seeded walk
         // must remove the member silently — no W315 — and the folded state
         // must drop it.
@@ -5337,7 +5337,7 @@ mod tests {
         }
     }
 
-    // W315 for `oo::objdefine` bodies (issue #1170) — possible at all only
+    // W315 for `oo::objdefine` bodies — possible at all only
     // because the per-object walk is seeded with the binding's cross-block
     // state; every reading demands positive, document-wide evidence.
 
@@ -5851,7 +5851,7 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![("old".to_string(), MemberSide::Instance)],
         );
-        // …and the arrival travels with it (issue #1167): the stub has no
+        // …and the arrival travels with it: the stub has no
         // `MethodDef` to move, so the destination name is what lets the
         // workspace join re-key the defining file's record.
         assert_eq!(

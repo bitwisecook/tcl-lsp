@@ -6032,18 +6032,13 @@ mod tests {
 
     #[test]
     fn idx63_two_block_class_my_dispatch_already_fixed_by_idx52() {
-        // Issue #923 idx 63 (main audit wave, high severity): the finding's
-        // own primary, corpus-verified claim — "go-to-definition AND
-        // find-references both return zero results" for a `my
-        // methodName` call when the class is created via `oo::class
-        // create` with no body and every method (including the call site
-        // itself) is added via a *separate*, later `oo::define ClassName
-        // { ... }` block (the finding's own minimal repro shape, matching
-        // the real corpus's `ticklecharts::chart`). This is the exact
-        // root cause idx 52 already fixed (`class_body_spans` /
-        // `enclosing_class_at`) — verified here independently, pinned as
-        // a permanent regression using idx 63's own repro shape. No
-        // production changes in this commit for this part of the finding.
+        // Go-to-definition and find-references must both answer for a `my
+        // methodName` call when the class is created via `oo::class create`
+        // with no body and every method (including the call site itself) is
+        // added via a *separate*, later `oo::define ClassName { ... }` block —
+        // the real corpus's `ticklecharts::chart` shape.  The load-bearing
+        // machinery is `class_body_spans` / `enclosing_class_at`, pinned here
+        // from the `my`-dispatch direction.
         let src = "oo::class create foo::widget {\n    variable _x\n    constructor {} { set _x 0 }\n}\noo::define foo::widget {\n    method bar {} { return \"bar-value\" }\n    method baz {} { return [my bar] }\n}\nputs [[foo::widget new] baz]\n";
         let analysis = analyse(src);
         // `definition` at the `my bar` call site (line 6, col 31).
@@ -6239,14 +6234,13 @@ mod tests {
 
     #[test]
     fn references_for_method_reach_a_my_dispatch_call_inside_a_switch_arm() {
-        // Issue #923 idx 63 (main audit wave, high severity): a `my
-        // methodName` call written inside a `switch` arm body is a
+        // A `my methodName` call written inside a `switch` arm body is a
         // genuine, statically-known call site (tclsh9.0/8.6-verified) —
         // the real corpus shape (`ticklecharts::chart`'s `Add` dispatcher:
         // `switch ... { barSeries { my AddBarSeries {*}$args } ... }`).
-        // `scan_my_method_region`'s `[...]`-substitution recursion never
+        // `scan_my_method_region`'s `[...]`-substitution recursion alone never
         // reaches a switch arm's braced body (it isn't a command
-        // substitution), so this was invisible to find-references even
+        // substitution), which would leave this invisible to find-references even
         // though go-to-definition (an independent cursor-token walk)
         // already resolved it.
         let src = "oo::class create widget {\n    method bar {} { return \"bar-value\" }\n    method dispatch {args} {\n        switch -exact -- [lindex $args 0] {\n            bar { my bar {*}[lrange $args 1 end] }\n        }\n    }\n}\n";
@@ -6306,8 +6300,7 @@ mod tests {
 
     #[test]
     fn references_from_decl_reach_my_dispatch_when_class_extended_via_separate_oo_define() {
-        // Issue #923 idx 52 (main audit wave, high severity): `Gadget` is
-        // created via `oo::class create` with no body; every method
+        // `Gadget` is created via `oo::class create` with no body; every method
         // (including the `my Helper` call site) is added via a *separate*,
         // later `oo::define Gadget { ... }` block — the real corpus shape
         // (`ticklecharts::chart`). References from the `Helper` declaration
@@ -6334,7 +6327,7 @@ mod tests {
 
     #[test]
     fn references_from_decl_reach_a_self_bracket_dispatch_call_site() {
-        // Issue #1322: `[self] m` is TclOO's own same-object dispatch
+        // `[self] m` is TclOO's own same-object dispatch
         // idiom — reaches the enclosing class exactly like `my m`, but
         // through a bracketed command substitution. References from the
         // declaration must reach it, not silently return only the
@@ -6360,7 +6353,7 @@ mod tests {
 
     #[test]
     fn references_from_decl_reach_a_list_built_self_callback() {
-        // Issue #1701: `bind` receives a deferred script built as a Tcl list.
+        // `bind` receives a deferred script built as a Tcl list.
         // `[self]` is substituted while the method frame is live, leaving an
         // object-command prefix that later dispatches `animTick` externally.
         let src = "package require Tk\noo::class create C {\n    method animTick {} { return 1 }\n    method anim {wl} {\n        bind $wl <ButtonPress-1> [list [self] animTick %x %y]\n    }\n}\n";
@@ -6400,7 +6393,7 @@ mod tests {
 
     #[test]
     fn references_reach_a_list_built_self_after_callback() {
-        // Real #1181 corpus shape: Pave and Zesty both schedule methods this
+        // A real corpus shape: Pave and Zesty both schedule methods this
         // way. `after` exposes its script through the same registry Body role
         // as `bind`, so no scheduler-specific branch belongs in this scan.
         let src = "oo::class create C {\n    method tick {} { return 1 }\n    method wire {} {\n        after idle [list [self] tick]\n    }\n}\n";
@@ -6418,9 +6411,8 @@ mod tests {
         );
     }
 
-    /// Issues #1703 / #1704 asked for "at least one tcllib-shaped fixture",
-    /// and the suite met that only with hand-written imitations. This reads
-    /// the real files the issues cite.
+    /// A tcllib-shaped fixture read from the real files rather than a
+    /// hand-written imitation.
     ///
     /// Gated on corpus presence with a loud skip, matching
     /// `rust/tcl-lsp-db/tests/compiler_check_corpus.rs`.
@@ -6432,14 +6424,12 @@ mod tests {
         );
         // (file, method declared in the file, a method named by a callback
         // prefix inside it). `cat.tcl` is the `after … [namespace code [list
-        // my Post $c]]` shape from #1703; `httpd.tcl` is the `socket -server
-        // [namespace code [list my connect]]` CommandPrefix shape.
-        // `httpd.tcl` carries the `socket -server [namespace code [list my
-        // connect]]` shape the issues also cite, but it defines its classes
-        // with `::clay::define`, which the analyser records no class for at
-        // all — `all_classes` is empty for that file, so there is no method to
-        // navigate from and the shape is unreachable for reasons that have
-        // nothing to do with callback prefixes. Filed as #1956 rather than
+        // my Post $c]]` shape.  `httpd.tcl` carries the `socket -server
+        // [namespace code [list my connect]]` CommandPrefix shape, but it
+        // defines its classes with `::clay::define`, which the analyser records
+        // no class for at all — `all_classes` is empty for that file, so there
+        // is no method to navigate from and the shape is unreachable for
+        // reasons that have nothing to do with callback prefixes, so it is not
         // asserted here.
         let (relative, method) = ("modules/virtchannel_base/cat.tcl", "Post");
         {
@@ -6481,7 +6471,7 @@ mod tests {
         }
     }
 
-    /// Issue #1704 — a `{*}`-expanded callback word must abstain.
+    /// A `{*}`-expanded callback word must abstain.
     ///
     /// `{*}` splices the word's value into the argument list, so the registry's
     /// role indices no longer describe where anything landed. Reading the word
@@ -6497,7 +6487,7 @@ mod tests {
             "oo::class create C {\n    method compare {a b} { return 0 }\n    method sort {items} {\n        lsort -command {*}[list [self] compare] $items\n    }\n}\n",
             // Same rule for a Body slot, where the arity happens to work out.
             "oo::class create C {\n    method tick {} { return 1 }\n    method wire {} {\n        after idle {*}[list [self] tick]\n    }\n}\n",
-            // Codex review on #1957: inside a `WRAPS_COMMAND_PREFIX` wrapper.
+            // Inside a `WRAPS_COMMAND_PREFIX` wrapper:
             // `namespace code` then has two arguments and errors rather than
             // dispatching anything, so there is nothing to reference.
             "oo::class create C {\n    method tick {} { return 1 }\n    method wire {} {\n        after idle [namespace code {*}[list my tick]]\n    }\n}\n",
@@ -6543,7 +6533,7 @@ mod tests {
 
     #[test]
     fn references_reach_namespace_wrapped_my_callback_even_when_private() {
-        // #1703 / tcllib's virtchannel_base shape: the registry declares
+        // tcllib's virtchannel_base shape: the registry declares
         // `namespace code` as a WRAPS_COMMAND_PREFIX and `list` as a
         // BUILDS_COMMAND_PREFIX.  `my` keeps private current-object dispatch,
         // unlike a captured `[self]` object command.
@@ -6581,7 +6571,7 @@ mod tests {
 
     #[test]
     fn a_mixin_branch_decides_its_own_providers_visibility() {
-        // Codex review on PR #1726.  A mixin that inherits the member from its
+        // A mixin that inherits the member from its
         // own superclass and unexports the name empties *its* branch only —
         // the spine still answers.  tclsh 8.6.16 / 9.0.4 both run `A`'s body:
         //   oo::class create MChild { superclass MBase } ; unexport m
@@ -6911,7 +6901,7 @@ mod tests {
 
     #[test]
     fn inherited_callback_joins_the_providers_reference_set() {
-        // #1705: a captured `[self]` object command in an inheriting class
+        // A captured `[self]` object command in an inheriting class
         // reaches the provider's exported implementation — tclsh 8.6.16 /
         // 9.0.4 both run `Base`'s body for `[list [Child new] tick]`.  Both
         // directions must agree on that, or rename would edit one and not the
@@ -7129,13 +7119,13 @@ mod tests {
         );
     }
 
-    // class-command dispatch (issue #923 idx 120): `CLASS method` for a
+    // class-command dispatch: `CLASS method` for a
     // classmethod / `self method`, a receiver set entirely separate from
     // `$obj method` / `NAME method` instance dispatch above.
 
     #[test]
     fn find_obj_method_call_sites_matches_class_command_and_inheriting_subclass() {
-        // TP — both the finding's own repro (`ActiveRecord find`) and its
+        // TP — both the plain shape (`ActiveRecord find`) and its
         // inherited-via-superclass sibling (`Table find`, ooutil's
         // `classmethod` propagates to a subclass's own bound command).
         let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\noo::class create Table {\n    superclass ActiveRecord\n}\nTable find foo bar\nActiveRecord find foo bar\n";
@@ -7158,9 +7148,9 @@ mod tests {
         }
     }
 
-    /// TP (adversarial review of #1047, item 2): a bare class-command
-    /// dispatch written inside an `apply` lambda body or a `namespace eval`
-    /// body — at the top level or nested inside a method — is a real call.
+    /// TP — a bare class-command dispatch written inside an `apply` lambda
+    /// body or a `namespace eval` body — at the top level or nested inside a
+    /// method — is a real call.
     /// All three shapes were confirmed dispatching under tclsh 9.0.4
     /// (`MAKE CALLED` printed three times).
     #[test]
@@ -7221,8 +7211,7 @@ mod tests {
 
     /// TN — a bare (backslash-escaped) `apply` body element is decoded
     /// before `apply` evaluates it, so its source slice is not the script
-    /// that runs; the scan must not re-parse it in place (Codex review on
-    /// #1047).
+    /// that runs; the scan must not re-parse it in place.
     #[test]
     fn find_obj_method_call_sites_skips_escaped_lambda_body_element() {
         let src = "oo::class create Factory {\n\
@@ -7336,7 +7325,7 @@ mod tests {
 
     #[test]
     fn references_from_cursor_on_bare_obj_command_call_site() {
-        // Codex #881 (symmetry): invoking Find All References with the cursor
+        // Symmetry: invoking Find All References with the cursor
         // ON the `bark` token of a bare `rex bark` dispatch must resolve — not
         // only the declaration-based peek.  `rex` is at col 0, `bark` at col 4.
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nDog create rex\nrex bark\n";
@@ -7376,8 +7365,8 @@ mod tests {
     }
 
     // tcl::OptProc — the `opt` package's automatic-option-parsing proc
-    // definer (issue #923 idx 90): the missing analyser hook previously left
-    // the call site unreachable from the declaration.
+    // definer: without its analyser hook the call site is unreachable from
+    // the declaration.
 
     #[test]
     fn references_from_opt_proc_declaration_reach_the_call_site() {
@@ -7399,10 +7388,9 @@ mod tests {
 
     #[test]
     fn references_reach_a_proc_dispatched_through_an_eval_of_a_list_computed_var() {
-        // Issue #923 idx 94: the finding's own minimal repro — `eval $cmdD`
-        // where `$cmdD` is built via `[list greetD World]` — previously
-        // returned only the declaration; the call site living inside
-        // `eval $cmdD` was invisible.
+        // `eval $cmdD`, where `$cmdD` is built via `[list greetD World]`, is a
+        // real call site: without the constant-value dispatch it is invisible
+        // and only the declaration comes back.
         let src = "proc greetD {n} {puts \"D $n\"}\nset cmdD [list greetD World]\neval $cmdD\n";
         let analysis = analyse(src);
         // Line 0 — cursor on `greetD`'s declaration name (col 6).

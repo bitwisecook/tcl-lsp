@@ -229,7 +229,7 @@ impl Stmt {
 /// field list: the profile selects `GRAMMAR_TCL9X`, whose
 /// `script_skips_leading_bom` is what makes a byte-order mark a file prologue
 /// rather than part of the first word. `LexerConfig::default()` reads the mark
-/// as content, so a BOM-prefixed document used to segment as
+/// as content, so a BOM-prefixed document would segment as
 /// `\u{FEFF}sslictcl` and report a missing header (`SSLIC1003`) for a
 /// perfectly good file.
 ///

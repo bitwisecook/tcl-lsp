@@ -328,7 +328,7 @@ const EXPR_OPERATOR_REASON: &str =
 
 /// Whether `c` is a `tcl::mathop::<op>` (or `::`-qualified) command for a
 /// real `expr` operator with a mathop command form — derived from
-/// [`tcl_syntax::expr::operators`] (issue #983/#987's unification). `c` must
+/// [`tcl_syntax::expr::operators`]. `c` must
 /// already be [`canon`]ical.
 ///
 /// Unlike [`is_expr_operator`]'s bare operator spellings (grammar-only, never
@@ -364,7 +364,7 @@ const MATHOP_COMMAND_REASON: &str = "`::tcl::mathop::*` command, registered by c
 
 /// Whether `c` is a `tcl::mathfunc::<name>` (or `::`-qualified) command for
 /// a real `expr` math function — derived from
-/// [`tcl_syntax::expr::mathfunc::added_in`] (issue #983's unification).
+/// [`tcl_syntax::expr::mathfunc::added_in`].
 /// `c` must already be [`canon`]ical.
 ///
 /// Unlike [`is_expr_operator`]'s bare mathop spellings, `::tcl::mathfunc::*`
@@ -391,14 +391,13 @@ const MATHFUNC_COMMAND_REASON: &str = "`::tcl::mathfunc::*` command, registered 
      (register_builtin(&full, …) — not a literal the scan can see)";
 
 /// Whether `c` is a standalone `::tcl::dict::*` ensemble-implementation
-/// spelling (issue #923 idx 105). These are real, separately-callable commands
+/// spelling. These are real, separately-callable commands
 /// in C Tcl (the `dict` ensemble's default map targets), so the registry
 /// carries them — but `runtime/rust` implements only the `dict` ensemble head
 /// (`register_builtin(b"dict", …)`), not the qualified spellings: a direct
 /// `::tcl::dict::get …` call raises `invalid command name` there. Classified as
 /// a genuine, visible runtime gap ([`Status::KnownGap`]) rather than hidden
-/// under [`HANDLER_EXTRA`] as if `dict`'s handler backed them (Codex review,
-/// PR #1020).
+/// under [`HANDLER_EXTRA`] as if `dict`'s handler backed them.
 fn is_tcl_dict_qualified(c: &str) -> bool {
     c.strip_prefix("::")
         .unwrap_or(c)
@@ -411,7 +410,7 @@ fn is_tcl_dict_qualified(c: &str) -> bool {
 const TCL_DICT_QUALIFIED_REASON: &str = "standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): \
      runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name`";
 
-/// Whether `c` is a qualified `::oo::Helpers::*` spelling (issue #1026).
+/// Whether `c` is a qualified `::oo::Helpers::*` spelling.
 ///
 /// These are real commands in C Tcl — `info commands ::oo::Helpers::link`
 /// answers under tclsh 9.0.4 — which is why the registry carries them

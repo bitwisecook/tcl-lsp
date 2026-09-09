@@ -29436,8 +29436,6 @@ mod tests {
         assert_eq!(optimiser_only.len(), 1, "O120 survives without W110");
     }
 
-    // ---- #723 W120 workspace-refinement helpers ----------------------------
-
     /// A throwaway directory under the system temp dir, removed on drop.
     struct TmpWs(PathBuf);
     impl TmpWs {
@@ -29482,11 +29480,10 @@ mod tests {
         diags.iter().any(|d| d.code == DiagCode::W120)
     }
 
-    /// #844 acceptance criterion (a): the progressive fast tier must exclude
-    /// exactly the two workspace-refined analyser codes — W120 (missing
-    /// `package require`) and W123 (unresolved command) — and nothing else.
-    /// Publishing either un-refined would resurface the startup false-positive
-    /// W120 that #841's `reschedule_all_open_documents` fix eliminated.
+    /// The progressive fast tier must exclude exactly the two
+    /// workspace-refined analyser codes — W120 (missing `package require`) and
+    /// W123 (unresolved command) — and nothing else. Publishing either
+    /// un-refined resurfaces a startup false-positive W120.
     #[test]
     fn fast_tier_excludes_only_workspace_refined_codes() {
         // The two deferred codes are the whole exclusion set.
@@ -29613,7 +29610,7 @@ mod tests {
 
     #[test]
     fn inlay_alias_in_editor_layer_beats_global_inlay_type_hints() {
-        // Regression (#728): the global `config.ini` layer (e.g. written by
+        // The global `config.ini` layer (e.g. written by
         // `exportConfig`) carries an explicit `inlayTypeHints: false`, while the
         // higher-precedence editor layer sets only the legacy `inlayHints`
         // alias. After per-layer collapse the editor must win → type hints on.
@@ -29871,7 +29868,7 @@ mod tests {
 
     #[test]
     fn refine_w120_suppressed_when_wrapper_transitively_requires_tk() {
-        // The precise #723 case: a workspace package whose implementation does
+        // The precise case: a workspace package whose implementation does
         // `package require Tk` makes Tk available, so the Tk W120 is a false
         // positive.
         let ws = TmpWs::new("wrap");
@@ -29927,8 +29924,6 @@ mod tests {
             "plain doesn't provide Tk ⇒ W120 kept: {out:?}"
         );
     }
-
-    // ---- #804 W120 entry-point / source-graph inheritance ------------------
 
     fn ws_index(docs: &[(&Uri, &str)]) -> core_workspace_index::WorkspaceIndex {
         let analyses: Vec<(String, tcl_compiler::analyser::AnalysisResult)> = docs
@@ -30004,10 +29999,10 @@ mod tests {
         assert_eq!(inherited, vec!["Tk".to_owned()]);
     }
 
-    // ---- #1331 cross-file command resolution + arity ----------------------
+    // Cross-file command resolution + arity.
     //
-    // The two-file shape from the issue, which single-file coverage could
-    // never have caught: `deflib.tcl` defines `proc libtest {a b c}` and
+    // The two-file shape single-file coverage cannot catch: `deflib.tcl`
+    // defines `proc libtest {a b c}` and
     // `plaincaller.tcl` calls `libtest 1 2`. Go-to-definition already
     // resolved it; diagnostics called it unknown.
     //
@@ -30227,8 +30222,7 @@ mod tests {
 
     /// **TN — computed parameter list.** `proc p $params {…}` declares an
     /// unknown number of formals; reading the empty recorded list as "takes no
-    /// arguments" is what drew a false E003 in issue #1107, so the arity must
-    /// be fully open.
+    /// arguments" draws a false E003, so the arity must be fully open.
     #[test]
     fn arity_abstains_for_a_computed_parameter_list() {
         let (analysis, settled) = settle(
@@ -30350,8 +30344,8 @@ mod tests {
         );
     }
 
-    /// **A constants-only edit is a source-graph change** (issue #1370
-    /// review). Retargeting `set dir /a` to `/b` leaves the `source [file
+    /// **A constants-only edit is a source-graph change.** Retargeting
+    /// `set dir /a` to `/b` leaves the `source [file
     /// join $dir x.tcl]` row byte-identical, so comparing rows alone reports
     /// "nothing changed" and neither the old child nor the new one is
     /// rescheduled — both were stale.  The captured constants must move the
@@ -30426,9 +30420,9 @@ mod tests {
         );
     }
 
-    /// **TP/TN for the hand-built wake set** (issues #1619, #1624).  A document
-    /// that is open but not in the index is woken — that is the race #1619
-    /// closed — *unless* its backing file was deleted out of band, in which case
+    /// **TP/TN for the hand-built wake set.**  A document that is open but not
+    /// in the index is woken — the transient open-before-first-publish race —
+    /// *unless* its backing file was deleted out of band, in which case
     /// it is unindexed permanently rather than transiently: the publish path
     /// removes rather than replaces it, so it would otherwise be re-woken by
     /// every fact-moving publish anywhere in the workspace, for ever, to
@@ -30460,7 +30454,7 @@ mod tests {
         );
     }
 
-    /// **The other half of the same buffer's story** (#1666 review). Being
+    /// **The other half of the same buffer's story.** Being
     /// absent from the index is two facts about an orphan, not one: it must
     /// not *contribute* — its path is dead, and re-adding it resurrects the
     /// ghost `did_change_watched_files` retired — but it does still *consume*.
@@ -30471,7 +30465,7 @@ mod tests {
     ///
     /// TP: the orphan calls `helper`, whose signature moved. TN: a change to
     /// an unrelated name leaves it alone, so this stays a targeted wake and
-    /// not the blanket re-wake #1624 removed.
+    /// not a blanket re-wake.
     #[test]
     fn an_orphan_is_still_woken_by_a_signature_it_consumes() {
         let orphan = Uri::from_file_path("/proj/orphan.tcl").unwrap();
@@ -30520,11 +30514,11 @@ mod tests {
     }
 
     /// The same defect stated where it bites, over the **union** of every
-    /// consumer set a publish builds (#1666 review). `live.tcl` changes
+    /// consumer set a publish builds. `live.tcl` changes
     /// `helper`'s arity; the orphan calls `helper 1` and is on screen with a
     /// now-wrong E002. It is absent from the index, so
     /// [`command_diagnostic_consumers`] cannot see its call site, and it is
-    /// excluded from [`unindexed_open_documents`] by #1624 — without
+    /// excluded from [`unindexed_open_documents`] — without
     /// [`orphaned_fact_consumers`] no set names it and its squiggles stay
     /// stale with no signal.
     #[test]
@@ -30558,8 +30552,6 @@ mod tests {
             "an on-screen orphan consuming the changed signature must be woken; got {consumers:?}",
         );
     }
-
-    // ---- #1332 the `source` up direction, position-gated -------------------
 
     /// A `source`d file's `package require` is available *after* the statement
     /// and not before it — the C Tcl 9.0.4 behaviour recorded on
@@ -30644,7 +30636,7 @@ mod tests {
 
     /// The followable case: `main.tcl` sources `tkFile.tcl`, which requires
     /// Tk. Tk arrives in `main.tcl`, and the abstention flag stays down —
-    /// option (1) of issue #1332, not option (2).
+    /// followable source, so no abstention.
     #[test]
     fn a_followable_source_contributes_its_requires_without_abstaining() {
         let main = Uri::from_file_path("/proj/main.tcl").unwrap();
@@ -30985,10 +30977,10 @@ mod tests {
     }
 
     /// `# noqa: S100` on the line before the shimmering command must
-    /// suppress it through the live compiler-checks lift — previously
-    /// `lift_compiler_diagnostics` never consulted `suppressed_lines` at
-    /// all, so `# noqa` had no effect on any compiler-check code (S1xx
-    /// shimmer, T1xx taint, IRULE1xxx-5xxx, O1xx, GVN, SCCP).
+    /// suppress it through the live compiler-checks lift.  Without
+    /// `lift_compiler_diagnostics` consulting `suppressed_lines`, `# noqa`
+    /// has no effect on any compiler-check code (S1xx shimmer, T1xx taint,
+    /// IRULE1xxx-5xxx, O1xx, GVN, SCCP).
     #[test]
     fn lift_compiler_diagnostics_honours_inline_noqa_suppression() {
         let registry = CommandRegistry::build_default();
@@ -31246,7 +31238,7 @@ mod tests {
             &InitializeParams::default()
         ));
         // A client advertising `textDocument/diagnostic` support → pull-capable,
-        // so the worker must stop pushing to avoid the #721 double-display.
+        // so the worker must stop pushing to avoid a double display.
         let pull_params = InitializeParams {
             capabilities: ClientCapabilities {
                 text_document: Some(TextDocumentClientCapabilities {
@@ -31582,7 +31574,7 @@ mod tests {
         }
     }
 
-    /// Issue #1295: the folder-over-global overlay `getEffectiveConfig` and
+    /// The folder-over-global overlay `getEffectiveConfig` and
     /// every provider gate share.  A folder that mentions one feature must
     /// override exactly that one and leave the rest of the global set alone —
     /// the mistake in the other direction (a folder resetting unmentioned keys
@@ -31956,7 +31948,7 @@ mod tests {
     async fn resolved_docstring_style_defaults_to_none() {
         // No `docstringStyle` configured at all — falls back to the
         // documented default, matching `FormatterConfig::default()` and
-        // every editor catalogue's declared default (#1314).
+        // every editor catalogue's declared default.
         let backend = test_backend();
         let uri = Uri::from_str("file:///f.tcl").unwrap();
         assert_eq!(
@@ -32260,8 +32252,8 @@ mod tests {
         ));
     }
 
-    /// PR #1179 review (Codex P1): the marker test must widen the edit to the
-    /// **lines** it touches, not just the changed slice.
+    /// The marker test must widen the edit to the **lines** it touches, not
+    /// just the changed slice.
     ///
     /// `detect_dialect` scans the whole source for the version-guard and
     /// content-signature tiers, so a `package require Tcl 8.6` at line 500 is
@@ -32324,7 +32316,7 @@ mod tests {
     }
 
     /// The pre-edit half of the widened test: **removing** a marker matters as
-    /// PR #1179 review (Copilot): the marker filter must be case-insensitive,
+    /// The marker filter must be case-insensitive,
     /// because the detector is.  The `tcl-dialect:` directive key is matched
     /// with `eq_ignore_ascii_case` and the content-signature tiers lowercase
     /// their words, so `# TCL-DIALECT: irules` typed deep in a document is

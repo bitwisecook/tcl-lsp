@@ -333,9 +333,8 @@ mod opt_proc_definer {
         // idiom writes no literal `args` word anywhere) could collide with
         // another symbol's own span and silently hide it — every
         // optlist-derived local must still resolve to its own name, not
-        // `args` (issue #923 idx 90 regression: the fix's first attempt
-        // anchored `args` to the whole `optlist` word, which swallowed
-        // every one of its own descriptor sub-spans).
+        // `args` (anchoring `args` to the whole `optlist` word instead
+        // would swallow every one of its own descriptor sub-spans).
         let r = Analyser::new().analyse(
             "tcl::OptProc greet {child -use -display} { return $child }",
             D,
@@ -441,7 +440,7 @@ mod variable_analysis {
     }
 }
 
-// Issue #1108 — a registry `VarRead`-role name word is a reference site.
+// A registry `VarRead`-role name word is a reference site.
 //
 // A variable is read by more than `$name`. Any command whose spec puts an
 // argument in `ArgRole::VarRead` reads the cell that word names, and tclsh
@@ -451,9 +450,9 @@ mod variable_analysis {
 //   proc f {} {set m 1; puts [info exists m]}; f  -> 1
 //   proc f {} {set m 1; return [set m]};      f   -> 1
 //
-// Before the fix only `$m` and the *statement* form `set m` reached
-// `VarDef::references`, so Find References / document-highlight / the
-// minifier's rename pass under-reported every one of these sites.
+// `VarDef::references` must include every one of these sites, not just
+// `$m` and the *statement* form `set m` — otherwise Find References /
+// document-highlight / the minifier's rename pass under-report them.
 mod var_read_role_references {
     use super::*;
 
@@ -549,7 +548,7 @@ mod var_read_role_references {
 
     #[test]
     fn tp_a_brace_quoted_name_word_reads_the_literal_cell() {
-        // Issue #1078's cell, read through the role path: `{$n}` names the
+        // The cell read through the role path: `{$n}` names the
         // variable *called* `$n`. tclsh 9.0.4 / 8.6.16: `set {$n} v; set {$n}`
         // -> v, while `info exists n` -> 0.
         let src = "proc f {} {\n    set {$n} 1\n    puts [set {$n}]\n}\n";
@@ -568,8 +567,8 @@ mod var_read_role_references {
     }
 }
 
-// Issue #1138 — a script argument *built* with `list` is walked as the
-// command it provably is.
+// A script argument *built* with `list` is walked as the command it
+// provably is.
 //
 // tclsh 9.0.4 and 8.6.16 agree that the three spellings are functionally
 // identical:
@@ -703,7 +702,7 @@ mod list_quoted_script_arguments {
         // `::tk::SourceLibFile`'s real shape. `$file` is the proc's own
         // parameter, substituted in the proc frame *before* `namespace eval`
         // enters `::` — so the read is the proc's, and the namespace scope
-        // must not claim those bytes (issue #1138 idx 102).
+        // must not claim those bytes.
         let src = "proc ::tk::SourceLibFile {file} {\n    \
 namespace eval :: [list source [file join $::tk_library $file.tcl]]\n\
 }\n";

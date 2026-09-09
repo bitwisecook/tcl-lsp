@@ -91,8 +91,8 @@ fn rename(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 /// The simple (unqualified) tail of a written command name — `::a::b` → `b`,
-/// and the empty-string `{}` command for a name ending in a separator run
-/// (#934), matching where the command table binds it.
+/// and the empty-string `{}` command for a name ending in a separator run,
+/// matching where the command table binds it.
 fn simple_tail(name: &[u8]) -> Vec<u8> {
     if tcl_syntax::naming::ends_with_separator(name) {
         return Vec::new();
@@ -118,8 +118,8 @@ fn alias_loop_error(interp: &mut Interp, simple: &[u8]) -> Code {
 /// abbreviates `create` and the empty word — a prefix of every entry — is
 /// `ambiguous option ""`.
 ///
-/// The table names only the subcommands this runtime dispatches (issue #1412
-/// item 3): `cancel`, `share`, and `transfer` need infrastructure it has none
+/// The table names only the subcommands this runtime dispatches: `cancel`,
+/// `share`, and `transfer` need infrastructure it has none
 /// of. `slaves` is 8.x's deprecated spelling of `children`: it still resolves
 /// (as it does in C, whose `options[]` keeps it) but
 /// [`interp_option_choices`] drops it from the 9.0 enumeration, exactly as C
@@ -190,7 +190,7 @@ pub(crate) fn resolve_interp_option(
 /// infrastructure for — no cancellation flag on eval, no channel-table
 /// sharing between interps — so, unlike `target`, implementing them is not
 /// cheap; the bad-option list below advertises only what actually dispatches
-/// here, rather than tclsh's full list (issue #1412 item 3).
+/// here, rather than tclsh's full list.
 fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args(b"interp cmd ?arg ...?");
@@ -316,7 +316,7 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// [`Interp::alias_target_path`]. `cancel`/`share`/`transfer` are the other
 /// three subcommands tclsh advertises here that this runtime does not
 /// implement; unlike `target` they need infrastructure (script cancellation,
-/// cross-interp channel sharing) this runtime has none of (issue #1412 item 3).
+/// cross-interp channel sharing) this runtime has none of.
 fn interp_target(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 4 {
         return interp.wrong_args(b"interp target path alias");
@@ -625,11 +625,10 @@ fn interp_hidectl(interp: &mut Interp, argv: &[*mut TclObj], op: CommandVisibili
 ///
 /// C's `ChildInvokeHidden` (`tclInterp.c`) takes the *last* of `-global`
 /// (`::`) / `-namespace ns` given, not a mutual-exclusion refusal — passing
-/// both is legal on tclsh 8.6.16/9.0.4, the last one simply wins (issue
-/// #1412's own item 5 claimed a `cannot use -global option and -namespace
-/// option together` error exists; it does not, on either release). An
-/// unrecognized option is a hard `bad option` error rather than the previous
-/// silent skip. `-namespace`'s namespace is resolved from the **global**
+/// both is legal on tclsh 8.6.16/9.0.4, the last one simply wins; no
+/// `cannot use -global option and -namespace option together` error exists
+/// on either release. An unrecognized option is a hard `bad option` error.
+/// `-namespace`'s namespace is resolved from the **global**
 /// namespace regardless of the caller's current one, matching
 /// `TCL_GLOBAL_ONLY` (tclsh-pinned: `-namespace bar` from inside `::foo`
 /// still names `::bar`, not `::foo::bar`).

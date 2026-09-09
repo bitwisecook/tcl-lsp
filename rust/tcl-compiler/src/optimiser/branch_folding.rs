@@ -137,9 +137,9 @@ fn propagate_into_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         // condition stops one byte short of its closing `}` (`while {1 < 2}`
         // slices as `{1 < 2`), and the brace unwrap below would then strip an
         // opener with no matching closer. `word_span_at` owns that widening:
-        // deciding it here from the slice's last byte read `{$x eq {}}` —
-        // which already ends in the *inner* pair's `}` — as already whole and
-        // dropped the outer brace from the rewrite target (issue #1423).
+        // deciding it here from the slice's last byte reads `{$x eq {}}` —
+        // which already ends in the *inner* pair's `}` — as already whole, and
+        // drops the outer brace from the rewrite target.
         let span = tcl_lexer::word_span_at(ctx.source, span);
         let range = span.as_range();
         if range.end > ctx.source.len() {
@@ -311,9 +311,9 @@ fn fold_constant_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         // condition stops one byte short of its closing `}` (`while {1 < 2}`
         // slices as `{1 < 2`), and the brace unwrap below would then strip an
         // opener with no matching closer. `word_span_at` owns that widening:
-        // deciding it here from the slice's last byte read `{$x eq {}}` —
-        // which already ends in the *inner* pair's `}` — as already whole and
-        // dropped the outer brace from the rewrite target (issue #1423).
+        // deciding it here from the slice's last byte reads `{$x eq {}}` —
+        // which already ends in the *inner* pair's `}` — as already whole, and
+        // drops the outer brace from the rewrite target.
         let span = tcl_lexer::word_span_at(ctx.source, span);
         let source = ctx.source;
         let range = span.as_range();
@@ -596,11 +596,11 @@ mod tests {
 
     #[test]
     fn constant_condition_ending_in_a_nested_empty_pair_keeps_its_own_closer() {
-        // Issue #1423. The condition span is the lexer's word span, so it
-        // stops one byte short of the outer `}`. Deciding the widening from
-        // the slice's last byte read `{$x eq {}` as already whole — it does
-        // end in a `}`, the *inner* empty pair's — and the fold rewrote a
-        // span missing the outer brace, leaving `while {0}} { … }`.
+        // The condition span is the lexer's word span, so it stops one byte
+        // short of the outer `}`. Deciding the widening from the slice's last
+        // byte reads `{$x eq {}` as already whole — it does end in a `}`, the
+        // *inner* empty pair's — and rewrites a span missing the outer brace,
+        // leaving `while {0}} { … }`.
         let source = "while {$x eq {}} { set x done }";
         // `{$x eq {}` — the lexer's own inner-end span for the condition.
         let cond_span = Span::new(6, 15);
