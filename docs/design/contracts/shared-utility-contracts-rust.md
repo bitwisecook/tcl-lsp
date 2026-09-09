@@ -720,10 +720,10 @@ entry point, or gate moves without this contract being updated.
   projection back into semantic identity. Native namespace tables retain
   explicit parent/child `NsId` edges.
 - `OoId` is the shared interpreter-local identity for a TclOO object or class.
-  Runtime implementations carry it through class/object/provider and
-  active-call relationships; mutable command slots and display names remain
-  projections attached to that stable token. A runtime must import this owner
-  rather than declare a private duplicate.
+  The native runtime carries it through class/object/provider and active-call
+  relationships; mutable command slots and display names remain projections
+  attached to that stable token. The standalone migration tracked by #1764
+  must import this owner rather than declare a private duplicate.
 
 ### `tcl-syntax` — event-handler boundaries
 

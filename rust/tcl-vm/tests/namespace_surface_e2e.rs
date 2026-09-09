@@ -3131,6 +3131,68 @@ fn a_retained_token_keeps_its_namespace_path() {
 }
 
 #[test]
+fn a_live_path_keeps_an_exact_retained_target_token() {
+    // A suspended coroutine retains ::B after its public namespace spelling is
+    // deleted. ::U's path entry is the old namespace token, not a name to
+    // resolve again. Exact Tcl 9.0.4 oracle.
+    assert_eq!(
+        run(r"namespace eval B {
+                 proc b {} {return B}
+                 coroutine ::cb apply {{} {yield ready; return done} ::B}
+             }
+             namespace eval U {namespace path ::B}
+             namespace delete ::B
+             namespace eval ::U {list [namespace path] [catch {b} m] $m}"),
+        "::B 0 B"
+    );
+}
+
+#[test]
+fn a_retained_path_reaches_its_retained_child_target() {
+    // Both the path owner and its relative target are retained by the active
+    // procedure frame. Resolution walks their arena edge instead of reparsing
+    // the now-unpublished display name. Exact Tcl 9.0.4 oracle.
+    assert_eq!(
+        run(r"namespace eval N {
+                 namespace eval P {proc q {} {return OLD}}
+                 namespace path P
+                 proc hold {} {
+                     namespace delete ::N
+                     list [namespace path] [q]
+                 }
+             }
+             ::N::hold"),
+        "::N::P OLD"
+    );
+}
+
+#[test]
+fn finalising_a_path_target_unlinks_live_and_retained_owners() {
+    // ::A and ::B are retained independently. Finishing ::B removes that exact
+    // target from ::A's retained path table; finishing ::A must therefore see
+    // no path and no callable `b`. Exact Tcl 9.0.4 oracle.
+    assert_eq!(
+        run(r"namespace eval B {
+                 proc b {} {return B}
+                 coroutine ::cb apply {{} {yield ready; return done} ::B}
+             }
+             namespace eval A {
+                 namespace path ::B
+                 coroutine ::ca apply {{} {
+                     yield ready
+                     list [namespace path] [catch {b} m] $m
+                 } ::A}
+             }
+             namespace delete ::A
+             namespace delete ::B
+             set bdone [cb]
+             set answer [ca]
+             list $bdone $answer"),
+        r#"done {{} 1 {invalid command name "b"}}"#
+    );
+}
+
+#[test]
 fn a_retained_token_loses_its_unknown_handler_and_keeps_its_exports() {
     // `Tcl_DeleteNamespace` frees `unknownHandlerPtr` before it looks at the
     // activation count, so an unresolvable command in the retained frame

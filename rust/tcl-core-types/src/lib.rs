@@ -161,7 +161,7 @@ pub struct CommandId(pub u32);
 /// alive while a new one is published at the same spelling. Runtime OO tables
 /// therefore carry this opaque token through class, provider, and active-call
 /// relationships instead of recovering identity from command text.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct OoId(pub u64);
 
 impl core::fmt::Display for OoId {

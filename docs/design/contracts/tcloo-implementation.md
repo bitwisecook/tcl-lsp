@@ -219,12 +219,13 @@ call-site rule), not the `::oo::define` evaluation namespace.
 
 ### Runtime object identity
 
-`tcl_core_types::OoId` is the shared authoritative interpreter-local identity
-of an object or class for the native and standalone runtimes. Class,
-superclass, mixin, method-provider, and active-call relationships carry this
-token. A command-table slot and fully-qualified name are mutable projections:
-rename, hide, expose, and deferred namespace deletion must never recover OO
-identity by comparing or reparsing their display strings.
+`tcl_core_types::OoId` is the shared, authoritative interpreter-local identity
+of an object or class. The native runtime carries class, superclass,
+mixin, method-provider, and active-call relationships with this token. The
+standalone migration is tracked by #1764 and must consume the same owner when
+it lands. A command-table slot and fully-qualified name are mutable
+projections: rename, hide, expose, and deferred namespace deletion must never
+recover OO identity by comparing or reparsing their display strings.
 
 Native command mutation keeps the exact `OoId` attached to the command
 generation through ordinary rename, replacement, and deletion. Callback-
