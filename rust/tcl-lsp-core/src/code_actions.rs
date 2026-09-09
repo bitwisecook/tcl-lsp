@@ -1879,8 +1879,17 @@ pub struct ContextDiagnostic {
 
 const HTML_ENCODE_PROC: &str =
     "proc html_encode {str} { string map {& &amp; < &lt; > &gt; \\\" &quot; ' &#39;} $str }";
-const REGEX_QUOTE_PROC: &str =
-    "proc regex::quote {str} { regsub -all {[][{}()*+?.\\\\^$|]} $str {\\\\&} }";
+/// The `regex::quote` helper the T103 fix inserts when the file does not
+/// already define it.
+///
+/// The `namespace eval` line is load-bearing: Tcl does not create a namespace
+/// implicitly for a qualified `proc` name, so without it the definition fails
+/// with `can't create procedure "regex::quote": unknown namespace` on every
+/// supported release, and the fix would leave the file worse than the
+/// diagnostic it silences. Creating a namespace that already exists is a
+/// no-op, so the line is safe wherever the fix lands.
+const REGEX_QUOTE_PROC: &str = "namespace eval regex {}\n\
+    proc regex::quote {str} { regsub -all {[][{}()*+?.\\\\^$|]} $str {\\\\&} }";
 /// `string map` mapping that strips CR/LF — the fix the T101 / IRULE3003 KCS
 /// docs recommend for an output/log sink (`puts $x` / `log ... $x`): a
 /// `string map` element beginning with `"` is itself list-parsed with
