@@ -46,6 +46,31 @@ impl Analyser {
         self.registry.as_deref().and_then(|r| r.get(cmd_name))
     }
 
+    /// Whether `word` is exactly one `[cmd …]` substitution whose command is a
+    /// declared regex-quoter — one that stamps `REGEX_LITERAL` on its result.
+    ///
+    /// Such a call is the T103 remedy, and its whole job is to hand the regex
+    /// engine a pattern that matches literally. Braces would defeat it by
+    /// matching the substitution's own source text, so W306's advice does not
+    /// apply and the shape is not the dynamic-pattern foot-gun the check is
+    /// looking for. Registry-driven: the colour is the declaration, so a
+    /// project's own quoter earns the exemption the same way the shipped
+    /// spellings do.
+    fn is_regex_quoting_substitution(&self, word: &str) -> bool {
+        let Some(registry) = self.registry.as_deref() else {
+            return false;
+        };
+        let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+        let Some((command, args)) =
+            crate::value_shapes::parse_command_substitution_with_config(word, config)
+        else {
+            return false;
+        };
+        let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        tcl_registry::taint::taint_transform_for_call(registry, &command, &refs)
+            .is_some_and(|colour| colour.contains(tcl_registry::TaintColour::REGEX_LITERAL))
+    }
+
     /// W101's gate: a command that concatenates **all** of its arguments
     /// into a script and re-parses the result (`eval`).
     ///
@@ -1104,8 +1129,11 @@ matching time on crafted input."
     /// is exempt: no literal was "expected" there, and the `{…}` rewrite
     /// would change it to match the literal text `$var`.  A quoted `"[cmd]"`
     /// or an unbraced `[cmd]` computes the pattern dynamically and is the
-    /// foot-gun.  `\[` / `\$` in a quoted pattern are literal regex
-    /// characters, not substitutions.
+    /// foot-gun — except where that command is a declared regex-quoter
+    /// (`taint_transform: REGEX_LITERAL`), which is the remedy T103 asks for
+    /// and whose whole purpose is to build a pattern that matches literally.
+    /// `\[` / `\$` in a quoted pattern are literal regex characters, not
+    /// substitutions.
     pub(in crate::analyser) fn emit_w306_literal_expected(
         &mut self,
         cmd_name: &str,
@@ -1156,6 +1184,9 @@ matching time on crafted input."
             .and_then(|s| s.strip_suffix('"'))
             .unwrap_or(text);
         if crate::value_shapes::is_pure_var_ref(inner) {
+            return;
+        }
+        if self.is_regex_quoting_substitution(inner) {
             return;
         }
         let is_quoted = self.source.as_bytes().get(start) == Some(&b'"');

@@ -1372,6 +1372,56 @@ fn context_t101_strip_crlf_fix_clears_its_own_diagnostic() {
     );
 }
 
+/// The T103 quick fix, applied and re-analysed: the diagnostic is gone.
+///
+/// The same loop an editor runs, for the other taint fix that wraps its
+/// variable in place — analyse, take the T103 the analyser really emitted, ask
+/// for its quick fix, apply both its edits, analyse again.
+///
+/// The helper the fix inserts has to *load*, not just be correct: tclsh
+/// 8.6.18 and 9.0.4 both refuse `proc regex::quote …` with `unknown
+/// namespace` unless the namespace exists, which is why the inserted text
+/// opens with `namespace eval regex {}`. With it, both releases define the
+/// proc and `regex::quote {a.b*}` yields `a\.b\*`, which matches the literal
+/// `a.b*` and not `axbb` — the metacharacters are data after the wrap, which
+/// is what makes the pattern trusted.
+///
+/// That the wrap does not then trip W306 is pinned in `tcl-compiler`'s
+/// `checks::literal_expected`, where the analyser pass W306 comes from is in
+/// scope — `run_all_checks` here sees the compiler-checks pass only.
+#[test]
+fn context_t103_regex_quote_fix_clears_its_own_diagnostic() {
+    let registry = tcl_registry::CommandRegistry::build_default();
+    let src = "set p [gets stdin]\nregexp -- $p $line\n";
+
+    let before = tcl_checks(src, &registry);
+    let t103 = before
+        .iter()
+        .find(|d| d.code == DiagCode::T103)
+        .expect("a tainted regexp pattern raises T103");
+
+    let diag = as_context_diagnostic(t103, src);
+    let actions = context_diagnostic_actions(src, std::slice::from_ref(&diag));
+    let fix = find(&actions, "regex::quote").expect("a T103 regex::quote quick fix");
+    assert_eq!(fix.kind, ActionKind::QuickFix);
+    assert!(
+        edits_well_formed(fix) && edits_in_bounds(fix, src),
+        "{fix:?}"
+    );
+
+    let fixed = apply(fix, src);
+    assert!(
+        fixed.starts_with("namespace eval regex {}\nproc regex::quote "),
+        "the inserted helper must create its namespace before the qualified \
+         proc, or it cannot load: {fixed:?}",
+    );
+    let after = tcl_checks(&fixed, &registry);
+    assert!(
+        after.iter().all(|d| d.code != DiagCode::T103),
+        "applying the fix must clear T103, got {after:?} for {fixed:?}",
+    );
+}
+
 /// The control for the test above: a `string map` that does *not* delete CR
 /// and LF leaves T101 standing, so the fix is recognised for what it proves
 /// rather than for being a `string map` at all.

@@ -862,33 +862,26 @@ impl CfgBuilder<'_> {
         let mut dispatch = block_name.to_owned();
         for (i, arm) in arms.iter().enumerate() {
             let next_dispatch = self.new_block("switch_next");
-            // Exact mode uses a foldable `STR_EQ(subject, pattern)` so
-            // the backend can build a jump table. Glob/regexp use a
-            // non-foldable `Raw(subject)`: it still reads the subject
-            // (SSA recovery) but never folds, so SCCP can't kill an arm
-            // on a string-equality fiction.
-            let cond = if *mode == SwitchMode::Exact {
-                ExprNode::Binary {
-                    op: BinOp::StrEq,
-                    left: Box::new(switch_subject_operand(subject, *subject_braced)),
-                    // The pattern is a *word value* too — the arm list's
-                    // decoded element — so it takes the same operand shape as
-                    // the subject. In a `Literal` slot its text was read back
-                    // as expression source and a pattern that looks braced
-                    // lost a layer: `{7}` was compared as `7`.
-                    //
-                    // Per arm, not per switch: a single braced arm list holds
-                    // literal elements, but the multi-word form is a word each,
-                    // where `{${x}}` is literal and a bare `$pat` substitutes.
-                    right: Box::new(ExprNode::CompiledWord {
-                        text: arm.pattern.clone(),
-                        braced: arm.pattern_braced,
-                    }),
-                }
-            } else {
-                ExprNode::Raw {
-                    text: subject.clone(),
-                }
+            // Only exact mode reaches here — every other mode left through
+            // `lower_opaque_switch` above — and it dispatches on a foldable
+            // `STR_EQ(subject, pattern)` so the backend can build a jump
+            // table.
+            let cond = ExprNode::Binary {
+                op: BinOp::StrEq,
+                left: Box::new(switch_subject_operand(subject, *subject_braced)),
+                // The pattern is a *word value* too — the arm list's decoded
+                // element — so it takes the same operand shape as the subject.
+                // A `Literal` slot would read its text back as expression
+                // source, costing a pattern that looks braced a layer: `{7}`
+                // compares as `7`.
+                //
+                // Per arm, not per switch: a single braced arm list holds
+                // literal elements, but the multi-word form is a word each,
+                // where `{${x}}` is literal and a bare `$pat` substitutes.
+                right: Box::new(ExprNode::CompiledWord {
+                    text: arm.pattern.clone(),
+                    braced: arm.pattern_braced,
+                }),
             };
             let true_id = self.bid(&final_targets[i]);
             let false_id = self.bid(&next_dispatch);

@@ -4857,7 +4857,17 @@ fn emit_regexp_pattern_warnings<S: std::hash::BuildHasher>(
         if !t.is_tainted() {
             continue;
         }
-        // A literal-regex colour proves the pattern is trusted.
+        // A literal-regex colour proves the pattern is trusted, whether the
+        // value carries it already or is quoted inline in the pattern slot.
+        // Scoped to that slot: the same variable used elsewhere in the call is
+        // not in a pattern position and has no bearing on this hazard.
+        let t = var_wrapper_colours(
+            registry,
+            env.braced_var,
+            &args[pattern_idx..=pattern_idx],
+            &var,
+        )
+        .map_or(t, |colours| t.shape_unproven().with(colours));
         if t.colours.intersects(TaintColour::REGEX_LITERAL) {
             continue;
         }
@@ -5450,41 +5460,32 @@ fn list_wrapped_arg_command_is_literal(call: &SinkCall<'_>, name: &str) -> bool 
     false
 }
 
-/// Split `arg` into its residual text (everything outside top-level `[...]`
-/// command substitutions) and the list of those top-level `[...]` slices.
-/// Brackets are ASCII, so the byte-range slicing stays on char boundaries.
-fn split_top_level_cmd_subs(arg: &str) -> (String, Vec<&str>) {
+/// Split `arg` into its residual text (everything outside the command
+/// substitutions it really performs) and the list of those `[...]` slices.
+///
+/// Segmentation is the lexer's, not a bracket count, because a `[` is only an
+/// opener when the grammar says so. `regexp -- "\[regex::quote $p]" $s` writes
+/// an *escaped* bracket: tclsh 8.6.18 and 9.0.4 both leave it as literal text
+/// and substitute `$p` straight into the pattern, never calling the quoter. A
+/// counting scan reads a command substitution there and hands callers a
+/// wrapper that does not run — which, for the mitigation callers, means
+/// crediting a sanitiser the value never passed through.
+///
+/// The parts come back with their source extents, so a returned slice is the
+/// `[...]` text a caller can re-parse. A part the lexer reports as a variable
+/// or literal run is residual: only a real `Command` is a wrapper.
+fn split_top_level_cmd_subs(arg: &str, config: tcl_lexer::LexerConfig) -> (String, Vec<&str>) {
+    let flags = tcl_lexer::word_parts::SubstFlags::default();
     let mut residual = String::new();
     let mut subs = Vec::new();
-    let b = arg.as_bytes();
-    let mut i = 0;
-    let mut seg_start = 0;
-    while i < b.len() {
-        if b[i] == b'[' {
-            residual.push_str(&arg[seg_start..i]);
-            let start = i;
-            let mut depth = 0i32;
-            while i < b.len() {
-                match b[i] {
-                    b'[' => depth += 1,
-                    b']' => {
-                        depth -= 1;
-                        if depth == 0 {
-                            i += 1;
-                            break;
-                        }
-                    }
-                    _ => {}
-                }
-                i += 1;
-            }
-            subs.push(&arg[start..i]);
-            seg_start = i;
+    for part in tcl_lexer::word_parts::decompose_spanned(arg.as_bytes(), flags, config) {
+        let slice = &arg[part.start..part.end];
+        if matches!(part.part, tcl_lexer::word_parts::WordPart::Command(_)) {
+            subs.push(slice);
         } else {
-            i += 1;
+            residual.push_str(slice);
         }
     }
-    residual.push_str(&arg[seg_start..]);
     (residual, subs)
 }
 
@@ -5504,7 +5505,7 @@ fn var_consumed_by_sanitiser(call: &SinkCall<'_>, name: &str) -> bool {
             continue;
         }
         seen = true;
-        let (residual, subs) = split_top_level_cmd_subs(arg);
+        let (residual, subs) = split_top_level_cmd_subs(arg, config);
         // A bare reference outside any command substitution reaches the sink.
         if arg_var_names(&residual, braced_var).contains(name) {
             return false;
@@ -5528,8 +5529,14 @@ fn var_consumed_by_sanitiser(call: &SinkCall<'_>, name: &str) -> bool {
 }
 
 /// The colours the wrappers around `name` stamp on what actually reaches the
-/// sink, when every occurrence of `name` in the sink's arguments sits inside a
-/// top-level command substitution that declares a `taint_transform`.
+/// sink, when every occurrence of `name` in `args` sits inside a top-level
+/// command substitution that declares a `taint_transform`.
+///
+/// `args` is the slice of the call the diagnostic is judging, which is not
+/// always the whole call: a hazard confined to one argument position — a regex
+/// pattern, say — is answered by that position alone, and a bare mention of
+/// the same variable in a harmless slot must not withdraw the wrapper's
+/// proof.
 ///
 /// `log local0. "u=[URI::encode $u]"` and `set e [URI::encode $u]; log local0.
 /// "u=$e"` run the same command over the same value and must reach the same
@@ -5552,8 +5559,12 @@ fn var_consumed_by_sanitiser(call: &SinkCall<'_>, name: &str) -> bool {
 /// `Some(empty)` — the value is still tainted and now proves nothing, which is
 /// what lets a re-introducing wrapper (`string map {"|" "\n"}` over a
 /// CR/LF-free value) reach its sink.
-fn var_wrapper_colours(call: &SinkCall<'_>, name: &str) -> Option<TaintColour> {
-    let (registry, args, braced_var) = (call.registry, call.args, call.braced_var);
+fn var_wrapper_colours(
+    registry: &CommandRegistry,
+    braced_var: tcl_dialect::BracedVarStyle,
+    args: &[String],
+    name: &str,
+) -> Option<TaintColour> {
     let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
     let mut colours = TaintColour::all();
     let mut wrapped = false;
@@ -5561,7 +5572,7 @@ fn var_wrapper_colours(call: &SinkCall<'_>, name: &str) -> Option<TaintColour> {
         if !arg_var_names(arg, braced_var).contains(name) {
             continue;
         }
-        let (residual, subs) = split_top_level_cmd_subs(arg);
+        let (residual, subs) = split_top_level_cmd_subs(arg, config);
         // A bare reference outside any substitution reaches the sink as-is.
         if arg_var_names(&residual, braced_var).contains(name) {
             return None;
@@ -5664,8 +5675,8 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
         // the mitigations below judge the wrapper's proofs rather than the
         // variable's — the same lattice the via-variable spelling would have
         // handed them.
-        let t =
-            var_wrapper_colours(call, name).map_or(t, |colours| t.shape_unproven().with(colours));
+        let t = var_wrapper_colours(call.registry, call.braced_var, call.args, name)
+            .map_or(t, |colours| t.shape_unproven().with(colours));
         // Per-code mitigation suppression (T101, IRULE3001–3004).
         if sink_colour_mitigated(code, t) {
             continue;
@@ -8751,6 +8762,60 @@ mod tests {
             warnings.iter().any(|w| w.code == DiagCode::T100),
             "expected T100 for a numeric-coercing operand, got {warnings:?}",
         );
+    }
+
+    /// An *escaped* bracket writes a literal `[`, so the quoter never runs and
+    /// the raw value lands in the pattern.
+    ///
+    /// tclsh 8.6.18 and 9.0.4 both leave `"\[regex::quote $p]"` as the text
+    /// `[regex::quote <value of p>]` — the command is not invoked — so the
+    /// wrapper the mitigation would credit does not exist. Segmentation is the
+    /// lexer's for exactly this reason; a bracket count reads a call here.
+    #[test]
+    fn t103_not_cleared_by_an_escaped_bracket_that_never_calls_the_quoter() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let source = "proc f {} {\n  set p [gets stdin]\n  \
+                      regexp -- \"\\[regex::quote $p]\" $line\n}\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            warnings.iter().any(|w| w.code == DiagCode::T103),
+            "an escaped bracket is not a call, so T103 must stand: {warnings:?}",
+        );
+    }
+
+    /// T103's `[regex::quote …]` mitigation reads the same whether the quote
+    /// wraps the value in place or through a variable.
+    ///
+    /// The quoting is what makes the pattern trusted, and it happens either
+    /// way; only the spelling differs. Since wrapping in place is what T103's
+    /// quick fix writes, that spelling is the one an applied fix has to clear.
+    ///
+    /// The scope is the pattern argument alone: `$p` used as the *subject*
+    /// too is not in a pattern position, so it cannot withdraw the proof the
+    /// wrapped pattern carries.
+    #[test]
+    fn t103_cleared_by_an_inline_regex_quote_in_the_pattern_slot() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let cases: [(&str, bool); 5] = [
+            ("regexp -- $p $line", true),
+            ("set q [regex::quote $p]\n  regexp -- $q $line", false),
+            ("regexp -- [regex::quote $p] $line", false),
+            ("regexp -- [regex::quote $p] $p", false),
+            // `string range` carries no transform, so it proves nothing.
+            ("regexp -- [string range $p 0 5] $line", true),
+        ];
+        for (tail, expected) in cases {
+            let source = format!("proc f {{}} {{\n  set p [gets stdin]\n  {tail}\n}}\n");
+            let cu = CompilationUnit::build_for(&source, &registry, false)
+                .with_interprocedural(&registry, None);
+            let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+            let got = warnings.iter().any(|w| w.code == DiagCode::T103);
+            assert_eq!(got, expected, "for {tail:?}, got {warnings:?}");
+        }
     }
 
     /// The T101 mitigation chain end to end: the CR/LF-stripping `string map`

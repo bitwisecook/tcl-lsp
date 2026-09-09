@@ -109,6 +109,41 @@ pub fn full_rewrite_span(source: &str, span: Span) -> Span {
     Span::new(span.start(), u32::try_from(end).unwrap_or(span.end()))
 }
 
+/// Extend a statement's span over the whole source line it occupies — back to
+/// the start of its indentation, and forward over its trailing newline — so
+/// removing the statement removes its line rather than leaving a blank one.
+///
+/// Pair it with [`full_rewrite_span`] when the span came from an IR statement:
+/// this only reaches past the line's edges, and a last word that is quoted,
+/// braced, or bracketed leaves its closer inside the line but outside the
+/// span.
+///
+/// Distinct from [`statement_delete_rewrite_range`], which takes the separator
+/// between two statements and is bounded by where the next one starts. This
+/// one is for a caller that knows the statement owns its line and does not
+/// track a successor.
+#[must_use]
+pub fn line_delete_span(source: &str, span: Span) -> Span {
+    let bytes = source.as_bytes();
+    let mut start = span.start() as usize;
+    let mut end = span.end() as usize;
+    if start > bytes.len() || end > bytes.len() {
+        return span;
+    }
+    while start > 0 && matches!(bytes.get(start - 1), Some(b' ' | b'\t')) {
+        start -= 1;
+    }
+    if end < bytes.len() && bytes[end] == b'\n' {
+        end += 1;
+    } else if end + 1 < bytes.len() && bytes[end] == b'\r' && bytes[end + 1] == b'\n' {
+        end += 2;
+    }
+    Span::new(
+        u32::try_from(start).unwrap_or(span.start()),
+        u32::try_from(end).unwrap_or(span.end()),
+    )
+}
+
 /// Compute the deletion range for a statement being removed, swallowing
 /// the trailing run of whitespace plus one statement separator (`\n` /
 /// `;`) so the surviving text closes up cleanly.
@@ -214,6 +249,28 @@ pub fn quoted_word_rewrite_span(source: &str, argv_span: Span, inside: &str) -> 
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn line_delete_span_takes_the_indent_and_the_newline() {
+        let source = "proc f {} {\n  set a 1\n  puts $b\n}";
+        assert_eq!(&source[14..21], "set a 1");
+        assert_eq!(
+            line_delete_span(source, Span::new(14, 21)),
+            Span::new(12, 22),
+            "the statement's own indentation and its newline go with it",
+        );
+    }
+
+    #[test]
+    fn line_delete_span_at_end_of_script_keeps_the_span() {
+        let source = "set a 1";
+        assert_eq!(line_delete_span(source, Span::new(0, 7)), Span::new(0, 7));
+    }
+
+    #[test]
+    fn line_delete_span_out_of_bounds_is_unchanged() {
+        assert_eq!(line_delete_span("hi", Span::new(0, 9)), Span::new(0, 9));
+    }
+
     use super::*;
 
     #[test]

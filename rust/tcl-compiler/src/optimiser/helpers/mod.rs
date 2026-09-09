@@ -26,7 +26,7 @@
 //! - [`naming`] — namespace / proc-name resolution.
 //! - [`select`] — overlap-aware optimisation selection (the
 //!   `manager`'s final output filter).
-//! - [`spans`] — span extension to a valid rewrite target.
+//! - [`spans`] — statement-level rewrite and deletion extents.
 //! - [`tokens`] — token / source-range lookups.
 //! - [`var_refs`] — `$var` and bare-name variable-reference scans.
 
