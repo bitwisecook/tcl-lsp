@@ -369,11 +369,13 @@ fn containing_region(
         if command.name().is_empty() {
             continue;
         }
-        if let Some(region) = region_containing(&walk.frame_shifted_regions(source, &command), offset)
+        if let Some(region) =
+            region_containing(&walk.frame_shifted_regions(source, &command), offset)
         {
             return Some((region, true));
         }
-        if let Some(region) = region_containing(&walk.same_frame_regions(source, &command), offset) {
+        if let Some(region) = region_containing(&walk.same_frame_regions(source, &command), offset)
+        {
             return Some((region, false));
         }
     }

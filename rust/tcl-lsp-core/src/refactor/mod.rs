@@ -402,7 +402,10 @@ impl FrameWalk {
     ) {
         let head = command.name();
         let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
-        for index in self.nesting.arg_indices_for_role(head, &args, ArgRole::Expr) {
+        for index in self
+            .nesting
+            .arg_indices_for_role(head, &args, ArgRole::Expr)
+        {
             let Some(token) = command.argv.get(index + 1) else {
                 continue;
             };
