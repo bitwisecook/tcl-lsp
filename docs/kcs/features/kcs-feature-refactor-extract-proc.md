@@ -35,7 +35,7 @@ puts "after=$x"
 into a proc that takes `x` as an ordinary parameter prints `after=0` instead
 of `after=1`: a parameter is a *copy*, and the caller never sees it change.
 
-The extraction now classifies each variable the selection touches:
+The extraction classifies each variable the selection touches:
 
 | Variable | Becomes |
 |---|---|

@@ -112,8 +112,8 @@ when HTTP_REQUEST {
 ## Out of scope
 
 - The grep verb does not modify the configuration — it only reports.
-- It uses *substring* matching by default; pass `--regex` for a Python regular expression or `--cidr` for IP/CIDR matching.  There is no glob / shell-style matching.
-- `--cidr` validates each candidate IP token via Python's `ipaddress` module and silently skips anything that doesn't parse — the regexes that find candidate tokens are intentionally permissive and lean on the stdlib parser as the source of truth.
+- It uses *substring* matching by default; pass `--regex` for a Rust `regex`-crate pattern or `--cidr` for IP/CIDR matching.  There is no glob / shell-style matching.
+- `--cidr` validates each candidate IP token by parsing it as an `Ipv4Addr` / `Ipv6Addr` and silently skips anything that doesn't parse — the regexes that find candidate tokens are intentionally permissive and lean on the address parser as the source of truth.
 - The reference graph is the same one [`f5 cleanup`](kcs-feature-bigip-cleanup.md) walks; objects unreachable through that graph are not surfaced even if they share a name pattern.
 
 ## Related

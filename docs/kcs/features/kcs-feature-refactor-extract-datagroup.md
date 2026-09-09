@@ -15,7 +15,7 @@ all-editors, MCP, Claude skill, refactoring
 
 ### Editor (all editors via LSP)
 
-Place the cursor on an `if` chain or `switch -exact` with literal value comparisons. Trigger code actions and choose **"Extract to data-group"**. The code action includes the tmsh data-group definition as a comment block.
+Place the cursor on an `if` chain or `switch -exact` with literal value comparisons. Trigger code actions and choose **"Extract to data-group"**. The edit rewrites the source to a `class match` / `class lookup`; the tmsh definition of the data-group it expects rides along in the action's `data.data_group_definition`, and the MCP tools return it alongside the rewritten source.
 
 Only available when the document dialect is iRules.
 
@@ -58,21 +58,21 @@ when HTTP_REQUEST {
 ```tcl
 when HTTP_REQUEST {
     set host [HTTP::host]
-    if {[class match $host equals allowed_hosts]} {
+    if { [class match $host equals host_whitelist] } {
         pool app_pool
     }
 }
 ```
 
 ```text
-ltm data-group internal allowed_hosts {
-    type string
+ltm data-group internal host_whitelist {
     records {
-        "app.example.com" { }
-        "api.example.com" { }
-        "web.example.com" { }
-        "cdn.example.com" { }
+        app.example.com { }
+        api.example.com { }
+        web.example.com { }
+        cdn.example.com { }
     }
+    type string
 }
 ```
 
@@ -102,15 +102,14 @@ when CLIENT_ACCEPTED {
 ```tcl
 when CLIENT_ACCEPTED {
     set addr [IP::client_addr]
-    if {[class match $addr equals blocked_networks]} {
+    if { [class match $addr equals addr_whitelist] } {
         drop
     }
 }
 ```
 
 ```text
-ltm data-group internal blocked_networks {
-    type ip
+ltm data-group internal addr_whitelist {
     records {
         10.0.0.0/8 { }
         172.16.0.0/12 { }
@@ -118,6 +117,7 @@ ltm data-group internal blocked_networks {
         2001:db8::/32 { }
         fd00::/8 { }
     }
+    type ip
 }
 ```
 
@@ -145,28 +145,28 @@ when HTTP_REQUEST {
 ```tcl
 when HTTP_REQUEST {
     set uri [HTTP::uri]
-    set target [class lookup $uri uri_pool_map]
+    set target [class lookup $uri uri_map]
     pool $target
 }
 ```
 
 ```text
-ltm data-group internal uri_pool_map {
-    type string
+ltm data-group internal uri_map {
     records {
-        "/api" {
-            data "api_pool"
+        /api {
+            data api_pool
         }
-        "/web" {
-            data "web_pool"
+        /web {
+            data web_pool
         }
-        "/static" {
-            data "cdn_pool"
+        /static {
+            data cdn_pool
         }
-        "/admin" {
-            data "mgmt_pool"
+        /admin {
+            data mgmt_pool
         }
     }
+    type string
 }
 ```
 
@@ -198,7 +198,9 @@ The refactoring supports two source patterns:
 1. **if/elseif chains** — branches testing `$var eq "literal"`, including OR-chains (`$var eq "a" || $var eq "b"`)
 2. **switch -exact** — each arm is a literal key
 
-Type inference uses Python's `ipaddress` module for IP/CIDR detection, which natively supports both IPv4 and IPv6 address families. The AI-enhanced suggestion tool returns structured context including pattern type, variable name, inferred type, CIDR presence, body shape, confidence level, and a pre-computed static result for each candidate.
+Type inference parses each literal as an `Ipv4Addr` / `Ipv6Addr`, and a `addr/prefix` word as a CIDR range whose prefix width is checked against the address family, so both families are detected without a separate address library. The AI-enhanced suggestion tool returns structured context including pattern type, variable name, inferred type, CIDR presence, body shape, confidence level, and a pre-computed static result for each candidate.
+
+The data-group name defaults to `<variable>_whitelist` for a membership test and `<variable>_map` for a value mapping. The MCP tools and the CLI accept an explicit name; the editor code action uses the default.
 
 ## Failure modes
 

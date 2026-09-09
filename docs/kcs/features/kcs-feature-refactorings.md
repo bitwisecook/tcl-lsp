@@ -90,9 +90,15 @@ into this:
 
 ```tcl
 switch -exact -- $method {
-    "GET"   { set action read }
-    "POST"  { set action create }
-    default { set action unknown }
+    GET {
+        set action read
+    }
+    POST {
+        set action create
+    }
+    default {
+        set action unknown
+    }
 }
 ```
 
