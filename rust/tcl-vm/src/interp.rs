@@ -3009,6 +3009,55 @@ impl Vm {
         })
     }
 
+    /// Find the current visible, hidden, or retained location of one exact
+    /// command token after a re-entrant delete callback may have moved it.
+    /// Generations are interpreter-unique and travel with rename/hide/expose.
+    fn command_token_at_generation(&self, generation: u64) -> Option<CommandTokenIdentity> {
+        self.command_identity
+            .generations
+            .iter()
+            .find_map(|(name, candidate)| {
+                (*candidate == generation).then(|| CommandTokenIdentity {
+                    key: CommandSidecarKey::visible(name),
+                    generation,
+                })
+            })
+            .or_else(|| {
+                self.hidden_command_generations
+                    .iter()
+                    .find_map(|(name, candidate)| {
+                        (*candidate == generation).then(|| CommandTokenIdentity {
+                            key: CommandSidecarKey::hidden(name),
+                            generation,
+                        })
+                    })
+            })
+            .or_else(|| {
+                self.ns_deferral.retained.values().find_map(|record| {
+                    record.generations.iter().find_map(|(name, candidate)| {
+                        (*candidate == generation).then(|| CommandTokenIdentity {
+                            key: CommandSidecarKey::visible(name),
+                            generation,
+                        })
+                    })
+                })
+            })
+    }
+
+    fn command_at_sidecar_key(&self, key: &CommandSidecarKey) -> Option<&Command> {
+        match key {
+            CommandSidecarKey::Visible(name) => self.visible_command_at_key(name),
+            CommandSidecarKey::Hidden(name) => self.hidden_commands.get(name),
+        }
+    }
+
+    fn import_binding_at_sidecar_key(&self, key: &CommandSidecarKey) -> Option<&ImportBinding> {
+        match key {
+            CommandSidecarKey::Visible(name) => self.visible_import_binding(name),
+            CommandSidecarKey::Hidden(name) => self.hidden_imported_commands.get(name),
+        }
+    }
+
     /// Retained record selected by an exact visible command slot. The private
     /// key is only an index into [`CommandIdentityState`]; namespace ownership
     /// always comes from its structured slot.
@@ -3499,19 +3548,23 @@ impl Vm {
         // ImportRef list. Both the source and every import therefore remain
         // table-visible during this callback.
         self.on_command_removed_for(&key);
-        // C removes the table entry only through the dying `cmdPtr->hPtr`
-        // (`Tcl_DeleteCommandFromToken`, `tclBasic.c` 9.0.4:3865-3873).
-        if self.command_token_identity(&key).as_ref() != Some(&source_token) {
-            // The callback deleted this command, or bound a replacement at the
-            // same name: its own lifecycle already unlinked the dying token
-            // (`Tcl_DeleteCommandFromToken` then finds `cmdPtr->hPtr` NULL), so
-            // whatever holds the name now is a distinct token and stands.
-            // Issue #1633 row 9 reached the same rule from the trace side; this
-            // is the stronger form, and its vector still holds.
+        // C removes the table entry through the dying `cmdPtr->hPtr`
+        // (`Tcl_DeleteCommandFromToken`, `tclBasic.c` 9.0.4:3865-3873). A
+        // callback may move that exact token before returning, so follow its
+        // generation instead of assuming its original table location remains.
+        let Some(live_token) = self.command_token_at_generation(source_token.generation) else {
+            // The callback deleted this token. A same-name replacement has a
+            // newer generation and must stand.
             return true;
-        }
-        self.retire_real_command(&source_token, &command);
-        self.take_command_unchecked_key(&transaction.old_key);
+        };
+        let live_command = self
+            .command_at_sidecar_key(&live_token.key)
+            .cloned()
+            .unwrap_or(command);
+        self.drop_relocated_command_sidecars(&live_token.key, live_token.generation);
+        self.retire_real_command(&live_token, &live_command);
+        self.take_command_sidecar_unchecked(&live_token.key);
+        self.drop_alias_backref_key(&live_token.key);
         true
     }
 
@@ -3546,14 +3599,11 @@ impl Vm {
         &mut self,
         key: &CommandSidecarKey,
     ) -> Option<Command> {
-        let imported = match key {
-            CommandSidecarKey::Visible(name) => self.imported_commands.contains_key(name),
-            CommandSidecarKey::Hidden(name) => self.hidden_imported_commands.contains_key(name),
-        };
-        let command = match key {
-            CommandSidecarKey::Visible(name) => self.commands.get(name)?.clone(),
-            CommandSidecarKey::Hidden(name) => self.hidden_commands.get(name)?.clone(),
-        };
+        if let CommandSidecarKey::Visible(name) = key {
+            self.materialise_retained_binding(name);
+        }
+        let imported = self.import_binding_at_sidecar_key(key).is_some();
+        let command = self.command_at_sidecar_key(key)?.clone();
         if imported {
             self.retire_import_binding(key);
             return Some(command);
@@ -3561,28 +3611,19 @@ impl Vm {
 
         let source_token = self.command_token_identity(key)?;
         self.on_command_removed_for(key);
-        if self.command_token_identity(key).as_ref() != Some(&source_token) {
-            // A delete callback deleted this command or redefined it: that
-            // lifecycle already unlinked the entry and re-pointed the source's
-            // imports (C's `CMD_REDEF_IN_PROGRESS` skips the ImportRef walk,
-            // and `Tcl_DeleteCommandFromToken` finds `cmdPtr->hPtr` already
-            // NULL). Whatever holds the name now is a distinct token, left for
-            // the next teardown snapshot.
+        let Some(live_token) = self.command_token_at_generation(source_token.generation) else {
+            // A delete callback deleted this exact command. Whatever now holds
+            // its spelling is a different generation and remains registered.
             return Some(command);
-        }
-        self.retire_real_command(&source_token, &command);
-        match key {
-            CommandSidecarKey::Visible(name) => {
-                self.take_command_unchecked_key(name);
-            }
-            CommandSidecarKey::Hidden(name) => {
-                self.hidden_commands.remove(name);
-                self.hidden_command_generations.remove(name);
-                self.hidden_builtin_identities.remove(name);
-                self.bump_cmd_epoch();
-            }
-        }
-        self.drop_alias_backref_key(key);
+        };
+        let live_command = self
+            .command_at_sidecar_key(&live_token.key)
+            .cloned()
+            .unwrap_or_else(|| command.clone());
+        self.drop_relocated_command_sidecars(&live_token.key, live_token.generation);
+        self.retire_real_command(&live_token, &live_command);
+        self.take_command_sidecar_unchecked(&live_token.key);
+        self.drop_alias_backref_key(&live_token.key);
         Some(command)
     }
 
@@ -3606,6 +3647,26 @@ impl Vm {
             self.forget_command_storage_key(key);
         }
         command
+    }
+
+    /// Unlink one already-resolved command sidecar without running its
+    /// implementation lifecycle or command traces. The caller owns both and
+    /// uses this only after following the token's generation through any
+    /// re-entrant relocation.
+    fn take_command_sidecar_unchecked(&mut self, key: &CommandSidecarKey) -> Option<Command> {
+        match key {
+            CommandSidecarKey::Visible(name) => {
+                self.materialise_retained_binding(name);
+                self.take_command_unchecked_key(name)
+            }
+            CommandSidecarKey::Hidden(name) => {
+                self.bump_cmd_epoch();
+                self.hidden_imported_commands.remove(name);
+                self.hidden_command_generations.remove(name);
+                self.hidden_builtin_identities.remove(name);
+                self.hidden_commands.remove(name)
+            }
+        }
     }
 
     /// Remove a command by its exact table key (no name resolution) — the
@@ -4571,12 +4632,7 @@ impl Vm {
         };
         let destination = self.register_command_in_slot(destination_slot, c);
         if let Some(object) = object {
-            crate::cmd_oo::oo_command_exposed(
-                self,
-                object,
-                destination.clone(),
-                destination_display.clone(),
-            );
+            crate::cmd_oo::oo_command_exposed(self, object, destination.clone());
         }
         if let Some(generation) = source_generation {
             self.command_identity
@@ -6830,10 +6886,7 @@ impl Vm {
             self.materialise_retained_binding(name);
         }
         let still_expected = self.command_token_identity(key).as_ref() == Some(&node.token)
-            && match key {
-                CommandSidecarKey::Visible(name) => self.visible_import_binding(name),
-                CommandSidecarKey::Hidden(name) => self.hidden_imported_commands.get(name),
-            } == Some(&node.binding);
+            && self.import_binding_at_sidecar_key(key) == Some(&node.binding);
         if still_expected {
             self.on_command_removed_for(key);
         }
@@ -6842,6 +6895,9 @@ impl Vm {
             return;
         };
         let live_key = &live.token.key;
+        if let CommandSidecarKey::Visible(name) = live_key {
+            self.materialise_retained_binding(name);
+        }
 
         // C recursively retires one child's complete subtree before advancing
         // to the next ImportRef. The parent is still table-visible throughout
@@ -6852,10 +6908,7 @@ impl Vm {
         }
 
         let still_same_import = self.command_token_identity(live_key).as_ref() == Some(&live.token)
-            && match live_key {
-                CommandSidecarKey::Visible(name) => self.visible_import_binding(name),
-                CommandSidecarKey::Hidden(name) => self.hidden_imported_commands.get(name),
-            } == Some(&live.binding);
+            && self.import_binding_at_sidecar_key(live_key) == Some(&live.binding);
         if !still_same_import {
             return;
         }
@@ -6864,31 +6917,12 @@ impl Vm {
 
         if live_key != key {
             // Rename/hide/expose moved any remaining trace sidecars with the
-            // token. The original delete trace already fired; suppress a
-            // second callback while dropping the relocated sidecars.
-            let trace_in_progress = self.trace_in_progress.replace(true);
-            self.on_command_removed_for(live_key);
-            self.trace_in_progress.set(trace_in_progress);
+            // token. The original delete trace already fired, so remove only
+            // that generation's relocated state without invoking it again.
+            self.drop_relocated_command_sidecars(live_key, live.token.generation);
         }
 
-        match live_key {
-            CommandSidecarKey::Visible(name) => {
-                self.imported_commands.remove(name);
-                if self.commands.remove(name).is_some() {
-                    self.note_command_unbound(name);
-                }
-                self.command_identity.generations.remove(name);
-                self.builtin_identities.remove(name);
-                self.registry_object_roots.remove(name);
-            }
-            CommandSidecarKey::Hidden(name) => {
-                self.hidden_imported_commands.remove(name);
-                self.hidden_commands.remove(name);
-                self.hidden_command_generations.remove(name);
-                self.hidden_builtin_identities.remove(name);
-            }
-        }
-        self.bump_cmd_epoch();
+        self.take_command_sidecar_unchecked(live_key);
         self.drop_alias_backref_key(live_key);
     }
 
@@ -8200,6 +8234,34 @@ impl Vm {
             self.cmd_traces.remove(key);
         }
         removed
+    }
+
+    /// Drop trace and active-call sidecars for a token whose delete trace has
+    /// already fired at an earlier location. A callback can rename, hide, or
+    /// expose that same generation; firing again at the destination would
+    /// duplicate Tcl's one `CMD_DYING` callback pass.
+    fn drop_relocated_command_sidecars(&mut self, key: &CommandSidecarKey, generation: u64) {
+        self.detach_active_sidecars(key);
+        let mut removed = self.drop_retired_cmd_traces(key, Some(generation));
+        let mut dropped_step_trace = false;
+        if let Some(entries) = self.exec_traces.get_mut(key) {
+            let before = entries.len();
+            dropped_step_trace = entries.iter().any(|entry| {
+                entry.token.get().is_none_or(|token| token <= generation)
+                    && is_step_capable(&entry.ops)
+            });
+            entries.retain(|entry| entry.token.get().is_some_and(|token| token > generation));
+            removed |= entries.len() != before;
+            if entries.is_empty() {
+                self.exec_traces.remove(key);
+            }
+        }
+        if dropped_step_trace {
+            self.bump_trace_deopt_epoch();
+        }
+        if removed {
+            self.invalidate_guard_domain(GuardDomain::CommandTrace);
+        }
     }
 
     /// A command moved `old_key` → `new_key` (`rename`): move every trace with

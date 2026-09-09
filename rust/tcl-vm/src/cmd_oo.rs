@@ -1867,11 +1867,10 @@ pub(crate) fn oo_command_hidden(vm: &mut Vm, object: OoId, token: String) {
         .insert(object, CommandSidecarKey::hidden(token));
 }
 
-pub(crate) fn oo_command_exposed(vm: &mut Vm, object: OoId, new_key: String, new_display: String) {
+pub(crate) fn oo_command_exposed(vm: &mut Vm, object: OoId, new_key: String) {
     vm.oo
         .command_keys
         .insert(object, CommandSidecarKey::visible(new_key));
-    vm.oo.names.insert(object, new_display);
 }
 
 /// Run the TclOO delete lifecycle after the command mutation owner's delete

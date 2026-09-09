@@ -1407,6 +1407,88 @@ fn import_delete_retires_the_exact_generation_after_trace_relocation() {
 }
 
 #[test]
+fn real_delete_retires_the_exact_generation_after_trace_relocation() {
+    // A delete callback can rename the command token being deleted. C follows
+    // that token's updated hash entry and removes the destination, while a
+    // same-spelled replacement would remain a distinct generation. Exact Tcl
+    // 9.0.4 oracle results for retained-visible and live-hidden locations.
+    assert_eq!(
+        run("set log {}
+             proc cb {old new op} {
+                 lappend ::log [list $old $new $op]
+                 uplevel 1 {rename q r}
+             }
+             namespace eval N {
+                 proc q {} {return OLD}
+                 trace add command q delete ::cb
+                 proc hold {} {
+                     namespace delete ::N
+                     rename q {}
+                     list [info commands q] [info commands r] \
+                          [catch {r} m] $m $::log
+                 }
+             }
+             ::N::hold"),
+        "{} {} 1 {invalid command name \"r\"} {{::N::q {} delete}}"
+    );
+    assert_eq!(
+        run("set log {}
+             proc cb {old new op} {
+                 lappend ::log [list $old $new $op]
+                 interp hide {} x held
+             }
+             proc x {} {return OLD}
+             trace add command x delete cb
+             rename x {}
+             list [info commands x] [interp hidden {}] \
+                  [catch {interp invokehidden {} held} m] $m $log"),
+        "{} {} 1 {invalid hidden command name \"held\"} {{::x {} delete}}"
+    );
+}
+
+#[test]
+fn import_cascade_retires_the_relocated_generation_once() {
+    // Source deletion owns the complete import tree. An imported token moved
+    // by its delete callback still dies at the new location, and its trace
+    // fires only once. Exact Tcl 9.0.4 oracle results for retained-visible and
+    // hidden-to-visible relocation.
+    assert_eq!(
+        run("set log {}
+             proc cb {old new op} {
+                 lappend ::log [list $old $new $op]
+                 uplevel 1 {rename p r}
+             }
+             namespace eval S {proc p {} {return old}; namespace export p}
+             namespace eval N {
+                 namespace import ::S::p
+                 trace add command p delete ::cb
+                 proc hold {} {
+                     namespace delete ::N
+                     rename ::S::p {}
+                     list [info commands p] [info commands r] \
+                          [catch {r} m] $m $::log
+                 }
+             }
+             ::N::hold"),
+        "{} {} 1 {invalid command name \"r\"} {{::N::p {} delete}}"
+    );
+    assert_eq!(
+        run("set log {}
+             proc cb {old new op} {
+                 lappend ::log [list $old $new $op]
+                 interp expose {} held q
+             }
+             namespace eval S {proc p {} {return old}; namespace export p}
+             namespace import ::S::p
+             trace add command p delete cb
+             interp hide {} p held
+             rename ::S::p {}
+             list [info commands q] [interp hidden {}] [catch {q} m] $m $log"),
+        "{} {} 1 {invalid command name \"q\"} {{::held {} delete}}"
+    );
+}
+
+#[test]
 fn interp_hide_and_expose_failures_keep_typed_tcl_identities() {
     // Exercise the current interpreter, a named child, and the child's own
     // command entry point. Names with spaces also prove that lookup codes are

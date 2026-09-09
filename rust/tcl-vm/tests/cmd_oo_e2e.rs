@@ -997,6 +997,68 @@ fn destroying_a_hidden_object_unlinks_its_hidden_command_token() {
 }
 
 #[test]
+fn exposing_a_hidden_object_does_not_rename_its_public_identity() {
+    // Hide/expose changes only the interpreter command-table location. It is
+    // not a Tcl command rename, so methods and the destructor keep reporting
+    // the object's original public name. Exact Tcl 9.0.4 oracle result.
+    assert_eq!(
+        result(
+            "set log {}
+             oo::class create C {
+                 method who {} {self object}
+                 destructor {lappend ::log [self object]}
+             }
+             C create x
+             interp hide {} x held
+             set before [list [interp invokehidden {} held who] \
+                              [llength [info commands x]] [interp hidden {}]]
+             interp expose {} held y
+             set after [list [y who] [llength [info commands y]] \
+                             [llength [interp hidden {}]]]
+             y destroy
+             list $before $after $log"
+        ),
+        "{::x 0 held} {::x 1 0} ::x"
+    );
+}
+
+#[test]
+fn retained_tcloo_self_destroy_retires_the_exact_command_token() {
+    // A TclOO method can destroy its object or class after its owning
+    // namespace has been unpublished but remains retained by this frame.
+    // Lifecycle lookup uses the retained command generation, not the vanished
+    // public namespace path. Exact Tcl 9.0.4 oracle results.
+    assert_eq!(
+        result(
+            "namespace eval N {
+                 oo::object create o
+                 proc p {} {
+                     namespace delete ::N
+                     o destroy
+                     list [info commands o] [catch {o} m] $m
+                 }
+             }
+             ::N::p"
+        ),
+        "{} 1 {invalid command name \"o\"}"
+    );
+    assert_eq!(
+        result(
+            "namespace eval N {
+                 oo::class create K {}
+                 proc p {} {
+                     namespace delete ::N
+                     K destroy
+                     list [info commands K] [catch {K} m] $m
+                 }
+             }
+             ::N::p"
+        ),
+        "{} 1 {invalid command name \"K\"}"
+    );
+}
+
+#[test]
 fn colon_colliding_object_slots_keep_distinct_identity() {
     // The two object commands render identically as `::a:::b`, but occupy
     // distinct `(namespace token, simple name)` slots. All TclOO state stays
