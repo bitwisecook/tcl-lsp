@@ -200,6 +200,7 @@ set out $rows
 }
 
 #[test]
+#[cfg(have_tommath)]
 fn control_commands_apply_the_tcl9_completion_option_scope_matrix() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/fixtures/tcl9/completion-options-control.tcl");

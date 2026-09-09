@@ -23,6 +23,6 @@ set out {}
 foreach script $scripts {
     set code [catch $script message options]
     set has [dict exists $options -errorcode]
-    set errorcode [expr {$has ? [dict get $options -errorcode] : {}}]
+    set errorcode [dict get [dict merge {-errorcode {}} $options] -errorcode]
     lappend out [list $code $has $errorcode]
 }
