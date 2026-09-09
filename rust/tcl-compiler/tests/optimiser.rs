@@ -48,6 +48,9 @@
 //! soundly less aggressive in a way that looks like a shortcoming are omitted
 //! rather than `#[ignore]`-d.
 
+use tcl_compiler::analyser::{Analyser, Severity};
+use tcl_compiler::compilation_unit::CompilationUnit;
+use tcl_compiler::compiler_checks::run_all_checks;
 use tcl_compiler::optimiser::manager::{
     apply_optimisations, optimise_source_multipass, optimise_with_dialect,
 };
@@ -98,6 +101,30 @@ fn opt_count(src: &str, dialect: &str, code: &str) -> usize {
         .iter()
         .filter(|c| *c == code)
         .count()
+}
+
+/// Error-severity diagnostic codes the user-facing `tcl diag` surface reports
+/// for `src` — the analyser pass plus `run_all_checks`, optimisation codes
+/// dropped, mirroring `checks.rs::codes`. Empty means the source re-parses;
+/// a rewrite that emits unbalanced text surfaces here as an `E2xx`.
+fn reparse_errors(src: &str, dialect: &str) -> Vec<String> {
+    let mut out: Vec<String> = Analyser::new()
+        .analyse(src, dialect)
+        .diagnostics
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .map(|d| d.code.to_string())
+        .collect();
+    let registry = static_context_for(dialect).commands();
+    let cu = CompilationUnit::build_for(src, registry, false);
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
+    for diag in run_all_checks(&cu, registry, d) {
+        if !diag.code.is_optimisation() && diag.severity == Severity::Error {
+            out.push(diag.code.to_string());
+        }
+    }
+    out
 }
 
 /// Wraps `body` in a loop where `$x` is an SCCP-typed INT loop counter (the
@@ -1545,6 +1572,17 @@ fn code_sinking_o125_negatives() {
         "set b $x\nif {$b} {\n    puts hello\n}", // var in condition
         "set b foo\nif {$a} {\n    puts $b\n}\nputs $b", // used after ($-form)
         "set b [clock seconds]\nif {$a} {\n    puts $b\n}", // cmd-sub RHS
+        // Used after by *name* rather than by substitution. `set b foo` must
+        // stay put: on the false path the sunk form leaves `b` undefined, so
+        // the later read errors where the original printed nothing. The
+        // registry's VarRead / VarWrite positions answer for a command the
+        // lowerer resolved, and the bareword scan covers a name inside a
+        // nested command substitution.
+        "set b foo\nif {$a} {\n    puts $b\n}\ninfo exists b", // VarRead position
+        "set b foo\nif {$a} {\n    puts $b\n}\nappend b tail", // read-before-write
+        "set b foo\nif {$a} {\n    puts $b\n}\nincr b",        // read-modify-write
+        "set b foo\nif {$a} {\n    puts $b\n}\nputs [set b]",  // nested substitution
+        "set b foo\nif {$a} {\n    puts $b\n}\nif {$c} {\n    puts [set b]\n}", // nested, in a body
     ];
     for src in neg {
         assert!(!opt_fires(src, TCL, "O125"), "O125 must not fire: {src}");
@@ -1554,7 +1592,6 @@ fn code_sinking_o125_negatives() {
     // PREPENDS `set b foo` into the branch while KEEPING the outer assignment,
     // so a tclsh run is unaffected) — omitted:
     //  - var not used in the branch at all (`puts hello`).
-    //  - var used after via a bare name (`incr b`) / set-read-form (`set b`).
     //  - numeric constant `set b 42` (handled by O100/O109, not O125).
     //  - cross-event shared var (excluded from sinking).
     //  - `if {0}` block (O112 drops the block AND all O125 parts).
@@ -1565,6 +1602,55 @@ fn code_sinking_o125_negatives() {
     //   set b $x ; if {[incr x] > 0} { set b $x; puts $b }
     // re-reads $x AFTER the incr — tclsh (x=5) ORIG prints 5, REWRITTEN prints 6.
     // A real miscompile, so it is reported rather than asserted.
+}
+
+#[test]
+fn code_sinking_o125_applies_both_grouped_edits_and_reparses() {
+    // The KCS O125 page's Before snippet, in its braced and quoted spellings.
+    // Two properties the pair of grouped edits must hold, which either spelling
+    // alone would let slip:
+    //
+    //  1. The deletion and the insertion both survive the manager's
+    //     resurrected-reference guard, so the assignment moves rather than
+    //     being copied. The insertion's replacement holds the sunk `set msg …`
+    //     and the `$msg` consuming it, which reads as a resurrection of the
+    //     variable the deletion removes unless group-mates are exempt.
+    //  2. The quoted spelling survives the inner-end convention, under which
+    //     the assignment's IR statement span stops *on* its closing `"`.
+    //     Replaying that span emits `set msg "error`, whose unterminated quote
+    //     swallows the rest of the line.
+    //
+    // tclsh: for either spelling, `set msg V; if {$ok} {return} else {log $msg}`
+    // and the sunk `if {$ok} {return} else {set msg V; log $msg}` are
+    // observationally identical — `msg` is read in exactly one branch and
+    // nowhere after the decision.
+    for (before, after) in [
+        (
+            "set msg {error}\nif {$ok} { return } else { log $msg }",
+            "if {$ok} { return } else { set msg {error}; log $msg }",
+        ),
+        (
+            "set msg \"error\"\nif {$ok} { return } else { log $msg }",
+            "if {$ok} { return } else { set msg \"error\"; log $msg }",
+        ),
+    ] {
+        assert_eq!(
+            opt_count(before, TCL, "O125"),
+            2,
+            "both grouped O125 edits must survive selection: {before}"
+        );
+        assert_eq!(optimised(before, TCL), after, "sunk output for: {before}");
+        assert_eq!(
+            optimised(before, TCL).matches("set msg").count(),
+            1,
+            "the original assignment must be deleted, not duplicated: {before}"
+        );
+        assert!(
+            reparse_errors(&optimised(before, TCL), TCL).is_empty(),
+            "the sunk output must re-parse: {}",
+            optimised(before, TCL)
+        );
+    }
 }
 
 // Load forwarding — O127 (single-use store-to-load forwarding)
