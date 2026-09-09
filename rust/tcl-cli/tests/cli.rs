@@ -481,6 +481,9 @@ fn run_tcl_allow_failure(args: &[&str]) -> Vec<u8> {
 /// the analyser families (`W210`) and the compiler-check families (`S100`)
 /// alike, because both surfaces ask the one shared `line_suppressed` helper.
 ///
+/// A comment that merely mentions the word is not a directive, so the finding
+/// below it still fires.
+///
 /// The control is the same fixture with its directive lines stripped: every
 /// code the markers silence must come back, or this test would pass on a
 /// `diag` that had simply stopped reporting.
@@ -508,6 +511,10 @@ fn diag_honours_noqa_directives_the_way_the_editor_does() {
         "an unmarked W210 must still be reported: {marked:?}"
     );
     assert!(
+        marked.iter().any(|m| m.contains("reportedBesideProse")),
+        "a comment that only mentions the word is not a directive: {marked:?}"
+    );
+    assert!(
         marked.iter().any(|m| m.contains("otherDict")),
         "an unmarked S100 must still be reported: {marked:?}"
     );
@@ -522,6 +529,7 @@ fn diag_honours_noqa_directives_the_way_the_editor_does() {
         "suppressedByCode",
         "suppressedByBareNoqa",
         "reportedWithoutAMarker",
+        "reportedBesideProse",
         "dictValue",
         "otherDict",
     ] {

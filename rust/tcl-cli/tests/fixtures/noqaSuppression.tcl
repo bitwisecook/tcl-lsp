@@ -11,6 +11,9 @@ puts $suppressedByBareNoqa
 
 puts $reportedWithoutAMarker
 
+# a comment that only mentions noqa in passing is not a directive
+puts $reportedBesideProse
+
 set dictValue [dict create a 1 b 2]
 # noqa: S100
 lindex $dictValue 0

@@ -66,7 +66,7 @@ entry point, or gate moves without this contract being updated.
 | C Tcl conformance oracles | `rust/tcl-test-support/src/lib.rs` | `reference_patchlevel`; `reference_source_tag`; `locate_tclsh`; `available_tclshs`; `run_script`; `locate_source_tree`; `Tclsh`; `TclSourceTree`; `ScriptOutcome` | exact interpreter/source agreement and provenance for the selected release line | none |
 | interpreter platform bootstrap | `rust/tcl-platform/src/lib.rs` | `bootstrap::Values`; `bootstrap::Snapshot`; `bootstrap::snapshot`; `bootstrap::entries`; `bootstrap::HOST_ARRAYS`; `bootstrap::HOST_PATH_GLOBALS`; `bootstrap::safe_scrub_keys`; `bootstrap::SHARED_LIBRARY_EXTENSION` | key, selected-host snapshot, rebootstrap-clear, safe-scrub, and canonical Unix shared-library suffix invariant; runtime identity supplied per engine | none |
 | shared plain types | `rust/tcl-core-types/src/diag_code.rs` | `DiagCode` | invariant | `xtask-diag-tables` |
-| diagnostic suppression directives | `rust/tcl-compiler/src/analyser/utils.rs` | `parse_file_suppression`; `parse_noqa_line_suppressions_for_dialect`; `apply_preceding_noqa`; `line_suppressed`; `FILE_SUPPRESS_KEY` | directive shapes are release-invariant; the noqa pre-scan segments under the document dialect's `LexerConfig` | none |
+| diagnostic suppression directives | `rust/tcl-compiler/src/analyser/utils.rs` | `parse_file_suppression`; `parse_noqa_marker`; `parse_noqa_line_suppressions_for_dialect`; `apply_preceding_noqa`; `line_suppressed`; `FILE_SUPPRESS_KEY` | directive shapes are release-invariant; the noqa pre-scan segments under the document dialect's `LexerConfig` | none |
 | SslicTcl declaration model | `rust/tcl-sslictcl/src/model.rs` | `SslicModel`; `TlsFacts`; `Policy` | vocabulary version (`dsl::SUPPORTED_VOCABULARY`); no Tcl release axis — the document is never evaluated | none |
 | SslicTcl document loading | `rust/tcl-sslictcl/src/dsl.rs`; `rust/tcl-sslictcl/src/vocabulary.rs` | `load_with_diagnostics`; `DslDiagnostic`; `DECLARATIONS` | vocabulary version; open/closed block rule per declaration | none |
 | SslicTcl finding identity | `rust/tcl-sslictcl/src/policy.rs` | `evaluate_policy`; `PolicyFinding` | invariant `(check id, endpoint)` identity; the `grade` id is reserved | none |
@@ -716,6 +716,12 @@ entry point, or gate moves without this contract being updated.
   and `apply_preceding_noqa` for an inline directive, recorded against every
   line the *following* command occupies), and `line_suppressed`, the one
   predicate that reads it.
+- `parse_noqa_marker` is the one grammar for an inline directive, shared by
+  both pre-scans: a `noqa:` marker at a word boundary carries the codes it
+  names, a comment whose whole body is `noqa` carries the `"*"` wildcard, and
+  a comment that merely mentions the word carries nothing. A consumer that
+  matched the bare substring instead would silence every finding on the
+  command below `# do not use noqa here`.
 - The analyser records the map but does not filter with it — only the surface
   that renders a finding knows which line it lands on — so every consumer asks
   through `line_suppressed`: the language server's analyser, compiler-check,
