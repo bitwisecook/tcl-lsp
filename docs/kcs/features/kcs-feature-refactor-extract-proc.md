@@ -73,7 +73,8 @@ Nor does a name that only *looks* like a reference. A braced word substitutes
 nothing, so the `$notavar` of `set msg {$notavar}` and the `$a` of an `apply`
 lambda handed to `lsort -command` are literal text rather than variables the
 caller has to supply. A braced word that carries script or an expression is
-still read as such.
+still read as such, and so is every word of a command that performs Tcl
+substitution itself: `subst {hello $name}` does read `name`.
 
 ## Example
 

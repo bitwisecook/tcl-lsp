@@ -415,11 +415,12 @@ struct VariableRoles {
 /// parameter list that the caller need not have — the extraction then rewrites
 /// a working file into one that dies on `can't read`.
 ///
-/// Three kinds of braced word are *not* such a literal and stay scanned: an
+/// Four kinds of braced word are *not* such a literal and stay scanned: an
 /// [`ArgRole::Expr`] word, whose `$name`s `expr` substitutes; any word a
 /// same-frame or frame-opening region overlaps, which is script rather than
-/// data; and every word of a command the registry does not know, where nothing
-/// says the word is data.
+/// data; every word of a command that performs Tcl substitution, which reads
+/// through its own arguments; and every word of a command the registry does
+/// not know, where nothing says the word is data.
 fn literal_word_holes(
     source: &str,
     command: &SegmentedCommand,
@@ -428,7 +429,17 @@ fn literal_word_holes(
     out: &mut Vec<(u32, u32)>,
 ) {
     let head = command.name();
-    if registry.get(head).is_none() {
+    let Some(spec) = registry.get(head) else {
+        return;
+    };
+    // `subst {hello $name}` substitutes `$name` out of a braced word, so a
+    // command carrying the registry's own substitution trait has no inert
+    // words at all.  The trait is the whole test, exactly as the compiler's
+    // dynamic-name barrier reads it — this module names no command.
+    if spec
+        .traits
+        .contains(tcl_registry::Traits::PERFORMS_SUBSTITUTION)
+    {
         return;
     }
     let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
@@ -1144,6 +1155,24 @@ mod tests {
     }
 
     // -- TP: caller-frame writes survive via upvar -------------------------
+    /// A command that performs Tcl substitution reads through its own braced
+    /// argument, so that word is not the inert literal a braced word usually
+    /// is: `subst {hello $name}` substitutes `$name`.
+    ///
+    /// Oracle (tclsh 8.6.18 and 9.0.4 alike): the original prints
+    /// `hello world`; so does the extraction.  Dropping the `name` parameter
+    /// makes the rewritten call die with `can't read "name"`.
+    #[test]
+    fn tp_a_substituting_command_reads_through_its_braced_word() {
+        let src = "set name world\nset msg [subst {hello $name}]\nputs $msg\n";
+        let result = outcome(src, "set msg [subst {hello $name}]").unwrap();
+        assert!(
+            result.contains("proc extracted_proc {name msgName} {"),
+            "the substituted name is the caller's: {result}"
+        );
+        assert!(result.contains("extracted_proc $name msg"), "{result}");
+    }
+
     /// A braced word substitutes nothing, so the `$name` spelled inside one
     /// is not a variable the caller has to supply.
     ///
