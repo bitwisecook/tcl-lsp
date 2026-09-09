@@ -169,14 +169,14 @@ fi
 # on the same Make entry point as SpecTcl so neither lane can silently fall back
 # to an unpinned patchlevel.
 rust_tests_block="$(awk '
-    /^  rust-tests:/ { in_rust_tests = 1 }
-    in_rust_tests && /^  [A-Za-z0-9_-]+:/ && $1 != "rust-tests:" { exit }
+    /^  rust-tests-shard:/ { in_rust_tests = 1 }
+    in_rust_tests && /^  [A-Za-z0-9_-]+:/ && $1 != "rust-tests-shard:" { exit }
     in_rust_tests { print }
 ' "$REPO_ROOT/.github/workflows/ci.yml")"
 case "$rust_tests_block" in
     *'name: Install exact Tcl 9.0 reference interpreter'*'TCL_LSP_TCL_BIN_DIR: ${{ runner.temp }}/tcl-reference-bin'*'make ensure-tcl90-reference'*'. scripts/dev/tcl-reference-toolchains.sh'*'tcl_reference_resolve_tclsh 9.0'*'TCL_LSP_TCLSH90=%s\n'*'$GITHUB_ENV'*) ;;
     *)
-        echo "rust-tests must provision and export the exact Tcl 9.0 oracle through ensure-tcl90-reference" >&2
+        echo "rust-tests-shard must provision and export the exact Tcl 9.0 oracle through ensure-tcl90-reference" >&2
         exit 1
         ;;
 esac

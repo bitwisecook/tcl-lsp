@@ -14,6 +14,7 @@ scripts/dev/lsp-e2e-input-paths.txt
 scripts/dev/lsp-e2e-package-paths.txt
 scripts/dev/test-lsp-e2e-partitions.sh
 scripts/dev/test-lsp-e2e-paths.sh
+scripts/dev/verify-nextest-partitions.py
 editors/vscode/testFixture/variableContexts.tcl
 samples/sslictcl/example.sslictcl
 specs

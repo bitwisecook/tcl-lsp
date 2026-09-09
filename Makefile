@@ -125,7 +125,7 @@ SERVER_TARGET_MAP := \
 	aarch64-pc-windows-msvc:win32-arm64
 SERVER_TARGETS_ALL := $(foreach p,$(SERVER_TARGET_MAP),$(firstword $(subst :, ,$(p))))
 
-# The bundled SpecTcl loadables (`docs/design/spec-packs.md`): the EDA vendor
+# The bundled SpecTcl loadables (`docs/design/registry/spec-packs.md`): the EDA vendor
 # libraries are `.tclspec` packs, not compiled-in Rust, so a shipped server is
 # incomplete without them. `tcl_spectcl::discovery::bundled_dir` looks for a
 # `specs/` directory *beside the executable*, so every place that stages a
@@ -822,9 +822,12 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 	@echo "VS Code extension coverage report: $(COV_DIR)/vscode/index.html"
 
 # --- Native (cargo xtask) check gates.  These need the Rust toolchain, so CI
-# runs them in the rust-tests job (rust-gate.yml / ci.yml).  `xtask-check` is
-# the CI aggregate.
-xtask-check: check-tcl-reference-toolchains check-spectcl-compat-paths check-runtime-rust-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-release-dependency-graph check-vsix-web-assets-contract xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
+# runs them in the rust-tests-shard matrix and its stable rust-tests aggregate
+# (ci.yml). `xtask-check` is the CI aggregate.
+xtask-check: check-tcl-reference-toolchains check-spectcl-compat-paths check-runtime-rust-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-release-dependency-graph check-vsix-web-assets-contract xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
+
+check-lsp-wasi-lto: ## Verify functional WASI uses thin LTO and tags retain fat LTO
+	@bash scripts/dev/test-lsp-wasi-lto.sh
 
 check-tcl-reference-toolchains: ## Verify pinned C Tcl patchlevels across shell setup and Rust oracle discovery
 	@echo "==> Checking C Tcl reference toolchain ownership"
@@ -847,9 +850,10 @@ check-lsp-e2e-paths: ## Verify CI's native LSP e2e archive dependency closure an
 	@echo "==> Checking native LSP e2e archive path ownership"
 	@bash scripts/dev/test-lsp-e2e-paths.sh
 
-check-rust-tests-runner: ## Verify trusted rust-tests jobs serialize on the shared tank host
+check-rust-tests-runner: ## Verify trusted Rust shard 1 serializes on the shared Tank host
 	@echo "==> Checking self-hosted Rust test scheduling"
 	@sh scripts/dev/test-rust-tests-runner.sh
+	@bash scripts/dev/test-nextest-binary-shards.sh
 
 check-persistent-cargo-target: ## Verify safe per-registration Tank Cargo target reuse
 	@echo "==> Checking persistent Tank Cargo target safety"
@@ -1048,8 +1052,9 @@ rust-check: check-rust-pr xtask-check ## Rust fmt + clippy + generated-file drif
 
 # The local pre-push gate: format + codegen + lint/typecheck + the smoke test
 # tier.  Deliberately NOT the full test suite — CI runs the deep suites
-# (rust-tests / rust-tests-heavy / lsp-e2e / test-ext / python) on every PR
-# and push.  `make test` remains available to reproduce CI locally.
+# (rust-tests-shard plus its rust-tests aggregate / rust-tests-heavy / lsp-e2e /
+# test-ext / python) on every PR and push. `make test` remains available to
+# reproduce CI locally.
 prep-pr: format codegen ## Fast local gate (format + codegen + lint + typecheck + smoke tier) — deep suites run in CI
 	@$(MAKE) -j $(NPROC) _prep-pr-checks _prep-pr-smoke-tier
 
@@ -1142,11 +1147,12 @@ fuzz: ## Run a tcl-fuzz differential campaign (manual-only; see the fuzz-finding
 # (rust/tcl-lsp-server/tests/*_e2e.rs).  Set SKIP_TEST_RUST=1 to skip.
 #
 # Prefers nextest when it is installed, the way `smoke` does, and for the same
-# reason CI's rust-tests job uses it: nextest runs every test binary's tests in
-# ONE global parallel pool, where plain `cargo test` runs the binaries serially.
+# reason each CI rust-tests-shard leg uses it: nextest runs every test binary's
+# tests in ONE global parallel pool, where plain `cargo test` runs the binaries
+# serially.
 # nextest cannot run doctests, so those follow in a second pass — the same split
-# the rust-tests job makes.  The `cargo test` fallback keeps the target working
-# on a machine without nextest.
+# the rust-tests-shard matrix makes. The `cargo test` fallback keeps the target
+# working on a machine without nextest.
 test-rust: ## Run Rust workspace tests + the native-server lsp_e2e suite (skip with SKIP_TEST_RUST=1)
 	@set -eu; \
 	if [ -n "$${SKIP_TEST_RUST:-}" ]; then \
@@ -1438,7 +1444,7 @@ rust-deny: ## Audit every locked Rust workspace with cargo-deny (advisories/lice
 
 # All-languages lint + typecheck.  Mirrors GitHub Actions' pr-gate plus the
 # extra languages CI doesn't cover (Rust, full TS).
-check-all: ## Full lint + typecheck (TS, Rust, Python)
+check-all: ## Full lint + typecheck: TypeScript (extension, report UI, spec studio) + editor settings + installer, Rust fmt/clippy, workflow drift, Python ruff + ty/pyright
 	@$(MAKE) -j $(NPROC) _prep-pr-checks check-rust xtask-workflow-sync lint-py typecheck-py
 	@echo "==> check-all: PASSED"
 

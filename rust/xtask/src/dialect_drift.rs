@@ -18,7 +18,7 @@
 
 //! `dialect-drift` — the gate that keeps a document's grammar one value.
 //!
-//! `docs/design/dialect-profile-model.md` §2.5 settles that a document's
+//! `docs/design/registry/dialect-profile-model.md` §2.5 settles that a document's
 //! grammar is born once, at the ingress (`DocumentEnvironment::grammar`),
 //! and threaded from there: every layer that re-reads document text — a
 //! proc body, a braced argument, a list word, an `expr` string — reads it

@@ -38,7 +38,7 @@ state remain runtime state, not compiler-side approximations.
 The optional `wasm_stdlib` feature embeds Tcl scripts and package indices in
 the runtime VFS (`embedded_stdlib.rs`). It does not currently provide a
 package-driven compiler extension selector or a separate tcltest C-command
-runtime. See [WASM extensions](wasm-extensions.md) for the dated future design.
+runtime. See [WASM extensions](wasm-extensions.md).
 
 ## Capability and host boundaries
 

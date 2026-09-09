@@ -21,16 +21,16 @@ Inconsistent line endings cause noisy diffs, confuse some Tcl parsers, and creat
 
 ## Symptoms
 
-- A yellow squiggle appears on the first inconsistent line, with the message "mixed LF and CRLF line endings".
+- A hint at line 1, column 1, with the message "Mixed line endings: LF (1),
+  CRLF (1); expected LF". A file using one non-expected style throughout reads
+  "File uses CRLF line endings (12); expected LF".
 
 ## Example that triggers it
 
-```tcl
-set a 1\r\n
-set b 2\n
-```
+A file whose first line ends `\r\n` and whose second ends `\n`.
 
-The analyser reports **`W118`** when the file contains both `\r\n` and `\n` line endings.
+The analyser reports **`W118`** once, at the start of the file. The expected
+style is LF.
 
 ## Fix
 

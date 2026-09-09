@@ -28,13 +28,14 @@ with `load8` / `load16` / `load32`, keep state in a `map`, and end every path
 with an explicit verdict — `accept` / `drop` for a socket filter, or
 `pass` / `drop` / `tx` for XDP, TC ingress/egress, and cgroup connect4/bind4
 (`tx` is XDP-only; a cgroup handler has no packet to read, so it can only use
-`map`/verdict verbs, never `setbuf`). Build the CLI with `make rust-clis` (the
-binary is `bpf-tcl`), then run `bpf-tcl check FILE`, `bpf-tcl compile FILE`,
-or `bpf-tcl run FILE --packet HEX`. `bpf-tcl compile FILE --emit elf` writes an
-ELF object; add `--target kernel-xdp`, `--target kernel-socket`,
-`--target kernel-tc`, or `--target kernel-cgroup-sockaddr` for a
-Linux-loadable object (the default `--target rbpf` is a simulator artefact for
-inspection).
+`map`/verdict verbs, never `setbuf`). Build the CLI with
+`cargo build -p bpf-tcl`, then run `bpf-tcl check FILE`,
+`bpf-tcl compile FILE`, `bpf-tcl run FILE --packet HEX`, or `bpf-tcl plan
+FILE` (a loader dry-run listing programs, pins, attach targets, and required
+kernel features). `bpf-tcl compile FILE --emit elf` writes an ELF object; add
+`--target kernel-xdp`, `--target kernel-socket`, `--target kernel-tc`, or
+`--target kernel-cgroup-sockaddr` for a Linux-loadable object (the default
+`--target rbpf` is a simulator artefact for inspection).
 
 Key contracts to know:
 
@@ -55,7 +56,7 @@ Key contracts to know:
   signed truncated-toward-zero division, which diverges from Tcl floor division
   only when exactly one operand is negative.
 
-### Example
+## Example
 
 ```tcl
 # Drop TCP traffic to port 22, accept everything else.
@@ -84,15 +85,9 @@ targets emit Linux-loadable objects with `struct xdp_md` / `struct __sk_buff`
 access, verifier-safe packet bounds proofs (where the context has a packet
 body), and BTF-defined maps with relocations. The emitted objects are
 validated in the test suite with `readelf`/`llvm-objdump` and an in-repo
-verifier model; the actual `bpf()` kernel load needs root and a live kernel,
-so it runs behind `#[ignore]`d tests (`rust/bpf-tcl/tests/kernel_load.rs`,
-`rust/bpf-tcl/tests/kernel_attach.rs`). The `kernel-tc` target's real-kernel
-`tc filter add ... bpf da obj ... sec tc` attach has been run and verified
-against a live kernel; the `kernel-cgroup-sockaddr` target's real-kernel
-`bpftool cgroup attach` path has not (no environment with `bpftool` installed
-was available when this was implemented), though its codegen is covered by the
-unit/e2e test suites and the in-repo verifier model. Live attachment beyond
-these gated tests (links, pins, interface configuration in a production
-deployment tool) is still follow-on work. See
+verifier model. The actual `bpf()` kernel load needs root and a live kernel,
+so it runs behind `#[ignore]`d tests. `bpf-tcl plan` resolves the deployment
+plan — programs, pins, attach targets, and kernel features — without touching
+the kernel; `bpf-tcl` does not attach programs itself. See
 [`docs/design/compiler/ebpf-backend.md`](../../design/compiler/ebpf-backend.md)
-for the full architecture and roadmap.
+for the full architecture.

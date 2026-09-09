@@ -1,4 +1,4 @@
-# KCS: W148 — numeral spelling is not accepted by the target Tcl release
+# KCS: W148 — Why is this numeral rejected by my Tcl release?
 
 > **Audience:** User
 > **Type:** Diagnostic
@@ -7,26 +7,64 @@
 
 all-editors, diagnostic, command-walk
 
-## What does W148 mean?
+## Profiles
 
-W148 marks a literal numeral whose spelling is valid in Tcl 9 but is not
-accepted by the document's resolved Tcl release. For example, `0d5` and
-`1_000` are valid Tcl 9 spellings but are not numerals in Tcl 8.4–8.6.
+default
 
-The warning is profile-aware. A Tcl 9 document accepts these spellings, and
-leading-zero octal (`010`) is not warned about in either family because it is
-valid in Tcl 8.x and valid as decimal in Tcl 9.
+## Question
 
-## How do I fix it?
+Why does the analyser flag a number that Tcl 9 accepts?
 
-Use a spelling accepted by the target release, such as `5` instead of `0d5`,
-or remove digit separators from a value that must run on Tcl 8.x. Alternatively,
-raise the document's resolved Tcl release if the script requires Tcl 9 syntax.
+## Why
 
-W148 abstains when the numeral is dynamic or the document has no resolved
-release, so it does not claim a value that static analysis cannot establish.
+Tcl 9 added numeral spellings its predecessors do not parse: the explicit
+decimal prefix `0d5`, and digit separators such as `1_000`. On Tcl 8.4–8.6 the
+same word is not a number at all, so any arithmetic on it fails at run time.
 
-## Related diagnostics
+Leading-zero octal (`010`) is never flagged: it is valid in Tcl 8.x and valid
+as decimal in Tcl 9.
 
-W137 and W138 cover version-gated command arguments and format conversions;
-W148 covers the numeral spelling itself.
+## Symptoms
+
+- A yellow squiggle under the numeral, with the message "Numeral '0d5' is not
+  accepted by the resolved Tcl numeral grammar."
+
+## Example that triggers it
+
+```tcl
+# tcl-dialect: tcl8.6
+set n 0d5
+puts $n
+```
+
+The analyser reports **`W148`** on `0d5`.
+
+## Fix
+
+```tcl
+# tcl-dialect: tcl8.6
+set n 5
+puts $n
+```
+
+Use a spelling the target release accepts — `5` for `0d5`, `1000` for
+`1_000` — or raise the document's resolved Tcl release if the script really
+does need Tcl 9 syntax.
+
+The check abstains when the numeral is dynamic or the document has no
+resolved release.
+
+## How to suppress
+
+Add `# noqa: W148` on the line **above** the offending command. You can also
+turn the code off for a project with `disabled = W148` under `[diagnostics]`
+in `.tcl-lsp.ini`, or in your editor with `tclLsp.diagnostics.W148` set to
+`false`. See
+[how to turn a diagnostic off](../kcs-howto-suppress-diagnostics.md).
+
+## Related
+
+- [KCS codes index](README.md)
+- [Diagnostics feature](../features/kcs-feature-diagnostics.md)
+- [command walk](../../GLOSSARY.md#command-walk)
+- Related codes: `W137`, `W138`, `W144`

@@ -33,15 +33,14 @@ source.
 in `codegen_module` from the unit's dialect name through
 `grammar_of_dialect_name`, and every grammar fact it reads — `numbers`
 (`NumberSyntax`), `escapes` (`EscapeSyntax`), `braced_var`
-(`BracedVarStyle`), `word_rules` (`WordValueRules`), and the grammar
-`parse_compile_expr` re-parses expression text under — is a field of that one
-value. They exist because codegen decodes text — literal words, normalised
-word spellings, expression source — and the grammar that text obeys is
-dialect-dependent. That they are one value is the invariant: before it, a
-named compile emitted numerals under a grammar resolved from the name and
-re-parsed `expr` under the profile's, and for `tk` the two disagreed about
-`010` inside a single compile. See `dialect-profile-model.md` §2.5 for how
-the name reaches codegen and why it is the document's own.
+(`BracedVarStyle`), and the grammar `parse_compile_expr` re-parses
+expression text under — is a field of that one value. They exist because
+codegen decodes text — literal words, normalised word spellings, expression
+source — and the grammar that text obeys is dialect-dependent. That they are
+one value is the invariant: numerals and re-parsed `expr` text resolved under
+two grammars disagree about `010` for `tk` inside a single compile. See
+[dialect-profile-model.md](../registry/dialect-profile-model.md) §2.5 for how the name
+reaches codegen and why it is the document's own.
 
 **Scope, stated deliberately.** The grammar codegen *decodes under* is the
 document's resolved dialect today — a JimTcl unit's literals, escapes and
@@ -52,12 +51,10 @@ projected profile a non-Tcl dialect resolves to carries
 a bracketed `expr` does in `set` and `return` (so the emitted bytecode is
 Tcl 9's expression evaluation of the body) and stays an opaque dynamic word
 elsewhere; and Jim's own list, dict and `expr` semantics are not modelled
-by any pass. That is the intended state,
-not an omission: the backends target Tcl 9, and dialect-aware emission and
-execution is an **eventual** — the readiness requirement met now is that
-codegen consumes only the point-derived grammar and profile, never a dialect
-name or a per-consumer table, so a future dialect-keyed backend has one value
-to key on and nothing to unpick.
+by any pass. That is the intended state, not an omission: the backends
+target Tcl 9. Codegen consumes only the point-derived grammar and profile,
+never a dialect name or a per-consumer table, so a future dialect-keyed
+backend has one value to key on.
 
 `braced_var` resolves where a `${…}` variable name ends: `Tcl_ParseVarName`
 took the *first* close brace through 8.6 and balances nested braces from 9.0.
@@ -66,10 +63,9 @@ trip**: the segmenter re-spells a `Var` token as source-like text and codegen
 decodes that spelling back, so encoder and decoder must agree about the
 release. The invariant is that every consumer resolves the form through the
 single shared owner, `tcl_lexer::braced_var_name_end`, rather than scanning
-for `}` itself — two decoders applying two different releases' rules to one
-encoding is what made issue #1568 produce answers that were inverted at both
-8.x and 9.x rather than merely wrong. Consumers code against its
-`BracedVarEnd` enum so `Unterminated` stays an explicit outcome.
+for `}` itself — two decoders applying two releases' rules to one encoding
+give answers inverted at both 8.x and 9.x, not merely wrong. Consumers code
+against its `BracedVarEnd` enum so `Unterminated` stays an explicit outcome.
 
 CFG lowering runs *before* the target release reaches codegen and so has no
 dialect in hand. Where it must classify a `${…}` word anyway — the `switch`

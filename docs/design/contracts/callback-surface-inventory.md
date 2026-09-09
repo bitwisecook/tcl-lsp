@@ -25,17 +25,16 @@ All three are authored, all three are enforced in `--check` **and** write mode,
 and the completeness check ties them to the projection: a row in no tier fails
 (a new callback surface arriving unreviewed), and a listed row that stops being
 projected fails (the downgrade). That last one is what gives the *whole*
-inventory downgrade protection rather than the surfaces someone thought to
-document — the review of PR #1727 found `checkbutton -command` could be
-downgraded to a plain value with every authored check still green, because no
-requirement named it.
+inventory downgrade protection rather than only the surfaces someone thought
+to document: without it, `checkbutton -command` could be downgraded to a plain
+value with every authored check still green, because no requirement names it.
 
 Read the tiers as different strengths, not as a ranking of importance. A
 baseline row says only "this was an executable position and still is"; what its
 kind, timing, or appended arity should be is claimed only by a requirement.
-Most of the inventory belongs in the baseline on purpose: the seventeen
-`crc::*` `-implementation` options say one thing seventeen times, and writing
-seventeen sourced requirements for them would be ceremony rather than review.
+Most of the inventory belongs in the baseline on purpose: the `crc::*`
+`-implementation` options all say the same thing, and a sourced requirement
+for each of them would be ceremony rather than review.
 
 ## What is inventoried
 
@@ -106,8 +105,8 @@ and Vivado's `-rule_body` checker procedures.
 
 **the baseline** — `callback-surface-baseline.json`: every remaining projected
 surface, by `owner` and `location` alone. It carries no contract and asserts
-none; it exists so that the 368 surfaces without a separately citable
-contract still cannot lose their declaration unnoticed. Two failures come out
+none; it exists so that a surface without a separately citable contract
+still cannot lose its declaration unnoticed. Two failures come out
 of it: a listed surface that stopped being projected (someone downgraded it),
 and a projected surface in no tier at all (a new callback arriving unreviewed,
 which is the moment to decide whether it deserves a documented requirement).

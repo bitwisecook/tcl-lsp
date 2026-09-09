@@ -18,7 +18,7 @@
 
 //! The **bundled** tier on its own: the loadables tcl-lsp ships.
 //!
-//! `docs/design/spec-packs.md` puts the EDA vendor libraries here — "the EDA
+//! `docs/design/registry/spec-packs.md` puts the EDA vendor libraries here — "the EDA
 //! vendor libraries ship as bundled `.tclspec` loadables … so the loader path
 //! is exercised in production from day one rather than reserved for private
 //! packs" — and since the migration that is literally true: `sdc_base`, `upf` and the

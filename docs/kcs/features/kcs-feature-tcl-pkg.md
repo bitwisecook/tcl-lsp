@@ -59,13 +59,13 @@ optimiser can resolve. Installed and generated trees such as `lib/`, `vendor/`,
 `.venv/`, and `target/` are excluded. Add anything the analysis cannot prove
 with `tcl pkg add NAME VERSION`.
 
-### VS Code
+### Editors
 
-When a `tclpkg.tcl` file is present in the workspace root, the LSP
-server auto-detects the project and adds `lib/` to the library paths
-for hover, completion, and diagnostics. On a missing-package diagnostic
-(W120), a "Install via tclpkg" quick-fix appears alongside the existing
-"Add 'package require'" action.
+The language server reads a `tclpkg.tcl` as a manifest, not as ordinary Tcl:
+the `package`, `version`, `license`, `tcl`, `require`, and `dev-require`
+directives resolve, and anything else in the file is reported as an unknown
+command (W123). A `.tclspec` pack placed beside the manifest is discovered
+without configuration.
 
 ## Options
 
@@ -116,4 +116,4 @@ myapp
 - [KCS feature index](README.md)
 - [tcl venv](kcs-feature-tcl-venv.md) — virtual environments
 - [tcl verb CLI](kcs-feature-tcl-verb-cli.md) — the unified CLI
-- [Design: tclpkg architecture](../../design/tclpkg-architecture.md)
+- [Design: tclpkg architecture](../../design/tclpkg/architecture.md)

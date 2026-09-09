@@ -5,7 +5,7 @@
 //! The `SslicTcl` vocabulary as data.
 //!
 //! [`DECLARATIONS`] is the machine-readable statement of the table in
-//! `docs/design/sslictcl-vocabulary.md`: every declaration, its key word, its
+//! `docs/design/f5/sslictcl-vocabulary.md`: every declaration, its key word, its
 //! members and their value domains, and whether unknown members are preserved
 //! (`open`) or rejected (`closed`). The loader is tested against this table so
 //! the two cannot drift, and an out-of-crate drift gate can compare a registry

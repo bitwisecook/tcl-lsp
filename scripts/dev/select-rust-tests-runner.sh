@@ -83,7 +83,7 @@ for run_id in $active_runs; do
                     and .status != "pending" and .status != "completed"))
         then error("malformed workflow-job response")
         else [.[].jobs[] | select(
-                .name == "rust-tests"
+                .name == "rust-tests-shard (1/5)"
                 and (.labels | index("tank"))
                 and .status != "completed"
             )] | length

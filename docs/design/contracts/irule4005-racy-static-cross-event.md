@@ -35,7 +35,7 @@ beyond the write itself.
 
 - `rust/tcl-compiler/src/connection_scope.rs` — the cross-event scope analysis
   and the `racy_static_defs` set.
-- `rust/tcl-compiler/src/analyser/diagnostics.rs` —
+- `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` —
   `emit_racy_static_diagnostics`.
 - `rust/tcl-compiler/src/compilation_unit.rs` — where the connection-scope
   result is attached and consumed.
@@ -46,13 +46,13 @@ beyond the write itself.
 ## Failure modes
 
 - Missing IRULE4005 for write commands whose lowering does not produce
-  `defs` entries.  Currently `set`, `append`, `lappend`, `incr`, and
-  `array set` all produce correct defs (either via custom lowering hooks
-  or via `ArgRole.VAR_NAME` in the command signature).
+  `defs` entries.  `set`, `append`, `lappend`, `incr`, and `array set` all
+  produce correct defs (via a lowering hook or an `ArgRole::VarWrite`
+  argument in the spec).
 - False IRULE4005 if `unset` is incorrectly treated as a definition.
 - Missing IRULE4005 if `ConnectionScope.racy_static_defs` fails to
-  include a variable because `variable_scope_note()` returns non-None
-  (scoping concern blocks cross-event flow).
+  include a variable because `EventRegistry::variable_scope_note()` returns
+  `Some` (a scoping concern blocks cross-event flow).
 
 ## Test anchors
 

@@ -75,13 +75,13 @@ directory.  Resolution is recursive with circular-include protection.
 
 ### tmsh:: commands
 
-30+ `tmsh::` namespace commands and 4 `script::` commands are registered in
-the `f5-iapps` and `f5-tmsh` dialects with hover documentation and arity
+The `tmsh::` and `script::` namespace commands are registered in the
+`f5-iapps` and `f5-tmsh` dialects with hover documentation and arity
 validation.
 
 ## Failure modes
 
-- APL-specific tokens not emitted when `is_apl=False` (language detection miss).
+- APL-specific tokens not emitted when the file is not detected as APL.
 - Cross-file diagnostics not triggered when files are in different directories.
 - `#include` resolution fails if the included file uses a different encoding.
 - New APL keywords not recognised after spec changes.

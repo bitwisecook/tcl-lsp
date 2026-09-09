@@ -229,6 +229,51 @@ fn vm_matches_the_pinned_cross_interp_alias_vectors() {
     }
 }
 
+#[test]
+fn deleting_an_alias_target_retires_a_retained_source_token() {
+    // The active ::N frame retains its alias after namespace deletion. Target
+    // interpreter teardown must still find and delete that exact source token.
+    // Exact Tcl 9.0.4 oracle.
+    assert_eq!(
+        vm_output(
+            "interp create i
+             namespace eval N {
+                 interp alias {} ::N::a i set x
+                 proc p {} {
+                     namespace delete ::N
+                     interp delete i
+                     puts [list [info commands a] [catch {a} m] $m]
+                 }
+             }
+             ::N::p",
+        ),
+        r#"{} 1 {invalid command name "a"}"#
+    );
+}
+
+#[test]
+fn child_interpreter_deletion_uses_command_token_lifecycle_once() {
+    // The child naming command's delete trace runs while the interpreter still
+    // exists. A later child at the same spelling is a new generation and does
+    // not inherit the old trace. Exact Tcl 9.0.4 oracle.
+    assert_eq!(
+        vm_output(
+            "set log {}
+             proc cb {old new op} {
+                 lappend ::log [list $old $new $op [interp exists i]]
+             }
+             interp create i
+             trace add command i delete cb
+             interp delete i
+             set first $log
+             interp create i
+             rename i {}
+             puts [list $first $log]",
+        ),
+        "{{::i {} delete 1}} {{::i {} delete 1}}"
+    );
+}
+
 /// The table itself is pinned to C Tcl: every vector's `want` must match what
 /// the real tclsh prints (8.6 and 9.0 agree on all of these).  Skips
 /// per-binary when not installed.

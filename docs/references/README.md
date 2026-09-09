@@ -19,4 +19,7 @@ Reference docs differ from `docs/design/` in scope:
 - [`f5_query/`](f5_query/) — the `f5 query` DSL: comprehensive
   reference manual, full grammar, every builtin, sample
   configurations, cert-generation one-liners, F5 KB
-  cross-references.  Sourced by `f5 query --help-references`.
+  cross-references.
+- [`command-spec/`](command-spec/) — `CommandSpec`: every field,
+  how a spec resolves at a call site, and the editor features,
+  optimisations, and diagnostics each declaration drives.

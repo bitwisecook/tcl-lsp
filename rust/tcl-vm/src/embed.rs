@@ -138,6 +138,11 @@ impl Vm {
         let ns_id = self.definition_namespace_token(&namespace);
         self.define_proc(crate::command::ProcDef {
             name: registered,
+            command_ns_id: ns_id,
+            simple_name: String::from_utf8_lossy(tcl_syntax::naming::written_command_tail(
+                name.as_bytes(),
+            ))
+            .into_owned(),
             namespace,
             ns_id,
             params: parameters,
@@ -232,14 +237,17 @@ impl Vm {
     /// it replaces any existing command of that name, exactly as a `proc`
     /// redefinition does.
     pub fn register_native_command(&mut self, name: &str, command: Rc<dyn NativeCommand>) {
-        let canonical = name.strip_prefix("::").unwrap_or(name);
-        self.register_command(canonical, Command::Native(command));
+        self.register_written_command(name, Command::Native(command));
     }
 
     /// Every command name currently registered, sorted.
     #[must_use]
     pub fn command_names(&self) -> Vec<String> {
-        let mut names = self.registered_command_names();
+        let mut names: Vec<String> = self
+            .registered_command_entries()
+            .into_iter()
+            .map(|(_, display)| display)
+            .collect();
         names.sort_unstable();
         names
     }
@@ -261,9 +269,9 @@ impl Vm {
     /// later release, which is why a whitelist and not a blacklist.
     pub fn retain_commands(&mut self, keep: &dyn Fn(&str) -> bool) -> usize {
         let doomed: Vec<String> = self
-            .registered_command_names()
+            .registered_command_entries()
             .into_iter()
-            .filter(|name| !keep(name))
+            .filter_map(|(key, display)| (!keep(&display)).then_some(key))
             .collect();
         let removed = doomed.len();
         for name in doomed {

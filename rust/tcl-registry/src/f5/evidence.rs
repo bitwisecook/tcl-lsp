@@ -25,7 +25,7 @@
 //! version matrix behind any of them. Two of those three were then
 //! **measured and falsified**: `TmshCliScript` and `IAppImplementation`
 //! both report `8.4.6` and both fail every 8.4/8.5 discriminator as 8.4
-//! (`docs/design/bigip-irule-parser-measurements.md` §4/§4a). The 8.5.13
+//! (`docs/design/f5/bigip-irule-parser-measurements.md` §4/§4a). The 8.5.13
 //! that the model had adopted turned out to be `/usr/bin/tclsh` — the host
 //! binary, unrelated to any F5 execution context.
 //!

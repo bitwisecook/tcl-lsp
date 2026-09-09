@@ -20,10 +20,11 @@ once — parsing, traces, encodings, channels — lifts everything that depends 
 them, instead of the same root cause being patched per-symptom across ten
 higher-tier files.
 
-Parity is protected by a pass-only ratchet in the committed baselines
-(`tests/baselines/tcl9-tcltest-vm/summary.json` and the WASM / runtime
-equivalents): the regression gate only ever lets the pass count rise, so a
-change that regresses a tier already at parity fails the gate.
+The committed scoreboard is the gate. `make tcltest-sweep-check`
+(`cargo xtask tcltest-sweep --backend vm --check`) re-runs the VM against the
+cached C column (`tests/baselines/tcl9-tcltest/c-tclsh.ndjson`) and fails when
+[`rust-vm-tier-parity.md`](rust-vm-tier-parity.md) no longer matches, so a
+regression in a tier already at parity cannot land unnoticed.
 
 ## Core language vs optional features
 
@@ -51,7 +52,7 @@ if not, the [backend-constraint overlay](backend-constraints.md) skips it.
 
 ## How to read the file lists
 
-- Every file is `tmp/tcl9.0.3/tests/<name>.test`.
+- Every file is `tmp/tcl9.0.4/tests/<name>.test`.
 - A file (or a command group within it) that spans tiers is listed under
   **each** tier it touches, tagged with the group that puts it there. The three
   big "commands A–H / I–L / M–Z" files are the main offenders:

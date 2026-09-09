@@ -16,6 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+#![cfg(have_tommath)]
+
 use std::cell::RefCell;
 use std::path::Path;
 use std::rc::Rc;

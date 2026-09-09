@@ -13,7 +13,7 @@ default
 
 ## Question
 
-I opened an iRule and got a single warning saying the file does not look like UTF-8 text, and no other diagnostics at all — why did the analyser stop?
+Why did the analyser report only "does not look like UTF-8 text" and stop?
 
 ## Why
 
@@ -23,16 +23,14 @@ option both write UTF-16LE). Read as UTF-8, a UTF-16 file is not slightly
 wrong, it is nonsense: every other byte is a NUL, so command names, braces and
 strings all come apart.
 
-Analysing it anyway is worse than useless. A three-line UTF-16 iRule used to
-produce **87 diagnostics** — unmatched braces that are really NUL bytes,
-non-ASCII characters that are half of a UTF-16 code unit, unresolved commands
-whose names are interleaved with NULs — every one of them pointing at a
-position that does not correspond to anything in the file, and none of them
-mentioning the actual problem.
+Analysing it anyway would produce dozens of findings — unmatched braces that
+are really NUL bytes, non-ASCII characters that are half of a UTF-16 code
+unit, unresolved commands whose names are interleaved with NULs — every one
+pointing at a position that corresponds to nothing in the file, and none
+naming the real problem.
 
 So the analyser **abstains**: it reports the one thing it can say truthfully
-and stops. That is not the analyser giving up quietly — it is the analyser
-declining to make up 87 answers.
+and stops.
 
 ## Symptoms
 
@@ -77,33 +75,28 @@ appear on the next analysis.
 
 ## What it detects, and what it does not
 
-Two signals, both deliberately conservative:
+Two signals:
 
 - a **UTF-16 or UTF-32 byte-order mark** at the start of the file; or
-- **NUL bytes at a density no real UTF-8 source has** — at least eight of
-  them, and at least a quarter of the file. Mostly-ASCII UTF-16 is about half
-  NUL, so the bar sits far above anything real text reaches.
+- **NUL bytes at a density no real UTF-8 source has** — at least eight, and at
+  least a quarter of the file. Mostly-ASCII UTF-16 is about half NUL, so the
+  bar sits far above real text.
 
-A valid UTF-8 file that merely *contains* a few NUL bytes is real (if odd)
-text and is **not** flagged; it is analysed normally.
+A valid UTF-8 file that merely contains a few NUL bytes is analysed normally.
 
-The check names the *family* it matched and stops there. It does not claim to
-know which encoding the file actually is — distinguishing UTF-16LE from, say,
-a corrupt UTF-8 file is not provable from the bytes, and a confident wrong
-guess in a review tool is worse than saying nothing.
+The check names the *family* it matched and stops there. Distinguishing
+UTF-16LE from a corrupt UTF-8 file is not provable from the bytes.
 
-One case it deliberately cannot see: if your **editor** recognises the UTF-16
-and decodes it correctly before sending the buffer to the language server,
-then the text really is fine and nothing fires. That is the right answer — the
-file analyses correctly as text. Running `tcl diag` on the same path, which
-reads the bytes itself, still reports W109.
+If your editor recognises the UTF-16 and decodes it before sending the buffer
+to the language server, nothing fires — the text really is fine. `tcl diag` on
+the same path reads the bytes itself and still reports W109.
 
 ## How to suppress
 
-Set `tclLsp.diagnostics.W109` to `false`, or add
-`# tcl-lsp: disable=W109` at the top of the file — though a file that is not
-UTF-8 cannot carry a UTF-8 comment the analyser will read, so in practice the
-setting is the only route.
+Set `tclLsp.diagnostics.W109` to `false`. The file-level
+`# tcl-lsp: disable=W109` directive cannot help: a file that is not UTF-8
+cannot carry a UTF-8 comment the analyser will read. See
+[how to turn a diagnostic off](../kcs-howto-suppress-diagnostics.md).
 
 Disabling it does not re-enable the rest of the analysis: the abstention
 follows from the file not being text, not from the diagnostic.

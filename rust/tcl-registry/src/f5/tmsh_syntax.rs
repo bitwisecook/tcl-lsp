@@ -49,7 +49,7 @@
 //! whether the setting is local to the script, the tmsh process, the user
 //! session, or the system. F6 says to probe that before assigning a scope,
 //! and the probe has not been run
-//! (`docs/design/bigip-irule-parser-measurements.md` §12), so
+//! (`docs/design/f5/bigip-irule-parser-measurements.md` §12), so
 //! [`TmshSyntaxTransition::scope_is_measured`] is `false` and consumers
 //! must treat the state as script-local *and* say they are assuming it.
 

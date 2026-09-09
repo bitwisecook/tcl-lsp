@@ -1,8 +1,7 @@
 # Tcl LSP for Zed
 
-Language-server support for Tcl, iRules, iApps, Expect, TMSH, and supported
-EDA Tcl dialects, powered by
-[tcl-lsp](https://github.com/bitwisecook/tcl-lsp).
+Language-server support for Tcl, iRules, iApps, APL, TMSH, and Expect,
+powered by [tcl-lsp](https://github.com/bitwisecook/tcl-lsp).
 
 ## Features
 
@@ -26,9 +25,11 @@ Zed's command palette and select this directory.
 ## File and dialect tracking
 
 The `languages/*/config.toml` suffix lists are generated from tcl-lsp's Rust
-dialect catalog by `cargo xtask gen-editor-extensions`. The repository drift
-gate prevents the extension from falling behind when a dialect or suffix is
-added.
+dialect catalogue by `cargo xtask gen-editor-extensions`; a drift gate in
+`make xtask-check` fails when a dialect or suffix is added without
+regenerating. The APL and BIG-IP tree-sitter grammars live in this repository
+under `grammars/` and are fetched by commit — bump the `rev` in
+`extension.toml` whenever either changes.
 
 The server detects the dialect from the file name and content. To force one,
 add a Zed setting such as:

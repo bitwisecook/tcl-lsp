@@ -9,7 +9,9 @@ all-editors, diagnostic, dataflow
 
 ## Profiles
 
-opt-in — disabled by default
+opt-in — `tclLsp.diagnostics.W242` defaults to `false`. Most real loops end
+on a condition the analyser cannot follow, so the hint would fire far more
+often than it would help.
 
 ## Question
 
@@ -24,9 +26,8 @@ W242 fires when the analyser can prove neither termination nor
 non-termination: the counter variable in the condition is never
 visibly assigned by the step or body.
 
-The check is a HINT (severity) and is **off by default** to keep
-noise low. Enable it when you want the analyser to flag any loop
-whose termination is not obvious from the surrounding source.
+It is reported at hint severity. Turn it on when you want every loop
+whose termination is not obvious from the surrounding source flagged.
 
 ## Example that triggers it
 

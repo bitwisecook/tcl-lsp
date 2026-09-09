@@ -87,9 +87,8 @@ install -m 0755 target/release/f5-query "$HOME/.local/bin/f5"
 install -m 0755 target/release/tcl-mcp "$HOME/.local/bin/"
 ```
 
-Add `$HOME/.local/bin` to `PATH`. A standalone native binary contains the
-shipped command specifications, so a separate Python installation is not
-needed.
+Add `$HOME/.local/bin` to `PATH`. Each binary carries the shipped command
+specifications, so nothing else has to be installed alongside it.
 
 Register the optional MCP server with the client you use:
 

@@ -68,9 +68,8 @@ lattice this seed feeds:
 
 A word that resolves to a set of names is recorded as an **ordinary call
 site for each** of them. That is what keeps `set cmd helper; $cmd prod`
-folding while `set cmd helper; $cmd dev` stops folding — a distinction the
-first attempt at this (a module-wide "any `$cmd` disqualifies everything"
-wildcard, PR #970, reverted) could not make.
+folding while `set cmd helper; $cmd dev` stops folding — a module-wide "any
+`$cmd` disqualifies everything" wildcard could not make that distinction.
 
 ### The fixpoint
 
@@ -113,11 +112,9 @@ every value set becomes unenumerable).
   routed by Tcl to `unknown`, with the failed word and its arguments. A
   module that both defines `proc unknown {cmd args}` *and* seeds another
   procedure would need those routed calls counted against `cmd`. Closing it
-  needs a registry fact marking the unresolved-command handler (the `Traits`
-  bitfield is currently full at 64 bits, so that is a widening, not a new
-  flag). `namespace unknown` and `package unknown` handlers are already
-  covered — the registry declares their handler argument
-  `ArgRole::CommandPrefix`.
+  needs a registry fact marking the unresolved-command handler.
+  `namespace unknown` and `package unknown` handlers are already covered —
+  the registry declares their handler argument `ArgRole::CommandPrefix`.
 - **A computed head resolving to a variable-writing builtin** (`set cmd
   set; $cmd x 5`) — this would need a builtin's own name to be among the
   literals a local holds.

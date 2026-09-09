@@ -9,7 +9,7 @@ Slash commands inside the VS Code Copilot Chat participants (`@irule`, `@tcl`, `
 
 ## Applies to
 
-VS Code Copilot Chat
+Copilot Chat
 
 ## Question
 
@@ -47,6 +47,14 @@ Type `@irule`, `@tcl`, or `@tk` in the Copilot Chat panel, followed by a `/` and
 | `/event` | Show valid commands for a given iRule event. |
 | `/migrate` | Convert an nginx, Apache, or HAProxy configuration to an iRule. |
 | `/diagram` | Generate a Mermaid flowchart of the iRule's control flow. |
+| `/xc` | Translate the iRule to F5 Distributed Cloud routes and service policies. |
+| `/test` | Generate a test script with the Event Orchestrator framework. |
+
+### Commands available in `@tk` only
+
+| Command | What it does |
+|---------|-------------|
+| `/preview` | Open the Tk Preview pane for the current file. |
 
 ## Example
 

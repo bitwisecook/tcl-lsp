@@ -21,26 +21,33 @@ Commands like `proc`, `when`, and `timing` must be at the iRule top level; nesti
 
 ## Symptoms
 
-- A squiggle appears under the command, with the message "top-level-only command used inside a nested body".
+- A yellow squiggle appears under the command, with the message "'proc' is only
+  valid at the top level of an iRule."
 
 ## Example that triggers it
 
 ```tcl
-if {1} {
-  proc inner {} {}
+when HTTP_REQUEST {
+  if {[HTTP::path -normalized] eq "/a"} {
+    proc inner {} {}
+  }
 }
 ```
 
-The analyser reports **`IRULE5006`** because `proc` is defined inside a control structure.
+The analyser reports **`IRULE5006`** because `proc` is defined inside a control
+structure.
 
 ## Fix
 
-Move `proc` definitions outside all control structures:
+Declare the proc at the top level and `call` it from the event:
 
 ```tcl
 proc inner {} {}
-if {1} {
-  call inner
+
+when HTTP_REQUEST {
+  if {[HTTP::path -normalized] eq "/a"} {
+    call inner
+  }
 }
 ```
 

@@ -71,9 +71,9 @@ text older than an edit the server has already received.
 ## Example
 
 Suppose four workspace-folder notifications all pull configuration. The editor
-delays those replies, then sends 400 hover requests. Under the old topology,
-the first four handlers waited, the 100-item queue filled, and the reader never
-reached the configuration replies behind the hover burst.
+delays those replies, then sends 400 hover requests. With the upstream topology
+alone, the first four handlers wait, the 100-item queue fills, and the reader
+never reaches the configuration replies behind the hover burst.
 
 Under the production topology, the hover futures wait outside the four-handler
 application limit. The reader continues to the replies, the four configuration
@@ -91,8 +91,8 @@ handlers finish, and the queued hover requests then run four at a time.
   than relying on request admission for backpressure.
 - This does not make a slow or faulty handler fast. Timeouts remain appropriate
   where the awaited operation has cancellation-safe cleanup. The configuration
-  timeout predates this transport change and can retain one dependency waiter
-  until a late reply arrives; it must not be copied to periodic requests.
+  timeout can retain one dependency waiter until a late reply arrives; it must
+  not be copied to periodic requests.
 - The stdout pump remains required. Unbounded input admission does not prevent
   a blocked stdout writer from propagating pressure through the response path.
 - The wrapper is for the LSP service, whose returned futures are `'static`.

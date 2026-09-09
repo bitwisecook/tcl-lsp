@@ -1399,7 +1399,7 @@ fn apply_irules_string_op(op: BinOp, left: &str, right: &str) -> Option<TclValue
         //
         // The bare `matches` ([`BinOp::Matches`]) declines through the
         // same arm, for a different reason: only its *presence* is
-        // measured (`docs/design/bigip-irule-parser-measurements.md` §4a
+        // measured (`docs/design/f5/bigip-irule-parser-measurements.md` §4a
         // `e_matches`), and the probe — `expr {"abc" matches "abc"}` — is
         // an exact-equality case that discriminates none of the
         // string-match readings.  The VM answers it as a string equality

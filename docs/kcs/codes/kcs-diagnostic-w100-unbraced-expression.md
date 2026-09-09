@@ -17,28 +17,44 @@ Why does the analyser warn about an unbraced expression in `expr`, `if`, or `whi
 
 ## Why
 
-Unbraced expressions undergo double substitution, which can execute arbitrary code and prevents byte-compilation. Bracing the expression makes it safe, predictable, and faster.
+An unbraced expression is substituted twice — once by the Tcl parser, once by
+the command that evaluates it — and cannot be byte-compiled. Bracing it makes
+it safe, predictable, and faster.
 
-## Why is it sometimes an error?
-
-The warning escalates to **Error** severity when the unbraced expression provably contains a substitution (`$var` or `[cmd]`). An unbraced expression with a substitution is evaluated twice at runtime — once by the Tcl parser and once by the consuming command — which changes behaviour and can execute attacker-controlled text. Without a substitution the finding is style-only and stays a Warning.
+The finding is an Error when the expression provably contains a substitution
+(`$var` or `[cmd]`), because the second evaluation can run attacker-controlled
+text. Without a substitution it is style-only and stays a Warning.
 
 ## Symptoms
 
-- A yellow squiggle appears under the expression argument, with the message "unbraced expr body".
+- A squiggle appears under the expression argument — red when the expression
+  substitutes, yellow when it does not.
+- For `expr` the message is "Expression is not braced: may cause double
+  substitution and prevents byte-compilation. Use expr {...} instead."; for
+  another command taking an expression argument it names the command and the
+  text, as in "Expression argument to 'if' is not braced: may cause double
+  substitution. Use braces: {1<2}".
+- A **Wrap expression in braces** quick fix on the diagnostic.
 
 ## Example that triggers it
 
 ```tcl
+set a 1
+set b 2
 set x [expr $a + $b]
+puts $x
 ```
 
-The analyser reports **`W100`** on the expression `$a + $b`.
+The analyser reports **`W100`** on the expression `$a + $b`, at Error
+severity because the expression substitutes.
 
 ## Fix
 
 ```tcl
+set a 1
+set b 2
 set x [expr {$a + $b}]
+puts $x
 ```
 
 Wrap the expression in braces to prevent double substitution and enable byte-compilation.

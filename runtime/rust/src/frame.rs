@@ -46,11 +46,20 @@
 //! overwriting/unsetting/dropping releases. Links own nothing.
 
 use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicU32, Ordering};
 
-use tcl_runtime_api::FrameLinkOrigin;
+use tcl_runtime_api::{FrameLinkOrigin, VarId};
 
 use crate::namespace::NsId;
 use crate::obj::{self, TclObj};
+
+static NEXT_VAR_ID: AtomicU32 = AtomicU32::new(1);
+
+fn fresh_var_id() -> VarId {
+    let raw = NEXT_VAR_ID.fetch_add(1, Ordering::Relaxed);
+    assert_ne!(raw, u32::MAX, "standalone variable identity exhausted");
+    VarId(raw)
+}
 
 /// A variable cell: the `tclInt.h` `Var` union as an enum.
 pub enum Var {
@@ -140,6 +149,23 @@ pub enum VarError {
 struct Cell {
     name: Vec<u8>,
     var: Option<Var>,
+    /// Identity of the currently bound variable. The slot survives `unset` for
+    /// compiled access, while this token normally does not. An in-flight
+    /// operation retains the exact Tcl `Var` cell, so recreation during that
+    /// operation refills this identity instead of capturing an unrelated one.
+    binding_id: Option<VarId>,
+    /// In-flight array ensemble operations retaining this binding. A direct
+    /// unset leaves the Tcl cell available for same-name recreation until the
+    /// final operation releases it, while an ordinary unset starts a new
+    /// binding immediately.
+    operation_refs: usize,
+    /// Stable identities of the current array elements. Values stay in
+    /// [`Var::Array`]; this parallel identity table lets a trace-aware read tell
+    /// an unset-and-recreated element from the one selected before its callback.
+    element_ids: BTreeMap<Vec<u8>, VarId>,
+    /// Per-element trace reads currently retaining the selected cell. Tcl
+    /// refills that cell when its own callback unsets and recreates the element.
+    element_operation_refs: BTreeMap<Vec<u8>, usize>,
     /// Flagged `const` (TIP 677): a write or unset errors with `variable is a
     /// constant`. On the cell rather than in a side set so a compiled slot's
     /// write check is the same O(1) index as the write itself.
@@ -201,6 +227,10 @@ impl VarTable {
         self.cells.push(Cell {
             name: name.to_vec(),
             var: None,
+            binding_id: None,
+            operation_refs: 0,
+            element_ids: BTreeMap::new(),
+            element_operation_refs: BTreeMap::new(),
             constant: false,
             link_origin: FrameLinkOrigin::Ordinary,
             traced: core::cell::Cell::new((0, false)),
@@ -246,15 +276,132 @@ impl VarTable {
     /// Store `var` under `name`, returning the variable it displaced.
     fn put(&mut self, name: &[u8], var: Var) -> Option<Var> {
         let slot = self.slot_for(name);
-        self.cells[slot].link_origin = FrameLinkOrigin::Ordinary;
-        self.cells[slot].var.replace(var)
+        let cell = &mut self.cells[slot];
+        cell.link_origin = FrameLinkOrigin::Ordinary;
+        if cell.binding_id.is_none() {
+            cell.binding_id = Some(fresh_var_id());
+        }
+        cell.element_ids.clear();
+        cell.element_operation_refs.clear();
+        if let Var::Array(elements) = &var {
+            cell.element_ids
+                .extend(elements.keys().cloned().map(|key| (key, fresh_var_id())));
+        }
+        cell.var.replace(var)
     }
 
     /// Empty `name`'s cell, returning what it held. The cell and its slot stay
     /// reserved so a compiled slot keeps addressing the same variable.
     fn take(&mut self, name: &[u8]) -> Option<Var> {
         let slot = *self.slots.get(name)?;
-        self.cells[slot].var.take()
+        let cell = &mut self.cells[slot];
+        if cell.operation_refs == 0 {
+            cell.binding_id = None;
+        }
+        cell.element_ids.clear();
+        cell.element_operation_refs.clear();
+        cell.var.take()
+    }
+
+    /// Identity of the variable currently bound at `name`.
+    pub(crate) fn binding_id(&self, name: &[u8]) -> Option<VarId> {
+        let slot = *self.slots.get(name)?;
+        self.cells[slot].var.as_ref()?;
+        self.cells[slot].binding_id
+    }
+
+    /// Retain the exact current binding for an array operation.
+    pub(crate) fn retain_binding(&mut self, name: &[u8], id: VarId) -> bool {
+        let Some(slot) = self.slots.get(name).copied() else {
+            return false;
+        };
+        let cell = &mut self.cells[slot];
+        if cell.binding_id != Some(id) {
+            return false;
+        }
+        cell.operation_refs += 1;
+        true
+    }
+
+    /// Release a retained array binding, discarding an undefined identity once
+    /// no operation can still observe it.
+    pub(crate) fn release_binding(&mut self, name: &[u8], id: VarId) {
+        let Some(slot) = self.slots.get(name).copied() else {
+            return;
+        };
+        let cell = &mut self.cells[slot];
+        if cell.binding_id != Some(id) || cell.operation_refs == 0 {
+            return;
+        }
+        cell.operation_refs -= 1;
+        if cell.operation_refs == 0 && cell.var.is_none() {
+            cell.binding_id = None;
+        }
+    }
+
+    /// Identity of a defined element of the current array binding.
+    pub(crate) fn element_id(&self, name: &[u8], key: &[u8]) -> Option<VarId> {
+        let slot = *self.slots.get(name)?;
+        let cell = &self.cells[slot];
+        matches!(cell.var.as_ref(), Some(Var::Array(map)) if map.contains_key(key))
+            .then(|| cell.element_ids.get(key).copied())
+            .flatten()
+    }
+
+    pub(crate) fn retain_element(&mut self, name: &[u8], key: &[u8], id: VarId) -> bool {
+        let Some(slot) = self.slots.get(name).copied() else {
+            return false;
+        };
+        let cell = &mut self.cells[slot];
+        if cell.element_ids.get(key) != Some(&id) {
+            return false;
+        }
+        *cell.element_operation_refs.entry(key.to_vec()).or_default() += 1;
+        true
+    }
+
+    pub(crate) fn release_element(&mut self, name: &[u8], key: &[u8], id: VarId) {
+        let Some(slot) = self.slots.get(name).copied() else {
+            return;
+        };
+        let cell = &mut self.cells[slot];
+        if cell.element_ids.get(key) != Some(&id) {
+            return;
+        }
+        let Some(count) = cell.element_operation_refs.get_mut(key) else {
+            return;
+        };
+        *count -= 1;
+        if *count == 0 {
+            cell.element_operation_refs.remove(key);
+            let defined = matches!(
+                cell.var.as_ref(),
+                Some(Var::Array(elements)) if elements.contains_key(key)
+            );
+            if !defined {
+                cell.element_ids.remove(key);
+            }
+        }
+    }
+
+    /// Read an element only if both its array and element identities still
+    /// match the cells selected before a trace callback.
+    pub(crate) fn load_elem_with_ids(
+        &self,
+        name: &[u8],
+        array: VarId,
+        key: &[u8],
+        element: VarId,
+    ) -> Option<*mut TclObj> {
+        let slot = *self.slots.get(name)?;
+        let cell = &self.cells[slot];
+        if cell.binding_id != Some(array) || cell.element_ids.get(key) != Some(&element) {
+            return None;
+        }
+        match cell.var.as_ref()? {
+            Var::Array(map) => map.get(key).copied(),
+            Var::Scalar(_) | Var::Link(_) => None,
+        }
     }
 
     /// Every defined variable, in name order.
@@ -397,34 +544,34 @@ impl VarTable {
         key: &[u8],
         obj: *mut TclObj,
     ) -> Result<(), VarError> {
-        match self.get_mut(name) {
-            Some(Var::Scalar(_)) => Err(VarError::IsScalar),
-            Some(Var::Array(map)) => {
-                // SAFETY: retain the new element value; release any prior one.
-                unsafe { obj::incr_ref_count(obj) };
-                if let Some(old) = map.insert(key.to_vec(), obj) {
-                    unsafe { obj::decr_ref_count(old) };
+        if let Some(slot) = self.slots.get(name).copied() {
+            let cell = &mut self.cells[slot];
+            match cell.var.as_mut() {
+                Some(Var::Scalar(_)) => return Err(VarError::IsScalar),
+                Some(Var::Array(map)) => {
+                    // SAFETY: retain the new element value; release any prior one.
+                    unsafe { obj::incr_ref_count(obj) };
+                    let fresh = !map.contains_key(key);
+                    if let Some(old) = map.insert(key.to_vec(), obj) {
+                        unsafe { obj::decr_ref_count(old) };
+                    }
+                    if fresh && !cell.element_ids.contains_key(key) {
+                        cell.element_ids.insert(key.to_vec(), fresh_var_id());
+                    }
+                    return Ok(());
                 }
-                Ok(())
-            }
-            // The declared-but-undefined marker: the first element write
-            // defines the array over it (see `store_scalar`).
-            Some(Var::Link(l)) if l.name == name && l.elem.is_none() => {
-                let mut map = BTreeMap::new();
-                unsafe { obj::incr_ref_count(obj) };
-                map.insert(key.to_vec(), obj);
-                self.put(name, Var::Array(map));
-                Ok(())
-            }
-            Some(Var::Link(_)) => unreachable!("the coordinator never lands on a link"),
-            None => {
-                let mut map = BTreeMap::new();
-                unsafe { obj::incr_ref_count(obj) };
-                map.insert(key.to_vec(), obj);
-                self.put(name, Var::Array(map));
-                Ok(())
+                // The declared-but-undefined marker: the first element write
+                // defines the array over it (see `store_scalar`).
+                Some(Var::Link(l)) if l.name == name && l.elem.is_none() => {}
+                Some(Var::Link(_)) => unreachable!("the coordinator never lands on a link"),
+                None => {}
             }
         }
+        let mut map = BTreeMap::new();
+        unsafe { obj::incr_ref_count(obj) };
+        map.insert(key.to_vec(), obj);
+        self.put(name, Var::Array(map));
+        Ok(())
     }
 
     /// `set name(key)` — borrowed.
@@ -472,8 +619,15 @@ impl VarTable {
 
     /// Remove one array element `name(key)`; returns whether it existed.
     pub(crate) fn remove_elem(&mut self, name: &[u8], key: &[u8]) -> bool {
-        if let Some(Var::Array(map)) = self.get_mut(name) {
+        let Some(slot) = self.slots.get(name).copied() else {
+            return false;
+        };
+        let cell = &mut self.cells[slot];
+        if let Some(Var::Array(map)) = cell.var.as_mut() {
             if let Some(old) = map.remove(key) {
+                if !cell.element_operation_refs.contains_key(key) {
+                    cell.element_ids.remove(key);
+                }
                 // SAFETY: the array element owned a +1; releasing balances it.
                 unsafe { obj::decr_ref_count(old) };
                 return true;
@@ -495,8 +649,14 @@ impl VarTable {
         origin: FrameLinkOrigin,
     ) {
         let slot = self.slot_for(name);
-        self.cells[slot].link_origin = origin;
-        if let Some(old) = self.cells[slot].var.replace(Var::Link(link)) {
+        let cell = &mut self.cells[slot];
+        cell.link_origin = origin;
+        if cell.binding_id.is_none() {
+            cell.binding_id = Some(fresh_var_id());
+        }
+        cell.element_ids.clear();
+        cell.element_operation_refs.clear();
+        if let Some(old) = cell.var.replace(Var::Link(link)) {
             old.release();
         }
     }

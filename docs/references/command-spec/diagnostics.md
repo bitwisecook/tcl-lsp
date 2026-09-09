@@ -1,9 +1,9 @@
 # Diagnostics by registry field
 
-> Verified against `rust/tcl-core-types/src/diag_code.rs` and the emitters
-> in `rust/tcl-compiler` / `rust/tcl-lsp-core`, 2026-08-12. **Causes**
-> means declaring the field makes the diagnostic able to fire on your
-> command; **suppresses** means it silences one that would otherwise fire.
+> Codes are defined in `rust/tcl-core-types/src/diag_code.rs` and emitted
+> from `rust/tcl-compiler` / `rust/tcl-lsp-core`. **Causes** means
+> declaring the field makes the diagnostic able to fire on your command;
+> **suppresses** means it silences one that would otherwise fire.
 
 ## Arity, dispatch, and keywords
 

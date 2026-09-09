@@ -37,7 +37,7 @@ pub const fn spec() -> CommandSpec {
         // `HTTP::status` in `HTTP_REQUEST` with `command is not valid in
         // current event context (HTTP_REQUEST)` — there is no response
         // status while the request is still being processed
-        // (`docs/design/bigip-irule-parser-measurements.md` §8, which
+        // (`docs/design/f5/bigip-irule-parser-measurements.md` §8, which
         // names this cell as *"exactly the mistakes an editor should
         // catch"*).
         excluded_events: &["HTTP_REQUEST"],

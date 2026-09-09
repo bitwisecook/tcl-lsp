@@ -13088,7 +13088,7 @@ fn w123_vendor_profiles_admit_their_embedded_tcl_core() {
     // must resolve cleanly — no W123 (unknown) and no W002 (disabled).
     let clean: &[(&str, &str)] = &[
         // F5 reclassification (measurements §4/§4a,
-        // `docs/design/bigip-irule-parser-measurements.md`): the iApps
+        // `docs/design/f5/bigip-irule-parser-measurements.md`): the iApps
         // host is the 8.4.6 fork, NOT the old 8.5.13 hypothesis — its
         // real core is the 8.4 line…
         ("string tolower ABC", "f5-iapps"),
@@ -13319,7 +13319,7 @@ fn w001_subcommand_checks_use_the_profile_mask() {
 #[test]
 fn tmsh_first_class_resolves_its_surface_and_gates_later_core() {
     // F5 reclassification (measurements §4a,
-    // `docs/design/bigip-irule-parser-measurements.md`): the old D8
+    // `docs/design/f5/bigip-irule-parser-measurements.md`): the old D8
     // "TCL85|TMSH" hypothesis is falsified — `TmshCliScript` reports
     // patchlevel 8.4.6 and fails every 8.5 discriminator — so f5-tmsh is
     // the `f5-tcl` fork's 8.4 line plus the tmsh:: surface.
