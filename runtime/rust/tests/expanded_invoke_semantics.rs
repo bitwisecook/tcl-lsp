@@ -54,6 +54,10 @@ fn standalone_and_tcl_9_0_4_share_command_head_expansion_semantics() {
         return;
     };
     assert_eq!(tree.patchlevel, "9.0.4", "exact Tcl oracle pin");
+    if !tree.root.join("unix/tclsh").is_file() {
+        eprintln!("skipping oracle: Tcl 9.0.4 source tree has no built unix/tclsh");
+        return;
+    }
     let oracle_source = format!("{source}\nputs -nonewline [set ::out]\n");
     let oracle = run_script_from_source_tree(&tree, TclVersion::V9_0, oracle_source.as_bytes())
         .expect("run Tcl 9.0.4 oracle")
