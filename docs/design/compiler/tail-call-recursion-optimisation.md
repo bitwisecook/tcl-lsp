@@ -21,7 +21,11 @@ O122 subsumes O121 — when a proc is fully tail-recursive (all self-calls are i
 
 2. **O121 fires when** — for each self-call in tail position. `optimise_tail_calls` emits an O121 candidate at every tail-position self-call; these may later be suppressed when a higher-priority O122 covers the same range. The rewrite wraps the tail call with `tailcall`.
 
-3. **O122 fires when** — every self-call in the proc is in tail position, the proc has at least one parameter, every tail site passes exactly one argument per parameter as the pass reads it, and — for a proc with more than one parameter — the dialect has `lassign` (Tcl 8.5+). The entire proc body is rewritten to an iterative `while {1}` loop with parameter reassignment in place of each recursive call. A `return [f …]` site whose arguments contain a nested `[…]` substitution is not read as one argument per parameter, so such a proc gets O121 only (see the GCD example).
+3. **O122 fires when** — every self-call in the proc is in tail position, the proc has at least one parameter, every tail site passes exactly one argument per parameter, and — for a proc with more than one parameter — the dialect has `lassign` (Tcl 8.5+). The entire proc body is rewritten to an iterative `while {1}` loop with parameter reassignment in place of each recursive call.
+
+   Arguments are counted as Tcl words, so a bracketed argument such as `[expr {$n - 1}]` is **one** argument. A tail site that expands its arguments with `{*}`, or whose value holds more than one command, has no statically known arity and stands down to O121.
+
+   Tail position is judged across the whole body, conditions included: a self-call in an `if` / `while` / `for` condition or a `switch` subject is not in tail position, and the loop body would still evaluate it recursively, so it blocks the conversion.
 
 4. **O123 fires when** — exactly one non-tail self-call appears embedded in a return value (e.g. inside an `expr` or nested command substitution). This is a hint-only diagnostic; no source rewrite is produced. The hint indicates the recursion could be made tail-recursive by introducing an accumulator parameter. Doubly-recursive patterns (two or more self-calls in the same expression) are excluded.
 
@@ -31,7 +35,7 @@ O122 subsumes O121 — when a proc is fully tail-recursive (all self-calls are i
 
 ## Examples
 
-### GCD — `return [gcd …]` with a nested substitution (O121)
+### GCD — tail-recursive `if`/`else` (O122)
 
 **Before:**
 ```tcl
@@ -44,37 +48,39 @@ proc gcd {a b} {
 }
 ```
 
-**After (O121 rewrite):**
+**After (O122 rewrite):**
 ```tcl
 proc gcd {a b} {
-    if {$b == 0} {
-        return $a
-    } else {
-        tailcall gcd $b [expr {$a % $b}]
+    while {1} {
+        if {$b == 0} {
+            return $a
+        } else {
+            lassign [list $b [expr {$a % $b}]] a b
+        }
     }
 }
 ```
 
-### Two-parameter tail recursion — plain arguments (O122)
+### Factorial with accumulator — every argument bracketed (O122)
 
 **Before:**
 ```tcl
-proc g {a b} {
-    if {$b == 0} {
-        return $a
+proc fact {n acc} {
+    if {$n <= 1} {
+        return $acc
     }
-    return [g $b $a]
+    return [fact [expr {$n - 1}] [expr {$n * $acc}]]
 }
 ```
 
 **After (O122 rewrite):**
 ```tcl
-proc g {a b} {
+proc fact {n acc} {
     while {1} {
-        if {$b == 0} {
-            return $a
+        if {$n <= 1} {
+            return $acc
         }
-        lassign [list $b $a] a b
+        lassign [list [expr {$n - 1}] [expr {$n * $acc}]] n acc
     }
 }
 ```
@@ -110,7 +116,7 @@ proc factorial {n} {
 }
 ```
 
-O123 emits: *"Non-tail recursion in factorial could be eliminated by introducing an accumulator parameter and using tailcall."*
+O123 emits: *"Proc 'factorial' is a candidate for accumulator-style rewriting"* — the hint is that an accumulator parameter would put the recursive call in tail position, where O121 or O122 could take it.
 
 No source rewrite is produced (`hint_only: true`).
 

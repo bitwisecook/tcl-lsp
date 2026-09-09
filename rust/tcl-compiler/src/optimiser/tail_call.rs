@@ -25,10 +25,13 @@
 //!   - **bare call**: `proc f {…} { …; f $args }` — the
 //!     self-call is the final statement of the body.
 //!   - **return substitution**: `return [f $args]`.
-//! - **O122** (hint-only) — "Convert self-recursion to a
-//!   `while` loop". Fires when every self-call in the proc body
-//!   is in tail position (the total count of self-calls equals
-//!   the number of tail-position calls).
+//! - **O122** — "Convert self-recursion to a `while` loop". A
+//!   real source rewrite, not a hint: the whole proc is replaced
+//!   with a `while {1}` body whose recursive call becomes a
+//!   parameter reassignment. Fires when every self-call in the
+//!   proc body is in tail position (the total count of self-calls
+//!   equals the number of tail-position calls) and every one of
+//!   them passes exactly one argument per parameter.
 //! - **O123** (hint-only) — "Accumulator-eligible non-tail
 //!   self-recursion". Fires when there is at least one non-tail
 //!   self-call inside an expression body (e.g., `return [expr
@@ -89,7 +92,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         let mut sites: Vec<TailSite> = Vec::new();
         collect_tail_sites(ctx, &proc.body, &self_names, proc, &mut sites, emit_o121, 0);
 
-        let total_self_calls = count_self_calls_in_script(&proc.body, &self_names);
+        let total_self_calls = count_self_calls_in_script(ctx.source, &proc.body, &self_names);
         if !sites.is_empty() && sites.len() == total_self_calls {
             // O122: every self-call is in tail position. Emit a
             // real source rewrite — restructure the proc body as
@@ -127,8 +130,12 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 struct TailSite {
     /// Absolute source span of the tail-call statement.
     span: tcl_lexer::Span,
-    /// Raw argument texts passed to the recursive call.
-    args: Vec<String>,
+    /// The words passed to the recursive call, one entry per
+    /// argument. `None` when the arguments could not be split into
+    /// words with a fixed arity — a `{*}` expansion, or a value
+    /// holding more than one command — which makes the O122 loop
+    /// conversion unsafe.
+    args: Option<Vec<String>>,
 }
 
 /// Produce the replacement parameter reassignment for a tail
@@ -170,7 +177,11 @@ fn emit_loop_conversion(
     // Every tail-call site must pass exactly `params.len()` args
     // — otherwise the loop conversion would lose information.
     for site in sites {
-        if site.args.len() != proc.params.len() {
+        if site
+            .args
+            .as_ref()
+            .is_none_or(|args| args.len() != proc.params.len())
+        {
             return;
         }
     }
@@ -199,7 +210,10 @@ fn emit_loop_conversion(
         }
         let rel_start = site_range.start - body_start_abs;
         let rel_end = site_range.end - body_start_abs;
-        let reassign = make_reassignment(&proc.params, &site.args);
+        let Some(args) = &site.args else {
+            return;
+        };
+        let reassign = make_reassignment(&proc.params, args);
         modified.replace_range(rel_start..rel_end, &reassign);
     }
 
@@ -238,27 +252,56 @@ fn emit_loop_conversion(
     ));
 }
 
-/// Count every textual reference to a self-name across the
-/// script (tail, non-tail, inside conditions, inside argument
-/// substitutions). Uses the source-level argument text to catch
-/// `[self …]` substitutions the IR does not parse into a Call.
-fn count_self_calls_in_script(script: &Script, self_names: &HashSet<String>) -> usize {
+/// Count every textual reference to a self-name across the script — tail,
+/// non-tail, inside conditions, inside argument substitutions.  Reads the
+/// source-level argument text to catch `[self …]` substitutions the IR does
+/// not parse into a Call.
+///
+/// This is O122's safety gate: the loop conversion fires only when the count
+/// equals the number of tail-position sites, i.e. when nothing recurses
+/// outside a tail call.  A control-flow condition is not a tail position and
+/// the loop body would still evaluate it, so `if {[f $n]} …` counts.
+/// Conditions live in the IR as a parsed `ExprNode` rather than argument
+/// text, hence the count from their source slice.
+fn count_self_calls_in_script(
+    source: &str,
+    script: &Script,
+    self_names: &HashSet<String>,
+) -> usize {
     let mut count = 0;
-    count_self_calls_in_script_impl(script, self_names, &mut count);
+    count_self_calls_in_script_impl(source, script, self_names, &mut count);
     count
 }
 
 fn count_self_calls_in_script_impl(
+    source: &str,
     script: &Script,
     self_names: &HashSet<String>,
     count: &mut usize,
 ) {
     for stmt in &script.statements {
-        count_self_calls_in_stmt(stmt, self_names, count);
+        count_self_calls_in_stmt(source, stmt, self_names, count);
     }
 }
 
-fn count_self_calls_in_stmt(stmt: &Statement, self_names: &HashSet<String>, count: &mut usize) {
+/// Count self-calls in the source text covered by `span`, for the IR nodes
+/// — expression conditions — that keep no argument text.
+fn count_self_calls_in_span(
+    source: &str,
+    span: tcl_lexer::Span,
+    self_names: &HashSet<String>,
+) -> usize {
+    source
+        .get(span.as_range())
+        .map_or(0, |text| count_bracket_self_calls(text, self_names))
+}
+
+fn count_self_calls_in_stmt(
+    source: &str,
+    stmt: &Statement,
+    self_names: &HashSet<String>,
+    count: &mut usize,
+) {
     match stmt {
         Statement::Call { command, args, .. } => {
             if self_names.contains(command) {
@@ -282,23 +325,45 @@ fn count_self_calls_in_stmt(stmt: &Statement, self_names: &HashSet<String>, coun
             clauses, else_body, ..
         } => {
             for c in clauses {
-                count_self_calls_in_script_impl(&c.body, self_names, count);
+                *count += count_self_calls_in_span(source, c.condition_span, self_names);
+                count_self_calls_in_script_impl(source, &c.body, self_names, count);
             }
             if let Some(eb) = else_body {
-                count_self_calls_in_script_impl(eb, self_names, count);
+                count_self_calls_in_script_impl(source, eb, self_names, count);
             }
         }
         Statement::For {
-            init, next, body, ..
+            init,
+            next,
+            body,
+            condition_span,
+            ..
         } => {
-            count_self_calls_in_script_impl(init, self_names, count);
-            count_self_calls_in_script_impl(next, self_names, count);
-            count_self_calls_in_script_impl(body, self_names, count);
+            *count += count_self_calls_in_span(source, *condition_span, self_names);
+            count_self_calls_in_script_impl(source, init, self_names, count);
+            count_self_calls_in_script_impl(source, next, self_names, count);
+            count_self_calls_in_script_impl(source, body, self_names, count);
         }
-        Statement::While { body, .. }
-        | Statement::Catch { body, .. }
-        | Statement::Foreach { body, .. } => {
-            count_self_calls_in_script_impl(body, self_names, count);
+        Statement::While {
+            body,
+            condition_span,
+            ..
+        } => {
+            *count += count_self_calls_in_span(source, *condition_span, self_names);
+            count_self_calls_in_script_impl(source, body, self_names, count);
+        }
+        Statement::Foreach {
+            body, iterators, ..
+        } => {
+            for it in iterators {
+                if !it.list_braced {
+                    *count += count_bracket_self_calls(&it.list_arg, self_names);
+                }
+            }
+            count_self_calls_in_script_impl(source, body, self_names, count);
+        }
+        Statement::Catch { body, .. } => {
+            count_self_calls_in_script_impl(source, body, self_names, count);
         }
         Statement::Try {
             body,
@@ -306,24 +371,31 @@ fn count_self_calls_in_stmt(stmt: &Statement, self_names: &HashSet<String>, coun
             finally_body,
             ..
         } => {
-            count_self_calls_in_script_impl(body, self_names, count);
+            count_self_calls_in_script_impl(source, body, self_names, count);
             for h in handlers {
-                count_self_calls_in_script_impl(&h.body, self_names, count);
+                count_self_calls_in_script_impl(source, &h.body, self_names, count);
             }
             if let Some(fb) = finally_body {
-                count_self_calls_in_script_impl(fb, self_names, count);
+                count_self_calls_in_script_impl(source, fb, self_names, count);
             }
         }
         Statement::Switch {
-            arms, default_body, ..
+            arms,
+            default_body,
+            subject,
+            subject_braced,
+            ..
         } => {
+            if !*subject_braced {
+                *count += count_bracket_self_calls(subject, self_names);
+            }
             for a in arms {
                 if let Some(b) = &a.body {
-                    count_self_calls_in_script_impl(b, self_names, count);
+                    count_self_calls_in_script_impl(source, b, self_names, count);
                 }
             }
             if let Some(db) = default_body {
-                count_self_calls_in_script_impl(db, self_names, count);
+                count_self_calls_in_script_impl(source, db, self_names, count);
             }
         }
         _ => {}
@@ -561,7 +633,7 @@ fn collect_tail_sites(
             }
             sites.push(TailSite {
                 span: rewrite_span,
-                args: args.clone(),
+                args: (!args.iter().any(|a| a.starts_with("{*}"))).then(|| args.clone()),
             });
         }
         Statement::Return {
@@ -595,10 +667,13 @@ fn collect_tail_sites(
                         replacement,
                     ));
                 }
-                let split_args: Vec<String> = if call_args.is_empty() {
-                    Vec::new()
+                let split_args = if call_args.is_empty() {
+                    Some(Vec::new())
                 } else {
-                    call_args.split_whitespace().map(str::to_owned).collect()
+                    split_top_level_words(
+                        &call_args,
+                        tcl_lexer::LexerConfig::for_profile(ctx.dialect),
+                    )
                 };
                 sites.push(TailSite {
                     span: rewrite_span,
@@ -630,6 +705,49 @@ fn collect_tail_sites(
         }
         _ => {}
     }
+}
+
+/// Split a command's argument text into its top-level Tcl words.
+///
+/// One entry per argument, which is what O122's one-argument-per-parameter
+/// gate counts: `[expr {$n - 1}] [expr {$acc * $n}]` is two arguments, not
+/// eight.  Grouping the lexer's own tokens into words keeps a `{…}`, `[…]`
+/// or `"…"` word intact where splitting on whitespace would count its
+/// inner spaces.
+///
+/// `None` when the arity is not statically known — a `{*}` expansion, whose
+/// runtime word count is unbounded, or more than one command, from a
+/// newline inside the substitution.  The gate refuses a site it cannot
+/// count rather than rewrite it against a wrong arity.
+fn split_top_level_words(text: &str, config: tcl_lexer::LexerConfig) -> Option<Vec<String>> {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return Some(Vec::new());
+    }
+    let tokens = tcl_lexer::Lexer::with_config(trimmed, config)
+        .tokenise_all()
+        .ok()?;
+    let commands = tcl_lexer::group_commands(&tokens, trimmed, config);
+    let [command] = commands.as_slice() else {
+        return None;
+    };
+    if !command.expand_markers.is_empty() {
+        return None;
+    }
+    let sm = tcl_lexer::SourceMap::new(trimmed);
+    command
+        .words
+        .iter()
+        .map(|word| {
+            // The lexer's inner-end convention leaves a delimited word's
+            // closer outside the token span; `word_span` puts it back.
+            let last = *tokens.get(word.tokens.end.checked_sub(1)?)?;
+            let end = tcl_lexer::word_span(&sm, last).end().max(word.span.end());
+            trimmed
+                .get(word.span.start() as usize..end as usize)
+                .map(str::to_owned)
+        })
+        .collect()
 }
 
 /// Parse a `return` value's text looking for a `[cmd args…]`
@@ -717,12 +835,12 @@ mod tests {
     /// Regression coverage for issue #996: `collect_tail_sites` and the
     /// mutually-recursive `non_tail_self_call_in_expression`/
     /// `non_tail_in_stmt` pair recurse once per nested `if`/`for`/`while`/
-    /// `foreach`/`catch`/`try`/`switch` body, with no depth cap of their
-    /// own before this fix. Transitively bounded to `MAX_LOWER_NEST_DEPTH`
+    /// `foreach`/`catch`/`try`/`switch` body, and carry their own depth
+    /// cap. Transitively bounded to `MAX_LOWER_NEST_DEPTH`
     /// (256) by the lowering pass today, so this is defence-in-depth /
     /// consistency with every other full-tree walker in this crate, not a
     /// currently-reproducible crash. 1000 levels of source nesting is
-    /// comfortably past this new cap; the assertion is that `run_pass`
+    /// comfortably past that cap; the assertion is that `run_pass`
     /// returns at all, not what it returns. Spawns its own big-stack
     /// thread since the lexer/CST/segmenter stages upstream of the
     /// lowering cap still walk the full un-truncated source nesting before
@@ -977,7 +1095,7 @@ mod tests {
             .iter()
             .find(|o| o.code == DiagCode::O122)
             .expect("O122 should fire");
-        assert!(!opt.hint_only, "O122 should now be a real rewrite");
+        assert!(!opt.hint_only, "O122 is a real rewrite, not a hint");
         assert!(
             opt.replacement.contains("while {1}"),
             "expected while-loop replacement, got {:?}",
@@ -1006,6 +1124,107 @@ mod tests {
             "expected lassign for multi-param reassignment, got {:?}",
             opt.replacement,
         );
+    }
+
+    #[test]
+    fn o122_fires_when_return_subst_args_are_bracketed_words() {
+        // `return [fact [expr …] [expr …]]` passes two arguments, so the
+        // one-argument-per-parameter gate holds and the whole proc becomes
+        // a loop. Each bracketed word must survive the rewrite whole.
+        let opts = run_pass(
+            "proc fact {n acc} {\n    if {$n <= 1} { return $acc }\n    return [fact [expr {$n - 1}] [expr {$acc * $n}]]\n}",
+        );
+        let opt = opts
+            .iter()
+            .find(|o| o.code == DiagCode::O122)
+            .expect("O122 should fire for bracketed return-substitution args");
+        assert!(
+            opt.replacement
+                .contains("lassign [list [expr {$n - 1}] [expr {$acc * $n}]] n acc"),
+            "expected both bracketed words kept whole, got {:?}",
+            opt.replacement,
+        );
+    }
+
+    #[test]
+    fn o122_fires_for_gcd_shape_with_one_bracketed_arg() {
+        // Mixed plain / bracketed words — the design doc's GCD example.
+        let opts = run_pass(
+            "proc gcd {a b} {\n    if {$b == 0} {\n        return $a\n    } else {\n        return [gcd $b [expr {$a % $b}]]\n    }\n}",
+        );
+        let opt = opts
+            .iter()
+            .find(|o| o.code == DiagCode::O122)
+            .expect("O122 should fire for the GCD shape");
+        assert!(
+            opt.replacement
+                .contains("lassign [list $b [expr {$a % $b}]] a b"),
+            "expected two words for `$b [expr …]`, got {:?}",
+            opt.replacement,
+        );
+    }
+
+    #[test]
+    fn split_top_level_words_counts_bracketed_words_as_one() {
+        let config = tcl_lexer::LexerConfig::default();
+        assert_eq!(
+            split_top_level_words("[expr {$n - 1}] [expr {$acc * $n}]", config),
+            Some(vec![
+                "[expr {$n - 1}]".to_owned(),
+                "[expr {$acc * $n}]".to_owned(),
+            ]),
+        );
+        assert_eq!(
+            split_top_level_words("$b [expr {$a % $b}]", config),
+            Some(vec!["$b".to_owned(), "[expr {$a % $b}]".to_owned()]),
+        );
+        assert_eq!(
+            split_top_level_words("{a b} \"c d\" e", config),
+            Some(vec![
+                "{a b}".to_owned(),
+                "\"c d\"".to_owned(),
+                "e".to_owned(),
+            ]),
+        );
+        assert_eq!(split_top_level_words("   ", config), Some(Vec::new()));
+        // A `{*}` expansion has no statically known arity.
+        assert_eq!(split_top_level_words("{*}$args $b", config), None);
+    }
+
+    #[test]
+    fn o122_suppressed_when_tail_call_expands_its_args() {
+        // `{*}` makes the runtime word count unknown, so the loop
+        // conversion must stand down and leave O121 in place.
+        let opts = run_pass(
+            "proc f {a b} {\n    if {$a == 0} { return $b }\n    return [f {*}[list [expr {$a - 1}] $b]]\n}",
+        );
+        assert!(
+            opts.iter().all(|o| o.code != DiagCode::O122),
+            "O122 must not fire on a `{{*}}`-expanded tail call, got {opts:?}",
+        );
+        assert!(
+            opts.iter().any(|o| o.code == DiagCode::O121),
+            "O121 should still fire, got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn o122_suppressed_when_a_self_call_sits_in_a_control_condition() {
+        // A condition is not a tail position: the loop body still
+        // evaluates it, so the recursion inside it would survive the
+        // conversion. Every one of these shapes must keep O122 out.
+        for src in [
+            "proc f {n} {\n    if {[f $n]} {\n        return [f [expr {$n - 1}]]\n    } else {\n        return $n\n    }\n}",
+            "proc f {n} {\n    while {[f $n]} {\n        return [f [expr {$n - 1}]]\n    }\n    return $n\n}",
+            "proc f {n} {\n    for {set i 0} {[f $n]} {incr i} {\n        return [f [expr {$n - 1}]]\n    }\n    return $n\n}",
+            "proc f {n} {\n    switch [f [expr {$n - 1}]] {\n        0 { return 0 }\n        default { return [f [expr {$n - 2}]] }\n    }\n}",
+        ] {
+            let opts = run_pass(src);
+            assert!(
+                opts.iter().all(|o| o.code != DiagCode::O122),
+                "O122 must not fire with a self-call in a control condition: {src}\ngot {opts:?}",
+            );
+        }
     }
 
     #[test]

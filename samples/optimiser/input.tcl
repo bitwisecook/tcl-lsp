@@ -113,9 +113,10 @@ proc format_name {first last} {
 
 # --- Recursion transforms (O121, O122, O123) ---
 
-# O121 only: O122's loop conversion accepts this `return [factorial …]` shape
-# too, and overlap selection keeps the per-site `tailcall` rewrite instead.
-# Both are faithful; see README.md and `tail_call_loop_conversion_o122`.
+# O122: every self-call is in tail position and passes one argument per
+# parameter, so the whole proc becomes a `while {1}` loop. Overlap selection
+# prefers it over the per-site O121 `tailcall` rewrite covering the same
+# range. See README.md and `tail_call_loop_conversion_o122`.
 proc factorial {n {acc 1}} {
     if {$n <= 1} {
         return $acc
