@@ -46,8 +46,8 @@
 //! restrictions) and `sys httpd` (management GUI TLS/HTTP settings) — is not
 //! covered: the generated BIG-IP object model ([`tcl_bigip::model::gen`])
 //! keeps both as untyped [`tcl_bigip::model::BigipMinimalObject`]s (identity
-//! + description only, no properties preserved), so a rule has no fields to
-//! read. Hand-editing those `@generated … do not edit` files was judged
+//! and description only, no properties preserved), so a rule has no fields
+//! to read. Hand-editing those `@generated … do not edit` files was judged
 //! higher-risk than shipping without the checks; giving the two kinds typed
 //! fields would let [`RULES`] cover them.
 //!
