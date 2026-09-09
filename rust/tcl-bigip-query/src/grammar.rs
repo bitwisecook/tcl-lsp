@@ -328,6 +328,10 @@ mod tests {
     /// `--help-dsl`'s MODULES section names every kind an operator can
     /// navigate to. The set lives in `projection::KINDS`; this holds the prose
     /// to it, so a kind added there cannot ship undocumented.
+    ///
+    /// The lookup is scoped to the module's own block, because labels are only
+    /// unique within a module: `ltm pool` and `gtm pool` are both ``pool``, so
+    /// a global search would let the LTM mention vouch for a missing GTM one.
     #[test]
     fn modules_section_documents_every_projected_kind() {
         let grammar = format_grammar();
@@ -338,13 +342,49 @@ mod tests {
             .split_once("\nASSIGNMENT\n")
             .expect("MODULES is followed by ASSIGNMENT")
             .0;
+
+        // Each module's prose starts at its `  .<module>.<kind>` line and runs
+        // to the next one.
+        let mut blocks: Vec<(String, String)> = Vec::new();
+        for line in modules.lines() {
+            if let Some(rest) = line.strip_prefix("  .")
+                && let Some((module, _)) = rest.split_once(".<kind>")
+                && !module.is_empty()
+                && module.chars().all(|c| c.is_ascii_lowercase() || c == '-')
+            {
+                blocks.push((module.to_owned(), String::new()));
+            }
+            if let Some((_, body)) = blocks.last_mut() {
+                body.push_str(line);
+                body.push('\n');
+            }
+        }
+        assert!(
+            blocks.len() >= 7,
+            "expected a prose block per projected module, found {}",
+            blocks.len()
+        );
+
         let missing: Vec<String> = crate::projection::documented_kind_labels()
-            .filter(|(_, label)| !modules.contains(&format!("``{label}``")))
-            .map(|(kind, label)| format!("{kind} (as ``{label}``)"))
+            .filter(|(kind, label)| {
+                let module = kind.split(' ').next().unwrap_or_default();
+                let documented = blocks
+                    .iter()
+                    .filter(|(m, _)| m == module)
+                    .any(|(_, body)| body.contains(&format!("``{label}``")));
+                !documented
+            })
+            .map(|(kind, label)| {
+                format!(
+                    "{kind} (as ``{label}`` under .{}.<kind>)",
+                    kind.split(' ').next().unwrap_or_default()
+                )
+            })
             .collect();
         assert!(
             missing.is_empty(),
-            "--help-dsl's MODULES section does not name these projected kinds: {missing:?}"
+            "--help-dsl's MODULES section does not name these projected kinds \
+             in their own module's block: {missing:?}"
         );
     }
 

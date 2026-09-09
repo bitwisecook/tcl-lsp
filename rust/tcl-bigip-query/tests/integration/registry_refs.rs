@@ -83,6 +83,14 @@ const FIXTURES: &[(&str, &str)] = &[
         "device-01.bigip.conf",
         include_str!("../../../../rust/bigip-report-gen/python/tests/data/device-01.bigip.conf"),
     ),
+    (
+        "tier2-c05-ltm-ha.conf",
+        include_str!("../../../../samples/for_f5_query/multitier/tier2-c05-ltm-ha.conf"),
+    ),
+    (
+        "graph_pilot.conf",
+        include_str!("../../../../rust/tcl-bigip/tests/fixtures/graph_pilot.conf"),
+    ),
 ];
 
 /// `(owner kind, property, target)` triples the registry does not confirm,
@@ -265,6 +273,18 @@ const ACCEPTED_DIVERGENCE: &[(&str, &str, &str, &str)] = &[
         "registry has no edge",
     ),
     (
+        "security firewall rule-list",
+        "address-lists",
+        "security firewall address-list",
+        "registry has no edge",
+    ),
+    (
+        "security firewall rule-list",
+        "port-lists",
+        "security firewall port-list",
+        "registry has no edge",
+    ),
+    (
         "security nat policy",
         "rule-lists",
         "security nat rule-list",
@@ -274,12 +294,6 @@ const ACCEPTED_DIVERGENCE: &[(&str, &str, &str, &str)] = &[
         "sys file ssl-cert",
         "issuer-cert",
         "sys file ssl-cert",
-        "registry has no edge",
-    ),
-    (
-        "sys folder",
-        "device-group",
-        "cm device-group",
         "registry has no edge",
     ),
     // The registry has no spec for the owner kind, so it can carry no edges
@@ -420,9 +434,75 @@ fn observed_targets() -> BTreeMap<String, BTreeSet<(String, String)>> {
     out
 }
 
+/// What comparing the projection's observed targets against the registry found.
+#[derive(Default)]
+struct Comparison {
+    /// Targets the registry neither confirms nor has a waiver for.
+    unexplained: Vec<String>,
+    /// Waivers the registry now confirms, so they excuse nothing.
+    obsolete: Vec<String>,
+    /// Targets the registry confirms.
+    confirmed: usize,
+    /// Every `(kind, property, target)` the fixtures produced.
+    seen: BTreeSet<(String, String, String)>,
+    /// The `(kind, property)` pairs behind them.
+    seen_props: BTreeSet<(String, String)>,
+}
+
+/// Compare every observed target against the registry, classifying each.
+fn compare_against_registry(
+    observed: &BTreeMap<String, BTreeSet<(String, String)>>,
+    accepted: &BTreeSet<(&str, &str, &str)>,
+) -> Comparison {
+    let reg = default_registry();
+    let mut out = Comparison::default();
+    for (kind, refs) in observed {
+        for (property, target) in refs {
+            // An empty target is a deliberate "not a ref" (`ltm pool`'s member
+            // monitor when unset); nothing to check.
+            if target.is_empty() {
+                continue;
+            }
+            out.seen
+                .insert((kind.clone(), property.clone(), target.clone()));
+            out.seen_props.insert((kind.clone(), property.clone()));
+
+            let candidates = reg.candidate_registry_kinds_for_display(kind);
+            let registry_targets: BTreeSet<&'static str> = candidates
+                .iter()
+                .flat_map(|rk| reference_targets(rk, property).iter().copied())
+                .collect();
+            let displays: BTreeSet<String> = registry_targets
+                .iter()
+                .flat_map(|rk| displays_for(rk))
+                .collect();
+            let waived = accepted.contains(&(kind.as_str(), property.as_str(), target.as_str()));
+
+            if displays.contains(target) {
+                out.confirmed += 1;
+                // A waiver the registry now agrees with has nothing left to
+                // excuse. Leaving it would let a later regression back to this
+                // very target pass unnoticed.
+                if waived {
+                    out.obsolete
+                        .push(format!("  {kind}.{property} -> {target:?}"));
+                }
+                continue;
+            }
+            if waived {
+                continue;
+            }
+            let found: Vec<&String> = displays.iter().take(4).collect();
+            out.unexplained.push(format!(
+                "  {kind}.{property} -> {target:?}; registry says {found:?}"
+            ));
+        }
+    }
+    out
+}
+
 #[test]
 fn projection_pathref_targets_agree_with_the_registry() {
-    let reg = default_registry();
     let accepted: BTreeSet<(&str, &str, &str)> = ACCEPTED_DIVERGENCE
         .iter()
         .map(|(kind, property, target, _why)| (*kind, *property, *target))
@@ -433,64 +513,62 @@ fn projection_pathref_targets_agree_with_the_registry() {
         !observed.is_empty(),
         "the fixtures projected no objects at all"
     );
-
-    let mut unexplained = Vec::new();
-    let mut confirmed = 0usize;
-    let mut seen: BTreeSet<(String, String, String)> = BTreeSet::new();
-    for (kind, refs) in &observed {
-        for (property, target) in refs {
-            // An empty target is a deliberate "not a ref" (`ltm pool`'s
-            // member monitor when unset); nothing to check.
-            if target.is_empty() {
-                continue;
-            }
-            seen.insert((kind.clone(), property.clone(), target.clone()));
-            let candidates = reg.candidate_registry_kinds_for_display(kind);
-            let registry_targets: BTreeSet<&'static str> = candidates
-                .iter()
-                .flat_map(|rk| reference_targets(rk, property).iter().copied())
-                .collect();
-            let displays: BTreeSet<String> = registry_targets
-                .iter()
-                .flat_map(|rk| displays_for(rk))
-                .collect();
-            if displays.contains(target) {
-                confirmed += 1;
-                continue;
-            }
-            if accepted.contains(&(kind.as_str(), property.as_str(), target.as_str())) {
-                continue;
-            }
-            let found: Vec<&String> = displays.iter().take(4).collect();
-            unexplained.push(format!(
-                "  {kind}.{property} -> {target:?}; registry says {found:?}"
-            ));
-        }
-    }
+    let report = compare_against_registry(&observed, &accepted);
 
     assert!(
-        unexplained.is_empty(),
+        report.unexplained.is_empty(),
         "{} projection reference target(s) the registry does not confirm and \
          ACCEPTED_DIVERGENCE does not explain.\nEither correct the target, add \
          the missing edge to rust/tcl-registry/src/bigip/references.rs, or record \
          it with a reason:\n{}",
-        unexplained.len(),
-        unexplained.join("\n")
+        report.unexplained.len(),
+        report.unexplained.join("\n")
+    );
+
+    assert!(
+        report.obsolete.is_empty(),
+        "the registry now confirms these ACCEPTED_DIVERGENCE entries; drop each \
+         so it cannot later excuse a regression back to the same wrong \
+         target:\n{}",
+        report.obsolete.join("\n")
+    );
+
+    // A waiver whose property the fixtures still produce, but aimed somewhere
+    // else now, describes a projection that has moved on.
+    let moved: Vec<String> = ACCEPTED_DIVERGENCE
+        .iter()
+        .filter(|(kind, property, target, _)| {
+            report
+                .seen_props
+                .contains(&((*kind).to_owned(), (*property).to_owned()))
+                && !report.seen.contains(&(
+                    (*kind).to_owned(),
+                    (*property).to_owned(),
+                    (*target).to_owned(),
+                ))
+        })
+        .map(|(kind, property, target, _)| {
+            format!("  {kind}.{property} no longer aims at {target:?}")
+        })
+        .collect();
+    assert!(
+        moved.is_empty(),
+        "ACCEPTED_DIVERGENCE entries whose property the projection still \
+         produces but with a different target; drop or re-target each:\n{}",
+        moved.join("\n")
     );
 
     // An exception the fixtures never exercise cannot be judged: a scalar ref
-    // always materialises a `PathRef`, but an empty list-valued one
-    // materialises nothing, and a kind no fixture carries is never projected
-    // at all. Report the blind spot rather than failing on it — the gate is
-    // only as wide as the fixtures.
+    // always materialises a `PathRef`, but an empty list-valued one materialises
+    // nothing, and a kind no fixture carries is never projected at all. Report
+    // the blind spot rather than failing on it — the gate is only as wide as
+    // the fixtures.
     let uncovered: Vec<String> = ACCEPTED_DIVERGENCE
         .iter()
-        .filter(|(kind, property, target, _)| {
-            !seen.contains(&(
-                (*kind).to_owned(),
-                (*property).to_owned(),
-                (*target).to_owned(),
-            ))
+        .filter(|(kind, property, _, _)| {
+            !report
+                .seen_props
+                .contains(&((*kind).to_owned(), (*property).to_owned()))
         })
         .map(|(kind, property, target, _)| format!("{kind}.{property} -> {target}"))
         .collect();
@@ -505,7 +583,7 @@ fn projection_pathref_targets_agree_with_the_registry() {
     }
 
     assert!(
-        confirmed > 0,
+        report.confirmed > 0,
         "no projection target was confirmed by the registry, which means the \
          lookup itself is broken rather than the data merely being sparse"
     );

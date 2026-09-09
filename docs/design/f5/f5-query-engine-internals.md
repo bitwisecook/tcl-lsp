@@ -439,9 +439,15 @@ agreements is enforced by the type system:
 
 | Gate | Holds |
 |---|---|
-| `projection::tests::every_parsed_kind_is_projected_or_listed` | Every kind the parser types across the committed fixtures is either in `KINDS` or recorded in `UNPROJECTED_TABLES`. Catches a typed kind the DSL silently omits. |
-| `grammar::tests::modules_section_documents_every_projected_kind` | `--help-dsl`'s MODULES prose names every label in `KINDS`. |
-| `registry_refs::projection_pathref_targets_agree_with_the_registry` | Every `PathRef` target the projection produces agrees with `tcl-registry`'s reference edges, or is recorded in `ACCEPTED_DIVERGENCE` with a reason. |
+| `projection::tests::every_parsed_kind_is_projected_or_listed` | Both directions. Every kind the parser types across the committed fixtures is either in `KINDS` or recorded in `UNPROJECTED_TABLES`; and every row of `KINDS` is reached by a fixture or recorded in `FIXTURE_UNCOVERED_KINDS`. The first catches a typed kind the DSL silently omits, the second a row whose `placed_kind` arm is missing — a label that can never select an object. |
+| `grammar::tests::modules_section_documents_every_projected_kind` | `--help-dsl`'s MODULES prose names every label in `KINDS`, scoped to that kind's own module block: labels are only unique within a module, so a global search would let `ltm`'s ``pool`` vouch for a missing `gtm` one. |
+| `registry_refs::projection_pathref_targets_agree_with_the_registry` | Every `PathRef` target the projection produces agrees with `tcl-registry`'s reference edges, or is recorded in `ACCEPTED_DIVERGENCE` with a reason. Waivers are checked in both directions too: one the registry has since started confirming, or whose property now aims elsewhere, fails as stale rather than lingering to excuse a future regression. |
+
+Each gate is only as wide as the committed fixtures: a kind no fixture
+carries is never projected, and an empty list-valued reference materialises no
+`PathRef` to check. `FIXTURE_UNCOVERED_KINDS` names the kinds in the first
+category, and the reference gate prints the waivers in the second rather than
+silently counting them as checked.
 
 The last gate checks rather than drives: the registry carries reference data
 for a minority of the properties the projection covers, so its edges cannot

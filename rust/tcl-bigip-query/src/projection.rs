@@ -2571,6 +2571,14 @@ mod tests {
             "device-01.bigip.conf",
             include_str!("../../../rust/bigip-report-gen/python/tests/data/device-01.bigip.conf"),
         ),
+        (
+            "tier2-c05-ltm-ha.conf",
+            include_str!("../../../samples/for_f5_query/multitier/tier2-c05-ltm-ha.conf"),
+        ),
+        (
+            "graph_pilot.conf",
+            include_str!("../../../rust/tcl-bigip/tests/fixtures/graph_pilot.conf"),
+        ),
     ];
 
     /// `BigipConfig` tables the parser fills with a typed struct that the DSL
@@ -2627,6 +2635,19 @@ mod tests {
         "wom_endpoint_discovery",
     ];
 
+    /// Kinds in `KINDS` that no committed fixture carries, so the gate below
+    /// cannot confirm their `placed_kind` arm exists. Each is a hole in fixture
+    /// coverage rather than a decision; shrinking this list is how the gate
+    /// gets stronger.
+    const FIXTURE_UNCOVERED_KINDS: &[&str] = &[
+        "apm ephemeral-auth ssh-security-config",
+        "apm oauth db-instance",
+        "gtm listener",
+        "security nat destination-translation",
+        "security nat policy",
+        "security nat source-translation",
+    ];
+
     /// Every kind the projection claims to cover must be reachable: a kind in
     /// `KINDS` that `placed_kind` never returns is dead weight, and a kind
     /// `placed_kind` returns that is missing from `KINDS` is an object the
@@ -2665,9 +2686,31 @@ mod tests {
             stale.is_empty(),
             "UNPROJECTED_TABLES lists tables no fixture produces any more: {stale:?}"
         );
+        // The reverse direction: a row added to `KINDS` whose `placed_kind`
+        // arm is missing exposes a module container that can never select an
+        // object. Nothing else catches that, so require every row to be either
+        // reached from a fixture or recorded as one the fixtures do not carry.
+        let uncovered: BTreeSet<&str> = FIXTURE_UNCOVERED_KINDS.iter().copied().collect();
+        let unreachable: Vec<&str> = KINDS
+            .iter()
+            .map(|(kind, _)| *kind)
+            .filter(|kind| !projected.contains(kind) && !uncovered.contains(kind))
+            .collect();
         assert!(
-            !projected.is_empty(),
-            "fixtures produced no projected kinds"
+            unreachable.is_empty(),
+            "these kinds are in KINDS but no fixture ever projected one, so the \
+             module container exposes a label that can never select an object; \
+             add the `placed_kind` arm, or add fixture coverage, or record it in \
+             FIXTURE_UNCOVERED_KINDS: {unreachable:?}"
+        );
+        let now_covered: Vec<&&str> = FIXTURE_UNCOVERED_KINDS
+            .iter()
+            .filter(|kind| projected.contains(**kind))
+            .collect();
+        assert!(
+            now_covered.is_empty(),
+            "FIXTURE_UNCOVERED_KINDS lists kinds the fixtures now do project; \
+             drop them: {now_covered:?}"
         );
     }
 
