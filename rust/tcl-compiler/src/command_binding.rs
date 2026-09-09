@@ -4029,6 +4029,13 @@ fn walk_body_calls(
 /// a `proc` in such a frame lands in a namespace this scan cannot spell, so
 /// the widened stance is the right answer for it too.
 ///
+/// Descends through [`crate::ir_helpers::nested_bodies`], the same inventory
+/// [`crate::ir_helpers::requires_runtime_command_namespace`] walks, so the two
+/// cannot disagree about which bodies belong to the frame. That inventory
+/// covers the statically lowered `eval` and `uplevel` forms (`Statement::Block`
+/// and `Statement::UpFrame`) as well as the structured ones, so a rebinding
+/// hidden in `eval {rename ::string ::saved}` still widens.
+///
 /// Hitting the depth cap answers `true`: an unwalkable body is treated as one
 /// that mutates.
 fn declares_command_binding_effect(
@@ -4039,38 +4046,11 @@ fn declares_command_binding_effect(
     if crate::optimiser::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
         return true;
     }
-    let nested =
-        |body: &crate::ir::Script| declares_command_binding_effect(body, registry, depth + 1);
-    script.statements.iter().any(|stmt| match stmt {
-        Statement::Call { .. } | Statement::Barrier { .. } => {
-            statement_declares_command_binding_effect(stmt, registry)
-        }
-        Statement::If {
-            clauses, else_body, ..
-        } => clauses.iter().any(|c| nested(&c.body)) || else_body.as_ref().is_some_and(&nested),
-        Statement::For {
-            init, next, body, ..
-        } => nested(init) || nested(next) || nested(body),
-        Statement::While { body, .. }
-        | Statement::Catch { body, .. }
-        | Statement::Foreach { body, .. } => nested(body),
-        Statement::Try {
-            body,
-            handlers,
-            finally_body,
-            ..
-        } => {
-            nested(body)
-                || handlers.iter().any(|h| nested(&h.body))
-                || finally_body.as_ref().is_some_and(&nested)
-        }
-        Statement::Switch {
-            arms, default_body, ..
-        } => {
-            arms.iter().any(|a| a.body.as_ref().is_some_and(&nested))
-                || default_body.as_ref().is_some_and(&nested)
-        }
-        _ => false,
+    script.statements.iter().any(|stmt| {
+        statement_declares_command_binding_effect(stmt, registry)
+            || crate::ir_helpers::nested_bodies(stmt)
+                .into_iter()
+                .any(|body| declares_command_binding_effect(body, registry, depth + 1))
     })
 }
 
@@ -4301,6 +4281,31 @@ mod tests {
             assert!(
                 !m.trusts_proc_binding("::p"),
                 "{body}: an unspellable subject must distrust the module"
+            );
+        }
+    }
+
+    /// A rebinding does not stop carrying past the frame because it sits in a
+    /// statically lowered `eval` or `uplevel`. Those lower to
+    /// `Statement::Block` / `Statement::UpFrame`, whose bodies are part of the
+    /// frame like any other nested script: `m` really does remove `::string`,
+    /// so a fold of `[string length x]` elsewhere would be a miscompile.
+    #[test]
+    fn a_rebinding_inside_a_lowered_eval_or_uplevel_still_distrusts_the_module() {
+        let reg = CommandRegistry::build_default();
+        for body in [
+            "puts hi; eval {rename ::string ::saved}",
+            "puts hi; uplevel 1 {rename ::string ::saved}",
+            "puts hi; if {1} { eval {rename ::string ::saved} }",
+        ] {
+            let src = format!(
+                "oo::class create ::A {{\n    method m {{}} {{ {body} }}\n}}\nproc p {{}} {{ return 1 }}\n"
+            );
+            let cu = CompilationUnit::build_for(&src, &reg, false);
+            let m = scan_module_command_mutations(&cu.ir_module, &reg);
+            assert!(
+                !m.trusts("string"),
+                "{body}: a rebinding in a lowered body must distrust the module"
             );
         }
     }
