@@ -2337,9 +2337,23 @@ mod tests {
             .analyse(source, dialect)
             .diagnostics
             .iter()
-            .filter(|d| matches!(d.code.as_str(), "W137" | "W138" | "W200"))
+            .filter(|d| matches!(d.code.as_str(), "W137" | "W138" | "W200" | "W202"))
             .map(|d| (d.code.to_string(), d.message.clone()))
             .collect()
+    }
+
+    #[test]
+    fn w202_gated_field_letter_names_the_letter_and_the_floor() {
+        let diags = dsl_diags("binary format q 1.0\n", "tcl8.4");
+        let (code, msg) = diags
+            .iter()
+            .find(|(c, _)| c == "W202")
+            .expect("q is bad field specifier on tclsh 8.4.20");
+        assert_eq!(code, "W202");
+        assert!(msg.contains("'q'"), "{msg}");
+        assert!(msg.contains("8.5"), "{msg}");
+        // Clean once the floor is met.
+        assert!(dsl_diags("binary format q 1.0\n", "tcl8.6").is_empty());
     }
 
     #[test]

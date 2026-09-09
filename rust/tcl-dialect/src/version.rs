@@ -331,7 +331,7 @@ impl TclVersion {
     /// `package require` failure into a later `invalid command name`.
     ///
     /// The `Tcl` version below is always [`Self::patchlevel`] (8.4 aside),
-    /// which is the engines' *pinned* build — 8.6.16 — while the 8.6
+    /// which is the engines' *pinned* build, while the 8.6
     /// interpreter the row above was measured on is 8.6.14. The patch digit
     /// is the one thing in the table that names a build rather than a
     /// release rule; `core_package_tracks_the_patch_level` pins the

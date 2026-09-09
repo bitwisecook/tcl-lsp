@@ -934,6 +934,9 @@ impl ModuleCommandBindings {
             dynamic: self.opaque_binding_mutation
                 || self.namespace_resolution.dynamic
                 || self.has_redefined_procedures,
+            // This projection is about names the closed lattice observed, not
+            // about which frame observed them; the frame fact is the scan's.
+            runtime_selected_frames: false,
             resolution_changed: self.namespace_resolution.changed,
             opaque_namespaces: self
                 .namespace_resolution
@@ -3515,6 +3518,15 @@ pub struct ModuleCommandMutations {
     /// A body performs a dynamic `rename`/alias/proc (target not
     /// statically known) → resolution of *any* name is opaque.
     dynamic: bool,
+    /// Some body runs in a receiver- or caller-selected namespace and names a
+    /// command relatively, so that name may resolve to an implementation the
+    /// static module does not contain. Scoped deliberately: it disqualifies a
+    /// fact derived *inside* such a frame ([`Self::has_runtime_selected_frames`]),
+    /// and says nothing about the top level or a procedure, which resolve in
+    /// namespaces this scan can name. A body that also *changes* a binding
+    /// from such a frame sets [`Self::dynamic`] instead, because the subject
+    /// it moved is one this scan cannot spell.
+    runtime_selected_frames: bool,
     /// A body changes how a namespace *resolves* command names, without
     /// renaming anything: `namespace import`/`forget`, `namespace path`,
     /// `namespace unknown`, `namespace ensemble`, or a namespace delete.
@@ -3615,6 +3627,20 @@ impl ModuleCommandMutations {
         !self.names.contains(&nqn(command_name))
     }
 
+    /// Whether any body runs in a namespace chosen at run time while naming a
+    /// command relatively.
+    ///
+    /// A receiver-local command can shadow such a head, so nothing derived
+    /// inside one of those frames is trustworthy — not even a fact that reads
+    /// no variable, such as the `TclOO` frame constant. Consumers that fold
+    /// *inside* a method body ask this in addition to [`Self::trusts`]; the
+    /// top level and procedures do not, because a receiver namespace cannot
+    /// change what a name resolves to in a namespace this scan can spell.
+    #[must_use]
+    pub const fn has_runtime_selected_frames(&self) -> bool {
+        self.runtime_selected_frames
+    }
+
     /// The everything-is-untrusted lattice top: `trusts` /
     /// `trusts_proc_binding` answer `false` for every name. The sound
     /// stand-in when a consumer has **no whole-module view at all** (the
@@ -3626,6 +3652,7 @@ impl ModuleCommandMutations {
             names: std::collections::HashSet::new(),
             rebound: std::collections::HashSet::new(),
             dynamic: true,
+            runtime_selected_frames: true,
             resolution_changed: true,
             opaque_namespaces: std::collections::HashSet::new(),
         }
@@ -3643,6 +3670,7 @@ impl ModuleCommandMutations {
             untrusted_builtins,
             rebound,
             dynamic: self.dynamic,
+            runtime_selected_frames: self.runtime_selected_frames,
             resolution_changed: self.resolution_changed,
             opaque_namespaces: {
                 let mut v: Vec<String> = self.opaque_namespaces.iter().cloned().collect();
@@ -3686,6 +3714,9 @@ pub struct CommandTrustSnapshot {
     untrusted_builtins: Vec<String>,
     rebound: Vec<String>,
     dynamic: bool,
+    /// Part of the key: a memo taken with every frame statically nameable must
+    /// not be reused once a receiver-selected frame appears.
+    runtime_selected_frames: bool,
     /// Part of the key: a memo taken with namespace command resolution
     /// unperturbed must not be reused once a `namespace import` appears.
     resolution_changed: bool,
@@ -3700,6 +3731,7 @@ impl CommandTrustSnapshot {
             names: self.untrusted_builtins.iter().cloned().collect(),
             rebound: self.rebound.iter().cloned().collect(),
             dynamic: self.dynamic,
+            runtime_selected_frames: self.runtime_selected_frames,
             resolution_changed: self.resolution_changed,
             opaque_namespaces: self.opaque_namespaces.iter().cloned().collect(),
         }
@@ -3980,6 +4012,69 @@ fn walk_body_calls(
     }
 }
 
+/// Whether `script` declares anything that could change what a command name
+/// resolves to, at any nesting depth.
+///
+/// This is the question a body in an unnameable frame poses to the *rest* of
+/// the module. A mutation there names its subject relatively, so it lands in a
+/// namespace this scan cannot spell and no recorded name survives it. A body
+/// that mutates nothing moves no name, whatever it calls, and leaves the names
+/// the top level and the procedures resolve exactly as they were.
+///
+/// Registry-driven, like the walk it guards: a statement counts because its
+/// declared state transitions touch command bindings or namespace resolution,
+/// never because of the command's name. `Define` counts alongside the rest —
+/// a `proc` in such a frame lands in a namespace this scan cannot spell, so
+/// the widened stance is the right answer for it too.
+///
+/// Descends through [`crate::ir_helpers::nested_bodies`], the same inventory
+/// [`crate::ir_helpers::requires_runtime_command_namespace`] walks, so the two
+/// cannot disagree about which bodies belong to the frame. That inventory
+/// covers the statically lowered `eval` and `uplevel` forms (`Statement::Block`
+/// and `Statement::UpFrame`) as well as the structured ones, so a rebinding
+/// hidden in `eval {rename ::string ::saved}` still widens.
+///
+/// Hitting the depth cap answers `true`: an unwalkable body is treated as one
+/// that mutates.
+fn declares_command_binding_effect(
+    script: &crate::ir::Script,
+    registry: &CommandRegistry,
+    depth: u32,
+) -> bool {
+    if crate::optimiser::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
+        return true;
+    }
+    script.statements.iter().any(|stmt| {
+        statement_declares_command_binding_effect(stmt, registry)
+            || crate::ir_helpers::nested_bodies(stmt)
+                .into_iter()
+                .any(|body| declares_command_binding_effect(body, registry, depth + 1))
+    })
+}
+
+/// The single-statement half of [`declares_command_binding_effect`].
+fn statement_declares_command_binding_effect(stmt: &Statement, registry: &CommandRegistry) -> bool {
+    let Some(facts) = invocation_facts(stmt, registry) else {
+        return false;
+    };
+    let Some(transitions) = facts.state_transitions.declared() else {
+        return false;
+    };
+    transitions
+        .facts()
+        .iter()
+        .any(|fact| match &fact.transition {
+            StateTransition::CommandBinding(_) | StateTransition::Namespace(_) => true,
+            StateTransition::Widen(widening) => widening
+                .domains
+                .contains(&StateTransitionDomain::CommandBindings),
+            StateTransition::Interpreter(_)
+            | StateTransition::VariableCellAlias(_)
+            | StateTransition::Trace(_)
+            | StateTransition::ObjectDispatch(_) => false,
+        })
+}
+
 /// Summarise command-table mutations across the whole module — a
 /// CFG-free recursive IR walk over the top-level script *and* every proc
 /// / method body, so it can run before per-function CFGs are built.
@@ -4018,6 +4113,7 @@ pub(crate) fn scan_module_command_mutations_with_bindings(
     let mut opaque_namespaces = std::collections::HashSet::new();
 
     let mut has_runtime_selected_root = false;
+    let mut runtime_selected_frames = false;
     {
         let mut visit = |script: &crate::ir::Script, namespace: &str| {
             let mut state = State::default();
@@ -4044,7 +4140,17 @@ pub(crate) fn scan_module_command_mutations_with_bindings(
                     // the ordinary scan. The closed binding analysis below still
                     // retains exact absolute transitions in opaque bodies.
                     if crate::ir_helpers::requires_runtime_command_namespace(script, registry) {
-                        has_runtime_selected_root = true;
+                        // Nothing derived inside the frame is trustworthy: the
+                        // receiver's namespace can shadow any head it names.
+                        runtime_selected_frames = true;
+                        // Only a binding change carries beyond the frame. Its
+                        // subject resolves where this scan cannot look, so no
+                        // name in the module survives it. A body that merely
+                        // calls commands moves nothing, and the names the rest
+                        // of the module resolves keep their meaning.
+                        if declares_command_binding_effect(script, registry, 0) {
+                            has_runtime_selected_root = true;
+                        }
                     } else {
                         visit(script, "::");
                     }
@@ -4069,6 +4175,7 @@ pub(crate) fn scan_module_command_mutations_with_bindings(
         names,
         rebound,
         dynamic,
+        runtime_selected_frames,
         resolution_changed,
         opaque_namespaces,
     }
@@ -4114,6 +4221,121 @@ mod tests {
         assert!(
             m.trusts_proc_binding("::lib::helper"),
             "the imported-from namespace still folds"
+        );
+    }
+
+    /// A `TclOO` method runs in the receiver's namespace, chosen at run time,
+    /// so a command it names relatively may resolve to an object-local
+    /// implementation. That uncertainty belongs to the frame: it disqualifies
+    /// facts derived inside the body, and leaves the names the top level and
+    /// the procedures resolve untouched.
+    #[test]
+    fn an_ordinary_method_body_scopes_its_opacity_to_its_own_frame() {
+        let reg = CommandRegistry::build_default();
+        for body in [
+            "puts hi",
+            "my helper",
+            "next",
+            "set y 1",
+            "if {1} { puts hi }",
+        ] {
+            let src = format!(
+                "oo::class create ::A {{\n    method m {{}} {{ {body} }}\n}}\nproc p {{}} {{ return 1 }}\n"
+            );
+            let cu = CompilationUnit::build_for(&src, &reg, false);
+            let m = scan_module_command_mutations(&cu.ir_module, &reg);
+            assert!(
+                m.has_runtime_selected_frames(),
+                "{body}: the frame itself stays opaque"
+            );
+            assert!(
+                m.trusts("string"),
+                "{body}: a builtin the module never touches must stay trusted"
+            );
+            assert!(
+                m.trusts_proc_binding("::p"),
+                "{body}: a proc declared outside the class must stay trusted"
+            );
+        }
+    }
+
+    /// A binding change from such a frame names its subject where this scan
+    /// cannot look, so it carries past the frame and no name in the module
+    /// survives it.
+    #[test]
+    fn a_binding_change_in_a_runtime_selected_frame_distrusts_the_module() {
+        let reg = CommandRegistry::build_default();
+        for body in [
+            "rename puts myputs",
+            "proc helper {} { return 1 }",
+            "interp alias {} shout {} puts",
+            "namespace import ::lib::*",
+        ] {
+            let src = format!(
+                "oo::class create ::A {{\n    method m {{}} {{ {body} }}\n}}\nproc p {{}} {{ return 1 }}\n"
+            );
+            let cu = CompilationUnit::build_for(&src, &reg, false);
+            let m = scan_module_command_mutations(&cu.ir_module, &reg);
+            assert!(
+                !m.trusts_proc_binding("::p"),
+                "{body}: an unspellable subject must distrust the module"
+            );
+        }
+    }
+
+    /// A rebinding does not stop carrying past the frame because it sits in a
+    /// statically lowered `eval` or `uplevel`. Those lower to
+    /// `Statement::Block` / `Statement::UpFrame`, whose bodies are part of the
+    /// frame like any other nested script: `m` really does remove `::string`,
+    /// so a fold of `[string length x]` elsewhere would be a miscompile.
+    #[test]
+    fn a_rebinding_inside_a_lowered_eval_or_uplevel_still_distrusts_the_module() {
+        let reg = CommandRegistry::build_default();
+        for body in [
+            "puts hi; eval {rename ::string ::saved}",
+            "puts hi; uplevel 1 {rename ::string ::saved}",
+            "puts hi; if {1} { eval {rename ::string ::saved} }",
+        ] {
+            let src = format!(
+                "oo::class create ::A {{\n    method m {{}} {{ {body} }}\n}}\nproc p {{}} {{ return 1 }}\n"
+            );
+            let cu = CompilationUnit::build_for(&src, &reg, false);
+            let m = scan_module_command_mutations(&cu.ir_module, &reg);
+            assert!(
+                !m.trusts("string"),
+                "{body}: a rebinding in a lowered body must distrust the module"
+            );
+        }
+    }
+
+    /// A body whose commands all resolve absolutely is namespace-invariant, so
+    /// it takes the ordinary scan and leaves no frame opacity behind.
+    #[test]
+    fn an_absolute_only_method_body_leaves_no_frame_opacity() {
+        let reg = CommandRegistry::build_default();
+        let src =
+            "oo::class create ::A {\n    method m {} { ::puts hi }\n}\nproc p {} { return 1 }\n";
+        let cu = CompilationUnit::build_for(src, &reg, false);
+        let m = scan_module_command_mutations(&cu.ir_module, &reg);
+        assert!(!m.has_runtime_selected_frames());
+        assert!(m.trusts_proc_binding("::p"));
+        assert!(m.trusts("puts"));
+    }
+
+    /// The frame fact is part of the memo key: a summary taken with every
+    /// frame statically nameable must not be reused once one is not.
+    #[test]
+    fn the_frame_fact_survives_a_snapshot_round_trip() {
+        let reg = CommandRegistry::build_default();
+        let src = "oo::class create ::A {\n    method m {} { puts hi }\n}\n";
+        let cu = CompilationUnit::build_for(src, &reg, false);
+        let m = scan_module_command_mutations(&cu.ir_module, &reg);
+        assert!(m.has_runtime_selected_frames());
+        assert!(m.snapshot().to_mutations().has_runtime_selected_frames());
+        assert_ne!(
+            m.snapshot(),
+            ModuleCommandMutations::default().snapshot(),
+            "the frame fact must distinguish the two summaries"
         );
     }
 

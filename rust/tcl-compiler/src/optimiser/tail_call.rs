@@ -590,6 +590,92 @@ fn self_name_variants(qname: &str) -> HashSet<String> {
     names
 }
 
+/// Record the tail site for a bare self-call, `f $args`, and report its
+/// O121 rewrite.
+///
+/// The rewrite prefixes the call as written: `full_rewrite_span` only
+/// extends the statement span through trailing closers, so its text is the
+/// call verbatim, with braces, quotes, `{*}` markers and spacing intact.
+/// The IR's `args` hold each word's *value* with its delimiters stripped,
+/// which cannot be reassembled into the source that produced it, so both
+/// the `tailcall` text and the loop conversion's arguments read the source.
+fn collect_bare_call_site(
+    ctx: &mut PassContext<'_>,
+    span: tcl_lexer::Span,
+    command: &str,
+    proc: &Procedure,
+    sites: &mut Vec<TailSite>,
+    emit_o121: bool,
+) {
+    let rewrite_span = full_rewrite_span(ctx.source, span);
+    let call_text = ctx.source.get(rewrite_span.as_range());
+    if emit_o121 {
+        let replacement = match call_text {
+            Some(text) => format!("tailcall {text}"),
+            None => format!("tailcall {command}"),
+        };
+        ctx.report(Optimisation::new(
+            DiagCode::O121,
+            format!("Use tailcall for self-recursion in proc '{}'", proc.name),
+            rewrite_span,
+            replacement,
+        ));
+    }
+    // `[list …]` must receive the words as written, so a braced or quoted
+    // argument stays one element.
+    let args = call_text.and_then(|text| {
+        split_call_arguments(text, tcl_lexer::LexerConfig::for_profile(ctx.dialect))
+    });
+    sites.push(TailSite {
+        span: rewrite_span,
+        args,
+    });
+}
+
+/// Record the tail site for a return substitution, `return [f $args]`, and
+/// report its O121 rewrite. Does nothing when `value` is not a single
+/// command substitution of a self-name.
+fn collect_return_subst_site(
+    ctx: &mut PassContext<'_>,
+    span: tcl_lexer::Span,
+    value: &str,
+    self_names: &HashSet<String>,
+    proc: &Procedure,
+    sites: &mut Vec<TailSite>,
+    emit_o121: bool,
+) {
+    let config = tcl_lexer::LexerConfig::for_profile(ctx.dialect);
+    let Some((call_head, call_args)) = parse_return_subst(value, config) else {
+        return;
+    };
+    if !self_names.contains(&call_head) {
+        return;
+    }
+    let rewrite_span = full_rewrite_span(ctx.source, span);
+    if emit_o121 {
+        let replacement = if call_args.is_empty() {
+            format!("tailcall {call_head}")
+        } else {
+            format!("tailcall {call_head} {call_args}")
+        };
+        ctx.report(Optimisation::new(
+            DiagCode::O121,
+            format!("Use tailcall for self-recursion in proc '{}'", proc.name),
+            rewrite_span,
+            replacement,
+        ));
+    }
+    let args = if call_args.is_empty() {
+        Some(Vec::new())
+    } else {
+        split_call_arguments(&format!("{call_head} {call_args}"), config)
+    };
+    sites.push(TailSite {
+        span: rewrite_span,
+        args,
+    });
+}
+
 /// Recursively walk `script` collecting self-calls in tail
 /// position. Only the last statement of each script (and the
 /// tail position of each `if` / `switch` branch) is considered.
@@ -616,25 +702,8 @@ fn collect_tail_sites(
         return;
     };
     match last {
-        Statement::Call {
-            span,
-            command,
-            args,
-            ..
-        } if self_names.contains(command) => {
-            let rewrite_span = full_rewrite_span(ctx.source, *span);
-            if emit_o121 {
-                ctx.report(Optimisation::new(
-                    DiagCode::O121,
-                    format!("Use tailcall for self-recursion in proc '{}'", proc.name),
-                    rewrite_span,
-                    format!("tailcall {command}"),
-                ));
-            }
-            sites.push(TailSite {
-                span: rewrite_span,
-                args: (!args.iter().any(|a| a.starts_with("{*}"))).then(|| args.clone()),
-            });
+        Statement::Call { span, command, .. } if self_names.contains(command) => {
+            collect_bare_call_site(ctx, *span, command, proc, sites, emit_o121);
         }
         Statement::Return {
             span,
@@ -642,43 +711,11 @@ fn collect_tail_sites(
             braced,
             ..
         } => {
-            // `return {[f $n]}` is a braced literal — the
-            // substitution is never executed — so neither O121
-            // (tailcall rewrite) nor the site count toward O122
-            // (loop conversion) should fire.
-            if *braced {
-                return;
-            }
-            if let Some((call_head, call_args)) =
-                parse_return_subst(v, tcl_lexer::LexerConfig::for_profile(ctx.dialect))
-                && self_names.contains(&call_head)
-            {
-                let rewrite_span = full_rewrite_span(ctx.source, *span);
-                if emit_o121 {
-                    let replacement = if call_args.is_empty() {
-                        format!("tailcall {call_head}")
-                    } else {
-                        format!("tailcall {call_head} {call_args}")
-                    };
-                    ctx.report(Optimisation::new(
-                        DiagCode::O121,
-                        format!("Use tailcall for self-recursion in proc '{}'", proc.name),
-                        rewrite_span,
-                        replacement,
-                    ));
-                }
-                let split_args = if call_args.is_empty() {
-                    Some(Vec::new())
-                } else {
-                    split_call_arguments(
-                        &format!("{call_head} {call_args}"),
-                        tcl_lexer::LexerConfig::for_profile(ctx.dialect),
-                    )
-                };
-                sites.push(TailSite {
-                    span: rewrite_span,
-                    args: split_args,
-                });
+            // `return {[f $n]}` is a braced literal — the substitution is
+            // never executed — so neither O121 nor the site count toward
+            // O122 should fire.
+            if !*braced {
+                collect_return_subst_site(ctx, *span, v, self_names, proc, sites, emit_o121);
             }
         }
         Statement::If {
@@ -1289,6 +1326,81 @@ mod tests {
             "expected the argument kept, got {:?}",
             opt.replacement,
         );
+    }
+
+    #[test]
+    fn o121_bare_call_keeps_its_arguments() {
+        // The bare-call rewrite prefixes the call, so every argument
+        // survives. An arity mismatch keeps O122 away and leaves O121 as
+        // the applied rewrite.
+        let opts =
+            run_pass("proc h {a b} {\n    if {$a == 0} { return $b }\n    h [expr {$a - 1}]\n}");
+        let opt = opts
+            .iter()
+            .find(|o| o.code == DiagCode::O121)
+            .expect("O121 should fire for a bare self-call");
+        assert_eq!(opt.replacement, "tailcall h [expr {$a - 1}]");
+    }
+
+    #[test]
+    fn o121_bare_call_keeps_delimiters_and_expansion() {
+        // Braces, quotes and `{*}` are part of the call as written and must
+        // reach the rewrite unaltered.
+        let opts = run_pass(
+            "proc f {a b c} {\n    if {$a == 0} { return $b }\n    f {x y} \"q r\" {*}$rest\n}",
+        );
+        let opt = opts
+            .iter()
+            .find(|o| o.code == DiagCode::O121)
+            .expect("O121 should fire");
+        assert_eq!(opt.replacement, "tailcall f {x y} \"q r\" {*}$rest");
+    }
+
+    #[test]
+    fn o122_bare_call_reassigns_words_as_written() {
+        // `[list …]` receives the words as written, so a braced or quoted
+        // argument stays one element. Rebuilding from the IR's delimiter-
+        // stripped values would make `{x y} "q r" $c` five elements and
+        // `lassign` would distribute them across the wrong parameters.
+        let opts =
+            run_pass("proc f {a b c} {\n    if {$a == 0} { return $b }\n    f {x y} \"q r\" $c\n}");
+        let opt = opts
+            .iter()
+            .find(|o| o.code == DiagCode::O122)
+            .expect("O122 should fire");
+        assert!(
+            opt.replacement
+                .contains("lassign [list {x y} \"q r\" $c] a b c"),
+            "expected three list elements, got {:?}",
+            opt.replacement,
+        );
+    }
+
+    #[test]
+    fn bare_and_return_subst_tail_calls_reassign_alike() {
+        // The two variants read the same call text, so they must produce the
+        // same loop body for the same arguments.
+        let body = "    if {$a == 0} { return $b }\n";
+        let bare = run_pass(&format!(
+            "proc f {{a b c}} {{\n{body}    f {{x y}} \"q r\" $c\n}}"
+        ));
+        let subst = run_pass(&format!(
+            "proc f {{a b c}} {{\n{body}    return [f {{x y}} \"q r\" $c]\n}}"
+        ));
+        let reassignment = |opts: &[Optimisation]| {
+            opts.iter()
+                .find(|o| o.code == DiagCode::O122)
+                .map(|o| {
+                    o.replacement
+                        .lines()
+                        .find(|l| l.contains("lassign"))
+                        .unwrap_or_default()
+                        .trim()
+                        .to_owned()
+                })
+                .expect("O122 should fire")
+        };
+        assert_eq!(reassignment(&bare), reassignment(&subst));
     }
 
     #[test]
