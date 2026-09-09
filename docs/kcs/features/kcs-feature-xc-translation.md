@@ -71,13 +71,13 @@ writes `$FILE.tf` and `$FILE.xc.json`.
 
 The translator walks the lowered IR of each event handler and maps
 commands to XC routes, service policy rules, origin pool references,
-header actions, and WAF exclusion rules, then renders that model two
+header actions, and WAF exclusion rules. That model is rendered two
 ways: Terraform HCL for the `volterra` provider, and ves.io JSON-API
-objects. Generated Terraform carries
-`TODO` comments where XC needs a value the iRule cannot supply, such as
-origin server addresses and load-balancer domains. Constructs with no XC
-equivalent are reported as items, never silently dropped, and the same
-analysis drives the XC100-301 diagnostics shown inline on iRule files.
+objects. The Terraform carries `TODO` comments where XC needs a value
+the iRule cannot supply, such as origin server addresses and
+load-balancer domains. Constructs with no XC equivalent are reported as
+items, never silently dropped, and the same analysis drives the
+XC100-301 diagnostics shown inline on iRule files.
 
 ## Failure modes
 
