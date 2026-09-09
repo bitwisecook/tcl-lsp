@@ -880,13 +880,75 @@ cause code injection. Use braces: {cmd_name} {sub_name} $child {{...}}"
         (i < args.len()).then_some((sub.name, i, false))
     }
 
-    /// **W102.** Emit "subst on variable input" when `subst`'s template
-    /// argument is a bare `$var` substitution — `subst` performs `$` /
-    /// `[]` substitution on its argument, so a variable template enables
-    /// code injection.  The message lists
-    /// exactly the substitution kinds still active (`-nocommands` /
-    /// `-novariables` narrow it) and is suppressed entirely when both
-    /// flags are present (only backslash substitution remains).
+    /// The switches to advise on a W102 finding: the options `cmd_name`
+    /// declares **in this dialect** that, added to this call, turn its
+    /// dangerous substitutions off.  `None` when no such set exists, and the
+    /// message then advises no switch at all.
+    ///
+    /// Found by asking the registry what each candidate call would perform,
+    /// never by matching a spelling: the registry owns which switches exist
+    /// and what they do, including that Tcl 9.1's positive family may not be
+    /// combined with the negated one — a combination it reads as unreadable,
+    /// so every candidate widens the answer back to every kind and this
+    /// returns `None`.  That is the answer a positive-family call needs
+    /// (issue #2098): advising `-nocommands` there is advice the interpreter
+    /// rejects with `cannot combine positive and negative options`.  A call
+    /// whose switches the registry cannot read lands in the same place, for
+    /// the same reason — its family is unknown, so no switch can be advised.
+    ///
+    /// A candidate is taken only when it turns a dangerous kind off and turns
+    /// nothing on, which is also what keeps the advice from proposing a
+    /// switch that merely trades one substitution for another.
+    fn substitution_narrowing_switches(
+        &self,
+        cmd_name: &str,
+        args: &[&str],
+        performed: tcl_registry::substitution::SubstitutionKinds,
+    ) -> Option<Vec<&'static str>> {
+        let registry = self.registry.as_deref()?;
+        let spec = registry.get(cmd_name)?;
+        let (operand, switches) = args.split_last()?;
+        let generation = self.analysis_context();
+        let declared = generation.context().available_option_names(spec);
+        let mut chosen: Vec<&'static str> = Vec::new();
+        let mut current = performed;
+        for candidate in declared {
+            if !current.commands && !current.variables {
+                break;
+            }
+            let mut trial: Vec<&str> = switches.to_vec();
+            trial.extend(chosen.iter().copied());
+            trial.push(candidate);
+            trial.push(operand);
+            let kinds = registry.substitutions_performed(cmd_name, &trial)?;
+            let narrows =
+                (current.commands && !kinds.commands) || (current.variables && !kinds.variables);
+            let widens = (!current.commands && kinds.commands)
+                || (!current.variables && kinds.variables)
+                || kinds.backslashes != current.backslashes;
+            if narrows && !widens {
+                chosen.push(candidate);
+                current = kinds;
+            }
+        }
+        (!current.commands && !current.variables).then_some(chosen)
+    }
+
+    /// **W102.** Emit "subst on variable input" when a substitution
+    /// performer's operand is a *computed* word — a `$var` reference, or any
+    /// word carrying a substitution — and the call still performs command or
+    /// variable substitution over it, so whatever that word resolves to is
+    /// evaluated a second time.
+    ///
+    /// *Which* substitutions a call performs is the registry's question, not
+    /// this check's: [`tcl_registry::CommandRegistry::substitutions_performed`]
+    /// reads both switch families and answers every kind for a call it cannot
+    /// read (issue #2095).  Asking it is what keeps two shapes right (issue
+    /// #2098): `subst $opt {hello $name}` reports nothing, because the
+    /// operand is the *final* argument — the braced literal — and the
+    /// computed word is a switch; and the Tcl 9.1 positive family
+    /// `subst -backslashes $tmpl` reports nothing, because it substitutes
+    /// neither commands nor variables.
     pub(in crate::analyser) fn emit_w102_subst_injection(
         &mut self,
         cmd_name: &str,
@@ -895,7 +957,9 @@ cause code injection. Use braces: {cmd_name} {sub_name} $child {{...}}"
     ) {
         // Registry gate: [`Traits::PERFORMS_SUBSTITUTION`] marks the
         // template-expanding command (`subst`) — any spec that performs
-        // `$var` / `[cmd]` substitution over an argument string.
+        // `$var` / `[cmd]` substitution over an argument string.  Checked
+        // before the argument slice is borrowed so the command walk pays
+        // nothing for every other command.
         if args.is_empty()
             || arg_tokens.is_empty()
             || !self
@@ -904,42 +968,52 @@ cause code injection. Use braces: {cmd_name} {sub_name} $child {{...}}"
         {
             return;
         }
-        let (template_idx, nocommands, novariables) = parse_subst_flags(args);
-        let Some(idx) = template_idx else {
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let Some(performed) = self
+            .registry
+            .as_deref()
+            .and_then(|r| r.substitutions_performed(cmd_name, &arg_refs))
+        else {
             return;
         };
+        if !performed.commands && !performed.variables {
+            // Backslash substitution alone rewrites text; it neither reads a
+            // variable nor runs a command, so there is nothing to inject.
+            return;
+        }
+        // The operand is the call's final argument, as the resolver defines
+        // it; every earlier word is a switch.
+        let idx = args.len() - 1;
         let Some(tok) = arg_tokens.get(idx) else {
             return;
         };
-        if !matches!(tok.kind, tcl_lexer::TokenType::Var) {
+        // A braced operand is the template as written — its `$var`s are the
+        // substitution the call was made for, not a value spliced in from
+        // elsewhere.  Any other word carrying a substitution reaches `subst`
+        // already expanded once, and is expanded again.
+        if is_braced_word(tok) || !has_substitution(&args[idx], tok) {
             return;
         }
-        if nocommands && novariables {
-            // Only backslash substitution remains — low risk.
-            return;
-        }
-        let mut active = String::new();
-        if !nocommands {
-            active.push_str("[cmd]");
-        }
-        if !nocommands && !novariables {
-            active.push_str(" and ");
-        }
-        if !novariables {
-            active.push_str("$var");
-        }
-        let mut mitigations: Vec<&str> = Vec::new();
-        if !nocommands {
-            mitigations.push("-nocommands");
-        }
-        if !novariables {
-            mitigations.push("-novariables");
-        }
+        let active = match (performed.commands, performed.variables) {
+            (true, true) => "[cmd] and $var",
+            (true, false) => "[cmd]",
+            _ => "$var",
+        };
+        let advice = self
+            .substitution_narrowing_switches(cmd_name, &arg_refs, performed)
+            .map_or_else(
+                || "Use [format] / [string map] for safe templating.".to_owned(),
+                |switches| {
+                    format!(
+                        "Add {} to limit substitution scope, or use [format] / \
+[string map] for safe templating.",
+                        switches.join(" ")
+                    )
+                },
+            );
         let message = format!(
             "{cmd_name} with a variable argument enables code injection: any \
-{active} in the string will be evaluated. Add {} to limit substitution \
-scope, or use [format] / [string map] for safe templating.",
-            mitigations.join(" ")
+{active} in the string will be evaluated. {advice}"
         );
         self.result
             .diagnostics
@@ -1892,29 +1966,6 @@ fn is_literal_credential_value(value: &str, tok: &tcl_lexer::Token) -> bool {
 fn uplevel_has_level(arg0: &str) -> bool {
     let stripped = arg0.trim_start_matches('#');
     !stripped.is_empty() && stripped.bytes().all(|b| b.is_ascii_digit())
-}
-
-/// Parse `subst`'s flags, returning `(template_idx, nocommands,
-/// novariables)` — the index of the first non-option argument (the
-/// template) and which substitution-suppressing flags were seen.
-/// (`-nobackslashes` is accepted but irrelevant to the W102 message.)
-fn parse_subst_flags(args: &[String]) -> (Option<usize>, bool, bool) {
-    let mut nocommands = false;
-    let mut novariables = false;
-    let mut template_idx = None;
-    for (i, text) in args.iter().enumerate() {
-        match text.as_str() {
-            "-nocommands" => nocommands = true,
-            "-novariables" => novariables = true,
-            "-nobackslashes" => {}
-            t if t.starts_with('-') => {}
-            _ => {
-                template_idx = Some(i);
-                break;
-            }
-        }
-    }
-    (template_idx, nocommands, novariables)
 }
 
 /// Return `(pattern_text, token)` pairs for every regex pattern

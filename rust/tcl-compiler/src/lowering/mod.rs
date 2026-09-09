@@ -1040,6 +1040,25 @@ impl WordSpace {
 const MAX_LOWER_NEST_DEPTH: tcl_core_types::RecursionLimit =
     crate::depth_guard::MAX_SOURCE_NEST_DEPTH;
 
+/// The substitutions [`crate::subst_nocommands`] performs: `[cmd]` off,
+/// `$var` and backslashes on.
+///
+/// A `subst` call the registry answers with exactly this set is one that
+/// evaluator reproduces, however the call spells it —
+/// `subst -nocommands {…}` and Tcl 9.1's `subst -variables -backslashes {…}`
+/// both land here (tclsh 9.1b0: `subst -variables -backslashes {hello
+/// $name\n[format X]}` with `name` set to `world` yields "hello world",
+/// a newline, then the untouched `[format X]`). Asking the registry rather
+/// than matching switch spellings is issue #2098; the answer for a call it
+/// cannot read is every kind, which is not this set, so a computed switch
+/// word folds nothing.
+pub(crate) const SUBST_NOCOMMANDS_KINDS: tcl_registry::substitution::SubstitutionKinds =
+    tcl_registry::substitution::SubstitutionKinds {
+        backslashes: true,
+        commands: false,
+        variables: true,
+    };
+
 impl<'r> Lowerer<'r> {
     /// Create a new lowerer with the default (Tcl-8.5+) lexer config.
     #[must_use]
@@ -2642,14 +2661,22 @@ impl<'r> Lowerer<'r> {
         })
     }
 
-    /// If *`cmd_text`* is `subst -nocommands {template}` (in any
-    /// flag order) AND every `$var` inside *template* is in the
-    /// current const-map, return the substituted string. Otherwise
-    /// `None` so the caller falls back to runtime dispatch.
+    /// If *`cmd_text`* is a `subst` call the registry says performs
+    /// [`SUBST_NOCOMMANDS_KINDS`] over a braced literal operand AND every
+    /// `$var` inside that template is in the current const-map, return the
+    /// substituted string. Otherwise `None` so the caller falls back to
+    /// runtime dispatch.
     ///
     /// Used to materialise the tcltest-style `Option` factory body
     /// at compile time when the surrounding proc has all the
     /// template vars const-tracked.
+    ///
+    /// Which substitutions the call performs is
+    /// [`tcl_registry::CommandRegistry::substitutions_performed`]'s answer,
+    /// not a switch-spelling match here (issue #2098): any other effect set
+    /// is a call this evaluator does not reproduce, and a call the registry
+    /// cannot read — a computed switch word — answers every kind and folds
+    /// nothing.
     fn eval_subst_nocommands_body(&self, cmd_text: &str) -> Option<String> {
         use tcl_lexer::TokenType;
         let inner = segment_commands_with_offset_and_config(cmd_text, 0, self.config);
@@ -2660,42 +2687,30 @@ impl<'r> Lowerer<'r> {
         if inner_cmd.texts.is_empty() || inner_cmd.texts[0] != "subst" {
             return None;
         }
-        let argv = inner_cmd.arg_tokens();
         let texts = inner_cmd.args();
-        let single = &inner_cmd.single_token_word;
-
-        let mut saw_nocommands = false;
-        let mut template_text: Option<&str> = None;
-        for (i, tok) in argv.iter().enumerate() {
-            let text = &texts[i];
-            if text == "-nocommands" {
-                saw_nocommands = true;
-                continue;
-            }
-            if text == "-nobackslashes" || text == "-novariables" {
-                // Either flag changes the semantics our evaluator
-                // assumes — refuse.
-                return None;
-            }
-            if text.starts_with('-') {
-                return None;
-            }
-            if !single.get(i + 1).copied().unwrap_or(false) {
-                return None;
-            }
-            if tok.kind != TokenType::Str {
-                return None;
-            }
-            if template_text.is_some() {
-                // Multiple positionals — not the shape we recognise.
-                return None;
-            }
-            template_text = Some(text.as_str());
-        }
-        if !saw_nocommands {
+        let arg_refs: Vec<&str> = texts.iter().map(String::as_str).collect();
+        if self
+            .registry
+            .substitutions_performed(&inner_cmd.texts[0], &arg_refs)
+            != Some(SUBST_NOCOMMANDS_KINDS)
+        {
             return None;
         }
-        let template = template_text?;
+        // The operand is the call's final argument; only a braced literal one
+        // is a template this can substitute at compile time.
+        let idx = texts.len().checked_sub(1)?;
+        if !inner_cmd
+            .single_token_word
+            .get(idx + 1)
+            .copied()
+            .unwrap_or(false)
+        {
+            return None;
+        }
+        if inner_cmd.arg_tokens().get(idx)?.kind != TokenType::Str {
+            return None;
+        }
+        let template = texts[idx].as_str();
         if self.proc_depth == 0 {
             return None;
         }
@@ -6692,6 +6707,52 @@ mod tests {
                         p.body.statements[0],
                         Statement::Call { .. } | Statement::Barrier { .. }
                     )
+            );
+        }
+    }
+
+    /// Tcl 9.1's positive family names the same effect set `-nocommands`
+    /// leaves — variables and backslashes on, commands off — so the body
+    /// materialises the same way (issue #2098).
+    ///
+    /// tclsh 9.1b0, with `name` set to `world`:
+    /// `subst -variables -backslashes {hello $name\n[format X]}` → `hello
+    /// world`, a newline, then the untouched `[format X]`.
+    #[test]
+    fn proc_subst_tcl91_positive_switches_materialised() {
+        let m = lower_to_ir(
+            "proc factory {} { set name {Verbose}\n set default {0}\n proc $name {x} [subst -variables -backslashes {return $default}] }",
+            &reg(),
+        );
+        let inner = m.procedures.get("::Verbose").expect("::Verbose registered");
+        assert!(
+            !inner.body.statements.is_empty(),
+            "expected lowered body, got empty"
+        );
+        assert!(
+            !matches!(inner.body.statements[0], Statement::Barrier { .. }),
+            "expected a materialised body, got {:?}",
+            inner.body.statements
+        );
+    }
+
+    /// A computed switch word leaves the call unreadable, so the registry
+    /// answers every kind and the materialiser refuses (issue #2098).
+    #[test]
+    fn proc_subst_computed_switch_word_refused() {
+        let m = lower_to_ir(
+            "proc factory {opt} { set name {Verbose}\n set default {0}\n proc $name {x} [subst $opt {return $default}] }",
+            &reg(),
+        );
+        if let Some(p) = m.procedures.get("::Verbose") {
+            assert!(
+                p.body.statements.is_empty()
+                    || matches!(
+                        p.body.statements[0],
+                        Statement::Call { .. } | Statement::Barrier { .. }
+                    ),
+                "expected no materialised body, got {:?}",
+                p.body.statements
             );
         }
     }
