@@ -451,14 +451,21 @@ impl Namespaces {
         hits
     }
 
-    /// Remove all namespace-table commands carrying `owner`, returning their
-    /// last fully-qualified locations. Hidden commands are held by `Interp`
-    /// and are retired by the same caller after this arena half.
-    pub(crate) fn remove_oo_command_identity(&mut self, owner: OoId) -> Vec<(Vec<u8>, u64)> {
+    /// Remove namespace-table commands carrying `owner` in one of `roles`,
+    /// returning their last fully-qualified locations. Hidden commands are
+    /// held by `Interp` and are retired by the same caller after this half.
+    pub(crate) fn remove_oo_command_roles(
+        &mut self,
+        owner: OoId,
+        roles: &[OoCommandRole],
+    ) -> Vec<(Vec<u8>, u64)> {
         let mut hits = Vec::new();
         for (ns, node) in self.arena.iter().enumerate() {
             for (name, command) in node.commands.iter() {
-                if command.oo_binding().is_some_and(|(id, _)| id == owner) {
+                if command
+                    .oo_binding()
+                    .is_some_and(|(id, role)| id == owner && roles.contains(&role))
+                {
                     let generation = node
                         .commands
                         .generation(name)

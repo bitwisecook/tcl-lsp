@@ -5948,6 +5948,10 @@ impl Interp {
         // may relocate a later dispatcher, so the centralized role walk
         // re-resolves every token immediately before firing it.
         self.fire_oo_command_role_delete_traces(obj);
+        // Private dispatchers stop existing before object-variable unset
+        // callbacks. The public object command deliberately remains visible
+        // through that namespace phase, matching Tcl's `FreeObject` boundary.
+        self.remove_prefired_oo_private_commands(obj);
         // Then delete the instance namespace — this unsets its variables and
         // fires their unset traces while the object is still registered and
         // torn-down, so a trace callback sees `info object isa object` true, the
@@ -7804,14 +7808,20 @@ mod tests {
                             rename ${ns}::myclass ::mc
                         }
                         proc t {tag args} {lappend ::log $tag}
+                        proc var {name1 name2 op} {
+                            set c [catch {trace add command ::mc delete late} m]
+                            lappend ::log [list var [info commands ::mc] $c $m \
+                                                [info commands ::x]]
+                        }
+                        proc late {args} {lappend ::log late}
                         trace add command x delete [list public $ns]
                         trace add command ${ns}::my delete [list t my]
                         trace add command ${ns}::myclass delete [list t myclass]
-                        trace add variable ${ns}::v unset [list t var]
+                        trace add variable ${ns}::v unset var
                         x destroy
                         set log"#,
                 ),
-                b"public myclass my var",
+                b"public myclass my {var {} 1 {unknown command \"::mc\"} ::x}",
             );
         });
     }

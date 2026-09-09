@@ -611,6 +611,13 @@ pub(crate) enum OoCommandRole {
     MyClass,
 }
 
+const OO_COMMAND_RETIREMENT_ORDER: [OoCommandRole; 3] = [
+    OoCommandRole::Object,
+    OoCommandRole::MyClass,
+    OoCommandRole::My,
+];
+const OO_PRIVATE_COMMAND_ROLES: [OoCommandRole; 2] = [OoCommandRole::MyClass, OoCommandRole::My];
+
 impl Command {
     /// Stable TclOO identity and role carried by this command, if any.
     pub(crate) fn oo_binding(&self) -> Option<(OoId, OoCommandRole)> {
@@ -2604,13 +2611,17 @@ impl Interp {
     /// semantic teardown order. Resolving each role immediately before its
     /// turn lets an earlier callback relocate a later dispatcher.
     pub(crate) fn fire_oo_command_role_delete_traces(&mut self, owner: OoId) {
-        for role in [
-            OoCommandRole::Object,
-            OoCommandRole::MyClass,
-            OoCommandRole::My,
-        ] {
+        for role in OO_COMMAND_RETIREMENT_ORDER {
             self.fire_oo_command_delete_traces(owner, Some(role));
         }
+    }
+
+    /// Remove already-prefired command roles without replaying their delete
+    /// callbacks. Object teardown uses this for the private dispatchers before
+    /// instance-variable traces run; the public command remains until after
+    /// that namespace phase.
+    pub(crate) fn remove_prefired_oo_private_commands(&mut self, owner: OoId) {
+        self.remove_oo_command_roles(owner, &OO_PRIVATE_COMMAND_ROLES);
     }
 
     /// Retire every command token carried by one TclOO owner identity. The
@@ -2638,10 +2649,17 @@ impl Interp {
             self.fire_oo_command_role_delete_traces(owner);
         }
 
+        self.remove_oo_command_roles(owner, &OO_COMMAND_RETIREMENT_ORDER);
+        self.forget_registry_object_root(owner);
+        self.0.retiring_oo_commands.borrow_mut().remove(&owner);
+        self.invalidate_command_environment();
+    }
+
+    fn remove_oo_command_roles(&mut self, owner: OoId, roles: &[OoCommandRole]) {
         let mut removed: Vec<(Vec<u8>, u64)> = self
             .namespaces
             .borrow_mut()
-            .remove_oo_command_identity(owner);
+            .remove_oo_command_roles(owner, roles);
         let hidden_names: Vec<Vec<u8>> = self
             .hidden
             .borrow()
@@ -2650,7 +2668,7 @@ impl Interp {
                 binding
                     .command
                     .oo_binding()
-                    .is_some_and(|(id, _)| id == owner)
+                    .is_some_and(|(id, role)| id == owner && roles.contains(&role))
             })
             .map(|(name, _)| name.clone())
             .collect();
@@ -2667,8 +2685,6 @@ impl Interp {
         for (fqn, generation) in removed {
             self.remove_cmd_traces_of_token(&fqn, Some(generation));
         }
-        self.forget_registry_object_root(owner);
-        self.0.retiring_oo_commands.borrow_mut().remove(&owner);
         self.invalidate_command_environment();
     }
 
