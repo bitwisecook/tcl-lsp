@@ -557,8 +557,8 @@ pub struct LegacyEffectBridge {
     /// footprint.
     ///
     /// This is a boolean, not a list of command-table effect words, because
-    /// there is one transition vocabulary now (centralisation ledger C8):
-    /// *what* the call did to the command table is the
+    /// there is one transition vocabulary: *what* the call did to the
+    /// command table is the
     /// [`crate::CommandBindingTransition`] facts, read from
     /// [`crate::ResolvedInvocation::state_transitions`]. All the effect
     /// bridge needs is *whether* it did, so it can add the wildcard

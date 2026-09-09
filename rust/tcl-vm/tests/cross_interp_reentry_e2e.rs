@@ -125,7 +125,7 @@ const VECTORS: &[Vector] = &[
                  puts [interp hidden {}]\n",
         want: "",
     },
-    // -- fault 1: parent alias reached across a native re-entry ----------
+    // Fault 1: parent alias reached across a native re-entry.
     Vector {
         name: "TP: a parent alias fires from inside a resumed coroutine",
         script: "proc ptarget {x} { return parent:$x }\n\
@@ -177,7 +177,7 @@ const VECTORS: &[Vector] = &[
                  interp delete c\n",
         want: "from-timer",
     },
-    // -- fault 1: completion codes carried across the boundary ------------
+    // Fault 1: completion codes carried across the boundary.
     Vector {
         name: "TP: an error crossing a native re-entry propagates catchably with its code",
         script: "proc perr {} { error boom EI {ECODE X} }\n\
@@ -209,7 +209,7 @@ const VECTORS: &[Vector] = &[
                  interp delete c\n",
         want: "custom 7",
     },
-    // -- fault 2: a parent target re-enters the child that called it -------
+    // Fault 2: a parent target re-enters the child that called it.
     Vector {
         name: "TP: a parent alias target re-enters the calling child",
         script: "interp create c\n\
@@ -239,7 +239,7 @@ const VECTORS: &[Vector] = &[
                  puts [interp exists c]\n",
         want: "killed after\n0",
     },
-    // -- fault 1 boundary: the still-native yield limit is preserved -------
+    // Fault 1 boundary: the still-native yield limit is preserved.
     Vector {
         name: "TN: a bare yield still cannot cross a cross-interp callback (like C Tcl)",
         script: "proc pyield {} { yield marker }\n\
@@ -250,7 +250,7 @@ const VECTORS: &[Vector] = &[
                  interp delete c\n",
         want: "1:cannot yield: C stack busy",
     },
-    // -- nested (grandchild) interpreters -----------------------------------
+    // Nested (grandchild) interpreters.
     Vector {
         name: "TP: a multi-word interp path routes an alias into a grandchild",
         script: "interp create a\n\
@@ -287,7 +287,7 @@ const VECTORS: &[Vector] = &[
                  interp delete a\n",
         want: "from-root",
     },
-    // -- frame/interpreter identity across the boundary ---------------------
+    // Frame/interpreter identity across the boundary.
     Vector {
         name: "TP: a child-target alias's frame is the parent's, not the alias-call frame",
         script: "interp create c\n\
@@ -307,7 +307,7 @@ const VECTORS: &[Vector] = &[
                  puts [caller]\n",
         want: "2",
     },
-    // -- sibling aliases (routed through the shared parent) ----------------
+    // Sibling aliases (routed through the shared parent)
     Vector {
         name: "TP: a sibling→sibling alias dispatches into the other child",
         script: "interp create a\n\
@@ -329,7 +329,7 @@ const VECTORS: &[Vector] = &[
                  interp delete b\n",
         want: "1:cannot define or rename alias \"y\": would create a loop",
     },
-    // -- interp lifecycle: alias identity across target death --------------
+    // Interp lifecycle: alias identity across target death.
     Vector {
         name: "TP: deleting the target interp removes the alias from its source",
         script: "interp create a\n\
@@ -371,7 +371,7 @@ const VECTORS: &[Vector] = &[
                  interp delete b\n",
         want: "1:invalid command name \"hi\"",
     },
-    // -- safe children ----------------------------------------------------
+    // Safe children.
     Vector {
         name: "TP: a safe child can still call a parent-target alias",
         script: "proc ptgt {} { return safe-parent-call }\n\

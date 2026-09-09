@@ -217,11 +217,9 @@ fn binding_value(stmts: &[Statement], suffix: &str) -> Option<String> {
     })
 }
 
-// ###########################################################################
-// PART A — inlining/mod.rs residual branches
-// ###########################################################################
+// inlining/mod.rs residual branches.
 
-// A1. count_statements — the per-statement-kind arms the sibling suites skip.
+// count_statements — the per-statement-kind arms the sibling suites skip.
 //
 // The existing count tests cover empty / flat / nested-if (`inlining.rs`) and
 // Try / Switch / Foreach / Catch (`compiler_analysis_residual.rs`).  These pin
@@ -297,7 +295,7 @@ fn count_statements_bare_call_is_one() {
     assert_eq!(count_statements(&m.procedures["::f"].body), 1);
 }
 
-// A2. rewrite_stmt — recursion into a nested control-flow body that produces a
+// rewrite_stmt — recursion into a nested control-flow body that produces a
 // change (the `changed == true` arms).  The sibling suites cover If / For bodies; these
 // pin Catch / While / Foreach / Switch / UpFrame / Try recursion by inlining an
 // empty-body `noop` *inside* each construct and asserting the inner call
@@ -468,7 +466,7 @@ fn rewrite_recurses_into_for_init_and_next() {
     assert_eq!(calls_to(&next.statements, "noop"), 0, "next noop inlined");
 }
 
-// A3. verbatim-splice allow-list (command_is_splice_safe) + the decline gates.
+// verbatim-splice allow-list (command_is_splice_safe) + the decline gates.
 // `inlining.rs` covers `puts` / `string` wrappers; these pin the other
 // allow-list entries and the two decline gates (command-subst arg, non-safe
 // command).
@@ -533,7 +531,7 @@ fn wrapper_with_local_write_takes_v3_not_verbatim_path() {
     );
 }
 
-// A4. build_with_defaults — the variadic-with-defaults path, the params_raw
+// build_with_defaults — the variadic-with-defaults path, the params_raw
 // bail, and the None-default decline.
 
 #[test]
@@ -572,7 +570,7 @@ fn missing_positional_with_a_later_default_but_a_gap_declines() {
     );
 }
 
-// A5. parse_params_with_defaults — quoted / braced / empty defaults.
+// parse_params_with_defaults — quoted / braced / empty defaults.
 // Exercised through the v3 default-fill: the parsed default value must land in
 // the binding stripped of its quoting (Tcl proc defaults are literal).
 
@@ -615,7 +613,7 @@ fn default_bare_word_value_kept() {
     );
 }
 
-// A6. list_clean_for_splice — variadic-extra decline shapes.
+// list_clean_for_splice — variadic-extra decline shapes.
 // When variadic extras are packed into `[list e1 e2 …]`, an extra word that is
 // unsafe to splice verbatim (whitespace, an empty word, an unbalanced `[`/`${`)
 // declines the whole inline.  The clean case packs successfully.
@@ -662,7 +660,7 @@ fn variadic_extra_with_unbalanced_bracket_declines() {
     );
 }
 
-// A7. substitute_irreturn over a Switch arm — a `return` nested inside a
+// substitute_irreturn over a Switch arm — a `return` nested inside a
 // switch arm body is rewritten to `set __RESULT …; break` when the inline is
 // wrapped (non-terminal early-return).  `inlining.rs` covers the `if` case;
 // this pins the `Switch` arm of `substitute_irreturn_stmt`.
@@ -720,7 +718,7 @@ fn early_return_inside_switch_arm_is_wrapped() {
     );
 }
 
-// A8. inline_module early-return when no proc is inlinable (empty map).
+// inline_module early-return when no proc is inlinable (empty map).
 
 #[test]
 fn inline_module_no_inlinable_proc_returns_unchanged() {
@@ -743,16 +741,14 @@ fn inline_module_with_no_procs_at_all_is_unchanged() {
     assert_eq!(out, m);
 }
 
-// ###########################################################################
-// PART B — interprocedural.rs residual branches
-// ###########################################################################
+// interprocedural.rs residual branches.
 //
-// All of Part B asserts compiler-internal summary / call-graph structure
+// This section asserts compiler-internal summary / call-graph structure
 // (analysis-internal, not Tcl-observable), so the assertions are structural,
 // per the top-of-file discipline. Where a snippet's *value* under tclsh is
 // relevant to why a fact holds (e.g. an upvar write-back), it is cited.
 
-// B1. The call-by-name machinery — build_proc_index_from_summaries +
+// The call-by-name machinery — build_proc_index_from_summaries +
 // collect_call_by_name_reads (+ add_call_by_name + scan_value_cmd_subst).
 // No other test drives these directly. The behaviour: a literal variable NAME
 // passed to a callee parameter that the callee consumes via `upvar` must be
@@ -910,7 +906,7 @@ fn proc_index_registers_bare_qualified_and_stripped_keys() {
     );
 }
 
-// B2. direct_calls vs calls (transitive). The sibling suites assert `calls` (transitive
+// direct_calls vs calls (transitive). The sibling suites assert `calls` (transitive
 // closure); `direct_calls` is the local, non-transitive set the callgraph verb
 // consumes — pin that it carries only the immediate callee, not A→C.
 
@@ -937,9 +933,9 @@ fn direct_calls_excludes_transitive_edges() {
     );
 }
 
-// B3. transitive writes_global / has_unknown_calls — the `transitive_flag`
-// closure ORs in each transitive callee's local flag (the doc'd-but-previously
-// buggy propagation).
+// transitive writes_global / has_unknown_calls — the `transitive_flag`
+// closure ORs in each transitive callee's local flag; this pins that
+// propagation as documented and correct.
 
 #[test]
 fn writes_global_propagates_transitively() {
@@ -968,7 +964,7 @@ fn has_unknown_calls_propagates_transitively() {
     );
 }
 
-// B4. has_barrier via Statement::Barrier and via UpFrame.
+// has_barrier via Statement::Barrier and via UpFrame.
 
 #[test]
 fn upframe_body_marks_barrier_and_impure() {
@@ -1006,7 +1002,7 @@ fn effect_writes_propagate_through_transitive_callee() {
     );
 }
 
-// B5. classify_return / summarise_returns over the value shapes the sibling suites skip
+// classify_return / summarise_returns over the value shapes the sibling suites skip
 // (the sibling suites cover int literal, $param passthrough, fall-through-not-constant,
 // fully-covered-if). These pin: float, bool, quoted string, braced literal,
 // ${param} brace passthrough, and the UsesParam (depends-on-params) shape.
@@ -1116,7 +1112,7 @@ fn no_return_proc_is_not_constant() {
     assert!(s.return_depends_on_params.is_empty());
 }
 
-// B6. call-graph edges discovered inside substitutions (scan_value_substitutions
+// call-graph edges discovered inside substitutions (scan_value_substitutions
 // / scan_source_for_calls) for assigned values, returns, and incr amounts.
 
 #[test]
@@ -1162,7 +1158,7 @@ fn edge_via_incr_amount_substitution() {
     );
 }
 
-// B7. wire-form lowerings — ProcArgTrait::as_str and ConstantReturn::as_kind_text
+// wire-form lowerings — ProcArgTrait::as_str and ConstantReturn::as_kind_text
 // (the stable serialisation surface consumed by the native LSP server).
 
 #[test]
@@ -1204,7 +1200,7 @@ fn constant_return_kind_text_wire_forms() {
     );
 }
 
-// B8. method summaries — effect propagation + return summarisation + arity.
+// method summaries — effect propagation + return summarisation + arity.
 // The interprocedural unit tests cover method *purity*; these pin the effect
 // union from a proc callee and the method's return/arity fields.
 
@@ -1244,7 +1240,7 @@ fn method_return_constant_and_arity_summarised() {
     );
 }
 
-// B9. Arity::any vs exact + ProcSummary structural facts already partly covered
+// Arity::any vs exact + ProcSummary structural facts already partly covered
 // upstream; pin the variadic-arity unbounded mapping for a proc.
 
 #[test]

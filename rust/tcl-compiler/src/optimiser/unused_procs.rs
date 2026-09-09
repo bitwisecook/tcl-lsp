@@ -27,10 +27,10 @@
 //!
 //! The pass reports `O124` with a replacement that prefixes every
 //! non-empty body line with `# ` and prepends an explanatory
-//! banner. The code is gated on `ctx.dialect == Some(tcl_dialect::DialectProfile::irules())`.
-//! If any reachable proc has a `has_barrier` flag (dynamic
-//! dispatch — `eval`, `uplevel`, etc.), the pass bails out to
-//! avoid false positives.
+//! header line. It runs only for the iRules dialect. If any
+//! reachable proc has a `has_barrier` flag (dynamic dispatch —
+//! `eval`, `uplevel`, etc.), the pass bails out to avoid false
+//! positives.
 
 use std::collections::HashSet;
 use tcl_core_types::DiagCode;
@@ -47,8 +47,8 @@ use super::{Optimisation, PassContext};
 /// No-op unless [`PassContext::dialect`] resolves to the iRules profile.  Both
 /// spellings reach it: the canonical `f5-irules` (which
 /// [`tcl_dialect::DialectProfile::irules`] returns directly) and the `irules`
-/// alias, which `DialectProfile::by_name` canonicalises to the same profile —
-/// the two names `active_dialect()` accepts interchangeably for iRules.
+/// alias, which the dialect catalogue resolves onto the same profile — the two
+/// names `active_dialect()` accepts interchangeably.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     if !is_irules_dialect(ctx.dialect) {
         return;
@@ -87,10 +87,9 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 
     // Conservative escape hatch: any reachable proc with a
     // dynamic barrier could dynamically dispatch to an otherwise
-    // "unused" proc. Suppress O124 entirely. Deliberately we do
-    // *not* check `has_unknown_calls` — it fires for impure
-    // built-in commands (`pool`, `puts`, …) that cannot invoke
-    // user procs.
+    // "unused" proc, so suppress O124 entirely. `has_unknown_calls`
+    // is deliberately not checked — it fires for impure built-in
+    // commands (`pool`, `puts`, …) that cannot invoke user procs.
     for qname in &reachable {
         if let Some(summary) = ctx.interproc.procedures.get(qname)
             && summary.has_barrier
@@ -131,15 +130,11 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     }
 }
 
-// Library-iRule detection
-
 /// Return `true` when the set of event names looks like a library
 /// iRule — nothing except optionally `RULE_INIT`.
 fn is_library_irule(event_names: &HashSet<String>) -> bool {
     event_names.iter().all(|n| n == "RULE_INIT")
 }
-
-// Reachability walk
 
 fn reachable_procs(
     roots: &HashSet<String>,
@@ -161,8 +156,6 @@ fn reachable_procs(
     }
     visited
 }
-
-// Comment-out renderer
 
 /// Comment every non-empty line of `text` (preserving empties as
 /// `#`) and prepend an explanatory banner.
@@ -205,8 +198,6 @@ mod tests {
         }
         ip
     }
-
-    // helper tests
 
     #[test]
     fn library_irule_detected_when_only_rule_init_events() {
@@ -262,9 +253,8 @@ mod tests {
         assert!(is_irules_dialect(Some(
             tcl_dialect::DialectProfile::irules()
         )));
-        // And the `irules` *alias*, which only reaches the same profile by
-        // going through `by_name`. Asserting `irules()` twice here would pin
-        // nothing: the alias leg is the half that can actually regress.
+        // And the `irules` *alias*, which reaches the same profile only by
+        // going through the catalog lookup — the leg that can regress.
         assert!(is_irules_dialect(Some(
             tcl_registry::model::ingress::resolve_environment("irules").analyser_profile()
         )));
@@ -281,8 +271,6 @@ mod tests {
         assert!(!is_irules_dialect(None));
     }
 
-    // end-to-end tests
-
     fn run_pass(
         source: &str,
         dialect: Option<&'static tcl_dialect::DialectProfile>,
@@ -291,10 +279,10 @@ mod tests {
         // `when` (and any other dialect-gated structured command)
         // is registry-resolved, so the test registry must carry the
         // dialect's command set before lowering iRule code. The shared
-        // per-profile cache matches how production resolves it — and the
-        // profile catalog canonicalises the `"irules"` alias, so both
-        // spellings load the iRules pack exactly as the optimiser passes
-        // recognise both via `is_irules_dialect`.
+        // per-profile cache is the same one production resolves through,
+        // and the profile catalog canonicalises the `"irules"` alias, so
+        // both spellings load the iRules pack exactly as
+        // `is_irules_dialect` recognises both.
         let registry = tcl_registry::model::ingress::static_context_for(
             dialect.map_or("tcl", |profile| profile.name),
         )

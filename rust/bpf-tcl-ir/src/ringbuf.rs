@@ -16,8 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Typed kernel→userspace event records and their ring-buffer transport
-//! (issue #1204's userspace event channel).
+//! Typed kernel→userspace event records and their ring-buffer transport.
 //!
 //! Observability events (tracepoints, kprobes, …) do not return a packet
 //! verdict; they emit **records** to userspace. This module defines a

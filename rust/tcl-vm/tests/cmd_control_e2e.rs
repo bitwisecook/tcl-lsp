@@ -577,7 +577,7 @@ fn try_dash_fallthrough() {
     );
 }
 
-/// Issue #1607: `try`'s handler-type word is a `Tcl_GetIndexFromObj(…,
+/// `try`'s handler-type word is a `Tcl_GetIndexFromObj(…,
 /// "handler type", 0)` table, so the three types abbreviate and the empty word
 /// — a prefix of all three — is `ambiguous handler type ""`, not `bad`.
 ///
@@ -1054,21 +1054,21 @@ fn foreach_runtime_variants() {
     );
 }
 
-/// Issue #1572 — a **braced** list word is a literal in every direction.
+/// A **braced** list word is a literal in every direction.
 /// `TclFindElement`'s brace semantics keep `$` and `[…]` inert both for the
 /// word itself and for any braced element inside it, so the compiled
-/// `foreach` header must push it verbatim. It used to push an ordinary
-/// literal, and the VM's `subst_word` then ran the substitution at loop
-/// entry: `foreach e {{a[b]c} x}` raised `invalid command name "b"`.
+/// `foreach` header must push it verbatim. Pushing an ordinary literal
+/// instead, with the VM's `subst_word` running the substitution at loop
+/// entry, would raise `invalid command name "b"` for `foreach e {{a[b]c} x}`.
 ///
 /// Every expectation below is byte-exact against real tclsh 8.6.16 and 9.0.4
 /// (the answers are identical at both, the rule is unchanged across the
 /// releases).
 #[test]
 fn braced_foreach_list_word_is_never_substituted() {
-    // The filed repro: a braced *element* inside the braced list word.
+    // A braced *element* inside the braced list word.
     assert_eq!(run("foreach e {{a[b]c} x} { puts $e }").2, "a[b]c\nx\n");
-    // Broader than filed: a bare `[…]` directly in the braced list word is
+    // A bare `[…]` directly in the braced list word is
     // equally inert — braces protect the whole word, not just its elements.
     assert_eq!(run("foreach e {a[b]c x} { puts $e }").2, "a[b]c\nx\n");
     // `$` and a literal backslash sequence likewise.
@@ -1094,7 +1094,7 @@ fn braced_foreach_list_word_is_never_substituted() {
     );
 }
 
-/// The other half of #1572's contract: a list word that is *not* braced must
+/// The other half of that contract: a list word that is *not* braced must
 /// still substitute. Flipping the new guard on unconditionally would silence
 /// the bug by breaking these, so they are asserted beside it.
 #[test]
@@ -1120,7 +1120,7 @@ fn unbraced_foreach_list_word_still_substitutes() {
 
 /// A direct nested iterator routes the outer literal `foreach` through the
 /// runtime command boundary. That gives the inner loop a fresh activation;
-/// inlining both loops into one CFG used to leave only the final outer item.
+/// inlining both loops into one CFG would leave only the final outer item.
 #[test]
 fn nested_foreach_preserves_every_outer_iteration() {
     // tclsh 8.6 / 9.0: `a:HTTP TCP|b:HTTP TCP|c:HTTP TCP`
@@ -1678,7 +1678,7 @@ fn try_handler_var_bind_array_on_scalar_should_fail() {
     assert_eq!(msg, "can't set \"x(y)\": variable isn't array");
 }
 
-// Native-stack safety (issue #996) — the runtime `if`/`while`/`for` fallback
+// Native-stack safety: the runtime `if`/`while`/`for` fallback
 // (this file) recurses on the host stack via `Vm::eval_source` when driven
 // through a computed command name (`set c if; $c ...`, defeating the
 // compiled fast path — see this file's module doc comment). Confirmed

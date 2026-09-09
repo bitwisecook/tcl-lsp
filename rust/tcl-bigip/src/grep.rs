@@ -40,7 +40,7 @@ pub const DIRECTIONS: [&str; 3] = ["both", "forward", "reverse"];
 /// Closed vocabulary backing [`DIRECTIONS`]. `GrepArgs::direction` (CLI input)
 /// and `GrepReport::direction` (JSON/text output) stay `&str`/`String` — those
 /// are wire spellings a user types and a report emits, so the string is kept
-/// there per the #1405 boundary discipline — but the two BFS direction checks
+/// there at that boundary — but the two BFS direction checks
 /// in [`expand_bfs`] dispatch on this enum via [`GrepDirection::from_str`]
 /// instead of re-matching the raw string at each site.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

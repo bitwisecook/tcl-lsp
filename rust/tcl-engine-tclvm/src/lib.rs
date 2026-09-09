@@ -23,8 +23,8 @@
 //! canonical engine everywhere (server, CLI, and studio, which ships it to
 //! wasm already).
 //!
-//! Everything the interface asks for maps onto an embedder API the VM now has
-//! (issue #1373), rather than onto a shim around a gap:
+//! Everything the interface asks for maps onto an embedder API the VM has,
+//! rather than onto a shim around a gap:
 //!
 //! | interface | VM |
 //! |---|---|

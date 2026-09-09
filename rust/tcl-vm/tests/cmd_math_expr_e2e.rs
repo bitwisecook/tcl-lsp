@@ -183,9 +183,9 @@ fn expr_stk_dynamic_errors() {
 /// of its own — inserts the `_@_` mark. Each expectation is a `tclsh` result
 /// transcribed from C's own suite, `tests/parseExpr.test`.
 ///
-/// These all used to succeed, yielding the expression's own source text: an
-/// unparsable expression short-circuited `Vm::eval_expr` before the shared
-/// walker's `syntax error in expression` could fire.
+/// An unparsable expression that short-circuits `Vm::eval_expr` before the
+/// shared walker's `syntax error in expression` can fire would succeed
+/// instead, yielding the expression's own source text.
 #[test]
 fn expr_command_rejects_an_unparsable_expression() {
     // A dangling operator. tclsh: `missing operand at _@_` (`tclCompExpr.c:1151`)
@@ -361,10 +361,10 @@ fn a_comment_does_not_raise_the_unparsable_expression_error() {
 /// A `switch` subject and a `[…]` expression operand are *words*, not
 /// expressions — neither may be re-parsed as one.
 ///
-/// Both used to be lowered through `exprStk`, so both depended on an unparsable
-/// expression evaluating to its own text: `switch -- abc …` ran `expr {abc}`, and
-/// `[…]` was pushed (which substitutes it) and then evaluated a second time.
-/// Where the intermediate text *was* parsable the double evaluation gave a wrong
+/// Lowering both through `exprStk` would depend on an unparsable
+/// expression evaluating to its own text: `switch -- abc …` would run `expr {abc}`, and
+/// `[…]` would be pushed (which substitutes it) and then evaluated a second time.
+/// Where the intermediate text *is* parsable the double evaluation gives a wrong
 /// answer outright, which is what the `1+1` / `1+2` vectors pin.
 #[test]
 fn a_word_operand_is_not_re_parsed_as_an_expression() {
@@ -1108,7 +1108,7 @@ fn mathfunc_int_wide_are_the_64bit_window() {
     // then wraps the same way (variable args defeat const folding).
     //
     // `int()` is **not** the same function at 9.0 — TIP 237's unbounded
-    // `ExprIntFunc` (issue #1382). This suite runs the VM at its default 9.0
+    // `ExprIntFunc`. This suite runs the VM at its default 9.0
     // release, so `int()` here is `entier()`; the 8.6 window is pinned
     // separately (`tcl-vm/tests/numeric_tower_e2e.rs`
     // `int_follows_the_vms_release`, which drives both releases).
@@ -1524,7 +1524,7 @@ fn bug_mathfunc_arity_error_wording() {
     );
 }
 
-// tcl::mathfunc: rand / srand — the shared Park-Miller generator (#1432)
+// tcl::mathfunc: rand / srand — the shared Park-Miller generator
 
 /// `srand(N)` seeds the generator and returns its first draw, so it is
 /// deterministic: tclsh 8.6.16 and 9.0.4 both answer `srand(1)` with
@@ -1621,7 +1621,7 @@ fn mathop_string_comparisons() {
 
 #[test]
 fn mathop_lt_le_gt_ge_are_lexicographic_not_numeric() {
-    // Adversarial-review finding (issue #984): every existing lt/le/gt/ge
+    // Every existing lt/le/gt/ge
     // case above (`a`/`b`, `1`/`1`, `2`/`1`, `2`/`2`) happens to agree
     // whether compared as strings or as numbers, so none of them would
     // catch a regression that silently flipped these operators to numeric
@@ -1699,13 +1699,12 @@ fn mathop_namespace_import() {
     assert_eq!(result, "60");
 }
 
-// -- radix-invalid numerals are barewords, not their own text (found by the
-//    differential fuzzer's malformed-expression campaigns) --
+// Radix-invalid numerals are barewords, not their own text.
 
 /// A numeral whose digits are invalid for its radix is not a number: C's
 /// `ParseLexeme` fails to consume it with `TclParseNumber` and classifies the
-/// text as a bareword (`tclCompExpr.c:716-780`). It used to evaluate to its own
-/// source text — `expr {0o8}` returned the string `0o8`.
+/// text as a bareword (`tclCompExpr.c:716-780`). Evaluating it to its own
+/// source text instead would return the string `0o8` for `expr {0o8}`.
 #[test]
 fn radix_invalid_numerals_are_barewords() {
     for (bad, radix) in [("0o8", "octal"), ("0o9", "octal"), ("0b2", "binary")] {

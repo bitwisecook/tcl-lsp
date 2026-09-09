@@ -113,8 +113,8 @@ export async function run(): Promise<void> {
   // remaining tests cannot pass and cannot learn anything new — they can only
   // each burn a full wait budget rediscovering it. Skip them instead, so a
   // wedged run reports in about the time a healthy one takes rather than
-  // grinding to the watchdog's absolute ceiling (issue #1294; the second
-  // occurrence spent ~27 of its 32 minutes this way).
+  // grinding to the watchdog's absolute ceiling (measured: one wedged run
+  // spent ~27 of its 32 minutes this way).
   //
   // A skip, not a bail: the failure that *did* diagnose the wedge stays in the
   // report as a failure, and the skipped count makes the lost coverage visible

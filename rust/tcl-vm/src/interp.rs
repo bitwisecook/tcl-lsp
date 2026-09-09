@@ -7520,7 +7520,7 @@ impl Vm {
         self.dying_namespaces.remove(&id);
     }
 
-    // -- deferred teardown: retaining a token for its live frames ------------
+    // Deferred teardown: retaining a token for its live frames.
 
     /// Whether a call frame is running in the namespace token.
     fn namespace_token_is_active(&self, id: NsId) -> bool {
@@ -7881,7 +7881,7 @@ impl Vm {
         self.package_prefer = PackagePrefer::Latest;
     }
 
-    // -- variable traces (`trace add|remove|info variable`) --
+    // Variable traces (`trace add|remove|info variable`)
 
     /// Resolve the stable variable cell reached by `name`. This is the identity owner
     /// for trace storage, firing, re-entrancy and destructive lifecycle paths.
@@ -9454,7 +9454,7 @@ impl Vm {
         }
     }
 
-    // -- frames --
+    // Frames.
 
     pub(crate) fn current_level(&self) -> usize {
         self.frames.len() - 1
@@ -11208,7 +11208,7 @@ impl Vm {
         }
     }
 
-    // -- arrays (link-aware via `locate`) --
+    // Arrays (link-aware via `locate`)
 
     pub(crate) fn get_array_elem(&self, name: &str, key: &str) -> Option<Value> {
         self.get_array_elem_from(self.current_level(), name, key)

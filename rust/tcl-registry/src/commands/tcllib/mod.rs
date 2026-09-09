@@ -948,7 +948,7 @@ mod tests {
     #[test]
     fn control_package_maps_to_control() {
         // The `control` module's control-flow commands are gated on the
-        // `control` package (issue #760).
+        // `control` package.
         let specs = tcllib_command_specs();
         let names = [
             "control::do",
@@ -970,7 +970,7 @@ mod tests {
     fn control_do_recurses_body_expr_and_keyword() {
         // `control::do body ?option test?` — the body is a script, the
         // option word (`while`/`until`) is a keyword, and the test is an
-        // expression.  These roles drive semantic-token recursion (#760).
+        // expression.  These roles drive semantic-token recursion.
         use crate::ArgRole;
         let reg = crate::registry::CommandRegistry::build_default();
         let args = ["{body}", "while", "{$x < 10}"];
@@ -986,7 +986,7 @@ mod tests {
     fn control_do_option_roles_only_apply_to_full_form() {
         // `?option test?` is only meaningful as a complete pair — a lone
         // `option` (the malformed two-word form) must NOT be highlighted as
-        // a keyword just because it sits at that position (PR #763 review).
+        // a keyword just because it sits at that position.
         use crate::ArgRole;
         let reg = crate::registry::CommandRegistry::build_default();
         // body-only form: just the body recurses, no keyword/expr.
@@ -1037,7 +1037,7 @@ mod tests {
     #[test]
     fn struct_list_mapfor_is_body_filterfor_is_expr() {
         // `mapfor`'s third argument is a Tcl script (body); `filterfor`'s
-        // is an expression — they must not be conflated (PR #763 review).
+        // is an expression — they must not be conflated.
         use crate::ArgRole;
         let reg = crate::registry::CommandRegistry::build_default();
         let mapfor = ["mapfor", "x", "{1 2 3}", "{body}"];

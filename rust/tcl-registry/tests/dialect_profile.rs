@@ -105,10 +105,9 @@ fn retired_non_irules_operators_union_never_reappears_as_a_gate() {
 }
 
 /// The commands F5's TMM interpreter removes from iRules (the K36322151
-/// sandbox bans plus the project-modelled iRules-excluded internals). This
-/// used to be a subtractive `DialectProfile::disabled_commands` list; it is
-/// now encoded directly in each spec's explicit surface (a banned command
-/// carries `ALL_TCL`, never an iRules row), so the list lives here only as the
+/// sandbox bans plus the project-modelled iRules-excluded internals),
+/// encoded directly in each spec's explicit surface (a banned command
+/// carries `ALL_TCL`, never an iRules row); the list lives here only as the
 /// test oracle for the contract below.
 const IRULES_BANNED: &[&str] = &[
     "auto_execok",
@@ -309,10 +308,10 @@ fn irules_banned_commands_never_resolve() {
     }
 }
 
-/// The additive-profile fix this milestone ships: real 8.5/8.6 core resolves
-/// under the composed (version|vendor) masks that the old bare-bit view
-/// wrongly excluded (the confirmed W123/W002 defect), while later-version
-/// core stays correctly unavailable.
+/// The additive-profile behaviour: real 8.5/8.6 core resolves under the
+/// composed (version|vendor) masks; a bare-bit view wrongly excludes them
+/// (the confirmed W123/W002 defect), while later-version core stays
+/// correctly unavailable.
 #[test]
 fn additive_profiles_resolve_their_embedded_tcl_core() {
     // (profile, resolves, still_unavailable)
@@ -359,7 +358,7 @@ fn additive_profiles_resolve_their_embedded_tcl_core() {
 
 /// BPF is a genuine Tcl 9.0 embedding, not merely a BPF command pack. The
 /// cache must install the pack and stamp that one profile so registry-owning
-/// consumers receive the full release/dialect fact set (issue #1466).
+/// consumers receive the full release/dialect fact set.
 #[test]
 fn bpf_registry_is_stamped_with_its_tcl90_embedding() {
     let registry = static_context_for("bpf").commands();

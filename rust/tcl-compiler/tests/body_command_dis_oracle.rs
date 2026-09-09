@@ -119,7 +119,7 @@ fn our_codegen_keeps_body_commands_opaque() {
     }
 }
 
-// ---- C Tcl `dis` oracle ------------------------------------------------------
+// C Tcl `dis` oracle.
 
 fn run_tcl(tclsh: &str, script: &str) -> Option<String> {
     let mut child = Command::new(tclsh)

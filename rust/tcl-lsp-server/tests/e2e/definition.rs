@@ -73,7 +73,7 @@ fn proc_in_namespace() {
 
 #[test]
 fn proc_in_two_level_nested_namespace_via_qualified_call() {
-    // Issue #923: go-to-definition on a fully-qualified call to a proc
+    // Go-to-definition on a fully-qualified call to a proc
     // nested two `namespace eval` levels deep must land on its own decl.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
@@ -272,7 +272,7 @@ fn namespace_var_definition() {
     assert_eq!(start_line(&locs[0]), 1);
 }
 
-// -- wildcard namespace import bareword resolution (issue #923 idx 18) --
+// Wildcard namespace import bareword resolution.
 //
 // `namespace import NS::*` makes every command `NS` has `namespace
 // export`ed callable bare wherever the import is in scope, including
@@ -323,7 +323,7 @@ fn wildcard_namespace_import_does_not_resolve_unexported_sibling_cross_document(
     );
 }
 
-// -- per-import-site export snapshots, cross-document (issue #1027) --
+// Per-import-site export snapshots, cross-document.
 //
 // `namespace import` binds the names exported *when it runs*. A later
 // `namespace export -clear` does not revoke the alias, and a later
@@ -383,16 +383,16 @@ fn wildcard_import_ignores_an_export_written_after_it_cross_document() {
     );
 }
 
-// -- the import edge's lifecycle, cross-document (issue #1103) --
+// The import edge's lifecycle, cross-document.
 //
-// #1027 made the edge a per-import-site *snapshot*; these pin it as a link
+// The edge is a per-import-site *snapshot*; these pin it as a link
 // with a lifetime. Rows oracle-confirmed byte-identically on tclsh 9.0.4 and
 // 8.6.14 (transcripts in `tcl_lsp_core::namespace_import`). Ordering exists
 // only within one document, so every ordered pair sits in the same file.
 
 #[test]
 fn a_forgotten_wildcard_import_stops_resolving_cross_document() {
-    // TN (issue #1103 behaviour 1): `main.tcl` imports `::Lib::*`, forgets
+    // TN: `main.tcl` imports `::Lib::*`, forgets
     // it, and only then calls `bar`. Oracle: `namespace forget ::Lib::bar`
     // empties `info commands` of the alias and the later bare call raises
     // `invalid command name "bar"`.
@@ -439,7 +439,7 @@ fn a_call_before_the_forget_still_resolves_cross_document() {
 
 #[test]
 fn a_forced_import_shadows_the_local_command_cross_document() {
-    // TP (issue #1103 behaviour 2): `main.tcl` defines its own `bar`, then
+    // TP: `main.tcl` defines its own `bar`, then
     // `namespace import -force ::Lib::*`. Oracle: the local command is
     // replaced, the later bare call runs `::Lib::bar`, and `namespace origin
     // ::bar` answers `::Lib::bar` — so go-to-definition must land in
@@ -493,12 +493,12 @@ fn an_unforced_conflicting_import_leaves_the_local_command_cross_document() {
 
 #[test]
 fn a_wildcard_import_chain_follows_to_the_original_source_cross_document() {
-    // TP (issue #1103 behaviour 4): three files — `::C` defines and exports
+    // TP: three files — `::C` defines and exports
     // `p`, `::B` imports `::C::*` and re-exports, `main.tcl` imports
     // `::B::*` and calls `p` bare. Oracle: the call runs `::C`'s body and
     // `namespace origin` answers `::C::p`, so definition must jump to
-    // `c.tcl`. The middle hop is in no proc table, so this previously
-    // abstained entirely.
+    // `c.tcl`. The middle hop is in no proc table, so a naive lookup would
+    // abstain entirely.
     let mut lsp = Lsp::tcl();
     let c_uri = unique_uri("tcl");
     lsp.open_ready(
@@ -521,7 +521,7 @@ fn a_wildcard_import_chain_follows_to_the_original_source_cross_document() {
 
 #[test]
 fn deleting_the_source_command_kills_the_import_cross_document() {
-    // TN (issue #1103 behaviour 3): the alias holds the command *object*, so
+    // TN: the alias holds the command *object*, so
     // `rename ::Lib::bar {}` makes the later bare call an `invalid command
     // name`. A plain rename would not — that row is pinned as a unit test in
     // `tcl_lsp_core::definition`.

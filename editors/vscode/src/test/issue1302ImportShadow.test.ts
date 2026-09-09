@@ -20,7 +20,7 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import { getDocUri, activate } from "./helper";
 
-// Issue #1302, through the editor: a `namespace import` cannot bind a name a
+// A `namespace import` cannot bind a name a
 // fresh interpreter already holds, so a bare call to such a name is not a
 // reference to the exported proc.
 //

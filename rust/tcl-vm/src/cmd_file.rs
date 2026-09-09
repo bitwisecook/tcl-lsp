@@ -235,7 +235,7 @@ fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return c;
     }
     match canon {
-        // -- filesystem queries --
+        // Filesystem queries.
         // `readable`/`writable`/`executable` only check existence (good enough
         // for the test host where files are owned by the runner).
         "exists" | "readable" | "writable" | "executable" => {
@@ -262,7 +262,7 @@ fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             [p] => file_mtime(vm.host().filesystem(), &s(p)),
             _ => err("wrong # args: should be \"file mtime name ?time?\""),
         },
-        // -- filesystem mutation --
+        // Filesystem mutation.
         "mkdir" => {
             let Some(fs) = vm.host().filesystem() else {
                 return err("can't create directory: filesystem not available");

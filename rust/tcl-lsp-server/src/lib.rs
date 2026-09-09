@@ -6927,7 +6927,7 @@ pub struct Backend {
     /// Per-URI salsa `SourceFile` input handles — the input-of-record the
     /// query graph reads.  Kept current by `did_open` / `did_change`.
     db_files: Arc<TrackedMutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
-    /// Retired `SourceFile` handles, keyed by the URI they belonged to (#1145).
+    /// Retired `SourceFile` handles, keyed by the URI they belonged to.
     ///
     /// Salsa never reclaims an input: `SourceFile::new` only ever allocates, so
     /// a URI that is removed and later re-created would strand its old input —
@@ -16813,12 +16813,10 @@ impl Backend {
     /// build time (`cargo xtask gen-editor-dialects`); every other editor asks
     /// for it here, so a dialect picker or status bar never has to hardcode one.
     fn list_dialects_command() -> serde_json::Value {
-        // Ledger F9 (payload half, still open): `listEnvironments`
-        // replaces this. Not a
-        // refactor — the environment catalogue has different *contents*
-        // (it adds `tcl` and `tk`) and no `short_name`, so swapping the
-        // source changes this command's payload and the pickers built on
-        // it. Held until the status surface lands with the new shape.
+        // Read from the dialect catalogue rather than the environment one:
+        // the environment catalogue has different *contents* (it adds `tcl`
+        // and `tk`) and no `short_name`, so swapping the source would change
+        // this command's payload and every picker built on it.
         serde_json::Value::Array(
             tcl_dialect::DialectProfile::all()
                 .iter()
@@ -18379,14 +18377,12 @@ impl Backend {
                 // association; the catalogue's own routing is what the
                 // editors already ship.
                 //
-                // Ledger F12/T13 (still open): the environment model
-                // carries the
-                // same claim in `DetectionFacts::file_extensions`, but the
-                // two sets are not identical — the lenient `tcl`
-                // environment claims `.tcl`/`.tk`/`.itcl`/`.tm`/`.test`
-                // where the fallback profile claims none — so switching
-                // source would silently suppress dynamic associations a
-                // pack registers today.
+                // The environment model carries the same claim in
+                // `DetectionFacts::file_extensions`, but the two sets are not
+                // identical — the lenient `tcl` environment claims
+                // `.tcl`/`.tk`/`.itcl`/`.tm`/`.test` where the fallback
+                // profile claims none — so reading it instead would silently
+                // suppress dynamic associations a pack registers.
                 if tcl_dialect::DialectProfile::all().iter().any(|p| {
                     p.file_extensions
                         .iter()
@@ -18395,10 +18391,10 @@ impl Backend {
                     continue;
                 }
                 seen.push(row.extension.clone());
-                // The environment's own contributed editor identity (ledger
-                // F12/T12): the same value the profile's `editor_language_id`
-                // carried for every catalogue entry, reached through the one
-                // name seam instead of a second `find`.
+                // The environment's own contributed editor identity: the same
+                // value the profile's `editor_language_id` carries for every
+                // catalogue entry, reached through the one name seam instead
+                // of a second `find`.
                 let language_id = row
                     .dialect
                     .and_then(tcl_registry::model::resolve_known_environment)
@@ -20404,10 +20400,10 @@ impl Backend {
         }
     }
 
-    /// M9, declaration side: a cursor on a definition inside a *sourced*
-    /// document resolves, in that document's standalone analysis, to its
-    /// global-rooted name — but the index holds one re-homed twin **per
-    /// source-site namespace**.  One physical declaration is several
+    /// Declaration side of source-site re-homing: a cursor on a definition
+    /// inside a *sourced* document resolves, in that document's standalone
+    /// analysis, to its global-rooted name — but the index holds one re-homed
+    /// twin **per source-site namespace**.  One physical declaration is several
     /// runtime identities (`namespace eval ::x {source b.tcl}` +
     /// `namespace eval ::y {source b.tcl}` creates both `::x::helper`
     /// and `::y::helper` — tclsh 9.0.4), so the mapping returns the
@@ -20694,9 +20690,9 @@ impl Backend {
         // Drop the library files the autoload tier merged under the
         // *previous* package database before this scan's own batches add their
         // fresh entries below — a stale entry must not survive a rescan, and
-        // (rare, but possible) a workspace file that used to be reached only via
-        // autoload must end up present, not removed, if a later batch re-adds it
-        // under its own URI.
+        // (rare, but possible) a workspace file reachable only via autoload
+        // must end up present, not removed, if a later batch re-adds it under
+        // its own URI.
         let stale_library_uris: Vec<String> =
             self.autoloaded_library_uris.lock().await.drain().collect();
         if !stale_library_uris.is_empty() {
@@ -21484,7 +21480,7 @@ struct DialectActionInputs<'a> {
 /// unresolved *command head* rather than on a comment, a string, or a data
 /// word — and the request's own diagnostics, since the editor may be showing a
 /// W123 this analysis has not re-emitted.  Passing neither is what let it fire
-/// anywhere an identifier-shaped word appeared (issue #1191).
+/// anywhere an identifier-shaped word appears.
 fn push_context_code_actions(
     actions: &mut Vec<core_code_actions::CodeAction>,
     source: &str,
@@ -21829,7 +21825,7 @@ impl LanguageServer for Backend {
         // (`did_change`), where config genuinely has not changed. Force a fresh
         // input resolve so the open reads the *current* toggles; otherwise
         // reopening a file after the diagnostics master switch was turned off
-        // republishes its pre-toggle squiggles from the stale inputs (#104).
+        // republishes its pre-toggle squiggles from the stale inputs.
         self.reschedule_diagnostics(uri, dialect_for_diags).await;
     }
 
@@ -21871,7 +21867,7 @@ impl LanguageServer for Backend {
             // Build-and-swap, not mutate-in-place: each splice produces a fresh
             // buffer and the shared handle is replaced wholesale at the end, so
             // any snapshot already handed to an in-flight request keeps the
-            // exact revision it was taken at (issue #1184).
+            // exact revision it was taken at.
             let mut text: Arc<str> = Arc::clone(&entry.text);
             // Patch the persisted `LineIndex` alongside each splice instead of
             // rebuilding it per edit / per position lookup.
@@ -21924,9 +21920,9 @@ impl LanguageServer for Backend {
         };
         self.invalidate_live_publication(std::iter::once(&uri));
         // The ordered operation is the buffer splice. Hand the global turn on
-        // before Salsa publication: a setter can wait for a snapshot, and the
-        // v2.2.2 incident demonstrated that retaining this turn across such a
-        // wait wedges every request at `edits_settled` (#1849). The deferred
+        // before Salsa publication: a setter can wait for a snapshot, and
+        // retaining this turn across such a wait wedges every request at
+        // `edits_settled`. The deferred
         // publication checks revision/text/dialect under the document map, so
         // a newer edit or close wins without being overwritten.
         drop(turn);
@@ -21978,8 +21974,8 @@ impl LanguageServer for Backend {
             *self.default_dialect_explicit.lock().await = true;
             // No re-resolve here: the coalesced reload below ends with one
             // (`pull_and_apply_config`'s own, at the single point every pull
-            // passes through), so doing it per notification only multiplied
-            // the re-analyses a settings-editor burst caused (issue #1213).
+            // passes through), so doing it per notification would only
+            // multiply the re-analyses a settings-editor burst causes.
         }
         // W108 mode + disabled-diagnostics reconfiguration. Existing
         // documents pick the change up on their next analyse (the
@@ -22182,9 +22178,9 @@ impl LanguageServer for Backend {
         }
         // Partition the (deduplicated) event set so the disk-backed work below
         // runs once per kind — a parallel read+analyse and one batched
-        // index/db mutation — instead of once per file (#1161: a 500-file
-        // branch switch used to run 500 sequential full analyses, each with
-        // its own `documents.lock()` / pull-cache probe, here).
+        // index/db mutation — instead of once per file: a 500-file branch
+        // switch would otherwise run 500 sequential full analyses here, each
+        // with its own `documents.lock()` / pull-cache probe.
         let mut deleted: Vec<Uri> = Vec::new();
         // The subset of `deleted` whose buffer is still open. Their index entry
         // is retired like any other deletion, but they must not have their
@@ -22209,10 +22205,11 @@ impl LanguageServer for Backend {
                 // A DELETED event runs even for an open buffer.  The editor
                 // sends no `didClose` when a file is renamed or removed
                 // out-of-band (a terminal `mv`, a branch switch), so skipping
-                // open URIs here left the dead path in `workspace_index` and the
-                // salsa `Project` for the process's life — duplicate workspace
-                // symbols and a go-to-definition jump to a file that no longer
-                // exists, once the new path was indexed alongside it.  Only the
+                // open URIs here would leave the dead path in `workspace_index`
+                // and the salsa `Project` for the process's life — duplicate
+                // workspace symbols and a go-to-definition jump to a file that
+                // no longer exists, once the new path is indexed alongside it.
+                // Only the
                 // *index* is retired; `self.documents` is untouched, so the
                 // still-open buffer keeps working exactly as `did_close`'s
                 // reindex-from-disk leaves a closed-and-deleted file.
@@ -22239,7 +22236,7 @@ impl LanguageServer for Backend {
             !deleted.is_empty() || !changed.is_empty() || !revived_publications.is_empty();
 
         // Closed files that already carry a badge (a pull-cache entry) and whose
-        // on-disk change must refresh (#865) or clear that badge — computed once
+        // on-disk change must refresh or clear that badge — computed once
         // under one lock rather than once per file, and applied after the whole
         // batch has updated the resolution domain, so each refresh analyses
         // against the final on-disk state — never a half-applied one when
@@ -22288,7 +22285,7 @@ impl LanguageServer for Backend {
         }
 
         // Refresh/clear the badges of the closed files that changed on disk, now
-        // the resolution domain has settled (#865).
+        // the resolution domain has settled.
         for uri in &closed_badge_clear {
             self.clear_closed_diagnostics(uri).await;
         }
@@ -22319,7 +22316,7 @@ impl LanguageServer for Backend {
             self.reload_spec_packs(ReloadTrigger::Config).await;
             self.reschedule_all_open_documents().await;
             // Closed files that carry a badge follow the same reconfigured
-            // disabled-code / master-switch state (#865).
+            // disabled-code / master-switch state.
             self.reschedule_closed_file_diagnostics().await;
         }
     }
@@ -22348,11 +22345,11 @@ impl LanguageServer for Backend {
         // defaults and fights an explicit Format Document.
         // `WillSaveTextDocumentParams` carries no `FormattingOptions`, so the
         // settings object is the sole source; the resolved formatter width is
-        // then applied on top, preserving prior behaviour.
+        // then applied on top.
         let formatting = self.resolved_formatting(&params.text_document.uri).await;
-        // The document's resolved dialect is the formatter's one dialect fact
-        // (issue #1465): the lexer preset, the rewrite-candidate release, and
-        // the version-range-aware forward range (#1257) all follow from it.
+        // The document's resolved dialect is the formatter's one dialect
+        // fact: the lexer preset, the rewrite-candidate release, and the
+        // version-range-aware forward range all follow from it.
         let mut config = core_formatting::FormatterConfig::for_dialect(&doc.dialect);
         if let Some(obj) = formatting.as_object() {
             apply_formatting_object(obj, &mut config);
@@ -22396,7 +22393,7 @@ impl LanguageServer for Backend {
             .await
         {
             // `None`, never `Some([])` — and the same holds for every other
-            // return path below (issue #1122).  An *empty* folding result is
+            // return path below.  An *empty* folding result is
             // not neutral in VS Code: its sticky-scroll model provider treats
             // the folding candidate as valid whenever the model is non-null,
             // so an authoritative empty list is accepted as a valid, terminal
@@ -22697,9 +22694,9 @@ impl LanguageServer for Backend {
         {
             return Ok(None);
         }
-        // Type-definition jumps to the class that types
-        // the symbol (a `$obj` instance's class, or a method's owning
-        // class) — not the plain definition site it used to alias.
+        // Type-definition jumps to the class that types the symbol (a `$obj`
+        // instance's class, or a method's owning class), never the plain
+        // definition site.
         let uri = params
             .text_document_position_params
             .text_document
@@ -23585,12 +23582,12 @@ impl LanguageServer for Backend {
         // Both inputs are required for the complete enriched tier. A Salsa
         // write can cancel one read after its sibling completed; that partial
         // result is useful for this response but remains retryable rather than
-        // being mislabeled final (#1854 automated review).
+        // being mislabeled final.
         let served_enriched = cached_cu.is_some() && cached_analysis.is_some();
         // Pure-CPU tokenisation on a worker so a parser panic is contained
         // as a JSON-RPC error.  The text goes in behind an `Arc` so the
         // convergence continuation below shares this buffer instead of taking a
-        // second full-document copy (#1147).
+        // second full-document copy.
         let text: Arc<str> = Arc::clone(&doc.text);
         let dialect = doc.dialect.clone();
         let serve_text = Arc::clone(&text);
@@ -23614,11 +23611,11 @@ impl LanguageServer for Backend {
             data: None,
         })?;
 
-        // Convergence (#844 Gap 4): if we served the coarse tier because the
+        // Convergence: if the coarse tier was served because the
         // enriched reads overran the budget, detach a continuation that awaits
         // them and refreshes once the enriched viewport differs.
         if let Some(pending) = pending {
-            // At most one continuation per document (#1147): a client scrolling
+            // At most one continuation per document: a client scrolling
             // a cold file issues a viewport request per frame, and each detached
             // continuation holds the document and queues a blocking recompute
             // only to ask for the same workspace-wide refresh the pending one
@@ -23693,7 +23690,7 @@ impl LanguageServer for Backend {
         // picker tolerates that — it is the same staleness every other
         // cross-document feature answers with.  What it does *not* tolerate is
         // an index that has not been populated at all yet, so wait out the
-        // initial folder scan first (#1179).  The `didOpen`/`didChange`
+        // initial folder scan first.  The `didOpen`/`didChange`
         // barrier comes first for the same reason every other reader takes it:
         // a query issued after an open must observe that open.
         self.edits_settled().await;
@@ -23704,7 +23701,7 @@ impl LanguageServer for Backend {
         // on-disk records stop being authoritative the moment a buffer exists)
         // and the debounced publish is what puts it back, so for that window
         // every symbol in the file the user *just opened* — the file most
-        // likely to be searched for — was missing from the picker (#1179).
+        // likely to be searched for — would be missing from the picker.
         // Bounded by the open-document set, empty in steady state, and the
         // analysis read here is the memoised one the pending publish is
         // already computing.
@@ -23846,9 +23843,9 @@ impl LanguageServer for Backend {
         // The document's own path is what `[info script]` answers while it is
         // being sourced, so a computed `source [file dirname [info script]]`
         // path resolves through the same evaluator the source graph uses
-        // instead of being fabricated from raw text (issue #1140 idx 41).
+        // instead of being fabricated from raw text.
         let home = std::env::var("HOME").ok();
-        // The document's imported constants (issue #1368), so a link through
+        // The document's imported constants, so a link through
         // a value an ancestor document assigns resolves exactly as the same
         // line resolves for navigation.
         let imported = {
@@ -23932,8 +23929,7 @@ impl LanguageServer for Backend {
         // returns built-in hints from the registry.
         // The parameter labels name the reached proc's parameters, so the
         // hint provider needs the same whole-program export view definition
-        // and hover use — a `-force` shadow changes which proc that is
-        // (issue #1116 item 1).
+        // and hover use — a `-force` shadow changes which proc that is.
         let exports = self.export_snapshot().await;
         let uri_key = uri.as_str().to_owned();
         let hints = crate::rt::spawn_blocking(move || {
@@ -24049,8 +24045,7 @@ impl LanguageServer for Backend {
                     // `[uri, position, locations]` arguments.  Setting a command
                     // here would mark the lens resolved, the client would skip
                     // `resolve`, and the lens would render as an inert bare title
-                    // (#724 / #956 — "reference is not active", the latter for
-                    // TclOO method / classmethod lenses specifically).
+                    // rendering as "reference is not active".
                     command: (!has_qname).then_some(tower_lsp_server::ls_types::Command {
                         title: l.command_title,
                         command: l.command,
@@ -24095,21 +24090,19 @@ impl LanguageServer for Backend {
             .await;
         let mut lens = lens;
         // Existence check only — is `qname` one of *this* document's own
-        // lenses at all? Previously answered by recomputing the whole
-        // document's lens set (`code_lenses`, O(every proc + every class +
-        // every member's own reference-resolution walk)) and searching it for
-        // a matching `qname`, even though that result was discarded the
-        // moment the check passed — the title below always comes from
-        // `reference_locations_at`, never from `code_lenses`'s own count
-        // (issue #991). `lens_qname_exists` answers the same question with
-        // direct lookups against `analysis`'s own tables (issue #1152), so a
-        // click on one lens no longer re-derives every *other* lens in the
-        // document.
+        // lenses at all? Recomputing the whole document's lens set
+        // (`code_lenses`, O(every proc + every class + every member's own
+        // reference-resolution walk)) to answer it would discard that result
+        // the moment the check passed: the title below always comes from
+        // `reference_locations_at`, never from `code_lenses`'s own count.
+        // `lens_qname_exists` answers the same question with direct lookups
+        // against `analysis`'s own tables, so a click on one lens does not
+        // re-derive every *other* lens in the document.
         if core_code_lens::lens_qname_exists(&analysis, &qname) {
             // Resolve the actual reference locations so clicking the lens opens
             // a peek (the lens title alone is informational — a bare title with
             // no command is rendered but inert, the "reference is not active"
-            // regression of #724).  The locations feed the client-side
+            // shape).  The locations feed the client-side
             // `tcl-lsp.showReferences` wrapper, which converts them and
             // delegates to the built-in `editor.action.showReferences`.
             let position = lens.range.start;
@@ -24126,7 +24119,7 @@ impl LanguageServer for Backend {
                 // core provider's own count is single-document for a class
                 // member (see `tcl_lsp_core::code_lens`'s module doc), so
                 // reusing it here would show a smaller number than the peek
-                // it hands the editor (issue #991).
+                // it hands the editor.
                 title: core_code_lens::reference_count_title(locations.len()),
                 command: "tcl-lsp.showReferences".to_owned(),
                 arguments: Some(arguments),
@@ -24172,7 +24165,7 @@ impl LanguageServer for Backend {
         // actions lift their quick-fixes from this set, never from the
         // analyser's raw one, so a W123 the workspace refinements decided to
         // suppress can never leave a "did you mean…?" rewrite behind
-        // (issue #923 idx 80).
+        // when the diagnostic itself is gone.
         let published = self
             .published_analyser_diagnostics(
                 &uri,
@@ -24194,7 +24187,7 @@ impl LanguageServer for Backend {
         let generic_patterns = self.generic_variable_patterns.lock().await.clone();
         // Same standalone-unit caveat as the pull-diagnostics path: without
         // the project's evidence a quick-fix could offer to delete a branch
-        // the project proves reachable (issue #977).
+        // the project proves reachable.
         let evidence = self.cross_file_evidence_for(&uri).await;
         // The action builders compose their inserted text with plain `\n`;
         // this is the line ending it is retargeted onto below, so a docstring
@@ -24202,9 +24195,9 @@ impl LanguageServer for Backend {
         // CRLF or old-Mac document keeps that document's terminators.
         let line_ending = self.resolved_edit_line_ending(&uri, doc.raw()).await;
         // The inline-proc refactor substitutes the reached proc's body, so
-        // it needs the same export view definition uses (issue #1116 item 1).
+        // it needs the same export view definition uses.
         let exports = self.export_snapshot().await;
-        // `tclLsp.formatting.docstringStyle` (#1314) — resolved the same way
+        // `tclLsp.formatting.docstringStyle` — resolved the same way
         // as every other folder-overridable formatting setting, then handed
         // to the docstring source action so it actually governs where (or
         // whether) a generated stub is inserted.
@@ -24215,8 +24208,8 @@ impl LanguageServer for Backend {
                 uri: &uri_key,
                 oracle: exports.as_ref(),
             };
-            // `program` decides what an inlined call reaches (#1116 item 1);
-            // `published` decides what this document shows (#1019 idx 80).
+            // `program` decides what an inlined call reaches; `published`
+            // decides what this document shows.
             let mut actions = core_code_actions::code_actions_in_program(
                 &doc.text,
                 range,
@@ -24484,8 +24477,8 @@ impl LanguageServer for Backend {
         let text = doc.text.clone();
         let analysis_for_worker = analysis.clone();
         // A rename started from a `-force`-shadowed call must offer the
-        // definition that call reaches, not the local one the import deleted
-        // (issue #1116 item 1) — the same view definition uses.
+        // definition that call reaches, not the local one the import deleted —
+        // the same view definition uses.
         let exports = self.export_snapshot().await;
         let uri_key = uri.as_str().to_owned();
         let result = crate::rt::spawn_blocking(move || {
@@ -24514,7 +24507,7 @@ impl LanguageServer for Backend {
                 placeholder: p.placeholder,
             }));
         }
-        // Consumer-document fall-through (M8): the local analysis has no
+        // Consumer-document fall-through: the local analysis has no
         // declaration to anchor prepare on, but the cursor symbol may still
         // resolve through the workspace index (a sibling document or an
         // autoloaded library defines it) — exactly the case the rename
@@ -24558,8 +24551,7 @@ impl LanguageServer for Backend {
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
         // The gated tiers, before any ordinary edit is built: the `TclOO`
-        // member safety gate (issue #923 idx 79 / #981) and the workspace
-        // namespace-variable rename (PR #1086's reference set, rename half).
+        // member safety gate and the workspace namespace-variable rename.
         if let Some(gated) = self
             .gated_rename_tiers(&uri, &doc, &analysis, pos, &new_name)
             .await
@@ -24603,7 +24595,7 @@ impl LanguageServer for Backend {
         // sites in sibling documents (or resolve through the workspace
         // oracle when the in-document rename found nothing local to
         // resolve against).  Aborts the whole rename when a sibling's
-        // provenance isn't fully writable (issue #945 fault 1).
+        // provenance isn't fully writable.
         if self
             .extend_rename_with_cross_document_edits(
                 RenameContext {
@@ -24762,8 +24754,7 @@ impl LanguageServer for Backend {
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
         // Same whole-program view as hover: the signature rendered is the
-        // reached proc's parameter list, which a `-force` shadow changes
-        // (issue #1116 item 1).
+        // reached proc's parameter list, which a `-force` shadow changes.
         let exports = self.export_snapshot().await;
         let uri_key = uri.as_str().to_owned();
         let result = crate::rt::spawn_blocking(move || {
@@ -24838,10 +24829,9 @@ impl LanguageServer for Backend {
         let on_command_head = position_is_command_head(&doc.text, pos, &analysis, &doc.line_index);
         // A namespace-name argument is answered here, in full, and never
         // reaches the tiers below — the position is definitive, and the
-        // counts describe the whole workspace rather than just this document
-        // (issue #1088 review, findings 1 and 2).  `None` means no file in
-        // view declares the namespace, which is a real "no hover", not a
-        // licence to fall through to command documentation.
+        // counts describe the whole workspace rather than just this document.
+        // `None` means no file in view declares the namespace, which is a real
+        // "no hover", not a licence to fall through to command documentation.
         if let Some(cell) = Self::namespace_cell(&doc.text, &analysis, pos) {
             return Ok(self
                 .namespace_hover(&uri, &analysis, &cell)
@@ -24850,7 +24840,7 @@ impl LanguageServer for Backend {
         }
         // An iRulesLX method word names a JavaScript function, not a Tcl one,
         // so it is answered here rather than by the command-documentation
-        // tiers below (issue #1707). The body always says which of the two ILX
+        // tiers below. The body always says which of the two ILX
         // commands reached it — they share the method target but not the
         // semantics — and, when nothing resolved, why.
         if let Some(path) = uri.to_file_path()
@@ -24886,7 +24876,7 @@ impl LanguageServer for Backend {
             data: None,
         })?;
         if let Some(hover) = result {
-            // Same tier-order gate as `compute_definition` (issue #1168): a
+            // Same tier-order gate as `compute_definition`: a
             // class-side member dispatch the workspace visibility union
             // suppresses must not surface its in-document hover from the
             // declaring document either.
@@ -24902,7 +24892,7 @@ impl LanguageServer for Backend {
         // visibility mask makes `$obj m` answer `unknown method` regardless
         // of the class chain, so it is a *definitive* no-hover and must not
         // fall through to the cross-file method tier — the same gate
-        // `compute_definition` applies ahead of its own (issue #1170).
+        // `compute_definition` applies ahead of its own.
         if core_definition::object_masks_external_dispatch(
             &analysis,
             &doc.text,
@@ -24912,7 +24902,7 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
         // A `my method` / `$obj method` dispatch whose provider class lives
-        // in a sibling document (issue #923 idx 28).  Answered before the
+        // in a sibling document.  Answered before the
         // command-head tiers because a method-name token is never a command
         // head — its head is `my` / `$obj` — so it would otherwise never
         // reach any cross-document tier at all.
@@ -24924,7 +24914,7 @@ impl LanguageServer for Backend {
         }
         // A namespace-qualified variable whose declaration is in a sibling
         // document — a `$var` site is never a command head either, so it
-        // would never reach the tiers below (issue #923 idx 65 / 75 / 78).
+        // would never reach the tiers below.
         if let Some(hover) = self
             .cross_document_variable_hover(&uri, &doc.text, pos, &analysis)
             .await
@@ -24933,7 +24923,7 @@ impl LanguageServer for Backend {
         }
         // If the word is a command head, resolve it the way go-to-definition
         // does — across the workspace, then through the autoload / package
-        // database (#1018).
+        // database.
         if !on_command_head {
             return Ok(None);
         }
@@ -25081,7 +25071,7 @@ fn lift_lsp_range(r: CoreLspRange) -> Range {
 /// rename here" and lets the editor quietly do nothing, which is exactly the
 /// wrong signal when the symbol *is* renameable but the rename would break the
 /// program.  `InvalidRequest` with the gate's own reason puts that reason in
-/// front of the user (issue #923 idx 79).
+/// front of the user.
 fn rename_refusal_error(refusal: &core_rename_safety::RenameRefusal) -> jsonrpc::Error {
     jsonrpc::Error {
         code: jsonrpc::ErrorCode::InvalidRequest,
@@ -25206,7 +25196,7 @@ fn lift_code_actions(
             // behaviour is surfaced *greyed out* with its reason, rather than
             // silently omitted: LSP's `disabled.reason` is what the editor
             // shows, and without it a user cannot tell "does not apply here"
-            // from "is broken" (issues #1199 / #1201).
+            // from "is broken".
             let disabled = a
                 .disabled
                 .map(|reason| tower_lsp_server::ls_types::CodeActionDisabled { reason });
@@ -25515,7 +25505,7 @@ fn apply_formatting_object(
 }
 
 /// Read the keyword-normalisation `tclLsp.formatting.*` settings into `cfg`
-/// (#1232 `expandAbbreviations`, #1233 `booleanForm`).
+/// (`expandAbbreviations`, `booleanForm`).
 fn apply_keyword_formatting(
     obj: &serde_json::Map<String, serde_json::Value>,
     cfg: &mut core_formatting::FormatterConfig,
@@ -25536,8 +25526,8 @@ fn apply_keyword_formatting(
 /// `generate_stub_for_proc` (the docstring-stub content); `docstringStyle`
 /// (placement) is round-tripped here for config-consumer parity, but the
 /// `code_action` handler resolves it independently via
-/// [`Backend::resolved_docstring_style`], which is the actual consumer
-/// (#1314) — code actions run off the resolved settings object directly
+/// [`Backend::resolved_docstring_style`], which is the actual consumer —
+/// code actions run off the resolved settings object directly
 /// rather than this `FormatterConfig`. Split out of [`apply_formatting_object`]
 /// to keep each per-key block under the `too_many_lines` lint.
 fn apply_docstring_formatting(
@@ -25587,12 +25577,12 @@ fn formatter_config_from(
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> core_formatting::FormatterConfig {
     use core_formatting::IndentStyle;
-    // The document's dialect, as one resolved profile (issue #1465): it
+    // The document's dialect, as one resolved profile: it
     // supplies the lexer preset — so an `.irul` file's `if {expr}{body}`
     // (`}{` valid in TMM) is parsed and re-emitted as `} {` rather than left
     // unchanged by the stock-Tcl lexer — the release its rewrite candidates
     // are filtered against, and the forward range a rewrite must stay correct
-    // across (#1257).
+    // across.
     let mut cfg = core_formatting::FormatterConfig::for_profile(dialect);
     if let Some(obj) = formatting.as_object() {
         apply_formatting_object(obj, &mut cfg);
@@ -25624,7 +25614,7 @@ const PROJECT_CONFIG_GLOB: &str = "**/.tcl-lsp.ini";
 /// `tcl-lsp/specPacksReloaded` — sent once a `SpecTcl` pack reload has fully
 /// landed, carrying the extensions the resulting pack set claims.
 ///
-/// The push half of pack-declared extension registration (issue #1626). A
+/// The push half of pack-declared extension registration. A
 /// client cannot derive this moment for itself: it sees the same filesystem
 /// event the server does, but not when the server has finished acting on it,
 /// so a client that reacts to the event directly reads the *previous* pack
@@ -25715,8 +25705,8 @@ fn partition_watched_file_changes(changes: Vec<FileEvent>) -> WatchedFileChanges
 /// One `workspace/didChangeWatchedFiles` batch, split by what each path *is*.
 ///
 /// Deduplicated to one event per URI (`last_kind`) so the disk-backed work runs
-/// once per file per batch — a 500-file branch switch used to run 500
-/// sequential full analyses (#1161).
+/// once per file per batch: without it a 500-file branch switch runs 500
+/// sequential full analyses.
 #[derive(Debug, Default)]
 struct WatchedFileChanges {
     /// A layered-settings file moved.
@@ -25853,13 +25843,10 @@ fn non_ascii_mode_str(mode: NonAsciiMode) -> serde_json::Value {
 /// dialect the catalog offers so the caller can correct the spelling from the
 /// error alone rather than having to ask for the list separately.
 fn unknown_dialect_error(dialect: &str) -> String {
-    // Ledger F9 (payload half, still open): the accepted set is now
-    // `Environment::resolve`'s
-    // (canonical ids + aliases + contributed editor identities), which is
-    // wider than the canonical list quoted here. The list stays canonical
-    // deliberately — it is a "correct your spelling to one of these"
-    // message, not the acceptance set — and moves to the environment
-    // enumeration with `listEnvironments`.
+    // The accepted set is `Environment::resolve`'s — canonical ids, aliases
+    // and contributed editor identities — which is wider than the canonical
+    // list quoted here. The list stays canonical deliberately: it is a
+    // "correct your spelling to one of these" message, not the acceptance set.
     let valid = tcl_dialect::DialectProfile::all()
         .iter()
         .map(|profile| profile.name)
@@ -26055,7 +26042,7 @@ fn parse_folder_formatting(
 ///   (`Replace`); an explicit `null` requests the analyser's built-in
 ///   defaults (`BuiltinDefaults`); an absent key inherits the global value
 ///   (`Inherit`, the default).
-/// - `exclude` (#1556) — glob patterns naming files that produce no
+/// - `exclude` — glob patterns naming files that produce no
 ///   diagnostics at all. `Some` (possibly empty) whenever the merged config
 ///   carries the key, so a folder list replaces the global one rather than
 ///   unioning with it.
@@ -26121,7 +26108,7 @@ fn signature_help_disabled_commands(cfg: &serde_json::Value) -> Option<Vec<Strin
 fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
     let obj = cfg.as_object()?;
     let mut fc = FolderConfig::default();
-    // `tclLsp.dialect` scoped to this folder (issue #407).  Validated with the
+    // `tclLsp.dialect` scoped to this folder.  Validated with the
     // same predicate the `initializationOptions.folderDialects` path uses, so an
     // unknown name is dropped (the folder inherits the session default) rather
     // than pinning documents to a dialect no provider can resolve.
@@ -26233,7 +26220,7 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
 }
 
 /// `tclLsp.iruleslx.plugins` / `.rules` → the folder's declared iRulesLX plugin
-/// associations (#1707).
+/// associations.
 ///
 /// A `rules` entry for a plugin with no `plugins` entry is dropped: extra
 /// caller directories are only meaningful once the plugin's own workspace is
@@ -26814,11 +26801,10 @@ async fn f5_dialect_diagnostics(
 /// Workspace-level refinement of the analyser's single-file W120
 /// (missing-`package require`) diagnostics, using the scanned package database.
 ///
-/// This is where #723 is resolved precisely. The analyser only knows the
-/// packages required/provided *in the document*; here we additionally know,
-/// from the workspace + `TCLLIBPATH` `pkgIndex.tcl` files, what each
-/// `package require` (transitively) pulls in — exactly the knowledge C Tcl
-/// gains by running the `ifneeded` scripts.
+/// The analyser only knows the packages required/provided *in the document*;
+/// here the workspace + `TCLLIBPATH` `pkgIndex.tcl` files additionally say
+/// what each `package require` (transitively) pulls in — exactly the
+/// knowledge C Tcl gains by running the `ifneeded` scripts.
 ///
 /// Two rules, mirroring C Tcl's reality that a package's load script can
 /// register arbitrary commands:
@@ -26827,7 +26813,8 @@ async fn f5_dialect_diagnostics(
 ///    command registry nor the scanned database can resolve it, and it isn't
 ///    the core `Tcl` version pseudo-package — it may load anything, so every
 ///    W120 is dropped. (A wrapper package not present in the workspace /
-///    `auto_path` lands here, keeping #723 fixed even with an empty database.)
+///    `auto_path` lands here, so the refinement holds even with an empty
+///    database.)
 /// 2. **Precise.** Otherwise a W120 for package `P` is a false positive exactly
 ///    when `P` is in the transitive closure of what the document's requires
 ///    pull in — e.g. `package require myTkPackage`, whose implementation does
@@ -26932,7 +26919,7 @@ fn provided_package_names(value: &serde_json::Value) -> Vec<String> {
 /// What one set of `package require`s makes available, as the W120 check reads
 /// it — the two rules of [`refine_w120_diagnostics`] in a reusable form.
 ///
-/// Split out because the #1332 position-gated path evaluates a *different*
+/// Split out because the position-gated path evaluates a *different*
 /// availability set per diagnostic offset and must be able to memoise the
 /// expensive part (the transitive scan, which reads package implementation
 /// files) independently of which diagnostic it is judging.
@@ -26981,7 +26968,7 @@ impl W120Availability {
 
 /// Everything the workspace `source` graph contributes to one document's
 /// W120 / W123 verdicts — both directions of the graph plus the abstention
-/// flag (issues #804 and #1332).
+/// flag.
 ///
 /// See [`tcl_lsp_core::source_graph`] for why the two directions differ: the
 /// **down** direction (what my callers loaded before running me) is ambient
@@ -26991,10 +26978,10 @@ impl W120Availability {
 pub struct SourceInheritance {
     /// Requires that hold for the whole document: the configured project
     /// entry points' requires, or — in automatic mode — the requires of every
-    /// file that transitively `source`s this one (#804).
+    /// file that transitively `source`s this one.
     ambient: Vec<String>,
     /// Requires this document acquires by `source`ing other files, each at the
-    /// offset of the `source` statement that brings it in (#1332).
+    /// offset of the `source` statement that brings it in.
     placed: Vec<tcl_lsp_core::source_graph::PlacedRequire>,
     /// This document has a `source` whose target the server could not pin to
     /// an indexed document — a path it cannot fold statically, a file outside
@@ -27005,7 +26992,7 @@ pub struct SourceInheritance {
     /// and W120 / W123 abstain document-wide. Exactly the bargain
     /// `handle_namespace_unknown_command` and the dynamic-pattern branch of
     /// `handle_namespace_import_command` already strike by flipping
-    /// `has_dynamic_providers`; option (2) of issue #1332.
+    /// `has_dynamic_providers`.
     unresolvable_source: bool,
 }
 
@@ -27041,7 +27028,7 @@ impl SourceInheritance {
     }
 }
 
-/// Apply the #723 workspace W120 refinement to `analyser_diags`: resolve the
+/// Apply the workspace W120 refinement to `analyser_diags`: resolve the
 /// document's `package require`s through the shared package database and drop
 /// any W120 whose flagged package is transitively available. Shared by the push
 /// path (`refine_and_lift_diagnostics`) and the pull path
@@ -27050,8 +27037,8 @@ impl SourceInheritance {
 /// Three sources of availability feed it, and they are *not* interchangeable:
 ///
 /// * the document's own `package require`s;
-/// * [`SourceInheritance::ambient`] — the #804 down direction;
-/// * [`SourceInheritance::placed`] — the #1332 up direction, evaluated **per
+/// * [`SourceInheritance::ambient`] — the down direction;
+/// * [`SourceInheritance::placed`] — the up direction, evaluated **per
 ///   diagnostic** at that diagnostic's own offset, because a `source` only
 ///   makes its packages present from its own statement onward.
 ///
@@ -27091,9 +27078,9 @@ async fn refine_workspace_w120(
         return analyser_diags;
     }
     let resolver = package_resolver.read().await;
-    // Nothing placed ⇒ no position to gate on ⇒ the pre-#1332 whole-set pass,
-    // unchanged. This is the shape of every document that does not `source`
-    // anything, i.e. almost all of them.
+    // Nothing placed ⇒ no position to gate on ⇒ the plain whole-set pass.
+    // This is the shape of every document that does not `source` anything,
+    // i.e. almost all of them.
     if inheritance.placed.is_empty() {
         let mut available = own;
         available.extend(inheritance.ambient.iter().cloned());
@@ -27162,7 +27149,7 @@ fn defined_command_tails(text: &str, dialect: &'static tcl_dialect::DialectProfi
 ///
 /// A command is resolvable when either
 /// * the scanned `auto_path` auto-loads it — a `tclIndex` maps its bare name,
-///   the "command defined in library path" case of issue #832 (a BLT/Rbc-style
+///   the "command defined in library path" case (a BLT/Rbc-style
 ///   library whose procs auto-load with no `package require`), or
 /// * one of the packages available to the document (`available`) defines it in
 ///   an implementation source file (a `pkgIndex`-only package with no
@@ -27182,9 +27169,9 @@ fn defined_command_tails(text: &str, dialect: &'static tcl_dialect::DialectProfi
 ///
 /// | Availability  | W123 | Why |
 /// |---------------|------|-----|
-/// | `Available`   | suppressed | the command really is provided (issue #832) |
-/// | `Conditional` | suppressed | a guard the scan could not read; treating "unsure" as "absent" is what produced the false unknown-command reports of issue #923 idx 42 |
-/// | `Unavailable` | **fires**  | the guard was read and definitely skips the declaration, so `package require` really fails and the call really is an error (issue #1017) |
+/// | `Available`   | suppressed | the command really is provided |
+/// | `Conditional` | suppressed | a guard the scan could not read; treating "unsure" as "absent" produces false unknown-command reports |
+/// | `Unavailable` | **fires**  | the guard was read and definitely skips the declaration, so `package require` really fails and the call really is an error |
 ///
 /// `Conditional` is suppressed outright rather than reported more quietly:
 /// W123's own default severity is already `Hint`, the lowest LSP severity, so
@@ -27235,13 +27222,12 @@ fn refine_w123_diagnostics(
 /// or `None` when none of them do.
 ///
 /// **This is the cross-document command lookup — there is one, and both
-/// navigation and diagnostics call it.**  Issue #1331 was the direct cost of
-/// there having been two: `textDocument/definition` settled `libtest` against
-/// the workspace index while `publishDiagnostics` consulted a different,
-/// bare-tail name set that was off by default, so the same server both
-/// resolved the command and called it unknown. Any future refinement to how a
-/// call is settled — a new indirection kind, a new visibility rule — now
-/// lands in one place and both consumers move together.
+/// navigation and diagnostics call it.**  Two lookups cost precision directly:
+/// `textDocument/definition` settling `libtest` against the workspace index
+/// while `publishDiagnostics` consults a different, bare-tail name set makes
+/// the same server both resolve the command and call it unknown. With one, a
+/// refinement to how a call is settled — a new indirection kind, a new
+/// visibility rule — lands in one place and both consumers move together.
 ///
 /// The rules it applies, in order:
 ///
@@ -27256,7 +27242,7 @@ fn refine_w123_diagnostics(
 ///   builtin.
 /// * A name this document gains only from a `rename` / `interp alias` written
 ///   *after* the call is not a command there yet (tclsh: `invalid command
-///   name`), so a workspace link cannot settle it (issue #1064).
+///   name`), so a workspace link cannot settle it.
 /// * Otherwise the candidate settles if this document defines it, or the
 ///   workspace does ([`workspace_command_exists_for_call`](core_workspace_index::WorkspaceIndex::workspace_command_exists_for_call)).
 ///
@@ -27537,7 +27523,7 @@ fn cross_file_arity_diagnostics(
 /// and find-references resolved `Pi()` to `::tcl::mathfunc::Pi` in the sibling
 /// file while the diagnostic called it unknown *and* offered a quick-fix that
 /// would have rewritten it to the unrelated `ni` operator, breaking working
-/// code (issue #923 differential-audit finding idx 80).
+/// code.
 ///
 /// # Tier 1 — the interpreter-global tier, always on
 ///
@@ -27561,21 +27547,20 @@ fn cross_file_arity_diagnostics(
 /// [`insert_qualified_and_tail`](tcl_compiler::analyser::utils::insert_qualified_and_tail)
 /// also puts in `names` are unreachable from here.
 ///
-/// # Tier 2 — the settled cross-file tier, always on (issue #1331)
+/// # Tier 2 — the settled cross-file tier, always on
 ///
 /// A W123 whose call site [`settle_call_against_workspace`] resolves — the
 /// *same* lookup `textDocument/definition` uses, run over the same candidates
-/// in the same `Tcl_FindCommand` priority order.  This is what closes issue
-/// #1331: a `proc libtest` in `deflib.tcl` and a bare `libtest 1 2` in
-/// `plaincaller.tcl` produced a resolving definition and an "Unknown command"
-/// hint from one server, because navigation consulted the index and
-/// diagnostics did not.
+/// in the same `Tcl_FindCommand` priority order.  Without it a `proc libtest`
+/// in `deflib.tcl` and a bare `libtest 1 2` in `plaincaller.tcl` yield a
+/// resolving definition and an "Unknown command" hint from the same server,
+/// because navigation consults the index and diagnostics do not.
 ///
 /// It is always on for the reason tier 1 is: it makes no cross-file *guess*.
 /// A bare `current_class` called from `::foo` has candidates `::foo::current_class`
 /// and `::current_class`; a `proc ::clay::define::current_class` defined
-/// elsewhere matches neither, so this tier leaves that W123 standing — which
-/// is exactly the 197-of-396 unjustified suppression that keeps tier 3 opt-in.
+/// elsewhere matches neither, so this tier leaves that W123 standing — the
+/// unjustified suppression that keeps tier 3 opt-in.
 /// Whatever this tier suppresses, go-to-definition would have navigated.
 ///
 /// # Tier 3 — the project tier, opt-in via `crossFileResolution`
@@ -27667,7 +27652,7 @@ fn needs_workspace_command_names(
                 .any(|inv| inv.is_mathfunc_call))
 }
 
-/// Apply the issue-#832 workspace W123 refinement to `analyser_diags`: resolve
+/// Apply the workspace W123 refinement to `analyser_diags`: resolve
 /// each unknown-command diagnostic against the shared package database and drop
 /// any whose command an installed library / available package provides. Shared
 /// by the push path ([`refine_and_lift_diagnostics`]) and the pull path
@@ -27702,7 +27687,7 @@ async fn refine_workspace_w123(
     // Packages available to the document: its own `package require`s (empty
     // whenever a W123 survived — the analyser drops every W123 once a file has
     // any `package require`) plus those inherited from entry points / `source`
-    // ancestors (#804) and from the files it `source`s (#1332).
+    // ancestors and from the files it `source`s.
     //
     // Not position-gated, unlike the W120 path: this asks whether some package
     // *provides the command*, and a call to a command provided by a package
@@ -27719,7 +27704,7 @@ async fn refine_workspace_w123(
     refine_w123_diagnostics(analyser_diags, &available, &resolver, store, dialect)
 }
 
-/// The extra `package require` names available to `uri` for the #804 W120
+/// The extra `package require` names available to `uri` for the W120
 /// refinement: from the project's configured entry points when set (which
 /// disables auto-detection), else from the workspace `source` graph — every
 /// file that transitively `source`s `uri` shares its requires.  Operates on an
@@ -27752,10 +27737,9 @@ fn compute_inherited_requires(
 /// particular it uses [`resolve_source_edge`] — the resolver with the
 /// statically-foldable computed-path tier (`[file join [file dirname
 /// [info script]] x.tcl]`, chained through the parent's single-assignment
-/// constants) — not the literals-only [`resolve_source_uri`]:
-/// issue #1332 is precisely a report that the common computed idiom was
-/// invisible, and having two resolvers behind two callers is how that
-/// divergence happened.
+/// constants) — not the literals-only [`resolve_source_uri`]: the common
+/// computed idiom would otherwise be invisible, and two resolvers behind two
+/// callers is how the two views come to diverge.
 fn workspace_source_edges(
     index: &core_workspace_index::WorkspaceIndex,
 ) -> Vec<tcl_lsp_core::source_graph::RunEdge> {
@@ -27781,7 +27765,7 @@ fn workspace_source_edges(
 }
 
 /// Everything the `source` graph says about `uri` — both directions plus the
-/// abstention flag (issues #804 and #1332).  Operates on an already-locked
+/// abstention flag.  Operates on an already-locked
 /// index so the push and pull paths share it.
 ///
 /// The **up** direction and the abstention flag are computed from this
@@ -27898,7 +27882,7 @@ fn whole_line_range(
 }
 
 /// The URI for a file path, in the **one canonical form** both sides of the
-/// protocol use (issue #1214).
+/// protocol use.
 ///
 /// Every URI the server constructs for itself goes through here — the workspace
 /// scan, the `source` / autoload cross-file resolver, the entry-point resolver.
@@ -27955,9 +27939,9 @@ fn resolve_source_uri(parent_uri: &str, raw_path: &str) -> Option<String> {
 ///
 /// The index holds no URI ↔ filesystem-path mapping of its own, so the
 /// `source`-graph load order its import-lifecycle gates rank cross-document
-/// events with ([`tcl_lsp_core::source_graph::RunOrder`], issue #1104 item 3)
+/// events with ([`tcl_lsp_core::source_graph::RunOrder`])
 /// can only be built once the host hands it [`resolve_source_edge`] — the same
-/// resolver the M9 re-homing pass uses, so its statically-foldable
+/// resolver the source-site re-homing pass uses, so its statically-foldable
 /// computed-path tier (`[file join [file dirname [info script]] x.tcl]`, the
 /// idiom real multi-file projects write) sequences the order too. Every
 /// index this server builds goes through here so none of them can silently
@@ -27998,8 +27982,7 @@ fn fold_document_constants(
 /// index), chain-folded here — where the parent's own path is known — so a
 /// `source [file join $sourceDir x.tcl]` behind `set sourceDir [file join
 /// $dir src]` resolves as an edge exactly as it resolves as a document link
-/// (issue #775: the link resolved, go-to-definition through the same line
-/// did not — one expression, two answers).
+/// — one expression must not resolve as a link and fail as a definition.
 fn resolve_source_edge(
     parent_uri: &str,
     raw_path: &str,
@@ -28145,12 +28128,13 @@ fn finalise_diagnostics(
 }
 
 /// Abstain from everything but source-integrity findings when the byte decode
-/// report proves that the document is not UTF-8 text (issue #1326).
+/// report proves that the document is not UTF-8 text.
 ///
-/// A three-line UTF-16 iRule used to publish 87 diagnostics — `E102`s about
-/// braces that are really NUL bytes, `W108`s about characters that are half of
-/// a UTF-16 code unit, `W123`s about commands whose names are interleaved with
-/// NULs.  Every one of them is a statement about decoding artefacts rather than
+/// Analysed regardless, a three-line UTF-16 iRule publishes dozens of
+/// diagnostics — `E102`s about braces that are really NUL bytes, `W108`s about
+/// characters that are half of a UTF-16 code unit, `W123`s about commands whose
+/// names are interleaved with NULs.  Every one of them is a statement about
+/// decoding artefacts rather than
 /// about the user's code, and each is *wrong* in the specific sense that
 /// matters: it points at a position that does not correspond to anything in
 /// the file.  Publishing one accurate finding and stopping is the honest
@@ -28177,7 +28161,7 @@ fn apply_encoding_abstention(
     diagnostics.retain(|d| matches!(code_of(d).as_deref(), Some("W107" | "W109" | "W305")));
 }
 
-/// Attach `Diagnostic.tags` from the diagnostic-code table (issue #1333).
+/// Attach `Diagnostic.tags` from the diagnostic-code table.
 ///
 /// The mapping lives in `tcl_core_types::DiagCode::lsp_tag` — declared next to
 /// each code, alongside its section and description — so tagging a diagnostic
@@ -28187,8 +28171,7 @@ fn apply_encoding_abstention(
 /// there is no command-name list here or anywhere else in the server.
 ///
 /// A code the table does not tag keeps `tags: None` rather than an empty
-/// array: an empty `tags` is legal LSP but tells a client nothing, and `None`
-/// is what every untagged diagnostic in the server has always sent.
+/// array: an empty `tags` is legal LSP but tells a client nothing.
 fn apply_diagnostic_tags(diagnostics: &mut [tower_lsp_server::ls_types::Diagnostic]) {
     use core::str::FromStr as _;
     use tower_lsp_server::ls_types::{DiagnosticTag, NumberOrString};
@@ -28397,8 +28380,8 @@ fn lift_compiler_diagnostics(
         let range = lift_span(text, &line_index, d.span);
         // Inline `# noqa` / top-of-file suppression. The analyser path bakes
         // `suppressed_lines` into its own build; this separate lift needs the
-        // same check applied explicitly — previously missing entirely, so
-        // `# noqa: S100` (and every other compiler-check code) had no effect.
+        // same check applied explicitly, or `# noqa: S100` (and every other
+        // compiler-check code) would have no effect here.
         let start_line = i32::try_from(range.start.line).unwrap_or(i32::MAX);
         if line_suppressed(d.code.as_str(), start_line, suppressed_lines) {
             continue;
@@ -28441,7 +28424,7 @@ fn lift_compiler_diagnostics(
         }
         let range = lift_span(text, &line_index, o.span);
         // Inline `# noqa` / top-of-file suppression — see the `.checks` loop
-        // above for why this was previously missing.
+        // above for why this lift has to apply it explicitly.
         let start_line = i32::try_from(range.start.line).unwrap_or(i32::MAX);
         if line_suppressed(o.code.as_str(), start_line, suppressed_lines) {
             continue;
@@ -28531,9 +28514,8 @@ fn empty_diagnostic_report() -> DocumentDiagnosticReportResult {
 /// canonical-names-only membership in the two commands) are now one
 /// `Environment::resolve` — so every configuration path accepts exactly the
 /// declared names: canonical environment ids, their aliases, and the
-/// contributed editor identities. That is a superset of what the old
-/// predicates took (an alias or editor id no longer depends on which of the
-/// two tables a name happened to be in), and an unknown name is still
+/// contributed editor identities. Whether a name is accepted therefore does
+/// not depend on which table it happens to sit in, and an unknown name is
 /// rejected.
 fn is_known_dialect_name(name: &str) -> bool {
     tcl_registry::model::is_known_environment_name(name)
@@ -28620,8 +28602,7 @@ const DOCUMENT_AUTO_PATH_DIR_CAP: usize = 64;
 /// swept up by [`PackageResolver::scan_tree`]'s blunt recursive descent — and
 /// failed outright when it didn't (opening just `examples/`, or a single
 /// file): go-to-definition and hover on a command the package provides
-/// answered nothing, though tclsh resolves it deterministically (issue #923
-/// differential-audit finding idx 73).
+/// answered nothing, though tclsh resolves it deterministically.
 ///
 /// Only **statically resolvable** entries contribute:
 /// [`tcl_compiler::auto_path_eval::evaluate_auto_path_expr`] folds literals,
@@ -28789,16 +28770,15 @@ fn is_skipped_scan_dir(path: &Path) -> bool {
 /// watcher ignores goes stale the moment it changes outside the editor, and a
 /// file the scan indexes but the rename filter ignores keeps its old `source`
 /// references after a rename.  They did not agree — the watcher and rename
-/// filter listed five of the eleven — which is the residual half of issue #923
-/// differential-audit finding idx 27.
+/// filter must list every one of them.
 ///
 /// `test` is the standard `tcltest` test-file extension (tcllib's own suite,
 /// and every mined corpus, use it throughout — e.g. `test/argparse.test`).
-/// Omitting it made a proc's call sites inside an un-opened `.test` file
+/// Omitting it makes a proc's call sites inside an un-opened `.test` file
 /// invisible to the background workspace scan, so cross-document
-/// find-references / rename-safety silently missed them (finding idx 10 /
-/// idx 27) — even though opening the file directly worked fine, since that
-/// path doesn't go through this filter at all.
+/// find-references / rename-safety silently miss them — even though opening
+/// the file directly works fine, since that path doesn't go through this
+/// filter at all.
 use tcl_registry::dialects::TCL_SOURCE_EXTENSIONS;
 
 /// `true` when `path` has a Tcl-family source extension the analyser
@@ -28811,11 +28791,11 @@ use tcl_registry::dialects::TCL_SOURCE_EXTENSIONS;
 /// The extension is compared case-insensitively, matching every other
 /// extension test in the server (`tcl_registry::dialects`'
 /// `dialect_from_extension`, `core_bigip::is_bigip_conf_name`, the APL source
-/// check) — an `UPPER.TCL` opens as Tcl but used to be invisible to the
-/// workspace scan, the watched-file filter, and the rename filter.
+/// check), so an `UPPER.TCL` is visible to the workspace scan, the
+/// watched-file filter, and the rename filter as well as to an explicit open.
 /// Extensions the *loaded packs* claim, on top of the static set — so a pack
 /// declaring `file_extension irulex` makes closed `.irulex` files indexable,
-/// not merely analysable once opened (issue #1626, review finding P1-3).
+/// not merely analysable once opened.
 ///
 /// Read live rather than cached: the pack set reloads while the server runs,
 /// and this predicate is asked on every scanned path *after* a reload as well
@@ -28864,12 +28844,12 @@ fn tcl_source_glob() -> String {
 /// therefore missed every external create/change/delete of an `UPPER.TCL` on
 /// Linux — the file was scanned, indexed and renameable, but its on-disk
 /// changes produced no watch event, so the index only caught up on the next
-/// full scan or an explicit open (issue #1215).
+/// full scan or an explicit open.
 ///
 /// The set is the same one [`is_tcl_source`] case-folds, and the pattern is
 /// built by the registry so the `VS Code` activation glob
 /// (`cargo xtask gen-vscode-package`) is the same string by construction
-/// (issue #1242).
+/// rather than a second hand-maintained copy.
 fn tcl_source_watch_glob() -> String {
     tcl_registry::dialects::tcl_source_glob_any_case()
 }
@@ -28981,7 +28961,7 @@ fn client_lacks_utf16_support(params: &InitializeParams) -> bool {
 /// (`textDocument.diagnostic`).  Such a client (e.g. `vscode-languageclient`)
 /// issues `textDocument/diagnostic` requests itself, so the server must not
 /// *also* push diagnostics — pushing and pulling the same set lands them in
-/// two diagnostic collections and shows each one twice (#721).
+/// two diagnostic collections and shows each one twice.
 fn client_supports_pull_diagnostics(params: &InitializeParams) -> bool {
     params
         .capabilities
@@ -28999,7 +28979,7 @@ fn client_supports_pull_diagnostics(params: &InitializeParams) -> bool {
 /// config change flips `features.folding` (the client otherwise keeps its
 /// cached ranges until the next document edit) and once from `initialized`,
 /// so a tab restored before the provider went live recomputes its folding —
-/// and, in `VS Code`, its sticky-scroll model with it (issue #1122).
+/// and, in `VS Code`, its sticky-scroll model with it.
 enum FoldingRangeRefreshRequest {}
 
 impl tower_lsp_server::ls_types::request::Request for FoldingRangeRefreshRequest {
@@ -29086,7 +29066,7 @@ fn build_server_capabilities(
         // advertised by default: `vscode-languageclient` (and most clients)
         // switch to pull mode the moment `diagnosticProvider` is present, which
         // silently disables our richer push pipeline (`publish_diagnostics`)
-        // and makes clients render each diagnostic twice (#721).  The
+        // and makes clients render each diagnostic twice.  The
         // `textDocument/diagnostic` + `workspace/diagnostic` handlers still
         // exist for a client that requests them directly, but the default
         // capability set leaves this absent so push stays the sole delivery
@@ -31815,7 +31795,7 @@ mod tests {
     #[test]
     fn formatter_config_carries_the_documents_resolved_dialect() {
         // The document's detected dialect (`DocumentState::dialect`) is the
-        // formatter's one dialect fact (issue #1465): the lexer preset, the
+        // formatter's one dialect fact: the lexer preset, the
         // rewrite-candidate mask, and the forward range all follow from the
         // profile it resolves.
         let opts = tower_lsp_server::ls_types::FormattingOptions {

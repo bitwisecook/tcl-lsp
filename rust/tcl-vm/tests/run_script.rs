@@ -1770,7 +1770,7 @@ fn inline_cmd_subst_review_fixes() {
     );
 }
 
-// -- the pre-compiled proc-body cache -------------------------------------
+// The pre-compiled proc-body cache.
 
 /// Compiler wrapper that replaces one exact compiler-authored procedure body
 /// while preserving the compiler's profile, namespace, source provenance, and
@@ -1938,7 +1938,7 @@ fn the_proc_command_that_runs_is_the_one_whose_body_is_installed() {
     );
 }
 
-// -- the inline emitters a proc-shaped body reaches ------------------------
+// The inline emitters a proc-shaped body reaches.
 //
 // These paths are gated on `is_proc`, so until a proc body actually ran with
 // the procedure codegen none of them executed through the `proc` command. Every

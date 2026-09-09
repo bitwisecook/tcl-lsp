@@ -99,8 +99,8 @@ pub struct ProfileSpec {
     /// edges to the parents `BIG-IP` attaches for it, and its assertion edges
     /// to the profiles it cannot be stacked with.
     ///
-    /// R12: one mechanism, not the two bare `requires` / `conflicts` slices
-    /// this replaced. The direction is on the edge
+    /// R12: one mechanism for both inference and conflict edges. The
+    /// direction is on the edge
     /// ([`RelationMode`](crate::relation::RelationMode)) because the two read
     /// opposite ways: `HTTP` ⇒ `TCP` adds the parent, `FASTL4` ⊥ `HTTP`
     /// reports a defect.
@@ -241,9 +241,9 @@ impl ProfileRegistry {
     /// (`TCP`/`UDP`/`FASTL4`/`SCTP`) or shared-TLS/persistence
     /// (`SSL_PERSISTENCE`/`PERSIST`) profile that the stack implies rather
     /// than the operator selecting. The `# Profiles:` header code action
-    /// filters these out. Derives the former hardcoded `INFRA_PROFILES`
-    /// list from each profile's registered `layer` (the `transport` and
-    /// `tls_shared` layers).
+    /// filters these out. Derived from each profile's registered `layer`
+    /// (the `transport` and `tls_shared` layers), so the list cannot drift
+    /// from the profile data itself.
     #[must_use]
     pub fn is_infrastructure_profile(&self, profile: &str) -> bool {
         self.get_profile(profile)
@@ -308,8 +308,8 @@ impl ProfileRegistry {
     /// Every profile this one names as a parent — the inference edges of
     /// [`ProfileSpec::relations`], flattened.
     ///
-    /// The `requires` slice this replaced, reconstructed for the consumers
-    /// that publish it (the registry snapshot) rather than walk it.
+    /// Reconstructed for the consumers that publish a flat parents list
+    /// (the registry snapshot) rather than walk the relations themselves.
     #[must_use]
     pub fn profile_parents(&self, profile: &str) -> Vec<&'static str> {
         self.get_profile(profile)
@@ -2305,10 +2305,11 @@ mod tests {
         assert_eq!(reg.modifications().len(), 4);
     }
 
-    /// `stack_satisfies` dropped the per-candidate closure for a membership
-    /// test. The two agree because the active expansion is a fixed point over
-    /// the inference edges — this holds that claim over every ordered pair the
-    /// shipped table can form, plus a name the registry does not know.
+    /// `stack_satisfies` checks membership rather than computing a
+    /// per-candidate closure. The two agree because the active expansion is
+    /// a fixed point over the inference edges — this holds that claim over
+    /// every ordered pair the shipped table can form, plus a name the
+    /// registry does not know.
     #[test]
     fn stack_satisfies_agrees_with_the_subset_formulation() {
         let reg = ProfileRegistry::build();

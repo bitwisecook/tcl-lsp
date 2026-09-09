@@ -71,9 +71,9 @@ use crate::value::Value;
 /// The error is the owner's, not a flat `missing close-bracket`. A substituted
 /// `[…]` is a *script*, so C recurses into it at the bracket and reports what
 /// it meets inside: `subst {[set y ${a{b]}` is `missing close-brace for
-/// variable name` on tclsh 8.6.16 and 9.0.4 alike. This adapter used to
-/// discard the owner's message with `.ok()` and every caller substituted the
-/// outer one, which is the error the owner's own contract warns against.
+/// variable name` on tclsh 8.6.16 and 9.0.4 alike. Discarding the owner's
+/// message with `.ok()` and substituting the outer one at every call site is
+/// exactly the error the owner's own contract warns against.
 fn command_end(
     b: &[u8],
     start: usize,
@@ -510,7 +510,8 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
     // rule is observable through (and which is pinned by
     // `compiled_interpolated_and_switch_paths_follow_the_emulated_release`).
     // It is written release-aware anyway so the two arms cannot drift apart —
-    // the drift between two such copies is the whole of #1568.
+    // that drift is exactly the risk two independent copies of the same rule
+    // carry.
     let braced_var = vm.braced_var_style();
     if n >= 3
         && b[0] == b'$'
@@ -527,7 +528,7 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
     // backslashes it produced — `set body "list e\\n} f\\$} "` is 15
     // characters on both oracles, and a second decode makes it 13.
     //
-    // This is also where issue #1646 is *not*. `set n [string length "x\$y"]`
+    // This is not the site of a related divergence. `set n [string length "x\$y"]`
     // answers 4 where both oracles say 3, but the divergence is upstream: the
     // compiler emits the literal `x\$y` for that word where the value is
     // `x$y`, and the identical `set body …` word above proves the VM's rule is
@@ -546,7 +547,7 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
     // `SubstFlags::compiled_word()` is the codegen's convention — a surviving
     // bare `$` is data, because every real variable reference was either
     // inlined to `loadStk` or normalised to `${name}` — and the release axes
-    // (the `${…}` close rule, #1568; the escape grammar, #1479) ride on the
+    // (the `${…}` close rule; the escape grammar) ride on the
     // `LexerConfig`. The scan replaces a hand-rolled loop that carried its own
     // second copy of the `${…}` close rule and its own bracket search.
     let config = vm.lexer_config();

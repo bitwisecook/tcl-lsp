@@ -71,11 +71,11 @@ const REPORT_PATH: &str = "docs/generated/wasm-command-backing.md";
 /// created by method dispatch (`oo_register_my`). Names are canonical (no
 /// leading `::`). Kept sorted.
 ///
-/// The standalone `::tcl::dict::*` spellings (issue #923 idx 105) are **not**
+/// The standalone `::tcl::dict::*` spellings are **not**
 /// here: `runtime/rust` backs only the `dict` ensemble head, so a direct
 /// `::tcl::dict::get …` call is `invalid command name` there — a genuine gap
 /// classified by [`is_tcl_dict_qualified`] as [`Status::KnownGap`], not hidden
-/// as if `dict`'s handler backed it (Codex review, PR #1020).
+/// as if `dict`'s handler backed it.
 const HANDLER_EXTRA: &[(&str, &str)] = &[
     (
         "my",
@@ -223,18 +223,14 @@ const NOT_REQUIRED: &[(&str, &str)] = &[
 ];
 
 /// Core commands that *should* be backed but are not yet — real gaps, each
-/// with its own reason below. The original sweep that opened this allow-list
-/// closed with it empty, so every entry here is a newer, independent
-/// addition rather than a reopening of that work. Allow-listed so
+/// with its own reason below. Allow-listed so
 /// the gate stays green while they are implemented one by one; removing a
 /// name here (as it gains a handler) is the visible progress marker. Names
 /// are canonical (no leading `::`). Kept sorted.
 ///
 /// The Tcl 9.1 entries below (everything but `link`/`tcl::zipfs`/`zipfs`)
-/// only became visible to this gate once `core_commands()`'s
-/// `TCL90`→`TCL90_PLUS` fix stopped silently excluding every 9.1-only-gated
-/// command (adversarial review of PR #1008) — they were always genuinely
-/// unbacked, just invisible to the check before that fix.
+/// are visible to this gate because `core_commands()` includes every
+/// `TCL90_PLUS`-gated command; they are genuinely unbacked.
 const KNOWN_UNBACKED: &[(&str, &str)] = &[
     (
         "callback",
@@ -305,22 +301,17 @@ fn canon(name: &str) -> &str {
 /// `c` must already be [`canon`]ical.
 ///
 /// This intentionally does **not** match the qualified `tcl::mathop::*`
-/// spellings any more — those are real, separately-callable runtime commands
+/// spellings — those are real, separately-callable runtime commands
 /// (see [`is_mathop_command`]), so classifying them here as "not required"
-/// would hide a broken/missing runtime install from this gate (issue #983's
-/// #987 residual: the WASM-parity check couldn't have caught a broken
-/// `tcl::mathop` install because it never looked for one).
+/// would hide a broken/missing runtime install from this gate: the
+/// WASM-parity check would never look for a `tcl::mathop` install to
+/// notice it was broken.
 ///
-/// The bare spellings are derived from `tcl_syntax::expr::operators` (issue
-/// #983's unification) rather than a hand-typed list — that list used to
-/// carry a bare `max`/`min` entry left over from the same historical
-/// `mathop_generated.rs` bug documented in that file's own header
-/// (`max`/`min` were never real `::tcl::mathop` members; they're
-/// `expr` math *functions*, registered only under the qualified
-/// `tcl::mathfunc::` spellings, never bare — so this predicate never
-/// actually matched a real registry command for them; dead weight, not a
-/// live bug, since the WASM-parity scan only ever calls this on names the
-/// registry actually carries).
+/// The bare spellings are derived from `tcl_syntax::expr::operators` rather
+/// than a hand-typed list. `max`/`min` are never real `::tcl::mathop`
+/// members — they're `expr` math *functions*, registered only under the
+/// qualified `tcl::mathfunc::` spellings, never bare — so this predicate
+/// never matches a real registry command for them.
 fn is_expr_operator(c: &str) -> bool {
     c == "tcl::mathop"
         || tcl_syntax::expr::operators::ALL_BIN_OPS

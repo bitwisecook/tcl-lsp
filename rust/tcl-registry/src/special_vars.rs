@@ -26,7 +26,7 @@
 //!
 //! * A **write is observed by the runtime** even when the script never reads
 //!   the value back (`set auto_path …` configures the package auto-loader).
-//!   Such a write is *not* a dead store / unused variable (issue #831).
+//!   Such a write is *not* a dead store / unused variable.
 //! * Some entries are **readable at startup** — either because the default
 //!   host / interpreter / `init.tcl` has already bound them, or because a core
 //!   read trace materialises their value.  That lifecycle fact, rather than
@@ -307,7 +307,7 @@ pub fn is_lazily_readable(name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool
 /// Whether a *write* to `name` in `dialect` is observed by the runtime — so
 /// `set NAME …` must not be flagged as a dead store (W220) or unused variable
 /// (W211) even when the script never reads `$NAME`. This is the fix for the
-/// `set auto_path …` false positive (issue #831).
+/// `set auto_path …` false positive.
 #[must_use]
 pub fn is_externally_read(name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
     special_var_in_dialect(name, dialect).is_some_and(|v| v.externally_read)
@@ -896,7 +896,7 @@ mod tests {
 
     #[test]
     fn auto_path_is_externally_read_in_tcl() {
-        // The issue-#831 case: `set auto_path …` writes a runtime-observed
+        // `set auto_path …` writes a runtime-observed
         // variable, so it must not be a dead store.
         assert!(is_externally_read("auto_path", Some(d("tcl8.6"))));
         assert!(is_externally_read("auto_path", Some(d("")))); // generic Tcl

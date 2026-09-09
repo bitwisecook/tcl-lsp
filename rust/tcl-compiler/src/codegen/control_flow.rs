@@ -1013,7 +1013,7 @@ impl CodegenCtx<'_> {
             Some(InlineCodegenHookId::Expr) if body_args.len() == 1 => {
                 let expr_text = &body_args[0].0;
                 // Parsed under the compile's dialect, as lowering parses a
-                // statement-position `expr` (issue #1435).
+                // statement-position `expr`.
                 let node = self.parse_compile_expr(expr_text);
                 if let Some((msg, opts)) = detect_const_expr_error(&node) {
                     self.push_lit(&msg);
@@ -1586,10 +1586,10 @@ mod tests {
     use tcl_registry::CommandRegistry;
 
     /// The catch-body `expr` re-parse follows the compile's dialect, and its
-    /// operator set follows the target release (issue #1435): `catch {expr {2
-    /// ** 3}}` compiled for 8.4 used to fold to a push of `8` and report
-    /// success, while the same source evaluated through `exprStk` is rejected
-    /// as C Tcl 8.4 rejects it.
+    /// operator set follows the target release: `catch {expr {2 ** 3}}`
+    /// compiled for 8.4 must not fold to a push of `8` and report success,
+    /// since the same source evaluated through `exprStk` is rejected as C Tcl
+    /// 8.4 rejects it.
     #[test]
     fn catch_body_expr_follows_the_compile_target_release() {
         let registry = CommandRegistry::build_default();
@@ -1943,9 +1943,9 @@ mod tests {
 
     // -- registry drift: catch-body classifications --
 
-    /// The registry's `NEEDS_START_CMD` set must equal the hardcoded
-    /// list `emit_catch_body` used to match — a future stamping change
-    /// is then a conscious decision, not a silent bytecode change.
+    /// The registry's `NEEDS_START_CMD` set must equal the set pinned here,
+    /// so a stamping change is a conscious decision rather than a silent
+    /// bytecode change.
     #[test]
     fn needs_start_cmd_trait_matches_previous_hardcoded_set() {
         let registry = CommandRegistry::build_default();

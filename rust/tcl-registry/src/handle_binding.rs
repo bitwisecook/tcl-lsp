@@ -18,10 +18,9 @@
 
 //! Object-handle bindings — which argument of a call names a **variable that
 //! ends up holding an object handle**, and which argument says what class the
-//! handle is (issue #1185).
+//! handle is.
 //!
-//! Two call shapes recur across class systems, and both used to be recognised
-//! by matching the command word in the LSP's snit handle scan:
+//! Two call shapes recur across class systems:
 //!
 //! ```tcl
 //! install axis using ::verticalAxis $win.a   ;# snit component install
@@ -163,7 +162,7 @@ impl HandleBindingSpec {
 ///
 /// Attached to `set`'s own [`CommandSpec::binds_handle`], which is what makes
 /// `::set` and a provable `rename set myset` classify identically to the bare
-/// spelling (issue #1185).
+/// spelling.
 ///
 /// [`CommandSpec::binds_handle`]: crate::spec::CommandSpec::binds_handle
 pub const SET_BINDS_HANDLE: HandleBindingSpec = HandleBindingSpec {
@@ -201,7 +200,7 @@ pub const SNIT_INSTALL_BINDS_HANDLE: HandleBindingSpec = HandleBindingSpec {
 ///
 /// Unlike `install`, the variable it binds is not written in the call at all:
 /// it is the widget's implicit `hull` component, which is why this needs
-/// [`HandleName::Implicit`] rather than another `name_at` row (issue #1275).
+/// [`HandleName::Implicit`] rather than another `name_at` row.
 pub const SNIT_INSTALLHULL_BINDS_HANDLE: HandleBindingSpec = HandleBindingSpec {
     name_from: HandleName::Implicit("hull"),
     class_from: HandleClassSource::Word(1),

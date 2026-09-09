@@ -2,7 +2,7 @@
 # span, in the code line above it, carries that TextMate scope. Assertion lines
 # are ordinary Tcl comments, so this file is still a valid script.
 #
-# These hold the contract from #903/#904: the static grammar must agree with the
+# These hold the contract that the static grammar must agree with the
 # semantic-token layer, never contradict it.
 
 proc greet {name {greeting hello}} {
@@ -15,7 +15,7 @@ proc greet {name {greeting hello}} {
 }
 
 # A non-local exit is a control keyword, not a library call — `catch` and
-# `error` are two halves of one construct and must match (#904).
+# `error` are two halves of one construct and must match.
 catch { error boom } msg
 #^^^^ keyword.control.tcl
 #       ^^^^^ keyword.control.tcl
@@ -50,7 +50,7 @@ oo::class create Account {
     }
 }
 
-# Issue #637: a bareword `proc` used as data must not open a definition, or it
+# A bareword `proc` used as data must not open a definition, or it
 # would swallow the following quote and derail every string after it.
 dict set frame proc "x"
 #              ^^^^ keyword.other.tcl

@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Shared native-stack depth caps for this crate's two unbounded
-//! recursive-descent categories — issue #996.
+//! recursive-descent categories.
 //!
 //! Both walkers below recurse *independently* of the crate's existing
 //! `Script`/`Statement`-tree caps (`analyser::commands::MAX_BODY_DEPTH`,
@@ -39,11 +39,11 @@
 //! [`MAX_SOURCE_NEST_DEPTH`] joins them for the third category — the
 //! *braced-body* descent — and, unlike the two above, is not a convention
 //! number at all: it is arithmetic over a stated stack budget and a measured
-//! per-level cost. See its docs for why 256 was not (issue #1654).
+//! per-level cost. See its docs for why 256 does not fit.
 
 /// Depth cap for every walk over an `[expr]` operator-tree AST
 /// ([`tcl_syntax::expr::ast::ExprNode`], re-exported as
-/// [`crate::ExprNode`]) — issue #996.
+/// [`crate::ExprNode`]).
 ///
 /// `ExprNode` nests via its `Binary`/`Unary`/`Ternary`/`Call` variants:
 /// `expr {((((…))))}` or a long `1+1+1+…` chain places one operator node
@@ -61,7 +61,7 @@ pub(crate) const MAX_EXPR_NODE_DEPTH: tcl_core_types::RecursionLimit =
     tcl_core_types::RecursionLimit(256);
 
 /// Depth cap for every walk over nested `[cmd …]` command-substitution
-/// *raw text within a single word* — issue #996.
+/// *raw text within a single word*.
 ///
 /// These walkers re-scan the text inside each `[…]` substitution (or each
 /// `ArgRole::Body`/`apply`-lambda body word) and recurse into any nested
@@ -82,7 +82,7 @@ pub(crate) const MAX_BRACKET_TEXT_DEPTH: tcl_core_types::RecursionLimit =
 /// It is what `std::thread::spawn`, a Tokio worker, and `cargo test`'s
 /// per-test thread all hand a caller who asks for nothing in particular.
 /// The `tcl` CLI, `tcl-lsp-server` and `tcl-mcp` deliberately ask for 64 MiB
-/// (issue #996's `WORKER_STACK_SIZE`), so their own entry points have 32×
+/// (`WORKER_STACK_SIZE`), so their own entry points have 32×
 /// this — but a cap is a property of the walk, not of one caller, and a
 /// crate this one is embedded in owes us no such courtesy. Sizing to the
 /// floor keeps "the analyser aborts the process" off the table for every
@@ -116,24 +116,24 @@ const SOURCE_WALK_STACK_RESERVE: u32 = MIN_SOURCE_WALK_STACK / 4;
 /// | `analyser::commands::Analyser::analyse_body` | 3,840 |
 ///
 /// The lowering chain sets the number: eight Rust frames per braced-body
-/// level, several of them large. It originally measured 18,864 bytes; retaining
-/// registry-resolved structured-command dependencies in the recursive IR made
-/// the old 20 KiB envelope fail this module's exact constrained-stack test.
+/// level, several of them large — measured at 18,864 bytes, and more once
+/// registry-resolved structured-command dependencies are retained in the
+/// recursive IR, which is why a 20 KiB envelope fails this module's
+/// constrained-stack test.
 /// 24 KiB is the next conservative envelope, revalidated by that same test, so
 /// the arithmetic below keeps slack even before the reserve.
 pub(crate) const SOURCE_WALK_BYTES_PER_LEVEL: u32 = 24 * 1024;
 
 /// Depth cap for the braced-body descent shared by the lowering, CFG-builder
-/// and analyser walks — issue #1654.
+/// and analyser walks.
 ///
 /// All three recurse once per `{ … }` nesting level over the same document,
 /// and all three carried a hand-picked 256 that matched this crate's
 /// full-tree convention. That number was never checked against a stack: at
 /// the lowering walk's measured 18,864 bytes a level, 256 levels want about
-/// 4.6 MiB at the original measurement, so ~400 nested `foreach` bodies aborted the process on any
-/// default-stack thread — the cap tripped at 256 long after the stack ran
-/// out at ~112 (issue #1654; the containment the caps exist to provide,
-/// absent exactly where it was claimed).
+/// 4.6 MiB, so ~400 nested `foreach` bodies abort the process on any
+/// default-stack thread: a cap of 256 trips long after the stack has run out
+/// at ~112, providing no containment at all.
 ///
 /// So it is derived rather than chosen: the levels
 /// [`MIN_SOURCE_WALK_STACK`] pays for at
@@ -197,7 +197,7 @@ mod tests {
             (MIN_SOURCE_WALK_STACK - SOURCE_WALK_STACK_RESERVE) / SOURCE_WALK_BYTES_PER_LEVEL,
         );
         // Deep enough that no hand-written source reaches it, and far below
-        // the 256 that did not fit (issue #1654).
+        // the 256 that does not fit.
         assert!((32..256).contains(&MAX_SOURCE_NEST_DEPTH.0));
         // The reserve is the one input that is a *policy* rather than a
         // measurement, and the one `the_source_walk_cap_fits_its_stack_budget`

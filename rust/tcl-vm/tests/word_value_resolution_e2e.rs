@@ -20,64 +20,62 @@
 //! `variable_name_resolution_e2e` pins for names: *a word is resolved exactly
 //! once.*
 //!
-//! The compiled path resolved a word's value and then handed the result back to
-//! the VM's runtime word substitution, which read it as source a second time.
-//! For a value that happens to *look* like a braced word — `"{}"`, `"{x}"`,
-//! `"\{\}"` — `subst_word`'s whole-word-braced fast path then stripped a brace
-//! layer that was never in the source:
+//! Resolving a word's value and then handing the result back to the VM's
+//! runtime word substitution reads it as source a second time. For a value
+//! that happens to *look* like a braced word — `"{}"`, `"{x}"`, `"\{\}"` —
+//! `subst_word`'s whole-word-braced fast path would then strip a brace layer
+//! that was never in the source:
 //!
 //! ```text
-//! % puts [string index "{}" 0]           ;# 8.6.16 / 9.0.4: {    was: (empty)
-//! % set v "{}" ; puts [string length $v] ;# 8.6.16 / 9.0.4: 2    was: 0
-//! % set z x ; puts "{$z}"                ;# 8.6.16 / 9.0.4: {x}  was: ${z}
+//! % puts [string index "{}" 0]           ;# 8.6.16 / 9.0.4: {    wrong: (empty)
+//! % set v "{}" ; puts [string length $v] ;# 8.6.16 / 9.0.4: 2    wrong: 0
+//! % set z x ; puts "{$z}"                ;# 8.6.16 / 9.0.4: {x}  wrong: ${z}
 //! ```
 //!
-//! The braced half of the same hole was closed twice before (issue #1602, then
-//! `emit_cmd_subst_arg`'s braced arm). A de-quoted word is finished for exactly
-//! the same reason a de-braced one is — the quotes are gone and the escapes are
-//! decoded — and so is each literal *fragment* a composite word decomposes to.
+//! The braced half of this hazard reaches both a resolved name and a
+//! de-quoted word (`emit_cmd_subst_arg`'s braced arm). A de-quoted word is
+//! finished for exactly the same reason a de-braced one is — the quotes are
+//! gone and the escapes are decoded — and so is each literal *fragment* a
+//! composite word decomposes to.
 //!
-//! Two shapes, two fixes, because a value that still carries a marker cannot
-//! simply be frozen:
+//! Two shapes, two treatments, because a value that still carries a marker
+//! cannot simply be frozen:
 //!
 //! * **No marker left** (`"{}"`, a decoded `\{\}`, a `Lit` fragment): pushed
 //!   unsubstituted — `CodegenCtx::push_word_value` / `push_lit_exact`. The
-//!   marker test is the VM's own, so this can only remove the brace strip:
-//!   `subst_word` returns a word carrying no `${` and no `[` unchanged apart
-//!   from it.
+//!   marker test is the VM's own, so `subst_word` must return a word carrying
+//!   no `${` and no `[` unchanged apart from removing the brace strip.
 //! * **A live marker inside the braces** (`"{$z}"`, `"{[pz]}"`): decomposed at
 //!   compile time instead, because the `${…}` / `[…]` must still run and the
-//!   surrounding braces are word content. Pushed raw, the VM stripped the
-//!   braces and returned the inside *unsubstituted*.
+//!   surrounding braces are word content. Pushed raw, the VM would strip the
+//!   braces and return the inside *unsubstituted*.
 //!
 //! The same rule reaches two places that *produce* a value rather than write
-//! one, and both got it wrong in both halves. A **constant fold** runs its
-//! command at compile time, so its result is finished — yet the folds pushed it
-//! substituting, and `dict create` did so in both emitters. A **braced `expr`
-//! operand** is a literal — yet codegen decided "braced" on the necessary
-//! condition alone (`{` first, `}` last) and pushed the content substituting,
-//! so `{}${z}` was stripped to the unbalanced `}${z}` and `expr {{a[nope]}}`
-//! ran `nope`. That first one is why `switch -- "{}$z" …` raised on a script
-//! both oracles run: a switch subject reaches codegen as that operand. The
-//! balance walk now has one owner, `tcl_syntax::word_rules::whole_braced_word`,
-//! shared with the `subst_word` side that asks the same question.
+//! one. A **constant fold** runs its command at compile time, so its result is
+//! finished and must be pushed unsubstituting — in both `dict create`
+//! emitters. A **braced `expr` operand** is a literal, so codegen must not
+//! decide "braced" on the necessary condition alone (`{` first, `}` last) and
+//! push the content substituting: that would strip `{}${z}` to the unbalanced
+//! `}${z}` and run `nope` for `expr {{a[nope]}}`. The same hazard is why
+//! `switch -- "{}$z" …` must not raise on a script both oracles run: a switch
+//! subject reaches codegen as that operand. The balance walk has one owner,
+//! `tcl_syntax::word_rules::whole_braced_word`, shared with the `subst_word`
+//! side that asks the same question.
 //!
 //! The negative vectors below pin both boundaries: live substitution still
 //! happens, and a genuinely braced word still loses exactly one layer.
 //!
-//! The last group is the paths the first pass at this rule did not reach, all
-//! found by the fuzzer once it could generate a word whose value is not its
-//! spelling (#1897). Two are the same rule in an emitter that was missed —
-//! `emit_value`'s default push, the twin of the one that was fixed, which is
-//! the path a proc's `return` value takes; and a braced `switch` subject,
-//! whose braced-ness the IR recorded for the *patterns* but never for the
-//! subject. Three are neighbouring reads of a word that were wrong in their own
-//! way: a fold's brace-depth scan that counted braces inside a quoted word as a
-//! group, a word splitter that ended a word at an escaped blank, and a fold
-//! that walked a quoted argument one byte at a time. The last is the mistake
-//! `parse_subst_template` had fixed for #1441, surviving in its neighbour —
-//! which is the argument for pinning all of them here rather than beside each
-//! emitter.
+//! The last group covers paths reachable only by a word whose value is not
+//! its spelling. Two are the same rule in `emit_value`'s default push (the
+//! path a proc's `return` value takes) and a braced `switch` subject, whose
+//! braced-ness the IR records for the *patterns* but not for the subject.
+//! Three are neighbouring reads of a word that get it wrong in their own way:
+//! a fold's brace-depth scan that counts braces inside a quoted word as a
+//! group, a word splitter that ends a word at an escaped blank, and a fold
+//! that walks a quoted argument one byte at a time. The last is the same
+//! mistake `parse_subst_template` avoids elsewhere, surviving in its
+//! neighbour — which is the argument for pinning all of them here rather than
+//! beside each emitter.
 //!
 //! Every vector runs through the VM at all five releases and, when the matching
 //! real tclsh is installed, under it too, so the table cannot drift from C Tcl.
@@ -158,7 +156,7 @@ struct Vector {
 }
 
 const VECTORS: &[Vector] = &[
-    // -- No marker left: a finished value is pushed unsubstituted. --
+    // No marker left: a finished value is pushed unsubstituted.
     Vector {
         name: "a quoted value that looks braced keeps both braces in a command arg",
         script: r#"puts [string index "{}" 0]:[string length "{}"]:[string length "{abc}"]
@@ -178,7 +176,8 @@ puts [string length $v]:[string length $w]:$w
     Vector {
         // The proc body runs through the same word emitters as the top level
         // but with the local-variable table in play, so it is pinned
-        // separately: #1602's braced half regressed in exactly that direction.
+        // separately: the braced-value hazard above could regress in exactly
+        // that direction.
         name: "the same value survives a proc-local round trip",
         script: r#"proc pv {} { set v "{q}" ; return [string length $v]:[set v] }
 puts [pv]
@@ -237,7 +236,7 @@ puts [expr {"{}$z"}]:[string length [expr {"{}$z"}]]
         want: "{}x:3",
         since: TclVersion::V8_4,
     },
-    // -- A live marker: decomposed, not frozen. --
+    // A live marker: decomposed, not frozen.
     Vector {
         // The marker test's whole purpose. Freezing every brace-shaped value
         // would print the literal `{$z}` here; pushing it raw (what the VM did)
@@ -261,7 +260,7 @@ puts "{[pz]}"
         want: "3\n{x}",
         since: TclVersion::V8_4,
     },
-    // -- The negative boundary: the braced-word rule is untouched. --
+    // The negative boundary: the braced-word rule is untouched.
     Vector {
         // The positive control for the arm this fix sits next to: a genuinely
         // braced word still loses exactly one brace layer, and its `$` / `[`
@@ -273,7 +272,7 @@ puts {{a}}
         want: "2:0:6\n{a}",
         since: TclVersion::V8_4,
     },
-    // -- The same rule where the value is *produced*, not written. --
+    // The same rule where the value is *produced*, not written.
     Vector {
         // A constant fold runs the command at compile time, so its result is a
         // value with no word rule left — but the folds pushed it substituting
@@ -318,7 +317,7 @@ puts $l:[string length $l]
         want: "{{}}:4",
         since: TclVersion::V8_4,
     },
-    // -- The braced *operand* arm, which decided the same question twice. --
+    // The braced *operand* arm, which decided the same question twice.
     Vector {
         // Codegen's braced-`expr`-operand arm stripped on "first `{`, last `}`"
         // and pushed the content substituting. Both halves were wrong: the
@@ -352,7 +351,7 @@ switch -- "{}$z" "{}x" { puts B:hit } default { puts B:def }
         want: "5:4",
         since: TclVersion::V8_4,
     },
-    // -- The paths the first pass at this rule did not reach. --
+    // The paths the first pass at this rule did not reach.
     Vector {
         // `emit_value`'s default push — the twin of `emit_value_interpolated`'s,
         // fixed at the same time as its sibling was not. It is the emitter a
@@ -414,11 +413,10 @@ puts [string length [dict get $d k]]
         since: TclVersion::V8_4,
     },
     Vector {
-        // `format`'s fold walked its quoted argument one *byte* at a time
+        // Walking `format`'s fold's quoted argument one *byte* at a time
         // through `char::from`, which maps a byte to that value's Latin-1 code
-        // point — so every byte of a multi-byte character became its own
-        // mojibake char. The same mistake was fixed in `parse_subst_template`
-        // for #1441 and survived in its neighbour.
+        // point, would turn every byte of a multi-byte character into its own
+        // mojibake char — the same mistake `parse_subst_template` avoids.
         name: "a folded format result counts characters, not bytes",
         script: r#"set f [format %s "café"]
 puts [string length $f]:$f
@@ -426,7 +424,7 @@ puts [string length $f]:$f
         want: "4:café",
         since: TclVersion::V8_4,
     },
-    // -- The operand contract: a word's value is not expression source. --
+    // The operand contract: a word's value is not expression source.
     Vector {
         // A `switch` subject is a *word*, and its value was handed to an
         // operand shape whose text is source-including-delimiters. A value
@@ -474,10 +472,10 @@ switch -glob -- {a[nosuchcmd]} zz {puts E:hit} default {puts E:def}
         // each, so a braced `{${…}}` pattern is literal while `$p`
         // substitutes.
         //
-        // The first two lines used to pass by accident: the subject wrongly
-        // loaded the variable *and* the pattern wrongly substituted, so the two
-        // wrongs compared equal. The third line separates them — a literal
-        // subject cannot match the variable's value.
+        // The first two lines alone could pass by accident: a subject that
+        // wrongly loads the variable and a pattern that wrongly substitutes
+        // would compare equal to each other. The third line separates them —
+        // a literal subject cannot match the variable's value.
         name: "a braced subject that spells a variable is still literal",
         script: r"switch -- {${undefinedvar}} {${undefinedvar}} {puts A:literal} default {puts A:def}
 set p {${undefinedvar}}
@@ -489,19 +487,16 @@ switch -- {${x}} foo {puts C:value} default {puts C:literal}
         since: TclVersion::V8_4,
     },
     Vector {
-        // The escaped-marker family #1646 named. Its own repro (the last line)
-        // was fixed by #1754; these are the rest of it.
-        //
         // An escaped marker is *data*, and stays data after the escape is
         // decoded — so a decoded word is finished and must not be read as
-        // source again. The assignment path decoded `"\$\{x}"` to the four
-        // characters `${x}` and then took them for a variable reference,
-        // storing one. A composite word went the other way: deferred to the VM
-        // with its escapes *undecoded*, which breaks the compiled-word
-        // convention the VM documents — a surviving backslash is an ordinary
-        // character there, so `\$\{x}` read back as a live `${x}`, and without
-        // a closing brace it raised `missing close-brace for variable name` on
-        // a script both oracles run.
+        // source again. Decoding `"\$\{x}"` to the four characters `${x}` and
+        // then taking them for a variable reference would store the wrong
+        // value. A composite word going the other way — deferred to the VM
+        // with its escapes *undecoded* — breaks the compiled-word convention
+        // the VM documents: a surviving backslash is an ordinary character
+        // there, so `\$\{x}` would read back as a live `${x}`, and without a
+        // closing brace raise `missing close-brace for variable name` on a
+        // script both oracles run.
         name: "an escaped marker is data, before and after decoding",
         script: r#"set x V
 set v "\$\{x}"

@@ -16,13 +16,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Per-item incremental analysis (slice 2b/3 of
-//! `docs/design/rust/incremental-analysis.md`).
+//! Per-item incremental analysis
+//! (`docs/design/rust/incremental-analysis.md`).
 //!
 //! [`Analyser::analyse_per_item`] reproduces [`Analyser::analyse`]
 //! **byte-for-byte** but decomposed so each top-level **proc / method body** is
-//! analysed as a separate unit — the granularity at which slice 3 memoises the
-//! expensive per-line walk (a body edit then re-analyses only that body).
+//! analysed as a separate unit — the granularity at which the expensive
+//! per-line walk is memoised (a body edit then re-analyses only that body).
 //!
 //! ## How it stays byte-identical
 //!
@@ -92,7 +92,7 @@ pub enum PerItemFallback {
     /// per-parent geometry) is not visible to an isolated body.
     ///
     /// Fires in two places, because Tk activation has two inputs of very
-    /// different cost (issue #1188): the `tk` dialect is known at entry and
+    /// different cost: the `tk` dialect is known at entry and
     /// short-circuits before any work, whereas a `package require Tk` is a
     /// whole-file fact only the walk can establish, so it is checked *after*
     /// the shell + body passes have filled `result.package_requires` via the
@@ -163,7 +163,7 @@ pub struct DeferredBody {
     ///
     /// Shared behind an `Arc` so the LSP query database can intern it into its
     /// per-body memo key without a second copy of every proc body's full source
-    /// on every edit (issue #1159 — `tcl-lsp-db`'s `ItemBodyKey`).
+    /// on every edit (`tcl-lsp-db`'s `ItemBodyKey`).
     pub body_text: std::sync::Arc<str>,
     /// The body's `Str` token (absolute span) — drives offset arithmetic.
     pub body_tok: Token,
@@ -200,7 +200,7 @@ pub struct DeferredBody {
     /// The whole-file command-mutation trust snapshot, attached by
     /// [`Analyser::fill_deferred_bodies`] to every deferred body whose text
     /// could fold a command substitution
-    /// ([`crate::const_subst::body_has_fold_candidate`], issue #1132), and
+    /// ([`crate::const_subst::body_has_fold_candidate`]), and
     /// `None` for every other body. The isolated pass folds only under this
     /// snapshot — its own body-only source cannot see a `rename` elsewhere
     /// in the file, so an absent snapshot means *distrust everything*.
@@ -222,7 +222,7 @@ pub struct DeferredBody {
     /// `<ensemble> <sub> …` call inside the body records the same
     /// existence-probed subcommand invocation the whole-file walk does —
     /// provenance included, so the body's dispatch words carry the same
-    /// `-map`/`-subcommands` tag rename gates on (issue #1281).
+    /// `-map`/`-subcommands` tag rename gates on.
     pub ensemble_targets: Vec<(
         String,
         Vec<(String, super::types::EnsembleSubcommandTarget)>,
@@ -314,7 +314,7 @@ impl Analyser {
         // Only the *ambient-placement* half of Tk activation is decidable
         // here; the `package require Tk` half is a whole-file fact
         // established by the walk, and is checked after the body pass below
-        // (issue #1188).
+        //.
         //
         // Evaluated one gate at a time (rather than as one `||` chain) so the
         // telemetry can name which fired — these are checked in cheapest-first
@@ -384,7 +384,7 @@ impl Analyser {
             self.body_scope_stack.pop();
         }
 
-        // Tk activation, first opportunity (issue #1188).  A `package require
+        // Tk activation, first opportunity.  A `package require
         // Tk` sits at the top level of essentially every real Tk script, and
         // the shell pass has just walked the whole top level — including
         // `namespace eval` and control-flow bodies — so checking here hands off
@@ -436,7 +436,7 @@ impl Analyser {
     /// Hand off to a full [`Analyser::analyse`] if the walk so far has proved
     /// the document is Tk — otherwise `None`, and the per-item path continues.
     ///
-    /// The **exact** activation fact (issue #1188), read from
+    /// The **exact** activation fact, read from
     /// `result.package_requires`, which the registry's `PackageRequire` hook
     /// populated during the walk — the very fact
     /// [`Analyser::flush_tk_geometry_diagnostics`] gates the TK diagnostics on,
@@ -487,7 +487,7 @@ impl Analyser {
         // exactly that reason.
         self.tk_accumulation_enabled = false;
         // The `# tcl-lsp: package NAME provides …` edges, scanned here for the
-        // same reason the whole-file ingresses scan them (issue #1813): the
+        // same reason the whole-file ingresses scan them: the
         // Tk hand-off below reads them *during* the walk, through
         // `has_tk_require`, to decide whether this document needs a full
         // analysis at all. Without this the two strategies disagree — the
@@ -629,7 +629,7 @@ impl Analyser {
         body_fn: &mut dyn FnMut(&DeferredBody) -> BodyFragment,
     ) -> Result<(), Box<AnalysisResult>> {
         let deferred = std::mem::take(&mut self.deferred_bodies);
-        // Scaling guard (issue #1188).  Analysing a body in isolation costs
+        // Scaling guard.  Analysing a body in isolation costs
         // markedly more than analysing the identical content in place, and the
         // gap widens with body size, so a single enormous body turns the
         // incremental path into a large *pessimisation* — on tcllib's generated
@@ -676,7 +676,7 @@ impl Analyser {
             return Err(Box::new(self.fresh_full_analyse(source, dialect)));
         }
         // Attach the whole-file command-mutation trust snapshot to every
-        // body whose text could fold a command substitution (issue #1132):
+        // body whose text could fold a command substitution:
         // the isolated body pass cannot see a `rename` elsewhere in the
         // file, so without this it must distrust everything and would
         // diverge from the whole-file walk's folds. Bodies with no fold
@@ -758,7 +758,7 @@ impl Analyser {
             return Err(Box::new(self.fresh_full_analyse(source, dialect)));
         }
         // `instance_classes` / `created_instance_commands` are complete now
-        // (issue #1312) — resolve the bareword named-object dispatch
+        // — resolve the bareword named-object dispatch
         // candidates the shell/body passes deferred above.
         self.finalise_bareword_dispatch_sites();
         Ok(())
@@ -771,7 +771,7 @@ impl Analyser {
     /// `analyse` path applies inline); a coroutine / `interp create` /
     /// registry-factory / external-class name that merely matched the
     /// cheap registry-layout pre-filter never had a class and is
-    /// dropped here without ever drawing a diagnostic — issue #1312.
+    /// dropped here without ever drawing a diagnostic.
     fn finalise_bareword_dispatch_sites(&mut self) {
         let Some(candidates) = self.pending_bareword_dispatch_sites.take() else {
             return;
@@ -853,10 +853,10 @@ impl Analyser {
     /// unique, so insert and merge coincide — byte-identical to before.)
     /// Merge one grafted body's per-object records into the shell's result.
     /// Per-object methods accumulate per receiver name across bodies — the
-    /// binding-identity consumer scopes them by objdefine site (issue #945
-    /// fault 5), so records from different procs coexist; the folded member
-    /// state merges the same way (bindings from different bodies are
-    /// distinct entries, keyed by their own anchor — issue #1170).
+    /// binding-identity consumer scopes them by objdefine site, so records
+    /// from different procs coexist; the folded member state merges the same
+    /// way (bindings from different bodies are distinct entries, keyed by
+    /// their own anchor).
     fn merge_per_object_records(
         result: &mut AnalysisResult,
         object_methods: std::collections::HashMap<String, Vec<super::types::ObjectMethodDef>>,
@@ -950,8 +950,8 @@ impl Analyser {
             .extend(r.prefixless_ensembles);
         Self::merge_per_object_records(&mut self.result, r.object_methods, r.object_member_state);
         self.result.instance_classes.extend(r.instance_classes);
-        // `object_handle_facts` is deliberately **not** merged here (issue #994
-        // C5a).  It has exactly one producer — `emit_cfg_ssa_diagnostics_with_cu`
+        // `object_handle_facts` is deliberately **not** merged here.  It has
+        // exactly one producer — `emit_cfg_ssa_diagnostics_with_cu`
         // — which runs on the *shell*, once, against the whole-file compilation
         // unit the per-item path supplies via `set_cu_override`.  An isolated
         // body fragment never reaches that producer (`analyse_proc_body_isolated`
@@ -1057,8 +1057,8 @@ impl Analyser {
             .extend(frag.var_literal_checks);
         // Ensembles declared *inside* this body: the shell needs their
         // absolute recording offsets to apply the whole-file DFS visibility
-        // rule when it replays the call sites it deferred (issue #923 idx
-        // 85). `rebase_fragment_pending` has already shifted them.
+        // rule when it replays the call sites it deferred.
+        // `rebase_fragment_pending` has already shifted them.
         self.ensemble_record_offsets.extend(frag.ensemble_offsets);
         // Replay the body's qualified global reads against the shell's real
         // global scope (rebased to the body's position): a `$::g` read lands as
@@ -1072,8 +1072,8 @@ impl Analyser {
         // any deferred body, so without this guard a later definition would
         // spuriously absorb the read.  Gate on the body token start (the proc
         // header precedes it, and no top-level command can fall inside the body).
-        // Replay the body's global-scope *definitions* first (issue #923 idx
-        // 98): a body that names a fixed cell (`upvar ::tk::FocusGrab($i)
+        // Replay the body's global-scope *definitions* first: a body that
+        // names a fixed cell (`upvar ::tk::FocusGrab($i)
         // data`) is the only place that cell comes to exist, and the reads
         // replayed below — plus the tail's
         // `attach_qualified_var_references` — resolve against the shell's
@@ -1234,7 +1234,7 @@ pub struct BodyFragment {
     /// merges the fragment's *proc* scope only, so these are replayed onto
     /// the shell's real global scope; without that the cell never entered
     /// the scope tree the navigation providers and
-    /// `attach_qualified_var_references` read (issue #923 audit idx 98).
+    /// `attach_qualified_var_references` read.
     global_defs: Vec<(String, tcl_lexer::Token, tcl_lexer::Span)>,
     /// W002 (disabled-in-dialect command) sites — always deferred (see
     /// [`super::state::Analyser::pending_disabled_commands`]), so this is
@@ -1266,7 +1266,7 @@ pub struct BodyFragment {
     /// rebased) for the global source-ordered replay
     /// (`Analyser::replay_deferred_instances`).
     instances: Vec<(String, Vec<String>, String, u32)>,
-    /// Captured bareword named-object dispatch candidates (issue #1312); the
+    /// Captured bareword named-object dispatch candidates; the
     /// graft queues them (spans rebased) for finalisation right after the
     /// instance-creation replay above, once `instance_classes` is complete.
     bareword_dispatch_sites: Vec<super::state::VarCommandSite>,
@@ -1289,7 +1289,7 @@ pub struct BodyFragment {
     /// compilation unit, so an isolated body's sites are re-queued there
     /// (spans rebased) exactly like `var_sites` / `cmd_sites`.
     const_dispatches: Vec<super::state::ConstDispatchSite>,
-    /// `$class`-headed instance-creation sites (issue #923 idx 121), same
+    /// `$class`-headed instance-creation sites, same
     /// settle-late discipline as `const_dispatches`.
     instance_class_sites: Vec<super::state::PendingInstanceClassSite>,
     /// Buffered widget/instance dispatch sites (`.w sub …` / `$w sub …`)
@@ -1308,7 +1308,7 @@ pub struct BodyFragment {
     /// The graft rebases these to absolute and merges them into the shell so
     /// the tail's `flush_pending_ensemble_subcommand_invocations` can apply
     /// the whole-file DFS's "declaration precedes the call site" visibility
-    /// rule to an ensemble created inside a proc body (issue #923 idx 85).
+    /// rule to an ensemble created inside a proc body.
     ensemble_offsets: std::collections::HashMap<String, u32>,
     /// Every offset-keyed synthetic identity the isolated pass minted
     /// (`@dynns@<off>` / `@dynclass@<off>` / `@autoname@<off>`), with
@@ -1326,12 +1326,12 @@ pub struct BodyFragment {
 /// maps, so an `<ensemble> <sub> …` call inside the body records the same
 /// existence-probed invocation the whole-file walk does (provenance included,
 /// so the body's dispatch words carry the same `-map`/`-subcommands` tag rename
-/// gates on, issue #1281), **and** the `-prefixes 0` opt-out that decides
+/// gates on), **and** the `-prefixes 0` opt-out that decides
 /// whether an abbreviation of one of those subcommands may match at all.
 ///
 /// The counterpart of [`Analyser::graft_proc_body`]'s merge-back, and the one
 /// site that reads `DeferredBody`'s ensemble pair, so the two facts cannot
-/// drift apart again (issue #1636 review).
+/// drift apart.
 fn seed_ensemble_facts(a: &mut super::state::Analyser, db: &DeferredBody) {
     for (ensemble, subs) in &db.ensemble_targets {
         a.result
@@ -1368,8 +1368,8 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     // The workspace factory oracle travels with the body: a `Meta create …`
     // inside a proc body is classified by the whole-file walk, so it must be
     // classified identically here or the two strategies diverge on a class
-    // (issue #1276; the same trap the ensemble-call-site and global-cell bugs
-    // fell into).  Gated by
+    // (the same trap the ensemble-call-site and global-cell paths fall into).
+    // Gated by
     // `the_per_item_walk_agrees_with_the_whole_file_walk_cross_file`.
     let mut a = Analyser::with_disabled_diagnostics(disabled)
         .with_non_ascii_mode(non_ascii)
@@ -1380,7 +1380,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     // token spans it with `content_offset = 0` (no `{` to skip).
     a.source = db.body_text.to_string();
     // The isolated pass has no whole-file view, so the constant
-    // command-substitution fold (issue #1132) may trust only the snapshot
+    // command-substitution fold may trust only the snapshot
     // the shell attached — and must distrust EVERYTHING when none was
     // (lowering the body-only `a.source` would miss a `rename` elsewhere
     // in the file).
@@ -1401,7 +1401,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     a.capture_global_reads = Some(Vec::new());
     // …and the write-side twin: a fixed global cell this body *defines*
     // (`upvar ::ns::cell local`) must reach the shell's real global scope,
-    // not the throwaway root this isolated walk builds (issue #923 idx 98).
+    // not the throwaway root this isolated walk builds.
     a.capture_global_defs = Some(Vec::new());
     seed_ensemble_facts(&mut a, db);
     // Capture object-instance creations: the isolated body's `all_classes` is
@@ -1433,7 +1433,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
         // so the isolated scope is a method frame too (`Scope::oo_method_frame`).
         scope.oo_method_frame = true;
         // And the instance-side defining-class fact travels with the body
-        // (issue #1132), so `[self class]` folds identically here and on
+        //, so `[self class]` folds identically here and on
         // the whole-file walk.
         scope.oo_defining_class.clone_from(&db.oo_defining_class);
     }
@@ -1464,8 +1464,8 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
         a.define_var(base, dummy, &proc_path, false, Some(placeholder));
     }
     a.structural_rebind = false;
-    // Restore the enclosing safe-interpreter visibility context (issue #1001
-    // follow-up) so a hidden call inside this body — reached only via
+    // Restore the enclosing safe-interpreter visibility context so a hidden
+    // call inside this body — reached only via
     // incremental analysis's isolated second pass — still hits
     // `safe_interp_visibility_gate` the same way it would in a directly-
     // written body under the whole-file `analyse` path. `None` (the
@@ -2041,7 +2041,7 @@ fn rebase_fragment_pending(frag: &mut BodyFragment, d: u32) {
     // let `method_span` go un-rebased on two of these three lists, so W308
     // inside any proc or method body reported — and anchored its quick-fix
     // on — the *fragment's* offsets once the per-item path was in use
-    // (issue #1330).
+    //.
     for s in &mut frag.var_sites {
         s.rebase(d);
     }
@@ -2103,7 +2103,7 @@ pub(crate) fn reconstruct_proc_scope(
     use super::types::Scope;
     use super::types::ScopeKind;
     // `namespace` is a constructed key: split it by the construction-inverse
-    // rule so a legitimately colon-named segment survives (#934) — a
+    // rule so a legitimately colon-named segment survives — a
     // char-pattern trim + `split("::")` would collapse it.
     let comps = crate::naming::key_segments(namespace);
     let mut path: Vec<usize> = Vec::new();
@@ -2150,7 +2150,7 @@ pub(crate) fn reconstruct_proc_scope(
 /// Does the body `source` a `$var` path?  `handle_source_command` resolves
 /// such a path through the walk-time constant-string lattice, whose scope
 /// chain reaches the *enclosing* scopes on the whole-file walk (`set p
-/// "e.tcl"` at top level, `source $p` inside a proc — issue #923 idx 46's
+/// "e.tcl"` at top level, `source $p` inside a proc — the audit's
 /// corpus idiom).  An isolated body has no enclosing chain, so the resolved
 /// `source_targets` entry (`raw_path` / `is_literal`) would diverge; fall
 /// back to a full rebuild instead.  A path word containing `[` stays
@@ -2250,7 +2250,7 @@ mod tests {
         assert_eq!(got, want, "per_item != analyse for:\n{src}");
     }
 
-    // -- Body-defined global cells (issue #923 audit idx 98) --
+    // Body-defined global cells.
 
     /// The Tk `SetFocusGrab` / `RestoreFocusGrab` shape: one proc names a
     /// fixed global array cell through `upvar`'s `otherVar` word, a sibling
@@ -2294,7 +2294,7 @@ mod tests {
         fast_path("proc setdef {d} { upvar 1 $d dst; set dst 1 }\nproc build {} { setdef opts }\n");
     }
 
-    // Tk activation gate (issue #1188).  The gate decides whether a document
+    // Tk activation gate.  The gate decides whether a document
     // abandons per-body memoisation for a whole-file walk on *every keystroke*,
     // so both directions matter: a false positive is a large, permanent
     // latency cost, and a false negative would silently drop TK diagnostics.
@@ -2423,10 +2423,10 @@ mod tests {
         );
     }
 
-    // Oversized-body guard (issue #1188).  Tightening the Tk gate exposed a
-    // known scaling cliff: analysing a body in isolation costs far more than
-    // analysing the same content in place, so a generated single-body document
-    // must not be handed to the decomposition just because it is now Tk-clean.
+    // Oversized-body guard.  Analysing a body in isolation costs far more
+    // than analysing the same content in place, so a generated single-body
+    // document must not be handed to the decomposition just because it is
+    // Tk-clean.
 
     #[test]
     fn oversized_body_hands_off_to_the_whole_file_walk() {
@@ -2469,9 +2469,9 @@ mod tests {
         // commands, and the document clears the threshold with 100 bodies
         // rather than 400.  Isolated-body analysis carries a large *per body*
         // constant — that cliff is the whole reason the guard above exists — so
-        // body count, not body content, is what this fixture used to spend its
-        // minutes on.  What the test pins is unchanged: every body is under the
-        // per-body guard, their sum is over it, and the fast path still holds.
+        // body count, not body content, is what costs time here.  What the test
+        // pins: every body is under the per-body guard, their sum is over it,
+        // and the fast path still holds.
         use std::fmt::Write as _;
         let pad = "y".repeat(3000);
         let body = format!("    set x 1\n    set y 2\n    # {pad}\n");
@@ -2564,7 +2564,7 @@ mod tests {
 
     #[test]
     fn wildcard_namespace_import_gated_by_export_matches() {
-        // The headline shape (issue #923 idx 18) exercised through the
+        // The headline shape exercised through the
         // incremental/whole-file equivalence harness: `namespace export`
         // gates which commands a wildcard import can resolve
         // (`result.namespace_exports`), recorded identically by the shell
@@ -2722,12 +2722,12 @@ mod tests {
         eq("proc p {a} { proc p {a} { return $a }\n p $a }\n");
     }
 
-    // Issue #1123 — offset-carrying synthetic identities must be
-    // rebase-stable: the isolated body pass mints them from body-relative
-    // offsets (keeping the memo offset-invariant) and the graft rebases
-    // them to the absolute offsets the whole-file walk mints.  Each shape
-    // below diverged before the fix (`@dynns@`/`@dynclass@`/`@autoname@`
-    // keys and every string embedding them).
+    // Offset-carrying synthetic identities must be rebase-stable: the
+    // isolated body pass mints them from body-relative offsets (keeping the
+    // memo offset-invariant) and the graft rebases them to the absolute
+    // offsets the whole-file walk mints.  Each shape below is one that
+    // diverges without that rebase (`@dynns@`/`@dynclass@`/`@autoname@` keys
+    // and every string embedding them).
 
     #[test]
     fn dynamic_namespace_eval_in_body_rebases_dynns_identity() {
@@ -2838,12 +2838,12 @@ mod tests {
     fn prefixless_ensemble_setting_reaches_and_returns_from_bodies() {
         // The `-prefixes 0` opt-out has to travel **both** ways across the
         // isolated-body seam, because `resolve_ensemble_subcommand` reads it
-        // together with the subcommand map (issue #1636 review).
+        // together with the subcommand map.
         //
         // Seeding: the ensemble is configured at top level and abbreviated
         // inside a body. Real Tcl (8.6.16 / 9.0.4) answers `unknown
-        // subcommand "fo"`, so neither walk may record a dispatch — the
-        // isolated pass used to, because only the map was seeded.
+        // subcommand "fo"`, so neither walk may record a dispatch — seeding
+        // only the map would make the isolated pass record one.
         eq(
             "namespace eval ::e {\n    proc Foo {} { return FOO }\n}\nnamespace ensemble create -command ::e::g -map {foo ::e::Foo} -prefixes 0\nproc use {} { ::e::g fo }\n",
         );
@@ -2894,7 +2894,7 @@ mod tests {
     fn param_list_with_backslash_continuation_no_spurious_w215() {
         // A param list split across lines by `\<newline>` list-parses as
         // separate parameters (`parse_param_list` treats the continuation as an
-        // element separator, issue #743), so no param name ends in a raw
+        // element separator), so no param name ends in a raw
         // backslash and neither the full `analyse` walk nor the isolated
         // per-item rebind emits a spurious W215 unreachable-name warning.
         eq("proc foo {a b staticsok\\\n    c d} {\n  set x 1\n}\n");

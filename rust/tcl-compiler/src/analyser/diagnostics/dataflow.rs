@@ -340,7 +340,7 @@ file; this call falls through to the 'unknown' handler."
         use std::fmt::Write as _;
         // A dynamic read (`[set $name]`, `subst $tmpl`) can observe *any*
         // store, so "this assignment is never read" is unprovable anywhere in
-        // the function (issue #923 audit idx 2/64).  Abstain toward silence.
+        // the function.  Abstain toward silence.
         if fu.dynamic_names.reads {
             return;
         }
@@ -619,8 +619,7 @@ file; this call falls through to the 'unknown' handler."
         use std::fmt::Write as _;
         // A dynamic read (`foreach v [info locals] {… [set $v] …}`) reaches
         // every local by a name no literal `$x` token spells, so "set but
-        // never used" is unprovable (issue #923 audit idx 2).  Abstain toward
-        // silence.
+        // never used" is unprovable.  Abstain toward silence.
         if fu.dynamic_names.reads {
             return;
         }
@@ -670,7 +669,7 @@ file; this call falls through to the 'unknown' handler."
             // Interpreter-provided special variables (``auto_path``, ``env``,
             // …) are consumed by the runtime even when the script never reads
             // them, so a bare ``set auto_path …`` is not an unused variable.
-            // Dialect-aware via the special-variable registry (issue #831).
+            // Dialect-aware via the special-variable registry.
             if tcl_registry::special_vars::is_externally_read(
                 crate::naming::normalise_var_name(var),
                 Some(self.analysis_context().context().authoring_query()),
@@ -704,15 +703,14 @@ file; this call falls through to the 'unknown' handler."
             // policy, not a gap: a destructuring writer's surplus output
             // (`binary scan $d H2H* type rest` with
             // `rest` unread) is how Tcl spells "ignore the remainder" — there
-            // is no `_` placeholder — so flagging it would punish the idiom
-            // (review-2 audit, S5).
+            // is no `_` placeholder — so flagging it would punish the idiom.
             if matches!(
                 stmt,
                 crate::ir::Statement::Call { .. } | crate::ir::Statement::Barrier { .. }
             ) {
                 continue;
             }
-            // Approach B: CFG span is relative to the unit's `base_offset`.
+            // The CFG span is relative to the unit's `base_offset`.
             let cmd_span = fu.abs_span(stmt.span());
             if cmd_span.is_empty() {
                 continue;
@@ -1104,10 +1102,9 @@ file; this call falls through to the 'unknown' handler."
         use std::fmt::Write as _;
 
         // A dynamic write (`set $name value`) defines a variable this pass
-        // cannot name, so *no* local can still be proved unset (issue #923
-        // audit idx 1 — tclsh 9.0.4 / 8.6.14: `proc g {n} {set $n 1; puts
-        // $foo}; g foo` prints `1`).  Abstain toward silence for the whole
-        // function.
+        // cannot name, so *no* local can still be proved unset (tclsh 9.0.4 /
+        // 8.6.14: `proc g {n} {set $n 1; puts $foo}; g foo` prints `1`).
+        // Abstain toward silence for the whole function.
         if fu.dynamic_names.writes {
             return;
         }
@@ -1290,8 +1287,7 @@ file; this call falls through to the 'unknown' handler."
             // the statement does not substitute (`puts {$y}` prints `$y` and
             // reads nothing). The use exists so liveness stays conservative
             // about a word that may be evaluated later; it is not a read
-            // here, so it can never be read-*before*-set (issues #1142,
-            // #1237).
+            // here, so it can never be read-*before*-set.
             if use_site.class == crate::ssa::UseClass::Quoted {
                 continue;
             }
@@ -1337,8 +1333,8 @@ file; this call falls through to the 'unknown' handler."
             // script scanned as one `Statement::Barrier` value: the `$x` read
             // and the body-local `set x` collapse onto that single statement,
             // so the version-0 chain shows a read with no visible def and
-            // W210 false-fired (issue #923). This is the only place the
-            // body-local write is visible.
+            // W210 would false-fire. This is the only place the body-local
+            // write is visible.
             if barrier_body_locally_sets(
                 stmt_opt,
                 var,
@@ -1392,7 +1388,7 @@ file; this call falls through to the 'unknown' handler."
                 // Narrow the squiggle to the offending variable word (so
                 // `unset a b c` flags only the missing name), and attach a
                 // quick fix that inserts `-nocomplain` right after `unset` —
-                // the same fix the LSP layer synthesises, now carried on the
+                // the same fix the LSP layer synthesises, carried on the
                 // diagnostic itself so every editor surfaces it uniformly.
                 let (diag_span, fixes) = w213_span_and_fix(fu, tokens.as_ref(), var, span);
                 self.result.diagnostics.push(
@@ -1512,7 +1508,7 @@ file; this call falls through to the 'unknown' handler."
             // script, so it scans in value-body mode.
             // A **braced** value is literal — `return {$y}` returns the two
             // characters `$y` and reads nothing — so it contributes no reads
-            // at all (`UseClass::Quoted`; issue #1237).
+            // at all (`UseClass::Quoted`).
             let mut reads: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
             if let Some(v) = value.as_ref().filter(|_| !*braced) {
                 reads.extend(scanner.scan_word(v, registry));
@@ -1565,7 +1561,7 @@ file; this call falls through to the 'unknown' handler."
         phi_idx: &PhiUndefIndex<'_>,
         ctx: &ReturnUndefCtx<'_>,
     ) -> bool {
-        // Version-0 return reads are now recorded in def_use, so the version-0
+        // Version-0 return reads are recorded in def_use, so the version-0
         // (`DefKind::Parameter`) emitter handles them with the full suppression
         // set — this pass only covers the phi-from-undef / `unset`-killed
         // (version > 0) cases, which def-use can't express.  Skipping ver 0
@@ -1931,8 +1927,7 @@ file; this call falls through to the 'unknown' handler."
                     code,
                     span,
                     message,
-                    // I230/I231 are observational (LSP `Information`);
-                    // they previously collapsed to `Hint`.
+                    // I230/I231 are observational (LSP `Information`).
                     Severity::Info,
                 ));
         }
@@ -1953,7 +1948,7 @@ file; this call falls through to the 'unknown' handler."
     /// it skips them and there is no double emission.
     ///
     /// `frame` supplies the typed entry facts for whichever kind of body
-    /// this is (issue #1129): a procedure contributes its parameters, a
+    /// this is: a procedure contributes its parameters, a
     /// `TclOO` method body contributes its parameters **and** its class's
     /// instance variables, on which the fold must abstain.  Both halves come
     /// from the same IR the optimiser's copy of the fold reads, so the two
@@ -2174,7 +2169,7 @@ file; this call falls through to the 'unknown' handler."
     pub(super) fn emit_w233_divide_by_zero(&mut self, fu: &crate::compilation_unit::FunctionUnit) {
         // The block set SCCP proved reachable; fall back to every SSA block
         // when SCCP produced nothing (e.g. a trivial function) so the check
-        // still runs — matching the previous emitter's reachability fallback.
+        // still runs.
         let executable: HashSet<crate::cfg::BlockId> = if fu.sccp.executable_blocks.is_empty() {
             fu.ssa.blocks.keys().copied().collect()
         } else {
@@ -2504,14 +2499,14 @@ file; this call falls through to the 'unknown' handler."
 /// boundary). Used to recover
 /// variable reads hidden inside `if`/`while` conditions and `expr` values.
 fn collect_expr_command_texts(node: &ExprNode, out: &mut Vec<String>) {
-    // Entry point: the top of an expression tree is nesting depth 0 (issue
-    // #996 — the recursion cap lives in [`collect_expr_command_texts_at`]).
+    // Entry point: the top of an expression tree is nesting depth 0 (the
+    // recursion cap lives in [`collect_expr_command_texts_at`]).
     collect_expr_command_texts_at(node, out, 0);
 }
 
 fn collect_expr_command_texts_at(node: &ExprNode, out: &mut Vec<String>, depth: u32) {
-    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
-    // native frame per level. Past the cap, stop descending — a collector
+    // Native-stack safety net: walks the `ExprNode` tree, one native frame
+    // per level. Past the cap, stop descending — a collector
     // that returns the command texts gathered so far is the safe fallback
     // (substitutions buried deeper than the cap are not collected; never a
     // crash).
@@ -2661,7 +2656,7 @@ fn find_case_mismatch<'a>(variable: &str, defined_vars: &'a HashSet<String>) -> 
 /// def-use chain then shows a read with no visible definition. Recovering the
 /// body's own top-level assignments here is the only place that write is
 /// visible, so a plain write-then-read *inside* the body doesn't false-fire
-/// W210 (issue #923). Deliberately conservative — it suppresses whenever the
+/// W210. Deliberately conservative — it suppresses whenever the
 /// body sets the name, a false-negative direction (a genuine read-before-set
 /// entirely within the opaque body is unreported either way, and the outer
 /// interpreter-handle vs. inner-local name clash drops that outer read too),
@@ -3095,13 +3090,12 @@ fn def_is_element_write(
 mod issue996_tests {
     use super::*;
 
-    /// Regression coverage for issue #996: `collect_expr_command_texts`
-    /// recurses once per `ExprNode` level with no depth cap before this fix.
-    /// A tree built directly is unbounded (the Pratt parser caps its own
-    /// output at 256) and empirically overflowed the native stack (SIGABRT)
-    /// in the low thousands of levels on a 2 MiB thread. 3000 is past that
-    /// crash range and past `MAX_EXPR_NODE_DEPTH` (256); the assertion is
-    /// that it returns at all.
+    /// Depth coverage: `collect_expr_command_texts` recurses once per
+    /// `ExprNode` level, so without a depth cap it overflows the native stack
+    /// (SIGABRT) in the low thousands of levels on a 2 MiB thread.  A tree
+    /// built directly is unbounded (the Pratt parser caps its own output at
+    /// 256); 3000 is past that crash range and past `MAX_EXPR_NODE_DEPTH`
+    /// (256); the assertion is that it returns at all.
     #[test]
     fn deeply_nested_collect_expr_command_texts_survives() {
         let mut node = ExprNode::Command {

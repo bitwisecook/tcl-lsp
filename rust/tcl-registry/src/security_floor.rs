@@ -136,8 +136,8 @@ fn take_shipped<T>(target: &mut Option<T>, shipped: Option<T>) {
 /// (`Box::leak` in `tcl-spectcl/src/loader.rs`) and is bounded by the number of
 /// overrides in a workspace's packs, not by edits: a registry generation is
 /// built per pack-set key, and the merge runs once per overriding command in
-/// it. Ledger D10's generation work is what would reclaim these along with
-/// everything else the loader leaks.
+/// it. The generation-arena work tracked at redesign §11 D10 is what would
+/// reclaim these along with everything else the loader leaks.
 fn union_leaked<T: Clone + PartialEq + 'static>(
     declared: &'static [T],
     shipped: &'static [T],

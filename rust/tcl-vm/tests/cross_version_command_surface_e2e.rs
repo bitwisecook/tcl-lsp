@@ -393,7 +393,7 @@ const VECTORS: &[Vector] = &[
         want_90: "1bad option \"zz\": must be files, forget, ifneeded, names, prefer, \
                   present, provide, require, unknown, vcompare, versions, or vsatisfies",
     },
-    // -- the polyfill pattern: a user proc always wins over a hidden builtin --
+    // The polyfill pattern: a user proc always wins over a hidden builtin.
     Vector {
         name: "a user-defined proc is callable at every release",
         script: "proc lassign {l args} { return polyfill }\nputs [lassign {a b} x]\n",

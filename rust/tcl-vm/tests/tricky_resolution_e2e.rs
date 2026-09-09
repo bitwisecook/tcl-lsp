@@ -76,7 +76,7 @@ fn result(src: &str) -> String {
     res
 }
 
-// -- interp alias: global-namespace target, caller frame kept ---------------
+// Interp alias: global-namespace target, caller frame kept.
 
 #[test]
 fn alias_target_resolves_globally_not_in_caller_namespace() {
@@ -102,7 +102,7 @@ fn alias_keeps_the_callers_frame() {
     assert_eq!(res, "5 0");
 }
 
-// -- TclOO forward: object-namespace target resolution -----------------------
+// TclOO forward: object-namespace target resolution.
 
 #[test]
 fn forward_target_resolves_in_object_namespace_not_caller() {
@@ -120,7 +120,7 @@ fn forward_target_resolves_in_object_namespace_not_caller() {
     assert_eq!(res, "GLOBALF2");
 }
 
-// -- expr math functions: TIP 232 procs + namespace shadowing ----------------
+// Expr math functions: TIP 232 procs + namespace shadowing.
 
 #[test]
 fn proc_defined_mathfunc_is_callable_from_expr() {
@@ -157,7 +157,7 @@ fn unknown_math_function_reports_the_command_miss() {
     );
 }
 
-// -- namespace unknown: per-namespace, not inherited, beats ::unknown --------
+// Namespace unknown: per-namespace, not inherited, beats ::unknown.
 
 #[test]
 fn namespace_unknown_handler_fires_for_misses_in_that_namespace() {
@@ -203,7 +203,7 @@ fn namespace_unknown_query_reports_handler_or_default() {
     assert_eq!(res, "::h ::unknown");
 }
 
-// -- rename: source found via the full resolution rule (namespace path) ------
+// Rename: source found via the full resolution rule (namespace path)
 
 #[test]
 fn rename_finds_its_source_via_namespace_path() {

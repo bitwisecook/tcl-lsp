@@ -2534,7 +2534,7 @@ impl Vm {
         };
 
         match instr.op {
-            // -- stack --
+            // Stack.
             Op::PUSH1 | Op::PUSH4 => {
                 let raw = usize::try_from(imm0(instr))
                     .ok()
@@ -2675,7 +2675,7 @@ impl Vm {
                 }
             }
 
-            // -- variables (stack form, by name) --
+            // Variables (stack form, by name)
             // The `*ScalarStk` opcodes share their C `TEBCresume` case with the
             // general `*Stk` form (the compiler emits them when the name is known
             // to carry no `(index)` part), so they are the same arm here.
@@ -2709,7 +2709,7 @@ impl Vm {
                 }
             }
 
-            // -- variables (LVT form, proc bodies) --
+            // Variables (LVT form, proc bodies)
             Op::LOAD_SCALAR1 | Op::LOAD_SCALAR4 => {
                 let name = lvt_name(imm0(instr));
                 match try_op!(self.read_var_traced(&name)) {
@@ -2800,7 +2800,7 @@ impl Vm {
                 f.stack.push(Value::bool(self.exists_var_traced(&full)));
             }
 
-            // -- arrays --
+            // Arrays.
             Op::LOAD_ARRAY_STK => {
                 let key = pop(f).to_str();
                 let name = pop(f).to_str();
@@ -2882,7 +2882,7 @@ impl Vm {
                 try_op!(self.ensure_array(&name));
             }
 
-            // -- lists (inline opcodes) --
+            // Lists (inline opcodes)
             Op::LIST => {
                 let n = usize::try_from(imm0(instr)).unwrap_or(0);
                 if f.stack.len() < n {
@@ -2989,7 +2989,7 @@ impl Vm {
                 try_op!(self.unset_array_elem_checked(&name, &key, complain));
             }
 
-            // -- append / lappend (LVT scalar + array forms) --
+            // Append / lappend (LVT scalar + array forms)
             Op::APPEND_SCALAR1 | Op::APPEND_SCALAR4 => {
                 let name = lvt_name(imm0(instr));
                 let v = pop(f);
@@ -3070,7 +3070,7 @@ impl Vm {
                 f.stack.push(stored);
             }
 
-            // -- append / lappend (stack form, by name) --
+            // Append / lappend (stack form, by name)
             // `set_var`/`get_var` resolve an `a(k)` name to the element, exactly
             // as C's `TclObjLookupVarEx(part1, NULL)` parses the name.
             Op::APPEND_STK => {
@@ -3191,7 +3191,7 @@ impl Vm {
                 f.stack.push(stored);
             }
 
-            // -- const (TIP 677) --
+            // Const (TIP 677)
             // `constImm`/`constStk` reuse the `const` command's core so the
             // silent re-`const` no-op and the three error messages
             // (`can't make constant "n": …`) stay in one place.
@@ -3267,7 +3267,7 @@ impl Vm {
                 }
             }
 
-            // -- concat (stack form): Tcl-concat the top N values. --
+            // Concat (stack form): Tcl-concat the top N values.
             Op::CONCAT_STK => {
                 let n = usize::try_from(imm0(instr)).unwrap_or(0);
                 let take = f.stack.len().saturating_sub(n);
@@ -3656,7 +3656,7 @@ impl Vm {
                 ));
             }
 
-            // -- dict validation: consumes the (dup'd) TOS, validates even length --
+            // Dict validation: consumes the (dup'd) TOS, validates even length.
             Op::VERIFY_DICT => {
                 let top = pop(f);
                 match top.as_list() {
@@ -3668,7 +3668,7 @@ impl Vm {
                 }
             }
 
-            // -- arithmetic / bitwise / shift --
+            // Arithmetic / bitwise / shift.
             Op::ADD => try_op!(bin(f, BinOp::Add)),
             Op::SUB => try_op!(bin(f, BinOp::Sub)),
             Op::MULT => try_op!(bin(f, BinOp::Mul)),
@@ -3683,7 +3683,7 @@ impl Vm {
             Op::LAND => try_op!(land_lor(f, true)),
             Op::LOR => try_op!(land_lor(f, false)),
 
-            // -- comparisons --
+            // Comparisons.
             Op::EQ => try_op!(cmp(f, BinOp::Eq)),
             Op::NEQ => try_op!(cmp(f, BinOp::Ne)),
             Op::LT => try_op!(cmp(f, BinOp::Lt)),
@@ -3707,7 +3707,7 @@ impl Vm {
                 }));
             }
 
-            // -- iRules dialect operators --
+            // IRules dialect operators.
             // The F5 word operators (`contains`/`starts_with`/`ends_with`/
             // `equals`/`matches`/`matches_glob`/`matches_regex`/`and`/`or`/
             // `not`), which
@@ -3727,7 +3727,7 @@ impl Vm {
             Op::IRULE_WORD_OR => try_op!(irule(f, BinOp::WordOr)),
             Op::IRULE_WORD_NOT => try_op!(un(f, UnaryOp::WordNot)),
 
-            // -- string ops (inline; char-based, mirroring the reference VM) --
+            // String ops (inline; char-based, mirroring the reference VM)
             Op::STR_LEN => {
                 let s = pop(f).to_str();
                 f.stack.push(Value::int(ilen(string_char_len(
@@ -3878,7 +3878,7 @@ impl Vm {
                 f.stack.push(Value::string(out));
             }
 
-            // -- numeric/boolean coercion checks (expr result validation) --
+            // Numeric/boolean coercion checks (expr result validation)
             Op::TRY_CVT_TO_NUMERIC => {
                 // Canonical normalisation (C Tcl `INST_TRY_CVT_TO_NUMERIC`): a
                 // numeric result's string rep is regenerated from the number
@@ -3917,13 +3917,13 @@ impl Vm {
                 f.stack.push(Value::bool(is_bool));
             }
 
-            // -- unary --
+            // Unary.
             Op::UMINUS => try_op!(un(f, UnaryOp::Neg)),
             Op::UPLUS => try_op!(un(f, UnaryOp::Pos)),
             Op::BITNOT => try_op!(un(f, UnaryOp::BitNot)),
             Op::NOT | Op::LNOT => try_op!(un(f, UnaryOp::Not)),
 
-            // -- control flow --
+            // Control flow.
             Op::JUMP1 | Op::JUMP4 => {
                 if let Some(idx) = jump_target(&asm, &f.off2idx, instr) {
                     f.pc = idx;
@@ -3963,7 +3963,7 @@ impl Vm {
                 }
             }
 
-            // -- break / continue --
+            // Break / continue.
             Op::BREAK => {
                 return Tick::Return(Completion::new(Code::Break, Value::empty(), Value::empty()));
             }
@@ -3975,7 +3975,7 @@ impl Vm {
                 ));
             }
 
-            // -- return --
+            // Return.
             // `SYNTAX` shares `RETURN_IMM`'s arm in C too (`tclExecute.c:2287`
             // falls through the two labels): both carry `(code, level)`
             // immediates and read `OBJ_AT_TOS` as the return-options dict,
@@ -4042,7 +4042,7 @@ impl Vm {
                 }
             }
 
-            // -- command dispatch / expr --
+            // Command dispatch / expr.
             Op::INVOKE_STK1 | Op::INVOKE_STK4 => {
                 let argc = usize::try_from(imm0(instr)).unwrap_or(0);
                 if f.stack.len() < argc || argc == 0 {
@@ -4068,7 +4068,7 @@ impl Vm {
                 }
             }
 
-            // -- {*} argument expansion --
+            // {*} argument expansion.
             // `EXPAND_START` records the current stack depth: every word pushed
             // after it belongs to the command being built. `EXPAND_STKTOP`
             // expands the top word (a list) in place. `INVOKE_EXPANDED` recovers
@@ -4178,7 +4178,7 @@ impl Vm {
                 }
             }
 
-            // -- dicts (LVT form, proc bodies) --
+            // Dicts (LVT form, proc bodies)
             // `dict set var k1 ?k2 …? value` — operands [Imm(N), Imm(slot)];
             // stack holds the N keys then the value. Writes the variable and
             // leaves the new dict on the stack (the codegen POPs it).
@@ -4534,7 +4534,7 @@ impl Vm {
                 return Tick::Tailcall(words);
             }
 
-            // -- termination --
+            // Termination.
             Op::DONE => {
                 return Tick::Return(Completion::new(
                     Code::Ok,
@@ -4618,7 +4618,7 @@ impl Vm {
                 }
             }
 
-            // -- introspection (C Tcl's "general introspector" instructions) --
+            // Introspection (C Tcl's "general introspector" instructions)
             // Each routes through the same core its command form uses, so the
             // compiled and dispatched paths cannot drift.
             Op::CURRENT_NAMESPACE => {
@@ -4712,7 +4712,7 @@ impl Vm {
                 f.stack.push(crate::cmd_coro::current_coroutine(self));
             }
 
-            // -- TclOO (C's "start of TclOO support instructions" block) --
+            // TclOO (C's "start of TclOO support instructions" block)
             // Each routes through the core its command form uses: `self object`,
             // `info object class`/`namespace`/`isa object`, `next`, `nextto`. The
             // context checks are the opcodes' own, since C's compiled forms report

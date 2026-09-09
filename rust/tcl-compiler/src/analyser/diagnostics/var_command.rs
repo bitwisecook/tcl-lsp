@@ -63,10 +63,10 @@ impl From<&super::state::VarCommandSite> for W308DiagnosticSite {
 /// and class simple-name tails.
 struct W307KnownNames {
     cmds: HashSet<String>,
-    /// Qualified proc name → establishing offset (issue #1010: was a
-    /// plain `HashSet`; the offset lets `is_known_command` check each
-    /// candidate is still live — not renamed/deleted away with no later
-    /// re-establishment — at the dispatch site via `fact_live_for_call`).
+    /// Qualified proc name → establishing offset: the offset lets
+    /// `is_known_command` check each candidate is still live — not
+    /// renamed/deleted away with no later re-establishment — at the dispatch
+    /// site via `fact_live_for_call`.
     procs: HashMap<String, u32>,
     /// Bare tail → `(qualified_name, establishing_offset)` pairs — a tail
     /// may match several qualified procs across namespaces.
@@ -188,7 +188,7 @@ impl Analyser {
                     {
                         // The constructor call must still be live at this
                         // assignment — a dead class fails the call, so `x`
-                        // is never assigned an object (issue #1010).
+                        // is never assigned an object.
                         let qn = self.canonicalise_class_name(&head);
                         let off = span.start();
                         if self.class_live_for_call(&qn, off)
@@ -201,7 +201,7 @@ impl Analyser {
                             // The head may reach a live class through a
                             // `rename` or `interp alias` — `rename Dog Cat`
                             // then `set d [Cat new]` types `d` as `::Dog`
-                            // (issue #1049). Resolved to the *canonical*
+                            //. Resolved to the *canonical*
                             // name so the `ClassDef` / method lookup keys.
                             class_qn =
                                 self.class_reachable_by_indirection(&head, off)
@@ -214,7 +214,7 @@ impl Analyser {
                         }
                     }
                     // The constructor's class head is a `$var` reference
-                    // rather than a literal bareword (issue #923 idx 121):
+                    // rather than a literal bareword:
                     // defer to the same flow-sensitive resolution
                     // `instance_classes` uses, so the type lattice agrees
                     // with hover/definition on the same dispatch.
@@ -235,7 +235,7 @@ impl Analyser {
     }
 
     /// The `$class`-headed indirection counterpart of the literal-bareword
-    /// check above (issue #923 idx 121): resolves the class variable's
+    /// check above: resolves the class variable's
     /// constant contributors via the flow-sensitive value model — the same
     /// `class_var_head_constructor_subst` shape-parse
     /// [`Analyser::record_pending_instance_class_site`] uses for
@@ -307,17 +307,17 @@ impl Analyser {
     /// types: var name → the set of `TclType::Object` class qualified names it
     /// can hold, for the W308 method-resolution check.
     ///
-    /// The map itself is **unfiltered**. Deletion awareness (issue #1013 —
+    /// The map itself is **unfiltered**. Deletion awareness —
     /// `type_infer.rs`'s `constructor_object_type` types `[Cls new]` straight
-    /// off a "known classes" set that has none) belongs at the *emit* sites,
+    /// off a "known classes" set that has none — belongs at the *emit* sites,
     /// which know the dispatch offset and can ask
-    /// [`Self::class_live_for_call`]. Filtering here instead used
-    /// `class_live_at_file_end`, and dropping the type outright cost the
+    /// [`Self::class_live_for_call`]. Filtering here with
+    /// `class_live_at_file_end` and dropping the type outright costs the
     /// diagnostic in both directions: a class used before a *later* deletion
-    /// lost its W308 and drew a spurious W307 in its place, even though the
+    /// loses its W308 and draws a spurious W307 in its place, even though the
     /// dispatch happens while the class is still live.
     ///
-    /// Oracle (tclsh8.6, `review-probes-sound/w308d.tcl`): `proc foo {} {
+    /// Oracle (tclsh8.6): `proc foo {} {
     /// set y [Dog new]; set x $y; $x fly }`, `foo`, then `rename Dog {}`
     /// fails with `unknown method "fly"` — the class is alive at the
     /// dispatch, and the trailing rename is irrelevant to it.
@@ -461,7 +461,7 @@ impl Analyser {
         }
         // A method the class system generates from the class's declared
         // properties (`oo::configurable`'s `configure`); no member table or
-        // MRO provider entry carries one (issue #1362).
+        // MRO provider entry carries one.
         if !found
             && class_names.iter().any(|cls| {
                 hierarchy.is_property_accessor(self.registry.as_deref(), cls, method_name)
@@ -624,7 +624,7 @@ impl Analyser {
     /// **E001** (`TclOO` form) for a command-substitution head: a bare
     /// `[Dog new]` — or `[make]` where the lattice proves `make` an
     /// object-returning factory — invoked with no method word at all
-    /// (issue #1200).
+    ///.
     ///
     /// Same failure and same gates as
     /// [`Self::e001_for_bare_object_dispatch`]: `TclOO`'s per-object
@@ -723,7 +723,7 @@ impl Analyser {
             // `forward m my other` re-dispatches on the same instance. The
             // self-dispatch keyword comes from the registry (which resolves
             // the `::`-qualified spelling itself), not a name literal
-            // (issue #1050).
+            //.
             if self.registry.as_deref().is_some_and(|r| {
                 r.method_dispatch_keyword(target)
                     == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
@@ -818,12 +818,12 @@ impl Analyser {
     /// class's own identity is unchanged by the rename — its `ClassDef` and
     /// method table are still keyed by `::Dog` — so this resolves *forward*
     /// through `renamed_commands` (which maps `new → old`) and returns the
-    /// canonical name, which is what the method lookup needs (issue #1049).
+    /// canonical name, which is what the method lookup needs.
     ///
     /// The hop walk itself — order gating, the eight-hop cap, and the
     /// argument-prepending decline — lives in
     /// [`crate::analyser::indirection::walk`], which the LSP's navigation
-    /// providers consume through the same entry point (issue #1064): a class
+    /// providers consume through the same entry point: a class
     /// that go-to-definition follows a rename to and a class this pass types a
     /// constructor through can never be resolved by two different rules.
     /// What stays here is the part that is genuinely class-specific — class
@@ -865,7 +865,7 @@ impl Analyser {
 
     /// Whether the dispatch site at `off` runs inside a **child
     /// interpreter's** evaluation body (the analyser's synthetic `@interp@…`
-    /// scope domain — issue #945 faults 7–8).  The object classes the E001
+    /// scope domain).  The object classes the E001
     /// gates vouch for live in the *main* interpreter's command table; a
     /// child interpreter has its own, in which the class command does not
     /// exist at all (`interp create sub; interp eval sub {[Dog new]}` fails
@@ -881,7 +881,7 @@ impl Analyser {
     /// — shared by the constructor-recognition sites (`[Cls new]` direct
     /// calls and `set x [Cls new]` variable assignments alike), which
     /// otherwise duplicate the identical `all_classes.get(...).is_some_and(...)`
-    /// call three times over (issue #1010).
+    /// call three times over.
     fn class_live_for_call(&self, qualified: &str, call_off: u32) -> bool {
         self.result
             .all_classes
@@ -905,8 +905,8 @@ impl Analyser {
     ///
     /// A class deleted before the dispatch cannot answer it, so its method
     /// table says nothing about the call; a class deleted only afterwards is
-    /// fully live here and must still be checked (issue #1013, refined by
-    /// the adversarial review). An empty result means the site has no usable
+    /// fully live here and must still be checked. An empty result means the
+    /// site has no usable
     /// object type left, and the caller falls through to the W307 path
     /// exactly as it did when the type was dropped wholesale.
     fn live_classes_at_dispatch(
@@ -922,7 +922,7 @@ impl Analyser {
         // A bareword instance-command site names a `CLASS create NAME`
         // instance command, never an SSA variable, so it carries no lattice
         // or constructor-harvest evidence — its class comes from
-        // `instance_classes` instead (issue #1312).  `record_var_or_cmd_command_site`
+        // `instance_classes` instead.  `record_var_or_cmd_command_site`
         // only ever pushes such a site once that map already resolves it to
         // a locally-known class, so this is a plain lookup, not a new gate.
         let bareword_class = (site.receiver
@@ -943,7 +943,7 @@ impl Analyser {
     /// Whether the class `name` is still live at `call_off` — the
     /// by-written-name wrapper around [`Self::class_live_for_call`], for the
     /// type-lattice class names [`Self::aggregate_object_types`] collects
-    /// (issue #1013).
+    ///.
     ///
     /// Gating at the dispatch offset rather than at file end is what keeps
     /// a class *used before a later deletion* diagnosable: the dispatch runs
@@ -951,8 +951,8 @@ impl Analyser {
     /// if the deletion were not there. `fu.types` is flow-insensitive and
     /// carries no offset of its own, but the *dispatch site* does
     /// (`VarCommandSite::cmd_span`), and that is the offset that decides
-    /// whether the call succeeds — the same granularity issue #1010 used
-    /// for the constructor sites.
+    /// whether the call succeeds — the same granularity the constructor sites
+    /// use.
     ///
     /// A name this file declares no class for (a cross-file or
     /// registry-provided class) has no deletion fact to check and stays
@@ -992,11 +992,10 @@ impl Analyser {
     /// True when `v` resolves to a known, *live* command at `call_off`: a
     /// registry name, a user proc (bare / `::`-qualified / tail), or a
     /// class command. A proc/class renamed or deleted away with no later
-    /// re-establishment does not count (issue #1010: this used to
-    /// wrongly suppress W307 on a dead dynamic-dispatch value —
-    /// confirmed against tclsh 8.6.14 that calling it still fails
-    /// "invalid command name" — reusing `fact_live_for_call` rather than
-    /// a third re-derivation of the same question).
+    /// re-establishment does not count: suppressing W307 on a dead
+    /// dynamic-dispatch value would be wrong — confirmed against tclsh 8.6.14
+    /// that calling it still fails "invalid command name".  Reuses
+    /// `fact_live_for_call` rather than re-deriving the same question.
     fn is_known_command(&self, known: &W307KnownNames, v: &str, call_off: u32) -> bool {
         let live_at = |qualified: &str, off: u32| self.fact_live_for_call(qualified, off, call_off);
         let by_tail_live = |defs_by_tail: &HashMap<String, Vec<(String, u32)>>| {
@@ -1015,7 +1014,7 @@ impl Analyser {
                 .all_classes
                 .get(&global)
                 .is_some_and(|c| live_at(&global, c.name_span.start()))
-            // A command bound by `CLASS create NAME` (issue #777).
+            // A command bound by `CLASS create NAME`.
             || self.result.created_instance_commands.contains(v)
     }
 
@@ -1058,7 +1057,7 @@ impl Analyser {
         // value is a literal and none is a known command.  When SCCP proves
         // this, the heuristic object-dispatch suppressions below (in-method,
         // proc-param / multi-dispatch) must not silence the real "invalid
-        // command name" hazard (FP-OBJ-09 / FP-OBJ-D4-F5).
+        // command name" hazard (FP-OBJ-09).
         let sccp_not_command = effective.is_some_and(|v| {
             !v.is_empty()
                 && v.iter()
@@ -1287,7 +1286,7 @@ impl Analyser {
         if self.var_command_sites.is_empty() && self.cmd_command_sites.is_empty() {
             return;
         }
-        // M7 stage 7.3: proc-name literals held as dispatch-table values
+        // Proc-name literals held as dispatch-table values
         // (`array set` pairs, `dict create`/`dict set` values, `set arr(k) v`)
         // become command references when the table is consumed by one of the
         // dispatch sites this pass walks — so find-references reaches the
@@ -1440,7 +1439,7 @@ impl Analyser {
     ///
     /// Exactly one arm claims each site:
     ///
-    /// * **self-dispatch** (`my <method>`, issue #1329) — the receiver is the
+    /// * **self-dispatch** (`my <method>`) — the receiver is the
     ///   enclosing object, so it is neither a variable nor a resolvable
     ///   command name and W307's "non-literal command name" question never
     ///   arises. This arm always consumes the site;
@@ -1593,7 +1592,7 @@ impl Analyser {
                 // receiver, the same target `my <method>` dispatches on. So
                 // the outer method word is validated against the enclosing
                 // class (W308) instead of falling through as an opaque
-                // object handle of unresolvable class (issue #1324).
+                // object handle of unresolvable class.
                 if attached
                     .is_some_and(|r| r.is_self_receiver_call(head, arg_strs.first().copied()))
                     && let Some(diag) = self.w308_for_self_receiver(site, hierarchy)
@@ -1609,7 +1608,7 @@ impl Analyser {
             // ``Object`` return type — suppress W307; if the
             // class is known, validate the method (W308), and a dispatch
             // with *no* method word at all is the unconditional `TclOO`
-            // "wrong # args" failure (E001 — issue #1200).
+            // "wrong # args" failure (E001).
             let is_object = ret_type.kind() == crate::types::TypeKind::Known
                 && matches!(ret_type.tcl_type(), Some(tcl_registry::TclType::Object));
             if is_object {
@@ -1783,8 +1782,8 @@ impl Analyser {
     ///   name is then legal by construction.
     /// * **A template method, on `my` dispatch only** — the method resolves
     ///   nowhere on the enclosing class's MRO but a known subclass defines
-    ///   it ([`ClassHierarchy::subclass_provides_method`](super::class_hierarchy::ClassHierarchy::subclass_provides_method),
-    ///   issue #1367).  `my` late-binds on the actual receiver — always a
+    ///   it ([`ClassHierarchy::subclass_provides_method`](super::class_hierarchy::ClassHierarchy::subclass_provides_method)).
+    ///   `my` late-binds on the actual receiver — always a
     ///   subclass instance when the base is abstract — and reaches
     ///   unexported members, so the call is the deliberate pattern, not a
     ///   typo.  `[self] M` keeps the warning: it dispatches through the
@@ -1819,7 +1818,7 @@ impl Analyser {
         if self.validate_method_on_class(cls_qn, method, Some(class_def), hierarchy, reach) {
             return None;
         }
-        // Template-method pattern (issue #1367): a base-class body calling
+        // Template-method pattern: a base-class body calling
         // `my M` where `M` is written only by subclasses runs fine — `my`
         // late-binds on the actual receiver, always a subclass instance,
         // and bypasses export filtering.  A known defining subclass is the
@@ -1874,9 +1873,9 @@ impl Analyser {
     /// `Dog` — the registry lookup for a bare class name returns Overdefined
     /// (the class isn't a built-in command), so the constructor pattern is
     /// recognised against the analyser's own class set, including a class
-    /// reached through `rename` / `interp alias` indirection (issue #1049)
+    /// reached through `rename` / `interp alias` indirection
     /// and excluding one renamed or deleted away with no re-establishment
-    /// (issue #1010).  A user factory proc the object-type lattice proved
+    ///.  A user factory proc the object-type lattice proved
     /// object-returning (`ObjectHandleFacts::returns_object`) types the head
     /// from the same fact the navigation consumers read — keeping
     /// `[make] bark` off the W307 path and giving the bare `[make]` case its
@@ -2044,7 +2043,7 @@ impl Analyser {
         self.result.diagnostics.extend(diags);
     }
 
-    /// M7 stage 7.3: emit a command reference for each proc-name **literal**
+    /// Emit a command reference for each proc-name **literal**
     /// held as a dispatch-table value, provided the table is actually
     /// *consumed* by a `$table(...)` / `[dict get $table …]` dispatch site
     /// this pass walks (the W307 shapes).  The reference anchors at the
@@ -2111,9 +2110,9 @@ impl Analyser {
             // A candidate must still be *live* at this dispatch-table
             // entry's own position — renamed or deleted away with no
             // later re-establishment must not synthesize a phantom
-            // reference (issue #1010, same question `unresolved.rs`'s
-            // W123 pass already answers via `fact_live_for_call`, reused
-            // here rather than reimplemented).
+            // reference — the same question `unresolved.rs`'s W123 pass
+            // answers via `fact_live_for_call`, reused here rather than
+            // reimplemented.
             let known = |qualified: &str| {
                 self.result.all_procs.get(qualified).is_some_and(|p| {
                     self.fact_live_for_call(qualified, p.name_span.start(), span.start())
@@ -2148,7 +2147,7 @@ impl Analyser {
     /// Resolve a possibly-bare class name to its fully-qualified form keyed
     /// in `result.all_classes` — the shared call-site resolver
     /// ([`super::class_hierarchy::resolve_written_class_name`]), so this
-    /// keying can never diverge from the LSP's (M4.2).  Falls back to the
+    /// keying can never diverge from the LSP's.  Falls back to the
     /// written name on a miss (callers treat an unkeyed class as external).
     fn canonicalise_class_name(&self, name: &str) -> String {
         super::class_hierarchy::resolve_written_class_name(name, &self.result.all_classes)
@@ -2170,7 +2169,7 @@ impl Analyser {
     /// `reach` matters only for the built-in set, and it is the difference
     /// between a true positive and a false one: `my variable v` reaches
     /// `oo::object`'s unexported `variable`, while `$obj variable v` and
-    /// `[self] variable v` do not and really are errors (issue #1329).
+    /// `[self] variable v` do not and really are errors.
     fn validate_method_on_class(
         &self,
         class_name: &str,
@@ -2194,7 +2193,7 @@ impl Analyser {
         }
         // A method the class system generates from declared properties —
         // written by no `method` body, so neither the member tables nor the
-        // MRO above can see it (issue #1362).
+        // MRO above can see it.
         if hierarchy
             .is_some_and(|h| h.is_property_accessor(self.registry.as_deref(), class_name, method))
         {
@@ -2276,9 +2275,9 @@ impl Analyser {
     ///   either list hides an unknown set of inherited methods;
     /// * [`ClassDef::inheritance_unknown`] — manufactured by a user
     ///   metaclass whose `create` override could not be read, so the
-    ///   spliced superclass list itself is unknown (issue #923 idx 96/97);
+    ///   spliced superclass list itself is unknown;
     /// * [`ClassDef::member_set_incomplete`] — the class's own body installs
-    ///   members reflectively (issue #923 idx 53).
+    ///   members reflectively.
     ///
     /// Shared by [`Self::w308_for_object_var`] and
     /// [`Self::validate_method_on_class`] so the two escape hatches cannot
@@ -2290,13 +2289,13 @@ impl Analyser {
         // A class manufactured by a user-defined metaclass whose `create`
         // override could not be read has an unknown superclass list, which is
         // the same situation as a superclass outside the index: a method it
-        // inherits is not a method it is missing (issue #923 idx 96/97).
+        // inherits is not a method it is missing.
         //
         // A class whose own body installs members through reflection
         // (`constructor {*}[info class constructor ::Base]`, `foreach m {…}
         // { method $m … }`) is the same judgement one level in: the recorded
         // member tables are a lower bound, so a method that is absent from
-        // them is not thereby missing from the class (issue #923 idx 53).
+        // them is not thereby missing from the class.
         cd.inheritance_unknown
             || cd.member_set_incomplete
             || cd
@@ -2371,17 +2370,17 @@ impl Analyser {
         }
 
         // Build the universe of names that count as "known
-        // commands" for the resolution check.  Same set the
-        // emitter used to skip suggestions in the first pass.
+        // commands" for the resolution check.  The same set the emitter uses
+        // to skip suggestions.
         let registry = tcl_registry::CommandRegistry::build_default();
         let known_cmds: HashSet<String> = registry.command_names().map(str::to_string).collect();
         // Grouped by tail (unfiltered by deletion — the per-diagnostic live
         // check below does that): a tail may match several qualified
         // procs, each tracked with its own establishing offset so a
         // renamed-or-deleted-away one (with no later re-establishment)
-        // doesn't count as resolving this interpolated head (issue #1010,
-        // the same question `unresolved.rs`'s `proc_defs_by_tail` already
-        // answers for ordinary bareword W123, reused here via
+        // doesn't count as resolving this interpolated head — the same
+        // question `unresolved.rs`'s `proc_defs_by_tail` already answers for
+        // ordinary bareword W123, reused here via
         // `fact_live_for_call` rather than reimplemented).
         let mut proc_defs_by_tail: HashMap<String, Vec<(String, u32)>> = HashMap::new();
         for (qn, def) in &self.result.all_procs {
@@ -2420,10 +2419,10 @@ impl Analyser {
             };
             // All resolved candidates must be known commands — live ones,
             // not a proc renamed or deleted away with no later
-            // re-establishment (issue #1010: this closure used to delete
-            // an already-correct W123 for e.g. `do${suffix}` folding to
-            // `doThing` after `rename doThing {}`, confirmed against
-            // tclsh 8.6.14 that the call still fails "invalid command
+            // re-establishment: deleting an already-correct W123 for e.g.
+            // `do${suffix}` folding to `doThing` after `rename doThing {}`
+            // would be wrong — confirmed against tclsh 8.6.14 that the call
+            // still fails "invalid command
             // name").
             let call_off = d.span.start();
             let proc_tail_live = |name: &str| {
@@ -2479,7 +2478,7 @@ fn parse_namespaced_ensemble(
     // The closer comes from the shared owner under this document's release
     // rule — `2` is the byte just past the `${`. A first-`}` scan split
     // `${a{b}c}::tail` at the wrong brace, so the prefix this reports is a
-    // variable the source never names (issue #1604).
+    // variable the source never names.
     let tcl_lexer::BracedVarEnd::Closed(close) =
         tcl_lexer::braced_var_name_end(head.as_bytes(), 2, braced_var)
     else {
@@ -2533,7 +2532,7 @@ fn is_callback_array_slot(var_name: &str) -> bool {
 /// W307 callback-array suppression can see the slot's concrete value
 /// (FP-OBJ-10 SCCP-evidence override). Also accepts the `AssignConst` / generic
 /// `Call "set"` shapes defensively.
-/// M7 stage 7.3: harvest `(table-base, literal value, value span)` triples
+/// Harvest `(table-base, literal value, value span)` triples
 /// from the dispatch-table constructors whose value text is recoverable in
 /// the source — `set arr(k) value` / `array set arr {k v …}` /
 /// `dict create` / `dict set`.  The span locates the value's own literal
@@ -2654,7 +2653,7 @@ fn harvest_array_element_set_constants(
     use crate::ir::Statement;
     let is_literal = |s: &str| !s.contains('$') && !s.contains('[');
     // `TclObjLookupVarEx`'s element rule, from the one owner rather than a
-    // local re-spelling of its two char tests (issue #1606).
+    // local re-spelling of its two char tests.
     let is_array_elem = |name: &str| tcl_syntax::naming::split_element_ref(name).is_some();
     let units = std::iter::once(&cu.top_level).chain(cu.procedures.values());
     for fu in units {
@@ -2862,7 +2861,7 @@ fn aggregate_constsets(
     }
     // A literal `set cmd nope` inside an `oo::class` method body must be
     // captured so SCCP can prove `$cmd` is a non-command — defeating the
-    // blanket `in_method` W307 suppression (FP-OBJ-D4-F5).
+    // blanket `in_method` W307 suppression.
     for fu in cu.methods.values() {
         collect_from(fu, &mut all_constsets);
     }

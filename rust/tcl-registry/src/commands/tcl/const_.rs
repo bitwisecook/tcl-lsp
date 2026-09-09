@@ -18,10 +18,10 @@
 
 //! `const` — define a constant variable (Tcl 9.0+, TIP 677).
 //
-// VERIFIED: const(n) exists in the Tcl 9.0 and 9.1 TclCmd manual trees
-// (identical DESCRIPTION/EXAMPLES/SEE ALSO/KEYWORDS text in both — TIP 677
-// landed in 9.0 and picked up no delta in 9.1) and 404s in the 8.4, 8.5, and
-// 8.6 trees — the command genuinely does not exist before 9.0.
+// `const(n)` exists in the Tcl 9.0 and 9.1 TclCmd manual trees (identical
+// DESCRIPTION/EXAMPLES/SEE ALSO/KEYWORDS text in both — TIP 677 landed in 9.0
+// and picked up no delta in 9.1) and 404s in the 8.4, 8.5, and 8.6 trees —
+// the command genuinely does not exist before 9.0.
 
 use crate::prelude::*;
 use tcl_dialect::model::SpecSurface;
@@ -35,8 +35,8 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "const",
-        // Intentionally universal (`surface: None`) rather than Tcl-9.0-gated:
-        // kept dialect-agnostic so it stays valid inside iRules events. See
+        // Gated `TCL90_PLUS`: `const` does not exist in iRules' embedded Tcl
+        // 8.4.6, so it is correctly neither pre-9.0 nor iRules-visible. See
         // `tcl9_commands_gated_to_tcl90` in registry.rs.
         surface: Some(SpecSurface::TCL90_PLUS),
         traits: Traits::BYTE_COMPILED | Traits::LANGUAGE_KEYWORD | Traits::FIRST_ARG_VARNAME,

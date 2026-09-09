@@ -95,7 +95,7 @@ const CREATE_CORPUS: &[&[&str]] = &[
     &["a", "1", "#", "2"],
 ];
 
-// -- the three bindings -----------------------------------------------------
+// The three bindings.
 
 /// Leg 1 — the owner, through this crate's `ValueOps` binding (the same code
 /// path every VM `dict` opcode takes).
@@ -182,7 +182,7 @@ fn word(s: &str) -> String {
     tcl_syntax::list::list_element(s)
 }
 
-// -- the gates --------------------------------------------------------------
+// The gates.
 
 /// The owner and the registry folders must agree on every dict, key for key
 /// and value for value — the folders read a *string* and the owner a value,

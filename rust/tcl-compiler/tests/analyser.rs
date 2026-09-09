@@ -209,7 +209,7 @@ mod proc_analysis {
 }
 
 // `tcl::OptProc` — the `opt` package's automatic-option-parsing proc
-// definer (issue #923 idx 90). Runtime mechanism (tclsh9.0/8.6-verified):
+// definer. Runtime mechanism (tclsh9.0/8.6-verified):
 // installs `::proc $name args {...}` unconditionally — the real Tcl-level
 // signature is always the single `args` catch-all, regardless of what
 // `optlist` declares; `optlist`'s own descriptor words are bound as local
@@ -241,7 +241,7 @@ mod opt_proc_definer {
     fn fully_qualified_spelling_also_registers() {
         // TP — real corpus code commonly writes this fully qualified;
         // `resolve_analyser_hook` must resolve it identically to the bare
-        // spelling (issue #923 idx 90).
+        // spelling.
         let r = Analyser::new().analyse(
             "::tcl::OptProc greet {child -use -display} { return $child }",
             D,
@@ -251,15 +251,15 @@ mod opt_proc_definer {
 
     #[test]
     fn call_with_any_arity_draws_no_wrong_arg_count_diagnostic() {
-        // TP — the finding's own headline claim: every real call
-        // previously misreported "wrong number of arguments" because the
-        // stub proc's `{}`-arity `ProcDef` was never overwritten.
+        // TP: every real call must not report "wrong number of arguments" —
+        // the stub proc's `{}`-arity `ProcDef` must be overwritten with the
+        // real signature.
         let src = "tcl::OptProc greet {child -use -display} { return $child }\ngreet a b c d\n";
         assert!(!fires(src, D, "E003"), "{:?}", codes(src, D));
     }
 
     /// The **accepted trade-off**, pinned as a choice rather than left to
-    /// read as an oversight (issue #923 audit idx 99 verification).
+    /// read as an oversight.
     ///
     /// C Tcl does enforce a positional-argument bound for an `OptProc`, at
     /// call time, from the parsed optlist — tclsh 9.0.4 and 8.6.16 agree

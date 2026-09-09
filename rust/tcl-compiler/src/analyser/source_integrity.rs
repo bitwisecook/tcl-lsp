@@ -49,12 +49,11 @@ pub fn bidi_control_diagnostics(source: &str) -> Vec<Diagnostic> {
         .collect()
 }
 
-/// Apply established code and per-line suppression data to W305 findings.
+/// Filter W305 findings through the disabled-code set and per-line suppressions.
 ///
 /// `suppressed_lines` already maps a preceding `# noqa` comment onto the lines
-/// occupied by its following command. This function only consumes that map; it
-/// does not add a directive shape or turn a line-local directive into a
-/// file-wide one.
+/// occupied by its following command; this only consumes that map, so a
+/// line-local directive never widens into a file-wide one.
 pub(super) fn bidi_control_diagnostics_with_suppressions(
     source: &str,
     disabled: &HashSet<String>,

@@ -362,7 +362,7 @@ mod tests {
     #[test]
     fn console_and_consoleinterp_eval_bodies_are_registered_correctly() {
         use crate::{ArgRole, Arity};
-        // Issue #925: `console eval` / `consoleinterp eval` / `consoleinterp
+        // `console eval` / `consoleinterp eval` / `consoleinterp
         // record` each take exactly one script argument that must resolve as
         // `ArgRole::Body` (so the LSP recurses into it) and must be listed as
         // a cross-interpreter eval sink (T105) — same shape as `interp eval`.
@@ -395,7 +395,7 @@ mod tests {
 
     #[test]
     fn ttk_instate_script_arg_is_a_body_with_tight_arity() {
-        // Found while auditing for issue #925 siblings: `pathName instate
+        // A sibling case: `pathName instate
         // statespec ?script?` runs `script` as `if {[pathName instate
         // statespec]} script` per the ttk::widget manual page — a real body,
         // same shape as `console eval`, but was declared with an unbounded

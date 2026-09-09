@@ -21,10 +21,10 @@
 //! ops with an **ASCII fast path** (byte index == char index) falling back to a
 //! UTF-8 scan for non-ASCII.
 //!
-//! Subset now: `string length/index/range/equal/compare/cat/repeat/reverse/`
-//! `toupper/tolower/trim/trimleft/trimright/first/last`. (`map`/`match`/`is`/
-//! `replace`/`insert`/`wordstart` follow; Unicode case + a non-ASCII char-offset
-//! cache are deferred per EXP-STRING.)
+//! Implements `string length/index/range/equal/compare/cat/repeat/reverse/`
+//! `toupper/tolower/trim/trimleft/trimright/first/last`. `map`/`match`/`is`/
+//! `replace`/`insert`/`wordstart` are not implemented here, nor is Unicode
+//! case handling or a non-ASCII char-offset cache.
 //!
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -378,9 +378,9 @@ const PREFIX_SUBS: &[&[u8]] = &[b"all", b"longest", b"match"];
 /// failing `Code` (used by the `tcl::prefix` subcommands).
 ///
 /// The message comes from [`crate::parse::list_error_message`], which builds it
-/// out of the shared codec. This function used to reach a local re-scan of the
-/// list — a third implementation of `TclFindElement` alongside the owner and
-/// `parse.rs`'s copy — purely to recover the junk fragment (issue #1429).
+/// out of the shared codec, rather than a local re-scan of the list here — a
+/// third implementation of `TclFindElement` alongside the owner and
+/// `parse.rs`'s copy — purely to recover the junk fragment.
 fn split_list_or_error(interp: &mut Interp, s: &[u8]) -> Result<Vec<Vec<u8>>, Code> {
     match crate::parse::split_list(s) {
         Ok(t) => Ok(t),
@@ -1251,11 +1251,13 @@ mod tests {
         assert_eq!(ok(b"tcl::prefix match -error {} {apple apricot} xy"), b"");
     }
 
-    /// Issue #1607: `string` and `tcl::prefix` are `TclMakeEnsemble` commands,
-    /// so both the scan and the whole miss sentence belong to
-    /// `tcl_cmd_core::ensemble`; `tcl::prefix`'s dispatch matched exactly and
-    /// its enumeration came from `prefix::choice_list_bytes` (the wrong owner —
-    /// the same bytes only because the list has three entries).
+    /// `string` and `tcl::prefix` are `TclMakeEnsemble` commands, so both the
+    /// scan and the whole miss sentence belong to `tcl_cmd_core::ensemble`,
+    /// not `prefix::choice_list_bytes` — the two enumerations happen to
+    /// produce the same bytes here only because this particular list has
+    /// three entries, so relying on the latter for the ensemble miss
+    /// sentence would be a latent bug masked by the current subcommand
+    /// count.
     /// `tcl::prefix match`'s own options and `string is`'s class/option words
     /// are `Tcl_GetIndexFromObj` tables whose sentences were spelled by hand.
     ///

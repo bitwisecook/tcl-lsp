@@ -121,7 +121,7 @@ struct Vector {
 }
 
 const VECTORS: &[Vector] = &[
-    // -- TP: opcode-inlined forms now step ---------------------------------
+    // TP: opcode-inlined forms now step.
     Vector {
         name: "TP: set/incr/return inside a step-traced proc all step",
         script: "proc helperp {} { set a 1; incr a; return H }\n\
@@ -206,7 +206,7 @@ const VECTORS: &[Vector] = &[
                S:return H|2|H|leavestep\n\
                R:H",
     },
-    // -- TP: coroutine suspension keeps stepping after resume --------------
+    // TP: coroutine suspension keeps stepping after resume.
     Vector {
         // Creation and resume are nested inside one top-level `puts […]` (not
         // two separate top-level statements): a script piped to tclsh over
@@ -229,7 +229,7 @@ const VECTORS: &[Vector] = &[
                S:return H|enterstep\n\
                R:{} H",
     },
-    // -- TP: TclOO method bodies step ---------------------------------------
+    // TP: TclOO method bodies step.
     Vector {
         // An explicitly-named object (`K create myobj`, not `K new`) keeps the
         // step-traced command string deterministic — `K new`'s auto-generated
@@ -246,7 +246,7 @@ const VECTORS: &[Vector] = &[
                S:return M|enterstep\n\
                R:M",
     },
-    // -- TP: callback effects on inlined commands ---------------------------
+    // TP: callback effects on inlined commands.
     Vector {
         name: "TP: an enterstep error on an inlined command aborts it",
         script: "proc p {} { set a 1 ; return $a }\n\
@@ -272,7 +272,7 @@ const VECTORS: &[Vector] = &[
                  puts side=$::sideeffect\n",
         want: "side=yes",
     },
-    // -- TP: trace add/remove mid-execution + rename ------------------------
+    // TP: trace add/remove mid-execution + rename.
     Vector {
         name: "TP: adding a step trace to a callee mid-call still traces it once entered",
         script: "proc q {} { set b 9 ; return Q }\n\
@@ -327,7 +327,7 @@ const VECTORS: &[Vector] = &[
                S:return Q|enterstep\n\
                R:Q",
     },
-    // -- FP: a plain enter/leave (no step) trace does not force deopt -------
+    // FP: a plain enter/leave (no step) trace does not force deopt.
     Vector {
         name: "FP: a plain enter/leave trace (no step) never sees inlined set/incr — same as before the fix",
         script: "proc helperp {} { set a 1; incr a; return H }\n\
@@ -338,7 +338,7 @@ const VECTORS: &[Vector] = &[
                E:helperp|0|H|leave\n\
                R:H",
     },
-    // -- TN: an untraced proc runs unaffected --------------------------------
+    // TN: an untraced proc runs unaffected.
     Vector {
         name: "TN: an untraced proc with the same shape produces no step output",
         script: "proc helperp2 {} { set a 1; incr a; return H }\n\

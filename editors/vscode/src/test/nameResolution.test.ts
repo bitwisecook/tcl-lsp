@@ -20,16 +20,16 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import { activate, getDocUri, pollUntil, waitForDiagnostics } from "./helper";
 
-// TP/FP/TN/FN matrix for the "preview version:" issues #954-#958, exercised
+// TP/FP/TN/FN matrix for the "preview version:" regressions, exercised
 // through the real VS Code client → language-server round trip:
 //
-//   #954  commands inside an `apply` lambda body highlight as a script and a
-//         bare arg-list name is a `parameter` (semantic tokens)
-//   #955  a `$dir` read in `pkgIndex.tcl` is not read-before-set (W210), but
-//         the suppression is filename-scoped
-//   #956  a `$obj method` dispatch is a reference and is counted by the lens
-//   #957  a `my method` dispatch (nested in `[ … ]`) is a reference / counted
-//   #958  a `::tcl::mathfunc::<fn>` expr-function application is a reference
+//   - commands inside an `apply` lambda body highlight as a script and a
+//     bare arg-list name is a `parameter` (semantic tokens)
+//   - a `$dir` read in `pkgIndex.tcl` is not read-before-set (W210), but
+//     the suppression is filename-scoped
+//   - a `$obj method` dispatch is a reference and is counted by the lens
+//   - a `my method` dispatch (nested in `[ … ]`) is a reference / counted
+//   - a `::tcl::mathfunc::<fn>` expr-function application is a reference
 
 interface DecodedToken {
   line: number;

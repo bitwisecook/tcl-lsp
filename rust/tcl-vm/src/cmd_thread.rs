@@ -1352,7 +1352,7 @@ fn cmd_tsv_names(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
-// -- helpers ---------------------------------------------------------------
+// Helpers.
 
 fn parse_id(s: &str) -> Option<u64> {
     // Accept a bare integer or the `tidNNNN` form some tools print.

@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Shared constant command-substitution fold engine (issues #1132 / #1134).
+//! Shared constant command-substitution fold engine.
 //!
 //! Answers one question for three different consumers: *does this
 //! `[cmd args…]` command substitution evaluate to a compile-time constant?*
@@ -35,12 +35,12 @@
 //!   O129 rewrite) — constants from the projected SCCP lattice, trust from
 //!   the whole-module [`crate::command_binding::ModuleCommandMutations`]
 //!   scan;
-//! * **SCCP lattice evaluation itself** (`crate::sccp`, issue #1134) —
+//! * **SCCP lattice evaluation itself** (`crate::sccp`) —
 //!   constants resolved per SSA use version, so a folded value re-enters the
 //!   lattice and multi-statement chains
 //!   (`set base [self class]; set ns [namespace qualifiers $base]`) fold to
 //!   fixpoint under SCCP's ordinary monotone iteration;
-//! * the **analyser** (`analyser/handlers.rs`, issue #1132) — constants
+//! * the **analyser** (`analyser/handlers.rs`) — constants
 //!   from the scope-chain *dominating* constant-string lattice, trust from a
 //!   lazily-built whole-module mutation scan, so `set ns [namespace
 //!   qualifiers ::tc::X]; ${ns}::setdef …` resolves for navigation.
@@ -82,7 +82,7 @@ pub struct ConstSubstCtx<'a> {
     /// registry [`tcl_registry::OoContextFact`] folds (`[self class]`).
     /// `None` abstains from every frame-fact fold.
     pub defining_class: Option<&'a str>,
-    /// Trust oracle: `true` when `name` still denotes its original command
+    /// Trust check: `true` when `name` still denotes its original command
     /// at every point this fold's result could be observed — i.e. the name
     /// was never `rename`d, `interp alias`ed, or shadowed by a user proc
     /// anywhere in the module. Consumers back this with a whole-module,
@@ -326,9 +326,9 @@ pub fn oo_context_fact_fold(spec: &CommandSpec, args: &[String], class: &str) ->
 /// consult a registry fold? True when the (static, literal) head word
 /// resolves to a spec that carries a `const_fold` / versioned fold, a
 /// subcommand with one, or an [`tcl_registry::OoContextFact`] table.
-/// Consumers whose trust oracle is expensive to build (the analyser's lazy
-/// whole-module mutation scan, issue #1132) call this first so the oracle is
-/// only materialised for a substitution that could actually fold.
+/// Consumers whose trust check is expensive to build (the analyser's lazy
+/// whole-module mutation scan) call this first, so that check is only
+/// materialised for a substitution that could actually fold.
 #[must_use]
 pub fn head_may_fold(registry: &CommandRegistry, inner: &str) -> bool {
     let trimmed = inner.trim_start();
@@ -352,8 +352,8 @@ pub fn head_may_fold(registry: &CommandRegistry, inner: &str) -> bool {
 /// Whether `body` textually contains any `[cmd …]` opener whose head could
 /// fold ([`head_may_fold`]) — the cheap pre-filter the analyser's per-item
 /// path uses to decide which deferred proc/method bodies need the
-/// whole-file command-trust snapshot attached to their memo key (issue
-/// #1132). Deliberately the same predicate the fold itself gates on, so a
+/// whole-file command-trust snapshot attached to their memo key.
+/// Deliberately the same predicate the fold itself gates on, so a
 /// body this scan clears can never attempt a fold.
 #[must_use]
 pub fn body_has_fold_candidate(body: &str, registry: &CommandRegistry) -> bool {

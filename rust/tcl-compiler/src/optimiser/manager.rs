@@ -156,12 +156,12 @@ fn build_pass_context<'a>(
     ctx
 }
 
-/// Phase 1 of [`optimise_unit`]: run every pass over the built unit and return
-/// the **canonicalised raw** optimisation set (before overlap selection /
-/// const-dead-store coupling / group renumbering — that whole-module tail is
-/// [`finalise_optimisations`]).
+/// The first half of [`optimise_unit`]: run every pass over the built unit and
+/// return the **canonicalised raw** optimisation set, before overlap selection
+/// / const-dead-store coupling / group renumbering — that whole-module tail is
+/// [`finalise_optimisations`].
 ///
-/// Split out so the per-procedure optimiser memo can run this phase on a
+/// Split out so the per-procedure optimiser memo can run this half on a
 /// **single-procedure offset-0** unit (one proc in `cu.procedures`, its offset-0
 /// body in `cu.ir_module.procedures`, the reconstructed interproc summary +
 /// `redefined_procedures` + module `command_mutations` it depends on) and cache
@@ -187,8 +187,8 @@ pub fn optimise_unit_raw(
     ctx.optimisations
 }
 
-/// Phase 2 of [`optimise_unit`]: the **whole-module tail** over a canonicalised
-/// raw optimisation set — overlap selection, const-propagation/dead-store
+/// The second half of [`optimise_unit`]: the **whole-module tail** over a
+/// canonicalised raw optimisation set — overlap selection, const-propagation/dead-store
 /// coupling, the resurrected-reference guard, and group renumbering.  Reads
 /// `cu.source` (absolute span slices) and iterates `cu.procedures` / `cu.methods`,
 /// so it always runs over the **real whole-module unit** with the assembled,
@@ -416,7 +416,7 @@ fn couple_propagated_const_dead_stores(
     if crate::taint::is_irules_dialect(dialect) {
         return;
     }
-    // Whole-module variable-trace facts (issue #1377): a dynamic trace
+    // Whole-module variable-trace facts: a dynamic trace
     // target makes every name potentially traced, so no propagated const
     // def is provably dead anywhere in the module.
     if cu.ir_module.has_dynamic_variable_trace {
@@ -481,8 +481,7 @@ struct CoupleCtx<'a> {
     scope_aliases: std::collections::HashSet<String>,
     rmw_hidden: std::collections::HashSet<String>,
     /// [`crate::ir::Module::traced_variables`] — canonical (`::`-stripped)
-    /// names under an active variable trace anywhere in the module
-    /// (issue #1377).
+    /// names under an active variable trace anywhere in the module.
     traced: &'a std::collections::BTreeSet<String>,
 }
 
@@ -551,7 +550,7 @@ fn couple_const_dead_store_chain(
     let (var, _ver) = &chain.key;
     // Single constant scalar def, never aliased / global / RMW-hidden /
     // traced. The whole-module trace fact stores the canonical
-    // (`::`-stripped) spelling (issue #1377), so an unqualified store still
+    // (`::`-stripped) spelling, so an unqualified store still
     // matches a `trace add variable ::var …` installed anywhere.
     if def_count.get(var.as_str()).copied().unwrap_or(0) != 1 {
         return None;
@@ -1023,7 +1022,7 @@ mod tests {
         );
     }
 
-    /// Regression coverage for issue #996: every optimiser pass
+    /// Every optimiser pass
     /// (`propagation`, `expr_simplify`, `pattern_recognition`,
     /// `structure_elimination`, `code_sinking`) walks `Script`/`Statement`
     /// bodies recursively and is now depth-capped
@@ -1039,9 +1038,9 @@ mod tests {
     /// `tcl-compiler` is a library — it does not own the stack its callers
     /// run it on. Every real consumer (`tcl-lsp-server`/`tcl-mcp`/the `tcl`
     /// CLI/`f5-cli`/`tcl-debugger`) already wraps calls into it with a
-    /// dedicated 64 MiB thread (issue #996's primary fix); `cargo test`'s
-    /// bare ~2 MiB per-test default is not representative of that and was
-    /// never the depth caps' design target — they bound *frame count*, not
+    /// dedicated 64 MiB thread; `cargo test`'s
+    /// bare ~2 MiB per-test default is not representative of that and is
+    /// not the depth caps' design target — they bound *frame count*, not
     /// the stack cost of each frame (see `docs/design/compiler/
     /// recursive-descent-depth-limits.md`). So this spawns its own
     /// production-sized thread rather than asserting on the test harness's
@@ -1077,8 +1076,8 @@ mod tests {
     #[test]
     fn constant_loop_condition_fold_keeps_braces() {
         // A constant `while` condition folded through O101 must not drop the
-        // opening brace of the braced condition (the CFG loop-condition span
-        // omits the closing `}`, which previously produced `while 1}`).
+        // opening brace of the braced condition: the CFG loop-condition span
+        // omits the closing `}`, so a naive rewrite yields `while 1}`.
         // `while {1}` is already minimal → unchanged; `while {1 < 2}` folds
         // to `while {1}` (braces preserved).
         assert_eq!(optimised("while {1} { break }\n"), "while {1} { break }\n");

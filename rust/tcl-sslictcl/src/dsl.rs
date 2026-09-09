@@ -300,7 +300,7 @@ impl Document {
             return None;
         }
         // A mark at the head of a nested body slice is data, not a file
-        // prologue, so the body re-lex is demoted (issue #1243).
+        // prologue, so the body re-lex is demoted.
         Self::segment(&word.text, word.content_start, file_config().nested(), sink)
     }
 

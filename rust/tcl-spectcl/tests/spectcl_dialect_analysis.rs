@@ -64,10 +64,10 @@ fn pack_with_a_full_hover_block() -> String {
     )
 }
 
-/// The regression: every one of the six keys drew W123 "Unknown command",
-/// because a `hover` body is walked as an ordinary script and only the two
-/// keys that happen to name something else (`synopsis`, a scalar property;
-/// `source`, a real Tcl command) resolved. The shipped `specs/` packs write
+/// A `hover` body is walked as an ordinary script, so only the two keys
+/// that happen to name something else (`synopsis`, a scalar property;
+/// `source`, a real Tcl command) resolve — the other four hover keys must
+/// not draw W123 "Unknown command". The shipped `specs/` packs write
 /// hundreds of these blocks.
 #[test]
 fn a_hover_block_draws_no_unknown_command_diagnostics() {

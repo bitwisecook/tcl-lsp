@@ -200,13 +200,13 @@ impl CodegenCtx<'_> {
         //
         // *Whole*, through the shared owner, because `{` first and `}` last is
         // only the necessary condition: `{}${z}` closes its leading brace at
-        // byte 1, and stripping it produced the unbalanced `}${z}`, on which the
-        // VM then raised `missing close-brace for variable name` — so
+        // byte 1, and stripping it yields the unbalanced `}${z}`, on which the
+        // VM raises `missing close-brace for variable name` — so
         // `switch -- "{}$z" …` (whose subject reaches codegen as an
-        // `ExprNode::String` operand) refused a script both oracles run.
+        // `ExprNode::String` operand) would refuse a script both oracles run.
         //
         // *Verbatim*, because the content of a braced word is its finished
-        // value: pushed substituting, `expr {{a[nope]}}` ran `nope` where both
+        // value: pushed substituting, `expr {{a[nope]}}` runs `nope` where both
         // oracles answer with the literal `a[nope]`. This is the brace-word
         // entry point (`push_lit_verbatim`), not the plain-value one, because
         // here the word really is braced and the `\<newline>` continuation
@@ -283,8 +283,7 @@ impl CodegenCtx<'_> {
     /// operators without a direct opcode.
     ///
     /// `depth` is the `Binary` node's own `ExprNode` nesting level; the
-    /// operands are emitted one level deeper (issue #996 — `emit_expr`
-    /// guards the cap).
+    /// operands are emitted one level deeper; `emit_expr` guards the cap.
     fn emit_expr_binary(
         &mut self,
         node: &ExprNode,
@@ -359,10 +358,10 @@ impl CodegenCtx<'_> {
     /// coercion.
     ///
     /// Public entry point: the top of an expression tree is nesting depth
-    /// `0` (issue #996 — the recursion cap lives in [`Self::emit_expr_at`]).
+    /// `0`; the recursion cap lives in [`Self::emit_expr_at`].
     ///
     /// An operator the target release's `expr` grammar does not have is not
-    /// specialised at all (issue #1435). The compiled and interpreted paths
+    /// specialised at all. The compiled and interpreted paths
     /// otherwise apply opposite dialect discipline: `Op::from_binop` is total
     /// over `BinOp`, so `expr {2 ** 3}` compiled *for* 8.4 would emit `expon`
     /// and the emulating VM would execute it, while the same source reached
@@ -390,7 +389,7 @@ impl CodegenCtx<'_> {
     /// Depth-carrying core of [`Self::emit_expr`] — see that method's
     /// contract. `depth` is this node's `ExprNode` nesting level.
     fn emit_expr_at(&mut self, node: &ExprNode, depth: u32) -> bool {
-        // Native-stack safety net (issue #996). Past the cap, stop recursing
+        // Native-stack safety net. Past the cap, stop recursing
         // (and stop the const-folding walk below, which itself descends the
         // whole subtree): push a placeholder so the stack contract — exactly
         // one value left on TOS — still holds, and report a non-canonical
@@ -529,9 +528,10 @@ impl CodegenCtx<'_> {
                 // operand value (`tclCompExpr.c`'s `OT_TOKENS` leaf) — it never
                 // re-parses that result. The non-verbatim push below performs the
                 // substitution at runtime, so the value is already the operand;
-                // an `exprStk` after it used to evaluate the *result* a second
-                // time as an expression (`expr {[set x]}` with `x` = `1+2` gave
-                // `3`, and `expr {"set" in [info commands]}` only worked while
+                // an `exprStk` after it would evaluate the *result* a second
+                // time as an expression (`expr {[set x]}` with `x` = `1+2`
+                // would give `3`, and `expr {"set" in [info commands]}` would
+                // work only while
                 // `exprStk` handed an unparsable expression back unchanged).
                 self.push_lit(text);
                 // Place the deferred `<cond>` startCommand
@@ -1054,8 +1054,8 @@ mod tests {
 
     /// `$={a(1)}` is not a variable reference — it is literal text in every
     /// supported release, so a `Raw` operand spelling it takes the generic
-    /// `exprStk` fallback rather than the retired braced-scalar marker's
-    /// `push name; loadStk` (issue #1617).
+    /// `exprStk` fallback rather than a braced-scalar marker's
+    /// `push name; loadStk`.
     #[test]
     fn emit_raw_dollar_equals_is_not_a_var_ref() {
         let registry = CommandRegistry::build_default();
@@ -1145,9 +1145,8 @@ mod tests {
     // -- Command substitution --
 
     /// A `[…]` operand is a word: the (non-verbatim) push *is* the substitution,
-    /// so the value it leaves is already the operand. No `exprStk` — that used to
-    /// follow, and re-evaluated the command's result a second time as an
-    /// expression.
+    /// so the value it leaves is already the operand. No `exprStk` — that would
+    /// re-evaluate the command's result a second time as an expression.
     #[test]
     fn emit_command_pushes_the_word_without_re_evaluating_it() {
         let registry = CommandRegistry::build_default();
@@ -1228,9 +1227,9 @@ mod tests {
         assert!(ops.contains(&Op::MULT));
     }
 
-    /// Regression coverage for issue #996: `emit_expr` / `emit_expr_binary`
-    /// recurse once per `ExprNode` operator-tree level, with no depth cap
-    /// before this fix. The Pratt parser caps *its* output at 256 levels, but
+    /// `emit_expr` / `emit_expr_binary`
+    /// recurse once per `ExprNode` operator-tree level, so both need a depth
+    /// cap. The Pratt parser caps *its* output at 256 levels, but
     /// a tree built directly (as every unit test in this module does) is
     /// unbounded, and empirically this walker overflowed the native stack
     /// (SIGABRT) in the low thousands of levels on a 2 MiB thread
@@ -1294,7 +1293,7 @@ mod tests {
         assert_eq!(ctx.literals.entries()[0], "9");
     }
 
-    // -- The versioned `expr` operator surface (issue #1435) --
+    // The versioned `expr` operator surface.
 
     /// The refusal shape: the whole expression is pushed as source text and
     /// handed to `exprStk`, so the emulating VM's own

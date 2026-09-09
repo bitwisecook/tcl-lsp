@@ -556,7 +556,7 @@ mod path_concatenation {
 
     #[test]
     fn file_join_transform_does_not_masquerade_as_normalisation() {
-        // End-to-end registry transform coverage for #1410: `file join`
+        // End-to-end registry transform coverage: `file join`
         // stamps PATH_JOINED on a tainted result, but it does not collapse
         // traversal or otherwise prove the preceding manual concatenation
         // safe. W201 must therefore still report the original assignment.
@@ -1564,7 +1564,7 @@ mod invalid_subnet_mask {
 // tclsh: `192.168.1.256` is not a valid IP (octet > 255). The SSA-traced
 // **W124** check covers both halves of what the lexical **W122** used to
 // describe (octet > 255 and a leading-zero octal ambiguity); W122 duplicated
-// it with no independent producer and was retired (issue #1317). `ip_count`
+// it with no independent producer and was retired. `ip_count`
 // keeps summing "W122 OR W124" (W122's contribution is now always 0) rather
 // than being narrowed to W124 alone, so a future accidental reintroduction of
 // a W122 producer would still be counted here rather than silently going
@@ -1820,7 +1820,7 @@ mod builtin_shadow {
         assert!(!fires("proc ::snit::type {name def} {}", D, "W113"));
     }
 
-    // issue #923 idx 11: a bare-name `proc` whose only registry match is a
+    // A bare-name `proc` whose only registry match is a
     // `required_package`-gated third-party command (argparse, a tcllib
     // package, …) must not fire W113 — that command does not exist in a
     // stock interpreter until its package is loaded, so defining a proc of
@@ -2196,7 +2196,7 @@ mod unused_proc_parameters {
 
     #[test]
     fn nested_proc_is_named_by_its_defining_namespace() {
-        // Issue #1077. Oracle (tclsh 9.0.4 / 8.6.16, identical): a proc body
+        // Oracle (tclsh 9.0.4 / 8.6.16, identical): a proc body
         // runs in the namespace the proc is *defined* in, so `proc a::outer`'s
         // body creates `::a::helper`, not the lexical `::helper`.
         assert_eq!(
@@ -2216,7 +2216,7 @@ mod unused_proc_parameters {
 
     #[test]
     fn unqualified_and_absolute_nested_names_keep_their_fqn() {
-        // TN pair for #1077 — the shapes where lexical and defining namespace
+        // TN pair — the shapes where lexical and defining namespace
         // already agreed must not move.
         assert_eq!(
             w214_procs("proc outer {} { proc inner {unusedq} { return 1 } }\n"),
@@ -2530,7 +2530,7 @@ mod dead_store_and_unused {
     }
 }
 
-// Structural-body scope isolation (issue #250).
+// Structural-body scope isolation.
 //
 // An OO / snit body is STRUCTURAL — it must not contribute reads/writes to the
 // enclosing proc's data flow, otherwise it would silence the proc's own W210 /
@@ -2737,9 +2737,8 @@ mod edge_cases {
 // consume the caller's variable when a literal name is passed (`f x`),
 // so the caller's otherwise-unused `set x 1` stays a dead store
 // (W211 / W220).  Only a genuine `upvar`-aliased write-back suppresses
-// it.  These pin the `DYNAMIC_NAME_LOCAL` refinement (PR #498 / #499
-// findings 10 / 6); the absence of that refinement would re-open the
-// caller-side false negatives (gap #6) it guards against.
+// it.  These pin the `DYNAMIC_NAME_LOCAL` refinement; its absence would
+// re-open the caller-side false negatives it guards against.
 mod call_by_name_dynamic_name_local {
     use super::*;
 
@@ -2803,7 +2802,7 @@ mod call_by_name_dynamic_name_local {
 // tclsh ground truth: `::tcl::dict::create a 1` runs and returns `a 1` under
 // both tclsh8.6 and tclsh9.0 (confirmed live) — the call works, so this is
 // advisory (Warning), not an error. Prefix-level only: no per-subcommand or
-// per-version modelling (issue #988).
+// per-version modelling.
 mod private_tcl_namespace {
     use super::*;
 
@@ -3018,7 +3017,7 @@ mod private_tcl_namespace {
     }
 }
 
-// The `Tcl_ConcatObj` eval family — issue #1051.
+// The `Tcl_ConcatObj` eval family.
 //
 // `eval`, `uplevel`, `namespace eval`, `namespace inscope`, and `interp eval`
 // evaluate the *concatenation* of every trailing script word, so analysing
@@ -3261,7 +3260,7 @@ mod script_concatenation {
     }
 }
 
-// W145 — ambiguous keyword abbreviation (issue #1234).
+// W145 — ambiguous keyword abbreviation.
 //
 // tclsh ground truth (8.6.16):
 //   `string l abc`   → unknown or ambiguous subcommand "l": must be
@@ -3373,7 +3372,7 @@ mod ambiguous_abbreviation {
     }
 }
 
-// Unified event lifecycle (#1210).
+// Unified event lifecycle.
 //
 // The three states are independently reportable: an event deprecated but
 // still present draws IRULE1003 naming its deprecating release, while one

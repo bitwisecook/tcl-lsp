@@ -531,7 +531,7 @@ pub(crate) fn is_plain_string(obj: *mut TclObj) -> bool {
 }
 
 /// Append `piece` to a **plain string** object in place, growing its buffer
-/// geometrically (amortised O(1), EXP-STRING). The caller must ensure `obj` is a
+/// geometrically (amortised O(1)). The caller must ensure `obj` is a
 /// plain string ([`is_plain_string`]) and unshared. Refreshes `bytes`/`length`
 /// and the capacity in `internal_rep`. A `realloc` keeps the single live-buffer
 /// count, so the leak counters stay balanced.

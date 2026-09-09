@@ -107,7 +107,7 @@ impl CommitState {
     /// **Unless the value already satisfies the read.** A numeric-family
     /// intrep is read in place by the whole `Tcl_Get*FromObj` family, so a
     /// compatible read installs nothing and the cached representation
-    /// survives it — oracle-verified on tclsh 8.6.16: after
+    /// survives it — verified on tclsh 8.6.16: after
     /// `set d [expr {1.0 + 1.5}]`, `expr {$d && 1}` leaves `d` holding the
     /// very same `tclDoubleType` intrep, and a later `incr d` therefore still
     /// raises `expected integer but got "2.5"`. Overwriting the state with
@@ -556,7 +556,7 @@ fn typed_reads_of_statement(
             // it invokes the outer command, so those reads land first. Without
             // them the state is stale for every later read of the same
             // variable: `puts [lindex $x 0]` converts `x` to a list just as
-            // surely as a bare `lindex $x 0` does (issue #1814 follow-up).
+            // surely as a bare `lindex $x 0` does.
             push_lifted_reads(ctx, &mut out, tokens.as_ref(), stmt.span(), uses);
 
             let lookup = stmt.canonical_command_or_source();
@@ -567,7 +567,7 @@ fn typed_reads_of_statement(
             // two characters `$x` — so no commitment happens there either,
             // and moving the state would make every later read of the same
             // variable judge itself against an intrep the runtime never
-            // installed (issue #1845).
+            // installed.
             let inert = inert_braced_args(ctx.registry, lookup, &arg_refs, tokens.as_ref());
             for (i, word) in args.iter().enumerate() {
                 if inert.contains(&i) {
@@ -588,7 +588,7 @@ fn typed_reads_of_statement(
             // words do, so its reads land the same way and through the same
             // lift — `set r [list [lindex $x 0]]` converts `x` to a list just
             // as `set r [lindex $x 0]` does, and the outermost `[cmd …]` is
-            // only the depth-zero case of that walk (issue #1844).
+            // only the depth-zero case of that walk.
             push_lifted_reads(ctx, &mut out, tokens.as_ref(), stmt.span(), uses);
         }
         Statement::Incr { name, amount, .. } => {
@@ -695,7 +695,7 @@ fn collect_expr_reads(
     out: &mut Vec<TypedRead>,
     depth: u32,
 ) {
-    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // Native-stack safety net: walks the `ExprNode` tree, one
     // native frame per level. Past the cap, stop descending — a collector
     // that returns the typed reads gathered so far is the safe fallback
     // (reads buried deeper than the cap are not committed; never a crash).
@@ -835,8 +835,8 @@ mod tests {
         (facts, fu)
     }
 
-    /// Regression coverage for issue #996: `collect_expr_reads` recurses once
-    /// per `ExprNode` level with no depth cap before this fix. A tree built
+    /// `collect_expr_reads` recurses once
+    /// per `ExprNode` level, so it needs a depth cap. A tree built
     /// directly is unbounded (the Pratt parser caps its own output at 256)
     /// and empirically overflowed the native stack (SIGABRT) in the low
     /// thousands of levels on a 2 MiB thread. 3000 is past that crash range
@@ -872,8 +872,8 @@ mod tests {
         let _ = typed_reads_of_expr(&ctx, &node, &uses, Span::new(0, 1));
     }
 
-    /// Review follow-up on #1814: a read the committed representation already
-    /// satisfies must not replace it. `set d [expr {sqrt($x)}]; expr {$d && 1}`
+    /// A read the committed representation already satisfies must not replace
+    /// it. `set d [expr {sqrt($x)}]; expr {$d && 1}`
     /// leaves `d` a double on tclsh (the boolean read installs nothing), so a
     /// later `incr d` is still the `Double` -> `Int` mismatch it was — which
     /// recording the *expectation* instead of the *representation* hid.

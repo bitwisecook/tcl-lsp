@@ -1717,10 +1717,9 @@ pub unsafe extern "C" fn tcl_codegen_guard_prepare(
     // Interpreter guard domain makes a later policy change stale this token,
     // while resolving against the live environment prevents a version-gated
     // form from entering the fast path in the first place. The release name
-    // resolves through the one ingress seam (ledger row C2 — this file held
-    // the backends' last raw `DialectProfile::find` ingresses), fail-closed: an
-    // undeclared name declines rather than entering the guarded path under
-    // the lenient environment's permissive mask.
+    // resolves through the one ingress seam, fail-closed: an undeclared name
+    // declines rather than entering the guarded path under the lenient
+    // environment's permissive mask.
     let runtime_version = unsafe { (*interp).runtime_version() };
     let Some(dialect) =
         crate::environment::known_surface_point_for_dialect(runtime_version.dialect_profile_name())
@@ -3737,7 +3736,7 @@ mod tests {
         });
     }
 
-    // native proc entries (issue #1774)
+    // native proc entries
 
     thread_local! {
         /// The argv [`stub_body`] dispatches, and how many times a stub ran.
@@ -4191,8 +4190,7 @@ mod tests {
 
     /// An error out of a compiled body takes `run_proc`'s ordinary error tail
     /// — with the two gaps a compiled statement's missing `log_command_info`
-    /// leaves, both pinned here so PR-B's fix has a gate that fails in both
-    /// directions.
+    /// leaves, both pinned here as a gate that fails in either direction.
     #[test]
     fn an_error_from_the_native_body_unwinds_through_the_procedure_frame() {
         leak_free(|| unsafe {
@@ -4217,10 +4215,10 @@ mod tests {
                     "errorInfo must carry the procedure frame: {}",
                     String::from_utf8_lossy(&info)
                 );
-                // LEDGERED (#1774 step 6, PR-B). A compiled statement calls
-                // no `log_command_info`, and that one absence has two visible
-                // consequences here, both closed by `tcl_codegen_log_command`
-                // once the emitter calls it on a statement's error edge:
+                // A compiled statement calls no `log_command_info`, and that
+                // one absence has two visible consequences here, both closed
+                // by `tcl_codegen_log_command` once the emitter calls it on a
+                // statement's error edge:
                 //
                 //  - no `while executing "<source text>"` frame, and
                 //    `error_line` never advances, so the procedure frame reads

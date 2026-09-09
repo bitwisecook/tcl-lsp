@@ -398,9 +398,9 @@ pub fn command_entry_json(registry: &CommandRegistry, dialect: &str, name: &str)
 
 /// Snapshot of every command available in `dialect`.
 ///
-/// Dialect resolution goes through the profile catalog: an unknown dialect
-/// string dumps the permissive `PLAIN_TCL` (`ALL_TCL`) view — the one
-/// unified fallback (design doc §8) — rather than the old ad-hoc `TCL86`.
+/// Dialect resolution goes through the profile catalogue: an unknown
+/// dialect string dumps the permissive `PLAIN_TCL` (`ALL_TCL`) view — the
+/// one unified fallback (design doc §8).
 #[must_use]
 pub fn command_registry_snapshot(registry: &CommandRegistry, dialect: &str) -> Json {
     let profile = crate::model::ingress::resolve_environment(dialect).analyser_profile();

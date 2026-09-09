@@ -241,8 +241,8 @@ fn parse_bareword_part(text: &str, bytes: &[u8], n: usize, mut i: usize) -> (Str
         } else if bytes[i] == b'\\' {
             // A backslash escapes the next character, and an escaped blank is
             // *word content*, not a separator: `a\ b` is one word whose value
-            // is `a b`. Splitting on it handed `string length` two arguments,
-            // so `[string length a\ b]` raised `wrong # args` where both
+            // is `a b`. Splitting on it hands `string length` two arguments,
+            // so `[string length a\ b]` raises `wrong # args` where both
             // oracles answer 3.
             //
             // `\<newline>` is the one exception — that really is a word
@@ -719,17 +719,17 @@ impl CodegenCtx<'_> {
         } else if !braced && word.contains('\\') {
             // Decoded here, so the result is this word's value — the same arm,
             // and the same rule, as `emit_cmd_subst_arg`'s. Left substituting,
-            // the decoded `\{\}` was read back as a braced literal and stripped
-            // to nothing: `set w [dict get [dict create k \{\}] k]` measured 0
-            // where both oracles say 2.
+            // the decoded `\{\}` is read back as a braced literal and stripped
+            // to nothing: `set w [dict get [dict create k \{\}] k]` then
+            // measures 0 where both oracles say 2.
             let processed = tcl_lexer::backslash_subst_in(word, self.escapes);
             self.push_word_value(&processed);
         } else if braced {
             // A braced word is already de-braced here, so its content is the
             // finished value: push it verbatim or the VM's `subst_word` strips
             // a *second* brace layer — `proc p {} { set {{loc}} L ; return [set
-            // {{loc}}] }` read the local `loc` while the store had created
-            // `{loc}` (issue #1602; tclsh 8.6.14 / 9.0.4 return `L`).
+            // {{loc}}] }` would read the local `loc` while the store created
+            // `{loc}` (tclsh 8.6.14 / 9.0.4 return `L`).
             self.push_lit_verbatim(word);
         } else {
             // Not braced, and every substitution marker was routed above: this
@@ -901,8 +901,7 @@ impl CodegenCtx<'_> {
             return;
         }
         // The `[list …]` / `[format …]` / `[dict create …]` folds and the two
-        // `list` inlinings — shared with `emit_value_interpolated`, which
-        // carried an identical copy of them (issues #1427 / #1585).
+        // `list` inlinings — one copy, shared with `emit_value_interpolated`.
         if self.try_emit_constant_fold(value) {
             return;
         }
@@ -995,9 +994,9 @@ impl CodegenCtx<'_> {
     ///
     /// The spec-name equality check keeps qualified spellings
     /// (`[::expr …]`) on the generic-invoke path: `CommandRegistry::get`
-    /// resolves a leading `::` to the bare spec, but the historical
-    /// dispatch keyed on the raw head word and the emitted bytecode
-    /// must not change under the registry-driven dispatch.
+    /// resolves a leading `::` to the bare spec, but the dispatch keys on the
+    /// raw head word, and the emitted bytecode must not change under the
+    /// registry-driven dispatch.
     pub(crate) fn inline_cmd_subst_hook(
         &mut self,
         cmd: &str,
@@ -1051,9 +1050,8 @@ impl CodegenCtx<'_> {
         // decision here: a later proc body may mutate this name only after the
         // current invocation has entered it. Retain the typed binding below;
         // the VM validates it at each actual execution boundary and recompiles
-        // stale future invocations through plain dispatch (issues #1585/#1648).
-        // The registry's own point — see
-        // `emitter::bytecoded::try_bytecoded` (issues #1462/#1463).
+        // stale future invocations through plain dispatch.
+        // The registry's own point — see `emitter::bytecoded::try_bytecoded`.
         let resolved = self
             .registry
             .resolve_call(cmd, args, self.registry.own_surface_query())?;
@@ -1200,9 +1198,8 @@ impl CodegenCtx<'_> {
                 let expr_body = &args[0].0;
                 // Re-parsed under the compile's own dialect, exactly as the
                 // lowering pass parses a statement-position `expr` — parsing
-                // it dialect-blind here left a dialect-only operator
-                // (`$x contains "a"`) unrecognised and pushed as a raw string
-                // (issue #1435).
+                // it dialect-blind here would leave a dialect-only operator
+                // (`$x contains "a"`) unrecognised and push it as a raw string.
                 let node = self.parse_compile_expr(expr_body);
                 self.emit_expr(&node);
             }
@@ -1648,11 +1645,11 @@ impl CodegenCtx<'_> {
         // Only two shapes can be specialised inline: `CLASS value` and
         // `CLASS -strict value`. Anything else carries an option this path does
         // not model — above all `-failindex var`, which has to *write a
-        // variable*. The dispatch that reaches here gates on arity alone, and
-        // this function used to take `sargs.last()` as the value and ignore
-        // everything before it, so `string is integer -failindex fi 1.5`
-        // computed the correct answer and silently never wrote `fi`
-        // (tclsh writes 1). A 2-word form whose second word is `-strict` is a
+        // variable*. The dispatch that reaches here gates on arity alone, so
+        // taking `sargs.last()` as the value and ignoring everything before it
+        // would make `string is integer -failindex fi 1.5` compute the correct
+        // answer and silently never write `fi` (tclsh writes 1). A 2-word form
+        // whose second word is `-strict` is a
         // missing-value arity error, which the generic path reports properly.
         let specialisable = match sargs.len() {
             2 => sargs[1].0 != "-strict",
@@ -1944,11 +1941,11 @@ mod tests {
     use super::*;
     use tcl_registry::CommandRegistry;
 
-    /// A value-position `[expr {…}]` is re-parsed here, and until issue #1435
-    /// it was re-parsed dialect-blind: an iRules word operator lexed as a
-    /// function name, the parse fell back to `ExprNode::Raw`, and codegen
-    /// pushed the source text for a second dialect-blind parse in the VM —
-    /// which returned the text itself rather than evaluating the operator.
+    /// A value-position `[expr {…}]` is re-parsed here, and must be re-parsed
+    /// under the compile dialect: dialect-blind, an iRules word operator lexes
+    /// as a function name, the parse falls back to `ExprNode::Raw`, and codegen
+    /// pushes the source text for a second dialect-blind parse in the VM —
+    /// which returns the text itself rather than evaluating the operator.
     #[test]
     fn inline_expr_subst_parses_under_the_compile_dialect() {
         let profile = tcl_dialect::DialectProfile::irules();

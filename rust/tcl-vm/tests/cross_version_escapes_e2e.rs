@@ -135,7 +135,7 @@ struct Vector {
 /// Each vector prints `<length> <first code point>` so the claim covers both
 /// the escape's width and its value, in ASCII the byte-comparison can trust.
 const VECTORS: &[Vector] = &[
-    // -- `\x`: TIP 388 capped it at two hex digits --
+    // `\x`: TIP 388 capped it at two hex digits.
     Vector {
         name: "\\x41 reads the same everywhere",
         script: "set s \"\\x41\"\nputs \"[string length $s] [scan $s %c]\"\n",
@@ -158,7 +158,7 @@ const VECTORS: &[Vector] = &[
         want_86: "3 120",
         want_90: "3 120",
     },
-    // -- `\U`: TIP 388 introduced it; 9.0 gave it room above the BMP --
+    // `\U`: TIP 388 introduced it; 9.0 gave it room above the BMP.
     Vector {
         name: "\\U is not an escape before 8.6",
         script: "set s \"\\U0001F600\"\nputs \"[string length $s] [scan $s %c]\"\n",
@@ -175,7 +175,7 @@ const VECTORS: &[Vector] = &[
         want_86: "1 65",
         want_90: "1 65",
     },
-    // -- `\u`: unchanged across the whole range --
+    // `\u`: unchanged across the whole range.
     Vector {
         name: "\\u00E9 reads the same everywhere",
         script: "set s \"\\u00E9\"\nputs \"[string length $s] [scan $s %c]\"\n",
@@ -183,7 +183,7 @@ const VECTORS: &[Vector] = &[
         want_86: "1 233",
         want_90: "1 233",
     },
-    // -- octal: the third digit's guard is 8.6's --
+    // Octal: the third digit's guard is 8.6's.
     Vector {
         name: "\\101 reads the same everywhere",
         script: "set s \"\\101\"\nputs \"[string length $s] [scan $s %c]\"\n",
@@ -213,7 +213,7 @@ const VECTORS: &[Vector] = &[
         want_86: "1 255",
         want_90: "1 255",
     },
-    // -- the line continuation is release-invariant --
+    // The line continuation is release-invariant.
     Vector {
         name: "line continuation collapses to one space everywhere",
         script: "set s \"a\\\n   b\"\nputs \"[string length $s] [scan $s %c]\"\n",
@@ -221,7 +221,7 @@ const VECTORS: &[Vector] = &[
         want_86: "3 97",
         want_90: "3 97",
     },
-    // -- the runtime `subst` path, not the compiled-literal one --
+    // The runtime `subst` path, not the compiled-literal one.
     Vector {
         name: "subst decodes under the emulated release",
         script: "set s [subst {\\x4142}]\nputs \"[string length $s] [scan $s %c]\"\n",

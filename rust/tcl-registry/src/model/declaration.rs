@@ -22,13 +22,13 @@
 //! A `# tcl-lsp: stub NAME {ARGS}` block in the analysed buffer, and a
 //! workspace `<environment>.tcl.stubs` sidecar, both say the same kind of
 //! thing the catalogue says: *this name is a command, and these are its
-//! argument roles*. Until this module they said it in their own vocabulary
-//! — a `StubOverlay` of `StubSig`/`StubArg`/`StubSigFlags` values that
-//! every consumer had to consult **beside** the registry, with its own
-//! role-word parser and its own `arg_indices_for_role` twin, and with no
-//! provenance at all.
+//! argument roles*.
 //!
-//! Here they ingest as ordinary [`SurfaceDeclaration`]s:
+//! Here they ingest as ordinary [`SurfaceDeclaration`]s, in the registry's
+//! own vocabulary — one role-word table and one `arg_indices_for_role`,
+//! with a tracked provenance — rather than a second, parallel
+//! representation every consumer would otherwise have to consult beside
+//! the registry:
 //!
 //! - the **provider** is [`Provider::Document`] — active exactly in the
 //!   buffer that declared it, which is why such a declaration never joins
@@ -192,7 +192,7 @@ impl DeclaredSurface {
     /// onto a document's command surface is
     /// [`DocumentCommandSurface`], which answers the catalogue and the
     /// document together. A consumer that could reach the raw per-document
-    /// table would be building the second lookup R1 just retired.
+    /// table would be building the second lookup path ruling R1 rules out.
     #[must_use]
     pub(crate) fn get(&self, name: &str) -> Option<&DeclaredCommand> {
         self.commands.get(name)

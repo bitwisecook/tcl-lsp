@@ -17,11 +17,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The bignum rung of the numeric tower: the `TCL_BIGNUM_TYPE` obj rep over
-//! libtommath `mp_int`, the representation chosen + validated in EXP-BIGNUM.
+//! libtommath `mp_int`.
 //!
 //! `mp_int` **is** our bignum — the same representation C extensions get via
-//! `Tcl_GetBignumFromObj` (we ship `tclTomMath.h` + export the `TclBN_*` stubs,
-//! Track 2/3), so there is no second bignum and no boundary conversion. The
+//! `Tcl_GetBignumFromObj` (we ship `tclTomMath.h` + export the `TclBN_*`
+//! stubs), so there is no second bignum and no boundary conversion. The
 //! obj's 8-byte `internal_rep` holds a heap pointer to the `mp_int`; on wasm32
 //! this can later pack inline (`dp` + packed header in the two i32 words, exactly
 //! C Tcl's scheme) — deferred as a non-observable optimisation.
@@ -511,7 +511,7 @@ fn divmod(a: *mut TclObj, b: *mut TclObj, want_quotient: bool) -> Result<*mut Tc
     }
     // The integer tier is the shared tower's (`int_div` / `int_mod` over the
     // libtommath adapter): the floor quotient, the divisor-signed remainder,
-    // and the zero-divisor refusal all come from that one owner (#1428).
+    // and the zero-divisor refusal all come from that one owner.
     let (p, q) = (tower_of(x)?, tower_of(y)?);
     let r = if want_quotient {
         tcl_syntax::number_tower::int_div(&p, &q)
@@ -807,7 +807,7 @@ fn saturating_exponent(eb: &Mp) -> i64 {
 /// over the [`TowerMp`] adapter): the zero/`±1` base collapses, the
 /// negative-exponent floor, and C's `2^28` exponent ceiling all live there, so
 /// `3 ** 268435456` is an instant "exponent too large" rather than a
-/// multi-hundred-megabit allocation (#1428).
+/// multi-hundred-megabit allocation.
 pub fn pow(a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
     let base = num(a)?;
     let exp = num(b)?;
@@ -1071,7 +1071,7 @@ fn store(mut mp: MpInt) -> *mut TclObj {
     let bits = unsafe { mp_count_bits(&mp) };
     if bits <= 63 {
         // Fits a wide (magnitude < 2^63) — demote. (i64::MIN, a 64-bit
-        // magnitude, conservatively stays bignum for now; correctness-safe.)
+        // magnitude, conservatively stays bignum; correctness-safe.)
         let v = unsafe { mp_get_i64(&mp) };
         unsafe { mp_clear(&mut mp) };
         return obj::new_wide_int_obj(v);
@@ -1586,7 +1586,7 @@ mod tests {
         );
         // 0 ** -1 is C's *domain* error, not a division by zero (tclsh
         // 8.6.16/9.0.4: `exponentiation of zero by negative power`,
-        // `-errorcode ARITH DOMAIN`) — #1428.
+        // `-errorcode ARITH DOMAIN`).
         let z = int_obj(0);
         let m1 = int_obj(-1);
         assert_eq!(pow(z, m1), Err(ArithError::ZeroToNegativePower));

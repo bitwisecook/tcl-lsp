@@ -128,7 +128,7 @@ fn member_op(vm: &mut Vm, sub: &str, args: &[Value]) -> Completion<Value> {
 /// first-occurrence position, **last value winning** on a duplicate key
 /// (`SetDictFromAny`, tclDictObj.c(9.0.4):589 → `Tcl_DictObjPut`). Decoding the
 /// list rep straight into `chunks_exact(2)` pairs instead leaves both values of
-/// a duplicate key present, so every [`lookup`] reads the *first* (issue #1427).
+/// a duplicate key present, so every [`lookup`] reads the *first*.
 pub(crate) fn pairs(vm: &mut Vm, v: &Value) -> Result<StringPairs, Completion<Value>> {
     vm.dict_pairs(v)
 }
@@ -193,10 +193,10 @@ fn dict_update(
 /// Set the nested `keys` path of dict `cur` to `value`, creating intermediate
 /// dicts as needed (`dict set` with multiple keys).
 ///
-/// Issue #996: `dict set d {*}[lrepeat 100000 k] v` inflates `keys` to
-/// arbitrary length trivially, and this used to recurse once per key
-/// segment with no depth cap. Rewritten iteratively — an explicit
-/// work-stack instead of one native call per key — the same pattern
+/// `dict set d {*}[lrepeat 100000 k] v` inflates `keys` to arbitrary length
+/// trivially, so recursing once per key segment natively would have no depth
+/// cap. This walks with an explicit work-stack instead of one native call per
+/// key, the same pattern
 /// [`get_path`] (this file) already uses to walk a key path without native
 /// recursion at all: walk down recording each level's parsed pairs and the
 /// key being set, then rebuild bottom-up. This eliminates the native-stack
@@ -234,8 +234,8 @@ fn set_path(
 /// Remove the nested `keys` path from dict `cur` (`dict unset` with multiple
 /// keys). A missing intermediate key is a no-op, matching `dict unset`.
 ///
-/// Issue #996: same unbounded per-key-segment recursion as [`set_path`]
-/// (`dict unset d {*}[lrepeat 100000 k]`), rewritten iteratively for the
+/// Same unbounded per-key-segment recursion hazard as [`set_path`]
+/// (`dict unset d {*}[lrepeat 100000 k]`), walked iteratively for the
 /// same reason. Walk down while each key is present, recording each level's
 /// parsed pairs and the key followed; stop early — without erroring or
 /// descending further — at the first missing intermediate key, matching
@@ -311,17 +311,16 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value], invoked: &str) -> Completion<
     // arms below.
     //
     // `dispatch_canon` answers `Some` unconditionally for the pure subcommands,
-    // including `info`, so the VM's former own arms for those were unreachable.
-    // They are gone (issue #1427's cleanup) — and not merely as tidying: the
-    // dead `create` arm still built its result with a plain `Value::list` of the
-    // arguments, so had anything ever routed back to it, it would have
-    // re-introduced the duplicate-key bug this issue fixes.
+    // including `info`, so any VM-local arm for those would be unreachable —
+    // and not merely inert: a `create` arm built with a plain `Value::list` of
+    // the arguments would re-introduce the duplicate-key bug these
+    // subcommands must avoid, so no such arm exists here.
     if let Some(result) = tcl_cmd_core::dict::dispatch_canon(vm, invoked, sub, rest) {
         return match result {
             Ok(v) => ok(v),
             // A *value-parse* failure is re-worded to C's dict spelling and
             // given its `TCL VALUE DICTIONARY …` code; anything else (wrong #
-            // args, unknown key) passes through unchanged (issue #1573).
+            // args, unknown key) passes through unchanged.
             Err(e) if e.error_code().is_some() => crate::command::completion_from_cmd_error(e),
             Err(e) => crate::exec::dict_parse_err(&e.into_message()),
         };
@@ -737,18 +736,16 @@ mod tests {
             .collect()
     }
 
-    /// Regression coverage for issue #996: `set_path`/`unset_path` recurse
-    /// once per multi-key `dict set`/`dict unset` path segment, with no
-    /// depth cap before this fix — trivially inflated via `dict set d
-    /// {*}[lrepeat 100000 k] v`. Empirically (a throwaway `zzz_probe_depth
-    /// dict_set <depth>` harness, deleted before this fix landed),
-    /// unguarded input overflowed the native stack (SIGABRT) between depth
-    /// 3000 and 3500 on a 2 MiB thread (`cargo test`'s per-test default).
-    /// Rewritten iteratively (no depth cap at all, mirroring `get_path`'s
-    /// existing iterative style); 2000 is comfortably past that crash
-    /// range, and `set_path`'s result is checked for exact correctness at
-    /// this depth (descending back down through the same key at every
-    /// level must land on the value that was set), not merely survival.
+    /// `set_path`/`unset_path` recursing once per multi-key `dict
+    /// set`/`dict unset` path segment natively has no depth cap: an
+    /// unguarded `dict set d {*}[lrepeat 100000 k] v` overflows the native
+    /// stack (SIGABRT), empirically between depth 3000 and 3500 on a 2 MiB
+    /// thread (`cargo test`'s per-test default). The iterative
+    /// implementation (mirroring `get_path`'s existing iterative style) has
+    /// no such cap; this test checks `set_path`'s result for exact
+    /// correctness at depth 2000, comfortably past that crash range —
+    /// descending back down through the same key at every level must land
+    /// on the value that was set, not merely survival.
     ///
     /// Deliberately NOT 50,000+: a dict this deep is represented as an
     /// equally deep nested `Value::list` chain, and `Value` has no custom
