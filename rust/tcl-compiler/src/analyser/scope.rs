@@ -1287,7 +1287,7 @@ impl Analyser {
             // cross-file consumers (the reference matchers treat it, and the
             // candidate list above, as candidates rather than ground truth).
         }
-        // The constant-`$cmd` dispatch sites (M7) are *not* settled here:
+        // The constant-`$cmd` dispatch sites are *not* settled here:
         // their value facts come from the compiler's flow-sensitive value
         // model, which needs the CFG/SSA `CompilationUnit` — see
         // `settle_const_dispatches` in the diagnostics phase.  A lexical

@@ -2466,7 +2466,7 @@ mod tests {
 
     #[test]
     fn baseline_floor_declares_the_f5_surface_15_0_plus() {
-        // M9: F5 specs with no explicit introduction inherit the declared
+        // F5 specs with no explicit introduction inherit the declared
         // 15.0 baseline. TN at the 16.1 default and any 15.0+ pin…
         let src = "when HTTP_REQUEST {\n  pool p\n  HTTP::uri\n}\n";
         for pin in [None, Some("15.0.0"), Some("17.1.0")] {
@@ -2967,7 +2967,7 @@ mod tests {
         }
     }
 
-    // -- §5.4 range targeting, W150 / W151 (P1b) ---------------------------
+    // §5.4 range targeting, W150 / W151.
 
     mod range_targeting {
         use super::super::super::super::state::Analyser;
@@ -3223,7 +3223,7 @@ mod tests {
             assert_eq!(base, pinned, "single target ⇒ today's behaviour");
         }
 
-        // -- P3: the Tk pilot rides the same range machinery ------------
+        // The Tk pilot rides the same range machinery.
         //
         // §5.4's "packages take range targets exactly like cores" (§3.2,
         // last bullet), proved on the acceptance case. `Tk` is a package
@@ -3271,7 +3271,7 @@ mod tests {
             assert!(!fires(&diags(body, "tcl8.6"), "W150"), "undeclared");
         }
 
-        // -- P5: the tcllib adversarial modules ------------------------
+        // The tcllib adversarial modules.
         //
         // A tcllib module is an independently versioned package with its
         // own axis, so `supports struct::tree …` gates on the *module's*
@@ -3352,7 +3352,7 @@ mod tests {
             assert!(!fires(&diags(none, "tcl8.6"), "W135"));
         }
 
-        // -- P6: the jim ladder -----------------------------------------
+        // The jim ladder.
         //
         // Jim's releases are targets on the `jim` **core** axis, not nine
         // catalogue profiles, so a jim range is declared exactly as a Tcl
@@ -3378,9 +3378,8 @@ mod tests {
             assert!(declared.contains(&Version::parse("0.78").expect("version")));
             assert!(!declared.contains(&Version::parse("0.84").expect("version")));
             // I2, both spellings of the leak: not the Tcl core axis, and
-            // not a fictitious `package:jim` axis either — which is what
-            // the pre-P6 ingress minted, because it recognised only the
-            // name `tcl` as a family.
+            // not a fictitious `package:jim` axis either, which is what an
+            // ingress recognising only the name `tcl` as a family would mint.
             assert!(
                 context
                     .declared_targets(&VersionAxisId::core(Family::Tcl))

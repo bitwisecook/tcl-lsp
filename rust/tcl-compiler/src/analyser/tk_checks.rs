@@ -36,7 +36,7 @@
 //! Two distinct questions are involved, and must not be conflated:
 //!
 //! - **Is Tk active?** — the authoritative, *exact* fact: the environment
-//!   ships `Tk` **ambient** (a `wish` shell — P3's placement query), or a
+//!   ships `Tk` **ambient** (a `wish` shell — the placement query), or a
 //!   `package require Tk` that the registry's
 //!   [`PackageRequire`](tcl_registry::hooks::AnalyserHookId::PackageRequire)
 //!   hook recorded into `result.package_requires` during the walk.  This is

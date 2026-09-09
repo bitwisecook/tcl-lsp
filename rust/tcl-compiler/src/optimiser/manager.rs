@@ -921,8 +921,7 @@ pub fn apply_optimisations(source: &str, optimisations: &[Optimisation]) -> Stri
 /// iteration count is one per pass attempted, including the final pass that
 /// finds nothing new. A single-pass profile is simply `max_iterations == 1`.
 ///
-/// This is the shared core behind the `tcl opt` CLI verb and the
-/// `tcl_lsp_py` optimiser facade.
+/// This is the shared core behind the `tcl opt` CLI verb.
 #[must_use]
 pub fn optimise_source_multipass_filtered<S: std::hash::BuildHasher>(
     source: &str,

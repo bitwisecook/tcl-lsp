@@ -1,4 +1,4 @@
-// @ts-nocheck -- migrated verbatim from JS; typed incrementally, not in the restructure commit.
+// @ts-nocheck -- legacy page script, not yet fully typed.
 // tcl-lsp — a language server and toolchain for Tcl
 // Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
 //

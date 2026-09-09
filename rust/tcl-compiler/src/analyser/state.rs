@@ -482,7 +482,7 @@ pub struct Analyser {
     /// **ambient** — i.e. Tk is already loaded before the first byte runs,
     /// so no `package require Tk` exists to find (a `wish` shell).
     ///
-    /// P3 (ledger F4): resolved at ingest from the environment's placement
+    /// Resolved at ingest from the environment's placement
     /// (`ResolvedContext::ambient_package("Tk")`), not from the ingest
     /// dialect *string* being literally `"tk"`. `Tk` is a package with a
     /// placement, so any environment — compiled or pack-declared — that
@@ -1758,9 +1758,9 @@ impl Analyser {
             // under a jim core, or a `supports jim 0.81-` under a Tcl
             // one, is a declaration about a ladder this document is not
             // on, and invariant I2 says it must be dropped rather than
-            // coerced. Before P6 only `tcl` was recognised here, so
-            // `supports jim 0.81-` minted a fictitious *package* axis
-            // named `jim` and switched range mode on against it.
+            // coerced. Recognising only `tcl` as a family here would mint a
+            // fictitious *package* axis named `jim` for `supports jim 0.81-`
+            // and switch range mode on against it.
             let family = Family::ALL
                 .into_iter()
                 .find(|family| name.eq_ignore_ascii_case(family.name()));

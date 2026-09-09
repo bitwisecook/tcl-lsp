@@ -32,7 +32,7 @@ use crate::common::{Lsp, unique_uri};
 
 use serde_json::{Value, json};
 
-// -- local helpers -------------------------------------------------------
+// Local helpers.
 
 /// An LSP `Range` from `(line, char)` tuples.
 fn range(start: (u32, u32), end: (u32, u32)) -> Value {

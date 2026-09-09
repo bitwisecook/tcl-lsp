@@ -20,9 +20,8 @@
 //! dataflow/taint graph, each rendered to a `serde_json::Value`.
 //!
 //! This is the shared, consumer-agnostic home for the graph shapes: the
-//! `tcl` CLI (`callgraph` / `symbolgraph` / `dataflow` verbs), the LSP
-//! server, and the `tcl_lsp_py` `PyO3` facades all build the *same* graphs
-//! from this one implementation. Callers supply a resolved
+//! `tcl` CLI (`callgraph` / `symbolgraph` / `dataflow` verbs) and the LSP
+//! server both build the *same* graphs from this one implementation. Callers supply a resolved
 //! [`CommandRegistry`] and the dialect string; every position is 0-based
 //! and UTF-16 counted, matching the LSP wire convention.
 

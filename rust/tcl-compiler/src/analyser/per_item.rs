@@ -1284,7 +1284,7 @@ pub struct BodyFragment {
     walk_alias_offsets: std::collections::HashMap<String, u32>,
     walk_rename_offsets: std::collections::HashMap<String, u32>,
     walk_deleted: std::collections::HashMap<String, u32>,
-    /// `$cmd`-head dispatch sites (M7) pending settlement in the CFG/SSA
+    /// `$cmd`-head dispatch sites pending settlement in the CFG/SSA
     /// phase — the settlement runs on the shell against the whole-file
     /// compilation unit, so an isolated body's sites are re-queued there
     /// (spans rebased) exactly like `var_sites` / `cmd_sites`.

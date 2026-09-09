@@ -1617,8 +1617,8 @@ fn the_ensemble_option_scan_consumes_values_only_for_the_operations_own_options(
 fn w004_skips_option_value_that_looks_like_a_flag() {
     // `-stride` is Tcl 9.0+ and takes a value.  On tcl8.6 the switch itself is
     // W004, but its value word — even when it looks like a flag (`-stride`
-    // again) — must not be re-tested as a second gated option (Phase 4
-    // value-skip).  Pre-fix this counted two W004s.
+    // again) — must not be re-tested as a second gated option: the value word
+    // is skipped, or the call counts two W004s.
     assert_eq!(
         count_code("lsearch -stride -stride {a b} x", "W004"),
         1,
@@ -1969,7 +1969,7 @@ fn e003_arity_is_dialect_aware_via_expand_syntax() {
     );
 }
 
-// -- subcommand-level E003 arity (per-subcommand signatures) -----
+// Subcommand-level E003 arity (per-subcommand signatures).
 
 #[test]
 fn e003_fires_on_subcommand_over_arity() {
@@ -10073,7 +10073,7 @@ fn w210_qualified_variable_alias_tail_return_silent() {
 
 #[test]
 fn w210_no_false_fire_on_many_var_scan_return() {
-    // D4-F2: the dynamic scan arg-role resolver marks every trailing
+    // The dynamic scan arg-role resolver marks every trailing
     // varName as a write, so `return $a19` is not read-before-set.
     let src = "proc f {} { scan {0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19} \
 {%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s} \
@@ -10779,7 +10779,7 @@ fn w120_emitted_once_per_command_name() {
     assert_eq!(w120.len(), 1, "expected one W120 per name; got {w120:?}");
 }
 
-/// **The P3 W120 ruling.** `Tk` is a package with a placement, and W120's
+/// **The W120 placement ruling.** `Tk` is a package with a placement, and W120's
 /// existing suppression rule is "the package is ambient here" — so the
 /// ruling falls out of the placement rather than being written into the
 /// diagnostic: under the `tk` environment (a `wish` script, whose
@@ -10828,10 +10828,10 @@ fn w120_is_silent_under_the_tk_environment_and_nags_under_plain_tcl() {
 
 /// The other half of the same placement: the Tk geometry/widget checks
 /// (`TK100x`) activate without a `package require` under the `tk`
-/// environment and only *with* one under plain Tcl. Before P3 the first
-/// half was `is_tk()` — the environment's *name*; it is now
-/// `ResolvedContext::ambient_package("Tk")`, so the two facts W120 and the
-/// TK checks read are the same fact.
+/// environment and only *with* one under plain Tcl. The gate is
+/// `ResolvedContext::ambient_package("Tk")` rather than the environment's
+/// *name* (`is_tk()`), so the two facts W120 and the TK checks read are the
+/// same fact.
 #[test]
 fn tk_checks_activate_on_the_ambient_placement_not_the_environment_name() {
     let src = "frame .top\npack .top.a\ngrid .top.b\n";
@@ -11504,7 +11504,7 @@ fn w304_does_not_cross_proc_param_shadow() {
     );
 }
 
-// --- Issue #703: `try` handler `-` fallthrough body ---------------------
+// A `try` handler `-` fallthrough body.
 //
 // A `try` `on`/`trap` handler body may be a bare `-` to share the *next*
 // handler's body (the same fallthrough mechanism `switch` uses for pattern
@@ -14412,7 +14412,7 @@ fn w144_core_subcommand_lifecycle_uses_registry_safe_fix() {
     );
 }
 
-/// Invariant I4 (P1a, ledger C3/B8): analyser-hook selection requires the
+/// Invariant I4: analyser-hook selection requires the
 /// binding proof — a version-gated head outside the document's release
 /// window resolves under no proof (`Absent`), so no hook specialises and
 /// the generic walk handles the call; the same head under a release that

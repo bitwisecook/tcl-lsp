@@ -909,7 +909,7 @@ proc f {dict} {
     );
 }
 
-// FP-RBS-12 — regexp/scan output-var conditional defs reach both reviewer cases (D1-4)
+// FP-RBS-12 — regexp/scan output-var conditional defs reach both cases
 
 const FP_RBS_12_REPRO: &str = "proc f {} { regexp {x} y -> v; if {1} { puts $v } }\n";
 

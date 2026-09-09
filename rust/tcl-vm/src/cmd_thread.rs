@@ -102,7 +102,7 @@ struct Shared {
     /// `tcl --tcl-version 8.6` worker compiled for 8.6 but *ran* at 9.0 —
     /// `string is integer 08` answered true there and false in the parent.
     /// Carrying the whole profile (not a bare release) keeps the worker's
-    /// command-surface availability gate aligned too (issue #1463).
+    /// command-surface availability gate aligned too.
     dialect_profile: &'static tcl_dialect::DialectProfile,
     /// The separately overridden host command surface, when the parent runs a
     /// sandboxed dialect inside a broader Tcl interpreter.

@@ -86,10 +86,11 @@ suite("Server Health", () => {
     const docUri = getDocUri("simple.tcl");
     await activate(docUri);
     const client = getApi().getClient();
-    // Negative control for the new admission wrapper: ordinary provider work
-    // still drains when the burst is larger than the transport's old queue.
-    // The Rust transport/E2E fixtures inject the delayed client reply which
-    // VS Code's built-in configuration handler does not expose here.
+    // Negative control for the admission wrapper: ordinary provider work
+    // still drains when the burst is larger than the transport's queue
+    // capacity. The Rust transport/E2E fixtures inject the delayed client
+    // reply which VS Code's built-in configuration handler does not expose
+    // here.
     const requests = Array.from({ length: 240 }, () =>
       client.sendRequest("textDocument/hover", {
         textDocument: { uri: docUri.toString() },

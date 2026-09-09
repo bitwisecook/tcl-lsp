@@ -20,8 +20,8 @@
 //! `{events, procedures}` flow tree used to render iRule diagrams.
 //!
 //! This is the shared, consumer-agnostic home for the diagram shape: the
-//! `tcl diagram` CLI verb and the `tcl_lsp_py` `PyO3` facade both build the
-//! *same* tree from this one implementation. Callers supply a resolved
+//! `tcl diagram` CLI verb and the LSP server both build the *same* tree
+//! from this one implementation. Callers supply a resolved
 //! [`CommandRegistry`]; the only registry dependency is the `DIAGRAM_ACTION`
 //! trait (`CommandRegistry::is_diagram_action`).
 

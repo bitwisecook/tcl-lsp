@@ -1632,7 +1632,7 @@ mod tests {
         assert_eq!(super::condition_constant("$x < 10"), None);
     }
 
-    // -- W231 (lset out of range) & W242 (unprovable termination) -----
+    // W231 (lset out of range) & W242 (unprovable termination).
 
     fn code_msgs_for(src: &str, dialect: &str, code: &str) -> Vec<String> {
         let mut a = Analyser::new();

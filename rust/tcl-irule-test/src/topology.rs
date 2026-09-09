@@ -269,9 +269,10 @@ impl Topology {
     /// Resolve the TMM profile-type tags for a VS, mirroring
     /// `_resolve_profile_types` (inference path).
     ///
-    /// Currently name-inference only; the refinement is to first resolve each
-    /// profile *object* (`self.config`) and read its `ProfileType`, falling back
-    /// to inference — which is why this stays a method on `self`.
+    /// Name-inference only: the type comes from matching the reference name, not
+    /// from resolving the profile *object* in `self.config` and reading its
+    /// `ProfileType`. Kept as a method on `self` since a config-aware lookup
+    /// would need it.
     #[allow(clippy::unused_self)]
     fn resolve_profile_types(&self, vs: &tcl_bigip::model::BigipVirtualServer) -> Vec<String> {
         let mut types: Vec<String> = Vec::new();
@@ -344,11 +345,11 @@ fn datagroup_records_tcl(records: &[String]) -> String {
 /// Infer a TMM profile-type tag from a profile reference name.
 fn infer_profile_type(pref: &str) -> Option<&'static str> {
     // Match by substring (not exact name) so a custom profile name like
-    // `my_http_profile` / `web-tcp-opt` still maps to its base type — an exact
-    // `name == "http"` test never matched a customised name, so the generated
-    // orchestrator omitted the profile and `when HTTP_REQUEST` handlers never
-    // fired (issue 190). More specific types are checked first (`fasthttp` and
-    // the SSL variants before the plain `http`/`tcp` substrings).
+    // `my_http_profile` / `web-tcp-opt` still maps to its base type. An
+    // exact-name test misses customised names, which would leave the
+    // orchestrator without the profile and its `when HTTP_REQUEST` handlers
+    // never firing. More specific types are checked first (`fasthttp` and the
+    // SSL variants before the plain `http`/`tcp` substrings).
     let name = short_name(pref).to_ascii_lowercase();
     if name.contains("clientssl") || name.contains("client-ssl") {
         Some("CLIENTSSL")
@@ -485,7 +486,7 @@ ltm virtual www_vs {
     fn infers_profile_types_for_custom_names() {
         // Custom (non-canonical) profile names must still map to their base
         // type by substring, so the generated orchestrator wires the profile
-        // and its events fire (issue 190).
+        // and its events fire.
         assert_eq!(infer_profile_type("/Common/my_http_profile"), Some("HTTP"));
         assert_eq!(infer_profile_type("/Common/web-tcp-opt"), Some("TCP"));
         assert_eq!(infer_profile_type("/Common/udp_datagram"), Some("UDP"));

@@ -9708,7 +9708,7 @@ impl Analyser {
             }
             None => (path.clone(), false),
         };
-        // `source` evaluates the file in the caller's current namespace (M9):
+        // `source` evaluates the file in the caller's current namespace:
         // record the command-resolution namespace at this call site so the
         // workspace index can re-home the sourced document's definitions.
         let site_namespace = self.command_resolution_namespace(scope_path);

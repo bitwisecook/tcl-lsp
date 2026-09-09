@@ -2296,7 +2296,7 @@ file; this call falls through to the 'unknown' handler."
                 continue;
             };
 
-            // ---- IPv4 candidates ----
+            // IPv4 candidates.
             for quad in find_dotted_quads(text, 4) {
                 let bytes = text.as_bytes();
                 if quad.start > 0 && bytes[quad.start - 1] == b'/' {
@@ -2352,7 +2352,7 @@ file; this call falls through to the 'unknown' handler."
                 }
             }
 
-            // ---- IPv6 candidates ----
+            // IPv6 candidates.
             for candidate in find_ipv6_candidates(text) {
                 if Ipv6Addr::from_str(candidate).is_err() {
                     let msg = format!("Invalid IPv6 address '{candidate}'.");

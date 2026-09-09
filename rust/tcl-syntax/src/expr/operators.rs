@@ -191,11 +191,10 @@ type SpecFacts = (
 impl BinOp {
     /// Static metadata for this operator — see the module docs for how
     /// [`OperatorShape`] and dialect gating are derived. Split into one
-    /// helper per operator family (mirroring
-    /// `mathop_generated.rs`'s `specs_0()..specs_19()` split) purely to stay
-    /// under clippy's function-length lint; the dispatch match below is
-    /// still exhaustive with no wildcard arm, so a new `BinOp` variant is a
-    /// compile error here, not a silent gap.
+    /// helper per operator family purely to stay under clippy's
+    /// function-length lint; the dispatch match below is still exhaustive
+    /// with no wildcard arm, so a new `BinOp` variant is a compile error
+    /// here, not a silent gap.
     #[must_use]
     pub const fn spec(self) -> OperatorSpec {
         let (surface, mathop_shape, summary) = match self {

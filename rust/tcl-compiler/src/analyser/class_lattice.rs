@@ -1116,7 +1116,7 @@ mod tests {
 
     #[test]
     fn classify_constructor_no_import_stays_unresolved() {
-        // The soundness fix (Codex P2): a bare `Circuit` with NO enclosing
+        // Soundness: a bare `Circuit` with NO enclosing
         // namespace and NO import must NOT be matched to `::SpiceGenTcl::Circuit`
         // just because the tail is unique — that would be a confident false
         // resolution across namespaces. Honest miss instead.

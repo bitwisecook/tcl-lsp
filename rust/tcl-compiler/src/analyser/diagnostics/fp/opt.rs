@@ -293,7 +293,7 @@ fn fp_opt_05_o126_pure_rhs_still_fires() {
     );
 }
 
-// FP-OPT-06 — O100/O109/O127: cmd-sub writes are SSA kills (D2-O100)
+// FP-OPT-06 — O100/O109/O127: cmd-sub writes are SSA kills
 
 const FP_OPT_06_REPRO: &str = "proc f {} { set x a; set y [append x b]; puts $x; puts $y }";
 
@@ -414,7 +414,7 @@ fn fp_opt_09_provably_numeric_var_still_fires() {
     );
 }
 
-// FP-OPT-10 — D5-O114: set x [expr {$x + N}] -> incr x N requires proof x is INT
+// FP-OPT-10 — set x [expr {$x + N}] -> incr x N requires proof x is INT
 
 const FP_OPT_10_TP_REPRO: &str = "proc foo {x} {\n  set x [expr {$x + 1}]\n  puts $x\n}\nfoo 1.5\n";
 const FP_OPT_10_TN_REPRO: &str = "proc foo {n} {\n  for {set x 0} {$x < $n} {incr x} {\n    set x [expr {$x + 1}]\n    puts $x\n  }\n}\nfoo 3\n";
@@ -439,7 +439,7 @@ fn fp_opt_10_provably_int_var_still_fires() {
     );
 }
 
-// FP-OPT-11 — O120 ==/!= -> eq/ne requires at-least-one provably-non-numeric operand (D5-O120)
+// FP-OPT-11 — O120 ==/!= -> eq/ne requires at-least-one provably-non-numeric operand
 
 const FP_OPT_11_TP_REPRO: &str = "proc f {raw} {\n    set a [string trim $raw]\n    if {$a == \"1\"} { puts yes } else { puts no }\n}\n";
 const FP_OPT_11_TN_REPRO: &str = "proc f {raw} {\n    set a [string trim $raw]\n    if {$a == \"hello\"} { puts yes } else { puts no }\n}\n";

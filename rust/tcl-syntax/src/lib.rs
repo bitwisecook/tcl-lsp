@@ -27,22 +27,32 @@
 //! `&str`-based — Tcl strings are UTF-8 internally, and byte consumers convert
 //! at the call (the UTF-8-internal-rep invariant).
 //!
-//! Modules land per the phased extraction plan:
-//! - [`backslash`] — the canonical `TclParseBackslash` decoder (done).
-//! - [`list`] — `Tcl_SplitList` / `Tcl_Merge` (done).
+//! What each module owns:
+//! - [`backslash`] — the canonical `TclParseBackslash` decoder.
+//! - [`boolean`] — the two C Tcl boolean acceptors (`ParseBoolean` and the
+//!   boolean-context one).
+//! - [`case_list`] — splitting a `{pattern body …}` clause list into clauses.
+//! - [`event_handler`] — the `when EVENT ?priority N? { … }` boundary grammar.
+//! - [`expr`] — the `expr` AST, Pratt parser, and shared evaluator walk.
 //! - [`formal_params`] — strict `proc` / method / lambda formal-list parsing.
-//! - [`naming`] — variable/command name normalisation (done).
-//! - [`expr`] — the `expr` AST + Pratt parser (done).
-//! - [`mod@format`] — the `format` conversion-specifier grammar (done).
-//! - [`number`] — the `TclParseNumber` numeric-literal grammar (done).
-//! - [`glob`] — `Tcl_StringCaseMatch` (`string match`) (done).
+//! - [`mod@format`] — the `format` conversion-specifier grammar.
+//! - [`glob`] — `Tcl_StringCaseMatch` (`string match`).
+//! - [`list`] — `Tcl_SplitList` / `Tcl_Merge`.
+//! - [`mro`] — TclOO method resolution order.
+//! - [`naming`] — variable/command name normalisation.
+//! - [`number`] — the `TclParseNumber` numeric-literal grammar.
+//! - [`number_tower`] — the integer operator semantics of `tclExecute.c`,
+//!   generic over the big-integer backend.
+//! - [`scan`] — the `scan` conversion-specifier grammar.
+//! - [`switch_body`] — tokenising a `switch` braced pattern/body list.
 //! - [`value`] — the `ValueOps` value seam + `ValueError` (the construct/inspect
 //!   parallel of [`expr::ExprOps`]).
-//! - [`release_expectations`] — per-release expectation columns for the
-//!   conformance vector files (done).
-//! - [`var_conformance`] — variable lookup/creation vectors (done).
-//! - [`ns_op_conformance`] — namespace-operation vectors (done).
-//! - `subst` — to follow.
+//! - [`word_rules`] — what a written word means as a value in a dialect.
+//!
+//! The conformance vector tables live here too, so every consumer pins to the
+//! same rows: [`release_expectations`] (the per-release expectation columns),
+//! [`var_conformance`] (variable lookup/creation), [`ns_op_conformance`]
+//! (namespace operations), and [`vector_ops`] (the shared row syntax).
 
 pub mod backslash;
 pub mod boolean;

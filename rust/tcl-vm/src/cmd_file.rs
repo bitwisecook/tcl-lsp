@@ -382,10 +382,10 @@ fn normalize(p: &str, cwd: &str) -> String {
 /// starting with `-` reaches the table, so an empty word is a pattern
 /// (tclsh: `glob {}` → `.`), never a miss.
 ///
-/// Issue #1607: this loop used to *skip* an unrecognised `-word` silently, so
-/// `glob -x a` ran and `-types d` leaked its value into the pattern list.
-/// Rejecting an unknown option is a deliberate behaviour change, ruled on for
-/// that sweep; every name the table advertises is honoured below.
+/// Silently skipping an unrecognised `-word` here would let
+/// `glob -x a` run and `-types d` leak its value into the pattern list.
+/// Rejecting an unknown option is a deliberate behaviour choice; every name
+/// the table advertises is honoured below.
 const GLOB_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static> =
     tcl_cmd_core::prefix::OptionTable::abbreviating(
         "option",

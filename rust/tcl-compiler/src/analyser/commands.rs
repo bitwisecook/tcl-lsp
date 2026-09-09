@@ -1200,7 +1200,7 @@ impl Analyser {
     ) -> Option<ResolvedAnalyserHook> {
         let registry = self.registry.clone().unwrap_or_else(fallback_registry);
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        // The C3 selection primitive under invariant I4 (P1a): with the
+        // The selection primitive under invariant I4: with the
         // walk's resolved context carried, the head must prove its
         // binding under the document's environment before any analyser
         // hook is selected — an unprovided head (a version-gated command
