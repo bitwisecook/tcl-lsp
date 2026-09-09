@@ -37,6 +37,10 @@ downloads the `tcl` binary built for the image's architecture, checks it
 against the release's `SHA256SUMS`, and runs `tcl pkg install --frozen` when a
 `tclpkg.lock` is present. No Python interpreter is installed or needed.
 
+A source build fetches the exact patchlevel this project pins for that release
+line. An 8.6 image installs the base image's own Tcl package, so its patchlevel
+is whatever that distribution ships.
+
 ### Choosing the release
 
 The Dockerfile pins the release as a build argument, defaulting to the one the

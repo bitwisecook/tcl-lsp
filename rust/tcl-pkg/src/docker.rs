@@ -91,26 +91,11 @@ fn docker_error(message: impl Into<String>) -> TclPkgError {
 /// patchlevel goes, so the tarball name is never a second literal to drift.
 const PATCHLEVEL_PLACEHOLDER: &str = "@PATCHLEVEL@";
 
-/// The exact upstream patchlevel this project pins for `version`'s release
-/// line, from the `tcl-dialect` reference-toolchain manifest that the test
-/// harness, the session bootstrap, and the engines all read.
-fn pinned_patchlevel(version: &str) -> Option<&'static str> {
-    TclVersion::from_version_string(version).map(TclVersion::patchlevel)
-}
-
-fn recipe(family: &str, version: &str) -> Option<String> {
-    let table: &[(&str, &str)] = match family {
-        "debian" => DEBIAN_RECIPES,
-        "alpine" => ALPINE_RECIPES,
-        "redhat" => REDHAT_RECIPES,
-        _ => return None,
-    };
-    let template = table.iter().find(|(v, _)| *v == version).map(|(_, r)| *r)?;
-    if !template.contains(PATCHLEVEL_PLACEHOLDER) {
-        return Some(template.to_string());
-    }
-    let patchlevel = pinned_patchlevel(version)?;
-    Some(template.replace(PATCHLEVEL_PLACEHOLDER, patchlevel))
+fn recipe_template(family: &str, version: &str) -> Option<&'static str> {
+    family_versions(family)?
+        .iter()
+        .find(|(candidate, _)| *candidate == version)
+        .map(|(_, template)| *template)
 }
 
 fn family_versions(family: &str) -> Option<&'static [(&'static str, &'static str)]> {
@@ -173,14 +158,27 @@ pub fn tcl_install_recipe(image: &str, tcl_version: &str) -> Result<String, TclP
             "no install recipe for image family: {family}"
         )));
     };
-    recipe(&family, tcl_version).ok_or_else(|| {
+    let template = recipe_template(&family, tcl_version).ok_or_else(|| {
         let mut available: Vec<&str> = versions.iter().map(|(v, _)| *v).collect();
         available.sort_unstable();
         docker_error(format!(
             "no recipe for Tcl {tcl_version} on {family} (available: {})",
             available.join(", ")
         ))
-    })
+    })?;
+    // Only a source build names a tarball, so only a source build needs the
+    // pinned patchlevel; a distro-package recipe is complete as written.
+    if !template.contains(PATCHLEVEL_PLACEHOLDER) {
+        return Ok(template.to_string());
+    }
+    let patchlevel = TclVersion::from_version_string(tcl_version)
+        .ok_or_else(|| {
+            docker_error(format!(
+                "Tcl {tcl_version} has no pinned patchlevel in the reference-toolchain manifest"
+            ))
+        })?
+        .patchlevel();
+    Ok(template.replace(PATCHLEVEL_PLACEHOLDER, patchlevel))
 }
 
 /// Return the Dockerfile snippet that installs what fetching and verifying the
@@ -561,14 +559,24 @@ mod tests {
         assert!(tcl_install_recipe("alpine:3.19", "7.0").is_err());
     }
 
-    /// Every source build fetches the patchlevel the reference-toolchain
-    /// manifest pins, and leaves no placeholder behind for a shell to choke on.
+    /// Every supported release either installs a distro package or builds the
+    /// exact patchlevel the reference-toolchain manifest pins, and no recipe
+    /// ever reaches a shell with the placeholder still in it.
     #[test]
-    fn source_recipes_track_the_pinned_patchlevel() {
+    fn recipes_install_a_distro_package_or_the_pinned_patchlevel() {
         for image in ["debian:bookworm-slim", "alpine:3.19", "fedora:39"] {
-            for version in ["8.4", "8.5", "9.0"] {
+            for version in SUPPORTED_TCL_VERSIONS {
                 let recipe = tcl_install_recipe(image, version).expect("recipe");
-                let patchlevel = pinned_patchlevel(version).expect("pinned patchlevel");
+                assert!(
+                    !recipe.contains(PATCHLEVEL_PLACEHOLDER),
+                    "{image} Tcl {version} leaks the patchlevel placeholder: {recipe}"
+                );
+                if !recipe.contains("-src.tar.gz") {
+                    continue;
+                }
+                let patchlevel = TclVersion::from_version_string(version)
+                    .expect("a supported release is on the dialect ladder")
+                    .patchlevel();
                 assert!(
                     recipe.contains(&format!("tcl{patchlevel}-src.tar.gz")),
                     "{image} Tcl {version} fetches an unpinned tarball: {recipe}"
@@ -577,10 +585,8 @@ mod tests {
                     recipe.contains(&format!("/tmp/tcl{patchlevel}/unix")),
                     "{image} Tcl {version} builds an unpinned tree: {recipe}"
                 );
-                assert!(!recipe.contains(PATCHLEVEL_PLACEHOLDER));
             }
         }
-        assert_eq!(pinned_patchlevel("9.0"), Some("9.0.4"));
     }
 
     #[test]
