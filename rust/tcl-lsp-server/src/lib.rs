@@ -925,6 +925,435 @@ impl<T> TrackedMutex<T> {
     }
 }
 
+/// A Tokio `RwLock` with holder/waiter attribution, for the workspace index.
+///
+/// The document map records who holds it ([`DocumentStore`]) and the two
+/// Salsa stores record who holds them ([`TrackedMutex`]); the workspace index
+/// recorded nothing. A stall report could therefore name the task *waiting*
+/// for the index — `publish_diagnostics_result: workspace_index.write` for
+/// 188.7s in the capture that motivated this — but not who had it, which is
+/// the one fact that turns that line into a diagnosis.
+///
+/// A read/write lock has more than one holder at a time, so this keeps every
+/// live reader alongside the single writer, the last of each to release, and
+/// every queued acquire with the access it wants. A holder's identity is the
+/// call site (`#[track_caller]`, as [`TrackedMutex`] does) plus a phase label
+/// it can set through [`TrackedReadGuard::retag`] / [`TrackedWriteGuard::retag`],
+/// the same phase clock [`DocumentsHolder`] carries.
+struct TrackedRwLock<T> {
+    value: RwLock<T>,
+    name: &'static str,
+    tracking: std::sync::Mutex<TrackedRwLockState>,
+}
+
+#[derive(Default)]
+struct TrackedRwLockState {
+    next_id: u64,
+    writer: Option<RwLockActor>,
+    readers: HashMap<u64, RwLockActor>,
+    last_writer: Option<ReleasedRwLockActor>,
+    last_reader: Option<ReleasedRwLockActor>,
+    waiters: HashMap<u64, (RwLockAccess, RwLockActor)>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RwLockAccess {
+    Read,
+    Write,
+}
+
+impl RwLockAccess {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Read => "read",
+            Self::Write => "write",
+        }
+    }
+}
+
+/// One live holder or queued waiter of a [`TrackedRwLock`].
+#[derive(Clone, Copy)]
+struct RwLockActor {
+    id: u64,
+    site: &'static std::panic::Location<'static>,
+    /// The step the holder is at, set by `retag`; `None` until the first one.
+    phase: Option<&'static str>,
+    /// When the guard was acquired (or the waiter queued). Never reset by a
+    /// retag, so the age is the whole hold's.
+    since: crate::rt::Instant,
+    /// When `phase` was last set — the age of the current step.
+    phase_since: crate::rt::Instant,
+}
+
+impl RwLockActor {
+    fn new(id: u64, site: &'static std::panic::Location<'static>) -> Self {
+        let now = crate::rt::Instant::now();
+        Self {
+            id,
+            site,
+            phase: None,
+            since: now,
+            phase_since: now,
+        }
+    }
+
+    /// `site` plus the phase label, when one has been set.
+    fn describe(&self) -> String {
+        match self.phase {
+            Some(phase) => format!("{} `{phase}`", self.site),
+            None => self.site.to_string(),
+        }
+    }
+}
+
+/// A released holder, kept so a free lock can still say who had it last.
+#[derive(Clone, Copy)]
+struct ReleasedRwLockActor {
+    actor: RwLockActor,
+    released: crate::rt::Instant,
+}
+
+struct TrackedRwLockWaiter<'a> {
+    tracking: &'a std::sync::Mutex<TrackedRwLockState>,
+    id: u64,
+}
+
+impl Drop for TrackedRwLockWaiter<'_> {
+    fn drop(&mut self) {
+        self.tracking
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .waiters
+            .remove(&self.id);
+    }
+}
+
+struct TrackedReadGuard<'a, T> {
+    value: tokio::sync::RwLockReadGuard<'a, T>,
+    tracking: &'a std::sync::Mutex<TrackedRwLockState>,
+    id: u64,
+}
+
+impl<T> TrackedReadGuard<'_, T> {
+    /// Name the step this reader is at, without releasing it.
+    fn retag(&self, phase: &'static str) {
+        let mut tracking = self
+            .tracking
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(actor) = tracking.readers.get_mut(&self.id) {
+            actor.phase = Some(phase);
+            actor.phase_since = crate::rt::Instant::now();
+        }
+    }
+}
+
+impl<T> std::ops::Deref for TrackedReadGuard<'_, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+
+impl<T> Drop for TrackedReadGuard<'_, T> {
+    fn drop(&mut self) {
+        let mut tracking = self
+            .tracking
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(actor) = tracking.readers.remove(&self.id) {
+            tracking.last_reader = Some(ReleasedRwLockActor {
+                actor,
+                released: crate::rt::Instant::now(),
+            });
+        }
+    }
+}
+
+struct TrackedWriteGuard<'a, T> {
+    value: tokio::sync::RwLockWriteGuard<'a, T>,
+    tracking: &'a std::sync::Mutex<TrackedRwLockState>,
+    id: u64,
+}
+
+impl<T> TrackedWriteGuard<'_, T> {
+    /// Name the step this writer is at, without releasing it.
+    ///
+    /// The hold's `since` is deliberately left alone, exactly as
+    /// [`DocumentsGuard::retag`] leaves the map's: the report's age is the age
+    /// of the whole hold, and the phase clock says how long *this* step has
+    /// taken.
+    fn retag(&self, phase: &'static str) {
+        let mut tracking = self
+            .tracking
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(actor) = tracking.writer.as_mut().filter(|actor| actor.id == self.id) {
+            actor.phase = Some(phase);
+            actor.phase_since = crate::rt::Instant::now();
+        }
+    }
+}
+
+impl<T> std::ops::Deref for TrackedWriteGuard<'_, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+
+impl<T> std::ops::DerefMut for TrackedWriteGuard<'_, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.value
+    }
+}
+
+impl<T> Drop for TrackedWriteGuard<'_, T> {
+    fn drop(&mut self) {
+        let mut tracking = self
+            .tracking
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if tracking.writer.is_some_and(|actor| actor.id == self.id) {
+            tracking.last_writer = tracking.writer.take().map(|actor| ReleasedRwLockActor {
+                actor,
+                released: crate::rt::Instant::now(),
+            });
+        }
+    }
+}
+
+impl<T> TrackedRwLock<T> {
+    fn new(name: &'static str, value: T) -> Self {
+        Self {
+            value: RwLock::new(value),
+            name,
+            tracking: std::sync::Mutex::new(TrackedRwLockState::default()),
+        }
+    }
+
+    fn tracking(&self) -> std::sync::MutexGuard<'_, TrackedRwLockState> {
+        self.tracking
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    fn next_id(tracking: &mut TrackedRwLockState) -> u64 {
+        let id = tracking.next_id;
+        tracking.next_id = tracking.next_id.wrapping_add(1);
+        id
+    }
+
+    fn register_waiter(
+        &self,
+        access: RwLockAccess,
+        site: &'static std::panic::Location<'static>,
+    ) -> TrackedRwLockWaiter<'_> {
+        let mut tracking = self.tracking();
+        let id = Self::next_id(&mut tracking);
+        tracking
+            .waiters
+            .insert(id, (access, RwLockActor::new(id, site)));
+        TrackedRwLockWaiter {
+            tracking: &self.tracking,
+            id,
+        }
+    }
+
+    fn record_reader<'a>(
+        &'a self,
+        value: tokio::sync::RwLockReadGuard<'a, T>,
+        site: &'static std::panic::Location<'static>,
+    ) -> TrackedReadGuard<'a, T> {
+        let mut tracking = self.tracking();
+        let id = Self::next_id(&mut tracking);
+        tracking.readers.insert(id, RwLockActor::new(id, site));
+        TrackedReadGuard {
+            value,
+            tracking: &self.tracking,
+            id,
+        }
+    }
+
+    fn record_writer<'a>(
+        &'a self,
+        value: tokio::sync::RwLockWriteGuard<'a, T>,
+        site: &'static std::panic::Location<'static>,
+    ) -> TrackedWriteGuard<'a, T> {
+        let mut tracking = self.tracking();
+        let id = Self::next_id(&mut tracking);
+        tracking.writer = Some(RwLockActor::new(id, site));
+        TrackedWriteGuard {
+            value,
+            tracking: &self.tracking,
+            id,
+        }
+    }
+
+    /// Shared access, queued fairly behind any pending writer exactly as the
+    /// bare lock's `read` is. The uncontended path records nothing but the
+    /// holder; a waiter is registered only when the acquire has to park.
+    #[track_caller]
+    fn read(&self) -> impl Future<Output = TrackedReadGuard<'_, T>> {
+        let site = std::panic::Location::caller();
+        async move {
+            if let Ok(value) = self.value.try_read() {
+                return self.record_reader(value, site);
+            }
+            let waiter = self.register_waiter(RwLockAccess::Read, site);
+            let value = self.value.read().await;
+            drop(waiter);
+            self.record_reader(value, site)
+        }
+    }
+
+    /// Exclusive access, with the same fair queue as the bare lock's `write`.
+    #[track_caller]
+    fn write(&self) -> impl Future<Output = TrackedWriteGuard<'_, T>> {
+        let site = std::panic::Location::caller();
+        async move {
+            if let Ok(value) = self.value.try_write() {
+                return self.record_writer(value, site);
+            }
+            let waiter = self.register_waiter(RwLockAccess::Write, site);
+            let value = self.value.write().await;
+            drop(waiter);
+            self.record_writer(value, site)
+        }
+    }
+
+    #[cfg(test)]
+    #[track_caller]
+    fn try_read(&self) -> Result<TrackedReadGuard<'_, T>, tokio::sync::TryLockError> {
+        let site = std::panic::Location::caller();
+        self.value
+            .try_read()
+            .map(|value| self.record_reader(value, site))
+    }
+
+    /// Shared access from a blocking worker thread, never from a task.
+    #[track_caller]
+    fn blocking_read(&self) -> TrackedReadGuard<'_, T> {
+        let site = std::panic::Location::caller();
+        if let Ok(value) = self.value.try_read() {
+            return self.record_reader(value, site);
+        }
+        let waiter = self.register_waiter(RwLockAccess::Read, site);
+        let value = self.value.blocking_read();
+        drop(waiter);
+        self.record_reader(value, site)
+    }
+
+    #[track_caller]
+    fn try_write(&self) -> Result<TrackedWriteGuard<'_, T>, tokio::sync::TryLockError> {
+        let site = std::panic::Location::caller();
+        self.value
+            .try_write()
+            .map(|value| self.record_writer(value, site))
+    }
+
+    /// The stall line's clause for this lock: who holds it (or held it last),
+    /// at which step, for how long, and who is queued behind them.
+    fn contention(&self) -> String {
+        let now = crate::rt::Instant::now();
+        let tracking = self.tracking();
+        let age = |since: crate::rt::Instant| now.duration_since(since).as_secs_f64();
+        let holder = if let Some(writer) = tracking.writer {
+            format!(
+                "held for write by {} — {:.1}s in total, {:.1}s at this point",
+                writer.describe(),
+                age(writer.since),
+                age(writer.phase_since),
+            )
+        } else if tracking.readers.is_empty() {
+            let released = |kind: &str, last: Option<ReleasedRwLockActor>| {
+                last.map_or_else(
+                    || format!("never {kind}"),
+                    |last| {
+                        format!(
+                            "last {kind} by {}, released {:.1}s ago after {:.1}s",
+                            last.actor.describe(),
+                            age(last.released),
+                            last.released.duration_since(last.actor.since).as_secs_f64(),
+                        )
+                    },
+                )
+            };
+            format!(
+                "free; {}; {}",
+                released("written", tracking.last_writer),
+                released("read", tracking.last_reader),
+            )
+        } else {
+            // Oldest first: the reader a queued writer has been waiting on the
+            // longest is the one to look at.
+            let mut readers: Vec<&RwLockActor> = tracking.readers.values().collect();
+            readers.sort_by(|a, b| {
+                a.since
+                    .partial_cmp(&b.since)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            let listed: Vec<String> = readers
+                .iter()
+                .take(4)
+                .map(|reader| {
+                    format!(
+                        "{} ({:.1}s, {:.1}s at this point)",
+                        reader.describe(),
+                        age(reader.since),
+                        age(reader.phase_since),
+                    )
+                })
+                .collect();
+            let elided = readers.len().saturating_sub(listed.len());
+            let more = if elided == 0 {
+                String::new()
+            } else {
+                format!(" and {elided} more")
+            };
+            format!(
+                "held for read by {} reader(s): {}{more}",
+                readers.len(),
+                listed.join(", "),
+            )
+        };
+        let queue = |access: RwLockAccess| {
+            let oldest = tracking
+                .waiters
+                .values()
+                .filter(|(kind, _)| *kind == access)
+                .map(|(_, actor)| actor)
+                .min_by(|a, b| {
+                    a.since
+                        .partial_cmp(&b.since)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                });
+            let count = tracking
+                .waiters
+                .values()
+                .filter(|(kind, _)| *kind == access)
+                .count();
+            oldest.map(|actor| {
+                format!(
+                    "{count} queued {}er(s), oldest {} for {:.1}s",
+                    access.label(),
+                    actor.site,
+                    age(actor.since),
+                )
+            })
+        };
+        let waiters = match (queue(RwLockAccess::Write), queue(RwLockAccess::Read)) {
+            (None, None) => "no queued waiters".to_owned(),
+            (Some(writers), None) => writers,
+            (None, Some(readers)) => readers,
+            (Some(writers), Some(readers)) => format!("{writers}; {readers}"),
+        };
+        format!("{}: {holder}; {waiters}", self.name)
+    }
+}
+
 /// The open-document map, plus a record of **who currently holds it**.
 ///
 /// # Why the map needs a name attached
@@ -2861,7 +3290,7 @@ struct DiagInputs {
     /// Open-document diagnostic workers, used to invalidate only consumers of
     /// workspace facts changed by this publication.
     diag_slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>,
-    workspace_index: Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
+    workspace_index: Arc<TrackedRwLock<core_workspace_index::WorkspaceIndex>>,
     /// The applied source-site seed record (see [`Backend`]); the publish
     /// path invalidates a document's entry when it re-indexes it standalone,
     /// so the next cross-document query re-applies the seeded views.
@@ -3733,7 +4162,7 @@ async fn compute_base_analysis(
 struct RecoveryWidenCtx<'a> {
     cache: &'a Arc<Mutex<RecoveryNameCache>>,
     registry: &'a CommandRegistry,
-    workspace_index: &'a Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
+    workspace_index: &'a Arc<TrackedRwLock<core_workspace_index::WorkspaceIndex>>,
     package_resolver: &'a Arc<RwLock<PackageResolver>>,
     /// Where a resolved package's implementation files are read from — see
     /// [`crate::vfs`].
@@ -4490,7 +4919,7 @@ struct EvidenceHandles {
     db_files: Arc<TrackedMutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
     db_project_members: Arc<Mutex<HashSet<Uri>>>,
     db_project: Arc<Mutex<Option<tcl_lsp_db::Project>>>,
-    workspace_index: Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
+    workspace_index: Arc<TrackedRwLock<core_workspace_index::WorkspaceIndex>>,
     /// The open-document map, so the unopened-consumer re-index
     /// can tell an open buffer — whose own diagnostics worker republishes it —
     /// from a disk-backed file that nothing else will ever revisit.
@@ -5230,7 +5659,7 @@ struct AnalyserPathInputs<'a> {
     generic_variable_patterns: Option<&'a [String]>,
     non_ascii_mode: NonAsciiMode,
     db_project: &'a Arc<Mutex<Option<tcl_lsp_db::Project>>>,
-    workspace_index: &'a Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
+    workspace_index: &'a Arc<TrackedRwLock<core_workspace_index::WorkspaceIndex>>,
     /// The applied source-site seed record; the publish path invalidates
     /// entries.
     rehomed_source_seeds: &'a Arc<Mutex<HashMap<String, Vec<String>>>>,
@@ -6197,7 +6626,7 @@ async fn add_entry_point_diagnostic_consumers(
 /// prior diagnostics rather than retrying.
 async fn publish_diagnostics_result(
     delivery: &DeliveryCtx<'_>,
-    workspace_index: &Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
+    workspace_index: &Arc<TrackedRwLock<core_workspace_index::WorkspaceIndex>>,
     rehomed_source_seeds: &Arc<Mutex<HashMap<String, Vec<String>>>>,
     rehoming_gate: &Arc<tokio::sync::Mutex<()>>,
     analysis: &Arc<AnalysisResult>,
@@ -6235,15 +6664,34 @@ async fn publish_diagnostics_result(
         // `did_close` from landing between currency check and publication: a
         // later close replaces the pending state or follows an in-flight state
         // on the single consumer. The actual client await is below, after this
-        // guard and `rehoming_guard` have been released.
-        let docs = delivery.documents.lock("publish_diagnostics_result").await;
-        if !delivery.is_current(&docs).await {
-            // Superseded by a newer edit (open run), a reopen, or a newer closed
-            // run (generation bumped), which has taken authority for this URI —
-            // settled for this version; the authoritative path publishes the
-            // newer state.
-            return true;
-        }
+        // guard and `rehoming_guard` have been released (#1657).
+        //
+        // The index writer is only ever *tried* under the map. Waiting for it
+        // there is the wedge in the CI capture behind this: a reader kept the
+        // index for 188s, this task sat on `documents` for all of it, the
+        // `didClose` holding the edit turn parked behind the map, and every
+        // request behind the turn. So on contention the map is released, the
+        // writer joins the index's fair queue holding nothing but the rehoming
+        // gate — the order `publish_rehomed_if_current` and `did_open` already
+        // use — and currency is re-checked under a fresh map guard before the
+        // update is applied.
+        let (docs, mut index) = loop {
+            let docs = delivery.documents.lock("publish_diagnostics_result").await;
+            if !delivery.is_current(&docs).await {
+                // Superseded by a newer edit (open run), a reopen, or a newer
+                // closed run (generation bumped), which has taken authority
+                // for this URI — settled for this version; the authoritative
+                // path publishes the newer state.
+                return true;
+            }
+            docs.retag("publish_diagnostics_result: workspace_index.try_write");
+            if let Ok(index) = workspace_index.try_write() {
+                break (docs, index);
+            }
+            drop(docs);
+            drop(workspace_index.write().await);
+        };
+        index.retag("publish_diagnostics_result: replace_document");
         // A buffer whose backing file has been deleted (an out-of-band rename /
         // removal — no `didClose` arrives) is re-analysed and re-published like
         // any other, but must not be re-added to the cross-document index: the
@@ -6253,8 +6701,7 @@ async fn publish_diagnostics_result(
             .get(delivery.uri)
             .is_some_and(|doc| doc.backing_file_deleted);
         let (change, mut consumers) = {
-            docs.retag("publish_diagnostics_result: workspace_index.write");
-            let mut index = workspace_index.write().await;
+            docs.retag("publish_diagnostics_result: index update");
             let before = IndexedDiagnosticFacts::capture(&index, delivery.uri.as_str());
             if orphaned {
                 index.remove_document(delivery.uri.as_str());
@@ -6280,6 +6727,9 @@ async fn publish_diagnostics_result(
             }
             (change, consumers)
         };
+        // The index is done with; nothing below reads it, and the commits below
+        // await other stores.
+        drop(index);
         if change.source_or_package_changed {
             docs.retag("publish_diagnostics_result: add_entry_point_diagnostic_consumers");
             add_entry_point_diagnostic_consumers(
@@ -6423,7 +6873,7 @@ struct PublicationLocks<'a> {
     tombstones: tokio::sync::MutexGuard<'a, HashMap<Uri, tcl_lsp_db::SourceFile>>,
     project_members: tokio::sync::MutexGuard<'a, HashSet<Uri>>,
     project: tokio::sync::MutexGuard<'a, Option<tcl_lsp_db::Project>>,
-    index: tokio::sync::RwLockWriteGuard<'a, core_workspace_index::WorkspaceIndex>,
+    index: TrackedWriteGuard<'a, core_workspace_index::WorkspaceIndex>,
     seeds: tokio::sync::MutexGuard<'a, HashMap<String, Vec<String>>>,
 }
 
@@ -6443,7 +6893,7 @@ struct LiveSourceLocks<'a> {
 
 struct OpenPublicationLocks<'a> {
     source: LiveSourceLocks<'a>,
-    index: tokio::sync::RwLockWriteGuard<'a, core_workspace_index::WorkspaceIndex>,
+    index: TrackedWriteGuard<'a, core_workspace_index::WorkspaceIndex>,
 }
 
 /// The source stores plus semantic-token lifecycle caches reset by a reopen.
@@ -6460,7 +6910,7 @@ struct ReopenPublicationLocks<'a> {
 /// optimistically so the final closed-state check and cleanup are atomic with
 /// respect to a racing `didOpen`.
 struct ClosePublicationLocks<'a> {
-    index: tokio::sync::RwLockWriteGuard<'a, core_workspace_index::WorkspaceIndex>,
+    index: TrackedWriteGuard<'a, core_workspace_index::WorkspaceIndex>,
     diag_slots: tokio::sync::MutexGuard<'a, HashMap<Uri, DiagSlot>>,
     last_semantic_tokens: tokio::sync::MutexGuard<'a, HashMap<Uri, (String, Vec<u32>)>>,
     semantic_tokens_refresh_asked: tokio::sync::MutexGuard<'a, HashMap<Uri, u64>>,
@@ -6676,7 +7126,7 @@ pub struct Backend {
     /// incrementally as documents open / change / close.  Lets
     /// completion enumerate procs from sibling files.
     /// `Arc` so the detached diagnostics task can update it off the event loop.
-    workspace_index: Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
+    workspace_index: Arc<TrackedRwLock<core_workspace_index::WorkspaceIndex>>,
     /// Tcl package database scanned from the workspace + `TCLLIBPATH`: the
     /// `pkgIndex.tcl` / `tclIndex` index used to resolve a `package require`
     /// to the files it loads (and transitively what *they* require). The
@@ -8283,7 +8733,7 @@ impl Backend {
             disabled_diagnostics: Mutex::new(default_disabled_set()),
             diagnostics_exclude: Mutex::new(Vec::new()),
             severity_overrides: Mutex::new(HashMap::new()),
-            workspace_index: Arc::new(RwLock::new(new_workspace_index())),
+            workspace_index: Arc::new(TrackedRwLock::new("workspace_index", new_workspace_index())),
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
             recovery_names: Arc::new(Mutex::new(RecoveryNameCache::default())),
             workspace_scan_gate: tokio::sync::Mutex::new(()),
@@ -11007,6 +11457,11 @@ impl Backend {
         let documents_holder = describe_documents_contention(&before, &after);
         let waiters =
             describe_documents_waiters(&self.documents.waiters(), after.held_by.is_some());
+        // The fourth reading. The map holder is very often parked on the
+        // workspace index (`publish_diagnostics_result: workspace_index.write`
+        // for 188.7s in the capture that added this), and until now the line
+        // could name that waiter but not who held the index against it.
+        let index = self.workspace_index.contention();
         let db = self.db.contention();
         let db_files = self.db_files.contention();
         self.client
@@ -11016,6 +11471,7 @@ impl Backend {
                     "{EDIT_BARRIER_STALL_LOG} for {}s: now_serving={serving}, waiting for \
                      {target}, so {} document-sync notification(s) are queued behind it. \
                      The turn is {culprit}. {documents_holder}. {waiters} {waiting_on}. \
+                     Workspace index: [{index}]. \
                      Salsa store contention: [{db}] [{db_files}]. \
                      Every request handler is blocked on this barrier and the server will \
                      answer nothing until it moves (issue #1657).",
@@ -20324,6 +20780,7 @@ impl Backend {
                 drop(self.workspace_index.write().await);
                 continue;
             };
+            index.retag("refresh_source_rehoming_publish: add_document");
             index.remove_document(uri.as_str());
             for analysis in analyses {
                 index.add_document(uri.as_str(), analysis);
@@ -20353,27 +20810,39 @@ impl Backend {
     /// [`Self::refresh_source_rehoming`] with the transaction gate already held.
     async fn refresh_source_rehoming_locked(&self) {
         for _round in 0..4 {
+            // One index read per round, scoped to the seed-map fold and
+            // released before any other store is awaited: the per-document
+            // loop below takes the document map, the Salsa stores and the
+            // index writer in turn, and none of that runs under a reader
+            // that would hold a queued writer (and every reader behind it)
+            // off the index for the whole pass.
             let desired = {
                 let index = self.workspace_index.read().await;
-                if !index.has_source_edges() && self.rehomed_source_seeds.lock().await.is_empty() {
-                    return;
-                }
+                index.retag("refresh_source_rehoming: source_seed_map");
                 // Documents whose only source site is the global namespace are
                 // dropped here: their desired view *is* the standalone analysis
                 // the index already holds, and [`Self::rehomed_source_seeds`]
-                // records that as absence.  Leaving them in stops an ordinary
-                // top-level `source b.tcl` from ever converging: the queue below
-                // would compare `recorded.get(uri)` against `Some(["::"])` while
-                // the store *removes* such an entry, so the same document is
-                // re-analysed and re-indexed on every round of every call, for
-                // ever, invalidating every index-generation memo with it.
-                index
-                    .source_seed_map(resolve_source_edge)
-                    .into_iter()
-                    .filter(|(_, seeds)| !Self::is_standalone_view(seeds))
-                    .collect::<HashMap<String, std::collections::BTreeSet<String>>>()
+                // records that as absence.  Leaving them in is what stopped an
+                // ordinary top-level `source b.tcl` from ever converging — the
+                // queue below compared `recorded.get(uri)` against `Some(["::"])`
+                // while the store *removes* such an entry, so the same document
+                // was re-analysed and re-indexed on every round of every call,
+                // for ever, invalidating every index-generation memo with it
+                // (issue #1297).
+                index.has_source_edges().then(|| {
+                    index
+                        .source_seed_map(resolve_source_edge)
+                        .into_iter()
+                        .filter(|(_, seeds)| !Self::is_standalone_view(seeds))
+                        .collect::<HashMap<String, std::collections::BTreeSet<String>>>()
+                })
             };
             let recorded = self.rehomed_source_seeds.lock().await.clone();
+            let desired = match desired {
+                Some(desired) => desired,
+                None if recorded.is_empty() => return,
+                None => HashMap::new(),
+            };
             let resource = self.resource_analyser_inputs(None).await;
             let mut work: Vec<(String, Vec<String>)> = Vec::new();
             for (uri, seeds) in &desired {
@@ -34392,7 +34861,7 @@ mod tests {
             disabled_diagnostics: Mutex::new(default_disabled_set()),
             diagnostics_exclude: Mutex::new(Vec::new()),
             severity_overrides: Mutex::new(HashMap::new()),
-            workspace_index: Arc::new(RwLock::new(new_workspace_index())),
+            workspace_index: Arc::new(TrackedRwLock::new("workspace_index", new_workspace_index())),
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
             recovery_names: Arc::new(Mutex::new(RecoveryNameCache::default())),
             workspace_scan_gate: tokio::sync::Mutex::new(()),
@@ -39512,6 +39981,227 @@ proc p {} {
         );
     }
 
+    /// Run [`publish_diagnostics_result`] for `uri` at `revision` on its own
+    /// task, with the analysis of `text` as the set to index. The test client's
+    /// socket is detached, so delivery settles without a client.
+    fn spawn_diagnostics_publish(
+        backend: &Arc<Backend>,
+        uri: &Uri,
+        text: &'static str,
+        revision: u64,
+    ) -> crate::rt::JoinHandle<bool> {
+        let backend = Arc::clone(backend);
+        let uri = uri.clone();
+        crate::rt::spawn(async move {
+            let analysis = Arc::new(Analyser::new().analyse(text, "tcl8.6").clone());
+            let delivery = DeliveryCtx {
+                client: &backend.client,
+                diagnostic_publisher: &backend.diagnostic_publisher,
+                documents: &backend.documents,
+                store: &backend.store,
+                diag_slots: &backend.diag_slots,
+                pull_diag_cache: &backend.pull_diag_cache,
+                closed_diag_gen: &backend.closed_diag_gen,
+                uri: &uri,
+                currency: DiagCurrency::Open(revision),
+                version: Some(1),
+                client_supports_pull: false,
+            };
+            publish_diagnostics_result(
+                &delivery,
+                &backend.workspace_index,
+                &backend.rehomed_source_seeds,
+                &backend.rehoming_gate,
+                &analysis,
+                Ok(Vec::new()),
+                PublishTiming {
+                    started: crate::rt::Instant::now(),
+                    uri_str: uri.as_str(),
+                    line_count: 1,
+                },
+            )
+            .await
+        })
+    }
+
+    /// Wait until `count` writers are parked in the workspace index's queue.
+    async fn await_queued_index_writers(backend: &Backend, count: usize) {
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let queued = backend
+                    .workspace_index
+                    .tracking()
+                    .waiters
+                    .values()
+                    .filter(|(access, _)| *access == RwLockAccess::Write)
+                    .count();
+                if queued >= count {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the publishers must queue for the index writer");
+    }
+
+    /// The wedge from the `test-ext` pack-removal run: a diagnostics publish
+    /// took `documents` and then waited 188s for the workspace index; the
+    /// `didClose` holding the edit turn parked behind the map, and every
+    /// request behind the turn. Constructed here with a held index reader
+    /// standing in for whatever held the index: with publishes for several
+    /// open documents in flight — the first parked on the index writer, the
+    /// rest behind it on the rehoming gate — an unrelated close must still
+    /// hand the barrier on, and a document-free request (`edits_settled`, the
+    /// wait every handler makes first) must answer inside the liveness budget.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn diagnostics_publish_waiting_for_the_index_never_holds_documents() {
+        let backend = Arc::new(test_backend());
+        let texts: [&'static str; 6] = [
+            "proc pack_a {} {}\n",
+            "proc pack_b {} {}\n",
+            "proc pack_c {} {}\n",
+            "proc pack_d {} {}\n",
+            "proc pack_e {} {}\n",
+            "proc pack_f {} {}\n",
+        ];
+        let mut open = Vec::new();
+        for (i, text) in texts.iter().enumerate() {
+            let uri = Uri::from_str(&format!("file:///pack/doc{i}.tcl")).unwrap();
+            register(&backend, &uri, text).await;
+            let revision = backend
+                .documents
+                .lock("test")
+                .await
+                .get(&uri)
+                .expect("registered")
+                .revision;
+            open.push((uri, *text, revision));
+        }
+        let closing_uri = Uri::from_str("file:///pack/closing.tcl").unwrap();
+        register(&backend, &closing_uri, "set closing 1\n").await;
+
+        let index_reader = backend.workspace_index.read().await;
+        let publishes: Vec<_> = open
+            .iter()
+            .map(|(uri, text, revision)| spawn_diagnostics_publish(&backend, uri, text, *revision))
+            .collect();
+        await_queued_index_writers(&backend, 1).await;
+
+        let docs = crate::rt::timeout(
+            std::time::Duration::from_millis(500),
+            backend.documents.lock("test_publish_liveness"),
+        )
+        .await
+        .expect("a publish queued for the index must not retain the document map");
+        drop(docs);
+
+        let closing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = closing_uri.clone();
+            async move {
+                backend
+                    .did_close(DidCloseTextDocumentParams {
+                        text_document: TextDocumentIdentifier { uri },
+                    })
+                    .await;
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(2), backend.edits_settled())
+            .await
+            .expect(
+                "the edit barrier must advance past a didClose while diagnostics publishes \
+                 wait for the workspace index — every request handler waits here first",
+            );
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if !backend
+                    .documents
+                    .lock("test_closed")
+                    .await
+                    .contains_key(&closing_uri)
+                {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the close must remove its buffer while the index stays unavailable");
+
+        drop(index_reader);
+        crate::rt::timeout(std::time::Duration::from_secs(10), closing)
+            .await
+            .expect("didClose must finish once the index is available")
+            .expect("didClose must not panic");
+        for publish in publishes {
+            assert!(
+                crate::rt::timeout(std::time::Duration::from_secs(10), publish)
+                    .await
+                    .expect("each publish must reach its index write once the reader drains")
+                    .expect("a publish must not panic"),
+                "a current publish settles its revision",
+            );
+        }
+        let index = backend.workspace_index.read().await;
+        for (uri, _, _) in &open {
+            assert!(
+                index.document_revision(uri.as_str()).is_some(),
+                "{uri:?} must be indexed by its publish",
+            );
+        }
+    }
+
+    /// The re-check half of the pattern: a publish that had to release the map
+    /// to wait for the index must re-establish currency under a fresh map
+    /// guard, so an edit that landed during the wait wins and the stale
+    /// analysis never reaches the index.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn diagnostics_publish_rechecks_currency_after_waiting_for_the_index() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///pack/edited-during-wait.tcl").unwrap();
+        register(&backend, &uri, "set initial 1\n").await;
+        let revision = backend
+            .documents
+            .lock("test")
+            .await
+            .get(&uri)
+            .expect("registered")
+            .revision;
+
+        let index_reader = backend.workspace_index.read().await;
+        let publish =
+            spawn_diagnostics_publish(&backend, &uri, "proc stale_from_publish {} {}\n", revision);
+        await_queued_index_writers(&backend, 1).await;
+
+        // The edit that supersedes the parked publish, landing while it waits.
+        // Bounded, so a publish that regresses to waiting under the map fails
+        // here instead of hanging the test.
+        crate::rt::timeout(
+            std::time::Duration::from_millis(500),
+            backend.documents.lock("test_edit"),
+        )
+        .await
+        .expect("a publish queued for the index must not retain the document map")
+        .get_mut(&uri)
+        .expect("still open")
+        .revision = revision + 1;
+
+        drop(index_reader);
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_secs(10), publish)
+                .await
+                .expect("the superseded publish must return once the index frees")
+                .expect("a publish must not panic"),
+            "a superseded publish is settled, not retried",
+        );
+        let index = backend.workspace_index.read().await;
+        assert!(
+            !index.workspace_command_exists("::stale_from_publish"),
+            "an analysis superseded during the index wait must never be indexed",
+        );
+    }
+
     /// A close blocked on the workspace index must likewise
     /// remove the live buffer and release the request barrier first.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -42111,6 +42801,107 @@ proc p {} {
              at this position (#1664's lesson, reopened by the sample sleep and \
              closed again here)",
         );
+    }
+
+    /// The stall line's workspace-index clause names the holder, its phase,
+    /// and its queue — the reading the pack-removal capture lacked, where the
+    /// line could only say who was *waiting* for the index.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn the_workspace_index_clause_names_holders_phases_and_waiters() {
+        let lock = Arc::new(TrackedRwLock::new("workspace_index", 0_u32));
+        assert_eq!(
+            lock.contention(),
+            "workspace_index: free; never written; never read; no queued waiters",
+        );
+
+        let writer = lock.write().await;
+        writer.retag("publish_diagnostics_result: replace_document");
+        let clause = lock.contention();
+        assert!(
+            clause.contains("held for write by ")
+                && clause.contains("`publish_diagnostics_result: replace_document`")
+                && clause.contains("lib.rs:"),
+            "a writer is named with its site and phase: {clause}",
+        );
+
+        let (queued_tx, queued_rx) = tokio::sync::oneshot::channel();
+        let reader = crate::rt::spawn({
+            let lock = Arc::clone(&lock);
+            async move {
+                let _ = queued_tx.send(());
+                let guard = lock.read().await;
+                guard.retag("test reader: holding");
+                crate::rt::sleep(std::time::Duration::from_millis(200)).await;
+                drop(guard);
+            }
+        });
+        queued_rx.await.expect("the reader task runs");
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            while !lock.contention().contains("1 queued reader(s)") {
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("a parked reader must appear in the queue");
+
+        drop(writer);
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            while !lock.contention().contains("`test reader: holding`") {
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the reader must be recorded, with its phase, once it holds the lock");
+        let clause = lock.contention();
+        assert!(
+            clause.contains("held for read by 1 reader(s)") && clause.contains("no queued waiters"),
+            "a reader is counted and the queue is empty again: {clause}",
+        );
+
+        reader.await.expect("the reader task must not panic");
+        let clause = lock.contention();
+        assert!(
+            clause.contains("free; last written by ")
+                && clause.contains("released ")
+                && clause.contains("last read by "),
+            "a free lock still names its last writer and reader: {clause}",
+        );
+    }
+
+    /// A stalled barrier report carries the index clause, so the next
+    /// occurrence of the pack-removal wedge names who held the index rather
+    /// than only who waited for it.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn the_stall_report_names_the_workspace_index_holder() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///w/index-holder.tcl").unwrap();
+        let index = backend.workspace_index.write().await;
+        index.retag("test: holding the index");
+
+        let ticket = backend.edit_order.take_ticket("didClose", &uri);
+        let _turn = backend.edit_order.wait_turn(ticket).await;
+        let queued = backend.edit_order.take_ticket("didChange", &uri);
+        let target = backend.edit_order.settle_target();
+        crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.report_edit_barrier_stall(target),
+        )
+        .await
+        .expect("the reporter must return promptly rather than block");
+        assert_ne!(
+            backend
+                .edit_barrier_stall_reported
+                .load(std::sync::atomic::Ordering::Acquire),
+            u64::MAX,
+            "a genuinely held turn is reported",
+        );
+        let clause = backend.workspace_index.contention();
+        assert!(
+            clause.contains("held for write by") && clause.contains("`test: holding the index`"),
+            "the clause the report embeds names the holder: {clause}",
+        );
+        drop(queued);
+        drop(index);
     }
 
     /// A contended acquire must be visible, counted, woken-counted, and gone
