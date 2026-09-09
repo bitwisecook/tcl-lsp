@@ -2893,7 +2893,7 @@ const GROUPS: &[(&str, &[Row])] = &[
     ("pt_export_api", PT_EXPORT_API_CMDS),
     ("pt_import_api", PT_IMPORT_API_CMDS),
     ("sha1", SHA1_CMDS),
-    // The `::sha2` namespace; the package is `sha256` (P5 identity).
+    // The `::sha2` namespace; the package is `sha256`.
     ("sha256", SHA2_CMDS),
     ("simulation::annealing", SIMULATION__ANNEALING_CMDS),
     ("simulation::montecarlo", SIMULATION__MONTECARLO_CMDS),

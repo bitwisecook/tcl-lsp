@@ -298,8 +298,8 @@ impl ResolvedContext {
             // patchlevel 8.4.6 (measurements §4/§4a), Jim at the Tcl 8.6
             // command set `jim_tcl.txt` says it implements a significant
             // subset of. Reading the anchor off the edge is what lets one
-            // walk serve a fork and a reimplementation without the
-            // family special case this loop used to carry. An anchor that
+            // walk serve a fork and a reimplementation without a
+            // family special case. An anchor that
             // is not a version (the iRules `tmos` line) yields no floor,
             // which is the intent. The `f5-irules` offshoot's closed
             // load-time resolution keeps its ancestor surface explicit

@@ -98,7 +98,7 @@
 //! the opt-in to the big corpus, and the report names which corpora were drawn
 //! on either way.
 //!
-//! Set `SPECTCL_CORPUS_DIFF=1` to run the pre-#1940 two-unit path alongside the
+//! Set `SPECTCL_CORPUS_DIFF=1` to run the legacy two-unit path alongside the
 //! shared-unit path through the exact gate and compare a deterministic semantic
 //! snapshot of every per-pack report. This doubles the gate and its watchdog
 //! budget intentionally; the normal run remains single-path.
@@ -663,7 +663,7 @@ struct AnalysisOutput {
     optimisations: Vec<Optimisation>,
 }
 
-/// The pre-#1940 path: the analyser and raw optimiser each build their own
+/// The legacy path: the analyser and raw optimiser each build their own
 /// whole-file compilation unit.
 fn analyse_legacy(source: &str, dialect: &str, overlay: u64) -> AnalysisOutput {
     let mut analyser = Analyser::new().with_pack_overlay(overlay);
@@ -701,7 +701,7 @@ fn analyse_shared(source: &str, dialect: &str, overlay: u64) -> AnalysisOutput {
     // `optimise_raw` builds its own unit from the analyser profile. Sharing a
     // unit with a different profile would therefore change the Tk path (Tk's
     // unit profile is intentionally distinct from its analyser profile).
-    // Keep the old two-unit path until both entry points can consume the same
+    // Keep the separate two-unit path until both entry points can consume the same
     // profile without losing the Tk grammar contract.
     if !std::ptr::eq(unit_profile, optimiser_profile) {
         let mut output = analyse_legacy(source, dialect, overlay);
@@ -899,7 +899,8 @@ fn shared_analysis_fallbacks_are_never_silent() {
 /// compared, including the selected file list and the full notices/errors.
 /// Hook attempt/success counters are deliberately telemetry-only: sharing the
 /// unit is expected to remove repeated hook calls while preserving their
-/// answers, and #1940's performance result is measured by that reduction.
+/// answers, and the shared-unit path's performance win is measured by that
+/// reduction.
 #[derive(Debug, PartialEq, Eq)]
 struct PackSnapshot {
     file: String,
@@ -953,7 +954,7 @@ impl PackReport {
     }
 }
 
-/// Compare the exact semantic report emitted by the shared and pre-#1940
+/// Compare the exact semantic report emitted by the shared and legacy
 /// paths. Sorting by pack file makes this a deterministic snapshot even if a
 /// future inventory implementation changes its traversal order.
 fn assert_report_snapshots_equal(shared: &[PackReport], legacy: &[PackReport]) {
@@ -1589,8 +1590,8 @@ fn every_shipped_tclspec_loads_installs_and_analyses_against_corpus() {
 
             let reports = run_packs(&packs, &root, &corpus_files);
 
-            // This is the before/after proof for #1940. Keep it opt-in because
-            // it runs the exact gate twice.
+            // This is the shared-vs-legacy equivalence proof. Keep it opt-in
+            // because it runs the exact gate twice.
             compare_legacy_report(&packs, &root, &corpus_files, &reports);
 
             let mut failures: Vec<String> = Vec::new();

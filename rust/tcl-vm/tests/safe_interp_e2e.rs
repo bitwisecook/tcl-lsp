@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Runtime enforcement of `interp create -safe` command hiding, for every
-//! indirection shape the W129 static-lint fix (issue #1001) statically
+//! indirection shape the W129 static lint statically
 //! flags — and a couple it deliberately does not (dynamic dispatch), which
 //! must still be rejected here since the runtime is the actual enforcement
 //! mechanism regardless of what the static lint catches.
@@ -211,7 +211,7 @@ fn hidden_command_via_ensemble_map_redirect_raises_invalid_command_name() {
     );
 }
 
-/// TN (runtime side of the rename/alias investigation from issue #1001's
+/// TN (runtime side of the rename/alias behaviour documented in the
 /// KCS doc): `rename` can only rename a command already in the *visible*
 /// table, so it cannot resurrect a hidden command's callability — attempting
 /// to rename an already-hidden `source` fails ("doesn't exist"), it does not

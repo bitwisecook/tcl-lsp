@@ -1773,10 +1773,11 @@ function addImportedToPack(): void {
   if (!state.imported.length) return;
   const { written, failed, firstWritten, patched } = writeDraftsToPack(state.imported);
   // The generated-code panes render the active draft, not the pack as a
-  // whole. Import used to write a perfectly good `.tclspec` and leave the
-  // boot-time `mycommand` placeholder active, so Rust and stub output looked
-  // as though generation had failed. Make the first successfully imported
-  // command the active pack draft while leaving the author on the Import tab.
+  // whole. Import must not leave the boot-time `mycommand` placeholder
+  // active after writing a perfectly good `.tclspec`, which would make Rust
+  // and stub output look as though generation had failed. Make the first
+  // successfully imported command the active pack draft while leaving the
+  // author on the Import tab.
   //
   // Reading it back can still fail — the store is the authority on what it
   // holds — and a throw out of a click handler leaves the page half-updated
@@ -2124,8 +2125,8 @@ function renderInspection(view: TestInspection): void {
 
 // Several commands open at once, one tab each — because a pack is many
 // commands and one deliverable, and every comparison, every option table
-// copied across, every subcommand checked against its sibling used to be a
-// round trip through the browser list.
+// copied across, every subcommand checked against its sibling would
+// otherwise be a round trip through the browser list.
 //
 // A tab is a *view*, never a store. `state.pack.source` is still the whole
 // model and `writeBackOpenCommand` is still the only path from a form edit to

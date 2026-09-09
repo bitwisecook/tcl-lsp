@@ -1528,7 +1528,7 @@ impl CommandRegistry {
     ///
     /// The return is `&'static` because the registry stores only interned
     /// static specs — the identity [`crate::model::SpecKey`] keys the realm
-    /// binding layer by (P1a); the P2 generation work re-keys dynamic pack
+    /// binding layer; the generation work re-keys dynamic pack
     /// specs when non-`'static` specs join.
     #[must_use]
     pub fn get(&self, name: &str) -> Option<&'static CommandSpec> {

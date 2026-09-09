@@ -18,26 +18,20 @@
 
 //! Pins the rule that lets an option row's text inputs be typed into.
 //!
-//! `options` is a `STRUCTURAL_KINDS` member, so every change to it used to
-//! rebuild the whole field — `clear(ctl)` and recreate the DOM. That is right
-//! for adding or removing a row, but wrong for a plain text edit: the input
-//! the user is typing into is destroyed on the first keystroke, focus is lost,
-//! and only one character lands. `STRUCTURAL_KINDS`' own doc comment warns
-//! about exactly this ("a plain text or number input must not be [rebuilt], or
-//! the caret jumps to the end mid-word"); composite kinds hold both sorts of
-//! control, so the kind-level flag could not express it.
+//! `options` is a `STRUCTURAL_KINDS` member, so a naive change handler rebuilds
+//! the whole field — `clear(ctl)` and recreate the DOM — on every edit. That is
+//! right for adding or removing a row, but wrong for a plain text edit: the
+//! input the user is typing into is destroyed on the first keystroke, focus is
+//! lost, and only one character lands. `STRUCTURAL_KINDS`' own doc comment
+//! warns about exactly this ("a plain text or number input must not be
+//! [rebuilt], or the caret jumps to the end mid-word"); composite kinds hold
+//! both sorts of control, so the kind-level flag alone cannot say which edit
+//! in the row actually changed its shape.
 //!
-//! Measured in Chromium, driving the real `options` editor and typing
-//! `errorstack_value` one character at a time into the arity-hook box:
-//!
-//! ```text
-//! rebuild on every change (old) : typed "e"                 — focus lost
-//! rebuild only when structural  : typed "errorstack_value"  — focus held
-//! ```
-//!
-//! The fix is a `structural` flag on `Setter`, defaulting to `true` so every
-//! editor keeps its old behaviour. The option row passes `false` for scalar
-//! edits and leaves it defaulted where a control appears or disappears.
+//! A `structural` flag on `Setter` fixes this, defaulting to `true` so every
+//! editor rebuilds unless it says otherwise. The option row passes `false` for
+//! scalar edits and leaves the flag defaulted where a control appears or
+//! disappears.
 
 const EDITORS_TS: &str = include_str!("../web/src/editors.ts");
 const STUDIO_TS: &str = include_str!("../web/src/studio.ts");
@@ -60,7 +54,7 @@ fn the_setter_can_report_a_change_as_non_structural() {
 #[test]
 fn a_rebuild_only_happens_for_a_structural_change() {
     // The gate itself. `structural` defaults to true at the call site, so an
-    // editor that never passes it behaves exactly as before.
+    // editor that never passes it keeps rebuilding on every change.
     assert!(
         squashed(STUDIO_TS)
             .contains("if(structural&&STRUCTURAL_KINDS.has(field.kind.tag))rebuild();"),

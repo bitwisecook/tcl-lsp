@@ -180,7 +180,7 @@ fn after_bad_argument() {
     );
 }
 
-/// Issue #1607: `update`'s option and `after`'s subcommand word both resolve
+/// `update`'s option and `after`'s subcommand word both resolve
 /// through the one `Tcl_GetIndexFromObj` matcher. `update`'s is an ordinary
 /// one-entry table, so a miss is always `bad` — never `ambiguous`, not even
 /// for the empty word. `after`'s scan is *silent* in C (`Tcl_GetIndexFromObj`

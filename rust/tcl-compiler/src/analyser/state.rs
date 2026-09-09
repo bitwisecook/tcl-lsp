@@ -19,7 +19,7 @@
 //! The [`Analyser`] struct and its per-walk state.
 //!
 //! The analyser is a single struct whose methods are grouped across
-//! modules (``commands.rs``, ``proc.rs``, ``oo.rs``, ``diagnostics/``,
+//! modules (``commands.rs``, ``handlers.rs``, ``oo.rs``, ``diagnostics/``,
 //! …) but all operate on the same ``&mut Analyser``.
 
 use std::collections::{HashMap, HashSet};

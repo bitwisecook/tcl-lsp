@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# Contract tests for the standalone-runtime CI lane (issue #1768):
+# Contract tests for the standalone-runtime CI lane:
 #
 #   1. `scripts/dev/runtime-rust-path.sh` classifies exactly the runtime's
 #      resolved local package closure and its external Tcl 9 smoke corpus as

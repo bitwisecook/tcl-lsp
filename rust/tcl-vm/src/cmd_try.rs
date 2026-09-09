@@ -30,9 +30,9 @@
 //! Body/handler/finally each run as a phase of an explicit-stack state machine
 //! (`TryState`/`TryPhase`/[`advance_try`]) rather than through
 //! `Vm::eval_source`'s nested drive, so a `yield` inside any of them stays
-//! yieldable (issue #1311) — the phase transitions (handler matching, var
-//! binding, `-during` chaining) are the same Rust-side logic the old
-//! synchronous version had, just resumed from `Vm::unwind` instead of run
+//! yieldable — the phase transitions (handler matching, var
+//! binding, `-during` chaining) are the same Rust-side logic a synchronous
+//! version would need, just resumed from `Vm::unwind` instead of run
 //! inline between two `eval_source` calls.
 
 use std::rc::Rc;
@@ -287,7 +287,7 @@ fn parse_clauses(rest: &[Value]) -> Result<(Vec<Handler>, Option<Value>), Comple
 /// `try body ?handler ...? ?finally script?` — structured exception handling.
 ///
 /// Parses and validates the grammar synchronously (unchanged), then defers the
-/// body to the explicit stack via `vm.pending.try_phase` (issue #1311) instead of
+/// body to the explicit stack via `vm.pending.try_phase` instead of
 /// running it through `Vm::eval_source`. [`advance_try`] carries the
 /// handler-matching / `finally` logic forward from there, one phase per
 /// `Vm::unwind` fold.

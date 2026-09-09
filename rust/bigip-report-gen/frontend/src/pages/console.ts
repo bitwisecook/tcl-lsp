@@ -1,4 +1,4 @@
-// @ts-nocheck -- migrated verbatim from JS; typed incrementally, not in the restructure commit.
+// @ts-nocheck -- legacy page script, not yet fully typed.
 // tcl-lsp — a language server and toolchain for Tcl
 // Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
 //
@@ -52,8 +52,8 @@
   // The version comes from the MODEL, not from `wasm_bindgen.engine_version()`.
   // The wasm blob is a *committed* artifact that CI does not rebuild at release,
   // so its baked-in version is whatever it happened to be when someone last ran
-  // build-wasm.sh — stale, and after we started stamping the commit into the
-  // version it would confidently report a commit that was never shipped. The
+  // build-wasm.sh — stale. Since the version string embeds the build commit, a
+  // stale blob would confidently report a commit that was never shipped. The
   // model is written by the renderer at report-generation time, which is always
   // built fresh, so it is the only trustworthy source here.
   function initWasm() {

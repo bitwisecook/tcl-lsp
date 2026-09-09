@@ -16,7 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Per-command handlers for the variable-mutation commands.
+//! Per-command handlers: the variable-mutation commands, plus `proc`,
+//! `namespace eval`, the loop and branch forms, `catch`/`try`, `interp
+//! alias` and `oo::objdefine`.
 //!
 //! The variable-write trio:
 //!
@@ -1589,7 +1591,7 @@ impl Analyser {
         });
         if shadow_name.is_some() {
             // The permissive fallback profile means "no specific dialect" —
-            // no parenthetical label (the old empty-string contract).
+            // no parenthetical label.
             let dialect_label = if self.profile.is_fallback() {
                 String::new()
             } else {
@@ -2466,8 +2468,7 @@ impl Analyser {
                         // for a literal lambda. Slicing the token's raw source
                         // span instead would keep a `{cleanup done}` element's
                         // braces, so the body re-segments as one braced word
-                        // and the real `cleanup` call is missed (Codex review,
-                        // PR #1020).
+                        // and the real `cleanup` call is missed.
                         out.push((*tok, text.clone()));
                     }
                 }
@@ -3895,10 +3896,10 @@ impl Analyser {
     /// multi-word element (`{source b.tcl}`, the shape a `-map` *target*
     /// commonly takes — see [`Self::record_ensemble_map_targets`]) comes
     /// back as one element instead of being shredded into stray fragments
-    /// that no longer line up in pairs (codex review, #1001 follow-up: a
-    /// naive `split_whitespace` turned `-map {go {source b.tcl}}` into
-    /// `["go", "{source", "b.tcl}"]`, an unmatched three-way split that
-    /// silently dropped the pairing entirely). Each element's span is
+    /// that no longer line up in pairs (a naive `split_whitespace` turns
+    /// `-map {go {source b.tcl}}` into `["go", "{source", "b.tcl}"]`, an
+    /// unmatched three-way split that silently drops the pairing entirely).
+    /// Each element's span is
     /// located inside the token's content (`content_offset` skips the
     /// opening delimiter). A malformed trailing element (unmatched
     /// brace/quote, typically mid-edit) simply stops the scan early,
@@ -3971,9 +3972,9 @@ impl Analyser {
     /// `myens go hello` to `string length hello`) — the command actually
     /// invoked is the prefix's *head*; the rest are baked-in arguments, not
     /// part of the command's identity. [`Self::command_prefix_head`]
-    /// extracts just that head (codex review, #1001 follow-up: recording
-    /// the whole multi-word target text verbatim, or worse, splitting it
-    /// on whitespace before pairing it with its subcommand at all, means
+    /// extracts just that head (recording the whole multi-word target text
+    /// verbatim, or worse, splitting it on whitespace before pairing it with
+    /// its subcommand at all, means
     /// a target like `{source b.tcl}` never matches the registry's bare
     /// `source` and W129 stays silently missed for this valid indirection
     /// shape) — the reference, the map entry, and the navigation entry all
@@ -3984,10 +3985,10 @@ impl Analyser {
     /// `configure` (tclsh 8.6.14-verified: `configure myens -map {ok
     /// puts}` after `create ... -map {bad source ok puts}` turns `myens
     /// bad` into an "unknown or ambiguous subcommand" error, not a
-    /// leftover redirect to `source`) — codex review, #1001 follow-up:
-    /// merging new pairs into the existing cached map instead of
-    /// replacing it would leave a subcommand a later `-map` dropped still
-    /// resolving to its stale target, a false-positive risk. The cached
+    /// leftover redirect to `source`).  Merging new pairs into the existing
+    /// cached map instead of replacing it would leave a subcommand a later
+    /// `-map` dropped still resolving to its stale target, a false-positive
+    /// risk. The cached
     /// map for `ensemble_key` is cleared before any of its new pairs are
     /// inserted.
     ///
@@ -4250,7 +4251,7 @@ impl Analyser {
         // it into `{bar` + `baz}` and bind the loop var to those bogus
         // fragments — the re-dispatched `rename`/`proc` handlers would then
         // invent command facts for `{bar`/`baz}` and miss the real `bar baz`
-        // iteration (Codex review, PR #1020). A malformed list (unbalanced
+        // iteration. A malformed list (unbalanced
         // brace/quote) is not a valid `foreach` value at all — real Tcl
         // errors on it — so `split_list`'s `Err` means abstain entirely.
         let elements: Vec<String> = rules
@@ -4378,7 +4379,7 @@ impl Analyser {
                     // `installer_hook_is_redispatched` pins that every one
                     // of them lands on an arm above, so a newly-stamped
                     // spec cannot silently promise a re-dispatch this match
-                    // never delivers (Codex review of PR #1074).
+                    // never delivers.
                     _ => {}
                 }
             }
@@ -5241,7 +5242,7 @@ impl Analyser {
         // through const values that *dominate* this use site — never the
         // last-write-wins branch value the lexical map otherwise carries.
         // `set p a.tcl; if {$c} {set p b.tcl}; source $p` must abstain here,
-        // not pin the source to `b.tcl` (Codex review, PR #1020): a
+        // not pin the source to `b.tcl`: a
         // branch-conditional binding cannot prove a unique target, so
         // `lookup_dominating_const_string` yields `None` for it. This differs
         // from `resolve_const_word` / `lookup_const_string`, which other
@@ -5441,7 +5442,8 @@ impl Analyser {
         // Oracle (tclsh8.6, `review-probes/cls5.tcl`): with `if {0} { rename
         // Dog {} }`, `Dog new` succeeds and `$d fly` fails with `unknown
         // method "fly"`. The analyser proves the same branch dead in the same
-        // run — it emits I230 on it — yet honoured the deletion.
+        // run — it emits I230 on it — so honouring the deletion would
+        // contradict its own verdict.
         //
         // Only straight-line deletions count. This is the *syntactic* rule:
         // `if {1} { rename Dog {} }` is equally not recorded, even though it
@@ -7077,8 +7079,7 @@ impl Analyser {
                 // declared that it stores one (`DEFERS_BODY`), it runs it
                 // here — so `uplevel 1 {error stop}`, `eval {error stop}` and
                 // `oo::define C {error stop}` cannot be walked past on the
-                // strength of having no descriptor, which is what this branch
-                // used to do.
+                // strength of having no descriptor.
                 let body_runs_now = self
                     .control_arm_body_index(&arm)
                     .is_none_or(|index| self.body_runs_now(&arm.controller, index));
@@ -7428,7 +7429,7 @@ impl Analyser {
     /// semantics either, and both execute their argument immediately and can
     /// raise or return before the enclosing walk reaches the statement it
     /// cares about. That let the computed-metaclass walk materialise a class
-    /// created after `uplevel 1 $script` (PR #1652 review).
+    /// created after `uplevel 1 $script`.
     /// `BodyKind` cannot answer it either: `proc` and `uplevel` are both
     /// `Structural`, because that descriptor answers *which frame*, not
     /// *when*.
@@ -7632,7 +7633,7 @@ impl Analyser {
     /// not an [`ArgRole::Body`], so the loop above never sees it. The walk
     /// therefore neither read such a lambda nor abstained on it, and claimed
     /// past an aborting one: the same soundness class as the `uplevel` shape
-    /// PR #1652 closed, reached through the other role.
+    /// above, reached through the other role.
     ///
     /// The argument is one level removed from a body — a `{argList body ?ns?}`
     /// **list** — so a readable one contributes its *body element*'s span,
@@ -8913,7 +8914,7 @@ impl Analyser {
     /// `::tk::Megawidget create IconList FocusableWidget {…}` in a file that
     /// never mentions `::tk::Megawidget`'s definition is, on shape alone,
     /// indistinguishable from `interp create` or `image create`, so the walk
-    /// used to record nothing at all.  With the index it is classified from
+    /// records nothing without the index.  With it, the call is classified from
     /// the metaclass's *own* declaration — its `create` override's parameter
     /// list and prologue — exactly as the same-file case is.
     ///
@@ -10301,7 +10302,7 @@ impl Analyser {
     ///
     /// Both read-modify-write their first argument, creating it if absent, so
     /// the target is a variable *definition* for symbol/scope purposes and must
-    /// surface in `symbols` / completion / hover (it previously did not).
+    /// surface in `symbols` / completion / hover.
     /// `warn_if_unused = false` because the command itself reads the prior
     /// value, so an `append`/`lappend` target is never "set but never used"
     /// (no W211 for it).
@@ -10582,8 +10583,8 @@ mod tests {
     #[test]
     fn interp_create_value_words_keep_a_nested_path_as_one_word_issue_1025() {
         // TP — `{parent child}` is one word (a descent path), not two.
-        // `split_whitespace` used to yield `["{parent", "child}"]`, whose
-        // first fragment became the bound key.
+        // `split_whitespace` would yield `["{parent", "child}"]`, whose first
+        // fragment would become the bound key.
         assert_eq!(
             interp_create_words_from_value("[interp create {parent child}]"),
             Some(vec!["parent child"])
@@ -10617,7 +10618,7 @@ mod tests {
         // error instead — `Some(vec![])` here — read as a bare `interp
         // create`, binding the variable to an auto-named interpreter real
         // Tcl never creates. Later `$i eval` / `interp alias $i …` sites
-        // then resolved against that phantom (Codex review, PR #1045).
+        // then resolve against that phantom.
         assert_eq!(
             interp_create_words_from_value("[interp create {child]"),
             None
@@ -11698,13 +11699,13 @@ mod tests {
 
     #[test]
     fn handle_namespace_export_consumes_only_one_clear_flag() {
-        // PR #1102 review finding 3 — `NamespaceExportCmd` compares `objv[1]`
+        // `NamespaceExportCmd` compares `objv[1]`
         // against `-clear` once, so a *second* `-clear` is an ordinary export
         // pattern. Oracle (tclsh 8.6.14 / 9.0.4): `namespace export -clear
         // -clear p` leaves exactly `-clear p` exported, and a command really
         // named `-clear` is then importable through `namespace import
-        // ::src::*`. Consuming every matching word instead recorded two
-        // tombstones and silently dropped the `-clear` export.
+        // ::src::*`. Consuming every matching word instead records two
+        // tombstones and silently drops the `-clear` export.
         let mut a = Analyser::new();
         a.registry = Some(std::sync::Arc::clone(
             tcl_registry::model::ingress::static_context_for("tcl").commands(),
@@ -12100,8 +12101,7 @@ mod tests {
 
     #[test]
     fn renamed_away_interp_handle_reused_as_a_proc_is_not_treated_as_interp_eval() {
-        // TP — regression for a bug found by Codex review of PR #963:
-        // `self.interpreters` is only cleared by `interp delete`, so a plain
+        // TP: `self.interpreters` is only cleared by `interp delete`, so a plain
         // `rename sandbox {}` (deleting the interpreter's own object
         // command — confirmed against tclsh9.0: afterwards `info commands
         // sandbox` is empty and the child interpreter is only reachable
@@ -12187,7 +12187,7 @@ mod tests {
 
     #[test]
     fn two_interp_handles_never_cross_contaminate_same_named_procs() {
-        // TP — the exact scenario differential audit confirmed: two
+        // TP: two
         // separate safe child interpreters, each independently defining
         // their own same-named `helper`, must never merge — a call inside
         // one script must resolve to *that* interpreter's helper, never
@@ -12273,7 +12273,7 @@ mod tests {
             r2.diagnostics
         );
         // Multi-word scripts concatenate at run time — the words must not
-        // be analysed in the *parent* scope (the old fall-through), nor
+        // be analysed in the *parent* scope, nor
         // walked per-word (commands span word boundaries).
         let mut a3 = Analyser::new();
         let r3 = a3.analyse(
@@ -12987,8 +12987,8 @@ mod tests {
 
     #[test]
     fn handle_namespace_eval_dynamic_target_gets_a_synthetic_span_keyed_name() {
-        // TP — regression for a bug found by differential audit against
-        // irc.tcl's per-connection `namespace eval $name { … }` idiom: a
+        // TP (corpus shape: irc.tcl's per-connection
+        // `namespace eval $name { … }` idiom): a
         // dynamic target must never become the scope's `.name` verbatim (two
         // unrelated occurrences sharing the same variable name would then
         // collapse into one scope), so it's replaced with a synthetic name
@@ -13496,8 +13496,8 @@ mod tests {
 
     // `namespace ensemble configure`: the real
     // `tk/library/systray.tcl` idiom splices new subcommands onto a
-    // *pre-existing* ensemble via `configure`, not `create` — previously
-    // invisible to `handle_namespace_ensemble` entirely.
+    // *pre-existing* ensemble via `configure`, not `create`, so
+    // `handle_namespace_ensemble` has to recognise both.
 
     #[test]
     fn namespace_ensemble_configure_extends_a_preexisting_ensembles_map() {
@@ -13590,7 +13590,7 @@ mod tests {
 
     #[test]
     fn namespace_ensemble_configure_unrecognised_dynamic_map_shape_abstains_safely() {
-        // Safety regression: a `-map` value that is itself one whole
+        // Safety guard: a `-map` value that is itself one whole
         // dynamic `[...]` substitution NOT matching the narrow `dict merge
         // ARG {literal}` shape must abstain entirely — not naively
         // word-split the expression's own source text into bogus
@@ -14002,11 +14002,9 @@ mod tests {
 
     #[test]
     fn handle_proc_command_dynamic_name_resolves_via_constant_fold() {
-        // TP — the finding's own non-foreach isolation repro: a plain `set`
-        // constant, no loop at all. `proc ::$wtype {...}` previously never
-        // attempted to constant-fold its name at all (unlike `rename`,
-        // fixed for idx 3), registering under the literal garbled text
-        // instead of resolving `wtype`'s known value.
+        // TP — the non-foreach isolation repro: a plain `set` constant, no
+        // loop at all. `proc ::$wtype {...}` must constant-fold its name, as
+        // `rename` does, rather than register under the literal garbled text.
         let mut a = Analyser::new();
         let src = "set wtype button\nproc ::$wtype {} {return ok}\n";
         let r = a.analyse(src, "tcl8.6");
@@ -14043,7 +14041,7 @@ mod tests {
         // accessibility.tcl` renames each classic widget command away and
         // reinstalls a wrapper proc under the same name, once per element
         // of a literal `foreach` list. tclsh9.0/8.6 both prove `button`/
-        // `entry` are the *new* wrapper procs afterwards; the old bodies
+        // `entry` are the *new* wrapper procs afterwards; the original bodies
         // live only at `::tk::accessible::orig_button`/`orig_entry`.
         let mut a = Analyser::new();
         let src = "proc button {args} {return orig_button}\n\
@@ -15012,7 +15010,7 @@ mod tests {
         // `simulate_remaining_foreach_iterations` re-runs the command once
         // per literal `foreach` element.  A spec that carries it but whose
         // analyser hook has no arm in that match silently promises nothing
-        // (Codex review of PR #1074: `oo::objdefine` was exactly that).
+        // (`oo::objdefine` is exactly that shape).
         // Registry-driven, so a newly-stamped spec fails here rather than
         // in a corpus months later.
         use tcl_registry::hooks::AnalyserHookId as Hook;
@@ -15392,7 +15390,7 @@ mod tests {
     fn analyse_oo_define_inline_form_extends_class() {
         // ``oo::define C method m {} {}`` — inline form,
         // single subcommand.  Works whether or not the class
-        // was previously declared (creates a stub if absent).
+        // was already declared (creates a stub if absent).
         let mut a = crate::analyser::Analyser::new();
         let r = a.analyse("oo::define MyClass method greet {} { puts hi }", "tcl");
         assert!(r.all_classes.contains_key("::MyClass"));
@@ -15612,7 +15610,7 @@ mod tests {
         assert!(info.empty_stub);
     }
 
-    /// Pin (gap-review C3) — `conditional_depth` is driven by
+    /// `conditional_depth` is driven by
     /// `Traits::BRANCH_SELECTED_BODY`, so exactly the branch-selected bodies
     /// mark a `package require` conditional.
     ///
@@ -15717,7 +15715,7 @@ mod tests {
         );
     }
 
-    /// FIX (gap-review C2) — a `proc unknown` nested inside `namespace eval`
+    /// A `proc unknown` nested inside `namespace eval`
     /// is an ordinary namespace proc, not the interpreter's handler, so it
     /// must not seed `unknown_proc_info` and suppress W123 file-wide.
     ///
@@ -16555,8 +16553,7 @@ proc runs {body} {\n\
     }
 
     /// TP: the same redirect declared via `namespace ensemble configure NAME
-    /// -map {...}` (previously silently ignored entirely — only `create`
-    /// was handled) rather than at `create` time.
+    /// -map {...}` rather than at `create` time.
     #[test]
     fn safe_interp_w129_ensemble_configure_map_redirect_to_hidden_command_1001() {
         let mut a = Analyser::new();
@@ -16648,7 +16645,7 @@ proc runs {body} {\n\
     /// `-map {go {string length}}` dispatches `myens go x` to `string
     /// length x`) must still resolve to its *head* command for W129,
     /// not be dropped entirely by a naive whitespace split across the
-    /// pair boundary (codex review, #1001 follow-up).
+    /// pair boundary.
     #[test]
     fn safe_interp_w129_ensemble_map_redirect_multiword_target_1001() {
         let mut a = Analyser::new();
@@ -16675,9 +16672,8 @@ proc runs {body} {\n\
     /// dropped from a later `-map` becomes "unknown or ambiguous
     /// subcommand", not a leftover redirect) — a subcommand a later
     /// `-map` omits must stop resolving to its stale, no-longer-mapped
-    /// target instead of still drawing W129 (codex review, #1001
-    /// follow-up: merging into the cached map instead of replacing it
-    /// left the stale entry behind).
+    /// target instead of still drawing W129 (merging into the cached map
+    /// instead of replacing it would leave the stale entry behind).
     #[test]
     fn safe_interp_w129_ensemble_configure_map_replaces_not_merges_1001() {
         let mut a = Analyser::new();

@@ -638,7 +638,7 @@ fn tcllib_required_package(name: &str) -> Option<&'static str> {
         // The commands live in `::sha2` but the module the user writes
         // is `package require sha256` — `sha1/sha256.tcl` ends with
         // `package provide sha256 1.0.6`, and no `sha2` package exists
-        // anywhere in tcllib 2.0. Namespace ≠ package identity (P5).
+        // anywhere in tcllib 2.0. Namespace ≠ package identity.
         "sha2" => Some("sha256"),
         "smtp" => Some("smtp"),
         "snit" => Some("snit"),
@@ -689,12 +689,12 @@ mod tests {
         assert_eq!(pkg("struct::queue"), Some("struct::queue"));
         // Versioned sha packages. `::sha2` is the *namespace*; the
         // package `tmp/tcllib-2.0/modules/sha1/sha256.tcl` provides is
-        // `sha256`, and that is what a user writes (P5).
+        // `sha256`, and that is what a user writes.
         assert_eq!(pkg("sha1::sha1"), Some("sha1"));
         assert_eq!(pkg("sha2::sha256"), Some("sha256"));
     }
 
-    /// **P5's identity census.** Every package name the catalogue files a
+    /// **The package-identity census.** Every package name the catalogue files a
     /// tcllib command under is either a module the tcllib 2.0 sources
     /// really provide ([`TCLLIB_MODULES`](crate::model::tcllib::TCLLIB_MODULES))
     /// or a *recorded* gap
@@ -744,8 +744,8 @@ mod tests {
     }
 
     /// The Tcl-core floor is now read per module from the sources, so it
-    /// covers the whole distribution rather than the two names the old
-    /// `match` happened to list (P5).
+    /// covers the whole distribution rather than the two names an
+    /// ordinary `match` would happen to list.
     #[test]
     fn tcl85_plus_packages_are_gated_out_of_tcl84() {
         let specs = tcllib_command_specs();

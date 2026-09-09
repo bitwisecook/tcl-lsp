@@ -1567,9 +1567,9 @@ describe("the pack export", () => {
     assert.match(exportGroups(files)[1]?.note ?? "", /^Drop-in/);
   });
 
-  // `#packDir` used to default to the literal `tcl` — a real, populated
-  // authoring directory — so an untouched export offered `commands/tcl/mod.rs`
-  // holding only this document, as a drop-in.
+  // `#packDir` defaulting to the literal `tcl` — a real, populated
+  // authoring directory — would make an untouched export offer
+  // `commands/tcl/mod.rs` holding only this document, as a drop-in.
   it("renders into the pack's own directory until the author names another", () => {
     assert.equal(packDirectory("", "mylib"), "mylib");
     assert.equal(packDirectory("   ", "mylib"), "mylib");

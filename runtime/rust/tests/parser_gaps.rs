@@ -16,9 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Oracle-pinned regression coverage for the r4-parser-gaps lane
-//! (#1576, #1586, #1577) and the two lenient cases r10-word-parts closed on
-//! top of it (`missing "`, `missing close-bracket`). Every expected
+//! Oracle-pinned regression coverage for parser edge cases around word
+//! delimiters and array-element writes, plus two lenient cases
+//! (`missing "`, `missing close-bracket`). Every expected
 //! message/errorCode/value below was taken verbatim from `tclsh9.0` (9.0.4)
 //! and/or `tclsh8.6` (8.6.16); a reader can paste the sheet into a real
 //! `tclsh` and re-derive the expectation without this harness.
@@ -42,9 +42,9 @@ fn run(sheet: &str) -> (Code, String, String) {
     (code, result, error_code)
 }
 
-// #1576 — an unterminated `{` word must raise `missing close-brace`, not
+// An unterminated `{` word must raise `missing close-brace`, not
 // tokenize best-effort. Oracle: tclsh 8.6.16/9.0.4 both raise `missing
-// close-brace` with `-errorcode NONE` for every repro in the issue (`list`,
+// close-brace` with `-errorcode NONE` for each of these constructs (`list`,
 // `set`, `string length`).
 
 #[test]
@@ -70,8 +70,7 @@ fn unterminated_brace_word_raises_for_string_length_too() {
 }
 
 /// A properly closed braced word — including one glued to a second braced
-/// word (`{*}{b c}`, no unterminated construct) — is unaffected by the
-/// #1576 fix.
+/// word (`{*}{b c}`, no unterminated construct) — parses without error.
 #[test]
 fn well_formed_braced_words_still_parse() {
     let (code, result, _) = run("list a {hello world} c");
@@ -83,7 +82,7 @@ fn well_formed_braced_words_still_parse() {
     assert_eq!(result, "a b c d");
 }
 
-// #1586 — an unterminated `${` inside a script word (or a script word nested
+// An unterminated `${` inside a script word (or a script word nested
 // in a command substitution) must raise `missing close-brace for variable
 // name`, the same message `subst` already raises for the identical
 // construct — not the lenient lexer recovery's `${a{` == name `a{` reading
@@ -109,7 +108,7 @@ fn unterminated_braced_var_nested_in_a_command_subst_raises_the_same_error() {
     // `t`'s value is the 14-byte string `[set y ${a{b]` — built through
     // `format` rather than a literal `{...}` word, since its raw text has
     // two unmatched `{` and would itself be an unterminated *outer* brace
-    // word (this file's own #1576 sibling gap, not what this test targets).
+    // word (a different case from the one this test targets).
     let (code, result, _) = run(r#"set t [format {[set y $%sa%sb]} "{" "{"]
 subst $t"#);
     assert_eq!(code, Code::Error);
@@ -117,7 +116,7 @@ subst $t"#);
 }
 
 /// A well-formed `${name}` (including one immediately followed by more
-/// substitution) is unaffected by the #1586 fix.
+/// substitution) substitutes without error.
 #[test]
 fn well_formed_braced_var_still_substitutes() {
     let (code, result, _) = run("set a hi\nsubst {x${a}y}");
@@ -125,7 +124,7 @@ fn well_formed_braced_var_still_substitutes() {
     assert_eq!(result, "xhiy");
 }
 
-// #1577 — `lassign`, `catch` (result/options vars), `regexp` match vars,
+// `lassign`, `catch` (result/options vars), `regexp` match vars,
 // `scan`, `binary scan`, and `foreach`/`lmap` loop vars must write `arr(a)`
 // as the array *element*, like `set` already does, not as a literal scalar
 // named `arr(a)`. Oracle: tclsh 8.6.16/9.0.4 all agree `array get arr` comes

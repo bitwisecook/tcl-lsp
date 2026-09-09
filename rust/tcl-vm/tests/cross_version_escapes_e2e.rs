@@ -28,7 +28,7 @@
 //! The failure this guards is the same shape as the numeral suite's: nothing
 //! errors. `\x4142` is a perfectly good escape under every release — it is just
 //! `B` up to 8.5 and `A42` from 8.6, so a decoder pinned to the wrong release
-//! silently produces a **different string of a different length** (issue #1479).
+//! silently produces a **different string of a different length**.
 //! Both halves of an escape move together: its *value* and its *width*. A
 //! consumer that measured it under one release and decoded it under another
 //! would slice mid-escape, which is why the decoder computes both in one scan.

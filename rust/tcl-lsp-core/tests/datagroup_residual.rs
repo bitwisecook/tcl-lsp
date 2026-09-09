@@ -570,7 +570,6 @@ fn switch_default_only_leaves_too_few_regular_arms() {
     // Two regular arms plus a `default` leave fewer than 3 regular arms.
     let source =
         "switch -exact -- $e {\n    .a { drop }\n    .b { drop }\n    default { accept }\n}";
-    // Fewer than 3 regular arms → declined.
     assert!(switch_dg(source, "x").is_none());
 }
 

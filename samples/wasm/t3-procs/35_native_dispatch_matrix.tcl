@@ -1,6 +1,6 @@
 # T3: the observable surface of a proc whose body is dispatched natively -
 # recursion, arity, introspection, scope, traces, and redefinition all answer
-# exactly what an interpreted body answers (issue #1774).
+# exactly what an interpreted body answers.
 #
 # Every definition this file wants bound to a compiled body is written before
 # the first command that widens the world state, because a `proc` statement

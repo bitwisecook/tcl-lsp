@@ -229,7 +229,7 @@ impl SpecialVarSpec {
 /// [`surface_query`](tcl_dialect::DialectProfile::surface_query). The
 /// LSP/CLI ingress resolves the dialect name once (through
 /// `tcl_registry::model::ingress`) and threads the profile; the old name-keyed
-/// `resolve_dialect` validator is deleted (ledger C2, P1-G).
+/// `resolve_dialect` validator is deleted (ledger C2).
 ///
 /// `None` (no dialect resolved) answers the permissive `PLAIN_TCL`
 /// profile's own point.
