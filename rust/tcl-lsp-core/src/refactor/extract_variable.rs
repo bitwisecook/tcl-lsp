@@ -90,10 +90,43 @@ fn looks_like_expr(text: &str) -> bool {
     false
 }
 
+/// `true` when `text` holds a command terminator — an unescaped newline
+/// or `;` outside quotes, braces, brackets and parens — with code on both
+/// sides of it.
+///
+/// Such a selection is two or more commands, and a `set` can only take one
+/// value word: extracting it would build `set result set x 1` and drop the
+/// rest of the selection into the assignment.
+fn spans_multiple_commands(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    let mut depth = 0i32;
+    let mut in_quotes = false;
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\\' if i + 1 < bytes.len() => {
+                i += 2;
+                continue;
+            }
+            b'"' => in_quotes = !in_quotes,
+            b'(' | b'{' | b'[' if !in_quotes => depth += 1,
+            b')' | b'}' | b']' if !in_quotes => depth -= 1,
+            b'\n' | b';' if !in_quotes && depth == 0 => {
+                if !text[..i].trim().is_empty() && !text[i + 1..].trim().is_empty() {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    false
+}
+
 /// Extract the selection `[start_off, end_off)` into a `set` assignment.
 ///
-/// Returns `None` when the selection is empty
-/// or only whitespace.  `start_line` / `start_off` / `end_off` are byte
+/// Returns `None` when the selection is empty, only whitespace, or spans
+/// more than one command.  `start_line` / `start_off` / `end_off` are byte
 /// offsets into `source`; `line_index` resolves them to lines for the
 /// indentation lookup.
 #[must_use]
@@ -108,7 +141,7 @@ pub fn extract_variable(
         return None;
     }
     let selected = source.get(start_off as usize..end_off as usize)?;
-    if selected.trim().is_empty() {
+    if selected.trim().is_empty() || spans_multiple_commands(selected) {
         return None;
     }
 
@@ -189,6 +222,16 @@ mod tests {
         let li = LineIndex::new(source);
         let r = extract_variable(source, 5, 20, "total", &li).expect("result");
         assert!(r.title.contains("total"));
+    }
+
+    #[test]
+    fn multi_command_selection_returns_none() {
+        let source = "set x 0\nset x 1\nputs $x\nputs \"after=$x\"";
+        assert!(run(source, 8, 23, "result").is_none());
+        // A `;` separator is the same shape on one line.
+        assert!(run("set a 1; set b 2", 0, 16, "result").is_none());
+        // FP-guard: a newline inside a braced word is still one command.
+        assert!(run("puts [expr {1 +\n2}]", 5, 19, "total").is_some());
     }
 
     #[test]

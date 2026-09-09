@@ -398,7 +398,7 @@ fn walk_commands_inner(
 /// compiler analyser's `MAX_BODY_DEPTH` so deeply (but validly) nested code
 /// still resolves the command under the cursor. Real source never nests
 /// anywhere near this.
-const MAX_COMMAND_SEARCH_DEPTH: tcl_core_types::RecursionLimit =
+pub(super) const MAX_COMMAND_SEARCH_DEPTH: tcl_core_types::RecursionLimit =
     tcl_core_types::RecursionLimit(256);
 
 fn find_command_at_inner(
