@@ -118,19 +118,7 @@ it. The line reads, in order:
    to act on. Compare `S` with `T` from the previous field: if they are the same,
    the handler paused at its very first waiting point and never moved; if `S` is
    much smaller, it got most of the way through and stopped near the end.
-4. **`the open-document map is held by H — T in total, S at this point`** —
-   who holds the map the stalled handler is usually waiting for, and how long
-   they have been at their current step; then which tasks are queued behind
-   them. A phase marker of `documents.lock` points straight here.
-5. **`Workspace index: [held for write by F `P` — T in total ...]`** — who
-   holds the cross-document index, at which step, and which readers or writers
-   are queued for it. This is the reading to take when the map holder's own
-   step is `workspace_index.try_write` or `workspace_index.write`: the map
-   holder is a victim of whoever this names. `free; last written by ...
-   released N ago` means nobody holds it, and the ages say whether the last
-   holder let go before or after the stall began. `F` is a source location;
-   `P` is the phase label the holder set, when it set one.
-6. **`N salsa snapshot(s) are outstanding; the oldest was taken by Q`** — how
+4. **`N salsa snapshot(s) are outstanding; the oldest was taken by Q`** — how
    many copies of the analysis database are still in use, and which piece of
    code took the longest-lived one. Treat this as a *second opinion*, not a
    verdict: it counts database copies and cannot see where the handler actually
