@@ -140,8 +140,8 @@ impl Analyser {
     /// class for a call site inside a method body, if any. Naive
     /// first-match over [`AnalysisResult::all_classes`] (class bodies don't
     /// nest in practice); shared by [`Self::oo_self_method_returns_literal`]
-    /// and the `[self]`/`[self object]` self-receiver W308 check (issue
-    /// #1324), so the two "what class is this dispatch inside" answers
+    /// and the `[self]`/`[self object]` self-receiver W308 check, so the two
+    /// "what class is this dispatch inside" answers
     /// cannot drift apart.
     fn enclosing_class_at_offset(&self, offset: u32) -> Option<&super::types::ClassDef> {
         self.result.all_classes.values().find(|class_def| {
@@ -894,10 +894,10 @@ impl Analyser {
     /// ([`crate::object_types::ObjectHandleFacts::classes_in_scope`]).
     ///
     /// The lattice read is what keeps this diagnostic and the LSP's
-    /// navigation from disagreeing on one document (issues #1143 / #994): a
-    /// handle the lattice can type — e.g. `set b [$a make]`, the
-    /// method-return edge — must never draw the W307 "cannot statically
-    /// analyze" warning hover and go-to-definition contradict.  Only the
+    /// navigation from disagreeing on one document: a handle the lattice can
+    /// type — e.g. `set b [$a make]`, the method-return edge — must never
+    /// draw the W307 "cannot statically analyze" warning that hover and
+    /// go-to-definition contradict.  Only the
     /// *scoped* map is read (never the scope-blind union), so a same-named
     /// variable in an unrelated proc cannot enable a false W308/E001 here.
     ///
@@ -1143,9 +1143,9 @@ impl Analyser {
         // `w307_site_suppressed`'s per-site checks). A class renamed or
         // deleted away with no later re-establishment can't actually
         // produce an object, so a `set x [ClassName new]` where
-        // `ClassName` is dead must not mark `x` a factory local (issue
-        // #1010, confirmed against tclsh 8.6.14 that the constructor call
-        // itself fails "invalid command name" first).
+        // `ClassName` is dead must not mark `x` a factory local (on tclsh
+        // 8.6.14 the constructor call itself fails "invalid command name"
+        // first).
         let class_by_tail = super::unresolved::group_defs_by_tail(
             self.result
                 .all_classes
@@ -1584,8 +1584,8 @@ impl Analyser {
                 }
                 // `[self]` / `[self object]` is not just *some* self-dispatch
                 // or introspection call whose return type happens to be
-                // unknowable — the registry (`is_self_receiver_call`, issue
-                // #1322) says this exact head/arg pair denotes the *current*
+                // unknowable — the registry (`is_self_receiver_call`)
+                // says this exact head/arg pair denotes the *current*
                 // receiver, the same target `my <method>` dispatches on. So
                 // the outer method word is validated against the enclosing
                 // class (W308) instead of falling through as an opaque
@@ -1689,9 +1689,7 @@ impl Analyser {
     }
 
     /// W308 for a bareword **self-dispatch keyword** head — `my <method>`,
-    /// the commonest same-object spelling in `TclOO` and, before issue
-    /// #1329, the only one that navigated and highlighted correctly while
-    /// never being diagnosed at all.
+    /// the commonest same-object spelling in `TclOO`.
     ///
     /// The receiver is the same enclosing object `[self]` names, so the
     /// class lookup is shared with [`Self::w308_for_self_receiver`]; what
@@ -1876,7 +1874,7 @@ impl Analyser {
     /// object-returning (`ObjectHandleFacts::returns_object`) types the head
     /// from the same fact the navigation consumers read — keeping
     /// `[make] bark` off the W307 path and giving the bare `[make]` case its
-    /// E001 (issues #1200 / #994).  Everything else falls back to the
+    /// E001.  Everything else falls back to the
     /// registry's return type for built-ins (Overdefined for unknown
     /// commands).
     fn cmd_head_return_type(

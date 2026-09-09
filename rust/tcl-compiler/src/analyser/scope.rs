@@ -1493,8 +1493,8 @@ impl Analyser {
     }
 
     /// Record `set VAR [interp create ...]`'s resolved interpreter-domain
-    /// `key` as `var_name`'s value in the scope at `scope_path` (issue
-    /// #923 idx 9) — the interpreter-value-flow analogue of
+    /// `key` as `var_name`'s value in the scope at `scope_path` — the
+    /// interpreter-value-flow analogue of
     /// [`Self::set_const_string`], scope-chain-aware for the same reason:
     /// two unrelated procs binding the same variable name to different
     /// interpreters must never collide.
@@ -1669,7 +1669,7 @@ impl Analyser {
     /// Braces suppress every substitution, so the content is the name verbatim:
     /// `${$n}` reads the variable *called* `$n`, which Tcl keeps distinct from
     /// `n` (tclsh 9.0.4 / 8.6.14: `set {$n} v; set ${$n}` → `can't read "v"`,
-    /// i.e. it read `$n` and got `v`). Stripping the `$` here landed the
+    /// i.e. it read `$n` and got `v`). Stripping the `$` here would land the
     /// reference on the wrong variable and let Find-References / Rename merge
     /// the two.
     pub fn record_var_read_braced(
@@ -1797,8 +1797,8 @@ impl Analyser {
     /// scope-table-local, so a *relative*-qualified occurrence
     /// (`$app::colors::palette` written at global scope, naming
     /// `::app::colors::palette`) finds nothing and is dropped — even when the
-    /// declaring `namespace eval` sits in the same file.  And it could not be
-    /// fixed by resolving at record time either: a qualified read may precede
+    /// declaring `namespace eval` sits in the same file.  Resolving at record
+    /// time cannot work either: a qualified read may precede
     /// its declaring `namespace eval` textually and still resolve at run time
     /// (tclsh 9.0.4 / 8.6.16: `proc p {} { return $::n::v }; namespace eval n
     /// { variable v 1 }; puts [p]` prints `1`), so the namespace tables are
@@ -2693,8 +2693,8 @@ mod tests {
 
     #[test]
     fn w215_still_fires_for_static_typo_after_the_fix() {
-        // TN: the fix must not blunt the check for the genuine case it
-        // exists for — a fully static (no `$`/`[`) stray-delimiter typo.
+        // TN: the reconstruction path must not blunt the check for the genuine
+        // case it exists for — a fully static (no `$`/`[`) stray-delimiter typo.
         assert!(diag_codes("set \"a}b\" 1", "tcl").contains(&"W215".to_string()));
     }
 
@@ -2736,14 +2736,14 @@ mod tests {
 
     #[test]
     fn w215_quiet_for_backslash_continued_param_list() {
-        // Issue #743: a parameter list wrapped across lines with `\`. Tcl
+        // A parameter list wrapped across lines with `\`. Tcl
         // list-parses the braced param list, so `ddrtol\<newline>ddatol` is two
         // parameters (`ddrtol`, `ddatol`), not a single `ddrtol\` name — no
         // W215 unreachable-name warning should fire.
         let src = "proc p {a ddrtol\\\n        ddatol} { list $a $ddrtol $ddatol }";
         assert!(!diag_codes(src, "tcl").contains(&"W215".to_string()));
 
-        // The reported form: a TclOO `method` with a wrapped parameter list.
+        // A TclOO `method` with a wrapped parameter list.
         let method_src = "oo::class create C {\n  method Fdjac2 {funct ifree ddrtol\\\n      ddatol} { list $ddrtol $ddatol }\n}\n";
         assert!(!diag_codes(method_src, "tcl").contains(&"W215".to_string()));
     }
@@ -3388,10 +3388,10 @@ mod tests {
 
     #[test]
     fn lookup_var_by_qualified_name_finds_a_literal_qualified_top_level_set() {
-        // TP — the corpus repro shape: a plain `set
-        // ::tolComp val` at global scope stores its key verbatim
-        // (`"::tolComp"`), which the bare-tail lookup alone (`base_name ==
-        // "tolComp"`) can never match; the literal-name fallback must.
+        // TP — a plain `set ::tolComp val` at global scope stores its key
+        // verbatim (`"::tolComp"`), which the bare-tail lookup alone
+        // (`base_name == "tolComp"`) can never match; the literal-name
+        // fallback must.
         let mut root = Scope::new(ScopeKind::Global, "::");
         root.variables
             .insert("::tolComp".to_string(), var("::tolComp", span(50, 60)));
@@ -3404,9 +3404,9 @@ mod tests {
 
     #[test]
     fn lookup_var_by_qualified_name_finds_an_unqualified_top_level_set() {
-        // TP — the other half of idx 68's repro: an *unqualified* `set
-        // tolComp val` at global scope stores the bare key `"tolComp"`,
-        // found by the existing tail-based lookup with no fallback needed.
+        // TP — the other half: an *unqualified* `set tolComp val` at global
+        // scope stores the bare key `"tolComp"`, found by the tail-based
+        // lookup with no fallback needed.
         let mut root = Scope::new(ScopeKind::Global, "::");
         root.variables
             .insert("tolComp".to_string(), var("tolComp", span(50, 60)));

@@ -836,7 +836,7 @@ impl Analyser {
             return;
         };
         // The methods walked below home under the class's qualified name;
-        // capture it before the phase-1 walk mutates `class_def`.
+        // capture it before the member-collection walk mutates `class_def`.
         let class_qualified = class_def.qualified_name.clone();
         let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
         let cmds = crate::segmenter::segment_commands_with_offset_and_config(
@@ -903,7 +903,7 @@ impl Analyser {
         }
     }
 
-    /// Phase one of an OO definition-body walk: update its class facts and
+    /// Collect an OO definition body's members: update the class facts and
     /// retain body-bearing members for the later scope walk.
     fn collect_oo_definition_members(
         &mut self,
@@ -1262,8 +1262,8 @@ impl Analyser {
         let mut method_path = scope_path.to_vec();
         method_path.push(method_idx);
         // Formal parameters — defined, never unused-warned.  Anchor each
-        // param's definition span at its name in the param-list literal (issue
-        // #727) so go-to-definition / references / rename resolve to the
+        // param's definition span at its name in the param-list literal so
+        // go-to-definition / references / rename resolve to the
         // parameter, not the whole method body.  Falls back to the body token
         // when the param-list word or a name can't be located.
         let param_spans = mb
@@ -2859,15 +2859,15 @@ fn apply_sided_member_effects(
 ///
 /// The two sides are separate slots that intercept different dispatches (see
 /// [`ClassDef::filters`] and [`ClassDef::class_filters`] for the oracle), so
-/// `filter` was the last member table still landing in one flat list regardless
-/// of the wrapper it was written under.
+/// a `filter` call must land in the slot for the wrapper it was written under,
+/// never in one flat list.
 ///
 /// The keyword is matched here rather than read off the spec because *which
 /// `ClassDef` field a member routes to* is analyser-local semantics the registry
 /// deliberately does not model — the same judgement as the `superclass` /
 /// `mixin` / `variable` arms of [`apply_oo_subcommand`]. What the registry does
-/// decide is *what the word does to the slot* ([`MemberSpec::slot`], issue
-/// #1169): `filter a; filter b` leaves both live (`-append` default —
+/// decide is *what the word does to the slot* ([`MemberSpec::slot`]):
+/// `filter a; filter b` leaves both live (`-append` default —
 /// tclsh 9.0.4 / 8.6.16: `info class filters` → `a b`), and the explicit
 /// `-set` / `-clear` / `-prepend` / `-remove` / `-appendifnew` operations
 /// fold through [`tcl_registry::definer::SlotSpec::apply`] — the same fold
@@ -2895,7 +2895,7 @@ fn apply_filter_member(
 /// list, and the declared-variable slot all take the identical fold.
 ///
 /// A member with no slot spec (defensive fallback only — every `TclOO` slot
-/// word carries one) keeps the pre-#1169 assignment reading.
+/// word carries one) falls back to plain assignment.
 fn apply_slot_member(member: Option<&MemberSpec>, args: &[String], list: &mut Vec<String>) {
     match member.and_then(|m| m.slot) {
         Some(slot) => slot.apply(list, args),
@@ -4158,8 +4158,8 @@ mod tests {
         assert!(has_cmd_ref(&r, "::ns::Role", "::ns::Role"));
     }
 
-    // Regression: generalising the `forward` target onto the member grammar's
-    // `ArgRole::CommandName` must keep recording the delegated command.
+    // The `forward` target resolves through the member grammar's
+    // `ArgRole::CommandName` and records the delegated command.
     #[test]
     fn forward_target_still_records_a_command_reference() {
         let mut a = Analyser::new();
@@ -4255,7 +4255,7 @@ mod tests {
 
     // TP: the inline `oo::define Sub superclass Base` form (no `{body}` block)
     // records the base-class reference too — the same as the braced body form.
-    // (Regression guard: the inline path is separate from the body walk.)
+    // (The inline path is separate from the body walk.)
     #[test]
     fn inline_oo_define_superclass_records_a_command_reference() {
         let mut a = Analyser::new();
@@ -4987,7 +4987,7 @@ mod tests {
         // A rename is not a (re)declaration, so the family's name-based export
         // default is not re-applied — the source's visibility travels with it.
         assert_eq!(md.visibility, "public");
-        // TN for #1120: a rename onto a fresh name is a legal order.
+        // TN: a rename onto a fresh name is a legal order.
         assert!(!has_w315(&r), "{:?}", w315_messages(&r));
         // …and the *destination* name leaves no cross-document tombstone: the
         // rename creates `new`, it does not delete it, so another document's
@@ -5174,15 +5174,14 @@ mod tests {
 
     #[test]
     fn per_object_visibility_lands_in_object_member_state() {
-        // Issue #1119 item 3, closed by #1170. `oo::objdefine $o { unexport
-        // m }` really works — oracle, 9.0.4 and 8.6.14 alike:
+        // `oo::objdefine $o { unexport m }` really works — oracle, 9.0.4 and
+        // 8.6.14 alike:
         //   oo::class create ::C { method m {} {…} } ; set o [::C new]
         //   oo::objdefine $o { unexport m } ; $o m
         //   ;# -> unknown method "m": must be destroy or n
-        // The flip now lands in the receiver binding's `ObjectMemberState`
+        // The flip lands in the receiver binding's `ObjectMemberState`
         // — the durable per-object home — while the class itself stays
-        // untouched (the leak guard from #1119 still holds), and the
-        // throwaway holder still never reaches `all_classes`.
+        // untouched, and the throwaway holder never reaches `all_classes`.
         let mut a = Analyser::new();
         let r = a.analyse(
             "oo::class create ::C { method m {} { return m } }\n\
@@ -5481,7 +5480,7 @@ mod tests {
     fn a_cross_side_visibility_word_is_not_a_w315() {
         // TN (CRITICAL). `export`/`unexport` are the words whose cross-side form
         // is a **silent no-op**, not the hard error `deletemethod` raises — the
-        // distinction #1118's oracle pinned. Byte-identical on 9.0.4 and 8.6.14:
+        // distinction the oracle pins. Byte-identical on 9.0.4 and 8.6.14:
         //   oo::class create N1 { method onlyinst {} {} }
         //   oo::define N1 { self unexport onlyinst }  ;# succeeds, no effect
         //   oo::class create N2 { self { method onlyclass {} {} } }
@@ -6184,9 +6183,9 @@ mod tests {
         );
     }
 
-    /// Issue #1593 — the reporter's snippet. A class-shared variable set up
-    /// by the class-level `initialize` script and reached from a method
-    /// through `classvariable` must not draw a read-before-set.
+    /// A class-shared variable set up by the class-level `initialize` script
+    /// and reached from a method through `classvariable` must not draw a
+    /// read-before-set.
     ///
     /// Oracled on tclsh 9.0.4: this exact class answers `5e-6`. The
     /// `initialize` body runs in the class's own object namespace, so the
@@ -6211,14 +6210,14 @@ mod tests {
         );
     }
 
-    /// The near variants of the reporter's shape, each **run** on tclsh
-    /// 9.0.4 first: a plain `set` instead of `const`, a value-bearing
+    /// Near variants of the same shape, each **run** on tclsh
+    /// 9.0.4: a plain `set` instead of `const`, a value-bearing
     /// `variable`, the British `initialise` spelling, the `oo::define`
     /// form, two names in one `classvariable` call (both must bind — a
     /// `VarWrite` role on index 0 alone leaves the second unbound), and a
     /// write/read split across two methods.
     ///
-    /// The reporter's `variable Pitch` before the `const` is load-bearing,
+    /// The `variable Pitch` before the `const` is load-bearing,
     /// not noise: an `initialize` script runs in a call frame, so a bare
     /// `const Pitch 5e-6` there makes a *frame-local* constant that no
     /// method can reach (tclsh 9.0.4: `can't read "Pitch": no such

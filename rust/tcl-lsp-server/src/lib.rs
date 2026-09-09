@@ -41825,14 +41825,14 @@ proc p {} {
     /// under one.
     ///
     /// Atomicity itself is guaranteed by construction and is verified
-    /// structurally (see the PR: reverting to the split fields fails this
-    /// test's concurrent half). What is pinned here is the record's semantics,
-    /// which a future edit could break without touching the lock.
+    /// structurally: reverting to split fields fails this test's concurrent
+    /// half. What is pinned here is the record's semantics, which a future
+    /// edit could break without touching the lock.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn a_contention_snapshot_never_mixes_two_states() {
         let store = Arc::new(DocumentStore::default());
 
-        // --- the deterministic half: the transitions the stall line reads ---
+        // The deterministic half: the transitions the stall line reads.
         let empty = store.contention();
         assert_eq!(empty.acquisitions, 0);
         assert!(empty.held_by.is_none() && empty.last.is_none());

@@ -119,7 +119,7 @@ fn method_incoming_and_outgoing_calls_match_my_dispatch() {
     assert!(outgoing_to.contains("::C::greet"), "{outgoing_to:?}");
 }
 
-/// FN→TP (issue #957's general form): a `my method` dispatch nested inside
+/// FN→TP (the general form): a `my method` dispatch nested inside
 /// `if` control flow is an outgoing/incoming call edge too — call hierarchy
 /// shares the same control-flow-recursing matcher Find-References / the
 /// code lens use.
@@ -138,7 +138,7 @@ fn method_outgoing_calls_nested_in_control_flow() {
     assert!(callees.contains("::C::greet"), "{callees:?}");
 }
 
-/// FN→TP (issue #995): a `classmethod` dispatches on the class's own
+/// FN→TP: a `classmethod` dispatches on the class's own
 /// command (`Factory make`), so neither its callers nor its callees have
 /// its name as a head word.  Incoming on `make` must find the sibling
 /// classmethod *and* the top-level statement; outgoing on `build` must find
@@ -175,7 +175,7 @@ fn classmethod_incoming_and_outgoing_calls_match_bare_class_dispatch() {
     assert!(outgoing_to.contains("::Factory::make"), "{outgoing_to:?}");
 }
 
-/// FP guard (issue #995): `Factory make` where `Factory` is an ordinary
+/// FP guard: `Factory make` where `Factory` is an ordinary
 /// proc calls *that proc* with the literal argument `make`
 /// (tclsh8.6/9.0-verified), so it is no edge at all to an unrelated class's
 /// same-named classmethod.

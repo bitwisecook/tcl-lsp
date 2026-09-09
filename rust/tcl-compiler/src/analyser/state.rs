@@ -399,12 +399,11 @@ pub struct Analyser {
     /// catalogue lookup of the name (which sinks `jim` and `tk` to the
     /// fallback).
     pub(super) unit_profile: Option<&'static tcl_dialect::DialectProfile>,
-    /// The resolved document environment (centralisation R-a): set beside
-    /// [`Self::profile`] at each `analyse*` ingress by
+    /// The resolved document environment: set beside [`Self::profile`] at
+    /// each `analyse*` ingress by
     /// [`crate::environment_ingress::resolve_environment`]. The profile
-    /// above is now *derived from* this resolution (wave-1 interop,
-    /// retired with ledger C1's re-type); availability queries go through
-    /// [`Self::analysis_context`] instead of the profile.
+    /// above is *derived from* this resolution; availability queries go
+    /// through [`Self::analysis_context`] rather than the profile.
     pub(super) environment: Option<crate::environment_ingress::DocumentEnvironment>,
     /// The registry generation this walk reads — the per-context
     /// [`tcl_registry::model::ContextRegistry`] carrying both the
@@ -706,12 +705,11 @@ pub struct Analyser {
     /// helper }`, `a`, `rename helper {}`, `a` — the second `a` really does
     /// fail with `invalid command name "helper"`, and no W123 is reported.
     ///
-    /// This is unchanged by design: reporting it needs a per-invocation
+    /// This is deliberate: reporting it needs a per-invocation
     /// reachability interval rather than a single floor, and the escape
     /// hatch exists precisely to stop the far commoner call-before-deletion
-    /// shape being flagged. Issue #1015 widened the false negative — a
-    /// transitive chain now reaches through arbitrarily many bodies — but
-    /// did not introduce it.
+    /// shape being flagged. The false negative reaches transitively — a
+    /// chain of calls carries it through arbitrarily many bodies.
     pub(super) reachable_call_offsets: HashMap<String, u32>,
     /// Static `namespace path {…}` declarations: ``declaring namespace →
     /// raw path entries`` (each declaration replaces the whole path, as in
@@ -1264,8 +1262,8 @@ pub struct Analyser {
     /// document reads as an ordinary call to an unknown command and the class
     /// it makes goes unrecorded — no factory, no members, no completion. The
     /// verdict on such a head cannot be formed during the walk at all, so it
-    /// is buffered and formed afterwards, the shape #1642 used for
-    /// version-floor arity.
+    /// is buffered and formed afterwards, the same shape version-floor arity
+    /// resolution uses.
     ///
     /// Cleared at the top of each `analyse` run.
     pub(super) deferred_class_creations: Vec<super::types::DeferredClassCreation>,
@@ -1660,7 +1658,7 @@ impl Analyser {
         environment.context_registry(&keyed, self.pack_overlay)
     }
 
-    /// Resolve `dialect` at a walk ingress (centralisation R-a): stash
+    /// Resolve `dialect` at a walk ingress: stash
     /// the environment and this walk's registry generation, derive the
     /// interop [`Self::profile`], and return whether this environment
     /// ships `Tk` **ambient** ([`Self::tk_ambient`] — the fact
@@ -2745,7 +2743,7 @@ impl Analyser {
 
     /// Resolve (and cache) the set of built-in command names that
     /// **exist** under the active dialect — the registry tier of the one
-    /// `exists` oracle (centralisation R-c, ledger C5): every store name
+    /// `exists` oracle: every store name
     /// the resolved context actually provides
     /// ([`tcl_registry::model::ResolvedContext::resolve_spec`]), plus the
     /// measured iRules §4b interpreter-present extension
@@ -3290,7 +3288,7 @@ mod tests {
     use super::*;
     use crate::analyser::types::ScopeKind;
 
-    /// Issue #1604 — the composite-head split asks the shared owner where the
+    /// The composite-head split asks the shared owner where the
     /// `${…}` name ends, so the dispatched variable and the word suffix move
     /// with the release rather than always splitting at the first `}`.
     ///
@@ -4023,21 +4021,19 @@ mod tests {
 
     #[test]
     fn w210_dynamic_target_upvar_alias_read_is_silent() {
-        // Issue #941. `upvar 1 $varName local` aliases `local` to the caller
+        // `upvar 1 $varName local` aliases `local` to the caller
         // variable named by `$varName` — the standard Tcl pass-by-reference
         // idiom. Reading `$local` is not read-before-set: it errors only when
         // the *caller* variable is missing, exactly the runtime condition that
         // would make the *literal*-target twin (`upvar 1 caller local`) error
         // too. tclsh 8.6/9.0 confirm the two forms are semantically identical,
-        // so the analyser treats them alike — both silent. (Reverses the old
-        // dynamic-target override, which flagged only the dynamic form and thus
-        // fired on every by-name read helper.)
+        // so the analyser treats them alike — both silent.
         let codes = rbs_codes("proc foo {varName} {\n  upvar 1 $varName local\n  puts $local\n}\n");
         assert!(
             !codes.iter().any(|c| c == "W210"),
             "dynamic-target upvar alias read must be silent: {codes:?}"
         );
-        // Parity: the literal-target twin is silent too (always was).
+        // The literal-target twin is silent too.
         let codes = rbs_codes("proc foo {} {\n  upvar 1 caller local\n  puts $local\n}\n");
         assert!(
             !codes.iter().any(|c| c == "W210"),
@@ -6471,7 +6467,7 @@ mod tests {
     #[test]
     fn analyse_no_w101_for_non_eval_commands() {
         // The emitter is gated on ``cmd_name == "eval"`` — other
-        // substitution-bearing commands are out of scope (W301
+        // substitution-bearing commands are handled elsewhere (W301
         // covers uplevel; W312 covers interp eval).
         let diags = w101_diags("uplevel 1 \"puts $x\"\n");
         assert!(diags.is_empty(), "got {diags:?}");

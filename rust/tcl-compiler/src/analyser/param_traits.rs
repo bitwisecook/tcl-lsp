@@ -1953,7 +1953,7 @@ mod tests {
         // (registry `VarWrite` role on the `$p` substitution).  The
         // refined trait is DynamicNameLocal (+ VarRead), NOT VarWrite:
         // a caller passing a literal name (`f x`) does not have its `x`
-        // consumed by this callee.  Pins the PR #498 finding-10 fix.
+        // consumed by this callee.
         let traits = infer(&["p"], "set $p 1");
         assert_trait(&traits, "p", ProcArgTrait::DynamicNameLocal);
         assert_trait(&traits, "p", ProcArgTrait::VarRead);
@@ -2307,8 +2307,8 @@ mod tests {
         assert_eq!(none, empty);
     }
 
-    /// Issue #1275 — trait inference must resolve a command head's *effective
-    /// identity*, not its written spelling.
+    /// Trait inference must resolve a command head's *effective identity*, not
+    /// its written spelling.
     ///
     /// tclsh oracle (8.6.16 and 9.0.4, byte-identical): `interp alias {} run
     /// {} eval` makes `run $body` evaluate `$body`; `rename eval run` moves it

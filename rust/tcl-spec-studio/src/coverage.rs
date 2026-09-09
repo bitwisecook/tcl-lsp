@@ -1551,7 +1551,7 @@ mod tests {
         );
     }
 
-    // -- the plain-data descriptors really round-trip ------------------------
+    // The plain-data descriptors really round-trip.
     //
     // Each literal below is written twice: once as Rust the compiler accepts,
     // and once as the string the studio renders for it. If the two ever

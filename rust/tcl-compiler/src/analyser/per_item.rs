@@ -247,15 +247,14 @@ pub struct DeferredBody {
     /// instance-side `TclOO` method body of a statically-named class,
     /// `None` otherwise (class-side members, snit / itcl, procs).
     pub oo_defining_class: Option<String>,
-    /// A flattened snapshot of `self.safe_interp_stack`'s *top* entry (issue
-    /// #1001 follow-up) at the moment this body was deferred — `(base_hidden,
+    /// A flattened snapshot of `self.safe_interp_stack`'s *top* entry at the
+    /// moment this body was deferred — `(base_hidden,
     /// hidden_extra, exposed)`, sorted `Vec<String>`s rather than the live
     /// `HashSet`-based `SafeInterpCtx` (which isn't `Hash`, so can't key
     /// `tcl-lsp-db`'s `ItemBodyKey` directly) so this stays deterministic and
     /// salsa-interning-friendly, matching `class_variables` above.
     /// `None` outside any tracked safe interpreter (the overwhelming common
-    /// case — no new work, no behaviour change from before this field
-    /// existed). Every safe-interp check only ever consults the *top* of the
+    /// case). Every safe-interp check only ever consults the *top* of the
     /// stack (`safe_interp_visibility_gate`'s `.last()`), never an older
     /// entry, so this single flattened snapshot is sufficient — a proc/apply
     /// body nested several `interp eval`s deep still only needs the
@@ -347,8 +346,8 @@ impl Analyser {
             return self.analyse(source, dialect);
         }
 
-        // --- setup, mirroring `analyse` (gated by the corpus `per_item ==
-        // analyse` test) ---
+        // Setup, mirroring `analyse` (gated by the corpus `per_item ==
+        // analyse` test).
         let mut commands = self.per_item_setup(source, dialect);
 
         // Error recovery → fall back to full `analyse` (its ghost-recovery /
@@ -363,7 +362,7 @@ impl Analyser {
             return self.fresh_full_analyse(source, dialect);
         }
 
-        // --- pass 1: shell (defer proc/method bodies) ---
+        // Pass 1: shell (defer proc/method bodies).
         // Whole-file scoped environment (tclpkg manifests) — same seeding as
         // `analyse`, so the per-item path resolves file-scoped directives
         // identically (gated by the corpus `per_item == analyse` test).
@@ -394,7 +393,7 @@ impl Analyser {
             return tk;
         }
 
-        // --- pass 2: fill each deferred body ---
+        // Pass 2: fill each deferred body.
         // Returns `Err(fallback_result)` for the patterns the isolated-body
         // decomposition can't reproduce byte-for-byte.
         if let Err(fallback) = self.fill_deferred_bodies(source, dialect, body_fn) {
@@ -409,7 +408,7 @@ impl Analyser {
             return tk;
         }
 
-        // --- tail (cross-item passes; canonicalises order) ---
+        // Tail: cross-item passes, canonicalising order.
         self.record_literal_parameter_definitions();
         self.run_diagnostic_emitters(source);
 
@@ -1036,8 +1035,8 @@ impl Analyser {
         self.pending_next_arity.extend(frag.pending_next_arity);
         self.var_command_sites.extend(frag.var_sites);
         self.cmd_command_sites.extend(frag.cmd_sites);
-        // Held for finalisation after `replay_deferred_instances` (issue
-        // #1312) — the shell is always in the deferred pass here (a graft
+        // Held for finalisation after `replay_deferred_instances` — the shell
+        // is always in the deferred pass here (a graft
         // only runs from within it), so `pending_bareword_dispatch_sites` is
         // always `Some`.
         if let Some(pending) = self.pending_bareword_dispatch_sites.as_mut() {
@@ -2574,11 +2573,11 @@ mod tests {
 
     #[test]
     fn namespace_export_clear_tombstone_ordering_matches() {
-        // Issue #1027: `-clear` is recorded as an ordered tombstone rather
-        // than applied by deleting the namespace's earlier entries, so the
-        // export log now carries *more* rows and their relative order is
-        // load-bearing. Both walks must produce the identical log — a rebased
-        // offset or a dropped tombstone on either path would change what a
+        // `-clear` is recorded as an ordered tombstone rather than applied by
+        // deleting the namespace's earlier entries, so the export log keeps
+        // a row per directive and their relative order is load-bearing. Both
+        // walks must produce the identical log — a rebased offset or a
+        // dropped tombstone on either path would change what a
         // per-import-site snapshot answers.
         eq("namespace eval src {\n    proc p {} { return P }\n    \
              namespace export p\n}\nnamespace eval dst {\n    \
@@ -2764,9 +2763,9 @@ mod tests {
         eq("proc @dynns@5 {} { return 1 }\nproc user {} { @dynns@5 }\n");
     }
 
-    // Issue #1123 — instance-creation visibility must follow the
-    // whole-file DFS: a creation site resolves against exactly the classes
-    // whose definition precedes it in source order, whether the site or the
+    // Instance-creation visibility must follow the whole-file DFS: a creation
+    // site resolves against exactly the classes whose definition precedes it
+    // in source order, whether the site or the
     // class definition sits at top level or inside a body.
 
     #[test]
@@ -2787,7 +2786,7 @@ mod tests {
         eq("proc def {} { oo::class create ::K {} }\n::K create inst\ninst poke\n");
     }
 
-    // Issue #1123 — whole-file-fact diagnostics reached from inside a body.
+    // Whole-file-fact diagnostics reached from inside a body.
 
     #[test]
     fn w103_dynamic_open_in_body_matches() {
@@ -2846,7 +2845,7 @@ mod tests {
             "namespace eval ::e {\n    proc Foo {} { return FOO }\n}\nnamespace ensemble create -command ::e::g -map {foo ::e::Foo} -prefixes 0\nproc use {} { ::e::g fo }\n",
         );
         // The positive control: without `-prefixes 0` the same abbreviation
-        // *does* dispatch (`FOO`), so the fix must not silence it.
+        // *does* dispatch (`FOO`), so the dispatch must still be recorded.
         eq(
             "namespace eval ::e {\n    proc Foo {} { return FOO }\n}\nnamespace ensemble create -command ::e::h -map {foo ::e::Foo}\nproc use {} { ::e::h fo }\n",
         );

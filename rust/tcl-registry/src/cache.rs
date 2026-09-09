@@ -244,11 +244,10 @@ pub fn registry_for_profile_with_overlay(
 /// entry (one per dialect profile, a closed set) and the overlay being built
 /// right now.
 ///
-/// This is the *reclaiming* half of the change described in the memory note
-/// above: removing the entry drops the table's reference, so the generation is
-/// freed as soon as the last consumer holding a handle to it finishes. It is
-/// still also a table bound — lookups stay cheap — but it is no longer only
-/// that.
+/// This both bounds the table — lookups stay cheap — and is the
+/// *reclaiming* half of the memory behaviour described above: removing the
+/// entry drops the table's reference, so the generation is freed as soon as
+/// the last consumer holding a handle to it finishes.
 ///
 /// Retaining `current` is load-bearing, not tidiness: a reload builds all ~17
 /// dialect profiles for one pack key in a loop, so a sweep that dropped every
@@ -270,8 +269,8 @@ const OVERLAY_LIMIT: usize = 64;
 
 /// Every command a safe interpreter hides, sorted.
 ///
-/// The generic query behind both engines' `interp create -safe` (ledger row
-/// B2): the set is `Traits::SAFE_INTERP_HIDDEN`, and no
+/// The generic query behind both engines' `interp create -safe`: the set is
+/// `Traits::SAFE_INTERP_HIDDEN`, and no
 /// consumer spells a command name. C's own set is `CmdInfo` rows lacking
 /// `CMD_IS_SAFE` plus the whole-command rows of `unsafeEnsembleCommands`
 /// (`tclBasic.c`), which is exactly what the trait records.

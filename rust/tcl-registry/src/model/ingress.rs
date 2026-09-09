@@ -137,9 +137,9 @@ pub fn resolve_environment(name: &str) -> DocumentEnvironment {
 }
 
 /// Whether `name` resolves to a real environment — the one name
-/// *validator* (ledger rows F9/T1/T5: the settings, `setDialect`, and CLI
-/// ingresses that must reject an unknown spelling rather than silently
-/// serve the lenient fallback [`resolve_environment`] hands back).
+/// *validator* for the settings, `setDialect`, and CLI ingresses that must
+/// reject an unknown spelling rather than silently serve the lenient
+/// fallback [`resolve_environment`] hands back.
 #[must_use]
 pub fn is_known_environment_name(name: &str) -> bool {
     environments().resolve(name).is_some()
@@ -681,18 +681,12 @@ mod tests {
     }
 
     /// The **document mask** the LSP's availability queries answer under
-    /// equals the mask the old `ProfileQueries` read off the threaded
-    /// profile, for every profile an ingress can produce — the catalogue,
-    /// the additive `tk`, and the permissive sink every unknown name lands
-    /// on.
+    /// equals the mask derived for every profile an ingress can produce —
+    /// the catalogue, the additive `tk`, and the permissive sink every
+    /// unknown name lands on.
     ///
-    /// This holds *by derivation* for every environment, `tk`
-    /// included. Holding it by injection alone — the document
-    /// context replacing the derived point with the threaded profile's,
-    /// because `tk`'s derivation had no way to produce Tk — is no longer
-    /// needed: the ambient Tk
-    /// placement produces it, so the injection door and the second leaked
-    /// document-context value are both deleted, and the generation's own
+    /// This holds *by derivation* for every environment, `tk` included: the
+    /// ambient Tk placement produces it directly, so the generation's own
     /// context *is* the document context.
     #[test]
     fn the_document_point_matches_the_threaded_profile() {

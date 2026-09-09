@@ -636,8 +636,8 @@ impl Analyser {
     /// into an `apply` lambda body via [`Self::handle_apply_command`] — the
     /// SAME handler a literal `apply {…} $x` call dispatches to — when
     /// `HEAD` resolves to it, so a hidden command nested inside the lambda
-    /// (the reported repro's `source` call) is caught by the ordinary,
-    /// unmodified gate the recursion's own `process_command` calls hit.
+    /// (such as a `source` call) is caught by the ordinary gate the
+    /// recursion's own `process_command` calls hit.
     /// `self.safe_interp_stack` is untouched by this recursion (only
     /// `interp eval` pushes/pops it), so the enclosing safe interpreter's
     /// visibility context is inherited automatically — exactly as it is for
@@ -4919,7 +4919,7 @@ impl Analyser {
 /// resolved class's registry grammar. `None` for anything but a bare `$name`
 /// head (no braces, array index, or other computed shape) followed by a
 /// literal method word — the same "pure
-/// reference" scope idx 94's `eval $cmd` fix uses, so a concatenated head
+/// reference" scope the `eval $cmd` head resolution uses, so a concatenated head
 /// like `${class}Suffix` is left alone.
 pub(in crate::analyser) fn class_var_head_constructor_subst(
     value: &str,
@@ -6405,12 +6405,11 @@ mod tests {
         );
     }
 
-    /// The everyday case exercised via the new namespace-aware resolution
-    /// path: a built-in (`sin`), called from inside a namespace with no
-    /// override anywhere, must still settle to the global built-in slot —
-    /// the fix to the collision/shadowing bugs above must not regress the
-    /// common no-namespace, no-override call the diagnostic layer already
-    /// covers.
+    /// The everyday case on the namespace-aware resolution path: a built-in
+    /// (`sin`), called from inside a namespace with no override anywhere,
+    /// must still settle to the global built-in slot — the
+    /// collision/shadowing rules above must not disturb the common
+    /// no-namespace, no-override call the diagnostic layer covers.
     #[test]
     fn expr_function_call_resolves_builtin_from_inside_a_namespace() {
         let src = "namespace eval ::nsa {\n    proc caller {} { return [expr {sin(1.0)}] }\n}\n";

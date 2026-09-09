@@ -445,12 +445,11 @@ impl ResolvedContext {
     /// - and nothing at all under `Closed`, where `package require` is not
     ///   part of the language.
     ///
-    /// **The Tk pilot.** This is the query ledger row F4 retires
-    /// `tk_loaded` / `hosts_tk` / the `TK_PACKAGE` substring scan onto, and
-    /// the pilot is what makes it load-bearing: `Tk` is ambient under the
-    /// `tk` environment and hosted under plain Tcl, so one function answers
-    /// "is Tk in this document's world?" for both, and the two answers
-    /// differ for the right reason — the placement, not the name. Callers
+    /// **`Tk`'s placement.** This is the canonical query for "is Tk in
+    /// this document's world?": `Tk` is ambient under the `tk` environment
+    /// and hosted under plain Tcl, so one function answers it for both, and
+    /// the two answers differ for the right reason — the placement, not the
+    /// name. Callers
     /// wanting "…without a `package require`" ask
     /// [`Self::ambient_package`]; callers wanting "could this environment
     /// host it at all?" ask [`Self::can_host_package`].
@@ -660,17 +659,17 @@ impl ResolvedContext {
     /// - a package **no** environment runs as part of its own runtime
     ///   ([`is_placement_gated_package`] is false — `Itcl`, every tcllib
     ///   module) is always satisfied: the model does not know where it is
-    ///   installed, so W120 owns the nag, exactly as before;
+    ///   installed, so W120 owns the nag;
     /// - a **placement-gated** package answers [`Self::package_active`] —
     ///   the environment's ambient closure, plus (outside a closed world)
     ///   the lenient hosted rule and this document's own requires.
     ///
-    /// **The Tk pilot**: `Tk` moves from the first class into the
-    /// second, because `wish` runs it ambiently. The single enumerated
-    /// consequence is that a **closed** world stops resolving Tk: a `.bpf`
-    /// or `.tclspec` document can no longer call `wm` (`package require`
-    /// is not part of either language, so it never could), while every
-    /// open world answers exactly as before.
+    /// `Tk` is the concrete case for the second class, because `wish` runs
+    /// it ambiently. The single enumerated consequence is that a
+    /// **closed** world does not resolve Tk: a `.bpf` or `.tclspec`
+    /// document cannot call `wm` (`package require` is not part of either
+    /// language, so it never could), while every open world resolves it as
+    /// usual.
     ///
     /// [`is_placement_gated_package`]: crate::model::surface::is_placement_gated_package
     #[must_use]
@@ -1813,9 +1812,9 @@ mod tests {
         );
     }
 
-    // The Tk pilot's placement model.
+    // Tk's placement model.
 
-    /// The pilot's central claim, stated as one table: `Tk` is one
+    /// The central claim, stated as one table: `Tk` is one
     /// package whose availability is decided by **placement plus policy**,
     /// and the three answers a caller can want are three distinct queries
     /// that disagree in exactly the right places.
@@ -1859,8 +1858,8 @@ mod tests {
 
     /// `Tk` is ambient somewhere **and** hosted elsewhere, which is what
     /// keeps it out of the closed-world vocabulary: reading ambience alone
-    /// would classify it as a vendor runtime the moment the pilot placed
-    /// it, and every Tk command would vanish from plain Tcl.
+    /// would classify it as a vendor runtime, and every Tk command would
+    /// vanish from plain Tcl.
     #[test]
     fn tk_is_a_library_with_an_ambient_host_not_a_vendor_surface() {
         use crate::model::surface::{is_closed_world_package, is_placement_gated_package};
@@ -1870,7 +1869,7 @@ mod tests {
         assert!(context("tcl8.6").can_host_package("Tk"));
         assert!(!context("tcl8.6").placement_is_ambient("Tk"));
         // The vendor runtimes stay closed-world; the unplaced libraries
-        // stay ungated (W120 owns their nag, as before).
+        // stay ungated (W120 owns their nag).
         for vendor in ["f5-irules-cmds", "f5-iapps-cmds", "Expect"] {
             assert!(is_closed_world_package(vendor), "{vendor}");
         }

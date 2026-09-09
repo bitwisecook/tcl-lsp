@@ -893,10 +893,10 @@ fn uplevel_with_level_word_does_not_corrupt_sibling_scopes() {
     assert!(ls.contains(&"$sx".to_owned()), "scan write missing: {ls:?}");
 }
 
-// -- expr math functions (issue #974 defect 2) ---------------------------
+// expr math functions.
 
 /// Inside an `expr` expression argument the bare math functions are offered —
-/// before this the position surfaced only same-prefixed procs.
+/// a naive prefix match would surface only same-prefixed procs.
 #[test]
 fn math_functions_complete_inside_expr_974() {
     let mut lsp = Lsp::tcl();

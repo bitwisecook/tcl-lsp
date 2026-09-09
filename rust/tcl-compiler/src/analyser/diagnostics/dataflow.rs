@@ -367,8 +367,7 @@ file; this call falls through to the 'unknown' handler."
             // Interpreter-provided special variables (``auto_path``, ``env``,
             // ``tcl_precision``, …) are read by the runtime / auto-loader even
             // when the script never reads them back, so ``set auto_path …`` is
-            // not a dead store.  Dialect-aware: the iRules set differs (issue
-            // #831).
+            // not a dead store.  Dialect-aware: the iRules set differs.
             if tcl_registry::special_vars::is_externally_read(
                 crate::naming::normalise_var_name(var),
                 Some(self.analysis_context().context().authoring_query()),

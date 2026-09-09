@@ -109,7 +109,7 @@ fn ttk_widget_absent_in_iapps() {
     assert!(!labels.contains("ttk::button"), "{labels:?}");
 }
 
-// -- Tk activation gating, end to end (issue #1188) ----------------------
+// Tk activation gating, end to end.
 //
 // The gate decides whether a document abandons per-body memoisation for a
 // whole-file re-analysis on *every keystroke*, so it must be exactly right in
@@ -252,7 +252,7 @@ fn large_generated_non_tk_document_stays_clean_and_responsive() {
     );
 }
 
-// Per-interpreter Tk hierarchies, end to end (issue #1141).
+// Per-interpreter Tk hierarchies, end to end.
 //
 // TK1001 / TK1002 answer questions about *runtime* Tk state, and that state
 // is per-interpreter: `TkCreateMainWindow` gives every interpreter that loads
@@ -321,8 +321,8 @@ fn tk1001_still_published_for_a_same_interpreter_conflict() {
     assert!(codes.iter().any(|c| c == "TK1001"), "{codes:?}");
 }
 
-/// **FN** — a conflict genuinely inside one child's body is now published;
-/// before #1141 it was decided against a pool that mixed in the parent's
+/// **FN** — a conflict genuinely inside one child's body must be published,
+/// not hidden by deciding it against a pool that mixes in the parent's
 /// calls.
 #[test]
 fn tk1001_published_for_a_conflict_inside_one_child_body() {

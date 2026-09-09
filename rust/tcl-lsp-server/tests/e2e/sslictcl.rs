@@ -16,10 +16,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Authoring a `.sslictcl` document, end to end (#1543, epic #1524).
+//! Authoring a `.sslictcl` document, end to end.
 //!
-//! The claim under test is the issue's: **a TLS declaration document is a
-//! first-class thing to author in an editor**. So these tests drive the real
+//! The claim under test: **a TLS declaration document is a first-class
+//! thing to author in an editor**. So these tests drive the real
 //! binary over JSON-RPC and assert on what an editor would show — where a
 //! document routes, what completion offers inside a block, what the outline
 //! lists, and which coded diagnostics appear over which exact characters.
@@ -527,7 +527,7 @@ fn a_disabled_code_is_suppressed_and_the_others_stand() {
     );
 }
 
-/// `tclLsp.diagnostics.exclude` is a *file* glob (#1556): an excluded
+/// `tclLsp.diagnostics.exclude` is a *file* glob: an excluded
 /// `.sslictcl` document publishes nothing at all, loader findings included.
 #[test]
 fn an_excluded_document_publishes_nothing() {

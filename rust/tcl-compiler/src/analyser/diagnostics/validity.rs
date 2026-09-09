@@ -1571,8 +1571,7 @@ impl Analyser {
     /// ensemble's conventional implementation location — the real tcllib
     /// `dicttool.tcl` idiom: `proc ::tcl::dict::getnull {d args} {...} ;
     /// namespace ensemble configure dict -map [dict replace [namespace
-    /// ensemble configure dict -map] getnull ::tcl::dict::getnull]` (issue
-    /// #923 idx 105).
+    /// ensemble configure dict -map] getnull ::tcl::dict::getnull]`.
     ///
     /// Deliberately does **not** require observing an actual `namespace
     /// ensemble configure -map` call in the file — only that

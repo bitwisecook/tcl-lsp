@@ -915,7 +915,7 @@ const FP_RBS_12_REPRO: &str = "proc f {} { regexp {x} y -> v; if {1} { puts $v }
 
 #[test]
 fn fp_rbs_12_regexp_unconditional_read_after_no_match_fires() {
-    // TP (reviewer case A): regexp {x} vs literal y is no-match; if {1} always runs.
+    // TP: regexp {x} vs literal y is no-match; if {1} always runs.
     assert!(
         fires(FP_RBS_12_REPRO, D, "W210"),
         "FP-RBS-12 TP: post-regexp unconditional read of $v must fire W210; emitted: {:?}",
@@ -925,7 +925,7 @@ fn fp_rbs_12_regexp_unconditional_read_after_no_match_fires() {
 
 #[test]
 fn fp_rbs_12_regexp_in_negated_if_arm_fires() {
-    // TP (reviewer case B): if-arm executes when regexp returns 0 (no match); $v unset.
+    // TP: if-arm executes when regexp returns 0 (no match); $v unset.
     let src = "proc f {} { if {![regexp {x} y -> v]} { puts $v } }\n";
     assert!(
         fires(src, D, "W210"),
@@ -1817,8 +1817,8 @@ fn issue_1078_braced_element_and_spaced_names_key_on_their_own_spelling() {
     );
 }
 
-// Issues #1142 / #1237 — a braced word is data, not a script the call site
-// substitutes.  The SSA use is *classified* (`ssa::UseClass`) rather than
+// A braced word is data, not a script the call site substitutes.  The SSA
+// use is *classified* (`ssa::UseClass`) rather than
 // dropped: liveness keeps honouring it (the text may be evaluated later),
 // read-before-set does not.
 //

@@ -72,13 +72,13 @@ fn no_folds_in_flat_file() {
     assert!(folds(&lsp.folding_range(&uri)).is_empty());
 }
 
-// Backslash line-continuation folding — issue #541, end-to-end.
+// Backslash line-continuation folding, end-to-end.
 //
 // A command stretched across physical lines by trailing `\` joins is a single
 // logical command; the provider folds the run down to its opening line. The
 // look-alikes that are *not* continuations (an escaped `\\` is a literal
-// backslash) must stay unfolded. The feature was dropped by the folding rewrite
-// and restored in #541 — this pins the editor-visible result.
+// backslash) must stay unfolded. A folding rewrite could silently drop this
+// case — this pins the editor-visible result.
 
 #[test]
 fn backslash_continued_command_folds() {

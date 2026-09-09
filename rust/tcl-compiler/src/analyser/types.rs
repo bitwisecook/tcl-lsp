@@ -989,8 +989,7 @@ impl DefinitionAbort {
 
     /// [`Self::message`] for a **per-object** definition (`oo::objdefine`),
     /// whose failing script is an object definition, not a class one — the
-    /// interpreter's own reason text is identical on both paths (issue
-    /// #1170).
+    /// interpreter's own reason text is identical on both paths.
     #[must_use]
     pub fn object_message(&self) -> String {
         format!("this object definition cannot run: {}", self.reason())
@@ -1070,8 +1069,8 @@ pub type ClassFactoryIndex = BTreeMap<String, ClassFactory>;
 /// runs: `::T::D::class create ::T::W { … }` in the same document reads as a
 /// call to an unknown command, so the class it makes is recorded nowhere.
 /// Which verdict the head deserves is therefore not answerable during the
-/// walk — the same situation #1642 met with version-floor arity, and the same
-/// answer: buffer the inputs, decide afterwards.
+/// walk — the same situation version-floor arity resolution meets, and the
+/// same answer: buffer the inputs, decide afterwards.
 ///
 /// Only calls whose head names **nothing this document knows** are kept, which
 /// is the one shape a later proof can turn into a creation; a head that
@@ -1379,8 +1378,8 @@ pub struct ClassDef {
     /// unprovable, so the tombstone is unordered — exactly as a cross-file
     /// `oo::define ::C { method extra … }` is an unordered addition today.
     pub retracted_members: Vec<MemberRetractionRecord>,
-    /// Reasons this record's definition body **cannot run at all** (issue
-    /// #1120) — a retraction of a member absent from its side's table, or a
+    /// Reasons this record's definition body **cannot run at all** — a
+    /// retraction of a member absent from its side's table, or a
     /// `renamemethod` onto a name already taken.
     ///
     /// **Transient.** Recorded by the member walker, which is the only place
@@ -2159,8 +2158,8 @@ pub struct AnalysisResult {
     /// Package provide records (``package provide NAME ?VERSION?``).
     pub package_provides: Vec<PackageProvide>,
     /// ``package ifneeded NAME VERSION ?SCRIPT?`` records — the load
-    /// scripts this document registers, in source order (issue
-    /// #1279).  Only the *name* end matters to consumers: an
+    /// scripts this document registers, in source order.  Only the *name*
+    /// end matters to consumers: an
     /// `ifneeded` body is an arbitrary script evaluated later in the
     /// global namespace, so its presence marks the package's loading
     /// as not statically known.
@@ -2271,8 +2270,7 @@ pub struct AnalysisResult {
     /// pointing at the command: the alias holds the object, so destroying it
     /// kills the alias too (oracle tclsh 8.6.14 / 9.0.4 — with `::dst::p`
     /// imported from `::src::p`, `rename ::src::p {}` makes `::dst::p` an
-    /// `invalid command name` and empties `info commands ::dst::*`). Issue
-    /// #1103.
+    /// `invalid command name` and empties `info commands ::dst::*`).
     ///
     /// A **rename** is deliberately absent, which is why this is not
     /// [`super::state::Analyser::deleted_commands`] (whose "`OLD` is no
@@ -2388,7 +2386,7 @@ pub struct AnalysisResult {
     /// |---|---|---|
     /// | edits (rename), find-references | `by_scope` only | widening here rewrites an unrelated variable — a wrong edit, not a missed one |
     /// | navigation (definition, type-definition), hover | `by_scope`, then `any_scope` labelled as a guess | a wrong jump is recoverable; a missing one is not |
-    /// | semantic tokens / highlighting | either | colour-only, and the union is what shipped before |
+    /// | semantic tokens / highlighting | either | colour-only, so the union's imprecision is harmless |
     /// | "provably a *different* class, so refuse/skip" gates | `by_scope` singletons only | widening turns an abstention into a false certainty, which silences a refusal that protects the user |
     ///
     /// Populated once per analysis, from the same `CompilationUnit` the
@@ -2402,7 +2400,7 @@ pub struct AnalysisResult {
     /// binds a new object command.  A `create NAME` call names a command, so
     /// later `NAME method` dispatch — and `$var method` where `var` provably
     /// holds one of these names — must not be flagged as an unknown command
-    /// (W123) or a stray non-literal command word (W307).  Issue #777.
+    /// (W123) or a stray non-literal command word (W307).
     pub created_instance_commands: std::collections::HashSet<String>,
     /// **Namespace-qualified** object-command bindings — one record per
     /// `CLASS create NAME` site whose `CLASS` resolves to a user class.

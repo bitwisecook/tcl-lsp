@@ -1326,7 +1326,7 @@ fn binary_scan_fix_silent() {
 #[test]
 fn mqtt_payload_roundtrip_fires_s110() {
     // MQTT `replace <data>` puts the data operand at index 1, not 3 — the
-    // registry-driven layout must still fire S110 here (PR #658 review gap).
+    // registry-driven layout must still fire S110 here.
     let mut lsp = Lsp::irules();
     let diags = deep_diags(
         &mut lsp,
@@ -1375,7 +1375,7 @@ fn diameter_payload_roundtrip_fires_s110_without_collect_warning() {
     );
 }
 
-// Dialect-gated `when` body recursion (PR #640), iRules side.
+// Dialect-gated `when` body recursion, iRules side.
 
 #[test]
 fn when_body_is_analysed_under_irules() {
@@ -1395,8 +1395,8 @@ fn when_body_is_analysed_under_irules() {
     );
 }
 
-// Issue #1048: the dialect reaches the lowering, so a word-operator condition
-// on a known-constant subject folds and draws I230 on the wire.
+// The dialect reaches the lowering, so a word-operator condition on a
+// known-constant subject folds and draws I230 on the wire.
 
 /// Open `source` as an iRule and poll the version-1 publish until `marker`
 /// lands, returning the final diagnostics. Mirrors [`deep_diags`], but for a
@@ -1461,9 +1461,9 @@ fn recollect_inside_http_data_event_reports_irule1007_end_to_end() {
 /// `$x contains "cd"` with `$x` a known literal is a constant condition, so the
 /// alternate branch is unreachable and I230 fires.
 ///
-/// Before issue #1048 the lowering parsed every condition with no dialect, so
-/// the word operator reached the IR as an opaque expression the fold could not
-/// evaluate — I230 could not fire here even with the iRules dialect selected.
+/// Without dialect-aware lowering, the word operator reaches the IR as an
+/// opaque expression the fold cannot evaluate, so I230 would not fire here
+/// even with the iRules dialect selected.
 /// The plain-Tcl control (the same text must draw no I230, only W003) lives in
 /// `tcl-compiler`'s `dialect_threading` suite: this server is iRules-dedicated,
 /// so opening a plain Tcl document on it would switch its dialect.
