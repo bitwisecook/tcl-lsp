@@ -194,7 +194,7 @@ impl EventHandlerPriority {
 }
 
 /// BIG-IP's `when` priority policy, live-measured
-/// (`docs/design/bigip-irule-parser-measurements.md` §6/§8): priority is
+/// (`docs/design/f5/bigip-irule-parser-measurements.md` §6/§8): priority is
 /// **0–1000 inclusive** (`1001` and `-1` are rejected at rule load, albeit
 /// with the misleading `unexpected extra argument` wording), the default
 /// is **500** — the midpoint — and **lower numbers run first** (attached

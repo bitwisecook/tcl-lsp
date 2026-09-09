@@ -86,7 +86,7 @@ Pass settings via eglot workspace configuration:
 
 ```elisp
 (setq-default eglot-workspace-configuration
-              '(:tclLsp (:dialect "tcl8.6"   ;; tcl8.4 | tcl8.5 | tcl8.6 | tcl9.0 | tcl9.1 | f5-irules | f5-iapps | f5-tmsh | f5-bigip | bpf | expect | spectcl | cadence-eda-tcl | intel-quartus-eda-tcl | mentor-eda-tcl | microchip-libero-eda-tcl | synopsys-eda-tcl | xilinx-eda-tcl
+              '(:tclLsp (:dialect "tcl8.6"   ;; tcl8.4 | tcl8.5 | tcl8.6 | tcl9.0 | tcl9.1 | f5-irules | f5-iapps | f5-tmsh | f5-bigip | bpf | expect | spectcl | sslictcl | cadence-eda-tcl | intel-quartus-eda-tcl | mentor-eda-tcl | microchip-libero-eda-tcl | synopsys-eda-tcl | xilinx-eda-tcl
                          :formatting (:indentSize 4 :maxLineLength 120))))
 ```
 
@@ -126,21 +126,18 @@ spec-correct reference client driven through the same edits
 (`rust/tcl-lsp-server/tests/e2e/semantic_tokens_reference_client.rs`) — so
 this is purely how eglot paints them.
 
-The accumulation was reproduced against real Tcl code and measured
-under several fixes (see `scripts/eglot_test/prove_fix.el`): the
-**client-side painter advice below collapses a 7-deep face stack to a
-single correct face**, whereas a purely server-side capability tweak
-made **no difference** — confirming the bug lives entirely in eglot's
-painter. The same accumulation reproduces with rust-analyzer and clangd,
-so it is not tcl-lsp-specific.
+The client-side painter advice below is the only fix that works: it
+collapses the stacked faces to the single correct one. A server-side
+capability tweak makes no difference, and the same accumulation
+reproduces with rust-analyzer and clangd, so the bug is not
+tcl-lsp-specific. `scripts/eglot_test/prove_fix.el` reproduces and
+measures it.
 
-The server does its part to *shrink* that stale window: it implements
-proper `semanticTokens/full/delta`, so a keystroke transmits only the
-changed tokens (a few bytes) instead of the whole document — the same
-incremental behaviour rust-analyzer uses. That reduces how often eglot
-is caught mid-refresh, but the definitive fix is still the painter
-advice below. Lowering `eglot-send-changes-idle-time` also helps, by
-keeping the round-trip short.
+The server shrinks the stale window by implementing
+`semanticTokens/full/delta`, so a keystroke transmits only the changed
+tokens rather than the whole document. Lowering
+`eglot-send-changes-idle-time` helps for the same reason. Neither is a
+substitute for the advice.
 
 **Workarounds (pick one):**
 

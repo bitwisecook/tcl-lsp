@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The environment layer of the registry redesign (design doc
-//! `docs/design/dialect-and-package-registry-redesign.md` §3.3): the
+//! `docs/design/registry/dialect-and-package-registry-redesign.md` §3.3): the
 //! named, selectable definitions of what a project works against, the
 //! overlay mechanism that adjusts them without mutation, and the one
 //! resolver every user-facing ingress goes through.
@@ -943,7 +943,7 @@ fn iapps_environment() -> EnvironmentDefinition {
         display_name: arc("F5 iApps"),
         editor_identity: EditorLanguageIdentityId::new("tcl-iapp"),
         // CORRECTED by measurement
-        // (`docs/design/bigip-irule-parser-measurements.md` §4a): the
+        // (`docs/design/f5/bigip-irule-parser-measurements.md` §4a): the
         // 8.5 baseline hypothesis is falsified — `IAppImplementation`
         // reports patchlevel 8.4.6, fails every 8.5 discriminator, and
         // carries the full `f5-tcl` trunk grammar. The core rides the
@@ -987,7 +987,7 @@ fn tmsh_environment() -> EnvironmentDefinition {
         display_name: arc("F5 tmsh Scripts"),
         editor_identity: EditorLanguageIdentityId::new("tcl-tmsh"),
         // CORRECTED by measurement
-        // (`docs/design/bigip-irule-parser-measurements.md` §4a): the
+        // (`docs/design/f5/bigip-irule-parser-measurements.md` §4a): the
         // 8.5/8.5.13 claims are falsified — `TmshCliScript` reports
         // 8.4.6 and reproduces the entire trunk grammar (R-rules,
         // N-rules, inert `{*}`, word operators) identically to TMM. The

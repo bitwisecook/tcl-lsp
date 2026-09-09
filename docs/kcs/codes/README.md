@@ -74,11 +74,6 @@ This index lists every per-code KCS page.
 - [W127 — value not in allowed set](kcs-diagnostic-w127-value-not-in-allowed-set.md)
 - [W128 — renamed or deleted command call](kcs-diagnostic-w128-renamed-command-call.md)
 - [W129 — command hidden in a safe interpreter](kcs-diagnostic-w129-command-hidden-in-safe-interpreter.md)
-- [W130 — package not in lockfile](kcs-diagnostic-w130-package-not-in-lockfile.md)
-- [W131 — lockfile out of sync](kcs-diagnostic-w131-lockfile-out-of-sync.md)
-- [W132 — integrity mismatch](kcs-diagnostic-w132-integrity-mismatch.md)
-- [W133 — safe-mode violation](kcs-diagnostic-w133-safe-mode-violation.md)
-- [W134 — missing pkgIndex.tcl](kcs-diagnostic-w134-missing-pkgindex.md)
 - [W135 — command needs newer package version](kcs-diagnostic-w135-command-needs-newer-package.md)
 - [W136 — option needs newer package version](kcs-diagnostic-w136-option-needs-newer-package.md)
 - [W137 — argument value needs newer Tcl version](kcs-diagnostic-w137-argument-value-needs-newer-tcl.md)
@@ -90,12 +85,12 @@ This index lists every per-code KCS page.
 - [W143 — private Tcl implementation namespace](kcs-diagnostic-w143-private-tcl-namespace.md)
 - [W144 — deprecated at the resolved version](kcs-diagnostic-w144-deprecated-at-resolved-version.md)
 - [W145 — ambiguous keyword abbreviation](kcs-diagnostic-w145-ambiguous-abbreviation.md)
-- [W148 — numeral spelling is not accepted by the target Tcl release](kcs-diagnostic-w148-numeral-release.md)
-- [W149 — this call matches a different release of the command](kcs-diagnostic-w149-arity-matches-other-version.md)
 - [W146 — invalid literal argument members](kcs-diagnostic-w146-invalid-literal-argument-members.md)
 - [W147 — mutually exclusive options](kcs-diagnostic-w147-mutually-exclusive-options.md)
+- [W148 — numeral spelling is not accepted by the target Tcl release](kcs-diagnostic-w148-numeral-release.md)
+- [W149 — this call matches a different release of the command](kcs-diagnostic-w149-arity-matches-other-version.md)
 - [W152 — option relation unmet](kcs-diagnostic-w152-option-relation-unmet.md)
-- [W200 — exec result not captured](kcs-diagnostic-w200-exec-result-not-captured.md)
+- [W200 — binary format modifier needs a newer Tcl](kcs-diagnostic-w200-binary-format-modifier-needs-newer-tcl.md)
 - [W201 — manual path concatenation](kcs-diagnostic-w201-manual-path-concatenation.md)
 - [W230 — list index out of range](kcs-diagnostic-w230-list-index-out-of-range.md)
 - [W231 — lset index out of range](kcs-diagnostic-w231-lset-index-out-of-range.md)
@@ -111,7 +106,6 @@ This index lists every per-code KCS page.
 - [W101 — eval string concatenation](kcs-diagnostic-w101-eval-string-concatenation.md)
 - [W102 — subst on variable](kcs-diagnostic-w102-subst-on-variable.md)
 - [W103 — open pipeline](kcs-diagnostic-w103-open-pipeline.md)
-- [W123 — unresolved command](kcs-diagnostic-w123-unresolved-command.md)
 - [W300 — source with variable](kcs-diagnostic-w300-source-with-variable.md)
 - [W301 — uplevel string script](kcs-diagnostic-w301-uplevel-string-script.md)
 - [W302 — catch without result](kcs-diagnostic-w302-catch-without-result.md)
@@ -144,6 +138,7 @@ This index lists every per-code KCS page.
 
 ## Hints (H-codes)
 
+- [W123 — unresolved command](kcs-diagnostic-w123-unresolved-command.md)
 - [H300 — repeated assignment to same variable with same value](kcs-diagnostic-h300-repeated-assignment-same-value.md)
 - [H301 — command used above its `package require`](kcs-diagnostic-h301-command-above-its-package-require.md)
 
@@ -270,9 +265,11 @@ This index lists every per-code KCS page.
 
 ## Internal codes
 
-Some taint propagation codes (`T103`, `T106`) are internal and never
-surface to users — they exist so the propagation engine can emit
-structured records the analyser later resolves into a T100/T101/T102
-finding. These codes do not get their own page; see the
-[taint analysis glossary entry](../../GLOSSARY.md#taint-analysis) for
-the data-flow model.
+`T103` and `T106` are internal taint-propagation codes with no page of
+their own: they exist so the propagation engine can emit structured
+records the analyser later resolves into a T100/T101/T102 finding. Other
+internal codes (E004, E100–E103, E201–E207, IRULE3103, IRULE5003,
+IRULE6001, TK1001–TK1003, W310–W312) are always active and carry no
+per-code editor setting; the ones with pages say so. See the
+[taint analysis glossary entry](../../GLOSSARY.md#taint-analysis) for the
+data-flow model.

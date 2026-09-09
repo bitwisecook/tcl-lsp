@@ -36,7 +36,7 @@ the option's own content check.
 ## Example that triggers it
 
 ```tcl
-proc load {path} {
+proc read_config {path} {
   return -code error -errorstack {CALL load extra} "cannot read $path"
 }
 ```
@@ -47,7 +47,7 @@ The `-errorstack` value has three elements. The analyser reports
 ## Fix
 
 ```tcl
-proc load {path} {
+proc read_config {path} {
   return -code error -errorstack {CALL load} "cannot read $path"
 }
 ```

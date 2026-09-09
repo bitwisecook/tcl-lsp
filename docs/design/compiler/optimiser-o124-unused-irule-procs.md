@@ -225,6 +225,5 @@ also controls O124.  All of these routes converge on the
 
 ## See also
 
-- [Compiler KCS index](README.md)
 - [Optimiser feature KCS](../../kcs/features/kcs-feature-optimiser.md)
-- [Pass fact ownership matrix](../../../docs/design/compiler/pass-fact-ownership-matrix.md)
+- [Pass fact ownership matrix](pass-fact-ownership-matrix.md)

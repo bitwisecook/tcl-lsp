@@ -13,8 +13,7 @@ The pair serves two purposes:
 2. **Architectural signal** — the corpus is organised by
    primitive (one directory per concern), so which primitives
    drift after a compiler change is immediately visible from the
-   test report.  Complements the `tcl9-triage` table, which
-   groups by tcltest file rather than by primitive.
+   test report.
 
 ## Layout
 

@@ -23,8 +23,9 @@ and returns the lexicographically smallest.
 3. Commands with `safe_on_uninit` (e.g. `lappend`, `append`, `incr` on 8.5+)
    suppress W210 for the variable they define, even when a case mismatch
    exists. The remaining W211/W220 for the *other* spelling still carry the
-   suggestion. `safe_on_uninit` is `Option<DialectSet>` on `CommandSpec`, so
-   the exemption is dialect-gated rather than universal.
+   suggestion. `safe_on_uninit` is `Option<&'static [SpecSurface]>` on
+   `CommandSpec` (`None` = not safe, `Some(empty)` = safe everywhere), so the
+   exemption is surface-gated rather than universal.
 4. **W210 has a second tier the other two do not.** `undefined_var_suggestion`
    tries `find_case_mismatch` first — a case twin wins at any edit distance —
    and only when that misses falls back to `text::suggest_similar` over the

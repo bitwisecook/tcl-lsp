@@ -58,9 +58,9 @@ it. Verified on tclsh 8.6 and 9.0 with
 `::tcl::unsupported::representation`: after `set u [expr {1.0 + 1.5}]`, both
 `expr {$u * 2}` and `expr {$u && 1}` leave `u` holding the same double
 intrep, and after `set n [expr {1 + 2}]`, `expr {$n * 1.5}` leaves `n`
-holding the same int intrep. Excluding it was the S100 false positive in
-issue #1814 — a double accumulator (`set u0 0.0` … `expr {$u0 * $dx}`)
-reported as "has double intrep used in arithmetic expression".
+holding the same int intrep. Excluding `Double` from the class reports a
+double accumulator (`set u0 0.0` … `expr {$u0 * $dx}`) as "has double intrep
+used in arithmetic expression", which is a false positive.
 
 `Double` → `Int` is the one direction left out. Tcl never reads a double
 where an integer is required: the read either errors with the double intrep
@@ -74,8 +74,8 @@ That exclusion only bites where the expectation really is `Int`, so the
 `Int` — `Tcl_GetNumberFromObj` reads the operand either way, but
 `tclExecute.c` then rejects a `TCL_NUMBER_DOUBLE` outright for the second
 group (`can't use floating-point value as operand of "%"`, verified for all
-six on tclsh 8.6.16 and 9.0.4). Classifying all eleven as `Numeric` would
-have let a committed double pass silently through the integer-only half.
+six on tclsh 8.6.16 and 9.0.4). Classifying all eleven as `Numeric` would let
+a committed double pass silently through the integer-only half.
 
 ### A compatible read preserves the representation
 
@@ -87,7 +87,7 @@ nothing, so the committed representation survives it: after
 raises `expected integer but got "2.5"`. Overwriting the state with the
 *expectation* would record `Boolean` there, which `must_pay(Int)` finds
 integer-compatible, and the genuine `Double` → `Int` mismatch would go
-unreported. An *incompatible* read re-represents as it always did.
+unreported. An *incompatible* read re-represents.
 
 ### When shimmering does NOT occur
 
@@ -182,18 +182,11 @@ expression string still spans the whole statement.
 
 A `[cmd …]` written as a statement is an IR statement the detectors walk. The
 same `[cmd …]` written inside another command's word is not — `Statement::Call`
-keeps its arguments as flat text — so before this was closed the detectors saw
-`lindex $x 0` but not `puts [lindex $x 0]`, and the same expression reported
-differently depending only on its position (issue #1814).
-
-That cost twice over. The conversion at the nested site went unreported, and,
-worse, it never reached the commit state, so *every later read of the same
-variable* was judged against a stale representation: `set x [llength $l]` then
-`puts [lindex $x 0]` then `incr x` reported nothing at all, while the identical
-code with `lindex $x 0` on its own line reported both halves.
-
-`word_subst` lifts those substitutions, and `commit`, `use_site` and `expr`
-each consume them. Five properties matter:
+keeps its arguments as flat text. `word_subst` lifts those substitutions so the
+two positions report identically, and `commit`, `use_site` and `expr` each
+consume the lift. Without it the nested conversion goes unreported *and* never
+reaches the commit state, so every later read of the variable is judged against
+a stale representation. Six properties matter:
 
 - **It reads `word_exprs`, never the argument text.** Tcl substitutes `[…]` in
   bare and `"…"`-quoted words but not in braced ones, and
@@ -218,10 +211,9 @@ each consume them. Five properties matter:
   in every consumer.** Both `Statement::Call` and `Statement::AssignValue` hold
   `CommandTokens`, and the outer command changes nothing about what Tcl
   evaluates inside a word — so `set r <word>` reports exactly what
-  `puts <word>` does. `AssignValue` used to parse only its outermost `[cmd …]`
-  and go silent below depth one (issue #1844); the outermost substitution is
-  now simply the depth-zero case of the same walk, not a shape the arm
-  re-derives. The symmetry has to hold in all four places that read the lift,
+  `puts <word>` does. The outermost substitution is the depth-zero case of the
+  same walk, not a shape the `AssignValue` arm re-derives. The symmetry has to
+  hold in all four places that read the lift,
   or it holds nowhere: `use_site` (what reports), `commit` (what moves the
   state), `expr` (nested `[expr …]`, which carries its reads in an expression
   rather than in registry roles), and `ssa::scan_nested_substitution_words`
@@ -233,8 +225,8 @@ each consume them. Five properties matter:
   gives `foreach x $l {…}` its own CFG block, so the loop variable is *defined*
   where the body's reads are seen. A nested substitution gets no block — that
   is the representational gap below — so lifting `[lmap x $l {… $x …}]`'s body
-  recorded a read of `x` that nothing in the frame writes, and `W210 read
-  before it is set` fired on the loop variable itself. `Expr` is the role that
+  would record a read of `x` that nothing in the frame writes, firing `W210
+  read before it is set` on the loop variable itself. `Expr` is the role that
   substitutes here *and* binds nothing of its own, so it is the only one the
   nested scan takes.
 
@@ -247,7 +239,7 @@ and `lindex $x 0` both arrive as the argument `$x`. Only the second is a read
 the bare and `"…"`-quoted ones — so `commit` and `use_site` gate the argument
 loop of their `Statement::Call` arm on `hints::inert_braced_args`, which pairs
 the segmenter's `CommandTokens::arg_is_braced_literal` with the registry's
-`CommandRegistry::arg_indices_evaluated_in_frame` (issue #1845).
+`CommandRegistry::arg_indices_evaluated_in_frame`.
 
 That second half makes the rule role-aware rather than "skip every braced
 argument": `expr` and `if` re-evaluate their braced word where the caller's
@@ -258,15 +250,14 @@ one `ssa::braced_word_class` consults for the identical question — the
 detectors ask it, they do not restate it.
 
 Both passes need the gate because they have separate jobs: `commit` only moves
-the committed-intrep state and emits nothing, so gating solely the emitting
-pass still recorded a conversion at the braced word and made the *next*,
-genuine read report a shimmer against an intrep the runtime never installed.
+the committed-intrep state and emits nothing, so gating the emitting pass alone
+would still record a conversion at the braced word and make the *next*, genuine
+read report a shimmer against an intrep the runtime never installs.
 
 The lift needs no gate, and gets none: a lifted `[cmd …]` carries its argument
 words as raw source text with the braces still on, so `is_pure_var_ref`
-already declines a `{$x}` there — which is why `set r [lindex {$x} 0]` was
-correct even before this, and stays correct now that an assignment's words go
-through the same lift as a call's.
+already declines a `{$x}` there, so `set r [lindex {$x} 0]` is correct with an
+assignment's words going through the same lift as a call's.
 
 ### Known limitation — the underlying representational gap
 
@@ -295,11 +286,10 @@ resolves a nested expression's variables against the versions live at the
 statement rather than through that map; that reconstruction is a workaround for
 the gap, not a design.
 
-The correct fix is to lower a nested substitution as a command, so its words
-receive the same role-driven classification every statement's words already
-get, and every consumer of `uses` becomes correct with no per-consumer code.
-That change reaches lowering, SSA, codegen and the optimiser, so it is tracked
-separately.
+Closing the gap means lowering a nested substitution as a command, so its
+words receive the same role-driven classification every statement's words get
+and every consumer of `uses` becomes correct with no per-consumer code. That
+reaches lowering, SSA, codegen and the optimiser.
 
 Two narrower residual gaps remain in the interp-alias handling (see the
 doc comment on `shimmer::use_site::check_invocation`): an alias that

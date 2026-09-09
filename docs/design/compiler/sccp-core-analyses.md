@@ -77,11 +77,8 @@ regardless of what is assigned to it, so anything derived from it is
   plus the method's own (`MethodDef::instance_vars`). An instance variable is
   object state that outlives the method frame: the constructor or any other
   method may have written it, and a `my …` dispatch may rewrite it between two
-  reads. This is the same escaping classification `elimination.rs` feeds
-  through its cross-event channel to stop an instance-state write being
-  deleted as a dead store; before issue #1097 the two passes disagreed, and
-  `propagation.rs` had to keep variable propagation switched off wholesale for
-  method bodies as a result.
+  reads. This is the same escaping classification `elimination.rs` uses to
+  stop an instance-state write being deleted as a dead store.
 
   This one is a **propagation-only view**: `propagation.rs`
   (`oo_method_constants`) re-runs `sccp_with_extra_escaping` for the method
@@ -104,16 +101,15 @@ table and cannot be, because the dispatch never names its target. So the
 barrier is answered from whole-module evidence, under one governing rule:
 **when the evidence is incomplete, the barrier widens to abstention.**
 
-Since issue #1164 the barrier is **per-method**
+The barrier is **per-method**
 (`rust/tcl-compiler/src/optimiser/method_barrier.rs`), keyed by actual
-reachability of the invalidating fact rather than a single module-wide
-switch:
+reachability of the invalidating fact:
 
 - A **bad** class is one defining a method — primary body, or any retained
-  replacement body (`Module::redefined_methods`, issue #1166) — that can
-  reach its caller's frame (`cfg_builder::upvar_info::reaches_caller_frame`),
-  or one the lowering flagged unreadable (`Module::oo_unanalysed_classes`:
-  a dynamic member name or member body).
+  replacement body (`Module::redefined_methods`) — that can reach its
+  caller's frame (`cfg_builder::upvar_info::reaches_caller_frame`), or one
+  the lowering flagged unreadable (`Module::oo_unanalysed_classes`: a dynamic
+  member name or member body).
 - Classes are grouped into **hierarchy components**: the connected
   components of the `superclass` / `mixin` relations the lowering captures
   (`Module::class_relations`, recognised generically through the definer
@@ -142,39 +138,35 @@ the lowering could not read at all: a dynamic OO definition target
 (`OoDefinitionEvidence::dynamic_target`) or a dynamic `superclass` word
 (`OoDefinitionEvidence::dynamic_class_relations`).
 
-Three evidence sources were found incomplete in review, each a would-be
-miscompile (the optimiser proposed folding `$x` to `1` where real Tcl prints
-`2`, byte-identical on tclsh 9.0.4 and 8.6.14):
+Three evidence rules keep the barrier sound; each guards a would-be
+miscompile (folding `$x` to `1` where tclsh 9.0.4 and 8.6.14 print `2`):
 
-1. **Class state declared in another definition block.** `MethodDef::instance_vars`
-   used to hold only the declarations of the block a method was extracted
-   from, and `extract_oo_methods` builds a fresh set per block while keeping
-   the first body of any method it has already seen. So
-   `oo::class create C { method m {} {set x 1; my change; puts $x}; … }`
-   followed by `oo::define C { variable x }` left `m` believing `x` was a
-   private local. The lowering now accumulates a per-class union across every
-   definition block (`Lowerer::class_instance_vars`) and merges it into every
-   method of that class once all blocks are walked — order-free, since
-   declaring `variable x` anywhere makes it instance state for every method of
-   the class. This fixes `elimination.rs`'s dead-store protection at the same
-   time, which reads the same field.
+1. **Class state is unioned across definition blocks.** The lowering
+   accumulates a per-class union of `variable` declarations across every
+   `oo::class create` / `oo::define` block (`Lowerer::class_instance_vars`)
+   and merges it into every method of that class once all blocks are walked
+   (`MethodDef::instance_vars`), so
+   `oo::class create C { method m {} {set x 1; my change; puts $x} }`
+   followed by `oo::define C { variable x }` still sees `x` as instance
+   state in `m`. `elimination.rs`'s dead-store protection reads the same
+   field.
 
-2. **A redefined method.** The lowering keeps the *first* body in
-   `Module::methods` and, since issue #1166, retains every **replacement**
-   body in `Module::redefined_methods`, so the caller-frame query scans
-   them all. An initially-empty helper later redefined as
-   `{upvar 1 x y; set y 2}` is caught by its retained replacement; a
-   redefinition whose every body is caller-frame-clean no longer bars
-   anything (the union of bodies over-approximates whichever is live at
-   dispatch time). A replaced method in a *superclass* still bars a
-   derived class's methods — the two classes share a hierarchy component.
+2. **Replacement bodies are scanned.** The lowering keeps the *first* body
+   in `Module::methods` and retains every **replacement** body in
+   `Module::redefined_methods`, so the caller-frame query scans them all. An
+   initially-empty helper later redefined as `{upvar 1 x y; set y 2}` is
+   caught by its retained replacement; a redefinition whose every body is
+   caller-frame-clean bars nothing (the union of bodies over-approximates
+   whichever is live at dispatch time). A replaced method in a *superclass*
+   still bars a derived class's methods — the two classes share a hierarchy
+   component.
 
-3. **A caller-frame reach under a dynamic name.** The gate asks
+3. **A dynamic `upvar` name is a caller-frame reach.** The gate asks
    `cfg_builder::upvar_info::reaches_caller_frame`, the strictly structural
-   query, *not* `var_observability`'s per-variable alias lattice. That route
-   (`upvar_local_declaration_indices`) skips an `upvar` pair when either side
-   starts with `$`, so `method helper {src} {upvar 1 $src b; set b 2}` — which
-   mutates its caller's variable on every call — read as "no caller-frame
+   query, *not* `var_observability`'s per-variable alias lattice, which
+   (`upvar_local_declaration_indices`) skips an `upvar` pair when either
+   side starts with `$` and would read
+   `method helper {src} {upvar 1 $src b; set b 2}` as "no caller-frame
    alias". A dynamic name makes an alias *more* dangerous, never exempt.
    `reaches_caller_frame` counts every bucket `UpvarInfo::is_empty` covers
    plus `UpvarInfo::unnameable_local_aliases`, the set covering `upvar 1 x
@@ -185,12 +177,11 @@ Rule 3's inverse matters too: `global` / `variable` / `namespace upvar` reach a
 *namespace*, not the caller's locals, and must **not** trip the barrier — or
 every ordinary class body would disable propagation.
 
-Known evidence limits (pre-existing, shared by the old module-wide switch
-and the per-method barrier): the lowering models `oo::class` /
-`oo::define` *block* bodies only — an `oo::objdefine` per-object method,
-or the single-member `oo::define C method m {…} {…}` spelling, contributes
-no body to any of these scans, so a caller-frame reach hidden in one is
-invisible to both gates.
+Known evidence limits: the lowering models `oo::class` / `oo::define`
+*block* bodies only — an `oo::objdefine` per-object method, or the
+single-member `oo::define C method m {…} {…}` spelling, contributes no body
+to any of these scans, so a caller-frame reach hidden in one is invisible to
+both gates.
 
 ### Constant branch detection
 
@@ -228,7 +219,8 @@ false-positive-free cases, feeding the analyser's `I230` and the optimiser's
 The decision is **flow-insensitive**, taken against two whole-body scans
 (`scan_defined_and_unset`: every name the body assigns, and every name a
 literal `unset` names) plus the `ExistenceFrame` — the body's formal
-`params` and, for a `TclOO` method, its `object_state`.  `existence_query_var`
+`params` and, for a `TclOO` method, its `object_state`.
+`existence_query::in_expr` (`rust/tcl-compiler/src/existence_query.rs`)
 recognises exactly `[info exists NAME]` / `[array exists NAME]`, optionally
 under a `!`; anything embedded in a larger expression is declined.
 
@@ -344,7 +336,7 @@ bare-call form (`info exists X`) and the command-substitution form
 
 A check also narrows the region it dominates.  `collect_existence_guards`
 (`rust/tcl-compiler/src/analyser/diagnostics/helpers.rs`) walks every
-`Terminator::Branch` whose condition `expr_ast::existence_query_var`
+`Terminator::Branch` whose condition `existence_query::in_expr`
 recognises and emits a `(var, guard_block)` pair — the branch's true target
 for a positive query, its false target for a `![info exists X]`.
 `existence_exempt` then suppresses a read of that name in any block
@@ -353,12 +345,11 @@ chain.  The opposite branch keeps version 0, so a read there is still
 flagged.  Narrowing is a runtime fact (the guard passed), so unlike the fold
 it needs no foldability gate.
 
-Only the exact three-word forms are recognised.  `existence_query_in_text`
-splits the bracketed text on whitespace and requires exactly
-`info exists NAME` or `array exists NAME`; the queried word is taken
-verbatim, with no name-shape test of its own — `existence_constant_branches`
-applies the bare-local shape gate itself, and the narrowing path applies
-none.  Membership idioms (`[info vars X]` / `[info locals X]` compared with
+Only the exact three-word forms are recognised.  `existence_query::in_text`
+requires exactly `info exists NAME` or `array exists NAME`; the queried word
+is taken verbatim, with no name-shape test of its own —
+`existence_constant_branches` applies the bare-local shape gate itself, and
+the narrowing path applies none.  Membership idioms (`[info vars X]` / `[info locals X]` compared with
 `""`, `[llength [info vars X]]`, `[lsearch [info vars] X] > -1`) and
 `catch {set _ $X}` are **not** recognised as existence proofs.
 
@@ -403,7 +394,7 @@ SCCP determines `x₁ = Const(Int(5))`:
 
 ## Related docs
 
-- [Examples 3–7 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-3-expr-2--3)
+- [Examples 3–7 in walkthroughs](../../../docs/design/compiler/example-walkthroughs.md#example-3-expr-2--3)
 - [GLOSSARY.md — SCCP, Lattice, Liveness](../../GLOSSARY.md#sccp)
-- [kcs-cfg-ssa-fact-model.md](../../../docs/design/compiler/cfg-ssa-fact-model.md)
-- [kcs-downstream-pass-contracts.md](../../../docs/design/compiler/downstream-pass-contracts.md)
+- [cfg-ssa-fact-model.md](cfg-ssa-fact-model.md)
+- [downstream-pass-contracts.md](downstream-pass-contracts.md)

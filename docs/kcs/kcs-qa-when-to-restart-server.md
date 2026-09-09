@@ -27,10 +27,12 @@ There are three situations where a restart is the right thing to do:
    Definition** stop responding. See
    [LSP features are missing in VS Code](kcs-issue-lsp-features-are-missing.md)
    for how to read the startup log.
-2. **You changed a tcl-lsp setting that is read only at startup.** A few
-   settings — the native server binary path and the log level — are read
-   once when the extension activates. After you change any of these in
-   **Settings**, restart the server to pick them up.
+2. **You changed something that is read only at startup.** The native
+   server binary path (`tclLsp.rustServerPath`) and the log level are
+   read once when the extension activates, and the global
+   `config.ini` sits outside the workspace so no file watcher sees it.
+   Restart after editing any of them. A project `.tcl-lsp.ini` is
+   watched and needs no restart.
 3. **You installed a new version of the extension, or rebuilt the server
    binary in a development checkout.** VS Code will usually prompt you to
    reload the window in this case, but if you updated the server path by

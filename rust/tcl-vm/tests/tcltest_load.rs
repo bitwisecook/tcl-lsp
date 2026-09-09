@@ -30,7 +30,7 @@ use std::time::Duration;
 
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_dialect::{DialectProfile, TclVersion};
-use tcl_test_support::locate_source_tree;
+use tcl_test_support::{locate_source_tree, upstream_test_definition};
 use tcl_vm::{Value, Vm};
 
 fn configure_vm(mut vm: Vm, library: &Path) -> Vm {
@@ -47,23 +47,6 @@ fn configure_vm(mut vm: Vm, library: &Path) -> Vm {
 
 fn vm_for_library(library: &Path) -> Vm {
     configure_vm(Vm::new(), library)
-}
-
-/// Return one upstream Tcltest definition without re-stating its Tcl in this
-/// harness. The adjacent test marker guards the pinned-file shape as well as
-/// keeping execution limited to the selected definition.
-fn upstream_test_definition<'a>(source: &'a str, start_marker: &str, next_marker: &str) -> &'a str {
-    let start = source
-        .find(start_marker)
-        .unwrap_or_else(|| panic!("pinned upstream test is missing {start_marker:?}"));
-    let end = source
-        .find(next_marker)
-        .unwrap_or_else(|| panic!("pinned upstream test is missing {next_marker:?}"));
-    assert!(
-        start < end,
-        "pinned upstream test markers are out of order: {start_marker:?}, {next_marker:?}"
-    );
-    &source[start..end]
 }
 
 #[derive(Clone)]
@@ -221,7 +204,8 @@ fn run_upstream_definitions(
             }
             let test_path = source_tree.tests_dir().join(test_file);
             let test_source = fs::read_to_string(&test_path).expect("read pinned upstream test");
-            let definitions = upstream_test_definition(&test_source, start_marker, next_marker);
+            let definitions = upstream_test_definition(&test_source, start_marker, next_marker)
+                .expect("extract pinned upstream definition");
             let script = format!(
                 "package require tcltest\n\
                  namespace import -force ::tcltest::*\n\
@@ -254,6 +238,82 @@ fn run_upstream_definitions(
     Some(result)
 }
 
+/// Issue #1598: run the upstream binary/UTF-8 channel cases through the real
+/// Tcl 9.0.4 `init.tcl` and `tcltest`, then pin strict-profile prefix output
+/// with the same setup as upstream io-75.9.  The upstream io-75.9 body uses a
+/// bidirectional streaming channel, which this focused output change does not
+/// add, so its output half is retained here and the file prefix is inspected
+/// from Rust after tcltest closes it.
+#[test]
+fn upstream_channel_output_cases_use_real_tcltest() {
+    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let Some(source_tree) = locate_source_tree(&repo_root, TclVersion::V9_0, None)
+        .expect("Tcl 9 source tree discovery")
+    else {
+        eprintln!("skipping: no Tcl 9.0.4 source tree available");
+        return;
+    };
+    assert_eq!(source_tree.patchlevel, "9.0.4", "real-library oracle pin");
+
+    let io_source =
+        fs::read_to_string(source_tree.tests_dir().join("io.test")).expect("read pinned io.test");
+    let io_39_14 = upstream_test_definition(&io_source, "test io-39.14 {", "test io-39.15 {")
+        .expect("extract io-39.14");
+    let io_39_15 = upstream_test_definition(&io_source, "test io-39.15 {", "test io-39.16 {")
+        .expect("extract io-39.15");
+    let fixture = FixtureDir::new();
+    let path1 = fixture.0.join("io-39.bin");
+    let path2 = fixture.0.join("io-75.bin");
+    let bytes = Rc::new(RefCell::new(Vec::new()));
+    let mut vm = configure_vm(
+        Vm::with_output(Box::new(Capture(Rc::clone(&bytes)))),
+        &source_tree.library_dir(),
+    );
+    let init = vm.init_library();
+    assert!(
+        init.code.is_ok(),
+        "real Tcl 9.0.4 init.tcl failed: {}",
+        init.result.to_str()
+    );
+    let script = format!(
+        "package require tcltest\n\
+         namespace import -force ::tcltest::*\n\
+         set path(test1) {}\n\
+         set path(test2) {}\n\
+         {io_39_14}\n\
+         {io_39_15}\n\
+         test io-75.9-native {{strict output conversion keeps its valid prefix}} -setup {{\n\
+             set f [open $path(test2) w]\n\
+             fconfigure $f -encoding iso8859-1 -profile strict\n\
+         }} -body {{\n\
+             set code [catch {{puts -nonewline $f \"A\\u2022\"}} msg opts]\n\
+             close $f\n\
+             list $code [string match {{error writing \"*\": invalid or incomplete multibyte or wide character}} $msg] [dict get $opts -errorcode]\n\
+         }} -result [list 1 1 {{POSIX EILSEQ {{invalid or incomplete multibyte or wide character}}}}]\n\
+         ::tcltest::cleanupTests\n",
+        tcl_syntax::list::list_element(&path1.to_string_lossy()),
+        tcl_syntax::list::list_element(&path2.to_string_lossy()),
+    );
+    let completion = vm
+        .eval_source(&script)
+        .expect("compile upstream channel cases");
+    assert!(
+        completion.code.is_ok(),
+        "channel tcltest execution failed: {}",
+        completion.result.to_str()
+    );
+    assert_eq!(
+        fs::read(path2).expect("read strict output prefix"),
+        b"A",
+        "io-75.9 strict conversion must retain the valid byte prefix"
+    );
+    let summary = String::from_utf8(bytes.borrow().clone()).expect("tcltest output is UTF-8");
+    assert!(
+        summary.contains("Total\t3\tPassed\t3\tSkipped\t0\tFailed\t0"),
+        "{summary}"
+    );
+}
+
 /// The first upstream `set` definition reaches `cleanupTests` through the
 /// real init/require path and emits the summary that xtask parses.
 #[test]
@@ -271,6 +331,27 @@ fn upstream_set_stem_emits_a_parseable_summary_after_real_startup() {
     assert!(
         output.contains("Total\t1\tPassed\t1\tSkipped\t0\tFailed\t0"),
         "missing parseable upstream set-1.1 summary: {output:?}"
+    );
+}
+
+/// Tcl 9.0.4's canonical array-read trace mutation cases run verbatim through
+/// the real startup and `tcltest` package. They exercise key snapshotting,
+/// element removal, and whole-array destruction during `array get`.
+#[test]
+fn upstream_array_get_read_trace_definitions_pass_after_real_startup() {
+    let Some((ok, error, output)) = run_upstream_definitions(
+        "trace.test",
+        "test trace-1.11 {",
+        "# Basic write-tracing",
+        "tcltest-array-get-read-traces",
+    ) else {
+        eprintln!("skipping: no Tcl 9.0.4 source tree available");
+        return;
+    };
+    assert!(ok, "focused upstream trace.test failed: {error}\n{output}");
+    assert!(
+        output.contains("Total\t4\tPassed\t4\tSkipped\t0\tFailed\t0"),
+        "missing parseable upstream trace-1.11/1.14 summary: {output:?}"
     );
 }
 
@@ -293,5 +374,105 @@ fn upstream_dict_info_definitions_pass_after_real_startup() {
     assert!(
         output.contains("Total\t4\tPassed\t4\tSkipped\t0\tFailed\t0"),
         "missing parseable upstream dict-10 summary: {output:?}"
+    );
+}
+
+/// Tcl 9.0.4's array-search mutation tests require `try` to bind the body's
+/// complete error options, including `-errorinfo`.
+#[test]
+fn upstream_var_search_mutation_handlers_receive_errorinfo() {
+    let Some((ok, error, output)) = run_upstream_definitions(
+        "var.test",
+        "test var-23.10 {",
+        "test var-23.12 {",
+        "tcltest-var-search-mutation",
+    ) else {
+        eprintln!("skipping: no Tcl 9.0.4 source tree available");
+        return;
+    };
+    assert!(ok, "focused upstream var.test failed: {error}\n{output}");
+    assert!(
+        output.contains("Total\t2\tPassed\t2\tSkipped\t0\tFailed\t0"),
+        "missing parseable upstream var-23.10/23.11 summary: {output:?}"
+    );
+}
+
+/// Tcl 9.0.4's canonical shifted-context cases prove that `UP 1` is stamped
+/// where the inner command errors, even when that error is caught before the
+/// surrounding `uplevel` invocation returns.
+#[test]
+fn upstream_error_shifted_context_definitions_pass_after_real_startup() {
+    let Some((ok, error, output)) = run_upstream_definitions(
+        "error.test",
+        "test error-4.6 {",
+        "test error-5.1 {",
+        "tcltest-error-shifted-context",
+    ) else {
+        eprintln!("skipping: no Tcl 9.0.4 source tree available");
+        return;
+    };
+    assert!(ok, "focused upstream error.test failed: {error}\n{output}");
+    assert!(
+        output.contains("Total\t3\tPassed\t3\tSkipped\t0\tFailed\t0"),
+        "missing parseable upstream error-4.6/4.7/4.8 summary: {output:?}"
+    );
+}
+
+#[test]
+fn upstream_error_stack_reset_preserves_shifted_context() {
+    let Some((ok, error, output)) = run_upstream_definitions(
+        "error.test",
+        "test error-6.10 {",
+        "test error-7.1 {",
+        "tcltest-error-stack-reset",
+    ) else {
+        eprintln!("skipping: no Tcl 9.0.4 source tree available");
+        return;
+    };
+    assert!(ok, "focused upstream error.test failed: {error}\n{output}");
+    assert!(
+        output.contains("Total\t1\tPassed\t1\tSkipped\t0\tFailed\t0"),
+        "missing parseable upstream error-6.10 summary: {output:?}"
+    );
+}
+
+#[test]
+fn upstream_invalid_error_stack_preserves_shifted_context() {
+    let Some((ok, error, output)) = run_upstream_definitions(
+        "result.test",
+        "test result-6.4 {",
+        "# cleanup",
+        "tcltest-result-error-stack",
+    ) else {
+        eprintln!("skipping: no Tcl 9.0.4 source tree available");
+        return;
+    };
+    assert!(ok, "focused upstream result.test failed: {error}\n{output}");
+    assert!(
+        output.contains("Total\t2\tPassed\t2\tSkipped\t0\tFailed\t0"),
+        "missing parseable upstream result-6.4/6.5 summary: {output:?}"
+    );
+}
+
+/// Tcl's own active-frame namespace deletion block exercises immediate and
+/// deferred command/variable teardown, including re-entrant delete traces.
+#[test]
+fn upstream_namespace_active_deletion_definitions_pass_after_real_startup() {
+    let Some((ok, error, output)) = run_upstream_definitions(
+        "namespace.test",
+        "test namespace-7.1 {",
+        "test namespace-7.7 {",
+        "tcltest-namespace-active-delete",
+    ) else {
+        eprintln!("skipping: no Tcl 9.0.4 source tree available");
+        return;
+    };
+    assert!(
+        ok,
+        "focused upstream namespace.test failed: {error}\n{output}"
+    );
+    assert!(
+        output.contains("Total\t6\tPassed\t6\tSkipped\t0\tFailed\t0"),
+        "missing parseable upstream namespace-7.1..7.6 summary: {output:?}"
     );
 }

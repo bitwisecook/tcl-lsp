@@ -105,7 +105,7 @@ pub use tcl_dialect::PackagePrefer;
 /// answers it.  A raise reaching this file some *other* way (a load order no
 /// `source` edge records) is still unseen — the abstention the import family
 /// records for every cross-file event
-/// (`docs/design/import-order-source-graph.md`).
+/// (`docs/design/analysis/import-order-source-graph.md`).
 #[must_use]
 pub fn package_prefer_at(
     analysis: &tcl_compiler::analyser::AnalysisResult,

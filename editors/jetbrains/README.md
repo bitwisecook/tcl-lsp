@@ -48,7 +48,7 @@ Everything the IDE's LSP client asks for is supported:
   reveals the matching source. The CFG, WASM and optimiser-diff panes stay in
   the tool window, since their edges and connectors are drawn rather than
   written.
-- **Dialect support**: Tcl 8.4–9.0, F5 iRules, F5 iApps, EDA Tools
+- **Dialect support**: Tcl 8.4–9.1, F5 iRules, F5 iApps, EDA Tools
 - **Pack-declared file extensions** registered as the packs that claim them
   load and unload (see below)
 
@@ -138,11 +138,11 @@ make build-editor-jetbrains
 **Settings → Tools → Tcl Language Server**
 
 - **Server path**: Path to a `tcl-lsp-server` binary (dev mode; leave empty for the bundled server)
-- **Dialect**: Tcl 8.4–9.0, F5 iRules, F5 iApps, EDA Tools
+- **Dialect**: Tcl 8.4–9.1, F5 iRules, F5 iApps, EDA Tools
 - **Feature toggles**: Enable/disable individual LSP features
 - **Formatting**: 20+ style settings (indent, braces, line length, etc.)
-- **Diagnostics**: Toggle individual diagnostic codes (E001–W309)
-- **Optimiser**: Toggle optimisation suggestions (O100–O130)
+- **Diagnostics**: Toggle any individual diagnostic code
+- **Optimiser**: Toggle any individual optimisation suggestion
 
 ## Development
 

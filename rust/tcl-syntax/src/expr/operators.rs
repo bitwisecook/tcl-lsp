@@ -436,7 +436,7 @@ impl BinOp {
             ),
             // The bare `matches` is the tenth word form. Only its
             // *presence* is measured
-            // (`docs/design/bigip-irule-parser-measurements.md` §4a's
+            // (`docs/design/f5/bigip-irule-parser-measurements.md` §4a's
             // `e_matches`: `expr {"abc" matches "abc"}` answers `1` in
             // all three F5 contexts and fails on both host builds); the
             // probe is an exact-equality case, so it discriminates none

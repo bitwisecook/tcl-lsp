@@ -72,8 +72,8 @@ new advisories are audited at every release point.
               ↓ invoked by both
 ┌─ CI ─────────────────────────────────────────────────────────┐
 │ .github/workflows/*.yml                                      │
-│   - pr-gate    fast Rust gate (cargo test lsp_e2e) on PRs    │
-│   - test-ext   VS Code extension tests on push and tags      │
+│   - pr-gate    fast Rust gate (`make rust-check`) on PRs     │
+│   - test-ext   VS Code extension tests (PRs, pushes, tags)   │
 │   - create-release  + build-vsix + native build matrix       │
 │     (tcl / f5-query / tcl-lsp-server / tcl-mcp, cross-matrix) │
 │     + build-claude-skills + build-jetbrains + build-sublime  │
@@ -134,11 +134,28 @@ a CI publish job fails.
 
 ### Native build overlap and release gating
 
-The tag-only `build-server-matrix` job is a read-only producer of short-lived
+For a tag, `build-server-matrix` is a read-only producer of short-lived
 workflow artefacts. It starts after `channel`, while the validation jobs and
-`create-release` run in parallel. The producer has only `contents: read`
-permission and no `environment`, `secrets.*`, release upload, or OIDC step, so
-its workflow artefacts cannot become release assets on their own.
+`create-release` run in parallel. Its platform and program axes run each of
+the four shipping Cargo roots on a separate runner. This removes the serial
+four-build critical path without Cargo unioning one program's dependency
+features into another program's release bytes. The producer has only
+`contents: read` permission and no `environment`, `secrets.*`, release upload,
+or OIDC step, so its workflow artefacts cannot become release assets on their
+own. Cargo registry downloads may be cached, but compiled target directories
+are not: host build scripts cannot safely cross into the UBI 8 environment or
+between platform legs without weakening the release's glibc contract.
+
+A branch `workflow_dispatch` may opt into `native_release_build_proof`. It
+runs that same read-only matrix with a synthetic development version so every
+target's build timing and each architecture-matched binary's reported version
+can be validated before the next tag. A fixed proof-or-ordinary discriminator
+precedes the ref in its concurrency group, so arbitrary branch names cannot
+make ordinary branch CI and the proof cancel each other. Every release,
+portability, packaging, checksum, cleanup, and marketplace consumer remains
+`v*`-gated, so proof artifacts expire after one day and cannot publish.
+On a tag, the proof input does not select that distinct group: a dispatched tag
+retains the normal tag concurrency and publishing semantics described above.
 
 The release graph keeps the handoff explicit: `linux-release-portability`
 waits for both `create-release` and the matrix; `publish-native-binaries`,
@@ -179,8 +196,9 @@ other non-glibc systems are not native-binary targets; their packagers can build
 from source, and the separately published WASI server remains available to
 hosts that choose a WebAssembly runtime.
 
-`scripts/verify-glibc-baseline.sh` inspects the versioned ELF imports for all
-four native programs in every Linux matrix leg and again after artifact fan-in.
+`scripts/verify-glibc-baseline.sh` inspects the selected program's versioned
+ELF imports in each Linux matrix leg, then all four programs again after
+artifact fan-in.
 `scripts/test-linux-distro-compat.sh` then completes an LSP initialize exchange
 with the exact x86_64 release server in a compact matrix spanning Ubuntu,
 Debian, EL8/Oracle, Amazon Linux, openSUSE, Fedora, and Arch. The tag-only
@@ -207,11 +225,11 @@ that did attach (`TCL_LSP_NO_VERIFY=1` is the documented escape hatch, and is no
 to recommend).  Fix forward and re-run the failed jobs on the same tag; the
 assets that already uploaded are overwritten in place.
 
-## The 2.1.x pre-release sequence is a program, not a procedure
+## The pre-release sequence is a program, not a procedure
 
-Step 2 above is the *primitive*.  For the `rust` pre-release line there is
-work that must happen before it — the release-notes performance graphs —
-and every part of it used to be a step someone remembered:
+Step 2 above is the *primitive*.  The `rust` line has work that must happen
+before it — the release-notes performance graphs — and
+`scripts/release/rust_release.sh` drives all of it:
 
 ```
 scripts/release/rust_release.sh next patch      # -> the next version
@@ -245,9 +263,8 @@ wherever the maintainer ran `prepare` — is the release record.
 `perf.yml` still benchmarks the tag on its own runner for the trend line,
 but renders and attaches the committed result when there is one.
 
-The publish-verify step (`scripts/release/publish_verify.sh`, 239
-lines) checks every publish credential and tool non-destructively — it
-never ships anything.  Designed for a quick pre-flight check the week
+The publish-verify step (`scripts/release/publish_verify.sh`) checks every
+publish credential and tool non-destructively — it never ships anything.  Designed for a quick pre-flight check the week
 before a planned release.
 
 ## Stable vs pre-release channels (odd/even-minor)
@@ -264,10 +281,9 @@ publication channel. The former Python line is preserved, read-only, on
 This is the VS Code Marketplace
 [odd/even-minor convention](https://code.visualstudio.com/api/working-with-extensions/publishing-extension#prerelease-extensions):
 from major 2 onward an **odd** minor is a pre-release and an **even**
-minor is stable.  The 2.x rewrite ships its alphas on `2.1.x`
-(`2.1.0`, `2.1.1`, …) and promotes to the stable `2.2.0` when ready.
-The 1.x line predates the convention and is frozen on `legacy-py`; it is not
-tagged again. Open VSX reads the same
+minor is stable.  The line ships stable on `2.2.x` and cuts pre-releases on
+the odd minor below it.  The 1.x line predates the convention and is frozen on
+`legacy-py`; it is not tagged again. Open VSX reads the same
 pre-release channel from the VSIX manifest
 (`Microsoft.VisualStudio.Code.PreRelease`) that `vsce package` bakes in
 at build time — `ovsx publish` ignores `--pre-release` for an
@@ -395,8 +411,8 @@ stored, is a design conversation: it requires updating this contract and
   `release-zed-version`, `release-perf`, `release-notes-perf`, `release-verify`,
   `release-prepare`, `release-rust-tag`.
 - [`scripts/release/rust_release.sh`](../../../scripts/release/rust_release.sh) —
-  the 2.1.x pre-release driver (`next` / `preflight` / `perf` / `notes` /
-  `verify` / `prepare` / `tag`).
+  the release driver (`next` / `preflight` / `perf` / `notes` / `verify` /
+  `prepare` / `tag`).
 - [`scripts/release/zed_version.sh`](../../../scripts/release/zed_version.sh) —
   the shared Zed manifest setter/checker used by preparation, builds, and the
   final tag guard.

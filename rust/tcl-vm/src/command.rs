@@ -25,11 +25,14 @@
 
 use std::rc::Rc;
 
-use tcl_runtime_api::{Code, Completion};
+use tcl_cmd_core::CmdError;
+use tcl_runtime_api::completion_options::{self as shared_options, ErrorOptions, OptionValue};
+use tcl_runtime_api::error_stack::{ErrorStackValueError, validate_error_stack};
+use tcl_runtime_api::{Code, Completion, NsId, OoId};
 use tcl_syntax::formal_params::{has_trailing_args, parse_formal_parameters};
 
 use crate::error::TclError;
-use crate::interp::{Vm, canonical_ns_name, err, key_holder_and_tail_unrooted, ok};
+use crate::interp::{Vm, canonical_ns_name, err, err_wrong_args, key_holder_and_tail_unrooted, ok};
 use crate::value::Value;
 
 /// A native builtin: receives argv *without* the command name (Tcl's `objv[1..]`).
@@ -68,6 +71,12 @@ pub struct Param {
 pub struct ProcDef {
     /// Canonical (namespace-qualified, no leading `::`) proc name.
     pub name: String,
+    /// Stable namespace-table token and simple tail that bind the command.
+    /// Kept separate from the body namespace because `apply`'s private proc is
+    /// stored under `::tcl::apply` while its body runs in the lambda namespace.
+    pub command_ns_id: tcl_core_types::NsId,
+    /// Simple command-table name paired with [`Self::command_ns_id`].
+    pub simple_name: String,
     /// The namespace the body executes in (canonical; `""` = global).
     pub namespace: String,
     /// That namespace's **token** — C's `procPtr->cmdPtr->nsPtr`, which is what
@@ -89,6 +98,10 @@ pub struct ProcDef {
     /// message reads `wrong # args: should be "apply lambdaExpr …"` rather than
     /// leaking the internal temp proc name (apply-4.*).
     pub usage_name: Option<String>,
+    /// Exact invocation words for proc-like adapters whose registered command
+    /// is an implementation detail (`apply` lambdas and `TclOO` method bodies).
+    /// Ordinary procs derive them from the dispatched head and arguments.
+    pub(crate) call_identity: Option<Vec<Value>>,
 }
 
 /// A registered command.
@@ -128,12 +141,12 @@ pub enum Command {
     /// A `namespace ensemble` — invoking `cmd sub args…` resolves `sub` against
     /// the ensemble's subcommands and dispatches to the mapped target.
     Ensemble(Rc<tcl_cmd_core::ensemble::EnsembleToken<EnsembleDef, String>>),
-    /// A `TclOO` object or class (`Foo create obj` / `obj method …`): the name
-    /// keys into the interp's `oo` state (`OoState::objects`/`classes`).
+    /// A `TclOO` object or class (`Foo create obj` / `obj method …`): the stable
+    /// token keys into the interp's `oo` state (`OoState::objects`/`classes`).
     /// Invoking it dispatches `method args…` against the object (`oo_dispatch`).
     /// Analogous to [`Command::ChildInterp`] — a command backed by a Vm-side
-    /// table keyed by the (canonical) name.
-    Object(String),
+    /// table keyed by identity rather than the mutable command name.
+    Object(OoId),
 }
 
 /// A `namespace ensemble create`d command (`tclEnsemble.c`).
@@ -141,7 +154,7 @@ pub enum Command {
 pub struct EnsembleDef {
     /// The namespace whose exported commands form the default subcommand set and
     /// against which an unmapped subcommand `sub` resolves to `namespace::sub`.
-    pub namespace: String,
+    pub namespace: NsId,
     /// `-map`: subcommand → target command prefix (already qualified).
     ///
     /// An association list, not a hash map: C stores the map as a Tcl dict and
@@ -383,7 +396,11 @@ fn fresh_apply_name() -> String {
 /// activation stack* (a `yield` inside it is then yieldable — the generic
 /// `apply` path evaluates the body through a host-stack re-entry, which a
 /// `yield` cannot cross).
-pub(crate) fn build_lambda_proc(vm: &mut Vm, lambda: &Value) -> Result<String, Completion<Value>> {
+pub(crate) fn build_lambda_proc(
+    vm: &mut Vm,
+    lambda: &Value,
+    call_identity: Vec<Value>,
+) -> Result<String, Completion<Value>> {
     let parts = match lambda.as_list() {
         Ok(p) => p,
         Err(c) => return Err(err(c.message)),
@@ -427,8 +444,14 @@ pub(crate) fn build_lambda_proc(vm: &mut Vm, lambda: &Value) -> Result<String, C
 
     let name = fresh_apply_name();
     let ns_id = vm.definition_namespace_token(&namespace);
+    let command_ns_id = vm.definition_namespace_token("tcl::apply");
     vm.define_proc(ProcDef {
         name: name.clone(),
+        command_ns_id,
+        simple_name: String::from_utf8_lossy(tcl_syntax::naming::written_command_tail(
+            name.as_bytes(),
+        ))
+        .into_owned(),
         namespace,
         ns_id,
         params: params_vec,
@@ -436,6 +459,7 @@ pub(crate) fn build_lambda_proc(vm: &mut Vm, lambda: &Value) -> Result<String, C
         body: body_asm,
         body_src: body,
         usage_name: Some("apply lambdaExpr".to_string()),
+        call_identity: Some(call_identity),
     });
     Ok(name)
 }
@@ -457,7 +481,10 @@ fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((lambda, call_args)) = args.split_first() else {
         return err("wrong # args: should be \"apply lambdaExpr ?arg ...?\"");
     };
-    let name = match build_lambda_proc(vm, lambda) {
+    let mut call_identity = Vec::with_capacity(args.len() + 1);
+    call_identity.push(Value::string(vm.invoked_name().unwrap_or("apply")));
+    call_identity.extend_from_slice(args);
+    let name = match build_lambda_proc(vm, lambda, call_identity) {
         Ok(n) => n,
         Err(c) => return c,
     };
@@ -487,7 +514,7 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let new_name = new.to_str();
     // Tcl rejects a rename onto an existing command (leaving both intact), so
     // check the destination before removing the source.
-    if !new_name.is_empty() && vm.lookup_command(&new_name).is_some() {
+    if !new_name.is_empty() && vm.rename_destination_exists(&new_name) {
         return err(format!(
             "can't rename to \"{new_name}\": command already exists"
         ));
@@ -513,24 +540,20 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let is_coro = crate::cmd_coro::is_coroutine(vm, &old_key);
     if new_name.is_empty() {
         let trace_handled = vm.delete_prepared_renamed_command(&rename);
-        if is_coro {
-            crate::cmd_coro::on_command_deleted(vm, &old_key);
-        }
         // `rename x {}` is a delete: fire the command's `delete` traces
         // (`callback ::old {} delete`, tclsh-pinned) and drop its traces.
         if !trace_handled {
             vm.on_command_removed(&old_key);
         }
     } else {
-        // An unqualified target binds in the current namespace; a qualified one
-        // is used as given, normalised to the key form (separator runs
-        // collapse, the root drops — `rename p a:::q` creates `::a::q`,
-        // tclsh8.6-verified; the raw name used to register a `a:::q` key).
-        let key = if tcl_syntax::naming::is_qualified(new_name.as_bytes()) {
-            crate::interp::canonical_cmd_key(&new_name).into_owned()
-        } else {
-            vm.qualify_name(&new_name)
-        };
+        // Reserve the exact `(namespace token, simple name)` destination.
+        // Its Tcl display can collide with another legal command (#1778), so
+        // every lifecycle map below uses this private injective key.
+        let key = vm.note_rename_destination(&new_name);
+        // Procedure provenance keeps a display projection for compatibility,
+        // but it must come from the resolved destination slot. The written
+        // `b::y` inside `::a` names `::a::b::y`, not a raw `b::y` key.
+        let display_key = vm.command_display_key(&key).to_owned();
         if is_coro {
             crate::cmd_coro::on_command_renamed(vm, &old_key, &key);
         }
@@ -541,16 +564,22 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // so the shared qualifier split yields its namespace directly.
         let cmd = match cmd {
             Command::Proc(def) => {
-                // The destination namespace is the key's construction-inverse
-                // holder — the written-name colon-run split would collapse a
-                // lone-colon segment (#934).
-                let (new_ns, _tail) = crate::interp::key_holder_and_tail_unrooted(&key);
-                if new_ns == def.namespace && key == def.name {
+                let (new_ns_id, simple_name) = vm
+                    .command_slot_parts(&key)
+                    .expect("rename destination carries an exact command slot");
+                let new_ns = tcl_runtime_api::Namespaces::name(vm, new_ns_id)
+                    .strip_prefix("::")
+                    .unwrap_or_default()
+                    .to_owned();
+                if new_ns_id == def.command_ns_id && simple_name == def.simple_name {
                     Command::Proc(def)
                 } else {
                     let mut relocated = (*def).clone();
                     relocated.namespace = new_ns;
-                    relocated.name.clone_from(&key);
+                    relocated.ns_id = new_ns_id;
+                    relocated.command_ns_id = new_ns_id;
+                    relocated.simple_name = simple_name;
+                    relocated.name = display_key;
                     Command::Proc(Rc::new(relocated))
                 }
             }
@@ -559,7 +588,6 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // C creates the destination's hash entry before `TclPreventAliasLoop`
         // and deletes it again on a refusal, so the resize that transient entry
         // triggers outlives the rejected rename.
-        vm.note_rename_destination(&key);
         let is_alias = matches!(&cmd, Command::Alias(_) | Command::CrossAlias { .. });
         // C's `TclPreventAliasLoop` guards *rename* too: moving an alias onto
         // a name its own target chain resolves back to is refused, with the
@@ -569,14 +597,17 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // delete callbacks and trace/deoptimisation state that cannot be
         // rolled back after `register_command` observes an overwrite.
         if is_alias && vm.alias_chain_loops_for_rename(&key, &cmd) {
+            let tail = vm
+                .command_slot_parts(&key)
+                .map_or_else(String::new, |(_, tail)| tail);
             vm.forget_rename_destination(&key);
-            let tail = crate::interp::key_holder_and_tail_unrooted(&key).1;
             return err(format!(
                 "cannot define or rename alias \"{tail}\": would create a loop"
             ));
         }
         vm.install_renamed_command(&mut rename, &key, cmd);
         vm.commit_renamed_command(&rename);
+        let key = rename.new_key().to_owned();
         // The rename happened: move every trace to the new key so it keeps
         // firing under the new name, then fire the command's `rename` traces
         // (`callback ::old ::new rename`, both fully qualified — tclsh-pinned).
@@ -1202,7 +1233,7 @@ fn cmd_puts(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     match crate::cmd_chan::chan_puts(vm, &channel, &text, newline) {
         Ok(()) => ok(Value::empty()),
-        Err(e) => err(e),
+        Err(error) => completion_from_cmd_error(error),
     }
 }
 
@@ -1299,7 +1330,11 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // `reg_name` is an already-constructed unrooted key. Invert it through the
     // key owner rather than parsing it again as a written word: a literal `:`
     // namespace begins with colons but is not a root separator (#934).
-    let namespace = key_holder_and_tail_unrooted(&reg_name).0;
+    let namespace = if tcl_syntax::naming::is_qualified(name_s.as_bytes()) {
+        key_holder_and_tail_unrooted(&reg_name).0
+    } else {
+        vm.current_ns().to_owned()
+    };
     // A namespace-qualified proc name requires its namespace to already exist
     // (C's `TclGetNamespaceForQualName` → `nsPtr == NULL`). An unqualified name
     // lands in the current namespace, which always exists (proc-1.2).
@@ -1322,9 +1357,18 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(body) => body,
         Err(error) => return completion_from_tcl_error(error),
     };
-    let ns_id = vm.definition_namespace_token(&namespace);
+    let ns_id = if tcl_syntax::naming::is_qualified(name_s.as_bytes()) {
+        vm.procedure_definition_namespace_token(&namespace, name_s.starts_with("::"))
+    } else {
+        tcl_runtime_api::Namespaces::current(vm)
+    };
     vm.define_proc(ProcDef {
         name: reg_name,
+        command_ns_id: ns_id,
+        simple_name: String::from_utf8_lossy(tcl_syntax::naming::written_command_tail(
+            name_s.as_bytes(),
+        ))
+        .into_owned(),
         namespace,
         ns_id,
         params: params_vec,
@@ -1332,6 +1376,7 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         body,
         body_src: body_text.clone(),
         usage_name: None,
+        call_identity: None,
     });
     ok(Value::empty())
 }
@@ -1374,6 +1419,32 @@ pub(crate) fn options_dict(code: Code, level: i64, extra: &[(&str, Value)]) -> V
 pub(crate) fn err_with_code(message: impl Into<String>, code: &str) -> Completion<Value> {
     let options = options_dict(Code::Error, 0, &[("-errorcode", Value::string(code))]);
     Completion::new(Code::Error, Value::string(message.into()), options)
+}
+
+/// Convert a portable command-layer error without losing its Tcl identity.
+pub(crate) fn completion_from_cmd_error(error: CmdError) -> Completion<Value> {
+    let (message, code, info, line) = error.into_details();
+    if info.is_none() && line.is_none() {
+        return match code {
+            Some(code) => err_with_code(message, &code),
+            None => err(message),
+        };
+    }
+    let mut extra = Vec::with_capacity(3);
+    if let Some(code) = code {
+        extra.push(("-errorcode", Value::string(code)));
+    }
+    if let Some(info) = info {
+        extra.push(("-errorinfo", Value::string(String::from_utf8_lossy(&info))));
+    }
+    if let Some(line) = line {
+        extra.push(("-errorline", Value::int(line)));
+    }
+    Completion::new(
+        Code::Error,
+        Value::string(message),
+        options_dict(Code::Error, 0, &extra),
+    )
 }
 
 /// An `ERROR` completion carrying a structured Tcl lookup error code.
@@ -1424,6 +1495,30 @@ pub(crate) fn completion_options(comp: &Completion<Value>) -> Value {
     } else {
         comp.options.clone()
     }
+}
+
+/// Settle an adapter-owned control completion under the shared option policy.
+///
+/// A native completion's empty `options` value normally means “this command did
+/// not replace the surrounding carried options”. Fresh control activations need
+/// to distinguish that from an explicitly empty option set, so a successful
+/// fresh/settled completion materialises the standard `-code 0 -level 0` dict.
+/// The dispatcher can then replace the prior state without command-name logic.
+pub(crate) fn settle_control_options(
+    mut completion: Completion<Value>,
+    policy: tcl_runtime_api::completion_options::ControlOptionPolicy,
+) -> Completion<Value> {
+    if completion.code != Code::Ok {
+        return completion;
+    }
+    let empty = completion
+        .options
+        .as_list()
+        .is_ok_and(|options| options.is_empty());
+    if policy.settles_success() || (policy.begins_fresh() && empty) {
+        completion.options = options_dict(Code::Ok, 0, &[]);
+    }
+    completion
 }
 
 /// Resolve the `-errorcode` an error completion publishes to `$errorCode`.
@@ -1532,7 +1627,7 @@ pub(crate) fn opt_get(options: &Value, key: &str) -> Option<Value> {
 /// Shared with the `returnStk` opcode (C `INST_RETURN_STK` →
 /// `Tcl_SetReturnOptions`), which behaves exactly like
 /// `return -options $opts $result`.
-pub(crate) fn cmd_return(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+pub(crate) fn cmd_return(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // Apply one option pair, from a direct argument or an expanded `-options`
     // dict. `-code`/`-level` drive the completion; every other key (`-errorcode`,
     // `-errorinfo`, or a user option like `-foo`) is preserved in the options
@@ -1593,6 +1688,40 @@ pub(crate) fn cmd_return(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
     let extra_refs: Vec<(&str, Value)> =
         extra.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
+    if vm.supports_error_stack()
+        && let Some((_, stack)) = extra.iter().find(|(key, _)| key == "-errorstack")
+    {
+        let parts = match validate_error_stack(stack.as_list().map(|parts| parts.as_ref().clone()))
+        {
+            Ok(parts) => parts,
+            Err(ErrorStackValueError::NonList) => {
+                return err_with_code(
+                    format!(
+                        "bad -errorstack value: expected a list but got \"{}\"",
+                        stack.to_str()
+                    ),
+                    "TCL RESULT NONLIST_ERRORSTACK",
+                );
+            }
+            Err(ErrorStackValueError::OddSized) => {
+                return err_with_code(
+                    format!(
+                        "forbidden odd-sized list for -errorstack: \"{}\"",
+                        stack.to_str()
+                    ),
+                    "TCL RESULT ODDSIZEDLIST_ERRORSTACK",
+                );
+            }
+        };
+        if ret_code == Code::Error {
+            vm.seed_error_stack_parts(parts);
+        }
+    }
+    if ret_code == Code::Error
+        && let Some((_, info)) = extra.iter().find(|(key, _)| key == "-errorinfo")
+    {
+        vm.seed_error_info(info.to_str().to_string());
+    }
     let options = options_dict(ret_code, level, &extra_refs);
     // `-level 0` makes the requested `-code` take effect *immediately* (the
     // completion IS that code, including `ok` — `return -level 0 -code N` is how
@@ -1701,20 +1830,24 @@ fn cmd_time(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     } else {
         Value::double(total / count as f64)
     };
-    ok(Value::list(vec![
-        num,
-        Value::string("microseconds"),
-        Value::string("per"),
-        Value::string("iteration"),
-    ]))
+    settle_control_options(
+        ok(Value::list(vec![
+            num,
+            Value::string("microseconds"),
+            Value::string("per"),
+            Value::string("iteration"),
+        ])),
+        tcl_runtime_api::completion_options::ControlOptionPolicy::FRESH_SETTLED,
+    )
 }
 
 /// `encoding subcommand ?arg …?` — matches the tree-walking runtime
-/// (`runtime/rust`): the internal string model is
-/// UTF-8, so `convertto`/`convertfrom` pass the data through unchanged, `system`
-/// reports `utf-8`, `names` lists the supported set, and `dirs` is accepted and
-/// ignored (no encoding-file search). This is a documented simplification — real
-/// codepage conversion (cp1252, shiftjis, …) is not implemented on either side.
+/// (`runtime/rust`): the internal string model is UTF-8, so
+/// `convertto`/`convertfrom` pass the data through unchanged, `system` reports
+/// the host's typed locale fact, `names` lists the supported channel encodings,
+/// and `dirs` is accepted and ignored (no encoding-file search). This is a
+/// documented simplification — real codepage conversion (cp1252, shiftjis, …)
+/// is not implemented on either side.
 /// `encoding`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it.
 /// 9.0's table also carries `profiles` and `user`, which need the encoding
 /// machinery this engine does not model; like its other ensembles it names
@@ -1748,7 +1881,17 @@ fn cmd_encoding(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         };
     match canon {
         "dirs" => ok(Value::empty()),
-        "system" => ok(Value::string("utf-8")),
+        "system" => match args {
+            [_] => ok(Value::string(vm.system_encoding().as_str())),
+            [_, value] => match tcl_cmd_core::channel::resolve_system_encoding(&value.to_str()) {
+                Ok(encoding) => {
+                    vm.set_system_encoding(encoding);
+                    ok(Value::empty())
+                }
+                Err(error) => completion_from_cmd_error(error),
+            },
+            _ => err_wrong_args("encoding system ?encoding?"),
+        },
         "names" => ok(Value::string("utf-8 unicode ascii iso8859-1")),
         // Unreachable: `ENCODING_SUBS` has exactly these five names.
         _ => {
@@ -1852,6 +1995,90 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 impl Vm {
+    /// Snapshot a completion through the shared standard-options planner.
+    /// `catch`, compiled catch ranges, and `try` all use this adapter, so live
+    /// error metadata and carried return options cannot drift between them.
+    pub(crate) fn completion_options_snapshot(&self, comp: &Completion<Value>) -> Value {
+        let carried = comp.options.as_list().map_or_else(
+            |_| Vec::new(),
+            |items| {
+                items
+                    .as_slice()
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|pair| (pair[0].to_str().as_bytes().to_vec(), pair[1].clone()))
+                    .collect()
+            },
+        );
+        let (code, level) = if comp.code == Code::Return {
+            let code = opt_get(&comp.options, "-code")
+                .and_then(|value| value.as_int().ok())
+                .and_then(|value| i32::try_from(value).ok())
+                .map_or(Code::Ok, Code::from_int);
+            let level = opt_get(&comp.options, "-level")
+                .and_then(|value| value.as_int().ok())
+                .unwrap_or(1);
+            (code, level)
+        } else {
+            (comp.code, 0)
+        };
+        let active_error = code == Code::Error && comp.code == Code::Error && level == 0;
+        let error = (code == Code::Error).then(|| ErrorOptions {
+            error_code: Some(resolved_error_code(comp)),
+            error_info: active_error.then(|| {
+                self.error_info_value().map_or_else(
+                    || opt_get(&comp.options, "-errorinfo").unwrap_or_else(|| comp.result.clone()),
+                    Value::string,
+                )
+            }),
+            error_stack: active_error
+                .then(|| self.error_stack_for_completion(opt_get(&comp.options, "-errorstack"))),
+            error_line: active_error.then(|| i64::from(self.error_line())),
+            during: None,
+        });
+        let rows = shared_options::plan(
+            self.runtime_version(),
+            code,
+            level,
+            &carried,
+            error.as_ref(),
+        );
+        Value::list(
+            rows.into_iter()
+                .flat_map(|(key, value)| {
+                    let value = match value {
+                        OptionValue::Integer(value) => Value::int(value),
+                        OptionValue::Value(value) => value,
+                    };
+                    [Value::string(String::from_utf8_lossy(&key)), value]
+                })
+                .collect(),
+        )
+    }
+
+    /// Restore a frozen error completion after a successful `finally` body so
+    /// subsequent procedure unwinding extends the original stack.
+    pub(crate) fn restore_completion_error_state(&mut self, comp: &Completion<Value>) {
+        if comp.code != Code::Error {
+            return;
+        }
+        let info = opt_get(&comp.options, "-errorinfo")
+            .unwrap_or_else(|| comp.result.clone())
+            .to_str()
+            .to_string();
+        self.seed_error_info(info);
+        if let Some(stack) = opt_get(&comp.options, "-errorstack") {
+            self.seed_error_stack(&stack);
+        }
+        if let Some(line) = opt_get(&comp.options, "-errorline")
+            .and_then(|value| value.as_int().ok())
+            .and_then(|value| u32::try_from(value).ok())
+        {
+            self.set_error_line(line);
+        }
+    }
+
     /// The `catch` epilogue, shared by the explicit-stack catch frame
     /// ([`crate::exec`]'s `unwind`) and the `invoke_command` / parse-error
     /// fallbacks: from the body's completion `comp`, bind the result and options
@@ -1872,33 +2099,27 @@ impl Vm {
         if self.exit_pending() {
             return comp;
         }
-        let error_meta = if comp.code == Code::Error {
-            let einfo = self.take_error_info().unwrap_or_else(|| {
-                opt_get(&comp.options, "-errorinfo").map_or_else(
-                    || comp.result.to_str().to_string(),
-                    |v| v.to_str().to_string(),
-                )
-            });
-            Some((einfo, resolved_error_code(&comp), self.error_line()))
-        } else {
-            let _ = self.take_error_info();
-            None
-        };
+        let opts = self.completion_options_snapshot(&comp);
+        let error_meta = (comp.code == Code::Error).then(|| {
+            let einfo = opt_get(&opts, "-errorinfo").map_or_else(
+                || comp.result.to_str().to_string(),
+                |value| value.to_str().to_string(),
+            );
+            let ecode = opt_get(&opts, "-errorcode").unwrap_or_else(|| resolved_error_code(&comp));
+            (einfo, ecode)
+        });
+        let _ = self.take_error_info();
         if let Some(r) = resvar
             && let Err(e) = self.set_var(&r.to_str(), comp.result.clone())
         {
             return e;
         }
-        if let Some(o) = optvar {
-            let opts = match &error_meta {
-                Some((einfo, ecode, eline)) => catch_error_options(&comp, ecode, einfo, *eline),
-                None => completion_options(&comp),
-            };
-            if let Err(e) = self.set_var(&o.to_str(), opts) {
-                return e;
-            }
+        if let Some(o) = optvar
+            && let Err(e) = self.set_var(&o.to_str(), opts)
+        {
+            return e;
         }
-        if let Some((einfo, ecode, _)) = &error_meta {
+        if let Some((einfo, ecode)) = &error_meta {
             self.publish_error(einfo, ecode);
         }
         ok(Value::int(comp.code.as_int()))
@@ -1912,14 +2133,13 @@ impl Vm {
     /// `PUSH_RESULT`/`PUSH_RETURN_CODE`/`PUSH_RETURN_OPTS`.
     pub(crate) fn digest_catch_options(&mut self, comp: &Completion<Value>) -> Value {
         if comp.code == Code::Error {
-            let einfo = self.take_error_info().unwrap_or_else(|| {
-                opt_get(&comp.options, "-errorinfo").map_or_else(
-                    || comp.result.to_str().to_string(),
-                    |v| v.to_str().to_string(),
-                )
-            });
-            let ecode = resolved_error_code(comp);
-            let opts = catch_error_options(comp, &ecode, &einfo, self.error_line());
+            let opts = self.completion_options_snapshot(comp);
+            let einfo = opt_get(&opts, "-errorinfo").map_or_else(
+                || comp.result.to_str().to_string(),
+                |value| value.to_str().to_string(),
+            );
+            let ecode = opt_get(&opts, "-errorcode").unwrap_or_else(|| resolved_error_code(comp));
+            let _ = self.take_error_info();
             self.publish_error(&einfo, &ecode);
             opts
         } else {
@@ -1927,42 +2147,6 @@ impl Vm {
             completion_options(comp)
         }
     }
-}
-
-/// The options dict `catch` binds for an error completion. C always attaches
-/// `-errorcode`, `-errorinfo`, and `-errorline` to an error's options — even a
-/// bare builtin error such as `catch {llength} m opts` — so
-/// `dict get $opts -errorcode` never fails. The resolved code
-/// and trace already fold in any values a user `error`/`throw`/`return` carried;
-/// any *other* carried option (a custom `-foo`) is preserved verbatim.
-fn catch_error_options(comp: &Completion<Value>, ecode: &Value, einfo: &str, eline: u32) -> Value {
-    let mut items = vec![
-        Value::string("-code"),
-        Value::int(comp.code.as_int()),
-        Value::string("-level"),
-        Value::int(0),
-        Value::string("-errorcode"),
-        ecode.clone(),
-        Value::string("-errorinfo"),
-        Value::string(einfo),
-        Value::string("-errorline"),
-        Value::int(i64::from(eline)),
-    ];
-    if let Ok(carried) = comp.options.as_list() {
-        let mut i = 0;
-        while i + 1 < carried.len() {
-            let k = carried[i].to_str();
-            if !matches!(
-                &*k,
-                "-code" | "-level" | "-errorcode" | "-errorinfo" | "-errorline"
-            ) {
-                items.push(carried[i].clone());
-                items.push(carried[i + 1].clone());
-            }
-            i += 2;
-        }
-    }
-    Value::list(items)
 }
 
 /// `unset ?-nocomplain? ?--? name ...` — remove variables / array elements.

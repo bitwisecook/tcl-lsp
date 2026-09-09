@@ -857,7 +857,10 @@ fn file_tempfile(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     // Native channels are backed by the same path; a VFS host can still use
     // the created path for subsequent file queries even if streaming is absent.
-    let opened = interp.channels.borrow_mut().open(&path, b"w+");
+    let version = interp.runtime_version();
+    let access = tcl_cmd_core::channel::resolve_open_access_mode(version, "w+")
+        .expect("the literal w+ access mode is valid");
+    let opened = interp.channels.borrow_mut().open(&path, access, version);
     match opened {
         Ok(id) => {
             interp.set_result_bytes(&id);

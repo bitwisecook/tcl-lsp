@@ -61,6 +61,7 @@ mod exit_;
 mod expr_;
 mod fblocked;
 mod fconfigure_;
+pub use fconfigure_::resolve_fconfigure_option;
 mod fcopy;
 mod file_;
 mod fileevent;

@@ -18,7 +18,7 @@
 
 //! Where `.tclspec` files come from: the three discovery tiers.
 //!
-//! `docs/design/spec-packs.md` fixes both the tiers and their order —
+//! `docs/design/registry/spec-packs.md` fixes both the tiers and their order —
 //! **nearest wins: workspace > user > bundled**:
 //!
 //! - **workspace** — the `tclLsp.specPacks` setting (mirrored in every editor
@@ -417,7 +417,7 @@ fn collect_path(
 /// Add every `.tclspec` under `dir`, recursively.
 ///
 /// Recursive because a pack is a logical unit an author groups however they
-/// like (`docs/design/spec-packs.md`, "Loading and tooling") — one file per
+/// like (`docs/design/registry/spec-packs.md`, "Loading and tooling") — one file per
 /// namespace in subdirectories is a shape the design explicitly invites.
 fn collect_dir(
     store: &dyn SourceStore,

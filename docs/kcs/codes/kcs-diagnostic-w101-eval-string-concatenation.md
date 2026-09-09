@@ -21,7 +21,9 @@ An attacker who controls any part of the concatenated string can inject arbitrar
 
 ## Symptoms
 
-- A yellow squiggle appears under the `eval` call, with the message "eval with string concatenation".
+- A yellow squiggle appears under the `eval` call, with the message "eval with
+  substituted arguments risks code injection. Prefer direct invocation or
+  {*}$cmdList to preserve argument boundaries."
 
 ## Example that triggers it
 

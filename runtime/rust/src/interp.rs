@@ -42,6 +42,7 @@ use std::rc::{Rc, Weak};
 
 use tcl_core_types::RecursionLimit;
 use tcl_runtime_api::codegen_abi::NATIVE_PROC_STATUS_DECLINED;
+use tcl_runtime_api::error_stack::{validate_error_stack, ErrorStack};
 use tcl_runtime_api::guard::{
     GuardDomain, GuardDomains, GuardError, GuardIdentity, GuardManager, GuardToken,
 };
@@ -97,6 +98,17 @@ impl Code {
             4 => Code::Continue,
             other => Code::Other(other),
         }
+    }
+}
+
+fn shared_code(code: Code) -> tcl_runtime_api::Code {
+    match code {
+        Code::Ok => tcl_runtime_api::Code::Ok,
+        Code::Error => tcl_runtime_api::Code::Error,
+        Code::Return => tcl_runtime_api::Code::Return,
+        Code::Break => tcl_runtime_api::Code::Break,
+        Code::Continue => tcl_runtime_api::Code::Continue,
+        Code::Other(value) => tcl_runtime_api::Code::Other(value),
     }
 }
 
@@ -452,7 +464,11 @@ pub(crate) struct CoroContext {
     script_stack: Vec<Vec<u8>>,
     return_code: Code,
     return_level: usize,
+    return_options: Vec<(Vec<u8>, Vec<u8>)>,
+    array_operation_targets: Vec<ArrayOperationTarget>,
+    active_var_trace_scopes: Vec<crate::cmd_trace::VarTraceScope>,
     exc: ExceptionState,
+    error_stack: ErrorStack<Vec<u8>>,
     error_line: u32,
     arg_lines: Vec<u32>,
     eval_depth: u32,
@@ -472,7 +488,11 @@ impl CoroContext {
             script_stack: Vec::new(),
             return_code: Code::Ok,
             return_level: 1,
+            return_options: Vec::new(),
+            array_operation_targets: Vec::new(),
+            active_var_trace_scopes: Vec::new(),
             exc: ExceptionState::default(),
+            error_stack: ErrorStack::default(),
             error_line: 1,
             arg_lines: Vec::new(),
             eval_depth: 0,
@@ -771,11 +791,26 @@ struct CmdArena {
     fqns: Vec<Vec<u8>>,
 }
 
+#[derive(Clone, Debug)]
+struct ArrayOperationTarget {
+    target: crate::vars::ArrayCellTarget,
+}
+
 pub struct InterpState {
     pub(crate) frames: RefCell<FrameStack>,
     /// The command-table-as-core-service: the namespace tree + the one
     /// `resolve(currentNs, name)` resolver (T1.5).
     namespaces: RefCell<Namespaces>,
+    /// Exact array bindings retained by nested `array` operations. The public
+    /// runtime contract carries only the opaque `VarId`; this stack keeps the
+    /// standalone table owner and slot private while callbacks re-enter Tcl.
+    /// It is swapped with [`CoroContext::array_operation_targets`] so a yield
+    /// cannot make one flow pop and release another flow's target.
+    array_operation_targets: RefCell<Vec<ArrayOperationTarget>>,
+    /// Variable cells whose trace callbacks are active in the current flow.
+    /// This must move with coroutine execution context: a suspended callback
+    /// cannot suppress or unbalance another coroutine's trace walk.
+    active_var_trace_scopes: RefCell<Vec<crate::cmd_trace::VarTraceScope>>,
     /// Runtime-issued speculative guards and explicitly attested builtin IDs.
     guards: RefCell<GuardManager>,
     guarded_commands:
@@ -801,6 +836,10 @@ pub struct InterpState {
     /// complete with once `-level` boundaries are unwound.
     return_code: Cell<Code>,
     return_level: Cell<usize>,
+    /// Non-control pairs carried by the current `return` completion. Byte
+    /// storage is sufficient at this portable boundary and preserves arbitrary
+    /// pre-TIP/custom option spellings for `catch`, `try`, and host adapters.
+    return_options: RefCell<Vec<(Vec<u8>, Vec<u8>)>>,
     /// Variable-trace registry (`trace add|remove|info variable`).
     pub(crate) traces: RefCell<crate::cmd_trace::TraceTable>,
     /// The error stack-trace accumulator (PC-4).
@@ -940,15 +979,12 @@ pub struct InterpState {
     /// error unwinds — `INNER <ctx>` for the innermost command, `CALL <info
     /// level 0>` per proc frame, `UP <delta>` per `uplevel` boundary. Rendered to
     /// a Tcl list on demand.
-    error_stack: RefCell<Vec<Vec<u8>>>,
-    /// C's `iPtr->resetErrorStack`: set when the result is reset (a new error
-    /// episode is starting), so the next command logged clears the stack and
-    /// records its inner context. Starts `true`.
-    reset_error_stack: Cell<bool>,
+    error_stack: RefCell<ErrorStack<Vec<u8>>>,
     /// The `try` exception-chaining link (TIP 329 `-during`): when a `try`
     /// handler or `finally` script throws, the options dict of the *prior*
     /// exception it superseded is stashed here so the next error-options build
-    /// ([`build_options`](crate::cmd_error)) splices it in as `-during`. Holds an
+    /// ([`completion_options`](crate::cmd_error::completion_options)) splices it
+    /// in as `-during`. Holds an
     /// owning reference (released when overwritten, cleared, or the interp drops).
     /// Cleared when an error is published/caught ([`publish_error`](Self::publish_error)),
     /// since the chain is then consumed.
@@ -1243,6 +1279,7 @@ impl Interp {
     /// no process-host values are ever installed, even transiently.
     pub fn with_host(host: Rc<dyn tcl_platform::Host>) -> Interp {
         let result = obj::new_obj();
+        let system_encoding = host.system_encoding();
         // SAFETY: `result` is freshly created; the interp takes the owning ref.
         unsafe { obj::incr_ref_count(result) };
         let mut guards = GuardManager::default();
@@ -1254,6 +1291,8 @@ impl Interp {
         let mut interp = Interp(Rc::new(InterpState {
             frames: RefCell::new(FrameStack::new()),
             namespaces: RefCell::new(Namespaces::new()),
+            array_operation_targets: RefCell::new(Vec::new()),
+            active_var_trace_scopes: RefCell::new(Vec::new()),
             guards: RefCell::new(guards),
             guarded_commands: RefCell::new(std::collections::BTreeMap::new()),
             current_ns: Cell::new(GLOBAL),
@@ -1263,9 +1302,13 @@ impl Interp {
                 DEFAULT_RUNTIME_VERSION,
             )),
             script_stack: RefCell::new(Vec::new()),
-            channels: RefCell::new(crate::cmd_chan::ChannelTable::default()),
+            channels: RefCell::new(crate::cmd_chan::ChannelTable::new(
+                DEFAULT_RUNTIME_VERSION,
+                system_encoding,
+            )),
             return_code: Cell::new(Code::Ok),
             return_level: Cell::new(1),
+            return_options: RefCell::new(Vec::new()),
             traces: RefCell::new(crate::cmd_trace::TraceTable::default()),
             exc: RefCell::new(ExceptionState::default()),
             error_line: Cell::new(1),
@@ -1294,8 +1337,7 @@ impl Interp {
             ensemble_rewrite: RefCell::new(None),
             #[cfg(have_tommath)]
             rand_seed: Cell::new(None),
-            error_stack: RefCell::new(Vec::new()),
-            reset_error_stack: Cell::new(true),
+            error_stack: RefCell::new(ErrorStack::default()),
             during: Cell::new(None),
             result: Cell::new(result),
             cmd_arena: RefCell::new(CmdArena::default()),
@@ -1346,7 +1388,11 @@ impl Interp {
     /// a restricted one). Interior-mutable since the interp is shared via `Rc`.
     pub fn set_host(&self, host: Rc<dyn tcl_platform::Host>) {
         self.invalidate_interpreter_policy();
+        let system_encoding = host.system_encoding();
         *self.0.host.borrow_mut() = host;
+        self.channels
+            .borrow()
+            .reset_process_state_if_owner(self.runtime_version(), system_encoding);
         let mut interp = self.clone();
         interp.rebootstrap_host_globals();
         if interp.is_safe.get() {
@@ -1410,6 +1456,9 @@ impl Interp {
             .dialect_point
             .set(Some(crate::environment::surface_point(profile)));
         self.0.runtime_version.set(version);
+        self.channels
+            .borrow()
+            .reset_standard_channels_if_owner(version);
         self.namespaces.borrow_mut().ns_var_global_fallback =
             version.namespace_var_global_fallback();
         self.write_release_globals();
@@ -1424,6 +1473,18 @@ impl Interp {
     #[must_use]
     pub fn runtime_version(&self) -> tcl_dialect::TclVersion {
         self.0.runtime_version.get()
+    }
+
+    /// The mutable `encoding system` value shared by this interpreter tree.
+    #[must_use]
+    pub(crate) fn system_encoding(&self) -> tcl_platform::SystemEncoding {
+        self.channels.borrow().system_encoding()
+    }
+
+    /// Replace the system encoding used to initialise subsequently opened
+    /// channels. Existing channel handles retain their own configuration.
+    pub(crate) fn set_system_encoding(&self, encoding: tcl_platform::SystemEncoding) {
+        self.channels.borrow().set_system_encoding(encoding);
     }
 
     /// The dialect profile this interpreter validates its command surface
@@ -2749,6 +2810,55 @@ impl Interp {
         self.return_code.set(code);
     }
 
+    /// Replace the arbitrary option pairs carried by the current `return`.
+    pub(crate) fn set_return_options(&self, options: Vec<(Vec<u8>, Vec<u8>)>) {
+        *self.return_options.borrow_mut() = options;
+    }
+
+    /// Snapshot the current `return`'s non-control option pairs.
+    pub(crate) fn pending_return_options(&self) -> Vec<(Vec<u8>, Vec<u8>)> {
+        self.return_options.borrow().clone()
+    }
+
+    /// Move the active completion's carried option pairs out of the
+    /// interpreter. SaveInterpState-style callbacks use this to run with a
+    /// fresh completion and restore the caller's pairs when the callback's
+    /// completion is ignored.
+    fn take_return_options(&self) -> Vec<(Vec<u8>, Vec<u8>)> {
+        std::mem::take(&mut *self.return_options.borrow_mut())
+    }
+
+    /// Restore a previously saved carried-options set.
+    fn restore_return_options(&self, options: Vec<(Vec<u8>, Vec<u8>)>) {
+        *self.return_options.borrow_mut() = options;
+    }
+
+    /// Begin an evaluation/completion boundary with no carried options.
+    pub(crate) fn clear_return_options(&self) {
+        self.return_options.borrow_mut().clear();
+    }
+
+    /// Enter a control-command body under the shared completion-option policy.
+    pub(crate) fn begin_control_options(
+        &self,
+        policy: tcl_runtime_api::completion_options::ControlOptionPolicy,
+    ) {
+        if policy.begins_fresh() {
+            self.clear_return_options();
+        }
+    }
+
+    /// Settle a control command's successful completion under the shared policy.
+    pub(crate) fn settle_control_options(
+        &self,
+        policy: tcl_runtime_api::completion_options::ControlOptionPolicy,
+        code: Code,
+    ) {
+        if code == Code::Ok && policy.settles_success() {
+            self.clear_return_options();
+        }
+    }
+
     /// The pending `return` `-code`/`-level` (the options a body that completed
     /// via `return` would propagate) — for `catch`/`try`'s options dict and TIP
     /// 329 `-during` chaining.
@@ -2788,6 +2898,7 @@ impl Interp {
         name: &[u8],
         project: impl FnOnce(&mut Self, Code) -> T,
     ) -> T {
+        self.clear_return_options();
         self.script_stack.borrow_mut().push(name.to_vec());
         // A `source`d file is its own `info frame` level: `type source` + the
         // file path, inheriting the enclosing proc/level. Its commands are
@@ -2859,6 +2970,7 @@ impl Interp {
     /// frame, so its commands — and the method bodies they define — report
     /// file-absolute `info frame` lines (TIP 280). Otherwise it runs inline.
     pub(crate) fn eval_def_body(&mut self, body: &[u8], src: Option<(Rc<[u8]>, u32)>) -> Code {
+        self.clear_return_options();
         match src {
             Some((file, line_base)) => {
                 let mut frame = self.inherited_cmd_frame();
@@ -2877,6 +2989,7 @@ impl Interp {
     /// together), then restore. Transparent — the body's completion
     /// code (incl. `return`) propagates unchanged.
     pub(crate) fn eval_uplevel(&mut self, target_level: usize, script: &[u8]) -> Code {
+        self.clear_return_options();
         let prev_level = self.frames.borrow_mut().set_active_level(target_level);
         let prev_ns = self.current_ns.get();
         self.current_ns
@@ -2937,6 +3050,7 @@ impl Interp {
         loc: Option<(Option<Rc<[u8]>>, u32)>,
         add_eval_frame: bool,
     ) -> Code {
+        self.clear_return_options();
         let dying_name = {
             let namespaces = self.namespaces.borrow();
             namespaces
@@ -3703,38 +3817,21 @@ impl Interp {
         // `TclIsVarTraceActive(varPtr)` (tclTrace.c 9.0.4:2513). Per *cell*: a
         // callback writing a different element of the same array is a different
         // `Var` and fires (issue #1574).
-        if traces.active_var_scopes.contains(&cell) {
+        if self.active_var_trace_scopes.borrow().contains(&cell) {
             return false;
         }
-        let array_active = elem.is_some() && traces.active_var_scopes.contains(&cell.array());
-        // C fires the containing array's traces before the element's own
-        // (`TclCallVarTraces`, tclTrace.c 9.0.4: the `arrayPtr` loop at :2581
-        // precedes the `varPtr` loop at :2623), and walks each list head→tail
-        // — newest-first, since `TraceVarEx` prepends (:3090-3092). Our Vec
-        // pushes newest-last, so each group is reversed. Issue #1440.
-        let selected = |whole_array: bool| {
-            traces
-                .traces
-                .iter()
-                .rev()
-                .filter(move |t| t.elem.is_none() == whole_array)
-                .filter(|t| {
-                    crate::cmd_trace::matches(t, base, elem, op, access_ns, access_frame_level)
-                })
-        };
-        let array_group = (access.whole_array && !array_active)
-            .then(|| selected(true))
-            .into_iter()
-            .flatten();
-        // The walk order is fixed here, but *what runs* is re-read at each step:
-        // C follows `active.nextTracePtr`, which `Tcl_UntraceVar2` rewrites when
-        // a callback removes a trace mid-walk, so a trace removed during the
-        // firing does not fire in that same pass. Snapshotting the callbacks
-        // themselves would run one that is already gone (issue #1633). Ids are
-        // enough to re-find each registration, and are never reused.
-        let order: Vec<u64> = array_group.chain(selected(false)).map(|t| t.id).collect();
+        let array_active = elem.is_some()
+            && self
+                .active_var_trace_scopes
+                .borrow()
+                .contains(&cell.array());
+        let any = traces.traces.iter().any(|trace| {
+            let whole = trace.elem.is_none();
+            (!whole || (access.whole_array && !array_active))
+                && crate::cmd_trace::matches(trace, base, elem, op, access_ns, access_frame_level)
+        });
         drop(traces);
-        if order.is_empty() {
+        if !any {
             return false;
         }
         // C aborts the chain on the first callback error for every op *except*
@@ -3744,77 +3841,88 @@ impl Interp {
         // Preserve the result object across the callbacks.
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
+        let saved_options = self.take_return_options();
 
         // The cell is marked active for the whole firing, as C marks `varPtr`
         // once on entry and clears it on the way out — not per callback.
-        self.traces
-            .borrow_mut()
-            .active_var_scopes
-            .push(cell.clone());
+        self.active_var_trace_scopes.borrow_mut().push(cell.clone());
 
         let mut errored = false;
         let op_name = String::from_utf8_lossy(op).into_owned();
-        for id in order {
-            // Still registered? A previous callback in this same firing may have
-            // removed it (C's `nextTracePtr` rewrite).
-            let Some((cmd, old_style)) = self
+        'groups: for whole_array in [true, false] {
+            if whole_array && (!access.whole_array || array_active) {
+                continue;
+            }
+            // Resolve each group only when Tcl reaches it. A whole-array
+            // callback can therefore add or remove the selected element's
+            // trace before the element group begins.
+            let order: Vec<u64> = self
                 .traces
                 .borrow()
                 .traces
                 .iter()
-                .find(|t| t.id == id)
-                .map(|t| (t.command.clone(), t.old_style))
-            else {
-                continue;
-            };
-            // Append `base element op` as properly-quoted trailing words. A
-            // trace installed by the deprecated `trace variable` form is
-            // called with the single `rwua` letter (C's `TCL_TRACE_OLD_STYLE`).
-            let op_word = tcl_cmd_core::trace::callback_op_word(&op_name, old_style);
-            let args = crate::list::new_list_obj(&[
-                new_string(reported),
-                new_string(access.report_elem.as_deref().unwrap_or(b"")),
-                new_string(op_word.as_bytes()),
-            ]);
-            let mut line = cmd;
-            line.push(b' ');
-            line.extend_from_slice(&obj_bytes(args));
-            drop_fresh(args);
-            let code = self.eval_str(&line);
-            if propagate && code == Code::Error {
-                // Capture the callback's error message; stop firing (C aborts
-                // the trace chain on the first error).
-                let msg = self.result_bytes();
-                self.traces.borrow_mut().pending_err = Some(msg);
-                // C's `TclCallVarTraces` error tail (tclTrace.c 9.0.4:2662-2696)
-                // keeps the callback's own errorInfo chain and appends a
-                // `(<type> trace on "name")` frame to it; only the *result* is
-                // replaced afterwards, by `TclVarErrMsg`. The element named
-                // here is the one from the access **spelling** — C snapshots
-                // `part2` before recovering one from a linked element — so
-                // `set a(k) 2` reports `(write trace on "a(k)")` while
-                // `set e 5` through `upvar #0 a(k) e` reports
-                // `(write trace on "e")`.
-                let mut frame = op.to_vec();
-                frame.extend_from_slice(b" trace on \"");
-                frame.extend_from_slice(reported);
-                if let Some(k) = access.spelling_elem.as_deref() {
-                    frame.push(b'(');
-                    frame.extend_from_slice(k);
-                    frame.push(b')');
+                .rev()
+                .filter(|trace| trace.elem.is_none() == whole_array)
+                .filter(|trace| {
+                    crate::cmd_trace::matches(trace, base, elem, op, access_ns, access_frame_level)
+                })
+                .map(|trace| trace.id)
+                .collect();
+            for id in order {
+                // Still registered? A previous callback in this group may
+                // have removed it from C's live linked-list walk.
+                let Some((cmd, old_style)) = self
+                    .traces
+                    .borrow()
+                    .traces
+                    .iter()
+                    .find(|trace| trace.id == id)
+                    .map(|trace| (trace.command.clone(), trace.old_style))
+                else {
+                    continue;
+                };
+                let op_word = tcl_cmd_core::trace::callback_op_word(&op_name, old_style);
+                let args = crate::list::new_list_obj(&[
+                    new_string(reported),
+                    new_string(access.report_elem.as_deref().unwrap_or(b"")),
+                    new_string(op_word.as_bytes()),
+                ]);
+                let mut line = cmd;
+                line.push(b' ');
+                line.extend_from_slice(&obj_bytes(args));
+                drop_fresh(args);
+                self.clear_return_options();
+                let code = self.eval_str(&line);
+                if propagate && code == Code::Error {
+                    // Capture the callback's error message; stop firing (C
+                    // aborts the trace chain on the first error).
+                    let msg = self.result_bytes();
+                    self.traces.borrow_mut().pending_err = Some(msg);
+                    let mut frame = op.to_vec();
+                    frame.extend_from_slice(b" trace on \"");
+                    frame.extend_from_slice(reported);
+                    if let Some(k) = access.spelling_elem.as_deref() {
+                        frame.push(b'(');
+                        frame.extend_from_slice(k);
+                        frame.push(b')');
+                    }
+                    frame.push(b'"');
+                    self.append_frame_noline(&frame);
+                    errored = true;
+                    break 'groups;
                 }
-                frame.push(b'"');
-                self.append_frame_noline(&frame);
-                errored = true;
-                break;
+                self.restore_return_options(saved_options.clone());
             }
         }
-        let popped = self.traces.borrow_mut().active_var_scopes.pop();
+        let popped = self.active_var_trace_scopes.borrow_mut().pop();
         debug_assert_eq!(popped, Some(cell));
         // Restore the saved result (release the trace's, adopt our held +1).
         unsafe {
             obj::decr_ref_count(self.result.get());
             self.result.set(saved);
+        }
+        if !errored {
+            self.restore_return_options(saved_options);
         }
         errored
     }
@@ -3855,6 +3963,238 @@ impl Interp {
             exc.code_explicit = false;
         }
         Code::Error
+    }
+
+    /// Locate one array binding, retain its opaque identity across the array
+    /// operation trace, and expose it to the shared command core.
+    pub(crate) fn with_array_trace_target(
+        &mut self,
+        name: &[u8],
+        operation: impl FnOnce(&mut Self, &tcl_runtime_api::ArrayTarget) -> Code,
+    ) -> Code {
+        let frame = tcl_runtime_api::FrameId(self.frames.borrow().current_level());
+        let located = crate::vars::array_target_at(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            name,
+            frame.0,
+        );
+        let display = String::from_utf8_lossy(name).into_owned();
+        let target = located.as_ref().map_or_else(
+            || tcl_runtime_api::ArrayTarget::named(frame, display.clone()),
+            |record| tcl_runtime_api::ArrayTarget::cell(frame, display.clone(), record.id()),
+        );
+        if let Some(record) = located {
+            let retained = crate::vars::retain_array_target(
+                &mut self.frames.borrow_mut(),
+                &mut self.namespaces.borrow_mut(),
+                &record,
+            );
+            debug_assert!(retained);
+            self.array_operation_targets
+                .borrow_mut()
+                .push(ArrayOperationTarget { target: record });
+        }
+        let result = match self.fire_array_trace(name) {
+            Some(code) => code,
+            None => operation(self, &target),
+        };
+        if let Some(id) = target.cell_id() {
+            let popped = self.array_operation_targets.borrow_mut().pop();
+            debug_assert_eq!(popped.as_ref().map(|record| record.target.id()), Some(id));
+            if let Some(record) = popped {
+                crate::vars::release_array_target(
+                    &mut self.frames.borrow_mut(),
+                    &mut self.namespaces.borrow_mut(),
+                    &record.target,
+                );
+            }
+        }
+        result
+    }
+
+    fn array_operation_target(
+        &self,
+        target: &tcl_runtime_api::ArrayTarget,
+    ) -> Option<crate::vars::ArrayCellTarget> {
+        let id = target.cell_id()?;
+        self.array_operation_targets
+            .borrow()
+            .iter()
+            .rev()
+            .find(|record| record.target.id() == id)
+            .map(|record| record.target.clone())
+    }
+
+    pub(crate) fn array_keys_at_target(
+        &self,
+        target: &tcl_runtime_api::ArrayTarget,
+    ) -> Option<Vec<Vec<u8>>> {
+        let record = self.array_operation_target(target)?;
+        crate::vars::array_names_at_target(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            &record,
+        )
+    }
+
+    /// Tcl's `TclPtrGetVarIdx` read used by `array get`: select the live
+    /// element before callbacks, fire containing-array then element traces,
+    /// and read that same element afterwards. Trace errors are swallowed but
+    /// published to `errorInfo`/`errorCode`; destruction of the array selected
+    /// for the enclosing operation remains a hard read error.
+    pub(crate) fn array_read_elem_at_target(
+        &mut self,
+        target: &tcl_runtime_api::ArrayTarget,
+        key: &[u8],
+    ) -> tcl_runtime_api::ArrayElementRead<*mut TclObj> {
+        let live_array = crate::vars::array_target_at(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            target.name().as_bytes(),
+            target.frame().0,
+        );
+        let live_was_array = live_array.as_ref().is_some_and(|live| {
+            crate::vars::array_names_at_target(
+                &self.frames.borrow(),
+                &self.namespaces.borrow(),
+                live,
+            )
+            .is_some()
+        });
+        let selected = crate::vars::array_element_target_at(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            target.name().as_bytes(),
+            key,
+            target.frame().0,
+        );
+        let selected_retained = selected.as_ref().is_some_and(|(array, element)| {
+            crate::vars::retain_array_element_target(
+                &mut self.frames.borrow_mut(),
+                &mut self.namespaces.borrow_mut(),
+                array,
+                key,
+                *element,
+            )
+        });
+        let trace_errored = self
+            .fire_read_trace(target.name().as_bytes(), Some(key))
+            .is_some();
+        let trace_failure = trace_errored.then(|| {
+            (
+                self.result_bytes(),
+                self.error_code(),
+                self.error_info(),
+                i64::from(self.error_line()),
+            )
+        });
+
+        let outcome = match self.array_operation_target(target) {
+            Some(operation)
+                if crate::vars::array_names_at_target(
+                    &self.frames.borrow(),
+                    &self.namespaces.borrow(),
+                    &operation,
+                )
+                .is_some() =>
+            {
+                if let Some((_, _, info, line)) = trace_failure {
+                    self.publish_and_reset_error();
+                    tcl_runtime_api::ArrayElementRead::Missing(
+                        tcl_runtime_api::ArrayReadMiss::trace_error(Some(info), line),
+                    )
+                } else {
+                    let value = selected.as_ref().map_or_else(
+                        || self.var_get_elem(target.name().as_bytes(), key),
+                        |(array, element)| {
+                            crate::vars::get_element_at_target(
+                                &self.frames.borrow(),
+                                &self.namespaces.borrow(),
+                                array,
+                                key,
+                                *element,
+                            )
+                        },
+                    );
+                    value.map_or_else(
+                        || {
+                            let miss = if live_was_array {
+                                tcl_runtime_api::ArrayReadMiss::missing()
+                            } else {
+                                tcl_runtime_api::ArrayReadMiss::lookup(error_code_list(&[
+                                    b"TCL",
+                                    b"LOOKUP",
+                                    b"VARNAME",
+                                    target.name().as_bytes(),
+                                ]))
+                            };
+                            tcl_runtime_api::ArrayElementRead::Missing(miss)
+                        },
+                        tcl_runtime_api::ArrayElementRead::Value,
+                    )
+                }
+            }
+            Some(operation) => {
+                let invalidation = if crate::vars::array_target_is_set(
+                    &self.frames.borrow(),
+                    &self.namespaces.borrow(),
+                    &operation,
+                ) {
+                    tcl_runtime_api::ArrayInvalidation::Retyped
+                } else {
+                    tcl_runtime_api::ArrayInvalidation::Unset
+                };
+                trace_failure.map_or_else(
+                    || tcl_runtime_api::ArrayElementRead::ArrayInvalidated(invalidation),
+                    |(message, code, info, line)| {
+                        tcl_runtime_api::ArrayElementRead::TraceError(
+                            tcl_runtime_api::ArrayReadFailure::new(
+                                String::from_utf8_lossy(&message),
+                                code,
+                                Some(info),
+                                Some(line),
+                            ),
+                        )
+                    },
+                )
+            }
+            None => trace_failure.map_or_else(
+                || {
+                    tcl_runtime_api::ArrayElementRead::ArrayInvalidated(
+                        tcl_runtime_api::ArrayInvalidation::Unset,
+                    )
+                },
+                |(message, code, info, line)| {
+                    tcl_runtime_api::ArrayElementRead::TraceError(
+                        tcl_runtime_api::ArrayReadFailure::new(
+                            String::from_utf8_lossy(&message),
+                            code,
+                            Some(info),
+                            Some(line),
+                        ),
+                    )
+                },
+            ),
+        };
+        if let tcl_runtime_api::ArrayElementRead::Value(value) = &outcome {
+            // The selected element's retained cell is released immediately
+            // below. Transfer one hold to the shared array core first so no
+            // raw pointer can die between this return and list materialisation.
+            tcl_syntax::value::ValueOps::pin_value(self, value);
+        }
+        if selected_retained {
+            if let Some((array, element)) = selected {
+                crate::vars::release_array_element_target(
+                    &mut self.frames.borrow_mut(),
+                    &mut self.namespaces.borrow_mut(),
+                    &array,
+                    key,
+                    element,
+                );
+            }
+        }
+        outcome
     }
 
     /// Fire `name`'s `array` traces — C's `TclCheckArrayTraces`, which every
@@ -3990,6 +4330,7 @@ impl Interp {
         // Preserve the result object across the callbacks.
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
+        let saved_options = self.take_return_options();
 
         // Only `firing_cmd_traces` is raised, never `exec_firing`: C sets
         // `INTERP_TRACE_IN_PROGRESS` in exactly one place — `TraceExecutionProc`
@@ -4019,7 +4360,9 @@ impl Interp {
             line.push(b' ');
             line.extend_from_slice(&obj_bytes(args));
             drop_fresh(args);
+            self.clear_return_options();
             let _ = self.eval_str(&line);
+            self.restore_return_options(saved_options.clone());
         }
         {
             let mut traces = self.traces.borrow_mut();
@@ -4033,6 +4376,7 @@ impl Interp {
             obj::decr_ref_count(self.result.get());
             self.result.set(saved);
         }
+        self.restore_return_options(saved_options);
     }
 
     /// The callback prefix of the live command/execution trace `id`, or `None`
@@ -4098,6 +4442,7 @@ impl Interp {
         }
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
+        let saved_options = self.take_return_options();
         self.traces.borrow_mut().exec_firing += 1;
         let mut abort: Option<Code> = None;
         for id in ids {
@@ -4115,6 +4460,7 @@ impl Interp {
             line.extend_from_slice(&obj_bytes(args));
             drop_fresh(args);
             self.traces.borrow_mut().firing_exec_traces.push(id);
+            self.clear_return_options();
             let c = self.eval_str(&line);
             self.traces.borrow_mut().firing_exec_traces.pop();
             if c != Code::Ok {
@@ -4132,6 +4478,7 @@ impl Interp {
                 obj::decr_ref_count(self.result.get());
                 self.result.set(saved);
             }
+            self.restore_return_options(saved_options);
         }
         abort
     }
@@ -4161,6 +4508,7 @@ impl Interp {
         // result is observed by the next one.
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
+        let saved_options = self.take_return_options();
         let code_str = code.as_int().to_string().into_bytes();
 
         self.traces.borrow_mut().exec_firing += 1;
@@ -4186,6 +4534,7 @@ impl Interp {
             line.extend_from_slice(&obj_bytes(args));
             drop_fresh(args);
             self.traces.borrow_mut().firing_exec_traces.push(id);
+            self.clear_return_options();
             let c = self.eval_str(&line);
             self.traces.borrow_mut().firing_exec_traces.pop();
             if c != Code::Ok {
@@ -4207,6 +4556,7 @@ impl Interp {
                     obj::decr_ref_count(self.result.get());
                     self.result.set(saved);
                 }
+                self.restore_return_options(saved_options);
                 code
             }
         }
@@ -4773,6 +5123,7 @@ impl Interp {
         }
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
+        let saved_options = self.take_return_options();
         for (name, elem, cmd, old_style) in victims {
             // A trace registered the deprecated way is called with the `rwua`
             // letter, not the operation name — the teardown path must honour
@@ -4788,12 +5139,15 @@ impl Interp {
             line.push(b' ');
             line.extend_from_slice(&obj_bytes(args));
             drop_fresh(args);
+            self.clear_return_options();
             let _ = self.eval_str(&line);
+            self.restore_return_options(saved_options.clone());
         }
         unsafe {
             obj::decr_ref_count(self.result.get());
             self.result.set(saved);
         }
+        self.restore_return_options(saved_options);
     }
 
     /// Resolve a (relative/absolute) namespace name to its id, or `None`.
@@ -5163,6 +5517,40 @@ impl Interp {
         Code::Error
     }
 
+    /// Publish a portable command-layer error through this runtime's result
+    /// and exception-state ABI without losing a structured error code.
+    pub(crate) fn report_cmd_error(&mut self, error: tcl_cmd_core::CmdError) -> Code {
+        let (message, code, info, line) = error.into_details();
+        if let Some(info) = info {
+            self.set_result_bytes(message.as_bytes());
+            *self.exc.borrow_mut() = ExceptionState {
+                info: Some(info),
+                code: code.map_or_else(|| b"NONE".to_vec(), String::into_bytes),
+                code_explicit: false,
+                // The variable-trace frame is already present, but the array
+                // command which propagated it still has to log while unwinding.
+                already_logged: false,
+            };
+            if let Some(line) = line.and_then(|value| u32::try_from(value).ok()) {
+                self.error_line.set(line);
+            }
+            return Code::Error;
+        }
+        match code {
+            Some(code) => self.error_with_code(message.as_bytes(), code.as_bytes()),
+            None => self.set_error(message.as_bytes()),
+        }
+    }
+
+    /// Publish a list parse failure using the shared list owner's message and
+    /// structured code.
+    pub(crate) fn report_list_error(&mut self, source: &[u8], error: parse::ListError) -> Code {
+        self.error_with_code(
+            &parse::list_error_message(source, error),
+            error.error_code(),
+        )
+    }
+
     /// The `interp bgerror` handler command prefix (empty ⇒ default).
     pub(crate) fn bgerror_handler(&self) -> Vec<u8> {
         self.bgerror.borrow().clone()
@@ -5233,6 +5621,7 @@ impl Interp {
         std::mem::swap(&mut *self.script_stack.borrow_mut(), &mut ctx.script_stack);
         std::mem::swap(&mut *self.arg_lines.borrow_mut(), &mut ctx.arg_lines);
         std::mem::swap(&mut *self.exc.borrow_mut(), &mut ctx.exc);
+        std::mem::swap(&mut *self.error_stack.borrow_mut(), &mut ctx.error_stack);
         self.oo.borrow_mut().swap_exec(&mut ctx.oo);
         let ns = self.current_ns.replace(ctx.current_ns);
         ctx.current_ns = ns;
@@ -5242,6 +5631,18 @@ impl Interp {
         ctx.return_code = rc;
         let rl = self.return_level.replace(ctx.return_level);
         ctx.return_level = rl;
+        std::mem::swap(
+            &mut *self.return_options.borrow_mut(),
+            &mut ctx.return_options,
+        );
+        std::mem::swap(
+            &mut *self.array_operation_targets.borrow_mut(),
+            &mut ctx.array_operation_targets,
+        );
+        std::mem::swap(
+            &mut *self.active_var_trace_scopes.borrow_mut(),
+            &mut ctx.active_var_trace_scopes,
+        );
         let ed = self.eval_depth.replace(ctx.eval_depth);
         ctx.eval_depth = ed;
         let el = self.error_line.replace(ctx.error_line);
@@ -5378,10 +5779,9 @@ impl Interp {
             code_explicit: errorcode.is_some(),
             already_logged,
         };
-        if let Some(es) = errorstack {
-            if let Ok(parts) = crate::parse::split_list(es) {
-                *self.error_stack.borrow_mut() = parts;
-                self.reset_error_stack.set(false);
+        if let Some(es) = errorstack.filter(|_| self.runtime_version().has_error_stack()) {
+            if let Ok(parts) = validate_error_stack(crate::parse::split_list(es)) {
+                let _ = self.error_stack.borrow_mut().adopt(parts);
             }
         }
     }
@@ -5786,31 +6186,30 @@ impl Interp {
     /// entries are added separately at proc-frame boundaries
     /// ([`error_stack_push_call`](Self::error_stack_push_call)).
     pub(crate) fn error_stack_log(&self, command: &[u8]) {
-        if self.reset_error_stack.get() {
-            self.reset_error_stack.set(false);
-            let mut es = self.error_stack.borrow_mut();
-            es.clear();
-            es.push(b"INNER".to_vec());
-            es.push(command.to_vec());
+        if !self.runtime_version().has_error_stack() {
+            return;
         }
+        let mut es = self.error_stack.borrow_mut();
+        let _ = es.begin_inner(b"INNER".to_vec(), command.to_vec());
         let (top, active) = {
             let f = self.frames.borrow();
             (f.top_level(), f.current_level())
         };
         if top > active {
-            let mut es = self.error_stack.borrow_mut();
-            es.push(b"UP".to_vec());
-            es.push((top - active).to_string().into_bytes());
+            let _ = es.push_pair(b"UP".to_vec(), (top - active).to_string().into_bytes());
         }
     }
 
     /// Append a TIP 348 `CALL <info level 0>` entry — the invocation words of a
     /// proc/lambda/method frame that an error is unwinding out of. The words are
     /// joined into a single Tcl-list element (so `g 1212` renders as `{g 1212}`).
-    pub(crate) fn error_stack_push_call(&self, words: &[Vec<u8>]) {
-        if self.reset_error_stack.get() {
-            // No inner context recorded yet (the error started at this boundary);
-            // nothing to chain a CALL onto until a command is logged.
+    pub(crate) fn error_stack_push_call(
+        &self,
+        body_code: Code,
+        settled_code: Code,
+        words: &[Vec<u8>],
+    ) {
+        if !self.runtime_version().has_error_stack() {
             return;
         }
         let mut value = Vec::new();
@@ -5820,9 +6219,12 @@ impl Interp {
             }
             crate::list::append_list_element(&mut value, w, i == 0);
         }
-        let mut es = self.error_stack.borrow_mut();
-        es.push(b"CALL".to_vec());
-        es.push(value);
+        let _ = self.error_stack.borrow_mut().push_proc_call(
+            shared_code(body_code),
+            shared_code(settled_code),
+            b"CALL".to_vec(),
+            value,
+        );
     }
 
     /// Render the TIP 348 error stack as a Tcl list (`info errorstack` / the
@@ -5830,7 +6232,7 @@ impl Interp {
     pub(crate) fn error_stack_value(&self) -> Vec<u8> {
         let es = self.error_stack.borrow();
         let mut buf = Vec::new();
-        for (i, e) in es.iter().enumerate() {
+        for (i, e) in es.entries().iter().enumerate() {
             if i > 0 {
                 buf.push(b' ');
             }
@@ -5839,12 +6241,17 @@ impl Interp {
         buf
     }
 
+    /// The innermost error command's 1-based source line.
+    pub(crate) fn error_line(&self) -> u32 {
+        self.error_line.get()
+    }
+
     /// Mark the start of a new error episode (C's `iPtr->resetErrorStack = 1`,
     /// set by `Tcl_ResetResult`): the *next* logged command rebuilds the stack.
     /// The current contents are kept until then (so `info errorstack` after a
     /// `catch` still reports the last error).
     pub(crate) fn mark_error_stack_reset(&self) {
-        self.reset_error_stack.set(true);
+        self.error_stack.borrow_mut().mark_reset();
     }
 
     /// Publish the accumulated trace to the `::errorInfo`/`::errorCode` globals
@@ -5895,7 +6302,8 @@ impl Interp {
         }
     }
 
-    /// The pending `-during` chain link (borrowed), for `build_options` to splice
+    /// The pending `-during` chain link (borrowed), for
+    /// [`completion_options`](crate::cmd_error::completion_options) to splice
     /// into an error's options dict. `None` when no chaining is active.
     pub(crate) fn during_opts(&self) -> Option<*mut TclObj> {
         let d = self.during.take();
@@ -5912,6 +6320,9 @@ impl Interp {
         src: &[u8],
         project: impl FnOnce(&mut Self, Code) -> T,
     ) -> T {
+        if self.eval_depth.get() == 0 {
+            self.clear_return_options();
+        }
         let owned = self.cmd_frames.borrow().is_empty().then(CmdFrame::root);
         let code = self.eval_script_mode_unpublished(src, owned, false);
         let projected = project(self, code);
@@ -6235,6 +6646,7 @@ impl Interp {
     /// `TclEvalObjEx` of a non-literal). The errorInfo `("eval" body line N)`
     /// frame is appended separately by the caller.
     pub(crate) fn eval_body(&mut self, script: &[u8]) -> Code {
+        self.clear_return_options();
         self.eval_unlocated_body(script)
     }
 
@@ -6285,6 +6697,7 @@ impl Interp {
     /// `type source` at its original file+line (the test-body case) rather than
     /// `type eval`.
     pub(crate) fn eval_body_obj(&mut self, obj: *mut TclObj) -> Code {
+        self.clear_return_options();
         // A pure list is one command, dispatched by element identity (so a
         // contained literal keeps its source location — C's list-eval path),
         // inside its own `type eval` frame.
@@ -6347,6 +6760,7 @@ impl Interp {
     /// [`eval_body_obj`](Self::eval_body_obj). A located literal keeps its source
     /// provenance; a dynamic body is `type eval`, no file.
     pub(crate) fn eval_uplevel_obj(&mut self, target_level: usize, obj: *mut TclObj) -> Code {
+        self.clear_return_options();
         let loc = self.arg_loc(obj);
         let prev_level = self.frames.borrow_mut().set_active_level(target_level);
         let prev_ns = self.current_ns.get();
@@ -6697,6 +7111,7 @@ impl Interp {
         }
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
+        let saved_options = self.take_return_options();
         let code_str = code.map(|c| c.as_int().to_string().into_bytes());
         let op_label: &[u8] = if is_enter { b"enterstep" } else { b"leavestep" };
 
@@ -6718,6 +7133,7 @@ impl Interp {
             line.push(b' ');
             line.extend_from_slice(&obj_bytes(args));
             drop_fresh(args);
+            self.clear_return_options();
             let c = self.eval_str(&line);
             if c != Code::Ok {
                 outcome = Some(c);
@@ -6736,6 +7152,7 @@ impl Interp {
                     obj::decr_ref_count(self.result.get());
                     self.result.set(saved);
                 }
+                self.restore_return_options(saved_options);
                 None
             }
         }
@@ -7273,6 +7690,10 @@ impl Interp {
         // The whole profile is inherited, not just the release, so a child's
         // command-surface availability gate agrees too (issue #1463).
         child.set_dialect_profile(self.dialect_profile());
+        child
+            .channels
+            .borrow_mut()
+            .share_process_state_from(&self.channels.borrow());
         // `Interp::new` already gave the child its own predefined globals
         // (`tcl_platform`, `env`, argv, …). The full `init.tcl`
         // (package/auto-load) remains deferred.
@@ -8092,6 +8513,8 @@ impl Interp {
         prefix: &[Vec<u8>],
         argv: &[*mut TclObj],
     ) -> Code {
+        let policy = tcl_runtime_api::completion_options::ControlOptionPolicy::FRESH_FORWARDED;
+        self.begin_control_options(policy);
         let Some(parent_state) = self.parent.borrow().upgrade() else {
             return self.error(b"cannot invoke a parent alias from the root interpreter");
         };
@@ -8115,11 +8538,14 @@ impl Interp {
         // `parent` is an owned handle sharing the parent's `InterpState`; the
         // dispatch mutates it through interior mutability (no aliased `&mut`).
         let mut parent = Interp(parent_state);
+        parent.begin_control_options(policy);
         let code = parent.dispatch(&new_argv);
         let res = parent.result_bytes();
+        let options = parent.pending_return_options();
         CROSS_INTERP_DEPTH.with(|d| d.set(d.get().saturating_sub(1)));
         release_all(&new_argv);
         self.set_result_bytes(&res);
+        self.set_return_options(options);
         code
     }
 
@@ -8326,6 +8752,7 @@ impl Interp {
         let native = meta
             .native
             .filter(|_| self.traces.borrow().step_active.is_empty());
+        self.clear_return_options();
         let code = match native {
             Some(entry) => match self.run_native_body(entry, call_args, proc_frame) {
                 Ok(code) => code,
@@ -8384,7 +8811,7 @@ impl Interp {
                 self.make_proc_error(meta.err);
                 // TIP 348: record this proc/lambda/method frame as a `CALL` entry.
                 if let Some(words) = call_words {
-                    self.error_stack_push_call(&words);
+                    self.error_stack_push_call(code, settled, &words);
                 }
             } else {
                 // `return -code error`: no procedure frame, but the *caller* still
@@ -8725,17 +9152,8 @@ impl Interp {
                     Ok(prefix) if !prefix.is_empty() => EnsembleUnknown::Prefix(prefix),
                     Ok(_) => EnsembleUnknown::Reparse,
                     Err(e) => {
-                        let error_code: &[u8] = match e {
-                            crate::parse::ListError::UnmatchedBrace => b"TCL VALUE LIST BRACE",
-                            crate::parse::ListError::UnmatchedQuote => b"TCL VALUE LIST QUOTE",
-                            crate::parse::ListError::BraceFollowedByJunk
-                            | crate::parse::ListError::QuoteFollowedByJunk => {
-                                b"TCL VALUE LIST JUNK"
-                            }
-                            crate::parse::ListError::NotUtf8 => b"TCL VALUE LIST",
-                        };
                         let message = crate::parse::list_error_message(&res, e);
-                        let code = self.error_with_code(&message, error_code);
+                        let code = self.error_with_code(&message, e.error_code());
                         self.append_error_info_context(
                             b"while parsing result of ensemble unknown subcommand handler",
                         );
@@ -8815,8 +9233,13 @@ impl Interp {
     /// `[target, *prefix, *caller_tail]`, and invoke. Alias-of-alias chains fall
     /// out naturally (the resolved target may itself be an `Alias`) and are
     /// bounded by [`MAX_ALIAS_DISPATCH_DEPTH`], so a cycle that escaped the
-    /// definition-time gate errors instead of exhausting the native stack.
+    /// definition-time gate errors instead of exhausting the native stack. The
+    /// wrapper begins a fresh completion-option scope before invoking its
+    /// target, including across an interpreter boundary.
     fn dispatch_alias(&mut self, target: &[u8], prefix: &[Vec<u8>], argv: &[*mut TclObj]) -> Code {
+        self.begin_control_options(
+            tcl_runtime_api::completion_options::ControlOptionPolicy::FRESH_FORWARDED,
+        );
         if ALIAS_DISPATCH_DEPTH.with(|d| d.get()) >= MAX_ALIAS_DISPATCH_DEPTH {
             return self.error(b"too many nested alias invocations (infinite loop?)");
         }

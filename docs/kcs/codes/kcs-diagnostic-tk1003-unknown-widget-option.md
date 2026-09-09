@@ -25,7 +25,7 @@ analyser offers the closest declared option as a suggestion.
 ## Symptoms
 
 - A hint underline on the option word, with the message "Unknown option
-  '-tex' for button. Did you mean '-text'?"
+  '-tetx' for button. Did you mean '-text'?"
 - A **Replace with '-text'** quick fix on the diagnostic when a close
   match exists.
 
@@ -34,10 +34,10 @@ analyser offers the closest declared option as a suggestion.
 ```tcl
 package require Tk
 
-button .ok -tex "OK" -comand submit
+button .ok -tetx "OK" -comand submit
 ```
 
-The analyser reports **`TK1003`** on `-tex` and again on `-comand`.
+The analyser reports **`TK1003`** on `-tetx` and again on `-comand`.
 
 ## Fix
 

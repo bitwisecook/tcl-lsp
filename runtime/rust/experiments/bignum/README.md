@@ -1,13 +1,13 @@
 # EXP-BIGNUM — the numeric tower's bignum representation (evidence)
 
 Throwaway probes for the bignum-rep decision (EXP-BIGNUM). Run against the
-reference libtommath bundled in `tmp/tcl9.0.3/libtommath` with its Tcl wrapper
-header `tmp/tcl9.0.3/generic/tclTomMath.h`.
+reference libtommath bundled in `tmp/tcl9.0.4/libtommath` with its Tcl wrapper
+header `tmp/tcl9.0.4/generic/tclTomMath.h`.
 
 ## `lt_layout.c` — the `mp_int` ABI layout across targets
 
 ```sh
-cd tmp/tcl9.0.3
+cd tmp/tcl9.0.4
 # native (defaults to MP_64BIT on a 64-bit host)
 clang -Igeneric -Ilibtommath runtime/.../lt_layout.c -o /tmp/lt_n && /tmp/lt_n
 # wasm32 default (libtommath picks MP_32BIT off the 32-bit pointer)
@@ -44,7 +44,7 @@ Tcl's bundled libtommath is wired into Tcl's stubs (`tclTomMath.h` renames every
 file's `BN_*_C` guard):
 
 ```sh
-cd tmp/tcl9.0.3
+cd tmp/tcl9.0.4
 SRCS=$(ls libtommath/*.c | grep -vE 'bn_deprecated|rand|prime')   # 139 files
 # native (defaults to MP_64BIT) — `mp_*` symbols, no stubs:
 clang -DTCL_WITH_EXTERNAL_TOMMATH -DLTM_ALL -Ilibtommath lt_arith.c $SRCS -o a && ./a

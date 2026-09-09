@@ -5,7 +5,7 @@
 
 ## Applies to
 
-all-editors, optimisation, const-fold
+all-editors, optimisation, lexing
 
 ## Profiles
 
@@ -31,17 +31,26 @@ expr $x + 1
 expr {$x + 1}
 ```
 
+O111 rewrites nothing itself. It rides on every
+[`W100`](kcs-diagnostic-w100-unbraced-expression.md) the analyser reports,
+adding an information-level note over the same range that explains the
+performance cost; bracing the expression is your edit.
+
 ## Safety conditions
 
-- Skipped when the unbraced form relies on double substitution intentionally.
+- Reported only where `W100` is. An expression already braced, or one the
+  analyser does not read as an expression word, draws neither.
 
 ## How to disable
 
-Toggle the optimiser profile in your editor settings. See the [optimiser feature](../features/kcs-feature-optimiser.md) for profile options.
+Set `tclLsp.optimiser.O111` to `false`, or turn the optimiser off entirely
+with `tclLsp.optimiser.enabled`. See the
+[optimiser feature](../features/kcs-feature-optimiser.md) for the profile
+options.
 
 ## Related
 
 - [KCS codes index](README.md)
 - [Optimiser feature](../features/kcs-feature-optimiser.md)
-- [Constant folding](../../GLOSSARY.md#constant-folding)
-- Related codes: `O100`, `O101`
+- [Lexing](../../GLOSSARY.md#lexing)
+- Related codes: `O110`, `O115`

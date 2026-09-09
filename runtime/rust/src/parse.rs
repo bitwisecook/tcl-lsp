@@ -19,7 +19,7 @@
 //! Tcl script / word parser (T1.2) — a **re-derived** Rust structure.
 //!
 //! Semantics follow reference Tcl 9.0's `Tcl_ParseCommand` family
-//! (`tmp/tcl9.0.3/generic/tclParse.c`); the *representation* is chosen for the
+//! (`tmp/tcl9.0.4/generic/tclParse.c`); the *representation* is chosen for the
 //! Rust consumers.
 //!
 //! ## The model — a borrow-based enum tree
@@ -699,6 +699,16 @@ impl From<tcl_syntax::list::ListError> for ListError {
 }
 
 impl ListError {
+    fn shared(self) -> Option<tcl_syntax::list::ListError> {
+        Some(match self {
+            ListError::UnmatchedBrace => tcl_syntax::list::ListError::UnmatchedBrace,
+            ListError::UnmatchedQuote => tcl_syntax::list::ListError::UnmatchedQuote,
+            ListError::BraceFollowedByJunk => tcl_syntax::list::ListError::BraceFollowedByJunk,
+            ListError::QuoteFollowedByJunk => tcl_syntax::list::ListError::QuoteFollowedByJunk,
+            ListError::NotUtf8 => return None,
+        })
+    }
+
     /// The Tcl error message for this failure — reusing the **shared**
     /// [`tcl_syntax::list::ListError`] strings (one source). The `…FollowedByJunk`
     /// variants are the message *prefix*; byte-exact text appends `"<frag>"
@@ -706,18 +716,17 @@ impl ListError {
     /// splitter (tracked follow-up).
     #[must_use]
     pub fn message(self) -> &'static [u8] {
-        match self {
-            ListError::UnmatchedBrace => tcl_syntax::list::ListError::UnmatchedBrace.message(),
-            ListError::UnmatchedQuote => tcl_syntax::list::ListError::UnmatchedQuote.message(),
-            ListError::BraceFollowedByJunk => {
-                tcl_syntax::list::ListError::BraceFollowedByJunk.message()
-            }
-            ListError::QuoteFollowedByJunk => {
-                tcl_syntax::list::ListError::QuoteFollowedByJunk.message()
-            }
-            ListError::NotUtf8 => "invalid list (not valid UTF-8)",
-        }
-        .as_bytes()
+        self.shared()
+            .map_or(b"invalid list (not valid UTF-8)", |error| {
+                error.message().as_bytes()
+            })
+    }
+
+    /// Tcl's structured `-errorcode` for this list failure.
+    #[must_use]
+    pub fn error_code(self) -> &'static [u8] {
+        self.shared()
+            .map_or(b"TCL VALUE LIST", |error| error.error_code().as_bytes())
     }
 }
 
@@ -744,13 +753,9 @@ pub fn split_list(src: &[u8]) -> Result<Vec<Vec<u8>>, ListError> {
 /// byte-identical re-implementation of that walk (issue #1429).
 #[must_use]
 pub fn list_error_message(src: &[u8], err: ListError) -> Vec<u8> {
-    let shared = match err {
-        ListError::UnmatchedBrace => tcl_syntax::list::ListError::UnmatchedBrace,
-        ListError::UnmatchedQuote => tcl_syntax::list::ListError::UnmatchedQuote,
-        ListError::BraceFollowedByJunk => tcl_syntax::list::ListError::BraceFollowedByJunk,
-        ListError::QuoteFollowedByJunk => tcl_syntax::list::ListError::QuoteFollowedByJunk,
+    let Some(shared) = err.shared() else {
         // Not a shared variant: the runtime's own internal-rep invariant.
-        ListError::NotUtf8 => return err.message().to_vec(),
+        return err.message().to_vec();
     };
     // A non-UTF-8 `src` cannot reach the fragment walk; fall back to the fixed
     // text rather than lose the error entirely.

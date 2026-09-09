@@ -31,6 +31,7 @@
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use tcl_cmd_core::switch::{self as core_switch, Options, Selection};
+use tcl_runtime_api::completion_options::ControlOptionPolicy;
 
 use crate::cmd_regex::AreEngine;
 use crate::frame::split_array_ref;
@@ -49,7 +50,7 @@ fn switch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // the command name to the name-stripped slice the core expects).
     let opts = match core_switch::parse_options(interp, &argv[1..]) {
         Ok(o) => o,
-        Err(e) => return interp.set_error(e.message().as_bytes()),
+        Err(e) => return interp.report_cmd_error(e),
     };
     let value_idx = 1 + opts.value_index;
     let value = argv[value_idx];
@@ -102,6 +103,7 @@ fn switch_inline_form(
     }
     // The pattern objects are the inline body args at even indices (borrowed argv).
     let patterns: Vec<*mut TclObj> = (0..npairs).map(|p| words[p * 2]).collect();
+    interp.begin_control_options(ControlOptionPolicy::FRESH_FORWARDED);
     let matched = match core_switch::select::<Interp, AreEngine, _>(interp, opts, &value, &patterns)
     {
         Ok(Selection::Matched { index, writes }) => {
@@ -114,7 +116,7 @@ fn switch_inline_form(
             interp.set_result_bytes(b"");
             return Code::Ok;
         }
-        Err(e) => return interp.set_error(e.message().as_bytes()),
+        Err(e) => return interp.report_cmd_error(e),
     };
     // Resolve a `-` fall-through to the next non-`-` body (guaranteed to exist).
     let mut b = matched;
@@ -178,6 +180,7 @@ fn switch_list_form(
     // own), so mint temporary objects for the shared `select`, then free them — it
     // only reads them, and the result never references a pattern.
     let pat_objs: Vec<*mut TclObj> = pat_bytes.iter().map(|b| new_string(b)).collect();
+    interp.begin_control_options(ControlOptionPolicy::FRESH_FORWARDED);
     let outcome = core_switch::select::<Interp, AreEngine, _>(interp, opts, &value, &pat_objs);
     for &o in &pat_objs {
         drop_fresh(o);
@@ -193,7 +196,7 @@ fn switch_list_form(
             interp.set_result_bytes(b"");
             return Code::Ok;
         }
-        Err(e) => return interp.set_error(e.message().as_bytes()),
+        Err(e) => return interp.report_cmd_error(e),
     };
     let mut b = matched;
     while element_value(&list_str, &elems[b * 2 + 1]).as_slice() == b"-" {

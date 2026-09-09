@@ -66,7 +66,7 @@ mod rows;
 mod speclib;
 
 /// The `source` line every `SpecTcl` statement's hover carries.
-pub(crate) const SOURCE: &str = "SpecTcl (docs/design/spec-packs.md)";
+pub(crate) const SOURCE: &str = "SpecTcl (docs/design/registry/spec-packs.md)";
 
 /// Build the spec for a `SpecTcl` statement word that is plain data — no block,
 /// no options, nothing but a keyword and its operands.

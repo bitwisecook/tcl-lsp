@@ -21,7 +21,9 @@ Collected data is never freed. The connection leaks memory and buffers until the
 
 ## Symptoms
 
-- A red squiggle (error severity) appears on the `collect` call, with the message "collect without release".
+- A red squiggle appears on the `collect` call, with the message
+  "TCP::collect without matching TCP::release on the client side; collected data
+  is never released".
 
 ## Example that triggers it
 

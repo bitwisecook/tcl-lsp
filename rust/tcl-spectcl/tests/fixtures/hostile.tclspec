@@ -1,7 +1,7 @@
 # A deliberately hostile pack — the negative half of the corpus-validation
 # harness (`../spec_corpus.rs`).
 #
-# `docs/design/spec-packs.md` makes containment a load-bearing guarantee:
+# `docs/design/registry/spec-packs.md` makes containment a load-bearing guarantee:
 # "a spec must never be able to take the LSP down … a panic, budget blowout,
 # or stack overflow in a hook is converted to abstention, never propagation".
 # This pack is what proves it against the *real* loader, the *real* plan, and

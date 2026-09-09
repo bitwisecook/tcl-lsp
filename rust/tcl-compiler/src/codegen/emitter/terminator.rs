@@ -375,6 +375,10 @@ impl CodegenCtx<'_> {
         let ordered = super::super::helpers::tcl_hash_table_order(&cases);
         let jt: std::collections::HashMap<String, String> = ordered.into_iter().collect();
         let idx = self.emit(Op::JUMP_TABLE, vec![Operand::Imm(0)]);
+        self.mark_completion_option_scope(
+            idx,
+            tcl_runtime_api::completion_options::ControlOptionPolicy::FRESH_FORWARDED,
+        );
         self.instructions[idx].jump_table = Some(jt);
 
         if Some(default_target.as_str()) != next_block {

@@ -23,7 +23,7 @@
 # instruction layout and disassembly. Extracted from `tcl-compiler::codegen` so
 # the codegen emitter and the bytecode VM can both depend on the artifact types
 # without the VM pulling in the whole compiler. See
-# `docs/design/common-runtime-emitter-architecture.md` (§3/§6, Family A).
+# `docs/design/compiler/codegen-module-map.md`.
 #
 # Dependency DAG (no cycles):
 #   tcl-lexer <- tcl-syntax <- tcl-bytecode <- { tcl-compiler, tcl-vm }

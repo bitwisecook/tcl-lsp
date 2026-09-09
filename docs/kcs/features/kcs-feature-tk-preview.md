@@ -27,24 +27,24 @@ VS Code, JetBrains, Copilot Chat, MCP
   It may show a partial tree or uncertainty when the layout is dynamic.
 - **VS Code chat**: `@tk /preview` opens the preview for the current file.
 - **JetBrains**: Run **Show Tk UI Model** to open the validated static model as
-  JSON. JetBrains does not yet render the visual approximation.
+  JSON. JetBrains shows the model, not a rendered approximation.
 - **MCP**: `tk_layout` requests the same schema-versioned model for analysis or
   UI tooling (MCP source is supplied in the request, not an open-document
   snapshot).
 
 ## Operational context
 
-The server builds a versioned `TkUiModel` from the Tcl CST and registry. The
-model contains widget hierarchy, literal options, geometry evidence, source
+The server builds a versioned `TkUiModel` from the Tcl parse tree and registry.
+The model contains widget hierarchy, literal options, geometry evidence, source
 spans, certainty, and explicit uncertainties. VS Code renders that model in
-the Tk Preview pane; JetBrains currently presents the validated model JSON;
-MCP exposes it to tools and agents. Clients reject a response if
+the Tk Preview pane; JetBrains presents the validated model JSON; MCP exposes
+it to tools and agents. Clients reject a response if
 its URI, document version, or schema version no longer matches the active
 request, so an older analysis cannot overwrite a newer edit.
 
 This is static analysis. It does not execute Tcl, `wish`, Tk callbacks,
 `source`, packages, or workspace code. It is not pixel-perfect and does not
-promise native theme, font, accessibility, or window-manager behavior.
+promise native theme, font, accessibility, or window-manager behaviour.
 
 ## Failure modes
 
@@ -57,8 +57,8 @@ promise native theme, font, accessibility, or window-manager behavior.
 - Static geometry is evidence from the source, not a runtime measurement.
   `pack` and `grid` are exclusive claimants of their effective `-in`
   container; `place` does not claim or resize that container.
-- Callback, resource, event-loop, theme, and platform behavior may be marked
-  as planned/uncertain rather than rendered as if verified.
+- Callback, resource, event-loop, theme, and platform behaviour is marked
+  uncertain rather than rendered as if verified.
 
 ## Example
 
@@ -86,7 +86,7 @@ rather than silently substituted with made-up widgets.
 
 ## Further reading
 
-- [Static Tk UI model](../../design/tk-static-ui-model.md)
+- [Static Tk UI model](../../design/analysis/tk-static-ui-model.md)
 - Official [Tk command index](https://www.tcl-lang.org/man/tcl8.6/TkCmd/contents.htm)
 - Official [`bind` manual](https://www.tcl-lang.org/man/tcl8.6/TkCmd/bind.htm)
 - Official [`wm` manual](https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm)

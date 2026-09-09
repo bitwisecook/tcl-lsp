@@ -38,7 +38,7 @@ tcl-version = { path = "../tcl-version" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-registry = { path = "../tcl-registry" }
 # SpecTcl runtime spec packs: discovery, load, and workspace-scope insertion
-# into the per-profile cached registry (docs/design/spec-packs.md).
+# into the per-profile cached registry (docs/design/registry/spec-packs.md).
 tcl-spectcl = { path = "../tcl-spectcl" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-bigip = { path = "../tcl-bigip" }

@@ -21,7 +21,7 @@ Errors are silently discarded, hiding bugs and security issues that would otherw
 
 ## Symptoms
 
-- A blue squiggle (hint) appears under the `catch` call, with the message "catch without result variable".
+- A hint marker appears under the `catch` command, with the message *"catch without a result variable silently swallows errors. Consider capturing the result: catch {…} result"*.
 
 ## Example that triggers it
 
@@ -57,9 +57,7 @@ appends ` var`.
 The insertion point is the end of the **body**, wherever that is: a
 multi-line body, a body followed by a trailing `;# comment`, an empty
 `catch {}`, and a body containing nested `[...]` substitutions all place the
-new word after the body's last character. Anchoring at the `catch` keyword —
-where the squiggle sits — would write `catch result {risky_command}`, which
-Tcl reads as a `catch` of the script `result`.
+new word after the body's last character.
 
 ## Limits
 

@@ -55,9 +55,8 @@ sites did before it existed:
 
 `tcl_lsp_core::vfs`, re-exported as `tcl_lsp_server::vfs`.
 
-It started in `tcl-lsp-server`, where every call site was. Completing the seam
-moved the whole-workspace paths onto it, and two of those live below the server:
-the package database (`tcl_lsp_core::package_resolver`) and `.tclspec` discovery
+Two of the whole-workspace paths live below the server: the package database
+(`tcl_lsp_core::package_resolver`) and `.tclspec` discovery
 (`tcl_spectcl::discovery`). The trait therefore has to be visible to both.
 
 `tcl-lsp-core` is the lowest crate that can hold the trait **and both
@@ -72,10 +71,8 @@ and rejected:
 | `tcl-platform` | Bans syscalls by charter ("only traits + error/capability types"), so the impls could not live there; and it already owns `Filesystem`, the host-capability seam, so a second filesystem trait would put two owners of one axis in one crate. |
 | A new crate | Not needed once `tcl-lsp-core` works, and `tcl-spectcl` already reaches `tcl-compiler`, so the graph gains no new depth. |
 
-The cost is one new edge, `tcl-spectcl → tcl-lsp-core`. It introduces no cycle
-(`tcl-lsp-core` reaches neither `tcl-spectcl` nor anything that does), and the
-only crates that newly build `tcl-lsp-core` are `tcl-explorer` and
-`tcl-registry`'s dev target.
+The cost is the edge `tcl-spectcl → tcl-lsp-core`, which introduces no cycle
+(`tcl-lsp-core` reaches neither `tcl-spectcl` nor anything that does).
 
 ## What is routed, and what is not
 
@@ -151,10 +148,10 @@ Two rules govern it:
    already carries that file name. A host may mount a vendor pack of its own,
    or the shipped packs themselves — VS Code's web entry upserts the staged
    `dist/web/specs/*.tclspec`, which is the browser's normal startup — or
-   both. Without the name key the second shape loaded every shipped pack
-   twice under one name: the merge has no content dedup, so the session paid a
-   doubled ~2 MB parse on its single worker thread and reported ~1,489
-   duplicate-command warnings against files the user never wrote.
+   both. Without the name key the second shape would load every shipped pack
+   twice under one name: the merge has no content dedup, so the session would
+   pay a doubled parse on its single worker thread and report a
+   duplicate-command warning for every command in files the user never wrote.
 
 `MemoryStore`'s implied directories are what make the walk work: upserting
 `<mount>/eda/xilinx.tclspec` makes `<mount>` and `<mount>/eda` listable with no
@@ -217,7 +214,7 @@ extension at `dist/web/`, with the bundled `.tclspec` loadables beside it:
 ```
 dist/web/worker.js                        the Web Worker
 dist/web/tcl_lsp_server_wasm.js           wasm-bindgen no-modules glue
-dist/web/tcl_lsp_server_wasm_bg.wasm      the module (~25 MiB, ~6 MiB gzipped)
+dist/web/tcl_lsp_server_wasm_bg.wasm      the module
 dist/web/specs/*.tclspec                  the shipped EDA loadables
 dist/web/specs/index.json                 their names
 ```
@@ -328,20 +325,19 @@ scheme (`vscode-vfs:`), so by the rule above every upsert is discarded and only
 open documents are analysed. The host says so at startup rather than leaving it
 to be discovered. Closing it means teaching the store to key a URI that names
 no filesystem path — the alias table already exists, but `vfs_upsert`,
-`uri_norm`, and the workspace scan's folder walk all assume a path today.
+`uri_norm`, and the workspace scan's folder walk all assume a path.
 
-## Two wasm-only faults the seam exposed
+## Two wasm-only constraints
 
-Neither is about the store, and both only appear once a session has more than
-one file — which is why they survived until the whole-workspace paths were
-routed.
+Neither is about the store, and both only bite once a session has more than
+one file.
 
 - **`Path::is_absolute` is `false` for every path on
   `wasm32-unknown-unknown`.** `std` requires `unix`, `wasi`, or a Windows path
   *prefix*, and that target is none of them. `ls_types::Uri::from_file_path`
   gates on it, takes its relative-path branch, and tries to canonicalise against
-  a filesystem that is not there — so it returned `None` for every path the
-  server derived itself, and the scan dropped each file before reading it.
+  a filesystem that is not there — so it returns `None` for every path the
+  server derives itself, and the scan would drop each file before reading it.
   `uri_norm::rooted_file_uri` is the fallback, gated by `cfg!` (not `#[cfg]`) so
   it stays type-checked and unit-tested on every host, and it produces the same
   spelling `from_file_path`'s non-Windows branch does.
@@ -356,15 +352,14 @@ routed.
   client sent, not spelling one from a path. The equivalence test drives `#`, `?`,
   `%20`, `:`, a space, non-ASCII, and `&=;` names and asserts both a round trip
   through `to_file_path` and byte equality with `from_file_path`.
-- **`crate::rt`'s browser `JoinSet` used to be inert until drained.** The
-  workspace scan bounds its concurrency by taking a semaphore permit *before*
-  spawning and releasing it *inside* the task, so a set whose tasks only
-  advanced during `join_next` deadlocked the moment a workspace held more files
-  than permits. The browser arm now detaches each task as it is added, matching
-  Tokio's own contract, which is what every call site assumes — and, because the
-  tasks are detached, it carries an `abort_all`-equivalent `Drop` so a set
-  dropped mid-drain stops them, which is what Tokio's `JoinSet` does and what
-  the set's own `FuturesUnordered` used to do for free.
+- **`crate::rt`'s browser `JoinSet` must detach each task as it is added.**
+  The workspace scan bounds its concurrency by taking a semaphore permit
+  *before* spawning and releasing it *inside* the task, so a set whose tasks
+  only advance during `join_next` deadlocks the moment a workspace holds more
+  files than permits. Detaching matches Tokio's own contract, which is what
+  every call site assumes — and, because the tasks are detached, the set
+  carries an `abort_all`-equivalent `Drop` so a set dropped mid-drain stops
+  them, as Tokio's `JoinSet` does.
 
 ## Tests
 

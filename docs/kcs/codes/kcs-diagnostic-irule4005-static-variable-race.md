@@ -21,29 +21,32 @@ One connection writes while another reads, producing unpredictable values under 
 
 ## Symptoms
 
-- A squiggle appears under the `static::` variable, with the message "potential race on static:: variable".
+- A yellow squiggle appears on the write, with the message "Potential race:
+  'static::myapp_hits' is written outside RULE_INIT and read in another event.
+  static:: variables persist across all connections on the same virtual server;
+  concurrent writes can produce unpredictable results."
 
 ## Example that triggers it
 
 ```tcl
-when HTTP_REQUEST {
-  incr static::count
-}
-when HTTP_RESPONSE {
-  if {$static::count > 100} { log local0. "threshold" }
-}
+when HTTP_REQUEST { incr static::myapp_hits }
+when HTTP_RESPONSE { log local0. "$static::myapp_hits" }
 ```
 
-The analyser reports **`IRULE4005`** because `static::count` is written in one event and read in another.
+The analyser reports **`IRULE4005`** on the write: `static::myapp_hits` is
+written outside `RULE_INIT` and read from another event.
 
 ## Fix
 
-Initialise in `RULE_INIT` and keep other events read-only:
+Write `static::` only in `RULE_INIT` and keep every other event read-only:
 
 ```tcl
-when RULE_INIT { set static::count 0 }
-when HTTP_REQUEST { log local0. "count: $static::count" }
+when RULE_INIT { set static::myapp_hits 0 }
+when HTTP_REQUEST { log local0. "hits: $static::myapp_hits" }
 ```
+
+For a counter that really has to move at request time, use `table incr`, which
+is atomic across TMMs.
 
 ## How to suppress
 

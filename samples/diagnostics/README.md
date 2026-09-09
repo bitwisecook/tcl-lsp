@@ -1,12 +1,11 @@
 # Diagnostic test samples
 
-Minimal reproducible examples for every diagnostic, warning, optimisation,
-and shimmer alert the LSP produces. Each example is self-contained and
-designed to be testable with tclsh 9.0 where applicable. Tk-based
-samples (e.g. W001) require Tk and a working display.
-
-These were initially collected by analysing all 60 `.tcl` files in
-[georgtree/SpiceGenTcl](https://github.com/georgtree/SpiceGenTcl).
+One minimal reproducible example per diagnostic, optimisation, or shimmer
+alert listed below — a representative slice of the full catalogue in
+[`docs/generated/diagnostic_codes.md`](../../docs/generated/diagnostic_codes.md),
+not one sample per code. Each example is self-contained and testable with
+tclsh 9.0 where applicable; Tk-based samples (e.g. W001) need Tk and a
+working display.
 
 ## Dialect considerations
 
@@ -20,9 +19,9 @@ directive on line 1:
 
 Available dialects: `tcl8.4`, `tcl8.5`, `tcl8.6` (default), `tcl9.0`,
 `tcl9.1`, `f5-irules`, `f5-iapps`, `f5-tmsh`, `f5-bigip`, `bpf`,
-`expect`, `spectcl`, `cadence-eda-tcl`, `intel-quartus-eda-tcl`,
-`mentor-eda-tcl`, `microchip-libero-eda-tcl`, `synopsys-eda-tcl`,
-`xilinx-eda-tcl`.
+`expect`, `spectcl`, `sslictcl`, `cadence-eda-tcl`,
+`intel-quartus-eda-tcl`, `mentor-eda-tcl`, `microchip-libero-eda-tcl`,
+`synopsys-eda-tcl`, `xilinx-eda-tcl`.
 
 Diagnostics affected by dialect are marked with a `[dialect]` tag below.
 
@@ -133,9 +132,8 @@ A variable is used before any assignment is visible in the current scope.
 
 **Validity:** mixed.
 - **True positive:** genuinely unset variable in a proc.
-- **False positive:** `lappend` auto-creates the variable (being fixed);
-  `$dir` in `pkgIndex.tcl` is set by the package system; variables set
-  by `upvar`/`uplevel` from a caller.
+- **False positive:** `$dir` in `pkgIndex.tcl` is set by the package
+  system; variables set by `upvar`/`uplevel` from a caller.
 
 ### W211 — Variable set but never used
 
@@ -178,15 +176,16 @@ with `-`:
 - **OFF:** value structurally cannot start with `-` (HTTP paths start
   with `/`, SPICE netlist lines start with `.`, simulation vector names
   like `v(node)`, argparse outputs from fixed sets like `{add get set}`).
-  Currently a false positive — 19 of 24 sites in SpiceGenTcl.
+  A false positive.
 - **POSSIBLE:** value comes from user input or an unconstrained source.
   Genuine warning — `--` should be inserted.
 - **ALWAYS:** value is constructed to start with `-` (e.g. `"-$name"`).
   `--` is mandatory.
 
-The LSP already downgrades to INFO when constant propagation proves the
-value is a static literal, but does not yet trace structural constraints
-like "starts with `/`" or "from a set that excludes `-` prefixes".
+The LSP downgrades to INFO when constant propagation proves the value is a
+static literal. It does not trace structural constraints like "starts with
+`/`" or "from a set that excludes `-` prefixes", so the OFF cases still
+warn.
 
 ### W306 — Literal expected in regexp pattern `[dialect]`
 
@@ -211,6 +210,16 @@ Deleting files using a variable path without validation could allow path
 traversal. The fix is `file normalize` plus a prefix check.
 
 **Validity:** true positive when the path comes from untrusted input.
+
+### W314 — Definition has no absolute name
+
+A proc or namespace whose name is all colons (e.g. a proc named `:`) is a
+real, callable definition, but no fully-qualified spelling reaches it —
+`:::` names the `{}` proc instead. Everything inside such a namespace is
+likewise reachable only relatively.
+
+**Validity:** true positive. Rename the definition to something with an
+absolute spelling.
 
 ## Optimisations
 
@@ -286,5 +295,6 @@ diagnostics/
 ├── W304_missing_double_dash/example.tcl
 ├── W306_regexp_substitution/example.tcl
 ├── W307_non_literal_command/example.tcl
-└── W313_file_delete_path/example.tcl
+├── W313_file_delete_path/example.tcl
+└── W314_no_absolute_name/example.tcl
 ```

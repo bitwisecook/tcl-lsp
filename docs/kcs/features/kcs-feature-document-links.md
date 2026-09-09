@@ -21,8 +21,6 @@ all-editors, analyser
 
 ## Operational context
 
-![Document links on computed source paths](../screenshots/32-document-links.png)
-
 A relative path resolves against the document's own directory, and `~`
 expands against `$HOME`. A computed path resolves when it is built from
 `[info script]`, `[file dirname …]`, `[file join …]`, `[file normalize
@@ -58,7 +56,7 @@ Only the file name — `testUtilities.tcl` — is underlined, not the whole
 `[file join …]` substitution. The substitution is code, with its own
 highlighting; an editor paints a link range in one flat link colour, so
 underlining all of it would hide the colouring of `file`, `join`, and
-`$currentDir` (issue #775).
+`$currentDir`.
 
 ## Failure modes
 

@@ -27,7 +27,8 @@ pattern runs.
 ## Symptoms
 
 - A hint underline appears under the mutating command, with the message
-  "mutation of a potentially shared value copies it".
+  "mutation of a potentially shared value copies it — 'lappend' duplicates 'b'
+  (still shared with 'a') before writing".
 
 ## Example that triggers it
 

@@ -44,10 +44,6 @@ order:
 }
 ```
 
-The first release eligible for this entry is v2.2.2. v2.2.1 carries the
-previous `TclLsp.sublime-package` shape and remains useful only as the tested
-baseline.
-
 ## Pre-submission checks
 
 1. Confirm the stable GitHub release carries `LSP-Tcl.sublime-package`.

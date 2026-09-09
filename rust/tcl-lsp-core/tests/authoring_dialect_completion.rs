@@ -26,7 +26,7 @@
 //! provider names no dialect and no declaration.
 //!
 //! registry-metadata: these are our own DSLs, so their vocabulary tables
-//! (`docs/design/sslictcl-vocabulary.md`, `docs/design/spec-packs.md`) are the
+//! (`docs/design/f5/sslictcl-vocabulary.md`, `docs/design/registry/spec-packs.md`) are the
 //! oracle, not C Tcl.
 
 use tcl_compiler::analyser::Analyser;

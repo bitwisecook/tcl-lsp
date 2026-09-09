@@ -19,7 +19,7 @@
 //! The measured split of iRules' 31 "disabled" stock-Tcl builtins into
 //! its **two distinct mechanisms** — environment/realm policy data for
 //! the `f5-irules` environment
-//! (`docs/design/bigip-irule-parser-measurements.md` §4b, re-probed
+//! (`docs/design/f5/bigip-irule-parser-measurements.md` §4b, re-probed
 //! through `eval` at runtime on BIG-IP 21.1.0.1).
 //!
 //! A literal reference to any of the 31 is refused when the rule is

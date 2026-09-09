@@ -35,6 +35,7 @@ use crate::dict;
 use crate::frame::VarError;
 use crate::interp::{drop_fresh, new_string, obj_bytes, Code, Interp};
 use crate::obj::{self, TclObj};
+use tcl_runtime_api::completion_options::{self, ErrorOptions, OptionValue};
 
 /// Register `catch`, `error`, `try`, and `throw`.
 pub fn install(interp: &mut Interp) {
@@ -52,6 +53,11 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 4 {
         return interp.wrong_args(b"catch script ?resultVarName? ?optionVarName?");
     }
+    // The caught body is a fresh completion scope. Commands within it retain
+    // carried options until a later command replaces them, but neither the
+    // caller's prior options nor the caught body's options belong to the
+    // successful `catch` command itself.
+    interp.clear_return_options();
     // `catch` is bytecode-compiled inline (C's `TclCompileCatchCmd`): a literal
     // body runs in the **same** `info frame` level and the same `codePtr->source`
     // as the enclosing proc/script. `eval_control_body` reproduces that — sharing
@@ -68,15 +74,20 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // catch return value (read the value before clearing the result). `var_set`
     // retains it into the result var, so it survives the later `set_result`.
     let result = interp.get_obj_result();
+    let options = argv.get(3).map(|_| completion_options(interp, code));
+    interp.clear_return_options();
 
     if let Some(&rv) = argv.get(2) {
         let name = obj_bytes(rv);
         if let Err(e) = set_var_or_elem(interp, &name, result) {
+            if let Some(opts) = options {
+                drop_fresh(opts);
+            }
             return crate::builtins::var_error(interp, &name, e);
         }
     }
     if let Some(&ov) = argv.get(3) {
-        let opts = completion_options(interp, code); // rc 0
+        let opts = options.expect("options requested above"); // rc 0
         let name = obj_bytes(ov);
         if let Err(e) = set_var_or_elem(interp, &name, opts) {
             drop_fresh(opts);
@@ -123,33 +134,46 @@ pub(crate) fn completion_options(interp: &mut Interp, code: Code) -> *mut TclObj
     } else {
         (code, 0)
     };
-    let code_str = eff_code.as_int().to_string();
-    let level_str = level.to_string();
-    let mut pairs: Vec<(*mut TclObj, *mut TclObj)> = vec![
-        (new_string(b"-code"), new_string(code_str.as_bytes())),
-        (new_string(b"-level"), new_string(level_str.as_bytes())),
-    ];
-    if eff_code == Code::Error {
-        // `-errorcode` rides along with any error completion (incl. a pending
-        // `return -code error`). The accumulated trace + stack and the `-during`
-        // chain only exist once the error has actually been raised (level 0).
-        pairs.push((new_string(b"-errorcode"), new_string(&interp.error_code())));
-        if level == 0 {
-            pairs.push((new_string(b"-errorinfo"), new_string(&interp.error_info())));
-            // TIP 348: the error stack built as the error unwound.
-            pairs.push((
-                new_string(b"-errorstack"),
-                new_string(&interp.error_stack_value()),
-            ));
-            // TIP 329 exception chaining: when a `try` handler/`finally` threw
-            // over a prior exception, that prior exception's options ride along as
-            // `-during` (`During()` in `tclCmdMZ.c`). `new_dict_obj` retains it.
-            if let Some(during) = interp.during_opts() {
-                pairs.push((new_string(b"-during"), during));
-            }
-        }
-    }
+    let error = (eff_code == Code::Error).then(|| ErrorOptions {
+        error_code: Some(interp.error_code()),
+        error_info: (level == 0).then(|| interp.error_info()),
+        error_stack: (level == 0 && interp.runtime_version().has_error_stack())
+            .then(|| interp.error_stack_value()),
+        error_line: (level == 0).then(|| i64::from(interp.error_line())),
+        during: (level == 0)
+            .then(|| interp.during_opts().map(obj_bytes))
+            .flatten(),
+    });
+    let carried = interp.pending_return_options();
+    let planned = completion_options::plan(
+        interp.runtime_version(),
+        api_code(eff_code),
+        i64::try_from(level).unwrap_or(i64::MAX),
+        &carried,
+        error.as_ref(),
+    );
+    let pairs: Vec<(*mut TclObj, *mut TclObj)> = planned
+        .into_iter()
+        .map(|(key, value)| {
+            let value = match value {
+                OptionValue::Integer(value) => new_string(value.to_string().as_bytes()),
+                OptionValue::Value(value) => new_string(&value),
+            };
+            (new_string(&key), value)
+        })
+        .collect();
     dict::new_dict_obj(&pairs)
+}
+
+fn api_code(code: Code) -> tcl_runtime_api::Code {
+    match code {
+        Code::Ok => tcl_runtime_api::Code::Ok,
+        Code::Error => tcl_runtime_api::Code::Error,
+        Code::Return => tcl_runtime_api::Code::Return,
+        Code::Break => tcl_runtime_api::Code::Break,
+        Code::Continue => tcl_runtime_api::Code::Continue,
+        Code::Other(value) => tcl_runtime_api::Code::Other(value),
+    }
 }
 
 // -- error -----------------------------------------------------------------
@@ -752,6 +776,46 @@ mod tests {
             run(i, b"catch {set x 5} m o");
             assert_eq!(run(i, b"dict get $o -code"), b"0");
             i.eval_str(b"unset m o x ::errorInfo ::errorCode");
+        });
+    }
+
+    #[test]
+    fn explicit_errorinfo_retains_the_prior_error_stack() {
+        leak_free(|i| {
+            assert_eq!(run(i, b"catch {error first} m o"), b"1");
+            let prior = run(i, b"dict get $o -errorstack");
+            assert!(!prior.is_empty());
+
+            assert_eq!(
+                run(
+                    i,
+                    b"catch {return -level 0 -code error -errorinfo I second} m o"
+                ),
+                b"1"
+            );
+            assert_eq!(run(i, b"dict get $o -errorstack"), prior);
+            assert_eq!(run(i, b"info errorstack"), prior);
+            i.eval_str(b"unset -nocomplain m o ::errorInfo ::errorCode");
+        });
+    }
+
+    /// Pre-TIP runtimes still preserve `-errorstack` as an arbitrary custom
+    /// return option; only synthesis and validation of its TIP 348 meaning are
+    /// release-gated. Other custom pairs take the same shared path.
+    #[test]
+    fn catch_preserves_custom_return_options_on_legacy_releases() {
+        use tcl_dialect::TclVersion;
+
+        leak_free(|i| {
+            for version in [TclVersion::V8_4, TclVersion::V8_5] {
+                i.set_runtime_version(version);
+                assert_eq!(run(i, b"catch {return -bar soom} m o"), b"2");
+                assert_eq!(run(i, b"set o"), b"-bar soom -code 0 -level 1");
+
+                assert_eq!(run(i, b"catch {return -errorstack odd} m o"), b"2");
+                assert_eq!(run(i, b"set o"), b"-errorstack odd -code 0 -level 1");
+            }
+            i.eval_str(b"unset -nocomplain m o");
         });
     }
 }

@@ -30,11 +30,11 @@ false positives.
 
 "Statically known" includes every flow the compiler's object-type lattice
 proves, not just a direct `set p [Point new]` assignment: a handle returned
-by a factory procedure (`set p [mk]`), returned by a method and captured
-(`set b [$a make]`), aliased (`set q $p`), or passed as a procedure or
-constructor parameter. The same facts drive hover, go-to-definition, and
-Find All References, so this warning and those features always agree on the
-receiver's class.
+by a factory procedure (`set p [mk]`) or aliased (`set q $p`) is checked
+too. The same facts drive hover, go-to-definition, and Find All References,
+so this warning and those features always agree on the receiver's class. A
+handle the lattice cannot type — one returned by a method, for example —
+draws [`W307`](kcs-diagnostic-w307-non-literal-command.md) instead.
 
 ## Symptoms
 
@@ -134,9 +134,9 @@ The boundary is evidence, not charity:
   `W308`: it dispatches through the object's own command, where an
   unexported subclass method really is unreachable (the same reach split
   as `my varname` versus `[self] varname`).
-- Single-file tools (`tcl diag` on one file, the fp-sweep harness) see no
-  sibling documents, so a base analysed alone still warns — the workspace
-  view is what supplies the refuting subclass.
+- `tcl diag` on a single file sees no sibling documents, so a base analysed
+  alone still warns — the workspace view is what supplies the refuting
+  subclass.
 
 ## What a deleted class changes
 
@@ -204,9 +204,9 @@ $d fly
 ```
 
 Here `Cat` does not exist yet when `[Cat new]` runs, so nothing is built and
-the analyser makes no claim about the method. The out-of-order call itself is
-reported as `W128` instead. Inside a procedure or method body the order does
-not matter — the whole file loads before any body runs.
+the analyser makes no claim about the method — `$d fly` falls back to
+`W307`. Inside a procedure or method body the order does not matter: the
+whole file loads before any body runs.
 
 An alias that binds extra words (`interp alias {} Cat {} Dog create`) is left
 alone. Those words shift the constructor's own arguments, so `Cat new` is not

@@ -30,9 +30,6 @@ The server can't fix eglot's painter, but it *shrinks the stale window*
 by implementing proper `semanticTokens/full/delta`: a keystroke sends
 only the changed tokens (like rust-analyzer), not the whole document.
 This harness verifies that delta path end-to-end through real eglot.
-(An earlier experiment added an "eglot-compatibility mode" that dropped
-`full/delta`/`range`; the data showed it made no difference to the
-accumulation, so it was removed in favour of the deltas.)
 
 ## 1. `tcl-lsp-record-bug.el` — bug recorder for end-users
 
@@ -151,9 +148,15 @@ that passes, any staleness this eglot harness shows is provably eglot's.
 
 ## 3. Diagnostic experiments (manual, non-CI)
 
-Three standalone scripts used to characterise issue #333. They load the
-harness helpers via `TCL_LSP_T333_NOEXEC=1` and print/write their own
-report. None run in CI.
+Standalone scripts that characterise issue #333. They load the harness
+helpers via `TCL_LSP_T333_NOEXEC=1` and print/write their own report. None
+run in CI.
+
+`compare_full.el`, `experiment_333.el` and `repro_interactive.el` each run
+one arm with `tclLsp.compatibility.eglot` set. The server has no such
+setting, so that arm sends an ignored option and both arms now measure the
+same configuration; read them for the timing and accumulation figures, not
+for a compat-mode comparison.
 
 - **`compare_langs.el`** — drives eglot against several servers
   (`tcl-lsp`, `pyright`, `rust-analyzer`) on similar-sized (~6k line)
@@ -172,19 +175,29 @@ report. None run in CI.
   ```
 
 - **`experiment_333.el`** — on a ~6k line Tcl file, runs the same edit
-  sequence with eglot-compat OFF and ON, reporting connect→first-tokens
-  and per-edit update latency plus accumulated-face counts, then a
-  rapid edit/undo "stale window" stress. Batch has no redisplay, so it
-  reports timings and (usually) zero accumulation — the accumulation
-  itself only appears under a real GUI (see below).
+  sequence twice, reporting connect→first-tokens and per-edit update
+  latency plus accumulated-face counts, then a rapid edit/undo "stale
+  window" stress. Batch has no redisplay, so it reports timings and
+  (usually) zero accumulation — the accumulation itself only appears under
+  a real GUI (see below).
 
 - **`repro_interactive.el`** — the actual #333 reproducer. Needs a
   *real GUI Emacs* (batch never repaints; a software `xvfb` frame is too
-  slow). Runs the rapid edit/undo burst with compat OFF and ON under
-  real redisplay and self-classifies the outcome
-  (`PROVEN` / `PARTIAL` / `NO-DIFFERENCE` / `NOT-REPRODUCED`). Use this
-  to check, on your own machine, whether the compat mode actually
-  changes the accumulation. See its header for the invocation.
+  slow). Runs the rapid edit/undo burst under real redisplay and
+  self-classifies the outcome
+  (`PROVEN` / `PARTIAL` / `NO-DIFFERENCE` / `NOT-REPRODUCED`). See its
+  header for the invocation.
+
+- **`repro_batch.el`** — the same accumulation without redisplay: it drives
+  eglot's painter functions directly, so it is deterministic and fast.
+
+- **`compare_full.el`** — timing and accumulation across several servers and
+  input sizes in one batch run.
+
+- **`prove_fix.el`** — measures the worst per-character `eglot-semantic-*`
+  face stack under each candidate fix. This is what establishes that the
+  painter advice in [`editors/emacs/README.md`](../../editors/emacs/README.md)
+  is the one that works.
 
 ## 4. `exercise_recorder.el` — smoke-test for the recorder
 

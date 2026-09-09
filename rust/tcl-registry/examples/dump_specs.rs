@@ -27,7 +27,7 @@
 //!   tcl stdlib tcllib irules iapps tk expect
 //!
 //! The EDA vendor libraries have no group here: they ship as bundled
-//! `.tclspec` loadables under `specs/` (`docs/design/spec-packs.md`).
+//! `.tclspec` loadables under `specs/` (`docs/design/registry/spec-packs.md`).
 
 use std::fmt::Write as _;
 use tcl_registry::commands;
@@ -46,7 +46,7 @@ fn group_specs(group: &str) -> Vec<CommandSpec> {
         "expect" => commands::expect::expect_command_specs(),
         // No EDA groups: `sdc_base` and the five vendor libraries ship as
         // bundled `.tclspec` loadables under `specs/` and have no compiled-in
-        // collector to dump (`docs/design/spec-packs.md`). The pack files are
+        // collector to dump (`docs/design/registry/spec-packs.md`). The pack files are
         // the dump.
         other => {
             eprintln!("unknown group: {other}");

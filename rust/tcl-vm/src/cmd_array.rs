@@ -23,9 +23,15 @@
 //! VM's `array unset a` (no pattern), which used to iterate-and-unset elements
 //! (leaving an empty array) instead of removing the whole array.
 
-use tcl_registry::ArgRole;
+use tcl_registry::{ArgRole, InvocationWord, InvocationWords};
+use tcl_runtime_api::completion_options::{
+    self as shared_options, ControlOptionPolicy, OptionValue,
+};
 use tcl_runtime_api::{ArrayTarget, Code, Completion, VarStore};
 
+use crate::command::{
+    completion_from_cmd_error, completion_from_tcl_error, settle_control_options,
+};
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
@@ -64,7 +70,7 @@ fn cmd_array(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // `for` is Tcl 9 (as is `default`, which this engine does not dispatch),
     // so under an earlier pin it must neither run nor claim the prefix `f`.
     let subs = crate::environment::release_subcommands(
-        vm.runtime_version().dialect_profile_name(),
+        vm.command_surface_profile().name,
         "array",
         ARRAY_SUBS,
     );
@@ -109,14 +115,28 @@ fn array_op_after_trace(
     // The read-side + `unset` live in the shared core.
     if let Some(result) = tcl_cmd_core::array::dispatch_at(vm, sub, rest, target) {
         return match result {
-            Ok(v) => ok(v),
-            Err(e) => {
-                let (message, error_code) = e.into_parts();
-                match error_code {
-                    Some(code) => crate::command::err_with_code(message, &code),
-                    None => err(message),
-                }
+            Ok(result) => {
+                let Some(miss) = result.read_miss else {
+                    return ok(result.value);
+                };
+                let carried = shared_options::retained_array_read_options(&miss, |bytes| {
+                    Value::string(String::from_utf8_lossy(bytes))
+                });
+                let rows = shared_options::plan(vm.runtime_version(), Code::Ok, 0, &carried, None);
+                let options = Value::list(
+                    rows.into_iter()
+                        .flat_map(|(key, value)| {
+                            let value = match value {
+                                OptionValue::Integer(value) => Value::int(value),
+                                OptionValue::Value(value) => value,
+                            };
+                            [Value::string(String::from_utf8_lossy(&key)), value]
+                        })
+                        .collect(),
+                );
+                Completion::new(Code::Ok, result.value, options)
             }
+            Err(e) => completion_from_cmd_error(e),
         };
     }
     // Per-runtime: `array set` (its per-element write traces must fail the
@@ -157,10 +177,12 @@ fn array_op_after_trace(
                 }
                 let items = match list.as_list() {
                     Ok(i) => i,
-                    Err(e) => return err(e.message),
+                    Err(e) => return completion_from_tcl_error(e),
                 };
                 if items.len() % 2 != 0 {
-                    return err("list must have an even number of elements");
+                    return completion_from_cmd_error(tcl_cmd_core::CmdError::argument_format(
+                        "list must have an even number of elements",
+                    ));
                 }
                 if items.is_empty() {
                     // `array set a {}` still materialises an empty array; onto an
@@ -206,39 +228,22 @@ fn array_op_after_trace(
 fn array_trace_target(vm: &Vm, sub: &str, rest: &[Value]) -> Option<String> {
     let profile = vm.command_surface_profile();
     let registry = crate::environment::store_for_profile(profile);
-    let words: Vec<String> = std::iter::once(sub.to_owned())
-        .chain(rest.iter().map(|value| value.to_str().to_string()))
+    let words: Vec<InvocationWord<'_>> = std::iter::once(InvocationWord::Literal(sub))
+        .chain(rest.iter().map(|_| InvocationWord::Dynamic))
         .collect();
-    let spellings: Vec<&str> = words.iter().map(String::as_str).collect();
-    let resolved = registry.resolve_invocation(
-        "array",
-        &spellings,
-        Some(crate::environment::surface_point(profile)),
-    )?;
+    let resolved = registry
+        .resolve_structured_invocation(
+            InvocationWords::structured(InvocationWord::Literal("array"), &words),
+            Some(crate::environment::surface_point(profile)),
+        )
+        .resolved()?;
     if resolved.subcommand.resolved()?.canonical_name != sub {
         return None;
     }
     let facts = resolved.facts();
-    let supplied = spellings.len().checked_sub(facts.argument_offset)?;
-    if !facts
-        .arity
-        .accepts(u16::try_from(supplied).unwrap_or(u16::MAX))
-        || !facts.arg_roles_complete
-    {
-        return None;
-    }
-    let mut targets: Vec<usize> = facts
-        .arg_roles
-        .iter()
-        .filter_map(|&(index, role)| {
-            matches!(role, ArgRole::VarRead | ArgRole::VarWrite)
-                .then_some(usize::from(index) + facts.argument_offset)
-        })
-        .collect();
-    targets.sort_unstable();
-    targets.dedup();
-    debug_assert!(targets.len() <= 1, "array member has one variable target");
-    let index = targets.into_iter().next()?.checked_sub(1)?;
+    let index = facts
+        .sole_argument_index_for_roles(words.len(), &[ArgRole::VarRead, ArgRole::VarWrite])?
+        .checked_sub(1)?;
     rest.get(index).map(|value| value.to_str().to_string())
 }
 
@@ -252,7 +257,7 @@ fn array_for(vm: &mut Vm, rest: &[Value], trace_target: Option<&str>) -> Complet
     };
     let vnames = match vars.as_list() {
         Ok(v) => v,
-        Err(e) => return err(e.message),
+        Err(e) => return completion_from_tcl_error(e),
     };
     let [kvar, vvar] = vnames.as_slice() else {
         return err("must have two variable names");
@@ -322,7 +327,7 @@ fn array_for_after_trace(
             return array_for_changed();
         }
     }
-    ok(Value::empty())
+    settle_control_options(ok(Value::empty()), ControlOptionPolicy::FRESH_SETTLED)
 }
 
 fn same_array_target(vm: &Vm, name: &str, original: &ArrayTarget, revision: Option<u64>) -> bool {

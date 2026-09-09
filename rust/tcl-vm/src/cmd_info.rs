@@ -137,7 +137,7 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             };
             match tcl_cmd_core::info::level(vm, number) {
                 Ok(v) => ok(v),
-                Err(e) => err(e.message()),
+                Err(e) => crate::command::completion_from_cmd_error(e),
             }
         }
         // commands/procs route through the shared namespace-aware core (over the
@@ -168,14 +168,14 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "body" => match rest {
             [name] => match tcl_cmd_core::info::body(vm, name) {
                 Ok(v) => ok(v),
-                Err(e) => err(e.into_message()),
+                Err(e) => crate::command::completion_from_cmd_error(e),
             },
             _ => err("wrong # args: should be \"info body procname\""),
         },
         "args" => match rest {
             [name] => match tcl_cmd_core::info::args(vm, name) {
                 Ok(v) => ok(v),
-                Err(e) => err(e.into_message()),
+                Err(e) => crate::command::completion_from_cmd_error(e),
             },
             _ => err("wrong # args: should be \"info args procname\""),
         },
@@ -187,7 +187,7 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                     }
                     ok(Value::bool(has))
                 }
-                Err(e) => err(e.into_message()),
+                Err(e) => crate::command::completion_from_cmd_error(e),
             },
             _ => err("wrong # args: should be \"info default procname arg varname\""),
         },
@@ -263,6 +263,23 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             [] => ok(crate::cmd_coro::current_coroutine(vm)),
             _ => err("wrong # args: should be \"info coroutine\""),
         },
+        // TIP 348 (Tcl 8.6+). Availability is already filtered through the
+        // registry-derived release subcommand set above; the state lives on
+        // the selected interpreter, so child access uses the ordinary arena.
+        "errorstack" => {
+            let id = match rest {
+                [] => None,
+                [path] => match vm.resolve_interp_path(&path.to_str()) {
+                    Ok(id) => Some(id),
+                    Err(error) => return error,
+                },
+                _ => return err("wrong # args: should be \"info errorstack ?interp?\""),
+            };
+            match id {
+                Some(id) => ok(vm.in_interp(id, |target| target.error_stack_value())),
+                None => ok(vm.error_stack_value()),
+            }
+        }
         // Reached by a word that matched nothing, prefixed several entries, or
         // resolved to a subcommand this engine does not implement.
         other => err(
@@ -341,6 +358,18 @@ mod tests {
             missing.result.to_str().as_ref(),
             "can't read \"tcl_patchLevel\": no such variable"
         );
+    }
+
+    #[test]
+    fn errorstack_surface_follows_the_selected_runtime_release() {
+        let mut vm = Vm::new();
+        vm.set_runtime_version(TclVersion::V8_5);
+        assert!(!info(&mut vm, "errorstack").code.is_ok());
+
+        vm.set_runtime_version(TclVersion::V8_6);
+        let result = info(&mut vm, "errorstack");
+        assert!(result.code.is_ok());
+        assert!(result.result.as_list().expect("TIP 348 list").is_empty());
     }
 
     #[test]

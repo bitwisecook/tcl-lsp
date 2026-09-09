@@ -10,6 +10,8 @@ User-facing compiler troubleshooting and how-tos live in
 
 ## Start here
 
+- [architecture.md](architecture.md) — the high-level map of the
+  multi-pass pipeline, with diagrams and cross-links to the stage docs.
 - [common-semantic-compiler.md](common-semantic-compiler.md) — implementation
   contract for the shared semantic IR, value/cell/world SSA, registry
   boundaries, exact completion and trace flow, target-family lowering, and
@@ -31,19 +33,14 @@ User-facing compiler troubleshooting and how-tos live in
 - [fp-sweep.md](fp-sweep.md) — the `cargo xtask fp-sweep` false-positive audit
   harness: what it runs, why it is dialect-aware, how firings are grouped, and
   where the paired regression tests live.
-- [command-oracle-audits.md](command-oracle-audits.md) — per-command Tcl
-  oracle queue, evidence availability, and registry verdicts.
 
 ## Pipeline stages
 
 - [lexing-segmentation.md](lexing-segmentation.md) — token and command
   segmentation.
-- [green-token-tree.md](green-token-tree.md) — **proposal** for a lossless
-  token tree, error nodes, and incremental reparse.
 - [syntax-tree.md](syntax-tree.md) — the canonical red-green concrete syntax
-  tree (lossless, position-independent); the segmenter's byte-identical
-  backing and the foundation the formatter, minifier, AOT lowering, and
-  per-command tooling are migrating onto.
+  tree (lossless, position-independent) the segmenter derives every
+  `SegmentedCommand` from, and which consumers still lex for themselves.
 - [expression-parsing.md](expression-parsing.md) — Pratt parser, braced
   and unbraced expressions.
 - [cfg-construction.md](cfg-construction.md) — basic block
@@ -56,6 +53,8 @@ User-facing compiler troubleshooting and how-tos live in
   command classification.
 - [full-pipeline-walkthrough.md](full-pipeline-walkthrough.md) —
   end-to-end source to bytecode walkthrough.
+- [example-walkthroughs.md](example-walkthroughs.md) — full pipeline
+  traces for progressively complex Tcl scripts.
 - [control-flow-patterns.md](control-flow-patterns.md) — if, while,
   for, foreach, and proc compilation.
 - [error-recovery.md](error-recovery.md) — ghost delimiter injection for
@@ -70,7 +69,7 @@ User-facing compiler troubleshooting and how-tos live in
   — SCCP and type lattice.
 - [type-tracking.md](type-tracking.md) — the comprehensive value-type model
   (purity / first-use commitment, union nodes, container element types, the
-  numeric tower) with its oracle corpus and phasing.
+  numeric tower) with its oracle corpus.
 - [def-use-chains.md](def-use-chains.md) — def-use chain construction
   and consumer contracts.
 - [memory-ssa.md](memory-ssa.md) — memory-SSA, alias detection, and
@@ -113,8 +112,8 @@ User-facing compiler troubleshooting and how-tos live in
   and offset model for event handlers.
 - [namespace-resolution.md](namespace-resolution.md) — qualified name
   handling.
-- [diagnostics-calculation.md](diagnostics-calculation.md) — two-phase
-  diagnostic architecture.
+- [diagnostics-calculation.md](diagnostics-calculation.md) — the fast and
+  deep diagnostic tiers, suppression, and where a new code belongs.
 - [codegen-internals.md](codegen-internals.md) — LVT, linearisation,
   labels, and peephole optimisation.
 - [wasm-codegen.md](wasm-codegen.md) — shared semantic-to-WASM boundary,
@@ -123,12 +122,12 @@ User-facing compiler troubleshooting and how-tos live in
 - [wasm-extensions.md](wasm-extensions.md) — current embedded-script boundary
   and the explicitly future package-driven extension design.
 - [ebpf-backend.md](ebpf-backend.md) — BPF-Tcl layering, typed core and BPF-IR,
-  current `rbpf` codegen ABI, event/framework capabilities, verified design
-  issues, real-world use cases, and the production-kernel roadmap.
+  the `rbpf` and kernel codegen ABIs, the event framework and loader
+  lifecycle, and current limitations.
 - [recursive-descent-depth-limits.md](recursive-descent-depth-limits.md) —
-  why deeply-nested Tcl source could crash the analyser (issue #996): the
-  depth-cap + generous-stack-budget model every recursive-descent walker
-  needs, the inventory of guarded walkers, and the known gaps.
+  the depth-cap + explicit-stack-budget model every recursive-descent walker
+  follows (`RecursionLimit`), the inventory of guarded walkers, and the rules
+  for adding one.
 
 ## Side-effects and effect classification
 
@@ -192,13 +191,13 @@ User-facing compiler troubleshooting and how-tos live in
 - [wasm-target-surfaces.md](wasm-target-surfaces.md) — WASI vs in-browser
   WASM: the capability matrix, browser-target build/wiring gaps, the
   proposed host-import surface, and measured module sizes.
-- [wasm-native-lowering-plan.md](wasm-native-lowering-plan.md) — review of
-  the current WASM code generator and runtime ABI, the sample-tier baseline,
-  and the phased plan for native lowering with provable framing elision.
+- [wasm-native-lowering-plan.md](wasm-native-lowering-plan.md) — the native
+  lowering architecture (NLIR, representation and cell lattices, framing
+  elision), the runtime ABI it adds, the sample tiers and framing budgets,
+  and the corpus evidence behind its priorities.
 - [aot-command-priority.md](aot-command-priority.md) — real-corpus census
-  (issue #1181) ranking which Tcl commands the AOT WASM compiler should
-  emit directly next, with a breadth-weighted tiering and what is already
-  covered versus what cannot be direct.
+  of Tcl command use, what the WASM backend emits directly, and which forms
+  need host facilities.
 
 ## Related KCS how-tos
 

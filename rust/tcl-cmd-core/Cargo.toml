@@ -27,7 +27,7 @@
 # returning `Result<V, CmdError>`** — never a runtime `Completion` and never a
 # concrete interp — so the two runtimes (with their opposite command ABIs) each
 # wrap them in a thin adapter. See
-# `docs/design/common-runtime-emitter-architecture.md` (§ central pattern).
+# `docs/design/runtime/family-b-routing.md` §2.
 #
 # Depends on `tcl-syntax` (ValueOps + the parse grammars), `tcl-platform`
 # (capability traits), and the **light** `tcl-runtime-api` (role traits over

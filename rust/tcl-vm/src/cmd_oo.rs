@@ -52,10 +52,10 @@ use tcl_registry::commands::tcl::{
     info_oo_subcommands, resolve_info_oo_properties_option, resolve_tcloo_property_kind,
     resolve_tcloo_property_option,
 };
-use tcl_runtime_api::{Code, Completion};
+use tcl_runtime_api::{Code, Completion, OoId};
 
 use crate::command::{Command, Param, ProcDef, parse_params};
-use crate::interp::{Vm, err, ok};
+use crate::interp::{CommandSidecarKey, Vm, err, ok};
 use crate::value::Value;
 
 /// A method (or constructor/destructor) body: a proc-like parameter list plus
@@ -83,13 +83,13 @@ struct Method {
 #[derive(Clone, Default)]
 struct Class {
     /// Superclass FQNs (canonical). Empty means `::oo::object`.
-    supers: Vec<String>,
+    supers: Vec<OoId>,
     methods: BTreeMap<String, Method>,
     constructor: Option<Method>,
     destructor: Option<Method>,
     /// Declared instance-variable names, auto-linked into method frames.
     variables: Vec<String>,
-    mixins: Vec<String>,
+    mixins: Vec<OoId>,
     /// `export`/`unexport` overrides applied to instance methods.
     exported: BTreeSet<String>,
     unexported: BTreeSet<String>,
@@ -109,7 +109,7 @@ struct Class {
 #[derive(Clone)]
 struct Object {
     /// FQN of the object's class (canonical).
-    class: String,
+    class: OoId,
     /// The namespace holding this object's instance variables (canonical).
     ns: String,
     /// Monotonic id (`info object creationid`), stable across rename.
@@ -118,7 +118,7 @@ struct Object {
     /// (`oo::define C self method`) since a class is an object too.
     methods: BTreeMap<String, Method>,
     variables: Vec<String>,
-    mixins: Vec<String>,
+    mixins: Vec<OoId>,
     exported: BTreeSet<String>,
     unexported: BTreeSet<String>,
     /// TIP 558 per-object property slots
@@ -133,7 +133,7 @@ struct Object {
 /// facet (object-side per-instance method, or class-side instance method).
 #[derive(Clone)]
 struct Step {
-    provider: String,
+    provider: OoId,
     is_object: bool,
 }
 
@@ -141,7 +141,7 @@ struct Step {
 /// resolved chain of providers for the invoked method, the current index into
 /// it, the public method name, and whether it was an external (`$obj m`) call.
 pub(crate) struct OoFrame {
-    object: String,
+    object: OoId,
     chain: Vec<Step>,
     index: usize,
     /// The invoked method name (empty for a constructor, `<destructor>` for a
@@ -159,15 +159,23 @@ pub(crate) struct OoFrame {
 /// is active at (so a `method`/`variable` in a proc called from a body is not
 /// mistaken for a definition directive).
 enum DefTarget {
-    Class(String),
-    Object(String),
+    Class(OoId),
+    Object(OoId),
 }
 
 /// The whole object system's runtime state, held by the [`Vm`].
 #[derive(Default)]
 pub(crate) struct OoState {
-    classes: BTreeMap<String, Class>,
-    objects: BTreeMap<String, Object>,
+    classes: BTreeMap<OoId, Class>,
+    objects: BTreeMap<OoId, Object>,
+    /// Current Tcl-facing command spelling, indexed one-way by stable token.
+    names: BTreeMap<OoId, String>,
+    /// Private command-table key, also one-way from the stable token. It is
+    /// opaque and is never rendered or parsed as a Tcl name.
+    command_keys: BTreeMap<OoId, CommandSidecarKey>,
+    object_root: Option<OoId>,
+    class_root: Option<OoId>,
+    configurable_root: Option<OoId>,
     /// Monotonic counter for anonymous `::oo::ObjN` names and creation ids.
     counter: u64,
     /// Active method invocations (innermost last) — drives `self`/`my`/`next`.
@@ -186,6 +194,17 @@ pub(crate) struct OoExec {
 }
 
 impl OoState {
+    fn allocate(&mut self, name: String) -> OoId {
+        let id = OoId(self.counter);
+        self.counter += 1;
+        self.names.insert(id, name);
+        id
+    }
+
+    fn name(&self, id: OoId) -> &str {
+        self.names.get(&id).map_or("", String::as_str)
+    }
+
     /// Exchange this interpreter's live OO execution stacks with `e` — one half
     /// of a coroutine context switch. The registries are shared and untouched.
     pub(crate) fn swap_exec(&mut self, e: &mut OoExec) {
@@ -205,18 +224,20 @@ fn display(canonical: &str) -> String {
 /// [`Vm::qualify_name`] this does not blindly prepend the current namespace —
 /// inside a method the current namespace is the object's private one, where the
 /// class does not live.
-fn resolve_class(vm: &Vm, name: &str) -> String {
-    if let Some(abs) = name.strip_prefix("::") {
-        return abs.to_string();
+fn resolve_object(vm: &Vm, name: &str) -> Option<OoId> {
+    match vm.lookup_command(name) {
+        Some(Command::Object(id)) if vm.oo.objects.contains_key(&id) => Some(id),
+        _ => None,
     }
-    let cur = vm.current_ns();
-    if !cur.is_empty() {
-        let q = format!("{cur}::{name}");
-        if vm.oo.classes.contains_key(&q) {
-            return q;
-        }
-    }
-    name.to_string()
+}
+
+fn resolve_class(vm: &Vm, name: &str) -> Option<OoId> {
+    let id = resolve_object(vm, name)?;
+    vm.oo.classes.contains_key(&id).then_some(id)
+}
+
+fn display_oo(vm: &Vm, id: OoId) -> String {
+    display(vm.oo.name(id))
 }
 
 /// A method is exported by default iff its name begins with an ASCII lowercase
@@ -312,7 +333,10 @@ fn property_slot(vm: &mut Vm, args: &[Value], obj: bool, writable: bool) -> Comp
             .map(|c| slot_of_class(c, writable))
     };
     let Some(set) = set else {
-        return err(format!("{} does not refer to an object", display(&target)));
+        return err(format!(
+            "{} does not refer to an object",
+            display_oo(vm, target)
+        ));
     };
     match op.as_str() {
         "-set" => {
@@ -365,7 +389,7 @@ fn err_code(message: impl Into<String>, code: &[&str]) -> Completion<Value> {
 /// The readable (`writable == false`) or writable property names visible to
 /// `configure` on `obj_key`: the union of the object's own slots and every
 /// class slot along its MRO (`info object properties -all`), sorted & unique.
-fn configure_props(vm: &Vm, obj_key: &str, writable: bool) -> Vec<String> {
+fn configure_props(vm: &Vm, obj_key: OoId, writable: bool) -> Vec<String> {
     let mut names: BTreeSet<String> = BTreeSet::new();
     for step in vm.oo.object_precedence(obj_key) {
         if step.is_object {
@@ -393,12 +417,12 @@ fn cmd_property(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // subclass of a configurable class does *not* inherit the command).
         vm.oo.classes.get(&target).is_some_and(|c| c.configurable)
     } else {
-        vm.oo.object_is_configurable(&target)
+        vm.oo.object_is_configurable(target)
     };
     if !allowed {
         return err("invalid command name \"property\"");
     }
-    define_properties(vm, is_class, &target, args)
+    define_properties(vm, is_class, target, args)
 }
 
 /// `private <def-command> …` — for `property`, the accessors are already
@@ -423,7 +447,7 @@ fn cmd_private(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 fn define_properties(
     vm: &mut Vm,
     is_class: bool,
-    target: &str,
+    target: OoId,
     args: &[Value],
 ) -> Completion<Value> {
     let mut i = 0;
@@ -525,7 +549,7 @@ fn validate_prop_name(name: &str) -> Result<(), Completion<Value>> {
 fn apply_property(
     vm: &mut Vm,
     is_class: bool,
-    target: &str,
+    target: OoId,
     name: &str,
     kind: TclOoPropertyKind,
     getter: Option<Value>,
@@ -576,7 +600,7 @@ fn apply_property(
         }
     };
     if is_class {
-        if let Some(c) = vm.oo.classes.get_mut(target) {
+        if let Some(c) = vm.oo.classes.get_mut(&target) {
             let Class {
                 methods,
                 readable_properties,
@@ -585,7 +609,7 @@ fn apply_property(
             } = c;
             apply(methods, readable_properties, writable_properties);
         }
-    } else if let Some(o) = vm.oo.objects.get_mut(target) {
+    } else if let Some(o) = vm.oo.objects.get_mut(&target) {
         let Object {
             methods,
             readable_properties,
@@ -600,7 +624,7 @@ fn apply_property(
 /// The `configure` instance method of a configurable object. Forms:
 /// `configure` (list every readable property as `-name value`), `configure
 /// -name` (read one), `configure -name value …` (write pairs).
-fn configure_method(vm: &mut Vm, obj_key: &str, args: &[Value]) -> Completion<Value> {
+fn configure_method(vm: &mut Vm, obj_key: OoId, args: &[Value]) -> Completion<Value> {
     match args.len() {
         0 => {
             let mut out = Vec::new();
@@ -641,7 +665,7 @@ fn configure_method(vm: &mut Vm, obj_key: &str, args: &[Value]) -> Completion<Va
         _ => err_code(
             format!(
                 "wrong # args: should be \"{} configure ?-option value ...?\"",
-                display(obj_key)
+                display_oo(vm, obj_key)
             ),
             &["TCL", "WRONGARGS"],
         ),
@@ -659,7 +683,7 @@ fn configure_method(vm: &mut Vm, obj_key: &str, args: &[Value]) -> Completion<Va
 /// the accessor then reads or writes.
 fn gate_property(
     vm: &Vm,
-    obj_key: &str,
+    obj_key: OoId,
     dashed: &str,
     for_write: bool,
 ) -> Result<String, Completion<Value>> {
@@ -687,19 +711,20 @@ fn gate_property(
 
 /// Read property `dashed` from `obj_key`: invoke its `<ReadProp-name>` accessor
 /// if one is defined, else read the backing instance variable directly.
-fn read_property(vm: &mut Vm, obj_key: &str, dashed: &str) -> Result<Value, Completion<Value>> {
+fn read_property(vm: &mut Vm, obj_key: OoId, dashed: &str) -> Result<Value, Completion<Value>> {
     let name = dashed.strip_prefix('-').unwrap_or(dashed).to_string();
     let accessor = format!("<ReadProp-{name}>");
     if method_resolves(vm, obj_key, &accessor) {
-        let comp = oo_invoke(vm, obj_key, &accessor, &[], false, &display(obj_key));
+        let invoked = display_oo(vm, obj_key);
+        let comp = oo_invoke(vm, obj_key, &accessor, &[], false, &invoked);
         return accessor_result(comp, dashed, false);
     }
     // Default getter: read the instance variable in the object's namespace.
-    let ns = vm.oo.objects.get(obj_key).map(|o| o.ns.clone());
+    let ns = vm.oo.objects.get(&obj_key).map(|o| o.ns.clone());
     let Some(ns) = ns else {
         return Err(err(format!(
             "invalid command name \"{}\"",
-            display(obj_key)
+            display_oo(vm, obj_key)
         )));
     };
     match vm.get_var(&format!("::{ns}::{name}")) {
@@ -712,22 +737,23 @@ fn read_property(vm: &mut Vm, obj_key: &str, dashed: &str) -> Result<Value, Comp
 /// accessor if defined, else set the backing instance variable directly.
 fn write_property(
     vm: &mut Vm,
-    obj_key: &str,
+    obj_key: OoId,
     dashed: &str,
     value: Value,
 ) -> Result<(), Completion<Value>> {
     let name = dashed.strip_prefix('-').unwrap_or(dashed).to_string();
     let accessor = format!("<WriteProp-{name}>");
     if method_resolves(vm, obj_key, &accessor) {
-        let comp = oo_invoke(vm, obj_key, &accessor, &[value], false, &display(obj_key));
+        let invoked = display_oo(vm, obj_key);
+        let comp = oo_invoke(vm, obj_key, &accessor, &[value], false, &invoked);
         accessor_result(comp, dashed, true)?;
         return Ok(());
     }
-    let ns = vm.oo.objects.get(obj_key).map(|o| o.ns.clone());
+    let ns = vm.oo.objects.get(&obj_key).map(|o| o.ns.clone());
     let Some(ns) = ns else {
         return Err(err(format!(
             "invalid command name \"{}\"",
-            display(obj_key)
+            display_oo(vm, obj_key)
         )));
     };
     vm.set_var(&format!("::{ns}::{name}"), value)
@@ -761,7 +787,7 @@ fn accessor_result(
 
 /// Whether `method` resolves on `obj_key` (any provider along its precedence
 /// chain), without invoking it — used to detect custom property accessors.
-fn method_resolves(vm: &Vm, obj_key: &str, method: &str) -> bool {
+fn method_resolves(vm: &Vm, obj_key: OoId, method: &str) -> bool {
     vm.oo
         .object_precedence(obj_key)
         .iter()
@@ -780,16 +806,18 @@ fn bootstrap(vm: &mut Vm) {
     let _ = vm.set_var("::oo::version", Value::string("1.3"));
     let _ = vm.set_var("::oo::patchlevel", Value::string("1.3.1"));
 
-    for root in ["oo::object", "oo::class"] {
-        vm.oo.classes.insert(root.to_string(), Class::default());
-        let id = vm.oo.counter;
-        vm.oo.counter += 1;
+    let object_root = vm.oo.allocate("oo::object".to_string());
+    let class_root = vm.oo.allocate("oo::class".to_string());
+    vm.oo.object_root = Some(object_root);
+    vm.oo.class_root = Some(class_root);
+    for (root, root_id) in [("oo::object", object_root), ("oo::class", class_root)] {
+        vm.oo.classes.insert(root_id, Class::default());
         vm.oo.objects.insert(
-            root.to_string(),
+            root_id,
             Object {
-                class: "oo::class".to_string(),
+                class: class_root,
                 ns: root.to_string(),
-                creation_id: id,
+                creation_id: root_id.0,
                 methods: BTreeMap::new(),
                 variables: Vec::new(),
                 mixins: Vec::new(),
@@ -800,36 +828,39 @@ fn bootstrap(vm: &mut Vm) {
                 destroyed: false,
             },
         );
-        vm.register_command(root, Command::Object(root.to_string()));
+        let command_key = vm.register_command(root, Command::Object(root_id));
+        vm.oo
+            .command_keys
+            .insert(root_id, CommandSidecarKey::visible(command_key));
         // Engine-installed, not script-created: the registry dates these
         // (TCL86_PLUS) and the availability gate must honour that.
         vm.declare_registry_object_root(root);
     }
     // `oo::object`'s only super is nothing (it is the root); `oo::class` extends
     // `oo::object`.
-    if let Some(c) = vm.oo.classes.get_mut("oo::class") {
-        c.supers = vec!["oo::object".to_string()];
+    if let Some(c) = vm.oo.classes.get_mut(&class_root) {
+        c.supers = vec![object_root];
     }
 
     // `oo::configurable` (TIP 558): a metaclass (subclass of `oo::class`, so
     // `oo::configurable create C {…}` builds a *class*) whose `configurable`
     // flag propagates to the classes it creates — enabling their `property`
     // definition command and their instances' `configure` method.
+    let configurable_root = vm.oo.allocate("oo::configurable".to_string());
+    vm.oo.configurable_root = Some(configurable_root);
     vm.oo.classes.insert(
-        "oo::configurable".to_string(),
+        configurable_root,
         Class {
-            supers: vec!["oo::class".to_string()],
+            supers: vec![class_root],
             ..Class::default()
         },
     );
-    let id = vm.oo.counter;
-    vm.oo.counter += 1;
     vm.oo.objects.insert(
-        "oo::configurable".to_string(),
+        configurable_root,
         Object {
-            class: "oo::class".to_string(),
+            class: class_root,
             ns: "oo::configurable".to_string(),
-            creation_id: id,
+            creation_id: configurable_root.0,
             methods: BTreeMap::new(),
             variables: Vec::new(),
             mixins: Vec::new(),
@@ -841,10 +872,10 @@ fn bootstrap(vm: &mut Vm) {
         },
     );
     vm.declare_namespace("oo::configurable");
-    vm.register_command(
-        "oo::configurable",
-        Command::Object("oo::configurable".to_string()),
-    );
+    let command_key = vm.register_command("oo::configurable", Command::Object(configurable_root));
+    vm.oo
+        .command_keys
+        .insert(configurable_root, CommandSidecarKey::visible(command_key));
     // TIP 558 is Tcl 9.0: real tclsh 8.6.16 has no `oo::configurable`.
     vm.declare_registry_object_root("oo::configurable");
 }
@@ -855,7 +886,7 @@ fn bootstrap(vm: &mut Vm) {
 /// word the command was called under (for the `wrong # args` usage).
 pub(crate) fn oo_dispatch(
     vm: &mut Vm,
-    key: &str,
+    key: OoId,
     invoked: &str,
     argv: &[Value],
 ) -> Completion<Value> {
@@ -868,10 +899,12 @@ pub(crate) fn oo_dispatch(
     let rest = &argv[1..];
     // A class responds to the factory built-ins first (create/new); anything
     // else is a class-side method (or `destroy`).
-    if vm.oo.classes.contains_key(key) {
+    if vm.oo.classes.contains_key(&key) {
         match method.as_str() {
             "create" => return factory(vm, key, invoked, false, rest),
-            "new" if key != "oo::class" => return factory(vm, key, invoked, true, rest),
+            "new" if Some(key) != vm.oo.class_root => {
+                return factory(vm, key, invoked, true, rest);
+            }
             _ => {}
         }
     }
@@ -885,7 +918,7 @@ pub(crate) fn oo_dispatch(
 /// `wrong # args` usage).
 fn factory(
     vm: &mut Vm,
-    class_key: &str,
+    class_key: OoId,
     class_invoked: &str,
     anon: bool,
     args: &[Value],
@@ -897,7 +930,7 @@ fn factory(
         .oo
         .class_linear_of(class_key)
         .iter()
-        .any(|s| s.provider == "oo::class");
+        .any(|s| Some(s.provider) == vm.oo.class_root);
     if is_meta {
         let (name, body) = if anon {
             (fresh_obj_name(vm), args.first())
@@ -905,27 +938,29 @@ fn factory(
             let Some((n, rest)) = args.split_first() else {
                 return err(format!(
                     "wrong # args: should be \"{} create className ?definitionScript?\"",
-                    display(class_key)
+                    display_oo(vm, class_key)
                 ));
             };
             let n = n.to_str();
             if n.is_empty() {
                 return err("object name must not be empty");
             }
-            (vm.qualify_name(&n), rest.first())
+            (n.to_string(), rest.first())
         };
         return make_class(vm, &name, body, class_key);
     }
 
-    let (obj_key, obj_ns, ctor_args, ctor_usage) = if anon {
+    let (obj_key, obj_ns, ctor_args, ctor_usage, ctor_identity) = if anon {
         // An anonymous object's command *is* its instance namespace (`oo::ObjN`).
         let n = fresh_obj_name(vm);
-        (n.clone(), n, args, format!("{class_invoked} new"))
+        let mut identity = vec![Value::string(class_invoked), Value::string("new")];
+        identity.extend_from_slice(args);
+        (n.clone(), n, args, format!("{class_invoked} new"), identity)
     } else {
         let Some((name, rest)) = args.split_first() else {
             return err(format!(
                 "wrong # args: should be \"{} create objectName ?arg ...?\"",
-                display(class_key)
+                display_oo(vm, class_key)
             ));
         };
         let name = name.to_str();
@@ -934,11 +969,18 @@ fn factory(
         }
         // A named object's instance namespace is still a fresh `oo::ObjN`,
         // decoupled from its command name (C's `oo::Obj` counter).
+        let mut identity = vec![
+            Value::string(class_invoked),
+            Value::string("create"),
+            Value::string(name.as_ref()),
+        ];
+        identity.extend_from_slice(rest);
         (
-            vm.qualify_name(&name),
+            name.to_string(),
             fresh_obj_name(vm),
             rest,
             format!("{class_invoked} create {name}"),
+            identity,
         )
     };
     if vm.lookup_command(&obj_key).is_some() {
@@ -947,7 +989,15 @@ fn factory(
             display(&obj_key)
         ));
     }
-    oo_new(vm, class_key, &obj_key, &obj_ns, ctor_args, &ctor_usage)
+    oo_new(
+        vm,
+        class_key,
+        &obj_key,
+        &obj_ns,
+        ctor_args,
+        &ctor_usage,
+        ctor_identity,
+    )
 }
 
 /// A fresh `oo::ObjN` name (canonical) for an anonymous object.
@@ -962,22 +1012,23 @@ fn fresh_obj_name(vm: &mut Vm) -> String {
 /// object is torn down and the error re-raised.
 fn oo_new(
     vm: &mut Vm,
-    class_key: &str,
+    class_key: OoId,
     obj_key: &str,
     obj_ns: &str,
     ctor_args: &[Value],
     ctor_usage: &str,
+    ctor_identity: Vec<Value>,
 ) -> Completion<Value> {
-    let id = vm.oo.counter;
-    vm.oo.counter += 1;
+    let object_display = vm.namespace_display_for_written(obj_key);
+    let object_id = vm.oo.allocate(object_display);
     let ns = obj_ns.to_string();
     vm.declare_namespace(&ns);
     vm.oo.objects.insert(
-        obj_key.to_string(),
+        object_id,
         Object {
-            class: class_key.to_string(),
+            class: class_key,
             ns: ns.clone(),
-            creation_id: id,
+            creation_id: object_id.0,
             methods: BTreeMap::new(),
             variables: Vec::new(),
             mixins: Vec::new(),
@@ -991,7 +1042,10 @@ fn oo_new(
     // A class instantiated as an object is itself a class only when it is a
     // metaclass (its MRO includes `::oo::class`); v1 handles the direct
     // `oo::class create` case in `def_body`'s class creation, not here.
-    vm.register_command(obj_key, Command::Object(obj_key.to_string()));
+    let command_key = vm.register_written_command(obj_key, Command::Object(object_id));
+    vm.oo
+        .command_keys
+        .insert(object_id, CommandSidecarKey::visible(command_key));
 
     // Constructor chain: classes in the linearisation with a constructor,
     // most-derived first.
@@ -1009,22 +1063,23 @@ fn oo_new(
     if !chain.is_empty() {
         let res = run_step(
             vm,
-            obj_key,
+            object_id,
             &chain,
             0,
             String::new(),
             ctor_args,
             false,
-            display(obj_key),
+            display_oo(vm, object_id),
             ctor_usage.to_string(),
+            ctor_identity,
         );
         if !res.code.is_ok() && res.code != Code::Return {
             // Tear the half-built object down and re-raise.
-            teardown(vm, obj_key);
+            teardown(vm, object_id);
             return res;
         }
     }
-    ok(Value::string(display(obj_key)))
+    ok(Value::string(display_oo(vm, object_id)))
 }
 
 // Method resolution + execution.
@@ -1034,16 +1089,19 @@ impl OoState {
     /// live class registry, injecting `oo::object` as the implicit root of any
     /// class with no declared superclass (mirroring `TclOO`, where every class
     /// ultimately derives from `oo::object`).
-    fn linearise_maps(&self) -> (HashMap<String, Vec<String>>, HashMap<String, Vec<String>>) {
+    fn linearise_maps(&self) -> (HashMap<OoId, Vec<OoId>>, HashMap<OoId, Vec<OoId>>) {
         let mut supers = HashMap::with_capacity(self.classes.len());
         let mut mixins = HashMap::with_capacity(self.classes.len());
         for (name, c) in &self.classes {
             let mut sup = c.supers.clone();
-            if sup.is_empty() && name != "oo::object" {
-                sup.push("oo::object".to_string());
+            if sup.is_empty()
+                && Some(*name) != self.object_root
+                && let Some(root) = self.object_root
+            {
+                sup.push(root);
             }
-            supers.insert(name.clone(), sup);
-            mixins.insert(name.clone(), c.mixins.clone());
+            supers.insert(*name, sup);
+            mixins.insert(*name, c.mixins.clone());
         }
         (supers, mixins)
     }
@@ -1053,31 +1111,31 @@ impl OoState {
     /// late-placement dedup from `tclOOCall.c`, correct for nested mixins and
     /// diamonds where the old per-class DFS was not). Used for constructor /
     /// destructor chains and `info class properties -all`.
-    fn class_linear_of(&self, class_key: &str) -> Vec<Step> {
+    fn class_linear_of(&self, class_key: OoId) -> Vec<Step> {
         let (supers, mixins) = self.linearise_maps();
-        class_steps(tcloo_linearise(class_key, &supers, &mixins), class_key)
+        class_steps(tcloo_linearise(&class_key, &supers, &mixins), class_key)
     }
 
     /// The full method-search precedence for an object: its per-object mixins
     /// (each linearised as a class), then the object's own methods, then its
     /// class MRO — keep-last deduped so a shared class defers to its
     /// most-derived position.
-    fn object_precedence(&self, obj_key: &str) -> Vec<Step> {
-        let Some(obj) = self.objects.get(obj_key) else {
+    fn object_precedence(&self, obj_key: OoId) -> Vec<Step> {
+        let Some(obj) = self.objects.get(&obj_key) else {
             return Vec::new();
         };
         let (supers, mixins) = self.linearise_maps();
         let mut out: Vec<Step> = Vec::new();
         for mx in &obj.mixins {
-            out.extend(class_steps(tcloo_linearise(mx, &supers, &mixins), mx));
+            out.extend(class_steps(tcloo_linearise(mx, &supers, &mixins), *mx));
         }
         out.push(Step {
-            provider: obj_key.to_string(),
+            provider: obj_key,
             is_object: true,
         });
         out.extend(class_steps(
             tcloo_linearise(&obj.class, &supers, &mixins),
-            &obj.class,
+            obj.class,
         ));
         keep_last(&out)
     }
@@ -1117,7 +1175,7 @@ impl OoState {
 
     /// Names callable on `obj_key` (for the unknown-method error), honouring
     /// export state. `internal` includes unexported names.
-    fn visible_methods(&self, obj_key: &str, internal: bool) -> BTreeSet<String> {
+    fn visible_methods(&self, obj_key: OoId, internal: bool) -> BTreeSet<String> {
         let mut names = BTreeSet::new();
         for step in self.object_precedence(obj_key) {
             let provided: Vec<String> = if step.is_object {
@@ -1144,9 +1202,9 @@ impl OoState {
         if self.object_is_configurable(obj_key) {
             names.insert("configure".to_string());
         }
-        if self.classes.contains_key(obj_key) {
+        if self.classes.contains_key(&obj_key) {
             names.insert("create".to_string());
-            if obj_key != "oo::class" {
+            if Some(obj_key) != self.class_root {
                 names.insert("new".to_string());
             }
         }
@@ -1157,7 +1215,7 @@ impl OoState {
 /// Map a [`tcloo_linearise`] result into class-facet [`Step`]s, degrading to the
 /// class itself when linearisation fails (a superclass cycle involving it, or a
 /// pathological depth `tcloo_linearise` refuses to expand).
-fn class_steps(chain: Result<Vec<String>, MroError>, fallback: &str) -> Vec<Step> {
+fn class_steps(chain: Result<Vec<OoId>, MroError>, fallback: OoId) -> Vec<Step> {
     match chain {
         Ok(classes) => classes
             .into_iter()
@@ -1167,7 +1225,7 @@ fn class_steps(chain: Result<Vec<String>, MroError>, fallback: &str) -> Vec<Step
             })
             .collect(),
         Err(_) => vec![Step {
-            provider: fallback.to_string(),
+            provider: fallback,
             is_object: false,
         }],
     }
@@ -1193,14 +1251,17 @@ fn keep_last(steps: &[Step]) -> Vec<Step> {
 /// (export-enforced); `false` is a `my m` internal call.
 fn oo_invoke(
     vm: &mut Vm,
-    obj_key: &str,
+    obj_key: OoId,
     method: &str,
     args: &[Value],
     external: bool,
     invoked: &str,
 ) -> Completion<Value> {
-    if !vm.oo.objects.contains_key(obj_key) {
-        return err(format!("invalid command name \"{}\"", display(obj_key)));
+    if !vm.oo.objects.contains_key(&obj_key) {
+        return err(format!(
+            "invalid command name \"{}\"",
+            display_oo(vm, obj_key)
+        ));
     }
     // Object built-in methods (available internally, or when exported).
     if matches!(method, "variable" | "varname" | "eval")
@@ -1231,6 +1292,11 @@ fn oo_invoke(
         return unknown_method(vm, obj_key, method, external);
     }
     let usage = format!("{invoked} {method}");
+    let mut call_identity = vec![
+        Value::string(if external { invoked } else { "my" }),
+        Value::string(method),
+    ];
+    call_identity.extend_from_slice(args);
     run_step(
         vm,
         obj_key,
@@ -1241,25 +1307,26 @@ fn oo_invoke(
         external,
         invoked.to_string(),
         usage,
+        call_identity,
     )
 }
 
 /// Whether an object built-in (`variable`/`varname`/`eval`) is exported — they
 /// are unexported by default, so only reachable externally after `self export`.
-fn is_exported_builtin(vm: &Vm, obj_key: &str, method: &str) -> bool {
+fn is_exported_builtin(vm: &Vm, obj_key: OoId, method: &str) -> bool {
     vm.oo
         .objects
-        .get(obj_key)
+        .get(&obj_key)
         .is_some_and(|o| o.exported.contains(method))
 }
 
 /// The `unknown method "X": must be …` error (or "no visible methods").
-fn unknown_method(vm: &Vm, obj_key: &str, method: &str, external: bool) -> Completion<Value> {
+fn unknown_method(vm: &Vm, obj_key: OoId, method: &str, external: bool) -> Completion<Value> {
     let names = vm.oo.visible_methods(obj_key, !external);
     if names.is_empty() {
         return err(format!(
             "object \"{}\" has no visible methods",
-            display(obj_key)
+            display_oo(vm, obj_key)
         ));
     }
     err(format!(
@@ -1281,7 +1348,7 @@ fn unknown_method(vm: &Vm, obj_key: &str, method: &str, external: bool) -> Compl
 #[allow(clippy::too_many_arguments)] // A method activation genuinely carries this context.
 fn run_step(
     vm: &mut Vm,
-    obj_key: &str,
+    obj_key: OoId,
     chain: &[Step],
     index: usize,
     method: String,
@@ -1289,6 +1356,7 @@ fn run_step(
     external: bool,
     invoked: String,
     usage_prefix: String,
+    call_identity: Vec<Value>,
 ) -> Completion<Value> {
     if let Err(c) = vm.enter_oo_dispatch() {
         return c;
@@ -1303,6 +1371,7 @@ fn run_step(
         external,
         invoked,
         usage_prefix,
+        call_identity,
     );
     vm.exit_oo_dispatch();
     result
@@ -1311,7 +1380,7 @@ fn run_step(
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)] // A method activation genuinely carries this context and persistence seam.
 fn run_step_inner(
     vm: &mut Vm,
-    obj_key: &str,
+    obj_key: OoId,
     chain: &[Step],
     index: usize,
     method: String,
@@ -1319,6 +1388,7 @@ fn run_step_inner(
     external: bool,
     invoked: String,
     usage_prefix: String,
+    call_identity: Vec<Value>,
 ) -> Completion<Value> {
     let step = chain[index].clone();
     // Resolve the method body for this step.
@@ -1347,9 +1417,9 @@ fn run_step_inner(
     if let Some(prefix) = &m.forward {
         let mut words: Vec<Value> = prefix.clone();
         words.extend_from_slice(args);
-        let ns = vm.oo.objects.get(obj_key).map(|o| o.ns.clone());
+        let ns = vm.oo.objects.get(&obj_key).map(|o| o.ns.clone());
         let frame = OoFrame {
-            object: obj_key.to_string(),
+            object: obj_key,
             chain: chain.to_vec(),
             index,
             method: method.clone(),
@@ -1369,7 +1439,7 @@ fn run_step_inner(
     let obj_ns = vm
         .oo
         .objects
-        .get(obj_key)
+        .get(&obj_key)
         .map(|o| o.ns.clone())
         .unwrap_or_default();
     // Instance variables to auto-link belong to the method's declaring
@@ -1405,6 +1475,8 @@ fn run_step_inner(
     let ns_id = vm.definition_namespace_token(&obj_ns);
     let proc = ProcDef {
         name: format!("{obj_ns}::{method}"),
+        command_ns_id: ns_id,
+        simple_name: method.clone(),
         namespace: obj_ns.clone(),
         ns_id,
         params: m.params.clone(),
@@ -1412,6 +1484,7 @@ fn run_step_inner(
         body,
         body_src: m.body_src.clone(),
         usage_name: Some(usage_prefix.clone()),
+        call_identity: Some(call_identity),
     };
     // Refresh through the shared proc owner, then persist the replacement on
     // its defining facet.  Recompiling on every method call after a profile
@@ -1447,7 +1520,7 @@ fn run_step_inner(
         }
     }
     let frame = OoFrame {
-        object: obj_key.to_string(),
+        object: obj_key,
         chain: chain.to_vec(),
         index,
         method,
@@ -1459,10 +1532,15 @@ fn run_step_inner(
 }
 
 /// The object built-in methods `variable name…`, `varname name`, `eval script`.
-fn builtin_method(vm: &mut Vm, obj_key: &str, method: &str, args: &[Value]) -> Completion<Value> {
-    let ns = match vm.oo.objects.get(obj_key) {
+fn builtin_method(vm: &mut Vm, obj_key: OoId, method: &str, args: &[Value]) -> Completion<Value> {
+    let ns = match vm.oo.objects.get(&obj_key) {
         Some(o) => o.ns.clone(),
-        None => return err(format!("invalid command name \"{}\"", display(obj_key))),
+        None => {
+            return err(format!(
+                "invalid command name \"{}\"",
+                display_oo(vm, obj_key)
+            ));
+        }
     };
     match method {
         "variable" => {
@@ -1513,25 +1591,28 @@ fn cmd_my(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some(fr) = vm.oo.call_stack.last() else {
         return err("invalid command name \"my\"");
     };
-    let obj = fr.object.clone();
+    let obj = fr.object;
     let invoked = fr.invoked.clone();
     let Some((method, rest)) = args.split_first() else {
         return err("wrong # args: should be \"my methodName ?arg ...?\"");
     };
     let method = method.to_str().to_string();
-    oo_invoke(vm, &obj, &method, rest, false, &invoked)
+    oo_invoke(vm, obj, &method, rest, false, &invoked)
 }
 
 /// The object a method frame reports as `self` — its command name (C's
 /// `TclOOObjectName`).
-fn frame_object_name(fr: &OoFrame) -> Value {
-    Value::string(display(&fr.object))
+fn frame_object_name(vm: &Vm, fr: &OoFrame) -> Value {
+    Value::string(display_oo(vm, fr.object))
 }
 
 /// The running method's object as `self` / `self object` reports it — `None`
 /// outside a method. The `tclooSelf` opcode's core.
 pub(crate) fn current_object_name(vm: &Vm) -> Option<Value> {
-    vm.oo.call_stack.last().map(frame_object_name)
+    vm.oo
+        .call_stack
+        .last()
+        .map(|frame| frame_object_name(vm, frame))
 }
 
 /// Whether a method invocation is running — the context `self`/`next`/`nextto`
@@ -1544,13 +1625,18 @@ fn cmd_self(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some(fr) = vm.oo.call_stack.last() else {
         return err("invalid command name \"self\"");
     };
-    let self_name = frame_object_name(fr);
-    let obj = fr.object.clone();
+    let self_name = frame_object_name(vm, fr);
+    let obj = fr.object;
     let sub = args.first().map(|v| v.to_str().to_string());
     match sub.as_deref() {
         None | Some("object") => ok(self_name),
         Some("namespace") => {
-            let ns = vm.oo.objects.get(&obj).map(|o| o.ns.clone()).unwrap_or(obj);
+            let ns = vm
+                .oo
+                .objects
+                .get(&obj)
+                .map(|o| o.ns.clone())
+                .unwrap_or_default();
             ok(Value::string(display(&ns)))
         }
         Some("class") => {
@@ -1559,14 +1645,14 @@ fn cmd_self(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             if step.is_object {
                 return err("method not defined by a class");
             }
-            ok(Value::string(display(&step.provider)))
+            ok(Value::string(display_oo(vm, step.provider)))
         }
         Some("method") => ok(Value::string(fr.method.clone())),
         Some("call") => {
             let steps: Vec<Value> = fr
                 .chain
                 .iter()
-                .map(|s| Value::string(display(&s.provider)))
+                .map(|s| Value::string(display_oo(vm, s.provider)))
                 .collect();
             ok(Value::list(vec![
                 Value::list(steps),
@@ -1576,7 +1662,7 @@ fn cmd_self(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Some("target") => {
             let step = &fr.chain[fr.index];
             ok(Value::list(vec![
-                Value::string(display(&step.provider)),
+                Value::string(display_oo(vm, step.provider)),
                 Value::string(fr.method.clone()),
             ]))
         }
@@ -1592,7 +1678,7 @@ pub(crate) fn cmd_next(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some(fr) = vm.oo.call_stack.last() else {
         return err("invalid command name \"next\"");
     };
-    let obj = fr.object.clone();
+    let obj = fr.object;
     let chain = fr.chain.clone();
     let index = fr.index;
     let method = fr.method.clone();
@@ -1610,9 +1696,11 @@ pub(crate) fn cmd_next(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         };
         return err(format!("no next {kind} implementation"));
     }
+    let mut call_identity = vec![Value::string("next")];
+    call_identity.extend_from_slice(args);
     run_step(
         vm,
-        &obj,
+        obj,
         &chain,
         index + 1,
         method,
@@ -1620,6 +1708,7 @@ pub(crate) fn cmd_next(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         external,
         invoked,
         usage,
+        call_identity,
     )
 }
 
@@ -1632,7 +1721,7 @@ pub(crate) fn cmd_nextto(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((cls, rest)) = args.split_first() else {
         return err("wrong # args: should be \"nextto class ?arg...?\"");
     };
-    let obj = fr.object.clone();
+    let obj = fr.object;
     let chain = fr.chain.clone();
     let index = fr.index;
     let method = fr.method.clone();
@@ -1644,15 +1733,26 @@ pub(crate) fn cmd_nextto(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if let Some(pos) = chain
         .iter()
         .enumerate()
-        .position(|(i, s)| i > index && !s.is_object && s.provider == target)
+        .position(|(i, s)| i > index && !s.is_object && Some(s.provider) == target)
     {
+        let mut call_identity = vec![Value::string("nextto")];
+        call_identity.extend_from_slice(args);
         return run_step(
-            vm, &obj, &chain, pos, method, rest, external, invoked, usage,
+            vm,
+            obj,
+            &chain,
+            pos,
+            method,
+            rest,
+            external,
+            invoked,
+            usage,
+            call_identity,
         );
     }
     err(format!(
         "method has no non-filter implementation by \"{}\"",
-        display(&target)
+        cls.to_str()
     ))
 }
 
@@ -1660,8 +1760,8 @@ pub(crate) fn cmd_nextto(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 /// Run the destructor chain, then tear the object (and, if a class, its
 /// descendants) down.
-fn oo_destroy(vm: &mut Vm, obj_key: &str) -> Completion<Value> {
-    match vm.oo.objects.get_mut(obj_key) {
+fn oo_destroy(vm: &mut Vm, obj_key: OoId) -> Completion<Value> {
+    match vm.oo.objects.get_mut(&obj_key) {
         Some(o) if o.destroyed => return ok(Value::empty()),
         Some(o) => o.destroyed = true,
         None => return ok(Value::empty()),
@@ -1670,32 +1770,32 @@ fn oo_destroy(vm: &mut Vm, obj_key: &str) -> Completion<Value> {
     // instances and its direct subclasses (each recursion in turn reaches their
     // instances / subclasses), matching TclOO. The `destroyed` guard above makes
     // this safe against cycles.
-    if vm.oo.classes.contains_key(obj_key) {
-        let derived: Vec<String> = vm
+    if vm.oo.classes.contains_key(&obj_key) {
+        let derived: Vec<OoId> = vm
             .oo
             .objects
             .iter()
             .filter(|(k, o)| {
-                k.as_str() != obj_key
+                **k != obj_key
                     && (o.class == obj_key
                         || vm
                             .oo
                             .classes
                             .get(*k)
-                            .is_some_and(|c| c.supers.iter().any(|s| s == obj_key)))
+                            .is_some_and(|c| c.supers.contains(&obj_key)))
             })
-            .map(|(k, _)| k.clone())
+            .map(|(k, _)| *k)
             .collect();
         for d in derived {
-            let _ = oo_destroy(vm, &d);
+            let _ = oo_destroy(vm, d);
         }
     }
-    let class = vm.oo.objects.get(obj_key).map(|o| o.class.clone());
+    let class = vm.oo.objects.get(&obj_key).map(|o| o.class);
     let mut result = ok(Value::empty());
     if let Some(class) = class {
         let chain: Vec<Step> = vm
             .oo
-            .class_linear_of(&class)
+            .class_linear_of(class)
             .into_iter()
             .filter(|s| {
                 vm.oo
@@ -1705,7 +1805,8 @@ fn oo_destroy(vm: &mut Vm, obj_key: &str) -> Completion<Value> {
             })
             .collect();
         if !chain.is_empty() {
-            let d = display(obj_key);
+            let d = display_oo(vm, obj_key);
+            let call_identity = vec![Value::string(d.as_str()), Value::string("destroy")];
             let res = run_step(
                 vm,
                 obj_key,
@@ -1716,6 +1817,7 @@ fn oo_destroy(vm: &mut Vm, obj_key: &str) -> Completion<Value> {
                 false,
                 d.clone(),
                 d,
+                call_identity,
             );
             if !res.code.is_ok() && res.code != Code::Return {
                 result = res;
@@ -1727,10 +1829,56 @@ fn oo_destroy(vm: &mut Vm, obj_key: &str) -> Completion<Value> {
 }
 
 /// Remove an object's command and records (no destructor run).
-fn teardown(vm: &mut Vm, obj_key: &str) {
-    vm.take_command_unchecked(obj_key);
-    vm.oo.objects.remove(obj_key);
-    vm.oo.classes.remove(obj_key);
+fn teardown(vm: &mut Vm, obj_key: OoId) {
+    if let Some(command_key) = vm.oo.command_keys.remove(&obj_key) {
+        vm.retire_command_lifecycle_key(&command_key);
+    }
+    vm.oo.objects.remove(&obj_key);
+    vm.oo.classes.remove(&obj_key);
+    vm.oo.names.remove(&obj_key);
+}
+
+/// Move the mutable command-name projection attached to one stable `TclOO`
+/// token. All class/object/provider relationships remain on [`OoId`].
+pub(crate) fn oo_command_renamed(vm: &mut Vm, object: OoId, new_key: String, new_display: String) {
+    vm.oo
+        .command_keys
+        .insert(object, CommandSidecarKey::visible(new_key));
+    vm.oo.names.insert(object, new_display);
+}
+
+/// Relocate the command-table sidecar without changing `TclOO`'s public object
+/// name. Hiding is not a Tcl command rename: `self object` continues to report
+/// the visible name the object had before it became hidden.
+pub(crate) fn oo_command_hidden(vm: &mut Vm, object: OoId, token: String) {
+    vm.oo
+        .command_keys
+        .insert(object, CommandSidecarKey::hidden(token));
+}
+
+pub(crate) fn oo_command_exposed(vm: &mut Vm, object: OoId, new_key: String) {
+    vm.oo
+        .command_keys
+        .insert(object, CommandSidecarKey::visible(new_key));
+}
+
+/// Run the `TclOO` delete lifecycle after the command mutation owner's delete
+/// trace. The ordinary command mutation owner removes the table entry through
+/// [`Vm::remove_command_exact`]; [`teardown`] reaches that same exact-key seam.
+pub(crate) fn oo_command_deleted(vm: &mut Vm, object: OoId) {
+    vm.oo.command_keys.remove(&object);
+    let _ = oo_destroy(vm, object);
+}
+
+/// Run the `TclOO` lifecycle for a command implementation being replaced in
+/// place. Tcl keeps the command-table token for the new implementation, while
+/// the old object/class is destroyed (including descendants and destructors).
+/// Detaching only this root key makes [`teardown`] leave that table entry to
+/// the registration owner; cascaded objects retain their keys and are deleted
+/// normally.
+pub(crate) fn oo_command_replaced(vm: &mut Vm, object: OoId) {
+    vm.oo.command_keys.remove(&object);
+    let _ = oo_destroy(vm, object);
 }
 
 // oo::define / oo::objdefine and the definition-body commands.
@@ -1756,17 +1904,19 @@ fn run_define(vm: &mut Vm, args: &[Value], is_class: bool) -> Completion<Value> 
             "wrong # args: should be \"{verb} target ?arg ...?\""
         ));
     }
-    let target = vm.qualify_name(&args[0].to_str());
-    if !vm.oo.objects.contains_key(&target) {
-        return err(format!("{} does not refer to an object", display(&target)));
-    }
+    let Some(target) = resolve_object(vm, &args[0].to_str()) else {
+        return err(format!("{} does not refer to an object", args[0].to_str()));
+    };
     if is_class && !vm.oo.classes.contains_key(&target) {
-        return err(format!("{} does not refer to a class", display(&target)));
+        return err(format!(
+            "{} does not refer to a class",
+            display_oo(vm, target)
+        ));
     }
     let dt = if is_class {
-        DefTarget::Class(target.clone())
+        DefTarget::Class(target)
     } else {
-        DefTarget::Object(target.clone())
+        DefTarget::Object(target)
     };
     let level = vm.current_level();
     vm.oo.def_stack.push((dt, level));
@@ -1776,12 +1926,12 @@ fn run_define(vm: &mut Vm, args: &[Value], is_class: bool) -> Completion<Value> 
         match vm.eval_source(&args[1].to_str()) {
             Ok(c) if c.code == Code::Return => ok(c.result),
             Ok(c) if c.code == Code::Error => {
-                append_define_frame(vm, is_class, &target, &c.result.to_str());
+                append_define_frame(vm, is_class, target, &c.result.to_str());
                 c
             }
             Ok(c) => c,
             Err(e) => {
-                append_define_frame(vm, is_class, &target, &e.message);
+                append_define_frame(vm, is_class, target, &e.message);
                 err(e.message)
             }
         }
@@ -1799,25 +1949,25 @@ fn run_define(vm: &mut Vm, args: &[Value], is_class: bool) -> Completion<Value> 
 /// to `errorInfo` as an error unwinds out of an `oo::define`/`oo::objdefine`
 /// *script* body — the context frame C's `TclOODefineObjCmd` adds. `line` is the
 /// body-relative source line of the failing directive (C's `iPtr->errorLine`).
-fn append_define_frame(vm: &mut Vm, is_class: bool, target: &str, msg: &str) {
+fn append_define_frame(vm: &mut Vm, is_class: bool, target: OoId, msg: &str) {
     let kind = if is_class { "class" } else { "object" };
     let line = vm.error_line();
     let frame = format!(
         "\n    (in definition script for {kind} \"{}\" line {line})",
-        display(target)
+        display_oo(vm, target)
     );
     vm.seed_error_info_frame(msg, &frame);
 }
 
 /// The active definition target, iff evaluation is directly at its level.
-fn active_target(vm: &Vm) -> Option<(bool, String)> {
+fn active_target(vm: &Vm) -> Option<(bool, OoId)> {
     let (dt, level) = vm.oo.def_stack.last()?;
     if *level != vm.current_level() {
         return None;
     }
     Some(match dt {
-        DefTarget::Class(c) => (true, c.clone()),
-        DefTarget::Object(o) => (false, o.clone()),
+        DefTarget::Class(c) => (true, *c),
+        DefTarget::Object(o) => (false, *o),
     })
 }
 
@@ -1863,14 +2013,14 @@ fn def_body_cmd(vm: &mut Vm, verb: &str, args: &[Value]) -> Completion<Value> {
         return err("this command can only be called from within the body of a definition");
     };
     match verb {
-        "method" => def_method(vm, is_class, &target, args),
-        "constructor" => def_constructor(vm, is_class, &target, args),
-        "destructor" => def_destructor(vm, is_class, &target, args),
-        "superclass" => def_superclass(vm, is_class, &target, args),
-        "export" => def_export(vm, is_class, &target, args, true),
-        "unexport" => def_export(vm, is_class, &target, args, false),
-        "mixin" => def_mixin(vm, is_class, &target, args),
-        "forward" => def_forward(vm, is_class, &target, args),
+        "method" => def_method(vm, is_class, target, args),
+        "constructor" => def_constructor(vm, is_class, target, args),
+        "destructor" => def_destructor(vm, is_class, target, args),
+        "superclass" => def_superclass(vm, is_class, target, args),
+        "export" => def_export(vm, is_class, target, args, true),
+        "unexport" => def_export(vm, is_class, target, args, false),
+        "mixin" => def_mixin(vm, is_class, target, args),
+        "forward" => def_forward(vm, is_class, target, args),
         _ => err(format!("unknown definition command \"{verb}\"")),
     }
 }
@@ -1892,7 +2042,7 @@ fn build_method(
     })
 }
 
-fn def_method(vm: &mut Vm, is_class: bool, target: &str, args: &[Value]) -> Completion<Value> {
+fn def_method(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Completion<Value> {
     // `method name ?-export|-unexport? args body` (a subset of the flag set).
     let mut idx = 0;
     let mut vis: Option<bool> = None;
@@ -1916,16 +2066,16 @@ fn def_method(vm: &mut Vm, is_class: bool, target: &str, args: &[Value]) -> Comp
         Err(e) => return e,
     };
     if is_class {
-        if let Some(c) = vm.oo.classes.get_mut(target) {
+        if let Some(c) = vm.oo.classes.get_mut(&target) {
             c.methods.insert(name, method);
         }
-    } else if let Some(o) = vm.oo.objects.get_mut(target) {
+    } else if let Some(o) = vm.oo.objects.get_mut(&target) {
         o.methods.insert(name, method);
     }
     ok(Value::empty())
 }
 
-fn def_constructor(vm: &mut Vm, is_class: bool, target: &str, args: &[Value]) -> Completion<Value> {
+fn def_constructor(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Completion<Value> {
     if !is_class {
         return err("constructors are only for classes");
     }
@@ -1935,7 +2085,7 @@ fn def_constructor(vm: &mut Vm, is_class: bool, target: &str, args: &[Value]) ->
     // An empty (whitespace-only) body installs *no* constructor — C TclOO's
     // optimisation, so `C new <extra args>` is then silently accepted.
     if body.to_str().trim().is_empty() {
-        if let Some(c) = vm.oo.classes.get_mut(target) {
+        if let Some(c) = vm.oo.classes.get_mut(&target) {
             c.constructor = None;
         }
         return ok(Value::empty());
@@ -1944,13 +2094,13 @@ fn def_constructor(vm: &mut Vm, is_class: bool, target: &str, args: &[Value]) ->
         Ok(m) => m,
         Err(e) => return e,
     };
-    if let Some(c) = vm.oo.classes.get_mut(target) {
+    if let Some(c) = vm.oo.classes.get_mut(&target) {
         c.constructor = Some(method);
     }
     ok(Value::empty())
 }
 
-fn def_destructor(vm: &mut Vm, is_class: bool, target: &str, args: &[Value]) -> Completion<Value> {
+fn def_destructor(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Completion<Value> {
     if !is_class {
         return err("destructors are only for classes");
     }
@@ -1958,7 +2108,7 @@ fn def_destructor(vm: &mut Vm, is_class: bool, target: &str, args: &[Value]) -> 
         return err("wrong # args: should be \"destructor body\"");
     };
     if body.to_str().trim().is_empty() {
-        if let Some(c) = vm.oo.classes.get_mut(target) {
+        if let Some(c) = vm.oo.classes.get_mut(&target) {
             c.destructor = None;
         }
         return ok(Value::empty());
@@ -1967,28 +2117,27 @@ fn def_destructor(vm: &mut Vm, is_class: bool, target: &str, args: &[Value]) -> 
         Ok(m) => m,
         Err(e) => return e,
     };
-    if let Some(c) = vm.oo.classes.get_mut(target) {
+    if let Some(c) = vm.oo.classes.get_mut(&target) {
         c.destructor = Some(method);
     }
     ok(Value::empty())
 }
 
-fn def_superclass(vm: &mut Vm, is_class: bool, target: &str, args: &[Value]) -> Completion<Value> {
+fn def_superclass(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Completion<Value> {
     if !is_class {
         return err("superclass is only for classes");
     }
     let mut supers = Vec::new();
     for a in args {
-        let s = resolve_class(vm, &a.to_str());
-        if !vm.oo.classes.contains_key(&s) {
+        let Some(s) = resolve_class(vm, &a.to_str()) else {
             return err("only a class can be a superclass");
-        }
+        };
         if s == target {
             return err("attempt to form circular dependency graph");
         }
         supers.push(s);
     }
-    if let Some(c) = vm.oo.classes.get_mut(target) {
+    if let Some(c) = vm.oo.classes.get_mut(&target) {
         c.supers = supers;
     }
     ok(Value::empty())
@@ -1997,14 +2146,14 @@ fn def_superclass(vm: &mut Vm, is_class: bool, target: &str, args: &[Value]) -> 
 fn def_export(
     vm: &mut Vm,
     is_class: bool,
-    target: &str,
+    target: OoId,
     args: &[Value],
     export: bool,
 ) -> Completion<Value> {
     for a in args {
         let name = a.to_str().to_string();
         if is_class {
-            if let Some(c) = vm.oo.classes.get_mut(target) {
+            if let Some(c) = vm.oo.classes.get_mut(&target) {
                 if export {
                     c.unexported.remove(&name);
                     c.exported.insert(name);
@@ -2013,7 +2162,7 @@ fn def_export(
                     c.unexported.insert(name);
                 }
             }
-        } else if let Some(o) = vm.oo.objects.get_mut(target) {
+        } else if let Some(o) = vm.oo.objects.get_mut(&target) {
             if export {
                 o.unexported.remove(&name);
                 o.exported.insert(name);
@@ -2026,26 +2175,25 @@ fn def_export(
     ok(Value::empty())
 }
 
-fn def_mixin(vm: &mut Vm, is_class: bool, target: &str, args: &[Value]) -> Completion<Value> {
+fn def_mixin(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Completion<Value> {
     let mut mixins = Vec::new();
     for a in args {
-        let s = resolve_class(vm, &a.to_str());
-        if !vm.oo.classes.contains_key(&s) {
+        let Some(s) = resolve_class(vm, &a.to_str()) else {
             return err("may only mix in classes");
-        }
+        };
         mixins.push(s);
     }
     if is_class {
-        if let Some(c) = vm.oo.classes.get_mut(target) {
+        if let Some(c) = vm.oo.classes.get_mut(&target) {
             c.mixins = mixins;
         }
-    } else if let Some(o) = vm.oo.objects.get_mut(target) {
+    } else if let Some(o) = vm.oo.objects.get_mut(&target) {
         o.mixins = mixins;
     }
     ok(Value::empty())
 }
 
-fn def_forward(vm: &mut Vm, is_class: bool, target: &str, args: &[Value]) -> Completion<Value> {
+fn def_forward(vm: &mut Vm, is_class: bool, target: OoId, args: &[Value]) -> Completion<Value> {
     let Some((name, prefix)) = args.split_first().filter(|(_, prefix)| !prefix.is_empty()) else {
         return err("wrong # args: should be \"forward name cmdName ?arg ...?\"");
     };
@@ -2060,10 +2208,10 @@ fn def_forward(vm: &mut Vm, is_class: bool, target: &str, args: &[Value]) -> Com
         exported,
     };
     if is_class {
-        if let Some(c) = vm.oo.classes.get_mut(target) {
+        if let Some(c) = vm.oo.classes.get_mut(&target) {
             c.methods.insert(name, method);
         }
-    } else if let Some(o) = vm.oo.objects.get_mut(target) {
+    } else if let Some(o) = vm.oo.objects.get_mut(&target) {
         o.methods.insert(name, method);
     }
     ok(Value::empty())
@@ -2077,9 +2225,9 @@ fn def_forward(vm: &mut Vm, is_class: bool, target: &str, args: &[Value]) -> Com
 impl OoState {
     /// Whether `class_key` is reachable in the linearisation of object `obj`'s
     /// class (i.e. `obj` is an instance of `class_key`, honouring inheritance).
-    fn is_a(&self, obj_key: &str, class_key: &str) -> bool {
-        self.objects.get(obj_key).is_some_and(|o| {
-            self.class_linear_of(&o.class)
+    fn is_a(&self, obj_key: OoId, class_key: OoId) -> bool {
+        self.objects.get(&obj_key).is_some_and(|o| {
+            self.class_linear_of(o.class)
                 .iter()
                 .any(|s| s.provider == class_key)
         })
@@ -2087,18 +2235,18 @@ impl OoState {
 
     /// Whether `class_key` is a metaclass (its instances are classes — its
     /// linearisation includes `::oo::class`).
-    fn is_metaclass(&self, class_key: &str) -> bool {
-        self.classes.contains_key(class_key)
+    fn is_metaclass(&self, class_key: OoId) -> bool {
+        self.classes.contains_key(&class_key)
             && self
                 .class_linear_of(class_key)
                 .iter()
-                .any(|s| s.provider == "oo::class")
+                .any(|s| Some(s.provider) == self.class_root)
     }
 
     /// Whether `class_key`'s linearisation includes any `configurable` class —
     /// i.e. it was built by `oo::configurable` or inherits from such a class
     /// (TIP 558). Gates the `property` definition command.
-    fn class_is_configurable(&self, class_key: &str) -> bool {
+    fn class_is_configurable(&self, class_key: OoId) -> bool {
         self.class_linear_of(class_key).iter().any(|s| {
             self.classes
                 .get(&s.provider)
@@ -2108,11 +2256,11 @@ impl OoState {
 
     /// Whether object `obj_key` should carry the `configure` method: its class
     /// (via the MRO) is configurable, or it has per-object property slots.
-    fn object_is_configurable(&self, obj_key: &str) -> bool {
-        self.objects.get(obj_key).is_some_and(|o| {
+    fn object_is_configurable(&self, obj_key: OoId) -> bool {
+        self.objects.get(&obj_key).is_some_and(|o| {
             !o.readable_properties.is_empty()
                 || !o.writable_properties.is_empty()
-                || self.class_is_configurable(&o.class)
+                || self.class_is_configurable(o.class)
         })
     }
 }
@@ -2121,37 +2269,34 @@ impl OoState {
 /// `info object isa object` and the `tclooIsObject` opcode, neither of which
 /// ever errors.
 pub(crate) fn is_object(vm: &Vm, name: &Value) -> bool {
-    vm.oo.objects.contains_key(&vm.qualify_name(&name.to_str()))
+    resolve_object(vm, &name.to_str()).is_some()
 }
 
 /// Resolve an object *command name* to its canonical registry key, or C's
 /// `… does not refer to an object` error. The lookup `info object` and the
 /// `tclooClass`/`tclooNamespace` opcodes share, so the compiled and dispatched
 /// forms resolve and complain identically.
-pub(crate) fn object_key(vm: &Vm, name: &Value) -> Result<String, Completion<Value>> {
-    let key = vm.qualify_name(&name.to_str());
-    if vm.oo.objects.contains_key(&key) {
-        Ok(key)
-    } else {
-        Err(err(format!(
+pub(crate) fn object_key(vm: &Vm, name: &Value) -> Result<OoId, Completion<Value>> {
+    resolve_object(vm, &name.to_str()).ok_or_else(|| {
+        err(format!(
             "{} does not refer to an object",
-            display(&key)
-        )))
-    }
+            vm.namespace_display_for_written(&name.to_str())
+        ))
+    })
 }
 
 /// The class command name of the object `key` (`info object class`, the
 /// `tclooClass` opcode). `key` must be a resolved object key — see
 /// [`object_key`].
-pub(crate) fn object_class_name(vm: &Vm, key: &str) -> Value {
-    Value::string(display(&vm.oo.objects[key].class))
+pub(crate) fn object_class_name(vm: &Vm, key: OoId) -> Value {
+    Value::string(display_oo(vm, vm.oo.objects[&key].class))
 }
 
 /// The instance namespace of the object `key` (`info object namespace`, the
 /// `tclooNamespace` opcode). `key` must be a resolved object key — see
 /// [`object_key`].
-pub(crate) fn object_namespace_name(vm: &Vm, key: &str) -> Value {
-    Value::string(display(&vm.oo.objects[key].ns))
+pub(crate) fn object_namespace_name(vm: &Vm, key: OoId) -> Value {
+    Value::string(display(&vm.oo.objects[&key].ns))
 }
 
 /// `info object subcommand object ?arg…?`.
@@ -2183,13 +2328,14 @@ pub(crate) fn info_object(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match sub {
         "class" => {
             if let Some(cls) = extra.first() {
-                let c = vm.qualify_name(&cls.to_str());
-                ok(Value::bool(vm.oo.is_a(&obj, &c)))
+                let is_a =
+                    resolve_class(vm, &cls.to_str()).is_some_and(|class| vm.oo.is_a(obj, class));
+                ok(Value::bool(is_a))
             } else {
-                ok(object_class_name(vm, &obj))
+                ok(object_class_name(vm, obj))
             }
         }
-        "namespace" => ok(object_namespace_name(vm, &obj)),
+        "namespace" => ok(object_namespace_name(vm, obj)),
         "creationid" => ok(Value::int(
             i64::try_from(vm.oo.objects[&obj].creation_id).unwrap_or(0),
         )),
@@ -2197,7 +2343,7 @@ pub(crate) fn info_object(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             vm.oo.objects[&obj]
                 .mixins
                 .iter()
-                .map(|m| Value::string(display(m)))
+                .map(|m| Value::string(display_oo(vm, *m)))
                 .collect(),
         )),
         "variables" => ok(Value::list(
@@ -2229,14 +2375,14 @@ pub(crate) fn info_object(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             let all = extra.iter().any(|v| v.to_str().as_ref() == "-all");
             let mut names: BTreeSet<String> = vm.oo.objects[&obj].methods.keys().cloned().collect();
             if all {
-                names.extend(vm.oo.visible_methods(&obj, false));
+                names.extend(vm.oo.visible_methods(obj, false));
                 names.remove("create");
                 names.remove("new");
                 names.remove("destroy");
             }
             ok(Value::list(names.into_iter().map(Value::string).collect()))
         }
-        "properties" => info_object_properties(vm, &obj, extra),
+        "properties" => info_object_properties(vm, obj, extra),
         _ => err(format!("unsupported info object subcommand \"{sub}\"")),
     }
 }
@@ -2246,7 +2392,7 @@ pub(crate) fn info_object(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// Reports the readable (default) or writable properties declared directly on
 /// the object; `-all` unions in the object's full precedence (its mixins, then
 /// its class MRO). Sorted and duplicate-free.
-fn info_object_properties(vm: &mut Vm, obj: &str, extra: &[Value]) -> Completion<Value> {
+fn info_object_properties(vm: &mut Vm, obj: OoId, extra: &[Value]) -> Completion<Value> {
     let (all, writable) = match info_properties_options(extra) {
         Ok(flags) => flags,
         Err(error) => return error,
@@ -2262,7 +2408,7 @@ fn info_object_properties(vm: &mut Vm, obj: &str, extra: &[Value]) -> Completion
                 names.extend(slot_ref_class(c, writable).iter().cloned());
             }
         }
-    } else if let Some(o) = vm.oo.objects.get(obj) {
+    } else if let Some(o) = vm.oo.objects.get(&obj) {
         names.extend(slot_ref_obj(o, writable).iter().cloned());
     }
     ok(Value::list(names.into_iter().map(Value::string).collect()))
@@ -2307,24 +2453,25 @@ fn info_object_isa(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
             "wrong # args: should be \"info object isa {kind}{tail}\""
         ));
     }
-    let obj = vm.qualify_name(&obj_arg.to_str());
+    let obj = resolve_object(vm, &obj_arg.to_str());
     // `isa object` on a non-object is a plain false, not an error — the same
     // test the `tclooIsObject` opcode this form compiles to performs.
     if kind == "object" {
         return ok(Value::bool(is_object(vm, obj_arg)));
     }
-    if !vm.oo.objects.contains_key(&obj) {
+    let Some(obj) = obj else {
         return ok(Value::bool(false));
-    }
+    };
     let res = match kind {
         "class" => vm.oo.classes.contains_key(&obj),
-        "metaclass" => vm.oo.is_metaclass(&obj),
+        "metaclass" => vm.oo.is_metaclass(obj),
         "typeof" => rest
             .get(2)
-            .is_some_and(|c| vm.oo.is_a(&obj, &vm.qualify_name(&c.to_str()))),
+            .and_then(|c| resolve_class(vm, &c.to_str()))
+            .is_some_and(|class| vm.oo.is_a(obj, class)),
         "mixin" => rest.get(2).is_some_and(|c| {
-            let ck = vm.qualify_name(&c.to_str());
-            vm.oo.objects[&obj].mixins.contains(&ck)
+            resolve_class(vm, &c.to_str())
+                .is_some_and(|class| vm.oo.objects[&obj].mixins.contains(&class))
         }),
         // Unreachable: `ISA_CATEGORIES` has exactly these five names.
         _ => false,
@@ -2348,12 +2495,11 @@ pub(crate) fn info_class(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             "wrong # args: should be \"info class {sub} class ?arg ...?\""
         ));
     };
-    let cls = vm.qualify_name(&cls_arg.to_str());
-    if !vm.oo.objects.contains_key(&cls) {
-        return err(format!("{} does not refer to an object", display(&cls)));
-    }
+    let Some(cls) = resolve_object(vm, &cls_arg.to_str()) else {
+        return err(format!("{} does not refer to an object", cls_arg.to_str()));
+    };
     if !vm.oo.classes.contains_key(&cls) {
-        return err(format!("\"{}\" is not a class", display(&cls)));
+        return err(format!("\"{}\" is not a class", display_oo(vm, cls)));
     }
     let extra = &rest[1..];
     match sub {
@@ -2361,14 +2507,14 @@ pub(crate) fn info_class(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             vm.oo.classes[&cls]
                 .supers
                 .iter()
-                .map(|s| Value::string(display(s)))
+                .map(|s| Value::string(display_oo(vm, *s)))
                 .collect(),
         )),
         "mixins" => ok(Value::list(
             vm.oo.classes[&cls]
                 .mixins
                 .iter()
-                .map(|m| Value::string(display(m)))
+                .map(|m| Value::string(display_oo(vm, *m)))
                 .collect(),
         )),
         "subclasses" => {
@@ -2377,8 +2523,8 @@ pub(crate) fn info_class(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 .oo
                 .classes
                 .iter()
-                .filter(|(k, c)| *k != &cls && c.supers.contains(&cls))
-                .map(|(k, _)| display(k))
+                .filter(|(k, c)| **k != cls && c.supers.contains(&cls))
+                .map(|(k, _)| display_oo(vm, *k))
                 .filter(|d| {
                     pat.as_ref()
                         .is_none_or(|p| tcl_syntax::glob::string_match(p, d))
@@ -2394,7 +2540,7 @@ pub(crate) fn info_class(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 .objects
                 .iter()
                 .filter(|(k, o)| o.class == cls && !vm.oo.classes.contains_key(*k))
-                .map(|(k, _)| display(k))
+                .map(|(k, _)| display_oo(vm, *k))
                 .filter(|d| {
                     pat.as_ref()
                         .is_none_or(|p| tcl_syntax::glob::string_match(p, d))
@@ -2403,7 +2549,7 @@ pub(crate) fn info_class(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             inst.sort();
             ok(Value::list(inst.into_iter().map(Value::string).collect()))
         }
-        "methods" => info_class_methods(vm, &cls, extra),
+        "methods" => info_class_methods(vm, cls, extra),
         "constructor" => match &vm.oo.classes[&cls].constructor {
             Some(m) => ok(Value::list(vec![
                 params_value(&m.params),
@@ -2423,7 +2569,7 @@ pub(crate) fn info_class(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 .map(Value::string)
                 .collect(),
         )),
-        "properties" => info_class_properties(vm, &cls, extra),
+        "properties" => info_class_properties(vm, cls, extra),
         _ => err(format!("unsupported info class subcommand \"{sub}\"")),
     }
 }
@@ -2433,7 +2579,7 @@ pub(crate) fn info_class(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// Reports the readable (default) or writable property names declared on the
 /// class; `-all` unions in every class up the MRO (mixins + superclasses). The
 /// result is sorted and duplicate-free.
-fn info_class_properties(vm: &mut Vm, cls: &str, extra: &[Value]) -> Completion<Value> {
+fn info_class_properties(vm: &mut Vm, cls: OoId, extra: &[Value]) -> Completion<Value> {
     let (all, writable) = match info_properties_options(extra) {
         Ok(flags) => flags,
         Err(error) => return error,
@@ -2445,7 +2591,7 @@ fn info_class_properties(vm: &mut Vm, cls: &str, extra: &[Value]) -> Completion<
                 names.extend(slot_ref_class(c, writable).iter().cloned());
             }
         }
-    } else if let Some(c) = vm.oo.classes.get(cls) {
+    } else if let Some(c) = vm.oo.classes.get(&cls) {
         names.extend(slot_ref_class(c, writable).iter().cloned());
     }
     ok(Value::list(names.into_iter().map(Value::string).collect()))
@@ -2487,7 +2633,7 @@ fn slot_ref_obj(o: &Object, writable: bool) -> &BTreeSet<String> {
 }
 
 /// `info class methods class ?-all? ?-private?`.
-fn info_class_methods(vm: &mut Vm, cls: &str, extra: &[Value]) -> Completion<Value> {
+fn info_class_methods(vm: &mut Vm, cls: OoId, extra: &[Value]) -> Completion<Value> {
     let all = extra.iter().any(|v| v.to_str().as_ref() == "-all");
     let private = extra.iter().any(|v| v.to_str().as_ref() == "-private");
     let mut names: Vec<String> = if all {
@@ -2497,7 +2643,7 @@ fn info_class_methods(vm: &mut Vm, cls: &str, extra: &[Value]) -> Completion<Val
         s.remove("destroy");
         s.into_iter().collect()
     } else {
-        let c = &vm.oo.classes[cls];
+        let c = &vm.oo.classes[&cls];
         c.methods
             .iter()
             .filter(|(n, m)| private || m.exported || c.exported.contains(*n))
@@ -2532,38 +2678,42 @@ pub(crate) fn make_class(
     vm: &mut Vm,
     class_key: &str,
     body: Option<&Value>,
-    metaclass: &str,
+    metaclass: OoId,
 ) -> Completion<Value> {
     if vm.lookup_command(class_key).is_some() {
         return err(format!(
             "can't create object \"{}\": command already exists with that name",
-            display(class_key)
+            vm.namespace_display_for_written(class_key)
         ));
     }
     // A class is configurable when instantiated *from* `oo::configurable` (or a
     // metaclass descending from it) — an identity test, distinct from the MRO
     // walk used for `configure` availability (which inherits down subclasses).
-    let configurable = metaclass == "oo::configurable"
+    let configurable = Some(metaclass) == vm.oo.configurable_root
         || vm
             .oo
             .class_linear_of(metaclass)
             .iter()
-            .any(|s| s.provider == "oo::configurable");
-    let id = vm.oo.counter;
-    vm.oo.counter += 1;
+            .any(|s| Some(s.provider) == vm.oo.configurable_root);
+    let class_display = vm.namespace_display_for_written(class_key);
+    let class_namespace = class_display
+        .strip_prefix("::")
+        .unwrap_or_default()
+        .to_string();
+    let class_id = vm.oo.allocate(class_display);
     vm.oo.classes.insert(
-        class_key.to_string(),
+        class_id,
         Class {
             configurable,
             ..Class::default()
         },
     );
     vm.oo.objects.insert(
-        class_key.to_string(),
+        class_id,
         Object {
-            class: metaclass.to_string(),
-            ns: class_key.to_string(),
-            creation_id: id,
+            class: metaclass,
+            ns: class_namespace,
+            creation_id: class_id.0,
             methods: BTreeMap::new(),
             variables: Vec::new(),
             mixins: Vec::new(),
@@ -2574,30 +2724,31 @@ pub(crate) fn make_class(
             destroyed: false,
         },
     );
-    vm.declare_namespace(class_key);
-    vm.register_command(class_key, Command::Object(class_key.to_string()));
+    vm.activate_namespace_written(class_key);
+    let command_key = vm.register_written_command(class_key, Command::Object(class_id));
+    vm.oo
+        .command_keys
+        .insert(class_id, CommandSidecarKey::visible(command_key));
     if let Some(body) = body {
         let level = vm.current_level();
-        vm.oo
-            .def_stack
-            .push((DefTarget::Class(class_key.to_string()), level));
+        vm.oo.def_stack.push((DefTarget::Class(class_id), level));
         let res = match vm.eval_source(&body.to_str()) {
             Ok(c) if c.code == Code::Return => ok(c.result),
             Ok(c) if c.code == Code::Error => {
-                append_define_frame(vm, true, class_key, &c.result.to_str());
+                append_define_frame(vm, true, class_id, &c.result.to_str());
                 c
             }
             Ok(c) => c,
             Err(e) => {
-                append_define_frame(vm, true, class_key, &e.message);
+                append_define_frame(vm, true, class_id, &e.message);
                 err(e.message)
             }
         };
         vm.oo.def_stack.pop();
         if !res.code.is_ok() && res.code != Code::Return {
-            teardown(vm, class_key);
+            teardown(vm, class_id);
             return res;
         }
     }
-    ok(Value::string(display(class_key)))
+    ok(Value::string(display_oo(vm, class_id)))
 }

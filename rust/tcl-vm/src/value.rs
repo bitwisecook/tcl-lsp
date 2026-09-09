@@ -395,7 +395,8 @@ impl Value {
             return Ok(items);
         }
         let s = self.to_str();
-        let elems = list::split_list(&s).map_err(|e| TclError::new(e.full_message(&s)))?;
+        let elems = list::split_list(&s)
+            .map_err(|e| TclError::with_error_code(e.full_message(&s), e.error_code()))?;
         let items: Rc<Vec<Value>> =
             Rc::new(elems.iter().map(|c| Value::string(c.as_ref())).collect());
         *self.0.intrep.borrow_mut() = IntRep::List(Rc::clone(&items));
