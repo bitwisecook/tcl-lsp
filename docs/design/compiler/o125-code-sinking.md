@@ -312,21 +312,13 @@ at `i + 1` is a decision, and requires all of:
 6. **At least one branch body uses the variable**
    (`any_decision_body_uses_var`).
 7. **No later use** — no statement after the decision in the same script
-   reads the variable (`statement_uses_var`).
+   reads the variable (`statement_uses_var`).  A `Statement::Barrier` or
+   `Statement::UpFrame` there counts as a use: its retained words may reach
+   the variable through `eval`, `uplevel`, or an alias.
 8. **The value's read-set survives the move**
    (`sink_rhs_clobbered_by_decision`) — no branch body at any nesting
    redefines a variable the RHS reads, and no `if` condition contains a
    command substitution (nor a `switch` subject a `[`) that could write one.
-
-### Known gap — barriers are invisible to the later-use scan
-
-Condition 7 is intended to include dynamic barriers: a `Statement::Barrier`
-after the decision may observe the variable through `uplevel`, `eval`, or an
-alias, so the definition must stay put.  `statement_uses_var`
-(`rust/tcl-compiler/src/optimiser/code_sinking.rs:584`) answers `false` for
-`Statement::Barrier`, unlike every other consumer of that query, so the
-barrier case is not currently enforced and a sink past a barrier is possible.
-Tracked as issue #1402.
 
 ## Grouped edits
 
@@ -363,8 +355,6 @@ deletion.
 
 - Sinking changes observable behaviour because the value expression has
   hidden side effects `sinkable_assignment` does not detect.
-- A sink past a `Statement::Barrier` that can observe the variable — see the
-  known gap above (#1402).
 - Orphaned prepend (deletion dropped by overlap resolution but the prepend
   survives).  Prevented by the group all-or-nothing rule in
   `select_non_overlapping`.
@@ -373,13 +363,9 @@ deletion.
 
 - `rust/tcl-compiler/src/optimiser/code_sinking.rs` unit tests
 
-## Related KCS notes
+## Related docs
 
-- [kcs-downstream-pass-contracts.md](../../../docs/design/compiler/downstream-pass-contracts.md)
-- [kcs-diagnostics-integration.md](../../../docs/design/compiler/diagnostics-integration.md)
-- [kcs-pass-fact-ownership-matrix.md](../../../docs/design/compiler/pass-fact-ownership-matrix.md)
-
-## See also
-
-- [compiler KCS index](README.md)
-- [compiler architecture overview](../../../docs/design/compiler-architecture.md)
+- [downstream-pass-contracts.md](downstream-pass-contracts.md)
+- [diagnostics-integration.md](diagnostics-integration.md)
+- [pass-fact-ownership-matrix.md](pass-fact-ownership-matrix.md)
+- [compiler architecture overview](architecture.md)

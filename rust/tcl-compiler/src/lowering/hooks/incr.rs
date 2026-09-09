@@ -184,7 +184,7 @@ mod tests {
             // The welded `{*}$n` shape exists only under tcl8.4: the F5
             // fork's implicit word break splits it into `*` + `$n`
             // (measurements §1/§3 row 6,
-            // `docs/design/bigip-irule-parser-measurements.md`), so its
+            // `docs/design/f5/bigip-irule-parser-measurements.md`), so its
             // name word is the *literal* `*` there, not a computed name.
             let sources: &[&str] = if *dialect == *"tcl8.4" {
                 &["incr {*}$n", "incr x$n", "incr pre[f]"]

@@ -13,30 +13,45 @@ default, dialect:irule
 
 ## Question
 
-Why does the analyser report multiple `HTTP::respond` or `HTTP::redirect` calls on different branches?
+Why does the analyser report that more than one `HTTP::respond` or `HTTP::redirect` can run on the same request?
 
 ## Why
 
-Only one response wins. The losing branch's response is silently discarded, which masks logic errors and produces unexpected behaviour for clients.
+Only the first response takes effect. The later call is silently discarded, so a request you meant to block can be redirected instead — the usual cause is a branch that responds and then falls through.
 
 ## Symptoms
 
-- A squiggle appears on the second respond or redirect call, with the message "multiple respond/redirect on branches".
+- A yellow squiggle appears on the later call, with the message "Multiple
+  'HTTP::redirect' calls possible in HTTP_REQUEST. Only the first response takes
+  effect."
 
 ## Example that triggers it
 
 ```tcl
-if {$cond} { HTTP::respond 403 } else { HTTP::redirect "https://example.com" }
+when HTTP_REQUEST {
+  if {[HTTP::path -normalized] eq "/blocked"} {
+    HTTP::respond 403
+  }
+  HTTP::redirect "https://example.com/"
+}
 ```
 
-The analyser reports **`IRULE1202`** because both branches issue a response.
+The analyser reports **`IRULE1202`** on the `HTTP::redirect`: a blocked request
+responds, then carries on into the redirect.
 
 ## Fix
 
-Ensure each execution path issues at most one response:
+`return` out of the event once the response is committed, so each path issues
+at most one:
 
 ```tcl
-if {$cond} { HTTP::respond 403 } else { pool fallback_pool }
+when HTTP_REQUEST {
+  if {[HTTP::path -normalized] eq "/blocked"} {
+    HTTP::respond 403
+    return
+  }
+  HTTP::redirect "https://example.com/"
+}
 ```
 
 ## How to suppress

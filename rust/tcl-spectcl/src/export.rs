@@ -17,8 +17,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! **Canonical export** — a loaded snapshot back out as straight-line
-//! `SpecTcl` source (design E, `docs/design/spectcl-design-e-deep-dive.md`
-//! §15.1, E-R11).
+//! `SpecTcl` source (`docs/design/registry/spec-packs.md` § *Authoring rules for
+//! `SpecTcl` 2.0*).
 //!
 //! The canonical form is the *straight-line subset* of the language: literal
 //! registration calls only, no `proc`, `foreach`, `set`, or computed

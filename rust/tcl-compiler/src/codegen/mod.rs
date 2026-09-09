@@ -727,6 +727,18 @@ impl<'r> CodegenCtx<'r> {
         idx
     }
 
+    /// Mark an emitted instruction as the start of a control completion's
+    /// option scope. The marker stays out-of-band so Tcl bytecode layout and
+    /// disassembly remain stable while every runtime consumer sees the same
+    /// typed policy.
+    pub(crate) fn mark_completion_option_scope(
+        &mut self,
+        instruction: usize,
+        policy: tcl_runtime_api::completion_options::ControlOptionPolicy,
+    ) {
+        self.instructions[instruction].completion_option_scope = Some(policy.activation);
+    }
+
     /// Generate a unique label name with the given prefix.
     #[must_use]
     pub fn fresh_label(&mut self, prefix: &str) -> String {

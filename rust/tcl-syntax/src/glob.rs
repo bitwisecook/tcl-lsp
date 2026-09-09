@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `string match` glob matching — the shared, byte-exact mirror of
-//! `Tcl_StringCaseMatch` (`tmp/tcl9.0.3/generic/tclUtil.c:2138`).
+//! `Tcl_StringCaseMatch` (`tmp/tcl9.0.4/generic/tclUtil.c:2138`).
 //!
 //! One implementation for every consumer: the compiler's `matches_glob`
 //! constant-folding, `string match`, `lsearch -glob`, `switch -glob`,

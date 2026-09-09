@@ -47,29 +47,33 @@ as a Rust enum in a per-table map:
 
 * `runtime/rust/src/frame.rs` — `Var::Scalar(*mut TclObj)`,
   `Var::Array(BTreeMap<Vec<u8>, *mut TclObj>)`, `Var::Link(Link)`.
-* `rust/tcl-vm/src/frame.rs` — `Local::Undefined`, `Local::Scalar(Value)`,
-  `Local::Array(BTreeMap<String, Value>)`, `Local::Link { level, name }`.
+* `rust/tcl-vm/src/vars.rs` — `VarState::Undefined`, `VarState::Scalar(Value)`,
+  `VarState::Array(VarTable)`, `VarState::Link(VarId)`.  A name table
+  (`VarTable = BTreeMap<String, VarId>`) owns bindings; the interpreter's
+  `VarArena` owns the cells those ids identify.
 
 Three representation decisions are load-bearing and are contract, not detail:
 
 * **`BTreeMap`, not `HashMap`, for var tables and array elements.**
   `info vars` and `array names` iterate them, so a randomised hash order would
   make output vary run-to-run — poison for an oracle-diffed port.
-* **A link is resolved by *path*, not by pointer.** `Link` carries
-  `{ home, name, elem }` (`runtime/rust`) or `{ level, name }` (the VM), where
-  the home is either a frame level or a namespace. `global`, `variable`, and
-  `upvar` all produce that one shape, and a target table reallocating cannot
-  dangle. Following links must be cycle-safe.
+* **A link never carries a raw pointer.** `runtime/rust`'s `Link` resolves by
+  *path* — `{ home, name, elem }`, where the home is either a frame level or a
+  namespace; the VM's `Link(VarId)` names a stable arena cell, and removing a
+  binding never lets its `VarId` identify a later variable. `global`,
+  `variable`, and `upvar` all produce one of those two shapes, and a target
+  table reallocating cannot dangle. Following links must be cycle-safe.
 * **Traces do not live on the cell.** Each runtime keeps an interpreter-level
   trace table keyed by the *resolved* variable identity (home namespace or
   frame level, plus the simple name), so a trace fires through links and
   survives the cell being unset and recreated.
 
-The VM additionally carries `Local::Undefined` — a materialised but unset cell,
-which is what `trace add variable` creates: invisible to `info exists`, yet a
-later scalar or array write defines it with the appropriate shape. Its frames
-also carry a `consts` set for `const`-declared names (TIP 677), dropped with
-the frame so a proc-local constant lasts one activation.
+The VM additionally carries `VarState::Undefined` — a materialised but unset
+cell, which is what `variable` and `trace add variable` create: invisible to
+`info exists`, yet a later scalar or array write defines it with the
+appropriate shape. `const`-declared names (TIP 677) are an interpreter-level
+`const_vars` set of cell ids rather than a per-cell flag; destroying a cell
+drops its id from the set, so a proc-local constant lasts one activation.
 
 ## Resolution algorithm
 

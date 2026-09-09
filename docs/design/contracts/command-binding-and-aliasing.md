@@ -63,7 +63,7 @@ trace, or sourced-file boundary.
 | `namespace import ns::pat` | `CMD_IMPORTED` redirect → source | source rename/delete, `namespace forget` | **Yes** (transparent) |
 | `namespace export pat` | export *gate* only | re-export | n/a (creates nothing) |
 | `namespace path {ns…}` | command search fallback | path change | n/a (pure search) |
-| ensemble (`dict`, `string`, …) | subcommand→target map | `namespace ensemble configure -map` | n/a (maps, see §6) |
+| ensemble (`dict`, `string`, …) | subcommand→target map | `namespace ensemble configure -map` | n/a (maps, see *Ensembles*) |
 | `::tcl::mathop::+` etc. | real operator commands | overridable like any command | — |
 
 ### rename
@@ -119,14 +119,14 @@ by putting `::tcl::mathop` on the path (`namespace path ::tcl::mathop; + 1 2`).
 But `::tcl::mathfunc::foo` *is* overridable and `expr`'s function-call path
 resolves it through the command table — model that single hook, not two.
 
-## Ensembles (§6)
+## Ensembles
 
 An ensemble command maps `ens sub …` → a target: default `::ens::sub`, or via
 `-map`. The subcommand is resolved by unambiguous prefix-abbreviation unless
 `-prefix 0`; `-subcommands` restricts the set; `-unknown` handles misses.
 Treat ensemble subcommand dispatch as a **resolution step declared in the
 registry**, so `string cat`, `dict get`, `info exists` resolve uniformly. The
-current compiler already rewrites `dict for`/`dict map` to the canonical
+compiler rewrites `dict for`/`dict map` to the canonical
 `::tcl::dict::for` / `::tcl::dict::map` (an interpreter barrier) — that
 rewrite *is* the ensemble alias; generalise it rather than special-casing each.
 

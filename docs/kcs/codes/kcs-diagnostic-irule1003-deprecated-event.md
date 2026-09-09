@@ -17,27 +17,33 @@ Why does the analyser report that an event is deprecated?
 
 ## Why
 
-The event is no longer supported. The iRule will not fire on current BIG-IP versions, so the handler is silently ignored.
+F5 has marked the event deprecated. It still fires today, but it is frozen and a future release can drop it, taking the handler with it.
 
 ## Symptoms
 
-- A squiggle appears under the event name, with the message "deprecated event".
+- The event name is struck through and carries a yellow squiggle, with the
+  message "'AUTH_SUCCESS' event is deprecated as of BIG-IP 9.4.0."
 
 ## Example that triggers it
 
 ```tcl
-when LOGOUT { log "bye" }
+when AUTH_SUCCESS { log local0. "authenticated" }
 ```
 
-The analyser reports **`IRULE1003`** because `LOGOUT` is a deprecated event.
+The analyser reports **`IRULE1003`** on `AUTH_SUCCESS`, deprecated since
+BIG-IP 9.4.0.
 
 ## Fix
 
-Use the modern replacement event recommended by the diagnostic message:
+Move the handler to the supported event for the same point in the flow — for
+authentication, the `AUTH_RESULT` event:
 
 ```tcl
-when ACCESS_SESSION_CLOSED { log "bye" }
+when AUTH_RESULT { log local0. "authenticated" }
 ```
+
+The message names the release the event was deprecated in, not a replacement:
+check F5's documentation for the event that replaced it.
 
 ## How to suppress
 

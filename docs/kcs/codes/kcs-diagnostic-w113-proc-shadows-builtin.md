@@ -21,7 +21,9 @@ Defining a proc with the same name as a built-in command silently replaces the o
 
 ## Symptoms
 
-- A yellow squiggle appears under the proc name, with the message "proc 'set' shadows a built-in command".
+- A yellow squiggle under the proc name, with the message "Procedure 'set'
+  shadows built-in command (tcl8.6)" — the dialect in brackets is the one the
+  document resolved to.
 
 ## Example that triggers it
 

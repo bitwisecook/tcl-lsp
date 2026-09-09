@@ -93,9 +93,7 @@ ported examples rather than against intent.
   `return -code 5`, meaningful only inside `struct::tree walk`
   (`tree_tcl.tcl:181-183`, consumed at `tree_tcl.tcl:2109-2134`) — fits
   neither the traits nor the excluded field, and is recorded as a known
-  limit rather than claimed. This line was rewritten during the
-  pre-freeze review: as originally written the rubric demanded a field
-  the design excludes, so the design could not have passed its own gate.
+  limit rather than claimed.
 - Folding: const-folders including the degenerate "run the pure Tcl
   implementation on literal args" case; versioned folders.
 - Every hook calling convention must state inputs, output protocol,

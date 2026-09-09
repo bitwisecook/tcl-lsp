@@ -1,9 +1,8 @@
-# Stress-test suite — issue #829 robustness
+# Stress-test suite
 
-Two independent stress suites, both aimed at proving the semantic-token
-prioritisation and W120 workspace-scan fixes (issue #829) hold up under
-adversarial concurrent load, not just in the tidy conditions of a unit or
-single-shot end-to-end test.
+Two independent stress suites that put semantic-token prioritisation and the
+W120 workspace scan under adversarial concurrent load, rather than the tidy
+conditions of a unit or single-shot end-to-end test.
 
 | Suite | What it exercises | Front end? |
 |---|---|---|
@@ -83,12 +82,10 @@ Scenarios:
 
 - **`tokens`** — many large documents, concurrent rapid-edit + immediate
   `semanticTokens/full` bursts. Asserts every response arrives within a hard
-  ceiling (never starved — issue #829's core complaint) and prints p50/p95/max
-  latency.
-- **`startup`** — reproduces the exact race from issue #829's screenshots: a
-  workspace with a `source`-ancestor file that requires a package, and a
-  module using that package with no local `package require`, padded with
-  filler files so the workspace scan has real work to do. Opens the module
+  ceiling (never starved) and prints p50/p95/max latency.
+- **`startup`** — a workspace with a `source`-ancestor file that requires a
+  package, and a module using that package with no local `package require`,
+  padded with filler files so the workspace scan has real work to do. Opens the module
   immediately (racing the server's own workspace scan, the way an editor
   restoring tabs races `initialized`), then asserts the false-positive W120
   the ancestor should suppress is gone once the server settles.

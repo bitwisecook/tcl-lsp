@@ -22,16 +22,16 @@
 //! These are the value-less types every Tcl runtime agrees on regardless of its
 //! value representation or execution model: the completion [`Code`], the generic
 //! [`Completion`] container, and the opaque arena handles
-//! ([`NsId`]/[`FrameId`]/[`CommandId`]/[`VarId`]). It also holds the editor
-//! vocabulary the analysis and LSP layers share — the diagnostic [`Severity`] —
-//! so the analyser, compiler-checks, CLI, and server name one type rather than
-//! each maintaining its own copy.
+//! ([`NsId`]/[`FrameId`]/[`CommandId`]/[`OoId`]/[`CommandSlot`]/[`VarId`]). It
+//! also holds the editor vocabulary the analysis and LSP layers share — the
+//! diagnostic [`Severity`] — so the analyser, compiler-checks, CLI, and server
+//! name one type rather than each maintaining its own copy.
 //!
 //! They live in their own leaf crate (depending on nothing) so that pure
 //! command logic — `tcl-cmd-core`'s helpers — can name a completion code
 //! without transitively pulling in `tcl-bytecode` (which `tcl-runtime-api` needs
 //! for `CompileService`). See
-//! `docs/design/common-runtime-emitter-architecture.md` (§6).
+//! `docs/design/rust/current-architecture.md` (the crate graph).
 
 #![no_std]
 
@@ -153,6 +153,45 @@ pub struct FrameId(pub usize);
 /// A command handle (arena id).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CommandId(pub u32);
+
+/// Stable interpreter-local identity of a `TclOO` object command.
+///
+/// Tcl command names are mutable display projections: rename changes the
+/// visible location, and deferred namespace deletion can leave an old object
+/// alive while a new one is published at the same spelling. Runtime OO tables
+/// therefore carry this opaque token through class, provider, and active-call
+/// relationships instead of recovering identity from command text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct OoId(pub u64);
+
+impl core::fmt::Display for OoId {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+/// The injective location of a command in a runtime command table.
+///
+/// Tcl's fully-qualified display spelling is not an identity: legal lone-colon
+/// segment edges can make two different `(namespace, simple name)` pairs render
+/// to the same bytes. Runtimes and command consumers keep this pair structured
+/// and render it only at Tcl-facing boundaries. `N` is the consumer's stable
+/// namespace identity (`NsId` in a runtime, a segment path in static analysis)
+/// and `S` is its owned or interned simple command name.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CommandSlot<S, N = NsId> {
+    /// Stable namespace-table owner.
+    pub namespace: N,
+    /// Simple command name within that table.
+    pub simple: S,
+}
+
+impl<S, N> CommandSlot<S, N> {
+    /// Construct a structured command-table slot.
+    pub const fn new(namespace: N, simple: S) -> Self {
+        Self { namespace, simple }
+    }
+}
 
 /// A variable-cell handle (arena id).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -276,6 +315,7 @@ mod tests {
         assert_eq!(NsId(3).0, 3);
         assert_eq!(FrameId(5).0, 5);
         assert_eq!(CommandId(7).0, 7);
+        assert_eq!(OoId(8).0, 8);
         assert_eq!(VarId(9).0, 9);
         // Copy + Eq.
         let n = NsId(1);
@@ -283,6 +323,7 @@ mod tests {
         assert_ne!(NsId(1), NsId(2));
         assert_ne!(FrameId(1), FrameId(2));
         assert_ne!(CommandId(1), CommandId(2));
+        assert_ne!(OoId(1), OoId(2));
         assert_ne!(VarId(1), VarId(2));
     }
 
@@ -290,6 +331,14 @@ mod tests {
     fn frame_and_namespace_constants() {
         assert_eq!(GLOBAL_FRAME, FrameId(0));
         assert_eq!(ROOT_NS, NsId(0));
+    }
+
+    #[test]
+    fn command_slots_keep_namespace_and_simple_identity_separate() {
+        let first = CommandSlot::new(NsId(1), ":p");
+        let second = CommandSlot::new(NsId(2), "p");
+        assert_ne!(first, second);
+        assert_eq!(first.simple, ":p");
     }
 
     #[test]

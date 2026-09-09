@@ -48,9 +48,9 @@ without manual activation.
 
 - `--tcl VERSION` — pin a specific Tcl version (create/update).
 - `--system-site-packages` — allow fallback to host `auto_path` (create).
-- `--prompt NAME` — custom shell prompt label (create).
+- `--prompt NAME` — shell prompt label (create). Defaults to the venv directory name.
 - `--force` — overwrite existing directory (create) or force delete.
-- `--json` — emit JSON output (all subcommands).
+- `--json` — emit JSON output (every subcommand except `activate`, `deactivate`, and `run`).
 - `--shell bash|zsh|fish|csh|powershell` — shell flavour (activate).
 
 ## Example
@@ -58,17 +58,19 @@ without manual activation.
 ```sh
 $ tcl venv create .venv
   ✓ created /home/user/myapp/.venv
-    activate: source /home/user/myapp/.venv/bin/activate
+  activate: source /home/user/myapp/.venv/bin/activate
+
+$ tcl venv info .venv
+  created                         2026-09-08T17:40:25Z
+  include-system-site-packages    false
+  prompt                          .venv
+  tcl_executable                  /usr/local/bin/tclsh9.0
+  tcl_version                     9.0.4
+  venv_tool                       tcl-lsp
 
 $ source .venv/bin/activate
-(myapp) $ tcl pkg install
-  ✓ json                 1.3.5
-  ✓ wrote tclpkg.lock
-
-(myapp) $ tclsh -c 'package require json; puts ok'
-ok
-
-(myapp) $ deactivate
+(.venv) $ tcl pkg install
+(.venv) $ deactivate
 $
 ```
 

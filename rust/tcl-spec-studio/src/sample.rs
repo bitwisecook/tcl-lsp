@@ -19,7 +19,7 @@
 //! The Test tab's engine: run a **sample** of Tcl through the real analyser
 //! with the pack under edit installed, and explain every word of it.
 //!
-//! `docs/design/spec-packs.md` asks for a surface where "my stuff is working"
+//! `docs/design/registry/spec-packs.md` asks for a surface where "my stuff is working"
 //! is *observed, not asserted*: paste code that uses the built-ins plus the
 //! pack, and see exactly what an editor would see. That is what this module
 //! computes, and the emphasis is on **exactly**:

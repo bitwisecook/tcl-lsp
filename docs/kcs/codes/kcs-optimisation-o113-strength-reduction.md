@@ -22,14 +22,19 @@ Replacing expensive operations with cheaper equivalents reduces CPU cost per eva
 ## Before
 
 ```tcl
-expr {$x ** 2}
+if {$key % 8} { return spill }
 ```
 
 ## After
 
 ```tcl
-expr {$x * $x}
+if {$key & 7} { return spill }
 ```
+
+O113 claims the rewrite when the reducible operation is the whole branch
+condition. Nested inside a larger expression — `$key % 8 == 0`, or the
+right-hand side of a `set` — the same rewrite is reported as
+[O110](kcs-optimisation-o110-expression-canonicalisation.md).
 
 ## Safety conditions
 

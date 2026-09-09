@@ -17,13 +17,10 @@ How do I auto-generate docstrings for my procs, or extract a structured summary 
 
 ## How to use
 
-Three tools cover documentation generation:
-
 | Tool | What it does |
 |------|-------------|
-| **Generate Docstring** | Adds docstring stubs to every undocumented proc in the file. |
-| **Proc Docs** | Extracts structured metadata from every proc: name, parameters (with defaults), parsed docstring (`@param`, `@return`), and parameter traits. |
-| **Context** | Produces a "context pack" summarising the file for AI consumption: dialect, diagnostics rollup, symbol inventory (events, procs, variables, namespaces), and event firing order. |
+| `generate_docstring` / `update_docstrings` | Adds a docstring stub to one proc, or to every undocumented proc in the file. |
+| `read_proc_docs` | Extracts structured metadata from every proc: name, parameters (with defaults), parsed docstring (`@param`, `@return`), and parameter traits. |
 
 ### VS Code
 
@@ -38,7 +35,9 @@ Run **Tcl: Generate Docstring for Proc** from the Command Palette.
 
 ### Claude Code
 
-The context pack is used internally by `/irule-create`, `/tcl-create`, and `/irule-review` to give the AI full awareness of the file before it generates or reviews code.
+`/irule-create`, `/tcl-create`, and `/irule-review` build a context pack —
+dialect, diagnostics rollup, symbol inventory, and event firing order — before
+generating or reviewing code. It is not a tool you invoke yourself.
 
 ## Example
 
@@ -53,12 +52,15 @@ proc greet {name} {
 produces:
 
 ```tcl
-# @brief <description>
-# @param name <description>
+# @brief TODO: describe greet
+# @param name
 proc greet {name} {
     puts "Hello, $name"
 }
 ```
+
+A parameter with a default carries `(default: …)`, and an `args` tail carries
+`Additional arguments`.
 
 ## Related
 

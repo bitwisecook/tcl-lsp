@@ -672,6 +672,7 @@ proc PS {} {
     trace add variable x array {R bs}
     list [array size x] [array size x]
 }
+
 set size [PS]
 array set an {a 1}
 array set bn {b1 1 b2 2}
@@ -731,6 +732,68 @@ puts [list $size $names $get $setrow $unsetrow $pattern $forrow]
         vm_output(script),
         "{1 2} {1 {b1 b2} 2} {} {0 1} {1 0} {0 1} {{array changed during iteration}}"
     );
+}
+
+#[test]
+fn array_get_reads_candidates_through_the_shared_trace_contract() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/tcl9/array-get-read-traces.tcl");
+    let mut script = std::fs::read_to_string(path).expect("read shared array-get trace fixture");
+    script.push_str("\nputs $out\n");
+    let expected = "{basic {x traced} {{whole A x read} {elem A x read}} traced {x y}} \
+        {missing 0 {} {TCL READ VARNAME} 0 0} \
+        {destroy 1 {can't read \"C(x)\": no such variable} {TCL READ VARNAME}} \
+        {retype 1 {can't read \"D(x)\": no such element in array} {TCL READ VARNAME} scalar} \
+        {boom 0 {} {TCL READ VARNAME} 1 1 1 {TCL READ VARNAME}} \
+        {carried 0 after 1 1 {TCL READ VARNAME}} \
+        {harddestroy 1 {can't read \"J(x)\": BOOM} {TCL READ VARNAME} 1 1 0} \
+        {hardretype 1 {can't read \"JR(x)\": BOOM} {TCL READ VARNAME} 1 1 scalar} \
+        {aggregate 0 {} {TCL READ VARNAME} 1 1 1 {TCL READ VARNAME}} \
+        {livegroup {x X} {whole new}} {owned {11 200}} \
+        {relem 0 {x NEW} 0 {x NEW}} \
+        {rbase 0 {} {TCL READ VARNAME} {x NEW}} \
+        {opretarget {x B}} {elemretarget {{x A} {x B}}} \
+        {uplevel {x traced} {local x read}} \
+        {namespace {x traced} {a x read}} \
+        {calls {x traced} {x traced}}";
+
+    assert_eq!(vm_output(&script), expected);
+    if let Some(oracle) = tclsh_output("TCL_LSP_TCLSH90", &["tclsh9.0"], &script) {
+        assert_eq!(oracle, expected, "Tcl 9.0.4 array-get trace oracle");
+    }
+}
+
+#[test]
+fn control_commands_apply_the_tcl9_completion_option_scope_matrix() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/tcl9/completion-options-control.tcl");
+    let mut script = std::fs::read_to_string(path).expect("read shared completion-options fixture");
+    script.push_str("\nputs $out\n");
+    let expected = "{0 1 {TCL READ VARNAME}} {0 1 {TCL READ VARNAME}} \
+        {0 1 {TCL READ VARNAME}} {0 1 {TCL READ VARNAME}} \
+        {0 1 {TCL READ VARNAME}} {0 0 {}} {0 0 {}} {0 0 {}} \
+        {0 1 {TCL READ VARNAME}} {0 0 {}} {0 0 {}} {0 0 {}} \
+        {0 0 {}} {0 0 {}} {0 0 {}}";
+
+    assert_eq!(vm_output(&script), expected);
+    if let Some(oracle) = tclsh_output("TCL_LSP_TCLSH90", &["tclsh9.0"], &script) {
+        assert_eq!(oracle, expected, "Tcl 9.0.4 completion-scope oracle");
+    }
+}
+
+#[test]
+fn alias_wrappers_begin_a_fresh_completion_option_scope() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/tcl9/completion-options-alias.tcl");
+    let mut script = std::fs::read_to_string(path).expect("read shared alias-options fixture");
+    script.push_str("\nputs $out\n");
+    let expected = "{{list 0 inside 0} {try 0 inside 0} {eval 0 inside 0} \
+        {switch 0 inside 0}} {0 inside 0} {0 value BAR}";
+
+    assert_eq!(vm_output(&script), expected);
+    if let Some(oracle) = tclsh_output("TCL_LSP_TCLSH90", &["tclsh9.0"], &script) {
+        assert_eq!(oracle, expected, "Tcl 9.0.4 alias completion-scope oracle");
+    }
 }
 
 #[test]

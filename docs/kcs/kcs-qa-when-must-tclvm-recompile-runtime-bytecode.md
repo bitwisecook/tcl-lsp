@@ -5,7 +5,7 @@
 
 ## Applies to
 
-tcl-vm and TclVM embedders
+tcl-lsp-cli
 
 ## Question
 

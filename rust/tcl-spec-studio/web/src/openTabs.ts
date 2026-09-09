@@ -19,7 +19,7 @@
 // The open-command tabs: which of the pack's commands are open at once, and
 // which one the form is currently a projection of.
 //
-// `docs/design/spec-packs.md` asks for many commands to one deliverable, and
+// `docs/design/registry/spec-packs.md` asks for many commands to one deliverable, and
 // that is how a library is actually written — comparing two specs, copying an
 // option table from one command to another, checking a subcommand against its
 // sibling. A studio with one editing slot makes every one of those a round

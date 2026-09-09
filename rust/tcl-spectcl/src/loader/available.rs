@@ -18,7 +18,7 @@
 
 //! The `SpecTcl` 2.0 `available` word — the §4 availability algebra.
 //!
-//! `docs/design/dialect-and-package-registry-redesign.md` §6.2 gives every
+//! `docs/design/registry/dialect-and-package-registry-redesign.md` §6.2 gives every
 //! scope that accepts `dialects` today a second spelling:
 //!
 //! ```text

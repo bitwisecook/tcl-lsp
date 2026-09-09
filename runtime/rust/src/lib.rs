@@ -16,34 +16,34 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Rust port of the Tcl WASM runtime — support library + interpreter fallback.
+//! Rust Tcl runtime — the support library and interpreter fallback the
+//! compiler's WASM output links against.
 //!
-//! Track 1 of the runtime port. The `Tcl_Obj` model is
-//! ABI-faithful (`c-extension-abi.md` §4.2), refcounts are balanced, and the
-//! alloc/free counters prove leak-freedom.
+//! The `Tcl_Obj` model is ABI-faithful (`c-extension-abi.md` §4.2), refcounts
+//! are balanced, and the alloc/free counters prove leak-freedom.
 //!
-//! ## Scope so far
+//! ## The modules, by area
 //!
-//! T1.1 — value model:
-//! - [`obj`] — the `#[repr(C)]` `TclObj` value model with `fresh_zero`
-//!   constructors, immediate refcount-driven free, and on-demand string shimmer.
-//! - [`interp`] — a minimal result-only `Interp` exercising the
-//!   `Tcl_SetObjResult`/`Tcl_GetObjResult` ownership handshake.
-//! - [`counters`] — the leak-check instrumentation (`tcl_test_*`).
-//! - [`capi`] — the `#[no_mangle] extern "C"` C-API exports for the above.
+//! - **Value model** — [`obj`] (the `#[repr(C)]` `TclObj` with `fresh_zero`
+//!   constructors, immediate refcount-driven free, and on-demand string
+//!   shimmer), [`value_ops`], [`list`], [`dict`], [`bytearray`], [`bignum`].
+//! - **Front end** — [`parse`] (the script/word parser: a
+//!   `Command`/`Word`/`WordBody` enum tree over a literal fast path and the
+//!   shared `tcl_lexer::word_parts` scanner), [`subst`], [`expr`]. All
+//!   borrow-based and `unsafe`-free; backslash decoding is the shared
+//!   `tcl_syntax::backslash` owner.
+//! - **Execution** — [`interp`], [`frame`], [`namespace`], [`vars`],
+//!   [`ensemble`], [`builtins`], and the `cmd_*` modules, one per command
+//!   family.
+//! - **Embedding** — [`capi`] (the `#[no_mangle] extern "C"` C-API exports),
+//!   [`codegen_abi`], [`codegen_native`], [`host_wasm`], [`mem_fs`],
+//!   [`embedded_stdlib`].
+//! - **Instrumentation** — [`counters`], the leak-check `tcl_test_*` surface.
 //!
-//! T1.2 — parse/subst (a re-derived borrow-based enum model, all `unsafe`-free):
-//! - [`parse`] — the script/word parser: a `Command`/`Word`/`WordBody` enum
-//!   tree with a literal fast path and a shared component scanner. Backslash
-//!   decoding is the shared `tcl_syntax::backslash` (reference `TclParseBackslash`
-//!   via `tcl_lexer::backslash_subst`) — the runtime's old `bs.rs` is retired.
-//! - [`subst`] — the substitution engine over the shared scanner; variable and
-//!   command resolution are supplied as closures (wired to the eval loop in
-//!   T1.3/T1.4).
-//!
-//! The eval loop, frames, namespaces, the command table, and the builtins land
-//! in later Track-1 chunks (T1.3–T1.6); the `tcl_*`/`obj_*` codegen-import
-//! re-exports and the wasm `memory`/table exports land in T1.6.
+//! Command coverage is a gate, not a convention: every `tcl-registry` command
+//! needs a handler, an interpreter-fallback path, or an explicit
+//! not-required classification here, cross-checked by
+//! `cargo xtask command-backing --check`.
 
 // On `wasm32-unknown-unknown` the native-only features — coroutines (native
 // stack swap + threads) and the libtommath bignum tower — are cfg-disabled (see

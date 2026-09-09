@@ -13,34 +13,46 @@ default
 
 ## Question
 
-Why does the analyser warn about an unbraced `switch` body?
+Why does the analyser warn about an unbraced `switch` arm body?
 
 ## Why
 
-An unbraced `switch` body undergoes substitution before `switch` parses it, which can execute arbitrary code, misinterpret patterns, and prevents byte-compilation of the arms.
+An unbraced arm body is substituted before `switch` runs it, so the code that
+executes is not the code you wrote, and the arm cannot be byte-compiled.
+
+The finding is an Error when the body substitutes, or when the `switch` uses
+`-regexp` — there the patterns are substituted too.
 
 ## Symptoms
 
-- A yellow squiggle appears under the switch body, with the message "dangerous unbraced switch body".
+- A yellow squiggle under the arm body, with the message "switch body should
+  be braced to prevent accidental substitution. Use braces: { … }".
+- A red squiggle and "switch body is not braced — contains substitutions that
+  risk code injection" when the body substitutes, or "switch -regexp body is
+  not braced — patterns and actions undergo extra substitution, risking code
+  injection" under `-regexp`.
 
 ## Example that triggers it
 
 ```tcl
-switch $x a { puts A } b { puts B }
+set x a
+switch $x a "puts A" b "puts B"
 ```
 
-The analyser reports **`W106`** on the inline switch body.
+The analyser reports **`W106`** on each quoted arm body.
 
 ## Fix
 
 ```tcl
+set x a
 switch $x {
-    a { puts A }
-    b { puts B }
+    a {puts A}
+    b {puts B}
 }
 ```
 
-Wrap the entire pattern–body list in braces.
+Brace every arm body. Bracing the whole pattern–body list as well keeps the
+patterns literal.
 
 ## How to suppress
 

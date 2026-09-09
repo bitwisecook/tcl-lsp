@@ -21,13 +21,22 @@ A pipe prefix in the path executes shell commands under attacker control, enabli
 
 ## Symptoms
 
-- A yellow squiggle appears under the first argument of the `open` call, with a message such as: "open with a pipeline containing variable/command substitution risks command injection. Validate and sanitize the command before passing to open."
-- For a literal pipeline (no substitution), the severity is a hint: "open with a pipeline (&quot;|&quot;) executes an external command. Ensure the command is not influenced by untrusted input."
-- For a bare variable argument: "open with a variable argument: if the value starts with &quot;|&quot;, it will execute a command pipeline. Validate input or use explicit I/O commands."
+- A yellow squiggle under the first argument of the `open` call, with the
+  message "open with a pipeline containing variable/command substitution risks
+  command injection. Validate and sanitize the command before passing to
+  open."
+- For a literal pipeline the severity drops to a hint: "open with a pipeline
+  ("|") executes an external command. Ensure the command is not influenced by
+  untrusted input."
+- For a dynamic first argument with no literal `|`: "open with a dynamic
+  argument (variable or command substitution): if the value starts with "|",
+  it will execute a command pipeline. Validate input or use explicit I/O
+  commands."
 
 ## Example that triggers it
 
 ```tcl
+set cmd [gets stdin]
 open "|$cmd"
 ```
 
@@ -36,10 +45,12 @@ The analyser reports **`W103`** on the `|$cmd` argument token.
 ## Fix
 
 ```tcl
-open $validated_path
+set fd [open $validated_path r]
 ```
 
 Validate that the path does not begin with `|` before passing it to `open`.
+The dynamic-argument message still stands on a variable path, because the
+analyser cannot see what the value holds.
 
 ## How to suppress
 

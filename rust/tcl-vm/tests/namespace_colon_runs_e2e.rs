@@ -24,7 +24,7 @@
 //! defines `::quux::`), and a trailing run in a *namespace* name is dropped
 //! (`namespace eval c::: {}` creates `::c`). The VM's old hand-rolled
 //! `rsplit("::")`/`strip_prefix("::")` sites diverged on every one of these
-//! (documented drift — `docs/design/family-b-routing.md`); resolution now
+//! (documented drift — `docs/design/runtime/family-b-routing.md`); resolution now
 //! routes through the canonical splits (`tcl_syntax::naming`,
 //! `tcl_cmd_core::namespace`). Every expectation below is pinned against
 //! tclsh8.6 (`// tclsh8.6:` comments).
@@ -157,6 +157,104 @@ fn relative_namespace_lookup_below_literal_colon_context_keeps_its_key() {
          }}");
     assert!(ok, "got: {res}");
     assert_eq!(res, "::outer::: {}");
+}
+
+/// Distinct namespace/simple-name segmentations may render to the same Tcl
+/// display spelling. Command storage is addressed by the owning namespace
+/// token and simple tail, never by that rendering.
+#[test]
+fn colon_edge_command_bindings_do_not_collide() {
+    let (ok, res, _) = run("namespace eval a: {proc p {} {return from-a-colon}}\n\
+         namespace eval a  {proc :p {} {return from-colon-p}}\n\
+         list [namespace eval a: {p}] [namespace eval a {:p}] \\\n              [namespace eval a: {namespace which p}] \\\n              [namespace eval a {namespace which :p}]");
+    assert!(ok, "got: {res}");
+    assert_eq!(res, "from-a-colon from-colon-p ::a:::p ::a:::p");
+}
+
+/// Namespace tokens remain distinct when two different parent/child paths
+/// have the same Tcl-facing rendering.
+#[test]
+fn colon_edge_namespace_paths_do_not_collapse_in_the_live_index() {
+    let (ok, res, _) = run(
+        "namespace eval {::a:} {namespace eval b {proc p {} {return LEFT}}}\n\
+         namespace eval ::a {namespace eval :b {proc p {} {return RIGHT}}}\n\
+         list [namespace eval {::a:} {namespace eval b {p}}] \
+              [namespace eval ::a {namespace eval :b {p}}] \
+              [namespace eval {::a:} {namespace children}] \
+              [namespace eval ::a {namespace children}]",
+    );
+    assert!(ok, "got: {res}");
+    assert_eq!(res, "LEFT RIGHT ::a:::b ::a:::b");
+}
+
+/// Rename/delete traces belong to the command token even where two tokens
+/// have the same display name. Moving and deleting one must not move, fire, or
+/// remove the other's sidecars.
+#[test]
+fn colon_edge_rename_and_trace_ownership_is_token_stable() {
+    let (ok, res, _) = run("set log {}\n\
+         proc rec {tag old new op} {lappend ::log [list $tag $old $new $op]}\n\
+         namespace eval a: {\n\
+             proc p {} {return A}\n\
+             trace add command p {rename delete} [list ::rec A]\n\
+         }\n\
+         namespace eval a {\n\
+             proc :p {} {return B}\n\
+             trace add command :p {rename delete} [list ::rec B]\n\
+         }\n\
+         set which [list [namespace eval a: {namespace which p}] \\\n                         [namespace eval a {namespace which :p}]]\n\
+         namespace eval a: {rename p q}\n\
+         set mid [list [namespace eval a: {q}] [namespace eval a {:p}] $::log]\n\
+         namespace delete ::a:\n\
+         set afterA $log\n\
+         namespace eval a {rename :p {}}\n\
+         list $which $mid $afterA $log");
+    assert!(ok, "got: {res}");
+    assert_eq!(
+        res,
+        "{::a:::p ::a:::p} {A B {{A ::a:::p ::a:::q rename}}} {{A ::a:::p ::a:::q rename} {A ::a:::q {} delete}} {{A ::a:::p ::a:::q rename} {A ::a:::q {} delete} {B ::a:::p {} delete}}"
+    );
+}
+
+/// Namespace deletion targets the exact namespace token even when a command
+/// in another live token has the same fully-qualified display spelling.
+#[test]
+fn colon_edge_namespace_deletion_and_recreation_are_isolated() {
+    let (ok, res, _) = run("namespace eval a: {proc p {} {return A}}\n\
+         namespace eval a {proc :p {} {return B}}\n\
+         namespace delete ::a:\n\
+         set one [list [namespace exists ::a:] [namespace exists ::a] \
+                       [namespace eval a {:p}]]\n\
+         namespace eval a: {proc p {} {return A2}}\n\
+         namespace delete ::a\n\
+         list $one [namespace eval a: {p}] \
+              [namespace exists ::a] [namespace exists ::a:]");
+    assert!(ok, "got: {res}");
+    // Exact Tcl 9.0.4 result.
+    assert_eq!(res, "{0 1 B} A2 0 1");
+}
+
+/// Imported-command provenance follows each token through rename even when
+/// the two destinations render identically. Deleting the shared source then
+/// retires both independent import edges.
+#[test]
+fn colon_edge_imports_keep_distinct_binding_identity() {
+    let (ok, res, _) = run(
+        "namespace eval S {proc p {} {return S}; namespace export p}\n\
+         namespace import ::S::p\n\
+         namespace eval a: {rename ::p p}\n\
+         namespace import ::S::p\n\
+         namespace eval a {rename ::p :p}\n\
+         set before [list [namespace eval a: {p}] [namespace eval a {:p}] \
+                          [namespace eval a: {namespace origin p}] \
+                          [namespace eval a {namespace origin :p}]]\n\
+         namespace delete ::S\n\
+         list $before [namespace eval a: {info commands p}] \
+              [namespace eval a {info commands :p}]",
+    );
+    assert!(ok, "got: {res}");
+    // Exact Tcl 9.0.4 result.
+    assert_eq!(res, "{S S ::S::p ::S::p} {} {}");
 }
 
 /// A trailing colon run in a *command* name denotes the `{}`-named command in

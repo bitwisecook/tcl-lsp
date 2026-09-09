@@ -19,15 +19,16 @@ VS Code
 
 ## How to use
 
-- **VS Code**: Run `Tcl: Scaffold Tcl Package Starter` to create a new Tcl package directory with boilerplate files. Run `Tcl: Insert package require` to add a `package require` statement for a known package.
+- **VS Code**: Run `Tcl: Scaffold Tcl Package Starter` to create a new Tcl package directory with boilerplate files. It asks for the package name, the initial version, and the first exported command name, then writes the package into the workspace folder. Run `Tcl: Insert package require` to add a `package require` statement for a known package.
 
 ## Operational context
 
-The scaffold creates a standard Tcl package layout with `pkgIndex.tcl`, a main source file with namespace and `package provide`, and optional test files.
+The scaffold creates a standard Tcl package layout: a `pkgIndex.tcl` loader, a `src/` source file carrying the namespace, the exported command, and `package provide`, `tcltest` test files with a runner, a GitHub Actions workflow, and a README.
 
 ## Failure modes
 
-- Scaffold overwrites existing files without warning.
+- No workspace folder is open — the command reports this and writes nothing.
+- A directory with the package name already exists — the command warns and writes nothing.
 
 ## Test anchors
 
@@ -36,21 +37,28 @@ The scaffold creates a standard Tcl package layout with `pkgIndex.tcl`, a main s
 ## Example
 
 Running **Tcl: Scaffold Tcl Package Starter** and entering the
-package name `greet` and version `1.0` creates this directory
-layout:
+package name `greet`, version `0.1.0`, and command name `hello`
+creates this directory layout:
 
 ```
 greet/
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+├── README.md
 ├── pkgIndex.tcl
-├── greet.tcl
+├── src/
+│   └── greet.tcl
 └── tests/
-    └── greet.test
+    ├── greet.test.tcl
+    └── run.tcl
 ```
 
-`greet.tcl` starts with a ready-to-edit namespace declaration:
+`src/greet.tcl` starts with a ready-to-edit namespace declaration:
 
 ```tcl
-package provide greet 1.0
+# greet -- generated Tcl package starter
+package require Tcl 8.6
 
 namespace eval ::greet {
     namespace export hello
@@ -59,6 +67,8 @@ namespace eval ::greet {
 proc ::greet::hello {name} {
     return "Hello, $name"
 }
+
+package provide greet 0.1.0
 ```
 
 ## Discoverability

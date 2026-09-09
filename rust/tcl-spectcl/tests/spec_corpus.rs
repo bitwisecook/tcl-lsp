@@ -20,7 +20,7 @@
 //! ships, loaded, installed, analysed, and run through the sandboxed hook
 //! host, plus the hostile pack that proves containment.
 //!
-//! `docs/design/spec-packs.md` states the guarantees this file turns into a
+//! `docs/design/registry/spec-packs.md` states the guarantees this file turns into a
 //! gate. Per pack:
 //!
 //! 1. **Load** through the real loader ([`tcl_spectcl::pack::load`]) with
@@ -403,10 +403,10 @@ fn synthesise(spec: &CommandSpec) -> Vec<String> {
     calls.into_iter().map(|c| c.trim_end().to_owned()).collect()
 }
 
-/// How many synthesised calls go into one analysed script. Batching keeps a
-/// 68-command vendor pack to three analyses rather than sixty-eight, without
-/// making any single script large enough to hide a failure.
-const SYNTHESISED_CALLS_PER_SCRIPT: usize = 25;
+/// How many synthesised calls go into one analysed script. This keeps the
+/// largest shipped pack to four fully analysed scripts while retaining a
+/// bounded script size.
+const SYNTHESISED_CALLS_PER_SCRIPT: usize = 256;
 
 // The engine wrapper: counts attempted and successful invocations, and
 // injects the one panic no Tcl body can be trusted to produce

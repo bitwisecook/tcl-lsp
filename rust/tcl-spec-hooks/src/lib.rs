@@ -18,7 +18,7 @@
 
 //! `tcl-spec-hooks` — the **`SpecTcl` hook host**.
 //!
-//! The upper of the two layers in `docs/design/spec-packs.md`. It owns
+//! The upper of the two layers in `docs/design/registry/spec-packs.md`. It owns
 //! everything DSL-specific and speaks only [`tcl_engine_api`] beneath it, so
 //! engine-agnosticism is structural rather than aspirational: nothing in
 //! [`HookHost`] names an engine.
@@ -83,7 +83,7 @@ pub use sandbox::SANDBOX_COMMANDS;
 use tcl_engine_tclvm::TclVmEngine;
 
 /// A host running its packs on `tcl-vm` — the canonical engine everywhere
-/// (`docs/design/spec-packs.md`: server, CLI, and studio alike).
+/// (`docs/design/registry/spec-packs.md`: server, CLI, and studio alike).
 ///
 /// The only place in this crate that names an engine, and it is a
 /// convenience: [`HookHost::new`] takes any factory, so a caller that wants

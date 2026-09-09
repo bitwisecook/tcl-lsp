@@ -20,9 +20,8 @@ actions (Ctrl+. in VS Code, `<leader>ca` in Neovim). Choose **Inline proc
 'name'**.
 
 When the call cannot be inlined safely, the entry still appears — greyed out,
-with the reason. That is deliberate: a missing menu entry tells you nothing,
-whereas "the body calls 'return', which acts on the call frame" tells you
-exactly what to change first.
+with the reason, for example "the body calls 'return', which acts on the call
+frame".
 
 ## Example
 

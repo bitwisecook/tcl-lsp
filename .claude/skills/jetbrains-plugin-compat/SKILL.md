@@ -17,7 +17,7 @@ allowed-tools: Bash, Read, Edit, Grep, Glob, WebFetch
 # JetBrains plugin compatibility
 
 The plugin under `editors/jetbrains` is compiled **once** against the
-`sinceBuild` floor (IntelliJ IDEA Ultimate 2024.1) and must load in **every**
+`sinceBuild` floor (IntelliJ IDEA Ultimate 2025.3, build `253`) and must load in **every**
 IDE from that floor to the newest release, with an open `untilBuild`. Nothing
 recompiles per IDE — the *same* bytecode is linked against whatever platform
 the user is running. So a plugin breaks when the platform API it was linked
@@ -33,9 +33,7 @@ There are two verification surfaces. Keep both green:
    wide matrix of released IDEs after every upload and shows the verdicts on
    `…/edit/versions/{stable,eap}`. Read them over the REST API with
    `marketplace_verify.sh`. This is the only surface that covers IDE builds
-   **newer than anything in our local `ides` list** — which is exactly how the
-   `LspServer.sendRequestSync$default` breakage first surfaced (a 2.1.x build
-   flagged CRITICAL on 2026.1/2026.2 that no local target covered).
+   **newer than anything in our local `ides` list**.
 
 Helper scripts live next to this file:
 
@@ -113,8 +111,9 @@ make verify-editor-jetbrains          # -> ./gradlew verifyPlugin
 ```
 
 Targets live in `editors/jetbrains/build.gradle.kts` under
-`pluginVerification.ides`. Keep the `sinceBuild` floor **and** the newest
-verified stable major in that list. **A >=2026.1 target is load-bearing**:
+`pluginVerification.ides` (IDEA Ultimate at the floor and at the newest stable
+major, plus CLion at that major). Keep the `sinceBuild` floor **and** the
+newest verified stable major in that list. **A >=2026.1 target is load-bearing**:
 2026.1 is where the `LspServer*` API was superseded and `sendRequestSync` moved
 to the `LspClient` super-interface — without it the local verifier cannot catch
 the whole `$default` / moved-API class of failure. First run downloads each
@@ -134,7 +133,7 @@ the failing build — no IDE download needed:
 
 ```bash
 S=.claude/skills/jetbrains-plugin-compat/inspect_sdk.sh
-$S 241.14494.240 com.intellij.platform.lsp.api.LspServer          # what we compiled against
+$S 2025.3        com.intellij.platform.lsp.api.LspServer          # what we compiled against
 $S 262.8665.176  com.intellij.platform.lsp.api.LspServer   -c     # the failing build (-c = show bytecode)
 $S 262.8665.176  com.intellij.platform.lsp.api.LspClient          # the suspected new home
 $S --list                                                          # list available `lsp` module versions
@@ -143,7 +142,7 @@ $S 262.8665.176  some.other.Class  platform-impl                  # a different 
 
 For the `sendRequestSync` case this shows, unambiguously:
 
-- **241** — `LspServer` declares `sendRequestSync(int, Function1)` **and** the
+- **2025.3** — `LspServer` declares `sendRequestSync(int, Function1)` **and** the
   synthetic `sendRequestSync$default(LspServer, int, Function1, int, Object)`.
 - **262** — `LspServer extends LspClient` and declares **neither**; both moved
   to `LspClient`. `LspServer.sendRequestSync(int, Function1)` still *resolves*
@@ -178,10 +177,11 @@ val result = server.sendRequestSync(LspServer.DEFAULT_REQUEST_TIMEOUT_MS) { lsp4
 }
 ```
 
-Both call sites are `TclLspActionBase.runCommand` and
-`CompilerExplorerToolWindowFactory.runCompile`. Each carries a comment pointing
-back here — **do not "simplify" them back to the no-timeout form**, that
-reintroduces the `$default` bridge.
+Every `sendRequestSync` call site passes the timeout explicitly
+(`TclLspActionBase`, `CompilerExplorerToolWindowFactory` ×2,
+`SpecStudioToolWindowFactory`, `packs/TclLspPackAssociations`) and carries a
+comment pointing back here — **do not "simplify" them back to the no-timeout
+form**, that reintroduces the `$default` bridge.
 
 ## Fix catalogue for other breakage
 

@@ -24,12 +24,14 @@ protocol is known to require collection.
 
 ## Symptoms
 
-- A squiggle appears on the data event name, with the message "data event without collect".
+- A yellow squiggle appears on the event's first statement, with the message
+  "'HTTP_REQUEST_DATA' will never fire without a client HTTP::collect call in
+  another event."
 
 ## Example that triggers it
 
 ```tcl
-when HTTP_REQUEST_DATA { log [HTTP::payload] }
+when HTTP_REQUEST_DATA { log local0. [HTTP::payload] }
 ```
 
 The analyser reports **`IRULE1005`** because no `HTTP::collect` call exists in
@@ -41,7 +43,7 @@ Add an `HTTP::collect` call in the matching request event:
 
 ```tcl
 when HTTP_REQUEST { HTTP::collect 1024 }
-when HTTP_REQUEST_DATA { log [HTTP::payload] }
+when HTTP_REQUEST_DATA { log local0. [HTTP::payload] }
 ```
 
 ## Limits

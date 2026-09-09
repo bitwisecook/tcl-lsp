@@ -21,13 +21,17 @@ An attacker who controls log content can forge log entries, confusing monitoring
 
 ## Symptoms
 
-- A yellow squiggle appears under the `log` call, with the message "tainted data in log command".
+- A yellow squiggle appears under the tainted argument, with the message
+  "Tainted variable $host in log output (log); risk of log injection or log
+  forging".
 
 ## Example that triggers it
 
 ```tcl
-set host [HTTP::host]
-log local0. "Host: $host"
+when HTTP_REQUEST {
+  set host [HTTP::host]
+  log local0. "Host: $host"
+}
 ```
 
 The analyser reports **`IRULE3003`** because `host` carries tainted data into the log message.
@@ -37,9 +41,11 @@ The analyser reports **`IRULE3003`** because `host` carries tainted data into th
 Strip newlines before logging:
 
 ```tcl
-set host [HTTP::host]
-regsub -all {\r|\n} $host {} clean
-log local0. "Host: $clean"
+when HTTP_REQUEST {
+  set host [HTTP::host]
+  regsub -all {\r|\n} $host {} clean
+  log local0. "Host: $clean"
+}
 ```
 
 ## How to suppress

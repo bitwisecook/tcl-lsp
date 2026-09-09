@@ -18,7 +18,7 @@
 
 // Live save, in the browser and nowhere else.
 //
-// `docs/design/spec-packs.md` asks for "every keystroke persists to browser
+// `docs/design/registry/spec-packs.md` asks for "every keystroke persists to browser
 // storage (IndexedDB) … reload, crash, or restart resumes exactly". What is
 // persisted is the same thing the studio treats as its model: the pack's
 // `.tclspec` document, plus the little bit of place-keeping that makes a reload

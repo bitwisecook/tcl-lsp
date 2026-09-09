@@ -61,17 +61,13 @@ shown are the canonical short ID F5 search recognises.
   per-pool-member, interval/timeout tuning rules, the `bigd`
   daemon's role, and `tcpdump` capture recipes.
 
-## How `f5 query` honours these articles
+## What `f5 query` can check today
 
-The `f5 query` builtins that touch HTTP / HTTPS / TLS implement
-the device-correct behaviour these articles describe:
-
-| Article | Honoured by | How |
+| Article | Reachable from | How |
 |---|---|---|
-| K2167 (CR/LF translation) | `url_get`, `url_head`, `url_options` | Intended: the `ureq` HTTP client (Rust) would perform the same `\r\n` byte handling natively. **Currently moot** — the live HTTP request path for these builtins is not yet implemented; every call returns a "not yet implemented" error regardless of target (see `builtins.md#url_get`). |
-| K3451 (5,120-byte ceiling) | the audit recipes in `kcs-howto-reproduce-http-monitor-with-query.md` | Truncate `body[0:5120]` before testing `recv`. |
-| K3224 (version mismatch / redirect) | intended for `url_get` (follow redirects by default) once implemented. | Use `url_head` or check `.status` against 3xx once `url_get` is live; today, `tls_handshake` is the only live-network probe of this family. |
-| K12531 (umbrella triage) | `tls_handshake`'s structured `reason.kind`, `ping` / `portping` / `dns`'s plain `error` string | Mirrors the failure taxonomy K12531 walks through. |
+| K3451 (5,120-byte ceiling) | the recipes in [`kcs-howto-reproduce-http-monitor-with-query.md`](../../kcs/kcs-howto-reproduce-http-monitor-with-query.md) | Fetch with `curl`, pipe through `head -c 5120`, then test the monitor's `recv` against that window.  The DSL has no string-slice syntax and cannot fetch a body itself. |
+| K12531 (umbrella triage) | `tls_handshake`'s structured `reason.kind`; `ping` / `portping` / `dns`'s `error` string | Mirrors the failure taxonomy K12531 walks through. |
+| K2167, K3224 (send-string bytes, version mismatch, redirects) | nothing | These need a live HTTP request.  `url_get` / `url_head` / `url_options` / `url_post` are not implemented and return an error dict whatever the target ([`builtins.md`](builtins.md#url_get)). |
 
 ## Related `f5 query` documentation
 

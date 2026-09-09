@@ -764,9 +764,9 @@ got {nargs_min}{usage_suffix}",
 
 /// Format the "(available in: …)" suffix for a W002 message from a
 /// command/subcommand's registry-declared dialect restriction — entirely
-/// data-driven from [`tcl_registry::CommandSpec::dialects`] /
-/// [`tcl_registry::SubCommand::dialects`], never a per-command name check.
-/// Empty when `dialects` is `None` (unrestricted) or has no primitive
+/// data-driven from [`tcl_registry::CommandSpec::surface`] /
+/// [`tcl_registry::SubCommand::surface`], never a per-command name check.
+/// Empty when `surface` is `None` (unrestricted) or has no primitive
 /// member (defensive; a restricted spec always has at least one).
 ///
 /// Members print as the profile catalog's `short_name` ("Tcl 8.5",
@@ -4627,7 +4627,7 @@ Vec::new()));
     /// The second half follows the **family fact**, not the iRules name:
     /// the word-form operators are an `f5-tcl` trunk fact, measured valid
     /// in tmsh and iApp `expr` too
-    /// (`docs/design/bigip-irule-parser-measurements.md` §4a), so any
+    /// (`docs/design/f5/bigip-irule-parser-measurements.md` §4a), so any
     /// F5Tcl-cored profile passes the word-operator gate.
     fn w003_gates(&self) -> Option<(tcl_dialect::TclVersion, bool)> {
         let profile = self.profile;

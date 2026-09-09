@@ -15,9 +15,8 @@ or rewrite the line endings?
 
 ## Answer
 
-Both are deliberate decisions, reviewed in July 2026: the document
-formatter is the fix, and a per-diagnostic quick fix would be either
-unsafe or redundant.
+Both are deliberate: the document formatter is the fix, and a
+per-diagnostic quick fix would be either unsafe or redundant.
 
 **W112** is a plain line scan over the source text
 (`rust/tcl-lsp-core/src/source_style.rs`) with no syntax knowledge. That

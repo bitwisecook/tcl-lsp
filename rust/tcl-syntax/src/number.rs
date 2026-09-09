@@ -19,7 +19,7 @@
 //! Tcl numeric-literal grammar — the shared `TclParseNumber` port.
 //!
 //! Classifies a string as a Tcl 9.0 number, re-derived from reference
-//! `tmp/tcl9.0.3/generic/tclStrToD.c::TclParseNumber`. This is the *parse*
+//! `tmp/tcl9.0.4/generic/tclStrToD.c::TclParseNumber`. This is the *parse*
 //! direction of the numeric tower (string → number); the *format* direction
 //! (number → shortest-round-trip string) and the bignum arithmetic live with
 //! each consumer (the runtime over libtommath `mp_int`, the compiler's

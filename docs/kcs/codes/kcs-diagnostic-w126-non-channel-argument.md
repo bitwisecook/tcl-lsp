@@ -21,7 +21,9 @@ Commands like `puts`, `gets`, and `close` expect a channel identifier (e.g. `std
 
 ## Symptoms
 
-- A yellow squiggle appears under the argument, with the message "non-channel value in channel argument position".
+- A yellow squiggle under the argument, with the message "String literal
+  'output.txt' used as channel argument to 'puts' — expected a channel from
+  open/socket/chan create."
 
 ## Example that triggers it
 

@@ -19,22 +19,34 @@ Why does the analyser warn about a missing `--` option terminator?
 
 User-controlled values starting with `-` are interpreted as options, enabling option injection that can alter the command's behaviour.
 
+Only commands that document a `--` terminator are checked: `file delete` /
+`copy` / `rename`, `exec`, `glob`, `regexp`, `regsub`, `unset`, and their
+peers. `file exists` takes no options, so it is never flagged.
+
 ## Symptoms
 
-- A yellow squiggle appears under the command call, with the message "missing option terminator --".
+- The **first positional argument** is marked, not the command name.
+- A substituted value the analyser cannot pin down is reported as
+  information: *"'file delete' parses leading '-' as options. Insert '--'
+  before substituted input to reduce option-injection risk."*
+- When the variable's most recent literal `set` starts with `-`, the same
+  finding is raised to a warning and names the value.
+- A quick fix, **Insert '--' option terminator**, is offered on the
+  diagnostic.
 
 ## Example that triggers it
 
 ```tcl
-file exists $path
+file delete $path
 ```
 
-The analyser reports **`W304`** on the `file exists` call.
+The analyser reports **`W304`** on `$path`, the first positional argument
+of `file delete`.
 
 ## Fix
 
 ```tcl
-file exists -- $path
+file delete -- $path
 ```
 
 Add `--` before user-supplied arguments to prevent option injection.

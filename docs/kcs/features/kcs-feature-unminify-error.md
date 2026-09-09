@@ -18,7 +18,6 @@ all-editors, tcl-lsp CLI, MCP, transform
 | CLI | `tcl unminify-error --symbol-map map.txt --error 'can'\''t read "a"'` |
 | CLI (file) | `tcl unminify-error --symbol-map map.txt --error-file /var/log/ltm --minified min.tcl --original src.tcl` |
 | VS Code | `Tcl: Unminify Error Message` from the command palette or right-click context menu |
-| Sublime Text | `Tcl: Unminify Error` from the command palette |
 | LSP command | `tcl-lsp.unminifyError(error_message, symbol_map, minified_source?, original_source?)` |
 | MCP tool | `unminify_error` — accepts `error_message`, `symbol_map`, optional `minified_source` and `original_source` |
 
@@ -208,7 +207,7 @@ proc a {a} {set b [lookup $a];pool $b}
 
 The `unminify_error` function is a pure function that takes an error string and a symbol map, applies regex-based substitution of compacted identifiers, and optionally remaps line references using proportional mapping between minified command counts and original source lines.
 
-The `SymbolMap.parse()` method is the inverse of `SymbolMap.format()` — it reads the human-readable text format back into a `SymbolMap` object.  The `SymbolMap.reverse()` method builds the compacted→original lookup dictionary used for translation.
+`SymbolMap::parse` is the inverse of `SymbolMap::format` — it reads the human-readable text format back into a symbol map — and `SymbolMap::reverse` builds the compacted-to-original lookup used for translation.
 
 ## Failure modes
 

@@ -26,7 +26,7 @@
 //! **one** canonical source for namespace-name parsing, shared by the compiler
 //! (`normalise_qualified_name`) and the WASM runtime's command **and** variable
 //! resolvers (`runtime/rust/src/namespace.rs`, the var coordinator) — mirroring
-//! C Tcl's `TclGetNamespaceForQualName` segmentation (`tmp/tcl9.0.3`). Byte-based
+//! C Tcl's `TclGetNamespaceForQualName` segmentation (`tmp/tcl9.0.4`). Byte-based
 //! so the runtime (which works in UTF-8 bytes) and the compiler (`&str`) share it
 //! without one re-deriving the other.
 

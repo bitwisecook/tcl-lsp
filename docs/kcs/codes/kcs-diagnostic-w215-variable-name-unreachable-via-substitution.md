@@ -27,7 +27,7 @@ Such a variable is alive — `set name`, `[set "name"]`, `info exists`, `upvar`,
 
 ## Symptoms
 
-- A yellow squiggle appears under the variable name in `set` / `incr` / `lappend` / `variable` / `global` / `upvar` etc., with the message "variable name contains '}'; it can be created and read via `set name` / `[set "name"]` / `info exists` / `upvar`, but is not reachable via $-substitution (neither `$name` nor `${name}` can fetch it)".
+- A yellow squiggle appears under the variable name in `set` / `incr` / `lappend` / `variable` / `global` / `upvar` etc., with a message like *"variable name ``weird}name`` is not reachable via $-substitution; it can still be created/read via ``set name`` / ``[set "name"]`` / ``info exists`` / ``upvar``, but the brace form ``${name}`` ends at the first ``}`` (and the bare form stops at the first non-word character)"*. The clause after "but" names the specific reason, and an unreachable array index gets its own wording about `$arr(idx)` stopping at the first `)`.
 
 ## Example that triggers it
 

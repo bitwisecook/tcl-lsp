@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The **F5 conformance corpus** (ruling R11,
-//! `docs/design/dialect-and-package-registry-centralisation.md` §4; review
+//! `docs/design/registry/dialect-and-package-registry-centralisation.md` §4; review
 //! finding F8).
 //!
 //! Hermetic vectors derived from the checked-in appliance transcripts in

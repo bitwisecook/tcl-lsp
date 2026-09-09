@@ -21,7 +21,11 @@ The event does not exist in the iRules event catalogue. The `when` block will ne
 
 ## Symptoms
 
-- A squiggle appears under the event name, with the message "unknown event name".
+- A yellow squiggle appears under the event name, with the message "Unknown
+  iRules event 'INVALID_EVENT'. Check the event name spelling."
+- A known event outside the target release's window reads instead "iRules event
+  'X' exists in BIG-IP 9.0.0 up to (not including) 12.0.0, but the target
+  release is 15.1.0."
 
 ## Example that triggers it
 

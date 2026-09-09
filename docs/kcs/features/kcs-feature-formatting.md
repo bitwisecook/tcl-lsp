@@ -78,7 +78,7 @@ document as part of the save itself rather than relying on the editor's own
 format-on-save. It is **off by default**; enable
 `tclLsp.features.willSaveWaitUntil` to turn it on. When enabled, a save runs the
 same formatter as **Format Document** and applies the resulting edits, using the
-`tclLsp.formatting.lineLength` resolved for the document's workspace folder. When
+`tclLsp.formatting.*` settings resolved for the document's workspace folder. When
 disabled, save makes no formatting edits, and the editor's `editor.formatOnSave`
 (if set) still applies through the ordinary `textDocument/formatting` request.
 
@@ -91,11 +91,9 @@ The formatter rewrites source using the configurable style engine. It is idempot
 - Non-idempotent formatting (re-format changes output).
 - Brace-style or indentation regressions.
 
-## Screenshots
+## Example
 
-- `07-formatting-after` — side-by-side before/after view (left pane unformatted, right pane formatted)
-
-![formatting side-by-side before/after](../screenshots/07-formatting-after.png)
+![formatting side-by-side before/after](../../screenshots/07-formatting-after.png)
 
 ## Discoverability
 
