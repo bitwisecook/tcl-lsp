@@ -72,8 +72,9 @@ writes `$FILE.tf` and `$FILE.xc.json`.
 - `output_format` — `terraform`, `json`, `console`, or `both`. Defaults
   to `both`, which is Terraform plus JSON API; an unrecognised value is
   treated as `both` too. `console` returns `console_objects` instead: one
-  entry per object, each with its `object_type`, `name`, `namespace`, and
-  the `document` to paste.
+  entry per object, each with its `object_type`, the derived XC `name`,
+  the `source_path` it came from, the `namespace`, and the `document` to
+  paste.
 
 ## Operational context
 
@@ -128,7 +129,8 @@ when HTTP_REQUEST {
 
 ```hcl
 resource "volterra_origin_pool" "api_pool" {
-  name      = "api_pool"
+  # Translated from BIG-IP api_pool
+  name      = "api-pool-2275b8b6"
   namespace = "default"
 
   # TODO: Configure origin servers
@@ -137,7 +139,10 @@ resource "volterra_origin_pool" "api_pool" {
       dns_name = "example.com"  # TODO: Set actual server address
     }
   }
-  port = 80
+
+  port                  = 80
+  endpoint_selection     = "LOCAL_PREFERRED"
+  loadbalancer_algorithm = "LB_OVERRIDE"
 }
 
 resource "volterra_http_loadbalancer" "translated-lb" {
@@ -167,18 +172,18 @@ The JSON API document carries the same route and origin pool under
 ```json
 {
   "metadata": {
-    "name": "api_pool",
-    "namespace": "default",
-    "labels": {},
     "annotations": {},
-    "description": "",
-    "disable": false
+    "description": "Translated from BIG-IP api_pool",
+    "disable": false,
+    "labels": {},
+    "name": "api-pool-2275b8b6",
+    "namespace": "default"
   },
   "spec": {
-    "origin_servers": [{ "public_name": { "dns_name": "example.com" } }],
-    "port": 80,
     "endpoint_selection": "LOCAL_PREFERRED",
-    "loadbalancer_algorithm": "LB_OVERRIDE"
+    "loadbalancer_algorithm": "LB_OVERRIDE",
+    "origin_servers": [{ "public_name": { "dns_name": "example.com" } }],
+    "port": 80
   }
 }
 ```
@@ -186,11 +191,19 @@ The JSON API document carries the same route and origin pool under
 Paste that into the origin pool's JSON editor in the Console, then do
 the same with the load balancer document from its own tab.
 
+The name is derived, not copied. XC names must follow DNS-1035, and a
+BIG-IP path is not one, so `pool /Common/web-pool` becomes a name that
+keeps the partition — the same pool name in another partition stays a
+separate object — and the path itself is recorded in the description.
+Every rendering derives the name identically, so the Terraform and the
+Console documents configure the same object.
+
 A pattern with no direct equivalent — a `HTTP::header insert` that
 mutates response headers, say — is counted as untranslatable and listed
 with the command that produced it.
 
 ## Related
 
+- [XC translation output contract](../../design/f5/xc-translation-output-contract.md)
 - [KCS feature index](README.md)
 - [Glossary](../../GLOSSARY.md)

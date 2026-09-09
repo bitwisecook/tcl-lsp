@@ -131,6 +131,7 @@ pub fn translation_payload(
                         json!({
                             "object_type": o.object_type,
                             "name": o.name,
+                            "source_path": o.source_path,
                             "namespace": o.namespace,
                             "document": o.document,
                         })
@@ -281,6 +282,53 @@ mod tests {
             assert_eq!(metadata["namespace"], Value::from(DEFAULT_NAMESPACE));
             assert_eq!(metadata["name"], object["name"]);
         }
+    }
+
+    #[test]
+    fn console_document_names_are_valid_xc_names() {
+        // A partition-qualified pool is the ordinary BIG-IP spelling, and
+        // `/` is not legal in a DNS-1035 name, so a document carrying the
+        // raw path would be rejected on paste.
+        let result = crate::translate_irule("when HTTP_REQUEST {\n  pool /Common/web-pool\n}\n");
+        let out = translation_payload(
+            &result,
+            DEFAULT_NAMESPACE,
+            DEFAULT_LB_NAME,
+            OutputFormat::Console,
+        );
+        for object in out["console_objects"].as_array().expect("objects") {
+            let name = object["document"]["metadata"]["name"]
+                .as_str()
+                .expect("metadata name");
+            assert!(
+                name.starts_with(|c: char| c.is_ascii_lowercase())
+                    && name
+                        .chars()
+                        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+                    && !name.ends_with('-')
+                    && name.len() <= 63,
+                "not a DNS-1035 name: {name:?}"
+            );
+        }
+
+        // The pool keeps its partition, and its source path is recoverable.
+        let pool = out["console_objects"]
+            .as_array()
+            .expect("objects")
+            .iter()
+            .find(|o| o["object_type"] == "origin_pool")
+            .expect("origin pool");
+        assert!(
+            pool["document"]["metadata"]["name"]
+                .as_str()
+                .is_some_and(|n| n.starts_with("common-web-pool-")),
+            "{pool}"
+        );
+        assert_eq!(pool["source_path"], Value::from("/Common/web-pool"));
+        assert_eq!(
+            pool["document"]["metadata"]["description"],
+            Value::from("Translated from BIG-IP /Common/web-pool")
+        );
     }
 
     #[test]
