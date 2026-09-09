@@ -42,20 +42,31 @@ pub enum OutputFormat {
     /// Both renderings.
     #[default]
     Both,
+    /// One pasteable F5 XC Console document per object.
+    Console,
 }
 
 impl OutputFormat {
     /// The wire spelling a client sends (`"terraform"` | `"json"` |
-    /// `"both"`). Anything else — including an absent or empty argument —
-    /// is [`OutputFormat::Both`], so a client that omits the argument still
-    /// gets a complete payload.
+    /// `"console"` | `"both"`). Anything else — including an absent or empty
+    /// argument — is [`OutputFormat::Both`], so a client that omits the
+    /// argument still gets a complete payload.
+    ///
+    /// `"both"` stays terraform plus JSON API: the Console documents are a
+    /// separate rendering of the same objects, and a client that asked for
+    /// everything before this existed should not start receiving them.
     #[must_use]
     pub fn from_arg(arg: Option<&str>) -> Self {
         match arg {
             Some("terraform") => Self::Terraform,
             Some("json") => Self::Json,
+            Some("console") => Self::Console,
             _ => Self::Both,
         }
+    }
+
+    fn wants_console(self) -> bool {
+        matches!(self, Self::Console)
     }
 
     fn wants_terraform(self) -> bool {
@@ -108,6 +119,25 @@ pub fn translation_payload(
         output.insert(
             "json_api".to_owned(),
             crate::render_json(result, namespace, lb_name),
+        );
+    }
+    if output_format.wants_console() {
+        output.insert(
+            "console_objects".to_owned(),
+            Value::Array(
+                crate::render_console_objects(result, namespace, lb_name)
+                    .into_iter()
+                    .map(|o| {
+                        json!({
+                            "object_type": o.object_type,
+                            "name": o.name,
+                            "source_path": o.source_path,
+                            "namespace": o.namespace,
+                            "document": o.document,
+                        })
+                    })
+                    .collect(),
+            ),
         );
     }
     output.insert("coverage_pct".to_owned(), json!(result.coverage_pct));
@@ -216,6 +246,109 @@ mod tests {
     }
 
     #[test]
+    fn console_objects_are_one_pasteable_document_each() {
+        let out = payload(OutputFormat::Console);
+        let objects = out["console_objects"].as_array().expect("console objects");
+        let types: Vec<&str> = objects
+            .iter()
+            .filter_map(|o| o["object_type"].as_str())
+            .collect();
+        assert!(types.contains(&"origin_pool"), "{out}");
+        assert!(types.contains(&"http_loadbalancer"), "{out}");
+
+        for object in objects {
+            let document = object["document"].as_object().expect("document");
+            // A create takes `{metadata, spec}` and nothing else, so anything
+            // extra here is something the Console editor would reject.
+            let mut keys: Vec<&str> = document.keys().map(String::as_str).collect();
+            keys.sort_unstable();
+            assert_eq!(keys, ["metadata", "spec"], "{object}");
+
+            let metadata = document["metadata"].as_object().expect("metadata");
+            let mut meta_keys: Vec<&str> = metadata.keys().map(String::as_str).collect();
+            meta_keys.sort_unstable();
+            assert_eq!(
+                meta_keys,
+                [
+                    "annotations",
+                    "description",
+                    "disable",
+                    "labels",
+                    "name",
+                    "namespace"
+                ],
+                "{object}"
+            );
+            assert_eq!(metadata["namespace"], Value::from(DEFAULT_NAMESPACE));
+            assert_eq!(metadata["name"], object["name"]);
+        }
+    }
+
+    #[test]
+    fn console_document_names_are_valid_xc_names() {
+        // A partition-qualified pool is the ordinary BIG-IP spelling, and
+        // `/` is not legal in a DNS-1035 name, so a document carrying the
+        // raw path would be rejected on paste.
+        let result = crate::translate_irule("when HTTP_REQUEST {\n  pool /Common/web-pool\n}\n");
+        let out = translation_payload(
+            &result,
+            DEFAULT_NAMESPACE,
+            DEFAULT_LB_NAME,
+            OutputFormat::Console,
+        );
+        for object in out["console_objects"].as_array().expect("objects") {
+            let name = object["document"]["metadata"]["name"]
+                .as_str()
+                .expect("metadata name");
+            assert!(
+                name.starts_with(|c: char| c.is_ascii_lowercase())
+                    && name
+                        .chars()
+                        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+                    && !name.ends_with('-')
+                    && name.len() <= 63,
+                "not a DNS-1035 name: {name:?}"
+            );
+        }
+
+        // The pool keeps its partition, and its source path is recoverable.
+        let pool = out["console_objects"]
+            .as_array()
+            .expect("objects")
+            .iter()
+            .find(|o| o["object_type"] == "origin_pool")
+            .expect("origin pool");
+        assert!(
+            pool["document"]["metadata"]["name"]
+                .as_str()
+                .is_some_and(|n| n.starts_with("common-web-pool-")),
+            "{pool}"
+        );
+        assert_eq!(pool["source_path"], Value::from("/Common/web-pool"));
+        assert_eq!(
+            pool["document"]["metadata"]["description"],
+            Value::from("Translated from BIG-IP /Common/web-pool")
+        );
+    }
+
+    #[test]
+    fn console_format_carries_neither_other_rendering() {
+        let out = payload(OutputFormat::Console);
+        assert!(out.get("terraform").is_none(), "{out}");
+        assert!(out.get("json_api").is_none(), "{out}");
+        // The coverage report travels with every format.
+        assert!(out["coverage_pct"].as_f64().is_some(), "{out}");
+    }
+
+    #[test]
+    fn both_stays_terraform_and_json_only() {
+        // A client that asked for everything before the Console rendering
+        // existed must not start receiving it.
+        let out = payload(OutputFormat::Both);
+        assert!(out.get("console_objects").is_none(), "{out}");
+    }
+
+    #[test]
     fn unknown_format_argument_falls_back_to_both() {
         assert_eq!(OutputFormat::from_arg(None), OutputFormat::Both);
         assert_eq!(OutputFormat::from_arg(Some("")), OutputFormat::Both);
@@ -225,5 +358,9 @@ mod tests {
             OutputFormat::Terraform
         );
         assert_eq!(OutputFormat::from_arg(Some("json")), OutputFormat::Json);
+        assert_eq!(
+            OutputFormat::from_arg(Some("console")),
+            OutputFormat::Console
+        );
     }
 }

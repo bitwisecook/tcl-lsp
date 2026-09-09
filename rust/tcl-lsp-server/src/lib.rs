@@ -16427,7 +16427,10 @@ impl Backend {
     /// Distributed Cloud constructs and report the result.
     ///
     /// Arguments are `[source, output_format?]`, where `output_format` is
-    /// `"terraform"` | `"json"` | `"both"` (default). The payload is
+    /// `"terraform"` | `"json"` | `"console"` | `"both"` (default). The
+    /// `"console"` rendering is one pasteable F5 XC Console document per
+    /// object, in `console_objects`; `"both"` stays terraform plus JSON API.
+    /// The payload is
     /// `f5-xc`'s own reporting shape — the same one the `xc_translate` MCP
     /// tool returns — so a client renders either source identically:
     /// `terraform` HCL and `json_api` documents, `coverage_pct` with the

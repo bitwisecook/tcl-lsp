@@ -512,6 +512,39 @@ fn xc_translate_items_are_status_tagged() {
 }
 
 #[test]
+fn xc_translate_console_format_returns_pasteable_documents() {
+    // The Console edits one object at a time, so each document has to stand
+    // alone: `{metadata, spec}` as the object's create request takes it, with
+    // none of the bundle's other keys riding along.
+    let mut lsp = Lsp::tcl();
+    let result = lsp.execute_command("tcl-lsp.xcTranslate", json!([XC_IRULE, "console"]));
+    assert!(!result.is_null(), "{result}");
+    let objects = result["console_objects"]
+        .as_array()
+        .expect("console_objects array");
+    assert!(!objects.is_empty(), "{result}");
+
+    let types: Vec<&str> = objects
+        .iter()
+        .filter_map(|o| o["object_type"].as_str())
+        .collect();
+    assert!(types.contains(&"http_loadbalancer"), "{types:?}");
+    assert!(types.contains(&"origin_pool"), "{types:?}");
+
+    for object in objects {
+        let document = object["document"].as_object().expect("document");
+        let mut keys: Vec<&str> = document.keys().map(String::as_str).collect();
+        keys.sort_unstable();
+        assert_eq!(keys, ["metadata", "spec"], "{object}");
+        assert_eq!(document["metadata"]["name"], object["name"], "{object}");
+    }
+
+    // The two bundled renderings stay out of this format.
+    assert!(result.get("terraform").is_none(), "{result}");
+    assert!(result.get("json_api").is_none(), "{result}");
+}
+
+#[test]
 fn xc_translate_honours_the_output_format_argument() {
     let mut lsp = Lsp::tcl();
     let result = lsp.execute_command("tcl-lsp.xcTranslate", json!([XC_IRULE, "terraform"]));

@@ -1820,13 +1820,13 @@ const TOOLS: &[ToolDef] = &[
     },
     ToolDef {
         name: "xc_translate",
-        description: "Translate an iRule to F5 Distributed Cloud (XC) config — terraform HCL + ves.io JSON, with per-command coverage.",
+        description: "Translate an iRule to F5 Distributed Cloud (XC) config — terraform HCL, ves.io JSON, or pasteable XC Console documents, with per-command coverage.",
         params: &[
             SRC,
             (
                 "output_format",
                 "string",
-                "'terraform', 'json', or 'both' (default)",
+                "'terraform', 'json', 'console' (one pasteable Console document per object), or 'both' (default: terraform + json)",
             ),
         ],
         required: &["source"],
