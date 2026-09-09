@@ -379,7 +379,7 @@
     "owner": "anchor",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SslicTcl (docs/design/sslictcl-vocabulary.md)",
+    "provenance": "SslicTcl (docs/design/f5/sslictcl-vocabulary.md)",
     "dialects": [
       "sslictcl"
     ],
@@ -438,7 +438,7 @@
     "owner": "arg_role_resolver",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "provenance": "SpecTcl (docs/design/registry/spec-packs.md)",
     "dialects": [
       "spectcl"
     ],
@@ -871,7 +871,7 @@
     "owner": "body_scope",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "provenance": "SpecTcl (docs/design/registry/spec-packs.md)",
     "dialects": [
       "spectcl"
     ],
@@ -1222,7 +1222,7 @@
     "owner": "case_list",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "provenance": "SpecTcl (docs/design/registry/spec-packs.md)",
     "dialects": [
       "spectcl"
     ],
@@ -1280,7 +1280,7 @@
     "owner": "certificate",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SslicTcl (docs/design/sslictcl-vocabulary.md)",
+    "provenance": "SslicTcl (docs/design/f5/sslictcl-vocabulary.md)",
     "dialects": [
       "sslictcl"
     ],
@@ -1300,7 +1300,7 @@
     "owner": "chain",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SslicTcl (docs/design/sslictcl-vocabulary.md)",
+    "provenance": "SslicTcl (docs/design/f5/sslictcl-vocabulary.md)",
     "dialects": [
       "sslictcl"
     ],
@@ -1467,7 +1467,7 @@
     "owner": "check",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SslicTcl (docs/design/sslictcl-vocabulary.md)",
+    "provenance": "SslicTcl (docs/design/f5/sslictcl-vocabulary.md)",
     "dialects": [
       "sslictcl"
     ],
@@ -1526,7 +1526,7 @@
     "owner": "cipher",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SslicTcl (docs/design/sslictcl-vocabulary.md)",
+    "provenance": "SslicTcl (docs/design/f5/sslictcl-vocabulary.md)",
     "dialects": [
       "sslictcl"
     ],
@@ -1546,7 +1546,7 @@
     "owner": "clause_grammar",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "provenance": "SpecTcl (docs/design/registry/spec-packs.md)",
     "dialects": [
       "spectcl"
     ],
@@ -1564,7 +1564,7 @@
     "owner": "clause_shape_check",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "provenance": "SpecTcl (docs/design/registry/spec-packs.md)",
     "dialects": [
       "spectcl"
     ],
@@ -1641,7 +1641,7 @@
     "owner": "command",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "provenance": "SpecTcl (docs/design/registry/spec-packs.md)",
     "dialects": [
       "spectcl"
     ],
@@ -1661,7 +1661,7 @@
     "owner": "command",
     "surface": "command",
     "kind": "dynamic",
-    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "provenance": "SpecTcl (docs/design/registry/spec-packs.md)",
     "dialects": [
       "spectcl"
     ],
@@ -1681,7 +1681,7 @@
     "owner": "command_prefix_resolver",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "provenance": "SpecTcl (docs/design/registry/spec-packs.md)",
     "dialects": [
       "spectcl"
     ],
@@ -1816,7 +1816,7 @@
     "owner": "const_fold",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "provenance": "SpecTcl (docs/design/registry/spec-packs.md)",
     "dialects": [
       "spectcl"
     ],
@@ -1834,7 +1834,7 @@
     "owner": "const_fold_versioned",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "provenance": "SpecTcl (docs/design/registry/spec-packs.md)",
     "dialects": [
       "spectcl"
     ],
@@ -1852,7 +1852,7 @@
     "owner": "constraints",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "provenance": "SpecTcl (docs/design/registry/spec-packs.md)",
     "dialects": [
       "spectcl"
     ],
@@ -1870,7 +1870,7 @@
     "owner": "context_gate",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "provenance": "SpecTcl (docs/design/registry/spec-packs.md)",
     "dialects": [
       "spectcl"
     ],
@@ -2952,7 +2952,7 @@
     "owner": "definition_body",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "provenance": "SpecTcl (docs/design/registry/spec-packs.md)",
     "dialects": [
       "spectcl"
     ],
@@ -2970,7 +2970,7 @@
     "owner": "descriptor",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "provenance": "SpecTcl (docs/design/registry/spec-packs.md)",
     "dialects": [
       "spectcl"
     ],
@@ -3175,7 +3175,7 @@
     "owner": "endpoint",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SslicTcl (docs/design/sslictcl-vocabulary.md)",
+    "provenance": "SslicTcl (docs/design/f5/sslictcl-vocabulary.md)",
     "dialects": [
       "sslictcl"
     ],
@@ -3359,7 +3359,7 @@
     "owner": "event_requires",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "provenance": "SpecTcl (docs/design/registry/spec-packs.md)",
     "dialects": [
       "spectcl"
     ],
@@ -4946,7 +4946,7 @@
     "owner": "grade",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SslicTcl (docs/design/sslictcl-vocabulary.md)",
+    "provenance": "SslicTcl (docs/design/f5/sslictcl-vocabulary.md)",
     "dialects": [
       "sslictcl"
     ],
@@ -5042,7 +5042,7 @@
     "owner": "hook",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "provenance": "SpecTcl (docs/design/registry/spec-packs.md)",
     "dialects": [
       "spectcl"
     ],
@@ -5062,7 +5062,7 @@
     "owner": "hover",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "provenance": "SpecTcl (docs/design/registry/spec-packs.md)",
     "dialects": [
       "spectcl"
     ],
@@ -5080,7 +5080,7 @@
     "owner": "hsts",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SslicTcl (docs/design/sslictcl-vocabulary.md)",
+    "provenance": "SslicTcl (docs/design/f5/sslictcl-vocabulary.md)",
     "dialects": [
       "sslictcl"
     ],
@@ -5864,7 +5864,7 @@
     "owner": "literal_argument_validator",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "provenance": "SpecTcl (docs/design/registry/spec-packs.md)",
     "dialects": [
       "spectcl"
     ],
@@ -7765,7 +7765,7 @@
     "owner": "object_class",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "provenance": "SpecTcl (docs/design/registry/spec-packs.md)",
     "dialects": [
       "spectcl"
     ],
@@ -7783,7 +7783,7 @@
     "owner": "object_class",
     "surface": "command",
     "kind": "dynamic",
-    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "provenance": "SpecTcl (docs/design/registry/spec-packs.md)",
     "dialects": [
       "spectcl"
     ],
@@ -8642,7 +8642,7 @@
     "owner": "policy",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SslicTcl (docs/design/sslictcl-vocabulary.md)",
+    "provenance": "SslicTcl (docs/design/f5/sslictcl-vocabulary.md)",
     "dialects": [
       "sslictcl"
     ],
@@ -8760,7 +8760,7 @@
     "owner": "protocol",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SslicTcl (docs/design/sslictcl-vocabulary.md)",
+    "provenance": "SslicTcl (docs/design/f5/sslictcl-vocabulary.md)",
     "dialects": [
       "sslictcl"
     ],
@@ -9174,7 +9174,7 @@
     "owner": "script_timing_resolver",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "provenance": "SpecTcl (docs/design/registry/spec-packs.md)",
     "dialects": [
       "spectcl"
     ],
@@ -9872,7 +9872,7 @@
     "owner": "speclib",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "provenance": "SpecTcl (docs/design/registry/spec-packs.md)",
     "dialects": [
       "spectcl"
     ],
@@ -10056,7 +10056,7 @@
     "owner": "state_transitions",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "provenance": "SpecTcl (docs/design/registry/spec-packs.md)",
     "dialects": [
       "spectcl"
     ],
@@ -10581,7 +10581,7 @@
     "owner": "subcommand",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "provenance": "SpecTcl (docs/design/registry/spec-packs.md)",
     "dialects": [
       "spectcl"
     ],
@@ -10680,7 +10680,7 @@
     "owner": "taint_sink_gate",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "provenance": "SpecTcl (docs/design/registry/spec-packs.md)",
     "dialects": [
       "spectcl"
     ],
@@ -11166,7 +11166,7 @@
     "owner": "testssl-import",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SslicTcl (docs/design/sslictcl-vocabulary.md)",
+    "provenance": "SslicTcl (docs/design/f5/sslictcl-vocabulary.md)",
     "dialects": [
       "sslictcl"
     ],
@@ -13627,7 +13627,7 @@
     "owner": "trust-program",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SslicTcl (docs/design/sslictcl-vocabulary.md)",
+    "provenance": "SslicTcl (docs/design/f5/sslictcl-vocabulary.md)",
     "dialects": [
       "sslictcl"
     ],
@@ -16401,7 +16401,7 @@
     "owner": "values",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "provenance": "SpecTcl (docs/design/registry/spec-packs.md)",
     "dialects": [
       "spectcl"
     ],
@@ -16557,7 +16557,7 @@
     "owner": "world_effects",
     "surface": "command",
     "kind": "body-script",
-    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "provenance": "SpecTcl (docs/design/registry/spec-packs.md)",
     "dialects": [
       "spectcl"
     ],

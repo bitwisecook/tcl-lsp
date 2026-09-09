@@ -37,7 +37,7 @@ The skeleton generator uses the event registry to know which events exist, their
 
 - `23-irule-skeleton` — event picker for skeleton generation
 
-![event picker for skeleton generation](../screenshots/23-irule-skeleton.png)
+![event picker for skeleton generation](../../screenshots/23-irule-skeleton.png)
 
 ## Discoverability
 

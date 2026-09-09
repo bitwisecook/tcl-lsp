@@ -21,23 +21,34 @@ When a nested construct steals a brace from an outer scope, the rest of the scri
 
 ## Symptoms
 
-- A red squiggle appears near the mismatched brace, with the message "closing '}' consumed by inner scope instead of outer scope".
+- A red squiggle appears on the stolen `}`, with the message "Missing '}' — a
+  nested body consumed this closing brace".
 
 ## Example that triggers it
 
 ```tcl
-if {[expr {$x > 0]} {puts yes}
+proc report {x} {
+    if {$x > 0} {
+        puts yes
+    }
 ```
 
-The analyser reports **`E103`** because the `}` after `0` closes the `expr` brace group but also consumes the bracket meant for the outer `[expr ...]` substitution.
+The analyser reports **`E103`** on the `}` that closes the `if` body: the
+`proc` body was never closed, so that brace was consumed as the procedure's
+own closer and the procedure runs to the end of the file.
 
 ## Fix
 
 ```tcl
-if {[expr {$x > 0}]} {puts yes}
+proc report {x} {
+    if {$x > 0} {
+        puts yes
+    }
+}
 ```
 
-Ensure each `}` closes the brace group it belongs to by placing `}]` in the correct order.
+Add the missing `}` so the inner body and the outer body each get their own
+closing brace.
 
 `E103`'s auto-fix only fires when the missing brace swallowed exactly one
 nested construct — the common case of a single `if`/`switch`/`while`/`for`
@@ -50,7 +61,12 @@ statement(s) inside the wrong scope.
 
 ## How to suppress
 
-Add `# noqa: E103` on the line **above** the offending command.
+`E103` is an internal parse error: it has no per-code entry in the
+generated editor settings list. Silence it for one file with a
+`# tcl-lsp: disable=E103` directive at the top of the file, or for a
+whole project with `disabled = E103` under `[diagnostics]` in
+`.tcl-lsp.ini`. See
+[how to turn a diagnostic off](../kcs-howto-suppress-diagnostics.md).
 
 ## Related
 

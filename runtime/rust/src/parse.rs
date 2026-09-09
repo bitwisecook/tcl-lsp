@@ -19,7 +19,7 @@
 //! Tcl script / word parser (T1.2) — a **re-derived** Rust structure.
 //!
 //! Semantics follow reference Tcl 9.0's `Tcl_ParseCommand` family
-//! (`tmp/tcl9.0.3/generic/tclParse.c`); the *representation* is chosen for the
+//! (`tmp/tcl9.0.4/generic/tclParse.c`); the *representation* is chosen for the
 //! Rust consumers.
 //!
 //! ## The model — a borrow-based enum tree

@@ -52,24 +52,27 @@ ConnectionScope {
 
 ### Effect on diagnostics
 
-The optimiser's `PassContext` receives `cross_event_vars` when processing
-each event handler.  Before reporting:
-- **O109 (dead store)**: check if the variable is in `cross_event_vars`
-- **W210 (read before set)**: check if the variable is in `cross_event_vars`
+`CompilationUnit::connection_scope` carries the result (`Some` when at least
+one `::when::*` procedure exists). Three consumers read it:
 
-Both suppress the warning if the variable flows across events.
+- **W210 (read before set)** — the analyser treats
+  `cross_event_defs ∪ cross_event_imports` as defined inside a `::when::*`
+  procedure (`when_proc_cross_event_names`, `analyser/diagnostics.rs`).
+- **O109 (dead store)** and the other optimiser passes — `PassContext::cross_event_vars`
+  holds the same names while a handler is processed.
+- **IRULE4005** — reads `racy_static_defs`.
 
 ## Decision rule
 
-- If a new event type is added to iRules, no changes to `connection_scope.rs`
-  are needed — the analysis is event-name agnostic.
-- If a variable is `unset` in one handler, it is removed from `cross_event_defs`
-  for downstream events.
-- Connection scope only applies to iRules (multi-event scripts).  Standard Tcl
-  procedures do not use this analysis.
+- A new iRules event needs no change to `connection_scope.rs` — the analysis
+  is event-name agnostic; only `EventRegistry::variable_scope_note` decides
+  whether a pair of events shares scope.
+- An `unset` is recorded in the handler's summary; it does not remove the
+  name from `cross_event_defs`.
+- Connection scope applies only to iRules. Plain Tcl procedures never use it.
 
 ## Related docs
 
-- [Example 24 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-24-connection-scope--cross-event-variable-flow-irules)
-- [kcs-compiler-pipeline-overview.md](../../../docs/design/compiler/compiler-pipeline-overview.md)
-- [kcs-side-effects-system.md](../../../docs/design/compiler/side-effects-system.md)
+- [Example 24 in walkthroughs](example-walkthroughs.md#example-24-connection-scope--cross-event-variable-flow-irules)
+- [compiler-pipeline-overview.md](compiler-pipeline-overview.md)
+- [side-effects-system.md](side-effects-system.md)

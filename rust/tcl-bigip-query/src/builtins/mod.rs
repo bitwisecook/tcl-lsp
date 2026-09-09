@@ -96,6 +96,11 @@ pub struct BuiltinSpec {
     /// `referenced_by` are the exception (plain — and so broadcasting —
     /// but need `ctx` for the config here).
     pub broadcasts: bool,
+    /// A one-line implementation caveat the catalogue must surface — the
+    /// `url_*` family is registered but returns an `error` rather than making
+    /// a request, and `--help-builtins` would otherwise advertise it as a
+    /// working probe. `None` for every builtin that does what its name says.
+    pub note: Option<&'static str>,
     pub imp: Builtin,
 }
 
@@ -162,6 +167,9 @@ pub fn format_catalogue(filter: Option<&str>) -> String {
         if !flags.is_empty() {
             let _ = writeln!(out, "  flags:    {}", flags.join(", "));
         }
+        if let Some(note) = spec.note {
+            let _ = writeln!(out, "  note:     {note}");
+        }
         return out;
     }
 
@@ -173,7 +181,8 @@ pub fn format_catalogue(filter: Option<&str>) -> String {
     );
     out.push('\n');
     out.push_str(
-        "Each entry is name (arity). Arity is shown as N, MIN..MAX, or MIN+ for\n\
+        "Each entry is name (arity), with an implementation caveat after a dash\n\
+         where one applies. Arity is shown as N, MIN..MAX, or MIN+ for\n\
          variadic. For full signatures, prose, and examples see\n\
          docs/references/f5_query/ or run `f5 query --help-builtins NAME`.\n\n",
     );
@@ -186,7 +195,14 @@ pub fn format_catalogue(filter: Option<&str>) -> String {
             let _ = writeln!(out, "[{}]", spec.category);
             current = spec.category;
         }
-        let _ = writeln!(out, "  {:<26} ({})", spec.name, arity(spec));
+        match spec.note {
+            None => {
+                let _ = writeln!(out, "  {:<26} ({})", spec.name, arity(spec));
+            }
+            Some(note) => {
+                let _ = writeln!(out, "  {:<26} ({}) — {note}", spec.name, arity(spec));
+            }
+        }
     }
     out
 }
@@ -210,6 +226,7 @@ pub(crate) fn plain(
             with_ctx: false,
             stream_aware,
             broadcasts: true,
+            note: None,
             imp: Builtin::Plain(f),
         },
     )
@@ -257,6 +274,7 @@ fn ctx_spec(
             with_ctx: true,
             stream_aware: false,
             broadcasts,
+            note: None,
             imp: Builtin::Ctx(f),
         },
     )
@@ -279,9 +297,21 @@ pub(crate) fn special(
             with_ctx: false,
             stream_aware: false,
             broadcasts: false,
+            note: None,
             imp: Builtin::Special,
         },
     )
+}
+
+/// Attach an implementation caveat to a registration, so the catalogue and
+/// `--help-builtins` say what the builtin actually does.
+pub(crate) fn with_note(
+    entry: (&'static str, BuiltinSpec),
+    note: &'static str,
+) -> (&'static str, BuiltinSpec) {
+    let (name, mut spec) = entry;
+    spec.note = Some(note);
+    (name, spec)
 }
 
 fn build_registry() -> HashMap<&'static str, BuiltinSpec> {
@@ -1483,6 +1513,29 @@ mod catalogue_tests {
     fn unknown_builtin_reports_cleanly() {
         let miss = format_catalogue(Some("definitely-not-a-builtin"));
         assert!(miss.contains("no builtin named 'definitely-not-a-builtin'"));
+    }
+
+    /// A registered-but-inert builtin must say so wherever the catalogue
+    /// names it, or `--help-builtins` advertises a probe that makes no
+    /// request. The `url_*` family is the whole current population.
+    #[cfg(feature = "probes")]
+    #[test]
+    fn the_catalogue_says_which_builtins_are_not_implemented() {
+        for name in ["url_get", "url_head", "url_options", "url_post"] {
+            let spec = lookup(name).unwrap_or_else(|| panic!("{name} is registered"));
+            let note = spec.note.unwrap_or_else(|| panic!("{name} carries a note"));
+            assert!(note.contains("not implemented"), "{name}: {note}");
+
+            let one = format_catalogue(Some(name));
+            assert!(
+                one.contains(note),
+                "the single-builtin view carries it: {one}"
+            );
+            assert!(
+                format_catalogue(None).contains(note),
+                "the full listing carries it too"
+            );
+        }
     }
 }
 

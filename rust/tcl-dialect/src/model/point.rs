@@ -92,7 +92,7 @@ impl DialectPoint {
     /// selection and the VM's pin read. `None` for a non-Tcl family
     /// (`JimTcl`), which has no rung on the Tcl ladder: those consumers then
     /// take the fallback's (Tcl 9), the boundary
-    /// `docs/design/dialect-profile-model.md` §2.5 records as an eventual.
+    /// `docs/design/registry/dialect-profile-model.md` §2.5 records as an eventual.
     #[must_use]
     pub fn tcl_version(self) -> Option<TclVersion> {
         Self::tcl_version_of_release(self.release())

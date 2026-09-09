@@ -14,7 +14,7 @@ sharing the interpreter can reach. The interprocedural SCCP seed
 literal only when **every** caller passes that literal — so the seed is
 exactly as sound as the claim *"the call sites I found are all of them"*.
 
-Issue #977 is that claim failing in its most ordinary form:
+The claim fails in its most ordinary form:
 
 ```tcl
 # lib.tcl — no package provide
@@ -148,8 +148,8 @@ one — is still unenumerable. That is precisely why `PROVIDES_PACKAGE` and
 `EXPORTS_COMMAND` decline the seed outright rather than trusting an
 enumeration that cannot cover them.
 
-`namespace ensemble configure -map` redirection, and `uplevel #0`'s
-global-resolving body (pinned by an `#[ignore]`d regression), remain open.
+`namespace ensemble configure -map` redirection and `uplevel #0`'s
+global-resolving body remain open.
 
 ## Seeing it
 

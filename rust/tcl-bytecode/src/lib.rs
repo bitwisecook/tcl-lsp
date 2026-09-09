@@ -388,7 +388,7 @@ pub enum Op {
     IRULE_MATCHES_REGEX,
     /// `iruleMatches` — the F5 trunk's bare `matches` word operator. Its
     /// presence is measured
-    /// (`docs/design/bigip-irule-parser-measurements.md` §4a `e_matches`);
+    /// (`docs/design/f5/bigip-irule-parser-measurements.md` §4a `e_matches`);
     /// its discriminating semantics are §12's outstanding re-probe, so
     /// the VM answers it as a string equality — the reading the measured
     /// cell exercises — and the compiler declines to constant-fold it.
@@ -1216,6 +1216,10 @@ pub struct Instruction {
     /// and its own opcode continuation; an outer source command's `START_CMD`
     /// carries [`SourceCommandBoundary::Start`].
     pub source_command_boundary: SourceCommandBoundary,
+    /// Completion-option scope entered before this instruction executes.
+    /// Structured control commands use this out-of-band semantic marker where
+    /// their Tcl bytecode has no result-options opcode of its own.
+    pub completion_option_scope: Option<tcl_runtime_api::completion_options::ActivationOptionScope>,
     /// Byte span of the source construct this instruction was lowered
     /// from, when known. `None` for synthetic instructions with no
     /// direct source (loop-result pushes, fallthrough jumps, padding
@@ -1278,6 +1282,7 @@ impl Instruction {
             error_stack_context: None,
             source_command_namespace: String::new(),
             source_command_boundary: SourceCommandBoundary::None,
+            completion_option_scope: None,
             source_span: None,
             foreach_vars: None,
             foreach_collect: false,

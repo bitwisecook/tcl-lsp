@@ -8,7 +8,8 @@ Start here, then follow the reference links.
 Live, in-browser demos (nothing installed, nothing uploaded):
 **[compiler explorer](https://bitwisecook.github.io/tcl-lsp/compiler-explorer/)** ·
 **[BIG-IP report generator](https://bitwisecook.github.io/tcl-lsp/bigip-report-generator/)** ·
-**[example BIG-IP report](https://bitwisecook.github.io/tcl-lsp/bigip-report-demo/)**
+**[example BIG-IP report](https://bitwisecook.github.io/tcl-lsp/bigip-report-demo/)** ·
+**[spec studio](https://bitwisecook.github.io/tcl-lsp/spec-studio/)**
 
 ---
 
@@ -25,15 +26,15 @@ report generator built on it.
 | **Server** | `f5-report-web` — upload a config, get a report server-side (`rust/bigip-report-gen/python`). |
 
 **Enrichment / side-inputs** — a query (and the report) can bind external tables to
-`$name`: `--input csv nat=nat.csv`, `--input zone dns=example.com.zone` (a new
-RFC 1035 DNS zone-file format), `--input json`/`jsonl`/`f5log`. The report's
+`$name`: `--input csv nat=nat.csv`, `--input zone dns=example.com.zone` (RFC 1035 DNS
+zone files), `--input json`/`jsonl`/`f5log`. The report's
 **topology + enrichment DSL** (the architecture manifest) declares devices, tiers,
 links, network **zones**, device **interfaces**, **DNS zones**, and CIDR/service/NAT
 maps in one place — see `rust/tcl-bigip-query/src/architecture.rs`.
 
 Reference: **[docs/references/f5_query/](references/f5_query/)** (`manual.md`, `dsl.md`,
 `builtins.md`), how-tos in **[docs/kcs/](kcs/)** (`kcs-howto-*query*`), internals in
-`docs/design/f5-query-engine-internals.md`. Crate: `rust/tcl-bigip-query`.
+`docs/design/f5/f5-query-engine-internals.md`. Crate: `rust/tcl-bigip-query`.
 
 ---
 
@@ -45,11 +46,11 @@ powers iRule analysis, diagnostics, and the compiler explorer.
 | Surface | How |
 |---------|-----|
 | **LSP** | `tcl-lsp-server`, used by the editors under `editors/` (VS Code, Neovim, Zed, Emacs, Helix, JetBrains, Sublime): diagnostics, semantic tokens, hover, completion, refactors. |
-| **CLI** | `tcl compile \| diag \| diff \| highlight \| explore …`. Compiler-explorer views: `tcl explore ir\|cfg\|ssa\|opt\|asm\|wasm …`, web GUI `tcl explore --serve`. |
+| **CLI** | `tcl diag \| lint \| diff \| highlight \| dis \| compwasm \| explore …`. Compiler-explorer views: `tcl explore --show ir\|cfg\|ssa\|opt\|asm\|wasm …`, web GUI `tcl explore --serve`. |
 | **Web** | the compiler explorer (above), the analysis core compiled to WASM, client-side. |
-| **MCP** | `tcl-mcp` exposes ~40 analysis tools (`analyze`, `validate`, `review`, `optimize`, `call_graph`, `dataflow_graph`, `goto_definition`, refactors, …). |
+| **MCP** | `tcl-mcp` exposes the analysis surface as tools (`analyze`, `validate`, `review`, `optimize`, `call_graph`, `dataflow_graph`, `goto_definition`, refactors, …). |
 
-Reference: `docs/design/compiler-architecture.md` (+ `docs/design/compiler/`), how-tos in
+Reference: `docs/design/compiler/architecture.md` (+ `docs/design/compiler/`), how-tos in
 `docs/kcs/`, generated tables in
 `docs/generated/`. Crates: `rust/tcl-lexer`, `rust/tcl-syntax`, `rust/tcl-compiler`,
 `rust/tcl-lsp-core`, `rust/tcl-explorer`.
@@ -63,11 +64,11 @@ event-validity diagnostics, and iRule event ordering.
 
 | Surface | How |
 |---------|-----|
-| **CLI** | `f5 irule event-order some.irule`; `f5 irule event-info HTTP_REQUEST --json` (multiplicity, side, transport, implied profiles, valid commands); `tcl registry` / `tcl lookup`. |
+| **CLI** | `f5 irule event-order some.irule`; `f5 irule event-info HTTP_REQUEST --json` (multiplicity, side, transport, implied profiles, valid commands); `tcl registry-dump` / `tcl command-info`. |
 | **MCP** | `event_info` and `command_info` tools (`tcl-mcp`). |
 | **LSP** | drives hover, completion, signature help, and event-validity diagnostics in every editor. |
 
-Reference: `docs/design/bigip-registry-architecture.md`, contracts in
+Reference: `docs/design/f5/bigip-registry-architecture.md`, contracts in
 `docs/design/contracts/command-registry-event-model.md`, features in
 `docs/kcs/features/kcs-feature-bigip-registry.md` / `kcs-feature-event-registry.md`.
 Crates: `rust/tcl-registry`, `rust/tcl-irules`.

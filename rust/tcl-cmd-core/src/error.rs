@@ -29,7 +29,8 @@
 use tcl_platform::HostError;
 use tcl_syntax::value::ValueError;
 
-/// A failed Tcl command: its result message and optional structured error code.
+/// A failed Tcl command: its result message and optional structured error
+/// metadata.
 ///
 /// The shared command core owns the semantic error identity; each runtime
 /// adapter publishes it through its native completion/error state.
@@ -37,6 +38,8 @@ use tcl_syntax::value::ValueError;
 pub struct CmdError {
     message: String,
     error_code: Option<String>,
+    error_info: Option<Vec<u8>>,
+    error_line: Option<i64>,
 }
 
 impl CmdError {
@@ -45,6 +48,8 @@ impl CmdError {
         Self {
             message: message.into(),
             error_code: None,
+            error_info: None,
+            error_line: None,
         }
     }
 
@@ -53,6 +58,24 @@ impl CmdError {
         Self {
             message: message.into(),
             error_code: Some(error_code.into()),
+            error_info: None,
+            error_line: None,
+        }
+    }
+
+    /// A command error carrying the already-accumulated callback error trace.
+    #[must_use]
+    pub fn with_error_details(
+        message: impl Into<String>,
+        error_code: impl Into<String>,
+        error_info: Option<Vec<u8>>,
+        error_line: Option<i64>,
+    ) -> Self {
+        Self {
+            message: message.into(),
+            error_code: Some(error_code.into()),
+            error_info,
+            error_line,
         }
     }
 
@@ -79,6 +102,17 @@ impl CmdError {
     #[must_use]
     pub fn into_parts(self) -> (String, Option<String>) {
         (self.message, self.error_code)
+    }
+
+    /// Consume the error, including any accumulated callback trace metadata.
+    #[must_use]
+    pub fn into_details(self) -> (String, Option<String>, Option<Vec<u8>>, Option<i64>) {
+        (
+            self.message,
+            self.error_code,
+            self.error_info,
+            self.error_line,
+        )
     }
 
     /// `wrong # args: should be "…"` — the canonical Tcl arity error.
@@ -112,6 +146,15 @@ impl CmdError {
     #[must_use]
     pub fn argument_format(message: impl Into<String>) -> Self {
         Self::with_error_code(message, "TCL ARGUMENT FORMAT")
+    }
+
+    /// A trace-aware variable read whose selected cell disappeared.
+    #[must_use]
+    pub fn variable_read_missing(name: &str, reason: &str) -> Self {
+        Self::with_error_code(
+            format!("can't read \"{name}\": {reason}"),
+            "TCL READ VARNAME",
+        )
     }
 }
 
@@ -182,6 +225,13 @@ mod tests {
         assert_eq!(
             CmdError::argument_format("bad shape").error_code(),
             Some("TCL ARGUMENT FORMAT")
+        );
+        assert_eq!(
+            CmdError::variable_read_missing("a(k)", "no such variable").into_parts(),
+            (
+                "can't read \"a(k)\": no such variable".to_string(),
+                Some("TCL READ VARNAME".to_string())
+            )
         );
     }
 }

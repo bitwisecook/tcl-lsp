@@ -37,7 +37,7 @@ use crate::common::{Lsp, unique_uri};
 use serde_json::{Value, json};
 use std::time::Duration;
 
-/// The shipped sample — the document `docs/design/sslictcl-vocabulary.md`
+/// The shipped sample — the document `docs/design/f5/sslictcl-vocabulary.md`
 /// describes and whose own header states which notices it deliberately raises.
 const SAMPLE: &str = include_str!("../../../../samples/sslictcl/example.sslictcl");
 

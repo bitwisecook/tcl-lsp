@@ -18,9 +18,10 @@
 
 //! The `dict` ensemble over the VM's typed dictionary representation.
 
+use tcl_runtime_api::completion_options::ControlOptionPolicy;
 use tcl_runtime_api::{Code, Completion};
 
-use crate::command::BuiltinFn;
+use crate::command::{BuiltinFn, settle_control_options};
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
@@ -539,7 +540,7 @@ fn cmd_dict_for(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
             Err(e) => return err(e.message),
         }
     }
-    ok(Value::empty())
+    settle_control_options(ok(Value::empty()), ControlOptionPolicy::FRESH_SETTLED)
 }
 
 /// `dict map {keyVar valueVar} dictionary body` — like `dict for`, but collect
@@ -566,6 +567,7 @@ fn cmd_dict_map(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let (kname, vname) = (kvar.to_str(), vvar.to_str());
     let body_src = body.to_str();
     let mut out: Vec<(String, Value)> = Vec::new();
+    let mut last_options = Value::empty();
     for (k, v) in ps {
         if let Err(e) = vm.set_var(&kname, Value::string(k.clone())) {
             return e;
@@ -578,18 +580,27 @@ fn cmd_dict_map(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
                 Code::Ok => {
                     let key = vm.get_var(&kname).map_or(k, |kv| kv.to_str().to_string());
                     upsert(&mut out, &key, c.result);
+                    last_options = c.options;
                 }
-                Code::Continue => {}
+                Code::Continue => last_options = c.options,
                 // `break` discards the *whole* accumulated result (C
                 // `DictMapNRCmd` drops it on TCL_BREAK), returning the empty dict
                 // — not the pairs collected before the break.
-                Code::Break => return ok(Value::empty()),
+                Code::Break => {
+                    return settle_control_options(
+                        ok(Value::empty()),
+                        ControlOptionPolicy::FRESH_SETTLED,
+                    );
+                }
                 _ => return c,
             },
             Err(e) => return err(e.message),
         }
     }
-    ok(from_pairs(&out))
+    settle_control_options(
+        Completion::new(Code::Ok, from_pairs(&out), last_options),
+        ControlOptionPolicy::FRESH_FORWARDED,
+    )
 }
 
 /// `dict update dictVar key varName ?key varName ...? body` — expose the named

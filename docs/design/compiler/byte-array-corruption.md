@@ -120,7 +120,7 @@ correct for new payload commands without editing `shimmer/`.
 
 ## Why provenance, not the type lattice
 
-The type lattice already has `TclType.BYTEARRAY` and a `SHIMMERED(from, to)`
+The type lattice already has `TclType::ByteArray` and a `SHIMMERED(from, to)`
 state, so an obvious question is whether byte-corruption should be modelled
 there. It should not.
 

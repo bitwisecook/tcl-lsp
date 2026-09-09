@@ -22,26 +22,30 @@ An iterative loop has zero call overhead and cannot overflow the stack regardles
 ## Before
 
 ```tcl
-proc sum {lst acc} {
-  if {[llength $lst] == 0} { return $acc }
-  tailcall sum [lrange $lst 1 end] [expr {$acc+[lindex $lst 0]}]
+proc fact {n} {
+    if {$n <= 1} { return 1 } else { fact [expr {$n - 1}] }
 }
 ```
 
 ## After
 
 ```tcl
-proc sum {lst acc} {
-  while {[llength $lst] > 0} {
-    set acc [expr {$acc+[lindex $lst 0]}]
-    set lst [lrange $lst 1 end]
-  }; return $acc
+proc fact {n} {
+    while {1} {
+        if {$n <= 1} { return 1 } else { set n [expr {$n - 1}] }
+    }
 }
 ```
+
+The recursive call becomes a reassignment of the parameters, and the body is
+wrapped in `while {1}`; the existing `return`s are what leave the loop. A proc
+with several parameters reassigns them together with `lassign`.
 
 ## Safety conditions
 
 - Skipped when the proc contains multiple recursive call sites or uses `uplevel`, `upvar`, or other stack-sensitive commands.
+- Skipped when a recursive call passes a different number of arguments than the proc declares.
+- Skipped on Tcl 8.4 for a proc with more than one parameter, which has no `lassign` to reassign them.
 
 ## How to disable
 

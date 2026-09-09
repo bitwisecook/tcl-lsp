@@ -1090,7 +1090,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         world_effects: Some(TRACE_ADD_EFFECTS),
         state_transitions: Some(TRACE_ADD_TRANSITIONS),
         literal_argument_validator: Some(validate_modern_trace_operations),
-        // measurements §5 (`docs/design/bigip-irule-parser-measurements.md`,
+        // measurements §5 (`docs/design/f5/bigip-irule-parser-measurements.md`,
         // BIG-IP 21.1.0.1): TMM's `trace` is the 8.3-era form ONLY — `trace
         // add variable …` fails with `wrong # args` — so the modern ensemble
         // subcommands carry `ALL_TCL` (every real Tcl core, no iRules row) and
@@ -1298,7 +1298,7 @@ pub fn spec() -> CommandSpec {
         // tmsh, the EDA shells, expect, tk, itcl) carries it. Its legal
         // *subcommand* set narrows per Tcl version through each SubCommand's
         // own `dialects` gate below — and, now MEASURED
-        // (`docs/design/bigip-irule-parser-measurements.md` §5, BIG-IP
+        // (`docs/design/f5/bigip-irule-parser-measurements.md` §5, BIG-IP
         // 21.1.0.1), per iRules too: TMM's `trace` is the 8.3-era form ONLY.
         // `trace add variable …` fails with `wrong # args`, so the modern
         // `add`/`info`/`remove` subcommands carry `ALL_TCL` (never

@@ -1797,7 +1797,7 @@ fn report_report_object_class_is_modelled() {
 /// Every Tk/ttk widget constructor names the widget path it creates at
 /// arg 0, so a later `.w <subcommand> …` / `$w <subcommand> …` dispatch can
 /// resolve back to this same spec (issue #927:
-/// `docs/design/tk-widget-instance-typing.md`).
+/// `docs/design/analysis/tk-widget-instance-typing.md`).
 #[test]
 fn tk_widget_constructors_declare_creates_instance_at() {
     let (reg, ds) = reg_and_set("tcl8.6");

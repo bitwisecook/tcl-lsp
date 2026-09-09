@@ -3,7 +3,7 @@
 How a command is classified and routed to the IR node that fits it best, and
 where to hook in lowering for a new command.
 
-`Lowering::lower_command` in `rust/tcl-compiler/src/lowering/mod.rs`
+`Lowerer::lower_command` in `rust/tcl-compiler/src/lowering/mod.rs`
 dispatches each command through a hierarchy: registered lowering hooks →
 registry-driven structured-hook dispatch → fallthrough via `arg_roles`.  No
 step matches on a command name: routing is by the typed `LoweringHookId`
@@ -20,14 +20,14 @@ Source: `rust/tcl-compiler/src/lowering/mod.rs`,
 ### Dispatch hierarchy
 
 ```
-Lowering::lower_command(seg, namespace)
+Lowerer::lower_command(seg, namespace)
     │
     ├─ Command-table bookkeeping: CommandTableEffect on the spec feeds the
     │   alias table (interp alias / rename), then namespace directives
     │
     ├─ try_lower_hook(...)  — the value-level hooks in lowering_hooks.rs
     │   (Set, Incr, Expr, Return, AppendOrLappend, Unset, Global, Variable,
-    │    Upvar, Apply, ArrayFor)
+    │    Upvar)
     │
     ├─ structured_expand_barrier(...) — a {*}-expanded structured command
     │   cannot be specialised, so it becomes Statement::Barrier
@@ -43,7 +43,7 @@ Lowering::lower_command(seg, namespace)
     │   ├─ Catch         → lower_catch()   → Statement::Catch
     │   ├─ Try           → lower_try()     → Statement::Try with TryHandler
     │   ├─ Switch        → lower_switch()  → Statement::Switch with SwitchArm
-    │   └─ Dict / Eval / Uplevel
+    │   └─ Dict / Eval / Uplevel / Apply / ArrayFor
     │
     └─ lower_default(seg, namespace):
         ├─ arg_indices_for_role(ArgRole::Body) non-empty → Statement::Barrier
@@ -60,15 +60,17 @@ runtime dispatch.
 ### Lowering hooks — the `Set` hook
 
 `set` carries `lowering_hook: Some(LoweringHookId::Set)`
-(`rust/tcl-compiler/src/lowering_hooks.rs`).  The hook pattern-matches on
-the second argument's token type:
+(`rust/tcl-compiler/src/lowering_hooks.rs`).  `lower_set` requires a literal
+name word (a substituted name such as `set $x v` is a dynamic store and stays
+a generic `Call`), then pattern-matches on the value word's representative
+token kind (`LoweringCommand::arg_kinds`):
 
-| Token type of `args[1]` | Statement produced | Example |
+| Kind of the value word | Statement produced | Example |
 |-------------------------|--------------------|---------|
-| `STR` (braced string) | `Statement::AssignConst` | `set x {hello}` |
-| `ESC` (decimal integer) | `Statement::AssignConst` | `set x 42` |
-| `CMD` wrapping `expr` | `Statement::AssignExpr` | `set x [expr {$a + 1}]` |
-| `VAR` or interpolated | `Statement::AssignValue` | `set x $y`, `set x "hi $name"` |
+| `Str` (braced string) | `Statement::AssignConst` | `set x {hello}` |
+| `Esc` spelling a canonical decimal integer | `Statement::AssignConst` | `set x 42` |
+| `Cmd` wrapping `expr` | `Statement::AssignExpr` | `set x [expr {$a + 1}]` |
+| `Var` or interpolated | `Statement::AssignValue` | `set x $y`, `set x "hi $name"` |
 | 0 args (getter) | `Statement::Call` | `set x` (read variable) |
 
 ### Fallthrough with `arg_roles`
@@ -107,13 +109,13 @@ and lowers to richer statements instead of the generic `Statement::Barrier`:
 
 | Source shape | Lowered to | Gate |
 |---|---|---|
-| `eval {...}` (single braced-literal body) | `Statement::Block` | body is `TokenType::STR` and contains no nested dynamic-shape barriers |
-| `uplevel ?level? {...}` (static level, braced-literal body) | `Statement::UpFrame { frame_shift, body: Script { … } }` | level is absent, a bare integer, or `#N`; body is `TokenType::STR` and contains no nested dynamic-shape barriers |
+| `eval {...}` (single braced-literal body) | `Statement::Block` | body is `TokenType::Str` and contains no nested dynamic-shape barriers |
+| `uplevel ?level? {...}` (static level, braced-literal body) | `Statement::UpFrame { frame_shift, body: Script { … } }` | level is absent, a bare integer, or `#N`; body is `TokenType::Str` and contains no nested dynamic-shape barriers |
 
 **Gate — statically decidable from tokens:**
 
-1. Body argument's word-token type is `TokenType::STR` (braced literal).
-   Anything else (ESC, VAR, CMD) stays on the barrier path.
+1. Body argument's word-token type is `TokenType::Str` (braced literal).
+   Anything else (`Esc`, `Var`, `Cmd`) stays on the barrier path.
 2. The body does not contain a nested script evaluator whose own script is
    still dynamic. A braced `eval {uplevel 1 $x}` stays a barrier because
    the inner `uplevel` has a dynamic body. See
@@ -139,39 +141,26 @@ and lowers to richer statements instead of the generic `Statement::Barrier`:
 The gate is token-level. **No SSA or escape analysis is required** at
 lowering time; we look only at the lexed word structure.
 
-**Architectural win (IR-level):** downstream optimiser passes can inspect
-the parsed body without re-parsing the source text. The runtime behaviour
-is the same as the barrier path: both `Statement::Block` (eval-shape) and
-`Statement::UpFrame` are treated as barriers by every analysis
-pass (memory-SSA, var-escape, interprocedural, SCCP, load-forwarding).
-The codegen benefit is avoiding a `tcl_eval` string round-trip when the
-body is inlined directly. The runtime-level win (caller-local visibility
-for `uplevel 1 {...}`) requires follow-up work that either inlines the
-callee entirely or pushes real frames on proc-to-proc WASM calls — both
-out of scope for the first relaxation wave.
+Downstream optimiser passes can inspect the parsed body without re-parsing
+the source text; every analysis pass (memory-SSA, var-escape,
+interprocedural, SCCP, load-forwarding) still treats `Statement::Block`
+(eval-shape) and `Statement::UpFrame` as barriers. Codegen avoids a
+`tcl_eval` string round-trip by inlining the body directly.
 
-**Follow-up: `uplevel`-passthrough inlining.** When proc B's body is
-essentially `uplevel 1 {body}` plus trivial prologue/epilogue, a caller
-A that calls B can inline B's body directly and collapse the
-`Statement::UpFrame { frame_shift: 1, .. }` into a shift-free
-`Statement::Block` — no frame manipulation needed because there is no frame
-boundary to shift across.
-The heuristic is: callee body is a single `UpFrame` with shift 1 plus at
-most literal parameter setup, callee is not recursive, and the body IR's
-size is under a small budget (or there is a single call site). This is a
-distinct optimiser pass, enabled by `Statement::UpFrame`'s existence but not
-implemented in the first relaxation wave.
+**`uplevel`-passthrough inlining** (`rust/tcl-compiler/src/inline_uplevel.rs`)
+splices a callee whose entire body is one `Statement::UpFrame` with a
+relative `frame_shift == 1` into each call site, collapsing the `UpFrame`
+into a shift-free `Statement::Block`: there is no frame boundary left to
+shift across.
 
-**Implemented: `eval [list …]`** expression forms. Also
-statically decidable when the inner `list` command's arguments
-are all plain literals (`TokenType::ESC` with no `$` / `[`, or
-`TokenType::STR`). The gate synthesises the body by joining the
-list arguments — `STR` tokens get re-braced — and lowers the
-result as `Statement::Block`. See `eval_list_literal_body` in
-`rust/tcl-compiler/src/lowering/mod.rs`. Shapes that stay as
-`Statement::Barrier`:
-`eval [foo …]` (inner command isn't `list`), `eval [list $v w]`
-(dynamic substitution), and `eval [list {*}$args]` (`{*}`
+**`eval [list …]`** is also statically decidable when the inner `list`
+command's arguments are all plain literals (`TokenType::Esc` with no `$` /
+`[`, or `TokenType::Str`). The gate synthesises the body by joining the list
+arguments — `Str` tokens get re-braced — and lowers the result as
+`Statement::Block` (`eval_list_literal_body` in
+`rust/tcl-compiler/src/lowering/mod.rs`). Shapes that stay as
+`Statement::Barrier`: `eval [foo …]` (inner command isn't `list`),
+`eval [list $v w]` (dynamic substitution), and `eval [list {*}$args]` (`{*}`
 expansion).
 
 ### Fallback-to-runtime pattern
@@ -203,7 +192,7 @@ optimisation limitation, not a correctness bug.
 
 ## Related docs
 
-- [Example 22 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-22-lowering-dispatch--arg_roles-and-command-classification)
+- [Example 22 in walkthroughs](../../../docs/design/compiler/example-walkthroughs.md#example-22-lowering-dispatch--arg_roles-and-command-classification)
 - [GLOSSARY.md — IR](../../GLOSSARY.md#ir)
-- [kcs-lowering-contracts.md](../../../docs/design/compiler/lowering-contracts.md)
-- [kcs-compiler-pipeline-overview.md](../../../docs/design/compiler/compiler-pipeline-overview.md)
+- [lowering-contracts.md](lowering-contracts.md)
+- [compiler-pipeline-overview.md](compiler-pipeline-overview.md)

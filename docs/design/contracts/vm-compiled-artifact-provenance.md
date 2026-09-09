@@ -1,9 +1,7 @@
 # TclVM compiled-artifact provenance and invalidation
 
-## Status
-
-Implemented. This contract applies to runtime compilation in `tcl-vm` and to
-every reusable or deferred bytecode activation it creates.
+This contract covers runtime compilation in `tcl-vm` and every reusable or
+deferred bytecode activation it creates.
 
 ## Owner
 
@@ -13,6 +11,7 @@ function and the VM-local facts that authorised it:
 | Field | Meaning |
 |---|---|
 | `asm` | The `FunctionAsm` to execute. |
+| `source_namespace` | The namespace the unit was compiled in.  A frame whose current namespace differs is stale (`cannot continue bytecode after namespace changed`), except a scanner-only `foreach`/`lmap` driver. |
 | `profile_generation` | The selected dialect grammar and command surface. |
 | `command_epoch` | The command and inlined-procedure source bindings, selected targets, and trace mode last validated for the unit. |
 | `compiler` | Either the `CompileService` generation that produced the unit or the generation at which an embedder-owned artifact was explicitly admitted as foreign. |

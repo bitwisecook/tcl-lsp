@@ -21,7 +21,9 @@ Why does the analyser flag a write to a `static::` variable outside `RULE_INIT`?
 
 ## Symptoms
 
-- A squiggle appears under the `set static::` call, with the message "write to static:: variable outside RULE_INIT".
+- A yellow squiggle appears under the `set`, with the message "Writing to
+  'static::counter' outside RULE_INIT is dangerous. static:: variables are shared
+  across all connections; concurrent writes can cause race conditions."
 
 ## Example that triggers it
 

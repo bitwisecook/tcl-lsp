@@ -31,20 +31,18 @@ denormalised copy of it.
    A caller holding source and a byte offset rather than a token uses the
    token-free sibling `tcl_lexer::close_quote_offset` for a `"…"` word — one
    scanner, skipping `\`-escapes and whole `[…]` command substitutions, shared
-   by the optimiser's rewrite spans and the minifier's static folds. Hand-rolled
-   copies drifted: one skipped escapes but not substitutions, so
-   `"a[foo "b"]c"` closed on the inner quote and the rewrite truncated the word
-   mid-substitution (issue #1424).
+   by the optimiser's rewrite spans and the minifier's static folds. A
+   hand-rolled copy that skips escapes but not substitutions closes
+   `"a[foo "b"]c"` on the inner quote and truncates the word
+   mid-substitution.
    A caller holding source and the word's own `Span` — but no longer the
    `Token` it came from — uses `tcl_lexer::word_closer_offset_at` /
    `word_span_at`, which answer the same question for `{…}`, `[…]`, `"…"`
    **and** the braced variable form `${name}` (the span already encodes
    whichever `BracedVarStyle` the lexer applied, so it stays release-blind).
-   Hand-rolled copies drifted here too: `branch_folding`'s decided the
-   question with a textual `!text.ends_with('}')` guess, so a condition
-   ending in a *nested* empty pair — `while {$x eq {}}` — read as
-   already-widened and the outer `}` was dropped from the rewrite target
-   (issue #1423).
+   A textual `!text.ends_with('}')` guess is not a substitute: a condition
+   ending in a *nested* empty pair — `while {$x eq {}}` — reads as
+   already-widened and the outer `}` drops out of the rewrite target.
 5. Command and word *ranges* owned by the segmenter use the inner-end
    convention and widen only where they need the closer
    (`SourceMap::range_positions`, the segmenter's `command_span`). Callers
@@ -58,9 +56,8 @@ denormalised copy of it.
    whether one is missing with `tcl_lexer::script_is_complete`
    (`Tcl_CommandComplete`) rather than by re-deriving where the final word
    began: a truncated command is exactly a script that needs more input.
-   Slicing the span raw interned `"puts hi` for `"puts hi"`, so the module
-   raised `missing "` instead of `invalid command name "puts hi"`
-   (issue #1595; the clause-text sibling is #1376).
+   Slicing the span raw interns `"puts hi` for `"puts hi"`, and the module
+   then raises `missing "` instead of `invalid command name "puts hi"`.
 6. Backslash decoding has exactly one implementation:
    `tcl_lexer::backslash_subst`, re-exported as `tcl_syntax::backslash::decode`
    ([shared-utility-contracts-rust.md](shared-utility-contracts-rust.md)).

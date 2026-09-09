@@ -21,5 +21,4 @@
 (.ltm.pool[] as $p
  | $p.members[]
  | csv("pool member", $p.name, "", "", "",
-       $p.name, .name, .address, port(.name),
-       join($p.monitor.monitors, ",")))
+       $p.name, .name, .address, port(.name), $p.monitor))

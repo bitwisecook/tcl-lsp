@@ -1,6 +1,6 @@
 # Algorithms in the Tcl compiler/analyser — references & adaptations
 
-The static-analysis pipeline (`compiler/`) is built on a small set of classic
+The static-analysis pipeline (`rust/tcl-compiler/`) is built on a small set of classic
 compiler algorithms.  This document records, for each, the **original
 reference** (every citation below was verified to exist with the stated
 authors/venue/year) and **how it is adapted for Tcl** — a dynamically-typed,
@@ -187,7 +187,7 @@ there is `SccpResult::executable_blocks` — the same set the deletion passes
 read (`optimiser/elimination.rs`'s `unreachable_blocks`, the O107 source) —
 passed in by the caller, never re-derived as raw CFG reachability: a hoist
 offered into a block behind a constant-false branch would target code the
-optimiser is simultaneously offering to delete (issue #1385).
+optimiser is simultaneously offering to delete.
 `find_partial_redundancies` takes the same set, and both `*_for_function`
 entries seed it from `FunctionUnit::sccp`.  Only
 side-effect-free expressions are numbered/hoisted — purity is decided by
@@ -211,8 +211,10 @@ names whose SSA live ranges do not overlap share a slot.  Interference is
 computed **instruction-granular** (a backward walk per block seeded from
 `live_out` plus the terminator's reads), which is what lets straight-line Tcl
 locals with disjoint ranges share a slot.  Parameters are pinned to stable low
-slots.  Applies only to the WASM emitter and an opt-in bytecode mode; the
-default bytecode path stays one-slot-per-name for tclsh byte-parity.
+slots.  No production emitter consumes it: the bytecode path stays
+one-slot-per-name for tclsh byte-parity and the WASM backend binds locals
+through the runtime frame; `rust/tcl-compiler/tests/slot_allocation.rs`
+exercises it.
 
 ## Worklist dataflow (liveness, type/taint propagation)
 
@@ -259,8 +261,3 @@ bias: a key that changes more often than strictly necessary forces extra
 recomputation, but can never serve a stale result.  The hard contract on any
 change here is that incremental analysis must equal a full rebuild
 byte-for-byte.
-
----
-
-*Citations were verified against the ACM Digital Library / publisher records and
-authors' copies at the time of writing.*

@@ -66,13 +66,13 @@ These look similar but parse very differently:
 | `::${tracevar}` | literal `::` + VAR(`tracevar`) | concatenation: `"::" + value` |
 | `::${::tracevar}` | literal `::` + VAR(`::tracevar`) | `"::" + value-of-::tracevar` |
 
-The `::` *outside* `${...}` is plain literal text, not part of the variable name.  Cross-checked on tclsh 9.0.3 -- ``set ::tracevar GLOB; puts "::${tracevar}"`` prints `::<value-of-local-tracevar>` (NOT the global), while ``puts ${::tracevar}`` prints `GLOB`.
+The `::` *outside* `${...}` is plain literal text, not part of the variable name.  Cross-checked on tclsh 9.0.4 -- ``set ::tracevar GLOB; puts "::${tracevar}"`` prints `::<value-of-local-tracevar>` (NOT the global), while ``puts ${::tracevar}`` prints `GLOB`.
 
 ### Mixed bare/brace namespace forms don't compose
 
-| Form | Tcl 9.0.3 result |
+| Form | Tcl 9.0.4 result |
 |---|---|
-| `$::myns::x` (all-bare with qualified name) | reads `::myns::x` correctly |
+| `$::myns::x` (all-bare, qualified name) | reads `::myns::x` correctly |
 | `${::myns::x}` (all-brace) | reads `::myns::x` correctly |
 | `$::myns::${suffix}` (bare prefix + brace) | **fails** -- bare form lookups `::myns::` (with trailing `::`) and errors |
 

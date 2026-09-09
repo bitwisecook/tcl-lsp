@@ -768,7 +768,7 @@ pub(crate) fn irule_binary(op: BinOp, left: &Value, right: &Value) -> Result<Val
         // the same reason, and the difference is deliberately recorded
         // rather than hidden behind the shared arm: only the operator's
         // *presence* is measured
-        // (`docs/design/bigip-irule-parser-measurements.md` §4a
+        // (`docs/design/f5/bigip-irule-parser-measurements.md` §4a
         // `e_matches`: `expr {"abc" matches "abc"}` → `1`), and that cell
         // is an exact-equality case, so equality is the one reading the
         // evidence actually exercises. §12 carries the discriminating

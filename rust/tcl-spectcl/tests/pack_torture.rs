@@ -19,7 +19,7 @@
 //! Torture tests for `.tclspec` loading — the stability half of the pack
 //! pipeline, at the altitude where a defect is a panic rather than a squiggle.
 //!
-//! `docs/design/spec-packs.md` makes two promises this file is the negative
+//! `docs/design/registry/spec-packs.md` makes two promises this file is the negative
 //! proof of:
 //!
 //! * **"a spec must never be able to take the LSP down"** — no input, however
@@ -490,7 +490,7 @@ fn a_non_utf8_pack_file_is_a_notice_and_its_neighbour_still_loads() {
 
 /// An invalid lifecycle ordering is a notice and drops that lifecycle, and the
 /// command carrying it still loads — the "notice-only for packs" rule from
-/// `docs/design/spec-packs.md`.
+/// `docs/design/registry/spec-packs.md`.
 ///
 /// The well-ordered `demo::sane` beside it is the control: without it, a loader
 /// that dropped *every* lifecycle would pass the ordering assertion for the

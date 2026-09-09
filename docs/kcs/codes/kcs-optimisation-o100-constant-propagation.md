@@ -22,50 +22,41 @@ Replacing variable references with known constants lets later passes fold the ex
 ## Before
 
 ```tcl
-set n 10
-expr {$n + 1}
+set retries 1
+incr retries
+puts "$retries"
 ```
 
 ## After
 
 ```tcl
-set n 10
-expr {10 + 1}
+set retries 1
+incr retries
+puts 2
 ```
 
-## Also: a constant proved at one particular read
+`incr` is not a load of `retries` — it names the cell it mutates — so there
+is no literal for [O102](kcs-optimisation-o102-load-forwarding.md) to
+forward. Constant propagation has nonetheless proved this read sees `2`, so
+O100 inlines it. The now-dead `set` and `incr` go to
+[O108](kcs-optimisation-o108-transitive-dead-code.md) /
+[O109](kcs-optimisation-o109-dead-store.md) on the next pass, so the
+`aggressive` profile's fixpoint reduces the snippet to `puts 2`.
 
-Most of O100 substitutes by *name*: it asks "is this variable always this
-constant", which is the only question a source rewrite keyed on a name can
-ask. That answer is unavailable for any variable reassigned to a different
-constant — a counter, most obviously.
+## The other shapes O100 rewrites
 
-Where the read is reached through the def-use chains, O100 can ask the
-stronger, per-value question instead: "what did SCCP prove *this* read
-sees". That covers a definition which computes its value rather than
-writing one out:
-
-```tcl
-set a 1
-incr a
-puts "$a"
-```
-
-`incr` is not a load of `a` — it names the cell it mutates — so there is no
-literal for [O102](kcs-optimisation-o102-load-forwarding.md) to forward.
-SCCP has nonetheless proved the read sees `2`, so O100 inlines it, giving
-`puts 2`; the now-dead `set` and `incr` go to `O108`/`O109` on the next
-pass, and the `aggressive` profile's fixpoint reduces the whole snippet to
-`puts 2`.
-
-The same guards apply as for the by-name form, plus every guard O102's
-def-use walk applies (single reaching definition, no trace, no alias, no
-intervening barrier).
+The same proven constant is substituted into a `return $var`, into the
+right-hand side of `set x [expr {…}]`, and into an `if` / `while` condition.
+Forwarding a variable whose single reaching definition is *written out* as a
+literal is a different rewrite —
+[O102](kcs-optimisation-o102-load-forwarding.md). O100 covers the reads
+whose value had to be proved rather than read off the source.
 
 ## Safety conditions
 
 - Skipped when the variable is aliased (`global`, `variable`, `upvar`) or traced anywhere in its own procedure, or — for a top-level variable specifically — when *any* procedure in the file reassigns it via `global`. A top-level name already lives in the global frame, so a procedure elsewhere can rewrite it between the assignment and a later top-level use even though the top-level code itself never mentions `global`.
 - Skipped when the constant value contains metacharacters that would change meaning in the target context.
+- Skipped when the read has more than one reaching definition, or a barrier sits between the definition and the read.
 
 ## How to disable
 

@@ -28,9 +28,7 @@
 //! - the **WASM runtime** over `*mut TclObj` (24-byte C-ABI object; amortised
 //!   in-place string growth via `try_append_bytes_in_place`).
 //!
-//! Two deliberate contract decisions (see
-//! `docs/design/common-runtime-emitter-architecture.md` §4d and the red-team
-//! findings):
+//! Two deliberate contract decisions:
 //!
 //! 1. **Char-correct strings.** [`ValueOps::as_str`] yields a UTF-8 `Rc<str>`.
 //!    Tcl 8 character operations use UTF-16-style code units while Tcl 9 uses
@@ -233,6 +231,16 @@ pub trait ValueOps {
     fn new_bool(&mut self, b: bool) -> Self::Value;
     /// A list value from element handles.
     fn new_list(&mut self, items: Vec<Self::Value>) -> Self::Value;
+
+    /// Keep a borrowed value handle alive across later runtime callbacks.
+    ///
+    /// Owning value models need no extra work. Pointer-based runtimes override
+    /// this with their object reference-count increment; every successful pin
+    /// must be paired with [`Self::unpin_value`], including error exits.
+    fn pin_value(&mut self, _value: &Self::Value) {}
+
+    /// Release one transient hold established by [`Self::pin_value`].
+    fn unpin_value(&mut self, _value: &Self::Value) {}
 
     // -- string access (UTF-8; char-indexed downstream) --
 

@@ -104,6 +104,14 @@ impl ValueOps for Interp {
         list::new_list_obj(&items)
     }
 
+    fn pin_value(&mut self, value: &*mut TclObj) {
+        unsafe { obj::incr_ref_count(*value) };
+    }
+
+    fn unpin_value(&mut self, value: &*mut TclObj) {
+        unsafe { obj::decr_ref_count(*value) };
+    }
+
     fn as_str(&mut self, v: &*mut TclObj) -> Rc<str> {
         bytes_to_str(&obj_bytes(*v))
     }

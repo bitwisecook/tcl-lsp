@@ -72,6 +72,6 @@ completions rather than the whole of core Tcl.
 
 - [KCS index](README.md)
 - [Glossary](../GLOSSARY.md)
-- [SslicTcl vocabulary](../design/sslictcl-vocabulary.md) — the declarations,
+- [SslicTcl vocabulary](../design/f5/sslictcl-vocabulary.md) — the declarations,
   the value domains, the open/closed block rule, and the diagnostic codes.
 - [A pack-claimed file extension opens as plain text](kcs-issue-a-pack-claimed-file-extension-opens-as-plain-text.md)

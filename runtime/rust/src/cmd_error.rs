@@ -53,6 +53,11 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 4 {
         return interp.wrong_args(b"catch script ?resultVarName? ?optionVarName?");
     }
+    // The caught body is a fresh completion scope. Commands within it retain
+    // carried options until a later command replaces them, but neither the
+    // caller's prior options nor the caught body's options belong to the
+    // successful `catch` command itself.
+    interp.clear_return_options();
     // `catch` is bytecode-compiled inline (C's `TclCompileCatchCmd`): a literal
     // body runs in the **same** `info frame` level and the same `codePtr->source`
     // as the enclosing proc/script. `eval_control_body` reproduces that — sharing
@@ -69,15 +74,20 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // catch return value (read the value before clearing the result). `var_set`
     // retains it into the result var, so it survives the later `set_result`.
     let result = interp.get_obj_result();
+    let options = argv.get(3).map(|_| completion_options(interp, code));
+    interp.clear_return_options();
 
     if let Some(&rv) = argv.get(2) {
         let name = obj_bytes(rv);
         if let Err(e) = set_var_or_elem(interp, &name, result) {
+            if let Some(opts) = options {
+                drop_fresh(opts);
+            }
             return crate::builtins::var_error(interp, &name, e);
         }
     }
     if let Some(&ov) = argv.get(3) {
-        let opts = completion_options(interp, code); // rc 0
+        let opts = options.expect("options requested above"); // rc 0
         let name = obj_bytes(ov);
         if let Err(e) = set_var_or_elem(interp, &name, opts) {
             drop_fresh(opts);

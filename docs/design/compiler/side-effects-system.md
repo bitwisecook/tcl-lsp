@@ -225,8 +225,7 @@ profile does not make available, and returns the first match:
 Each registry effect is widened by `lift_registry_effect`, which maps the
 target and connection side into their compiler-side spellings, stamps the
 dialect string, and leaves `storage_type` / `scope` / `namespace` / `key` /
-`subtable` at their defaults for the classifier to fill in. The dialect name
-`irules` is normalised to `f5-irules` before the availability check.
+`subtable` at their defaults for the classifier to fill in.
 
 ## Classification flow
 
@@ -235,7 +234,7 @@ pub fn classify_side_effects(
     registry: &CommandRegistry,
     command: &str,
     args: &[String],
-    dialect: Option<&str>,
+    dialect: Option<&'static DialectProfile>,
     callee_summary: Option<&CalleeSummary>,
 ) -> CommandSideEffects
 ```
@@ -453,6 +452,4 @@ SideEffect {
 
 ## See also
 
-- [Compiler KCS index](README.md)
-- [KCS index](../README.md)
-- [Pipeline overview](../../../docs/design/compiler/compiler-pipeline-overview.md)
+- [Pipeline overview](compiler-pipeline-overview.md)

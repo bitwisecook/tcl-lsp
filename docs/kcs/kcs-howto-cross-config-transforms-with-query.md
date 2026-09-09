@@ -25,14 +25,14 @@ How do I compose multi-step transformations — readdressing **and** renaming **
 ```
 $ f5 query --in-place '
   rename_partition("Tenant_A", "Tenant_B") ;
-  .ltm.virtual["~^/Tenant_A/"]
-    | select(not contains(.rules, "/Tenant_A/audit_rule"))
-    | .rules += "/Tenant_A/audit_rule"
+  .ltm.virtual["~^/Tenant_B/"]
+    | select(not contains(.rules, "/Tenant_B/audit_rule"))
+    | .rules += "/Tenant_B/audit_rule"
 ' bigip.conf
 ```
 
-1. **Statement 1**: `rename_partition("Tenant_A", "Tenant_B")` cascades through every object header, every reference, every destination prefix and pool-member identifier, and the `auth partition` stanza.  After this statement the in-memory source has every `/Common/` replaced with `/Tenant_A/`.
-2. **Statement 2** runs against the post-rewrite source, so the regex subscript already finds the renamed VSes under `/Tenant_A/` and the audit-rule path also lives there.  `+=` appends to the `rules` list field; the dedup `select(not contains(...))` keeps the operation idempotent.
+1. **Statement 1**: `rename_partition("Tenant_A", "Tenant_B")` cascades through every object header, every reference, every destination prefix and pool-member identifier, and the `auth partition` stanza.  After it, the in-memory source has every `/Tenant_A/` replaced with `/Tenant_B/`.
+2. **Statement 2** runs against the post-rewrite source, so the regex subscript finds the renamed VSes under `/Tenant_B/` and the audit-rule path lives there too.  `+=` appends to the `rules` list field; the dedup `select(not contains(...))` keeps the operation idempotent.
 
 ### Readdress and rename in one pass
 
@@ -51,10 +51,10 @@ After the rename, every VS that points to the pool sees the new name.  The secon
 
 ```
 $ f5 query '.ltm.pool["~^/Common/old_"]
-  | .name |= sub(., "/Common/old_", "/Common/new_")' bigip.conf
+  | ."full-path" |= sub(., "/Common/old_", "/Common/new_")' bigip.conf
 ```
 
-`|=` on an identity field auto-routes through the rename engine, so the substring transform applied by `sub` lands as a full identity rename per match — references update everywhere too.
+`|=` on an identity field auto-routes through the rename engine, so the substring transform applied by `sub` lands as a full identity rename per match — references update everywhere too.  Match against `."full-path"`: `.name` holds the bare name, so a pattern carrying the partition never fires.
 
 ### Stage-by-stage migration with a script file
 
@@ -65,9 +65,9 @@ For anything more than three steps, put the query in a file and use `-f`:
 # 1. Move every object from /Tenant_A/ into /Tenant_B/.
 rename_partition("Tenant_A", "Tenant_B") ;
 
-# 2. Standardise pool names.
-.ltm.pool["~^/Tenant_A/old_"]
-  | .name |= sub(., "/old_", "/")
+# 2. Standardise pool names (they live under /Tenant_B/ after step 1).
+.ltm.pool["~^/Tenant_B/old_"]
+  | ."full-path" |= sub(., "/old_", "/")
 ;
 
 # 3. Strip route domains from every destination

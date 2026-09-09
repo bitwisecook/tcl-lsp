@@ -19,12 +19,12 @@
 2. **Tcl is homoiconic and late-bound, so the AOT compiler is half of a
    pair.** `eval`, `uplevel`, `subst`, `source`, `apply`, `proc f $a $body`,
    `$dynamic_cmd …`, and `{*}$computed` all produce code that does not exist
-   at compile time. A *complete runtime parser + tree-walking evaluator* must
-   exist as a peer to the compiled path, and the two must be observably
-   identical: same result, same return code/options, same `errorInfo`
-   frames, same line numbers, same trace firings. The boundary between "I can
-   compile this" and "I must interpret this" is a designed contract, not an
-   accident of which cases got optimised.
+   at compile time. The runtime parser and tree-walking evaluator are a peer
+   to the compiled path, not a fallback, and the two are observably identical:
+   same result, same return code/options, same `errorInfo` frames, same line
+   numbers, same trace firings. The boundary between "I can compile this" and
+   "I must interpret this" is a designed contract, not an accident of which
+   cases got optimised.
 
 ## The grammar (the parts everyone gets subtly wrong)
 
@@ -39,7 +39,7 @@ introduced:
 | **double-quoted** `"…"` | yes | yes | yes | whitespace is literal; ends at the matching `"` |
 | **braced** `{…}` | **no** | **no** | **only** `\<newline>`→space | fully literal; nesting counts balanced `{}` |
 
-Hard edges that must be in the spec, not discovered later:
+Hard edges:
 
 * **Comments** (`#`) are comments **only where a command is expected** —
   i.e. at the start of a command. `set x #y` has a literal `#y`. After a
@@ -59,8 +59,8 @@ Hard edges that must be in the spec, not discovered later:
   literal, a `}` inside `[…]` belongs to the inner command, etc.
 * **`$` variable forms:** `$name`, `${name}` (any chars), `$arr(idx)` (the
   index is itself substituted), `$name` stops at the first non-name char.
-* The result of parsing is **tokens with source spans**, not strings. Spans
-  are needed for `info frame`, error carets, and the LSP — thread them from
+* The result of parsing is **tokens with source spans**, not strings. `info
+  frame`, error carets, and the LSP all need them, so spans are threaded from
   byte zero.
 
 ## Where the boundary falls
@@ -72,10 +72,9 @@ Hard edges that must be in the spec, not discovered later:
 | `{*}$computed` | Compile the *call site*, but the expanded words are materialised at runtime (must grow unbounded — never a fixed-size argument array). |
 | `switch`/`expr`/`dict for`/`try` bodies | Sub-grammars; compile when the body is a literal brace word, else interpret. |
 
-The interpreter is therefore not a fallback "slow path" bolted on late — it
-is a co-equal back end. Budget for it from the start, and make every dynamic
-construct route through *one* `eval_script(tokens, frame)` entry so behaviour
-cannot fork.
+Every dynamic construct routes through one entry —
+`Interp::eval_script(src, owned_frame)` in `runtime/rust/src/interp.rs` — so
+behaviour cannot fork between the two back ends.
 
 ## The identity contract (compiled ≡ interpreted)
 

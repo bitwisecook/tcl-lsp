@@ -91,7 +91,7 @@ mod rows;
 mod values;
 
 /// The `source` line every `SslicTcl` statement's hover carries.
-pub(crate) const SOURCE: &str = "SslicTcl (docs/design/sslictcl-vocabulary.md)";
+pub(crate) const SOURCE: &str = "SslicTcl (docs/design/f5/sslictcl-vocabulary.md)";
 
 /// Build the spec for an `SslicTcl` member row — a statement word that takes
 /// operands and opens no block.

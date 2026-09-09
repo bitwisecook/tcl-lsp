@@ -963,6 +963,29 @@ fn vm_matches_the_pinned_trace_vectors() {
     }
 }
 
+#[test]
+fn replacement_retires_a_generation_moved_by_its_delete_trace() {
+    // `proc p` replaces the old command, but its delete callback moves that
+    // old generation to q. Publication re-reserves p for the new generation
+    // only after the moved old one is retired. Exact Tcl 9.0.4 oracle.
+    assert_eq!(
+        vm_output(
+            "set log {}
+             proc cb {old new op} {
+                 lappend ::log [list $old $new $op]
+                 rename p q
+             }
+             proc p {} {return OLD}
+             trace add command p delete cb
+             proc p {} {return NEW}
+             set a [catch {p} pm]
+             set b [catch {q} qm]
+             puts [list [info commands p] $a $pm [info commands q] $b $qm $log]",
+        ),
+        r#"p 0 NEW {} 1 {invalid command name "q"} {{::p {} delete}}"#
+    );
+}
+
 struct NativeTarget;
 
 impl NativeCommand for NativeTarget {

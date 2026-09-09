@@ -104,6 +104,7 @@ check; a user's own namespace nested under `tcl::` (for example
 
 - [KCS codes index](README.md)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)
+- [command walk](../../GLOSSARY.md#command-walk)
 - Related codes: `W113`, `W116`, `W128` — other codes about calling a
   command in a way that is technically legal but not the intended,
   documented usage.

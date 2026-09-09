@@ -38,7 +38,7 @@
 //! the same source of truth without a dependency cycle. Dialect *detection*
 //! heuristics (which need the lexer) stay in `tcl-registry::dialects`.
 //!
-//! See `docs/design/dialect-profile-model.md` for the full model.
+//! See `docs/design/registry/dialect-profile-model.md` for the full model.
 
 #![deny(missing_docs)]
 

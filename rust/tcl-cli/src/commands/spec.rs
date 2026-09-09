@@ -164,7 +164,7 @@ fn run_export(args: &crate::cli::SpecExportArgs) -> anyhow::Result<u8> {
 
 /// `tcl spec upgrade` — rewrite a 1.x pack into `SpecTcl` 2.0.
 ///
-/// Two halves, per `docs/design/dialect-and-package-registry-centralisation.md`
+/// Two halves, per `docs/design/registry/dialect-and-package-registry-centralisation.md`
 /// §6: the loader reads every 1.x pack forever, and this rewrites 1.x sources
 /// to 2.0. It is a **source rewriter**, never a load-render round trip — the
 /// renderer emits no pack-level rows and degrades opaque fields to TODO

@@ -34,8 +34,7 @@ applies a file layer through exactly the code that applies the editor layer.
 
 ## Why project wins over editor
 
-We surveyed how other widely-used language servers handle the same
-question in May 2026:
+How other widely-used language servers handle the same question:
 
 | Tool | Convention | Source |
 |---|---|---|
@@ -119,7 +118,7 @@ overrides" therefore requires either:
   promotes the global config to the implicit "default" for shadowing
   purposes, which is its own surprise), or
 - Asking every editor client to mark settings as "explicitly set"
-  (not possible with `workspace/configuration` today).
+  (not possible with `workspace/configuration`).
 
 Each of these introduces subtle, hard-to-explain behaviour. A user
 who explicitly sets `tclLsp.dialect = "tcl8.6"` in their editor would

@@ -61,7 +61,9 @@ and drops the sum. A body that opens its own variable frame — a nested `proc`,
 `namespace eval`, `uplevel`, or an `apply` lambda — is deliberately not
 counted: what it writes is that frame's variable, not the selection's.
 
-So the example above extracts to:
+## Example
+
+Selecting the middle two lines above extracts to:
 
 ```tcl
 set x 0
@@ -118,6 +120,11 @@ descended, while `Structural` bodies and `apply` lambdas are not.
 - A selection that covers no complete command offers nothing at all.
 - Variables reached only through `upvar`, a trace, or a computed name are not
   modelled; those selections are refused rather than guessed at.
+- Only writes made by the selection's own top-level commands are carried back
+  by name. A write nested inside a body the selection encloses — `set total …`
+  inside a selected `foreach` — is not seen, so that variable is passed by
+  value and the update does not reach the caller. Extract the enclosing
+  command's whole statement, or check the result before keeping it.
 - The extracted proc is always created at the top level of the current file;
   cross-file placement is not supported.
 
