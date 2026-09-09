@@ -262,6 +262,7 @@ const ROW_WORDS: &[&str] = &[
     "body_scope",
     "taint_source",
     "taint_transform",
+    "taint_transform_when",
     "taint_double_encode_colour",
     "taint_sink_safe_colour",
     "taint_output_sink",
