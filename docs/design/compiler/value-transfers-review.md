@@ -72,6 +72,14 @@ execution routes rather than inferring VM eligibility from purity alone;
 that execution policy still needs agreement. The owner explicitly
 confirmed reuse of the project's own regexp engine.
 
+The owner also confirmed that workspace-authored analysis facts are
+authoritative, including for reachability, diagnostic suppression and code
+elimination. There is no additional trust opt-in, provenance-based precision
+cap or certification requirement: authors are responsible for incorrect
+facts in their environment. Binding validity, cache invalidation, structural
+API validation and evaluator resource limits remain separate correctness
+and execution concerns, not gates on whether to believe the author's model.
+
 ## Findings that should change the design before implementation
 
 Priority describes the consequence of implementing the proposal as written,
@@ -319,8 +327,8 @@ confirm that, with `a = alpha` and `b = beta`, `expr {$a == $b}` returns 0
 while `expr "$a == $b"` errors. Resolving words as structured values avoids
 building a script by interpolating values that contain Tcl syntax.
 
-Trust must include every command implementation actually used. Math
-functions are command bindings too:
+Binding validity must include every command implementation actually used.
+This is not an author-trust check. Math functions are command bindings too:
 
 ~~~tcl
 rename ::tcl::mathfunc::abs ::tcl::mathfunc::saved_abs
@@ -328,7 +336,7 @@ proc ::tcl::mathfunc::abs {x} {return 99}
 expr {abs(-2)}             ;# 99 in both tested shells
 ~~~
 
-Trusting only `expr` or retaining a safe builtin `abs` in a private VM does
+Checking only `expr` or retaining a builtin `abs` in a private VM does
 not prove what the analysed program calls. A successful result needs
 transitive dependency evidence for math functions and nested commands,
 alongside variable observability and the target's numeric/word rules.
@@ -443,11 +451,11 @@ The companion correctly identifies that containment does not establish
 semantic truth. A wrong constant can remove branches and suppress taint
 findings. "A wrong answer is bounded" and "folds may only widen" need
 correction: producing any exact constant narrows abstract state and can
-affect the entire downstream graph. Decide which provenance classes may
-produce proof-bearing constants. If advisory facts are allowed from another
-class, give them a separate fact channel; preventing only their direct use
-in `executable_blocks` does not prevent indirect use through summaries,
-types, or rewrites.
+affect the entire downstream graph. The owner accepts author-supplied
+semantics for that whole graph: loaded workspace facts may narrow values,
+summaries, types and executable edges and support rewrites without an extra
+trust gate. A1 records this decision. Do not retain an indirect restriction
+through a consumer-specific provenance cap after accepting a fact upstream.
 
 ### R8. Define one evaluation context and complete memo dependencies
 
@@ -1167,12 +1175,14 @@ would miscalculate, suppress a real warning, cross an ownership boundary,
 or fail to deliver its claimed coverage.
 
 The table distinguishes **observed** evidence from **design attacks**.
-An attack is a required negative test or missing contract, not a claim that
-an unimplemented API has already exhibited a runtime vulnerability.
+An attack identifies a negative test, missing contract or explicitly
+accepted risk, not a claim that an unimplemented API has already exhibited
+a runtime vulnerability. A1 records the owner's accepted author-responsibility
+policy, not an implementation blocker.
 
 | Attack | Main boundary | Evidence/status | Consequence if unanswered |
 |---|---|---|---|
-| A1. Return a false but well-formed constant | Trust versus semantic proof | Design attack; the proposal acknowledges branch-gated diagnostic suppression | A pack hides security findings without ever generating executable code |
+| A1. Return a false but well-formed constant | Author responsibility versus analyser correctness | Owner accepts author-supplied semantics without an extra trust gate | Incorrect facts can hide findings or misoptimise code; the pack author owns that risk |
 | A2. Supply mutually inconsistent descriptors | Central resolution across axes | Concrete derivation collision in R2; broader conflict attack | Values, effects, target writes and lowering describe different invocations |
 | A3. Mutate an input during expression evaluation | Evaluation versus abstract state | Independent Tcl probes below | Lazy evaluation still produces the wrong result if callbacks read a frozen environment |
 | A4. Fail after a successful output write | Completion versus storage | Independent Tcl probe below | An error path incorrectly retains the old value or loses a real write |
@@ -1185,7 +1195,7 @@ an unimplemented API has already exhibited a runtime vulnerability.
 | A11. Read a correlated or unavailable fact as exact | Domain precision and tier integration | Correlated-loop Tcl witness; R9/R14 source evidence | Impossible states enter summaries or an absent fact becomes a negative proof |
 | A12. Add a new command with no consumer changes | Extensibility and design completeness | Acceptance experiment still missing | Centralisation is achieved only for today's command catalogue |
 
-### A1. A sandbox cannot certify a semantic assertion
+### A1. Accept author-supplied semantics without a second trust gate
 
 Suppose a private command reads request state, but its pack declares a pure
 implementation that always folds to `0`. Every structural check can pass;
@@ -1194,19 +1204,29 @@ controls an `if`, the analyser can mark the live arm unreachable and stop
 reporting taint there. No runtime artefact is needed, so runtime attestation
 does not protect this use.
 
-Treat permission to execute a pack, trust in its semantic claims, proof
-that a subject command has that implementation, and permission to use a
-fact for pruning as separate questions. A workspace-trust boolean cannot
-silently answer all four. This applies to effects, aliases, return types,
-sanitiser claims and body descriptions as well as constants. A value fold
-can also indirectly affect name resolution and subsequent spec selection.
+The owner explicitly accepts that risk: authors implementing analysis facts
+in their own environment are responsible for their correctness. Once a pack
+is loaded, its well-formed semantic declarations are authoritative inputs
+to analysis and optimisation. This applies to constants, effects, aliases,
+return types, sanitiser claims and body descriptions alike. There is no
+advisory-only tier, separate approval to narrow facts, or extra permission
+to prune executable edges, suppress unreachable findings or eliminate code.
 
-One defensible policy is that unauthorised claims remain descriptive hints,
-not inputs that remove possible behaviours or diagnostics. Another is an
-explicit user opt-in to trusting a pinned pack's assertions. Choosing that
-policy is the outstanding owner decision, not something corpus tests or a
-resource sandbox settle. Even a pinned implementation plus a passing corpus
-is evidence, not a universal proof of equivalence to arbitrary host code.
+This decision supersedes the companion's proposed restrictions that pack
+folds may only widen or that workspace provenance bars them from feeding
+`executable_blocks`. Do not implement those restrictions as a security
+floor, require a pinned-pack opt-in, or require an oracle certificate before
+using a workspace author's facts. Provenance remains useful for explanation,
+binding selection, dependencies and invalidation, not authority ranking.
+
+Keep three independent engineering contracts: apply the declaration to the
+resolved binding it describes; validate the API's structural invariants;
+and bound/isolate evaluator execution so analysis remains deterministic and
+responsive. None proves a model's semantic truth, and none should become
+a disguised author-trust gate. A well-formed but false constant is accepted
+under the declared model; a malformed target index is still an API error.
+Tests and independent oracles remain quality tools for implementations the
+project ships, not prerequisites for users to author their own semantics.
 
 ### A2. One query per axis can still produce contradictory answers
 
@@ -1609,7 +1629,7 @@ this review.
 | Final ownership boundary | Requested: specialisation lives in registry-owned code/data; analyser exposes generic operations | Only the allowance and expiry of transitional compiler-owned handlers remain a delivery choice |
 | Automatic engine fallback | Require an explicit registry evaluator capability | Purity alone does not supply executable backing, dependencies, or bounded cost |
 | Regexp owner | Confirmed: reuse our own `tcl-regex` engine through existing shared command plumbing | Registry specialisations and analyser consumers must share matching semantics |
-| Which pack facts may drive proof-bearing optimisation | State one provenance policy for constants, reachability, summaries, and rewrites | Sandbox containment does not validate claimed semantics; existing documents disagree about workspace trust |
+| Which pack facts may drive proof-bearing optimisation | Confirmed: loaded workspace facts are authoritative without another trust gate, including for pruning and code elimination | Authors own incorrect semantics; provenance tracks dependencies, not an advisory-only or widen-only tier |
 | Authoring executable shipped specialisations | Keep Rust shared cores; allow SpecTcl calculations through the same interface where useful | Distinct from whether SpecTcl becomes the source for all shipped specs or emits Rust |
 | Scope of the first delivery | Direct values, `expr`, one private pack, and shared analysis context | Avoids making runtime manifests and C hosting prerequisites for analyser extensibility |
 

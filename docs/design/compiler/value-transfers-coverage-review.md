@@ -37,6 +37,11 @@ All rows inherit these requirements:
 
 - Source revision, resolved binding, dialect/version/semantic profile and
   relevant pack/world epochs accompany evidence and cached answers.
+- Loaded workspace-authored semantic facts are authoritative, including
+  for narrowing, reachability and code elimination, as the owner confirmed.
+  No extra trust opt-in, advisory-only tier or widen-only cap applies.
+  Authors own false semantics; structural API validation, binding validity
+  and evaluator execution limits remain independent requirements.
 - Unknown, unavailable, not-yet-computed, analysis-budget decline and a
   proved language error are different states. Absence of proof is not a
   finding that the program is necessarily wrong.
@@ -485,7 +490,7 @@ it is not an independent assessment of those rules' security adequacy.
 | SSLICTL1201 | TLS estimate | Null/export/anonymous cipher classification | Shared cipher semantic owner, not independently repeated suite-name heuristics. |
 | SSLICTL1202 | TLS estimate | RC4 cipher classification | Configuration evidence and scoring policy separate; no live scan implied. |
 | SSLICTL1203 | TLS estimate | 3DES cipher classification | Same declared/derived cipher facts across estimates and policy checks. |
-| SSLICTL1204 | TLS estimate | Cipher prohibited by declared facts | Pack/domain assertion trust and revision dependencies explicit. |
+| SSLICTL1204 | TLS estimate | Cipher prohibited by declared facts | Author-supplied domain facts are authoritative; retain revision dependencies and explanatory provenance. |
 | SSLICTL1301 | TLS estimate | Certificate signature algorithm identified as MD5 | Certificate parser/crypto owner supplies fact; estimate owns severity/grade policy. |
 | SSLICTL1302 | TLS estimate | Certificate signature algorithm identified as SHA-1 | Algorithm identity, not text matching in presentation. |
 | SSLICTL1303 | TLS estimate | RSA public-key size below repository policy threshold | Key type/size facts and policy version separate; unknown size is not a proved violation. |

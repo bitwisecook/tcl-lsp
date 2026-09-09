@@ -102,8 +102,10 @@ evaluator fabricated while transporting the value. A numeric type does not
 erase arbitrary taint. A failure of exact evaluation does not erase a
 separately established length bound. Contradictory hook claims must be
 rejected/quarantined with conservative fallback, not resolved by whichever
-callback ran last. Validation catches structural contradictions; it cannot
-prove an untrusted pack's semantic assertions true.
+callback ran last. Validation catches structural contradictions; it does
+not certify semantic truth. The owner accepts well-formed workspace-authored
+facts as authoritative without a separate trust gate; authors own mistakes
+in their model, including resulting diagnostic suppression or misoptimisation.
 
 ### A small proposed ABI shape
 
@@ -319,16 +321,20 @@ command tenant::label {
 
 If the argument is unknown, do not invoke the body with a placeholder.
 Return an unknown exact value plus the proven prefix/segment and taint
-relationship. A prefix does not sanitise the unknown suffix. The evaluator
-body above is evidence only if it is tied to the implementation that will
-actually run; declaring the same spelling does not establish that identity.
+relationship. A prefix does not sanitise the unknown suffix. The author
+declares which implementation the evaluator models; no independent
+certification of that claim is required. Resolved binding and implementation
+revision still determine when the model applies: a later redefinition cannot
+silently reuse the old answer merely because the spelling is unchanged.
 
 The bounded host denies ambient files, network, clock, randomness and
 undeclared globals, accounts for aggregate request cost, and isolates or
 resets mutable state. A persistent global counter cannot affect successive
-answers. This supplies execution containment, not authority to trust a
-pack's false semantic assertions. Whether workspace pack facts may justify
-pruning or deleting code remains an owner decision in the main review.
+answers. These are execution/correctness contracts, not an author-trust gate.
+The owner confirmed that loaded workspace pack facts may narrow analysis,
+prune branches and justify code elimination without another opt-in or
+provenance cap. A well-formed but false assertion is the author's
+responsibility, not something the analyser must independently certify.
 
 ## EDA: own loops and opaque collections
 
