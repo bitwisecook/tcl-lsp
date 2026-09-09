@@ -25,6 +25,7 @@
 //! - [`literals`] — literal parsing + Tcl-source rendering.
 //! - [`select`] — overlap-aware optimisation selection (the
 //!   `manager`'s final output filter).
+//! - [`spans`] — statement-level rewrite and deletion extents.
 //! - [`var_refs`] — `$var` and bare-name variable-reference scans.
 
 pub mod expr_simplify;

@@ -22,6 +22,29 @@ under `rust/tcl-compiler/src/optimiser/`, with GVN in `src/gvn.rs`.
   only eligible when registry purity, result stability, completion, mutable
   world state, dispatch dependencies, and trace policy are all proven.
 
+## Rewrite extents
+
+`helpers/spans.rs` owns the statement-level span arithmetic every pass shares,
+and is the only place that arithmetic lives.
+
+An IR statement span follows the lexer's inner-end convention: a statement
+whose last word is quoted, braced, or bracketed stops *on* that word's closer,
+and it always stops before the `;` or newline that ends the statement. Both
+boundaries are correct for the analyser's `cmd.range` consumers and wrong for
+an emitted rewrite, so a pass that replays or removes a statement widens the
+span first:
+
+- `full_rewrite_span` — extend through trailing closers whose openers are
+  inside the span. Text replayed from an unwidened span carries an opener
+  without its closer, and the emitted script no longer parses.
+- `statement_delete_rewrite_range` — extend through trailing whitespace, one
+  statement separator, and the indentation after it, so a removal closes the
+  surviving text up instead of leaving a blank line or a bare `;`. The
+  extension is forward-only: reaching back over the statement's own
+  indentation would make the removals of two statements that share a line
+  overlap, and overlapping rewrites are arbitrated against each other, so one
+  of the pair would be dropped.
+
 The stable O-code catalogue and priorities are registry/compiler data consumed
 by these modules. Add a pass beside its Rust owner, add focused tests, and
 surface any durable result through the generic Explorer contract.

@@ -1686,6 +1686,56 @@ fn load_forwarding_o127() {
     //    is not treated as a barrier).
 }
 
+// Deletion and replay extents — every removal covers the whole written
+// statement plus the separator that ends it.
+
+#[test]
+fn deleted_statements_leave_parseable_tidy_source() {
+    // A statement span stops *on* the closer of a quoted, braced, or bracketed
+    // last word, and stops before the `;` or newline that ends it. A removal
+    // that inherits either boundary strands a closer or a separator in the
+    // emitted source, so each of these pins the exact text and re-checks it
+    // through the `tcl diag` surface.
+    //
+    // tclsh: every pair below is observationally identical. `set a "hello";
+    // puts $a` prints `hello`, as does `puts hello`; `set x V; puts $x` prints
+    // V, as does `puts [set x V]`, since `set` yields the value it assigns.
+    for (before, after) in [
+        // O102 propagation coupled with the O109 removal of the feeding store,
+        // whose value word is quoted.
+        (
+            "proc f {} {\n  set a \"hello\"\n  puts $a\n}",
+            "proc f {} {\n  puts hello\n}",
+        ),
+        // O127 replays the assignment into the use site; the value word is
+        // quoted and holds a command substitution.
+        (
+            "proc f {} {\n  set x \"a [clock seconds] b\"\n  puts $x\n}",
+            "proc f {} {\n  puts [set x \"a [clock seconds] b\"]\n}",
+        ),
+        // Two removals on one line: each takes its own `;`, and neither
+        // overlaps the other.
+        ("set a 1; set b [expr {$a + 2}]; puts $b", "puts 3"),
+        // A dead store on a line of its own takes the newline and the next
+        // line's indentation, leaving no blank line behind.
+        (
+            "proc f {} {\n  set a 1\n  set a 2\n  return $a\n}",
+            "proc f {} {\n  set a 2\n  return $a\n}",
+        ),
+    ] {
+        assert_eq!(
+            optimised(before, TCL),
+            after,
+            "rewritten source for: {before}"
+        );
+        assert!(
+            reparse_errors(&optimised(before, TCL), TCL).is_empty(),
+            "the rewritten source must re-parse: {}",
+            optimised(before, TCL)
+        );
+    }
+}
+
 // Profile directive / multipass — profile survival + string-build collapse
 
 #[test]
