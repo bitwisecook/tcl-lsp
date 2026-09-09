@@ -5460,41 +5460,32 @@ fn list_wrapped_arg_command_is_literal(call: &SinkCall<'_>, name: &str) -> bool 
     false
 }
 
-/// Split `arg` into its residual text (everything outside top-level `[...]`
-/// command substitutions) and the list of those top-level `[...]` slices.
-/// Brackets are ASCII, so the byte-range slicing stays on char boundaries.
-fn split_top_level_cmd_subs(arg: &str) -> (String, Vec<&str>) {
+/// Split `arg` into its residual text (everything outside the command
+/// substitutions it really performs) and the list of those `[...]` slices.
+///
+/// Segmentation is the lexer's, not a bracket count, because a `[` is only an
+/// opener when the grammar says so. `regexp -- "\[regex::quote $p]" $s` writes
+/// an *escaped* bracket: tclsh 8.6.18 and 9.0.4 both leave it as literal text
+/// and substitute `$p` straight into the pattern, never calling the quoter. A
+/// counting scan reads a command substitution there and hands callers a
+/// wrapper that does not run — which, for the mitigation callers, means
+/// crediting a sanitiser the value never passed through.
+///
+/// The parts come back with their source extents, so a returned slice is the
+/// `[...]` text a caller can re-parse. A part the lexer reports as a variable
+/// or literal run is residual: only a real `Command` is a wrapper.
+fn split_top_level_cmd_subs(arg: &str, config: tcl_lexer::LexerConfig) -> (String, Vec<&str>) {
+    let flags = tcl_lexer::word_parts::SubstFlags::default();
     let mut residual = String::new();
     let mut subs = Vec::new();
-    let b = arg.as_bytes();
-    let mut i = 0;
-    let mut seg_start = 0;
-    while i < b.len() {
-        if b[i] == b'[' {
-            residual.push_str(&arg[seg_start..i]);
-            let start = i;
-            let mut depth = 0i32;
-            while i < b.len() {
-                match b[i] {
-                    b'[' => depth += 1,
-                    b']' => {
-                        depth -= 1;
-                        if depth == 0 {
-                            i += 1;
-                            break;
-                        }
-                    }
-                    _ => {}
-                }
-                i += 1;
-            }
-            subs.push(&arg[start..i]);
-            seg_start = i;
+    for part in tcl_lexer::word_parts::decompose_spanned(arg.as_bytes(), flags, config) {
+        let slice = &arg[part.start..part.end];
+        if matches!(part.part, tcl_lexer::word_parts::WordPart::Command(_)) {
+            subs.push(slice);
         } else {
-            i += 1;
+            residual.push_str(slice);
         }
     }
-    residual.push_str(&arg[seg_start..]);
     (residual, subs)
 }
 
@@ -5514,7 +5505,7 @@ fn var_consumed_by_sanitiser(call: &SinkCall<'_>, name: &str) -> bool {
             continue;
         }
         seen = true;
-        let (residual, subs) = split_top_level_cmd_subs(arg);
+        let (residual, subs) = split_top_level_cmd_subs(arg, config);
         // A bare reference outside any command substitution reaches the sink.
         if arg_var_names(&residual, braced_var).contains(name) {
             return false;
@@ -5581,7 +5572,7 @@ fn var_wrapper_colours(
         if !arg_var_names(arg, braced_var).contains(name) {
             continue;
         }
-        let (residual, subs) = split_top_level_cmd_subs(arg);
+        let (residual, subs) = split_top_level_cmd_subs(arg, config);
         // A bare reference outside any substitution reaches the sink as-is.
         if arg_var_names(&residual, braced_var).contains(name) {
             return None;
@@ -8772,6 +8763,28 @@ mod tests {
         assert!(
             warnings.iter().any(|w| w.code == DiagCode::T100),
             "expected T100 for a numeric-coercing operand, got {warnings:?}",
+        );
+    }
+
+    /// An *escaped* bracket writes a literal `[`, so the quoter never runs and
+    /// the raw value lands in the pattern.
+    ///
+    /// tclsh 8.6.18 and 9.0.4 both leave `"\[regex::quote $p]"` as the text
+    /// `[regex::quote <value of p>]` — the command is not invoked — so the
+    /// wrapper the mitigation would credit does not exist. Segmentation is the
+    /// lexer's for exactly this reason; a bracket count reads a call here.
+    #[test]
+    fn t103_not_cleared_by_an_escaped_bracket_that_never_calls_the_quoter() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let source = "proc f {} {\n  set p [gets stdin]\n  \
+                      regexp -- \"\\[regex::quote $p]\" $line\n}\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            warnings.iter().any(|w| w.code == DiagCode::T103),
+            "an escaped bracket is not a call, so T103 must stand: {warnings:?}",
         );
     }
 

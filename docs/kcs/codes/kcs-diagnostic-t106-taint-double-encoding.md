@@ -64,9 +64,17 @@ Encode once, at the point where the value crosses into the context that
 needs the encoding. A quick fix ("Remove redundant encoder") drops the second
 call for you.
 
-If the two encodings are genuinely wanted — a value that really does travel
-through two nested URLs — decode between them, or build the inner value
-separately so each encoder sees raw text.
+If the two encodings are genuinely wanted — an inner URL carried as a
+parameter of an outer one — then the second encode is **not** redundant and
+neither the quick fix nor a decode between them is the right answer. The
+inner URL's own `%20` has to survive the outer decode, which means it must go
+out as `%2520`: encoding `http://example.com/a%20b` for a parameter slot
+yields `http%3A%2F%2Fexample.com%2Fa%2520b`, and dropping either layer changes
+the destination the outer decode returns. Suppress T106 on that line instead.
+
+The way to avoid needing the suppression is to encode each component at the
+boundary it crosses, building the parameter value from raw text, rather than
+re-encoding a whole URL that is already encoded.
 
 ## How to suppress
 
