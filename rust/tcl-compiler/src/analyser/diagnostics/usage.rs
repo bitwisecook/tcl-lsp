@@ -350,15 +350,15 @@ Use braces: {{ \u{2026} }}"
         }
     }
 
-    /// W200: a `u` modifier on a `binary format` / `binary scan`
-    /// integer specifier requires Tcl 8.5+ (TIP 275). `u` is the only
-    /// modifier TIP 275 added: an `s` following an integer specifier is
-    /// a second short-integer field on every release (`ss` is two
-    /// fields on 8.4 through 9.0), never a signedness modifier. Sites
-    /// are buffered and decided post-walk against the effective Tcl
-    /// version (§6 argument-DSL rung) — the old hardcoded dialect list
+    /// W200: a `u` suffix on a `binary format` / `binary scan` field
+    /// requires Tcl 8.5+ (TIP 275). The field grammar comes from the
+    /// binary owner (`tcl_cmd_core::binary::specifiers`), parsed with
+    /// the suffix admitted so the gate — not the parse — decides; sites
+    /// are buffered and settled post-walk against the effective Tcl
+    /// version (§6 argument-DSL rung). The old hardcoded dialect list
     /// wrongly included f5-iapps, whose host embeds a real Tcl 8.5.13
-    /// where the modifier works.
+    /// where the suffix works. One site per format string: the gate
+    /// dedupes by span and every field shares the format token's.
     pub(in crate::analyser) fn emit_w200_binary_format_modifiers(
         &mut self,
         cmd_name: &str,
@@ -376,33 +376,14 @@ Use braces: {{ \u{2026} }}"
         let Some(fmt_tok) = arg_tokens.get(fmt_idx) else {
             return;
         };
-        let fmt = args[fmt_idx].as_bytes();
-        let mut i = 0;
-        while i < fmt.len() {
-            if fmt[i].is_ascii_whitespace() {
-                i += 1;
-                continue;
-            }
-            while i < fmt.len() && fmt[i].is_ascii_digit() {
-                i += 1;
-            }
-            if i >= fmt.len() {
-                break;
-            }
-            let spec = fmt[i];
-            i += 1;
-            if BINARY_INT_SPECIFIERS.contains(&spec) && i < fmt.len() && fmt[i] == b'u' {
-                self.dsl_gate_sites.push(super::version_gate::DslGateSite {
-                    span: fmt_tok.span,
-                    code: DiagCode::W200,
-                    what: "unsigned modifier 'u' on binary format specifier".to_string(),
-                    min: tcl_dialect::TclVersion::V8_5,
-                });
-                i += 1;
-            }
-            if i < fmt.len() && fmt[i] == b'*' {
-                i += 1;
-            }
+        let fields = tcl_cmd_core::binary::specifiers(args[fmt_idx].as_bytes(), true);
+        if fields.iter().any(|f| f.modifier == Some(b'u')) {
+            self.dsl_gate_sites.push(super::version_gate::DslGateSite {
+                span: fmt_tok.span,
+                code: DiagCode::W200,
+                what: "unsigned modifier 'u' on binary format specifier".to_string(),
+                min: tcl_dialect::TclVersion::V8_5,
+            });
         }
     }
 
@@ -1473,10 +1454,6 @@ pub(super) fn is_benign_unicode(ch: char) -> bool {
             | G::OtherPunctuation
     )
 }
-
-/// Integer format specifiers for `binary format` / `binary scan` that
-/// accept the Tcl 8.5+ `u` / `s` modifier.
-const BINARY_INT_SPECIFIERS: &[u8] = b"csSiInTwWmrR";
 
 /// Mask-octet values that can appear in a contiguous subnet mask.
 const VALID_MASK_OCTETS: &[u32] = &[0, 128, 192, 224, 240, 248, 252, 254, 255];

@@ -1799,6 +1799,23 @@ mod tests {
         assert!(names.contains(&"f64be"), "{labels:?}");
     }
 
+    // `ss` is two short-integer fields on every release (tclsh 8.4.20 through
+    // 9.0.4 all pack four bytes), so it earns two hints — the shared owner
+    // used to swallow the second `s` as a signedness modifier and emit one.
+    #[test]
+    fn short_specifier_pair_gets_a_hint_each() {
+        let labels = type_labels_for_dialect(
+            "binary format ss 1 2\n",
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let names: Vec<&str> = labels.iter().map(|(_, l)| l.as_str()).collect();
+        assert_eq!(
+            names.iter().filter(|n| **n == "i16le").count(),
+            2,
+            "{labels:?}"
+        );
+    }
+
     #[test]
     fn regsub_subspec_backreference_hints() {
         let labels = type_labels("regsub {(a)(b)} $s {\\1-\\2} out\n");

@@ -1904,6 +1904,36 @@ mod binary_format_modifiers {
         // The real `u` modifier is unaffected.
         assert_eq!(count("binary format su 1", "tcl8.4", "W200"), 1);
     }
+
+    // `GetFormatSpec` in tclBinary.c consumes a `u` after the command
+    // character without consulting the type, so the gate is not restricted to
+    // the integer fields: `binary format au 1` is `bad field specifier "u"` on
+    // tclsh 8.4.20 and clean on 8.5.19.
+    #[test]
+    fn unsigned_modifier_warns_after_any_field_letter() {
+        assert_eq!(count("binary format au 1", "tcl8.4", "W200"), 1);
+        assert_eq!(count("binary format du 1.0", "tcl8.4", "W200"), 1);
+        assert!(!fires("binary format au 1", "tcl8.6", "W200"));
+    }
+
+    // `t` is a real 8.5 field letter and `T` is not a field letter on any
+    // release, so the gate follows the shared grammar rather than a private
+    // table that had them the wrong way round.
+    #[test]
+    fn gate_follows_the_shared_field_letters() {
+        assert_eq!(count("binary format tu 1", "tcl8.4", "W200"), 1);
+        assert!(!fires("binary format Tu 1", "tcl8.4", "W200"));
+    }
+
+    // Every field shares the format token's span and the gate dedupes by
+    // span, so a template with several gated fields is one squiggle.
+    #[test]
+    fn one_diagnostic_per_format_string() {
+        assert_eq!(
+            count("binary format cu1su1iu1 $a $b $c", "tcl8.4", "W200"),
+            1
+        );
+    }
 }
 
 // W310 — hardcoded credentials.

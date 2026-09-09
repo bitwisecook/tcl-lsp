@@ -18,21 +18,24 @@ or `binary scan` specifier?
 
 ## Why
 
-The `u` modifier on an integer specifier — `cu`, `su`, `iu`, `wu`, and the
-rest — arrives in Tcl 8.5 (TIP 275). On Tcl 8.4 the same format string is
-rejected at run time with `bad field specifier "u"`. The analyser reads the
-literal format string and compares each modifier against the file's effective
-Tcl version: the dialect profile, raised by any `package require Tcl`.
+The `u` modifier — `cu`, `su`, `iu`, `wu`, and the rest — arrives in Tcl 8.5
+(TIP 275). On Tcl 8.4 the same format string is rejected at run time with
+`bad field specifier "u"`. The analyser reads the literal format string and
+compares it against the file's effective Tcl version: the dialect profile,
+raised by any `package require Tcl`.
 
-Tcl has no `s` modifier: an `s` after an integer specifier (`ss`, `is`) is a
-second short-integer field on every release, so the analyser leaves it alone.
+Tcl accepts the `u` after *any* field letter, not only the integer ones, so
+`au` is flagged on 8.4 exactly like `iu`. Tcl has no `s` modifier: an `s`
+after another specifier (`ss`, `is`) is a second short-integer field on every
+release, so the analyser leaves it alone.
 
 ## Symptoms
 
 - A yellow squiggle under the format string, with the message "unsigned
   modifier 'u' on binary format specifier requires Tcl 8.5 but tcl8.4 provides
   8.4."
-- One diagnostic per gated modifier in the string.
+- One diagnostic per format string — every field shares the format token, so
+  several gated modifiers give one squiggle, not one each.
 
 ## Example that triggers it
 
