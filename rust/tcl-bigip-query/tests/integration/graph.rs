@@ -170,6 +170,32 @@ ltm pool /Common/shared_pool {
 }
 ";
 
+fn run_merged_named(
+    query: &str,
+    sources: &[(&str, &str)],
+    names: &[(&str, &str)],
+) -> Result<String, String> {
+    let owned: Vec<(String, String)> = sources
+        .iter()
+        .map(|(u, s)| ((*u).to_owned(), (*s).to_owned()))
+        .collect();
+    let opts = QueryOptions {
+        merge: true,
+        names: names
+            .iter()
+            .map(|(n, u)| ((*n).to_owned(), (*u).to_owned()))
+            .collect(),
+        ..QueryOptions::default()
+    };
+    let result = run_query(query, &owned, &opts).map_err(|e| e.to_string())?;
+    let values: Vec<tcl_bigip_query::Value> = result
+        .values_per_file
+        .iter()
+        .flat_map(|(_, vals)| vals.iter().cloned())
+        .collect();
+    render(&values, "json").map_err(|e| e.to_string())
+}
+
 fn run_merged(query: &str, sources: &[(&str, &str)]) -> Result<String, String> {
     let owned: Vec<(String, String)> = sources
         .iter()
@@ -222,6 +248,29 @@ fn rename_partition_check_sees_referrers_in_sibling_sources() {
         err.contains("partition visibility") && err.contains("/Part1/v1"),
         "the refusal names the stranded referrer: {err}"
     );
+}
+
+/// A `$name` binding is the same root as the source it names, so a projection
+/// reached through it sees the merged namespace on every iteration.
+///
+/// Merge mode evaluates the statement once per root, so a `$name`-anchored
+/// query yields its values once per root. A named binding that did not carry
+/// the merged view would resolve on the iteration naming its own source and
+/// come back empty on the others.
+#[test]
+fn a_named_binding_sees_the_merged_namespace_on_every_iteration() {
+    let sources = [
+        ("file:///rule.conf", RULE_CONF),
+        ("file:///pool.conf", RULE_POOL_CONF),
+    ];
+    let out = run_merged_named(
+        "$rules.ltm.rule[] | .refs.pools[]",
+        &sources,
+        &[("rules", "file:///rule.conf")],
+    )
+    .expect("projection runs");
+    let hits = out.matches("/Common/api_pool").count();
+    assert_eq!(hits, sources.len(), "one hit per root, got {out}");
 }
 
 /// An `ltm rule`'s synthesised `.refs` resolves objects defined in a sibling
