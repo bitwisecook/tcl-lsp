@@ -37,17 +37,17 @@ use tcl_lexer::LineIndex;
 use tcl_registry::bigip::BigipRegistry;
 
 use crate::model::r#gen::parsers::{
-    parse_bigip_apm_oauth_db_instance, parse_bigip_apm_policy_item, parse_bigip_auth_partition,
-    parse_bigip_cm_device, parse_bigip_cm_device_group, parse_bigip_cm_traffic_group,
-    parse_bigip_cm_trust_domain, parse_bigip_data_group, parse_bigip_gtm_datacenter,
-    parse_bigip_gtm_pool, parse_bigip_gtm_prober_pool, parse_bigip_gtm_rule,
-    parse_bigip_gtm_server, parse_bigip_gtm_wideip, parse_bigip_ltm_dns_cache_resolver,
-    parse_bigip_monitor, parse_bigip_net_dns_resolver, parse_bigip_net_interface,
-    parse_bigip_net_port_list, parse_bigip_net_route, parse_bigip_net_route_domain,
-    parse_bigip_net_self, parse_bigip_net_stp, parse_bigip_net_vlan, parse_bigip_node,
-    parse_bigip_pem_listener, parse_bigip_pem_policy, parse_bigip_pem_service_chain_endpoint,
-    parse_bigip_persistence, parse_bigip_policy, parse_bigip_pool, parse_bigip_profile,
-    parse_bigip_rule, parse_bigip_security_firewall_policy,
+    parse_bigip_apm_oauth_db_instance, parse_bigip_apm_policy_agent, parse_bigip_apm_policy_item,
+    parse_bigip_auth_partition, parse_bigip_cm_device, parse_bigip_cm_device_group,
+    parse_bigip_cm_traffic_group, parse_bigip_cm_trust_domain, parse_bigip_data_group,
+    parse_bigip_gtm_datacenter, parse_bigip_gtm_pool, parse_bigip_gtm_prober_pool,
+    parse_bigip_gtm_rule, parse_bigip_gtm_server, parse_bigip_gtm_wideip,
+    parse_bigip_ltm_dns_cache_resolver, parse_bigip_monitor, parse_bigip_net_dns_resolver,
+    parse_bigip_net_interface, parse_bigip_net_port_list, parse_bigip_net_route,
+    parse_bigip_net_route_domain, parse_bigip_net_self, parse_bigip_net_stp, parse_bigip_net_vlan,
+    parse_bigip_node, parse_bigip_pem_listener, parse_bigip_pem_policy,
+    parse_bigip_pem_service_chain_endpoint, parse_bigip_persistence, parse_bigip_policy,
+    parse_bigip_pool, parse_bigip_profile, parse_bigip_rule, parse_bigip_security_firewall_policy,
     parse_bigip_security_firewall_port_list, parse_bigip_security_firewall_rule_list,
     parse_bigip_security_log_profile, parse_bigip_security_nat_policy,
     parse_bigip_security_packet_filter_policy, parse_bigip_snat_pool,
@@ -55,8 +55,8 @@ use crate::model::r#gen::parsers::{
     parse_bigip_sys_snmp, parse_bigip_virtual_address, parse_bigip_virtual_server,
 };
 use crate::model::{
-    BigipApmOauthDbInstance, BigipApmPolicyItem, BigipAuthPartition, BigipCmDevice,
-    BigipCmDeviceGroup, BigipCmTrafficGroup, BigipCmTrustDomain, BigipDataGroup,
+    BigipApmOauthDbInstance, BigipApmPolicyAgent, BigipApmPolicyItem, BigipAuthPartition,
+    BigipCmDevice, BigipCmDeviceGroup, BigipCmTrafficGroup, BigipCmTrustDomain, BigipDataGroup,
     BigipGtmDatacenter, BigipGtmPool, BigipGtmPoolMember, BigipGtmProberPool, BigipGtmRule,
     BigipGtmServer, BigipGtmTopology, BigipGtmWideip, BigipLtmDnsCacheResolver, BigipMonitor,
     BigipNetDnsResolver, BigipNetInterface, BigipNetPortList, BigipNetRoute, BigipNetRouteDomain,
@@ -1868,6 +1868,20 @@ pub fn parse_security_packet_filter_policy(
     let mut obj = parse_bigip_security_packet_filter_policy(full_path, body, range);
     let (names, _) = firewall_rules_summary(&props_map(body));
     obj.rules = names;
+    obj
+}
+
+/// `apm policy agent <subtype>` — the subtype names the agent's kind and
+/// lives in the stanza header, not in the body.
+#[must_use]
+pub fn parse_apm_policy_agent(
+    full_path: &str,
+    body: &str,
+    agent_type: &str,
+    range: Range,
+) -> BigipApmPolicyAgent {
+    let mut obj = parse_bigip_apm_policy_agent(full_path, body, range);
+    agent_type.clone_into(&mut obj.agent_type);
     obj
 }
 
