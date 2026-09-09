@@ -21,9 +21,9 @@
  * LSP `workspace/executeCommand` actually return data from the server.
  *
  * These tests bypass the VS Code command wrappers (which may show quick-pick
- * dialogs) and call the LSP server directly via `client.sendRequest`.  This
- * catches regressions like the `@server.feature(WORKSPACE_EXECUTE_COMMAND)`
- * handler swallowing commands registered with `@server.command()`.
+ * dialogs) and call the LSP server directly via `client.sendRequest`, so a
+ * command the server does not dispatch fails here rather than silently
+ * returning nothing in the editor.
  */
 import * as assert from "assert";
 import * as vscode from "vscode";
@@ -55,7 +55,7 @@ suite("LSP Command Execution", () => {
     await activate(docUri);
   });
 
-  // -- minifyDocument (the command that was broken) ----------------------------
+  // -- minifyDocument ---------------------------------------------------------
 
   test("tcl-lsp.minifyDocument returns minified source", async () => {
     const uri = docUri.toString();
@@ -563,6 +563,31 @@ suite("LSP Command Execution", () => {
   test("tcl-lsp.xcTranslate handles empty source", async () => {
     const result = await execLspCommand("tcl-lsp.xcTranslate", "", "both");
     assert.strictEqual(result, null, "empty source should return null");
+  });
+
+  test("tcl-lsp.xcTranslate returns both output documents", async () => {
+    // The palette entry opens a scratch tab per document and reports the
+    // coverage, so all three fields have to come back from the server.
+    const result = (await execLspCommand(
+      "tcl-lsp.xcTranslate",
+      'when HTTP_REQUEST {\n    if { [HTTP::uri] starts_with "/api" } {\n        pool api_pool\n    }\n}\n',
+      "both",
+    )) as {
+      terraform: string;
+      json_api: Record<string, unknown>;
+      coverage_pct: number;
+      translatable_count: number;
+      items: Array<Record<string, unknown>>;
+    } | null;
+    assert.ok(result, "xcTranslate should return a result");
+    assert.ok(result.terraform.includes("volterra_origin_pool"), "should render Terraform HCL");
+    assert.ok(result.json_api, "should render the JSON API document");
+    assert.strictEqual(typeof result.coverage_pct, "number", "should report coverage");
+    assert.ok(result.translatable_count > 0, "the pool selection is translatable");
+    assert.ok(
+      result.items.some((i) => i.status === "translated"),
+      "items should be status-tagged",
+    );
   });
 
   // -- describeIruleEvent -----------------------------------------------------

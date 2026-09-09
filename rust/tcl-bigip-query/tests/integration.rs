@@ -44,6 +44,8 @@ mod graph;
 mod hardening;
 #[path = "integration/math.rs"]
 mod math;
+#[path = "integration/modules.rs"]
+mod modules;
 #[path = "integration/net.rs"]
 mod net;
 #[path = "integration/output.rs"]

@@ -136,7 +136,7 @@ pub struct CmdTrace {
     /// (see [`TraceTable::firing_exec_traces`]).
     pub id: u64,
     /// The generation of the command **token** this trace hangs off, or `None`
-    /// when the binding had none (a hidden command).
+    /// when an internal caller had no bound token to identify.
     ///
     /// C keeps the list on the `Command` itself and frees exactly that list
     /// when the token dies. Our registry is keyed by FQN, so a delete callback
@@ -164,6 +164,8 @@ pub struct CmdTrace {
 pub struct StepActive {
     /// The FQN of the command whose execution we are stepping (for dedup).
     pub owner: Vec<u8>,
+    /// Exact command generation whose trace installed this step observer.
+    pub token: Option<u64>,
     /// The step ops (`ENTERSTEP`/`LEAVESTEP`) and the callback prefix.
     pub ops: u8,
     pub command: Vec<u8>,
@@ -263,7 +265,7 @@ pub struct TraceTable {
     /// guards those per `Command` (`CMD_TRACE_ACTIVE`, and `CMD_DYING` for a
     /// deletion), not interpreter-wide: a callback that deletes a *different*
     /// command still fires that command's own delete traces, nested.
-    pub firing_cmd_traces: Vec<Vec<u8>>,
+    pub firing_cmd_traces: Vec<(Vec<u8>, Option<u64>)>,
     /// Source→destination FQN pairs for the `rename` windows currently open,
     /// innermost last. C creates the destination hash entry, fires the
     /// `rename` traces and only then deletes the source, and *both* entries
@@ -512,11 +514,11 @@ fn cmd_trace_add_remove(
     // list: C hangs the traces off the shared `Command`, not off either hash
     // entry, so both names edit the one list.
     let fqn = interp.renamed_cmd_key(&fqn).unwrap_or(fqn);
+    let token = interp.resolve_cmd_token(&fqn);
     let command = obj_bytes(argv[5]);
     if is_add {
         // The trace belongs to the token standing at `fqn` now, not to the
         // name (C hangs it off `cmdPtr->tracePtr`).
-        let token = interp.resolve_cmd_token(&fqn);
         let mut traces = interp.traces.borrow_mut();
         traces.next_cmd_trace_id += 1;
         let id = traces.next_cmd_trace_id;
@@ -534,12 +536,9 @@ fn cmd_trace_add_remove(
         // "first" is C's `FOREACH_COMMAND_TRACE` head→tail order and its head
         // is the newest registration — so among duplicates the newest goes.
         // Our Vec is oldest-first, hence `rposition`. Issue #1440.
-        let pos = interp
-            .traces
-            .borrow()
-            .cmd_traces
-            .iter()
-            .rposition(|t| t.name == fqn && t.ops == flags && t.command == command);
+        let pos = interp.traces.borrow().cmd_traces.iter().rposition(|t| {
+            t.name == fqn && t.token == token && t.ops == flags && t.command == command
+        });
         if let Some(i) = pos {
             let mut traces = interp.traces.borrow_mut();
             if traces.trace_walk_in_flight() {
@@ -576,6 +575,7 @@ fn cmd_trace_info(interp: &mut Interp, argv: &[*mut TclObj], category: u8) -> Co
     // As in `cmd_trace_add_remove`: a rename's vacating name answers with the
     // destination's list, because C keeps one list on the shared `Command`.
     let fqn = interp.renamed_cmd_key(&fqn).unwrap_or(fqn);
+    let token = interp.resolve_cmd_token(&fqn);
     // (bit, label) pairs in C's print order for each category.
     let order: &[(u8, &[u8])] = if category == ops::EXEC_ANY {
         &[
@@ -589,7 +589,7 @@ fn cmd_trace_info(interp: &mut Interp, argv: &[*mut TclObj], category: u8) -> Co
     };
     let mut entries: Vec<*mut TclObj> = Vec::new();
     for t in interp.traces.borrow().cmd_traces.iter().rev() {
-        if t.name != fqn || (t.ops & category) == 0 {
+        if t.name != fqn || t.token != token || (t.ops & category) == 0 {
             continue;
         }
         let op_objs: Vec<*mut TclObj> = order
@@ -1022,6 +1022,62 @@ mod tests {
             ok(i, b"proc foo {} {}");
             ok(i, b"trace add command foo {delete rename} cb");
             assert_eq!(ok(i, b"trace info command foo"), b"{{rename delete} cb}");
+        });
+    }
+
+    /// Hidden and visible commands may use the same display spelling at once.
+    /// Their trace lists follow their command generations independently.
+    #[test]
+    fn hidden_and_visible_same_name_traces_remain_isolated() {
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    br#"set log {}
+                        proc hc {old new op} {
+                            lappend ::log [list hidden $old $new $op]
+                        }
+                        proc vc {old new op} {
+                            lappend ::log [list visible $old $new $op]
+                        }
+                        proc old {} {return OLD}
+                        trace add command old delete hc
+                        interp hide {} old shared
+                        proc shared {} {return NEW}
+                        trace add command shared delete vc
+                        set before [trace info command shared]
+                        rename shared {}
+                        set mid $log
+                        interp expose {} shared exposed
+                        set after [trace info command exposed]
+                        rename exposed {}
+                        list $before $mid $after $log"#,
+                ),
+                br#"{{delete vc}} {{visible ::shared {} delete}} {{delete hc}} {{visible ::shared {} delete} {hidden ::exposed {} delete}}"#,
+            );
+        });
+    }
+
+    /// `interp invokehidden` dispatches a real command token even though
+    /// namespace lookup cannot see it. Its execution trace sidecar follows the
+    /// hidden binding and is selected by that binding's generation.
+    #[test]
+    fn invokehidden_runs_the_hidden_commands_execution_traces() {
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    br#"set log {}
+                        proc cb args {global log; lappend log $args}
+                        proc foo {} {set x 1; return ok}
+                        trace add execution foo {enter leave enterstep leavestep} cb
+                        interp hide {} foo h
+                        set result [interp invokehidden {} h]
+                        interp expose {} h visible
+                        list $result $log [trace info execution visible]"#,
+                ),
+                br#"ok {{h enter} {{set x 1} enterstep} {{set x 1} 0 1 leavestep} {{return ok} enterstep} {{return ok} 2 ok leavestep} {h 0 ok leave}} {{{enter leave enterstep leavestep} cb}}"#,
+            );
         });
     }
 

@@ -1,0 +1,160 @@
+{
+  "version": 1,
+  "canonical_glob": "**/*.test.js",
+  "exclude": [
+    "multiFolder/**"
+  ],
+  "multi_folder_files": [
+    "multiFolderConfig.test.js"
+  ],
+  "expected_tests": {
+    "single_root": {
+      "identities": 977,
+      "passed": 976,
+      "pending": 1
+    },
+    "multi_folder": {
+      "identities": 14,
+      "passed": 14,
+      "pending": 0
+    }
+  },
+  "assignment": {
+    "status": "hosted-duration-balanced",
+    "method": "deterministic longest-processing-time assignment from hosted file durations, with serverHealth.test.js fixed in partition 1; filenames break duration ties and the lowest partition index breaks load ties",
+    "hosted_measurements": {
+      "run_id": 34320581260,
+      "head_sha": "a845d855216e282f7b9e918e3433a3712ee09ed9",
+      "producer_jobs": {
+        "1": 102366472957,
+        "2": 102366472969,
+        "3": 102366473057
+      },
+      "before_partition_ms": [
+        28817,
+        63001,
+        94948
+      ],
+      "projected_partition_ms": [
+        62255,
+        62256,
+        62255
+      ]
+    },
+    "measurement_field": "fileDurationsMs"
+  },
+  "partitions": {
+    "1": [
+      "aliasTracking.test.js",
+      "arityLoopPrecision.test.js",
+      "callHierarchy.test.js",
+      "chatUtilities.test.js",
+      "closedFileRetention.test.js",
+      "codeActions.test.js",
+      "commandAliasTracking.test.js",
+      "definition.test.js",
+      "diagnostics.test.js",
+      "errorRecovery.test.js",
+      "extensionActivation.test.js",
+      "grammar.test.js",
+      "highlightingHealth.test.js",
+      "hover.test.js",
+      "ilxReferences.test.js",
+      "inlayHints.test.js",
+      "issue1305RenamedMetaclass.test.js",
+      "issue954Followup.test.js",
+      "issue969.test.js",
+      "issue977.test.js",
+      "precisionReview2.test.js",
+      "progress.test.js",
+      "selectionTransforms.test.js",
+      "serverHealth.test.js",
+      "sourceIntegrity.test.js",
+      "specPackTorture.test.js",
+      "sslictclAuthoring.test.js",
+      "stickyScroll.test.js",
+      "unicodePositions.test.js",
+      "unusedParamPrecision.test.js",
+      "variableCompletion.test.js",
+      "w003.test.js",
+      "workspaceFileOps.test.js",
+      "workspaceSymbols.test.js"
+    ],
+    "2": [
+      "codeLens.test.js",
+      "compilerExplorerWebview.test.js",
+      "completion.test.js",
+      "crossFileDiagnostics.test.js",
+      "diffAnalysis.test.js",
+      "documentLinks.test.js",
+      "documentSymbols.test.js",
+      "formatting.test.js",
+      "iruleSkeleton.test.js",
+      "issue1019ProcArgs.test.js",
+      "issue1302ImportShadow.test.js",
+      "issue1312NamedObject.test.js",
+      "issue923NsPkgAudit.test.js",
+      "issue945.test.js",
+      "issue968.test.js",
+      "issue976.test.js",
+      "linkedEditingRange.test.js",
+      "nameResolution.test.js",
+      "nestedSelfRedefinition.test.js",
+      "packFileAssociations.test.js",
+      "refactorActions.test.js",
+      "references.test.js",
+      "reportStyle.test.js",
+      "runnerWatchdog.test.js",
+      "runtimeValidation.test.js",
+      "selectionRange.test.js",
+      "shimmerPrecision.test.js",
+      "showReferences.test.js",
+      "signatureHelp.test.js",
+      "stickyScrollHealth.test.js",
+      "templateSnippets.test.js",
+      "typeDefinition.test.js",
+      "w120WorkspaceReschedule.test.js",
+      "waitDiscipline.test.js",
+      "willSaveWaitUntil.test.js"
+    ],
+    "3": [
+      "callerFrameCluster.test.js",
+      "commandExecution.test.js",
+      "commands.test.js",
+      "configSettings.test.js",
+      "declaration.test.js",
+      "diagnosticTags.test.js",
+      "diagramPrompt.test.js",
+      "dialectDetection.test.js",
+      "documentHighlight.test.js",
+      "exprMathFunc.test.js",
+      "foldingRanges.test.js",
+      "i230WordOperator.test.js",
+      "implementation.test.js",
+      "issue1138ListBuiltScript.test.js",
+      "issue1281EnsembleRename.test.js",
+      "issue1296MetaclassChain.test.js",
+      "issue1303FactoryInference.test.js",
+      "issue1329SelfDispatch.test.js",
+      "issue923Callbacks.test.js",
+      "issue996.test.js",
+      "languageRegistration.test.js",
+      "precisionFalsePositives.test.js",
+      "precisionReview.test.js",
+      "previewTickets.test.js",
+      "progressiveDiagnostics.test.js",
+      "pullDiagnostics.test.js",
+      "renameSymbol.test.js",
+      "scaffold.test.js",
+      "semanticTokens.test.js",
+      "serverResolution.test.js",
+      "snippets.test.js",
+      "specPacks.test.js",
+      "tkChildInterp.test.js",
+      "tkPreviewHtml.test.js",
+      "uplevelIndirectSet.test.js",
+      "variableContexts.test.js",
+      "webWorkspaceSync.test.js"
+    ]
+  }
+}
