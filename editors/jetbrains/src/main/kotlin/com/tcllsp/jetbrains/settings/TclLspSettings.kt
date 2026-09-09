@@ -285,6 +285,13 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
 
     var styleLineLength: Int = 120
 
+    // Workspace scan
+
+    // Most on-disk Tcl files the server's start-up workspace scan indexes,
+    // across every workspace folder (issue #2021). Open files are always
+    // analysed regardless.
+    var workspaceScanMaxFiles: Int = 2000
+
     // @generated:optimiser-vars:begin
     var optimiserEnabled: Boolean = true
     var optimiserProfile: String = "readability"
@@ -607,6 +614,9 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
             },
             "style" to mapOf(
                 "lineLength" to styleLineLength,
+            ),
+            "workspaceScan" to mapOf(
+                "maxFiles" to workspaceScanMaxFiles,
             ),
             "optimiser" to mapOf(
                 // @generated:optimiser-map:begin

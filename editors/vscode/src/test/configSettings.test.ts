@@ -713,6 +713,14 @@ suite("Configuration Settings", () => {
     assert.strictEqual(cfg().get<string>("style.nonAscii"), "confusables");
   });
 
+  // Workspace scan budget (#2021): a declared, session-scoped integer whose
+  // default is the server's built-in cap.
+  test("workspaceScan.maxFiles defaults to 2000", () => {
+    const inspected = cfg().inspect<number>("workspaceScan.maxFiles");
+    assert.ok(inspected, "workspaceScan.maxFiles must be a declared setting");
+    assert.strictEqual(cfg().get<number>("workspaceScan.maxFiles"), 2000);
+  });
+
   // Trace
   test("tcl-lsp.trace.server defaults to off", () => {
     const value = vscode.workspace.getConfiguration("tcl-lsp").get<string>("trace.server");

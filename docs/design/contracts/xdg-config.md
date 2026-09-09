@@ -259,6 +259,25 @@ through `tclLsp.formatting.*` but the INI parser does not read.
 | `line_length` | int | `120` | W111 line-length threshold |
 | `nonAscii` | `off`/`strict`/`confusables`/`common` | per-dialect auto | W108 non-ASCII detection mode; an unknown value falls back to the auto behaviour |
 
+### `[workspaceScan]`
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `max_files` | int | `2000` | How many on-disk Tcl files the start-up workspace scan reads and indexes, counted across every workspace folder |
+
+The budget bounds the scan so a very large tree cannot stall start-up; files
+past it are absent from the cross-file index (workspace symbols, cross-file
+definitions, `package require` resolution, W120/W123), so raise it for a
+project with more Tcl files than the default and lower it on a slow machine.
+Documents open in the editor are always analysed regardless of it. The key is
+**session scoped**: one scan serves every folder, so a per-folder value has no
+meaning — the primary root's merged configuration is what applies. The editor
+spelling is `tclLsp.workspaceScan.maxFiles` (`maxFiles` is accepted in the INI
+too, so exported settings paste back). A value below 1 is ignored, as is a
+non-integer. Changing it re-runs the scan
+(`Backend::apply_workspace_scan_budget`), the same treatment a `libraryPaths`
+change gets.
+
 ### `[packages]` / `[packages.provides]`
 
 How the modelled interpreter loads packages: `preferLatest` sets the starting
@@ -293,6 +312,9 @@ indent_style = tabs
 
 [style]
 line_length = 100
+
+[workspaceScan]
+max_files = 6000
 ```
 
 ## Implementation

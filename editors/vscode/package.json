@@ -9485,6 +9485,20 @@
             "order": 2
           }
         }
+      },
+      {
+        "title": "Workspace Scan",
+        "order": 21,
+        "properties": {
+          "tclLsp.workspaceScan.maxFiles": {
+            "scope": "window",
+            "type": "integer",
+            "default": 2000,
+            "minimum": 1,
+            "markdownDescription": "Most Tcl files the server reads from disk when it indexes the workspace at start-up, counted across every workspace folder. The index is what cross-file features (workspace symbols, go-to-definition into an unopened file, `package require` resolution, unresolved-command warnings) are answered from, so files beyond this budget are simply missing from those answers. The budget exists so a very large tree cannot stall start-up; raise it if your project has more Tcl files than this, lower it on a slow machine or a slow network drive. Files you actually open are always analysed, whatever this is set to. Session-wide: one scan serves every folder, so this cannot be set per folder. Also settable in `.tcl-lsp.ini` / `config.ini` as `[workspaceScan] max_files`.",
+            "order": 0
+          }
+        }
       }
     ]
   },

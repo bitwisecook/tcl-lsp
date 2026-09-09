@@ -106,6 +106,8 @@ mod issue1707_ilx_methods;
 /// is still running.
 #[path = "e2e/issue2021_exit_watchdog.rs"]
 mod issue2021_exit_watchdog;
+#[path = "e2e/issue2021_workspace_scan_cap.rs"]
+mod issue2021_workspace_scan_cap;
 #[path = "e2e/issue923_class_refs.rs"]
 mod issue923_class_refs;
 #[path = "e2e/issue923_crossdoc.rs"]

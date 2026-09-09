@@ -405,6 +405,9 @@ class TclLspSettingsPanel {
     // Style
     private val styleLineLength = JSpinner(SpinnerNumberModel(120, 40, 500, 10))
 
+    // Workspace scan
+    private val workspaceScanMaxFiles = JSpinner(SpinnerNumberModel(2000, 1, 1_000_000, 500))
+
     // @generated:opt-checkboxes:begin
     private val optEnabled = JBCheckBox("Enable optimiser suggestions")
     private val optProfile = JComboBox(arrayOf("off", "readability", "standard", "full", "aggressive"))
@@ -663,6 +666,18 @@ class TclLspSettingsPanel {
         // Style section
         builder.addComponent(TitledSeparator("Style"))
         builder.addLabeledComponent(JBLabel("Line length (W111 threshold):"), styleLineLength)
+
+        // Workspace scan section
+        builder.addComponent(TitledSeparator("Workspace Scan"))
+        builder.addLabeledComponent(JBLabel("Most files to index:"), workspaceScanMaxFiles)
+        builder.addWrappedComment(
+            "How many Tcl files the server reads from disk when it indexes the " +
+                "project, across every content root. Cross-file results (workspace " +
+                "symbols, go to definition into an unopened file, package require " +
+                "resolution) only cover files inside this budget; raise it for a large " +
+                "project, lower it on a slow machine. Files you open are always " +
+                "analysed regardless.",
+        )
 
         // @generated:opt-ui:begin
         builder.addComponent(TitledSeparator("Optimiser"))
@@ -951,6 +966,8 @@ class TclLspSettingsPanel {
             xcDiagnosticsEnabled.isSelected != s.xcDiagnosticsEnabled ||
             // Style
             (styleLineLength.value as Int) != s.styleLineLength ||
+            // Workspace scan
+            (workspaceScanMaxFiles.value as Int) != s.workspaceScanMaxFiles ||
             // @generated:opt-dirty:begin
             optEnabled.isSelected != s.optimiserEnabled ||
             optProfile.selectedItem != s.optimiserProfile ||
@@ -1243,6 +1260,7 @@ class TclLspSettingsPanel {
         s.xcDiagnosticsEnabled = xcDiagnosticsEnabled.isSelected
 
         s.styleLineLength = styleLineLength.value as Int
+        s.workspaceScanMaxFiles = workspaceScanMaxFiles.value as Int
 
         // @generated:opt-apply:begin
         s.optimiserEnabled = optEnabled.isSelected
@@ -1582,6 +1600,7 @@ class TclLspSettingsPanel {
         xcDiagnosticsEnabled.isSelected = s.xcDiagnosticsEnabled
 
         styleLineLength.value = s.styleLineLength
+        workspaceScanMaxFiles.value = s.workspaceScanMaxFiles
 
         // @generated:opt-reset:begin
         optEnabled.isSelected = s.optimiserEnabled
