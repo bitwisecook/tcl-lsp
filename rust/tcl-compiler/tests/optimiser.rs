@@ -1305,13 +1305,20 @@ fn tail_call_loop_conversion_o122() {
     // O122 rewrites tail recursion to a `while {1}` loop. tclsh proved factorial
     // and gcd loop-forms equal the recursive originals.
     let fac = "proc factorial {n acc} {\n    if {$n <= 1} {\n        return $acc\n    }\n    return [factorial [expr {$n - 1}] [expr {$n * $acc}]]\n}\n";
-    // The overlap selection prefers the per-site O121 `tailcall` rewrite for this
-    // body and emits O121, not the whole-proc O122 loop conversion. Both are
-    // semantically faithful (tclsh: tailcall factorial form == 120). Assert the
-    // applied rewrite is a sound tail-call form (tailcall OR while-loop).
+    // Both arguments are bracketed words, so the call passes one argument per
+    // parameter and O122 takes the whole proc; overlap selection prefers it
+    // over the per-site O121 `tailcall` covering the same range. tclsh proved
+    // the loop form equals the recursive original for n in 0..20.
     let fo = optimised(fac, TCL);
-    assert!(fo.contains("tailcall factorial") || fo.contains("while {1}"));
-    assert!(opt_fires(fac, TCL, "O121") || opt_fires(fac, TCL, "O122"));
+    assert!(
+        fo.contains("while {1}"),
+        "expected the loop conversion: {fo}"
+    );
+    assert!(
+        fo.contains("lassign [list [expr {$n - 1}] [expr {$n * $acc}]] n acc"),
+        "each bracketed argument must stay one word: {fo}",
+    );
+    assert!(opt_fires(fac, TCL, "O122"));
 
     // The bare self-call `loop` body DOES take the O122 loop conversion.
     let bare = "proc loop {items} {\n    if {[llength $items] == 0} {\n        return\n    }\n    puts [lindex $items 0]\n    loop [lrange $items 1 end]\n}\n";
