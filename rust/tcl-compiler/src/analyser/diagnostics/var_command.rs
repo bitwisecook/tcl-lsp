@@ -896,7 +896,7 @@ impl Analyser {
     /// The lattice read is what keeps this diagnostic and the LSP's
     /// navigation from disagreeing on one document: a handle the lattice can
     /// type — e.g. `set b [$a make]`, the method-return edge — must never
-    /// draw the W307 "cannot statically analyze" warning that hover and
+    /// draw the W307 "cannot statically analyse" warning that hover and
     /// go-to-definition contradict.  Only the
     /// *scoped* map is read (never the scope-blind union), so a same-named
     /// variable in an unrelated proc cannot enable a false W308/E001 here.
