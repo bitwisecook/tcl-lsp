@@ -21516,6 +21516,10 @@ struct DialectActionInputs<'a> {
     dialect: &'static tcl_dialect::DialectProfile,
     analysis: &'a tcl_compiler::analyser::AnalysisResult,
     registry: &'a tcl_registry::CommandRegistry,
+    /// The codes `tclLsp.diagnostics.<CODE> = false` turns off, which the
+    /// compiler-check actions filter by alongside the analysis's own
+    /// `# noqa` map.
+    disabled: &'a std::collections::HashSet<String>,
     /// The diagnostics the editor is currently showing on the document — the
     /// channel a notice published outside the analyser pipeline arrives on.
     context_diags: &'a [core_code_actions::ContextDiagnostic],
@@ -21559,20 +21563,21 @@ fn push_context_code_actions(
 /// noqa-suppress action (S100/S101/S102/S110).
 ///
 /// Every dialect's checks are lowered here, not just iRules' — a plain-Tcl
-/// document's checks simply carry no IRULE-family fixes.
-fn push_check_code_actions(
-    actions: &mut Vec<core_code_actions::CodeAction>,
+/// document's checks simply carry no IRULE-family fixes. A check the document
+/// disables or already silences with a `# noqa` contributes nothing.
+fn check_actions(
     source: &str,
     range: core_definition::LspRange,
     checks: &tcl_lsp_db::CompilerDiagnostics,
-    disabled_codes: &std::collections::HashSet<String>,
-) {
-    actions.extend(core_code_actions::check_diagnostic_actions(
+    inputs: &DialectActionInputs<'_>,
+) -> Vec<core_code_actions::CodeAction> {
+    core_code_actions::check_diagnostic_actions(
         source,
         range,
         &checks.checks,
-        disabled_codes,
-    ));
+        inputs.disabled,
+        &inputs.analysis.suppressed_lines,
+    )
 }
 
 impl Backend {
@@ -24286,6 +24291,7 @@ impl LanguageServer for Backend {
                 dialect: tcl_lsp_core::profile_for_dialect(&dialect),
                 analysis: &analysis,
                 registry: &registry,
+                disabled: &disabled_codes,
                 context_diags: &context_diags,
             };
             push_dialect_code_actions(&mut actions, &doc.text, range, &dialect_inputs);
@@ -24296,7 +24302,7 @@ impl LanguageServer for Backend {
                 generic_patterns.as_deref(),
                 evidence.as_deref(),
             );
-            push_check_code_actions(&mut actions, &doc.text, range, &checks, &disabled_codes);
+            actions.extend(check_actions(&doc.text, range, &checks, &dialect_inputs));
             actions
         })
         .await
