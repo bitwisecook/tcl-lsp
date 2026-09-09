@@ -113,9 +113,16 @@ spec's does, so the two behave alike:
 - `body` — the word is analysed as a script. Its commands resolve (an unknown
   one inside it draws its own hint), and the procedures it calls become
   outgoing edges of the enclosing proc in the call graph.
+- `expr` — the word is an expression, so it draws the expression diagnostics
+  (an unbraced operand is a double-substitution risk, `W100`), and a
+  `[cmd …]` substituted inside it is a call even when the operand is braced.
 - `var` — the word names a variable the command writes, so it is defined from
   that call onwards and reading it afterwards is not "read before it is set"
   (`W210`).
+
+Roles follow the call, not the declaration text. An optional slot the call
+leaves out shifts every role after it, so `stub fetch {?table? row:var}`
+called as `fetch out` writes `out`.
 
 One exception: a body that would run somewhere other than the calling frame
 and namespace is analysed on its own terms, so it never contributes an edge
@@ -162,9 +169,9 @@ an operator when you leave it out.
 
 - Run `tcl diag <file>` and confirm the `W123 Unknown command` hint on the
   stubbed command is gone.
-- Run `tcl callgraph <file>` and check that the procs called from inside the
-  stubbed command's `body` argument appear as outgoing edges from the
-  caller.
+- Run `tcl callgraph <file>` and check that the procs the stubbed command
+  reaches — called from inside a `body` argument, or substituted inside an
+  `expr` argument — appear as outgoing edges from the caller.
 - Run `tcl diag <file>` and check that a variable the stub declares `var` no
   longer draws `W210 Variable '…' is read before it is set` where the
   command writes it.

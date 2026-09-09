@@ -2059,32 +2059,46 @@ fn scan_call_statement(
         }
     }
     scan_call_facts(command, args, ctx, facts);
+    scan_role_code_arguments(command, args, ctx, facts);
 }
 
-/// Recurse into the [`ArgRole::Body`] arguments of a statement that carries
-/// its script as opaque words, recording the calls that script makes as edges
-/// of the enclosing unit.
+/// Recurse into the code-bearing arguments of a statement that carries them
+/// as opaque words, recording the calls they make as edges of the enclosing
+/// unit.
 ///
-/// A body command with no dedicated lowering — `time {…}`, and every
-/// stub-declared `script:body` — reaches the IR as a `Statement::Barrier`
-/// holding its own words. The barrier makes the call's *effects* opaque; it
-/// does not make the script unreadable, and the procedures that script calls
-/// are exactly as reachable as those in an `eval` body, which lowering
-/// splices inline and this scan already walks. A callback proc reached only
-/// through such a body is live code, not a call-graph leaf.
+/// A command whose script or expression argument has no dedicated lowering —
+/// `time {…}`, and every declared `script:body` / `cond:expr` — reaches the
+/// IR as a plain `Statement::Call` or `Statement::Barrier` holding its own
+/// words. A barrier makes the call's *effects* opaque; neither shape makes
+/// the code unreadable, and the procedures that code calls are exactly as
+/// reachable as those in an `eval` body, which lowering splices inline and
+/// this scan already walks. A callback proc reached only this way is live
+/// code, not a call-graph leaf.
 ///
-/// A body that does not run in the caller's frame *and* namespace is left
+/// [`ArgRole::Body`] words are scanned as scripts and [`ArgRole::Expr`] words
+/// for the `[cmd …]` substitutions the expression engine re-evaluates, which
+/// is what [`scan_source_for_calls`] does for the same two roles.
+/// [`ArgRole::LambdaLiteral`] stays with that scanner alone: splitting a
+/// `{params body ?ns?}` list needs the word's token, and a statement carries
+/// only its text.
+///
+/// Code that does not run in the caller's frame *and* namespace is left
 /// alone. Lowering registers those as their own body units, which the
 /// call-site scan visits under the namespace they actually target; walking
 /// one here would instead invent an edge to a same-named proc in the
 /// caller's namespace (the rule issues #977 / #980 set for the call-site
 /// evidence scan).
 ///
-/// The body text starts a fresh [`MAX_BRACKET_TEXT_DEPTH`] scan (depth 0),
-/// like the `[cmd …]` substitution scans beside it: that counter bounds
-/// recursion *within* re-segmented text, and is not the statement-tree depth
-/// the caller is carrying.
-fn scan_role_bodies(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut LocalFacts) {
+/// Each word starts a fresh [`MAX_BRACKET_TEXT_DEPTH`] scan (depth 0), like
+/// the `[cmd …]` substitution scans beside it: that counter bounds recursion
+/// *within* re-segmented text, and is not the statement-tree depth the caller
+/// is carrying.
+fn scan_role_code_arguments(
+    command: &str,
+    args: &[String],
+    ctx: ScanCtx<'_>,
+    facts: &mut LocalFacts,
+) {
     use tcl_registry::prelude::Traits;
     let surface = ctx.surface();
     let resolved: &str = ctx.identities.resolve_unpositioned(command).spec_name();
@@ -2098,7 +2112,7 @@ fn scan_role_bodies(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mu
         return;
     }
     // An absolutely-spelled name / namespace word says the same thing the
-    // traits above do for the commands that carry neither: the body resolves
+    // traits above do for the commands that carry neither: the code resolves
     // somewhere other than here.
     if [
         tcl_registry::ArgRole::NamespaceName,
@@ -2116,6 +2130,21 @@ fn scan_role_bodies(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mu
             scan_source_for_calls(body_text, ctx, facts, 0);
         }
     }
+    for index in surface.arg_indices_for_role(resolved, &arg_strs, tcl_registry::ArgRole::Expr) {
+        if let Some(expr_text) = args.get(index) {
+            scan_value_substitutions(strip_one_brace_layer(expr_text), ctx, facts, 0);
+        }
+    }
+}
+
+/// An expression operand's inner text: `expr {…}`'s brace quoting suppresses
+/// substitution at the word level, but the expression engine re-evaluates the
+/// contents, so a `[cmd …]` inside is a real call. An unbraced operand
+/// (`[q]`, `$x`) is already its own inner text.
+fn strip_one_brace_layer(word: &str) -> &str {
+    word.strip_prefix('{')
+        .and_then(|inner| inner.strip_suffix('}'))
+        .unwrap_or(word)
 }
 
 /// `depth` is `stmt`'s own nesting level — see
@@ -2140,7 +2169,7 @@ fn scan_statement(
             // lower to a barrier retain their callback edge too — and neither
             // does it erase the script its `ArgRole::Body` words carry.
             scan_call_facts(command, args, ctx, facts);
-            scan_role_bodies(command, args, ctx, facts);
+            scan_role_code_arguments(command, args, ctx, facts);
             facts.has_barrier = true;
             facts.local_pure = false;
             facts.effect_reads |= EffectRegion::UNKNOWN_STATE;
@@ -2590,11 +2619,7 @@ fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts,
         );
         for idx in expr_indices {
             if let Some(arg) = texts.get(idx) {
-                let inner = arg
-                    .strip_prefix('{')
-                    .and_then(|s| s.strip_suffix('}'))
-                    .unwrap_or(arg);
-                scan_value_substitutions(inner, ctx, facts, depth + 1);
+                scan_value_substitutions(strip_one_brace_layer(arg), ctx, facts, depth + 1);
             }
         }
         // A `[cmd …]` substitution inside a *plain* value arg also executes in

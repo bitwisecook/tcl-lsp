@@ -65,6 +65,16 @@ fn w210(source: &str) -> Vec<String> {
 }
 
 /// Whether the call graph of `source` records `from → to`.
+/// Every diagnostic code `source` draws.
+fn codes(source: &str) -> Vec<String> {
+    Analyser::new()
+        .analyse(source, DIALECT)
+        .diagnostics
+        .iter()
+        .map(|d| d.code.to_string())
+        .collect()
+}
+
 fn calls(source: &str, from: &str, to: &str) -> bool {
     edges(source)
         .iter()
@@ -171,6 +181,134 @@ fn a_stub_declared_body_is_analysed_as_a_script() {
         "the stubbed body's own commands are resolved; got {found:?}"
     );
     assert!(found[0].contains("totally_unknown_cmd"), "got {found:?}");
+}
+
+// ───────────────────────── ArgRole::Expr → call graph ─────────────────────
+
+/// The registry baseline: brace quoting suppresses substitution at the word
+/// level, but the expression engine re-evaluates the operand, so a `[cmd …]`
+/// inside `expr {…}` is a real call.
+#[test]
+fn registry_expr_role_is_a_call_graph_edge() {
+    let source = "proc score {} { return 1 }\nproc main {} { expr {[score] > 0} }\n";
+    assert!(
+        calls(source, "::main", "::score"),
+        "an expression operand's substitutions are calls; got {:?}",
+        edges(source)
+    );
+}
+
+/// The same fact declared by a stub: `cond:expr` makes the word an
+/// expression, so the command substituted inside it is a call.
+#[test]
+fn stub_expr_role_is_a_call_graph_edge() {
+    let source = concat!(
+        "# tcl-lsp: stubs-begin\n",
+        "# tcl-lsp: stub assert_that {cond:expr}\n",
+        "# tcl-lsp: stubs-end\n",
+        "proc score {} { return 1 }\n",
+        "proc main {} { assert_that {[score] > 0} }\n",
+    );
+    assert!(
+        calls(source, "::main", "::score"),
+        "a stub-declared expression operand's substitutions are calls; got {:?}",
+        edges(source)
+    );
+}
+
+/// A deferred script is reachable code too: the callback a registry command
+/// schedules for later is an edge of the procedure that schedules it.
+#[test]
+fn a_deferred_registry_body_is_a_call_graph_edge() {
+    let source = "proc on_row {} { puts row }\nproc main {} {\n    after 100 { on_row }\n}\n";
+    assert!(
+        calls(source, "::main", "::on_row"),
+        "a scheduled script's calls are the scheduler's own; got {:?}",
+        edges(source)
+    );
+}
+
+/// An expression operand draws the expression diagnostics whichever source
+/// declared it: an unbraced one is a double-substitution risk either way.
+#[test]
+fn a_stub_declared_expression_draws_the_unbraced_warning() {
+    let registry = "proc main {x} { if $x { puts hi } }\n";
+    assert!(
+        codes(registry).contains(&"W100".to_owned()),
+        "the registry baseline warns on an unbraced expression; got {:?}",
+        codes(registry)
+    );
+    let stubbed = concat!(
+        "# tcl-lsp: stubs-begin\n",
+        "# tcl-lsp: stub calculate {condition:expr}\n",
+        "# tcl-lsp: stubs-end\n",
+        "proc main {x} { calculate $x }\n",
+    );
+    assert!(
+        codes(stubbed).contains(&"W100".to_owned()),
+        "a stub-declared expression warns the same way; got {:?}",
+        codes(stubbed)
+    );
+}
+
+// ────────────────────────── optional argument slots ───────────────────────
+
+/// A declared position is not a call position. With the optional slot
+/// omitted, the `var` role lands on the word the call actually passed.
+#[test]
+fn an_omitted_optional_slot_shifts_the_var_role() {
+    let source = concat!(
+        "# tcl-lsp: stubs-begin\n",
+        "# tcl-lsp: stub fetch {?table? row:var}\n",
+        "# tcl-lsp: stubs-end\n",
+        "proc main {} {\n",
+        "    fetch out\n",
+        "    puts $out\n",
+        "}\n",
+    );
+    assert!(
+        w210(source).is_empty(),
+        "the write lands on the supplied word, not the declared index; got {:?}",
+        w210(source)
+    );
+}
+
+/// The same shape for a body role: the script is still found when the
+/// optional slot before it is omitted.
+#[test]
+fn an_omitted_optional_slot_shifts_the_body_role() {
+    let source = concat!(
+        "# tcl-lsp: stubs-begin\n",
+        "# tcl-lsp: stub visit {?context? script:body}\n",
+        "# tcl-lsp: stubs-end\n",
+        "proc on_row {} { puts row }\n",
+        "proc main {} { visit { on_row } }\n",
+    );
+    assert!(
+        calls(source, "::main", "::on_row"),
+        "the body lands on the supplied word; got {:?}",
+        edges(source)
+    );
+}
+
+/// Supplying the optional slot puts the role back where the declaration
+/// writes it, so the shift tracks the call rather than being a fixed offset.
+#[test]
+fn a_supplied_optional_slot_keeps_the_declared_position() {
+    let source = concat!(
+        "# tcl-lsp: stubs-begin\n",
+        "# tcl-lsp: stub fetch {?table? row:var}\n",
+        "# tcl-lsp: stubs-end\n",
+        "proc main {} {\n",
+        "    fetch t out\n",
+        "    puts $out\n",
+        "}\n",
+    );
+    assert!(
+        w210(source).is_empty(),
+        "with the optional word present the write is at index 1; got {:?}",
+        w210(source)
+    );
 }
 
 // ──────────────────────── ArgRole::VarWrite → W210 ────────────────────────

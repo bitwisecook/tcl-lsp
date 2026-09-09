@@ -1318,6 +1318,21 @@ impl Analyser {
         self.ingress_grammar.unwrap_or(self.profile.grammar)
     }
 
+    /// The command surface this document analyses against: `registry` plus
+    /// the document's own `# tcl-lsp: stub` declarations.
+    ///
+    /// A stub states the same kind of fact a `CommandSpec` does, so every
+    /// role query in the walk goes through here rather than reaching for the
+    /// bare catalogue. The registry is passed in because a caller has already
+    /// resolved which one this document analyses under, and sometimes holds
+    /// it as a clone so a `&mut self` step can run beside it.
+    pub(super) fn command_surface<'a>(
+        &'a self,
+        registry: &'a tcl_registry::CommandRegistry,
+    ) -> tcl_registry::model::DocumentCommandSurface<'a> {
+        tcl_registry::model::DocumentCommandSurface::new(registry, self.declared_commands.as_ref())
+    }
+
     /// The body-lexing config for this document: [`Self::grammar`] — the
     /// ingress-resolved grammar, else the profile's — carrying the
     /// dialect-dependent tokenisation flags (`{*}` expansion, the iRules

@@ -1977,7 +1977,10 @@ impl Analyser {
             return;
         };
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let mut indices = registry.arg_indices_for_role(
+        // The document's surface, not the bare catalogue: a declared
+        // `cond:expr` word is an expression operand, so it draws the same
+        // expression diagnostics a registry one does.
+        let mut indices = self.command_surface(registry).arg_indices_for_role(
             cmd_name,
             &arg_strs,
             tcl_registry::arg_role::ArgRole::Expr,
@@ -2095,11 +2098,11 @@ impl Analyser {
         // Asked of the document's surface, not the bare catalogue: a
         // `# tcl-lsp: stub db_eval {sql script:body}` states the same fact a
         // spec's `arg_roles` row does, so its script word is walked like one.
-        let mut body_indices = tcl_registry::model::DocumentCommandSurface::new(
-            registry,
-            self.declared_commands.as_ref(),
-        )
-        .arg_indices_for_role(cmd_name, &body_args, tcl_registry::arg_role::ArgRole::Body);
+        let mut body_indices = self.command_surface(registry).arg_indices_for_role(
+            cmd_name,
+            &body_args,
+            tcl_registry::arg_role::ArgRole::Body,
+        );
         // The registry command name that actually owns the body role — usually
         // `cmd_name`, but the qualified target when an import fallback resolved
         // it.  Used to read the scoped-body environment from the same spec.
