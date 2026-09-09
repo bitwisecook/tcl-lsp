@@ -79,7 +79,7 @@
 //! action's LSP `disabled.reason` so the editor greys the entry out and
 //! explains itself.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
@@ -263,15 +263,25 @@ fn plan_extraction(
 
     let by_name: Vec<String> = roles
         .written
-        .iter()
+        .keys()
         .filter(|name| used_after.contains(*name))
         .cloned()
         .collect();
+    // A name the selection both reads and writes is still an input when the
+    // read comes first and it does not leave by name: `foreach x $x {…}` binds
+    // `x` from a list the caller must hand over, so without that parameter the
+    // moved code reads a variable nothing has set.
     let by_value: Vec<String> = roles
         .read
         .iter()
-        .filter(|name| !roles.written.contains(*name))
-        .cloned()
+        .filter(|(name, first_read)| {
+            !by_name.iter().any(|taken| taken == *name)
+                && roles
+                    .written
+                    .get(*name)
+                    .is_none_or(|visible| *first_read < visible)
+        })
+        .map(|(name, _)| name.clone())
         .collect();
 
     let name = unique_proc_name(analysis, registry);
@@ -300,10 +310,19 @@ fn plan_extraction(
     })
 }
 
-/// The variables the selection reads and writes.
+/// The variables the selection reads and writes, each with the offset that
+/// decides whether a read is an input.
+///
+/// The offsets are what separates `foreach x $x {…}`, whose list word reads
+/// the caller's `x` before the loop rebinds it, from `foreach n {1 2 3} {…$n…}`,
+/// whose body only ever sees the name the loop just bound.
 struct VariableRoles {
-    read: BTreeSet<String>,
-    written: BTreeSet<String>,
+    /// The first offset at which the selection reads each name.
+    read: BTreeMap<String, u32>,
+    /// The first offset from which each written name's new value is visible:
+    /// the end of the assigning command, or the start of a loop body for the
+    /// name that loop binds.
+    written: BTreeMap<String, u32>,
 }
 
 /// The document facts a same-frame statement walk needs, built once per
@@ -320,6 +339,7 @@ struct FrameWalk {
     nesting: &'static CommandRegistry,
     identities: tcl_compiler::realm::CommandBindingRealm,
     config: LexerConfig,
+    expr_surface: tcl_registry::expr_surface::RuntimeExprSurface,
 }
 
 impl FrameWalk {
@@ -331,8 +351,78 @@ impl FrameWalk {
             nesting,
             identities: tcl_compiler::realm::document_realm_bindings(source, dialect, nesting),
             config: LexerConfig::from_grammar(dialect.grammar),
+            expr_surface: tcl_registry::expr_surface::RuntimeExprSurface::for_profile(dialect),
         }
     }
+}
+
+/// The regions of `command` that run in `command`'s own variable frame.
+///
+/// [`crate::references::nested_dispatch_regions`] owns the script ones. It
+/// cannot see inside a *braced* expression argument, which the script lexer
+/// treats as one opaque word and `expr` substitutes itself, so `if {[set x 1]}
+/// …` would hide a write to the caller's `x`.  Those spans come from
+/// [`tcl_syntax::expr::substitution::command_substitution_spans`], the
+/// expression owner's own script bridge, gated on the dialect's runtime
+/// expression surface: an expression the release would reject at run time
+/// substitutes nothing.
+fn same_frame_regions(
+    source: &str,
+    command: &SegmentedCommand,
+    walk: &FrameWalk,
+) -> Vec<(usize, usize)> {
+    let mut regions = crate::references::nested_dispatch_regions_with_identities(
+        source,
+        walk.dialect,
+        walk.nesting,
+        &walk.identities,
+        command,
+    );
+    let head = command.name();
+    let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
+    for index in walk
+        .nesting
+        .arg_indices_for_role(head, &args, ArgRole::Expr)
+    {
+        let Some(token) = command.argv.get(index + 1) else {
+            continue;
+        };
+        // An unbraced or quoted expression word is substituted by the script
+        // lexer before `expr` ever parses it, so its `[…]` are already among
+        // the dispatch regions above; only a braced one needs the expression
+        // parser to find them.
+        if source.as_bytes().get(token.span.start() as usize) != Some(&b'{')
+            || token.content_offset != 1
+        {
+            continue;
+        }
+        let start = token.span.start() as usize + token.content_offset as usize;
+        let end = token.span.end() as usize;
+        let Some(expression) = source.get(start..end) else {
+            continue;
+        };
+        for span in tcl_syntax::expr::substitution::command_substitution_spans(
+            expression,
+            walk.dialect,
+            walk.config,
+            |parsed| walk.expr_surface.validate(parsed).is_ok(),
+        ) {
+            // The span carries the `[` and `]`; the script inside them is what
+            // runs.
+            let (Some(inner_start), Some(inner_end)) = (
+                start.checked_add(span.start() as usize + 1),
+                start
+                    .checked_add(span.end() as usize)
+                    .and_then(|e| e.checked_sub(1)),
+            ) else {
+                continue;
+            };
+            if inner_start < inner_end {
+                regions.push((inner_start, inner_end));
+            }
+        }
+    }
+    regions
 }
 
 /// Every command nested inside `command` that still runs in `command`'s own
@@ -359,13 +449,7 @@ fn nested_same_frame_commands(
     if crate::references::MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
         return;
     }
-    for (start, end) in crate::references::nested_dispatch_regions_with_identities(
-        source,
-        walk.dialect,
-        walk.nesting,
-        &walk.identities,
-        command,
-    ) {
+    for (start, end) in same_frame_regions(source, command, walk) {
         let Some(text) = source.get(start..end) else {
             continue;
         };
@@ -408,30 +492,42 @@ fn classify_variables(
     style: BracedVarStyle,
 ) -> Result<VariableRoles, String> {
     let mut roles = VariableRoles {
-        read: BTreeSet::new(),
-        written: BTreeSet::new(),
+        read: BTreeMap::new(),
+        written: BTreeMap::new(),
     };
     let mut nested = Vec::new();
     for command in selected {
         // One text scan per selected command already covers the `$name` reads
         // of its whole subtree, nested bodies included.
         let (start, end) = command_span_offsets(source, command);
-        roles.read.extend(variable_references(
-            source.get(start as usize..end as usize).unwrap_or(""),
-            style,
-        ));
-        classify_command(command, registry, &mut roles)?;
+        let text = source.get(start as usize..end as usize).unwrap_or("");
+        for (name, at, _) in super::variable_reference_spans(text, style) {
+            let at = start.saturating_add(u32::try_from(at).unwrap_or(0));
+            roles
+                .read
+                .entry(name)
+                .and_modify(|first| *first = (*first).min(at))
+                .or_insert(at);
+        }
+        classify_command(source, command, registry, &mut roles)?;
         nested.clear();
         nested_same_frame_commands(source, command, walk, 0, &mut nested);
         for inner in &nested {
-            classify_command(inner, registry, &mut roles)?;
+            classify_command(source, inner, registry, &mut roles)?;
         }
     }
     Ok(roles)
 }
 
 /// Fold one command's registry-declared variable roles into `roles`.
+///
+/// A write becomes visible only once the command has evaluated its own
+/// arguments, so the offset recorded for it is the command's end — which is
+/// what makes the `$y` of `set y [expr {$y + 1}]` an input.  A loop binding is
+/// visible from its body instead: the words before that body, the list a
+/// `foreach` iterates among them, still read the caller's variable.
 fn classify_command(
+    source: &str,
     command: &SegmentedCommand,
     registry: &CommandRegistry,
     roles: &mut VariableRoles,
@@ -444,19 +540,24 @@ fn classify_command(
         ));
     }
     let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
+    let (command_start, command_end) = command_span_offsets(source, command);
     for index in registry.arg_indices_for_role(head, &args, ArgRole::VarRead) {
         if let Some(name) = args.get(index) {
-            roles.read.insert((*name).to_string());
+            roles
+                .read
+                .entry((*name).to_string())
+                .or_insert(command_start);
         }
     }
     for index in registry.arg_indices_for_role(head, &args, ArgRole::VarWrite) {
         let Some(name) = args.get(index) else {
             continue;
         };
-        roles.written.insert(carriable_written_name(head, name)?);
+        record_write(roles, carriable_written_name(head, name)?, command_end);
     }
     // A loop variable-binding word is a *list* of names (`foreach {k v} …`),
     // so the list owner splits it rather than this module reading it as one.
+    let binds_at = loop_body_start(command, registry, &args).unwrap_or(command_end);
     for index in registry.arg_indices_for_role(head, &args, ArgRole::LoopVarList) {
         let Some(word) = args.get(index) else {
             continue;
@@ -467,10 +568,34 @@ fn classify_command(
             continue;
         };
         for name in names {
-            roles.written.insert(carriable_written_name(head, &name)?);
+            record_write(roles, carriable_written_name(head, &name)?, binds_at);
         }
     }
     Ok(())
+}
+
+/// Record `name` as written, keeping the earliest offset at which its new
+/// value is visible.
+fn record_write(roles: &mut VariableRoles, name: String, at: u32) {
+    roles
+        .written
+        .entry(name)
+        .and_modify(|first| *first = (*first).min(at))
+        .or_insert(at);
+}
+
+/// Where `command`'s first body argument starts — the point from which the
+/// names it binds hold the loop's values rather than the caller's.
+fn loop_body_start(
+    command: &SegmentedCommand,
+    registry: &CommandRegistry,
+    args: &[&str],
+) -> Option<u32> {
+    let index = registry
+        .arg_indices_for_role(command.name(), args, ArgRole::Body)
+        .into_iter()
+        .next()?;
+    Some(command.argv.get(index + 1)?.span.start())
 }
 
 /// `name` as a variable this transform can carry back to the caller, or the
@@ -990,6 +1115,55 @@ mod tests {
     }
 
     // -- TP: caller-frame writes survive via upvar -------------------------
+    /// A name the selection reads *before* it writes is still an input. The
+    /// list word of `foreach x $x` is evaluated before the loop binds `x`, so
+    /// the caller has to hand that list over.
+    ///
+    /// Oracle (tclsh 8.6.18 and 9.0.4 alike): the original prints `a` then
+    /// `b`; so does the extraction.  A proc with no `x` parameter dies with
+    /// `can't read "x": no such variable`.
+    #[test]
+    fn tp_a_read_before_a_loop_binding_stays_a_value_parameter() {
+        let src = "set x {a b}\nforeach x $x {\n    puts $x\n}\nputs done\n";
+        let result = outcome(src, "foreach x $x {\n    puts $x\n}").unwrap();
+        assert!(
+            result.contains("proc extracted_proc {x} {"),
+            "the list the loop iterates comes from the caller: {result}"
+        );
+        assert!(result.contains("extracted_proc $x\n"), "{result}");
+    }
+
+    /// The same rule without a loop: a command evaluates its arguments before
+    /// its own write lands, so `$y` reads what the caller set.
+    ///
+    /// Oracle: the original leaves `y` at 2; so does the extraction.
+    #[test]
+    fn tp_a_read_in_the_writing_command_stays_a_value_parameter() {
+        let src = "set y 1\nset y [expr {$y + 1}]\nputs done\n";
+        let result = outcome(src, "set y [expr {$y + 1}]").unwrap();
+        assert!(
+            result.contains("proc extracted_proc {y} {"),
+            "the operand is the caller's value: {result}"
+        );
+        assert!(result.contains("extracted_proc $y\n"), "{result}");
+    }
+
+    /// A `[…]` inside a *braced* expression argument is script the script
+    /// lexer cannot see: `expr` substitutes it, in the caller's own frame. The
+    /// write it makes therefore has to leave by name like any other.
+    ///
+    /// Oracle: the original prints `1`; so does the extraction.  Without the
+    /// `upvar` the caller's `x` stays `0`.
+    #[test]
+    fn tp_a_write_inside_a_braced_expression_is_carried_by_upvar() {
+        let src = "set x 0\nif {[set x 1]} {\n    puts hi\n}\nputs $x\n";
+        let result = outcome(src, "if {[set x 1]} {\n    puts hi\n}").unwrap();
+        assert!(
+            result.contains("upvar 1 $xName x"),
+            "the expression's substitution writes the caller's variable: {result}"
+        );
+        assert!(result.contains("extracted_proc x\n"), "{result}");
+    }
 
     /// A write nested in a control-flow body is still the caller's write.
     ///

@@ -44,6 +44,12 @@ The extraction classifies each variable the selection touches:
 | Written, and never read again | A proc local. It stops leaking into the caller entirely. |
 | Bound by a loop the selection contains (`foreach n …`, `dict for {k v} …`) | Written, and classified by the two rows above — the caller keeps a loop variable after the loop exactly as it keeps an assignment. |
 
+A name the selection reads *before* it writes is a parameter either way: the
+list word of `foreach x $x …` is evaluated before the loop rebinds `x`, and
+`set y [expr {$y + 1}]` reads `y` before its own assignment lands. Reading a
+name only after the write — the `$n` in a `foreach n … {…$n…}` body — makes it
+the loop's own local, not something the caller supplies.
+
 The classification covers the selection's whole statement tree, so a write
 inside an `if`, `foreach`, `switch` arm, `try`, or `catch` body counts exactly
 as a top-level one does:
