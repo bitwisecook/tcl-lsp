@@ -61,7 +61,7 @@ use crate::obj::{self, TclObj};
 /// Maximum superclass/mixin linearisation depth for [`Interp::linearize_class`]
 /// / [`Interp::gather_class_props`]. `tcl_syntax::mro::MAX_MRO_DEPTH` fixes
 /// the identical algorithm (TclOO's DFS + late-placement) in the
-/// *diagnostics* linearizer, settling on 1024 there — but that pass runs on
+/// *diagnostics* lineariser, settling on 1024 there — but that pass runs on
 /// a host-controlled analysis stack, not this runtime's live call stack.
 /// Confirmed crash reproduction: a deep `mixin` chain (`oo::class create
 /// C$i { mixin C[i-1] }`) SIGABRTs between depth 100-150 on a 256 KiB
@@ -5134,7 +5134,7 @@ impl Interp {
 
     /// The method-resolution (precedence) chain for `obj`: a depth-first walk —
     /// the object's mixins, then the object itself, then its class's
-    /// linearization (each class: its mixins, then the class, then its
+    /// linearisation (each class: its mixins, then the class, then its
     /// superclasses) — with each provider kept at its **last** occurrence. This
     /// "keep-last" dedup defers shared bases (a diamond's apex, a mixin's
     /// superclass shared with the class chain) to after everything that derives
@@ -5314,7 +5314,7 @@ impl Interp {
         fqn
     }
 
-    /// The precedence (linearization) of a *class* itself — its mixins, the
+    /// The precedence (linearisation) of a *class* itself — its mixins, the
     /// class, then its superclasses — keep-last deduped, for `info class call`.
     fn class_precedence(&self, class: &[u8]) -> Vec<Vec<u8>> {
         let mut seq: Vec<Vec<u8>> = Vec::new();
@@ -6177,7 +6177,7 @@ impl Interp {
         self.c3_linearize(class, &mut guard)
     }
 
-    /// C3 linearization of `class` (the class then its superclasses, each once,
+    /// C3 linearisation of `class` (the class then its superclasses, each once,
     /// in C3 order — so a diamond `D(B C)`/`B(A)`/`C(A)` yields `[D B C A]`,
     /// deferring `A` until after both `B` and `C`). `guard` breaks cycles in a
     /// malformed hierarchy (falling back to a preorder remainder).

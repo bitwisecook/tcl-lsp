@@ -40,7 +40,7 @@
 //!   and `$arr(idx)` (array index with nested parens and embedded
 //!   `${...}` support). A bare `$` with no name following is emitted
 //!   as an `STR` token whose span covers just the `$`. Unterminated
-//!   `${` and `$arr(` tokenize best-effort (warning collection reports
+//!   `${` and `$arr(` tokenise best-effort (warning collection reports
 //!   them as diagnostics).
 //! - **CMD** — command substitution `[…]`. The scanner tracks four
 //!   pieces of state while inside the command body: outer bracket
@@ -53,7 +53,7 @@
 //!   raw-parser width after the document source-channel seam (CRLF is one
 //!   logical newline); `${…}`
 //!   sub-scans exist to stop a `)` or `}` inside a braced variable
-//!   name from fooling the counter. Unterminated `[` tokenizes
+//!   name from fooling the counter. Unterminated `[` tokenises
 //!   best-effort.
 //! - **STR** — braced strings `{…}`. Emitted when a `{` appears
 //!   at a word boundary (the previous token was `EOL` / `SEP` / `STR`
@@ -62,7 +62,7 @@
 //!   inert inside braces — the backslash and the following character
 //!   are retained literally in the token text). A `{` that is NOT at a
 //!   word boundary is a regular word character in the enclosing `ESC`
-//!   token. Unterminated `{` tokenizes best-effort.
+//!   token. Unterminated `{` tokenises best-effort.
 //! - **Quoted ESC** — `"…"` quoted strings emit `ESC` tokens
 //!   carrying the `in_quote = true` flag for the duration of the
 //!   quoted run. The lexer keeps an `in_quote: bool` field that is
@@ -872,7 +872,7 @@ impl<'src> Lexer<'src> {
     /// without the leading `$` or `${`) is accessed via
     /// [`SourceMap::token_text`] rather than `SourceMap::text(span)`.
     ///
-    /// Never fails. Unterminated `${` and `$arr(` tokenize
+    /// Never fails. Unterminated `${` and `$arr(` tokenise
     /// best-effort, emitting non-fatal warnings once warning
     /// collection is in place.
     fn parse_var(&mut self) -> Result<Token, LexError> {
@@ -1131,7 +1131,7 @@ impl<'src> Lexer<'src> {
     ///   VAR) — stop char is the closing `"`. Span covers `"`;
     ///   `token_text` returns `""`.
     ///
-    /// Never fails. An unterminated quoted string tokenizes
+    /// Never fails. An unterminated quoted string tokenises
     /// best-effort — the scanner consumes everything up to EOF
     /// and returns an `ESC` with `in_quote = true` still set, so
     /// the trailing synthetic EOL inherits the `true` flag too.
@@ -1308,7 +1308,7 @@ impl<'src> Lexer<'src> {
     /// trailing `}` for the degenerate `{}` case) so callers
     /// see just the inside of the braces.
     ///
-    /// Never fails. Unterminated `{` tokenizes best-effort. Under the F5
+    /// Never fails. Unterminated `{` tokenises best-effort. Under the F5
     /// word-break axis (`irules_brace_separator`), a non-separator after
     /// the close brace injects a ghost SEP instead of the "extra
     /// characters after close-brace" warning — see the R2 comment below.
@@ -1429,7 +1429,7 @@ impl<'src> Lexer<'src> {
     /// trailing `]` from the degenerate case) so callers see just the
     /// command body.
     ///
-    /// Never fails. An unterminated `[` tokenizes best-effort; the
+    /// Never fails. An unterminated `[` tokenises best-effort; the
     /// `missing close-bracket` warning is not yet emitted.
     /// Advance `self.pos` past a `${…}` braced variable name beginning at the
     /// current `$` (whose next byte is `{`), using the same brace-nesting +
@@ -1454,7 +1454,7 @@ impl<'src> Lexer<'src> {
     /// engines resolve `${…}` through as well.
     ///
     /// An unterminated form is C's `missing close-brace for variable name`
-    /// error, but this lexer is the *tokenizer* — it must keep producing tokens
+    /// error, but this lexer is the *tokeniser* — it must keep producing tokens
     /// for half-typed source, so it takes the documented lenient recovery and
     /// runs the name to end-of-input. The evaluating engines raise instead.
     fn skip_braced_var_name_body(&mut self) {

@@ -975,7 +975,7 @@ impl Lowerer<'_> {
                 ))
             }
             // Control reaches the end of the handler with no explicit
-            // verdict. Verdict-less handlers are an error; never synthesize
+            // verdict. Verdict-less handlers are an error; never synthesise
             // one silently.
             Some(Terminator::Return { span, .. }) => {
                 Err(self.missing_verdict(span.unwrap_or_else(|| Span::empty(0))))
@@ -1167,7 +1167,7 @@ fn has_cycle(func: &Function) -> bool {
         Enter(String),
         Exit(String),
     }
-    // 1 = on the current path (gray), 2 = fully explored (black).
+    // 1 = on the current path (grey), 2 = fully explored (black).
     let mut color: HashMap<String, u8> = HashMap::new();
     let mut stack = vec![Step::Enter(func.block_name(func.entry).to_owned())];
     while let Some(step) = stack.pop() {

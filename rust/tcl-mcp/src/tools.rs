@@ -1318,17 +1318,17 @@ struct ToolDef {
 type Param = (&'static str, &'static str, &'static str);
 
 /// The property name every dialect-taking tool spells its dialect argument
-/// with. [`input_schema`] keys the catalog enum off it, so a tool advertises
+/// with. [`input_schema`] keys the catalogue enum off it, so a tool advertises
 /// the full dialect list by naming its parameter rather than by repeating the
-/// catalog per tool.
+/// catalogue per tool.
 const DIALECT_PARAM: &str = "dialect";
 
-/// Every canonical dialect name, in catalog order.
+/// Every canonical dialect name, in catalogue order.
 fn dialect_names() -> Vec<&'static str> {
     DialectProfile::all().iter().map(|p| p.name).collect()
 }
 
-/// The schema for a dialect-valued property: the catalog as a JSON-Schema
+/// The schema for a dialect-valued property: the catalogue as a JSON-Schema
 /// `enum`, plus the `name — display_name` pairs appended to `desc` so a model
 /// reading only the description still sees what each name means.
 ///

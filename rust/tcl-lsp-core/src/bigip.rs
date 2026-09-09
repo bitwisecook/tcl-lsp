@@ -52,7 +52,7 @@ use crate::folding::{FoldKind, FoldingRange};
 /// name (`bigip.conf`, `bigip_base.conf`, …).
 ///
 /// The names themselves live on the `f5-bigip` profile's `filenames` axis in
-/// the dialect catalog, which is what the editors' generator projects into
+/// the dialect catalogue, which is what the editors' generator projects into
 /// each editor's per-language `filenames` list.  A private list here would be
 /// invisible to the editors, so VS Code would contribute no `filenames` and a
 /// `bigip.conf` would never associate.

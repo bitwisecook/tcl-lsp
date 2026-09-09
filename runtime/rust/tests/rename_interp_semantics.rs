@@ -173,7 +173,7 @@ fn interp_target_of_a_same_interp_alias_is_the_empty_path() {
 
 /// `interp invokehidden`'s `-namespace`/`-global` options establish
 /// the evaluation context (resolved from the **global** namespace regardless
-/// of the caller's current one, C's `TCL_GLOBAL_ONLY`), and an unrecognized
+/// of the caller's current one, C's `TCL_GLOBAL_ONLY`), and an unrecognised
 /// option is a hard error rather than a silently-skipped no-op. There is no
 /// mutual-exclusion refusal for passing both — the issue's own claim of a
 /// `cannot use -global option and -namespace option together` error does not
@@ -210,7 +210,7 @@ fn invokehidden_rejects_unknown_options_and_namespace_is_global_anchored() {
 }
 
 /// `$child subcommand` and `interp subcommand` report the same
-/// `bad option` shape on an unrecognized subcommand, rather than `$child`
+/// `bad option` shape on an unrecognised subcommand, rather than `$child`
 /// reporting `interp subcommand "X" is not supported in this runtime` — not
 /// a tclsh error shape at all. The two lists differ (the child command object
 /// never dispatches `children`/`create`/`delete`/`exists` — those are only

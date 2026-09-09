@@ -32,7 +32,7 @@ use clap::builder::{PossibleValue, PossibleValuesParser};
 use clap::{Args, Parser, Subcommand};
 use tcl_dialect::DialectProfile;
 
-/// The enumerated `--dialect` values, projected from the profile catalog: one
+/// The enumerated `--dialect` values, projected from the profile catalogue: one
 /// visible entry per canonical profile carrying its `display_name` as the
 /// value help, plus the additive `tk` ingress, with every registered alias
 /// (`irules`, `tcl-irule`) accepted but hidden.
@@ -41,8 +41,8 @@ use tcl_dialect::DialectProfile;
 /// enumerating it in `--help` narrows nothing: an unrecognised spelling was
 /// already an input error, it is now reported with the list of names.
 fn dialect_possible_values() -> Vec<PossibleValue> {
-    // `tk` has no catalog profile by design, so it is added explicitly
-    // here rather than coming from the profile catalog iteration below;
+    // `tk` has no catalogue profile by design, so it is added explicitly
+    // here rather than coming from the profile catalogue iteration below;
     // it resolves through the one ingress seam.
     let tk = tcl_cli_support::environment::profile_for_dialect("tk");
     DialectProfile::all()

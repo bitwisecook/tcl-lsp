@@ -19,7 +19,7 @@
 //! Dialect detection heuristics (and re-exports of the dialect vocabulary).
 //!
 //! The dialect *types* — `SpecSurface`, [`KNOWN_DIALECTS`], the
-//! `DialectProfile` catalog — live in the foundational `tcl-dialect` crate
+//! `DialectProfile` catalogue — live in the foundational `tcl-dialect` crate
 //! (dialect-profile-model.md §3) so layers below the registry (tcl-lexer,
 //! tcl-syntax) consume the same source of truth. They are re-exported here
 //! for the registry's own convenience and for backwards compatibility.
@@ -403,7 +403,7 @@ pub const TCL_SOURCE_EXTENSIONS: &[&str] = &[
     "tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "impl", "exp", "apl", "test",
     // The long spellings of the two extensions above that every editor
     // registers: `.irules` is owned by `f5-irules` and `.expect` by `expect`
-    // in the profile catalog, so a file with either name opens as project
+    // in the profile catalogue, so a file with either name opens as project
     // source in VS Code / JetBrains / Sublime / Zed. Without an entry here,
     // `is_tcl_source`, the watched-file glob, the rename filter and the CLI
     // directory walk would all skip them, so cross-file references and
@@ -613,7 +613,7 @@ fn pack_extension_dialect(ext: &str) -> Option<&'static str> {
     guard.as_ref()?.get(ext).copied()
 }
 
-/// The dialect owning the whole basename `base` per the catalog's
+/// The dialect owning the whole basename `base` per the catalogue's
 /// `filenames` axis (`bigip.conf` → `f5-bigip`), or `None`.
 ///
 /// A basename claim is the more specific of the two static tiers — the files
@@ -635,9 +635,9 @@ fn catalog_filename_dialect(base: &str) -> Option<&'static str> {
     .copied()
 }
 
-/// The dialect owning `ext` per the [`tcl_dialect::DialectProfile`] catalog —
+/// The dialect owning `ext` per the [`tcl_dialect::DialectProfile`] catalogue —
 /// the `file_extensions` axis each profile declares (`xdc` →
-/// `xilinx-eda-tcl`). Built once; the catalog's invariant tests guarantee
+/// `xilinx-eda-tcl`). Built once; the catalogue's invariant tests guarantee
 /// one owner per extension.
 fn catalog_extension_dialect(ext: &str) -> Option<&'static str> {
     static MAP: std::sync::OnceLock<std::collections::HashMap<&'static str, &'static str>> =
@@ -660,7 +660,7 @@ fn catalog_extension_dialect(ext: &str) -> Option<&'static str> {
 ///
 /// Pack-declared routing ([`register_pack_extension_dialects`]) is consulted
 /// first, so a loaded pack owns its extensions; the
-/// [`tcl_dialect::DialectProfile`] catalog's per-profile `file_extensions`
+/// [`tcl_dialect::DialectProfile`] catalogue's per-profile `file_extensions`
 /// are the no-packs fallback and the home of everything no pack declares.
 /// Deliberate non-mappings stay deliberate: `.svrf` (Calibre rule decks) is
 /// a declarative DSL, not Tcl, so it falls through to content/default; the
@@ -682,7 +682,7 @@ pub fn dialect_from_extension(filename: &str) -> Option<&'static str> {
     if base.ends_with(".invs_setup.tcl") || base.ends_with(".genus_setup.tcl") {
         return Some("cadence-eda-tcl");
     }
-    // The catalog's whole-basename tier (`bigip.conf`), ahead of the
+    // The catalogue's whole-basename tier (`bigip.conf`), ahead of the
     // extension tier: a file claimed by name has no extension worth
     // claiming.
     if let Some(dialect) = catalog_filename_dialect(base.as_str()) {
@@ -1360,7 +1360,7 @@ mod detect_tests {
         );
     }
 
-    /// The catalog's whole-basename axis routes the BIG-IP
+    /// The catalogue's whole-basename axis routes the BIG-IP
     /// config files, which have no extension worth claiming — a bare `.conf`
     /// belongs to every unrelated config file on the machine.
     #[test]

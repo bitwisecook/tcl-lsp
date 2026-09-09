@@ -179,7 +179,7 @@ fn query_probe(lsp: &mut Lsp, uri: &str, feature: &str) -> Value {
     }
 }
 
-/// The body of the parametrized `test_disabling_feature_suppresses_its_provider`.
+/// The body of the parameterised `test_disabling_feature_suppresses_its_provider`.
 fn disabling_feature_suppresses_its_provider(feature: &str) {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");

@@ -236,7 +236,7 @@ fn rename_var_preserves_braced_form() {
 
 /// Find the one `{range, newText}` edit whose replacement text is exactly
 /// `expected_text`, applied to `source` — the strongest check available at
-/// this layer, since it proves the fix through real JSON-RPC (de)serialization,
+/// this layer, since it proves the fix through real JSON-RPC (de)serialisation,
 /// not just the core crate's own in-process `TextEdit`s.
 fn apply_named_edit(edits: &[Value], source: &str, expected_text: &str) -> String {
     let (rng, new_text) = edits
@@ -275,7 +275,7 @@ fn rename_var_applying_the_braced_reference_edit_does_not_duplicate_the_closing_
 #[test]
 fn rename_var_applying_the_dir_view_idiom_reference_edit_does_not_corrupt_the_source() {
     // The real `tk/library/tk.tcl:594-596` idiom (`$w ${dir}view scroll
-    // ...`, a subcommand synthesized by
+    // ...`, a subcommand synthesised by
     // concatenating `$dir` with literal `view`): applying the LSP's own
     // rename edit for the `${dir}view` reference must not produce
     // `$w ${direction}}view ...` — tclsh 8.6/9.0 both fail to even parse

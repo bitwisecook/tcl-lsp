@@ -2,7 +2,7 @@
 # Source: SpiceGenTcl/src/ltspice/specSimulatorClassesLtspice.tcl:93-97
 #
 # Deleting files using a variable path without validation could allow
-# path traversal (e.g. "../../etc/passwd"). The fix is to normalize
+# path traversal (e.g. "../../etc/passwd"). The fix is to normalise
 # and validate the path stays within the intended directory.
 #
 # Expected: tclsh runs without error.
@@ -17,7 +17,7 @@ set path $testfile
 file delete $path
 puts "deleted via variable path: $path"
 
-# Safe: normalize and validate
+# Safe: normalise and validate
 set basedir $tmpdir
 set userpath "w313_safe.txt"
 set fullpath [file normalize [file join $basedir $userpath]]

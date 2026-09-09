@@ -1238,7 +1238,7 @@ fn symbol_names(node: &Value, out: &mut Vec<String>) {
 
 /// A pack outlines as its declarations. Its dialect declares a document
 /// grammar, so its *blocks* are its structure — the analyser's proc/namespace
-/// symbolizer has nothing to find in a file that declares rather than runs.
+/// symboliser has nothing to find in a file that declares rather than runs.
 #[test]
 fn a_pack_outlines_as_its_own_declarations() {
     let (root, mut lsp, uri) = open_pack("outline", AUTHORING_PACK);

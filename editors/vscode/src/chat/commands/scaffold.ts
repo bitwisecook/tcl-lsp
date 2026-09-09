@@ -32,7 +32,7 @@ interface GeneratedEvent {
   common?: boolean;
 }
 
-// Derive the common events list from the generated catalog.
+// Derive the common events list from the generated catalogue.
 const COMMON_EVENTS: readonly GeneratedEvent[] = (
   generatedEvents.events as GeneratedEvent[]
 ).filter((e) => e.common);

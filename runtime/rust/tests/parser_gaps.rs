@@ -43,7 +43,7 @@ fn run(sheet: &str) -> (Code, String, String) {
 }
 
 // An unterminated `{` word must raise `missing close-brace`, not
-// tokenize best-effort. Oracle: tclsh 8.6.16/9.0.4 both raise `missing
+// tokenise best-effort. Oracle: tclsh 8.6.16/9.0.4 both raise `missing
 // close-brace` with `-errorcode NONE` for each of these constructs (`list`,
 // `set`, `string length`).
 
@@ -201,7 +201,7 @@ fn zero_length_array_name_spelling_routes_through_the_same_owner() {
 }
 
 // R10 — the two cases R4 left lenient. Both are word-delimiter failures the
-// lexer recovers from (it is shared with the LSP and must keep tokenizing
+// lexer recovers from (it is shared with the LSP and must keep tokenising
 // half-typed source), so the eval-facing parser is the one that must fail
 // closed. Before the shared `tcl_lexer::word_parts` owner landed, this
 // runtime read `list a "b` as the two-word list `a b` and evaluated the `b`

@@ -447,7 +447,7 @@ struct OptionScope {
 
 /// Resolve an ensemble's subcommand word, pushing its expansion rewrite when
 /// one applies, and return the option scope it selects along with the word's
-/// canonical spelling — the caller seeds its canonicalized-argument copy from
+/// canonical spelling — the caller seeds its canonicalised-argument copy from
 /// this even when `expand_abbreviations` never pushes the rewrite, since the
 /// positional boolean pass needs it to name the same subcommand
 /// [`CommandRegistry::arg_indices_for_role`] would resolve by exact match.

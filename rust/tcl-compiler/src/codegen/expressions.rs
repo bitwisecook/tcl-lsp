@@ -333,7 +333,7 @@ impl CodegenCtx<'_> {
     }
 
     /// The `expr` operator surface of the release being compiled for, or
-    /// `None` when the compile named no dialect — or named one the catalog
+    /// `None` when the compile named no dialect — or named one the catalogue
     /// does not know.
     ///
     /// Resolved from [`CodegenCtx::dialect`] — the compile's own dialect, the

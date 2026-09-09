@@ -1307,7 +1307,7 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// Run one synthesized script in a known iRules execution context.  A
+    /// Run one synthesised script in a known iRules execution context.  A
     /// materialised proc body has no source token to route through
     /// [`Self::lower_body_in_irules_context`], but it still must not treat a
     /// nested declaration as a file-level one.

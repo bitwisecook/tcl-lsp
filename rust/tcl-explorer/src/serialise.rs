@@ -83,10 +83,10 @@ use crate::views::{Severity, VIEW_META};
 /// Serialise the `meta` view: dialect list, view-tab table, and the
 /// severity vocabulary.
 ///
-/// Dialects carry their catalog labels (`display_name` for menus,
+/// Dialects carry their catalogue labels (`display_name` for menus,
 /// `short_name` for toolbars) exactly like the `views` entries carry
 /// theirs, so no GUI consumer needs its own name table. A name without a
-/// catalog profile repeats itself as both labels.
+/// catalogue profile repeats itself as both labels.
 #[must_use]
 pub fn serialise_meta() -> Value {
     let dialects: Vec<Value> = available_dialects()
@@ -3344,7 +3344,7 @@ mod tests {
             .map(|d| d["name"].as_str().unwrap())
             .collect();
         assert_eq!(dialects, available_dialects());
-        // Every entry carries its catalog labels, like the `views` entries.
+        // Every entry carries its catalogue labels, like the `views` entries.
         for entry in meta["dialects"].as_array().unwrap() {
             assert!(entry["displayName"].as_str().is_some_and(|s| !s.is_empty()));
             assert!(entry["shortName"].as_str().is_some_and(|s| !s.is_empty()));

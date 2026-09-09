@@ -265,7 +265,7 @@ fn parse_bareword_part(text: &str, bytes: &[u8], n: usize, mut i: usize) -> (Str
 /// whitespace (` `/`\t`) and a `\<newline>` line continuation (backslash, then
 /// `\n` or `\r\n`/`\r`, then any leading horizontal whitespace of the next
 /// line). A continuation is a word separator in Tcl — without skipping it the
-/// tokenizer mis-split a multi-line command's words (e.g. `string range $x \`
+/// tokeniser mis-split a multi-line command's words (e.g. `string range $x \`
 /// <newline> `$i $j`), dropping an argument and raising a spurious
 /// "wrong # args" (tcltest's `SubstArguments` → info / lrepeat / lseq, and
 /// every test file using the `{-body … -result …}` dict form).

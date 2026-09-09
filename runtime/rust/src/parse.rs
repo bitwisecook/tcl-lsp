@@ -300,7 +300,7 @@ pub fn first_parse_error(words: &[Word<'_>], config: LexerConfig) -> Option<&'st
 /// dropped wholesale.
 ///
 /// The scan's answer is a pure function of (script bytes, [`LexerConfig`]), so
-/// memoizing it is sound — and it has to be memoized, because this crate has no
+/// memoising it is sound — and it has to be memoised, because this crate has no
 /// parse cache by design (the borrow-based tree makes one a lifetime hazard,
 /// memory-management.md MM-B.6). Without it, every execution of a command
 /// re-parses each of its `[…]` bodies once for the scan on top of the parse the
@@ -325,7 +325,7 @@ struct ScanMemo {
     entries: std::collections::HashMap<Vec<u8>, Option<&'static str>>,
     /// Set while a subtree's scan was cut short by
     /// [`MAX_PARSE_ERROR_SCAN_DEPTH`]. A truncated answer is only valid at the
-    /// depth it was computed at, so it must not be memoized — the same script
+    /// depth it was computed at, so it must not be memoised — the same script
     /// reached at a shallower depth would scan further and could find an error
     /// this run did not.
     truncated: bool,
@@ -406,7 +406,7 @@ fn script_parse_error(
 /// the shared owner, not re-typed here.
 ///
 /// The lexer itself stays lenient about all four — it is shared with the LSP,
-/// which must keep tokenizing broken source — so this eval-facing parser is
+/// which must keep tokenising broken source — so this eval-facing parser is
 /// the one that fails closed, carrying the failure as a
 /// [`WordPart::ParseError`] the evaluator raises when it reaches the word.
 use tcl_lexer::{

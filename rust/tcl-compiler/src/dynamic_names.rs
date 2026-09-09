@@ -318,7 +318,7 @@ fn name_word_pattern(word: &str, braced_var: tcl_dialect::BracedVarStyle) -> Vec
             b'$' if i + 1 < bytes.len() && bytes[i + 1] == b'{' => {
                 // The name starts just past the `${`. An unterminated
                 // reference has no closer, so the wildcard runs to the end of
-                // the word — which is what a lenient tokenizer does with it.
+                // the word — which is what a lenient tokeniser does with it.
                 i = match tcl_lexer::braced_var_name_end(bytes, i + 2, braced_var) {
                     tcl_lexer::BracedVarEnd::Closed(end) => end + 1,
                     tcl_lexer::BracedVarEnd::Unterminated => bytes.len(),

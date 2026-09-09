@@ -124,8 +124,8 @@ fn expr_stk_dynamic_evaluation() {
     cmd_eq("set e {\"x\" eq \"y\"}; expr $e", "0"); // compare_string
     cmd_eq("set e {1 ? 2 : 3}; expr $e", "2"); // ternary / to_bool
     cmd_eq("set e {true && false}; expr $e", "0"); // bool_value
-    // The runtime literal/var paths DO normalize (unlike the braced bare form).
-    cmd_eq("set e {1e3}; expr $e", "1000.0"); // literal normalization
+    // The runtime literal/var paths DO normalise (unlike the braced bare form).
+    cmd_eq("set e {1e3}; expr $e", "1000.0"); // literal normalisation
     cmd_eq("set e {0xff}; expr $e", "255");
     cmd_eq("set x 5; set e {\"v$x\"}; expr $e", "v5"); // quoted-string operand
 }

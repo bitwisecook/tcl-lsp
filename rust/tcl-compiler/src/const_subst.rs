@@ -103,7 +103,7 @@ pub struct ConstSubstCtx<'a> {
 /// their identities too: folding `[llength [list a b]]` depends on both
 /// commands, not only the outer one. The return type is the registry's answer
 /// for the outer invocation and lets bytecode consumers preserve typed literal
-/// setup such as `VERIFY_DICT` without recognizing a command name.
+/// setup such as `VERIFY_DICT` without recognising a command name.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedConstSubst {
     /// Raw result value, before any caller-specific word quoting.

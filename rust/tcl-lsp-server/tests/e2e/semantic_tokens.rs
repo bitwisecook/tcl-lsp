@@ -1601,7 +1601,7 @@ fn test_itcl_class_body_members_highlight() {
 /// not run through the Tcl pipeline.
 ///
 /// Regression for the 2.1.6 state, where a `.apl` document fell through to the
-/// Tcl tokenizer, which read each braced block as one literal word and emitted
+/// Tcl tokeniser, which read each braced block as one literal word and emitted
 /// whole *lines* as `string` tokens — mis-colouring the file rather than merely
 /// under-colouring it.
 #[test]
@@ -1696,7 +1696,7 @@ fn test_apl_presentation_uses_the_apl_token_set() {
 /// own config lexer, not run through the Tcl pipeline.
 ///
 /// Regression for the 2.1.6 state, where a `bigip.conf` fell through to the Tcl
-/// tokenizer, which read each stanza body as one literal braced word — 272 of
+/// tokeniser, which read each stanza body as one literal braced word — 272 of
 /// the 302 tokens it produced for `samples/bigip/bigip.conf` were whole config
 /// *lines* emitted as `string`.
 #[test]

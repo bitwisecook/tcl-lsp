@@ -2758,7 +2758,7 @@ impl Analyser {
     ///
     /// The name set is held on ``self.builtin_names`` for subsequent
     /// proc / class registrations to consult without rebuilding.
-    /// The dialect resolves through the profile catalog; unknown dialect
+    /// The dialect resolves through the profile catalogue; unknown dialect
     /// names sink to the permissive fallback profile's registry.
     pub(crate) fn builtin_command_names(&mut self) -> &std::collections::HashSet<String> {
         if self.builtin_dialect != Some(self.profile.name) || self.builtin_names.is_none() {

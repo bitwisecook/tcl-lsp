@@ -1846,7 +1846,7 @@ fn uses_in_call(
     // A destroying command (`unset a(k)`) consumes the target's *existence*:
     // the killed store is not dead — deleting it would make the unset error
     // on every call. Record the prior version as a read (DESTROYS_VARIABLE,
-    // matching the pre-per-element behavior the base-level use gave).
+    // matching the pre-per-element behaviour the base-level use gave).
     let destroys = registry
         .get(canonical_command.as_deref().unwrap_or(command))
         .is_some_and(|spec| {

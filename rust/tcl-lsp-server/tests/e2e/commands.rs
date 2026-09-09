@@ -184,7 +184,7 @@ fn optimise_returns_optimisation_offers() {
 #[test]
 fn optimise_document_preserves_set_only_tk_profile() {
     // Tk is a valid additive dialect surface, but it is intentionally absent
-    // from the catalog. The optimiser must receive its typed profile rather
+    // from the catalogue. The optimiser must receive its typed profile rather
     // than `None`, whose unknown-dialect fallback would offer Tcl 8.6's
     // `tailcall` rewrite for this recursive Tk script.
     let mut lsp = Lsp::tcl();

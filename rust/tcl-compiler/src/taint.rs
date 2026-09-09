@@ -5900,7 +5900,7 @@ fn emit_option_injection<S: std::hash::BuildHasher>(
 /// `HTTP::uri` / `HTTP::path` setters to paths beginning with `/`.
 ///
 /// Dialect-gated: returns an empty vector unless `dialect` is
-/// `"f5-irules"` / `"irules"`. The gate is applied internally (defense
+/// `"f5-irules"` / `"irules"`. The gate is applied internally (defence
 /// in depth) so a caller outside `compiler_checks::run_all_checks`
 /// can't accidentally emit IRULE3101 errors against user-defined
 /// commands that happen to be named `HTTP::uri` / `HTTP::path`.

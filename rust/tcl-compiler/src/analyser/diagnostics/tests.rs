@@ -12828,7 +12828,7 @@ fn dispatch_table_tp_issue_1010_deleted_proc_draws_no_reference() {
     // to the OLD argument's token (go-to-definition on
     // that exact written word must still resolve, and real Tcl requires
     // `do_add` to exist at that point). That reference is not what this
-    // test guards against; only a *dispatch-table*-synthesized reference
+    // test guards against; only a *dispatch-table*-synthesised reference
     // (via `array set ops {add do_add}` / `$ops($k)`) to the deleted,
     // never-re-established proc must be absent.
     let rename_self_ref_offset =

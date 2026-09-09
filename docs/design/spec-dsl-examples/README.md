@@ -368,11 +368,11 @@ leading dot. `-name` is the extension's human-readable name for editor
 pickers (`Unified Power Format`); `-dialect` must name a canonical dialect
 profile, and routes files of that extension to the profile in dialect
 detection's extension tier — a loaded pack is the source of truth for its
-own extensions, consulted ahead of the `DialectProfile` catalog's own
+own extensions, consulted ahead of the `DialectProfile` catalogue's own
 per-profile extension declarations, which remain as the no-packs
 fallback. Bundled packs' rows also feed `cargo xtask
 gen-editor-extensions`, which generates the editors' registered
-extension/language lists from the catalog plus the packs — so a bundled
+extension/language lists from the catalogue plus the packs — so a bundled
 pack's extension ships in every editor without hand-editing a manifest.
 A `-dialect` that names no profile keeps
 the row and drops only the routing, with a notice. Both statements are

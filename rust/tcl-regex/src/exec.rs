@@ -71,7 +71,7 @@ const MATCH_FUEL: u64 = 4_000_000;
 /// deeply *groups* nest in the pattern text, not how many characters a
 /// repeat matches). [`MATCH_FUEL`] happens to bound this too in the common
 /// case — `dissect_repeat`'s per-level "where does this iteration end"
-/// check re-scans the *remaining* subject via a fresh, unmemoized
+/// check re-scans the *remaining* subject via a fresh, unmemoised
 /// `reach_repeat` call, so total fuel spent across the whole recursion is
 /// quadratic in depth and self-limits it to roughly
 /// `sqrt(2 * MATCH_FUEL)` (~2800) before the shared budget runs out — but

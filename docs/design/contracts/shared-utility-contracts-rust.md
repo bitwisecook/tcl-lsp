@@ -316,13 +316,13 @@ entry point, or gate moves without this contract being updated.
   (`MISSING_CLOSE_BRACE_FOR_VAR`, owned here too), not a benign miss, and
   an `Option` let each consumer invent its own recovery: the VM emitted the
   whole `${...}` literally and the WASM runtime swallowed the rest of the
-  template. Evaluating engines must raise; only a tokenizer may recover
-  (the lexer runs the name to end-of-input so it can keep tokenizing
+  template. Evaluating engines must raise; only a tokeniser may recover
+  (the lexer runs the name to end-of-input so it can keep tokenising
   half-typed source). The 9.x rule also *widens* what is unterminated —
   `${a\}` and `${a{b}` close under 8.x but not under 9.x.
 
   Scope — the surfaces consolidated on this owner are now the
-  `subst`/tokenizer surface (#1457), the compiled-word decoders
+  `subst`/tokeniser surface (#1457), the compiled-word decoders
   (`segmenter` / `values` / `helpers`, #1568), the **expression** sub-lexer
   `expr_lexer::variable` (#1601 — an `expr` body is parsed out of an
   ordinary Tcl word, so `expr {${a{b}c} + 1}` must resolve the reference

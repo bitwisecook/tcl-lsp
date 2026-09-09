@@ -611,7 +611,7 @@ fn version_tagged_publishes(frames: &[String], uri: &str) -> Vec<(i64, String)> 
 ///   check still sees true arrival order.
 /// * **Phase B — two publishes provably in flight at once, and no loss under
 ///   backpressure.** Phase A's barrier deliberately forbids concurrency, so the
-///   ordering assertion would otherwise only ever see a serialized stream.
+///   ordering assertion would otherwise only ever see a serialised stream.
 ///   Phase B fires two sub-bursts with the client reading
 ///   nothing of the publish stream, and gets its concurrency guarantee from a
 ///   *pre-publish* marker rather than from out-racing the debounce with a sleep
@@ -790,7 +790,7 @@ async fn rapid_edits_deliver_diagnostics_in_version_order_without_loss() {
 /// The two delivery invariants, checked over the frames both phases collected.
 ///
 /// `arrived` is whether the Phase B drain reached `final_version`'s publish;
-/// `first_burst_version` separates Phase A's serialized stream from Phase B's
+/// `first_burst_version` separates Phase A's serialised stream from Phase B's
 /// concurrently produced one.
 fn assert_delivery_invariants(
     frames: &[String],

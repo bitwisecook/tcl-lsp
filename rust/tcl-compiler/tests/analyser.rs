@@ -3673,7 +3673,7 @@ mod oo_link {
     #[test]
     fn link_for_one_name_does_not_blanket_legitimize_others() {
         // Precision guard — a link for a DIFFERENT name must not
-        // blanket-legitimize every bareword in the class.
+        // blanket-legitimise every bareword in the class.
         let cd = class(
             "oo::class create C {\n    constructor {} { link foo }\n    method foo {x} {return $x}\n    method other {y} {return $y}\n}\n",
             "::C",

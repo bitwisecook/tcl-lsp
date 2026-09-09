@@ -6830,7 +6830,7 @@ impl Interp {
         // characters after close-brace` with `sfx` never called. Walking the
         // words in order and raising at the first `WordPart::ParseError` (this
         // engine's carrier for those failures — the scanner stays infallible so
-        // the LSP can keep tokenizing) matches that: substituting word by word
+        // the LSP can keep tokenising) matches that: substituting word by word
         // without this check would run `sfx` before the later parse error is
         // seen.
         if let Some(msg) = parse::first_parse_error(words, self.lexer_config()) {
@@ -9262,7 +9262,7 @@ impl Interp {
             None => {
                 // Lazily bound: the target was deleted, never existed, or is
                 // a builtin the emulated release does not carry. Feed the
-                // synthesized target call back through ordinary dispatch so
+                // synthesised target call back through ordinary dispatch so
                 // the global `unknown` handler sees the target name, prefix,
                 // and original arguments exactly as C's `TclInvokeAlias`
                 // does (tclBasic.c / tclNamesp.c). Alias targets are resolved
@@ -9769,7 +9769,7 @@ pub(crate) fn new_string(bytes: &[u8]) -> *mut TclObj {
 }
 
 /// Collapse every run of two-or-more `:` to a single `::` separator, matching
-/// Tcl's namespace-name normalization (empty namespace components are ignored):
+/// Tcl's namespace-name normalisation (empty namespace components are ignored):
 /// `::::classinstance` → `::classinstance`, `::a:::b` → `::a::b`. A lone `:` is
 /// a legal identifier character and is left untouched.
 fn normalize_colons(name: &[u8]) -> Vec<u8> {

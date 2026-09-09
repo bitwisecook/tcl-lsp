@@ -210,10 +210,10 @@ pub fn combined_effective_dialect(
 /// This is the CLI ingest boundary: an unrecognised spelling is an input
 /// error, never an accidental fallback to plain Tcl. Every accepted
 /// spelling — a canonical id, a registered alias (`irules` → `f5-irules`),
-/// and the set-only `tk` ingress that has no catalog profile by design —
+/// and the set-only `tk` ingress that has no catalogue profile by design —
 /// resolves through the one environment resolver
 /// ([`crate::environment::known_profile_for_dialect`]), which hands back
-/// the typed additive profile for `tk` the same way it does for a catalog
+/// the typed additive profile for `tk` the same way it does for a catalogue
 /// profile.
 pub fn resolve_dialect(value: Option<&str>) -> Result<Option<&'static DialectProfile>, CliError> {
     value
@@ -229,14 +229,14 @@ pub fn resolve_dialect(value: Option<&str>) -> Result<Option<&'static DialectPro
 }
 
 /// The canonical dialect names [`resolve_dialect`] accepts, comma-separated:
-/// the profile catalog plus the additive `tk` ingress, which has no catalog
+/// the profile catalogue plus the additive `tk` ingress, which has no catalogue
 /// profile by design but resolves all the same.
 fn known_dialect_names() -> String {
     DialectProfile::all()
         .iter()
         .map(|profile| profile.name)
-        // `tk` has no catalog profile by design, so it is appended
-        // explicitly here rather than coming from the profile catalog
+        // `tk` has no catalogue profile by design, so it is appended
+        // explicitly here rather than coming from the profile catalogue
         // iteration above; it resolves through the same environment seam.
         .chain(std::iter::once(
             crate::environment::profile_for_dialect("tk").name,

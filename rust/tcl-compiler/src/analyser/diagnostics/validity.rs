@@ -769,10 +769,10 @@ got {nargs_min}{usage_suffix}",
 /// Empty when `surface` is `None` (unrestricted) or has no primitive
 /// member (defensive; a restricted spec always has at least one).
 ///
-/// Members print as the profile catalog's `short_name` ("Tcl 8.5",
+/// Members print as the profile catalogue's `short_name` ("Tcl 8.5",
 /// "iRules") — this suffix is the highest-traffic dialect naming in
 /// editor-visible prose, so it uses the human spelling; a member with no
-/// catalog profile keeps its canonical name.
+/// catalogue profile keeps its canonical name.
 fn dialect_availability_suffix(surface: Option<&'static [SpecSurface]>) -> String {
     let Some(rows) = surface else {
         return String::new();

@@ -100,7 +100,7 @@ pub enum OperatorShape {
     /// the same zero-argument identity (`1`) as `Fold` but a different
     /// associativity, so it can't share that variant.
     PowFold,
-    /// A plain two-argument operation with no fold/chain behavior at all
+    /// A plain two-argument operation with no fold/chain behaviour at all
     /// (`%`, `<<`, `>>`) — always exactly 2 arguments.
     Binary,
     /// A plain one-argument operation (`!`, `~`) that shares no command

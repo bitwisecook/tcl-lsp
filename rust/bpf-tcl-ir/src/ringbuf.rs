@@ -80,7 +80,7 @@ pub struct RecordHeader {
 }
 
 impl RecordHeader {
-    /// Serialize to the fixed 16-byte little-endian header.
+    /// Serialise to the fixed 16-byte little-endian header.
     #[must_use]
     pub fn to_bytes(self) -> [u8; HEADER_LEN] {
         let mut out = [0u8; HEADER_LEN];

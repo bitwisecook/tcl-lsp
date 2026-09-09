@@ -5282,7 +5282,7 @@ mod tests {
         // Was an FP guard against treating `$cb` as a static call to a
         // command literally *named* `$cb` — that concern still holds (this
         // test's own name reflects it), but real tclsh9.0/8.6-verified
-        // behavior is that `if {1} $cb` (a bare-`$var` `if`-body, evaluated
+        // behaviour is that `if {1} $cb` (a bare-`$var` `if`-body, evaluated
         // as a script exactly like `eval`/`uplevel`'s bodies) genuinely
         // calls `foo` when `$cb` holds that constant value — printing
         // "CALLED" for a `proc foo {} { puts CALLED }`. The analyser wires up

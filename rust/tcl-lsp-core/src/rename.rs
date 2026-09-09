@@ -3222,7 +3222,7 @@ mod tests {
     #[test]
     fn rename_var_applying_the_dir_view_idiom_edit_produces_valid_tcl() {
         // The real `tk/library/tk.tcl:594-596` idiom this finding traces
-        // through (`$w ${dir}view scroll ...`, subcommand synthesized by
+        // through (`$w ${dir}view scroll ...`, subcommand synthesised by
         // concatenating `$dir` with literal `view`): a one-byte-short edit
         // range applies as `$w ${direction}}view ...`, and tclsh8.6/9.0 both
         // fail to even parse the enclosing proc ("extra characters after

@@ -37,7 +37,7 @@ interface GeneratedEvent {
   retiredVersion?: string;
 }
 
-// Derive the common events list from the generated catalog.
+// Derive the common events list from the generated catalogue.
 export const COMMON_IRULE_EVENTS: readonly IruleEventTemplate[] = (
   generatedEvents.events as GeneratedEvent[]
 )

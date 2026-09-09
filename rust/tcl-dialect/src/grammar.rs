@@ -19,7 +19,7 @@
 //! Dialect-derived lexing grammar knobs.
 //!
 //! [`BracedVarStyle`] and [`LexerGrammar`] live here — below `tcl-lexer` —
-//! so the lexer's `LexerConfig` and the `DialectProfile` catalog share one
+//! so the lexer's `LexerConfig` and the `DialectProfile` catalogue share one
 //! definition of the per-dialect grammar surface instead of keeping parallel
 //! string-keyed tables.
 

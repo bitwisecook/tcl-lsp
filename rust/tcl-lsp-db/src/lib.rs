@@ -1219,7 +1219,7 @@ fn callback_exact_arity_diagnostic(
 /// of the W123 toggle (matching local arity), since the arity check keys off these
 /// rather than the (possibly filtered) W123 diagnostic.
 ///
-/// `is_disabled` honours the user's `disabled_diagnostics` for the synthesized
+/// `is_disabled` honours the user's `disabled_diagnostics` for the synthesised
 /// arity code: it is produced *after* the analyser applied its own
 /// [`apply_disabled_diagnostics`](tcl_compiler::analyser::Analyser) filter (and the
 /// LSP lift does not re-filter), so the filter must be replicated here.
@@ -6438,7 +6438,7 @@ mod tests {
     }
 
     /// Cross-file arity honours `disabled_diagnostics`:
-    /// the synthesized arity error is produced *after* the analyser's own code
+    /// the synthesised arity error is produced *after* the analyser's own code
     /// filter (and the LSP lift doesn't re-filter), so it must replicate it —
     /// disabling `E003` (while keeping W123) must drop the cross-file arity error,
     /// yet the call still resolves (no W123).

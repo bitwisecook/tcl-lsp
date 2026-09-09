@@ -576,7 +576,7 @@ export async function activate(docUri: vscode.Uri): Promise<vscode.TextDocument>
   }
 
   // The server resolves this document's dialect from the ``didOpen`` and
-  // loads the matching command catalog (large for ``f5-irules`` /
+  // loads the matching command catalogue (large for ``f5-irules`` /
   // ``f5-iapps``).  Send a request that will be serialised behind the
   // server's processing queue so we don't return until that ``didOpen`` has
   // been drained.  Two hovers — one to flush, one belt-and-braces —

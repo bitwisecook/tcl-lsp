@@ -10786,7 +10786,7 @@ impl Backend {
     }
 
     /// Map an LSP ``languageId`` string to a dialect name accepted
-    /// by the dialect catalog / the providers' ``dialect`` arg.
+    /// by the dialect catalogue / the providers' ``dialect`` arg.
     ///
     /// Recognises the editor-extension language ids
     /// (``tcl-irule`` → ``f5-irules``, etc.) plus the canonical
@@ -11339,7 +11339,7 @@ impl Backend {
         // APL (iApp presentation) and BIG-IP config are not Tcl — each has its
         // own declarative grammar and its own token set, so both bypass the Tcl
         // pipeline (segmenter / compilation unit / analyser) entirely.  Without
-        // these branches the Tcl tokenizer reads each braced block as one
+        // these branches the Tcl tokeniser reads each braced block as one
         // literal word and emits whole *lines* as `string` tokens, which
         // mis-colours the file rather than merely under-colouring it.  Both
         // lexers are cheap and pure — line-oriented — so neither needs salsa
@@ -16552,9 +16552,9 @@ impl Backend {
             },
             None => self.session_dialect().await,
         };
-        // The catalog's labels for the resolved dialect, so a status bar or
+        // The catalogue's labels for the resolved dialect, so a status bar or
         // picker can render it without keeping its own name table. `null` for a
-        // name the catalog does not know (an unrecognised configured value).
+        // name the catalogue does not know (an unrecognised configured value).
         // The model carries no `short_name`, so the label comes from the
         // catalogue projection — reached from the *resolved environment*, not
         // from a second name validator, and `null` for a name that names no
@@ -16802,7 +16802,7 @@ impl Backend {
         })))
     }
 
-    /// Handle `tcl-lsp.listDialects`: the dialect catalog as presentation data
+    /// Handle `tcl-lsp.listDialects`: the dialect catalogue as presentation data
     /// — canonical `name` (the spelling `tcl-lsp.setDialect` and
     /// `tclLsp.dialect` take), the full and compact labels, the dedicated
     /// editor language id (`null` where the dialect has none) and the file
@@ -25840,7 +25840,7 @@ fn non_ascii_mode_str(mode: NonAsciiMode) -> serde_json::Value {
 }
 
 /// The rejection message for a dialect-setting command, naming every canonical
-/// dialect the catalog offers so the caller can correct the spelling from the
+/// dialect the catalogue offers so the caller can correct the spelling from the
 /// error alone rather than having to ask for the list separately.
 fn unknown_dialect_error(dialect: &str) -> String {
     // The accepted set is `Environment::resolve`'s — canonical ids, aliases
@@ -33936,7 +33936,7 @@ mod tests {
         assert!(Backend::dialect_from_language_id("irules").is_none());
     }
 
-    /// `f5-bigip` is a catalog profile like any other, so the catalog-first
+    /// `f5-bigip` is a catalogue profile like any other, so the catalogue-first
     /// lookup answers for its ids. `dialect_for_open_sync` never reaches this
     /// function for them — its BIG-IP branch returns first — and resolves them
     /// to the same `f5-bigip` either way.
@@ -33952,8 +33952,8 @@ mod tests {
     }
 
     /// The full input set the language-id table accepts, with the dialect each
-    /// input resolves to. The table is catalog-driven (plus a fallback for the
-    /// spellings the catalog has no field for), and every one of these inputs
+    /// input resolves to. The table is catalogue-driven (plus a fallback for the
+    /// spellings the catalogue has no field for), and every one of these inputs
     /// must resolve exactly as listed.
     #[test]
     fn dialect_from_language_id_accepts_every_legacy_spelling() {
@@ -34008,7 +34008,7 @@ mod tests {
     }
 
     /// Every canonical dialect name reaches its own profile through the
-    /// catalog-first lookup — including any profile added after this test was
+    /// catalogue-first lookup — including any profile added after this test was
     /// written, which a hand-maintained table would miss.
     #[test]
     fn dialect_from_language_id_covers_the_whole_catalog() {
@@ -34028,7 +34028,7 @@ mod tests {
         }
     }
 
-    /// `tcl-lsp.listDialects` reports the whole catalog with the presentation
+    /// `tcl-lsp.listDialects` reports the whole catalogue with the presentation
     /// fields an editor needs to build a picker without its own name table.
     #[test]
     fn list_dialects_command_reports_the_catalog_with_presentation_fields() {

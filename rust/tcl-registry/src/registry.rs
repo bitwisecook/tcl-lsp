@@ -8368,7 +8368,7 @@ mod tests {
         // `package unknown handler` → handler(name requirement ?requirement
         // ...?) = AtLeast(2): verified empirically on tclsh 8.6.14 that Tcl
         // always appends the package name *plus* at least one requirement
-        // word, synthesizing a "0-" placeholder when `package require` was
+        // word, synthesising a "0-" placeholder when `package require` was
         // given none itself — never just the bare name, so AtLeast(2), not
         // AtLeast(1) (see the fuller note on `package_.rs`'s `unknown`
         // subcommand).

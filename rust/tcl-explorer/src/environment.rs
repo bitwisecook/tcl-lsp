@@ -84,7 +84,7 @@ pub fn analyser_profile_for_dialect(name: &str) -> &'static DialectProfile {
 /// (a registered environment id, for the editor-identity and lenient-sink
 /// roles), where `DialectProfile::resolve_known("tcl")` —
 /// `find("tcl").or_else(|| tcl_dialect::DialectProfile::find("tcl").map(tcl_dialect::DialectProfile::surface_query)…)`, and `"tcl"` is
-/// neither a catalog profile name nor a `DialectProfile::find` spelling —
+/// neither a catalogue profile name nor a `DialectProfile::find` spelling —
 /// answers `None`. Composed from [`catalogue_profile_for_dialect`] (the
 /// exact `find` twin) plus the one `DialectProfile::find` promotion this
 /// contract requires (`"tk"`) instead, so this answers `None` for `"tcl"`

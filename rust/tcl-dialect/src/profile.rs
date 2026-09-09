@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The `DialectProfile` catalog — one interned profile per canonical dialect.
+//! The `DialectProfile` catalogue — one interned profile per canonical dialect.
 //!
 //! A profile is resolved from a dialect-name string **once at ingest**
 //! (LSP `dialect_for_open`, CLI `effective_dialect`, `detect_dialect`) and
@@ -167,7 +167,7 @@ const GRAMMAR_F5_TCL: LexerGrammar = LexerGrammar {
 };
 
 /// One filename extension a dialect owns, with its human-facing name —
-/// the catalog analogue of a `SpecTcl` pack's
+/// the catalogue analogue of a `SpecTcl` pack's
 /// `file_extension upf -name {Unified Power Format}` row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DialectFileExtension {
@@ -184,7 +184,7 @@ pub struct DialectFileExtension {
 /// per canonical dialect, plus the [`DialectProfile::plain_tcl`] fallback
 /// every unknown name resolves to.
 ///
-/// The behaviour fields are **derived data fixed at catalog-construction
+/// The behaviour fields are **derived data fixed at catalogue-construction
 /// time** from the §7 table of the design doc (`signature_base` /
 /// `runtime_base` / the vendor surface drive the rest); the derivation rules
 /// (§7.1) are enforced by this module's invariant tests so the hand-laid
@@ -203,7 +203,7 @@ pub struct DialectProfile {
     /// separate string-keyed tables would (design doc §2.4).
     pub aliases: &'static [&'static str],
     /// The full human-facing name shown in settings menus and pickers
-    /// (`"Synopsys EDA Tcl"`, `"Tcl 8.6"`). The catalog is the single
+    /// (`"Synopsys EDA Tcl"`, `"Tcl 8.6"`). The catalogue is the single
     /// source for editor presentation: `cargo xtask gen-editor-dialects`
     /// projects this into every editor's dialect list, so adding a
     /// profile ships its label everywhere at once.
@@ -222,7 +222,7 @@ pub struct DialectProfile {
     /// Whole *basenames* this dialect owns, matched instead of an extension
     /// (`bigip.conf`, `bigip_base.conf`). Lower-case, compared
     /// case-insensitively against a path's last component, unique across the
-    /// catalog.
+    /// catalogue.
     ///
     /// The second axis of file recognition, and it needs its own field
     /// because the file it names has no useful extension: a bare `.conf`
@@ -244,7 +244,7 @@ pub struct DialectProfile {
     /// routing (`tcl-registry`'s `dialect_from_extension` fallback), the
     /// editors' registered extension lists (`cargo xtask
     /// gen-editor-extensions`), and any UI that names a file type.
-    /// Lower-case, no leading dot, unique across the catalog. `SpecTcl`
+    /// Lower-case, no leading dot, unique across the catalogue. `SpecTcl`
     /// packs can register further extensions at load time
     /// (`file_extension` rows) — those layer on top of, and are consulted
     /// before, this static set.
@@ -358,14 +358,14 @@ pub struct DialectProfile {
     // AXIS D: out-of-registry vendor knowledge (§5.4).
     /// Lower-case substring terms that select this dialect's entries in
     /// the KCS help index (`tcl help --dialect`). Empty = no filtering
-    /// (the permissive fallback). Resolution through the catalog means
+    /// (the permissive fallback). Resolution through the catalogue means
     /// alias spellings (`irules`) filter exactly like the canonical name
     /// — a plain string-keyed table would silently apply no filter to them.
     pub help_terms: &'static [&'static str],
 }
 
 /// Profile equality **is** pointer identity, as the type's contract states:
-/// every profile a consumer holds came from the interned catalog (or the
+/// every profile a consumer holds came from the interned catalogue (or the
 /// [`DialectProfile::plain_tcl`] sink), so two handles name the same dialect
 /// exactly when they are the same allocation. Spelling it as a trait impl
 /// lets a config type that carries a resolved profile keep deriving
@@ -378,7 +378,7 @@ impl PartialEq for DialectProfile {
 
 impl Eq for DialectProfile {}
 
-/// The catalog: one profile per canonical dialect, in
+/// The catalogue: one profile per canonical dialect, in
 /// [`KNOWN_DIALECTS`](crate::KNOWN_DIALECTS) (sorted) order.
 ///
 /// Surface and behaviour values follow the per-dialect table in
@@ -1504,7 +1504,7 @@ impl DialectProfile {
             .map(TclVersion::string_character_model)
     }
 
-    /// The full catalog of canonical dialect profiles, in sorted-name order
+    /// The full catalogue of canonical dialect profiles, in sorted-name order
     /// (the [`KNOWN_DIALECTS`](crate::KNOWN_DIALECTS) order). Excludes the
     /// [`Self::plain_tcl`] fallback — it is a resolution sink, not a
     /// selectable dialect.
@@ -1570,7 +1570,7 @@ impl DialectProfile {
 
     /// Whether this profile IS the iRules profile — the canonical
     /// "is this iRules?" predicate (pointer identity against the interned
-    /// catalog entry, so aliases are already folded in by resolution).
+    /// catalogue entry, so aliases are already folded in by resolution).
     #[must_use]
     pub fn is_irules(&self) -> bool {
         std::ptr::eq(self, Self::irules())
@@ -1872,7 +1872,7 @@ mod tests {
 
     #[test]
     fn help_terms_cover_every_real_dialect() {
-        // §5.4: every catalog profile carries help-filter terms; only the
+        // §5.4: every catalogue profile carries help-filter terms; only the
         // permissive fallback filters nothing. The versioned-Tcl profiles
         // (tcl9.1 included) share the
         // tcl/tk terms; every vendor profile's terms include a
@@ -1919,7 +1919,7 @@ mod tests {
     #[test]
     fn catalog_matches_known_dialects_exactly() {
         // One profile per canonical name, in the same (sorted) order —
-        // KNOWN_DIALECTS and the catalog can never drift apart.
+        // KNOWN_DIALECTS and the catalogue can never drift apart.
         let names: Vec<&str> = DialectProfile::all().iter().map(|p| p.name).collect();
         assert_eq!(names.as_slice(), KNOWN_DIALECTS);
     }
@@ -1949,7 +1949,7 @@ mod tests {
     #[test]
     fn tk_ingress_profile_keeps_the_typed_library_bit() {
         // Tk deliberately remains a library pin rather than an
-        // editor-visible catalog profile, but an explicit `tk` / wish
+        // editor-visible catalogue profile, but an explicit `tk` / wish
         // document must retain the typed command-surface fact — carried by
         // the dedicated ingress profile the environment seam promotes.
         assert_eq!(DialectProfile::tk().name, "tk");
@@ -2292,7 +2292,7 @@ mod tests {
 
     #[test]
     fn signature_and_runtime_base_agree_everywhere_today() {
-        // Every profile in the current catalog has signature == runtime
+        // Every profile in the current catalogue has signature == runtime
         // (iRules has both at V8_4 — D3). The fields stay structurally
         // separate because future dialects may split them; this test
         // documents that no current entry does.
@@ -2544,7 +2544,7 @@ mod tests {
                     row.extension
                 );
                 // Extension routing is a function: one owner per extension
-                // across the whole catalog.
+                // across the whole catalogue.
                 assert!(
                     !seen_ext.contains(&row.extension),
                     "{}: extension {:?} owned twice",
@@ -2595,7 +2595,7 @@ mod tests {
             }
         }
         // The axis is not vacuous — BIG-IP's config basenames are its whole
-        // reason to exist, and an empty catalog would pass every rule above.
+        // reason to exist, and an empty catalogue would pass every rule above.
         assert!(
             seen.contains(&"bigip.conf"),
             "the BIG-IP config basenames must be catalogued"

@@ -246,7 +246,7 @@ pub struct ModuleCommandBindings {
     /// Sparse flow-sensitive binding state. Analysis forks this state for
     /// every executable root, while most roots leave the command table
     /// unchanged. Copy-on-write keeps those forks allocation-cheap and
-    /// detaches only at the centralized replacement/join seams below.
+    /// detaches only at the centralised replacement/join seams below.
     bindings: Arc<HashMap<String, BTreeSet<MayBinding>>>,
     /// Binding state reachable between executable roots. Unlike `bindings`,
     /// this excludes transient pre/post states within a top-level or body

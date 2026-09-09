@@ -211,7 +211,7 @@ pub enum BracedVarEnd {
     /// The `}` closing the name sits at this byte offset.
     Closed(usize),
     /// No `}` closes the name. Evaluating engines must raise
-    /// [`MISSING_CLOSE_BRACE_FOR_VAR`]; a lenient tokenizer may instead treat
+    /// [`MISSING_CLOSE_BRACE_FOR_VAR`]; a lenient tokeniser may instead treat
     /// the name as running to end-of-input.
     Unterminated,
 }
@@ -233,7 +233,7 @@ pub enum BracedVarEnd {
 /// under 8.x (the name is `a\`) but is unterminated under 9.x, because the
 /// `\}` is inert and no closer remains. Verified against both oracles.
 ///
-/// The consumers on the **`subst`/tokenizer** surface all resolve the form
+/// The consumers on the **`subst`/tokeniser** surface all resolve the form
 /// here rather than re-implementing a scan — the lexer's own `parse_var` and
 /// array-index scans, and both `subst` engines — because an engine that
 /// hard-codes one release's rule answers `subst {${a{b}c}}` wrongly on the
@@ -248,7 +248,7 @@ pub enum BracedVarEnd {
 ///   `TokenType::Var` rather than through this scan and so keeps the lenient
 ///   run-to-end-of-input behaviour on an unterminated form.
 ///
-/// Both stay outside this consolidation; only the `subst`/tokenizer
+/// Both stay outside this consolidation; only the `subst`/tokeniser
 /// surface is consolidated on this owner.
 ///
 /// `src` need not be valid UTF-8. The scan steps a byte at a time, which is

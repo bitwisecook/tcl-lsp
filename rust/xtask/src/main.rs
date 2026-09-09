@@ -219,7 +219,7 @@ enum Command {
     },
 
     /// Generate the editors' registered file-extension / language lists from
-    /// the `DialectProfile` catalog plus the bundled packs' `file_extension`
+    /// the `DialectProfile` catalogue plus the bundled packs' `file_extension`
     /// rows.
     GenEditorExtensions {
         /// Verify the committed manifests are in sync instead of rewriting

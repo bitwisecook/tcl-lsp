@@ -61,7 +61,7 @@
 //!
 //! Two presentation-only exceptions, asserted STRUCTURALLY (no tclsh cite):
 //!   * The `SymbolMap` text format, `parse`, and `reverse` are an internal
-//!     serialization contract, not a Tcl value.
+//!     serialisation contract, not a Tcl value.
 //!   * The `f5-irules` ensemble-subcommand abbreviation (`info exists` -> `info
 //!     e`) is a BIG-IP-iRules-runtime optimisation. It is NOT valid in stock
 //!     tclsh (`info e` errors "ambiguous subcommand" there), so it is asserted
@@ -116,7 +116,7 @@ fn agg(src: &str, isolated: bool) -> MinifyResult {
     )
 }
 
-// SymbolMap::format / parse / reverse — internal serialization (structural).
+// SymbolMap::format / parse / reverse — internal serialisation (structural).
 
 #[test]
 fn symbol_map_format_emits_every_populated_section() {

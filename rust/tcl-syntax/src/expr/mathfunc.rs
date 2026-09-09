@@ -501,7 +501,7 @@ pub fn added_in(name: &str) -> Option<MathFuncSince> {
 /// counterpart to `operators::OperatorSpec` (math functions are open and
 /// overridable via `::tcl::mathfunc::*`, TIP 232, so there's no closed enum
 /// to attach metadata to). This is the fact table `mathfunc_generated.rs`
-/// (layer 2) reads for hover/completion; it carries no behavior of its own.
+/// (layer 2) reads for hover/completion; it carries no behaviour of its own.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MathFuncSpec {
     /// Function name, matched verbatim (mathfunc lookup is case-sensitive).

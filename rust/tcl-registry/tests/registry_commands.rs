@@ -1212,7 +1212,7 @@ fn tcloo_is_tcl86_plus() {
     assert!(r85.get_for_surface("oo::define", d85).is_none());
 }
 
-/// The iRules profile pulls in `when`, the HTTP family, the seeded AAA catalog,
+/// The iRules profile pulls in `when`, the HTTP family, the seeded AAA catalogue,
 /// the `class`/`table` generated commands, and deprecated profile commands.
 ///
 /// f5-dialect: none of these are real tclsh commands.
@@ -1277,7 +1277,7 @@ fn f5_irules_curated_signatures_are_concrete() {
 }
 
 /// The f5-iapps profile has `iapp::template` / `iapp::conf` but NOT the iRules
-/// catalog.
+/// catalogue.
 ///
 /// f5-dialect.
 #[test]
@@ -1285,7 +1285,7 @@ fn f5_iapps_profile_membership() {
     let (reg, ds) = reg_and_set("f5-iapps");
     assert!(reg.get_for_surface("iapp::template", ds).is_some());
     assert!(reg.get_for_surface("iapp::conf", ds).is_some());
-    // f5-iapps is a separate catalog from f5-irules.
+    // f5-iapps is a separate catalogue from f5-irules.
     assert!(
         reg.get_for_surface("AAA::acct_result", ds).is_none(),
         "iRules catalog must not leak into f5-iapps"
@@ -1446,7 +1446,7 @@ fn detection_target_dialects_are_known() {
     );
 }
 
-/// `available_dialects()` is the sorted catalog backing the CLI `--dialect`
+/// `available_dialects()` is the sorted catalogue backing the CLI `--dialect`
 /// choices; `KNOWN_DIALECTS` is its data. Sanity-check completeness + order.
 ///
 /// registry-metadata.

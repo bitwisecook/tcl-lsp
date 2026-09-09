@@ -636,7 +636,7 @@ fn build_request_setup(event_name: &str, conditions: &[&Value]) -> Vec<String> {
     let host_re = Regex::new(r#"eq\s+"([^"]+)""#).expect("valid regex");
     let host_bare_re = Regex::new(r"eq\s+(\S+)").expect("valid regex");
     // Captures the operator too (group 1), not just the pattern (group 2):
-    // `matches_glob`/`matches_regex` need the pattern *synthesized* into a
+    // `matches_glob`/`matches_regex` need the pattern *synthesised* into a
     // concrete example (see `synthesize_uri_example`), not reused verbatim.
     let uri_re = Regex::new(&format!(r#"({uri_ops})\s+"([^"]+)""#)).expect("valid regex");
     let uri_bare_re = Regex::new(&format!(r"({uri_ops})\s+(\S+)")).expect("valid regex");

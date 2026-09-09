@@ -628,7 +628,7 @@ fn interp_hidectl(interp: &mut Interp, argv: &[*mut TclObj], op: CommandVisibili
 /// (`::`) / `-namespace ns` given, not a mutual-exclusion refusal — passing
 /// both is legal on tclsh 8.6.16/9.0.4, the last one simply wins; no
 /// `cannot use -global option and -namespace option together` error exists
-/// on either release. An unrecognized option is a hard `bad option` error.
+/// on either release. An unrecognised option is a hard `bad option` error.
 /// `-namespace`'s namespace is resolved from the **global**
 /// namespace regardless of the caller's current one, matching
 /// `TCL_GLOBAL_ONLY` (tclsh-pinned: `-namespace bar` from inside `::foo`

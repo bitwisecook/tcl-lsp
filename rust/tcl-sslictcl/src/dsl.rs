@@ -49,7 +49,7 @@ pub const RESERVED_CHECK_ID: &str = "grade";
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DslDocument {
     /// Byte-for-byte original source. Unknown declarations can be re-emitted
-    /// from this rather than from the normalized semantic projection.
+    /// from this rather than from the normalised semantic projection.
     pub raw_source: String,
     /// Typed declarations.
     pub model: SslicModel,

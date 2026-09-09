@@ -24,7 +24,7 @@
 #   * ``tclsh9.0`` / ``tclsh8.6`` — Tcl interpreters used by
 #     ``scripts/capture/bytecode.sh``, the irule_test framework,
 #     and the cli_venv tests.
-#   * ``node`` / ``npm`` — the VS Code extension's TypeScript catalog
+#   * ``node`` / ``npm`` — the VS Code extension's TypeScript catalogue
 #     compile checks (``editors/vscode/node_modules/.bin/tsc``).
 #   * ``kotlinc`` — the JetBrains plugin's DiagnosticCatalog.kt compile
 #     check.

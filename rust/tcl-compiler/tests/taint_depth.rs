@@ -1202,7 +1202,7 @@ mod irule3101_depth {
     #[test]
     fn not_classified_under_plain_tcl() {
         // The setter constraint is dialect-gated: a literal non-slash target
-        // under tcl8.6 emits nothing (defense-in-depth gate).
+        // under tcl8.6 emits nothing (defence-in-depth gate).
         assert!(of_code("HTTP::uri relativepath", D, "IRULE3101").is_empty());
     }
 }

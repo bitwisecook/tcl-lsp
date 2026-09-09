@@ -278,7 +278,7 @@ Cargo targets so old target-heavy archives cannot be restored; the
 per-registration Cargo target Tank does retain lives outside the checkout and
 is validated on every run
 ([tank-persistent-cargo-target.md](tank-persistent-cargo-target.md)). sccache v0.17 is
-measured across registrations rather than assumed to normalize differing
+measured across registrations rather than assumed to normalise differing
 absolute checkout roots. Its setup, compiler cache, and statistics are
 performance-only: an unavailable cache falls back to direct rustc, while
 failed statistics and non-zero cache-write errors emit workflow warnings

@@ -737,9 +737,9 @@ suite("Configuration Settings", () => {
     assert.strictEqual(cfg().get<string[] | null>("signatureHelp.disabledCommands"), null);
   });
 
-  // ── Behavioral mutation tests ──────────────────────────────────────
+  // ── Behavioural mutation tests ──────────────────────────────────────
   // Each test verifies that changing a setting actually affects LSP
-  // behavior, not just that the config round-trips.
+  // behaviour, not just that the config round-trips.
 
   test("disabling features.hover suppresses hover results", async () => {
     const docUri = getDocUri("procs.tcl");
@@ -1230,7 +1230,7 @@ suite("Configuration Settings", () => {
     );
   });
 
-  // ── Diagnostic code toggle behavioral test ───────────────────────
+  // ── Diagnostic code toggle behavioural test ───────────────────────
   test("disabling diagnostics.W100 suppresses that diagnostic", async () => {
     const docUri = getDocUri("diagnostics.tcl");
     await activate(docUri);
@@ -1290,7 +1290,7 @@ suite("Configuration Settings", () => {
     }
   });
 
-  // ── Optimiser enabled toggle behavioral test ─────────────────────
+  // ── Optimiser enabled toggle behavioural test ─────────────────────
   test("disabling optimiser.enabled suppresses O1xx diagnostics", async () => {
     const docUri = getDocUri("diagnostics.tcl");
     await activate(docUri);

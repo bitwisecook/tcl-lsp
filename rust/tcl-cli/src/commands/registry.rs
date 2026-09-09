@@ -27,13 +27,13 @@ use tcl_cli_support::{OutputTarget, registry_for_dialect, write_text_output};
 use tcl_dialect::DialectProfile;
 use tcl_registry::command_snapshot::{command_registry_snapshot, command_registry_snapshots};
 
-/// The plain-Tcl-version dialects `--all-dialects` snapshots, in the catalog's
+/// The plain-Tcl-version dialects `--all-dialects` snapshots, in the catalogue's
 /// stable sorted-name order.
 ///
-/// The predicate is the catalog's own "this profile is a plain Tcl release"
+/// The predicate is the catalogue's own "this profile is a plain Tcl release"
 /// fact ([`DialectProfile::const_fold_version`], `Some` only for the versioned
 /// Tcl profiles and `None` for every vendor dialect), so a new release added
-/// to the catalog is snapshotted automatically, with no second list to keep
+/// to the catalogue is snapshotted automatically, with no second list to keep
 /// in sync.
 fn tcl_dialects() -> Vec<&'static str> {
     DialectProfile::all()

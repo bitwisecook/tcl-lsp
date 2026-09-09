@@ -254,7 +254,7 @@ mod tests {
             tcl_dialect::DialectProfile::irules()
         )));
         // And the `irules` *alias*, which reaches the same profile only by
-        // going through the catalog lookup — the leg that can regress.
+        // going through the catalogue lookup — the leg that can regress.
         assert!(is_irules_dialect(Some(
             tcl_registry::model::ingress::resolve_environment("irules").analyser_profile()
         )));
@@ -280,7 +280,7 @@ mod tests {
         // is registry-resolved, so the test registry must carry the
         // dialect's command set before lowering iRule code. The shared
         // per-profile cache is the same one production resolves through,
-        // and the profile catalog canonicalises the `"irules"` alias, so
+        // and the profile catalogue canonicalises the `"irules"` alias, so
         // both spellings load the iRules pack exactly as
         // `is_irules_dialect` recognises both.
         let registry = tcl_registry::model::ingress::static_context_for(

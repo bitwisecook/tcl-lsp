@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Contract tests binding the `DialectProfile` catalog (tcl-dialect) to the
+//! Contract tests binding the `DialectProfile` catalogue (tcl-dialect) to the
 //! registry's spec data — the two sides of the availability axis
 //! (`docs/design/registry/dialect-profile-model.md` §5/§9).
 //!

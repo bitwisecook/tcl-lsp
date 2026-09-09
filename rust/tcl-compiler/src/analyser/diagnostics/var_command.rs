@@ -2104,7 +2104,7 @@ impl Analyser {
             );
             // A candidate must still be *live* at this dispatch-table
             // entry's own position — renamed or deleted away with no
-            // later re-establishment must not synthesize a phantom
+            // later re-establishment must not synthesise a phantom
             // reference — the same question `unresolved.rs`'s W123 pass
             // answers via `fact_live_for_call`, reused here rather than
             // reimplemented.

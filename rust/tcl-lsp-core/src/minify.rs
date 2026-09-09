@@ -78,7 +78,7 @@
 //!   ([`Traits::REFLECTS_COMMAND_NAMES`]) and no computed command
 //!   name is present.
 //! * Array member keys (`arr(member)`) are Tcl **data**, never
-//!   compacted: `array get` / `array names` / serialization observe
+//!   compacted: `array get` / `array names` / serialisation observe
 //!   them.
 //!
 //! `isolated` also compacts global-scope variables.
@@ -1227,7 +1227,7 @@ fn find_proc_call_sites(name: &str, qualified_name: &str, analysis: &AnalysisRes
 ///
 /// Array member keys are **never** compacted: `arr(member)` is Tcl
 /// data observable through `array get` / `array names` / traces /
-/// serialization, not a private compiler symbol.
+/// serialisation, not a private compiler symbol.
 fn compact_names(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
@@ -4270,7 +4270,7 @@ mod tests {
     #[test]
     fn compact_never_renames_array_members() {
         // Array member names are Tcl DATA, not private symbols: `array
-        // get` / `array names` / traces / serialization observe them, so
+        // get` / `array names` / traces / serialisation observe them, so
         // no tier may rename them.  tclsh 9.0.4: the original prints
         // `longmember 1`, so a compaction that renames the key prints `a 1`
         // instead.

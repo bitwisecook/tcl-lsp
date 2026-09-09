@@ -1696,7 +1696,7 @@ mod tests {
         // On adversarial random bracket/escape soup the index's
         // insert-here-balances prediction is a useful but NOT sound
         // approximation of its own full re-scan: inserting a `]` can
-        // close a bracket early and re-contextualize the tail (a
+        // close a bracket early and re-contextualise the tail (a
         // count-based command-sub interior becomes top-level word-based),
         // split a `\\` pair and re-align escapes, or be consumed by a
         // following quote. The productionised forward-walk must re-derive

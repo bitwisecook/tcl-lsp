@@ -68,7 +68,7 @@
 //!   id falls back to a fresh full stream.
 //!
 //! Two **document-mode** grammars are handled here too, because neither is Tcl
-//! and running the Tcl tokenizer over them mis-colours the file rather than
+//! and running the Tcl tokeniser over them mis-colours the file rather than
 //! merely under-colouring it (each braced block reads as one literal word, so
 //! whole *lines* come out as `string`):
 //!
@@ -732,7 +732,7 @@ pub fn full(
 /// Compute semantic tokens for an **APL** (iApp presentation) document.
 ///
 /// APL is not Tcl — it is a declarative form-description grammar — so it does
-/// not go through the Tcl segmenter at all.  Running the Tcl tokenizer over it
+/// not go through the Tcl segmenter at all.  Running the Tcl tokeniser over it
 /// (which is what happens today for any document the server does not route
 /// here) treats each braced block as one literal word and emits whole *lines*
 /// as `String` tokens, actively mis-colouring the file.
@@ -761,7 +761,7 @@ pub fn apl_range(
 /// `.scf`).
 ///
 /// Like APL (see [`apl_full`]), BIG-IP config text is not Tcl: it is a
-/// brace-delimited declarative config.  The Tcl tokenizer reads each stanza
+/// brace-delimited declarative config.  The Tcl tokeniser reads each stanza
 /// body as one literal braced word and emits whole *lines* as `String` tokens
 /// — 272 of `samples/bigip/bigip.conf`'s 302 tokens are exactly that, which
 /// mis-colours the file rather than merely under-colouring it.
@@ -4290,7 +4290,7 @@ struct ScriptCtx<'a> {
     dialect: &'static tcl_dialect::DialectProfile,
     /// The dialect's numeric-literal grammar, resolved once from `dialect` so
     /// the per-word `Number` classification does not re-walk the profile
-    /// catalog for every token.  Decides which radix prefixes exist, whether a
+    /// catalogue for every token.  Decides which radix prefixes exist, whether a
     /// bare leading zero is octal, and whether `_` digit separators are
     /// allowed — see [`is_number_literal`].
     numbers: NumberSyntax,

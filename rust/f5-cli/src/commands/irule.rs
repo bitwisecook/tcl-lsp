@@ -89,12 +89,12 @@ struct LoadedIrules {
 /// The filename suffixes that name a **standalone** iRule file, as opposed to
 /// a `bigip.conf` / SCF / UCS the rules are extracted from.
 ///
-/// Projected from the dialect catalog rather than restated: the `f5-irules`
+/// Projected from the dialect catalogue rather than restated: the `f5-irules`
 /// profile owns `irul`, `irule` and `irules`, and every editor registers all
 /// three, so this list must not be hand-written with only two of them —
 /// otherwise `foo.irules` would be parsed as a BIG-IP config instead of an
 /// iRule. `tcl` is
-/// added on top because the catalog deliberately leaves the generic extension
+/// added on top because the catalogue deliberately leaves the generic extension
 /// unowned (content decides the dialect there), while `f5-query irule` is
 /// already in iRules context by the time it reads a file.
 fn irule_suffixes() -> &'static [&'static str] {
@@ -112,7 +112,7 @@ fn irule_suffixes() -> &'static [&'static str] {
 }
 
 /// The container suffixes a standalone iRule is *extracted from* — the other
-/// half of the input taxonomy, and not a dialect-catalog fact: `.conf` and
+/// half of the input taxonomy, and not a dialect-catalogue fact: `.conf` and
 /// `.ucs` are deliberately not owned by any profile (a bare `.conf` belongs
 /// to every unrelated config file), and `.scf` is `f5-bigip`'s.
 const CONTAINER_SUFFIXES: &[&str] = &["conf", "scf", "ucs"];
