@@ -3343,6 +3343,12 @@ fn infer_var_type_and_taint(
     var_name: &str,
     profile: &'static tcl_dialect::DialectProfile,
 ) -> (Option<String>, Option<String>) {
+    // Inline `# tcl-lsp: stub` declarations only — hover holds the buffer's
+    // text, not its path, so the sidecar half of the surface is out of reach
+    // here (and a sidecar-declared role can only widen, never narrow, what
+    // the inferred intrep shows).
+    let declared =
+        tcl_compiler::analyser::utils::document_declared_surface(source, None, profile.name);
     let unit = CompilationUnit::build_with_options(
         source,
         tcl_compiler::compilation_unit::UnitBuildOptions {
@@ -3351,6 +3357,7 @@ fn infer_var_type_and_taint(
             config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
             dialect: Some(profile),
             external_call_sites: None,
+            declared_commands: Some(&declared),
         },
     );
     let first_use = tcl_compiler::shimmer::first_use_commitments_for_cu(&unit, registry);
