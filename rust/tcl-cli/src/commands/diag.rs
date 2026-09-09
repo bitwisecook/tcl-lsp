@@ -201,14 +201,6 @@ fn document_proc_names(
     .collect()
 }
 
-/// Collect every diagnostic the editor surfaces for one document: the analyser's
-/// syntactic / semantic checks plus the compiler-checks pass (shimmer `S1xx`,
-/// taint `T1xx` / `W2xx`, iRules data-flow). Mirrors the server's
-/// `lift_analyser_diagnostics` + `lift_compiler_diagnostics` concatenation so the
-/// CLI and the editor report the same set. Optimiser `O1xx` rewrites are the
-/// domain of the `optimise` verb, so they are dropped here — the same split the
-/// server draws with its optimiser toggle. Rows come back in a deterministic
-/// `(line, column, code)` order; `disabled` removes `--disable`d codes.
 /// Append the `SslicTcl` loader's own `SSLIC1xxx` findings, the same
 /// projection the server publishes.
 ///
@@ -235,6 +227,14 @@ fn push_sslictcl_rows(
     }
 }
 
+/// Collect every diagnostic the editor surfaces for one document: the analyser's
+/// syntactic / semantic checks plus the compiler-checks pass (shimmer `S1xx`,
+/// taint `T1xx` / `W2xx`, iRules data-flow). Mirrors the server's
+/// `lift_analyser_diagnostics` + `lift_compiler_diagnostics` concatenation so the
+/// CLI and the editor report the same set. Optimiser `O1xx` rewrites are the
+/// domain of the `optimise` verb, so they are dropped here — the same split the
+/// server draws with its optimiser toggle. Rows come back in a deterministic
+/// `(line, column, code)` order; `disabled` removes `--disable`d codes.
 fn collect_rows(
     document: &InputDocument,
     dialect: &'static tcl_dialect::DialectProfile,
