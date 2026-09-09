@@ -696,6 +696,7 @@ against the library's real behaviour.
 ## Related docs
 
 - [value-transfers.md](value-transfers.md) — the interface this contract evaluates for
+- [value-transfers-examples.md](value-transfers-examples.md) — the programs each route is measured against, and the declarations in Rust and `.tclspec`
 - [value-transfers-migration.md](value-transfers-migration.md) — the slices that land each route
 - [registry-consumer-contracts.md](registry-consumer-contracts.md) — runtime backing, the engine's WASM sibling, and C hosting, none of which this contract waits for
 - [../runtime/family-b-routing.md](../runtime/family-b-routing.md) — the shared-core rule the direct route follows

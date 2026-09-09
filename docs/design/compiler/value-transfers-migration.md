@@ -244,7 +244,7 @@ and a diagnostic is never that proof.
 | O101 | `branch_folding.rs`, `expr_simplify.rs`, `propagation.rs` | `constant_branches`, the constants projection, `trusts("expr")` | more branches decide; target-aware arithmetic, lazy operands, and exact transport; `is_switch_dispatch` suppression unchanged |
 | O102 | `propagation.rs` `run_load_forwarding` | def-use chains, `UseKind::Operand`, `is_externally_mutable`, `TraceInputs`; never `values` | unchanged — a literal load is a literal load |
 | O103 | `propagation.rs` two shapes | `ProcSummary`, `trusts_proc_binding`, `evaluate_proc_with_constants` | the argument-sensitive path folds string-building callees at once; the summary path after `summarise_returns` reads a lattice under the staged fixed point |
-| O104, O130 | `chain_fold.rs` | none — textual, strictly consecutive, literal-only | the classifier dispatches on the resolved cell update instead of three names; non-consecutive chains and lattice-constant operands fold through the value at the last write; coercion, traces, errors, and the implicit result are preserved |
+| O104, O130 | `chain_fold.rs` | none — textual and literal-only; an unrelated statement between the writes is tolerated, the chain must start at a literal `set`, and a propagated operand is not folded in the same pass | the classifier dispatches on the resolved cell update instead of three names; lattice-constant operands and a chain starting at an absent cell fold through the value at the last write; coercion, traces, errors, and the implicit result are preserved |
 | O105, O106 | `gvn.rs` | reachability | unchanged; same value is not same observable computation |
 | O107 | `elimination.rs` | `executable_blocks` | more arms decide; applied reachability only, never a selection fact |
 | O108 | `elimination.rs` ADCE | def-use, `assignment_safe_to_delete_with_effect` | a cell update in statement position is removable only under the totality proof of permission 3: old value proven well-formed, place proven bound, no trace; a direct-route pure command in statement position likewise; an unbind statement is never removed |
@@ -274,7 +274,9 @@ view shows `folded_types`, decline reasons, and loss-of-exactness evidence.
 
 The catalogue has 197 diagnostic codes (`docs/generated/diagnostic_codes.md`);
 most are syntax, scope, version, dialect, or protocol facts with no
-constant input. The rows below are the ones with a constant relationship.
+constant input. The rows below are the ones with a constant relationship;
+[value-transfers-examples.md](value-transfers-examples.md) has a program
+for each, with the tool's observed behaviour today.
 
 ### Codes that read the lattice today and see more
 
@@ -292,14 +294,14 @@ constant input. The rows below are the ones with a constant relationship.
 | T100–T106, IRULE3001–3004, W313 | `taint.rs` | reachability and φ edges; never `values` | unchanged; colour flows through write outcomes |
 | IRULE3101 | `taint.rs` `find_setter_constraint_warnings` | reachability + a literal-only prefix check | a `Const(String)` subject is checked directly, removing the false positive on `set p /a; HTTP::path $p` |
 | IRULE3103 | `uri_split.rs` | `values` (`Const(String)` only) | computed operands |
-| IRULE1005–1008, 1201, 1202, 3102, 4002, 4004, 5002, 5004 | `irules_checks.rs` | reachability | fewer findings in dead arms |
+| IRULE1005–1008, 1201, 1202, 3102, 4002, 4004, 5002, 5004 | `irules_checks.rs` | two of the checks consult `executable_blocks`; the response-commit walk behind IRULE1201 does not, so a respond in a dead arm still commits | every check consumes applied reachability; fewer findings in dead arms |
 | W201 | `path_concat.rs` via `compiler_checks.rs` | reachability, rendered properties, taints | exact flags on computed values |
 
 ### Codes that are literal-only today and would gain
 
 | Code | Bail today | Gain |
 |---|---|---|
-| W121 | raw `args` scan | asymmetric with W124; `set m 255.0.255.0; IP::addr $ip mask $m` |
+| W121 | every `Const(String)` in the lattice, like W124 | `set m 255.0; append m .255.0; IP::addr $ip mask $m` |
 | W127, W137, W141 | `value.contains('$') \|\| value.contains('[')` | a propagated or `[string tolower CONST]`-computed option value |
 | W146 | `LiteralValidationDecline::NonLiteralArgument` | the decline reason is exactly "not a statically known value"; the exact value is fed through `LiteralArgumentValidator` with honest provenance, and the token is not relabelled a literal |
 | W145, W147, W152 | literal option spellings | a computed option name |
@@ -690,6 +692,7 @@ workloads, per the evaluation contract's budget section.
 ## Related docs
 
 - [value-transfers.md](value-transfers.md), [value-evaluation.md](value-evaluation.md) — the two contracts this plan lands
+- [value-transfers-examples.md](value-transfers-examples.md) — one program per code in the tables above, with today's observed behaviour and the declarations in Rust and `.tclspec`
 - [registry-consumer-contracts.md](registry-consumer-contracts.md) — the other axes and the runtime, package, and extension follow-ons
 - [pass-fact-ownership-matrix.md](pass-fact-ownership-matrix.md), [downstream-pass-contracts.md](downstream-pass-contracts.md), [diagnostics-integration.md](diagnostics-integration.md), [diagnostics-calculation.md](diagnostics-calculation.md) — updated with each slice
 - [sccp-core-analyses.md](sccp-core-analyses.md), [constant-folding-type-inference.md](constant-folding-type-inference.md), [optimisation-passes.md](optimisation-passes.md) — the passes the tables describe

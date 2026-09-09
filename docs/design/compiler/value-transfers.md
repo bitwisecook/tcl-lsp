@@ -103,7 +103,11 @@ for a command the registry has never heard of. The completion test is
 stated at the end: a command that fits an existing analyser interface
 changes only its registry declaration and, where needed, its registry-owned
 evaluator or shared core, and never SCCP, the analyser walk, a diagnostic,
-or the optimiser.
+or the optimiser. These four are the shortest cases;
+[value-transfers-examples.md](value-transfers-examples.md) has one program
+for every optimisation and diagnostic the design touches, with the tool's
+observed behaviour today and the declarations behind each in Rust and in
+`.tclspec`.
 
 ## Vocabulary
 
@@ -630,7 +634,12 @@ of the adapter are corrected rather than inherited. Its `eval_with_config`
 ends in `to_number`, and its public `TclValue` has numeric variants only,
 so it cannot fold `expr {"x"}` — which is the string `x` — or a
 string-valued ternary; the analysis result boundary carries the engine's
-full value. And it evaluates eagerly where the engine must not:
+full value. And it declines a command substitution it reaches, so
+`expr {[string length $s] * 2}` never folds even when `s` is known; the
+`command` service resolves the nested invocation through the registry's
+semantics instead. What the adapter already does right is kept: it stops
+at a short-circuit, so the substitution in the first line below is never
+reached, and the contract preserves that laziness.
 
 ```tcl
 expr {0 && [error never]}   ;# 0: the right operand is never reached
@@ -1232,6 +1241,7 @@ unit-level lattice evaluates.
 ## Related docs
 
 - [value-evaluation.md](value-evaluation.md) — the evaluation contract behind `evaluate`
+- [value-transfers-examples.md](value-transfers-examples.md) — one program per optimisation and diagnostic, and the declarations in Rust and `.tclspec`
 - [value-transfers-migration.md](value-transfers-migration.md) — the inventory, slices, gate, and per-consumer changes
 - [registry-consumer-contracts.md](registry-consumer-contracts.md) — the other axes and the runtime, package, and extension follow-ons
 - [sccp-core-analyses.md](sccp-core-analyses.md) — the lattice, the drivers, and the existence post-pass

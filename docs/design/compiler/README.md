@@ -79,6 +79,12 @@ User-facing compiler troubleshooting and how-tos live in
   precision, the declared-implementation route in the bounded engine with
   per-evaluation state, one memo under one context, budgets and
   cancellation, target semantics, and the SpecTcl authoring sketches.
+- [value-transfers-examples.md](value-transfers-examples.md) —
+  **proposal**: worked examples — one program per optimisation and
+  diagnostic code the value axis touches, each with the tool's observed
+  behaviour today and what the contracts change, the defects running the
+  corpus exposed, and the declarations behind the examples as they would be
+  written in the Rust command registry and in a `.tclspec` pack.
 - [value-transfers-migration.md](value-transfers-migration.md) —
   **proposal**: the migration plan — the versioned inventory of hand-written
   command knowledge, the seven delivery slices with exit criteria, what

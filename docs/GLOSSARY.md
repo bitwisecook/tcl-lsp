@@ -694,7 +694,7 @@ route (a shared core, the shared expression engine, or a declared
 implementation in the bounded engine), never inferred from purity. Not yet
 implemented.
 
-See also: [Value transfers](design/compiler/value-transfers.md), [Value evaluation](design/compiler/value-evaluation.md), [Value-transfer migration](design/compiler/value-transfers-migration.md), [Registry consumer contracts](design/compiler/registry-consumer-contracts.md), and
+See also: [Value transfers](design/compiler/value-transfers.md), [Value evaluation](design/compiler/value-evaluation.md), [Worked examples](design/compiler/value-transfers-examples.md), [Value-transfer migration](design/compiler/value-transfers-migration.md), [Registry consumer contracts](design/compiler/registry-consumer-contracts.md), and
 [Constant folding](#constant-folding).
 
 ### Def-use chains

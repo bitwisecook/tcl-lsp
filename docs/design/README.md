@@ -61,6 +61,10 @@ passes, and ownership matrices.
   evaluation contract behind that interface — the direct, expression, and
   declared-implementation routes, the shared cores and adapters, the regexp
   owner, the bounded engine, one analysis context, budgets, and authoring.
+- [value-transfers-examples.md](compiler/value-transfers-examples.md) —
+  **proposal**: one program per optimisation and diagnostic the value axis
+  touches, with the tool's observed behaviour today and the declarations
+  behind each example in the Rust registry and in `.tclspec`.
 - [value-transfers-migration.md](compiler/value-transfers-migration.md) —
   **proposal**: the migration plan — the inventory of hand-written command
   knowledge, the delivery slices, what changes for every pass and
