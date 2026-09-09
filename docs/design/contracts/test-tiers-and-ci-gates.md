@@ -109,10 +109,14 @@ until the map assigns it.
    make prep-pr        # format + codegen + lint/typecheck + smoke
    ```
 
-   `rust-check` is the minimum for Rust-only changes. `check-all` (lint +
-   typecheck across TypeScript, Rust, Python) is the surface to run alone
-   after touching TypeScript or Python. Failures are fixed, not skipped;
-   tooling-missing skips are deliberate (`SKIP_CHECK_RUST=1`, …). Commit
+   `rust-check` is the minimum for Rust-only changes. Alongside the workspace
+   default-feature pass, it checks and executes the focused x509-only contract
+   test for `tcl-bigip-query` because the report WASM uses that socket-free
+   graph and the default `probes` build cannot expose feature-gating errors
+   there.
+   `check-all` (lint + typecheck across TypeScript, Rust, Python) is the surface
+   to run alone after touching TypeScript or Python. Failures are fixed, not
+   skipped; tooling-missing skips are deliberate (`SKIP_CHECK_RUST=1`, …). Commit
    whatever formatting `prep-pr` applies, then re-run the gate — a
    `cargo fmt` after the commit is not a pass. Every "pr-gate bounced on a
    trivial lint" on this repo was a push that skipped this step.

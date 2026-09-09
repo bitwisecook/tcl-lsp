@@ -264,6 +264,7 @@
 5	bpf-tcl::socket_filter	test	bpf-tcl	socket_filter
 5	bpf-tcl::xdp	test	bpf-tcl	xdp
 5	tcl-bigip-query::integration	test	tcl-bigip-query	integration
+5	tcl-bigip-query::x509_only	test	tcl-bigip-query	x509_only
 5	tcl-cli::explorer_gui	test	tcl-cli	explorer_gui
 5	tcl-cli::pkg_verbs	test	tcl-cli	pkg_verbs
 5	tcl-cli::spec_verbs	test	tcl-cli	spec_verbs

@@ -44,7 +44,10 @@ engine as a **library** (PyO3), while this crate is the same generator
 
 The page (styles + upload controller) is the shared builder front-end
 (`rust/bigip-report-gen/frontend/src/pages/input.ts`); `build-wasm.sh` inlines the
-generator wasm behind it.
+generator wasm behind it. Browser builds obtain their epoch time from
+`Date.now()` through the shared report crate; native and WASI builds retain
+`SystemTime`. Calling `SystemTime::now()` directly on `wasm32-unknown-unknown`
+traps at run time even though the module compiles.
 
 ## Building
 
@@ -55,10 +58,17 @@ pinned `wasm-bindgen` crate version), and `python3`:
 bash build-wasm.sh          # → dist/index.html (WASM + glue inlined, one file)
 ```
 
+The script honours `CARGO_TARGET_DIR` and packages the module from that same
+directory. This is required in parallel worktrees: packaging a hard-coded
+crate-local target can silently reuse an older module after Cargo built the
+current checkout elsewhere.
+
 `dist/index.html` is fully self-contained — host it on any static server, or
 just open it from disk. `target/` and `dist/` are build outputs (gitignored);
 CI (the `github-pages` workflow) builds and publishes it to
-`/bigip-report-generator/`.
+`/bigip-report-generator/`. Its browser regression uploads a checked-in SCF,
+generates the report, waits for the download, and checks the downloaded HTML
+for fixture content.
 
 > `wasm-opt` is deliberately not run: on modern rustc layouts binaryen rebinds
 > the `__wbindgen_externrefs` export onto the fixed-size funcref table, which

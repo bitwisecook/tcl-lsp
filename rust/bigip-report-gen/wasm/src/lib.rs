@@ -27,8 +27,9 @@
 //! compiled in.
 //!
 //! The network-probe builtins are compiled out (`bigip-report-gen-rust` →
-//! `tcl-bigip-query` with `default-features = false`), so this binary has no
-//! socket / TLS / x509 dependency.
+//! `tcl-bigip-query` with `default-features = false`); the report retains the
+//! pure-Rust `x509` surface for its certificate inventory, but has no socket /
+//! TLS dependency.
 
 use wasm_bindgen::prelude::*;
 

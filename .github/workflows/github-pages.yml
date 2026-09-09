@@ -142,6 +142,7 @@ jobs:
         with:
           workspaces: |
             rust/bigip-report-gen/python
+            rust/bigip-report-gen/wasm
             rust/tcl-explorer-wasm
             rust/tcl-spec-studio-wasm
             rust/tcl-lsp-server-wasm
@@ -288,6 +289,13 @@ jobs:
           # installed for the Studio boot check.
           NODE_PATH="$PWD/rust/tcl-spec-studio/web/node_modules" \
             node rust/tcl-cli/gui/test/pages-boot.mjs site
+
+          # Exercise the in-browser report generator as Pages serves it. This
+          # loads the inlined report WASM, generates and downloads a report from
+          # a checked-in config, and inspects its contents. That catches broken
+          # glue, target-only traps, or a feature graph that only works natively.
+          NODE_PATH="$PWD/rust/tcl-spec-studio/web/node_modules" \
+            node rust/bigip-report-gen/wasm/test/pages-boot.mjs site
 
           # Root landing page linking both apps (the shared Pages root).
           cat > site/index.html <<'HTML'

@@ -38,7 +38,16 @@ mkdir -p "$dist"
 wasm_cc_prepare
 echo "==> cargo build --target wasm32-unknown-unknown --release"
 ( cd "$here" && cargo build --target wasm32-unknown-unknown --release )
-wasm="$here/target/wasm32-unknown-unknown/release/bigip_report_wasm.wasm"
+cargo_target_dir=${CARGO_TARGET_DIR:-$here/target}
+case "$cargo_target_dir" in
+    /*) ;;
+    *) cargo_target_dir="$here/$cargo_target_dir" ;;
+esac
+wasm="$cargo_target_dir/wasm32-unknown-unknown/release/bigip_report_wasm.wasm"
+test -f "$wasm" || {
+    echo "built report WASM is missing from Cargo target directory: $wasm" >&2
+    exit 1
+}
 
 echo "==> wasm-bindgen (no-modules)"
 wasm-bindgen "$wasm" --out-dir "$out" --target no-modules --no-typescript
