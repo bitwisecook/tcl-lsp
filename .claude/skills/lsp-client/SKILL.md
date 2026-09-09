@@ -30,7 +30,7 @@ subcommand. All line/col arguments are **0-based**.
 | `diagnostics` | `<file>` | `SEVERITY CODE l:c-l:c message`; optimiser O-codes are INFO with quick-fix actions |
 | `format` | `<file>` | the edits the formatter would apply |
 | `hover` / `completion` / `definition` / `references` | `<file> <line> <col>` | the feature at a position |
-| `code-lens` | `<file>` | reference-count lenses, each resolved via `codeLens/resolve` as an editor would; `[inert — empty command id]` marks the clickable-broken shape (#724 / #956) |
+| `code-lens` | `<file>` | reference-count lenses, each resolved via `codeLens/resolve` as an editor would; `[inert — empty command id]` marks a lens whose command id is empty, so an editor cannot click it |
 | `code-actions` | `<file> <l> <c> <el> <ec>` | code actions in a range |
 | `optimize` | `<file>` | each rewrite and the full optimised source |
 | `symbols` | `<file>` | the document symbol hierarchy (events, procs, namespaces, variables) |
@@ -54,6 +54,14 @@ results race the scan. A new cross-file check must call
 python3 .claude/skills/lsp-client/lsp_client.py --also-open lib.tcl definition consumer.tcl 3 10
 ```
 
+The scan covers the workspace root — the current directory, or `--server-dir`.
+Scanning the whole repository exceeds the default timeout on a debug build, so
+point `--server-dir` at the directory holding the files under test:
+
+```bash
+python3 .claude/skills/lsp-client/lsp_client.py --server-dir editors/vscode/testFixture diagnostics editors/vscode/testFixture/diagnostics.tcl
+```
+
 ## When to use
 
 After changing tokens, diagnostics, the formatter, or the optimiser; to check
@@ -62,9 +70,9 @@ a position-dependent feature at a cursor; `all` as a smoke test; `bench` and
 
 ```bash
 python3 .claude/skills/lsp-client/lsp_client.py semantic-tokens samples/for_screenshots/03-completions.tcl
-python3 .claude/skills/lsp-client/lsp_client.py diagnostics editors/vscode/testFixture/diagnostics.tcl
+python3 .claude/skills/lsp-client/lsp_client.py --server-dir editors/vscode/testFixture diagnostics editors/vscode/testFixture/diagnostics.tcl
 python3 .claude/skills/lsp-client/lsp_client.py hover editors/vscode/testFixture/procs.tcl 1 6
-python3 .claude/skills/lsp-client/lsp_client.py code-lens editors/vscode/testFixture/objMethodDispatch.tcl
+python3 .claude/skills/lsp-client/lsp_client.py --server-dir editors/vscode/testFixture code-lens editors/vscode/testFixture/objMethodDispatch.tcl
 python3 .claude/skills/lsp-client/lsp_client.py diagram samples/for_screenshots/ai-scene.irul
 python3 .claude/skills/lsp-client/lsp_client.py event-info HTTP_REQUEST
 python3 .claude/skills/lsp-client/lsp_client.py bench samples/tcl/09_long_code.tcl --iterations 3
