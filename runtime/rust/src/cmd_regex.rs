@@ -62,10 +62,9 @@ fn regexp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 let mut it = pairs.into_iter();
                 while let Some((name, val)) = it.next() {
                     // `arr(a)` writes the array *element*, not a literal
-                    // scalar named `arr(a)` (issue #1577) — the same
-                    // `split_array_ref` + `var_set`/`var_set_elem` routing
-                    // `set` uses, so this doesn't hand-roll a second name
-                    // parser.
+                    // scalar named `arr(a)` — the same `split_array_ref` +
+                    // `var_set`/`var_set_elem` routing `set` uses, so this
+                    // doesn't hand-roll a second name parser.
                     let (base, elem) = crate::frame::split_array_ref(&name);
                     let stored = match &elem {
                         Some(k) => interp.var_set_elem(&base, k, val),
@@ -106,10 +105,10 @@ fn regsub_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 return c;
             }
             // `arr(k)` writes the array *element*, not a literal scalar named
-            // `arr(k)` (issue #1577's shape, R4's fix elsewhere) — the same
-            // `split_array_ref` + `var_set`/`var_set_elem` routing `set` and
-            // `regexp`'s match-var loop use, so this doesn't hand-roll a
-            // second name parser.
+            // `arr(k)` — the same `split_array_ref` +
+            // `var_set`/`var_set_elem` routing `set` and `regexp`'s
+            // match-var loop use, so this doesn't hand-roll a second name
+            // parser.
             let (base, elem) = crate::frame::split_array_ref(&name);
             let o = new_string_bytes(&text);
             let stored = match &elem {

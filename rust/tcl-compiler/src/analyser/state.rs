@@ -2755,9 +2755,9 @@ impl Analyser {
     /// This is the same set the W123 unresolved-command pass resolves
     /// registry names against, so settlement
     /// (`finalise_invocation_resolutions`), constant-dispatch, W113, and
-    /// W123 can no longer disagree about which registry commands exist —
-    /// the pre-P1a split where settlement read the *unfiltered* store
-    /// name set (and so believed in commands W123 did not) is retired.
+    /// W123 cannot disagree about which registry commands exist.  Reading
+    /// the *unfiltered* store name set at settlement instead would believe in
+    /// commands W123 does not.
     ///
     /// The name set is held on ``self.builtin_names`` for subsequent
     /// proc / class registrations to consult without rebuilding.
@@ -4395,9 +4395,9 @@ mod tests {
         a.profile = tcl_dialect::DialectProfile::plain_tcl();
         // ``set`` is a core built-in across all dialects.
         assert!(a.builtin_command_names().contains("set"));
-        // I4/R-c (ledger C5): the set is the one `exists` oracle's
-        // registry tier — the names the resolved context actually
-        // provides, no longer the unfiltered store name set. Cache
+        // The set is the one `exists` oracle's registry tier — the names the
+        // resolved context actually provides, not the unfiltered store name
+        // set. Cache
         // invalidation: switching dialect rebuilds onto the new context.
         a.profile = tcl_dialect::DialectProfile::irules();
         assert!(

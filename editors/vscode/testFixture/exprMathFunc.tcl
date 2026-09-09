@@ -1,4 +1,4 @@
-# Fixture for the `expr` math-function completion + hover tests (issue #974).
+# Fixture for the `expr` math-function completion + hover tests.
 # Line 3 (0-indexed) ends in a deliberately unfinished `expr` body: the cursor
 # after `si` sits inside an EXPR-role argument, where the bare math functions
 # are the only callable candidates.

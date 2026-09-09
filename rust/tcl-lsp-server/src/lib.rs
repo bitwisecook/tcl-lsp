@@ -22827,7 +22827,7 @@ impl LanguageServer for Backend {
                 .collect();
             return Ok(Some(locations));
         }
-        // The iRulesLX method relation, in both directions (issue #1707): from
+        // The iRulesLX method relation, in both directions: from
         // a Tcl call site, and from the `addMethod` registration in the
         // extension's own JavaScript. Answered here, in full — the sites are
         // literal words in two languages, which the Tcl symbol analyser has no
@@ -22873,7 +22873,7 @@ impl LanguageServer for Backend {
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
         // Highlighting is find-references narrowed to one document, so it
-        // takes the same whole-program export view (issue #1116 item 1) —
+        // takes the same whole-program export view —
         // otherwise a `-force`-shadowed call highlights as an occurrence of a
         // definition go-to-definition refuses to open.
         let exports = self.export_snapshot().await;
@@ -22946,7 +22946,7 @@ impl LanguageServer for Backend {
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
         // A call edge is a call resolution, so the hierarchy needs the same
-        // export view definition uses (issue #1116 item 1).
+        // export view definition uses.
         let exports = self.export_snapshot().await;
         let uri_key = uri.as_str().to_owned();
         let items = crate::rt::spawn_blocking(move || {
@@ -23571,8 +23571,8 @@ impl LanguageServer for Backend {
         let registry = self.registry_for_dialect(&doc.dialect).await;
         let uri = &params.text_document.uri;
         // Race the memoised unit + analysis against the fast-path budget; on
-        // timeout `pending` carries the still-running reads to the #844 Gap 4
-        // convergence continuation below (see `race_range_enriched_reads`).
+        // timeout `pending` carries the still-running reads to the convergence
+        // continuation below (see `race_range_enriched_reads`).
         let (cached_cu, cached_analysis, pending, had_analysis_handles) =
             self.race_range_enriched_reads(uri).await;
         // Distinguishes the two no-continuation cases for the settled marker
@@ -23677,13 +23677,13 @@ impl LanguageServer for Backend {
         {
             return Ok(None);
         }
-        // Answered from the workspace index, not from the open-document map
-        // (#1156).  VS Code re-issues this request on every keystroke in its
-        // Ctrl+T box, and the previous handler cloned the whole document store
-        // — every buffer and its `LineIndex` — and then serially re-analysed
-        // each open document per keystroke, while missing every symbol in a
-        // file the editor had not opened.  The index already holds each of
-        // them, filters before materialising, and caps the answer.
+        // Answered from the workspace index, not from the open-document map.
+        // VS Code re-issues this request on every keystroke in its Ctrl+T box,
+        // so cloning the whole document store — every buffer and its
+        // `LineIndex` — and serially re-analysing each open document per
+        // keystroke would be costly *and* would miss every symbol in a file
+        // the editor had not opened.  The index already holds each of them,
+        // filters before materialising, and caps the answer.
         //
         // Freshness: the index is refreshed on each document's diagnostics
         // publish, which the debounce puts ~50 ms behind an edit.  A symbol
@@ -25677,7 +25677,7 @@ fn is_sidecar_stubs_file(uri: &Uri) -> bool {
 
 /// Split watched events into config / sidecar flags and the final event for
 /// each Tcl source.  A batch may contain a path more than once, so the last
-/// event wins, matching the old serial handling.
+/// event wins.
 fn partition_watched_file_changes(changes: Vec<FileEvent>) -> WatchedFileChanges {
     let mut partition = WatchedFileChanges::default();
     for change in changes {
@@ -27234,7 +27234,7 @@ fn refine_w123_diagnostics(
 /// * A live `namespace import -force` has *replaced* the importing namespace's
 ///   own command of this name, so **no** candidate may settle the call — it
 ///   reaches the import's source instead, which the caller's wildcard tier
-///   handles (issue #1103).
+///   handles.
 /// * A candidate naming a real registry builtin counts a proc definition only
 ///   when that definition is not itself nested inside another proc's or
 ///   class's body: the "rename the builtin away, install a same-named shadow,
@@ -27290,7 +27290,7 @@ fn settle_call_against_workspace<'a>(
 }
 
 /// One document's unresolved call sites, settled against the workspace by
-/// [`settle_call_against_workspace`] (issue #1331).
+/// [`settle_call_against_workspace`].
 type ProcArityRange = (u32, Option<u32>);
 type ProcArityUnion = Vec<ProcArityRange>;
 
@@ -27674,7 +27674,7 @@ async fn refine_workspace_w123(
     if !analyser_diags.iter().any(|d| d.code == DiagCode::W123) {
         return analyser_diags;
     }
-    // #1332 option (2): a `source` whose target this server cannot pin to an
+    // A `source` whose target this server cannot pin to an
     // indexed document may define any command, so no name in this file can be
     // called unknown. Same bargain as `has_dynamic_providers`, applied at the
     // level that owns path resolution.
@@ -27970,7 +27970,7 @@ fn fold_document_constants(
     )
 }
 
-/// [`resolve_source_uri`] extended with the M9 stage-9.2 computed-path tier:
+/// [`resolve_source_uri`] extended with the computed-path tier:
 /// a literal resolves as before; a computed path is statically folded through
 /// [`tcl_compiler::auto_path_eval::evaluate_auto_path_expr_with_constants`]
 /// (`[file join …]` / `[file dirname [info script]]` forms, with the parent
@@ -28509,10 +28509,8 @@ fn empty_diagnostic_report() -> DocumentDiagnosticReportResult {
 /// `tclLsp.dialect` pulled by `workspace/configuration`, and the
 /// `setDialect` / `setSessionDialectOverride` commands.
 ///
-/// **Ledger row F9**: the validators this replaced (`DialectProfile::find` ∪
-/// `DialectProfile::find` here, and `available_dialects()`'s
-/// canonical-names-only membership in the two commands) are now one
-/// `Environment::resolve` — so every configuration path accepts exactly the
+/// One `Environment::resolve` rather than a per-call-site validator, so every
+/// configuration path accepts exactly the
 /// declared names: canonical environment ids, their aliases, and the
 /// contributed editor identities. Whether a name is accepted therefore does
 /// not depend on which table it happens to sit in, and an unknown name is
@@ -28597,10 +28595,10 @@ const DOCUMENT_AUTO_PATH_DIR_CAP: usize = 64;
 /// package require mypix
 /// ```
 ///
-/// The resolver used to see only configured roots and `libraryPaths`, so this
-/// worked *by luck* — a workspace root enclosing the package directory got
+/// A resolver seeing only configured roots and `libraryPaths` would answer
+/// this *by luck* — a workspace root enclosing the package directory gets
 /// swept up by [`PackageResolver::scan_tree`]'s blunt recursive descent — and
-/// failed outright when it didn't (opening just `examples/`, or a single
+/// fail outright when it does not (opening just `examples/`, or a single
 /// file): go-to-definition and hover on a command the package provides
 /// answered nothing, though tclsh resolves it deterministically.
 ///
@@ -28669,7 +28667,7 @@ fn document_auto_path_dirs(uri: &Uri, analysis: &AnalysisResult) -> Vec<PathBuf>
     };
     // The document's own single-assignment constants, chain-folded, so the
     // corpus idiom `set libDir [file join $dir lib]; lappend auto_path
-    // $libDir` contributes its directory (issue #775) instead of nothing.
+    // $libDir` contributes its directory instead of nothing.
     let constants = tcl_compiler::auto_path_eval::fold_constant_assignments(
         &analysis.path_constant_assignments,
         file_path.to_str(),
@@ -29321,9 +29319,9 @@ mod tests {
     };
 
     /// A typing burst must reset the diagnostics debounce window on every edit.
-    /// The old fixed-from-first-edit delay launched fresh salsa reads throughout
-    /// the burst, so `set_text` repeatedly waited for their cancellation and the
-    /// request-side edit barrier could exceed its 30-second budget.
+    /// A delay fixed from the burst's first edit launches fresh salsa reads
+    /// throughout it, so `set_text` repeatedly waits for their cancellation and
+    /// the request-side edit barrier can exceed its budget.
     #[tokio::test(start_paused = true)]
     async fn diagnostics_debounce_waits_for_a_quiet_window() {
         let uri = Uri::from_str("file:///debounce.tcl").unwrap();
@@ -34011,7 +34009,7 @@ mod tests {
 
     /// Every canonical dialect name reaches its own profile through the
     /// catalog-first lookup — including any profile added after this test was
-    /// written, which the old hand-maintained table would have missed.
+    /// written, which a hand-maintained table would miss.
     #[test]
     fn dialect_from_language_id_covers_the_whole_catalog() {
         for profile in tcl_dialect::DialectProfile::all() {
@@ -48696,7 +48694,7 @@ proc p {} {
         );
     }
 
-    /// TN (Codex review on #1047): a stock-`TclOO` `self method` is not
+    /// TN: a stock-`TclOO` `self method` is not
     /// inherited, so a subclass's own class command never reaches it —
     /// tclsh 8.6 and 9.0.4 both answer `Gadget make` with `unknown method
     /// "make": must be create, destroy or new`.  A consumer document's
@@ -49852,7 +49850,7 @@ proc p {} {
         std::fs::write(&on_disk, src).unwrap();
         let uri = Uri::from_file_path(&on_disk).unwrap();
         // Indexed like the folder scan does it — never inserted into
-        // `documents`, so the old open-document walk could not have seen it.
+        // `documents`, so an open-document walk could not see it.
         let analysis = {
             let mut a = Analyser::new();
             a.analyse(src, "tcl8.6").clone()
@@ -50421,8 +50419,8 @@ proc p {} {
     /// workspace scan) does.
     ///
     /// The rename arrives on its own here, with **no** `didChangeWatchedFiles`
-    /// alongside it: that racing watch event is what masks the leak under VS
-    /// Code, so a test that sends both proves nothing about this path.
+    /// alongside it: a racing watch event masks the leak, so a test that sends
+    /// both proves nothing about this path.
     #[tokio::test]
     async fn did_rename_forgets_the_source_rehoming_seed_1298() {
         let backend = test_backend();

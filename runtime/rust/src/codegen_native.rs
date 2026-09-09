@@ -534,9 +534,9 @@ mod tests {
     use crate::interp::obj_bytes;
 
     /// A compiled `incr` on a cell whose write trace rewrites it must return
-    /// the cell's post-trace value, exactly as the interpreted `incr` does
-    /// (#1633 row 1). Dispatching `builtins::incr` here instead of the
-    /// registered trace-safe body returned the pre-trace sum — and dropped the
+    /// the cell's post-trace value, exactly as the interpreted `incr` does.
+    /// Dispatching `builtins::incr` here instead of the registered
+    /// trace-safe body would return the pre-trace sum — and drop the
     /// only reference to it while doing so.
     #[cfg(have_tommath)]
     #[test]

@@ -64,7 +64,7 @@ pub struct BigipConfig {
 /// `(module, object_type)` pairs whose identifier is inherently
 /// *unpartitioned* — a hardware, system-wide, or cluster-wide name that lives
 /// outside any partition — so a `/Common/` prefix would be bogus and break
-/// name lookups (issue 189).  `net interface 1.1` is the port `1.1`, not
+/// name lookups.  `net interface 1.1` is the port `1.1`, not
 /// `/Common/1.1`; `sys provision ltm` provisions the module `ltm`, not
 /// `/Common/ltm`; `cm device`/`device-group`/`traffic-group` are cluster
 /// objects keyed by (unpartitioned) device/group names.
@@ -711,7 +711,7 @@ mod tests {
     #[test]
     fn unpartitioned_kinds_are_not_partition_prefixed() {
         // Hardware / system / cluster kinds keep their bare identifier — no
-        // bogus `/Common/` prefix that would break lookups (issue 189).
+        // bogus `/Common/` prefix that would break lookups.
         let src = "net interface 1.1 { }\n\
                    sys provision ltm { level nominal }\n\
                    cm device bigip1.local { }\n\

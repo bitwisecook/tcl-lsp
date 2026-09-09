@@ -7368,20 +7368,20 @@ mod class_factories {
         assert!(!cd.methods.contains_key("options"), "{cd:?}");
         assert!(cd.constructors.is_empty(), "{cd:?}");
         // …and the abstention is *recorded*, so the tables read as a lower
-        // bound rather than as the class's whole surface (issue #923 idx 53).
+        // bound rather than as the class's whole surface.
         assert!(cd.member_set_incomplete, "{cd:?}");
     }
 
     #[test]
     fn a_foreach_member_installer_marks_the_member_set_incomplete() {
-        // TP — idx 53's other half: the ticklecharts `chart3D` installer
+        // TP: the ticklecharts `chart3D` installer
         // loop.  `foreach` is not a member word and carries a script the
         // member walk never descends into, so the class must say its member
         // tables are a lower bound. tclsh 9.0.4 / 8.6.16: `info class
         // methods ::C3` really lists `options` and `globalOptions`.
         //
-        // Since issue #1277, the loop's own literal list means the two
-        // *names* are no longer invisible either (see
+        // The loop's own literal list means the two
+        // *names* are not invisible either (see
         // `a_literal_foreach_installer_records_member_names_as_signature_unknown`
         // below for the full positive case) — but the set stays incomplete
         // regardless, because knowing these two names is not the same as
@@ -7403,10 +7403,9 @@ mod class_factories {
 
     #[test]
     fn a_literal_foreach_installer_records_member_names_as_signature_unknown() {
-        // TP — issue #1277's headline case: `foreach m {alpha beta gamma} {
+        // TP: the headline case: `foreach m {alpha beta gamma} {
         // method $m {args} {…} }`. tclsh 9.0.4 / 8.6.16 both agree `alpha`,
-        // `beta`, `gamma` are real members of any arity (`args` — see the
-        // oracle transcript in the PR description); the walk can read their
+        // `beta`, `gamma` are real members of any arity (`args`); the walk can read their
         // *names* off the loop's own literal list even though it still
         // cannot say anything honest about their signatures.
         let src = concat!(
@@ -7447,8 +7446,8 @@ mod class_factories {
     fn a_computed_foreach_member_name_still_abstains_entirely() {
         // TN — the loop-installed name must be *exactly* a reference to the
         // loop variable; anything else built from it (or a name that isn't
-        // the loop variable at all) is left exactly as opaque as before
-        // #1277, matching the pre-existing `method $someVar …` abstention.
+        // the loop variable at all) is left exactly as opaque, matching
+        // the pre-existing `method $someVar …` abstention.
         let src = concat!(
             "oo::class create C4 {\n",
             "    set prefix pre\n",
@@ -7508,7 +7507,7 @@ mod class_factories {
 
     #[test]
     fn w308_abstains_on_a_class_whose_members_are_installed_reflectively() {
-        // TP — idx 53's user-visible wrong answer: `$c3 options` drew
+        // TP: `$c3 options` must not draw
         // "Unknown method 'options'" on a call tclsh proves succeeds.  A
         // class whose member tables are a lower bound cannot support a
         // missing-method claim, so W308 must abstain — while the sibling
@@ -7549,8 +7548,7 @@ mod class_factories {
     /// a class factory from `interp create`, `image create`, or any ordinary
     /// proc taking a script argument.  Guessing would invent classes out of
     /// unrelated commands, so the LSP abstains — records no class, and emits
-    /// no diagnostic about the members it therefore cannot see (issue #923
-    /// idx 97, the multi-file half).
+    /// no diagnostic about the members it therefore cannot see.
     ///
     /// This is the **floor** the workspace factory index raises, not
     /// replaces: with no index (every single-file analysis, and every host
@@ -7653,7 +7651,7 @@ mod class_factories {
 
     #[test]
     fn a_workspace_indexed_metaclass_creates_real_classes() {
-        // TP — idx 97, the multi-file half.  The consumer file names
+        // TP — the multi-file half.  The consumer file names
         // `::tk::Megawidget` and nothing else about it; the index proves it
         // is a factory, so the class, its members, and the superclasses the
         // manufacturer splices all come out matching the tclsh oracle above.

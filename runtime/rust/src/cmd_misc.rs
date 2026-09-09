@@ -191,11 +191,11 @@ fn encoding_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 mod tests {
     use crate::interp::{Code, Interp};
 
-    /// Issue #1607: `encoding` is a `TclMakeEnsemble` command, so its
+    /// `encoding` is a `TclMakeEnsemble` command, so its
     /// exact-then-unique-prefix scan and its miss sentence belong to
-    /// `tcl_cmd_core::ensemble`; this matched exactly and spelled the sentence
-    /// out by hand. The list still names only what this runtime implements
-    /// (9.0's table also carries `profiles` and `user`).
+    /// `tcl_cmd_core::ensemble` rather than an exact match with the sentence
+    /// spelled out by hand. The list still names only what this runtime
+    /// implements (9.0's table also carries `profiles` and `user`).
     ///
     /// tclsh 8.6.16 / 9.0.4 (the verdicts, not the shortened list):
     ///   encoding s  -> the system encoding
@@ -223,8 +223,8 @@ mod tests {
         assert_eq!(i.result_bytes(), b"utf-8 unicode ascii iso8859-1");
     }
 
-    /// Issue #1607: `clock` is an ensemble too — its list was spelled out
-    /// beside the dispatch and matched exactly, so `clock se` failed.
+    /// `clock` is an ensemble too, resolved by unambiguous prefix, so
+    /// `clock se` resolves to `clock seconds`.
     ///
     /// tclsh 8.6.16 / 9.0.4:
     ///   clock se -> the seconds count

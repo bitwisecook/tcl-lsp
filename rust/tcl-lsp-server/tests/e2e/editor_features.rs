@@ -198,10 +198,8 @@ fn test_method_lens_counts_external_obj_dispatch_issue_864() {
     // `method get` is on line 6 (0-based).
     let command = resolve_member_lens_on_line(&mut lsp, &ls, 6);
     assert_eq!(command["title"], json!("1 reference"), "{ls:?}");
-    // Regression for issue #956: the lens must resolve to a *clickable*
-    // command, not the empty-id inert shape (the `#724` defect recurring
-    // for methods — the count above was already correct before the fix;
-    // only the command was empty).
+    // The lens must resolve to a *clickable*
+    // command, not the empty-id inert shape.
     assert_eq!(
         command["command"],
         json!("tcl-lsp.showReferences"),
@@ -290,7 +288,7 @@ fn test_property_lens_counts_my_dispatch_and_resolves_clickable() {
     // TP mirroring `test_method_lens_counts_external_obj_dispatch_issue_864`:
     // a `property`'s auto-generated accessor is dispatched via `my <name>`,
     // just like a method, so its lens must count those sites and resolve to
-    // a clickable command the same way (issue #992).
+    // a clickable command the same way.
     // `property` is Tcl 9.0+, so pin the dialect via the in-source directive
     // (shifts every line below down by one).
     let mut lsp = Lsp::tcl();
@@ -337,12 +335,11 @@ fn test_property_lens_zero_when_unused() {
 
 #[test]
 fn test_property_method_constructor_and_class_all_get_lenses_issue_992() {
-    // Repro from issue #992: a class with a `property`, a `constructor`, and
+    // A class with a `property`, a `constructor`, and
     // a `method` gets a lens for every one of them — the class itself, the
     // property, the constructor, and the method. The constructor's lens is
-    // scoped to the next-chain relationship (issue #992's own "Constructors
-    // / destructors" follow-up), not a general dispatch count, so it reads
-    // "0 references" here (nothing chains into it).
+    // scoped to the next-chain relationship, not a general dispatch count,
+    // so it reads "0 references" here (nothing chains into it).
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(
@@ -374,7 +371,7 @@ fn test_property_method_constructor_and_class_all_get_lenses_issue_992() {
 
 #[test]
 fn test_constructor_lens_counts_and_resolves_subclass_next_chain() {
-    // TP for issue #992's own follow-up: a subclass constructor chaining to
+    // TP: a subclass constructor chaining to
     // its superclass's via `next` is a name-independent but still
     // meaningful reference — the superclass constructor's lens must count
     // it and resolve to a clickable command, the same as every other lens
@@ -466,11 +463,11 @@ fn test_already_formatted_is_stable() {
     }
 }
 
-/// Issue #1186 — the formatting engine consumes registry grammar, so the
+/// The formatting engine consumes registry grammar, so the
 /// absolute global spellings C Tcl resolves to the same commands
 /// (`namespace which -command ::if` → `::if`) format identically to their
-/// bare forms. The old `name == "if"` / `"for"` / `"try"` comparisons did
-/// not fire for them at all.
+/// bare forms. A literal `name == "if"` / `"for"` / `"try"` comparison
+/// would not fire for them at all.
 #[test]
 fn test_formatting_qualified_control_flow_matches_bare_form() {
     let mut lsp = Lsp::tcl();
@@ -508,7 +505,7 @@ fn test_formatting_qualified_control_flow_matches_bare_form() {
     }
 }
 
-/// Issue #1275 — the formatter lays a command out under the grammar of the
+/// The formatter lays a command out under the grammar of the
 /// command it **is**, not the one it is spelled as, end-to-end through the
 /// packaged server.
 ///
@@ -554,7 +551,7 @@ fn test_formatting_follows_effective_command_identity() {
     assert!(!expanded("set y 1\nguard {$x} {puts a}\n"));
 }
 
-/// Issue #1186 — `for`'s `start` / `next` scripts stay on the header line
+/// `for`'s `start` / `next` scripts stay on the header line
 /// (registry `ArgPresentation::InlineScript`) while only the body expands,
 /// and range formatting agrees with whole-document formatting.
 #[test]
@@ -581,10 +578,10 @@ fn test_range_formatting_keeps_for_header_inline() {
     }
 }
 
-/// Issue #1196 — formatting must never change a proc's arity. C Tcl 9
+/// Formatting must never change a proc's arity. C Tcl 9
 /// collapses the backslash-newline in a pre-pass before the parameter word is
 /// list-parsed (even inside braces), so this proc has two required
-/// parameters; the old formatter emitted `{a\ b}`, which is one *optional*
+/// parameters; formatting must not emit `{a\ b}`, which is one *optional*
 /// parameter `a` defaulting to `b`.
 #[test]
 fn test_formatting_preserves_proc_arity_across_backslash_newline() {
@@ -602,7 +599,7 @@ fn test_formatting_preserves_proc_arity_across_backslash_newline() {
     );
 }
 
-/// Issue #1196 — the same document formatted twice is a fixed point, and the
+/// The same document formatted twice is a fixed point, and the
 /// escaped-space form (genuinely one element) keeps its identity.
 #[test]
 fn test_formatting_param_lists_are_idempotent() {

@@ -1,4 +1,4 @@
-# Fixture for the DiagnosticTag suite (issue #1333).
+# Fixture for the DiagnosticTag suite.
 #
 # Line 5 (1-based): `c` is declared but never read — W214, tagged Unnecessary, so the
 # identifier renders faded in the editor.

@@ -73,8 +73,7 @@ use tcl_registry::CommandRegistry;
 // written and read at hot-path code-emission sites. They're
 // genuinely orthogonal — folding into a bitflags type would just
 // rename `ctx.is_proc` to `ctx.flags.contains(...)` without any
-// readability or perf gain — and the emitter is a churn-sensitive
-// area. Leaving the allow.
+// readability or perf gain.
 #[allow(clippy::struct_excessive_bools)]
 pub struct CodegenCtx<'r> {
     /// The numeric-literal grammar of the release being compiled *for*.

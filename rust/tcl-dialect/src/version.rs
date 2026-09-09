@@ -1331,7 +1331,7 @@ mod tests {
         }
     }
 
-    /// `select_package_version`'s two selection axes, issue #1090: highest
+    /// `select_package_version`'s two selection axes: highest
     /// acceptable version, and `package prefer`'s stable-first tie-break.
     #[test]
     fn selection_takes_the_highest_acceptable_preferring_stable() {

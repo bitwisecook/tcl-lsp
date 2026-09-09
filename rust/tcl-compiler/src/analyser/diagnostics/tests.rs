@@ -322,7 +322,7 @@ fn w108_comment_prose_is_not_flagged() {
 fn w108_leaves_comment_bidi_controls_to_w305() {
     // A bidi override in a comment is the trojan-source attack shape, and it
     // *is* still flagged — by W305, at error severity, from the whole-file
-    // scan in `tcl_lsp_core::source_decode` (issue #1326).  W108 must not
+    // scan in `tcl_lsp_core::source_decode`.  W108 must not
     // report it as well: one character, one code, and a generic "non-ASCII
     // character" warning materially understates what a bidi override does.
     // The positive assertions live in `source_decode`'s own suite and in
@@ -369,7 +369,7 @@ fn w108_strict_mode_still_flags_comment_prose() {
 
 #[test]
 fn w108_leaves_code_bidi_controls_to_w305() {
-    // Same hand-off as in comments (issue #1326): the character is still
+    // Same hand-off as in comments: the character is still
     // reported, just under the code that describes what it actually does.
     let hits = w108("set x a\u{202e}b\n", "tcl8.6");
     assert!(hits.is_empty(), "W305 owns the bidi set now: {hits:?}");
@@ -622,7 +622,7 @@ fn w146_drops_registry_finding_when_a_user_command_shadows_trace() {
     );
 }
 
-/// FP guard (issue #923 audit, `ticklecharts` idx 51): a document that
+/// FP guard (`ticklecharts` corpus shape): a document that
 /// installs the documented "`TclOO` Tricks" wiki helper
 /// `proc ::oo::Helpers::callback` and calls it bare from a method body must
 /// draw **no** diagnostic under 8.6, where `callback` is not a core command.
@@ -870,7 +870,7 @@ fn apply_lambda_parameters_named_like_commands_draw_no_unknown_command() {
     }
 }
 
-/// Scope isolation for the substitution-position lambda (PR #1068 review).
+/// Scope isolation for the substitution-position lambda.
 ///
 /// `apply`'s lambda body runs in a **fresh call frame**, so a variable it sets
 /// is a local of the lambda, never of the enclosing proc. Walking the body as
@@ -878,7 +878,7 @@ fn apply_lambda_parameters_named_like_commands_draw_no_unknown_command() {
 /// `[…]` substitution sits in; routing the call through `apply`'s own analyser
 /// hook is what keeps the frame separate.
 ///
-/// Oracle (tclsh9.0.4) for the reviewer's own repro
+/// Oracle (tclsh9.0.4) for the repro
 /// `proc p {} { set r [apply {{} {gets stdin leaked}}]; puts $leaked }`:
 /// `can't read "leaked": no such variable` from `puts $leaked` — the lambda's
 /// `leaked` is invisible in `p`.
@@ -890,7 +890,7 @@ fn apply_lambda_in_command_substitution_keeps_its_own_frame() {
         keys.sort();
         keys
     };
-    // TP — the reviewer's repro. `leaked` belongs to the lambda, not to `p`.
+    // TP — the repro. `leaked` belongs to the lambda, not to `p`.
     let vars = scoped_vars(
         "proc p {} {\n    set r [apply {{} {gets stdin leaked}}]\n    puts $leaked\n}\n",
     );
@@ -949,7 +949,7 @@ fn apply_lambda_in_command_substitution_keeps_its_own_frame() {
 ///
 /// The analyser records that namespace as a span-keyed override the LSP's
 /// command resolution consults. A substitution-position lambda recorded none
-/// at all before this fix (PR #1068 review).
+/// at all without the hook.
 #[test]
 fn apply_lambda_in_command_substitution_records_its_namespace() {
     let overrides = |src: &str| -> Vec<String> {
@@ -988,7 +988,7 @@ fn apply_lambda_in_command_substitution_records_its_namespace() {
 
 #[test]
 fn w211_deliberately_skips_destructuring_writer_outputs() {
-    // Policy pin (review-2 audit): a command-output variable the script
+    // Policy pin: a command-output variable the script
     // never reads (`binary scan … rest`, `regexp … m`) is how Tcl spells
     // "ignore the remainder" — no W211.  A plain `set` of an unread
     // variable is the TP control.
@@ -1116,7 +1116,7 @@ fn w108_common_mode_flags_confusables_and_non_benign() {
         w108_mode("set x a\u{200b}b\n", "tcl8.6", Common),
         vec![0x200b]
     ); // ZWSP (Cf)
-    // U+202E RLO is *not* here: bidi controls moved to W305 (issue #1326),
+    // U+202E RLO is *not* here: bidi controls moved to W305,
     // so `common` mode reports the zero-width and control characters it was
     // always meant to catch and leaves the direction-altering set alone.
     assert!(w108_mode("set x a\u{202e}b\n", "tcl8.6", Common).is_empty());
@@ -1479,7 +1479,7 @@ fn w004_fires_on_regsub_command_in_tcl86() {
 }
 
 /// The option scan takes a two-level ensemble's *operation* table, so the
-/// message names the operation and the gate inherits through it (issue #1610).
+/// message names the operation and the gate inherits through it.
 ///
 /// `namespace ensemble` is 8.5+, and `-parameters` narrows further to 8.6+
 /// (absent from the 8.5 `namespace.n` ENSEMBLE OPTIONS list), so the scan has
@@ -1568,8 +1568,7 @@ fn the_two_ensemble_option_tables_do_not_share_their_distinctive_options() {
     // `cmdname` and never reaches an option table; pinned on tclsh 8.6.16 and
     // 9.0.4, byte identical, `namespace ensemble exists -namespace` answers
     // `0` — reading the flag as the command name, not rejecting it as an
-    // option. This assertion previously pinned the opposite, which is the
-    // defect Codex found on #1647.
+    // option.
     assert!(
         names("exists").is_empty(),
         "`exists` must not inherit the parent union: {:?}",
@@ -1583,7 +1582,7 @@ fn the_two_ensemble_option_tables_do_not_share_their_distinctive_options() {
 }
 
 /// The option scan consumes a value word only for options the *operation*
-/// really has (issue #1610).
+/// really has.
 ///
 /// tclsh 8.6.16 / 9.0.4: `namespace ensemble configure ::E -command x` is
 /// `bad option "-command"` — `-command` is not a `configure` option, so it
@@ -1704,7 +1703,7 @@ fn all_codes(src: &str) -> Vec<String> {
 
 #[test]
 fn e003_tp_call_between_two_declarations_checks_the_first_signature() {
-    // TP — issue #923 idx 45. `p a b` sits between a zero-parameter `proc p`
+    // TP. `p a b` sits between a zero-parameter `proc p`
     // and a later one-parameter redefinition; tclsh 9.0.4 and 8.6.16 both
     // fail it with `wrong # args: should be "p"` — the *first* signature.
     // `all_procs` alone only remembers the second, so the call resolved to
@@ -2454,9 +2453,8 @@ fn subcommand_version_gates_fire_w002() {
     // W002 ("disabled in the active dialect profile"), the subcommand-level
     // analogue of the whole-command W002 check, NOT W001 ("Unknown
     // subcommand"), which is reserved for a name that exists in no dialect at
-    // all (a genuine typo).  This is issue #812: `info cmdtype` is a real Tcl
-    // 9.0 subcommand, so flagging it as "unknown" under the default 8.6 profile
-    // was wrong.
+    // all (a genuine typo).  `info cmdtype` is a real Tcl 9.0 subcommand, so
+    // flagging it as "unknown" under the default 8.6 profile would be wrong.
     let added = [
         // (snippet, first dialect it exists in, an older dialect)
         ("string reverse abc", "tcl8.5", "tcl8.4"),
@@ -2557,7 +2555,7 @@ fn info_frame_is_dialect_gated_to_8_5_plus() {
     // `info frame` was introduced in Tcl 8.5 (TIP 280); it does not exist in
     // 8.4.  Because it *does* exist in 8.5+, using it under 8.4 is W002
     // ("disabled in the active dialect profile"), not W001 ("Unknown
-    // subcommand") — the subcommand exists, just not in that dialect (#812).
+    // subcommand") — the subcommand exists, just not in that dialect.
     assert!(
         has_code("info frame\n", "tcl8.4", "W002"),
         "info frame should be disabled-in-dialect (W002) in tcl8.4"
@@ -3137,7 +3135,7 @@ fn arity_codes(src: &str, dialect: &str) -> Vec<String> {
 fn irules_arity_accepts_documented_pool_log_and_class_iteration_forms() {
     // Oracle: /Users/jimd/src/bigip-extract/man-21.0.0.1-0.0.13/
     // ltm_rule_command_{pool,log,class}.3. These forms were found in the
-    // #1181 corpus by `cargo xtask fp-sweep` (issue #1316).
+    // #1181 corpus by `cargo xtask fp-sweep`.
     for src in [
         "pool /Common/web member 192.0.2.10 443\n",
         "log -noname 192.0.2.20:514 local0.info message\n",
@@ -3281,7 +3279,7 @@ fn after_idle_braced_callback_is_arity_checked() {
 
 #[test]
 fn after_multi_word_script_concatenation_abstains() {
-    // Codex review finding (PR #852): `after ms script script script ...?`
+    // `after ms script script script ...?`
     // concatenates every trailing word into ONE script before evaluating
     // it — confirmed against tclsh 9.0.4 (`after info` shows the
     // registered script as `cb 1 2`, space-joined). Marking only the first
@@ -3467,7 +3465,7 @@ fn same_file_rename_reestablished_after_deletion_checks_new_arity() {
 // offset sits inside a different, possibly-never-invoked body. Fixed by
 // adding the same `offset_is_inside_any_definition_body` guard the W123
 // pass's `fact_live_for_call` already applies for the identical question
-// (issue #973). All cases confirmed against tclsh 8.6.14.
+//. All cases confirmed against tclsh 8.6.14.
 
 #[test]
 fn e003_fp_issue_1007_conditional_deletion_never_triggered_proc_stays_live() {
@@ -3558,8 +3556,8 @@ short 1 2
 #[test]
 fn same_file_dynamic_but_resolvable_rename_target_checks_arity() {
     // `$newname` is dynamic-*looking* but a known constant (`set newname
-    // target_orig`) — issue #923 idx 3's constant-folding fix now
-    // resolves it, so `target_orig` correctly inherits `target`'s arity
+    // target_orig`) — constant folding resolves it, so `target_orig`
+    // correctly inherits `target`'s arity
     // (a rename is a pure name move, never an arity change) and a call
     // with too few arguments is caught exactly like the fully-literal
     // `same_file_static_rename_inherits_original_arity` case. Before
@@ -3590,8 +3588,7 @@ fn same_file_genuinely_dynamic_rename_target_does_not_false_positive() {
     );
 }
 
-// The following regression tests were added in response to a code review
-// (all verified against tclsh 9.0.4).
+// Rename / deletion arity cases, all verified against tclsh 9.0.4.
 
 #[test]
 fn same_file_call_to_renamed_away_name_does_not_false_positive() {
@@ -5850,7 +5847,7 @@ fn fp_rbs_16_dead_loop_exit_phi_operand_not_read_before_set() {
         "while 1 compute/if-break: r set before the only live exit (no W210)",
     );
 
-    // FP-RBS-19 (#756): a non-constant condition may run the body zero times,
+    // FP-RBS-19: a non-constant condition may run the body zero times,
     // but the body unconditionally sets y, so a read after the loop is defined
     // whenever the loop ran. Matching C Tcl, we assume a may-run loop runs.
     assert!(
@@ -5898,7 +5895,7 @@ fn fp_rbs_17_guaranteed_foreach_defines_body_vars() {
         "empty foreach list runs zero times (W210 expected on y)",
     );
 
-    // FP-RBS-19 (#756): a dynamic (`$i`) list may be empty, but the body
+    // FP-RBS-19: a dynamic (`$i`) list may be empty, but the body
     // unconditionally sets y, so a read after the loop is defined whenever the
     // loop ran. Matching C Tcl, we assume a may-run loop runs.
     assert!(
@@ -5942,7 +5939,7 @@ fn fp_rbs_18_guaranteed_for_defines_body_vars() {
         "for with false entry condition runs zero times (W210 expected on y)",
     );
 
-    // FP-RBS-19 (#756): a stale-constant init (`set i $n` overwrites `set i 0`)
+    // FP-RBS-19: a stale-constant init (`set i $n` overwrites `set i 0`)
     // leaves the loop may-run — but its body unconditionally sets y, so a read
     // after the loop is silent (we assume a may-run loop runs). The rotation
     // decision itself (that a stale-const init is NOT claimed guaranteed) is
@@ -5967,7 +5964,7 @@ fn fp_rbs_18_guaranteed_for_defines_body_vars() {
         "provably-empty for (incr init makes 5<3 false) leaves y unset (W210 on y)",
     );
 
-    // FP-RBS-19 (#756): an init call writing the loop var through `upvar` leaves
+    // FP-RBS-19: an init call writing the loop var through `upvar` leaves
     // the loop may-run (SCCP cannot see through the call), so the after-loop
     // read of the body-defined y is silent. The invalidation itself (the loop
     // is NOT claimed guaranteed) is pinned on the CFG shape in
@@ -6512,7 +6509,7 @@ fn codes_for(src: &str) -> Vec<String> {
         .collect()
 }
 
-// TclOO/snit method-body CFG/SSA diagnostics (issue #923 idx 77)
+// TclOO/snit method-body CFG/SSA diagnostics
 
 #[test]
 fn method_body_read_before_set_now_flags_w210() {
@@ -6602,9 +6599,8 @@ fn method_body_ordinary_unused_local_still_flags_w211() {
 
 #[test]
 fn objdefine_method_body_unbound_read_now_flags_w210() {
-    // FN now caught — an `oo::objdefine $obj { method … }` body previously
-    // produced no method unit at all, so a genuinely unbound read inside it
-    // got zero diagnostics (issue #1172 item 1).
+    // An `oo::objdefine $obj { method … }` body must produce a method unit,
+    // or a genuinely unbound read inside it draws no diagnostics at all.
     let src = "oo::class create C {}\nset k [C new]\noo::objdefine $k {\n    method probe {} { ::return $neverBound }\n}\n";
     let codes = codes_for(src);
     assert!(
@@ -6628,8 +6624,8 @@ fn objdefine_per_object_variable_does_not_false_positive_w210() {
 
 #[test]
 fn snit_method_body_unbound_read_now_flags_w210() {
-    // FN now caught — snit method bodies previously never became method
-    // units (issue #1172 item 2), so this unbound read was invisible.
+    // A snit method body must become a method unit, or this unbound read is
+    // invisible.
     let src = "snit::type Dog {\n    method bark {} { return $neverBound }\n}\n";
     let codes = codes_for(src);
     assert!(
@@ -6665,8 +6661,7 @@ fn snit_widget_win_and_hull_do_not_false_positive_w210() {
 
 #[test]
 fn itcl_method_body_unbound_read_now_flags_w210() {
-    // FN now caught — itcl method bodies previously never became method
-    // units either (issue #1172 item 2).
+    // An itcl method body must become a method unit too.
     let src = "itcl::class Toaster {\n    public method toast {} { return $neverBound }\n}\n";
     let codes = codes_for(src);
     assert!(
@@ -6843,14 +6838,14 @@ fn info_exists_does_not_fold_conditionally_set_var() {
 fn info_exists_does_not_fold_namespaced_or_array() {
     // Namespaced vars (and elements of namespaced arrays) may be populated
     // outside the function's view — never fold them.  A *local* array's
-    // element guard folds on the base name instead (issue #1173, below).
+    // element guard folds on the base name instead (below).
     assert!(
         !codes_for("proc f {} { if {[info exists ::env(PATH)]} { puts hi } }")
             .contains(&"I230".to_string())
     );
 }
 
-// Array-element guards (issue #1173): an element of an array this body never
+// Array-element guards: an element of an array this body never
 // touches is provably absent — tclsh 9.0.4 / 8.6.16:
 //   proc f {} { info exists Params(key) }; f   ;# → 0
 // The fold is decided on the *array* name, one-sided (false only), with the
@@ -6915,7 +6910,7 @@ fn info_exists_element_fold_abstains_on_dynamic_writes() {
 fn info_exists_element_fold_abstains_on_instance_state_arrays() {
     // FP guard — a class-level `variable Params` binds the name to per-object
     // storage: an earlier call on the same instance may have populated it,
-    // the same abstention the simple-name fold takes (issue #1129).
+    // the same abstention the simple-name fold takes.
     let codes = codes_for(
         "oo::class create C {\n variable Params\n method setit {} { set Params(key) 1 }\n \
          method m {} { if {[info exists Params(key)]} { puts hi } }\n}\n",
@@ -6989,7 +6984,7 @@ fn info_exists_fold_survives_unrelated_scope_alias() {
     );
 }
 
-// `info exists` over TclOO instance state (issue #1129)
+// `info exists` over TclOO instance state
 //
 // Oracle, tclsh 9.0.4 (TclOO 1.3.1) and tclsh 8.6.14 (TclOO 1.1.0), identical
 // on both:
@@ -7045,7 +7040,7 @@ fn info_exists_does_not_fold_instance_var_assigned_in_sibling_method() {
 
 #[test]
 fn info_exists_does_not_fold_instance_var_declared_in_later_define_block() {
-    // FP guard, cross-definition-block shape (#1131): `variable b` is declared
+    // FP guard, cross-definition-block shape: `variable b` is declared
     // by an `oo::define` block that lowering may walk *after* the method that
     // queries it.  `MethodDef::instance_vars` is the per-class union precisely
     // so this is order-free — the fold must abstain either way.
@@ -7123,7 +7118,7 @@ fn info_exists_folds_true_not_false_for_method_parameter() {
 
 #[test]
 fn info_exists_does_not_fold_upvar_defined_local_across_my_dispatch() {
-    // FP guard (issue #1177) — the callee reached via `my` is a method,
+    // FP guard — the callee reached via `my` is a method,
     // never in the upvar-procs table, so its `upvar 1 $refvar ref`
     // caller-frame definition was invisible and the guard folded always
     // false.  Oracle (tclsh 9.0.4 and 8.6.14): after `my Reference?
@@ -7145,10 +7140,10 @@ fn info_exists_does_not_fold_upvar_defined_local_across_my_dispatch() {
 
 #[test]
 fn info_exists_does_not_fold_upvar_defined_local_across_next_dispatch() {
-    // Abstention guard (issue #1177), `next`-chain shape.  `next` names no
+    // Abstention guard, `next`-chain shape.  `next` names no
     // target at all, so which implementation runs — and which frame its
     // `upvar 1` lands in — needs MRO modelling this analysis does not do
-    // (issue #1164).  Oracle (tclsh 9.0.4): the chained implementation's
+    //.  Oracle (tclsh 9.0.4): the chained implementation's
     // `upvar 1` actually SKIPS the calling implementation's frame and
     // lands in the frame of whoever invoked the whole method
     // (`in-sub:0`, `global:1` for a top-level `[Sub new] probe`) — so a
@@ -7185,7 +7180,7 @@ fn info_exists_still_folds_across_my_when_no_method_reaches_the_caller_frame() {
 
 #[test]
 fn read_after_my_dispatch_to_an_upvar_sibling_draws_no_read_before_set() {
-    // The W210 face of the same evidence rule (issue #1177): `$ref` after
+    // The W210 face of the same evidence rule: `$ref` after
     // the dispatch is genuinely defined on the hit path — tclsh 9.0.4 /
     // 8.6.14 run it to completion.
     let codes = codes_for(
@@ -7216,8 +7211,7 @@ fn i230_messages(src: &str) -> Vec<String> {
 
 #[test]
 fn info_exists_folds_true_for_method_parameter_shadowing_an_instance_var() {
-    // Codex P2 on PR #1175, finding A — confirmed against the oracle.  A
-    // formal parameter whose name collides with a class-level `variable`
+    // Confirmed against the oracle: a formal parameter whose name collides with a class-level `variable`
     // declaration **shadows** it outright: the name is an ordinary local that
     // always exists, and writes through it never reach object state.  So the
     // instance-variable abstention must not swallow it.
@@ -7270,8 +7264,8 @@ fn info_exists_still_abstains_on_the_non_shadowed_instance_vars() {
 
 #[test]
 fn info_exists_frame_facts_survive_a_proc_method_qname_collision() {
-    // Codex P2 on PR #1175, finding B — confirmed against the oracle.  A
-    // `TclOO` method and a namespace procedure can carry the same qualified
+    // Confirmed against the oracle: a `TclOO` method and a namespace
+    // procedure can carry the same qualified
     // name, so the per-function dispatcher must take its frame identity from
     // the caller (which knows the map it is walking) rather than probing
     // `ir_module.procedures` / `.methods` by name.
@@ -7394,8 +7388,8 @@ fn analyse_w308_emitted_for_unknown_method_on_known_class_constructor() {
 // deeper, independent source in `type_infer.rs`'s `constructor_object_type`
 // — which types `x` as `Object(Cls)` for that shape via the SSA type
 // lattice — is gated in `aggregate_object_types`, where both sources are
-// unioned and the analyser's own deletion facts are in scope (issue #1013;
-// see the `w308_*_issue_1013_*` cases below).
+// unioned and the analyser's own deletion facts are in scope (see the
+// `w308_*_issue_1013_*` cases below).
 
 #[test]
 fn w308_tp_issue_1010_deleted_class_constructor_falls_back_to_w307() {
@@ -7478,7 +7472,7 @@ fn w308_tp_copy_propagated_handle_with_a_trailing_rename_still_flags() {
     // The file-end gate dropped `x`'s `Object(::Dog)` type outright, so the
     // dispatch lost its W308 *and* picked up a spurious W307 in its place.
     //
-    // Oracle (tclsh8.6, `review-probes-sound/w308d.tcl`): exits 1 with
+    // Oracle (tclsh8.6): exits 1 with
     // `unknown method "fly": must be bark or destroy`.
     let src = "oo::class create Dog { method bark {} { return woof } }\nproc foo {} {\n    set y [Dog new]\n    set x $y\n    $x fly\n}\nfoo\nrename Dog {}\n";
     let mut a = Analyser::new();
@@ -7515,8 +7509,8 @@ fn w308_tp_class_renamed_to_a_name_keeps_typing_its_existing_objects() {
 #[test]
 fn w123_tp_a_class_renamed_away_still_flags_its_old_name() {
     // The paired guard: making the *class* survive a rename must not make
-    // the vacated *command name* resolve. Oracle (tclsh8.6,
-    // `review-probes/cls1_run.tcl`): after `rename Dog Cat`, `Dog new`
+    // the vacated *command name* resolve. Oracle (tclsh8.6): after
+    // `rename Dog Cat`, `Dog new`
     // fails with `invalid command name "Dog"`.
     let src = "oo::class create Dog { method bark {} { return woof } }\nrename Dog Cat\nDog new\n";
     let mut a = Analyser::new();
@@ -7536,7 +7530,7 @@ fn w123_tp_a_rename_in_a_dead_branch_is_not_an_unconditional_deletion() {
     // flagging a command that is demonstrably still callable and — through
     // the shared liveness facts — withdrawing the W308 as well.
     //
-    // Oracle (tclsh8.6, `review-probes/cls5.tcl`): `Dog new` succeeds and
+    // Oracle (tclsh8.6): `Dog new` succeeds and
     // `$d fly` fails with `unknown method "fly": must be bark or destroy`.
     let src = "oo::class create Dog {\n    method bark {} { return woof }\n}\nif {0} { rename Dog {} }\nset d [Dog new]\n$d fly\n";
     let mut a = Analyser::new();
@@ -8314,8 +8308,8 @@ fn tcloo_constructor_arity_empty_body_is_not_a_real_constructor() {
     // `constructor {a b} {}` (a literally empty body) is TclOO's own way
     // of writing "no constructor" — confirmed against tclsh 9.0.4:
     // `info class constructor` returns empty and `new` with any argument
-    // count succeeds. Codex review finding (PR #852): the arity check must
-    // not treat this as a real, arity-enforcing constructor.
+    // count succeeds; the arity check must not treat this as a real,
+    // arity-enforcing constructor.
     let src = "oo::class create Widget { constructor {a b} {} }\nWidget new 1 2 3\n";
     assert_eq!(e00x_codes_for(src), Vec::<String>::new());
 }
@@ -8334,7 +8328,7 @@ fn tcloo_constructor_arity_whitespace_or_comment_body_is_still_real() {
 
 #[test]
 fn tcloo_constructor_arity_honours_definition_order_for_top_level_call() {
-    // Codex review finding (PR #852): a top-level call made *before* a
+    // A top-level call made *before* a
     // later `oo::define` adds the constructor sees the class as it stood
     // at that point — no constructor yet, so TclOO's permissive default
     // applies (confirmed against tclsh 9.0.4).
@@ -8388,7 +8382,7 @@ oo::define Widget {
 
 #[test]
 fn apply_lambda_arity_suppressed_when_apply_itself_is_shadowed() {
-    // Codex review finding (PR #852): `apply` is an ordinary command name
+    // `apply` is an ordinary command name
     // and can be shadowed by a user proc — confirmed against tclsh 9.0.4,
     // a user-defined `apply` resolves ahead of the language builtin. The
     // lambda-literal-shaped argument must not be arity-checked against a
@@ -9056,7 +9050,7 @@ fn analyse_w307_suppressed_for_my_self_dispatch() {
 
 #[test]
 fn analyse_w308_tp_1324_bare_self_receiver_unknown_method() {
-    // `[self] nosuchmethod` — the exact community repro (issue #1324).
+    // `[self] nosuchmethod` — the exact community repro.
     let src = "\
 oo::class create Test1324A {
     method animTick {} {
@@ -10023,7 +10017,7 @@ fn w210_phi_undef_use_after_unset_return() {
 
 #[test]
 fn w210_loop_body_accumulator_read_after_loop_silent() {
-    // FP-RBS-19 (#756): the reporter's exact pattern — a `lappend` accumulator
+    // FP-RBS-19: the reporter's exact pattern — a `lappend` accumulator
     // built inside a dynamic `foreach`, returned after the loop. The body
     // defines `r` on every iteration, so a read after the loop is defined
     // whenever the loop ran. Matching C Tcl (which errors only when `$items` is
@@ -13936,7 +13930,7 @@ fn w123_tp_issue_1009_codex_review_escape_hatch_requires_specific_enclosing_call
 
 #[test]
 fn w123_fp_issue_1015_two_level_call_chain_before_later_deletion_resolves() {
-    // FP guard (issue #1015): the escape hatch must follow a *chain* of
+    // FP guard: the escape hatch must follow a *chain* of
     // enclosing definitions, not one level. `inner` is never invoked at
     // the top level — only `outer` is — but `outer` calls `inner`, which
     // calls `helper`, all before the rename. tclsh8.6/9.0 both run this
@@ -13955,7 +13949,7 @@ fn w123_fp_issue_1015_three_level_call_chain_before_later_deletion_resolves() {
 
 #[test]
 fn w123_tp_issue_1015_mutual_recursion_cycle_never_entered_still_flags() {
-    // TP guard (issue #1015): `pingCaller`/`pongCaller` call each other and
+    // TP guard: `pingCaller`/`pongCaller` call each other and
     // nothing calls either at the top level, so neither is ever reached —
     // the cycle must terminate as "unreachable" rather than looping, and
     // the `helper` call inside must still draw W123. tclsh8.6 loads the

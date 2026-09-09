@@ -423,10 +423,9 @@ fn classify_thunking_phi(
         return classify_intra_iteration_thunk(ctx, phi, this_loop, per_loop);
     }
     // The canonical extremes of the union name the oscillation pair; a 3+
-    // member union (now tracked instead of collapsing to OVERDEFINED) still
-    // reports its outermost pair here — the S102 message is a two-type
-    // oscillation claim, and the incoming-type analysis below drives the
-    // actual verdict.
+    // member union still reports its outermost pair here — the S102 message
+    // is a two-type oscillation claim, and the incoming-type analysis below
+    // drives the actual verdict.
     let (type_a, type_b) = lattice.shimmer_extremes()?;
 
     // A loop-header phi is SHIMMERED whenever the entry type differs
@@ -495,9 +494,9 @@ fn classify_thunking_phi(
     // two oscillating types, rather than on whichever incoming def sorts
     // earliest in the source — for an ordinary `while`/`for`/`foreach` that
     // is always the pre-loop initialiser, not the code the developer needs
-    // to look at. Falls back to the old whole-phi heuristic only when
-    // neither type traces to an in-loop def (e.g. the oscillation came
-    // purely from the header's own two direct incoming edges).
+    // to look at. Falls back to the whole-phi span only when neither type
+    // traces to an in-loop def (e.g. the oscillation came purely from the
+    // header's own two direct incoming edges).
     let span = [type_b, type_a]
         .into_iter()
         .find_map(|t| per_loop_type_span(&ctx.def_span_lookup(), this_loop, phi.name, t))
@@ -547,8 +546,8 @@ fn classify_thunking_phi(
 /// by [`per_loop_body_types`]; array-element symbols were excluded by the
 /// caller.  Scope-aliased variables (`global` / `variable` / `upvar`
 /// declarations — [`ThunkCtx::scope_aliases`]) abstain: their SSA version
-/// chain does not correspond to a single local slot, the same
-/// alias-unsoundness rationale the FP-SH-02/15 guards established.
+/// chain does not correspond to a single local slot — the same
+/// alias-unsoundness rationale as the FP-SH-02/15 guards.
 fn classify_intra_iteration_thunk(
     ctx: &ThunkCtx<'_>,
     phi: &Phi,
@@ -760,7 +759,7 @@ mod tests {
     /// TP: intra-iteration oscillation — the body converts list→string
     /// within each pass (`lappend acc …; set acc "$acc,"`), so the header
     /// phi sees a consistent string yet every iteration pays both
-    /// conversions.  The `Shimmered`-header gate alone missed this shape.
+    /// conversions.  The `Shimmered`-header gate alone does not catch it.
     #[test]
     fn s102_for_intra_iteration_oscillation() {
         let cu = CompilationUnit::build_for(
@@ -894,9 +893,8 @@ mod tests {
 
     /// The warning's primary span must anchor inside the loop body (on the
     /// statement that actually produces the surprising type), not on the
-    /// pre-loop initialiser — the "earliest incoming def" heuristic always
-    /// picked the initialiser (the textually-first def), which is almost
-    /// never where the developer needs to look.
+    /// pre-loop initialiser — the textually-first def is almost never where
+    /// the developer needs to look.
     #[test]
     fn span_anchors_inside_loop_not_pre_loop_initialiser() {
         let src = "proc f {} { set x 0\n while {1} { set x [expr {$x + 1}]\n \
@@ -980,16 +978,14 @@ mod tests {
         );
     }
 
-    /// Array-element writes collapse onto one SSA symbol per array (the
-    /// `(key)` suffix is stripped before interning) — two elements that are
-    /// each individually type-stable but differ from each other must not be
-    /// reported as one variable oscillating: they are independent runtime
-    /// slots, not the same value shimmering back and forth.
+    /// Two array elements that are each individually type-stable but differ
+    /// from each other must not be reported as one variable oscillating: they
+    /// are independent runtime slots, not the same value shimmering back and
+    /// forth. The same element genuinely oscillating still fires.
     #[test]
     fn no_s102_for_array_element_conflation() {
         // Independent elements: `arr(a)` holds ints, `arr(b)` strings — with
-        // per-element SSA symbols neither oscillates, so no S102 (the
-        // pre-P5 conflation FP this test has always guarded).
+        // per-element SSA symbols neither oscillates, so no S102.
         let cu = CompilationUnit::build_for(
             "proc f {} { set arr(a) 0\n while {1} { \
              set arr(a) [expr {$arr(a) + 1}]\n set arr(b) [string range x 0 end] } }",
@@ -1010,8 +1006,7 @@ mod tests {
             "independent array elements must not merge into an S102 report: {w:?}"
         );
         // The SAME element oscillating int ↔ string every iteration is a
-        // genuine per-element re-thunk — per-key symbols now see it (the
-        // pre-P5 conflation exclusion was a forced false negative here).
+        // genuine per-element re-thunk, and the per-key symbol shows it.
         let cu = CompilationUnit::build_for(
             "proc f {} { set arr(x) 0\n while {1} { \
              set arr(x) [expr {$arr(x) + 1}]\n set arr(x) [string range $arr(x) 0 end] } }",
@@ -1061,10 +1056,10 @@ mod tests {
     }
 
     /// A self-referential loop whose body-exit is `SHIMMERED(Numeric, String)`
-    /// merging with an `Int` loop entry: pre-fix `type_join` degraded
-    /// `Known(Int) ⊔ SHIMMERED(Numeric, String)` to OVERDEFINED (exact-equality
-    /// match), silently masking the genuine thunk. The numeric-refinement join
-    /// keeps the header phi SHIMMERED, so S102 now fires.
+    /// merging with an `Int` loop entry. `type_join`'s numeric refinement
+    /// keeps `Known(Int) ⊔ SHIMMERED(Numeric, String)` shimmered rather than
+    /// degrading it to OVERDEFINED, so the header phi carries the oscillation
+    /// and S102 fires.
     #[test]
     fn thunking_detected_for_numeric_shimmer_masked_by_int_entry() {
         let cu = CompilationUnit::build_for(
@@ -1089,8 +1084,9 @@ mod tests {
         );
     }
 
-    /// TP control for the above: the identical loop shape, untraced, must
-    /// still fire — proves the trace check isn't blanket-silencing S102.
+    /// TP control for [`no_s102_for_traced_variable`]: the identical loop
+    /// shape, untraced, must still fire — the trace check must not
+    /// blanket-silence S102.
     #[test]
     fn thunking_still_fires_for_untraced_control() {
         let cu = CompilationUnit::build_for(
