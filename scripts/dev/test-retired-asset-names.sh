@@ -24,9 +24,12 @@
 
 set -euo pipefail
 
-SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/../.." && pwd)
-SELF_REL=scripts/dev/test-retired-asset-names.sh
+# This file names the retired spellings in its own table and fixtures, so it
+# must exclude itself. Derived rather than written out, so moving the script
+# cannot leave it flagging itself.
+SELF_REL=${SCRIPT_DIR#"$REPO_ROOT"/}/$(basename "${BASH_SOURCE[0]}")
 
 WAIVER='retired-asset-ok:'
 
@@ -55,13 +58,12 @@ tracked_files() {
 
 run_gate() {
     local -i failures=0
-    local entry regex replacement why hit path_line text
+    local entry regex replacement why hit text
 
     for entry in "${RETIRED_ASSET_NAMES[@]}"; do
         IFS='|' read -r regex replacement why <<<"$entry"
         while IFS= read -r hit; do
             [[ -z $hit ]] && continue
-            path_line=${hit%%:*}
             text=${hit#*:}
             text=${text#*:}
             [[ $text == *"$WAIVER"* ]] && continue
