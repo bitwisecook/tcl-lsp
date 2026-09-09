@@ -705,7 +705,7 @@ fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
                 let val = vals.get(it * vars.len() + k).cloned().unwrap_or_default();
                 let o = new_string(&val);
                 // `arr(a)` writes the array *element*, not a literal scalar
-                // named `arr(a)` (issue #1577) — the same `split_array_ref` +
+                // named `arr(a)` — the same `split_array_ref` +
                 // `var_set`/`var_set_elem` routing `set` uses (shared by
                 // `foreach` and `lmap`, this loop's two callers), so this
                 // doesn't hand-roll a second name parser.

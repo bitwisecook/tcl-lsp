@@ -858,8 +858,8 @@ fn apply_lambda_parameters_named_like_commands_draw_no_unknown_command() {
         "set r [apply {{set list} {return \"$set$list\"}} a b]\nputs $r\n",
         // A defaulted parameter whose default value is a bareword.
         "set r [apply {{a {puts x}} {return $a}} 1]\nputs $r\n",
-        // A parameter list whose words are not commands at all — the shape
-        // that used to be reported as `Unknown command 'name opt args'`.
+        // A parameter list whose words are not commands at all — a shape that
+        // must not be reported as `Unknown command 'name opt args'`.
         "set r [apply {{name opt args} {return $name}} a b c]\nputs $r\n",
     ] {
         let codes = codes_for_dialect(src, "tcl9.0");
@@ -919,8 +919,7 @@ fn apply_lambda_in_command_substitution_keeps_its_own_frame() {
         !vars.iter().any(|v| v == "p::inner"),
         "a lambda-body `set` must not bind in the caller: {vars:?}"
     );
-    // TP — the lambda's *parameters* are bound too, in the lambda's scope
-    // (before the fix the substitution-position lambda registered none).
+    // TP — the lambda's *parameters* are bound too, in the lambda's scope.
     let vars = scoped_vars("set r [apply {{name opt args} {return $name}} a b c]\n");
     for want in ["name", "opt", "args"] {
         assert!(
@@ -1212,8 +1211,8 @@ fn w212_ignores_plain_names() {
 
 #[test]
 fn w212_covers_registry_name_positions() {
-    // FN fixes: the old hardcoded list missed these name positions, which the
-    // registry's VarWrite/VarRead roles now supply.
+    // Name positions supplied by the registry's VarWrite/VarRead roles, which
+    // a hardcoded list misses.
     assert_eq!(w212_count("proc p {} { vwait $x }\n"), 1);
     assert_eq!(w212_count("proc p {} { catch {error e} $res }\n"), 1);
     assert_eq!(w212_count("proc p {l} { lassign $l $x }\n"), 1);
@@ -1246,9 +1245,9 @@ fn w216_count(src: &str) -> usize {
 
 #[test]
 fn w216_upvar_local_name_is_indirect_array_idiom() {
-    // FP fix: `${arr}(x)` in `upvar`'s local-name slot is the legitimate
-    // indirect-array idiom (the same carve-out `set`/`vwait` already had). The
-    // two name-position lists had drifted — W216's omitted `upvar`.
+    // FP guard: `${arr}(x)` in `upvar`'s local-name slot is the legitimate
+    // indirect-array idiom (the same carve-out `set` / `vwait` get).  Separate
+    // name-position lists drift — one omitting `upvar` is enough to break it.
     assert_eq!(w216_count("proc p {arr} { upvar 1 remote ${arr}(x) }\n"), 0);
     // TP control: `${arr}(x)` in a *value* position is a genuine broken read.
     assert_eq!(w216_count("proc p {arr} { puts ${arr}(x) }\n"), 1);
@@ -1275,7 +1274,7 @@ fn variable_name_positions_are_registry_driven() {
     // `upvar` — only the *local* names (every other arg after the level word).
     assert_eq!(pos("upvar", &["1", "a", "b"]), vec![2]);
     assert_eq!(pos("upvar", &["a", "b"]), vec![1]); // no level word
-    // FN fixes now covered by the registry roles that the old list omitted.
+    // Positions covered by the registry roles, which a hand-written list omits.
     assert_eq!(pos("vwait", &["v"]), vec![0]);
     assert_eq!(pos("catch", &["{script}", "res"]), vec![1]);
     assert_eq!(pos("catch", &["{script}", "res", "opts"]), vec![1, 2]);
@@ -1746,8 +1745,8 @@ fn e003_tp_call_after_both_declarations_checks_the_last_signature() {
 #[test]
 fn e003_not_emitted_for_leading_switches() {
     // Declared option flags must be skipped
-    // before counting positional args.  `regsub` (max arity 4)
-    // previously tripped a false E003 once any switch appeared.
+    // before counting positional args, or `regsub` (max arity 4) draws a false
+    // E003 as soon as any switch appears.
     // These switches exist in every supported dialect.
     for snippet in [
         "regsub -all -line {x} $args {} str",
@@ -3303,13 +3302,9 @@ fn after_multi_word_script_concatenation_abstains() {
 fn after_default_form_bareword_callback_is_now_arity_checked() {
     // TP — differential-audit finding idx 61 (main audit wave): a
     // *bareword* callback (no braces) is valid Tcl — equally callable, and
-    // equally arity-checkable, as a braced one — but was invisible to
-    // `command_invocations` entirely (a deliberate, but stale, decision
-    // this test used to pin as `after_default_form_bareword_callback_
-    // is_not_yet_checked`; its own comment called out that a future
-    // change here must be deliberate, not silent — this is that
-    // deliberate change): `dispatch_body_arguments` now dispatches a
-    // genuinely-static bareword body (`Esc`-kind, single word, no `$`/`[`)
+    // equally arity-checkable, as a braced one: `dispatch_body_arguments`
+    // dispatches a genuinely-static bareword body (`Esc`-kind, single word,
+    // no `$`/`[`)
     // through the ordinary `process_command` path, so it gets full call
     // treatment, arity checking included, exactly like a braced one.
     let src = "proc cb {a b} { return [expr {$a+$b}] }\nafter 1000 cb\n";
@@ -3458,14 +3453,13 @@ fn same_file_rename_reestablished_after_deletion_checks_new_arity() {
 // Issue #1007 — a `rename` / `interp alias` deletion recorded *inside* a
 // proc body that's never called is conditional: it may never execute, so
 // it must not supersede a fact established outside that body.
-// `fact_superseded_by_deletion` previously reused `fact_in_effect`
-// (call-site order-gating) to also decide whether the *deletion itself*
-// was in effect, which only asks whether the call is order-gated against
-// its own top-level/body status — never whether the deletion's own
-// offset sits inside a different, possibly-never-invoked body. Fixed by
-// adding the same `offset_is_inside_any_definition_body` guard the W123
-// pass's `fact_live_for_call` already applies for the identical question
-//. All cases confirmed against tclsh 8.6.14.
+// `fact_superseded_by_deletion` cannot decide that from `fact_in_effect`
+// (call-site order-gating) alone, which only asks whether the call is
+// order-gated against its own top-level/body status — never whether the
+// deletion's own offset sits inside a different, possibly-never-invoked body.
+// It applies the same `offset_is_inside_any_definition_body` guard the W123
+// pass's `fact_live_for_call` uses for the identical question. All cases
+// confirmed against tclsh 8.6.14.
 
 #[test]
 fn e003_fp_issue_1007_conditional_deletion_never_triggered_proc_stays_live() {
@@ -3595,8 +3589,8 @@ fn same_file_call_to_renamed_away_name_does_not_false_positive() {
     // `rename target target_orig` removes `target` as a command entirely
     // (tclsh 9.0.4: calling it afterwards fails "invalid command name",
     // not a "wrong # args" against its original 2-arg signature) — a
-    // call to the old name must abstain, not be checked against the
-    // proc it used to denote.
+    // call to the old name must abstain, not be checked against the proc that
+    // name denoted before the rename.
     let src = "proc target {a b} {}\nrename target target_orig\ntarget 1\n";
     assert_eq!(
         arity_codes(src, "tcl8.6"),
@@ -3962,8 +3956,8 @@ fn w004_silent_on_regsub_command_in_tcl9() {
 }
 
 // --- Shadow suppression: a same-file proc / alias really is what gets
-// called, so the registry builtin's dialect-restricted option no longer
-// applies. Mirrors the E002/E003 arity suppression exactly (same queue,
+// called, so the registry builtin's dialect-restricted option does not
+// apply. Mirrors the E002/E003 arity suppression exactly (same queue,
 // same resolution order).
 
 #[test]
@@ -4219,8 +4213,8 @@ fn w003_fires_on_in_operator_in_tcl84() {
 
 #[test]
 fn w003_fires_on_exponentiation_operator_in_tcl84() {
-    // FN fix: `**` (exponentiation) is Tcl 8.5+ (TIP 123) — a symbolic
-    // operator the word-shaped gated set used to miss entirely.
+    // `**` (exponentiation) is Tcl 8.5+ (TIP 123) — a symbolic operator a
+    // word-shaped gated set misses entirely.
     let has_w003 = |src: &str, d: &str| {
         Analyser::new()
             .analyse(src, d)
@@ -4333,9 +4327,9 @@ fn w003_tight_span_covers_only_the_operator_in_bare_expr() {
 
 #[test]
 fn w003_distinct_operators_each_get_their_own_tight_span() {
-    // Two *different* gated operators in one expression used to collapse
-    // onto one coarse diagnostic covering the whole condition; each must
-    // now get its own diagnostic at its own span.
+    // Two *different* gated operators in one expression must not collapse
+    // onto one coarse diagnostic covering the whole condition; each gets its
+    // own diagnostic at its own span.
     let hits = w003_hits("if {$a lt $b && $c in $d} { puts hi }", "tcl8.4");
     let mut texts: Vec<&str> = hits.iter().map(|(t, _)| t.as_str()).collect();
     texts.sort_unstable();
@@ -8220,8 +8214,8 @@ fn tcloo_no_explicit_constructor_anywhere_is_never_arity_checked() {
 
 #[test]
 fn tcloo_create_mandatory_name_is_checked_even_without_a_constructor() {
-    // Regression: a class with no explicit constructor anywhere in its MRO
-    // used to abstain from arity-checking `create` entirely, not just the
+    // A class with no explicit constructor anywhere in its MRO must not
+    // abstain from arity-checking `create` entirely, only from the
     // constructor's own (unconstrained) parameters. `create`'s mandatory
     // leading object-name word is enforced by the dispatcher itself,
     // independent of the constructor -- confirmed against tclsh 9.0.4:
@@ -8676,7 +8670,7 @@ fn tn_e001_bare_dispatch_silent_for_unclassified_variable() {
 
 #[test]
 fn tp_e001_bare_command_substitution_head() {
-    // Issue #1200 (previously a documented gap): `[Dog new]` used directly
+    // `[Dog new]` used directly
     // as a command runs `Dog new`, then invokes the produced object with no
     // method word — tclsh 9.0.3/9.0.4 fail with `wrong # args: should be
     // "::oo::Obj… method ?arg ...?"` (`-errorcode {TCL WRONGARGS}`).
@@ -13077,8 +13071,8 @@ fn w123_vendor_profiles_admit_their_embedded_tcl_core() {
     let clean: &[(&str, &str)] = &[
         // F5 reclassification (measurements §4/§4a,
         // `docs/design/f5/bigip-irule-parser-measurements.md`): the iApps
-        // host is the 8.4.6 fork, NOT the old 8.5.13 hypothesis — its
-        // real core is the 8.4 line…
+        // host is the 8.4.6 fork, not an 8.5.13 one — its real core is the
+        // 8.4 line…
         ("string tolower ABC", "f5-iapps"),
         ("array exists a", "f5-iapps"),
         // …and the scriptd host is NOT the TMM sandbox: exec is measured
@@ -13258,9 +13252,9 @@ fn irules_stays_subtractive_under_the_profile() {
 
 #[test]
 fn irules_alias_dialect_string_behaves_like_canonical() {
-    // §2.4 alias canonicalisation: the legacy "irules" spelling used to
-    // fall through to the permissive plain-Tcl view (a silent false
-    // negative); via the profile catalogue it resolves like f5-irules.
+    // §2.4 alias canonicalisation: the legacy "irules" spelling resolves
+    // through the profile catalogue like f5-irules, rather than falling
+    // through to the permissive plain-Tcl view (a silent false negative).
     let codes = codes_for_dialect("exec /bin/true", "irules");
     assert!(
         codes.iter().any(|c| c == "W002"),
@@ -13274,8 +13268,7 @@ fn irules_alias_dialect_string_behaves_like_canonical() {
 
 #[test]
 fn unknown_dialect_strings_stay_permissive() {
-    // §8: the PLAIN_TCL sink — a typo'd dialect must flag nothing, exactly
-    // as the old unwrap_or(ALL_TCL) fallbacks behaved.
+    // §8: the PLAIN_TCL sink — a typo'd dialect must flag nothing.
     for snippet in ["dict get {a 1} a", "zipfs root", "exec /bin/true"] {
         let codes = codes_for_dialect(snippet, "definitely-not-a-dialect");
         assert!(
@@ -13307,7 +13300,7 @@ fn w001_subcommand_checks_use_the_profile_mask() {
 #[test]
 fn tmsh_first_class_resolves_its_surface_and_gates_later_core() {
     // F5 reclassification (measurements §4a,
-    // `docs/design/f5/bigip-irule-parser-measurements.md`): the old D8
+    // `docs/design/f5/bigip-irule-parser-measurements.md`): the
     // "TCL85|TMSH" hypothesis is falsified — `TmshCliScript` reports
     // patchlevel 8.4.6 and fails every 8.5 discriminator — so f5-tmsh is
     // the `f5-tcl` fork's 8.4 line plus the tmsh:: surface.
@@ -14083,14 +14076,14 @@ fn dynamic_apply_lambda_word_is_still_a_caller_frame_read() {
     );
 }
 
-// Issue #1329 — bareword `my <method>` was never recorded as a dispatch site,
-// so W308 ("unknown method") could not fire for `TclOO`'s commonest
-// same-object spelling. Issue #1330 — the spans every `CmdCommandSite`- and
-// `VarCommandSite`-anchored diagnostic reports.
+// Bareword `my <method>` is recorded as a dispatch site, so W308 ("unknown
+// method") fires for `TclOO`'s commonest same-object spelling; and every
+// `CmdCommandSite`- / `VarCommandSite`-anchored diagnostic reports an exact
+// span.
 //
-// The #1330 assertions are deliberately *exact ranges*: those diagnostics
-// already fired before the fix and only their span was wrong, so a test that
-// checked the code alone would have passed against the bug.
+// The span assertions are deliberately *exact ranges*: these diagnostics fire
+// whether or not the span is right, so a test that checked the code alone
+// would pass against a span bug.
 
 /// Analyse `src` on both the whole-file and the per-item (incremental) path
 /// and return the `(code, text-under-span)` pairs for the dispatch codes,
@@ -14322,11 +14315,10 @@ fn analyse_w308_1329_dialect_gate_no_tcloo_before_86() {
 
 #[test]
 fn analyse_w308_1330_cmd_site_spans_are_exact() {
-    // Issue #1330 — every `CmdCommandSite`-anchored diagnostic, with its
-    // exact span. All three were wrong before the fix: the two head-anchored
-    // ones (E001, W307) stopped one byte short of the closing `]`, and the
-    // method-anchored one (W308) was reported at the body fragment's own
-    // offsets on the per-item path.
+    // Every `CmdCommandSite`-anchored diagnostic, with its exact span: the two
+    // head-anchored ones (E001, W307) must cover the closing `]`, and the
+    // method-anchored one (W308) must report absolute offsets, not the body
+    // fragment's own, on the per-item path.
     let dog = "oo::class create Dog {\n    method bark {} { return {} }\n}\n";
 
     // W308, method-word anchored, inside a proc body (the per-item shape).

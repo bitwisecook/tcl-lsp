@@ -454,7 +454,7 @@ function renderCfgPost() {
   requestAnimationFrame(function() { drawAllCfgEdges(pane, funcs); });
 }
 
-// Unit scope: who else can call this file's procedures (issue #977).
+// Unit scope: who else can call this file's procedures.
 // Rendered at the top of the Interproc pane because it is the precondition
 // for every interprocedural constant seed below it — the `seeding` line says
 // whether the seeds were allowed, and which boundary declined them.
@@ -535,7 +535,7 @@ function renderInterproc() {
 // The replacement cell for one optimisation.
 //
 // A `hintOnly` entry carries no replacement: its range spans the whole
-// consuming statement, so the literal was never a valid edit for it (#1934).
+// consuming statement, so the literal was never a valid edit for it.
 // Rendering the usual arrow-and-value for one shows advice as an edit to an
 // empty string — a deletion — which is the opposite of what it means.
 function optReplacementHtml(o) {
@@ -1470,8 +1470,8 @@ function renderAsmInstruction(ins, entry) {
 // The synthetic ``(module)`` entry.  Every list it reads is optional: a
 // producer that predates a contract field (or one that legitimately has no
 // data segments) must not take the whole pane down with it — a single
-// missing array used to throw mid-render, leaving the WASM tab blank and
-// the compile spinner stuck (issues #1182 / #1183).
+// missing array must not throw mid-render, which would leave the WASM tab
+// blank and the compile spinner stuck.
 function renderWasmModuleHeader(entry) {
   var imports = entry.imports || [];
   var types = entry.types || [];

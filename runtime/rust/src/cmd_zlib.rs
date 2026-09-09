@@ -418,11 +418,11 @@ mod tests {
         assert_eq!(crc32(5, b"abc"), 871_334_697);
     }
 
-    /// Issue #1607: `zlib gzip`'s and `zlib gunzip`'s option words are
-    /// `Tcl_GetIndexFromObj(…, "option", 0)` tables. Both were matched exactly,
-    /// `gzip`'s enumeration was in the wrong order (C lists `-header` first),
-    /// and `gunzip`'s omitted `-buffersize` entirely. `zlib`'s own dispatch
-    /// borrows the full ensemble sentence now, not just its enumeration.
+    /// `zlib gzip`'s and `zlib gunzip`'s option words are
+    /// `Tcl_GetIndexFromObj(…, "option", 0)` tables, matching C's
+    /// enumeration order (`-header` first for `gzip`) and including
+    /// `-buffersize` for `gunzip`. `zlib`'s own dispatch borrows the full
+    /// ensemble sentence, not just its enumeration.
     ///
     /// tclsh 9.0.4:
     ///   zlib gzip abc -x 1  -> bad option "-x": must be -header or -level

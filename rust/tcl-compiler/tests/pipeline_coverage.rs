@@ -128,8 +128,9 @@ fn build_irules(src: &str) -> CompilationUnit {
 // interval_bounds.rs — the `classify` *negative*-index reason.
 //
 // The tests in `intervals.rs` drive only the `past_end` / `past_append`
-// reasons; the first branch of `classify` (`hi < 0 → "negative"`) is cold. A provably
-// negative const index drives it for each of the three readers/mutators.
+// reasons; the first branch of `classify` (`hi < 0 → "negative"`) is cold.
+// A provably negative const index drives it for each of the three
+// readers/mutators.
 // tclsh: a negative index reads `""` (lindex / string index) and errors
 // (lset) — all out of range, so all three warnings are sound.
 mod negative_index_classify {

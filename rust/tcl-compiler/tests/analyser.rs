@@ -8723,12 +8723,13 @@ mod const_dominated_namespace_eval {
     }
 }
 
-// Issue #1252 — a brace-quoted word's *elements* are literal too.
+// A brace-quoted word's *elements* are literal too.
 //
 // The IR/analyser word arrives with its braces already stripped, so scanning
 // the element text alone reports "dynamic" for content Tcl never substitutes.
-// #1245 fixed the whole-word question for `namespace path`; these are the two
-// remaining places that ask it per element with the token in hand.
+// The whole-word question for `namespace path` is already answered; these
+// are the two remaining places that ask it per element with the token in
+// hand.
 //
 // tclsh-proof (8.6.16 / 9.0.4):
 //   namespace eval x {}
@@ -8764,9 +8765,9 @@ mod braced_word_elements_are_literal {
 
     #[test]
     fn tp_namespace_path_records_a_braced_dollar_element_as_a_reference() {
-        // The whole-word gate (#1245) already lets the path be *recorded*;
-        // the element-reference walk skipped the same word, so the function
-        // disagreed with itself. Both must now see `::$ns`.
+        // The whole-word gate already lets the path be *recorded*; the
+        // element-reference walk must not skip the same word — both must
+        // see `::$ns`, or the function disagrees with itself.
         let src = "namespace eval n { namespace path {::$ns ::x} }\n";
         assert!(
             ns_ref_texts(src).iter().any(|t| t == "::$ns"),
@@ -8797,8 +8798,9 @@ mod braced_word_elements_are_literal {
 
     #[test]
     fn tp_foreach_simulation_survives_a_braced_dollar_element() {
-        // One odd element used to abstain from the whole simulation, so every
-        // proc the loop installs went missing and each call raised W123.
+        // One odd element must not abstain the whole simulation — otherwise
+        // every proc the loop installs goes missing and each call raises
+        // W123.
         let src = "foreach n {aa {$b} cc} { proc $n {} {} }\naa\ncc\n";
         assert!(
             !diag_codes(src).iter().any(|c| c == "W123"),
@@ -8830,16 +8832,15 @@ mod braced_word_elements_are_literal {
     }
 }
 
-/// Issue #1312 — a named object (`CLASS create NAME`) resolves no members.
-/// `[CLASS new]` already gave W308 on an unknown method; the named form
-/// abstained because the dispatch resolver never consulted
-/// `AnalysisResult::created_instance_commands` / `instance_classes` for a
-/// bareword receiver.
+/// A named object (`CLASS create NAME`) must resolve its members like
+/// `[CLASS new]` already does for W308 on an unknown method: the dispatch
+/// resolver must consult `AnalysisResult::created_instance_commands` /
+/// `instance_classes` for a bareword receiver too.
 mod issue_1312_named_object_dispatch {
     use super::*;
 
-    /// TP — the ticket's own repro: `C create obj` then `obj nosuchmethod`
-    /// now draws the same W308 the handle form (`[C new]`) already does.
+    /// TP: `C create obj` then `obj nosuchmethod` must draw the same W308
+    /// the handle form (`[C new]`) already does.
     #[test]
     fn named_object_draws_w308_on_an_unknown_method() {
         let src = "oo::class create C {\n\
@@ -8952,20 +8953,21 @@ mod issue_1312_named_object_dispatch {
     }
 }
 
-/// Issue #1362 — `$obj configure` on an `oo::configurable` class drew
+/// `$obj configure` on an `oo::configurable` class must not draw
 /// `Unknown method 'configure' on class '::UnifiedTest'; did you mean
 /// 'configure'?`: the accessors a configurable class generates for its
 /// `property` members are declared by no `method` body, so they reach
 /// neither the class's member tables nor the hierarchy's `method_providers`
-/// — yet the W308 *suggestion* list folded them in, which is why the
-/// diagnostic suggested the very word it had just called unknown.
+/// on their own.
 ///
-/// Both sides now go through `ClassHierarchy::configures_by_property`, so
-/// the existence check and the suggestion list cannot drift apart again.
+/// Both the existence check and the W308 *suggestion* list must go through
+/// `ClassHierarchy::configures_by_property`, so they cannot drift apart —
+/// otherwise the diagnostic could suggest the very word it had just called
+/// unknown.
 mod issue_1362_configurable_property_accessors {
     use super::*;
 
-    /// The ticket's own repro, in all three dispatch spellings: a handle
+    /// All three dispatch spellings: a handle
     /// (`[C new]`), a named object (`C create obj`), and self-dispatch
     /// (`my configure` inside a method body).
     #[test]

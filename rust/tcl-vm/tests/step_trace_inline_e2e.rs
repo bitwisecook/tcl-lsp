@@ -389,8 +389,8 @@ fn step_trace_vectors_match_real_tclsh() {
     }
 }
 
-/// Documented divergence from C (narrow, not part of issue #946's required
-/// matrix): C's interp-wide step trace is torn down when the traced proc's
+/// Documented divergence from C, narrow in scope: C's interp-wide step trace
+/// is torn down when the traced proc's
 /// OWN `leave` event matches the level/command-string it was registered at
 /// (`tcmdPtr->startLevel`/`startCmd`, `tclTrace.c`). A `tailcall` replaces
 /// the traced proc's activation at the SAME level, which C's bookkeeping
@@ -426,7 +426,7 @@ fn step_trace_over_observes_a_tailcall_target_vm_divergence() {
 /// next entry, and the refreshed body is memoised back into the table its
 /// binding lives in. A retained namespace's procedure is not in the flat
 /// command map at all, so memoising it there would republish it under a
-/// spelling a recreation already owns (#1751). Exact tclsh 9.0.4 oracle results
+/// spelling a recreation already owns. Exact tclsh 9.0.4 oracle results
 /// (identical on 8.6.16).
 #[test]
 fn a_recompiled_retained_procedure_is_not_republished() {

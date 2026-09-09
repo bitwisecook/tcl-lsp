@@ -99,7 +99,8 @@ pub enum FieldKind {
     Options,
     /// `&'static [FormSpec]`.
     Forms,
-    /// `&'static [CommandForm]` — the per-form overlays of design Q12/D2.
+    /// `&'static [CommandForm]` — named invocation forms that override the
+    /// command's arity, roles and options.
     Refinements,
     /// `&'static [SideEffect]`.
     SideEffects,

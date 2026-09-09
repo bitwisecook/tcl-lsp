@@ -55,7 +55,7 @@ pub fn spec() -> CommandSpec {
         // is correct and every analysis consumer must keep walking them — but
         // a formatter keeps them on the `for` header line, expanding only the
         // trailing `body`.  Declaring the preference here is what lets the
-        // formatting engine drop its `name == "for"` branch (issue #1186).
+        // formatting engine drop its `name == "for"` branch.
         arg_presentation: &[
             (0, ArgPresentation::InlineScript),
             (2, ArgPresentation::InlineScript),

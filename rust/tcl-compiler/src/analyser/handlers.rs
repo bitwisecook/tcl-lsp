@@ -90,7 +90,7 @@ fn overridable_library_procs() -> &'static std::collections::HashSet<String> {
 ///
 /// `ns_prefix` is a **constructed** namespace key, rooted (`::a::b`, `::`)
 /// or unrooted (`a::b`, empty = global); it is joined verbatim — only the
-/// *written* `name`'s colon runs canonicalise (#934).
+/// *written* `name`'s colon runs canonicalise.
 pub(super) fn qualify(ns_prefix: &str, name: &str) -> String {
     crate::naming::qualify(ns_prefix, name)
 }
@@ -129,7 +129,7 @@ pub(super) fn interp_path_key(path: &str) -> String {
     path.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// Parse `interp create`'s `?-safe? ?--? ?path?` words (issue #923 idx 9):
+/// Parse `interp create`'s `?-safe? ?--? ?path?` words:
 /// returns `(safe, path)`, where `path` is the sole non-flag word (or
 /// `None` for a bare, uncaptured `interp create -safe`). Shared by
 /// `Analyser::handle_interp_create_command` and the `set VAR [interp
@@ -184,10 +184,10 @@ fn parse_interp_create_words<'a>(words: &[&'a str]) -> (bool, Option<&'a str>) {
 /// to just the words after `interp`/`create`, when `text` is exactly
 /// that literal `[...]` substitution shape and nothing else — feeds
 /// `Analyser::handle_set_command`'s value-flow detector through
-/// [`parse_interp_create_words`] (issue #923 idx 9).
+/// [`parse_interp_create_words`].
 fn interp_create_words_from_value(text: &str) -> Option<Vec<&str>> {
     let inner = text.strip_prefix('[')?.strip_suffix(']')?;
-    // Tcl-list parse, not `split_whitespace` (issue #1025): the direct
+    // Tcl-list parse, not `split_whitespace`: the direct
     // `interp create` handler sees segmenter-decoded words, so a braced
     // path word (`{child}`, `{parent child}`) reaches it already stripped.
     // Whitespace-splitting the raw substitution text instead keeps the
@@ -313,7 +313,7 @@ impl ManufacturerLayout {
 const MAX_UNKNOWN_BODY_DEPTH: u32 = 8;
 
 /// How many unclassifiable creation calls one document keeps for the
-/// post-pass retry — see [`Analyser::defer_class_creation`] (issue #1660).
+/// post-pass retry — see [`Analyser::defer_class_creation`].
 ///
 /// Only a call whose head names nothing the document knows is kept, so a real
 /// file holds a handful: the shape exists to catch a metaclass proved after
@@ -395,7 +395,7 @@ fn substitute_bound_words(
         // The `${…}` closer comes from the shared owner under this
         // document's release rule; a first-`}` scan named a different
         // parameter than the one the lexer spanned, and the value it binds is
-        // written into the folded word (issue #1604).
+        // written into the folded word.
         let (name, tail) = if let Some(braced) = after.strip_prefix('{') {
             let tcl_lexer::BracedVarEnd::Closed(close) =
                 tcl_lexer::braced_var_name_end(braced.as_bytes(), 0, braced_var)
@@ -443,7 +443,7 @@ fn substitute_bound_words(
 /// [`ClassDef::metaclass_provenance`] says it was read; otherwise the observing
 /// side's answer is simply adopted. Without that gate an `oo::define` stub for
 /// a class made by a user metaclass contradicted the real metaclass and cost
-/// the record its factory and superclasses (issue #1653).
+/// the record its factory and superclasses.
 fn join_parameterised_class_observations(
     existing: &ClassDef,
     observed: &ClassDef,
@@ -496,7 +496,7 @@ fn join_parameterised_class_observations(
     joined.via_define &= other.via_define;
     // Whichever side lost, its declarations are still declarations: an
     // `oo::define` stub's members belong to this class as surely as the
-    // creation body's do (issue #1653). Deliberately after the line above:
+    // creation body's do. Deliberately after the line above:
     // `absorb_declarations` reads `via_define` on both records to decide who
     // wins a name they both declare, and by here `joined`'s answers "were
     // *both* of these observations stubs" — which is exactly the question
@@ -751,7 +751,7 @@ fn prologue_pieces(word: &str, braced_var: tcl_dialect::BracedVarStyle) -> Vec<P
             let after = &rest[1..];
             if let Some(braced) = after.strip_prefix('{') {
                 // The `${…}` closer comes from the shared owner under this
-                // document's release rule (issue #1604).
+                // document's release rule.
                 let tcl_lexer::BracedVarEnd::Closed(close) =
                     tcl_lexer::braced_var_name_end(braced.as_bytes(), 0, braced_var)
                 else {
@@ -969,7 +969,7 @@ impl Analyser {
         } else {
             // `[set {$n}]` reads the variable literally called `$n` — the
             // braces suppressed substitution, so the word's content is the
-            // name (issue #1078).
+            // name.
             self.record_var_read_braced(
                 &args[0],
                 name_tok.span,
@@ -990,8 +990,8 @@ impl Analyser {
             self.set_const_string(&args[0], args[1].clone(), value_token.span, scope_path);
             self.clear_interp_var_binding(&args[0], scope_path);
         } else if let Some(words) = interp_create_words_from_value(&args[1]) {
-            // `set VAR [interp create ?-safe? ?--? ?path?]` (issue #923
-            // idx 9) — bind VAR, in this scope, to the interpreter-domain
+            // `set VAR [interp create ?-safe? ?--? ?path?]` — bind VAR, in
+            // this scope, to the interpreter-domain
             // key this call records. Mirrors `record_instance_creation`'s
             // TclOO `set g [Foo new]` value-flow shape, but scope-chain
             // -aware like `const_strings` rather than flat like
@@ -1036,7 +1036,7 @@ impl Analyser {
             && let Some(folded) = self.try_fold_const_cmd_subst_rhs(&args[1], scope_path)
         {
             // `set VAR [cmd …]` whose substitution is a compile-time
-            // constant (issue #1132): the registry `const_fold` /
+            // constant: the registry `const_fold` /
             // frame-fact engine proves the value, so VAR enters the same
             // constant-string lattice a literal RHS does — unblocking the
             // `${ns}::setdef`-style navigation chain
@@ -1052,7 +1052,7 @@ impl Analyser {
 
     /// Fold a `set` command's single-token `[cmd …]` RHS to its constant
     /// value via the shared engine ([`crate::const_subst::ConstSubstCtx`]),
-    /// or `None` to abstain (issue #1132).
+    /// or `None` to abstain.
     ///
     /// Sound-by-construction gates, in evaluation order:
     ///
@@ -1220,7 +1220,7 @@ impl Analyser {
 
     /// Record a lightweight named definition for a registry *symbol-definer*
     /// command (`tcltest::test NAME …`, …) so it appears in the document /
-    /// workspace outline alongside procs, classes, and variables (issue #790).
+    /// workspace outline alongside procs, classes, and variables.
     ///
     /// Everything command-specific is registry data: which argument holds the
     /// name, which holds the description, and the outline category all come from
@@ -1339,7 +1339,7 @@ impl Analyser {
 
         // A registry definer called inside `proc ::ns::p {}` creates its symbol
         // in `::ns` (the proc's defining namespace), not `::` — the
-        // command-resolution rule, not the lexical one (issue #923 idx 85).
+        // command-resolution rule, not the lexical one.
         let ns_prefix = self.command_resolution_namespace(scope_path);
         let qualified = qualify(ns_prefix.trim_start_matches(':'), &name);
 
@@ -1376,7 +1376,7 @@ impl Analyser {
         // Which namespace's imports are in effect is the *command-resolution*
         // namespace: a proc body resolves unqualified commands (and so the
         // imports covering them) in the proc's defining namespace, which the
-        // lexical walk misses for a qualified-name proc (issue #923 idx 85).
+        // lexical walk misses for a qualified-name proc.
         let cur_ns = if self.result.namespace_imports.is_empty() {
             String::new()
         } else {
@@ -1490,7 +1490,7 @@ impl Analyser {
     /// answer because it records no frame level — and
     /// [`ProcDef::caller_frame_literals`](super::types::ProcDef::caller_frame_literals),
     /// the literal caller-frame names the body spells itself (`upvar 1 name
-    /// name`, issue #1139).  Computed here, from the same
+    /// name`).  Computed here, from the same
     /// body text and the same dialect config, so the three can never be
     /// derived from different views of the proc.
     fn infer_proc_param_traits(
@@ -1509,7 +1509,7 @@ impl Analyser {
         // One environment for all four scans, so the traits, the caller-frame
         // params, and the caller-frame literals can never be derived from
         // different views of the proc *or* of the document's command bindings
-        // (issue #1275).
+        //.
         let env = super::param_traits::TraitScanEnv {
             surface: tcl_registry::model::DocumentCommandSurface::new(
                 registry,
@@ -1547,7 +1547,7 @@ impl Analyser {
     /// And the overridable Tcl *library* procedures (`unknown`, `history`,
     /// `auto_*`, …) are script-defined, documented user-replaceable overlays.
     /// A third-party/package command (`argparse`, a tcllib/itcl/ticklecharts
-    /// proc, …) is excluded too (issue #923 idx 11): `registry.command_names()`
+    /// proc, …) is excluded too: `registry.command_names()`
     /// is the full package-inclusive command universe, not the set of names a
     /// bare Tcl interpreter actually starts with, so a proc named after a
     /// registered package command (e.g. `proc ::argparse {args} {...}`
@@ -1611,7 +1611,7 @@ impl Analyser {
     /// to be in `registry.command_names()`) resolves to a `CommandSpec` gated
     /// behind a `required_package` / `tcllib_package` (`CommandSpec::
     /// owning_package`) that this profile does **not** ship ambiently
-    /// (issue #923 idx 11).
+    ///.
     ///
     /// Data-driven, not a hardcoded package-name list: the answer comes
     /// straight from the resolved spec's package attribution and the
@@ -1633,7 +1633,7 @@ impl Analyser {
     }
 
     /// **W314.** The definition's name has no absolute (fully-qualified)
-    /// written form (issue #934).  A written colon run of two or more is a
+    /// written form.  A written colon run of two or more is a
     /// namespace separator (the whole run collapses, `TclGetNamespaceForQualName`,
     /// invariant C 8.4→9.1), so an **all-colon simple name** — only `:` is
     /// writable — can never be spelled absolutely: `namespace which :` renders
@@ -1670,7 +1670,7 @@ impl Analyser {
 
     /// **W315.** Drain `class`'s recorded
     /// [`DefinitionAbort`](super::types::DefinitionAbort)s and report each as
-    /// "this class definition cannot run" (issue #1120).
+    /// "this class definition cannot run".
     ///
     /// Three oracle-pinned shapes abort a whole `TclOO` definition body, so no
     /// class is created at all — byte-identical on tclsh 9.0.4 and 8.6.14:
@@ -1825,7 +1825,7 @@ impl Analyser {
         let name_tok = arg_tokens[0];
         // A constant-foldable dynamic name (`proc ::$wtype {args} {...}` with
         // `wtype` a known constant) resolves the same way `rename`'s operands
-        // already do (issue #923 idx 86: `tk/library/accessibility.tcl`'s
+        // already do (`tk/library/accessibility.tcl`'s
         // rename-away-and-reinstall idiom names its wrapper proc this way).
         // An unresolvable dynamic name falls back to the raw written text
         // unchanged — this only *improves* the resolvable case, the same
@@ -1849,7 +1849,7 @@ impl Analyser {
         let ns_prefix = self.command_resolution_namespace(scope_path);
         // `qualify` takes the constructed (rooted) namespace key verbatim and
         // `key_tail` inverts the construction — a `char`-pattern colon trim or
-        // an `rsplit("::")` here would collapse a lone-colon name (#934).
+        // an `rsplit("::")` here would collapse a lone-colon name.
         let qualified = qualify(&ns_prefix, &resolved_name);
         let simple = crate::naming::key_tail(&qualified).to_string();
         let name_span = name_tok.span;
@@ -1858,13 +1858,13 @@ impl Analyser {
 
         // **W113** — proc name shadows a built-in command.
         self.emit_w113_proc_shadows_builtin(&resolved_name, &qualified, name_span);
-        // **W314** — the name has no absolute written form (#934).
+        // **W314** — the name has no absolute written form.
         self.emit_w314_no_absolute_name(raw_name, name_span);
 
         // A **computed** parameter-list word (`proc p [makeargs] {…}`,
         // `proc q $params {…}`) builds the formals from a run-time value, so
         // nothing about them is knowable: the proc's params are unmodelled
-        // (issue #1079).  Reading the unresolved word as a one-parameter
+        //.  Reading the unresolved word as a one-parameter
         // literal registered a `VarDef` literally named `"[makeargs]"` and
         // made the call-site arity checker demand exactly one argument, which
         // tclsh 9.0.4 / 8.6.16 contradict (`proc makeargs {} {return {a b}}`;
@@ -1873,7 +1873,7 @@ impl Analyser {
         // The literalness rule itself lives in
         // `signature_scan::params::param_word_is_literal` — the one predicate
         // this tier, the signature-scan tier, and the LSP's cursor classifier
-        // all share (issue #1107).
+        // all share.
         let params_computed = !crate::signature_scan::params::param_word_is_literal(
             arg_tokens[1].kind,
             arg_single.get(1).copied().unwrap_or(true),
@@ -2018,7 +2018,7 @@ impl Analyser {
     /// `proc p {a} {…}` the same bare `p` fails `wrong # args: should be "p
     /// a"`. Dropping the first definition on the map insert made
     /// go-to-definition from the in-between call jump to the *later* header
-    /// and left its arity unknowable (issue #923 idx 45).
+    /// and left its arity unknowable.
     ///
     /// `superseded_procs` stays empty for every document without a
     /// redefinition, so the common case pays one `HashMap::insert` return
@@ -2077,7 +2077,7 @@ impl Analyser {
 
         // Parameters become locals in the proc scope. Each param's
         // definition range is anchored to its *name* in the param-list
-        // literal (issue #727) so go-to-definition / references / rename on
+        // literal so go-to-definition / references / rename on
         // a formal parameter resolve to the parameter, not the proc name.
         // The spans are recovered from the raw param-list word token
         // (`arg_tokens[1]`); any param whose name can't be located falls
@@ -2125,7 +2125,7 @@ impl Analyser {
                 params: params.to_vec(),
                 class_variables: Vec::new(),
                 // Attached later by `fill_deferred_bodies` for bodies with a
-                // fold candidate (issue #1132).
+                // fold candidate.
                 command_trust: None,
                 ensemble_targets: Vec::new(),
                 prefixless_ensembles: Vec::new(),
@@ -2140,7 +2140,7 @@ impl Analyser {
     }
 
     /// `tcl::OptProc name optlist body` — the `opt` package's automatic-
-    /// option-parsing proc definer (issue #923 idx 90).
+    /// option-parsing proc definer.
     ///
     /// At runtime this installs a REAL proc via `uplevel 1 [list ::proc
     /// $name args ...]` — the Tcl-level formal parameter is always the
@@ -2294,7 +2294,7 @@ impl Analyser {
                     params: combined_params,
                     class_variables: Vec::new(),
                     // Attached later by `fill_deferred_bodies` for bodies
-                    // with a fold candidate (issue #1132).
+                    // with a fold candidate.
                     command_trust: None,
                     ensemble_targets: Vec::new(),
                     prefixless_ensembles: Vec::new(),
@@ -2312,7 +2312,7 @@ impl Analyser {
     }
 
     /// Split `tcl::OptProc`'s `optlist` argument into `(real_params,
-    /// opt_locals)` (issue #923 idx 90): the real, arity-relevant Tcl-level
+    /// opt_locals)`: the real, arity-relevant Tcl-level
     /// signature — always the single catch-all `args`, regardless of what
     /// `optlist` declares — and `optlist`'s own descriptors, dash-stripped
     /// to the LOCAL VARIABLE name `::tcl::OptKeyParse` actually binds at
@@ -2367,7 +2367,7 @@ impl Analyser {
     /// `apply [list {params} $body ns] …` — one hop through the constant-
     /// value lattice, to the same `Vec<(Token, String)>` shape
     /// [`Self::parse_apply_lambda_elements`] returns for a literal braced
-    /// lambda (issue #923 idx 116): so `handle_apply_command`'s downstream
+    /// lambda: so `handle_apply_command`'s downstream
     /// code (`elements[0]` = params, `[1]` = body, `[2]` = namespace)
     /// needs no changes regardless of which path supplied it.
     ///
@@ -2549,7 +2549,7 @@ impl Analyser {
     ) -> bool {
         // A literal braced lambda parses directly; a dynamic one (`apply
         // $lambda`, `apply [list {params} $body ns]`) gets one hop through
-        // the constant-value lattice (issue #923 idx 116) before giving up
+        // the constant-value lattice before giving up
         // — same downstream shape either way, so nothing past this point
         // needs to know which path supplied `elements`.
         let elements = if let Some(elements) = self.parse_apply_lambda_elements(args, arg_tokens) {
@@ -2597,7 +2597,7 @@ impl Analyser {
             _ => "::".to_string(),
         };
         // That element is also a first-class *reference* to the namespace it
-        // names, not merely a semantic input (issue #1113 item 4): it sits
+        // names, not merely a semantic input: it sits
         // inside an `ArgRole::LambdaLiteral` word, which no whole-word role
         // reaches, so the identity is recorded here, where the element has
         // already been split. Non-declaring — `apply` looks the namespace up,
@@ -2628,7 +2628,7 @@ impl Analyser {
         let scope_name = format!("apply@{}", arg_tokens[0].span.start());
 
         // Record the namespace override for `tcl-lsp-core`'s command-
-        // resolution lookups (issue #923 idx 116): the `Scope` subtree
+        // resolution lookups: the `Scope` subtree
         // rooted below, via `reconstruct_proc_scope`, sits under fresh
         // `body_span`-less namespace wrapper nodes the ordinary lexical
         // span-containment walk can never reach — `namespace_overrides` is
@@ -2654,7 +2654,7 @@ impl Analyser {
         }
 
         // Parameters become locals, each anchored to its name in the param-list
-        // literal (issue #727) so go-to-definition / references / rename on a
+        // literal so go-to-definition / references / rename on a
         // formal resolve to the parameter, not the `apply` call.
         let param_spans = param_name_spans_for_token(&self.source, params_tok);
         for (i, p) in params.iter().enumerate() {
@@ -2684,7 +2684,7 @@ impl Analyser {
                 params,
                 class_variables: Vec::new(),
                 // Attached later by `fill_deferred_bodies` for bodies with a
-                // fold candidate (issue #1132).
+                // fold candidate.
                 command_trust: None,
                 ensemble_targets: Vec::new(),
                 prefixless_ensembles: Vec::new(),
@@ -2761,7 +2761,7 @@ impl Analyser {
         }
         let ns_name = args[1].clone();
         // **W314** — an all-colon segment (`namespace eval :`) creates a
-        // namespace no absolute path can spell (#934).
+        // namespace no absolute path can spell.
         if let Some(ns_tok) = arg_tokens.get(1) {
             self.emit_w314_unaddressable_namespace(&ns_name, ns_tok.span);
         }
@@ -2774,7 +2774,7 @@ impl Analyser {
         // `::tk::SourceLibFile`) reads the proc's own `$file` parameter
         // before the namespace is entered at all.  Claiming those bytes for
         // the namespace made the scope-chain lookup stop there and answer
-        // nothing for that read (issue #1138 idx 102).
+        // nothing for that read.
         let body_tok = arg_tokens.get(2).copied();
         let body_span = body_tok
             .filter(|t| t.kind == TokenType::Str)
@@ -2782,7 +2782,7 @@ impl Analyser {
         let body_text = args.get(2).cloned();
         // `namespace eval $ns [list namespace unknown $handler]` — the
         // list-wrapped installer idiom `analyse_body`'s literal-`{...}`
-        // -only gate below never sees (issue #923 idx 110).
+        // -only gate below never sees.
         if let Some(tok) = body_tok {
             self.detect_list_wrapped_namespace_unknown(tok);
         }
@@ -2805,10 +2805,10 @@ impl Analyser {
         // { … }` creates `::app` on every run, so the block's procs really do
         // home to `::app::…` and the block really is a declaring site for
         // `::app`. That case is settled through the same identity-resolution
-        // helper the command head (issue #923 idx 44), `source`, `rename`, and
+        // helper the command head, `source`, `rename`, and
         // `oo::define`'s target word already use — one lattice answers "what
         // does this word name" everywhere, and its dominance requirement keeps
-        // a branch-conditional binding out (issue #1113 item 3).
+        // a branch-conditional binding out.
         let resolved_dynamic = crate::naming::is_dynamic_word(&ns_name)
             .then(|| {
                 self.resolve_dynamic_word(
@@ -2849,7 +2849,7 @@ impl Analyser {
             child.body_span = body_span;
             // The written `NAME` word, so the outline can point its
             // `selectionRange` at the name rather than the whole body
-            // (issue #1218).  Recorded even for a dynamic `$ns` target: the
+            //.  Recorded even for a dynamic `$ns` target: the
             // word is still where the user would want the cursor.
             child.name_span = arg_tokens.get(1).map(|t| t.span);
             let Some(parent) = super::scope::scope_at_mut(&mut self.result.global_scope, &path)
@@ -2866,7 +2866,7 @@ impl Analyser {
         // ``namespace eval`` register with the correct namespace
         // prefix.  Words past the body join into the script exactly as
         // `eval`'s do, so a multi-word call is analysed as the whole
-        // concatenation or not at all (issue #1051) — never as its first
+        // concatenation or not at all — never as its first
         // word alone, which invented an E002 on the trailing words'
         // arguments and lost every write they performed.
         if args.len() > 3 {
@@ -2979,7 +2979,7 @@ impl Analyser {
         // interpreter — inside a child's eval body it is relative to that
         // child — so qualify against the walk's interpreter-path stack. A
         // dynamic path also resolves through a tracked `set VAR [interp
-        // create ...]` binding (issue #923 idx 9) — that key is already
+        // create ...]` binding — that key is already
         // fully qualified at bind time, so it's used as-is, not
         // requalified.
         let literal_path = !crate::naming::is_dynamic_word(&args[1]);
@@ -2990,7 +2990,7 @@ impl Analyser {
             .clone()
             .unwrap_or_else(|| self.qualified_interp_key(&args[1]));
         if literal_path || resolved_dynamic.is_some() {
-            // Interpreter existence (issue #945 fault 8): evaluating into a
+            // Interpreter existence: evaluating into a
             // known-but-never-created child raises `could not find
             // interpreter` at run time.  Abstains when any interp operation
             // in the file used a dynamic, *unresolvable* path (existence
@@ -3016,8 +3016,8 @@ impl Analyser {
         // Multiple script words concatenate at run time (`Tcl_ConcatObj`),
         // so commands can span word boundaries — no per-word walk is sound.
         // Consume the command *without* walking, keeping the parent domain
-        // clean (the old fall-through analysed the words in the parent
-        // scope — issue #945 fault 8); W312 separately flags the shape.
+        // clean (a fall-through would analyse the words in the parent
+        // scope); W312 separately flags the shape.
         if args.len() > 3 {
             return true;
         }
@@ -3051,7 +3051,7 @@ impl Analyser {
     /// a tracked `set VAR [interp create …]` binding).  It is recorded on the
     /// pushed [`InterpFrame`](super::state::InterpFrame) so consumers of the
     /// domain identity — analyser state that models *per-interpreter runtime
-    /// state*, such as the Tk widget/geometry hierarchy (issue #1141) — can
+    /// state*, such as the Tk widget/geometry hierarchy — can
     /// widen conservatively for a body whose interpreter is unknowable
     /// instead of treating it as provably distinct from every other domain.
     ///
@@ -3077,7 +3077,7 @@ impl Analyser {
             // accumulate, as in C); the name carries the path's deletion
             // *epoch*, so a deleted-and-recreated interpreter is a fresh
             // domain that never merges with its predecessor's definitions
-            // (issue #945 fault 8's temporal identity).
+            //.
             let mut child =
                 super::types::Scope::new(super::types::ScopeKind::Namespace, domain.clone());
             child.body_span = Some(body_tok.span);
@@ -3093,7 +3093,7 @@ impl Analyser {
 
         // A safe target interpreter evaluates the body with the unsafe
         // command set hidden, and any interpreter with explicit `interp
-        // hide`s carries those deltas (issue #945 fault 7): push the
+        // hide`s carries those deltas: push the
         // visibility context so the per-command gate flags hidden calls
         // (W129) and builds no effects from them.  A tainted state (dynamic
         // hide/expose) abstains.
@@ -3238,8 +3238,8 @@ impl Analyser {
     }
 
     /// Resolve a `$name`/`${name}` word to the interpreter-domain key a
-    /// tracked `set name [interp create ...]` bound it to (issue #923
-    /// idx 9) — the key is already fully resolved/qualified at bind
+    /// tracked `set name [interp create ...]` bound it to — the key is
+    /// already fully resolved/qualified at bind
     /// time, so callers must NOT re-run [`Self::qualified_interp_key`]/
     /// interp-path-stack qualification on it.
     ///
@@ -3260,7 +3260,7 @@ impl Analyser {
     }
 
     /// Resolve an `interp alias` path operand to the domain prefix its
-    /// alias/target command name qualifies under (issue #923 idx 9): the
+    /// alias/target command name qualifies under: the
     /// plain-current-interpreter sentinel (`""`/`"{}"`) is the empty
     /// prefix; a literal word resolves via [`Self::qualified_interp_key`]
     /// and then [`Self::interp_domain_name`]; a dynamic word resolves
@@ -3284,7 +3284,7 @@ impl Analyser {
 
     /// Handle `interp create ?-safe? ?--? ?path?` — record the child
     /// interpreter's existence and safe state in the interpreter-domain
-    /// map (issue #945 faults 7–8).  A dynamic path makes interpreter
+    /// map.  A dynamic path makes interpreter
     /// existence unknowable file-wide; a missing path auto-generates a
     /// name this file cannot reference literally, so nothing is recorded.
     ///
@@ -3308,7 +3308,7 @@ impl Analyser {
 
     /// Handle `interp delete ?path ...?` — remove the recorded state and
     /// bump the path's **epoch**, so a later re-creation is a fresh
-    /// domain (issue #945 fault 8's temporal identity).
+    /// domain.
     ///
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::InterpDelete`].
     pub fn handle_interp_delete_command(&mut self, args: &[String]) {
@@ -3390,8 +3390,8 @@ impl Analyser {
     }
 
     /// Record that `bare_name` is now a real, locally-defined command in
-    /// the interpreter body currently being walked (a `proc` (re)definition
-    /// — issue #945 fault 7 follow-up).  C creates it in the ordinary
+    /// the interpreter body currently being walked (a `proc` (re)definition).
+    /// C creates it in the ordinary
     /// command table, a separate table from the hidden set entirely, so it
     /// is callable independent of any hide the base safe set or an earlier
     /// `interp hide` applied (tclsh 9.0.4-verified).  Updates both the
@@ -3431,8 +3431,8 @@ impl Analyser {
     ///
     /// The argument is a *list* of namespace names inside one word, so each
     /// element is additionally recorded as a
-    /// [`NamespaceRef`](super::types::NamespaceRef) at its own source span
-    /// (issue #1113 item 2). Whole-word `ArgRole`s cannot express that — the
+    /// [`NamespaceRef`](super::types::NamespaceRef) at its own source span.
+    /// Whole-word `ArgRole`s cannot express that — the
     /// word as a whole is not one namespace name — so the split happens here,
     /// where the semantics are already modelled, using the shared Tcl list
     /// grammar rather than a second scanner. That is also what makes a braced
@@ -3450,7 +3450,7 @@ impl Analyser {
         // The word arrives with its braces already stripped, so a text-only
         // dynamism scan mistakes `namespace path {$ns ::a}` for a computed
         // path and abstains from the whole command. Braces suppress
-        // substitution, so the token kind is the authority (issue #1245).
+        // substitution, so the token kind is the authority.
         // tclsh-proof: tclsh8.6.14 —
         //   set nn {::$ns}; namespace eval $nn {}; namespace eval a {}
         //   namespace eval n { namespace path {::$ns ::a} }
@@ -3465,7 +3465,7 @@ impl Analyser {
             // Record the abstention rather than merely staying silent: a
             // consumer that has to be exhaustive about namespace occurrences
             // (the namespace rename tier) cannot otherwise tell this document
-            // from one that declares no path at all (issue #1261).
+            // from one that declares no path at all.
             if let Some(tok) = arg_tokens.get(1) {
                 self.result.namespace_path_computed.push(tok.span);
             }
@@ -3512,7 +3512,7 @@ impl Analyser {
     /// `word_braced` says whether the *whole* path word was brace-quoted. If
     /// it was, no element substitutes however many `$`/`[` characters it
     /// holds, so the per-element dynamism scan must be suppressed exactly as
-    /// the whole-word one already is (issue #1252) — otherwise `namespace
+    /// the whole-word one already is — otherwise `namespace
     /// path {::$ns ::a}` records `::$ns` as a path entry but not as a
     /// reference, and the same function disagrees with itself.
     fn record_namespace_path_element_refs(
@@ -3601,7 +3601,7 @@ impl Analyser {
         // A literal `{…}` block, or a script *built* with `list` — the latter
         // is not dynamic (`uplevel #0 [list upvar #0 A B]` runs exactly one
         // deterministic command, tclsh-identical to the braced spelling), so
-        // it opens the same frame scope (issue #1138).  Any other shape falls
+        // it opens the same frame scope.  Any other shape falls
         // through to the generic recursion.
         if body_tok.kind != TokenType::Str
             && !self.registry.as_deref().is_some_and(|r| {
@@ -3627,7 +3627,7 @@ impl Analyser {
             // frame before `uplevel` changes frames, so an offset-keyed
             // lookup on (say) `$file` in `uplevel #0 [list source [file join
             // $file]]` must keep resolving lexically to the proc's own
-            // parameter, not stop at this frame (issue #1138).
+            // parameter, not stop at this frame.
             child.body_span = (body_tok.kind == TokenType::Str).then_some(body_tok.span);
             parent.children.push(child);
             parent.children.len() - 1
@@ -3676,9 +3676,8 @@ impl Analyser {
             return;
         }
         // `create` operates on the *current* namespace, with no explicit name
-        // argument; `configure NAME ...` (issue #1001 follow-up — the ensemble
-        // side of the `namespace ensemble configure -map` gap, previously
-        // silently ignored here entirely) names an *existing* ensemble
+        // argument; `configure NAME ...` (the ensemble side of the
+        // `namespace ensemble configure -map` gap) names an *existing* ensemble
         // command explicitly, resolved like any other command reference.
         // Both share the same `-command`/`-map`/`-subcommands` option set.
         let is_create = args[1] == "create";
@@ -3690,9 +3689,8 @@ impl Analyser {
         // the command *resolves in*, not the lexically enclosing one: run
         // inside the body of `proc ::tk::foo {} {...}` declared at top level,
         // the current namespace is `::tk`, so the ensemble is `::tk` — the
-        // purely lexical namespace walk skips proc scopes and homed it
-        // to `::` instead, losing every `<ns> sub` call site (issue #923
-        // idx 85).
+        // purely lexical namespace walk skips proc scopes and homes it
+        // to `::` instead, losing every `<ns> sub` call site.
         let ns = self.command_resolution_namespace(scope_path);
         let ns_prefix = ns.trim_start_matches(':').to_owned();
 
@@ -3714,7 +3712,7 @@ impl Analyser {
             )
         };
 
-        // The ensemble's own resolved command name (issue #1001 follow-up):
+        // The ensemble's own resolved command name:
         // `-command NAME`, when present, *replaces* the default naming
         // entirely (tclsh 8.6.14-verified: `namespace ensemble create
         // -command ::alt` creates only `::alt`, never the enclosing
@@ -3772,7 +3770,7 @@ impl Analyser {
                 // recorded so it is reached by references / definition / rename
                 // — and, keyed by the ensemble's own resolved command name, so
                 // the W129 safe-interpreter gate can resolve a call through
-                // this redirect to the target (issue #1001 follow-up).
+                // this redirect to the target.
                 "-map" => {
                     if let (Some(value), Some(tok)) = (value, value_tok)
                         && let Some((text, text_tok)) = self.ensemble_list_literal(value, tok)
@@ -3843,7 +3841,7 @@ impl Analyser {
     /// (`"tk"`, `"configure"`, …) as bogus subcommand/target pairs, which is
     /// worse than abstaining. Falls back to
     /// [`Self::dict_merge_literal_tail`] for the one dynamic shape real code
-    /// needs (issue #923 idx 84); anything else abstains.
+    /// needs; anything else abstains.
     fn ensemble_list_literal(&self, value: &str, value_tok: Token) -> Option<(String, Token)> {
         if !crate::naming::is_dynamic_word(value) {
             return Some((value.to_owned(), value_tok));
@@ -3855,7 +3853,7 @@ impl Analyser {
     /// `tk/library/systray.tcl` (and `print.tcl`, `fileicon.tcl`,
     /// `accessibility.tcl`) idiom uses to splice new entries onto a
     /// pre-existing ensemble's `-map`/`-subcommands` without a literal
-    /// `{...}` value of its own (issue #923 idx 84): `namespace ensemble
+    /// `{...}` value of its own: `namespace ensemble
     /// configure tk -map [dict merge [namespace ensemble configure tk -map]
     /// {systray ::tk::systray sysnotify ::tk::sysnotify::sysnotify}]`.
     /// `EXISTING` (whatever it evaluates to — typically a self-referential
@@ -3863,8 +3861,7 @@ impl Analyser {
     /// spliced literal tail is a statically known fact regardless of what
     /// `EXISTING` is.
     ///
-    /// Deliberately narrow, matching the issue #923 idx 110 precedent:
-    /// exactly `dict merge ARG {literal}` (2 dict-merge operands, the
+    /// Deliberately narrow: exactly `dict merge ARG {literal}` (2 dict-merge operands, the
     /// second a literal word) — does not recognise `dict set`/`dict
     /// replace`/`concat`/a list-building helper proc, or a `dict merge`
     /// with more than 2 operands. A documented scope boundary, not an
@@ -3954,18 +3951,18 @@ impl Analyser {
     /// — also record each `sub -> target` pair into
     /// `self.ensemble_command_maps`, so the W129 safe-interpreter gate can
     /// resolve a call reaching a hidden command only through this ensemble's
-    /// redirect (issue #1001 follow-up; `None` when the ensemble's own name
+    /// redirect (`None` when the ensemble's own name
     /// couldn't be resolved statically, matching every other guard in this
     /// handler), *and* — when the paired subcommand word is also static —
     /// file the same `sub -> target` fact under `ensemble_key` in
     /// [`AnalysisResult::ensemble_subcommand_targets`] so `definition`/
     /// `hover`/`references` can resolve a `<ensemble> <subcommand>` call site
-    /// (issue #923 idx 106) — a distinct field from `ensemble_command_maps`
+    /// — a distinct field from `ensemble_command_maps`
     /// above, serving navigation rather than the safe-interpreter gate.
     ///
     /// The navigation entry is tagged
     /// [`EnsembleSubcommandProvenance::Map`](crate::signature_scan::types::EnsembleSubcommandProvenance::Map)
-    /// (issue #1281): a `-map` key is an arbitrary name, so a consumer that
+    ///: a `-map` key is an arbitrary name, so a consumer that
     /// *rewrites* the subcommand word — rename — must leave it alone, unlike
     /// the `-subcommands` sibling below whose entry is the target's own tail.
     ///
@@ -4074,12 +4071,12 @@ impl Analyser {
     /// `<ns>::<name>` the ensemble maps it to, and file the same
     /// `subcommand → resolved target` fact under `ensemble_key` in
     /// [`AnalysisResult::ensemble_subcommand_targets`] — the `-subcommands`
-    /// sibling of [`Self::record_ensemble_map_targets`]'s issue #923 idx 106
-    /// fix (same one-directional-only gap, same fix shape).
+    /// sibling of [`Self::record_ensemble_map_targets`] (same
+    /// one-directional-only gap, same shape).
     ///
     /// Tagged
     /// [`EnsembleSubcommandProvenance::Subcommands`](crate::signature_scan::types::EnsembleSubcommandProvenance::Subcommands)
-    /// (issue #1281): here the subcommand word *is* the target's tail — the
+    ///: here the subcommand word *is* the target's tail — the
     /// ensemble derives `<ns>::<name>` from it — so renaming the target must
     /// rewrite the entry and the dispatch word with it.
     fn record_ensemble_subcommands(
@@ -4179,9 +4176,9 @@ impl Analyser {
             }
         }
         // A single-pair `foreach VAR {literal list} { rename ::$VAR ... ;
-        // proc ::$VAR ... }` loop over a fully literal list (issue #923 idx
-        // 86: the real `tk/library/accessibility.tcl` rename-away-and
-        // -reinstall idiom) binds `VAR` to a *different* value each
+        // proc ::$VAR ... }` loop over a fully literal list (the real
+        // `tk/library/accessibility.tcl` rename-away-and-reinstall idiom)
+        // binds `VAR` to a *different* value each
         // iteration — a fact the single-value `const_strings` scope map
         // can't represent generally (`foreach` shares one flat cell for the
         // whole loop, confirmed against tclsh: no per-iteration scope to key
@@ -4229,7 +4226,7 @@ impl Analyser {
     /// suppress substitution across the whole word, so *every* element of a
     /// braced list is literal however many `$`/`[` characters it holds — the
     /// element text arrives with the braces stripped, and scanning it alone
-    /// made one odd element abstain from the whole simulation (issue #1252).
+    /// made one odd element abstain from the whole simulation.
     /// tclsh-proof (8.6.16 / 9.0.4):
     ///   foreach n {aa {$b} cc} { puts $n }   ->  aa / $b / cc
     /// i.e. the loop runs three times over literal values, and no read of
@@ -4280,14 +4277,14 @@ impl Analyser {
     /// spec carries [`tcl_registry::Traits::INSTALLS_NAMED_DEFINITION`],
     /// because those (and only those) name their target with a word whose
     /// substituted value changes per iteration, so each element installs a
-    /// *different* definition (issue #923 idx 86 for `proc`/`rename`, idx
-    /// 55 for `oo::define`'s class target). Which commands those are is
+    /// *different* definition (`proc` / `rename`, and `oo::define`'s class
+    /// target). Which commands those are is
     /// registry data, never a name list here — a newly-stamped spec joins
     /// the simulation with no edit to this walker.
     ///
     /// Every *other* command in the body keeps the single evaluation the
-    /// normal walk above already gave it — deliberately narrow, matching
-    /// the issue #923 idx 110 precedent: this does not generally re-walk
+    /// normal walk above already gave it — deliberately narrow: this does
+    /// not generally re-walk
     /// the body per iteration (which would duplicate diagnostics/scope
     /// entries for everything else).
     ///
@@ -4715,7 +4712,7 @@ impl Analyser {
     ///   (4 words) — define the handler's ``VARLIST`` (e.g.
     ///   ``{result options}``), then recurse into ``BODY``.
     ///
-    /// Conditional-body depth, per clause kind (issue #1065): the main body
+    /// Conditional-body depth, per clause kind: the main body
     /// and the `on` / `trap` handler bodies are branch-selected, the
     /// `finally` body is not.  See [`Self::analyse_selected_body`].
     ///
@@ -4741,7 +4738,7 @@ impl Analyser {
         // carried by exactly `if` and `try`.  `try` reaches its bodies
         // through this hook instead of that walk, so without asking here a
         // `package require` inside a `try` was recorded unconditional
-        // (issue #1065).
+        //.
         let branch_selected = traits.contains(tcl_registry::Traits::BRANCH_SELECTED_BODY);
         // Main try body at args[0].
         if let Some(body_tok) = arg_tokens.first().copied() {
@@ -4769,7 +4766,7 @@ impl Analyser {
                 // the next handler's body, like `switch`); it is not a script,
                 // so it must not be re-lexed as one — otherwise the solo `-`
                 // reads as a zero-arg `-` command and trips a spurious arity
-                // error (issue #703). Mirrors the `switch` arm handling above.
+                // error. Mirrors the `switch` arm handling above.
                 if let Some(body_tok) = arg_tokens.get(i + 3).copied()
                     && args[i + 3] != "-"
                 {
@@ -4848,8 +4845,8 @@ impl Analyser {
     /// no namespace path to link to — a bare `x` at level 1 is whatever local
     /// the caller happens to have. Two spellings escape that and name one
     /// fixed cell whatever the call depth, so both get a link target
-    /// (issue #923 audit idx 98, where `upvar ::tk::FocusGrab($index) data`
-    /// left the array completely unregistered):
+    /// (without them `upvar ::tk::FocusGrab($index) data` leaves the array
+    /// completely unregistered):
     ///
     /// * a **fully-qualified** target — `upvar 1 ::myns::q g` binds
     ///   `::myns::q` from any depth (tclsh 9.0.4 / 8.6.14: reached
@@ -4904,8 +4901,8 @@ impl Analyser {
                     // rewrite the former, never the latter.
                     self.set_var_link_target(&args[i], scope_path, target.clone(), other_tok.span);
                     // The fixed cell itself gets a definition at the
-                    // `otherVar` word (issue #923 audit idx 98 / issue
-                    // #1139): `upvar ::tk::FocusGrab($index) data` is the
+                    // `otherVar` word: `upvar ::tk::FocusGrab($index) data`
+                    // is the
                     // only place the array ever comes to exist, so without
                     // a `VarDef` for `::tk::FocusGrab` every occurrence —
                     // this word, a sibling proc's `$::tk::FocusGrab($idx)`
@@ -5103,7 +5100,7 @@ impl Analyser {
             && let Some(deleted) = name.literal()
         {
             // Deleting an alias destroys the command object, so every
-            // `namespace import` edge pointing at it dies too (issue #1103).
+            // `namespace import` edge pointing at it dies too.
             // An empty srcPath means the interpreter this command *runs in*,
             // so inside a child's eval body the deletion homes under that
             // child's domain rather than the parent's command table.
@@ -5133,7 +5130,7 @@ impl Analyser {
         // child's eval body `{}` names *that child*. There, fall through to
         // the domain-aware branch below, which qualifies both sides through
         // `resolve_alias_domain_prefix` exactly as the explicit-path form
-        // already does (issue #1141's flaw class).
+        // already does.
         if self.interp_path_stack.is_empty()
             && is_current_interpreter(source_interpreter)
             && is_current_interpreter(target_interpreter)
@@ -5152,14 +5149,14 @@ impl Analyser {
             self.record_interp_alias(qualified, target_cmd.to_owned(), prepended, offset);
             return;
         }
-        // Cross-domain alias (issue #945 fault 8): `interp alias PATH name
+        // Cross-domain alias: `interp alias PATH name
         // TPATH target ?arg…?` deliberately crosses interpreter domains —
         // the alias `name` becomes callable in the *source* interpreter,
         // running `target` resolved in the *target* interpreter.  With
         // literal paths both sides home under their `@interp@` domains, so
         // calls of the alias inside the child's eval bodies resolve to the
         // target through the ordinary alias link machinery. A path need
-        // not itself be a source literal (issue #923 idx 9): it also
+        // not itself be a source literal: it also
         // resolves through a tracked `set VAR [interp create ...]`
         // binding — only the alias/target *command* names stay hard
         // literal requirements, which is exactly what the registry's typed
@@ -5214,7 +5211,7 @@ impl Analyser {
     /// constant-fold it through the same lexical (last-write-wins)
     /// constant-string lattice [`Self::lookup_const_string`] already
     /// serves [`Self::resolve_expansion_count`] for the analogous
-    /// `{*}$var`-with-known-value case (issue #923 idx 3) — first via
+    /// `{*}$var`-with-known-value case — first via
     /// [`Self::resolve_const_word`] (a pure single `Var`/literal token),
     /// then via [`crate::text::fold_interpolation_single`] for a
     /// multi-token concatenation (`::mypkg::${c}_$key`). `None` means
@@ -5225,8 +5222,8 @@ impl Analyser {
     /// Shared by any command whose argument names something else purely
     /// as data rather than computing it — [`Self::handle_rename`]'s
     /// `OLD`/`NEW` words, and [`Self::handle_source_command`]'s path word
-    /// (issue #923 idx 46: `set p "e.tcl"; source $p`, the same shape
-    /// `rename $old new` already resolved for idx 3), the `oo::define`
+    /// (`set p "e.tcl"; source $p`, the same shape `rename $old new`
+    /// already resolves), the `oo::define`
     /// target word, and the command head itself
     /// ([`Self::resolve_dynamic_command_head`]).
     pub(super) fn resolve_dynamic_word(
@@ -5265,7 +5262,7 @@ impl Analyser {
             // `Var` token, so the raw text is `ns}::setdef`, not the
             // variable name.  Reading it whole looks up a variable that
             // cannot exist and abstains on a word that is in fact
-            // statically resolvable (issue #923 idx 44).  The dispatched
+            // statically resolvable.  The dispatched
             // variable ends at the brace the lexer left in place; the rest
             // is an ordinary word suffix, folded like any other (it may
             // itself interpolate, `${ns}::${sub}`).  Same truncation rule
@@ -5366,7 +5363,7 @@ impl Analyser {
         // span map could never have covered it either way). Real Tcl requires
         // `OLD` to exist (`can't rename "X": command doesn't exist`
         // otherwise), so this also correctly feeds W123 like a real reference
-        // would (issue #923 idx 39, main audit wave: a rename applied without
+        // would (a rename applied without
         // rewriting this occurrence leaves it pointing at a now-nonexistent
         // command, crashing the program at runtime with no diagnostic
         // warning).
@@ -5400,7 +5397,7 @@ impl Analyser {
         // both the vacated key and any interpreter the rename overwrites at
         // `NEW` mirrors `handle_interp_delete_command`, so a later
         // `interp create` recreating either name never merges with the
-        // interpreter that used to be tracked there (issue #945 fault 8).
+        // interpreter that used to be tracked there.
         // Keyed off the *resolved* text (identical to `args[N]` for an
         // already-static rename) so a resolvable dynamic handle
         // (`set h sandbox; rename $h moved`) migrates the tracked state
@@ -5426,8 +5423,8 @@ impl Analyser {
         // Recording it in the file-wide command-table maps made the parent's
         // own later `puts` call look like a call to a deleted builtin and drew
         // a W123 on it — the same "state that is really per-interpreter kept
-        // in one flat file-wide map" flaw issue #1141 fixed for the Tk widget
-        // hierarchy. Abstain rather than model a second command table: a
+        // in one flat file-wide map" flaw the Tk widget hierarchy avoids.
+        // Abstain rather than model a second command table: a
         // missed diagnostic inside the child beats a false accusation in the
         // parent. (The interpreter-handle migration above is unaffected — it
         // keys through `qualified_interp_key`, which is already relative to
@@ -5452,7 +5449,7 @@ impl Analyser {
         // later over the IR this walk feeds, so it is not available here. The
         // narrower rule errs towards treating commands as live, matching the
         // existing "a deletion inside a definition body does not count"
-        // rule in `fact_live_for_call` (issue #973).
+        // rule in `fact_live_for_call`.
         if self.control_flow_body_depth > 0 {
             if !new.is_empty() {
                 self.renamed_commands.insert(new.clone(), old.clone());
@@ -5465,7 +5462,7 @@ impl Analyser {
         if new.is_empty() {
             // `rename OLD {}` destroys the command object — unlike `rename OLD
             // NEW`, which hands it over and leaves every import edge alive
-            // (issue #1103).
+            //.
             self.result
                 .destroyed_commands
                 .insert(old.clone(), deletion_offset);
@@ -5530,7 +5527,7 @@ impl Analyser {
         }
         // A receiver that resolves to no static name (`$objs($i)`, `[pick]`)
         // may define members on *any* object, so the per-object W315 gates
-        // abstain file-wide (issue #1170).
+        // abstain file-wide.
         if (obj_name.is_empty() || crate::naming::is_dynamic_word(&obj_name))
             && resolved_obj.is_none()
         {
@@ -5559,7 +5556,7 @@ impl Analyser {
         };
 
         // The receiver keys this block records under, and the binding the
-        // block belongs to (issue #1170): the innermost proc/method frame is
+        // block belongs to: the innermost proc/method frame is
         // the walk-time spelling of the binding identity consumers re-derive
         // from `ObjectMemberState::anchor_offset`.
         let keys: Vec<String> = [
@@ -5585,7 +5582,7 @@ impl Analyser {
 
         self.walk_oo_objdefine_form(args, arg_tokens, scope_path, &mut object_class);
 
-        // **W315** candidates (issue #1170). `oo::objdefine` aborts the same
+        // **W315** candidates. `oo::objdefine` aborts the same
         // way a class definition does (`oo::objdefine $o { deletemethod m }`
         // naming a class-provided `m` errors `method m does not exist` on
         // 9.0.4 and 8.6.14 alike — a per-object retraction reaches only the
@@ -5696,13 +5693,12 @@ impl Analyser {
 
     /// Record one walked `oo::objdefine` block's member declarations and fold
     /// it into each receiver key's durable [`super::types::ObjectMemberState`]
-    /// — the home per-object visibility never had (issue #1119 item 3 /
-    /// #1170).
+    /// — the durable home for per-object visibility.
     ///
     /// Declarations feed `object_methods` so `$obj m` navigation resolves the
     /// per-object override ahead of a same-named class method, keyed by the
     /// objdefine site's receiver offset — the receiver's *binding identity*,
-    /// never the textual tail alone (issue #945 fault 5).  The diff runs per
+    /// never the textual tail alone.  The diff runs per
     /// key against *that key's* own accumulated state: members another block
     /// already recorded for the key are carry-over, not new declarations,
     /// while a `foreach` re-dispatch's per-element key (empty state) still
@@ -5809,7 +5805,7 @@ impl Analyser {
         extent
     }
 
-    /// **W315**, `oo::objdefine` flavour (issue #1170): report each
+    /// **W315**, `oo::objdefine` flavour: report each
     /// definition-aborting word the seeded per-object walks recorded, once
     /// the whole document is walked and the gates below can be judged.
     ///
@@ -5883,7 +5879,7 @@ impl Analyser {
     ///   ``SignaturePackageRequire`` record to
     ///   ``result.package_requires`` (carrying ``exact`` when the
     ///   flag is present, which narrows each requirement to an exact
-    ///   version for the resolver — issue #1090)
+    ///   version for the resolver)
     ///   and flips ``has_dynamic_providers`` when the name argument
     ///   is a ``$``-substitution / ``[…]``-substitution token.
     /// - ``package provide NAME ?VERSION?`` — consumed silently;
@@ -6011,8 +6007,7 @@ impl Analyser {
     }
 
     /// Record ``package prefer latest`` — the one form of ``package
-    /// prefer`` that changes the interpreter's version-selection rule
-    /// (issue #1126 item 1).
+    /// prefer`` that changes the interpreter's version-selection rule.
     ///
     /// ``package prefer`` with no argument is a query, and ``package
     /// prefer stable`` never changes anything: it is a no-op from the
@@ -6057,7 +6052,7 @@ impl Analyser {
         scope_path: &[usize],
     ) -> (String, Vec<String>) {
         // An alias is looked up the way any unqualified command is, so the
-        // lookup namespace is the command-resolution one (issue #923 idx 85).
+        // lookup namespace is the command-resolution one.
         let ns = self.command_resolution_namespace(scope_path);
         // `alias::resolve_alias` accepts `CommandAliasMap` (alias map
         // keyed by qualified alias name) — the same shape as
@@ -6094,7 +6089,7 @@ impl Analyser {
     /// (this file's own `Meta create …` calls and, through the workspace
     /// factory index, another file's) classifies a creation call from the
     /// same proved fact instead of re-deriving it — or, cross-file,
-    /// abstaining for want of it (issue #1276).
+    /// abstaining for want of it.
     ///
     /// A user metaclass that does not override a manufacturer subcommand
     /// inherits `oo::class`'s own `create Name Body` shape, so that
@@ -6103,7 +6098,7 @@ impl Analyser {
     /// parameter list, and that override is read rather than guessed: Tk's
     /// `self method create {name superclasses body}` puts the body at
     /// argument 3, not 2, and splices a superclass the caller never wrote
-    /// (issue #923 idx 96/97).
+    ///.
     fn class_factory_of(&self, qualified: &str, class: &ClassDef) -> Option<ClassFactory> {
         let meta = self.user_metaclass_of_class(qualified, class)?;
         let overrides = class
@@ -6152,7 +6147,7 @@ impl Analyser {
     /// Whether this metaclass's **unrecognised-word fallback member** proves
     /// that calling one of the classes it makes with a bare word both
     /// constructs an object and hands that same word back — Tk's
-    /// `::tk::IconList .il` idiom (issue #1303).
+    /// `::tk::IconList .il` idiom.
     ///
     /// Two facts have to hold, and both are read off the metaclass's own
     /// body, where they are provable:
@@ -6605,7 +6600,7 @@ impl Analyser {
     }
 
     /// Record the classes a proc manufactures under a **computed name** whose
-    /// value a literal call-site argument proves (issue #1306).
+    /// value a literal call-site argument proves.
     ///
     /// A namespace-normalising factory commonly creates its metaclass as
     /// `Base create ${namespace}::class {…}` inside a procedure. The name
@@ -6656,7 +6651,7 @@ impl Analyser {
     /// creation's structural template exists only when the ordinary generic
     /// handler classified it as a class creation.
     /// Keep a creation call the walk declined, in case a metaclass proved
-    /// after the walk turns it into one (issue #1660).
+    /// after the walk turns it into one.
     ///
     /// The gate is "nothing this document knows makes the head's verdict
     /// final": a registry command has its own classification, and a recorded
@@ -6713,7 +6708,7 @@ impl Analyser {
 
     /// Form the deferred verdicts, now that
     /// [`Self::record_literal_parameter_definitions`] has settled the
-    /// parameterised-class join (issue #1660).
+    /// parameterised-class join.
     ///
     /// Replayed in document order, so a chain settles in one pass: a class
     /// this replay records is in the index before the next call is retried,
@@ -6756,7 +6751,7 @@ impl Analyser {
     }
 
     /// The class name a deferred call would record, paired with whatever the
-    /// walk already holds under it (issue #1660).
+    /// walk already holds under it.
     ///
     /// `None` when the head still names no factory, when the layout puts no
     /// name where this call has a word, or — the ordinary case — when nothing
@@ -6782,7 +6777,7 @@ impl Analyser {
     }
 
     /// Fold a record the walk made for a class whose creation call it could
-    /// not see back into the replayed creation (issue #1660).
+    /// not see back into the replayed creation.
     ///
     /// Because the creation was invisible, an `oo::define` on the same class
     /// made a *stub* — and that stub is where its members went. The replay
@@ -6820,7 +6815,7 @@ impl Analyser {
     pub(super) fn record_literal_parameter_definitions(&mut self) {
         self.record_parameterised_class_definitions();
         // The join has settled, so the heads the walk could not judge can be
-        // judged now (issue #1660). Paired here rather than at each of the
+        // judged now. Paired here rather than at each of the
         // four entry points that run this tail: the order matters — a
         // creation call can only be classified after the metaclass it names
         // is proved — and pairing them is what makes that order impossible to
@@ -6895,7 +6890,7 @@ impl Analyser {
     /// into — [`Self::static_statement_falls_through`] re-enters here for each
     /// arm whose body may run, so nested control flow recurses one native
     /// frame per level and has to be bounded like every other recursive walk
-    /// in this file ([`MAX_UNKNOWN_BODY_DEPTH`], issue #996's family). Past
+    /// in this file ([`MAX_UNKNOWN_BODY_DEPTH`]). Past
     /// the cap the walk abstains, which is the direction it already takes for
     /// anything it cannot read. Entry points that are not themselves inside a
     /// body pass `0`.
@@ -7076,7 +7071,7 @@ impl Analyser {
                 if is_control {
                     return false;
                 }
-                // Untyped is not the same as irrelevant (issue #1672). The
+                // Untyped is not the same as irrelevant. The
                 // registry types the arms whose *selection* it models; a body
                 // it does not type is still a body, and unless the command
                 // declared that it stores one (`DEFERS_BODY`), it runs it
@@ -7382,7 +7377,7 @@ impl Analyser {
             })
             // …or one body nested inside a lambda literal, whose span likewise
             // belongs to a list element rather than to the argv word
-            // (`apply {{} {…}}`, issue #1656).
+            // (`apply {{} {…}}`).
             .or_else(|| {
                 registry
                     .arg_indices_for_role(
@@ -7433,14 +7428,14 @@ impl Analyser {
     /// semantics either, and both execute their argument immediately and can
     /// raise or return before the enclosing walk reaches the statement it
     /// cares about. That let the computed-metaclass walk materialise a class
-    /// created after `uplevel 1 $script` (PR #1652 review, issue #1571).
+    /// created after `uplevel 1 $script` (PR #1652 review).
     /// `BodyKind` cannot answer it either: `proc` and `uplevel` are both
     /// `Structural`, because that descriptor answers *which frame*, not
     /// *when*.
     ///
     /// `body_index` may name an [`ArgRole::LambdaLiteral`] word as well as an
     /// [`ArgRole::Body`] one — an unreadable lambda is unreadable script on
-    /// the same terms (issue #1656), and `apply` types that position, so it
+    /// the same terms, and `apply` types that position, so it
     /// stops at the first check.
     ///
     /// [`ArgRole::Body`]: tcl_registry::ArgRole::Body
@@ -7465,7 +7460,7 @@ impl Analyser {
     ///
     /// The one place that answers it, for both the unreadable-body question
     /// above and the untyped-arm question in
-    /// [`Self::static_statement_falls_through`] (issue #1672) — the two were
+    /// [`Self::static_statement_falls_through`] — the two were
     /// the same question asked in two places, and only one of them was asking
     /// it.
     ///
@@ -7495,7 +7490,7 @@ impl Analyser {
     }
 
     /// Whether a body the registry gives **no** control-arm semantics for is
-    /// proved to stop control before its own end (issue #1672).
+    /// proved to stop control before its own end.
     ///
     /// The typed arms above ask the opposite question — *prove* the body falls
     /// through, or abstain — because a descriptor says what the body is for. An
@@ -7506,7 +7501,7 @@ impl Analyser {
     /// now, and `superclass` is a definition command, not a command — nothing
     /// here can type it, so demanding a proof of fall-through would abstain on
     /// the one construct the computed-metaclass walk exists to read (the tcllib
-    /// clay corpus, issue #1571, is built out of exactly these).
+    /// clay corpus is built out of exactly these).
     ///
     /// So the burden runs the other way: the enclosing statement is walked past
     /// unless *this* body proves it blocks. Both proofs are registry-owned and
@@ -7630,7 +7625,7 @@ impl Analyser {
     }
 
     /// The [`ArgRole::LambdaLiteral`] half of [`Self::control_arms_for_segment`]
-    /// (issue #1656).
+    ///.
     ///
     /// A lambda argument carries a script that runs *now* — `apply $lambda`
     /// can raise before control ever reaches the next statement — but it is
@@ -7642,7 +7637,7 @@ impl Analyser {
     /// The argument is one level removed from a body — a `{argList body ?ns?}`
     /// **list** — so a readable one contributes its *body element*'s span,
     /// split by the shared [`crate::lambda_literal`] owner rather than
-    /// re-segmented whole (the mis-read that named issue #954). A lambda whose
+    /// re-segmented whole. A lambda whose
     /// body cannot be located at exact source offsets — a computed word, a
     /// malformed list, a body element that is not `{braced}` and so has its
     /// escapes collapsed before `apply` sees it — is unreadable, and falls to
@@ -8912,7 +8907,7 @@ impl Analyser {
     /// The [`ClassFactory`] the command `cmd_name` names, when that command
     /// is a user-defined `TclOO` metaclass — this file's own, else one the
     /// **workspace factory index** proves is written in another document
-    /// (issue #1276).
+    ///.
     ///
     /// The cross-document tier is what closes the audit's multi-file half:
     /// `::tk::Megawidget create IconList FocusableWidget {…}` in a file that
@@ -8956,7 +8951,7 @@ impl Analyser {
         if let Some(factory) = self.class_factory_for_candidates(&candidates, arg_tokens) {
             return Some(factory);
         }
-        // A `rename`d metaclass command (issue #1305): the factory record is
+        // A `rename`d metaclass command: the factory record is
         // keyed on the name the metaclass was *created* with, never the name
         // a later call spells, so `rename ::R::M ::R::Mk` then `::R::Mk
         // create …` must resolve `::R::Mk` back to `::R::M` before the
@@ -8976,7 +8971,7 @@ impl Analyser {
 
     /// The local-then-workspace factory lookup [`Self::class_factory_for_command`]
     /// runs once for the command's own resolution candidates and once more
-    /// (issue #1305) for its rename target's, factored out so the two
+    /// for its rename target's, factored out so the two
     /// attempts can never drift apart.
     fn class_factory_for_candidates(
         &self,
@@ -9224,7 +9219,7 @@ impl Analyser {
         // registry: `oo::class create Megawidget { superclass ::oo::class … }`
         // makes `Megawidget` every bit as much a class factory as `oo::class`
         // itself, and Tk's own `library/megawidget.tcl` builds `SimpleWidget`
-        // / `FocusableWidget` / `IconList` that way (issue #923 idx 96/97).
+        // / `FocusableWidget` / `IconList` that way.
         // A registry lookup alone can never see it, so metaclass-ness also
         // propagates down the recorded superclass chain — the *seed* is still
         // registry data (`IS_OO_METACLASS`), only the inheritance step is
@@ -9233,7 +9228,7 @@ impl Analyser {
         // The factory description is read off the metaclass's own recorded
         // `ClassDef` — this file's, or, when the metaclass is written in
         // another document, the workspace factory index the host supplied
-        // (issue #1276).  Either way it is a fact *proved where the metaclass
+        //.  Either way it is a fact *proved where the metaclass
         // was written*, never one inferred from this call's shape: with no
         // such record `X create Name Supers Body` stays indistinguishable
         // from `interp create` and the walk abstains, as before.
@@ -9249,7 +9244,7 @@ impl Analyser {
             //
             // …and a third case, which is not a verdict at all: the head may
             // name a metaclass this document proves only *after* the walk
-            // (issue #1660). Keep it for the post-pass.
+            //. Keep it for the post-pass.
             self.defer_class_creation(cmd_name, args, arg_tokens, scope_path, cmd_tok);
             return false;
         };
@@ -9266,7 +9261,7 @@ impl Analyser {
         let qualified = qualify(&ns_prefix, raw_name);
         let simple = crate::naming::key_tail(&qualified).to_string();
         let name_span = arg_tokens[layout.name_arg].span;
-        // **W314** — the class name has no absolute written form (#934).
+        // **W314** — the class name has no absolute written form.
         self.emit_w314_no_absolute_name(raw_name, name_span);
         let body_tok_opt = arg_tokens.get(layout.body_arg).copied();
         let body_span = body_tok_opt.map_or(name_span, |t| t.span);
@@ -9330,13 +9325,13 @@ impl Analyser {
         // here, once, so every later `ThisClass create …` — in this file or,
         // via the workspace factory index, in another — reads a derived fact
         // instead of re-walking the superclass chain and re-segmenting the
-        // manufacturer override per call site (issue #1276).
+        // manufacturer override per call site.
         class.factory = self.class_factory_of(&qualified, &class);
         // …and does the *manufacturer* let this class be constructed by a
         // bare word (Tk's `::tk::IconList .il`)?  Settled here too, for the
         // same reason: the proof lives on the metaclass, which a consuming
         // document may never see, so the answer travels on the class rather
-        // than the question (issue #1303).
+        // than the question.
         if user_factory
             .as_ref()
             .is_some_and(|factory| factory.unknown_binds_instance)
@@ -9351,7 +9346,7 @@ impl Analyser {
         // name so per-scope lookups and shadowing rules work.
         let simple_key = class.name.clone();
         // The creation site's own body span, for `my`-dispatch resolution
-        // to find (issue #923 idx 52) — see `class_body_spans`'s doc.
+        // to find — see `class_body_spans`'s doc.
         self.result
             .class_body_spans
             .push((qualified.clone(), class.body_span));
@@ -9421,7 +9416,7 @@ impl Analyser {
         // checkable-from-source-alone structural error.
         //
         // Recorded in `class_body_spans` for *every* `oo::define` call,
-        // not just when creating a fresh stub (issue #923 idx 52): a class
+        // not just when creating a fresh stub: a class
         // extended via a *separate* `oo::define ClassName { ... }` block
         // has its methods living inside THIS span, textually disjoint from
         // the class's original `oo::class create` block (or an earlier
@@ -9463,7 +9458,7 @@ impl Analyser {
         // `oo::define C { superclass oo::class }` turns an ordinary class into
         // a factory, and `self method create …` changes the shape of the
         // classes it makes, so the derived factory record is recomputed here
-        // exactly as it is on the creation path (issue #1276).
+        // exactly as it is on the creation path.
         class_def.factory = self.class_factory_of(&qualified, &class_def);
         self.register_defined_class(qualified, class_def, scope_path);
         true
@@ -9479,8 +9474,7 @@ impl Analyser {
     /// invisible. Rather than let W120 / W123 then confidently report a package
     /// or command "missing" that the moved command loads, this widens to the
     /// same unknowable state a dynamic `namespace import` pattern or a
-    /// `namespace unknown` handler produces — issue #1332's option (2), applied
-    /// to the one case option (1) cannot reach.
+    /// `namespace unknown` handler produces.
     ///
     /// The test is [`Traits::LOADS_EXTERNAL_UNIT`](tcl_registry::Traits), read
     /// off the spec: no command name appears here, so `load` and `auto_load`
@@ -9693,12 +9687,12 @@ impl Analyser {
         // A dynamic path — a bare `$var` or a concatenation like
         // `${dir}lit.tcl` — is first tried against the same last-write-wins
         // constant-string lattice already proven for `rename`'s OLD/NEW
-        // words (issue #923 idx 3): the real corpus idiom is `set p
+        // words: the real corpus idiom is `set p
         // "e.tcl"; source $p`, a few lines apart in the same file, which
         // should resolve exactly like the literal `source e.tcl` it's
         // equivalent to — instead of going untracked and leaking the
         // sourced file's definitions into every caller as if unconditionally
-        // global (issue #923 idx 46). A `[...]` command substitution
+        // global. A `[...]` command substitution
         // anywhere in the word (e.g. `[file join $dir lit.tcl]`) still
         // can't be folded this way — `resolve_dynamic_word` rejects it
         // outright, same as a variable whose value originates in a
@@ -9762,7 +9756,7 @@ impl Analyser {
         let mut idx = 1 + flag_words;
         // `namespace import` imports into the namespace current at the call —
         // the command-resolution namespace, so an import inside
-        // `proc ::ns::p {}` lands in `::ns` (issue #923 idx 85).
+        // `proc ::ns::p {}` lands in `::ns`.
         let importing_ns = self.command_resolution_namespace(scope_path);
         while idx < args.len() && idx < arg_tokens.len() {
             let pat_raw = args[idx].clone();
@@ -9800,7 +9794,7 @@ impl Analyser {
     }
 
     /// Record `namespace forget ?PATTERN ...?` events — the removal half of
-    /// the import edge's lifecycle log (issue #1103).
+    /// the import edge's lifecycle log.
     ///
     /// A `namespace import` is not a permanent name: `namespace forget`
     /// removes the alias and a later bare call raises `invalid command name`
@@ -9886,16 +9880,15 @@ impl Analyser {
     /// `result.namespace_exports` so the wildcard-import bareword resolvers
     /// in `tcl-lsp-core` (same-document) and the workspace index
     /// (cross-document) can gate a would-be import target on whether its
-    /// source namespace actually exports it (issue #923 idx 18).
+    /// source namespace actually exports it.
     ///
     /// `-clear` is recorded as an ordered **tombstone** entry rather than
     /// applied by dropping the namespace's earlier entries: an import
     /// snapshots the export list as it stood when the import ran, so a
     /// `-clear` written *after* an import must not revoke what that import
-    /// already bound (issue #1027, oracle in
+    /// already bound (oracle in
     /// [`crate::signature_scan::types::SignatureNamespaceExport`]).
-    /// Collapsing it eagerly — as this handler originally did — destroys
-    /// exactly the ordering the snapshot needs. Consumers reconstruct the
+    /// Collapsing it eagerly destroys exactly the ordering the snapshot needs. Consumers reconstruct the
     /// export set as of an offset with
     /// `tcl_lsp_core::namespace_import::exported_at_import_site`.
     ///
@@ -9926,7 +9919,7 @@ impl Analyser {
         }
         let mut idx = 1;
         // As for `import`: the exporting namespace is the one current at the
-        // call, not the lexically enclosing one (issue #923 idx 85).
+        // call, not the lexically enclosing one.
         let exporting_ns = self.command_resolution_namespace(scope_path);
         // Which leading words are flags — and how many of them the command
         // consumes — is registry data (`EXPORT_OPTIONS` plus
@@ -9965,7 +9958,7 @@ impl Analyser {
             // three` leaves exactly `one` exported, and `namespace export
             // ::bad ok` leaves nothing. Recording past the bad word let a
             // wildcard-import bareword resolve where real Tcl would not
-            // (issue #1612).
+            //.
             if tcl_syntax::naming::is_qualified(pattern.as_bytes()) {
                 break;
             }
@@ -10573,7 +10566,7 @@ mod tests {
         Span::new(start, end)
     }
 
-    // interp_create_words_from_value — issue #1025
+    // interp_create_words_from_value
 
     #[test]
     fn interp_create_value_words_strip_a_single_braced_path_issue_1025() {
@@ -10834,7 +10827,7 @@ mod tests {
         assert!(a.result.global_scope.variables.contains_key("x"));
     }
 
-    // handle_upvar_command — the `otherVar` link (issue #923 audit idx 98)
+    // handle_upvar_command — the `otherVar` link
 
     /// Run `upvar <args>` through the handler and report the alias's link
     /// target, if it got one.
@@ -10926,7 +10919,7 @@ mod tests {
 
     #[test]
     fn handle_proc_command_records_every_declaration_site_even_when_shadowed() {
-        // TP — issue #923 idx 31 (main audit wave): a proc declared twice
+        // TP: a proc declared twice
         // verbatim at different spans (plain Tcl's own "last redefinition
         // wins" semantics) must still leave BOTH declarations' own name
         // spans in `proc_declaration_sites`, even though `all_procs`
@@ -11690,7 +11683,7 @@ mod tests {
         );
         // `-clear` is an ordered event, not an eager delete: the earlier
         // `bar` entry stays on the log so a `namespace import` that ran
-        // *before* the `-clear` can still see it (issue #1027).
+        // *before* the `-clear` can still see it.
         let events: Vec<(&str, bool, u32)> = a
             .result
             .namespace_exports
@@ -11954,8 +11947,7 @@ mod tests {
     }
 
     /// A command-table mutation inside a child interpreter's eval body
-    /// belongs to *that* interpreter (issue #1141's flaw class, found while
-    /// auditing for other per-interpreter state kept in flat file-wide maps).
+    /// belongs to *that* interpreter, not to a flat file-wide map.
     ///
     /// tclsh 9.0.4, verified: after `interp create c; c eval { rename puts
     /// myputs }` the parent's `puts` still works, the parent has no `myputs`,
@@ -12066,8 +12058,8 @@ mod tests {
         // eval.  The child's `foo` homes under the synthetic
         // `@interp@child` domain — unrepresentable as a real namespace,
         // so a parent namespace literally named `child` can never
-        // collide with the interpreter's definitions (issue #945
-        // fault 8's child-global-vs-parent-namespace identity split).
+        // collide with the interpreter's definitions (the
+        // child-global-vs-parent-namespace identity split).
         let mut a = Analyser::new();
         let r = a.analyse(
             "interp create child\nproc foo {} {}\ninterp eval child { proc foo {} {} }\n",
@@ -12301,7 +12293,7 @@ mod tests {
         // command table — the old definitions are gone.  The epoch-stamped
         // domain keeps the two lifetimes apart: the first eval's `foo`
         // homes under `@interp@s`, the recreated interpreter's under
-        // `@interp@s#1`, and they never merge (issue #945 fault 8).
+        // `@interp@s#1`, and they never merge.
         let mut a = Analyser::new();
         let r = a.analyse(
             "interp create s\ninterp eval s { proc foo {} {} }\n\
@@ -12356,7 +12348,7 @@ mod tests {
         // `interp alias s helper {} ::parent_helper` makes `helper`
         // callable *inside the child* running the parent's proc — the
         // alias deliberately crosses interpreter domains while
-        // definitions do not (issue #945 fault 8).  The child-side call
+        // definitions do not.  The child-side call
         // resolves through the alias link to the parent target.
         let mut a = Analyser::new();
         let r = a.analyse(
@@ -12516,7 +12508,7 @@ mod tests {
         );
     }
 
-    // -- issue #1001: W129 through `[...]` bracket-substitution indirection --
+    // W129 through `[...]` bracket-substitution indirection.
 
     /// TP (the reported repro): `package ifneeded`'s script argument is
     /// `ArgRole::Body`-tagged (`Structural` — runs later, via `uplevel #0`,
@@ -12839,9 +12831,9 @@ mod tests {
         );
     }
 
-    /// A locally-redefined hidden-builtin name (issue #945 fault 7 follow-up
-    /// — see `safe_interp_child_redefinition_of_a_hidden_builtin_is_callable_945`)
-    /// stays callable through this fix's new indirection paths too: once
+    /// A locally-redefined hidden-builtin name (see
+    /// `safe_interp_child_redefinition_of_a_hidden_builtin_is_callable_945`)
+    /// stays callable through the indirection paths too: once
     /// `proc source {} {…}` has run earlier in the same interpreter body,
     /// `source` is a real, locally-defined command — independent of the
     /// hidden-command table — so a later `[list apply {…} $x]`-nested call
@@ -13250,8 +13242,8 @@ mod tests {
         assert!(a.ensemble_namespaces.contains("::foo"));
     }
 
-    /// The definition-homing sweep behind issue #923 idx 85: every analyser
-    /// site that asks "which namespace is current here?" now answers with
+    /// The definition-homing sweep: every analyser site that asks "which
+    /// namespace is current here?" answers with
     /// [`Analyser::command_resolution_namespace`], so a definition made inside
     /// a qualified-name proc's body homes to that proc's *defining* namespace.
     /// These are cases (A)–(D) from `docs/design/analysis/name-resolution.md`
@@ -13325,7 +13317,7 @@ mod tests {
     }
 
     /// `namespace import` written inside a qualified-name proc imports into
-    /// that proc's defining namespace, not the global one (issue #923 idx 85).
+    /// that proc's defining namespace, not the global one.
     #[test]
     fn namespace_import_inside_a_qualified_name_proc_targets_that_namespace_923_idx85() {
         let mut a = Analyser::new();
@@ -13342,7 +13334,7 @@ mod tests {
     }
 
     /// A `-map` target inside the same qualified-name proc resolves the same
-    /// way (issue #923 idx 85, the `-map` half the finding actually named).
+    /// way — the `-map` half.
     #[test]
     fn namespace_ensemble_map_in_a_qualified_name_proc_resolves_targets_923_idx85() {
         let mut a = Analyser::new();
@@ -13502,7 +13494,7 @@ mod tests {
         }
     }
 
-    // `namespace ensemble configure` (issue #923 idx 84): the real
+    // `namespace ensemble configure`: the real
     // `tk/library/systray.tcl` idiom splices new subcommands onto a
     // *pre-existing* ensemble via `configure`, not `create` — previously
     // invisible to `handle_namespace_ensemble` entirely.
@@ -13563,7 +13555,7 @@ mod tests {
 
     #[test]
     fn namespace_ensemble_configure_dict_merge_literal_tail_is_extracted() {
-        // TP — the real, exact idiom (issue #923 idx 84):
+        // TP — the real, exact idiom:
         // `namespace ensemble configure NAME -map [dict merge [namespace
         // ensemble configure NAME -map] {literal}]`. The self-referential
         // query argument is left unknown, but the literal tail's own pairs
@@ -13689,7 +13681,7 @@ mod tests {
     #[test]
     fn ensemble_dispatch_call_sites_carry_their_mapping_provenance() {
         // The dispatch word's own invocation record carries the provenance
-        // (issue #1281), because only the recording site knows *this span* is
+        //, because only the recording site knows *this span* is
         // a subcommand word: a `-map {Show ::app::widget::Show}` whose key
         // happens to equal the target's tail is textually indistinguishable
         // from an ordinary bare call to the target, so a consumer that
@@ -14845,7 +14837,7 @@ mod tests {
         // legitimately STATIC — Tcl suppresses substitution inside
         // `{}` — so this must return it as-is via `resolve_const_word`'s
         // `Str`/`Esc` branch, even though `is_dynamic_word`'s naive text
-        // scan alone would call it dynamic (issue #923 idx 3).
+        // scan alone would call it dynamic.
         let a = Analyser::new();
         let tok = Token {
             kind: TokenType::Str,
@@ -14944,7 +14936,7 @@ mod tests {
     #[test]
     fn handle_source_command_resolves_a_same_file_constant_variable() {
         // The audit's own "reduced to the simplest possible case" control
-        // (issue #923 idx 46): a straight-line `set`, zero branches, zero
+        //: a straight-line `set`, zero branches, zero
         // external input, immediately followed by `source $var` — the real
         // corpus's `set p "e.tcl"; source $p` shape, resolved through the
         // same constant-string lattice already proven for `rename`'s
@@ -14993,7 +14985,7 @@ mod tests {
 
     #[test]
     fn handle_source_command_leaves_a_bracket_wrapped_variable_dynamic() {
-        // Deliberately out of scope (issue #923 idx 46): a same-file
+        // Deliberately out of scope: a same-file
         // constant wrapped inside a `[file join ...]` command
         // substitution — the real corpus's `source [file join $edir
         // extra.tcl]` shape — can't be folded by the same-word constant
@@ -15055,7 +15047,7 @@ mod tests {
 
     #[test]
     fn foreach_objdefine_records_per_object_facts_for_every_literal_element() {
-        // TP — issue #923 idx 55's sibling shape.  tclsh 9.0.4 and 8.6.16
+        // TP — the sibling shape.  tclsh 9.0.4 and 8.6.16
         // both run `foreach o {::a ::b} { oo::objdefine $o { method probe
         // {} {…} } }` and report `probe` in `info object methods` for
         // *both* objects, so both must carry the per-object method fact.
@@ -15650,7 +15642,7 @@ mod tests {
             "a loop body is skippable-and-repeatable, a different question",
         );
         // `try` carries the trait too and reaches its bodies through its own
-        // analyser hook; that hook now honours the same trait (issue #1065),
+        // analyser hook; that hook now honours the same trait,
         // so the main body is conditional like `if`'s.
         assert_eq!(
             conditional_flags("try { package require Tcl 8.6 } on error {} {}\n"),
@@ -15658,7 +15650,7 @@ mod tests {
         );
     }
 
-    /// FIX (issue #1065) — `handle_try_command` bumps the branch-selected
+    /// FIX — `handle_try_command` bumps the branch-selected
     /// depth per clause kind, so a `package require` records the right
     /// conditionality wherever in a `try` it sits.
     ///
@@ -15929,7 +15921,7 @@ mod tests {
         let p = &r.package_requires[0];
         assert_eq!(p.name, "Tcl");
         assert_eq!(p.version.as_deref(), Some("8.6"));
-        // TP — issue #1090: the flag reaches the record, so the resolver can
+        // TP: the flag reaches the record, so the resolver can
         // narrow `8.6` to the degenerate range `8.6-8.6`.
         assert!(p.exact);
         // FP guard — a package *named* `-exact` is not the flag.
@@ -15940,7 +15932,7 @@ mod tests {
     }
 
     /// `package ifneeded NAME VER SCRIPT` registers a load script; the
-    /// two-word query form registers nothing (issue #1279).
+    /// two-word query form registers nothing.
     #[test]
     fn analyse_records_package_ifneeded_registrations_only() {
         let mut a = crate::analyser::Analyser::new();
@@ -15963,7 +15955,7 @@ mod tests {
     }
 
     /// `package prefer latest` is recorded; every other spelling of the
-    /// subcommand changes no state and is not (issue #1126 item 1).
+    /// subcommand changes no state and is not.
     #[test]
     fn analyse_records_package_prefer_latest() {
         let mut a = crate::analyser::Analyser::new();
@@ -16020,7 +16012,7 @@ mod tests {
         // pair by hand and omitted `unknown` / `::unknown` entirely, so a
         // handler chaining through the plain spelling read as
         // self-contained and every unresolved command in the file collected
-        // a spurious W123 (issue #1390).
+        // a spurious W123.
         for chain in ["unknown", "::unknown", "::tcl::unknown", "_orig_unknown"] {
             let mut a = crate::analyser::Analyser::new();
             let src =
@@ -16351,19 +16343,17 @@ proc runs {body} {\n\
         );
     }
 
-    // -- issue #1001 follow-up: safe-interp visibility survives `analyse_per_item` --
+    // Safe-interp visibility survives `analyse_per_item`.
 
-    /// A **separate** gap found while investigating issue #1001, now fixed
-    /// alongside it: `analyse_per_item`'s shell/body-pass split (`per_item.rs`)
+    /// `analyse_per_item`'s shell/body-pass split (`per_item.rs`)
     /// defers *every* proc/method body — including one nested inside a
     /// tracked `interp eval` safe-interpreter body — to an isolated second
-    /// pass (`DeferredBody` / `analyse_proc_body_isolated`). Before this fix
-    /// that pass carried no `safe_interp_stack` snapshot at all, so W129
-    /// never fired for a hidden call inside *any* proc body nested in a safe
-    /// interpreter when analysed incrementally (the live LSP server's
-    /// diagnostics path always uses `analyse_per_item`) — even a
-    /// directly-written call, with no bracket-substitution indirection
-    /// whatsoever. `DeferredBody::safe_interp_ctx` (a flattened snapshot of
+    /// pass (`DeferredBody` / `analyse_proc_body_isolated`). Without a
+    /// `safe_interp_stack` snapshot on that pass, W129 never fires for a
+    /// hidden call inside *any* proc body nested in a safe interpreter when
+    /// analysed incrementally (the live LSP server's diagnostics path always
+    /// uses `analyse_per_item`) — even a directly-written call, with no
+    /// bracket-substitution indirection whatsoever. `DeferredBody::safe_interp_ctx` (a flattened snapshot of
     /// the stack's top entry, captured when the body is deferred and
     /// restored in `analyse_proc_body_isolated`) closes this.
     #[test]
@@ -16487,7 +16477,7 @@ proc runs {body} {\n\
         );
     }
 
-    /// Pins issue #1001's own second reported repro case verbatim:
+    /// Pins the second reported repro case verbatim:
     /// `{*}[list apply {...} $x]` combines *two* indirection mechanisms at
     /// once — `{*}`-expansion of this command's own effective head
     /// (`check_indirect_hiding`'s `{*}[list HEAD ...]` resolution) *and*
@@ -16512,7 +16502,7 @@ proc runs {body} {\n\
         );
     }
 
-    /// Pins issue #1001's third reported repro case verbatim: the
+    /// Pins the third reported repro case verbatim: the
     /// `package ifneeded` deferred script followed by the actual
     /// `package require` that triggers it — confirms the fix holds when the
     /// deferred script is later invoked, not just when it is merely
@@ -16538,7 +16528,7 @@ proc runs {body} {\n\
         );
     }
 
-    // -- issue #1001 follow-up: namespace ensemble -map redirection --------
+    // Namespace ensemble -map redirection.
 
     /// TP: `namespace ensemble create -command myens -map {go source}` then
     /// `myens go ...` — the ensemble redirects `go` to the hidden `source`,

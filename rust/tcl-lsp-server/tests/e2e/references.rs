@@ -598,8 +598,7 @@ fn references_from_an_alias_call_site_offer_the_targets_sites() {
     );
 }
 
-/// idx 89 (differential-audit): the query direction that was still wrong
-/// after go-to-definition was fixed — from the SHADOWED original proc's own
+/// The query direction from the SHADOWED original proc's own
 /// declaration.
 ///
 /// Oracle, byte-identical on tclsh 9.0.4 and 8.6.16: the script prints
@@ -654,7 +653,7 @@ fn references_include_call_sites_spelled_through_a_punctuation_alias() {
     );
 }
 
-/// The idx 89 document, shared by the tests above.  Line 2 declares the proc
+/// The document shared by the tests above.  Line 2 declares the proc
 /// the alias on line 4 displaces; line 5 is the call that really runs
 /// `::tk::spinbox`.
 const ALIAS_SHADOW_SRC: &str = concat!(
@@ -666,7 +665,7 @@ const ALIAS_SHADOW_SRC: &str = concat!(
     "::ttk::spinbox .sb -from 0 -to 100\n",
 );
 
-/// idx 92 (differential-audit main audit wave): the `[namespace code [list
+/// The `[namespace code [list
 /// ProcName]]` callback wrapper Tk's own `library/fontchooser.tcl` uses ten
 /// times. tclsh 9.0.4 and 8.6.16 both report the installed trace as
 /// `{write {::namespace inscope ::demo Tracer}}` and really dispatch
@@ -688,15 +687,15 @@ fn references_reach_a_namespace_code_list_wrapped_callback() {
     );
 }
 
-/// idx 63 (differential-audit main audit wave, high severity): a `my
+/// A `my
 /// methodName` call written inside a `switch` arm body is a genuine,
-/// statically-known call site (tclsh9.0/8.6-verified) — the real corpus
+/// statically-known call site (tclsh 9.0/8.6-verified) — the real corpus
 /// shape (`ticklecharts::chart`'s `Add` dispatcher: `switch ... {
 /// barSeries { my AddBarSeries {*}$args } ... }`). `scan_my_method_region`'s
-/// `[...]`-substitution recursion never reached a switch arm's braced body
-/// (it isn't a command substitution), so this was invisible to
+/// `[...]`-substitution recursion must reach a switch arm's braced body too
+/// (it isn't a command substitution), or this is invisible to
 /// find-references even though go-to-definition (an independent
-/// cursor-token walk) already resolved it.
+/// cursor-token walk) already resolves it.
 #[test]
 fn references_reach_a_my_dispatch_call_inside_a_switch_arm() {
     let mut lsp = Lsp::tcl();
@@ -715,10 +714,10 @@ fn references_reach_a_my_dispatch_call_inside_a_switch_arm() {
     );
 }
 
-/// Issue #1108: a registry `VarRead`-role name word is a use site.  A variable
+/// A registry `VarRead`-role name word is a use site.  A variable
 /// is read by more than `$name` — tclsh 9.0.4 / 8.6.16 both print `1` for
 /// `proc f {} {set m 1; puts [set m]; puts [info exists m]}; f`, so both bare
-/// `m` words really do read the cell.  Find References reported neither.
+/// `m` words really do read the cell.  Find References must report both.
 #[test]
 fn references_reach_a_var_read_role_name_word() {
     let mut lsp = Lsp::tcl();
@@ -746,11 +745,11 @@ fn references_reach_a_var_read_role_name_word() {
     }
 }
 
-/// Issue #1138 idx 102: `::tk::SourceLibFile`'s `$file` read lives inside a
+/// `::tk::SourceLibFile`'s `$file` read lives inside a
 /// `[list …]`-built `namespace eval` body.  The `[…]` is evaluated in the
 /// proc's own frame before `namespace eval` enters `::`, so the read is an
-/// ordinary use of the parameter — but the namespace scope had claimed those
-/// bytes, and find-references answered nothing.
+/// ordinary use of the parameter, even though the namespace scope claims
+/// those bytes — find-references must not answer nothing.
 #[test]
 fn references_reach_a_parameter_read_inside_a_list_built_namespace_body() {
     let mut lsp = Lsp::tcl();
@@ -771,7 +770,7 @@ fn references_reach_a_parameter_read_inside_a_list_built_namespace_body() {
     );
 }
 
-/// Issue #1132: `set ns [namespace qualifiers ::tc::X]` folds through the
+/// `set ns [namespace qualifiers ::tc::X]` folds through the
 /// analyser's constant lattice (the registry `const_fold` engine), so the
 /// `${ns}::setdef` head resolves and find-references reaches the indirect
 /// call site — the ticklecharts navigation chain's `set`-RHS hop.
@@ -811,7 +810,7 @@ fn references_do_not_reach_the_indirect_site_when_the_head_is_renamed() {
     );
 }
 
-// Issue #1116 item 1 — find-references over the two-file `-force` shadow.
+// Find-references over the two-file `-force` shadow.
 //
 // The importing document is byte-identical in both tests; only the presence of
 // `namespace eval ::src {namespace export helper}` in a sibling file differs,
@@ -886,21 +885,19 @@ fn the_unshadowed_call_references_the_local_proc_when_nothing_exports_it() {
     );
 }
 
-/// Issue #923 differential-audit finding idx 85 — the audit's exact shape:
 /// `namespace ensemble create -map` inside a proc declared with a
 /// fully-qualified name at top level, with no enclosing `namespace eval`, so
 /// the ensemble homes to `::app::widget`.
 ///
-/// Oracle (tclsh 8.6.16 and 9.0.4, identical): the script prints `shown` then
+/// tclsh 8.6.16 and 9.0.4 agree: the script prints `shown` then
 /// `configured:-x 1`, so `::app::widget show` really does dispatch to
 /// `::app::widget::Show`, statically determinable from the `-map` literal.
 ///
-/// Go-to-definition and hover answered this correctly all along — they
-/// resolve on demand against the finished analysis. Find-references
-/// enumerates *recorded* invocations, and the live server (which always
-/// analyses incrementally, deferring proc bodies) never recorded one for the
-/// dispatch site, so both reference directions silently under-reported. This
-/// drives the same surface the audit did, and pins that the two directions
+/// Go-to-definition and hover resolve on demand against the finished
+/// analysis. Find-references enumerates *recorded* invocations, and the
+/// live server (which always analyses incrementally, deferring proc
+/// bodies) must record one for the dispatch site, or both reference
+/// directions silently under-report. This pins that the two directions
 /// agree.
 #[test]
 fn ensemble_dispatch_call_sites_are_found_from_both_directions_923_idx85() {
@@ -990,13 +987,13 @@ fn a_dynamically_mapped_ensemble_dispatch_is_not_attributed_923_idx85() {
     );
 }
 
-/// Issue #923 differential-audit finding idx 27 — a `.test` file that is
+/// A `.test` file that is
 /// never opened in the editor and is reached only through a dynamic
-/// `glob`+`source` loop the analyser correctly abstains on. `.test` had been
-/// missing from the Tcl source-extension set, so the background workspace
-/// scan never indexed it and its call sites were invisible.
+/// `glob`+`source` loop the analyser correctly abstains on must still be
+/// indexed: `.test` is part of the Tcl source-extension set, so the
+/// background workspace scan indexes it and its call sites are visible.
 ///
-/// Oracle (tclsh 9.0.4): `source lib.tcl; cd test; source all_codeCoverage.tcl`
+/// tclsh 9.0.4: `source lib.tcl; cd test; source all_codeCoverage.tcl`
 /// prints `hello from greet` — the `.test` file's bare `greet` call really
 /// runs. Committed coverage stops at `collect_tcl_files` / `is_tcl_source`,
 /// one layer below the references handler; this drives the whole pipeline.

@@ -394,11 +394,11 @@ pub(crate) fn get_element_at_target(
 /// (`tclTrace.c`'s `TraceVarProc`), so `trace add variable ::v write …` fires
 /// for a later `set v X` in the global namespace and — under the 8.x
 /// namespace-scope fallback — for a `set v X` inside `namespace eval` that
-/// reaches the same global (issue #1328). Reading the frame level and the
-/// element off the resolved place is what extends that to an `upvar` alias,
-/// whose home frame and array element the access spelling cannot show
-/// (issue #1633's `upvar` rows). Registration and firing share this one
-/// `resolve` call, including the dialect-gated fallback.
+/// reaches the same global. Reading the frame level and the element off the
+/// resolved place is what extends that to an `upvar` alias, whose home
+/// frame and array element the access spelling cannot show. Registration
+/// and firing share this one `resolve` call, including the dialect-gated
+/// fallback.
 pub(crate) struct TraceHome {
     /// The home namespace, for a cell that lives in one.
     pub(crate) ns: Option<NsId>,

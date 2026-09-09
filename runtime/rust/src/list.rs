@@ -204,7 +204,7 @@ pub fn list_elements(obj: *mut TclObj) -> Result<Vec<*mut TclObj>, ListError> {
 /// the string rep.
 ///
 /// In-place mutation is correct only when `obj` is **unshared** (`refCount <= 1`)
-/// — exactly Tcl's contract for this call. The `lappend` command (T1.6b) is
+/// — exactly Tcl's contract for this call. The `lappend` command is
 /// responsible for copy-on-write when the value is shared.
 pub fn list_append(obj: *mut TclObj, elem: *mut TclObj) -> Result<(), ListError> {
     ensure_list(obj)?;

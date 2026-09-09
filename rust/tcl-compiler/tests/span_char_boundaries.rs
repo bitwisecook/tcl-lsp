@@ -108,8 +108,9 @@ fn a_multibyte_tail_is_not_specific_to_zero_width_space() {
 #[test]
 fn the_zero_width_irule_still_reports_its_security_finding() {
     // The whole point of not aborting: IRULE3102 (URL evasion via a
-    // non-normalised `HTTP::uri`) is a real security finding, and the panic
-    // used to take it — and every other diagnostic for the file — with it.
+    // non-normalised `HTTP::uri`) is a real security finding, and an
+    // aborting panic would take it — and every other diagnostic for the
+    // file — with it.
     let mut analyser = Analyser::new();
     let result = analyser.analyse(NESTED, "f5-irules");
     let codes: Vec<String> = result
@@ -299,7 +300,7 @@ fn lowered_spans_survive_the_zero_width_irule() {
 fn a_compound_body_lowers_at_the_offsets_it_is_written_at() {
     // The sliceability audit above catches the mid-character half of the bug.
     // This is the quiet half: with the welded `}` dropped and no clamp, the
-    // inner `set x 1` used to lower one byte wide (`set x 1}`) on ASCII and
+    // inner `set x 1` must not lower one byte wide (`set x 1}`) on ASCII or
     // one byte left of its written position on anything wider.
     for (src, body_unit) in [
         ("namespace eval n {set x 1}x\n", true),

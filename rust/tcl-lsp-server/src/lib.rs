@@ -4235,17 +4235,16 @@ async fn refresh_cross_file_evidence(
     // `item_tree`, which reads `SourceFile::workspace_class_factories`), so
     // running the factory sync first looks like the tidier order.  Measured, it
     // is much worse: the factory publish invalidates every file's `item_tree`,
-    // so the call-site pass that follows it is a *cold* one — the ~7s
+    // so the call-site pass that follows it is a *cold* one — the seconds-long
     // whole-project lower-and-CFG path this function is explicitly kept off the
     // edit handler for — and that lands in front of `reschedule_peers`, which
     // is what actually republishes the files the factory publish invalidated.
     // On a large workspace that delays convergence enough to lose a two-level
-    // cross-file chain that would otherwise resolve inside the client's
-    // window.  Run in
-    // this order the call-site pass reads memoised state and the reschedule
-    // follows the factory publish immediately; the call-site tables computed
-    // under the pre-sync oracle are corrected by the peers' own next refresh,
-    // which the reschedule has already scheduled.
+    // cross-file chain that would otherwise resolve inside the client's window.
+    // Run in this order, the call-site pass reads memoised state and the
+    // reschedule follows the factory publish immediately; the call-site tables
+    // computed under the pre-sync oracle are corrected by the peers' own next
+    // refresh, which the reschedule has already scheduled.
     let evidence_changes = sync_cross_file_evidence(handles).await;
     let evidence_requires_self_refresh = evidence_changes.requires_self_refresh.contains(uri);
     let mut changed = evidence_changes.changed;
@@ -6813,8 +6812,8 @@ pub struct Backend {
     /// on the current set, so a snapshot taken before a write can never
     /// overwrite one taken after it, however long its load took.
     ///
-    /// This is **armour, not the fix**. With `spec_pack_reload` held across
-    /// discover → load → publish, reloads cannot overlap at all and this
+    /// This is **armour, not the mechanism**. With `spec_pack_reload` held
+    /// across discover → load → publish, reloads cannot overlap at all and this
     /// comparison can never fail; it exists so the ordering invariant — newest
     /// snapshot wins — survives on its own if that mutex is ever narrowed or
     /// removed by someone who reads the serialisation as mere throughput
@@ -23582,7 +23581,7 @@ impl LanguageServer for Backend {
         // Both inputs are required for the complete enriched tier. A Salsa
         // write can cancel one read after its sibling completed; that partial
         // result is useful for this response but remains retryable rather than
-        // being mislabeled final.
+        // being mislabelled final.
         let served_enriched = cached_cu.is_some() && cached_analysis.is_some();
         // Pure-CPU tokenisation on a worker so a parser panic is contained
         // as a JSON-RPC error.  The text goes in behind an `Arc` so the
@@ -27032,7 +27031,7 @@ impl SourceInheritance {
 /// document's `package require`s through the shared package database and drop
 /// any W120 whose flagged package is transitively available. Shared by the push
 /// path (`refine_and_lift_diagnostics`) and the pull path
-/// (`Backend::full_diagnostics_for`) so both stay behavior-identical.
+/// (`Backend::full_diagnostics_for`) so both stay behaviour-identical.
 ///
 /// Three sources of availability feed it, and they are *not* interchangeable:
 ///
@@ -27446,7 +27445,7 @@ fn display_arity_ranges(ranges: &[ProcArityRange]) -> String {
 /// resolved proc's envelope is silence, which is what makes an `args`-tailed
 /// or defaulted signature abstain — one of its ranges accepts the count. A
 /// count in a gap between disjoint ranges reports E005 (wrong count shape),
-/// rather than being mislabeled as globally too few or too many.
+/// rather than being mislabelled as globally too few or too many.
 fn cross_file_arity_diagnostics(
     analysis: &AnalysisResult,
     calls: &CrossFileCalls,
@@ -30048,7 +30047,7 @@ mod tests {
         Uri::from_file_path("/proj/deflib.tcl").unwrap()
     }
 
-    /// **TP — the reported bug.** The cross-file call resolves (so its W123 is
+    /// **TP.** The cross-file call resolves (so its W123 is
     /// suppressed) *and* its wrong argument count is reported.
     #[test]
     fn cross_file_call_resolves_and_arity_checks() {
@@ -33335,8 +33334,8 @@ mod tests {
     #[tokio::test]
     async fn scan_workspace_folders_builds_resolver_with_no_roots() {
         // POSITIVE: no workspace folders, but a `tclLsp.libraryPaths` directory
-        // containing a package.  Before the fix `scan_workspace_folders`
-        // early-returned and left the resolver empty.
+        // containing a package.  An early return on an empty root set would
+        // leave the resolver empty.
         let lib_ws = TmpWs::new("noroots-lib");
         lib_ws.write(
             "mypkg/pkgIndex.tcl",
@@ -33599,9 +33598,9 @@ mod tests {
     /// package require widget 1.2        -> 1.5
     /// ```
     ///
-    /// Before the fix, `-exact` was dropped (so row 3 navigated into 2.3) and
-    /// an unconstrained require answered the first provider discovered (so
-    /// row 1 navigated into whichever directory sorted first — 1.5).
+    /// Dropping `-exact` would send row 3 into 2.3, and answering an
+    /// unconstrained require with the first provider discovered would send
+    /// row 1 into whichever directory sorted first — 1.5.
     #[tokio::test]
     async fn definition_lands_in_the_package_release_tcl_would_load() {
         let ws = TmpWs::new("pkgver-def");
@@ -33751,7 +33750,7 @@ mod tests {
         let root = ws.0.join("reporoot");
         let root_s = root.to_str().unwrap();
         // `v1` is listed first, so a first-provider-wins resolve would answer
-        // 1.5 — the bug this pins.
+        // 1.5, which is what this pins against.
         let user_src = format!(
             "set auto_path {{{root_s}/v1 {root_s}/v2}}\n\
              package require widget 2.0\n\
@@ -42971,15 +42970,13 @@ proc p {} {
         assert!(cross.iter().all(|l| l.uri == consumer));
     }
 
-    /// Same root cause as
+    /// The same shape as
     /// `cross_document_references_reach_caller_from_shadowed_duplicate_decl`,
-    /// but for rename — the more severe half of the finding: an
-    /// LSP-presented "complete" rename issued from the shadowed
-    /// declaration must still rewrite the cross-file caller, or accepting
-    /// the edit silently resurrects the dead first definition for that
-    /// caller (proven end-to-end in the finding's own repro: applying the
-    /// pre-fix `WorkspaceEdit` verbatim changed real program output with
-    /// no error).
+    /// but for rename — the more severe half: an LSP-presented "complete"
+    /// rename issued from the shadowed declaration must still rewrite the
+    /// cross-file caller, or accepting the edit silently resurrects the dead
+    /// first definition for that caller and changes real program output with
+    /// no error.
     #[tokio::test]
     async fn cross_document_rename_reaches_caller_from_shadowed_duplicate_decl() {
         let backend = test_backend();
@@ -43664,10 +43661,10 @@ proc p {} {
     /// deterministic regardless of scheduling: whichever call acquires it
     /// second always finds the reconciliation already converged, because the
     /// first call fully completes (and releases the gate) before the second
-    /// can proceed. A build that dropped the gate could still pass this test
-    /// on an unlucky schedule (the two spawned tasks not actually
-    /// overlapping), so it is a genuine, non-flaky proof *with* the fix
-    /// rather than a guaranteed catch of its absence — the reconciliation
+    /// can proceed. A build without the gate could still pass this test on an
+    /// unlucky schedule (the two spawned tasks not actually overlapping), so
+    /// it is a genuine, non-flaky proof that the gate dedups rather than a
+    /// guaranteed catch of its absence — the reconciliation
     /// path's several `.await` points (disk read, `spawn_blocking`, index
     /// write) give a wide window for the race to manifest in practice.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -50340,7 +50337,7 @@ proc p {} {
 
     /// Put an entry for `uri` in every cache [`Backend::forget_uri_states`]
     /// clears, so a retirement test can assert on the whole group rather than
-    /// on whichever member the bug of the day happened to be about.
+    /// on whichever member a given retirement path happens to miss.
     async fn seed_per_uri_caches(backend: &Backend, uri: &Uri) {
         backend
             .autoloaded_library_uris

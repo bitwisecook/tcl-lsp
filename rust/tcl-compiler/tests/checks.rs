@@ -69,11 +69,11 @@
 //!   (`" ?opt?..."`) — the heuristic is coarse and does not suppress these.
 //! - `W307` fires on `$cmd` iterating a `foreach` over *known* commands
 //!   (no "known-command-list" provenance on this surface to suppress it).
-//! - `W210` no longer false-fires when a `catch {set x …}` body defines the
-//!   variable read in the surrounding `if` body (fixed: catch-body + branch-
+//! - `W210` does not false-fire when a `catch {set x …}` body defines the
+//!   variable read in the surrounding `if` body (catch-body + branch-
 //!   condition out-var recovery).
-//! - `W210` now fires when a proc `unset`s (and never sets) a global later read
-//!   at top level, where tclsh errors `can't read` (fixed: `unset` excluded
+//! - `W210` fires when a proc `unset`s (and never sets) a global later read
+//!   at top level, where tclsh errors `can't read` (`unset` is excluded
 //!   from the proc global-write set).
 //! - `W308` is the *`TclOO` unknown-method* code here; it does not cover the
 //!   `subst`-without-`-nocommands` hint (those cases are out-of-surface; the
@@ -2873,7 +2873,7 @@ mod private_tcl_namespace {
         }
     }
 
-    // …and W120 and W143 can no longer contradict each other: the memchan
+    // W120 and W143 must not contradict each other: the memchan
     // repro asks for a `package require` (W120) without also claiming the
     // command is Tcl-private (W143).
     #[test]
@@ -3107,8 +3107,8 @@ mod script_concatenation {
         assert!(fires(src, D, "W210"), "{:?}", codes(src, D));
     }
 
-    /// FP — `namespace eval` concatenates too, and used to drop everything
-    /// past the first script word.
+    /// FP — `namespace eval` concatenates too: dropping everything past the
+    /// first script word would be wrong.
     ///
     /// tclsh8.6.14 / tclsh9.0.4:
     /// `namespace eval ::n set l2 hello; puts $::n::l2` → `hello`.
@@ -3420,7 +3420,7 @@ mod event_lifecycle {
         for code in ["IRULE1002", "IRULE1003"] {
             assert!(!fires("when HTTP_REQUEST {puts hi}", IR, code));
             // XML_CONTENT_BASED_ROUTING is *not* part of the retired classic
-            // XML set — the flat boolean used to lump it in with them.
+            // XML set — a flat boolean must not lump it in with them.
             assert!(
                 !fires("when XML_CONTENT_BASED_ROUTING {puts hi}", IR, code),
                 "{code}: {:?}",

@@ -525,7 +525,7 @@ fn string_subcommand_dispatch() {
     res_eq("string rev hello", "olleh"); // rev -> reverse
     res_eq("string eq abc abc", "1"); // eq -> equal
     // tclsh9.0.4: an unknown subcommand lists the canonical set, joined by the
-    // ensemble's rule (a comma before `or`) — since #1607 the whole sentence is
+    // ensemble's rule (a comma before `or`) — the whole sentence is
     // `tcl_cmd_core::ensemble`'s, so it is pinned byte for byte.
     //
     // tclsh9.0.4:

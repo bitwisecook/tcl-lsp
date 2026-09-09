@@ -146,10 +146,10 @@ impl MemoryLocation {
 pub struct AliasSet {
     /// Locations merged into this set. Ordered for stable output.
     pub locations: BTreeSet<MemoryLocation>,
-    /// Reason describing why the set was formed — e.g. `"upvar"`,
-    /// `"global"`, `"variable"`, or a combination (comma-separated,
-    /// sorted) when multiple detection paths merged into the same
-    /// set.
+    /// Reason describing why the set was formed — e.g. `"global-cell"`,
+    /// `"caller-frame-cell"`, `"namespace-cell"`, or a combination
+    /// (comma-separated, sorted) when several detection paths merged into
+    /// the same set; `"alias"` when no path recorded one.
     pub reason: String,
 }
 

@@ -1060,7 +1060,7 @@ impl FrameStack {
 /// The command layer uses this to route `set a(k)` / `unset a(k)` to the array
 /// element ops. `TclObjLookupVarEx`'s rule comes from the shared naming owner,
 /// so a zero-length array name (`(x)`) stays an element reference here and in
-/// the VM alike (issue #1458).
+/// the VM alike.
 pub(crate) fn split_array_ref(name: &[u8]) -> (Vec<u8>, Option<Vec<u8>>) {
     match tcl_syntax::naming::split_element_ref_bytes(name) {
         Some((base, elem)) => (base.to_vec(), Some(elem.to_vec())),

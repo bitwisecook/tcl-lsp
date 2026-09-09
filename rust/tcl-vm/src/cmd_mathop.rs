@@ -104,7 +104,7 @@ mod tests {
     /// `runtime/rust/src/cmd_mathop.rs` uses to build its registration list
     /// mechanically. The VM's own list above is a `macro_rules!` invocation
     /// (fn-pointer-per-operator, so it can't be generated the same way), so
-    /// this test is this crate's half of issue #983/#987's registry/runtime
+    /// this test is this crate's half of the registry/runtime
     /// convergence: a drift gate proving the macro's hand-typed spellings
     /// still exactly match layer 1, in both directions.
     fn expected_mathop_spellings() -> Vec<&'static str> {

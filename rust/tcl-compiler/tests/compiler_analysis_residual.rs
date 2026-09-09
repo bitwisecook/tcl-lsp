@@ -567,7 +567,7 @@ fn auto_path_tokeniser_brace_group_and_bracket_quirk() {
         Some("/lib"),
     );
     // A braced `[` is a literal `[`, not an open bracket — Tcl performs no
-    // substitution inside braces.  The string-token tokeniser used to lose
+    // substitution inside braces.  A string-token tokeniser would lose
     // that distinction and mis-read `{[} info script ]` as the command
     // substitution `[info script]`; with typed word tokens it is a literal
     // `[` followed by trailing words, which the expression parser rejects.

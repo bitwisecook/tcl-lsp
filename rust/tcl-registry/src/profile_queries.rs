@@ -50,7 +50,7 @@ pub trait ProfileQueries {
     /// whose math operators are not command heads (`f5-irules`) — the
     /// [`Traits::OPERATOR_COMMAND`] exclusion. iRules availability is fully
     /// explicit in each spec's surface (an iRules row is present iff iRules
-    /// enables it), so there is no longer a subtractive ban list.
+    /// enables it), so there is no subtractive ban list.
     ///
     /// This is the same trio [`CommandRegistry::spec_visible`] enforces
     /// inside profile-stamped registries; it lives here too so profile-side

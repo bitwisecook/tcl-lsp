@@ -218,7 +218,7 @@ fn rename_finds_its_source_via_namespace_path() {
     assert_eq!(res, "0 1");
 }
 
-// Issue #934: a lone colon is an ordinary name character — `proc :` is a
+// A lone colon is an ordinary name character — `proc :` is a
 // real command, callable bare; the written all-colon forms name the global
 // `{}` command instead (tclsh 8.6/9.0-pinned; C 8.4→9.1-invariant).
 #[test]
@@ -248,7 +248,7 @@ fn colon_named_proc_dispatches_bare_but_not_via_written_runs() {
     );
 }
 
-// #934 follow-up: the W314 case (proc `:` inside namespace `:`) has no
+// The W314 case (proc `:` inside namespace `:`) has no
 // absolute spelling but IS reachable relatively — `namespace eval : { : }`
 // and `namespace inscope : :` both dispatch it, while the textual
 // `namespace inscope ::: :` form resolves the all-colon spelling to the

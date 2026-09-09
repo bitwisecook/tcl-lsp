@@ -1084,9 +1084,9 @@ mod tests {
         );
     }
 
-    /// TP control for [`no_s102_for_traced_variable`]: the identical loop
-    /// shape, untraced, must still fire — the trace check must not
-    /// blanket-silence S102.
+    /// TP control for `no_s102_for_traced_variable`: the identical loop shape,
+    /// untraced, must still fire — the trace check must not blanket-silence
+    /// S102.
     #[test]
     fn thunking_still_fires_for_untraced_control() {
         let cu = CompilationUnit::build_for(

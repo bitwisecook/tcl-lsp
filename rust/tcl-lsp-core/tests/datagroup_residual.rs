@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Residual-coverage port tests for `src/refactor/datagroup.rs` — the
+//! Residual coverage for `src/refactor/datagroup.rs` — the
 //! extract-to-data-group refactor (iRules / BIG-IP `class match` /
 //! `class lookup` against a generated tmsh `ltm data-group internal`).
 //!
@@ -281,12 +281,11 @@ fn supplied_name_with_special_chars_is_kept_verbatim() {
 
 #[test]
 fn empty_name_from_underscore_only_var_falls_back_to_extracted_dg() {
-    // A var name of only `_` normalises to empty after trimming underscores;
-    // but the descriptor is `"{var}_whitelist"` so it becomes `whitelist`.
-    // To hit the pure `"extracted_dg"` fallback, the whole descriptor must
-    // normalise to empty — exercised directly below via a switch subject that
-    // is all underscores is impossible (vars need a leading alpha/_), so this
-    // pins the realistic underscore-collapse path instead.
+    // A var name of only `_` normalises to empty after trimming underscores,
+    // but the descriptor is `"{var}_whitelist"`, so it becomes `whitelist`.
+    // The bare `"extracted_dg"` fallback needs the whole descriptor to
+    // normalise to empty, which no real variable name produces (a name needs a
+    // leading alpha or `_`), so this pins the underscore-collapse path.
     let source = "if {$_ eq \"a\"} {\n    drop\n} elseif {$_ eq \"b\"} {\n    drop\n}";
     let r = if_dg(source, "").expect("result");
     // `_` + `_whitelist` → `_whitelist` → trimmed `whitelist`.
@@ -377,19 +376,13 @@ fn if_value_on_left_var_on_right_is_parsed() {
     assert!(g.records.contains(&("a".to_owned(), String::new())));
 }
 
-// NOTE: `parse_if_chain` *claims* to skip an optional `then`/`elseif` keyword
-// (the `if word == "elseif" || word == "then"` arm), but that arm is only
-// reachable when the loop index `i` lands directly on the keyword. After the
-// *first* condition the loop unconditionally consumes `texts[i+1]` as the
-// body and advances `i += 2`, so a leading `if {cond} then {body}` mis-parses
-// (`"then"` is taken as the body). `then` is therefore effectively
-// unsupported for the *first* arm; this is a stock-Tcl-valid form
-// (`if {expr} then {body}`) the transform silently declines or misreads on,
-// but it does NOT panic or corrupt — it just produces no/garbled extraction.
-// We assert the conservative observable contract: the `then`-after-first-arm
-// form does not yield a clean 2-key membership group (it declines), so no
-// broken edit is emitted. (Not flagged as a BUG: declining an unusual form is
-// safe, not semantically wrong.)
+// `parse_if_chain`'s `word == "elseif" || word == "then"` skip arm is only
+// reached when the loop index lands directly on the keyword. Having parsed a
+// condition the loop takes the next word as that arm's body unconditionally,
+// so the optional `then` of the stock-Tcl `if {expr} then {body}` form is
+// swallowed as the body and the chain mis-parses. The transform then declines
+// (or extracts nothing usable) — it never panics or emits a corrupt edit,
+// which is what the test below pins.
 #[test]
 fn if_then_after_first_condition_does_not_produce_broken_extraction() {
     let source = "if {$h eq \"a\"} then {\n    drop\n} elseif {$h eq \"b\"} then {\n    drop\n}";
@@ -574,11 +567,10 @@ fn switch_non_var_subject_declines() {
 
 #[test]
 fn switch_default_only_leaves_too_few_regular_arms() {
-    // Three arms where two are `default`/fallthrough leave < 3 regular arms.
-    // Here: 3 regular + nothing is fine; instead drop to 2 regular + default.
+    // Two regular arms plus a `default` leave fewer than 3 regular arms.
     let source =
         "switch -exact -- $e {\n    .a { drop }\n    .b { drop }\n    default { accept }\n}";
-    // 2 regular arms + default → fewer than 3 regular → declined.
+    // Fewer than 3 regular arms → declined.
     assert!(switch_dg(source, "x").is_none());
 }
 
@@ -684,11 +676,10 @@ fn switch_subject_var_starting_with_underscore_resolves() {
 
 #[test]
 fn or_chain_with_invalid_var_word_declines() {
-    // `$1a eq "x"` — `parse_var_word` rejects the `$1a`-style word? No: `1a`
-    // is alnum, so it parses. Use an array-style word that `parse_var_word`
-    // rejects: a `$` word with `(` is not all-alnum/underscore → the
-    // `parse_eq` var parse fails → `try_or_chain` returns None, and the
-    // elseif-ladder also can't parse it → overall None.
+    // `parse_var_word` rejects an array-style word: `$a(k)` is not all
+    // alnum/underscore, so the `parse_eq` var parse fails, `try_or_chain`
+    // returns None, and the elseif ladder cannot parse it either → overall
+    // None.
     let source = "if {$a(k) eq \"x\" || $a(k) eq \"y\"} {\n    drop\n}";
     assert!(if_dg(source, "x").is_none());
 }

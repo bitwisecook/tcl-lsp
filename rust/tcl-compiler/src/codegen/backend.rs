@@ -21,7 +21,7 @@
 //! The shared frontend (lexer → CST → IR → CFG → SSA → optimise) is
 //! target-independent; a backend only owns lowering CFG/IR to its artifact.
 //! The bytecode ("TCLVM") backend implements this trait by delegating to the
-//! bytecode emitter entry points. WASM uses the separate structured [`Emit`]
+//! bytecode emitter entry points. WASM uses the separate structured [`emit::Emit`]
 //! seam documented in `docs/design/compiler/wasm-codegen.md`.
 
 use tcl_registry::CommandRegistry;

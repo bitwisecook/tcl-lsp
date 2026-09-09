@@ -1340,7 +1340,7 @@ fn unknown_method(vm: &Vm, obj_key: OoId, method: &str, external: bool) -> Compl
 /// `self`/`next` see the chain.
 ///
 /// Native-stack safety net — see `interp::OO_DISPATCH_DEPTH_LIMIT`'s doc
-/// comment (issue #996). This is the single choke point every method-body
+/// comment. This is the single choke point every method-body
 /// execution funnels through — `$obj method` (via [`oo_dispatch`] →
 /// [`oo_invoke`]), `my method` (via `cmd_my` → [`oo_invoke`]), and
 /// `next`/`nextto` (directly) — so guarding here covers every recursive
@@ -2355,9 +2355,9 @@ pub(crate) fn info_object(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 .collect(),
         )),
         "vars" => {
-            // The instance variables, glob-filtered. v1 reports the declared set
-            // (`variable`-listed); enumerating ad-hoc `set` vars in the object
-            // namespace is a follow-up.
+            // The instance variables, glob-filtered. This reports the declared set
+            // (`variable`-listed); ad-hoc `set` vars in the object
+            // namespace are not enumerated.
             let pat = extra.first().map(|v| v.to_str().to_string());
             let mut names: Vec<String> = vm.oo.objects[&obj]
                 .variables

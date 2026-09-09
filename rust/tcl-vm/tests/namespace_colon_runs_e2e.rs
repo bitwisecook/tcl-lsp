@@ -283,7 +283,7 @@ fn proc_colon_run_into_missing_namespace_errors() {
 }
 
 /// `rename` onto a colon-run qualified target lands on (and re-homes to) the
-/// collapsed namespace — the raw target used to register an `a:::q` key.
+/// collapsed namespace — registering the raw target would use an `a:::q` key.
 #[test]
 fn rename_through_colon_run_re_homes_the_proc() {
     // tclsh8.6: `rename p6 dst6:::q` -> ::dst6::q, body runs in ::dst6.
@@ -449,7 +449,7 @@ fn qualified_variable_names_canonicalise_runs_and_require_parent_namespaces() {
 }
 
 /// A rooted single-segment import names the global namespace, not the current
-/// namespace.  This is the VM-side regression for #1493.
+/// namespace.
 #[test]
 fn import_global_builtin_keeps_absolute_marker() {
     // tclsh8.6/9.0: the exact reproducer succeeds without an explicit export

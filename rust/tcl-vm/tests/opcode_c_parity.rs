@@ -1553,8 +1553,8 @@ fn str_find_matches_string_first_last_commands() {
 /// point** through `Tcl_UniCharToUpper` &co (`tclUtf.c:1777-1858`) — Tcl's
 /// tables hold only Unicode's *simple* mappings, so `ß` (U+00DF, no simple
 /// uppercase) is unchanged and the character count never changes. Rust's
-/// `to_uppercase()`/`to_lowercase()` implement *full* mapping and expand
-/// (`ß` → `SS`, `İ` → `i` + U+0307), which is what these arms used to do.
+/// `to_uppercase()`/`to_lowercase()` implement *full* mapping and would
+/// expand (`ß` → `SS`, `İ` → `i` + U+0307) if these arms used them.
 #[test]
 fn str_case_ops_use_simple_unicode_mapping() {
     for (op, subject, want) in [
@@ -1796,7 +1796,7 @@ fn str_index_and_range_still_clamp_valid_indices() {
 
 /// C `INST_EXPR_STK` (`tclExecute.c`) calls `TclCompileExpr` on the popped
 /// string, so an unparsable expression is a `TCL_ERROR` from `ParseExpr` — never
-/// a value. The opcode used to hand the source text back instead, which made
+/// a value. An opcode that hands the source text back instead would make
 /// every unparsable expression a silent wrong answer.
 ///
 /// Messages transcribed from C's `tests/parseExpr.test` (`parseExpr-21.*`).

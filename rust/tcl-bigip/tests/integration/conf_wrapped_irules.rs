@@ -257,7 +257,6 @@ fn proc_in_rule_within_body() {
     // modelled here.
 }
 
-// -- find_enclosing_when_event with embedded_rules ---------------------------
 // GAP: `find_enclosing_when_event(src, line, embedded_rules=rules)` would scope
 // the cursor's enclosing `when` event to the rule body it falls in.
 // `tcl_lsp_core::irules_context::find_enclosing_when_event(src, line, dialect)`
@@ -307,8 +306,6 @@ fn cursor_outside_all_rules() {
     assert!(find_rule_at_offset(src, line2_after_brace).is_none());
 }
 
-// -- Brace scanning robustness -----------------------------------------------
-
 /// Braces inside a double-quoted string do not terminate the rule body.
 #[test]
 fn braces_in_quoted_string() {
@@ -340,8 +337,6 @@ fn escaped_quote_in_string() {
     assert_eq!(rules.len(), 1);
     assert_eq!(rules[0].name, "escaped");
 }
-
-// -- Empty / edge cases ------------------------------------------------------
 
 #[test]
 fn empty_rule_body() {
@@ -376,8 +371,6 @@ fn mixed_ltm_gtm_rules() {
     assert!(names.contains("http_handler"));
     assert!(names.contains("dns_handler"));
 }
-
-// -- Additional direct ports of EmbeddedRule fields & helpers ----------------
 
 /// `EmbeddedRule` header / `full_path` / body fields are populated as documented
 /// (the `header` excludes the opening brace; the `body` excludes both braces).

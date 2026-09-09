@@ -408,13 +408,12 @@ mod tests {
         i.result_bytes()
     }
 
-    /// Issue #1607: `update`'s option and `after`'s subcommand word both
-    /// resolve through the one `Tcl_GetIndexFromObj` matcher. `update`'s is an
-    /// ordinary one-entry table, so a miss is always `bad` — this reported
-    /// `wrong # args` instead. `after`'s scan is *silent* in C
-    /// (`Tcl_GetIndexFromObj` with a NULL interp), so a miss falls through to
-    /// the integer parse and `after` composes its own sentence — including for
-    /// the ambiguous `i`.
+    /// `update`'s option and `after`'s subcommand word both resolve through
+    /// the one `Tcl_GetIndexFromObj` matcher. `update`'s is an ordinary
+    /// one-entry table, so a miss is always `bad`. `after`'s scan is
+    /// *silent* in C (`Tcl_GetIndexFromObj` with a NULL interp), so a miss
+    /// falls through to the integer parse and `after` composes its own
+    /// sentence — including for the ambiguous `i`.
     ///
     /// tclsh 8.6.16 / 9.0.4:
     ///   update {}  -> bad option "": must be idletasks

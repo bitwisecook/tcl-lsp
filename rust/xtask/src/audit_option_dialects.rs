@@ -40,14 +40,14 @@
 //! degenerate-column behaviour deliberately (e.g. a quick partial run on a
 //! machine that only has some trees built).
 //!
-//! # The audit↔registry drift guard (`--check`, issue #1396)
+//! # The audit↔registry drift guard (`--check`)
 //!
-//! The audit above only measures *tclsh*. Nothing tied it back to
-//! `tcl-registry`, so the audit and the registry could describe two different
-//! option surfaces and neither would notice — which is exactly what happened:
-//! the audit probed `fconfigure -profile` (TIP 656, Tcl 9.0) while the
-//! registry had no such [`OptionSpec`], and the omission was found by hand.
-//! The gap is fixed; this guard is the detector that never landed.
+//! The audit above only measures *tclsh*. Nothing ties it back to
+//! `tcl-registry`, so without this guard the audit and the registry could
+//! describe two different option surfaces and neither would notice: the
+//! audit could probe `fconfigure -profile` (TIP 656, Tcl 9.0) while the
+//! registry has no such [`OptionSpec`], with the omission found only by
+//! hand.
 //!
 //! `cargo xtask audit-option-dialects --check` sources each probed command's
 //! option surface from the registry's `OptionSpec` tables and fails when a
@@ -57,9 +57,10 @@
 //! asserts the same thing under `cargo test -p xtask`.
 //!
 //! Known gaps are declared in [`KNOWN_UNSPECIFIED`], each with the issue
-//! tracking the registry work — migration debt is tracked, not grandfathered
-//! (`AGENTS.md`). An entry that has since been specified fails the gate too,
-//! so the waiver list cannot outlive the gap it documents.
+//! tracking the registry work, so a gap stays visible until it is closed
+//! rather than being grandfathered in silently (`AGENTS.md`). An entry that
+//! has since been specified fails the gate too, so the waiver list cannot
+//! outlive the gap it documents.
 
 use std::io::{Read, Write};
 use std::path::Path;
@@ -687,7 +688,7 @@ static TCL_SPECS: LazyLock<Vec<CommandSpec>> =
 /// itself is not in the registry.
 ///
 /// A **second-level** subcommand's own table (`SubSubCommand::options` —
-/// `namespace ensemble create` vs `configure`, issue #1610) is deliberately
+/// `namespace ensemble create` vs `configure`) is deliberately
 /// *not* folded in as a third source. Every option there also belongs to the
 /// owning subcommand's abstain table, because that table is what a consumer
 /// falls back to when the dispatch word is dynamic; walking the second level
@@ -1247,7 +1248,7 @@ mod tests {
         assert_eq!(keys.len(), total, "probe table has duplicate keys");
     }
 
-    /// The audit↔registry drift guard (issue #1396): every option the dialect
+    /// The audit↔registry drift guard: every option the dialect
     /// audit probes must be declared by the registry's `OptionSpec` tables, so
     /// the two cannot describe different option surfaces. `fconfigure
     /// -profile` (TIP 656) drifted exactly this way and was found by hand.
@@ -1276,8 +1277,9 @@ mod tests {
         );
     }
 
-    /// A waiver may only name a real probe, and must carry a tracking issue —
-    /// migration debt is tracked, not grandfathered.
+    /// A waiver may only name a real probe, and must carry a tracking issue,
+    /// so a gap stays visible until it is closed rather than being
+    /// grandfathered in silently.
     #[test]
     fn waivers_are_tracked_and_reachable() {
         for &(cmd, sub, opt, issue) in KNOWN_UNSPECIFIED {

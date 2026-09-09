@@ -31,7 +31,7 @@
 //!    [`tcl_syntax::boolean`]'s — the shared owner named in the semantic owner
 //!    map — so `tru`, `ye`, `of` and the ambiguous `o` behave identically
 //!    everywhere in the runtime instead of in as many private `match` arms as
-//!    there are call sites (issue #1425's runtime half).
+//!    there are call sites.
 //! 3. **The failure text is C's**, including the `a list` rendering
 //!    ([`tcl_syntax::list::describe_bad_value`], `tclStrToD.c`'s `formaterr`)
 //!    and the `-errorcode` the same site sets.

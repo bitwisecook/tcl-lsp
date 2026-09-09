@@ -17,16 +17,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! End-to-end LSP smoke tests for diagnostic *delivery* and the
-//! reference-count code lens — the two preview regressions #721 and #724.
+//! reference-count code lens.
 //!
-//! * #721 — pull diagnostics are opt-in.  When a server advertises
+//! * Pull diagnostics are opt-in.  When a server advertises
 //!   `diagnosticProvider`, clients such as `vscode-languageclient` switch to
 //!   pull mode and stop honouring push (or, if they route both, render every
 //!   diagnostic twice).  So by default the server does NOT advertise
 //!   `diagnosticProvider`, and push is the sole channel — a pull-capable
 //!   client still receives exactly one content-bearing `publishDiagnostics`.
 //!
-//! * #724 — `codeLens/resolve` must return a clickable
+//! * `codeLens/resolve` must return a clickable
 //!   `tcl-lsp.showReferences` command, not an inert title.
 
 use std::time::Duration;
@@ -153,7 +153,7 @@ async fn pull_capable_client_still_gets_push_by_default() {
     // `diagnosticProvider`, so a pull-capable client that isn't told to pull
     // keeps receiving push.  (Advertising it would flip most clients to
     // pull-only and silently disable the richer push pipeline — the inverse of
-    // the #721 double-render hazard.)
+    // the double-render hazard.)
     let init = r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{"textDocument":{"diagnostic":{"dynamicRegistration":false}}}}}"#;
     client_write
         .write_all(frame(init).as_bytes())
@@ -198,7 +198,7 @@ async fn pull_capable_client_still_gets_push_by_default() {
         .await,
         "expected a diagnostic publish before the hang guard: {frames:?}",
     );
-    // #1417: prove delivery has quiesced by changing the document to a clean
+    // Prove delivery has quiesced by changing the document to a clean
     // revision, then waiting for the terminal empty publish for *that*
     // revision. A 200 ms collection window only guesses that a duplicate has
     // arrived; this mutation is a negative control and the resulting publish
@@ -587,19 +587,19 @@ fn version_tagged_publishes(frames: &[String], uri: &str) -> Vec<(i64, String)> 
 ///   2. **No loss of final state**: the last edit's version is published with
 ///      its diagnostic. A drop-on-full transport would lose it — this fails then.
 ///
-/// # Why this is in two phases (issue #1082)
+/// # Why this is in two phases
 ///
-/// The ordering guard needs at least two version-tagged publishes to compare,
-/// and it used to get them by spacing the edits past `DIAGNOSTICS_DEBOUNCE`
-/// with a fixed sleep and then collecting frames for a fixed 2.5 s window. Both
-/// halves were wall-clock bets on the server's speed, and both lose on a
-/// machine short of CPU: the collection window closes while publishes are still
-/// being produced, the burst arrives at the per-URI worker inside one debounce
-/// window and coalesces, and the test trips *its own* "≥2 in-flight publishes"
-/// precondition. That is a starved scheduler failing a delivery test, not a
+/// The ordering guard needs at least two version-tagged publishes to compare.
+/// Spacing the edits past `DIAGNOSTICS_DEBOUNCE` with a fixed sleep and then
+/// collecting frames for a fixed 2.5 s window would be a pair of wall-clock
+/// bets on the server's speed, and both lose on a machine short of CPU: the
+/// collection window closes while publishes are still being produced, the
+/// burst arrives at the per-URI worker inside one debounce window and
+/// coalesces, and the test would trip *its own* "≥2 in-flight publishes"
+/// precondition — a starved scheduler failing a delivery test, not a
 /// delivery regression.
 ///
-/// So the two properties are now driven separately, each against a signal
+/// So the two properties are driven separately, each against a signal
 /// rather than a clock:
 ///
 /// * **Phase A — ordering.** Each edit is followed by draining frames until a
@@ -611,12 +611,12 @@ fn version_tagged_publishes(frames: &[String], uri: &str) -> Vec<(i64, String)> 
 ///   check still sees true arrival order.
 /// * **Phase B — two publishes provably in flight at once, and no loss under
 ///   backpressure.** Phase A's barrier deliberately forbids concurrency, so the
-///   ordering assertion would otherwise only ever see a serialized stream
-///   (review of #1089). Phase B fires two sub-bursts with the client reading
+///   ordering assertion would otherwise only ever see a serialized stream.
+///   Phase B fires two sub-bursts with the client reading
 ///   nothing of the publish stream, and gets its concurrency guarantee from a
 ///   *pre-publish* marker rather than from out-racing the debounce with a sleep
-///   (review of #1100 — a single burst legitimately coalesces to one version,
-///   which makes monotonicity vacuous).
+///   (a single burst legitimately coalesces to one version, which makes
+///   monotonicity vacuous).
 ///
 ///   The server logs `[timing] diagnostics.publish.enqueued (uri=…, version=…)`
 ///   immediately before enqueuing a publish, down the same ordered client
@@ -633,13 +633,11 @@ fn version_tagged_publishes(frames: &[String], uri: &str) -> Vec<(i64, String)> 
 ///
 /// # What the ordering assertion does and does not prove (measured)
 ///
-/// The pre-#1082 version of this test claimed that a fire-and-forget delivery
-/// regression "would reorder them". That claim was never true, and the claim —
-/// not the coverage — is what changed here. Measured against an actual
-/// regression patch (`cache_and_deliver` detaching the send into a
+/// A fire-and-forget delivery regression does not reorder publishes —
+/// reordering is not what this assertion detects. Measured against an
+/// actual regression patch (`cache_and_deliver` detaching the send into a
 /// `tokio::spawn`, releasing the `documents` lock before it):
 ///
-/// * the pre-#1082 test passed 10/10, and this one passes 10/10;
 /// * six further burst shapes — current-thread *and* 4-worker multi-thread
 ///   runtimes, transport buffers from 256 B to 64 KiB (so the send genuinely
 ///   parks on backpressure), 6–12 unread edits, with and without a `did_close`
@@ -735,9 +733,8 @@ async fn rapid_edits_deliver_diagnostics_in_version_order_without_loss() {
     // nothing at all, so by the time its publish is enqueued sub-burst 1's is
     // still sitting there: two version-tagged publishes in flight, produced
     // concurrently, guaranteed structurally rather than by out-racing the 50 ms
-    // debounce with a sleep (review of #1100 — the previous single burst
-    // legitimately coalesced to one version, which made the monotonicity check
-    // vacuous).
+    // debounce with a sleep (a single burst legitimately coalesces to one
+    // version, which would make the monotonicity check vacuous).
     //
     // Within each sub-burst coalescing is expected and irrelevant: what the
     // assertions need is two *distinct* versions across the two, and the
@@ -829,7 +826,7 @@ fn assert_delivery_invariants(
         .collect();
     // Monotonicity over one repeated version is vacuous, so require the two
     // distinct versions the marker barrier guarantees *before* checking their
-    // order (review of #1100). This is structural, not a race: sub-burst 2's
+    // order. This is structural, not a race: sub-burst 2's
     // edits were all sent after the server had committed to publishing
     // sub-burst 1's version, so the worker's next run has to publish a higher
     // one. Coalescing *within* a sub-burst is still free to collapse either

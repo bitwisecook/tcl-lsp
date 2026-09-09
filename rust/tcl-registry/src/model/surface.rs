@@ -649,9 +649,9 @@ mod tests {
     #[test]
     fn none_dialects_translate_to_every_provider_the_old_mask_admitted() {
         let rows = declarations_for_spec(&spec_with(None));
-        // Four core families (`f5-tcl` joined the tree in the F5
-        // reclassification, measurements §4a) + eight vendor packages
-        // (`sslictcl` joined with the `.sslictcl` authoring dialect, #1543).
+        // Four core families (`f5-tcl` joined the tree per the §4a
+        // measurements) + eight vendor packages
+        // (`sslictcl` joined with the `.sslictcl` authoring dialect).
         assert_eq!(rows.len(), 12);
         for family in Family::ALL {
             assert!(
