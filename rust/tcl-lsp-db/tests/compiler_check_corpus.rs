@@ -139,13 +139,13 @@ fn compiler_check_memo_matches_uncached_init() {
     );
 }
 
-/// Focused regression for issue #1117 — the exact file the `cc_diff` repro
-/// names.  `generalClasses.tcl` is ~140 KB of `TclOO`: almost all of its code
+/// `generalClasses.tcl` is ~140 KB of `TclOO`: almost all of its code
 /// lives in *method* bodies, which are not procedures and so never reach
 /// `proc_taint_solve`'s `analysable_functions` loop.  That query's top-up over
-/// `analysable_methods_and_body_units` used to run only `shimmer_family_checks`
-/// instead of the whole `function_nontaint_checks` family, so the memoised path
-/// reported 20 fewer `O100`/`O105`/`O106` hints than the direct build.  The
+/// `analysable_methods_and_body_units` must run the whole
+/// `function_nontaint_checks` family, not only `shimmer_family_checks`:
+/// running only the shimmer half would report 20 fewer
+/// `O100`/`O105`/`O106` hints than the direct build.  The
 /// procedural `tmp/tcl*/library` + `tcllib` sweep below cannot see this: those
 /// trees define practically no `TclOO` methods.
 ///

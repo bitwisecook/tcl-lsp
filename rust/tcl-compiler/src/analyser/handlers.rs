@@ -3152,14 +3152,13 @@ impl Analyser {
     /// first word, wrong arity, an untracked head) falls through to the
     /// generic per-command dispatch by returning `false`.
     ///
-    /// Handles the mined idiom's `$handle eval { … }` spelling too (issue
-    /// #923 idx 9): `cmd_name` is the literal, unsubstituted head text, so
-    /// a `$`-prefixed handle only resolves through a tracked `set VAR
-    /// [interp create ...]` binding
+    /// Handles the `$handle eval { … }` spelling too: `cmd_name` is the
+    /// literal, unsubstituted head text, so a `$`-prefixed handle only
+    /// resolves through a tracked `set VAR [interp create ...]` binding
     /// ([`Self::resolve_dynamic_interp_path`]) — a handle sourced any
     /// other way (a proc parameter, a value read from elsewhere) still
-    /// falls through untouched, the same conservative fallback this
-    /// handler has always used for an untracked head.
+    /// falls through untouched, the same conservative fallback used for
+    /// an untracked head.
     ///
     /// Dispatched from [`Self::dispatch_analyser_hook`]'s hookless fallback
     /// chain — `cmd_name` never matches a registry command (it's a
@@ -4150,8 +4149,8 @@ impl Analyser {
     ///
     /// Defines every `varListN` (the registry's own arity spec,
     /// `Arity::stepped(3, Arity::UNLIMITED, 2)`, documents an unlimited
-    /// number of `varList`/`list` pairs, tclsh 8.6/9.0-verified — issue
-    /// #923 idx 70) in the active scope, then recurses into the body so
+    /// number of `varList`/`list` pairs, tclsh 8.6/9.0-verified) in the
+    /// active scope, then recurses into the body so
     /// vars defined inside the loop land in the enclosing scope.
     ///
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Foreach`].
@@ -9310,9 +9309,9 @@ impl Analyser {
                 definer_disabled,
             );
         }
-        // **W315** — a retraction the body could not legally make (issue
-        // #1120). Drained here, after the whole body walk, so a class extended
-        // by several `oo::define` blocks reports each block's own aborts once.
+        // **W315** — a retraction the body could not legally make. Drained
+        // here, after the whole body walk, so a class extended by several
+        // `oo::define` blocks reports each block's own aborts once.
         self.emit_w315_definition_cannot_run(&mut class);
         // Is the class we just recorded *itself* a class factory?  Answered
         // here, once, so every later `ThisClass create …` — in this file or,
@@ -10403,7 +10402,7 @@ mod tests {
 
     #[test]
     fn dynamic_apply_scanner_uses_irules_brace_boundary_config() {
-        // Mutation proof for the handler scanner at the #1495 site:
+        // The handler scanner splits on the dialect's brace rule:
         // `{set y}{set z}` is two list elements under iRules' `}{` rule, but
         // one composite element under the default Tcl lexer.
         let source = "[list {p} {set y}{set z}]";
@@ -10500,7 +10499,7 @@ mod tests {
 
     #[test]
     fn parameterised_class_join_ignores_an_unobserved_metaclass() {
-        // Issue #1653 — the `oo::define` stub's `"oo::class"` is
+        // The `oo::define` stub's `"oo::class"` is
         // `ClassDef::default()`'s stand-in, not something a walk read, so it
         // must neither contradict the proved `::T::Mother` nor survive into
         // the joined record.
@@ -11839,7 +11838,7 @@ mod tests {
         );
     }
 
-    /// #1245 — a **braced** path word is literal, not dynamic. The word
+    /// A **braced** path word is literal, not dynamic. The word
     /// arrives with braces stripped, so a text-only dynamism scan sees the
     /// `$` and abstains from the whole command; the token kind is the
     /// authority.
@@ -12239,8 +12238,7 @@ mod tests {
     #[test]
     fn interp_eval_into_uncreated_interp_warns_and_multiword_stays_isolated_945() {
         // `interp eval ghost { … }` with no `interp create ghost` anywhere
-        // raises `could not find interpreter` at run time — W140 (issue
-        // #945 fault 8: interpreter existence).
+        // raises `could not find interpreter` at run time — W140.
         let mut a = Analyser::new();
         let r = a.analyse("interp eval ghost { proc foo {} {} }\n", "tcl8.6");
         assert!(
@@ -12601,8 +12599,8 @@ mod tests {
         );
     }
 
-    /// FP guard (mirrors #954's `set data [list apply {…} value]`
-    /// non-invocation case, adapted to W129): `[list apply {…} value]`
+    /// FP guard for the `set data [list apply {…} value]` non-invocation
+    /// case under W129: `[list apply {…} value]`
     /// sitting in ordinary `set` data — not a `Body` / `LambdaLiteral` /
     /// `CommandPrefix` argument position — is never invoked, so it must
     /// never draw W129 even though its lambda body contains a hidden
@@ -12629,10 +12627,10 @@ mod tests {
 
     /// FP guard: the exact same list-quoted-apply-with-a-hidden-command
     /// shape, but with **no** enclosing safe interpreter at all, must not
-    /// warn — and, since this fix's whole mechanism is gated on a
-    /// non-empty `safe_interp_stack`, must not create any new scope either
-    /// (no `apply@…` proc scope, no collateral diagnostics of any other
-    /// kind) — this stays exactly as un-analysed as it was before #1001.
+    /// warn — and, since the whole mechanism is gated on a non-empty
+    /// `safe_interp_stack`, must not create any new scope either (no
+    /// `apply@…` proc scope, no collateral diagnostics of any other kind):
+    /// the shape stays entirely un-analysed.
     #[test]
     fn list_quoted_apply_lambda_outside_any_safe_interp_is_untouched_1001() {
         let mut a = Analyser::new();
@@ -13174,13 +13172,13 @@ mod tests {
         );
     }
 
-    /// Issue #923 idx 85 (tk-shaped): the ensemble-creating command runs inside
+    /// A tk-shaped ensemble: the ensemble-creating command runs inside
     /// a proc whose *qualified name* homes it to `::tk`, but which is declared
     /// at the top level with no enclosing `namespace eval`.  `namespace
     /// current` there is `::tk` (tclsh 8.6.16 / 9.0.4-verified: the ensemble
     /// created is `::tk` and `tk alpha` dispatches to `::tk::alpha`), so the
-    /// subcommand must map to `::tk::alpha` — the purely lexical namespace walk
-    /// skips proc scopes and mapped it to `::alpha`.
+    /// subcommand must map to `::tk::alpha`; a purely lexical namespace walk
+    /// skips proc scopes and would map it to `::alpha`.
     #[test]
     fn namespace_ensemble_create_in_a_qualified_name_proc_homes_to_that_namespace_923_idx85() {
         let mut a = Analyser::new();
@@ -13347,7 +13345,7 @@ mod tests {
         );
     }
 
-    // Issue #923 idx 85, the *call-site* half.  Everything above pins the
+    // The tk-shaped ensemble's *call-site* half.  Everything above pins the
     // ensemble's own declaration (where the `-map`/`-subcommands` targets
     // home to); these pin the downstream `<ensemble> <sub>` dispatch sites,
     // which is what find-references / rename / code-lens / call-hierarchy
@@ -13355,7 +13353,7 @@ mod tests {
     // `shown` then `configured:-x 1` for `VIAPROC_SRC`, so
     // `::app::widget show` really does dispatch to `::app::widget::Show`.
 
-    /// The finding's exact shape: `namespace ensemble create -map` inside a
+    /// The shape: `namespace ensemble create -map` inside a
     /// proc declared with a fully-qualified name at top level, with no
     /// enclosing `namespace eval`, and the dispatch call sites written after
     /// it — one nested in a `[…]` substitution, one at the top level.
@@ -13622,7 +13620,7 @@ mod tests {
 
     #[test]
     fn ensemble_subcommand_targets_record_which_option_declared_them() {
-        // Issue #1281: the two options bind the subcommand word to its
+        // The two options bind the subcommand word to its
         // target in opposite ways, so the recorded fact has to say which one
         // wrote it. Oracle (tclsh 8.6.14 / 9.0.4, identical): with `-map
         // {show ::app::widget::Show}` the call `::app::widget Show` is
@@ -13907,16 +13905,13 @@ mod tests {
 
     #[test]
     fn handle_foreach_defines_every_varlist_in_the_multi_list_lock_step_form() {
-        // Issue #923 idx 70 (main audit wave, high severity, pix corpus):
         // `foreach varList1 list1 varList2 list2 ... body` — the parallel/
         // lock-step multi-list form (docs/pixdoc.tcl's real shape:
         // `foreach dirName {...} name {...} {...}`) — is fully static,
         // unambiguous, standard Tcl (tclsh 8.6/9.0-verified) and is even
         // arity-validated by the registry's own `foreach` spec
-        // (`Arity::stepped(3, Arity::UNLIMITED, 2)`, stride 2). Previously
-        // only the *first* varList (`args[0]`) was ever bound — every
-        // subsequent varList/list pair's names were silently dropped, so
-        // `name` was never registered as a local at all.
+        // (`Arity::stepped(3, Arity::UNLIMITED, 2)`, stride 2). Every
+        // varList/list pair binds its own names, not just `args[0]`.
         let mut a = Analyser::new();
         let handled = a.handle_foreach_command(
             &[
@@ -13986,8 +13981,8 @@ mod tests {
         assert!(!handled);
     }
 
-    // Dynamic proc names + the foreach rename-and-reinstall idiom (issue
-    // #923 idx 86): `tk/library/accessibility.tcl`'s `foreach wtype {...} {
+    // Dynamic proc names + the foreach rename-and-reinstall idiom:
+    // `tk/library/accessibility.tcl`'s `foreach wtype {...} {
     // rename ::$wtype ::tk::accessible::orig_$wtype ; proc ::$wtype {args}
     // {...} }` renames each classic widget command away and reinstalls a
     // wrapper under the same original name.
@@ -14964,9 +14959,8 @@ mod tests {
     #[test]
     fn handle_source_command_a_dynamic_variable_with_no_known_value_stays_dynamic() {
         // A proc parameter is never constant-tracked (the same limitation
-        // `resolve_dynamic_word` already documents for `rename`, issue
-        // #923 idx 3) — `source $p` here must stay conservatively dynamic
-        // rather than guess.
+        // `resolve_dynamic_word` already documents for `rename`) — `source
+        // $p` here must stay conservatively dynamic rather than guess.
         let mut a = Analyser::new();
         let r = a.analyse("proc f {p} { source $p }\n", "tcl");
         assert_eq!(r.source_targets.len(), 1, "{:?}", r.source_targets);
@@ -15322,7 +15316,7 @@ mod tests {
 
     #[test]
     fn oo_define_extending_an_existing_class_adds_its_own_class_body_span() {
-        // Issue #923 idx 52: `class_body_spans` must record BOTH the
+        // `class_body_spans` must record BOTH the
         // creation site's own span AND the separate `oo::define` block's
         // own span for the same qualified class — a class extended via a
         // *separate* `oo::define ClassName { ... }` block has textually

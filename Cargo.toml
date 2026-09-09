@@ -28,9 +28,10 @@
 #                        diagnostics projection). The native LSP server
 #                        links against this.
 #
-#   rust/tcl-bigip/      Faithful port of the F5 BIG-IP object model + config
-#                        parser (dialects/f5/bigip). Value types, 253 model
-#                        structs, and the `parse_bigip_conf` driver + dispatch.
+#   rust/tcl-bigip/      The F5 BIG-IP object model + config parser. Value
+#                        types, the generated per-module model structs under
+#                        `src/model/gen/`, and the `parse_bigip_conf` driver
+#                        + dispatch.
 #
 #   rust/tcl-lsp-server/ Native LSP server binary built on tower-lsp-server.
 #                        Links tcl-lsp-core / tcl-compiler / tcl-registry.

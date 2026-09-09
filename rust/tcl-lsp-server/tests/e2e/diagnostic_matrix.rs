@@ -232,7 +232,7 @@ fn case_for(code: &str) -> &'static Case {
         .unwrap_or_else(|| panic!("no matrix row for {code}"))
 }
 
-// -- fire cases ----------------------------------------------------------
+// Fire cases.
 
 #[test]
 fn e002_fires_on_defect() {
@@ -311,7 +311,7 @@ fn tk1003_fires_on_defect() {
     assert_fires(case_for("TK1003"));
 }
 
-// -- silent cases --------------------------------------------------------
+// Silent cases.
 
 #[test]
 fn e002_silent_on_corrected_form() {
@@ -424,7 +424,7 @@ fn nothing_to_fold_is_unchanged() {
     assert!(source.contains("expr {$a + $b}"), "{source:?}");
 }
 
-// -- O103 (pure-proc constant fold) ---------------------------------------
+// O103 (pure-proc constant fold).
 
 #[test]
 fn o103_folds_implicit_return_proc_end_to_end() {
@@ -459,9 +459,9 @@ fn o103_does_not_fold_proc_renamed_over() {
     assert!(source.contains("set x [double 21]"), "{source:?}");
 }
 
-// O101 deep-review (F1-F4) end-to-end coverage: each case exercises the real
+// O101 end-to-end coverage (F1-F4): each case exercises the real
 // server's own dialect detection / whole-module scan, not just the compiler
-// API directly, per the review's "editor-facing" requirement.
+// API directly.
 
 #[test]
 fn irules_dialect_leading_zero_folds_as_octal() {
@@ -637,13 +637,13 @@ fn top_level_constant_untouched_by_uplevel_still_folds() {
     assert!(source.contains("puts 5"), "{source:?}");
 }
 
-// Regression (P1, code review on #859): a `global` declaration hidden inside
+// A `global` declaration hidden inside
 // a *static-body* `uplevel #0 { ... }` inside a proc lowers to
 // `Statement::UpFrame`, not a plain nested block. The whole-module
 // `scan_module_global_names` scan is built on the shared `for_each_statement`
-// visitor, which didn't descend into `UpFrame` bodies — so this name was
-// invisible to SCCP/O102's extra-escaping guard and the final read could
-// still fold to the stale pre-call literal. Confirmed against tclsh 8.6:
+// visitor, which must descend into `UpFrame` bodies too — otherwise this
+// name is invisible to SCCP/O102's extra-escaping guard and the final read
+// could still fold to the stale pre-call literal. Confirmed against tclsh 8.6:
 // `set g 4; proc helper {} { uplevel #0 { global g; set g 17 } }; helper;
 // puts $g` prints `17`, not `4`.
 #[test]
@@ -660,7 +660,7 @@ fn global_hidden_inside_uplevel_body_in_proc_is_not_folded() {
     );
 }
 
-// S102 deep-review end-to-end coverage: exercises the real server's own
+// S102 end-to-end coverage: exercises the real server's own
 // whole-document diagnostic pipeline, not just the compiler API directly.
 
 /// The 0-indexed start line of the (first) diagnostic carrying `code`, if any.
@@ -860,9 +860,9 @@ fn s102_fires_for_numeric_shimmer_masked_by_int_entry() {
 
 #[test]
 fn multiword_eval_reports_nothing_end_to_end_1051() {
-    // Issue #1051 — `eval` evaluates the *concatenation* of every trailing
+    // `eval` evaluates the *concatenation* of every trailing
     // script word, so `eval set l2 hello` really runs `set l2 hello`. Walking
-    // only the first word invented an E002 and lost the write, which then drew
+    // only the first word would invent an E002 and lose the write, drawing
     // a false W210 on the read below.
     //
     // Oracle (tclsh8.6.14 and tclsh9.0.4): `eval set l2 hello; puts $l2`
@@ -886,10 +886,10 @@ fn multiword_eval_still_reports_a_short_joined_script_1051() {
 
 #[test]
 fn a_renamed_class_still_reports_an_unknown_method_1049() {
-    // Issue #1049 — `rename Dog Cat` moves the class *command*; the class is
+    // `rename Dog Cat` moves the class *command*; the class is
     // unchanged, so `Cat new` builds a Dog and `$d fly` is still an unknown
-    // method. Before the fix the constructor did not type at all and the
-    // dispatch fell through to W307 noise.
+    // method. The constructor must type correctly here, or the dispatch
+    // falls through to W307 noise instead.
     //
     // Oracle (tclsh8.6.14 and tclsh9.0.4): `$d fly` fails
     // `unknown method "fly": must be bark or destroy`.

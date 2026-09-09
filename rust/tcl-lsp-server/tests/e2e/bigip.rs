@@ -17,14 +17,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! F5 BIG-IP `*.conf` handling, end-to-end against the packaged server. Two
-//! 1.11.0 fixes are pinned here, keyed on the canonical BIG-IP basename:
+//! invariants are pinned here, keyed on the canonical BIG-IP basename:
 //!
-//!   #534 — the document outline must never emit an empty symbol `name`
-//!          (VS Code rejects the entire outline when any name is falsy);
-//!   #571 — the general Tcl analyser must never run on BIG-IP config text, so
-//!          its encrypted-string markers (`$M$…$`) are not mis-read as Tcl
-//!          variable references (W210) and no general Tcl diagnostics are
-//!          published.
+//!   * the document outline must never emit an empty symbol `name`
+//!     (VS Code rejects the entire outline when any name is falsy);
+//!   * the general Tcl analyser must never run on BIG-IP config text, so
+//!     its encrypted-string markers (`$M$…$`) are not mis-read as Tcl
+//!     variable references (W210) and no general Tcl diagnostics are
+//!     published.
 //!
 //! These use `Lsp::bigip()` and `open_document` (not `open_ready`): the BIG-IP
 //! path doesn't emit the Tcl `workspace_state.update` marker, so we wait on the
@@ -50,8 +50,8 @@ fn bigip_uri() -> String {
     format!("file:///bigip/{}_{n}/bigip.conf", std::process::id())
 }
 
-/// A representative BIG-IP config: nameless global singletons (which previously
-/// produced empty outline names) plus a pool, plus an embedded iRule whose body
+/// A representative BIG-IP config: nameless global singletons (which would
+/// otherwise produce empty outline names) plus a pool, plus an embedded iRule whose body
 /// holds an encrypted-string marker the Tcl analyser would mis-read as `$M`.
 const BIGIP_CONF: &str = "\
 auth password-policy {
@@ -97,7 +97,7 @@ fn symbol_name_list(result: &Value) -> Vec<Option<String>> {
         .collect()
 }
 
-// Issue #534 — every outline symbol carries a non-empty name.
+// Every outline symbol carries a non-empty name.
 
 #[test]
 fn outline_symbols_all_have_non_empty_names() {
@@ -178,7 +178,7 @@ fn tcl_inside_an_embedded_rule_folds() {
     assert!(spans.contains(&(17, 18)), "when block: {spans:?}");
 }
 
-// Issue #571 — no general Tcl diagnostics on BIG-IP config text.
+// No general Tcl diagnostics on BIG-IP config text.
 
 #[test]
 fn encrypted_marker_does_not_raise_tcl_diagnostics() {

@@ -20707,7 +20707,7 @@ impl Backend {
             }
         }
 
-        // Stage 2: read + analyse the candidate files across a bounded worker
+        // Read and analyse the candidate files across a bounded worker
         // pool, merging into `workspace_index` / the salsa `Project` in
         // batches as they complete.
         let (resolver, files_count) = self
@@ -20779,14 +20779,15 @@ impl Backend {
             .await;
     }
 
-    /// Stage 1 of [`Self::scan_workspace_folders`]: build the package database
-    /// and walk the workspace trees for candidate paths.
+    /// Builds the package database and walks the workspace trees for
+    /// candidate paths, as the first half of [`Self::scan_workspace_folders`].
     ///
     /// Cheap directory-metadata work, so it stays a single blocking call; the
-    /// expensive per-file parse-and-analyse is stage 2
-    /// ([`Self::analyse_and_merge_scanned_files`]), parallelised.  Running
-    /// every file's `Analyser::analyse` here instead would serialise the whole
-    /// startup scan behind one thread.
+    /// expensive per-file parse-and-analyse happens afterwards, in the
+    /// parallelised second half
+    /// ([`Self::analyse_and_merge_scanned_files`]). Running every file's
+    /// `Analyser::analyse` here instead would serialise the whole startup
+    /// scan behind one thread.
     ///
     /// Both halves read through the [`vfs::SourceStore`], so a host that
     /// supplies bytes rather than a filesystem gets the same database and the
@@ -20843,8 +20844,8 @@ impl Backend {
         .unwrap_or_else(|_| (PackageResolver::new(), Vec::new()))
     }
 
-    /// Stage 2 of [`Self::scan_workspace_folders`]: read + analyse
-    /// `files` across a bounded worker pool (the `spawn_workspace_warm`
+    /// Reads and analyses `files` across a bounded worker pool, as the
+    /// second half of [`Self::scan_workspace_folders`] (the `spawn_workspace_warm`
     /// semaphore pattern — acquire a permit before spawning, so at most
     /// `WORKSPACE_ANALYSIS_MAX_CONCURRENCY` files are being read+analysed at
     /// once), merging into `workspace_index` / the salsa `Project` in batches
@@ -38342,8 +38343,7 @@ proc p {} {
         );
         assert!(!class.inheritance_unknown, "{class:?}");
 
-        // The outline is what the audit actually complained about: it was
-        // empty for this file.
+        // The outline must not come back empty for this file.
         let symbols = tcl_lsp_core::document_symbols::document_symbols_from_analysis(
             &std::fs::read_to_string(root.join("iconlist.tcl")).unwrap(),
             &analysis,

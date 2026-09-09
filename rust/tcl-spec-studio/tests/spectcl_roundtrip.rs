@@ -341,7 +341,7 @@ fn only_implied_command_prefix_roles(rendered: &Value, shipped: &Value) -> bool 
     implied == shipped_roles && !prefixes.is_empty()
 }
 
-/// Arity windows survive render → load → re-seed (issue #1627).
+/// Arity windows survive render → load → re-seed.
 ///
 /// The whole-surface trip above cannot cover them: every shipped spec has
 /// empty `arity_windows`, so the field is absent from every draft it visits

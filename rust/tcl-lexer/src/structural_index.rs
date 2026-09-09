@@ -131,8 +131,8 @@ use crate::substitution::{backslash_continuation_end, backslash_escape_end, is_l
 /// [`script_is_complete`]/[`command_boundaries`] scanner's
 /// `scan_complete`/`scan_complete_quoted`). Each recurses one native-stack
 /// frame group per `[`, with no natural bound — `[a [a [a …]]]` nested N
-/// deep recurses N deep — so pathologically deep input (issue #996's
-/// class: generated/minified Tcl) could otherwise abort the process with
+/// deep recurses N deep — so pathologically deep input (generated or
+/// minified Tcl) could otherwise abort the process with
 /// an uncatchable stack overflow. 128 is far past any bracket nesting
 /// real Tcl code uses; past it, a further `[` is scanned as an ordinary
 /// character instead of recursed into, so the index/completeness verdict
@@ -1516,7 +1516,7 @@ pub fn command_boundaries(source: &str) -> Vec<u32> {
             // `Terminal` for a weld C rejects (`{a}$b`), and its `[` arm
             // collapses that verdict's offset to end-of-input — so a nested
             // `[a [b {*}$c]]` (Tcl 9.0.4's `auto.tcl` writes exactly that)
-            // used to swallow every later boundary in the document. Boundary
+            // would swallow every later boundary in the document. Boundary
             // scanning is lenient by contract, so it wants the lenient,
             // comment-aware, iterative closer instead of the completeness
             // oracle's error path. Caught by `differential_boundaries`'
@@ -1772,7 +1772,7 @@ mod tests {
     fn bracket_index_comment_hides_command_closer() {
         // A command-position comment is part of the nested script.  Its `]`
         // must be inert, leaving only the final `]` as the substitution's
-        // structural closer (issue #1483).
+        // structural closer.
         let src = "[\n# ] hidden\nset y 1\n]";
         let close = u32::try_from(src.len() - 1).unwrap();
         assert_eq!(BracketIndex::build(src).events(), &[(0, 1), (close, -1)]);
@@ -1847,11 +1847,11 @@ mod tests {
         assert_eq!(scalar_unterminated(s2), 1); // scalar: WRONG (diverges)
     }
 
-    // ---- C Tcl 9.0.3 differential verification (the reference
-    // standard). The oracle is `tclsh9.0`'s `info complete`. These tests
+    // C Tcl 9.0.3 differential verification. The oracle is `tclsh9.0`'s
+    // `info complete`. These tests
     // skip gracefully when `tclsh9.0` is not on PATH so the suite still
     // passes in a minimal CI, but they run (and gate) wherever the
-    // reference interpreter is available. ----
+    // reference interpreter is available.
 
     /// Run `info complete` under C Tcl 9.0.3 for a batch of sources.
     /// Returns `None` if `tclsh9.0` is unavailable. Records are sent
