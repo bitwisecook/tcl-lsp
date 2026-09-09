@@ -188,17 +188,22 @@ reference resolves into an LTM config and the hops off that object
 resolve the same way.  Without `--merge` a dereference stays inside the
 config being iterated, which is what per-file semantics mean.
 
-A reference that resolves to no object in that view is never silent:
+A reference that resolves to no object in that view is never silent.
+Reading a field through one yields a value that renders as `null` but
+carries the path that failed, so the gap is visible in a projection and
+a further step can name it:
 
 | Shape | Result |
 | --- | --- |
-| Empty reference (`pool none`) | contributes nothing |
-| Field read (`.pool.members`) | explicit `null` |
-| Iterate / subscript (`.pool[]`, `.pool["members"]`) | error naming the path |
+| Empty reference (`pool none`) | contributes nothing, at every kind of step |
+| Field read (`.pool.members`) | reads as `null`, carrying `/Common/…` |
+| Reading on through it (`.pool.members.foo`) | error naming the path |
+| Iterating it (`.pool.members[]`) | empty — nothing to iterate |
+| Iterating / subscripting the reference itself (`.pool[]`, `.pool["x"]`) | error naming the path |
 
-The explicit `null` keeps a dangling reference distinguishable from a
-resolved object whose field is genuinely empty, and `length` of it is
-`0`.  Outside `--merge` the error also points at `--merge` when more
+`length` of the `null` is `0`, and it is falsy.  Plain `null` is
+unaffected and still refuses to iterate; only an unresolved reference is
+empty.  Outside `--merge` the error also points at `--merge` when more
 than one source is loaded.
 
 ### `Stream`

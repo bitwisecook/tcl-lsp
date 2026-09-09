@@ -769,12 +769,18 @@ fn field_step(value: &Value, name: &str, ctx: &mut EvalContext) -> Result<Vec<Va
             Some(target) => field_step(&Value::ObjectRef(target), name, ctx),
             // An empty reference is "no reference at all" (`pool none`), so
             // it contributes nothing. A *dangling* one — a path naming an
-            // object that exists nowhere in the view — reads as an explicit
-            // `null`, keeping it distinguishable from a resolved object whose
-            // field is genuinely empty.
+            // object that exists nowhere in the view — carries that path
+            // forward, so it reads as `null` instead of being
+            // indistinguishable from a resolved object whose field is empty,
+            // and the next step can name what failed to resolve.
             None if p.full_path.is_empty() => Ok(Vec::new()),
-            None => Ok(vec![Value::Null]),
+            None => Ok(vec![Value::Unresolved(Rc::clone(p))]),
         },
+        Value::Unresolved(p) => Err(unresolved_ref_error(
+            p,
+            &format!("read field {}", pyr(name)),
+            ctx,
+        )),
         Value::Container(c) => Ok(vec![c.lookup(name)?]),
         Value::ObjectRef(o) => match o.fields.get(name) {
             Some(v) => Ok(vec![v.clone()]),
@@ -802,10 +808,10 @@ fn subscript_root(value: &Value, ctx: &mut EvalContext) -> Result<Value, QueryEr
             None if p.full_path.is_empty() => Ok(Value::Stream(Vec::new())),
             None => Err(unresolved_ref_error(p, "iterate", ctx)),
         },
-        // Iterating `null` yields nothing — reached when a dangling reference
-        // read as `null` a step earlier (`.pool.members[]` on a virtual whose
-        // pool is not in the view).
-        Value::Null => Ok(Value::List(Vec::new())),
+        // A reference that named nothing has nothing to iterate — reached one
+        // step on from the failed lookup (`.pool.members[]` on a virtual whose
+        // pool is not in the view). Plain `null` still refuses to iterate.
+        Value::Unresolved(_) => Ok(Value::List(Vec::new())),
         Value::Container(c) => {
             // Flatten container → container → object until the entries are
             // no longer all containers.
@@ -842,7 +848,7 @@ fn regex_subscript(
             None if p.full_path.is_empty() => Ok(Vec::new()),
             None => Err(unresolved_ref_error(p, "regex-subscript", ctx)),
         },
-        Value::Null => Ok(Vec::new()),
+        Value::Unresolved(_) => Ok(Vec::new()),
         Value::Container(c) => {
             let entries = c.entries();
             let keys = c.regex_keys(pattern)?;
@@ -884,8 +890,10 @@ fn subscript_step(
     match value {
         Value::PathRef(p) => match resolve_pathref(p, ctx) {
             Some(target) => subscript_step(&Value::ObjectRef(target), index, ctx),
+            None if p.full_path.is_empty() => Ok(Value::Stream(Vec::new())),
             None => Err(unresolved_ref_error(p, "subscript", ctx)),
         },
+        Value::Unresolved(p) => Err(unresolved_ref_error(p, "subscript", ctx)),
         Value::Container(c) => match index {
             Value::Str(key) => c.lookup(key),
             Value::Int(i) => {

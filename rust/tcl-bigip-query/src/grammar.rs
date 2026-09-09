@@ -150,12 +150,14 @@ PATH ACCESS
                           source.  Without ``--merge`` a deref stays inside
                           the config being iterated.
                           A path naming an object that is nowhere in the
-                          view is never silent: a field read through it is
-                          an explicit ``null`` (so ``.pool.members`` reads
-                          ``null``, not "a pool with no members"), and
-                          iterating or subscripting through it is an error
-                          naming the path.  An *empty* ref (no pool set at
-                          all) contributes nothing.
+                          view is never silent: a field read through it
+                          reads as ``null`` (so ``.pool.members`` shows
+                          ``null``, not "a pool with no members") while
+                          carrying the path that failed, so reading on
+                          through it names that path.  Iterating it is
+                          empty; iterating or subscripting the reference
+                          itself is an error naming the path.  An *empty*
+                          ref (no pool set at all) contributes nothing.
 
 MODULES
 

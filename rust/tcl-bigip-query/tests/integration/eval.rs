@@ -251,8 +251,10 @@ fn merge_resolves_a_deref_into_another_document() {
 }
 
 /// A reference that resolves nowhere in the view is visible, never a silent
-/// empty stream: reading a field through it yields an explicit `null`, and
-/// iterating or subscripting through it is an error that names the path.
+/// empty stream. It reads as `null`, carrying the path that failed so a
+/// further field read or subscript names it, and iterating it is empty
+/// because there is nothing to iterate. Plain `null` keeps its own
+/// semantics — the dangling case does not loosen them.
 #[test]
 fn an_unresolvable_reference_is_never_silent() {
     let sources = [
@@ -262,16 +264,19 @@ fn an_unresolvable_reference_is_never_silent() {
 
     // Without --merge the pool is in the other document and cannot resolve.
     let unmerged = run_conf(".gtm.wideip[] | .pools[] | .members", &sources, false)
-        .expect("an unresolved deref is an explicit null, not an error");
+        .expect("an unresolved deref reads as null, not an error");
     assert_eq!(unmerged.len(), 1, "one value, got {unmerged:?}");
     assert!(
-        matches!(unmerged[0], Value::Null),
-        "explicit null, got {:?}",
+        matches!(unmerged[0], Value::Unresolved(_)),
+        "carries the dangling path, got {:?}",
         unmerged[0]
     );
+    // It renders as null and has no length, so a projection shows the gap.
+    assert_eq!(strings(&unmerged), vec!["null"]);
 
-    let err = run_conf(".gtm.wideip[] | .pools[] | .[]", &sources, false)
-        .expect_err("iterating through an unresolved reference is an error");
+    // Reading on through it names what failed to resolve.
+    let err = run_conf(".gtm.wideip[] | .pools[] | .members.foo", &sources, false)
+        .expect_err("a field read through an unresolved reference is an error");
     assert!(
         err.contains("/Common/gp1") && err.contains("unresolved reference"),
         "the error names the path: {err}"
@@ -279,5 +284,45 @@ fn an_unresolvable_reference_is_never_silent() {
     assert!(
         err.contains("--merge"),
         "with several sources loaded the error points at --merge: {err}"
+    );
+
+    // Iterating it is empty — there is nothing to iterate.
+    let iterated = run_conf(
+        ".gtm.wideip[] | .pools[] | [.members[]] | length",
+        &sources,
+        false,
+    )
+    .expect("iterating an unresolved reference is empty, not an error");
+    assert_eq!(strings(&iterated), vec!["0"]);
+
+    // It compares equal to null, so a query can select the gaps.
+    let selected = run_conf(
+        ".gtm.wideip[] | .pools[] | select(.members == null)",
+        &sources,
+        false,
+    )
+    .expect("an unresolved reference compares equal to null");
+    assert_eq!(strings(&selected), vec!["/Common/gp1"]);
+
+    // An empty reference — no object named at all — contributes nothing at
+    // every kind of step, including an indexed one.
+    let empty = run_conf(
+        r#".ltm.virtual[] | select(.pool == "") | .pool["members"]"#,
+        &[("file:///ltm.conf", LTM_CONF)],
+        false,
+    )
+    .expect("an empty reference is not a dangling one");
+    assert!(empty.is_empty(), "expected no values, got {empty:?}");
+}
+
+/// A plain `null` keeps jq-ish semantics: it refuses to iterate. Only an
+/// unresolved reference iterates empty.
+#[test]
+fn plain_null_still_refuses_to_iterate() {
+    let err =
+        run("null | .[]", &serde_json::json!({}), "json").expect_err("iterating null is an error");
+    assert!(
+        err.contains("cannot iterate null"),
+        "null keeps its own semantics: {err}"
     );
 }
