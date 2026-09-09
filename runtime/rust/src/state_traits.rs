@@ -307,8 +307,8 @@ fn invalid_command_id(interp: &mut Interp) -> Completion<*mut TclObj> {
 }
 
 /// Command dispatch by name ([`dispatch`](Commands::dispatch)) or by a resolved
-/// [`CommandId`] ([`dispatch_id`](Commands::dispatch_id), which reverses the id
-/// to its FQN and invokes that) — the resolve-then-invoke pairing with
+/// [`CommandId`] ([`dispatch_id`](Commands::dispatch_id), which invokes the
+/// exact retained generation) — the resolve-then-invoke pairing with
 /// [`Namespaces::find_command`].
 impl Commands for Interp {
     type Value = *mut TclObj;
@@ -318,8 +318,8 @@ impl Commands for Interp {
     }
 
     fn dispatch_id(&mut self, cmd: CommandId, argv: &[*mut TclObj]) -> Completion<*mut TclObj> {
-        match self.command_fqn(cmd.0) {
-            Some(fqn) => dispatch_named(self, &fqn, argv),
+        match self.dispatch_command_id(cmd.0, argv) {
+            Some(code) => capture_completion(self, code),
             None => invalid_command_id(self),
         }
     }
@@ -417,10 +417,8 @@ impl Frames for Interp {
 /// Namespace name resolution. `NsId` is native (the contract's `u32` newtype
 /// bridges the runtime's `usize` arena id), so [`current`](Namespaces::current)
 /// is a direct read. [`find_command`](Namespaces::find_command) resolves `name`
-/// from `cxt` through the namespace tree to its FQN (`resolve_fqn`) and interns
-/// that to a stable `CommandId`. Note: the handle is currently produced for
-/// command *identity* only — nothing dispatches by it (the `Commands` trait
-/// dispatches by name), the open `find_command`/`CommandId` consumer question.
+/// from `cxt` to an exact `(FQN, generation)` token and interns that as a stable
+/// `CommandId`.
 impl Namespaces for Interp {
     fn find_command(&self, cxt: NsId, name: &str) -> Option<CommandId> {
         // The contract's `NsId` is a `u32` newtype; the runtime's is a `usize`.
@@ -795,6 +793,39 @@ mod tests {
             unsafe {
                 obj::decr_ref_count(c.result);
                 obj::decr_ref_count(c.options);
+            }
+        });
+    }
+
+    #[test]
+    fn command_ids_do_not_rebind_to_same_named_replacements() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(b"proc p {} {return OLD}"),
+                crate::interp::Code::Ok
+            );
+            let old = Namespaces::find_command(i, ROOT_NS, "p").expect("old p resolves");
+            assert_eq!(
+                i.eval_str(b"proc p {} {return NEW}"),
+                crate::interp::Code::Ok
+            );
+            let new = Namespaces::find_command(i, ROOT_NS, "p").expect("new p resolves");
+            assert_ne!(old, new);
+
+            let stale = Commands::dispatch_id(i, old, &[]);
+            assert_eq!(stale.code, Code::Error);
+            assert_eq!(obj_bytes(stale.result), b"invalid command id");
+            unsafe {
+                obj::decr_ref_count(stale.result);
+                obj::decr_ref_count(stale.options);
+            }
+
+            let live = Commands::dispatch_id(i, new, &[]);
+            assert_eq!(live.code, Code::Ok);
+            assert_eq!(obj_bytes(live.result), b"NEW");
+            unsafe {
+                obj::decr_ref_count(live.result);
+                obj::decr_ref_count(live.options);
             }
         });
     }

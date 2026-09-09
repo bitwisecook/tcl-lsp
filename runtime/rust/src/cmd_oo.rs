@@ -52,7 +52,7 @@ use tcl_registry::commands::tcl::{
 };
 
 use crate::interp::{
-    obj_bytes, CallMeta, Code, Command, Interp, MethodFrameWhat, OoCommandRole, Param, ProcFrame,
+    obj_bytes, CallMeta, Code, Command, Interp, MethodFrameWhat, Param, ProcFrame,
 };
 use crate::list;
 use crate::namespace::{NsId, GLOBAL};
@@ -5943,11 +5943,11 @@ impl Interp {
             self.oo_destroy_class_descendants(obj);
         }
         let var_ns = self.oo.borrow().objects.get(&obj).map(|o| o.var_ns);
-        // The public object's delete trace runs before private dispatcher and
-        // instance-namespace teardown. It may relocate `my`/`myclass`; their
-        // later identity-based retirement must find the moved token (Tcl 9.0.4
-        // `FreeObject` command order).
-        self.fire_oo_command_delete_traces(obj, Some(OoCommandRole::Object));
+        // Tcl retires all three command roles before tearing down the instance
+        // namespace: public object, `myclass`, then `my`. An earlier callback
+        // may relocate a later dispatcher, so the centralized role walk
+        // re-resolves every token immediately before firing it.
+        self.fire_oo_command_role_delete_traces(obj);
         // Then delete the instance namespace — this unsets its variables and
         // fires their unset traces while the object is still registered and
         // torn-down, so a trace callback sees `info object isa object` true, the
@@ -7781,6 +7781,37 @@ mod tests {
                         set log"#,
                 ),
                 b"public myclass my",
+            );
+        });
+    }
+
+    /// TclOO's semantic role order also precedes instance-variable teardown.
+    /// Moving only `myclass` from the public callback is the asymmetric case:
+    /// table order would otherwise delete the remaining `my` first.
+    #[test]
+    fn object_command_roles_precede_variables_after_asymmetric_move() {
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    br#"set log {}
+                        oo::class create C
+                        C create x
+                        set ns [info object namespace x]
+                        set ${ns}::v 1
+                        proc public {ns old new op} {
+                            lappend ::log public
+                            rename ${ns}::myclass ::mc
+                        }
+                        proc t {tag args} {lappend ::log $tag}
+                        trace add command x delete [list public $ns]
+                        trace add command ${ns}::my delete [list t my]
+                        trace add command ${ns}::myclass delete [list t myclass]
+                        trace add variable ${ns}::v unset [list t var]
+                        x destroy
+                        set log"#,
+                ),
+                b"public myclass my var",
             );
         });
     }

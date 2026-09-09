@@ -413,13 +413,13 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             // check, tclNamesp.c) — common when a file and its sourced helper
             // both import `::tcltest::*`. `-force` deliberately replaces even
             // that same-origin import with a fresh command token.
-            let existing_import = interp
-                .namespaces()
-                .imported_in(dest)
-                .into_iter()
-                .find(|(k, _)| k == &simple)
-                .map(|(_, s)| s);
-            if !force && existing_import.as_deref() == Some(source.as_slice()) {
+            let existing_import = match interp.namespaces().command_in(dest, &simple) {
+                Some(Command::Imported {
+                    source_generation, ..
+                }) => Some(source_generation),
+                _ => None,
+            };
+            if !force && existing_import == Some(source_generation) {
                 continue;
             }
             // Reject clobbering an existing (different) command unless -force.
@@ -429,18 +429,18 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 m.extend_from_slice(b"\": already exists");
                 return interp.error_with_code(&m, b"TCL IMPORT OVERWRITE");
             }
-            let mut destination_fqn = interp.namespaces().qualified_name(dest);
-            if destination_fqn != b"::" {
-                destination_fqn.extend_from_slice(b"::");
-            }
-            destination_fqn.extend_from_slice(&simple);
             // Follow immediate import origins before mutating the destination.
             // If the source chain already reaches the command being replaced,
             // this new edge would close Tcl's ImportRef graph into a cycle.
-            if interp
-                .namespaces()
-                .import_chain_contains(&source, &destination_fqn)
+            let destination_generation = interp.namespaces().command_generation(dest, &simple);
+            if destination_generation
+                .is_some_and(|needle| interp.import_chain_contains(source_generation, needle))
             {
+                let mut destination_fqn = interp.namespaces().qualified_name(dest);
+                if destination_fqn != b"::" {
+                    destination_fqn.extend_from_slice(b"::");
+                }
+                destination_fqn.extend_from_slice(&simple);
                 let mut message = b"import pattern \"".to_vec();
                 message.extend_from_slice(pat);
                 message.extend_from_slice(b"\" would create a loop containing command \"");
@@ -2839,6 +2839,75 @@ mod tests {
             assert_eq!(
                 i.result_bytes(),
                 b"{::N::y ::N::x OLD NEW OLD} ::N::x NEW {}"
+            );
+        });
+    }
+
+    /// `namespace origin` follows an imported source chain by command token,
+    /// even while a recreated namespace exposes a direct command at the same
+    /// intermediate FQN.
+    #[test]
+    fn retained_import_origin_chain_ignores_a_recreated_same_fqn_command() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval Root {
+                          proc x {} {return ROOT}
+                          namespace export x
+                      }
+                      namespace eval O {
+                          namespace import ::Root::x
+                          namespace export x
+                      }
+                      namespace eval N {
+                          namespace import ::O::x
+                          proc p {} {
+                              namespace delete ::N
+                              namespace eval ::N {proc x {} {return NEW}}
+                              list [namespace origin ::A::x] [::A::x] \
+                                   [namespace origin ::N::x] [::N::x]
+                          }
+                          namespace export x p
+                      }
+                      namespace eval A {namespace import ::N::x}
+                      N::p",
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"::Root::x ROOT ::N::x NEW");
+        });
+    }
+
+    /// Same-origin reimport compares source generations, not display FQNs. A
+    /// retained old and recreated new `::N::x` are different import origins.
+    #[test]
+    fn same_fqn_different_generation_reimport_is_not_idempotent() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval N {
+                          proc x {} {return OLD}
+                          proc p {} {
+                              namespace delete ::N
+                              namespace eval ::N {
+                                  proc x {} {return NEW}
+                                  namespace export x
+                              }
+                              namespace eval ::A {
+                                  set c [catch {namespace import ::N::x} m]
+                                  list $c $m [namespace origin x] [x]
+                              }
+                          }
+                          namespace export x p
+                      }
+                      namespace eval A {namespace import ::N::x}
+                      N::p",
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"1 {can't import command \"x\": already exists} ::N::x OLD"
             );
         });
     }

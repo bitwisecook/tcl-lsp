@@ -1713,31 +1713,6 @@ impl Namespaces {
             .collect()
     }
 
-    /// Whether the immediate-source chain beginning at `source_fqn` reaches
-    /// `needle_fqn`. `namespace import -force` consults this before replacing
-    /// the destination binding: installing that edge would otherwise close an
-    /// ImportRef cycle. Normal construction keeps the graph acyclic; the
-    /// visited set makes the invariant check finite for malformed legacy state.
-    pub(crate) fn import_chain_contains(&self, source_fqn: &[u8], needle_fqn: &[u8]) -> bool {
-        let mut current = source_fqn.to_vec();
-        let mut visited = BTreeSet::new();
-        while visited.insert(current.clone()) {
-            if current == needle_fqn {
-                return true;
-            }
-            let Some(Command::Imported {
-                source, ensemble, ..
-            }) = self.resolve(GLOBAL, &current)
-            else {
-                return false;
-            };
-            current = ensemble
-                .filter(|token| !token.is_deleted())
-                .map_or(source, |token| token.name());
-        }
-        false
-    }
-
     /// Remove the simple-named command `name` directly from `ns` (no resolution
     /// walk); returns whether it existed. For `namespace forget`.
     pub fn remove_in(&mut self, ns: NsId, name: &[u8]) -> bool {

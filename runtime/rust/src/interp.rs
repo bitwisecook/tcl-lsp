@@ -673,7 +673,7 @@ impl Command {
 enum CommandGenerationLookup {
     Missing,
     Unavailable,
-    Found(Command),
+    Found { fqn: Vec<u8>, command: Command },
 }
 
 thread_local! {
@@ -827,12 +827,13 @@ impl core::ops::Deref for Interp {
 /// re-borrows freshly instead of aliasing. The command resolver returns *cloned*
 /// `Command` handles precisely so dispatch holds no table borrow.
 /// The command-identity arena backing `Namespaces::find_command` /
-/// `Commands::dispatch_id`: a bijection between a command's FQN and a dense raw
-/// `CommandId` (the index into `fqns`). Minted on first `find_command`.
+/// `Commands::dispatch_id`: a bijection between an exact `(FQN, generation)`
+/// token and a dense raw `CommandId`. Retained and recreated namespaces may
+/// expose the same FQN simultaneously, so the display name alone is not an id.
 #[derive(Default)]
 struct CmdArena {
-    ids: std::collections::HashMap<Vec<u8>, u32>,
-    fqns: Vec<Vec<u8>>,
+    ids: std::collections::HashMap<(Vec<u8>, u64), u32>,
+    commands: Vec<(Vec<u8>, u64)>,
 }
 
 #[derive(Clone, Debug)]
@@ -859,6 +860,11 @@ pub struct InterpState {
     guards: RefCell<GuardManager>,
     guarded_commands:
         RefCell<std::collections::BTreeMap<Vec<u8>, std::collections::BTreeSet<GuardIdentity>>>,
+    /// Registry identity of each engine-installed builtin command generation.
+    /// A command keeps this key across rename and hide, so imports of a moved
+    /// token continue to apply the final builtin's dialect availability rather
+    /// than treating its new display spelling as an unrelated extension.
+    registry_builtin_names: RefCell<std::collections::HashMap<u64, Vec<u8>>>,
     /// The current namespace for command resolution (the eval context; a proc
     /// runs in its *defining* namespace — wired with procs). Global at top level.
     current_ns: Cell<NsId>,
@@ -1034,11 +1040,8 @@ pub struct InterpState {
     /// since the chain is then consumed.
     during: Cell<Option<*mut TclObj>>,
     result: Cell<*mut TclObj>,
-    /// Command-FQN ⇆ dense raw `CommandId` arena for `Namespaces::find_command`
-    /// and `Commands::dispatch_id`. Interior-mutable because `find_command` is
-    /// `&self` but mints a handle on first sight; `state_traits.rs` wraps the raw id
-    /// in the contract's `CommandId`. Bidirectional: `find_command` interns an
-    /// FQN, `dispatch_id` reverses the id back to its FQN to invoke it.
+    /// Exact command token ⇆ dense raw `CommandId` arena for
+    /// `Namespaces::find_command` and `Commands::dispatch_id`.
     cmd_arena: RefCell<CmdArena>,
     /// `interp limit` configuration. The `time` limit is enforced by the loop
     /// commands; `commands` is stored for query/set only.
@@ -1343,6 +1346,7 @@ impl Interp {
             active_var_trace_scopes: RefCell::new(Vec::new()),
             guards: RefCell::new(guards),
             guarded_commands: RefCell::new(std::collections::BTreeMap::new()),
+            registry_builtin_names: RefCell::new(std::collections::HashMap::new()),
             current_ns: Cell::new(GLOBAL),
             recursion_depth: Cell::new(0),
             recursion_limit: Cell::new(RECURSION_LIMIT),
@@ -1637,10 +1641,26 @@ impl Interp {
     }
 
     /// Apply the selected dialect's command-surface gate to an already-bound
-    /// command token at its current Tcl-facing location.
-    fn command_visible_for_surface_at(&self, command: &Command, fqn: &[u8]) -> bool {
+    /// command token. Engine builtins retain their registry identity by exact
+    /// generation across rename and hide; other native commands use their
+    /// current Tcl-facing spelling as before.
+    fn command_visible_for_surface_at(
+        &self,
+        command: &Command,
+        fqn: &[u8],
+        generation: Option<u64>,
+    ) -> bool {
         match command {
-            Command::Builtin(_) => self.builtin_command_visible_for_surface(fqn),
+            Command::Builtin(_) => {
+                let registry_name = generation.and_then(|generation| {
+                    self.0
+                        .registry_builtin_names
+                        .borrow()
+                        .get(&generation)
+                        .cloned()
+                });
+                self.builtin_command_visible_for_surface(registry_name.as_deref().unwrap_or(fqn))
+            }
             Command::OoObject(id) => self
                 .0
                 .registry_object_roots
@@ -1675,11 +1695,15 @@ impl Interp {
     /// 8.6/9.0 for `interp alias {} la {} nosuchcmd; la`), which is precisely
     /// the "this release does not have that command" contract of #1462.
     pub(crate) fn resolve_dispatchable(&self, origin: NsId, name: &[u8]) -> Option<Command> {
-        let (command, fqn) = {
+        let (command, fqn, generation) = {
             let ns = self.namespaces.borrow();
-            (ns.resolve(origin, name)?, ns.resolve_fqn(origin, name)?)
+            (
+                ns.resolve(origin, name)?,
+                ns.resolve_fqn(origin, name)?,
+                ns.resolve_generation(origin, name),
+            )
         };
-        self.command_visible_for_surface_at(&command, &fqn)
+        self.command_visible_for_surface_at(&command, &fqn, generation)
             .then_some(command)
     }
 
@@ -1752,6 +1776,19 @@ impl Interp {
         let ns = self.namespaces.borrow_mut().command_home_ns(GLOBAL, name);
         let tail = tcl_syntax::naming::written_command_tail(name).to_vec();
         self.bind_command_replacement(ns, &tail, Command::Builtin(f));
+        let (fqn, generation) = {
+            let namespaces = self.namespaces.borrow();
+            (
+                namespaces.command_fqn_at(ns, &tail),
+                namespaces
+                    .command_generation(ns, &tail)
+                    .expect("the builtin command was just bound"),
+            )
+        };
+        self.0
+            .registry_builtin_names
+            .borrow_mut()
+            .insert(generation, fqn);
     }
 
     /// Register a builtin with a stable semantic identity understood by
@@ -2563,6 +2600,19 @@ impl Interp {
         }
     }
 
+    /// Fire an owner's public and private command-token traces in TclOO's
+    /// semantic teardown order. Resolving each role immediately before its
+    /// turn lets an earlier callback relocate a later dispatcher.
+    pub(crate) fn fire_oo_command_role_delete_traces(&mut self, owner: OoId) {
+        for role in [
+            OoCommandRole::Object,
+            OoCommandRole::MyClass,
+            OoCommandRole::My,
+        ] {
+            self.fire_oo_command_delete_traces(owner, Some(role));
+        }
+    }
+
     /// Retire every command token carried by one TclOO owner identity. The
     /// namespace arena covers both visible and retained generations; the
     /// interpreter-owned hidden table is folded into the same transaction.
@@ -2573,13 +2623,7 @@ impl Interp {
             return;
         }
 
-        for role in [
-            OoCommandRole::Object,
-            OoCommandRole::MyClass,
-            OoCommandRole::My,
-        ] {
-            self.fire_oo_command_delete_traces(owner, Some(role));
-        }
+        self.fire_oo_command_role_delete_traces(owner);
 
         let mut removed: Vec<(Vec<u8>, u64)> = self
             .namespaces
@@ -2641,22 +2685,56 @@ impl Interp {
     /// Resolve one retained command token wherever rename or visibility moves
     /// placed it, distinguishing an unavailable token from a retired one.
     fn command_by_generation(&self, generation: u64) -> CommandGenerationLookup {
-        if let Some((fqn, command)) = self.namespaces.borrow().command_by_generation(generation) {
-            return if self.command_visible_for_surface_at(&command, &fqn) {
-                CommandGenerationLookup::Found(command)
-            } else {
-                CommandGenerationLookup::Unavailable
-            };
+        let Some((fqn, command)) = self.raw_command_location_by_generation(generation) else {
+            return CommandGenerationLookup::Missing;
+        };
+        if !self.command_visible_for_surface_at(&command, &fqn, Some(generation)) {
+            return CommandGenerationLookup::Unavailable;
         }
-        self.hidden
-            .borrow()
-            .values()
-            .find(|binding| binding.generation == generation)
-            .map(|binding| binding.command.clone())
-            .map_or(
-                CommandGenerationLookup::Missing,
-                CommandGenerationLookup::Found,
-            )
+        CommandGenerationLookup::Found { fqn, command }
+    }
+
+    /// Resolve an exact generation and its current projection without applying
+    /// dispatch-surface policy.
+    fn raw_command_location_by_generation(&self, generation: u64) -> Option<(Vec<u8>, Command)> {
+        if let Some((fqn, command)) = self.namespaces.borrow().command_by_generation(generation) {
+            return Some((fqn, command));
+        }
+        self.hidden.borrow().iter().find_map(|(name, binding)| {
+            if binding.generation != generation {
+                return None;
+            }
+            let mut fqn = b"::".to_vec();
+            fqn.extend_from_slice(name);
+            Some((fqn, binding.command.clone()))
+        })
+    }
+
+    /// The command half of [`Self::raw_command_location_by_generation`].
+    fn raw_command_by_generation(&self, generation: u64) -> Option<Command> {
+        self.raw_command_location_by_generation(generation)
+            .map(|(_, command)| command)
+    }
+
+    /// Whether an exact imported-command source chain reaches another command
+    /// generation. The import loop gate must not substitute a recreated
+    /// same-FQN namespace token for a retained source.
+    pub(crate) fn import_chain_contains(&self, source_generation: u64, needle: u64) -> bool {
+        let mut generation = source_generation;
+        let mut visited = std::collections::BTreeSet::new();
+        while visited.insert(generation) {
+            if generation == needle {
+                return true;
+            }
+            let Some(Command::Imported {
+                source_generation, ..
+            }) = self.raw_command_by_generation(generation)
+            else {
+                return false;
+            };
+            generation = source_generation;
+        }
+        false
     }
 
     /// Resolve an import's retained source token. Tcl redirects follow the
@@ -2666,7 +2744,7 @@ impl Interp {
     /// present and must not take that fallback.
     fn resolve_import_source(&self, source: &[u8], generation: u64) -> Option<Command> {
         match self.command_by_generation(generation) {
-            CommandGenerationLookup::Found(command) => Some(command),
+            CommandGenerationLookup::Found { command, .. } => Some(command),
             CommandGenerationLookup::Unavailable => None,
             CommandGenerationLookup::Missing => self.resolve_dispatchable(GLOBAL, source),
         }
@@ -5549,23 +5627,13 @@ impl Interp {
                 // `info commands ::oo::*` on an 8.4 surface advertises names
                 // that then fail to dispatch. The TclOO roots the engine
                 // installs on the registry's behalf are gated alongside
-                // builtins; every script-created object stays invariant.
-                let registry_name = match ns.resolve(id, name) {
-                    Some(Command::Builtin(_)) => {
-                        let mut full_name = prefix.clone();
-                        full_name.extend_from_slice(name);
-                        Some(full_name)
-                    }
-                    Some(Command::OoObject(owner)) => {
-                        self.0.registry_object_roots.borrow().get(&owner).cloned()
-                    }
-                    _ => None,
-                };
-                registry_name
-                    .as_deref()
-                    .is_none_or(|registry_name| {
-                        self.builtin_command_visible_for_surface(registry_name)
-                    })
+                // builtins; every script-created object stays invariant. Use
+                // the exact generation too, so a renamed builtin is gated by
+                // the same stable registry identity as dispatch.
+                let command = ns.command_in(id, name)?;
+                let mut fqn = prefix.clone();
+                fqn.extend_from_slice(name);
+                self.command_visible_for_surface_at(&command, &fqn, ns.command_generation(id, name))
                     .then(|| name.to_vec())
             })
             .collect()
@@ -5730,16 +5798,17 @@ impl Interp {
         self.result.get()
     }
 
-    /// Intern a command's fully-qualified name to a stable, dense raw
-    /// `CommandId`, minting one on first sight. Backs `Namespaces::find_command`.
-    fn intern_cmd(&self, fqn: &[u8]) -> u32 {
+    /// Intern an exact command token to a stable, dense raw `CommandId`, minting
+    /// one on first sight. Backs `Namespaces::find_command`.
+    fn intern_cmd(&self, fqn: &[u8], generation: u64) -> u32 {
         let mut a = self.cmd_arena.borrow_mut();
-        if let Some(&id) = a.ids.get(fqn) {
+        let key = (fqn.to_vec(), generation);
+        if let Some(&id) = a.ids.get(&key) {
             return id;
         }
-        let id = u32::try_from(a.fqns.len()).expect("command count fits u32");
-        a.fqns.push(fqn.to_vec());
-        a.ids.insert(fqn.to_vec(), id);
+        let id = u32::try_from(a.commands.len()).expect("command count fits u32");
+        a.commands.push(key.clone());
+        a.ids.insert(key, id);
         id
     }
 
@@ -5748,14 +5817,26 @@ impl Interp {
     /// `CommandId`. `None` if it resolves to no command. The `Namespaces::find_command`
     /// engine (`state_traits.rs`), keeping the namespace-table access here.
     pub(crate) fn find_command_id(&self, cxt: NsId, name: &[u8]) -> Option<u32> {
-        let fqn = self.namespaces.borrow().resolve_fqn(cxt, name)?;
-        Some(self.intern_cmd(&fqn))
+        let (fqn, generation) = {
+            let namespaces = self.namespaces.borrow();
+            (
+                namespaces.resolve_fqn(cxt, name)?,
+                namespaces.resolve_generation(cxt, name)?,
+            )
+        };
+        Some(self.intern_cmd(&fqn, generation))
     }
 
-    /// The FQN an interned raw `CommandId` was minted from, or `None` for a
-    /// fabricated/out-of-range id. Backs `Commands::dispatch_id`'s reverse step.
+    /// The exact `(FQN, generation)` an interned raw `CommandId` names.
+    pub(crate) fn command_identity(&self, id: u32) -> Option<(Vec<u8>, u64)> {
+        self.cmd_arena.borrow().commands.get(id as usize).cloned()
+    }
+
+    /// The FQN projection of an interned raw `CommandId`.
     pub(crate) fn command_fqn(&self, id: u32) -> Option<Vec<u8>> {
-        self.cmd_arena.borrow().fqns.get(id as usize).cloned()
+        let (_, generation) = self.command_identity(id)?;
+        self.raw_command_location_by_generation(generation)
+            .map(|(fqn, _)| fqn)
     }
 
     /// The command an interned command was ultimately imported from — C's
@@ -5765,24 +5846,35 @@ impl Interp {
     /// `Namespaces::command_origin`. Bounded against a cycle a retargeting bug
     /// could leave behind; a well-formed chain is acyclic.
     pub(crate) fn imported_source_id(&self, id: u32) -> Option<u32> {
-        let mut fqn = self.command_fqn(id)?;
+        let (_, mut generation) = self.command_identity(id)?;
+        let (mut fqn, mut command) = self.raw_command_location_by_generation(generation)?;
         let mut hops = 0;
-        loop {
-            let next = match self.namespaces.borrow().resolve(GLOBAL, &fqn) {
-                Some(Command::Imported {
-                    source, ensemble, ..
-                }) => ensemble
-                    .filter(|token| !token.is_deleted())
-                    .map_or(source, |token| token.name()),
-                _ => break,
-            };
-            fqn = next;
+        while let Command::Imported {
+            source,
+            source_generation,
+            ensemble,
+            ..
+        } = command
+        {
+            let source = ensemble
+                .filter(|token| !token.is_deleted())
+                .map_or(source, |token| token.name());
+            if let Some(next) = self.raw_command_by_generation(source_generation) {
+                fqn = source;
+                generation = source_generation;
+                command = next;
+            } else {
+                let namespaces = self.namespaces.borrow();
+                fqn = namespaces.resolve_fqn(GLOBAL, &source)?;
+                generation = namespaces.resolve_generation(GLOBAL, &source)?;
+                command = namespaces.resolve(GLOBAL, &source)?;
+            }
             hops += 1;
             if hops >= 64 {
                 break;
             }
         }
-        (hops > 0).then(|| self.intern_cmd(&fqn))
+        (hops > 0).then(|| self.intern_cmd(&fqn, generation))
     }
 
     /// Immediate source binding and optional real-ensemble identity for a new
@@ -7281,6 +7373,39 @@ impl Interp {
     /// matching C's `TclEvalObjvInternal`.
     pub(crate) fn dispatch(&mut self, argv: &[*mut TclObj]) -> Code {
         self.dispatch_prebound(argv, None)
+    }
+
+    /// Invoke the exact command token named by a shared-runtime `CommandId`.
+    /// IDs retain a generation as well as an FQN, so a recreated same-named
+    /// namespace command cannot capture a previously resolved handle.
+    pub(crate) fn dispatch_command_id(&mut self, id: u32, argv: &[*mut TclObj]) -> Option<Code> {
+        let (_, generation) = self.command_identity(id)?;
+        let (fqn, command) = match self.command_by_generation(generation) {
+            CommandGenerationLookup::Found { fqn, command } => (fqn, command),
+            CommandGenerationLookup::Missing | CommandGenerationLookup::Unavailable => {
+                return None;
+            }
+        };
+        let mut full = Vec::with_capacity(argv.len() + 1);
+        full.push(new_string(&fqn));
+        full.extend_from_slice(argv);
+        for &word in &full {
+            // SAFETY: the head is fresh and every remaining word is borrowed
+            // live from the caller for this dispatch.
+            unsafe { obj::incr_ref_count(word) };
+        }
+        let code = self.dispatch_prebound(
+            &full,
+            Some((
+                fqn,
+                CommandBinding {
+                    generation,
+                    command,
+                },
+            )),
+        );
+        release_all(&full);
+        Some(code)
     }
 
     /// The central dispatch boundary, optionally with a command binding whose
@@ -11536,6 +11661,46 @@ mod tests {
         leak_free(|i| {
             i.set_runtime_version(TclVersion::V9_0);
             assert_eq!(ok(i, b"lassign {a b} x y; list $x $y"), b"a b");
+        });
+    }
+
+    /// An import keeps the final builtin's registry identity when that source
+    /// moves into the hidden table. Repinning the runtime surface must gate the
+    /// visible import, while an explicit `invokehidden` remains the privileged
+    /// path that deliberately bypasses ordinary command visibility.
+    #[test]
+    fn an_imported_hidden_builtin_keeps_its_release_gate() {
+        use tcl_dialect::TclVersion;
+
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V9_0);
+            assert_eq!(
+                i.eval_str(
+                    b"namespace export lpop
+                      namespace eval n {namespace import ::lpop}
+                      set l {a b c}
+                      interp hide {} lpop hp
+                      n::lpop l",
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"c");
+
+            i.set_runtime_version(TclVersion::V8_6);
+            assert_eq!(i.eval_str(b"n::lpop l"), Code::Error);
+            assert_eq!(i.result_bytes(), b"invalid command name \"::hp\"");
+            assert_eq!(ok(i, b"set l"), b"a b");
+
+            assert_eq!(i.eval_str(b"interp invokehidden {} hp l"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"b");
+
+            i.set_runtime_version(TclVersion::V9_0);
+            assert_eq!(i.eval_str(b"interp expose {} hp lz"), Code::Ok);
+            i.set_runtime_version(TclVersion::V8_6);
+            assert_eq!(i.eval_str(b"lz l"), Code::Error);
+            assert_eq!(i.result_bytes(), b"invalid command name \"lz\"");
+            assert_eq!(ok(i, b"info commands lz"), b"");
+            i.set_runtime_version(TclVersion::V9_0);
         });
     }
 
