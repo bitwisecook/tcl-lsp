@@ -16575,6 +16575,339 @@ impl Backend {
         Ok(Some(serde_json::json!(applied)))
     }
 
+    /// Handle `tcl-lsp.extractLinkedObjects`: the BIG-IP object at the cursor
+    /// and everything it references, out to a depth.
+    ///
+    /// Arguments are `[uri, offset, maxDepth, maxNodes, extraOffsets?]`, where
+    /// `extraOffsets` is a list of `[uri, offset]` pairs for a multi-cursor
+    /// selection. The walk starts at every root the offsets land on, so the
+    /// result answers "these objects and what they depend on" rather than
+    /// being run once per cursor.
+    ///
+    /// Breadth-first, so a node is reported at its shortest distance from a
+    /// root. `maxNodes` stops the walk rather than truncating the answer
+    /// afterwards, which keeps the edges consistent with the nodes: an edge is
+    /// only emitted when both of its ends are in the result.
+    ///
+    async fn extract_linked_objects_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let Some(primary_uri) = args.first().and_then(serde_json::Value::as_str) else {
+            return Ok(None);
+        };
+        let Some(primary_offset) = args.get(1).and_then(serde_json::Value::as_u64) else {
+            return Ok(None);
+        };
+        let max_depth = args
+            .get(2)
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(5)
+            .min(64);
+        let max_nodes = usize::try_from(
+            args.get(3)
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or(400),
+        )
+        .unwrap_or(400)
+        .max(1);
+
+        // Every (uri, offset) the client asked about: the primary cursor plus
+        // any additional ones.
+        let mut cursors: Vec<(String, usize)> = vec![(
+            primary_uri.to_owned(),
+            usize::try_from(primary_offset).unwrap_or(usize::MAX),
+        )];
+        if let Some(extra) = args.get(4).and_then(serde_json::Value::as_array) {
+            for pair in extra {
+                let (Some(u), Some(o)) = (
+                    pair.get(0).and_then(serde_json::Value::as_str),
+                    pair.get(1).and_then(serde_json::Value::as_u64),
+                ) else {
+                    continue;
+                };
+                cursors.push((u.to_owned(), usize::try_from(o).unwrap_or(usize::MAX)));
+            }
+        }
+
+        // Read each distinct document once.
+        let mut sources: Vec<(String, String)> = Vec::new();
+        for (uri_str, _) in &cursors {
+            if sources.iter().any(|(u, _)| u == uri_str) {
+                continue;
+            }
+            let Ok(uri) = Uri::from_str(uri_str) else {
+                continue;
+            };
+            if let Some(doc) = self.read_local_document(&uri).await {
+                sources.push((uri_str.clone(), doc.text.to_string()));
+            }
+        }
+        if sources.is_empty() {
+            return Ok(None);
+        }
+
+        // Parsing and the graph walk are pure CPU over the whole config, so
+        // they run off the LSP event loop.
+        let value = crate::rt::spawn_blocking(move || {
+            Self::linked_objects_payload(&sources, &cursors, max_depth, max_nodes)
+        })
+        .await
+        .unwrap_or(None);
+        Ok(value)
+    }
+
+    /// One object as the clients model it, at the depth it was reached.
+    ///
+    /// `sourceOrigin` is always null: the clients read the field, but the
+    /// graph does not track how a stanza reached the file, and inventing a
+    /// value would be worse than saying nothing.
+    fn linked_object_node(node: &tcl_bigip::graph::ObjectNode, depth: u64) -> serde_json::Value {
+        serde_json::json!({
+            "id": node.node_id,
+            "uri": node.uri,
+            "module": node.module,
+            "objectType": node.object_type,
+            "identifier": node.identifier,
+            "kind": node.kind,
+            "header": node.header,
+            "depth": depth,
+            "sourceOrigin": serde_json::Value::Null,
+            "range": {
+                "start": { "line": node.range.start.line, "character": node.range.start.character },
+                "end": { "line": node.range.end.line, "character": node.range.end.character },
+            },
+        })
+    }
+
+    /// Breadth-first from every root, out to `max_depth` hops and at most
+    /// `max_nodes` objects.
+    ///
+    /// Returns the nodes in the order they were reached and the depth each was
+    /// first reached at. Stopping the walk on `max_nodes`, rather than
+    /// truncating afterwards, is what lets the caller emit only edges whose
+    /// both ends are present.
+    fn walk_linked_objects<'a>(
+        root_ids: &[&'a str],
+        outgoing: &HashMap<&'a str, Vec<&'a tcl_bigip::graph::ObjectEdge>>,
+        by_id: &HashMap<&'a str, &'a tcl_bigip::graph::ObjectNode>,
+        max_depth: u64,
+        max_nodes: usize,
+    ) -> (Vec<&'a str>, HashMap<&'a str, u64>) {
+        use std::collections::VecDeque;
+
+        let mut depth_of: HashMap<&str, u64> = HashMap::new();
+        let mut order: Vec<&str> = Vec::new();
+        let mut queue: VecDeque<(&str, u64)> = VecDeque::new();
+        for id in root_ids {
+            if depth_of.contains_key(id) {
+                continue;
+            }
+            depth_of.insert(id, 0);
+            order.push(id);
+            queue.push_back((id, 0));
+        }
+        while let Some((id, depth)) = queue.pop_front() {
+            if depth >= max_depth || order.len() >= max_nodes {
+                continue;
+            }
+            for edge in outgoing.get(id).into_iter().flatten() {
+                let target = edge.target_id.as_str();
+                if depth_of.contains_key(target) || !by_id.contains_key(target) {
+                    continue;
+                }
+                if order.len() >= max_nodes {
+                    break;
+                }
+                depth_of.insert(target, depth + 1);
+                order.push(target);
+                queue.push_back((target, depth + 1));
+            }
+        }
+        (order, depth_of)
+    }
+
+    /// The graph walk behind `tcl-lsp.extractLinkedObjects`.
+    fn linked_objects_payload(
+        sources: &[(String, String)],
+        cursors: &[(String, usize)],
+        max_depth: u64,
+        max_nodes: usize,
+    ) -> Option<serde_json::Value> {
+        let ctx = tcl_bigip::graph::GraphContext::new();
+        let parsed: Vec<(String, tcl_bigip::parser::driver::BigipConfig)> = sources
+            .iter()
+            .map(|(uri, text)| {
+                (
+                    uri.clone(),
+                    tcl_bigip::parser::driver::parse_bigip_conf(text, "Common"),
+                )
+            })
+            .collect();
+        let configs: Vec<(String, &tcl_bigip::parser::driver::BigipConfig)> =
+            parsed.iter().map(|(u, c)| (u.clone(), c)).collect();
+        let graph = tcl_bigip::graph::build_bigip_object_graph(sources, &configs, &ctx);
+
+        let nodes: Vec<&tcl_bigip::graph::ObjectNode> = graph
+            .nodes_by_uri
+            .iter()
+            .flat_map(|(_uri, ns)| ns.iter())
+            .collect();
+
+        // The stanza a cursor sits in. The innermost match wins, so a cursor
+        // inside a nested block still names the object that contains it.
+        let root_ids: Vec<&str> = cursors
+            .iter()
+            .filter_map(|(uri, offset)| {
+                nodes
+                    .iter()
+                    .filter(|n| {
+                        &n.uri == uri && *offset >= n.header_start_offset && *offset < n.end_offset
+                    })
+                    .min_by_key(|n| n.end_offset - n.header_start_offset)
+                    .map(|n| n.node_id.as_str())
+            })
+            .collect();
+        let first_root = *root_ids.first()?;
+
+        let mut outgoing: HashMap<&str, Vec<&tcl_bigip::graph::ObjectEdge>> = HashMap::new();
+        for edge in &graph.edges {
+            outgoing
+                .entry(edge.source_id.as_str())
+                .or_default()
+                .push(edge);
+        }
+        let by_id: HashMap<&str, &tcl_bigip::graph::ObjectNode> =
+            nodes.iter().map(|n| (n.node_id.as_str(), *n)).collect();
+
+        let (order, depth_of) =
+            Self::walk_linked_objects(&root_ids, &outgoing, &by_id, max_depth, max_nodes);
+
+        let node_values: Vec<serde_json::Value> = order
+            .iter()
+            .filter_map(|id| {
+                by_id
+                    .get(id)
+                    .map(|n| Self::linked_object_node(n, depth_of.get(id).copied().unwrap_or(0)))
+            })
+            .collect();
+
+        // Only edges whose both ends survived the walk, so the client never
+        // draws an arrow to a node it was not given.
+        let edge_values: Vec<serde_json::Value> = graph
+            .edges
+            .iter()
+            .filter(|e| {
+                depth_of.contains_key(e.source_id.as_str())
+                    && depth_of.contains_key(e.target_id.as_str())
+            })
+            .map(|e| {
+                serde_json::json!({
+                    "source": e.source_id,
+                    "target": e.target_id,
+                    "viaProperty": e.via_property,
+                    "viaKind": e.via_kind,
+                })
+            })
+            .collect();
+
+        let root = by_id.get(first_root)?;
+        let roots: Vec<serde_json::Value> = root_ids
+            .iter()
+            .filter_map(|id| by_id.get(id))
+            .map(|n| {
+                serde_json::json!({
+                    "id": n.node_id,
+                    "uri": n.uri,
+                    "header": n.header,
+                })
+            })
+            .collect();
+
+        Some(serde_json::json!({
+            "root": root.node_id,
+            "rootUri": root.uri,
+            "rootHeader": root.header,
+            "roots": roots,
+            "maxDepth": max_depth,
+            "maxNodes": max_nodes,
+            "nodes": node_values,
+            "edges": edge_values,
+        }))
+    }
+
+    /// Handle `tcl-lsp.bigipCleanup`: the objects no virtual server or wide-IP
+    /// reaches, and a tmsh script that deletes them.
+    ///
+    /// Arguments are `[uris, keepPaths?]`. `keepPaths` spares objects by
+    /// full path even when nothing references them. Both editor hosts send a
+    /// third argument, always `false`, which neither gives a meaning; it is
+    /// accepted and ignored rather than guessed at.
+    ///
+    /// The candidates come back in delete order — a referenced object after
+    /// the thing referencing it — so the script runs top to bottom without
+    /// tripping over tmsh's own dependency checks.
+    async fn bigip_cleanup_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let Some(uris) = args.first().and_then(serde_json::Value::as_array) else {
+            return Ok(None);
+        };
+        let keep_paths: HashSet<String> = args
+            .get(1)
+            .and_then(serde_json::Value::as_array)
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(str::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let mut sources: Vec<(String, String)> = Vec::new();
+        for value in uris {
+            let Some(uri_str) = value.as_str() else {
+                continue;
+            };
+            let Ok(uri) = Uri::from_str(uri_str) else {
+                continue;
+            };
+            if let Some(doc) = self.read_local_document(&uri).await {
+                sources.push((uri_str.to_owned(), doc.text.to_string()));
+            }
+        }
+        if sources.is_empty() {
+            return Ok(None);
+        }
+
+        let value = crate::rt::spawn_blocking(move || {
+            let ctx = tcl_bigip::graph::GraphContext::new();
+            let parsed: Vec<(String, tcl_bigip::parser::driver::BigipConfig)> = sources
+                .iter()
+                .map(|(uri, text)| {
+                    (
+                        uri.clone(),
+                        tcl_bigip::parser::driver::parse_bigip_conf(text, "Common"),
+                    )
+                })
+                .collect();
+            let configs: Vec<(String, &tcl_bigip::parser::driver::BigipConfig)> =
+                parsed.iter().map(|(u, c)| (u.clone(), c)).collect();
+            let graph = tcl_bigip::graph::build_bigip_object_graph(&sources, &configs, &ctx);
+
+            let mut uri_list: Vec<String> = sources.iter().map(|(u, _)| u.clone()).collect();
+            uri_list.sort();
+            let report = tcl_bigip::cleanup::compute_cleanup(&graph, &uri_list, &keep_paths, &[]);
+            // The crate already renders this report in the shape the clients
+            // read, so it is parsed rather than rebuilt field by field.
+            serde_json::from_str::<serde_json::Value>(&tcl_bigip::cleanup::report_to_json(&report))
+                .ok()
+        })
+        .await
+        .unwrap_or(None);
+        Ok(value)
+    }
+
     /// Handle `tcl-lsp.xcTranslate`: statically translate an iRule to F5
     /// Distributed Cloud constructs and report the result.
     ///
@@ -24578,6 +24911,10 @@ impl LanguageServer for Backend {
             "tcl-lsp.listRules" => self.list_rules_command(&params.arguments).await,
             "tcl-lsp.extractRule" => self.extract_rule_command(&params.arguments).await,
             "tcl-lsp.writeRuleBack" => self.write_rule_back_command(&params.arguments).await,
+            "tcl-lsp.extractLinkedObjects" => {
+                self.extract_linked_objects_command(&params.arguments).await
+            }
+            "tcl-lsp.bigipCleanup" => self.bigip_cleanup_command(&params.arguments).await,
             "tcl-lsp.getEffectiveConfig" => {
                 self.get_effective_config_command(&params.arguments).await
             }
@@ -29447,6 +29784,8 @@ fn build_server_capabilities(
                 "tcl-lsp.listRules".to_owned(),
                 "tcl-lsp.extractRule".to_owned(),
                 "tcl-lsp.writeRuleBack".to_owned(),
+                "tcl-lsp.extractLinkedObjects".to_owned(),
+                "tcl-lsp.bigipCleanup".to_owned(),
                 "tcl-lsp.getEffectiveConfig".to_owned(),
                 "tcl-lsp.fixAllSafeIssues".to_owned(),
                 "tcl-lsp.listSubcommands".to_owned(),

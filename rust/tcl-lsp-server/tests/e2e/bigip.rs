@@ -216,6 +216,200 @@ fn write_rule_back_refuses_a_span_the_document_cannot_honour() {
     assert_eq!(inverted, serde_json::json!(false), "{inverted}");
 }
 
+/// A virtual that references a pool, which references a monitor — three
+/// objects at three depths from the virtual.
+const LINKED_CONF: &str = "\
+ltm monitor http /Common/m1 {
+    defaults-from http
+}
+ltm pool /Common/p1 {
+    members {
+        1.2.3.4:80 { }
+    }
+    monitor /Common/m1
+}
+ltm virtual /Common/vs1 {
+    destination 10.0.0.1:80
+    pool /Common/p1
+}
+";
+
+#[test]
+fn extract_linked_objects_walks_from_the_object_at_the_cursor() {
+    let mut lsp = Lsp::bigip();
+    let uri = bigip_uri();
+    lsp.open_document(&uri, LINKED_CONF);
+    lsp.await_diagnostics_version(&uri, Some(1), Duration::from_secs(30));
+
+    let offset = LINKED_CONF.find("ltm virtual").expect("fixture");
+    let result = lsp.execute_command(
+        "tcl-lsp.extractLinkedObjects",
+        serde_json::json!([uri, offset, 5, 400, serde_json::Value::Null]),
+    );
+    assert!(!result.is_null(), "no result for the virtual");
+
+    assert_eq!(
+        result["rootHeader"],
+        serde_json::Value::from("ltm virtual /Common/vs1"),
+        "{result}"
+    );
+
+    // The pool the virtual names, and the monitor that pool names, both
+    // reached — the walk follows references rather than stopping at one hop.
+    let identifiers: BTreeSet<String> = result["nodes"]
+        .as_array()
+        .expect("nodes")
+        .iter()
+        .filter_map(|n| n["identifier"].as_str().map(str::to_owned))
+        .collect();
+    assert!(identifiers.contains("/Common/vs1"), "{identifiers:?}");
+    assert!(identifiers.contains("/Common/p1"), "{identifiers:?}");
+
+    // Depth is distance from the root, so the root is 0 and what it names is
+    // further out.
+    let depth_of = |ident: &str| -> u64 {
+        result["nodes"]
+            .as_array()
+            .expect("nodes")
+            .iter()
+            .find(|n| n["identifier"].as_str() == Some(ident))
+            .and_then(|n| n["depth"].as_u64())
+            .expect("depth")
+    };
+    assert_eq!(depth_of("/Common/vs1"), 0, "{result}");
+    assert!(depth_of("/Common/p1") > 0, "{result}");
+
+    // Every edge names two nodes that are actually in the result, or the
+    // client draws an arrow into nothing.
+    let ids: BTreeSet<String> = result["nodes"]
+        .as_array()
+        .expect("nodes")
+        .iter()
+        .filter_map(|n| n["id"].as_str().map(str::to_owned))
+        .collect();
+    for edge in result["edges"].as_array().expect("edges") {
+        let (source, target) = (
+            edge["source"].as_str().expect("source"),
+            edge["target"].as_str().expect("target"),
+        );
+        assert!(ids.contains(source), "dangling edge source {source}");
+        assert!(ids.contains(target), "dangling edge target {target}");
+    }
+}
+
+#[test]
+fn extract_linked_objects_stops_at_the_requested_depth() {
+    let mut lsp = Lsp::bigip();
+    let uri = bigip_uri();
+    lsp.open_document(&uri, LINKED_CONF);
+    lsp.await_diagnostics_version(&uri, Some(1), Duration::from_secs(30));
+
+    let offset = LINKED_CONF.find("ltm virtual").expect("fixture");
+    let shallow = lsp.execute_command(
+        "tcl-lsp.extractLinkedObjects",
+        serde_json::json!([uri, offset, 0, 400, serde_json::Value::Null]),
+    );
+    let nodes = shallow["nodes"].as_array().expect("nodes");
+    assert_eq!(
+        nodes.len(),
+        1,
+        "depth 0 should be the root alone: {shallow}"
+    );
+    assert_eq!(
+        nodes[0]["identifier"],
+        serde_json::Value::from("/Common/vs1")
+    );
+}
+
+#[test]
+fn extract_linked_objects_is_null_away_from_every_object() {
+    let mut lsp = Lsp::bigip();
+    let uri = bigip_uri();
+    lsp.open_document(&uri, LINKED_CONF);
+    lsp.await_diagnostics_version(&uri, Some(1), Duration::from_secs(30));
+
+    // Past the end of the document, so no stanza contains it.
+    let result = lsp.execute_command(
+        "tcl-lsp.extractLinkedObjects",
+        serde_json::json!([uri, LINKED_CONF.len() + 50, 5, 400, serde_json::Value::Null]),
+    );
+    assert!(result.is_null(), "{result}");
+}
+
+/// One pool a virtual uses and one nothing references, so a cleanup run has
+/// something to propose and something it must not.
+const CLEANUP_CONF: &str = "\
+ltm pool /Common/used {
+    members {
+        1.2.3.4:80 { }
+    }
+}
+ltm pool /Common/orphan {
+    members {
+        5.6.7.8:80 { }
+    }
+}
+ltm virtual /Common/vs1 {
+    destination 10.0.0.1:80
+    pool /Common/used
+}
+";
+
+#[test]
+fn bigip_cleanup_proposes_only_the_unreferenced_object() {
+    let mut lsp = Lsp::bigip();
+    let uri = bigip_uri();
+    lsp.open_document(&uri, CLEANUP_CONF);
+    lsp.await_diagnostics_version(&uri, Some(1), Duration::from_secs(30));
+
+    let result = lsp.execute_command(
+        "tcl-lsp.bigipCleanup",
+        serde_json::json!([[uri], serde_json::Value::Null, false]),
+    );
+    assert!(!result.is_null(), "no cleanup report");
+
+    let proposed: BTreeSet<String> = result["candidates"]
+        .as_array()
+        .expect("candidates")
+        .iter()
+        .filter_map(|c| c["fullPath"].as_str().map(str::to_owned))
+        .collect();
+    assert!(proposed.contains("/Common/orphan"), "{proposed:?}");
+    // The pool the virtual uses must never be proposed for deletion, and nor
+    // must the virtual itself, which is a root.
+    assert!(!proposed.contains("/Common/used"), "{proposed:?}");
+    assert!(!proposed.contains("/Common/vs1"), "{proposed:?}");
+
+    // The script is what the client opens for review, so every candidate has
+    // to appear in it.
+    let script = result["tmshScript"].as_str().expect("tmshScript");
+    assert!(script.contains("/Common/orphan"), "{script}");
+    assert!(!script.contains("/Common/used"), "{script}");
+}
+
+#[test]
+fn bigip_cleanup_spares_a_kept_path() {
+    let mut lsp = Lsp::bigip();
+    let uri = bigip_uri();
+    lsp.open_document(&uri, CLEANUP_CONF);
+    lsp.await_diagnostics_version(&uri, Some(1), Duration::from_secs(30));
+
+    let result = lsp.execute_command(
+        "tcl-lsp.bigipCleanup",
+        serde_json::json!([[uri], ["/Common/orphan"], false]),
+    );
+    let proposed: BTreeSet<String> = result["candidates"]
+        .as_array()
+        .expect("candidates")
+        .iter()
+        .filter_map(|c| c["fullPath"].as_str().map(str::to_owned))
+        .collect();
+    assert!(
+        !proposed.contains("/Common/orphan"),
+        "a kept path was still proposed: {proposed:?}"
+    );
+}
+
 #[test]
 fn outline_symbols_all_have_non_empty_names() {
     let mut lsp = Lsp::bigip();

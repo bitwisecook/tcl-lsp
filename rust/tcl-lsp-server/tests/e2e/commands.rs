@@ -713,6 +713,8 @@ const CORE_COMMANDS: &[&str] = &[
     "tcl-lsp.listRules",
     "tcl-lsp.extractRule",
     "tcl-lsp.writeRuleBack",
+    "tcl-lsp.extractLinkedObjects",
+    "tcl-lsp.bigipCleanup",
 ];
 
 #[test]
