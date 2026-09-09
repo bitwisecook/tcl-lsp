@@ -2015,6 +2015,18 @@ mod binary_field_letters {
         ));
     }
 
+    // An expanded word makes the whole argument layout unknown at analysis
+    // time — `{*}$sub` can supply the subcommand, the template, or both — so
+    // the gate abstains rather than reading a fixed position.
+    #[test]
+    fn expanded_words_abstain() {
+        assert!(!fires("binary {*}$sub q 1.0", "tcl8.4", "W202"));
+        assert!(!fires("binary format {*}$w q 1.0", "tcl8.4", "W202"));
+        assert!(!fires("binary {*}[list format] q 1.0", "tcl8.4", "W202"));
+        // The unexpanded form of the same call is still checked.
+        assert_eq!(count("binary format q 1.0", "tcl8.4", "W202"), 1);
+    }
+
     // A dynamic template has no literal text to read. Without the guard the
     // scanner reads the *variable name*: `$fmt` carries `f`, `m` and `t`, so
     // the gated `m`/`t` fired on every `binary format $fmt ...` under 8.4.
