@@ -605,6 +605,14 @@ pub struct Analyser {
     /// — they run unconditionally, so a deletion inside one is still
     /// straight-line.
     pub control_flow_body_depth: u32,
+    /// Depth of enclosing branch-selected bodies whose selector reads a debug
+    /// flag — a `static::` variable, or a name assigned by an event that runs
+    /// less often than once per request.
+    /// IRULE5001 stays silent while this is non-zero, because the `log` it
+    /// would report is already gated the way its own message prescribes.
+    /// Nested bodies inherit the gate: the depth only returns to zero once
+    /// the walk leaves every gating body.
+    pub irules_debug_gate_depth: u32,
     /// Body-nesting depth — incremented on entry to a braced
     /// body. Used for top-level-only command checks.
     pub body_depth: u32,
@@ -1259,6 +1267,15 @@ pub struct Analyser {
     /// [`Self::irules_file_profiles`]; `None` until the first IRULE4003
     /// candidate asks for it.
     pub(super) irules_event_bodies: Option<Vec<(String, Vec<String>)>>,
+    /// IRULE5001's debug-flag index: every variable name assigned by an event
+    /// that runs **less often than once per request**, so a hot-event `log`
+    /// gated on one of them is recognised as gated.  This is the half of the
+    /// check that makes its own advice
+    /// ("set a debug flag in a setup event and gate with `if {$debug}`")
+    /// true; the `static::` half needs no index.  Built lazily from
+    /// [`Self::irules_event_bodies`] and cleared with it at the top of each
+    /// analysis run.
+    pub(super) irules_debug_flags: Option<Vec<String>>,
     /// Creation calls the walk could not classify because their head was not
     /// yet known to be a class factory — replayed once the parameterised-class
     /// observation join has settled (issue #1660).
@@ -1316,6 +1333,21 @@ impl Analyser {
     /// ingress did not resolve.
     pub(super) fn grammar(&self) -> tcl_dialect::LexerGrammar {
         self.ingress_grammar.unwrap_or(self.profile.grammar)
+    }
+
+    /// The command surface this document analyses against: `registry` plus
+    /// the document's own `# tcl-lsp: stub` declarations.
+    ///
+    /// A stub states the same kind of fact a `CommandSpec` does, so every
+    /// role query in the walk goes through here rather than reaching for the
+    /// bare catalogue. The registry is passed in because a caller has already
+    /// resolved which one this document analyses under, and sometimes holds
+    /// it as a clone so a `&mut self` step can run beside it.
+    pub(super) fn command_surface<'a>(
+        &'a self,
+        registry: &'a tcl_registry::CommandRegistry,
+    ) -> tcl_registry::model::DocumentCommandSurface<'a> {
+        tcl_registry::model::DocumentCommandSurface::new(registry, self.declared_commands.as_ref())
     }
 
     /// The body-lexing config for this document: [`Self::grammar`] — the
@@ -1542,6 +1574,7 @@ impl Analyser {
             builtin_dialect: None,
             conditional_depth: 0,
             control_flow_body_depth: 0,
+            irules_debug_gate_depth: 0,
             body_depth: 0,
             presubstituted_args: false,
             e207_emitted: false,
@@ -1614,6 +1647,7 @@ impl Analyser {
             per_item_fallback: None,
             irules_file_profiles: None,
             irules_event_bodies: None,
+            irules_debug_flags: None,
             deferred_class_creations: Vec::new(),
         }
     }
@@ -1996,6 +2030,7 @@ impl Analyser {
         // instance recomputes it for the new source / dialect.
         self.irules_file_profiles = None;
         self.irules_event_bodies = None;
+        self.irules_debug_flags = None;
         // File-suppression pre-scan: merge codes from any
         // top-of-file ``# tcl-lsp: disable=CODE`` directives into
         // ``self.disabled_diagnostics`` so later emitter passes
@@ -2037,18 +2072,11 @@ impl Analyser {
         // overlay so analyser / compiler queries see the
         // user-declared stubs as first-class commands (without
         // mutating the global registry).
-        let (stub_cmds, stub_exprs) = super::utils::scan_source_for_stubs(source);
-        let (sidecar_cmds, sidecar_exprs) =
-            super::utils::scan_sidecar_stubs(self.file_path.as_deref(), dialect);
-        let mut overlay_cmds = sidecar_cmds;
-        // The document-local declaration is nearest in scope and wins over a
-        // workspace sidecar with the same name.
-        overlay_cmds.extend(stub_cmds.iter().cloned());
+        let (overlay_cmds, overlay_exprs) =
+            super::utils::document_stub_declarations(source, self.file_path.as_deref(), dialect);
         self.declared_commands = Some(super::types::build_declared_surface(&overlay_cmds));
         self.result.stub_commands = overlay_cmds;
-        let mut all_exprs = sidecar_exprs;
-        all_exprs.extend(stub_exprs);
-        self.result.stub_expr_defs = all_exprs;
+        self.result.stub_expr_defs = overlay_exprs;
 
         // Segment with re-segmentation recovery so an unclosed delimiter
         // mid-file doesn't drop later top-level declarations.
@@ -2390,6 +2418,7 @@ impl Analyser {
         self.source = source.to_string();
         // Same-source memo, cleared with the source it was derived from.
         self.irules_event_bodies = None;
+        self.irules_debug_flags = None;
         let tk_ambient = self.resolve_walk_environment(dialect);
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
@@ -2486,6 +2515,7 @@ impl Analyser {
         self.source = source.to_string();
         // Same-source memo, cleared with the source it was derived from.
         self.irules_event_bodies = None;
+        self.irules_debug_flags = None;
         let tk_ambient = self.resolve_walk_environment(dialect);
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
@@ -2538,16 +2568,11 @@ impl Analyser {
         // Stub-directive pre-scan + overlay, matching ``analyse`` so command
         // resolution (W123 / W307 / param-trait inference) sees the same stub
         // surface and ``analyse_commands`` stays byte-identical to ``analyse``.
-        let (stub_cmds, stub_exprs) = super::utils::scan_source_for_stubs(source);
-        let (sidecar_cmds, sidecar_exprs) =
-            super::utils::scan_sidecar_stubs(self.file_path.as_deref(), dialect);
-        let mut overlay_cmds = sidecar_cmds;
-        overlay_cmds.extend(stub_cmds.iter().cloned());
+        let (overlay_cmds, overlay_exprs) =
+            super::utils::document_stub_declarations(source, self.file_path.as_deref(), dialect);
         self.declared_commands = Some(super::types::build_declared_surface(&overlay_cmds));
         self.result.stub_commands = overlay_cmds;
-        let mut all_exprs = sidecar_exprs;
-        all_exprs.extend(stub_exprs);
-        self.result.stub_expr_defs = all_exprs;
+        self.result.stub_expr_defs = overlay_exprs;
 
         let file_env_pushed = self.seed_file_scope_env(source);
         self.analyse_commands_inner(commands);

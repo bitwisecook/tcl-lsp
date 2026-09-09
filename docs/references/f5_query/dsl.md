@@ -688,11 +688,18 @@ source.  Cross-file behaviour comes in two shapes:
   `$ltm.ltm.virtual[].destination = "..."` writes to the source
   bound under `$ltm`, regardless of which source was iterating.
 - **`--merge`** — every loaded source becomes one logical namespace.
-  `.ltm.virtual[]` returns virtuals from every input and `refs` /
-  `referenced_by` walk references across files; edits still route
-  back to the originating source.  Refuses to merge when two
+  `.ltm.virtual[]` returns virtuals from every input; edits still
+  route back to the originating source.  Refuses to merge when two
   sources define the same `(kind, full-path)` — namespace or
   redact the inputs first.
+
+  One namespace means one reference graph, so every reference walk
+  off any loaded source spans all of them: `refs` /
+  `referenced_by` / `references_to`, the `ltm rule` `.refs`
+  projection, `check_partition_visibility()`, and the
+  cross-partition safety check `rename()` runs before it moves an
+  object.  A `PathRef` dereference resolves the same way — see
+  [`PathRef`](#pathref) above.
 
 ## Exit codes
 

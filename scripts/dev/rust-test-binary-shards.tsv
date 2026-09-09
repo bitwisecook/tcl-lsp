@@ -300,6 +300,7 @@
 5	tcl-lsp-core::mathfunc_and_word_recognition	test	tcl-lsp-core	mathfunc_and_word_recognition
 5	tcl-lsp-core::minify_residual	test	tcl-lsp-core	minify_residual
 5	tcl-lsp-core::semantic_tokens_residual	test	tcl-lsp-core	semantic_tokens_residual
+5	tcl-lsp-core::stub_arg_roles	test	tcl-lsp-core	stub_arg_roles
 5	tcl-lsp-db::early_cutoff	test	tcl-lsp-db	early_cutoff
 5	tcl-lsp-db::memory_growth	test	tcl-lsp-db	memory_growth
 5	tcl-mcp::bin/tcl-mcp	bin	tcl-mcp	tcl-mcp

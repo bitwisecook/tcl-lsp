@@ -970,8 +970,15 @@ struct OoFrame {
 /// `method`'s provable frame facts, or `None` to abstain.
 ///
 /// Folding direction is abstain-toward-no-fold: a wrong fold is a correctness
-/// bug, a missed fold only a lost optimisation. Three gates, each pinned to
+/// bug, a missed fold only a lost optimisation. Four gates, each pinned to
 /// the oracle transcript on [`tcl_registry::OoContextFact::DefiningClass`]:
+///
+/// * **A frame chosen at run time.** A body naming any command relatively —
+///   bare `my`, bare `puts` — runs where a receiver-local command can shadow
+///   that head, so nothing derived inside it is trustworthy, the frame
+///   constant included. That fact is scoped to such frames
+///   (`ModuleCommandMutations::has_runtime_selected_frames`) rather than
+///   distrusting every name in the module.
 ///
 /// * **Class-object implementations.** `self class` *raises* ("method not
 ///   defined by a class") inside an `oo::objdefine` instance method and inside
@@ -995,6 +1002,12 @@ fn oo_frame_for(
     mutations: &crate::command_binding::ModuleCommandMutations,
 ) -> Option<OoFrame> {
     use crate::ir::MethodKind;
+    // A method body that names any command relatively runs where a
+    // receiver-local command can shadow that head, so no fact derived inside
+    // it is trustworthy — including a frame constant that reads no variable.
+    if mutations.has_runtime_selected_frames() {
+        return None;
+    }
     if method.kind == MethodKind::ClassMethod {
         return None;
     }
@@ -3134,6 +3147,7 @@ mod tests {
             None,
             crate::interprocedural::ObjectTypeMap::none(),
             crate::realm::CommandBindingRealm::none(),
+            None,
         );
         assert!(
             ia.procedures.contains_key("::ns::inner"),
@@ -3174,6 +3188,7 @@ mod tests {
             None,
             crate::interprocedural::ObjectTypeMap::none(),
             crate::realm::CommandBindingRealm::none(),
+            None,
         );
         assert!(
             ia.procedures.contains_key("::a::foo"),
@@ -3196,6 +3211,7 @@ mod tests {
             None,
             crate::interprocedural::ObjectTypeMap::none(),
             crate::realm::CommandBindingRealm::none(),
+            None,
         );
         assert_eq!(
             resolve_proc_qname("foo", "::a::b::c", &ia2).as_deref(),
@@ -3223,6 +3239,7 @@ mod tests {
             None,
             crate::interprocedural::ObjectTypeMap::none(),
             crate::realm::CommandBindingRealm::none(),
+            None,
         );
         assert!(ia.procedures.contains_key("::ns2::inner"));
         assert!(ia.procedures.contains_key("::ns::ns2::inner"));

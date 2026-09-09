@@ -143,6 +143,51 @@ fn w200_binary_modifier_is_dialect_gated() {
     assert!(!has_code("binary format cu1 $x\n", "tcl8.6", "W200"));
     // No modifier — never flagged.
     assert!(!has_code("binary format c1 $x\n", "tcl8.4", "W200"));
+    // `s` is the short-integer specifier, not a signedness modifier: TIP 275
+    // added only `u`. `ss` is two short fields on every release (verified on
+    // tclsh 8.4.20, 8.5.19, 8.6.18 and 9.0.4), so it must stay clean even
+    // under an 8.4 target, while a genuine `u` still fires.
+    assert!(!has_code("binary format ss 1 2\n", "tcl8.4", "W200"));
+    assert!(!has_code("binary scan $x ss a b\n", "tcl8.4", "W200"));
+    assert!(has_code("binary format su 1\n", "tcl8.4", "W200"));
+}
+
+#[test]
+fn w202_binary_field_letters_are_dialect_gated() {
+    // `t n m r R q Q` are `bad field specifier` on tclsh 8.4.20 and accepted
+    // from 8.5.19 on, for both `format` and `scan`.
+    for letter in ["t", "n", "m", "r", "R", "q", "Q"] {
+        assert!(
+            has_code(&format!("binary format {letter} 1\n"), "tcl8.4", "W202"),
+            "{letter} should be gated on 8.4",
+        );
+        assert!(
+            !has_code(&format!("binary format {letter} 1\n"), "tcl8.5", "W202"),
+            "{letter} should be clean on 8.5",
+        );
+    }
+    assert!(has_code("binary scan $d q v\n", "tcl8.4", "W202"));
+    // Letters that exist on every release are never gated.
+    for letter in [
+        "a", "A", "b", "B", "h", "H", "c", "s", "S", "i", "I", "w", "W", "f", "d",
+    ] {
+        assert!(
+            !has_code(&format!("binary format {letter} 1\n"), "tcl8.4", "W202"),
+            "{letter} exists on 8.4 and must stay clean",
+        );
+    }
+    // One diagnostic per format string even with several gated letters, and
+    // the two codes stay independent: a gated letter is not a W200, a gated
+    // suffix is not a W202.
+    assert_eq!(
+        count_code_in("binary format qrm 1 2 3\n", "W202", "tcl8.4"),
+        1
+    );
+    assert!(!has_code("binary format q 1\n", "tcl8.4", "W200"));
+    assert!(!has_code("binary format cu 1\n", "tcl8.4", "W202"));
+    // A gated letter carrying a gated suffix earns both, once each.
+    assert_eq!(count_code_in("binary format qu 1\n", "W200", "tcl8.4"), 1);
+    assert_eq!(count_code_in("binary format qu 1\n", "W202", "tcl8.4"), 1);
 }
 
 #[test]
@@ -4722,6 +4767,7 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
                         tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
                     ),
                     external_call_sites: None,
+                    declared_commands: None,
                 },
                 &mut |req: &crate::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
                     // Key + build mirror the db's `function_lattice` query,
@@ -4845,6 +4891,7 @@ fn memoized_compilation_unit_shift_correctness() {
                     tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
                 ),
                 external_call_sites: None,
+                declared_commands: None,
             },
             // Position-independent key: the body is normalised to offset 0
             // before the callback sees it, so a shifted-but-unedited proc
@@ -9583,6 +9630,11 @@ fn analyse_w123_emits_did_you_mean_suggestion() {
 fn analyse_w123_suppressed_for_inline_stub_declared_command() {
     // ``my_cmd`` is declared via inline stub — W123 must
     // not fire even though it isn't in the registry.
+    //
+    // Its declared ``body`` word *is* analysed as a script, exactly as a
+    // registry body command's is (``while 0 foo`` reports the same thing), so
+    // the bare ``foo`` inside it draws its own W123. That is the declaration
+    // working, not leaking: the assertion is about the stubbed head.
     let src = "\
 # tcl-lsp: stubs-begin
 # tcl-lsp: stub my_cmd {arg1:var body:body}
@@ -9592,7 +9644,9 @@ my_cmd $x foo
     let mut a = Analyser::new();
     let r = a.analyse(src, "tcl");
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        !r.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W123 && d.message.contains("my_cmd")),
         "W123 must not fire for stub-declared commands; got {:?}",
         r.diagnostics,
     );

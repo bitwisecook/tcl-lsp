@@ -186,7 +186,7 @@ For Tk validation, `%P`, `%s`, and `%S` carry editable text; for key bindings, \
 `%A` and `%K` carry the typed character or keysym. Do not declare widget paths, \
 indices, validation actions, or reasons (`%W`, `%i`, `%d`, `%V`) here: those are \
 framework metadata, not taint sources. The callback must be deferred; dynamic \
-script construction remains intentionally unanalyzed. In SpecTcl, write an \
+script construction remains intentionally unanalysed. In SpecTcl, write an \
 option's `-callback-taint-inputs {%P %S}` or the positional \
 `callback_taint_inputs {{INDEX {%A %K}}}` table.",
     ),
