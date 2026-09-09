@@ -17554,8 +17554,8 @@ impl Backend {
         if let BigipVersionSetting::Present(version) = parse_bigip_version(cfg) {
             *self.bigip_version.lock().await = version;
         }
-        // `tclLsp.targets` — declared version-target ranges (redesign §5.4
-        // range targeting): an object of provider → range, e.g.
+        // `tclLsp.targets` — declared version-target ranges: an object of
+        // provider → range, e.g.
         // `{ "tcl": "8.5-9.0", "Tk": "8.5-8.6" }`. Reset unconditionally so
         // removing the setting switches range mode back off.
         {
