@@ -4736,7 +4736,7 @@ impl Vm {
                 let name = pop(f);
                 match crate::cmd_oo::object_key(self, &name) {
                     Ok(key) => {
-                        let v = crate::cmd_oo::object_class_name(self, &key);
+                        let v = crate::cmd_oo::object_class_name(self, key);
                         f.stack.push(v);
                     }
                     Err(c) => return Tick::Return(c),
@@ -4746,7 +4746,7 @@ impl Vm {
                 let name = pop(f);
                 match crate::cmd_oo::object_key(self, &name) {
                     Ok(key) => {
-                        let v = crate::cmd_oo::object_namespace_name(self, &key);
+                        let v = crate::cmd_oo::object_namespace_name(self, key);
                         f.stack.push(v);
                     }
                     Err(c) => return Tick::Return(c),
@@ -5320,7 +5320,7 @@ impl Vm {
                 Self::deliver_sync(f, res)
             }
             Some(Command::Object(key)) => {
-                let res = crate::cmd_oo::oo_dispatch(self, &key, &name, &words[1..]);
+                let res = crate::cmd_oo::oo_dispatch(self, key, &name, &words[1..]);
                 Self::deliver_sync(f, res)
             }
             // Resolution miss fallback chain: a `namespace unknown` handler
@@ -5676,7 +5676,7 @@ impl Vm {
             }
             Command::ChildInterp(child) => self.dispatch_child(name, child, argv),
             Command::Ensemble(e) => self.dispatch_ensemble(name, &e, argv),
-            Command::Object(key) => crate::cmd_oo::oo_dispatch(self, &key, name, argv),
+            Command::Object(key) => crate::cmd_oo::oo_dispatch(self, key, name, argv),
             // Miss fallback chain (see `dispatch_words`): `namespace unknown`
             // handler first, then the plain `unknown` proc, then a hard error.
         }

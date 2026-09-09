@@ -72,6 +72,7 @@ use crate::value::Value;
 use crate::vars::{VarArena, VarState as Local, VarState, VarTable};
 
 type CommandSlot = tcl_runtime_api::CommandSlot<String>;
+type NamespacePath = tcl_runtime_api::command_identity::StaticNamespacePath;
 
 /// The proc-call recursion bound (C Tcl's default `interp recursionlimit`).
 /// A deeper nesting is a catchable error, not a native stack overflow.
@@ -483,9 +484,9 @@ pub(crate) fn canonical_ns_name(name: &str) -> std::borrow::Cow<'_, str> {
 
 /// The retained `TCL_STRING_KEYS` tables an interpreter root starts with: the
 /// global holder always has one, empty and at Tcl's four static buckets.
-fn root_hash_order() -> HashMap<String, tcl_cmd_core::namespace::TclStringHashOrder> {
+fn root_hash_order() -> HashMap<NsId, tcl_cmd_core::namespace::TclStringHashOrder> {
     HashMap::from([(
-        String::new(),
+        ROOT_NS,
         tcl_cmd_core::namespace::TclStringHashOrder::default(),
     )])
 }
@@ -579,20 +580,17 @@ pub struct Vm {
 struct RetainedNamespace {
     /// The retained token's own id — the key this record is filed under.
     root: NsId,
-    /// Canonical name of the retained token itself (its display name lives on
-    /// in `ns_arena`, so `namespace current` is unaffected).
-    canonical: String,
     /// Every canonical namespace name at or below the token, with its id.
-    subtree: HashMap<String, NsId>,
+    subtree: HashMap<NamespacePath, NsId>,
     commands: HashMap<String, Command>,
     generations: HashMap<String, u64>,
     imported: HashMap<String, ImportBinding>,
     builtin_identities: HashMap<String, String>,
-    command_orders: HashMap<String, tcl_cmd_core::namespace::TclStringHashOrder>,
-    child_orders: HashMap<String, tcl_cmd_core::namespace::TclStringHashOrder>,
-    exports: HashMap<String, Vec<String>>,
-    paths: HashMap<String, Vec<String>>,
-    unknowns: HashMap<String, Vec<Value>>,
+    command_orders: HashMap<NsId, tcl_cmd_core::namespace::TclStringHashOrder>,
+    child_orders: HashMap<NsId, tcl_cmd_core::namespace::TclStringHashOrder>,
+    exports: HashMap<NsId, Vec<String>>,
+    paths: HashMap<NsId, Vec<NsId>>,
+    unknowns: HashMap<NsId, Vec<Value>>,
 }
 
 /// Namespace-token deferral state: how many call frames are running in each
@@ -611,10 +609,9 @@ struct NamespaceDeferral {
 }
 
 impl RetainedNamespace {
-    fn new(root: NsId, canonical: &str) -> Self {
+    fn new(root: NsId) -> Self {
         Self {
             root,
-            canonical: canonical.to_owned(),
             subtree: HashMap::new(),
             commands: HashMap::new(),
             generations: HashMap::new(),
@@ -630,22 +627,29 @@ impl RetainedNamespace {
 }
 
 /// A retained token's immediate children, in child-table order.
-fn retained_children_of(record: &RetainedNamespace, parent: &str) -> Vec<NsId> {
-    let prefix = if parent.is_empty() {
-        String::new()
-    } else {
-        format!("{parent}::")
-    };
+fn retained_children_of(
+    record: &RetainedNamespace,
+    parent: NsId,
+    parents: &[Option<NsId>],
+    arena: &[NamespacePath],
+) -> Vec<NsId> {
     record
         .child_orders
-        .get(parent)
+        .get(&parent)
         .map(|order| {
             order
                 .keys()
                 .into_iter()
                 .filter_map(|tail| {
-                    let child = format!("{prefix}{}", core::str::from_utf8(tail).ok()?);
-                    record.subtree.get(&child).copied()
+                    let tail = core::str::from_utf8(tail).ok()?;
+                    record.subtree.values().find_map(|id| {
+                        (parents.get(id.0 as usize).copied().flatten() == Some(parent)
+                            && arena
+                                .get(id.0 as usize)
+                                .and_then(|path| path.last())
+                                .is_some_and(|segment| segment == tail))
+                        .then_some(*id)
+                    })
                 })
                 .collect()
         })
@@ -895,18 +899,9 @@ pub struct InterpState {
     /// builtin's simple name, or a proc's namespace-qualified name without the
     /// leading `::` (e.g. `foo::bar`; a global proc is just `bar`).
     commands: HashMap<String, Command>,
-    /// Structured command-table slots → private storage keys. Most storage
-    /// keys equal their ordinary constructed display spelling; a collision is
-    /// assigned an opaque key that never participates in Tcl name parsing or
-    /// rendering. This index is the authority for command lookup.
-    command_slots: HashMap<CommandSlot, String>,
-    /// Reverse ownership and display indexes for private command storage keys.
-    command_slot_by_key: HashMap<String, CommandSlot>,
-    command_display_names: HashMap<String, String>,
-    next_command_storage_key: u64,
-    /// Stable incarnation of each visible command-table token.
-    command_generations: HashMap<String, u64>,
-    next_command_generation: u64,
+    /// Structured slots, private storage projections, and stable command-token
+    /// generations/handles under one identity owner.
+    command_identity: CommandIdentityIndex,
     /// The fixed C math-function table used by pre-TIP-232 `expr` (Tcl 8.4).
     ///
     /// Normal command registration also installs these handlers under
@@ -929,7 +924,7 @@ pub struct InterpState {
     /// stack also distinguishes that dead token from a same-named recreation.
     ns_id_stack: Vec<NsId>,
     /// Existing namespaces (canonical names; `""` global is implicit).
-    namespaces: std::collections::HashSet<String>,
+    namespaces: std::collections::HashSet<NamespacePath>,
     /// Namespace tokens currently inside `TclTeardownNamespace`. Each exact
     /// namespace is already non-existent to Tcl callbacks, but its command
     /// table remains live until token deletion completes. Descendants are not
@@ -942,10 +937,10 @@ pub struct InterpState {
     /// Weak entries mirror command-token ownership without extending a deleted
     /// ensemble's lifetime.
     namespace_ensembles:
-        HashMap<String, Vec<Weak<tcl_cmd_core::ensemble::EnsembleToken<EnsembleDef, String>>>>,
+        HashMap<NsId, Vec<Weak<tcl_cmd_core::ensemble::EnsembleToken<EnsembleDef, String>>>>,
     /// Export patterns per namespace (canonical name → glob patterns), set by
     /// `namespace export` and consulted by `namespace import`.
-    ns_exports: HashMap<String, Vec<String>>,
+    ns_exports: HashMap<NsId, Vec<String>>,
     /// Import provenance: canonical key of a command created by `namespace
     /// import` → the canonical FQN of its origin (source) command. Lets
     /// `namespace forget` remove *only* imported commands (C
@@ -978,8 +973,12 @@ pub struct InterpState {
     /// contract. The VM resolves namespaces by their canonical `String` name; this
     /// side-table mints stable `NsId` handles for them (`ns_arena[id]` is the name,
     /// `ROOT_NS` = 0 = `""`), bridging the handle-based trait to the string model.
-    ns_arena: Vec<String>,
-    ns_intern: HashMap<String, NsId>,
+    ns_arena: Vec<NamespacePath>,
+    ns_intern: HashMap<NamespacePath, NsId>,
+    /// Immutable parent edge for every namespace token ever minted.
+    ns_parents: Vec<Option<NsId>>,
+    /// Live parent/simple-name edge to the current child token.
+    ns_children: HashMap<(NsId, String), NsId>,
     /// Namespace-token identities permanently invalidated by deletion. Arena
     /// ids are monotonic and never reused; the global root is never dead.
     dead_namespaces: HashSet<NsId>,
@@ -988,37 +987,31 @@ pub struct InterpState {
     ns_deferral: NamespaceDeferral,
     /// Per-namespace retained `TCL_STRING_KEYS` child-table state. The shared
     /// owner preserves resize and deletion history for `namespace children`.
-    ns_child_order: HashMap<String, tcl_cmd_core::namespace::TclStringHashOrder>,
+    ns_child_order: HashMap<NsId, tcl_cmd_core::namespace::TclStringHashOrder>,
     /// Per-namespace retained `TCL_STRING_KEYS` command-table state, keyed by
     /// the holder namespace of each command's canonical key. `commands` is one
     /// flat map, so the bucket order `TclTeardownNamespace` snapshots lives
     /// here instead. Builtins are registered in the VM's own bootstrap order
     /// rather than `Tcl_CreateInterp`'s, so the global holder's order is ours,
     /// not C's; every per-namespace user table is exact.
-    ns_command_order: HashMap<String, tcl_cmd_core::namespace::TclStringHashOrder>,
+    ns_command_order: HashMap<NsId, tcl_cmd_core::namespace::TclStringHashOrder>,
     /// Per-namespace command resolution path (`namespace path`): canonical
     /// namespace name (no leading `::`, `""` = global) → the ordered list of
     /// namespaces (canonical) consulted after the current namespace and before
     /// the global one during command lookup. Absent / empty = the default
     /// (current → global only).
-    ns_paths: HashMap<String, Vec<String>>,
+    ns_paths: HashMap<NsId, Vec<NsId>>,
     /// Per-namespace `namespace unknown` handlers (TIP 181): canonical
     /// namespace name → the handler command prefix. Consulted on a
     /// resolution miss for the *current* namespace, then the global
     /// namespace's handler (the interp default), then the plain `unknown`
     /// proc. NOT inherited by child namespaces (tclsh 8.6.16 /
     /// 9.0.4-pinned). Absent / empty = use the default chain.
-    ns_unknowns: HashMap<String, Vec<Value>>,
+    ns_unknowns: HashMap<NsId, Vec<Value>>,
     /// Reentrancy guard: non-zero while a `namespace unknown` handler itself
     /// is being dispatched, so a handler whose own head is unresolvable falls
     /// through to a hard `invalid command name` instead of recursing.
     ns_unknown_depth: u32,
-    /// Command-FQN ⇆ dense raw `CommandId` arena for `Namespaces::find_command`
-    /// and `Commands::dispatch_id`. Interior-mutable because `find_command` is
-    /// `&self` but mints a handle on first sight. Bidirectional: `find_command`
-    /// interns an absolute FQN, `dispatch_id` reverses the id to that FQN and
-    /// invokes it.
-    cmd_arena: RefCell<CmdArena>,
     /// Provided packages → version (`package provide`/`require`).
     packages: HashMap<String, String>,
     /// Package name → version → loader script (`package ifneeded`).
@@ -1411,6 +1404,23 @@ impl Default for LimitSet {
             value_bytes: None,
         }
     }
+}
+
+/// Bidirectional command-table placement, token, and presentation identity.
+///
+/// Most storage keys equal the ordinary constructed display spelling. A
+/// collision receives an opaque key that never participates in Tcl name
+/// parsing or rendering. External handles intern the token generation rather
+/// than a mutable name.
+#[derive(Default)]
+struct CommandIdentityIndex {
+    by_slot: HashMap<CommandSlot, String>,
+    slot_by_key: HashMap<String, CommandSlot>,
+    display_by_key: HashMap<String, String>,
+    next_storage_key: u64,
+    generations: HashMap<String, u64>,
+    next_generation: u64,
+    handles: RefCell<CmdArena>,
 }
 
 /// External command handles intern one exact command-token generation. Names
@@ -1894,6 +1904,21 @@ impl Vm {
 }
 
 impl InterpState {
+    fn current_ns_id(&self) -> NsId {
+        self.ns_id_stack.last().copied().unwrap_or(ROOT_NS)
+    }
+
+    fn current_ns(&self) -> &str {
+        self.ns_stack.last().map_or("", String::as_str)
+    }
+
+    fn ns_path(&self, id: NsId) -> NamespacePath {
+        self.ns_arena
+            .get(id.0 as usize)
+            .cloned()
+            .unwrap_or_default()
+    }
+
     /// Release/dialect visibility belongs to the interpreter state because
     /// command candidate traversal happens here, including for parked child
     /// interpreters.  Filtering after resolution is too late: an unavailable
@@ -2012,12 +2037,7 @@ impl InterpState {
             ns_vars: HashMap::new(),
             const_vars: HashSet::new(),
             commands: HashMap::new(),
-            command_slots: HashMap::new(),
-            command_slot_by_key: HashMap::new(),
-            command_display_names: HashMap::new(),
-            next_command_storage_key: 0,
-            command_generations: HashMap::new(),
-            next_command_generation: 0,
+            command_identity: CommandIdentityIndex::default(),
             fixed_math_builtins: HashMap::new(),
             module_procs: HashMap::new(),
             ns_stack: vec![String::new()],
@@ -2029,8 +2049,10 @@ impl InterpState {
             imported_commands: HashMap::new(),
             builtin_identities: HashMap::new(),
             registry_object_roots: HashMap::new(),
-            ns_arena: vec![String::new()],
-            ns_intern: HashMap::from([(String::new(), ROOT_NS)]),
+            ns_arena: vec![Vec::new()],
+            ns_intern: HashMap::from([(Vec::new(), ROOT_NS)]),
+            ns_parents: vec![None],
+            ns_children: HashMap::new(),
             dead_namespaces: HashSet::new(),
             ns_deferral: NamespaceDeferral::default(),
             ns_child_order: root_hash_order(),
@@ -2038,7 +2060,6 @@ impl InterpState {
             ns_paths: HashMap::new(),
             ns_unknowns: HashMap::new(),
             ns_unknown_depth: 0,
-            cmd_arena: RefCell::new(CmdArena::default()),
             packages: HashMap::new(),
             package_ifneeded: HashMap::new(),
             package_unknown: None,
@@ -2797,11 +2818,12 @@ impl Vm {
     }
 
     fn mint_command_generation(&mut self) -> u64 {
-        self.next_command_generation = self.next_command_generation.wrapping_add(1);
-        if self.next_command_generation == 0 {
-            self.next_command_generation = 1;
+        self.command_identity.next_generation =
+            self.command_identity.next_generation.wrapping_add(1);
+        if self.command_identity.next_generation == 0 {
+            self.command_identity.next_generation = 1;
         }
-        self.next_command_generation
+        self.command_identity.next_generation
     }
 
     /// Derive the structured slot for a command being published at `display`.
@@ -2844,37 +2866,55 @@ impl Vm {
     /// parsed or rendered; all ingress/egress goes through the slot/display
     /// indexes beside it.
     fn storage_key_for_command_slot(&mut self, slot: CommandSlot, display: &str) -> String {
-        if let Some(key) = self.command_slots.get(&slot) {
+        if let Some(key) = self.command_identity.by_slot.get(&slot) {
             return key.clone();
         }
-        let key = if self.command_slot_by_key.contains_key(display) {
+        let key = if self.command_identity.slot_by_key.contains_key(display) {
             loop {
-                self.next_command_storage_key = self.next_command_storage_key.wrapping_add(1);
-                let candidate = format!("\0tcl-command:{}", self.next_command_storage_key);
-                if !self.command_slot_by_key.contains_key(&candidate) {
+                self.command_identity.next_storage_key =
+                    self.command_identity.next_storage_key.wrapping_add(1);
+                let candidate = format!("\0tcl-command:{}", self.command_identity.next_storage_key);
+                if !self.command_identity.slot_by_key.contains_key(&candidate) {
                     break candidate;
                 }
             }
         } else {
             display.to_owned()
         };
-        self.command_slots.insert(slot.clone(), key.clone());
-        self.command_slot_by_key.insert(key.clone(), slot);
-        self.command_display_names
+        self.command_identity
+            .by_slot
+            .insert(slot.clone(), key.clone());
+        self.command_identity.slot_by_key.insert(key.clone(), slot);
+        self.command_identity
+            .display_by_key
             .insert(key.clone(), display.to_owned());
         key
     }
 
     /// Forget a command slot after the exact token occupying it is retired.
     fn forget_command_storage_key(&mut self, key: &str) {
-        if let Some(slot) = self.command_slot_by_key.remove(key) {
-            self.command_slots.remove(&slot);
+        if let Some(slot) = self.command_identity.slot_by_key.remove(key) {
+            self.command_identity.by_slot.remove(&slot);
         }
-        self.command_display_names.remove(key);
+        self.command_identity.display_by_key.remove(key);
     }
 
     fn command_slot(&self, key: &str) -> Option<&CommandSlot> {
-        self.command_slot_by_key.get(key)
+        self.command_identity.slot_by_key.get(key)
+    }
+
+    /// Resolve the namespace portion of a Tcl-written command name without
+    /// discarding the absolute marker when its qualifier text is empty (for
+    /// example `::co`).
+    fn command_namespace_path_from_written(&self, written: &str) -> NamespacePath {
+        let prefix = tcl_cmd_core::namespace::qualifiers(written.as_bytes());
+        let prefix = core::str::from_utf8(prefix).unwrap_or_default();
+        if written.starts_with("::") {
+            tcl_syntax::naming::qualifier_segments_owned(prefix)
+        } else {
+            let current = self.ns_id_stack.last().copied().unwrap_or(ROOT_NS);
+            self.namespace_path_from_written(current, prefix)
+        }
     }
 
     /// Resolve a Tcl-written command name to the exact namespace-table slot
@@ -2891,16 +2931,8 @@ impl Vm {
             String::from_utf8_lossy(tcl_syntax::naming::written_command_tail(written.as_bytes()))
                 .into_owned();
         let namespace = if qualified {
-            let qualifier = tcl_cmd_core::namespace::qualifiers(written.as_bytes());
-            let holder = canonical_ns_name(core::str::from_utf8(qualifier).unwrap_or_default());
-            if written.starts_with("::") {
-                self.ns_intern
-                    .get(holder.as_ref())
-                    .copied()
-                    .unwrap_or_else(|| self.intern_ns(&holder))
-            } else {
-                self.definition_namespace_token(&holder)
-            }
+            let path = self.command_namespace_path_from_written(written);
+            self.definition_namespace_token_at_path(&path, written.starts_with("::"))
         } else {
             self.ns_id_stack.last().copied().unwrap_or(ROOT_NS)
         };
@@ -2931,21 +2963,17 @@ impl Vm {
             String::from_utf8_lossy(tcl_syntax::naming::written_command_tail(written.as_bytes()))
                 .into_owned();
         let namespace = if qualified {
-            let qualifier = tcl_cmd_core::namespace::qualifiers(written.as_bytes());
-            let holder = canonical_ns_name(core::str::from_utf8(qualifier).unwrap_or_default());
-            if holder.is_empty() {
-                ROOT_NS
-            } else {
-                let Some(namespace) = self.ns_intern.get(holder.as_ref()).copied() else {
-                    return false;
-                };
-                namespace
-            }
+            let path = self.command_namespace_path_from_written(written);
+            let Some(namespace) = self.namespace_token_at_path(&path, written.starts_with("::"))
+            else {
+                return false;
+            };
+            namespace
         } else {
             self.ns_id_stack.last().copied().unwrap_or(ROOT_NS)
         };
         let slot = CommandSlot { namespace, simple };
-        self.command_slots.get(&slot).is_some_and(|key| {
+        self.command_identity.by_slot.get(&slot).is_some_and(|key| {
             self.commands
                 .get(key)
                 .or_else(|| {
@@ -2960,7 +2988,7 @@ impl Vm {
 
     fn command_token_identity(&self, key: &CommandSidecarKey) -> Option<CommandTokenIdentity> {
         let generation = match key {
-            CommandSidecarKey::Visible(name) => self.command_generations.get(name),
+            CommandSidecarKey::Visible(name) => self.command_identity.generations.get(name),
             CommandSidecarKey::Hidden(name) => self.hidden_command_generations.get(name),
         }?;
         Some(CommandTokenIdentity {
@@ -3051,7 +3079,8 @@ impl Vm {
         self.commands.insert(name.to_owned(), cmd);
         self.note_command_bound(name, replacing_command);
         let installed_generation = self.mint_command_generation();
-        self.command_generations
+        self.command_identity
+            .generations
             .insert(name.to_owned(), installed_generation);
         if let Some(replaced_token) = replaced_token {
             let installed = self
@@ -3089,7 +3118,7 @@ impl Vm {
             return;
         };
         let command = self.commands.remove(key);
-        let generation = self.command_generations.remove(key);
+        let generation = self.command_identity.generations.remove(key);
         let imported = self.imported_commands.remove(key);
         let identity = self.builtin_identities.remove(key);
         let Some(record) = self.ns_deferral.retained.get_mut(&root) else {
@@ -3120,7 +3149,7 @@ impl Vm {
         token: &Rc<tcl_cmd_core::ensemble::EnsembleToken<EnsembleDef, String>>,
     ) {
         self.register_command(name, Command::Ensemble(Rc::clone(token)));
-        let namespace = token.config().namespace;
+        let namespace = self.current_ns_id();
         self.namespace_ensembles
             .entry(namespace)
             .or_default()
@@ -3145,7 +3174,7 @@ impl Vm {
         }
         if let Some(command) = self.commands.remove(name) {
             self.note_command_unbound(name);
-            self.command_generations.remove(name);
+            self.command_identity.generations.remove(name);
             if !imported && let Some(token) = token {
                 self.retire_real_command(&token, &command);
             }
@@ -3207,7 +3236,8 @@ impl Vm {
         }
         let source_import_binding = self.imported_commands.get(&old_key).cloned();
         let source_generation = *self
-            .command_generations
+            .command_identity
+            .generations
             .get(&old_key)
             .expect("every registered command has a token generation");
         let source_builtin_identity = self.builtin_identity_for_key(&old_key);
@@ -3257,13 +3287,17 @@ impl Vm {
         // state.
         let new_key = self.register_command_in_slot(&display, slot, command.clone());
         new_key.clone_into(&mut transaction.new_key);
+        if let Command::Object(object) = &command {
+            crate::cmd_oo::oo_command_renamed(self, *object, new_key.clone(), display.clone());
+        }
         // What that surviving entry points *at* does move, though: C re-homes
         // the one `Command` (`cmdPtr->nsPtr = newNsPtr`) before it fires, and
         // both hash entries reference it, so a proc invoked through the
         // vacating name reports the *destination's* `namespace current` — and
         // resolves `variable` there — for the callbacks' duration.
         self.rebind_rename_source(&transaction.old_key.clone(), command.clone());
-        self.command_generations
+        self.command_identity
+            .generations
             .insert(new_key.clone(), transaction.source_generation);
         if transaction.source_import_binding.is_none()
             && let Command::Ensemble(token) = command
@@ -3350,6 +3384,10 @@ impl Vm {
             // whatever holds the name now is a distinct token and stands.
             // Issue #1633 row 9 reached the same rule from the trace side; this
             // is the stronger form, and its vector still holds.
+            return true;
+        }
+        if let Command::Object(object) = &command {
+            crate::cmd_oo::oo_command_deleted(self, *object);
             return true;
         }
         self.retire_real_command(&source_token, &command);
@@ -3439,7 +3477,7 @@ impl Vm {
         }
         self.bump_cmd_epoch();
         self.imported_commands.remove(key);
-        self.command_generations.remove(key);
+        self.command_identity.generations.remove(key);
         self.builtin_identities.remove(key);
         // Clear the `TclOO` root marking with the entry it describes, exactly
         // as the builtin identity above is cleared. A rename re-declares it at
@@ -3516,7 +3554,7 @@ impl Vm {
         if self.alias_chain_loops(src, &src_key) {
             let tail = self
                 .st_of(src)
-                .and_then(|state| state.command_slot_by_key.get(&src_key))
+                .and_then(|state| state.command_identity.slot_by_key.get(&src_key))
                 .map_or_else(String::new, |slot| slot.simple.clone());
             self.in_interp(src, |vm| {
                 vm.remove_command_exact(&src_key);
@@ -4324,7 +4362,7 @@ impl Vm {
         let Some(source) = self.resolve_command_fqn(self.current_ns(), cmd) else {
             return Err(CommandVisibilityError::MissingCommand(cmd.to_owned()));
         };
-        let source_generation = self.command_generations.get(&source).copied();
+        let source_generation = self.command_identity.generations.get(&source).copied();
         let import_origin = self.imported_commands.get(&source).cloned();
         let builtin_identity = self.builtin_identity_for_key(&source);
         let Some(command) = self.take_command(cmd) else {
@@ -4392,7 +4430,8 @@ impl Vm {
             simple: destination_display.clone(),
         };
         if self
-            .command_slots
+            .command_identity
+            .by_slot
             .get(&destination_slot)
             .is_some_and(|key| self.visible_command_exists_exact(key))
         {
@@ -4409,7 +4448,8 @@ impl Vm {
         };
         let destination = self.register_command_in_slot(&destination_display, destination_slot, c);
         if let Some(generation) = source_generation {
-            self.command_generations
+            self.command_identity
+                .generations
                 .insert(destination.clone(), generation);
         }
         if !imported && let Some(Command::Ensemble(token)) = self.commands.get(&destination) {
@@ -4540,11 +4580,11 @@ impl Vm {
                 continue;
             }
             let import_origin = self.imported_commands.get(c).cloned();
-            let command_generation = self.command_generations.get(c).copied();
+            let command_generation = self.command_identity.generations.get(c).copied();
             let builtin_identity = self.builtin_identity_for_key(c);
             if let Some(cmd) = self.commands.remove(c) {
                 self.note_command_unbound(c);
-                self.command_generations.remove(c);
+                self.command_identity.generations.remove(c);
                 self.imported_commands.remove(c);
                 self.builtin_identities.remove(c);
                 self.hidden_commands.insert(c.to_string(), cmd);
@@ -4711,9 +4751,8 @@ impl Vm {
     /// The exported command tails of namespace `ns` (the default ensemble
     /// subcommand set): commands directly in `ns` whose tail matches an export
     /// pattern.
-    fn exported_command_tails(&self, ns: &str) -> Vec<String> {
-        let namespace = self.ns_intern.get(ns).copied().unwrap_or(ROOT_NS);
-        let patterns = self.ns_exports.get(ns).cloned().unwrap_or_default();
+    fn exported_command_tails(&self, namespace: NsId) -> Vec<String> {
+        let patterns = self.ns_exports.get(&namespace).cloned().unwrap_or_default();
         let mut out = Vec::new();
         for key in self.commands.keys() {
             let Some(slot) = self.command_slot(key) else {
@@ -4771,7 +4810,7 @@ impl Vm {
             let rest = &argv[layout.arguments..];
             let mut subs: Vec<String> = match &e.subcommands {
                 Some(list) => list.clone(),
-                None => self.exported_command_tails(&e.namespace),
+                None => self.exported_command_tails(e.namespace),
             };
             for (key, _) in &e.map {
                 if !subs.contains(key) {
@@ -4787,10 +4826,11 @@ impl Vm {
                 let mapped = e.map.iter().find(|(key, _)| key == resolved);
                 let mut full: Vec<Value> = mapped.map_or_else(
                     || {
-                        vec![Value::string(if e.namespace.is_empty() {
+                        let namespace = Namespaces::name(self, e.namespace);
+                        vec![Value::string(if namespace == "::" {
                             format!("::{resolved}")
                         } else {
-                            format!("::{}::{resolved}", e.namespace)
+                            format!("{namespace}::{resolved}")
                         })]
                     },
                     |(_, words)| words.clone(),
@@ -4850,7 +4890,7 @@ impl Vm {
                     &subs,
                     sub.as_bytes(),
                     e.prefixes,
-                    display_namespace(&e.namespace).as_bytes(),
+                    Namespaces::name(self, e.namespace).as_bytes(),
                 ))
                 .into_owned();
             return lookup_error(message, "SUBCOMMAND", &sub);
@@ -5161,21 +5201,23 @@ impl Vm {
     /// Get the current namespace's command resolution path (`namespace path`)
     /// as a list of canonical names (no leading `::`); empty by default.
     pub(crate) fn ns_path_get(&self) -> Vec<String> {
-        let current = self.current_ns();
+        let current = self.current_ns_id();
         self.retained_current_record()
-            .and_then(|record| record.paths.get(current))
-            .or_else(|| self.ns_paths.get(current))
-            .cloned()
-            .unwrap_or_default()
+            .and_then(|record| record.paths.get(&current))
+            .or_else(|| self.ns_paths.get(&current))
+            .into_iter()
+            .flatten()
+            .map(|id| self.ns_name(*id))
+            .collect()
     }
 
     /// Set the current namespace's command resolution path to `path` (canonical
     /// names, no leading `::`).
-    pub(crate) fn ns_path_set(&mut self, path: Vec<String>) {
+    pub(crate) fn ns_path_set(&mut self, path: Vec<NsId>) {
         self.bump_cmd_epoch();
         self.invalidate_compiled_command_semantics();
-        let cur = self.current_ns().to_string();
-        match self.retained_owner_of_namespace(&cur) {
+        let cur = self.current_ns_id();
+        match self.ns_deferral.owners.get(&cur).copied() {
             Some(root) => {
                 if let Some(record) = self.ns_deferral.retained.get_mut(&root) {
                     record.paths.insert(cur, path);
@@ -5190,10 +5232,10 @@ impl Vm {
     /// The current namespace's `namespace unknown` handler prefix, or empty
     /// when unset (the caller reports the `::unknown` default).
     pub(crate) fn ns_unknown_get(&self) -> Vec<Value> {
-        let current = self.current_ns();
+        let current = self.current_ns_id();
         self.retained_current_record()
-            .and_then(|record| record.unknowns.get(current))
-            .or_else(|| self.ns_unknowns.get(current))
+            .and_then(|record| record.unknowns.get(&current))
+            .or_else(|| self.ns_unknowns.get(&current))
             .cloned()
             .unwrap_or_default()
     }
@@ -5201,9 +5243,12 @@ impl Vm {
     /// Set (non-empty) or reset (empty) the current namespace's
     /// `namespace unknown` handler prefix.
     pub(crate) fn ns_unknown_set(&mut self, handler: Vec<Value>) {
-        let cur = self.current_ns().to_string();
+        let cur = self.current_ns_id();
         let retained = self
-            .retained_owner_of_namespace(&cur)
+            .ns_deferral
+            .owners
+            .get(&cur)
+            .copied()
             .and_then(|root| self.ns_deferral.retained.get_mut(&root));
         let table = match retained {
             Some(record) => &mut record.unknowns,
@@ -5226,11 +5271,11 @@ impl Vm {
         if self.ns_unknown_depth > 0 {
             return None;
         }
-        let current = self.current_ns();
+        let current = self.current_ns_id();
         self.retained_current_record()
-            .and_then(|record| record.unknowns.get(current))
-            .or_else(|| self.ns_unknowns.get(current))
-            .or_else(|| self.ns_unknowns.get(""))
+            .and_then(|record| record.unknowns.get(&current))
+            .or_else(|| self.ns_unknowns.get(&current))
+            .or_else(|| self.ns_unknowns.get(&ROOT_NS))
             .cloned()
     }
 
@@ -5247,28 +5292,122 @@ impl Vm {
         self.ns_stack.last().map_or("", String::as_str)
     }
 
-    /// Intern a canonical namespace name to its stable `NsId`, minting one on
-    /// first sight (`ROOT_NS` = 0 = `""`). The handle a `Frames::push` caller
-    /// passes — and what `Namespaces::current` will return — round-trips through
-    /// [`ns_name`](Self::ns_name).
-    pub fn intern_ns(&mut self, name: &str) -> NsId {
-        if let Some(&id) = self.ns_intern.get(name) {
+    /// Intern a canonical namespace path to its stable `NsId`, minting one on
+    /// first sight (`ROOT_NS` = 0 = the empty path).
+    fn intern_ns_path(&mut self, path: NamespacePath) -> NsId {
+        if let Some(&id) = self.ns_intern.get(&path) {
             return id;
         }
+        let parent = if path.is_empty() {
+            None
+        } else {
+            let mut parent_path = path.clone();
+            parent_path.pop();
+            Some(self.intern_ns_path(parent_path))
+        };
         let id = NsId(u32::try_from(self.ns_arena.len()).expect("namespace count fits u32"));
-        self.ns_arena.push(name.to_string());
-        self.ns_intern.insert(name.to_string(), id);
+        self.ns_arena.push(path.clone());
+        self.ns_parents.push(parent);
+        self.ns_intern.insert(path, id);
         self.ns_vars.entry(id).or_default();
         id
+    }
+
+    /// Intern a Tcl-written absolute namespace name. Internal callers with an
+    /// already-structured path use [`Self::intern_ns_path`] so rendered names
+    /// are never parsed back into identity.
+    pub fn intern_ns(&mut self, name: &str) -> NsId {
+        self.intern_ns_path(tcl_syntax::naming::qualifier_segments_owned(name))
+    }
+
+    fn ns_path(&self, id: NsId) -> tcl_runtime_api::command_identity::StaticNamespacePath {
+        self.ns_arena
+            .get(id.0 as usize)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    fn namespace_path_from_written(&self, context: NsId, written: &str) -> Vec<String> {
+        let mut path = if written.starts_with("::") {
+            Vec::new()
+        } else {
+            self.ns_path(context)
+        };
+        path.extend(tcl_syntax::naming::qualifier_segments_owned(written));
+        path
+    }
+
+    fn namespace_id_from_written(&self, context: NsId, written: &str) -> Option<NsId> {
+        self.ns_intern
+            .get(&self.namespace_path_from_written(context, written))
+            .copied()
+    }
+
+    pub(crate) fn namespace_token_for_written(&self, written: &str) -> Option<NsId> {
+        let path = self.namespace_path_from_written(self.current_ns_id(), written);
+        self.namespace_token_at_path(&path, written.starts_with("::"))
+    }
+
+    pub(crate) fn namespace_display_for_written(&self, written: &str) -> String {
+        self.namespace_path_from_written(self.current_ns_id(), written)
+            .join("::")
+    }
+
+    pub(crate) fn retained_namespace_token_for_written(&self, written: &str) -> Option<NsId> {
+        if written.starts_with("::") {
+            return None;
+        }
+        let path = self.namespace_path_from_written(self.current_ns_id(), written);
+        self.retained_token_at_path(&path)
+    }
+
+    pub(crate) fn namespace_is_dying_written(&self, written: &str) -> bool {
+        let path = self.namespace_path_from_written(self.current_ns_id(), written);
+        self.ns_intern
+            .get(&path)
+            .is_some_and(|id| self.dying_namespaces.contains(id))
+    }
+
+    pub(crate) fn activate_namespace_written(&mut self, written: &str) -> NsId {
+        let path = self.namespace_path_from_written(self.current_ns_id(), written);
+        self.declare_namespace_path_with_origin(path.clone(), written.starts_with("::"));
+        self.ns_intern
+            .get(&path)
+            .copied()
+            .unwrap_or_else(|| self.intern_ns_path(path))
     }
 
     /// The canonical namespace name for an interned `NsId` (`""` for `ROOT_NS`
     /// or any unknown id — a `Frames::push` into the global namespace).
     fn ns_name(&self, id: NsId) -> String {
-        self.ns_arena
-            .get(id.0 as usize)
-            .cloned()
-            .unwrap_or_default()
+        self.ns_path(id).join("::")
+    }
+
+    fn current_ns_id(&self) -> NsId {
+        self.ns_id_stack.last().copied().unwrap_or(ROOT_NS)
+    }
+
+    fn retained_token_at_path(&self, path: &[String]) -> Option<NsId> {
+        self.retained_current_record()?.subtree.get(path).copied()
+    }
+
+    /// Resolve a structured namespace path without allowing an old retained
+    /// token to alias a same-spelled live recreation.
+    fn namespace_token_at_path(&self, path: &[String], absolute: bool) -> Option<NsId> {
+        if !absolute && let Some(id) = self.retained_token_at_path(path) {
+            return Some(id);
+        }
+        self.ns_intern.get(path).copied()
+    }
+
+    fn definition_namespace_token_at_path(&mut self, path: &[String], absolute: bool) -> NsId {
+        if !absolute && let Some(id) = self.retained_token_at_path(path) {
+            return id;
+        }
+        self.ns_intern
+            .get(path)
+            .copied()
+            .unwrap_or_else(|| self.intern_ns_path(path.to_vec()))
     }
 
     /// Whether at least one `enterstep`/`leavestep`-capable execution trace is
@@ -5352,7 +5491,8 @@ fn is_step_capable(ops: &[String]) -> bool {
 impl InterpState {
     /// The Tcl display key for a private command storage key.
     pub(crate) fn command_display_key<'a>(&'a self, key: &'a str) -> &'a str {
-        self.command_display_names
+        self.command_identity
+            .display_by_key
             .get(key)
             .map_or(key, String::as_str)
     }
@@ -5389,16 +5529,31 @@ impl InterpState {
     /// `namespace path` entries in order, then global — dispatching the
     /// first that **exists**.  `None` if unresolved.
     pub(crate) fn resolve_command_fqn(&self, cxt: &str, name: &str) -> Option<String> {
+        let cxt_id = if cxt == self.current_ns() {
+            self.current_ns_id()
+        } else {
+            let path = tcl_syntax::naming::key_segments(cxt);
+            self.ns_intern.get(&path).copied().unwrap_or(ROOT_NS)
+        };
+        self.resolve_command_from_token(cxt_id, name, true)
+    }
+
+    fn resolve_command_from_token(
+        &self,
+        cxt: NsId,
+        name: &str,
+        filter_public_surface: bool,
+    ) -> Option<String> {
         // M16.4 memo — C caches the resolution on the name object and
         // invalidates by interp epoch; here the memo is a per-Vm map keyed
         // `cxt␁name`, cleared whenever its stored epoch is stale.
         // A retained token and a recreation share every spelling, so their
         // resolutions share a memo key. Answer such a frame from the rule.
-        if self.retained_current_record().is_some() {
-            return self.resolve_command_fqn_uncached(cxt, name, true);
+        if self.retained_record_of(cxt).is_some() {
+            return self.resolve_command_fqn_uncached(cxt, name, filter_public_surface);
         }
         let epoch = self.cmd_epoch.get();
-        let memo_key = format!("{cxt}\u{0001}{name}");
+        let memo_key = format!("{}\u{0001}{name}", cxt.0);
         {
             let cache = self.cmd_resolve_cache.borrow();
             if cache.0 == epoch
@@ -5407,7 +5562,7 @@ impl InterpState {
                 return hit.clone();
             }
         }
-        let res = self.resolve_command_fqn_uncached(cxt, name, true);
+        let res = self.resolve_command_fqn_uncached(cxt, name, filter_public_surface);
         let mut cache = self.cmd_resolve_cache.borrow_mut();
         if cache.0 != epoch {
             cache.0 = epoch;
@@ -5429,7 +5584,13 @@ impl InterpState {
     /// namespace-path, and global candidate ordering remain the active Tcl
     /// release's resolution rules. Never use this for Tcl-visible dispatch.
     fn resolve_command_fqn_raw(&self, cxt: &str, name: &str) -> Option<String> {
-        self.resolve_command_fqn_uncached(cxt, name, false)
+        let cxt_id = if cxt == self.current_ns() {
+            self.current_ns_id()
+        } else {
+            let path = tcl_syntax::naming::key_segments(cxt);
+            self.ns_intern.get(&path).copied().unwrap_or(ROOT_NS)
+        };
+        self.resolve_command_from_token(cxt_id, name, false)
     }
 
     /// The record retaining `id`, if any — `id` may be the retained token
@@ -5450,112 +5611,64 @@ impl InterpState {
     /// whose retained subtree contains it. Definitions and command-table
     /// bookkeeping for such a name belong to that record: the public spelling
     /// may already have been taken by a recreation.
-    fn retained_owner_of_namespace(&self, name: &str) -> Option<NsId> {
+    fn retained_owner_of_namespace(&self, path: &[String]) -> Option<NsId> {
         let record = self.retained_current_record()?;
-        record.subtree.contains_key(name).then_some(record.root)
+        record.subtree.contains_key(path).then_some(record.root)
     }
 
     /// The uncached resolution rule — see [`Self::resolve_command_fqn`].
     fn resolve_command_fqn_uncached(
         &self,
-        cxt: &str,
+        cxt: NsId,
         name: &str,
         filter_public_surface: bool,
     ) -> Option<String> {
-        // Collapse separator runs up front — C treats any colon run as one
-        // separator, so `foo:::bar` dispatches `foo::bar` and `quux:::` the
-        // `{}` command `quux::` (tclsh8.6-verified). The key form keeps the
-        // shared resolver's candidates aligned with the command table; a
-        // rooted name stays absolute.
-        let written_name = name;
-        let cleaned = canonical_cmd_key(written_name);
-        let name: std::borrow::Cow<'_, str> = if written_name.starts_with("::") {
-            std::borrow::Cow::Owned(format!("::{cleaned}"))
+        let simple =
+            String::from_utf8_lossy(tcl_syntax::naming::written_command_tail(name.as_bytes()))
+                .into_owned();
+        let mut qualifiers = tcl_syntax::naming::qualifier_segments_owned(name);
+        if !simple.is_empty() {
+            qualifiers.pop();
+        }
+        let mut bases = if name.starts_with("::") {
+            vec![ROOT_NS]
         } else {
-            cleaned
+            vec![cxt]
         };
-        // A frame holding a retained namespace token reaches that token's own
-        // command table first, exactly as `TclGetNamespaceForQualName` walks
-        // from `varFramePtr->nsPtr`. That table is no longer in the flat map
-        // (a same-named recreation would share every key), so the record
-        // answers for it. An absolute name skips this: it is rooted at the
-        // global namespace, where the recreation lives.
-        let cxt_record = (cxt == self.ns_stack.last().map_or("", String::as_str))
-            .then(|| self.retained_current_record())
-            .flatten();
-        let retained = (!name.starts_with("::")).then_some(cxt_record).flatten();
-        let cxt_id = if cxt == self.ns_stack.last().map_or("", String::as_str) {
-            self.ns_id_stack.last().copied().unwrap_or(ROOT_NS)
-        } else {
-            self.ns_intern.get(cxt).copied().unwrap_or(ROOT_NS)
-        };
-        let direct_simple = (!written_name.starts_with("::")
-            && !tcl_syntax::naming::is_qualified(written_name.as_bytes()))
-        .then(|| canonical_cmd_key(written_name).into_owned());
-        if let Some(simple) = &direct_simple {
-            let slot = CommandSlot {
-                namespace: cxt_id,
-                simple: simple.clone(),
-            };
-            if let Some(key) = self.command_slots.get(&slot)
-                && let Some(command) = retained
-                    .and_then(|record| record.commands.get(key))
-                    .or_else(|| self.commands.get(key))
-                && (!filter_public_surface
-                    || self.builtin_command_visible_for_surface(
-                        self.command_display_key(key),
-                        command,
-                    ))
-            {
-                return Some(key.clone());
+        if !name.starts_with("::") && self.runtime_version.has_namespace_path() {
+            let paths = self
+                .retained_record_of(cxt)
+                .and_then(|record| record.paths.get(&cxt))
+                .or_else(|| self.ns_paths.get(&cxt));
+            if let Some(paths) = paths {
+                bases.extend(paths.iter().copied());
             }
         }
-        // `ns_paths` entries are stored in the VM's canonical form — always
-        // absolute, no leading `::` (rooted at set time by `canon_ns`).
-        // Root them before handing to the shared resolver, whose unrooted
-        // entries mean *current-namespace-relative* (the Tcl source form —
-        // tclsh-pinned; see `command_resolution_candidates`).
-        //
-        // The path tier itself is a Tcl 8.5 feature (TIP 181): 8.4 resolves
-        // current-namespace → global only (M10.1; 8.4 `tclNamesp.c` has no
-        // path walk).  Gated here at resolution time — not at `ns_path_set`
-        // recording — so flipping `set_runtime_version` mid-life re-applies
-        // the correct tier to paths recorded earlier.
-        let rooted: Vec<String> = if self.runtime_version.has_namespace_path() {
-            // A retained token keeps its own `namespace path`: C's
-            // `commandPathArray` hangs off the `Namespace`, and its entries
-            // point at namespaces that are still live.
-            cxt_record
-                .and_then(|record| record.paths.get(cxt))
-                .or_else(|| self.ns_paths.get(cxt))
-                .map_or_else(Vec::new, |p| p.iter().map(|e| format!("::{e}")).collect())
-        } else {
-            Vec::new()
-        };
-        // Candidates from the shared resolver are rooted constructed keys;
-        // the VM's table is keyed unrooted.  Strip exactly ONE root — a
-        // char-pattern trim would collapse a lone-colon key (`":::"`, the
-        // proc named `:`) into the empty-name `{}` key (#934).
-        let unroot = |c: &str| {
-            c.strip_prefix("::")
-                .map_or_else(|| c.to_string(), String::from)
-        };
-        for candidate in tcl_syntax::naming::command_resolution_candidates(cxt, &rooted, &name) {
-            let display = unroot(&candidate);
-            let (holder, simple) = key_holder_and_tail_unrooted(&display);
-            let namespace = retained
-                .and_then(|record| record.subtree.get(&holder).copied())
-                .or_else(|| self.ns_intern.get(&holder).copied())
-                .or_else(|| holder.is_empty().then_some(ROOT_NS));
+        if !name.starts_with("::") && !bases.contains(&ROOT_NS) {
+            bases.push(ROOT_NS);
+        }
+        for base in bases {
+            let mut namespace_path = self.ns_path(base);
+            namespace_path.extend(qualifiers.iter().cloned());
+            let namespace = if base == cxt && !name.starts_with("::") {
+                self.retained_record_of(cxt)
+                    .and_then(|record| record.subtree.get(&namespace_path).copied())
+                    .or_else(|| self.ns_intern.get(&namespace_path).copied())
+            } else {
+                self.ns_intern.get(&namespace_path).copied()
+            };
             let Some(namespace) = namespace else {
                 continue;
             };
-            let slot = CommandSlot { namespace, simple };
-            let Some(key) = self.command_slots.get(&slot) else {
+            let slot = CommandSlot {
+                namespace,
+                simple: simple.clone(),
+            };
+            let Some(key) = self.command_identity.by_slot.get(&slot) else {
                 continue;
             };
-            let command = retained
-                .filter(|record| record.subtree.values().any(|id| *id == namespace))
+            let command = self
+                .retained_record_of(namespace)
                 .and_then(|record| record.commands.get(key))
                 .or_else(|| self.commands.get(key));
             if command.is_some_and(|command| {
@@ -5573,7 +5686,7 @@ impl InterpState {
 impl Vm {
     /// Intern one stable command-token generation as a dense raw `CommandId`.
     fn intern_cmd(&self, token: u64) -> u32 {
-        let mut a = self.cmd_arena.borrow_mut();
+        let mut a = self.command_identity.handles.borrow_mut();
         if let Some(&id) = a.ids.get(&token) {
             return id;
         }
@@ -5587,8 +5700,14 @@ impl Vm {
     /// move it and a deletion makes the old id stale; name reuse cannot retarget
     /// it because each publication mints a fresh generation.
     fn command_fqn(&self, id: u32) -> Option<String> {
-        let token = *self.cmd_arena.borrow().tokens.get(id as usize)?;
-        self.command_generations
+        let token = *self
+            .command_identity
+            .handles
+            .borrow()
+            .tokens
+            .get(id as usize)?;
+        self.command_identity
+            .generations
             .iter()
             .find_map(|(key, generation)| (*generation == token).then(|| key.clone()))
             .or_else(|| {
@@ -5602,7 +5721,12 @@ impl Vm {
     }
 
     fn command_sidecar_key(&self, id: u32) -> Option<CommandSidecarKey> {
-        let token = *self.cmd_arena.borrow().tokens.get(id as usize)?;
+        let token = *self
+            .command_identity
+            .handles
+            .borrow()
+            .tokens
+            .get(id as usize)?;
         self.command_fqn(id)
             .map(CommandSidecarKey::visible)
             .or_else(|| {
@@ -5617,13 +5741,31 @@ impl Vm {
     /// Ensure an already-constructed namespace key has a live VM namespace
     /// entry and return its stable token.
     fn activate_namespace_key(&mut self, ns: &str) -> NsId {
-        if !ns.is_empty()
-            && !self.namespace_in_dying_subtree(ns)
-            && self.namespaces.insert(ns.to_owned())
-        {
-            self.note_namespace_created(ns);
+        let path = tcl_syntax::naming::key_segments(ns);
+        self.activate_namespace_path(path)
+    }
+
+    fn activate_namespace_path(&mut self, path: NamespacePath) -> NsId {
+        if path.is_empty() {
+            return ROOT_NS;
         }
-        self.intern_ns(ns)
+        let mut parent = path.clone();
+        let tail = parent.pop().expect("non-root namespace has a tail");
+        let parent_id = self.activate_namespace_path(parent);
+        if self.namespace_in_dying_subtree_path(&path) {
+            return self
+                .ns_intern
+                .get(&path)
+                .copied()
+                .unwrap_or_else(|| self.intern_ns_path(path));
+        }
+        let created = self.namespaces.insert(path.clone());
+        let id = self.intern_ns_path(path);
+        if created {
+            self.ns_children.insert((parent_id, tail.clone()), id);
+            self.note_namespace_created(parent_id, &tail);
+        }
+        id
     }
 
     /// Push a canonical, unrooted **constructed namespace key** onto the
@@ -5634,11 +5776,12 @@ impl Vm {
     /// `outer:::` (namespace `:` below `outer`) as the written spelling
     /// `outer:::` and collapse it back to `outer`.
     pub(crate) fn push_ns(&mut self, ns: String) {
+        let path = tcl_syntax::naming::key_segments(&ns);
         // A body whose namespace is only reachable through the retained token
         // the caller holds enters *that* token, never a fresh one minted from
         // its spelling: C pushes `procPtr->cmdPtr->nsPtr`, a pointer.
-        if !self.namespaces.contains(&ns)
-            && let Some(id) = self.retained_token_named(&ns)
+        if !self.namespaces.contains(&path)
+            && let Some(id) = self.retained_token_at_path(&path)
         {
             self.push_ns_token(ns, id);
             return;
@@ -5652,8 +5795,8 @@ impl Vm {
     /// retained token belongs to that token, whose spelling may meanwhile have
     /// been taken by a wholly separate namespace.
     pub(crate) fn definition_namespace_token(&mut self, holder: &str) -> NsId {
-        self.retained_token_named(holder)
-            .unwrap_or_else(|| self.intern_ns(holder))
+        let path = tcl_syntax::naming::key_segments(holder);
+        self.definition_namespace_token_at_path(&path, false)
     }
 
     /// Select the namespace token for a procedure definition after its holder
@@ -5664,14 +5807,8 @@ impl Vm {
         holder: &str,
         absolute: bool,
     ) -> NsId {
-        if absolute {
-            self.ns_intern
-                .get(holder)
-                .copied()
-                .unwrap_or_else(|| self.intern_ns(holder))
-        } else {
-            self.definition_namespace_token(holder)
-        }
+        let path = tcl_syntax::naming::key_segments(holder);
+        self.definition_namespace_token_at_path(&path, absolute)
     }
 
     /// Enter the namespace token a procedure's body runs in.
@@ -5817,13 +5954,21 @@ impl Vm {
     /// Whether namespace `ns` (canonical, unrooted; `""` is the always-present
     /// global namespace) currently exists.
     pub(crate) fn namespace_exists(&self, ns: &str) -> bool {
-        !self.namespace_is_dying(ns) && (ns.is_empty() || self.namespaces.contains(ns))
+        let path = tcl_syntax::naming::key_segments(ns);
+        self.namespace_exists_path(&path)
+    }
+
+    fn namespace_exists_path(&self, path: &[String]) -> bool {
+        let id = self.ns_intern.get(path).copied();
+        id.is_some_and(|id| !self.dying_namespaces.contains(&id))
+            && (path.is_empty() || self.namespaces.contains(path))
     }
 
     /// Whether the exact namespace token is currently being torn down.
     pub(crate) fn namespace_is_dying(&self, ns: &str) -> bool {
+        let path = tcl_syntax::naming::key_segments(ns);
         self.ns_intern
-            .get(ns)
+            .get(&path)
             .is_some_and(|id| self.dying_namespaces.contains(id))
     }
 
@@ -5831,8 +5976,8 @@ impl Vm {
     /// being torn down. Existing descendants remain live until recursive
     /// teardown reaches them, but Tcl must reject attempts to create a new
     /// namespace anywhere below a dying ancestor.
-    fn namespace_in_dying_subtree(&self, ns: &str) -> bool {
-        let mut candidate = ns.to_owned();
+    fn namespace_in_dying_subtree_path(&self, ns: &[String]) -> bool {
+        let mut candidate = ns.to_vec();
         loop {
             if self
                 .ns_intern
@@ -5844,7 +5989,7 @@ impl Vm {
             if candidate.is_empty() {
                 return false;
             }
-            candidate = key_holder_and_tail_unrooted(&candidate).0;
+            candidate.pop();
         }
     }
 
@@ -5871,61 +6016,40 @@ impl Vm {
     /// would collapse a lone-colon segment (#934), and the parent chain walks
     /// the construction-inverse split for the same reason.
     pub(crate) fn declare_namespace_key(&mut self, ns_key: &str) {
-        self.declare_namespace_key_with_origin(ns_key, false);
+        let path = tcl_syntax::naming::key_segments(ns_key);
+        self.declare_namespace_path_with_origin(path, false);
     }
 
-    /// Declare an absolute namespace target from the global root. A retained
-    /// token with the same spelling is deliberately ignored: deletion has
-    /// unlinked that token, so an absolute `namespace eval ::N` may create a
-    /// distinct live `::N` while relative lookup from its old activation keeps
-    /// reaching the retained token.
-    pub(crate) fn declare_namespace_key_from_root(&mut self, ns_key: &str) {
-        self.declare_namespace_key_with_origin(ns_key, true);
-    }
-
-    fn declare_namespace_key_with_origin(&mut self, ns_key: &str, from_root: bool) {
-        if ns_key.is_empty()
-            || self.namespace_in_dying_subtree(ns_key)
+    fn declare_namespace_path_with_origin(&mut self, path: NamespacePath, from_root: bool) {
+        if path.is_empty()
+            || self.namespace_in_dying_subtree_path(&path)
             // A name the current frame reaches only through its retained token
             // is that token's, and must not republish the spelling. An absolute
             // lookup is rooted outside that activation and may recreate it.
-            || (!from_root && self.retained_owner_of_namespace(ns_key).is_some())
+            || (!from_root && self.retained_owner_of_namespace(&path).is_some())
         {
             return;
         }
-        let created = self.namespaces.insert(ns_key.to_string());
-        self.intern_ns(ns_key);
+        let mut parent = path.clone();
+        let tail = parent.pop().expect("non-root namespace has a tail");
+        self.declare_namespace_path_with_origin(parent.clone(), from_root);
+        let parent_id = self.ns_intern.get(&parent).copied().unwrap_or(ROOT_NS);
+        let created = self.namespaces.insert(path.clone());
+        let id = self.intern_ns_path(path);
         if created {
-            self.note_namespace_created(ns_key);
-        }
-        let (parent, _tail) = key_holder_and_tail_unrooted(ns_key);
-        if !parent.is_empty() {
-            self.declare_namespace_key_with_origin(&parent, from_root);
+            self.ns_children.insert((parent_id, tail.clone()), id);
+            self.note_namespace_created(parent_id, &tail);
         }
     }
 
     pub(crate) fn declare_namespace(&mut self, ns: &str) {
-        let ns = canonical_ns_name(ns);
-        if ns.is_empty() || self.namespace_in_dying_subtree(&ns) {
-            return;
-        }
-        let created = self.namespaces.insert(ns.to_string());
-        // Mint a stable `NsId` (handle) so the `Namespaces` nav methods are pure
-        // `&self` lookups — every namespace, however created, has an id.
-        self.intern_ns(&ns);
-        if created {
-            self.note_namespace_created(&ns);
-        }
-        let parent = tcl_cmd_core::namespace::qualifiers(ns.as_bytes());
-        if !parent.is_empty() {
-            self.declare_namespace(core::str::from_utf8(parent).expect("subslice of valid UTF-8"));
-        }
+        let path = tcl_syntax::naming::qualifier_segments_owned(ns);
+        self.declare_namespace_path_with_origin(path, ns.starts_with("::"));
     }
 
     /// Insert a newly-created namespace's tail into its parent's retained Tcl
     /// string-hash table. `ns` is already the canonical, unrooted key.
-    fn note_namespace_created(&mut self, ns: &str) {
-        let (parent, tail) = key_holder_and_tail_unrooted(ns);
+    fn note_namespace_created(&mut self, parent: NsId, tail: &str) {
         self.ns_child_order
             .entry(parent)
             .or_default()
@@ -5951,7 +6075,6 @@ impl Vm {
         let Some(slot) = self.command_slot(key).cloned() else {
             return;
         };
-        let holder = self.ns_name(slot.namespace);
         let tail = slot.simple;
         let order = match self.ns_deferral.owners.get(&slot.namespace).copied() {
             Some(root) => self
@@ -5960,9 +6083,9 @@ impl Vm {
                 .get_mut(&root)
                 .expect("the record the current token is retained in")
                 .command_orders
-                .entry(holder)
+                .entry(slot.namespace)
                 .or_default(),
-            None => self.ns_command_order.entry(holder).or_default(),
+            None => self.ns_command_order.entry(slot.namespace).or_default(),
         };
         if replacing {
             order.reinsert(tail.as_bytes());
@@ -5977,15 +6100,14 @@ impl Vm {
         let Some(slot) = self.command_slot(key).cloned() else {
             return;
         };
-        let holder = self.ns_name(slot.namespace);
         let tail = slot.simple;
         let order = match self.ns_deferral.owners.get(&slot.namespace).copied() {
             Some(root) => self
                 .ns_deferral
                 .retained
                 .get_mut(&root)
-                .and_then(|record| record.command_orders.get_mut(&holder)),
-            None => self.ns_command_order.get_mut(&holder),
+                .and_then(|record| record.command_orders.get_mut(&slot.namespace)),
+            None => self.ns_command_order.get_mut(&slot.namespace),
         };
         if let Some(order) = order {
             order.remove(tail.as_bytes());
@@ -5995,10 +6117,9 @@ impl Vm {
     /// One namespace's live command keys with their token generations, in
     /// `Tcl_FirstHashEntry` order — the snapshot `TclTeardownNamespace` takes
     /// of `cmdTable` before deleting each token.
-    fn command_table_hash_order(&self, canonical: &str) -> Vec<(String, u64)> {
-        let namespace = self.ns_intern.get(canonical).copied().unwrap_or(ROOT_NS);
+    fn command_table_hash_order(&self, namespace: NsId) -> Vec<(String, u64)> {
         self.ns_command_order
-            .get(canonical)
+            .get(&namespace)
             .map(|order| {
                 order
                     .keys()
@@ -6009,8 +6130,8 @@ impl Vm {
                             namespace,
                             simple: tail.to_owned(),
                         };
-                        let key = self.command_slots.get(&slot)?.clone();
-                        let generation = *self.command_generations.get(&key)?;
+                        let key = self.command_identity.by_slot.get(&slot)?.clone();
+                        let generation = *self.command_identity.generations.get(&key)?;
                         Some((key, generation))
                     })
                     .collect()
@@ -6025,16 +6146,11 @@ impl Vm {
     fn retained_command_hash_order(
         &self,
         record: &RetainedNamespace,
-        canonical: &str,
+        namespace: NsId,
     ) -> Vec<(String, u64)> {
-        let namespace = record
-            .subtree
-            .get(canonical)
-            .copied()
-            .unwrap_or(record.root);
         record
             .command_orders
-            .get(canonical)
+            .get(&namespace)
             .map(|order| {
                 order
                     .keys()
@@ -6044,7 +6160,7 @@ impl Vm {
                             namespace,
                             simple: core::str::from_utf8(tail).ok()?.to_owned(),
                         };
-                        let key = self.command_slots.get(&slot)?.clone();
+                        let key = self.command_identity.by_slot.get(&slot)?.clone();
                         let generation = *record.generations.get(&key)?;
                         Some((key, generation))
                     })
@@ -6058,9 +6174,12 @@ impl Vm {
     /// set in insertion order — `namespace export a; namespace export a`
     /// still reports `a`.
     pub(crate) fn add_exports(&mut self, patterns: &[String]) {
-        let ns = self.current_ns().to_string();
+        let ns = self.current_ns_id();
         let retained = self
-            .retained_owner_of_namespace(&ns)
+            .ns_deferral
+            .owners
+            .get(&ns)
+            .copied()
             .and_then(|root| self.ns_deferral.retained.get_mut(&root));
         let entry = match retained {
             Some(record) => record.exports.entry(ns).or_default(),
@@ -6076,10 +6195,10 @@ impl Vm {
     /// The current namespace's `namespace export` pattern list (C's
     /// `Tcl_AppendExportList`, the `namespace export` query form).
     pub(crate) fn exports_get(&self) -> Vec<String> {
-        let current = self.current_ns();
+        let current = self.current_ns_id();
         self.retained_current_record()
-            .and_then(|record| record.exports.get(current))
-            .or_else(|| self.ns_exports.get(current))
+            .and_then(|record| record.exports.get(&current))
+            .or_else(|| self.ns_exports.get(&current))
             .cloned()
             .unwrap_or_default()
     }
@@ -6087,8 +6206,8 @@ impl Vm {
     /// Drop the current namespace's export patterns — the state change
     /// `namespace export -clear` makes (`Tcl_Export`'s `resetListFirst`).
     pub(crate) fn clear_exports(&mut self) {
-        let ns = self.current_ns().to_string();
-        match self.retained_owner_of_namespace(&ns) {
+        let ns = self.current_ns_id();
+        match self.ns_deferral.owners.get(&ns).copied() {
             Some(root) => {
                 if let Some(record) = self.ns_deferral.retained.get_mut(&root) {
                     record.exports.remove(&ns);
@@ -6127,7 +6246,10 @@ impl Vm {
     /// works.
     pub(crate) fn declare_namespace_exports(&mut self, ns: &str, patterns: &[&str]) {
         self.declare_namespace(ns);
-        let entry = self.ns_exports.entry(ns.to_string()).or_default();
+        let id = self
+            .namespace_id_from_written(ROOT_NS, ns)
+            .unwrap_or(ROOT_NS);
+        let entry = self.ns_exports.entry(id).or_default();
         for p in patterns {
             if !entry.iter().any(|e| e == p) {
                 entry.push((*p).to_string());
@@ -6164,10 +6286,17 @@ impl Vm {
         // (tclsh8.6-verified; the old `rsplit_once("::")` left `src:` behind).
         let pb = pattern.as_bytes();
         let glob = str_slice(tcl_cmd_core::namespace::tail(pb)).to_string();
-        let src_ns =
-            canonical_ns_name(str_slice(tcl_cmd_core::namespace::qualifiers(pb))).into_owned();
-        let exports = self.ns_exports.get(&src_ns).cloned().unwrap_or_default();
-        let src_ns_id = self.ns_intern.get(&src_ns).copied().unwrap_or(ROOT_NS);
+        let source = str_slice(tcl_cmd_core::namespace::qualifiers(pb));
+        let source_rooted = pattern.starts_with("::");
+        let source_path = if source_rooted {
+            tcl_syntax::naming::qualifier_segments_owned(source)
+        } else {
+            self.namespace_path_from_written(self.current_ns_id(), source)
+        };
+        let src_ns_id = self
+            .namespace_token_at_path(&source_path, source_rooted)
+            .unwrap_or(ROOT_NS);
+        let exports = self.ns_exports.get(&src_ns_id).cloned().unwrap_or_default();
         // Candidate commands: those in the source namespace whose tail matches
         // the import glob and an export pattern.
         let mut to_import: Vec<(String, Command, Option<String>, CommandTokenIdentity)> =
@@ -6212,7 +6341,7 @@ impl Vm {
                 namespace: self.ns_id_stack.last().copied().unwrap_or(ROOT_NS),
                 simple: tail.clone(),
             };
-            let existing_key = self.command_slots.get(&destination).cloned();
+            let existing_key = self.command_identity.by_slot.get(&destination).cloned();
             let overwritten = existing_key.as_ref().and_then(|key| {
                 self.command_token_identity(&CommandSidecarKey::visible(key.as_str()))
             });
@@ -6286,13 +6415,16 @@ impl Vm {
         false
     }
 
-    /// The command key `key` ultimately came from, following the
-    /// `namespace import` chain to its source — C's `TclGetOriginalCommand`,
-    /// which backs the `originCmd` opcode (`namespace origin`). `key` itself
-    /// when it names no import. Keys are canonical (unrooted), as
-    /// `imported_commands` stores them.
+    /// The display name of the command `key` ultimately came from, following
+    /// the `namespace import` chain to its source — C's
+    /// `TclGetOriginalCommand`, which backs `namespace origin`. The import
+    /// graph itself keeps the exact private placement key; rendering happens
+    /// only at this presentation boundary.
     pub(crate) fn command_origin_key(&self, key: &str) -> String {
-        self.origin_key_of(&CommandSidecarKey::visible(key))
+        match self.ultimate_import_origin(&CommandSidecarKey::visible(key)) {
+            CommandSidecarKey::Visible(origin) => self.command_display_key(&origin).to_owned(),
+            CommandSidecarKey::Hidden(origin) => origin,
+        }
     }
 
     /// Follow a namespace-import chain without collapsing the visible/hidden
@@ -6317,13 +6449,6 @@ impl Vm {
             current = next.origin.clone();
         }
         current.key
-    }
-
-    /// [`Self::command_origin_key`] from an explicit domain, so a hidden token
-    /// can be walked as itself rather than as an equally-named visible
-    /// command.
-    pub(crate) fn origin_key_of(&self, start: &CommandSidecarKey) -> String {
-        self.ultimate_import_origin(start).name().to_owned()
     }
 
     /// Snapshot the direct `ImportRef` list of one exact source token in C's
@@ -6536,7 +6661,7 @@ impl Vm {
                 if self.commands.remove(name).is_some() {
                     self.note_command_unbound(name);
                 }
-                self.command_generations.remove(name);
+                self.command_identity.generations.remove(name);
                 self.builtin_identities.remove(name);
                 self.registry_object_roots.remove(name);
             }
@@ -6625,17 +6750,7 @@ impl Vm {
     /// those whose origin lives in `ns` and whose origin tail matches `pat`.
     /// Returns `Err` for an unknown namespace in a qualified pattern.
     pub(crate) fn forget_imports(&mut self, pattern: &str) -> Result<(), String> {
-        // Split a canonical command key into (namespace, tail) — the shared
-        // separator-run-aware byte ops (a canonical key has single `::`s, so
-        // this is the plain last-separator split).
-        fn split_key(key: &str) -> (&str, &str) {
-            let kb = key.as_bytes();
-            (
-                str_slice(tcl_cmd_core::namespace::qualifiers(kb)),
-                str_slice(tcl_cmd_core::namespace::tail(kb)),
-            )
-        }
-        let cur = self.current_ns().to_string();
+        let cur = self.current_ns_id();
         let victims: Vec<String> = if tcl_syntax::naming::is_qualified(pattern.as_bytes()) {
             // Qualified pattern: source namespace + simple pattern on the
             // origin. Splitting at the last separator *run* keeps colon-run
@@ -6644,24 +6759,35 @@ impl Vm {
             // `src:` — and panicked outright on `:::pat`).
             let pb = pattern.as_bytes();
             let simple = str_slice(tcl_cmd_core::namespace::tail(pb));
-            let src_ns =
-                canonical_ns_name(str_slice(tcl_cmd_core::namespace::qualifiers(pb))).into_owned();
-            if !self.namespace_exists(&src_ns) {
+            let source = str_slice(tcl_cmd_core::namespace::qualifiers(pb));
+            let source_path = if pattern.starts_with("::") {
+                tcl_syntax::naming::qualifier_segments_owned(source)
+            } else {
+                self.namespace_path_from_written(cur, source)
+            };
+            let Some(src_ns) =
+                self.namespace_token_at_path(&source_path, pattern.starts_with("::"))
+            else {
                 return Err(format!(
                     "unknown namespace in namespace forget pattern \"{pattern}\""
                 ));
-            }
+            };
             self.imported_commands
                 .iter()
                 .filter(|(key, _)| {
-                    split_key(key).0 == cur && {
-                        // C's TclGetOriginalCommand follows an import chain;
-                        // qualified forget matches that ultimate source, not
-                        // merely the immediately imported alias.
-                        let origin = self.command_origin_key(key);
-                        let (o_ns, o_tail) = split_key(&origin);
-                        o_ns == src_ns && tcl_syntax::glob::string_match(simple, o_tail)
-                    }
+                    self.command_slot(key)
+                        .is_some_and(|slot| slot.namespace == cur)
+                        && {
+                            // C's TclGetOriginalCommand follows an import chain;
+                            // qualified forget matches that ultimate source, not
+                            // merely the immediately imported alias.
+                            let origin = self
+                                .ultimate_import_origin(&CommandSidecarKey::visible(key.as_str()));
+                            matches!(origin, CommandSidecarKey::Visible(ref origin_key)
+                            if self.command_slot(origin_key).is_some_and(|slot|
+                                slot.namespace == src_ns
+                                    && tcl_syntax::glob::string_match(simple, &slot.simple)))
+                        }
                 })
                 .map(|(key, _)| key.clone())
                 .collect()
@@ -6671,8 +6797,10 @@ impl Vm {
             self.imported_commands
                 .keys()
                 .filter(|key| {
-                    let (ns, tail) = split_key(key);
-                    ns == cur && tcl_syntax::glob::string_match(pattern, tail)
+                    self.command_slot(key).is_some_and(|slot| {
+                        slot.namespace == cur
+                            && tcl_syntax::glob::string_match(pattern, &slot.simple)
+                    })
                 })
                 .cloned()
                 .collect()
@@ -6690,20 +6818,14 @@ impl Vm {
         &mut self,
         token: &Rc<tcl_cmd_core::ensemble::EnsembleToken<EnsembleDef, String>>,
     ) {
-        let namespace = token.config().namespace;
-        let remove_entry = if let Some(tokens) = self.namespace_ensembles.get_mut(&namespace) {
+        self.namespace_ensembles.retain(|_, tokens| {
             tokens.retain(|candidate| {
                 candidate
                     .upgrade()
                     .is_some_and(|live| !Rc::ptr_eq(&live, token))
             });
-            tokens.is_empty()
-        } else {
-            false
-        };
-        if remove_entry {
-            self.namespace_ensembles.remove(&namespace);
-        }
+            !tokens.is_empty()
+        });
     }
 
     /// Find the real command-table location currently carrying an ensemble
@@ -6745,7 +6867,7 @@ impl Vm {
     fn retire_namespace_command_bindings(&mut self, snapshot: &[(String, u64)]) -> usize {
         let mut retired = 0;
         for (key, generation) in snapshot {
-            if self.command_generations.get(key) != Some(generation) {
+            if self.command_identity.generations.get(key) != Some(generation) {
                 continue;
             }
             retired += 1;
@@ -6768,12 +6890,12 @@ impl Vm {
     /// marked dying. The vector's back is C's list head. Pop it before firing
     /// the delete callback: a callback-created token is pushed there and is
     /// therefore the next head, ahead of every older token.
-    fn retire_namespace_owned_ensembles(&mut self, namespace: &str) {
+    fn retire_namespace_owned_ensembles(&mut self, namespace: NsId) {
         loop {
             let mut remove_entry = false;
             let token = self
                 .namespace_ensembles
-                .get_mut(namespace)
+                .get_mut(&namespace)
                 .and_then(|tokens| {
                     loop {
                         let Some(candidate) = tokens.pop() else {
@@ -6788,7 +6910,7 @@ impl Vm {
                     }
                 });
             if remove_entry {
-                self.namespace_ensembles.remove(namespace);
+                self.namespace_ensembles.remove(&namespace);
             }
             let Some(token) = token else {
                 break;
@@ -6804,21 +6926,18 @@ impl Vm {
         }
     }
 
-    /// Delete namespace `canonical` (no leading `::`) and every descendant,
-    /// removing their commands/procs, namespace variables, export patterns, and
-    /// interned ids. Returns `false` (deleting nothing) when the namespace does
-    /// not exist — the caller reports `unknown namespace`. Deleting the global
-    /// namespace tears down its full tree but leaves the root handle available
-    /// for the active command to return through, matching `namespace delete ::`.
-    pub(crate) fn delete_namespace(&mut self, canonical: &str) -> bool {
-        // Callers pass the canonical form; still normalise separator runs so
-        // `namespace delete a:::b` removes `a::b` (tclsh8.6-verified).
-        let canonical: &str = &canonical_ns_name(canonical);
-        let deleting_root = canonical.is_empty();
-        if !deleting_root && !self.namespaces.contains(canonical) {
+    pub(crate) fn delete_namespace_written(&mut self, written: &str) -> bool {
+        let path = self.namespace_path_from_written(self.current_ns_id(), written);
+        self.delete_namespace_path(&path)
+    }
+
+    fn delete_namespace_path(&mut self, path: &[String]) -> bool {
+        let deleting_root = path.is_empty();
+        if !deleting_root && !self.namespaces.contains(path) {
             return false;
         }
-        self.delete_namespace_token(canonical, deleting_root);
+        let id = self.ns_intern.get(path).copied().unwrap_or(ROOT_NS);
+        self.delete_namespace_token(id, deleting_root);
         true
     }
 
@@ -6889,15 +7008,17 @@ impl Vm {
     /// invokes `Tcl_DeleteNamespace` for each child. In particular, deleting a
     /// parent must not bulk-mark descendants dead before their own ensemble
     /// callbacks run.
-    fn delete_namespace_token(&mut self, canonical: &str, deleting_root: bool) {
+    fn delete_namespace_token(&mut self, id: NsId, deleting_root: bool) {
+        let path = self.ns_path(id);
+        let canonical = path.join("::");
         // `Tcl_CreateEnsemble` pushes a new config at the live list head. Pop
         // and retire one head at a time so an ensemble created by that head's
         // delete callback is visited next, ahead of every older token.
-        self.retire_namespace_owned_ensembles(canonical);
+        self.retire_namespace_owned_ensembles(id);
 
         // A frame is still running in this token: unpublish it now and keep
         // everything else for that frame (C's `activationCount` branch).
-        if !deleting_root && self.defer_namespace_token(canonical) {
+        if !deleting_root && self.defer_namespace_token(id) {
             return;
         }
 
@@ -6905,14 +7026,18 @@ impl Vm {
         // commands remain table-visible while their delete callbacks run, and
         // existing child namespace tokens remain live until recursion reaches
         // each child.
-        let id = self.ns_intern.get(canonical).copied().unwrap_or(ROOT_NS);
         self.dying_namespaces.insert(id);
         if id != ROOT_NS {
             self.dead_namespaces.insert(id);
         }
         if !deleting_root {
-            self.namespaces.remove(canonical);
-            let (parent, tail) = key_holder_and_tail_unrooted(canonical);
+            self.namespaces.remove(&path);
+            let mut parent_path = path.clone();
+            let tail = parent_path.pop().expect("non-root namespace has a tail");
+            let parent = self.ns_intern.get(&parent_path).copied().unwrap_or(ROOT_NS);
+            if self.ns_children.get(&(parent, tail.clone())) == Some(&id) {
+                self.ns_children.remove(&(parent, tail.clone()));
+            }
             if let Some(order) = self.ns_child_order.get_mut(&parent) {
                 order.remove(tail.as_bytes());
             }
@@ -6922,18 +7047,18 @@ impl Vm {
         // unset callbacks see this namespace as dying but can still address
         // its cells; each cell is removed separately so later variables remain
         // visible until their own turn. Issue #1575.
-        self.teardown_namespace_variables(canonical, id);
+        self.teardown_namespace_variables(&canonical, id);
 
         // Delete this namespace's command table to a fixed point. A command
         // callback may replace the dying command or install another owned
         // ensemble; recomputing after every lifecycle pass matches C's live
         // table/list traversal without an unordered subtree snapshot.
         loop {
-            self.retire_namespace_owned_ensembles(canonical);
+            self.retire_namespace_owned_ensembles(id);
             // `Tcl_FirstHashEntry` order, not the flat map's iteration order:
             // the delete traces of a namespace's commands fire in the retained
             // bucket order of the table they lived in.
-            let frontier = self.command_table_hash_order(canonical);
+            let frontier = self.command_table_hash_order(id);
             if frontier.is_empty() {
                 break;
             }
@@ -6947,12 +7072,12 @@ impl Vm {
 
         // Drop this token's path/unknown state and remove it from every other
         // live path before child teardown, mirroring `UnlinkNsPath`.
-        let mut path_mutated = self.ns_paths.remove(canonical).is_some();
-        self.ns_unknowns.remove(canonical);
-        for path in self.ns_paths.values_mut() {
-            let old_len = path.len();
-            path.retain(|entry| entry != canonical);
-            path_mutated |= path.len() != old_len;
+        let mut path_mutated = self.ns_paths.remove(&id).is_some();
+        self.ns_unknowns.remove(&id);
+        for targets in self.ns_paths.values_mut() {
+            let old_len = targets.len();
+            targets.retain(|entry| *entry != id);
+            path_mutated |= targets.len() != old_len;
         }
         if path_mutated {
             self.invalidate_compiled_command_semantics();
@@ -6960,74 +7085,79 @@ impl Vm {
 
         // Parent commands have finished while children were still live. Now
         // each child gets its own full ensemble-before-dying lifecycle.
-        let children = self.child_namespaces_hash_order(canonical);
+        let children = self.child_namespace_ids_hash_order(id);
         for child in children {
-            if self.namespaces.contains(&child) {
-                self.delete_namespace_token(&child, false);
+            if self.namespaces.contains(&self.ns_path(child)) {
+                self.delete_namespace_token(child, false);
             }
         }
 
-        self.ns_exports.remove(canonical);
-        self.ns_child_order.remove(canonical);
-        self.ns_command_order.remove(canonical);
+        self.ns_exports.remove(&id);
+        self.ns_child_order.remove(&id);
+        self.ns_command_order.remove(&id);
         if deleting_root {
-            self.ns_intern.insert(String::new(), ROOT_NS);
+            self.ns_intern.insert(Vec::new(), ROOT_NS);
+            self.ns_children.clear();
             self.ns_child_order = root_hash_order();
             self.ns_command_order = root_hash_order();
-        } else {
-            self.ns_intern.remove(canonical);
+        } else if self.ns_intern.get(&path) == Some(&id) {
+            self.ns_intern.remove(&path);
         }
         self.dying_namespaces.remove(&id);
     }
 
     // -- deferred teardown: retaining a token for its live frames ------------
 
-    /// Whether a call frame is running in the token named `canonical`.
-    fn namespace_token_is_active(&self, canonical: &str) -> bool {
-        self.ns_intern.get(canonical).is_some_and(|id| {
-            self.ns_deferral
-                .counts
-                .get(id)
-                .is_some_and(|count| *count > 0)
-        })
+    /// Whether a call frame is running in the namespace token.
+    fn namespace_token_is_active(&self, id: NsId) -> bool {
+        self.ns_deferral
+            .counts
+            .get(&id)
+            .is_some_and(|count| *count > 0)
     }
 
     /// C's `activationCount > (nsPtr == globalNsPtr)` branch: move the token's
     /// whole subtree out of the live tables into a record only its frames can
     /// reach, unpublish its name, and return. Reports whether the teardown was
     /// deferred.
-    fn defer_namespace_token(&mut self, canonical: &str) -> bool {
-        if !self.namespace_token_is_active(canonical) {
+    fn defer_namespace_token(&mut self, id: NsId) -> bool {
+        if !self.namespace_token_is_active(id) {
             return false;
         }
-        let id = self.ns_intern[canonical];
-        let prefix = format!("{canonical}::");
-        let names: Vec<String> = self
+        let canonical = self.ns_path(id);
+        let names: Vec<NamespacePath> = self
             .namespaces
             .iter()
-            .filter(|name| *name == canonical || name.starts_with(&prefix))
+            .filter(|name| name.starts_with(&canonical))
             .cloned()
             .collect();
-        let mut record = RetainedNamespace::new(id, canonical);
+        let mut record = RetainedNamespace::new(id);
         for name in &names {
             let member = self
                 .ns_intern
                 .remove(name)
-                .unwrap_or_else(|| self.intern_ns(name));
+                .unwrap_or_else(|| self.intern_ns_path(name.clone()));
             record.subtree.insert(name.clone(), member);
             self.ns_deferral.owners.insert(member, id);
             self.namespaces.remove(name);
-            if let Some(order) = self.ns_command_order.remove(name) {
-                record.command_orders.insert(name.clone(), order);
+            if let (Some(parent), Some(tail)) = (
+                self.ns_parents.get(member.0 as usize).copied().flatten(),
+                name.last(),
+            ) && self.ns_children.get(&(parent, tail.clone())) == Some(&member)
+            {
+                self.ns_children.remove(&(parent, tail.clone()));
             }
-            if let Some(order) = self.ns_child_order.remove(name) {
-                record.child_orders.insert(name.clone(), order);
+            if let Some(order) = self.ns_command_order.remove(&member) {
+                record.command_orders.insert(member, order);
             }
-            if let Some(exports) = self.ns_exports.remove(name) {
-                record.exports.insert(name.clone(), exports);
+            if let Some(order) = self.ns_child_order.remove(&member) {
+                record.child_orders.insert(member, order);
             }
-            if let Some(path) = self.ns_paths.remove(name) {
-                record.paths.insert(name.clone(), path);
+            if let Some(exports) = self.ns_exports.remove(&member) {
+                record.exports.insert(member, exports);
+            }
+            if let Some(path) = self.ns_paths.remove(&member) {
+                record.paths.insert(member, path);
             }
             // `Tcl_DeleteNamespace` frees `unknownHandlerPtr` before it looks
             // at the activation count, so a retained token has no handler of
@@ -7035,7 +7165,7 @@ impl Vm {
             // retained frame reaches the interpreter default, not the handler
             // the namespace had). A handler installed *after* deferral belongs
             // to the retained token and is kept in the record.
-            self.ns_unknowns.remove(name);
+            self.ns_unknowns.remove(&member);
         }
         let keys: Vec<String> = self
             .commands
@@ -7054,7 +7184,7 @@ impl Vm {
             if let Some(command) = self.commands.remove(&key) {
                 record.commands.insert(key.clone(), command);
             }
-            if let Some(generation) = self.command_generations.remove(&key) {
+            if let Some(generation) = self.command_identity.generations.remove(&key) {
                 record.generations.insert(key.clone(), generation);
             }
             if let Some(binding) = self.imported_commands.remove(&key) {
@@ -7066,7 +7196,9 @@ impl Vm {
         }
         // The parent edge goes at once — the spelling is free for a wholly
         // separate token straight away (C nulls `parentPtr`).
-        let (parent, tail) = key_holder_and_tail_unrooted(canonical);
+        let mut parent_path = canonical;
+        let tail = parent_path.pop().expect("deferred namespace has a tail");
+        let parent = self.ns_intern.get(&parent_path).copied().unwrap_or(ROOT_NS);
         if let Some(order) = self.ns_child_order.get_mut(&parent) {
             order.remove(tail.as_bytes());
         }
@@ -7074,12 +7206,6 @@ impl Vm {
         self.ns_deferral.retained.insert(id, record);
         self.bump_cmd_epoch();
         true
-    }
-
-    /// The retained token `name` denotes, reachable only from the frames that
-    /// hold the record it lives in.
-    pub(crate) fn retained_token_named(&self, name: &str) -> Option<NsId> {
-        self.retained_current_record()?.subtree.get(name).copied()
     }
 
     /// The command bound at a resolved key. A *relative* name resolved from a
@@ -7106,8 +7232,8 @@ impl Vm {
             return;
         };
         self.bump_cmd_epoch();
-        let canonical = record.canonical.clone();
-        self.delete_retained_token(&mut record, &canonical);
+        let root = record.root;
+        self.delete_retained_token(&mut record, root);
         for member in record.subtree.values() {
             self.ns_deferral.owners.remove(member);
             self.dead_namespaces.insert(*member);
@@ -7116,18 +7242,14 @@ impl Vm {
 
     /// One retained token's teardown, mirroring [`Self::delete_namespace_token`]
     /// over the record's tables.
-    fn delete_retained_token(&mut self, record: &mut RetainedNamespace, canonical: &str) {
+    fn delete_retained_token(&mut self, record: &mut RetainedNamespace, id: NsId) {
         // Variable tables remain attached to their stable namespace tokens,
         // so this final teardown cannot touch a same-spelled live recreation.
-        let id = record
-            .subtree
-            .get(canonical)
-            .copied()
-            .unwrap_or(record.root);
+        let canonical = self.ns_name(id);
         self.dying_namespaces.insert(id);
-        self.teardown_namespace_variables(canonical, id);
+        self.teardown_namespace_variables(&canonical, id);
         loop {
-            let frontier = self.retained_command_hash_order(record, canonical);
+            let frontier = self.retained_command_hash_order(record, id);
             if frontier.is_empty() {
                 break;
             }
@@ -7143,36 +7265,18 @@ impl Vm {
                 break;
             }
         }
-        let prefix = if canonical.is_empty() {
-            String::new()
-        } else {
-            format!("{canonical}::")
-        };
-        record.paths.remove(canonical);
-        record.unknowns.remove(canonical);
-        for path in self.ns_paths.values_mut() {
-            path.retain(|entry| entry != canonical);
+        record.paths.remove(&id);
+        record.unknowns.remove(&id);
+        for targets in self.ns_paths.values_mut() {
+            targets.retain(|entry| *entry != id);
         }
-        let children: Vec<String> = record
-            .child_orders
-            .get(canonical)
-            .map(|order| {
-                order
-                    .keys()
-                    .into_iter()
-                    .filter_map(|tail| {
-                        let child = format!("{prefix}{}", core::str::from_utf8(tail).ok()?);
-                        record.subtree.contains_key(&child).then_some(child)
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
+        let children = retained_children_of(record, id, &self.ns_parents, &self.ns_arena);
         for child in children {
-            self.delete_retained_token(record, &child);
+            self.delete_retained_token(record, child);
         }
-        record.exports.remove(canonical);
-        record.child_orders.remove(canonical);
-        record.command_orders.remove(canonical);
+        record.exports.remove(&id);
+        record.child_orders.remove(&id);
+        record.command_orders.remove(&id);
         self.dying_namespaces.remove(&id);
     }
 
@@ -7192,14 +7296,13 @@ impl Vm {
         let Some(slot) = self.command_slot(key).cloned() else {
             return;
         };
-        let holder = self.ns_name(slot.namespace);
         let tail = slot.simple;
-        if let Some(order) = record.command_orders.get_mut(&holder) {
+        if let Some(order) = record.command_orders.get_mut(&slot.namespace) {
             order.remove(tail.as_bytes());
         }
         let displaced_command = self.commands.insert(key.to_owned(), command);
         let displaced_generation =
-            generation.and_then(|g| self.command_generations.insert(key.to_owned(), g));
+            generation.and_then(|g| self.command_identity.generations.insert(key.to_owned(), g));
         let displaced_import = imported
             .clone()
             .and_then(|b| self.imported_commands.insert(key.to_owned(), b));
@@ -7212,14 +7315,16 @@ impl Vm {
             self.retire_command_lifecycle_key(&sidecar);
         }
         self.commands.remove(key);
-        self.command_generations.remove(key);
+        self.command_identity.generations.remove(key);
         self.imported_commands.remove(key);
         self.builtin_identities.remove(key);
         if let Some(command) = displaced_command {
             self.commands.insert(key.to_owned(), command);
         }
         if let Some(generation) = displaced_generation {
-            self.command_generations.insert(key.to_owned(), generation);
+            self.command_identity
+                .generations
+                .insert(key.to_owned(), generation);
         }
         if let Some(binding) = displaced_import {
             self.imported_commands.insert(key.to_owned(), binding);
@@ -7251,45 +7356,26 @@ impl Vm {
         )
     }
 
-    /// Immediate child namespaces of `parent` (canonical names).
-    pub(crate) fn child_namespaces(&self, parent: &str) -> Vec<String> {
-        let prefix = if parent.is_empty() {
-            String::new()
-        } else {
-            format!("{parent}::")
-        };
-        let mut children: Vec<(u32, String)> = self
-            .namespaces
+    fn child_namespace_ids(&self, parent: NsId) -> Vec<NsId> {
+        let mut children: Vec<NsId> = self
+            .ns_children
             .iter()
-            .filter(|ns| {
-                ns.strip_prefix(&prefix)
-                    .is_some_and(|rest| !rest.is_empty() && !rest.contains("::"))
-            })
-            .filter_map(|name| self.ns_intern.get(name).map(|id| (id.0, name.clone())))
+            .filter_map(|((owner, _), id)| (*owner == parent).then_some(*id))
             .collect();
-        children.sort_by_key(|(id, _)| *id);
-        children.into_iter().map(|(_, name)| name).collect()
+        children.sort_by_key(|id| id.0);
+        children
     }
 
-    /// Immediate child namespaces in the retained Tcl string-hash traversal
-    /// order. `TclDeleteNamespaceChildren` snapshots `childTable` in precisely
-    /// this order before recursively deleting each token.
-    fn child_namespaces_hash_order(&self, parent: &str) -> Vec<String> {
-        let prefix = if parent.is_empty() {
-            String::new()
-        } else {
-            format!("{parent}::")
-        };
+    fn child_namespace_ids_hash_order(&self, parent: NsId) -> Vec<NsId> {
         self.ns_child_order
-            .get(parent)
+            .get(&parent)
             .map(|order| {
                 order
                     .keys()
                     .into_iter()
                     .filter_map(|tail| {
                         let tail = core::str::from_utf8(tail).ok()?;
-                        let child = format!("{prefix}{tail}");
-                        self.namespaces.contains(&child).then_some(child)
+                        self.ns_children.get(&(parent, tail.to_owned())).copied()
                     })
                     .collect()
             })
@@ -7444,7 +7530,11 @@ impl Vm {
     /// wrong variable (issue #1328).
     fn ns_fallback_targets_global(&self, qualified: &str, name: &str) -> bool {
         let qualified = qualified.strip_prefix("::").unwrap_or(qualified);
-        let (parent, simple) = key_holder_and_tail_unrooted(qualified);
+        let simple = tcl_syntax::naming::key_tail(qualified).to_owned();
+        let mut parent = tcl_syntax::naming::key_segments(qualified);
+        if !simple.is_empty() {
+            parent.pop();
+        }
         let namespace_has = self
             .namespace_var_token(self.current_level(), &parent, false)
             .and_then(|id| self.var_table(VarTableOwner::Namespace(id)))
@@ -9202,8 +9292,14 @@ impl Vm {
     /// procedures) defined **directly** in namespace `canonical` (unrooted; `""`
     /// = global) — the `Namespaces::commands_in`/`procs_in` enumeration, filtering
     /// the flat command map. Direct members only (`foo::sub::x` is not in `foo`).
+    #[cfg(test)]
     pub(crate) fn names_directly_in(&self, canonical: &str, procs_only: bool) -> Vec<String> {
-        let namespace = self.ns_intern.get(canonical).copied().unwrap_or(ROOT_NS);
+        let path = tcl_syntax::naming::key_segments(canonical);
+        let namespace = self.ns_intern.get(&path).copied().unwrap_or(ROOT_NS);
+        self.names_directly_in_token(namespace, procs_only)
+    }
+
+    fn names_directly_in_token(&self, namespace: NsId, procs_only: bool) -> Vec<String> {
         self.commands
             .iter()
             .filter(|(key, command)| {
@@ -9325,19 +9421,21 @@ impl Vm {
         local: &str,
         written: &str,
     ) -> Result<(), UpvarLinkError> {
-        let key = self.qualify_name(written);
-        let unrooted = key.strip_prefix("::").unwrap_or(&key);
-        let (parent, tail) = key_holder_and_tail_unrooted(unrooted);
-        let current = self.ns_id_stack.last().copied().unwrap_or(ROOT_NS);
-        let owner = if !written.starts_with("::") && self.ns_name(current) == parent {
-            Some(current)
-        } else if !written.starts_with("::") {
-            self.retained_record_of(current)
-                .and_then(|record| record.subtree.get(&parent).copied())
-                .or_else(|| self.ns_intern.get(&parent).copied())
+        let tail =
+            String::from_utf8_lossy(tcl_syntax::naming::written_command_tail(written.as_bytes()))
+                .into_owned();
+        let mut qualifiers = tcl_syntax::naming::qualifier_segments_owned(written);
+        if !tail.is_empty() {
+            qualifiers.pop();
+        }
+        let current = self.current_ns_id();
+        let mut parent = if written.starts_with("::") {
+            Vec::new()
         } else {
-            self.ns_intern.get(&parent).copied()
+            self.ns_path(current)
         };
+        parent.extend(qualifiers);
+        let owner = self.namespace_token_at_path(&parent, written.starts_with("::"));
         let Some(owner) = owner else {
             return Err(UpvarLinkError::TargetNamespace);
         };
@@ -9543,7 +9641,7 @@ impl Vm {
         }
     }
 
-    fn namespace_var_token(&self, start: usize, parent: &str, absolute: bool) -> Option<NsId> {
+    fn namespace_var_token(&self, start: usize, parent: &[String], absolute: bool) -> Option<NsId> {
         if parent.is_empty() {
             return Some(ROOT_NS);
         }
@@ -9551,7 +9649,7 @@ impl Vm {
             return self.ns_intern.get(parent).copied();
         }
         let current_id = self.ns_id_stack.get(start).copied().unwrap_or(ROOT_NS);
-        if self.ns_name(current_id) == parent {
+        if self.ns_path(current_id) == parent {
             return Some(current_id);
         }
         if let Some(record) = self.retained_record_of(current_id)
@@ -9566,9 +9664,20 @@ impl Vm {
     /// owns its binding. No cell is created here.
     fn var_binding_from(&self, name: &str, start: usize) -> Option<VarBinding> {
         if tcl_syntax::naming::is_qualified(name.as_bytes()) {
-            let canonical = self.canonical_var_name_from(name, start);
-            let unrooted = canonical.strip_prefix("::").unwrap_or(&canonical);
-            let (parent, tail) = key_holder_and_tail_unrooted(unrooted);
+            let tail =
+                String::from_utf8_lossy(tcl_syntax::naming::written_command_tail(name.as_bytes()))
+                    .into_owned();
+            let mut qualifiers = tcl_syntax::naming::qualifier_segments_owned(name);
+            if !tail.is_empty() {
+                qualifiers.pop();
+            }
+            let context = self.ns_id_stack.get(start).copied().unwrap_or(ROOT_NS);
+            let mut parent = if name.starts_with("::") {
+                Vec::new()
+            } else {
+                self.ns_path(context)
+            };
+            parent.extend(qualifiers);
             let id = self.namespace_var_token(start, &parent, name.starts_with("::"))?;
             return Some(VarBinding {
                 owner: VarTableOwner::Namespace(id),
@@ -9779,15 +9888,6 @@ impl Vm {
         existed
     }
 
-    /// Canonicalise a written qualified variable name using the shared Tcl
-    /// naming owner.  Qualified relative names are rooted at the current
-    /// namespace; absolute names retain their root.  `canonical_written_command`
-    /// collapses colon runs (`a:::b` → `a::b`) and preserves a trailing run as
-    /// the empty variable name (`foo:::` → `foo::`).
-    fn canonical_var_name(&self, name: &str) -> String {
-        self.canonical_var_name_from(name, self.current_level())
-    }
-
     /// Canonicalise a written variable name in the namespace belonging to
     /// explicit frame `level`. This is the frame-addressed half of the shared
     /// variable resolver: `upvar 1 rel::x` resolves `rel` in the caller's
@@ -9807,16 +9907,27 @@ impl Vm {
         if !tcl_syntax::naming::is_qualified(name.as_bytes()) {
             return Ok(());
         }
-        let rooted = self.canonical_var_name(name);
-        let (parent, _) = tcl_syntax::naming::key_holder_and_tail(&rooted);
-        let parent = parent.strip_prefix("::").unwrap_or(parent);
+        let simple =
+            String::from_utf8_lossy(tcl_syntax::naming::written_command_tail(name.as_bytes()))
+                .into_owned();
+        let mut qualifiers = tcl_syntax::naming::qualifier_segments_owned(name);
+        if !simple.is_empty() {
+            qualifiers.pop();
+        }
+        let context = self.current_ns_id();
+        let mut parent = if name.starts_with("::") {
+            Vec::new()
+        } else {
+            self.ns_path(context)
+        };
+        parent.extend(qualifiers);
         // A namespace being torn down is unpublished (`namespace exists` is
         // false) but its variable table remains addressable from unset trace
         // callbacks until `TclDeleteNamespaceVars` finishes.
         let exact_dying_parent = self
-            .namespace_var_token(self.current_level(), parent, name.starts_with("::"))
+            .namespace_var_token(self.current_level(), &parent, name.starts_with("::"))
             .is_some_and(|id| self.dying_namespaces.contains(&id));
-        if !self.namespace_exists(parent) && !exact_dying_parent {
+        if !self.namespace_exists_path(&parent) && !exact_dying_parent {
             return Err(err(format!(
                 "can't set \"{name}\": parent namespace doesn't exist"
             )));
@@ -11777,8 +11888,7 @@ impl Frames for Vm {
     }
 }
 
-/// Namespace name resolution over the VM's String-based namespace model, bridged
-/// to opaque `NsId`/`CommandId` handles via the intern arenas.
+/// Namespace name resolution over the VM's structured namespace arena.
 /// [`current`](Namespaces::current) returns the interned id of the current
 /// namespace (interned when pushed). [`find_command`](Namespaces::find_command)
 /// resolves `name` from `cxt` to its command key and interns that to a stable
@@ -11787,14 +11897,18 @@ impl Frames for Vm {
 /// open `find_command`/`CommandId` consumer question.
 impl Namespaces for Vm {
     fn find_command(&self, cxt: NsId, name: &str) -> Option<CommandId> {
-        let cxt_name = self.ns_name(cxt);
-        let key = self.resolve_command_fqn(&cxt_name, name)?;
-        let token = self.command_generations.get(&key).copied().or_else(|| {
-            self.ns_deferral
-                .retained
-                .values()
-                .find_map(|record| record.generations.get(&key).copied())
-        })?;
+        let key = self.resolve_command_from_token(cxt, name, true)?;
+        let token = self
+            .command_identity
+            .generations
+            .get(&key)
+            .copied()
+            .or_else(|| {
+                self.ns_deferral
+                    .retained
+                    .values()
+                    .find_map(|record| record.generations.get(&key).copied())
+            })?;
         Some(CommandId(self.intern_cmd(token)))
     }
 
@@ -11823,34 +11937,16 @@ impl Namespaces for Vm {
     }
 
     // Namespace-tree navigation over the arena. Every namespace is interned on
-    // creation (`push_ns`/`declare_namespace`), so these are pure `&self` lookups
-    // — the String model honouring the `NsId` handle contract.
+    // creation (`push_ns`/`declare_namespace`), so these are pure `&self`
+    // lookups over explicit parent/child edges.
     fn find_namespace(&self, cxt: NsId, name: &str) -> Option<NsId> {
         // An empty relative name denotes the context token itself, not any
         // newer token with the same spelling.
         if !name.starts_with("::") && name.is_empty() {
             return Some(cxt);
         }
-        // Resolve `name` (absolute, or relative to `cxt`) to a canonical name.
-        // Separator runs collapse and a trailing run drops (the namespace
-        // rule), so `namespace exists a:::b` finds `a::b` (tclsh8.6-verified;
-        // the old literal join looked up `a:::b` and missed).
-        let canonical: String = if name.starts_with("::") {
-            canonical_ns_name(name).into_owned()
-        } else {
-            let cxt_name = self.ns_name(cxt);
-            if cxt_name.is_empty() {
-                canonical_ns_name(name).into_owned()
-            } else {
-                // `cxt_name` is an already-constructed key. Canonicalise only
-                // the written relative suffix, then join by one separator;
-                // canonicalising the concatenation would collapse a literal
-                // `:` segment in the context (`outer:::`) back to `outer`.
-                let suffix = canonical_ns_name(name);
-                format!("{cxt_name}::{suffix}")
-            }
-        };
-        self.ns_intern.get(&canonical).copied()
+        let path = self.namespace_path_from_written(cxt, name);
+        self.namespace_token_at_path(&path, name.starts_with("::"))
     }
 
     fn namespace_is_live(&self, ns: NsId) -> bool {
@@ -11858,49 +11954,33 @@ impl Namespaces for Vm {
     }
 
     fn parent(&self, ns: NsId) -> Option<NsId> {
-        let name = self.ns_name(ns);
-        if name.is_empty() {
-            return None; // the global root has no parent
-        }
-        // `name` is an already-constructed key. A literal-colon segment makes
-        // that key contain a `:::` run, so the written-name qualifier split
-        // would collapse a nested `:` namespace to its grandparent.
-        let (parent, _tail) = key_holder_and_tail_unrooted(&name);
-        self.ns_intern.get(&parent).copied()
+        self.ns_parents.get(ns.0 as usize).copied().flatten()
     }
 
     fn children(&self, ns: NsId) -> Vec<NsId> {
-        let name = self.ns_name(ns);
         if let Some(record) = self.retained_record_of(ns) {
-            return retained_children_of(record, &name);
+            return retained_children_of(record, ns, &self.ns_parents, &self.ns_arena);
         }
-        self.child_namespaces(&name)
-            .iter()
-            .filter_map(|c| self.ns_intern.get(c).copied())
-            .collect()
+        self.child_namespace_ids(ns)
     }
 
     fn children_hash_order(&self, ns: NsId) -> Vec<NsId> {
-        let parent = self.ns_name(ns);
         if let Some(record) = self.retained_record_of(ns) {
-            return retained_children_of(record, &parent);
+            return retained_children_of(record, ns, &self.ns_parents, &self.ns_arena);
         }
-        self.child_namespaces_hash_order(&parent)
-            .iter()
-            .filter_map(|child| self.ns_intern.get(child).copied())
-            .collect()
+        self.child_namespace_ids_hash_order(ns)
     }
 
-    // Command enumeration over the flat command map (keyed by canonical unrooted
-    // name): the direct members of namespace `ns`, as unqualified tails.
+    // Command enumeration selects structured command slots by namespace token;
+    // the returned values are presentation-only unqualified tails.
     fn commands_in(&self, ns: NsId) -> Vec<String> {
         self.retained_names_directly_in(ns, false)
-            .unwrap_or_else(|| self.names_directly_in(&self.ns_name(ns), false))
+            .unwrap_or_else(|| self.names_directly_in_token(ns, false))
     }
 
     fn procs_in(&self, ns: NsId) -> Vec<String> {
         self.retained_names_directly_in(ns, true)
-            .unwrap_or_else(|| self.names_directly_in(&self.ns_name(ns), true))
+            .unwrap_or_else(|| self.names_directly_in_token(ns, true))
     }
 
     fn vars_in(&self, ns: NsId) -> Vec<String> {

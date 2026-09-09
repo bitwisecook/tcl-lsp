@@ -2949,6 +2949,26 @@ fn a_relative_namespace_eval_enters_the_retained_child() {
 }
 
 #[test]
+fn retained_teardown_does_not_unlink_a_recreated_namespace_path_target() {
+    // The old ::N token returns only after ::U has linked its path to the new
+    // ::N token. Final teardown must unlink by token, not by the shared display
+    // spelling. Exact Tcl 9.0.4 result.
+    assert_eq!(
+        run(r"namespace eval N {
+                 proc p {} {
+                     namespace delete ::N
+                     namespace eval ::N {proc mark {} {return NEW}}
+                     namespace eval ::U {namespace path ::N}
+                     list [namespace eval ::U {namespace path}] [namespace eval ::U {mark}]
+                 }
+             }
+             set during [::N::p]
+             list $during [namespace eval ::U {namespace path}] [namespace eval ::U {mark}]"),
+        "{::N NEW} ::N NEW"
+    );
+}
+
+#[test]
 fn a_retained_token_keeps_its_namespace_path() {
     // `commandPathArray` hangs off the `Namespace`, and its entries point at
     // namespaces that are still live, so a retained token keeps resolving

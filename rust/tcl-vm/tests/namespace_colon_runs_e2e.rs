@@ -171,6 +171,22 @@ fn colon_edge_command_bindings_do_not_collide() {
     assert_eq!(res, "from-a-colon from-colon-p ::a:::p ::a:::p");
 }
 
+/// Namespace tokens remain distinct when two different parent/child paths
+/// have the same Tcl-facing rendering.
+#[test]
+fn colon_edge_namespace_paths_do_not_collapse_in_the_live_index() {
+    let (ok, res, _) = run(
+        "namespace eval {::a:} {namespace eval b {proc p {} {return LEFT}}}\n\
+         namespace eval ::a {namespace eval :b {proc p {} {return RIGHT}}}\n\
+         list [namespace eval {::a:} {namespace eval b {p}}] \
+              [namespace eval ::a {namespace eval :b {p}}] \
+              [namespace eval {::a:} {namespace children}] \
+              [namespace eval ::a {namespace children}]",
+    );
+    assert!(ok, "got: {res}");
+    assert_eq!(res, "LEFT RIGHT ::a:::b ::a:::b");
+}
+
 /// Rename/delete traces belong to the command token even where two tokens
 /// have the same display name. Moving and deleting one must not move, fire, or
 /// remove the other's sidecars.

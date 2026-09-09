@@ -159,19 +159,20 @@ pub struct CommandId(pub u32);
 /// Tcl's fully-qualified display spelling is not an identity: legal lone-colon
 /// segment edges can make two different `(namespace, simple name)` pairs render
 /// to the same bytes. Runtimes and command consumers keep this pair structured
-/// and render it only at Tcl-facing boundaries. `S` is the runtime's owned or
-/// interned representation of a simple command name.
+/// and render it only at Tcl-facing boundaries. `N` is the consumer's stable
+/// namespace identity (`NsId` in a runtime, a segment path in static analysis)
+/// and `S` is its owned or interned simple command name.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct CommandSlot<S> {
+pub struct CommandSlot<S, N = NsId> {
     /// Stable namespace-table owner.
-    pub namespace: NsId,
+    pub namespace: N,
     /// Simple command name within that table.
     pub simple: S,
 }
 
-impl<S> CommandSlot<S> {
+impl<S, N> CommandSlot<S, N> {
     /// Construct a structured command-table slot.
-    pub const fn new(namespace: NsId, simple: S) -> Self {
+    pub const fn new(namespace: N, simple: S) -> Self {
         Self { namespace, simple }
     }
 }

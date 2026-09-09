@@ -28,7 +28,7 @@ use std::rc::Rc;
 use tcl_cmd_core::CmdError;
 use tcl_runtime_api::completion_options::{self as shared_options, ErrorOptions, OptionValue};
 use tcl_runtime_api::error_stack::{ErrorStackValueError, validate_error_stack};
-use tcl_runtime_api::{Code, Completion};
+use tcl_runtime_api::{Code, Completion, NsId};
 use tcl_syntax::formal_params::{has_trailing_args, parse_formal_parameters};
 
 use crate::error::TclError;
@@ -141,12 +141,12 @@ pub enum Command {
     /// A `namespace ensemble` — invoking `cmd sub args…` resolves `sub` against
     /// the ensemble's subcommands and dispatches to the mapped target.
     Ensemble(Rc<tcl_cmd_core::ensemble::EnsembleToken<EnsembleDef, String>>),
-    /// A `TclOO` object or class (`Foo create obj` / `obj method …`): the name
-    /// keys into the interp's `oo` state (`OoState::objects`/`classes`).
+    /// A `TclOO` object or class (`Foo create obj` / `obj method …`): the stable
+    /// token keys into the interp's `oo` state (`OoState::objects`/`classes`).
     /// Invoking it dispatches `method args…` against the object (`oo_dispatch`).
     /// Analogous to [`Command::ChildInterp`] — a command backed by a Vm-side
-    /// table keyed by the (canonical) name.
-    Object(String),
+    /// table keyed by identity rather than the mutable command name.
+    Object(crate::cmd_oo::OoId),
 }
 
 /// A `namespace ensemble create`d command (`tclEnsemble.c`).
@@ -154,7 +154,7 @@ pub enum Command {
 pub struct EnsembleDef {
     /// The namespace whose exported commands form the default subcommand set and
     /// against which an unmapped subcommand `sub` resolves to `namespace::sub`.
-    pub namespace: String,
+    pub namespace: NsId,
     /// `-map`: subcommand → target command prefix (already qualified).
     ///
     /// An association list, not a hash map: C stores the map as a Tcl dict and

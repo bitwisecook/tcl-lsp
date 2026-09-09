@@ -41,6 +41,9 @@ pub use tcl_core_types::{
     Code, CommandId, CommandSlot, Completion, FrameId, GLOBAL_FRAME, NsId, ROOT_NS, VarId,
 };
 
+/// Shared structured identities and one-way static display projections.
+pub mod command_identity;
+
 /// Standard Tcl return-option construction policy.
 pub mod completion_options;
 

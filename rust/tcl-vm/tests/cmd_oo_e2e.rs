@@ -852,6 +852,59 @@ fn destructor_next_chains() {
     assert_eq!(out, "B-d\nD-d\n");
 }
 
+#[test]
+fn rename_preserves_object_and_class_identity() {
+    // Tcl 9.0.4: object and class command names are mutable projections of
+    // stable TclOO identities. Renaming the class changes the class reported
+    // by existing instances, and deleting the renamed object runs its
+    // destructor under the destination name.
+    assert_eq!(
+        result(
+            "set log {}; \
+             oo::class create C { \
+               method who {} {self object}; \
+               destructor {lappend ::log [self object]} \
+             }; \
+             C create x; rename x y; rename C M; \
+             set before [list [y who] [info object class y]]; \
+             rename y {}; \
+             list $before [info object isa object y] $log"
+        ),
+        "{::y ::M} 0 ::y"
+    );
+}
+
+#[test]
+fn colon_colliding_object_slots_keep_distinct_identity() {
+    // The two object commands render identically as `::a:::b`, but occupy
+    // distinct `(namespace token, simple name)` slots. All TclOO state stays
+    // attached to the command token through rename and deletion.
+    assert_eq!(
+        result(
+            "set log {}; \
+             oo::class create C {destructor {lappend ::log [list [self object] [my side]]}}; \
+             namespace eval {::a:} { \
+               C create b; oo::objdefine b method side {} {return LEFT} \
+             }; \
+             namespace eval ::a { \
+               C create :b; oo::objdefine :b method side {} {return RIGHT} \
+             }; \
+             set before [list \
+               [namespace eval {::a:} {b side}] \
+               [namespace eval ::a {:b side}]]; \
+             namespace eval {::a:} {rename b left}; \
+             namespace eval ::a {rename :b right}; \
+             set after [list \
+               [namespace eval {::a:} {left side}] \
+               [namespace eval ::a {right side}]]; \
+             namespace eval {::a:} {rename left {}}; \
+             namespace eval ::a {rename right {}}; \
+             list $before $after $log"
+        ),
+        "{LEFT RIGHT} {LEFT RIGHT} {{::a:::left LEFT} {::a::right RIGHT}}"
+    );
+}
+
 // oo::define / oo::objdefine
 
 #[test]
