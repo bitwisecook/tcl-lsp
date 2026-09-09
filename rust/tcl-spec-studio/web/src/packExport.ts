@@ -49,12 +49,12 @@ export interface ExportGroup {
  * The registry directory the `.rs` files are rendered into, given what the
  * author has typed and what the document calls itself.
  *
- * The pack's own name is the answer until they say otherwise. The field used
- * to default to the literal `tcl`, which is a real, populated authoring
- * directory: an untouched export therefore offered `commands/tcl/mod.rs`
- * holding this document's handful of commands as a drop-in, and applying it
- * would have deleted every other command in the Tcl pack. It also named the
- * collector after the wrong pack — a `mylib` document exported
+ * The pack's own name is the answer until they say otherwise, and never the
+ * literal `tcl` — that is a real, populated authoring directory, so defaulting
+ * an untouched export to it would offer `commands/tcl/mod.rs` holding only
+ * this document's handful of commands as a drop-in, and applying it would
+ * delete every other command in the Tcl pack. It would also name the
+ * collector after the wrong pack — a `mylib` document exporting
  * `tcl_command_specs()`.
  */
 export function packDirectory(typed: string, packName: string): string {

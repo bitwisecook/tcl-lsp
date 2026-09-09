@@ -185,7 +185,7 @@ impl IntWidth {
 /// Why a math-function dispatch could not produce a value — C's error surface
 /// for `expr`'s function calls, carried so both engines report the same
 /// message *and* `-errorcode` instead of collapsing every refusal into one
-/// generic domain error (issue #1581).
+/// generic domain error.
 ///
 /// The message/code pairs are tclsh 8.6.16 and 9.0.4 output, read with
 /// `catch {expr {...}} m o; list $m [dict get $o -errorcode]`.
@@ -268,8 +268,8 @@ fn converts_to_integer(name: &str) -> bool {
 
 /// Dispatch with an **error channel**: the same table as
 /// [`dispatch_with_backend_int_width`], but each refusal keeps the class C
-/// reports it as, so a runtime can stamp the right message and `-errorcode`
-/// (#1581) and a const-folder can tell "this would raise" from "I cannot
+/// reports it as, so a runtime can stamp the right message and `-errorcode`,
+/// and a const-folder can tell "this would raise" from "I cannot
 /// represent the answer" ([`MathFuncError::Abstain`]).
 ///
 /// A const-folder must abstain on **every** `Err`, never fold one into a
@@ -501,7 +501,7 @@ pub fn added_in(name: &str) -> Option<MathFuncSince> {
 /// counterpart to `operators::OperatorSpec` (math functions are open and
 /// overridable via `::tcl::mathfunc::*`, TIP 232, so there's no closed enum
 /// to attach metadata to). This is the fact table `mathfunc_generated.rs`
-/// (layer 2) reads for hover/completion; it carries no behavior of its own.
+/// (layer 2) reads for hover/completion; it carries no behaviour of its own.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MathFuncSpec {
     /// Function name, matched verbatim (mathfunc lookup is case-sensitive).
@@ -1394,9 +1394,9 @@ mod tests {
     }
 
     /// `added_in()` and `dispatch()` must agree on exactly which names are
-    /// implemented — the live drift bug this phase closes (previously
-    /// `added_in()` claimed Tcl 9.1 support for 21 functions `dispatch()`
-    /// didn't implement at all). For every name `added_in()` recognises
+    /// implemented: `added_in()` claiming Tcl 9.1 support for a function
+    /// `dispatch()` does not implement at all is exactly the drift this
+    /// guards against. For every name `added_in()` recognises
     /// (except `rand`/`srand`, the caller's responsibility), `dispatch()`
     /// must produce a real value for at least one in-domain argument list —
     /// not just "some arity returns `None`", which a merely-missing arm
@@ -1632,7 +1632,7 @@ mod tests {
         }
     }
 
-    /// #1382 — with a real arbitrary-precision backend, `entier`/`round`
+    /// With a real arbitrary-precision backend, `entier`/`round`
     /// convert a double of any magnitude exactly (TIP 237), and
     /// `wide` truncates then takes the low 64 bits. Every expectation is
     /// tclsh 9.0.4 / 8.6.16 output (the two releases agree on all of these).
@@ -1706,7 +1706,7 @@ mod tests {
         );
     }
 
-    /// #1382 — `int()` is the one release-split conversion. Measured:
+    /// `int()` is the one release-split conversion. Measured:
     /// tclsh8.6.16 `int(1e20)` is `7766279631452241920` and `int(2**64+1)` is
     /// `1`; tclsh9.0.4 gives `100000000000000000000` and
     /// `18446744073709551617`.

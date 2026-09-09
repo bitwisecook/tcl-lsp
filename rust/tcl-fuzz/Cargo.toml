@@ -58,8 +58,7 @@ tcl-registry = { path = "../tcl-registry" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-vm = { path = "../tcl-vm" }
 # The ordered Tcl release enum, for recording (and comparing) which release
-# each engine in a differential pair emulates — see `src/version.rs` and
-# issue #1328.
+# each engine in a differential pair emulates — see `src/version.rs`.
 tcl-dialect = { path = "../tcl-dialect" }
 # The eBPF value-differential arm runs a registry-derived BPF-Tcl program
 # through the real lowering, bytecode emitter, and userspace eBPF VM.

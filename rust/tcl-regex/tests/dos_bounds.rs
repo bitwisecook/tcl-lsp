@@ -16,8 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Resource-bound regression tests for the `DoS` classes a code review (and,
-//! for #4, a later systematic sweep for issue #996) reproduced against this
+//! Resource-bound regression tests for the `DoS` classes found in this
 //! engine:
 //!
 //! 1. **Parser recursion → stack overflow** — a pattern of `(`×4000 drove the
@@ -30,7 +29,7 @@
 //! 3. **Reach-core blow-up** — plain `a*` over a long input is O(n²) and `(a*)*`
 //!    cubic in the set-simulation core. The same budget bounds that core's total
 //!    work, so these inputs return promptly instead of locking up.
-//! 4. **Dissection/backtrack recursion → stack overflow** (issue #996) —
+//! 4. **Dissection/backtrack recursion → stack overflow** —
 //!    matching a repeat quantifier against a long subject recurses once per
 //!    matched iteration in both `Matcher::dissect_repeat` (the POSIX
 //!    dissection phase run after every repeat match, not just backreference
@@ -156,9 +155,9 @@ fn reach_nested_star_is_bounded() {
     });
 }
 
-/// Regression coverage for issue #996: `Matcher::dissect_repeat`'s `min == 0`
-/// branch recurses once per matched iteration of a repeated sub-pattern, with
-/// no depth cap before this fix — reachable from the completely ordinary
+/// Regression coverage: `Matcher::dissect_repeat`'s `min == 0` branch
+/// recurses once per matched iteration of a repeated sub-pattern, so it needs
+/// a depth cap — reachable from the completely ordinary
 /// `a*` (no backreference needed). Empirically (with the fuel budget
 /// temporarily raised to isolate the depth effect from `MATCH_FUEL`
 /// exhaustion), unguarded input overflowed the native stack (SIGABRT)
@@ -175,11 +174,11 @@ fn deeply_nested_dissect_repeat_survives() {
     assert!(got.is_some(), "a* should match somewhere");
 }
 
-/// Regression coverage for issue #996: `Bt::m_star` (the backtracking
-/// matcher's repeat handling, used only when the pattern contains a
-/// backreference) recurses once per matched iteration of a repeated
-/// sub-pattern, with no depth cap before this fix. Empirically, unguarded
-/// input overflowed the native stack (SIGABRT) between depth 2200 and 2300
+/// Regression coverage: `Bt::m_star` (the backtracking matcher's repeat
+/// handling, used only when the pattern contains a backreference) recurses
+/// once per matched iteration of a repeated sub-pattern, so it needs a depth
+/// cap. Without one, unguarded input overflowed the native stack (SIGABRT)
+/// between depth 2200 and 2300
 /// on a 2 MiB thread (`cargo test`'s per-test default). 10,000 is
 /// comfortably past both that crash range and `MAX_BT_DEPTH` (256); the
 /// assertion is that `exec` returns at all, not what it returns.
@@ -192,10 +191,10 @@ fn deeply_nested_backtrack_repeat_survives() {
     let _ = re.exec(&subject, 0, 0);
 }
 
-/// Regression coverage for issue #996: `Bt::m_backref` (a quantified
-/// backreference, e.g. `\1*`) recurses once per repetition of the
-/// backreference, with no depth cap before this fix. Empirically, unguarded
-/// input overflowed the native stack (SIGABRT) between depth 2400 and 2500
+/// Regression coverage: `Bt::m_backref` (a quantified backreference, e.g.
+/// `\1*`) recurses once per repetition of the backreference, so it needs a
+/// depth cap. Without one, unguarded input overflowed the native stack
+/// (SIGABRT) between depth 2400 and 2500
 /// on a 2 MiB thread (`cargo test`'s per-test default). 10,000 is
 /// comfortably past both that crash range and `MAX_BT_DEPTH` (256); the
 /// assertion is that `exec` returns at all, not what it returns.
@@ -244,14 +243,13 @@ fn moderately_nested_backref_repeat_is_unaffected() {
     );
 }
 
-/// Regression coverage for a review finding on the #996 fix itself:
-/// `Matcher::dissect_repeat`'s depth-cap fallback approximates a nested
-/// capture's span by dissecting the remaining range as a single unit — but
-/// originally did so by recursing into `dissect` with a depth already past
-/// `MAX_DISSECT_DEPTH`, so `dissect`'s own top-of-function guard tripped
-/// immediately and the capture was left `None` instead of getting the
-/// documented approximate span. `(x)*` past the 256-iteration cap must still
-/// report *some* span for capture 1, not an unset one.
+/// Regression coverage: `Matcher::dissect_repeat`'s depth-cap fallback
+/// approximates a nested capture's span by dissecting the remaining range as
+/// a single unit. Recursing into `dissect` for this fallback would trip
+/// `dissect`'s own top-of-function depth guard immediately, since the depth
+/// is already past `MAX_DISSECT_DEPTH`, leaving the capture `None` instead
+/// of the documented approximate span. `(x)*` past the 256-iteration cap
+/// must still report *some* span for capture 1, not an unset one.
 #[test]
 fn capture_past_dissect_cap_gets_approximate_span_not_unset() {
     let re = Regex::compile_str("(x)*", REG_ADVANCED).expect("compiles");
@@ -268,13 +266,13 @@ fn capture_past_dissect_cap_gets_approximate_span_not_unset() {
     );
 }
 
-/// Regression coverage for a review finding on the #996 fix itself: capping
-/// `Bt::m_backref`'s recursion at `MAX_BT_DEPTH` (256) made an anchored
-/// quantified backreference spuriously fail to match ordinary input needing
-/// more than 256 repetitions — 300 repeated characters is unremarkable real
-/// text, not a pathological input. `m_backref` no longer recurses once per
-/// repetition (it counts repetitions with a loop instead), so this must
-/// match regardless of how far past the old cap the repeat count goes.
+/// Regression coverage: capping `Bt::m_backref`'s recursion at
+/// `MAX_BT_DEPTH` (256) must not make an anchored quantified backreference
+/// spuriously fail to match ordinary input needing more than 256
+/// repetitions — 300 repeated characters is unremarkable real text, not a
+/// pathological input. `m_backref` counts repetitions with a loop rather
+/// than recursing once per repetition, so this must match regardless of how
+/// far past the cap the repeat count goes.
 #[test]
 fn backref_repeat_past_old_cap_still_matches() {
     let re = Regex::compile_str("(a)\\1*$", REG_ADVANCED).expect("compiles");

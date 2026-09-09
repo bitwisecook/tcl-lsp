@@ -277,7 +277,7 @@ fn dispatch_definer(
             // `METACLASS create NAME ?BODY?` interface — `oo::configurable`
             // (property-bearing), `oo::abstract`, and `oo::singleton`
             // included, so a `[Pin new]` on an `oo::configurable` class is
-            // typed as an object like any other (issue #797).
+            // typed as an object like any other.
             DefinerFamily::TclOo if spec.traits.contains(Traits::IS_OO_METACLASS) => {
                 if let Some(method) = texts
                     .get(1)
@@ -308,7 +308,7 @@ fn dispatch_definer(
             }
         };
     }
-    // `tcl::OptProc name optlist body` (issue #923 idx 90): a real proc
+    // `tcl::OptProc name optlist body`: a real proc
     // definer, but `optlist` is never the arity-relevant param list the
     // way `proc`'s own second argument is — the runtime always installs
     // a plain `args` catch-all — so it needs its own handler rather than
@@ -365,7 +365,7 @@ fn record_command_prefix_invocations(cmd: &SegmentedCommand, head: &str, ctx: &m
                 resolved_qualified_name: None,
                 resolved_user_definition: false,
                 resolution_candidates: Vec::new(),
-                // The legacy direct-call arity path always skips a callback
+                // The direct-call arity path always skips a callback
                 // head (`None`); the callback-arity check reads
                 // `callback_baked_args` + `callback_arity`.
                 argc: None,
@@ -920,8 +920,8 @@ mod tests {
 
     #[test]
     fn class_definer_families_recognised_from_registry() {
-        // TP guard: every previously name-listed class definer still emits a
-        // class record via registry dispatch.
+        // TP guard: every class definer emits a class record via registry
+        // dispatch.
         for (src, key) in [
             ("oo::class create A {}", "::A"),
             ("oo::configurable create B {}", "::B"),

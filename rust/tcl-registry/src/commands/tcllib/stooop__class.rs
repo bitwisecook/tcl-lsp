@@ -22,8 +22,8 @@
 // two arguments. The body is "similar in contents to a Tcl namespace
 // (which a class actually also is)" and holds member `proc` definitions
 // — it is evaluated as Tcl code in a class-definition context, not the
-// caller's frame. Previously registered with `Arity::exact(1)`, which
-// rejected every valid two-argument call.
+// caller's frame. `Arity::exact(1)` alone would reject every valid
+// two-argument call.
 
 use crate::prelude::*;
 

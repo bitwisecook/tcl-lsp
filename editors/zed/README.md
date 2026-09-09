@@ -50,7 +50,7 @@ add a Zed setting such as:
 
 Supported profiles include Tcl 8.4–9.1, F5 iRules/iApps/tmsh/BIG-IP,
 Expect, SpecTcl, SslicTcl, BPF, and the EDA Tcl dialects represented in the
-catalog.
+catalogue.
 
 ## Platforms
 

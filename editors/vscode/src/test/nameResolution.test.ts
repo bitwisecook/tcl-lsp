@@ -20,16 +20,16 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import { activate, getDocUri, pollUntil, waitForDiagnostics } from "./helper";
 
-// TP/FP/TN/FN matrix for the "preview version:" issues #954-#958, exercised
+// TP/FP/TN/FN matrix for the "preview version:" regressions, exercised
 // through the real VS Code client → language-server round trip:
 //
-//   #954  commands inside an `apply` lambda body highlight as a script and a
-//         bare arg-list name is a `parameter` (semantic tokens)
-//   #955  a `$dir` read in `pkgIndex.tcl` is not read-before-set (W210), but
-//         the suppression is filename-scoped
-//   #956  a `$obj method` dispatch is a reference and is counted by the lens
-//   #957  a `my method` dispatch (nested in `[ … ]`) is a reference / counted
-//   #958  a `::tcl::mathfunc::<fn>` expr-function application is a reference
+//   - commands inside an `apply` lambda body highlight as a script and a
+//     bare arg-list name is a `parameter` (semantic tokens)
+//   - a `$dir` read in `pkgIndex.tcl` is not read-before-set (W210), but
+//     the suppression is filename-scoped
+//   - a `$obj method` dispatch is a reference and is counted by the lens
+//   - a `my method` dispatch (nested in `[ … ]`) is a reference / counted
+//   - a `::tcl::mathfunc::<fn>` expr-function application is a reference
 
 interface DecodedToken {
   line: number;
@@ -86,7 +86,7 @@ async function lensTitleOnLine(uri: vscode.Uri, line: number): Promise<string | 
 }
 
 suite("Name resolution matrix (issues #954-#958)", () => {
-  // ── #954 — apply lambda semantic tokens ────────────────────────────────
+  // apply lambda semantic tokens
   test("#954 TP: apply body highlights and the bare arg-list name is a parameter", async () => {
     const uri = getDocUri("applyLambda.tcl");
     await activate(uri);
@@ -109,7 +109,7 @@ suite("Name resolution matrix (issues #954-#958)", () => {
     assert.strictEqual(typeAt(decoded, 1, 4), "function", "#954: apply body command highlights");
   });
 
-  // ── #955 — pkgIndex `$dir` W210 ────────────────────────────────────────
+  // pkgIndex `$dir` W210
   test("#955 TP: `$dir` in pkgIndex.tcl draws no W210", async () => {
     const uri = getDocUri("pkgIndex.tcl");
     await activate(uri);
@@ -141,7 +141,7 @@ suite("Name resolution matrix (issues #954-#958)", () => {
     );
   });
 
-  // ── #956 — `$obj method` references + lens ─────────────────────────────
+  // `$obj method` references + lens
   test("#956 TP: `$obj method` dispatch is a reference and the lens counts it", async () => {
     const uri = getDocUri("objMethodDispatch.tcl");
     await activate(uri);
@@ -161,7 +161,7 @@ suite("Name resolution matrix (issues #954-#958)", () => {
     );
   });
 
-  // ── #957 — `my method` references + lens ───────────────────────────────
+  // `my method` references + lens
   test("#957 TP: `my method` nested in `[ … ]` is a reference and the lens counts it", async () => {
     const uri = getDocUri("myMethodDispatch.tcl");
     await activate(uri);
@@ -181,7 +181,7 @@ suite("Name resolution matrix (issues #954-#958)", () => {
     );
   });
 
-  // ── #957 (general form) — `my method` nested in control flow ───────────
+  // `my method` nested in control flow (general form)
   test("#957 TP: `my method` nested in if/foreach/switch is a reference and the lens counts it", async () => {
     const uri = getDocUri("myMethodDispatchControlFlow.tcl");
     await activate(uri);
@@ -204,7 +204,7 @@ suite("Name resolution matrix (issues #954-#958)", () => {
     );
   });
 
-  // ── #958 — `::tcl::mathfunc` expr functions ────────────────────────────
+  // `::tcl::mathfunc` expr functions
   test("#958 TP: an expr math-function application is a reference to its proc", async () => {
     const uri = getDocUri("mathfunc.tcl");
     await activate(uri);

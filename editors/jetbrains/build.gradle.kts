@@ -123,8 +123,8 @@ intellijPlatform {
             // layouts, so the floor and that bridge now coincide.
             create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2025.3.6.1")
             create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2026.2.2")
-            // #1780 was reported against this exact product/version, where
-            // JCEF is isolated behind the bundled Web Browser plugin.
+            // This exact product/version is where JCEF is isolated behind
+            // the bundled Web Browser plugin.
             create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.CLion, "2026.2.2")
         }
     }

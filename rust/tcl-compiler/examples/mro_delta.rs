@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `mro_delta` — W307/W308 delta + labeling-worksheet harness for the
+//! `mro_delta` — W307/W308 delta + labelling-worksheet harness for the
 //! class-lattice experiment.
 //!
 //! Two jobs, both over the FULL (cross-file, namespace-aware) resolver:
@@ -28,7 +28,7 @@
 //!    regressions" comparison against the current heuristic baseline —
 //!    resolved against the real emitter, not a reimplementation.
 //!
-//! 2. **Labeling worksheet.** Emit a CSV of a deterministic ≥120-site
+//! 2. **Labelling worksheet.** Emit a CSV of a deterministic ≥120-site
 //!    sample (all resolved sites + a strided sample of abstentions) with
 //!    enough source context (the dispatch line + the nearest preceding
 //!    binding of the receiver) to hand-label ground truth. Feeds
@@ -338,7 +338,7 @@ fn print_delta(
     );
 }
 
-/// stdout: labeling worksheet CSV (header + all resolved sites + a strided
+/// stdout: labelling worksheet CSV (header + all resolved sites + a strided
 /// abstain sample, targeting >= 120 rows total).
 fn print_worksheet(resolved_rows: &[String], abstain_rows: &[String]) {
     println!(
@@ -351,7 +351,7 @@ fn print_worksheet(resolved_rows: &[String], abstain_rows: &[String]) {
     };
     emit(resolved_rows);
     // Stride the abstentions so the sample spans the corpus, aiming to top
-    // up to ~120 total labeled rows.
+    // up to ~120 total labelled rows.
     let want_abstain = 120usize.saturating_sub(resolved_rows.len()).max(40);
     let stride = (abstain_rows.len() / want_abstain.max(1)).max(1);
     let sampled: Vec<String> = abstain_rows.iter().step_by(stride).cloned().collect();

@@ -182,7 +182,7 @@ pub(crate) fn arity(value: Arity) -> Value {
 }
 
 /// One [`tcl_registry::arity::ArityWindow`] as a draft value — the shape the
-/// signature had over one span of the owning package's releases (#1627).
+/// signature had over one span of the owning package's releases.
 pub(crate) fn arity_windows(windows: &[tcl_registry::arity::ArityWindow]) -> Value {
     Value::Array(
         windows
@@ -594,7 +594,7 @@ pub(crate) fn sub_subcommand(sub: &SubSubCommand) -> (Value, bool) {
     let mut lost = Unrecovered::default();
     // `null` — declares nothing, inherits the subcommand's table — is a
     // different draft value from `[]`, which declares that there are no
-    // options here at all (issue #1610).
+    // options here at all.
     d.insert(
         "options".into(),
         sub.options
@@ -749,7 +749,7 @@ fn handle_keyword_expr(keyword: HandleKeyword) -> String {
 ///
 /// The whole descriptor is plain data (two indices, a fieldless-payload enum,
 /// and an optional keyword), so it round-trips: `&`-borrowing a constant struct
-/// literal promotes to the `&'static` the field wants (issue #1185).
+/// literal promotes to the `&'static` the field wants.
 fn handle_binding_expr(spec: &HandleBindingSpec) -> String {
     format!(
         "Some(&HandleBindingSpec {{ name_from: {}, class_from: {}, keyword: {} }})",
@@ -768,7 +768,7 @@ fn handle_binding_expr(spec: &HandleBindingSpec) -> String {
 /// Like [`handle_binding_expr`], the whole descriptor is plain data — two
 /// fieldless-payload enums and a couple of indices — so `&`-borrowing the
 /// struct literal promotes to the `&'static` the field wants and the value
-/// round-trips through the draft (issue #1707).
+/// round-trips through the draft.
 fn remote_method_expr(role: RemoteMethodRole) -> String {
     let inner = match role {
         RemoteMethodRole::OpensHandle(spec) => format!(

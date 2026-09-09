@@ -291,11 +291,11 @@ suite("Error Recovery (contract)", () => {
 suite("Error Recovery (known-command generality)", () => {
   // A break just before a call to a command the document itself defines (a
   // proc, a TclOO class, an `interp alias`) must recover exactly as well as
-  // a break before a call to a builtin — previously the "does the next line
-  // start with a known command?" recovery signal only ever consulted the
-  // static registry, so real-world files (almost all of which call their
-  // own procs) silently lost the rest of the document to analysis whenever
-  // no *builtin* call happened to follow the break.
+  // a break before a call to a builtin: the "does the next line start with
+  // a known command?" recovery signal must consult more than the static
+  // registry, since real-world files (almost all of which call their own
+  // procs) would otherwise silently lose the rest of the document to
+  // analysis whenever no *builtin* call happened to follow the break.
   const docUri = getDocUri("errorRecovery.tcl");
 
   test("a call to a user-defined proc recovers the tail like a builtin", async () => {
@@ -419,10 +419,10 @@ suite("Error Recovery (known-command generality)", () => {
 suite("Error Recovery (short-form unterminated quote / brace)", () => {
   // A delimiter left open with content on the *same* line as the opener
   // (the overwhelmingly common real-world typo) must be flagged exactly
-  // like a long multi-line run. Previously both detectors required the run
-  // to already span multiple lines, so `set x "hello` / `set x {hello`
-  // (content then EOF, or content then a single line break) went
-  // completely unflagged — not even the generic fallback fired.
+  // like a long multi-line run: both detectors must fire even when the run
+  // has not yet spanned multiple lines, so `set x "hello` / `set x {hello`
+  // (content then EOF, or content then a single line break) is flagged
+  // rather than passing through the generic fallback unflagged.
   const docUri = getDocUri("errorRecovery.tcl");
 
   test("a same-line unterminated quote with no newline is flagged", async () => {

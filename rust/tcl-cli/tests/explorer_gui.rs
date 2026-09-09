@@ -20,11 +20,11 @@
 //!
 //! The GUI is shipped source (`index.html`, `explorer-core.js`, `worker.js`)
 //! that no Rust test otherwise exercises, so a producer/consumer mismatch in
-//! the explorer contract could only be caught by opening a browser. Issues
-//! #1182 / #1183 were exactly that: the `(module)` header stopped carrying
-//! `types`, `renderWasmModuleHeader` threw a `TypeError` mid-render, the WASM
-//! tab stayed blank, and — because the throw skipped the rest of the message
-//! handler — the compile spinner span forever.
+//! the explorer contract could only be caught by opening a browser: the
+//! `(module)` header could stop carrying `types`, `renderWasmModuleHeader`
+//! could throw a `TypeError` mid-render, the WASM tab could stay blank, and
+//! — because the throw skips the rest of the message handler — the compile
+//! spinner could spin forever.
 //!
 //! This test produces a real contract payload in-process (the same
 //! `serialise_result` the WASM facade calls) and drives the shipped GUI in
@@ -125,8 +125,8 @@ fn native_serve_requires_the_complete_monaco_bundle() {
     assert!(!GUI_RS.contains("make explorer-wasm && cargo build -p tcl-cli --release"));
 }
 
-/// The other half of #1183: an edit made while the WASM module is still
-/// loading must not be dropped. The driver holds module load open (the stubbed
+/// An edit made while the WASM module is still loading must not be dropped.
+/// The driver holds module load open (the stubbed
 /// `wasm_bindgen` parks on a gate), enters the source through the Monaco host
 /// — the only editor the shipped page shows — and only then lets the worker
 /// report ready, so this is a state the test enters on purpose rather than a
@@ -343,14 +343,14 @@ fn gui_renders_the_wasm_tab_and_settles_the_spinner() {
 
     assert_compile_survives_module_load(&report, first, source);
 
-    // Issue #1183: the throbber must stop once a result is in.
+    // The throbber must stop once a result is in.
     assert_eq!(
         first["spinnerDisplay"], "none",
         "the compile spinner never stopped"
     );
     assert_eq!(first["statusLight"], "status-light synced");
 
-    // Issue #1182: the WASM tab must actually show a disassembly.
+    // The WASM tab must actually show a disassembly.
     assert_eq!(
         first["wasmModuleHeaders"], 1,
         "the (module) header did not render"
@@ -375,7 +375,7 @@ fn gui_renders_the_wasm_tab_and_settles_the_spinner() {
         "the Tcl ASM tab did not render"
     );
 
-    // Issue #1183: the dropdown must list every dialect before the first
+    // The dropdown must list every dialect before the first
     // result, and the toolbar must offer an explicit Compile button.
     let dialects = first["dialects"].as_array().expect("dialect list");
     assert!(

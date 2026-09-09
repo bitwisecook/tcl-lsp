@@ -21,11 +21,13 @@
 //! Broken into focused sub-modules so each pass pulls in exactly
 //! the helpers it needs:
 //!
-//! - [`naming`] — namespace / proc-name resolution.
+//! - [`expr_simplify`] — AST-level expression rewriters.
 //! - [`literals`] — literal parsing + Tcl-source rendering.
+//! - [`naming`] — namespace / proc-name resolution.
 //! - [`select`] — overlap-aware optimisation selection (the
 //!   `manager`'s final output filter).
 //! - [`spans`] — statement-level rewrite and deletion extents.
+//! - [`tokens`] — token / source-range lookups.
 //! - [`var_refs`] — `$var` and bare-name variable-reference scans.
 
 pub mod expr_simplify;

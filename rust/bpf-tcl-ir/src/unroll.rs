@@ -23,8 +23,8 @@
 //! loop-free (the eBPF verifier's signature constraint) and lets the existing
 //! back-edge rejection keep guarding native `while`/`for`. Nested loops are
 //! supported (the body is unrolled recursively); a `loop` nested inside an `if`
-//! is left in place and rejected later by the typed lowering (a v1 limitation —
-//! loops must appear at the statement level).
+//! is left in place and rejected later by the typed lowering — loops must
+//! appear at the statement level.
 
 use tcl_compiler::{Script, Statement};
 use tcl_lexer::Span;
@@ -35,7 +35,7 @@ use crate::diag::{BpfDiag, BpfError};
 use crate::lower::parse_int;
 use crate::source::lower_bpf_source;
 
-/// Maximum iterations a single `loop` may unroll to in v1.
+/// Maximum iterations a single `loop` may unroll to.
 const MAX_UNROLL: i64 = 64;
 
 /// Expand every top-level `loop` in `script` into unrolled statements.

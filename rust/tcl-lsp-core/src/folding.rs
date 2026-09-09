@@ -385,7 +385,7 @@ struct FoldCtx<'a> {
     availability: Option<SurfaceQuery<'a>>,
     /// The document's statically proven command-identity facts, so a body-arg
     /// role is resolved against the command a head *is* rather than the one it
-    /// is spelled as (issue #1275).  Empty — and lookup-free — for the
+    /// is spelled as.  Empty — and lookup-free — for the
     /// overwhelmingly common document that binds nothing.
     identities: &'a tcl_compiler::realm::CommandBindingRealm,
     line_index: &'a LineIndex,
@@ -431,7 +431,7 @@ fn collect_body_folds(
     }
     // The whole-file lexer rule (which may skip a leading byte-order mark)
     // applies at the top level only — a mark at the head of a *nested* body
-    // slice is ordinary data (issue #1243).
+    // slice is ordinary data.
     let commands = segment_commands_with_offset_and_config(
         body_source,
         base_offset,
@@ -451,7 +451,7 @@ fn collect_body_folds(
         // semantic-token walk resolves it: a proven `interp alias` / `rename` /
         // `namespace import` answers with the command the head really names, and
         // a spelling whose binding was provably taken over answers with nothing,
-        // so no registry grammar is applied to it (issue #1275).  The member
+        // so no registry grammar is applied to it.  The member
         // sub-keyword test below deliberately keeps the *written* spelling —
         // `method` inside a class body is a lexical keyword, not a command
         // binding a top-level `rename` could move.
@@ -492,7 +492,7 @@ fn collect_body_folds(
         // word is a *list* of pattern/body pairs, not a script: re-segmenting
         // it below would read each `pat body` pair as one bogus command, find
         // no body role on it, and emit nothing for the arms — only the outer
-        // block folded (issue #1216).  Which word holds the list, and how the
+        // block folded.  Which word holds the list, and how the
         // list is shaped, is registry data (`CommandSpec::case_list`), so this
         // walk names no command.
         let case_invocation = ctx.registry.get(head.resolved).and_then(|spec| {
@@ -631,9 +631,9 @@ fn collect_body_folds(
 
 /// `apply {argList body ?ns?} …` (and any future command sharing the shape) —
 /// fold the whole lambda literal as one region, but recurse only into the real
-/// body element (`split_lambda_literal`, issue #954): the argument-list element
+/// body element (`split_lambda_literal`): the argument-list element
 /// is a plain word/list, not code, so re-segmenting the whole literal as a
-/// script previously mis-read the params word as a command name and never found
+/// script would mis-read the params word as a command name and never find
 /// the real body's own nested folds.
 fn collect_lambda_folds(
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
@@ -775,7 +775,7 @@ fn collect_clause_folds(
 /// shared line and are neither disjoint nor strictly nested. When
 /// that pattern slips past the collectors:
 ///
-/// * A previously-emitted parent that overlaps the next range gets
+/// * An already-emitted parent that overlaps the next range gets
 ///   trimmed back by one line, or dropped if trimming would leave
 ///   a degenerate fold.
 /// * A range that extends past its (new) parent gets trimmed down
@@ -802,7 +802,7 @@ pub fn normalise_overlaps(ranges: Vec<FoldingRange>) -> Vec<FoldingRange> {
             .then_with(|| b.end_line.cmp(&a.end_line))
     });
 
-    // working[i] may be replaced in-place (to trim a previously-emitted
+    // working[i] may be replaced in-place (to trim an already-emitted
     // parent) or set to None to drop it outright. stack holds indices
     // of currently-open ancestors; entries always reference a live
     // (non-None) working slot — we only set an entry to None
@@ -1080,10 +1080,10 @@ mod tests {
         assert!(!fold_lines(&ranges, FoldKind::Region).is_empty());
     }
 
-    /// Issue #1216: `switch`'s braced form is a single clause-list argument,
-    /// so the generic body walk saw one block and the individual arms could
-    /// not be folded — and sticky scroll, which rides the folding provider
-    /// for Tcl, pinned only the `switch` header from inside a long arm.
+    /// `switch`'s braced form is a single clause-list argument, so a generic
+    /// body walk sees one block and cannot fold the individual arms — and
+    /// sticky scroll, which rides the folding provider for Tcl, then pins
+    /// only the `switch` header from inside a long arm.
     #[test]
     fn switch_arms_each_fold() {
         let source = concat!(
@@ -1331,11 +1331,11 @@ mod tests {
         assert!(!fold_lines(&ranges, FoldKind::Region).is_empty());
     }
 
-    /// Issue #954: `apply`'s lambda-literal argument is
+    /// `apply`'s lambda-literal argument is
     /// `ArgRole::LambdaLiteral`, not `Body` — re-segmenting the whole
-    /// `{argList} {body}` blob as a script (the old generic-`Body` path)
-    /// misread the parameter word as a command name, so a nested foldable
-    /// region *inside* the real body (here, the `if`) was never found. A
+    /// `{argList} {body}` blob as a script would misread the parameter word
+    /// as a command name and never find a nested foldable
+    /// region *inside* the real body (here, the `if`). A
     /// fold must cover the whole lambda literal (line 0) and the walk must
     /// also recurse far enough to find the `if` block's own nested fold.
     #[test]
@@ -1360,9 +1360,9 @@ mod tests {
 
     #[test]
     fn deeply_nested_bodies_fold_past_the_old_depth_cap() {
-        // Regression for the lifted `MAX_FOLD_DEPTH` (was 20): 40 nested `while`
-        // bodies — each on its own line — must all yield a region fold, so the
-        // innermost levels are no longer dropped by the descent guard.
+        // 40 nested `while` bodies — each on its own line — must all yield a
+        // region fold, so `MAX_FOLD_DEPTH` must not drop the innermost
+        // levels.
         const LEVELS: usize = 40;
         let mut source = String::new();
         for i in 0..LEVELS {
@@ -1590,9 +1590,9 @@ mod tests {
 
     #[test]
     fn tcloo_method_body_inside_configurable_emits_a_fold() {
-        // Regression for #747: `oo::configurable` is a metaclass like
-        // `oo::class`, so a method body inside its definition block must
-        // fold — the registry-driven outer-command detection now covers it.
+        // `oo::configurable` is a metaclass like `oo::class`, so a method
+        // body inside its definition block must fold — the registry-driven
+        // outer-command detection covers it.
         let source = concat!(
             "oo::configurable create Widget {\n",
             "    property color\n",
@@ -1852,12 +1852,12 @@ mod tests {
     /// `end_line` at or past `line_count` would address a line the client
     /// does not have.  VS Code discards a whole sticky-scroll candidate
     /// *and its subtree* when the range is out of bounds, so an overflow
-    /// here silently removes the outline from sticky scroll (issue #1122).
+    /// here silently removes the outline from sticky scroll.
     ///
     /// The shape (a versioned `.tm` module holding one top-level
     /// `oo::class create` with a superclass, instance variables, a
-    /// constructor, and methods, closing on the final line) mirrors the
-    /// module in the issue #1122 report; the names here are invented.
+    /// constructor, and methods, closing on the final line) mirrors a real
+    /// reported module; the names here are invented.
     const CLASS_AT_EOF: &str = concat!(
         "oo::class create Widget {\n",
         "    superclass WidgetBase\n",
@@ -2025,7 +2025,7 @@ mod tests {
         }
     }
 
-    /// Issue #1275 — folding must resolve a command head's *effective
+    /// Folding must resolve a command head's *effective
     /// identity*, not its written spelling.
     ///
     /// `while`'s second word is `ArgRole::Body`; nothing else in the provider

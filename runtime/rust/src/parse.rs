@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Tcl script / word parser (T1.2) — a **re-derived** Rust structure.
+//! Tcl script / word parser — a **re-derived** Rust structure.
 //!
 //! Semantics follow reference Tcl 9.0's `Tcl_ParseCommand` family
 //! (`tmp/tcl9.0.4/generic/tclParse.c`); the *representation* is chosen for the
@@ -47,24 +47,24 @@
 //!
 //! ## Where the pieces live
 //!
-//! Nothing here scans source any more. The **within-word** decomposition is
-//! [`tcl_lexer::word_parts`]' — [`WordPart`], [`VarRef`], [`WordBody`] and the
-//! scan that produces them are re-exports of it, the one owner shared with
+//! This module does not scan source itself. The **within-word** decomposition
+//! is [`tcl_lexer::word_parts`]' — [`WordPart`], [`VarRef`], [`WordBody`] and
+//! the scan that produces them are re-exports of it, the one owner shared with
 //! `tcl-vm` and the compiler's segmenter. The **command and word boundaries**
-//! are [`tcl_lexer::script::group_commands`]' (issue #1786), the same grouping
-//! the compiler's CST builder consumes. What is left in this module is the
+//! are [`tcl_lexer::script::group_commands`]', the same grouping the
+//! compiler's CST builder consumes. What is left in this module is the
 //! *lowering*: turning the owner's borrow-free spans into this crate's
 //! borrow-based `Command`/`Word` tree, and applying the eval-facing
 //! word-delimiter rules on the way (`{braced}` is literal; `"quoted"` must
 //! close; text welded onto a close-brace or a close-quote is C's `extra
 //! characters after close-brace` / `…close-quote`).
 //!
-//! This crate used to carry its own copy of the decomposer (`scan_parts`,
-//! `scan_var_name`, `skip_command_subst`, `parse_var_ref`) with `subst.rs`
-//! mirroring it — two of the four copies bucket R10 found — and its own copy
-//! of the boundary loop, which disagreed with the compiler's segmenter about
-//! `{*}` after a close-brace (`{a}{*}$b`: one welded `Bare` word here, two
-//! words there, and an error in C). They are gone.
+//! Neither the decomposer (`scan_parts`, `scan_var_name`,
+//! `skip_command_subst`, `parse_var_ref`) nor the boundary loop is
+//! duplicated here or in `subst.rs`: a separate copy of the boundary loop
+//! would risk disagreeing with the compiler's segmenter about `{*}` after a
+//! close-brace (`{a}{*}$b`: one welded `Bare` word vs two words, and an
+//! error in C).
 
 #![forbid(unsafe_code)]
 
@@ -77,10 +77,10 @@ use tcl_lexer::{Lexer, LexerConfig, SourceMap, Token, TokenType};
 /// `Quoted` (`"a $b"` — substitutions active, quotes stripped), or `Braced`
 /// (`{a $b}` — pure literal, braces stripped, no substitution).
 ///
-/// This crate's own copy of the enum is gone: the rule that decides the kind
-/// moved to the boundary owner along with the grouping loop, and this is a
-/// re-export of [`tcl_lexer::script::WordKind`] (which was lifted from here,
-/// so the variants and their meaning are unchanged).
+/// The rule that decides the kind lives with the boundary owner alongside
+/// the grouping loop; this is a re-export of
+/// [`tcl_lexer::script::WordKind`], so the variants and their meaning match
+/// what the grouping loop produces.
 pub use tcl_lexer::script::WordKind;
 
 // The word-component model is the shared owner's — re-exported under the
@@ -151,11 +151,8 @@ pub fn scan_parts(
     )
 }
 
-// ---------------------------------------------------------------------------
 // Command parser.
-// ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
 // Command/word parsing — LOWERED from the canonical `tcl-lexer` token stream
 // and the canonical `tcl_lexer::script` grouping of it (the "parse once"
 // convergence: one scanner and one boundary rule shared with the
@@ -164,7 +161,6 @@ pub fn scan_parts(
 // `tcl-lexer`; here we only map its commands/words into the eval
 // `Command`/`WordPart` model. `scan_parts` remains for `subst`; `split_list`
 // delegates to the shared `tcl_syntax::list` crate.
-// ---------------------------------------------------------------------------
 
 /// Byte slice of a token's *content* in the source, delimiter-stripped.
 ///
@@ -195,14 +191,14 @@ fn token_content<'s>(sm: &SourceMap<'s>, src: &'s [u8], t: Token) -> &'s [u8] {
 ///
 /// Lexes with the default (Tcl-8.5+) config; a version-pinned interpreter
 /// parses through [`parse_script_with_config`] instead so the grammar follows
-/// the emulated release (issue #1462).
+/// the emulated release.
 pub fn parse_script(src: &[u8]) -> Vec<Command<'_>> {
     parse_script_with_config(src, tcl_lexer::LexerConfig::default())
 }
 
 /// [`parse_script`] under an explicit dialect [`tcl_lexer::LexerConfig`] —
 /// the seam [`crate::interp::Interp`] threads its runtime release's grammar
-/// through (issue #1462), so `{*}` expansion is off and the first-close
+/// through, so `{*}` expansion is off and the first-close
 /// `${…}` rule applies when the interpreter emulates Tcl 8.4.
 pub fn parse_script_with_config(src: &[u8], config: tcl_lexer::LexerConfig) -> Vec<Command<'_>> {
     let Ok(s) = std::str::from_utf8(src) else {
@@ -214,12 +210,12 @@ pub fn parse_script_with_config(src: &[u8], config: tcl_lexer::LexerConfig) -> V
     };
     let sm = SourceMap::new(s);
     // The boundary question — where each command and each word begins and
-    // ends — is the owner's (issue #1786); this crate used to answer it with
-    // its own copy of the loop, which disagreed with the compiler's segmenter
-    // on `{*}` welded to a close-brace. `group_commands` is borrow-free
-    // (spans + token indices), so lowering its answer into `Command`/`Word`
-    // keeps this crate's zero-copy contract (memory-management.md MM-B.6):
-    // the words below still borrow `src`.
+    // ends — is the owner's: answering it with a separate copy of the loop
+    // here would risk disagreeing with the compiler's segmenter on `{*}`
+    // welded to a close-brace. `group_commands` is borrow-free (spans +
+    // token indices), so lowering its answer into `Command`/`Word` keeps
+    // this crate's zero-copy contract (memory-management.md MM-B.6): the
+    // words below still borrow `src`.
     group_commands(&toks, s, config)
         .into_iter()
         .map(|cmd| {
@@ -249,9 +245,7 @@ pub fn parse_script_with_config(src: &[u8], config: tcl_lexer::LexerConfig) -> V
         .collect()
 }
 
-// ---------------------------------------------------------------------------
 // C's script-parsing order: a command parses whole, THEN evaluates.
-// ---------------------------------------------------------------------------
 
 /// How deep a command's `[…]` nesting is pre-scanned before the scan gives up
 /// and lets the error surface the old way (during substitution).
@@ -306,7 +300,7 @@ pub fn first_parse_error(words: &[Word<'_>], config: LexerConfig) -> Option<&'st
 /// dropped wholesale.
 ///
 /// The scan's answer is a pure function of (script bytes, [`LexerConfig`]), so
-/// memoizing it is sound — and it has to be memoized, because this crate has no
+/// memoising it is sound — and it has to be memoised, because this crate has no
 /// parse cache by design (the borrow-based tree makes one a lifetime hazard,
 /// memory-management.md MM-B.6). Without it, every execution of a command
 /// re-parses each of its `[…]` bodies once for the scan on top of the parse the
@@ -326,12 +320,12 @@ thread_local! {
 #[derive(Default)]
 struct ScanMemo {
     /// The config every entry was computed under; a different one clears it
-    /// (a version-pinned interpreter changes the grammar, issue #1462).
+    /// (a version-pinned interpreter changes the grammar).
     config: Option<LexerConfig>,
     entries: std::collections::HashMap<Vec<u8>, Option<&'static str>>,
     /// Set while a subtree's scan was cut short by
     /// [`MAX_PARSE_ERROR_SCAN_DEPTH`]. A truncated answer is only valid at the
-    /// depth it was computed at, so it must not be memoized — the same script
+    /// depth it was computed at, so it must not be memoised — the same script
     /// reached at a shallower depth would scan further and could find an error
     /// this run did not.
     truncated: bool,
@@ -412,10 +406,9 @@ fn script_parse_error(
 /// the shared owner, not re-typed here.
 ///
 /// The lexer itself stays lenient about all four — it is shared with the LSP,
-/// which must keep tokenizing broken source — so this eval-facing parser is
+/// which must keep tokenising broken source — so this eval-facing parser is
 /// the one that fails closed, carrying the failure as a
-/// [`WordPart::ParseError`] the evaluator raises when it reaches the word
-/// (issues #1576, #1586).
+/// [`WordPart::ParseError`] the evaluator raises when it reaches the word.
 use tcl_lexer::{
     word_parts::{EXTRA_AFTER_CLOSE_BRACE, MISSING_CLOSE_BRACE, MISSING_QUOTE},
     EXTRA_AFTER_CLOSE_QUOTE,
@@ -463,14 +456,15 @@ fn build_word<'s>(
     // Text welded straight onto a close-brace (`{a}b`, `{a}$b`, `{a}[b]`,
     // `{}x`, `{a}{b}`, `{a}{*}$b`) is C's `extra characters after
     // close-brace`, raised while the *command* is parsed: measured on 8.6.16
-    // and 9.0.4, `list [side] {a}b` reports it without running `side`. Both
-    // Rust groupers used to accept the shape instead — and disagreed on what
-    // it meant (this crate welded `{a}` and `$b` into one `Bare` word; the
-    // compiler's segmenter split them) — so the boundary owner records the
-    // weld in `WordSpan::welded_after_close` and the eval-facing parser is
-    // the one that fails closed on it. Checked before anything else in the
-    // word, because C stops at the close-brace: the fragments after it are
-    // never parsed, so their own errors (and side effects) never surface.
+    // and 9.0.4, `list [side] {a}b` reports it without running `side`.
+    // Accepting the shape instead — as this crate welding `{a}` and `$b`
+    // into one `Bare` word, or the compiler's segmenter splitting them,
+    // would — risks the two Rust groupers disagreeing on what it means, so
+    // the boundary owner records the weld in `WordSpan::welded_after_close`
+    // and the eval-facing parser is the one that fails closed on it. Checked
+    // before anything else in the word, because C stops at the close-brace:
+    // the fragments after it are never parsed, so their own errors (and side
+    // effects) never surface.
     if word.welded_after_close {
         return Word {
             kind,
@@ -483,9 +477,9 @@ fn build_word<'s>(
     // `"a"{b}`, `"a$x"b`, `"a[x]"c`) is C's `extra characters after
     // close-quote`, also raised while the command is parsed — measured on
     // 8.4.20, 8.5.19, 8.6.16, 9.0.4 and 9.1b0, `list [sfx inner] "a"b`
-    // reports it without running `sfx`. `tcl_lexer::first_parse_cut` already
-    // answered it from source; this engine concatenated to `ab` instead, the
-    // one divergence `tests/parse_cut_agreement.rs` had to pin (#1828). Same
+    // reports it without running `sfx`. `tcl_lexer::first_parse_cut` answers
+    // it from source; matching that here (rather than concatenating to
+    // `ab`) is the one divergence `tests/parse_cut_agreement.rs` pins. Same
     // order as the brace: before anything else in the word, because C stops
     // at the `"`.
     //
@@ -513,7 +507,7 @@ fn build_word<'s>(
             // C aborts parsing outright here (`missing close-brace`); this
             // scanner stays infallible by carrying the failure as a
             // `ParseError` part for the evaluator to raise when it reaches
-            // this word — the same convention `${…}` uses (issue #1586).
+            // this word — the same convention `${…}` uses.
             return Word {
                 kind,
                 expand,
@@ -585,8 +579,8 @@ fn build_word<'s>(
             // the LSP (an unterminated `${` reads a name running to end of
             // input; an unterminated `$a(` reads `a(` as a name), so trusting
             // it here would let direct Rust/WASM evaluation bypass the errors
-            // C raises: `missing close-brace for variable name` (#1586),
-            // `invalid character in array index` (#1732), `missing )`.
+            // C raises: `missing close-brace for variable name`,
+            // `invalid character in array index`, `missing )`.
             TokenType::Var => {
                 match tcl_lexer::word_parts::scan_var_ref(src, t.span.start() as usize, config) {
                     Ok(Some(raw)) => {
@@ -659,14 +653,12 @@ fn build_word<'s>(
     }
 }
 
-// ---------------------------------------------------------------------------
 // List parsing — `Tcl_SplitList` (the primitive `{*}` expansion + the list
 // value type need). CONVERGED onto the shared [`tcl_syntax::list`] crate (the
 // canonical `FindElement` grammar + `backslash_subst` collapse), so the list
 // grammar lives in one place for the runtime AND the LSP/compiler. The runtime
 // keeps the byte API (`&[u8]` in, owned bytes out); it converts at the boundary
 // on the UTF-8-internal-rep invariant.
-// ---------------------------------------------------------------------------
 
 /// Why splitting a string as a Tcl list failed. Mirrors
 /// [`tcl_syntax::list::ListError`] plus [`ListError::NotUtf8`] for the
@@ -711,9 +703,9 @@ impl ListError {
 
     /// The Tcl error message for this failure — reusing the **shared**
     /// [`tcl_syntax::list::ListError`] strings (one source). The `…FollowedByJunk`
-    /// variants are the message *prefix*; byte-exact text appends `"<frag>"
+    /// variants are the message *prefix*; the byte-exact text appends `"<frag>"
     /// instead of space`, which needs the offending fragment surfaced from the
-    /// splitter (tracked follow-up).
+    /// splitter — see [`list_error_message`] for the byte-exact form.
     #[must_use]
     pub fn message(self) -> &'static [u8] {
         self.shared()
@@ -749,8 +741,8 @@ pub fn split_list(src: &[u8]) -> Result<Vec<Vec<u8>>, ListError> {
 ///
 /// Both halves come from the shared codec: the fragment walk from
 /// [`tcl_syntax::list::junk_fragment`] and the sentence from
-/// [`tcl_syntax::list::ListError::full_message`]. This function used to carry a
-/// byte-identical re-implementation of that walk (issue #1429).
+/// [`tcl_syntax::list::ListError::full_message`], rather than a separate
+/// re-implementation of that walk in this crate.
 #[must_use]
 pub fn list_error_message(src: &[u8], err: ListError) -> Vec<u8> {
     let Some(shared) = err.shared() else {
@@ -824,7 +816,7 @@ mod tests {
         }
     }
 
-    // ---- command / word boundaries ----
+    // Command / word boundaries.
 
     #[test]
     fn two_word_command() {
@@ -838,7 +830,7 @@ mod tests {
 
     /// The word parser decodes literal runs under the *emulated release's*
     /// escape grammar, threaded on the `LexerConfig` the interpreter already
-    /// builds from its dialect profile (issue #1479).
+    /// builds from its dialect profile.
     #[test]
     fn word_escapes_decode_for_the_emulated_release() {
         // `\x4142`: all trailing hex digits keeping the low byte up to 8.5
@@ -998,7 +990,7 @@ mod tests {
         assert_eq!(got, vec![&b"cmd"[..], b"a", b"b", b"c"]);
     }
 
-    // ---- component decomposition ----
+    // Component decomposition.
 
     #[test]
     fn bracket_subst_decomposes_in_one_word() {
@@ -1046,17 +1038,18 @@ mod tests {
         }
     }
 
-    /// Regression coverage for issue #996: `scan_parts` recurses once per
+    /// Regression coverage for the native-stack recursion hazard
+    /// `MAX_SCAN_PARTS_DEPTH` guards against: `scan_parts` recurses once per
     /// `$name(index)` nesting level while parsing an array index's own
-    /// substitution components, with no depth cap before this fix —
-    /// reachable via ordinary `subst {...}`/variable substitution on nested
-    /// array-index text, no special syntax needed. Empirically, this same
-    /// class of unguarded nested-array-index recursion overflowed the native
-    /// stack (SIGABRT) between depth 100-150 on a 256 KiB thread stack, still
-    /// crashing at depth 2000 on a 1 MiB stack (this crate's own sweep; see
-    /// `MAX_SCAN_PARTS_DEPTH`'s doc comment). 5000 is comfortably past both
-    /// that crash range and `MAX_SCAN_PARTS_DEPTH` (64); the assertion is
-    /// that parsing returns at all, not what it returns.
+    /// substitution components — reachable via ordinary `subst
+    /// {...}`/variable substitution on nested array-index text, no special
+    /// syntax needed. Empirically, this same class of unguarded
+    /// nested-array-index recursion overflows the native stack (SIGABRT)
+    /// between depth 100-150 on a 256 KiB thread stack, still crashing at
+    /// depth 2000 on a 1 MiB stack (see `MAX_SCAN_PARTS_DEPTH`'s doc
+    /// comment). 5000 is comfortably past both that crash range and
+    /// `MAX_SCAN_PARTS_DEPTH` (64); the assertion is that parsing returns at
+    /// all, not what it returns.
     #[test]
     fn deeply_nested_array_index_survives_scan_parts() {
         const DEPTH: usize = 5000;
@@ -1111,7 +1104,7 @@ mod tests {
     }
 
     /// The welded close-quote is a `ParseError` part, ahead of anything else
-    /// in the word — and `"$"` is still the text `$`, not a weld (the #527
+    /// in the word — and `"$"` is still the text `$`, not a weld (the
     /// empty-content clamp; see `tcl_lexer::script`).
     #[test]
     fn a_welded_close_quote_is_a_parse_error_part() {

@@ -891,9 +891,9 @@ async function waitForDiagnosticsReady(
  * `minDataEntries` is a fast path for documents big enough to clear it — the
  * LSP encoding is five integers per token, so 40 entries is only eight tokens.
  * A small fixture (a five-line iRule, the rename scene's temp files) can be
- * fully tokenised and still never reach it, which used to mean polling for the
- * whole timeout and capturing ten seconds late. So a non-empty result that has
- * stopped changing counts as done too.
+ * fully tokenised and still never reach it; without a further check that would
+ * mean polling for the whole timeout and capturing ten seconds late. So a
+ * non-empty result that has stopped changing counts as done too.
  */
 async function waitForSemanticTokens(
   uri: vscode.Uri,
@@ -1786,7 +1786,7 @@ function buildScenes(): Scene[] {
         }
         // Links paint on Ctrl/Cmd hover; the underline plus the unchanged
         // colouring of the surrounding `[file join …]` is the point of the
-        // shot (issue #775).
+        // shot.
         await vscode.commands.executeCommand("editor.action.showHover");
         keepCursorVisible(editor);
         await sleep(1_250);

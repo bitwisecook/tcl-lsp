@@ -57,8 +57,7 @@ use crate::var_observability::{State, stmt_gen};
 
 /// Per-proc summary: the outer-scope (global/namespace) variable names a
 /// proc's body writes while aliased via `global` / `variable` / `upvar #0`,
-/// or through a script it runs **at the global frame** (`uplevel #0 …`,
-/// issue #1198).
+/// or through a script it runs **at the global frame** (`uplevel #0 …`).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct GlobalWriteInfo {
     /// Literal outer-scope names this proc's body writes.
@@ -68,8 +67,8 @@ pub struct GlobalWriteInfo {
     /// an unresolvable target, or a global-frame script whose write target
     /// is not a plain literal.  Any global/namespace name may be written
     /// *or read* there, so a call site must widen to an opaque barrier
-    /// instead of trusting [`Self::names`] (issue #1198 — before this,
-    /// O102 forwarded a stale global constant straight across the call).
+    /// instead of trusting [`Self::names`] — otherwise O102 forwards a stale
+    /// global constant straight across the call.
     pub opaque_global_frame: bool,
 }
 
@@ -143,8 +142,8 @@ pub(crate) fn detect_global_write_procs_with_bindings(
     // hash seed — and this map is part of the `CfgContext` folded into *every*
     // procedure's `function_lattice` memo key, so a nondeterministic winner makes
     // the whole file's per-procedure cache hit or miss by luck of the process
-    // start (issue #1035 follow-up: measured flipping a one-keystroke edit between
-    // rebuilding 1 procedure and rebuilding all 40, run to run, on the same file).
+    // start — measured flipping a one-keystroke edit between rebuilding 1
+    // procedure and rebuilding all 40, run to run, on the same file.
     let mut entries: Vec<(&String, &crate::ir::Procedure)> = module.procedures.iter().collect();
     entries.sort_by(|a, b| a.0.cmp(b.0));
     for (qname, proc) in &entries {
@@ -204,7 +203,7 @@ pub(crate) fn detect_global_write_procs_with_bindings(
                 };
                 // An opaque global-frame script is transitive the same way
                 // the names are: a caller of `setter` clobbers whatever
-                // `setter`'s `uplevel #0 $body` clobbers (issue #1198).
+                // `setter`'s `uplevel #0 $body` clobbers.
                 changed |= target_summary.union_from(source_summary);
             }
         }
@@ -331,7 +330,7 @@ fn script_invokes_unknown_binding(
     walk(script, aliases, &ExecutionNamespace::exact(namespace), 0)
 }
 
-/// Pass 3 (issue #1198): the writes a proc performs by running a script **at
+/// Pass 3: the writes a proc performs by running a script **at
 /// the global frame** — `uplevel #0 {…}` (lowered to [`Statement::UpFrame`]
 /// with `absolute` set and shift `0`) and `uplevel #0 [list CMD …]` /
 /// `uplevel #0 $body` (still a plain call/barrier statement).  These need no
@@ -1746,7 +1745,7 @@ mod tests {
 
     #[test]
     fn uplevel_hash_zero_literal_body_records_global_writes() {
-        // Issue #1198 — `uplevel #0 {set x 99}` needs no `global`
+        // `uplevel #0 {set x 99}` needs no `global`
         // declaration at all (tclsh 9.0.3/9.0.4: the caller-visible `x`
         // really is 99 afterwards).
         let m = module("proc ::setter {} { uplevel #0 { set x 99 } }");

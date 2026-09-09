@@ -16,16 +16,16 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Issue #1296, editor-integration layer: a class made by a cross-file
+// A class made by a cross-file
 // metaclass that was itself made by *another* file's metaclass must resolve
 // from a call site.
 //
-// The workspace class-factory index (issue #1276) is computed from a query
+// The workspace class-factory index is computed from a query
 // that reads the index, so one publish only advances the metaclass chain by a
 // single link. Four documents — `MetaA`, `MetaA create MetaB`,
-// `MetaB create Widget`, and a call on `Widget`'s method — need three, and
-// go-to-definition on the method came back empty. The server now drives the
-// publish to a fixpoint.
+// `MetaB create Widget`, and a call on `Widget`'s method — need three
+// publishes before go-to-definition on the method resolves; the server must
+// drive the publish to that fixpoint.
 //
 // This tier exists because the fault is *when* the answer arrives, not only
 // what it is: the index converges across several debounced publishes, and a

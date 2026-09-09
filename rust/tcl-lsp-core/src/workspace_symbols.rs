@@ -54,7 +54,7 @@ pub enum WorkspaceSymbolKind {
     /// instance construction.
     Constructor,
     /// A named definition from a registry symbol-definer command — a
-    /// `tcltest::test` case (issue #790).
+    /// `tcltest::test` case.
     Test,
     /// A named `tcltest::testConstraint` — a boolean test condition.
     Constant,
@@ -240,7 +240,7 @@ mod tests {
         assert!(!labels.contains(&"farewell"), "{syms:?}");
     }
 
-    // issue #790: tcltest `test` cases surface as workspace symbols.
+    // tcltest `test` cases surface as workspace symbols.
 
     #[test]
     fn tcltest_test_surfaces_as_workspace_symbol() {
@@ -297,9 +297,9 @@ mod tests {
         assert_eq!(hit.container_name.as_deref(), Some("::suite"));
     }
 
-    /// Issue #1156: a document the editor never opened — only scanned into the
-    /// index — is searchable.  The previous handler walked the *open-document*
-    /// map, so every symbol in an unopened file was invisible to Ctrl+T.
+    /// A document the editor never opened — only scanned into the index — is
+    /// searchable.  A handler that walked the *open-document* map would leave
+    /// every symbol in an unopened file invisible to Ctrl+T.
     #[test]
     fn symbols_come_from_every_indexed_document_not_only_open_ones() {
         let a = analyse("proc opened_one {} {}\n");
@@ -312,7 +312,7 @@ mod tests {
         assert_eq!(syms[0].uri, "file:///scanned.tcl");
     }
 
-    /// Issue #1156: the cap bounds the answer, and it bounds it *by document*
+    /// The cap bounds the answer, and it bounds it *by document*
     /// — a truncated result is a prefix of the workspace, not a prefix of one
     /// symbol table.
     #[test]

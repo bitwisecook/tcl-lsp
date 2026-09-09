@@ -31,11 +31,12 @@
 //! the flow-sensitive walker therefore re-lowers and tree-walks that body inside
 //! `handle_catch`. That is the only way the CFG walker's `tree_assign_or_incr` /
 //! `tree_call_or_barrier` / `tree_structural` arms run, and
-//! `var_escape_cfg.rs` only ever drives them through the *flat* IR walker
-//! (`escape_ir`) — never through `analyse_cfg_function`. Every test here calls
-//! `analyse_cfg_function` directly (via `cfg_result`) on a top-level `catch {…}`
-//! whose body nests a scope-crossing command inside
-//! `if`/`for`/`while`/`foreach`/`switch`/`try`/a nested `catch`/`eval`.
+//! `var_escape_cfg.rs` reaches them only through the *flat* IR walker
+//! (`escape_ir`): the scripts it hands `analyse_cfg_function` hold no `catch`
+//! body. Every test here calls `analyse_cfg_function` directly (via
+//! `cfg_result`) on a top-level `catch {…}` whose body nests a scope-crossing
+//! command inside `if`/`for`/`while`/`foreach`/`switch`/`try`/a nested
+//! `catch`/`eval`.
 //!
 //! Note the precondition `handle_catch` enforces: a body that contains a `$`/`[`
 //! substitution is a *dynamic token*, which it cannot walk precisely, so it
@@ -48,8 +49,7 @@
 //!
 //! The escape lattice (`Local`/`Frame`), the `dynamic_barrier` flag, and the
 //! fallback flags are compiler-internal structure with no direct Tcl analogue;
-//! those are asserted structurally (this note discharges the structural-
-//! assertion requirement for the file).
+//! those are asserted structurally.
 //!
 //! `catch` intercepts the *result/error* of its body, NOT the frame: the body
 //! runs in the enclosing frame, so every name it writes is observable there.
@@ -94,9 +94,9 @@ fn is_frame(r: &CfgEscapeResult, name: &str) -> bool {
     r.name_tags.get(name) == Some(&EscapeTag::Frame)
 }
 
-// PART 1 — `tree_assign_or_incr`: the opaque catch body escapes every name it
-// writes. A bare top-level `set x 1` is a pure local (negative control), but the
-// same write inside a `catch {…}` body is conservatively spilled.
+// `tree_assign_or_incr`: the opaque catch body escapes every name it writes. A
+// bare top-level `set x 1` is a pure local (negative control), but the same
+// write inside a `catch {…}` body is conservatively spilled.
 
 #[test]
 fn bare_set_is_local_control() {
@@ -151,8 +151,8 @@ fn catch_dynamic_body_records_coarse_fallback() {
     );
 }
 
-// PART 2 — `tree_call_or_barrier`: Call (upvar/global/variable), nested eval
-// block, uplevel barrier, return, expr-eval.
+// `tree_call_or_barrier`: Call (upvar/global/variable), nested eval block,
+// uplevel barrier, return, expr-eval.
 
 #[test]
 fn catch_body_upvar_records_source_and_escapes_alias() {
@@ -208,7 +208,7 @@ fn catch_body_expr_eval_is_not_pessimistic() {
     );
 }
 
-// PART 3 — `tree_structural`: control flow nested inside the opaque catch body.
+// `tree_structural`: control flow nested inside the opaque catch body.
 // These are the arms the flat-walker tests never reach on the CFG path. The
 // loop conditions / switch values / lists are deliberately LITERAL (no `$`) so
 // `handle_catch` walks the body rather than bailing on a dynamic token.
@@ -315,7 +315,7 @@ fn catch_try_body_and_finally_escape() {
     );
 }
 
-// PART 4 — top-level barrier / call arms reached *without* a catch wrapper.
+// Top-level barrier / call arms reached *without* a catch wrapper.
 
 #[test]
 fn eval_dynamic_body_is_pessimistic() {

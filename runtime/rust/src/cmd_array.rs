@@ -461,10 +461,10 @@ mod tests {
         i.result_bytes()
     }
 
-    /// Issue #1607: `array` is a `TclMakeEnsemble` command, so its scan and
-    /// miss sentence belong to `tcl_cmd_core::ensemble` — this matched exactly
-    /// and hand-joined the list. Resolving first also means `array e a` fires
-    /// the variable's `array` trace under the canonical name (#1569's hook).
+    /// `array` is a `TclMakeEnsemble` command, so its scan and
+    /// miss sentence belong to `tcl_cmd_core::ensemble`, rather than an exact
+    /// match against a hand-joined list. Resolving first also means `array e
+    /// a` fires the variable's `array` trace under the canonical name.
     /// `array default`'s own word is a `Tcl_GetIndexFromObj(…, "option", 0)`
     /// table in *C table* order, not alphabetical.
     ///

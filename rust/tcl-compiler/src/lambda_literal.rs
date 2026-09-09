@@ -28,8 +28,8 @@
 //! `apply {dir { puts $dir }} …` was read as one statement whose command
 //! name is `dir` and whose one argument is `{puts $dir}` — the parameter
 //! word masquerading as a command head. Since `dir` never resolves to a
-//! registered command, recursion stopped there and the real body was never
-//! reached (issue #954). Splitting the list here — element 0 is the
+//! registered command, recursion stops there and the real body is never
+//! reached. Splitting the list here — element 0 is the
 //! parameter list, element 1 is the body script — lets each consumer recurse
 //! into the real body directly.
 
@@ -74,8 +74,7 @@ impl LambdaLiteralElements {
     /// call-site scan — would be reading a script that does not exist. Those
     /// consumers take this accessor and skip the element instead; consumers
     /// that want the real value regardless of shape take
-    /// [`split_lambda_literal_decoded`], which has no spans to get wrong
-    /// (Codex review on #1047).
+    /// [`split_lambda_literal_decoded`], which has no spans to get wrong.
     #[must_use]
     pub fn braced_body(&self) -> Option<Span> {
         self.body.filter(|_| self.body_braced)
@@ -148,7 +147,7 @@ fn locate_elements(
 /// element and reassemble the literal need this rather than
 /// [`LambdaLiteralElements`]'s raw spans: reprocessing a non-literal
 /// element's still-escaped source spelling directly as list/script text
-/// silently changes what it means (codex review of #954's follow-up —
+/// silently changes what it means:
 /// `apply {{} puts\ hi}`'s real body is `puts hi`, not the literal text
 /// `puts\ hi`, since list-element decoding collapses the `\ ` into a space
 /// *before* the result is ever parsed as a script).
@@ -256,7 +255,7 @@ mod tests {
         );
     }
 
-    /// Codex review on #1047: a bare body element with backslash escapes is
+    /// A bare body element with backslash escapes is
     /// decoded by the list parser before `apply` evaluates it, so its source
     /// slice is not the script that runs — an in-place re-parse would read
     /// `if\ \{$x\}\ \{puts\ a\}` as one word.  `braced_body` withholds it.
@@ -288,7 +287,7 @@ mod tests {
         assert!(split_lambda_literal(src, tok).is_none());
     }
 
-    /// Codex review of #954's follow-up: a bare body element's backslash
+    /// A bare body element's backslash
     /// escapes must be collapsed to get the value Tcl's list parser (and
     /// then `apply`'s script evaluator) actually sees — `puts\ hi`'s real
     /// runtime body is `puts hi` (a two-word command), not the literal

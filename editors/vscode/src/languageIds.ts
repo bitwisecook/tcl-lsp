@@ -24,7 +24,7 @@
 // `configurationDefaults` override key on `.` while building the
 // default-configuration value tree, so a `"[tcl8.4]": {…}` block throws and
 // aborts every remaining override in that block — ours and, because the tree
-// is shared, other extensions' too (issue #1122). The version-pinned dialect
+// is shared, other extensions' too. The version-pinned dialect
 // ids are therefore undotted (`tcl84`, not `tcl8.4`); the *dialect* strings
 // they map to keep their dots (`tcl8.4`), which is a different namespace.
 
@@ -64,10 +64,10 @@ export function isTclLanguage(languageId: string): boolean {
 // Both are projections of the dialect catalogue's `file_extensions` /
 // `filenames` axes — the same source `contributes.languages` above is built
 // from, so the runtime can never claim an extension the manifest does not
-// register. Two hand-written switches used to answer this question, one
-// covering 6 of the 25 extensions and the other 4, which is how a `.sdc` file
-// that lost its association was offered plain `tcl` instead of `tcl-synopsys`
-// (issue #1625).
+// register. A hand-written switch answering this question would have to
+// enumerate every one of the 25 registered extensions to avoid offering,
+// say, plain `tcl` instead of `tcl-synopsys` for a `.sdc` file that lost
+// its association.
 
 // @generated:extension-language-ids:begin -- cargo xtask gen-editor-extensions
 export const EXTENSION_LANGUAGE_IDS: Record<string, string> = {

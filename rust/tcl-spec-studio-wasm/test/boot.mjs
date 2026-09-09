@@ -216,9 +216,9 @@ async function main() {
     // Registry-owned worked examples must show the full flow, not merely a
     // generic attachment point. Arrows identify source, processing, and
     // destination, while exactly one independent highlight marks the command
-    // token carrying the trait. Use a historically long trait name here too:
-    // its picker label used to stretch its background across the whole grid
-    // cell instead of hugging the token.
+    // token carrying the trait. Use a long trait name here too, to guard
+    // against its picker label stretching its background across the whole
+    // grid cell instead of hugging the token.
     await page.click("#tab-reference");
     const flowContract = await page.evaluate(() => {
       const term = Array.from(document.querySelectorAll("code.term")).find(

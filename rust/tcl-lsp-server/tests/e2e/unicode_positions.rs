@@ -51,8 +51,8 @@ fn scalar_col(line: &str, token: &str) -> u32 {
     u32::try_from(line[..idx].chars().count()).expect("scalar column fits u32")
 }
 
-// -- TestUtf16InputColumnMapping -----------------------------------------
-// A UTF-16 request column on a multibyte line resolves to the right token.
+// UTF-16 input column mapping: a UTF-16 request column on a multibyte line
+// resolves to the right token.
 
 #[test]
 fn definition_resolves_through_multibyte_prefix() {
@@ -92,8 +92,8 @@ fn references_resolve_through_astral_prefix() {
     );
 }
 
-// -- TestUtf16OutputColumns ----------------------------------------------
-// Ranges the server returns carry UTF-16 columns, not byte columns.
+// UTF-16 output columns: ranges the server returns carry UTF-16 columns,
+// not byte columns.
 
 #[test]
 fn highlight_columns_are_utf16_not_bytes() {
@@ -165,9 +165,9 @@ fn highlight_columns_are_utf16_through_astral_prefix() {
     );
 }
 
-// -- TestRapidEditConsistency --------------------------------------------
-// Rapid full-document replaces leave the server's view consistent with the
-// final content (no stale analysis surviving an out-of-order/queued change).
+// Rapid edit consistency: rapid full-document replaces leave the server's
+// view consistent with the final content (no stale analysis surviving an
+// out-of-order/queued change).
 
 #[test]
 fn final_state_wins_after_rapid_replaces() {

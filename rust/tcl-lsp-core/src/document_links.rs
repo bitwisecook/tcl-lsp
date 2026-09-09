@@ -38,9 +38,9 @@
 //!   readily as a direct one.  Anything outside that subset produces
 //!   **no link at all**:
 //!   a `source` argument whose reconstructed text still carries `$` or
-//!   `[` is never treated as a literal path (issue #1140 idx 41 — doing
-//!   so percent-encoded the raw Tcl text into a syntactically valid but
-//!   semantically bogus `file://` URI).
+//!   `[` is never treated as a literal path — doing so percent-encodes the
+//!   raw Tcl text into a syntactically valid but semantically bogus
+//!   `file://` URI.
 //! * Workspace-folder enumeration that lets a `source` link
 //!   resolve across multiple roots is not done; the single
 //!   `workspace_root` parameter is sufficient for the
@@ -50,7 +50,7 @@
 //! must not span code.  A link is painted as one flat run, so a range
 //! covering a whole `[file join $dir x.tcl]` hides every token boundary
 //! inside it and the substitution stops looking like the command sequence
-//! it is (issue #775).  [`link_anchor`] is the rule — a literal word links
+//! it is.  [`link_anchor`] is the rule — a literal word links
 //! whole, a substitution links on its trailing literal word alone — and
 //! `tests/e2e/semantic_tokens.rs` pins the invariant it exists to keep: no
 //! link range covers more than one semantic token.
@@ -101,7 +101,7 @@ pub struct DocumentLink {
 pub struct LinkContext<'a> {
     /// The document's **imported** path constants — values source-graph
     /// ancestors establish before it runs
-    /// (`WorkspaceIndex::imported_path_constants_for`, issue #1368).  `None`
+    /// (`WorkspaceIndex::imported_path_constants_for`).  `None`
     /// means no import view is available (single-file callers), which only
     /// costs coverage, never correctness.
     pub imported_constants: Option<&'a std::collections::HashMap<String, String>>,
@@ -178,11 +178,11 @@ pub fn document_links_in_context(
     let line_index = LineIndex::new(source);
     let mut links = Vec::new();
     // Constant single-assignment `set` map for the `set dir [file dirname
-    // [info script]] … source [file join $dir x.tcl]` idiom (issue #1140
-    // idx 41), built once per request.  Chained assignments fold too, so a
-    // directory reached through an intermediate resolves (issue #775), and
+    // [info script]] … source [file join $dir x.tcl]` idiom, built once per
+    // request.  Chained assignments fold too, so a
+    // directory reached through an intermediate resolves, and
     // an import view from the host makes values sourced-in from ancestor
-    // documents resolve exactly as they do for navigation (issue #1368).
+    // documents resolve exactly as they do for navigation.
     let no_imports = std::collections::HashMap::new();
     let constants = tcl_compiler::auto_path_eval::fold_constant_assignments_with_imports(
         &tcl_compiler::auto_path_eval::constant_path_assignments(source, dialect),
@@ -394,8 +394,8 @@ fn pack_include_links(
 /// delimiter) is the range.  A computed one — `source [file join $dir x.tcl]`
 /// — is not: it is a command sequence with highlighting of its own, and an
 /// editor paints a link range in one flat link colour plus an underline.
-/// Spanning the whole substitution therefore erases that highlighting, which
-/// is what issue #775 reports seeing — `file`, `join`, `$currentDir`, and the
+/// Spanning the whole substitution therefore erases that highlighting —
+/// `file`, `join`, `$currentDir`, and the
 /// file name all collapsing into one link-coloured run — and it also asserts
 /// something untrue, that the *code* is the link rather than the file it
 /// names.
@@ -459,7 +459,7 @@ fn link_anchor(
 /// 2. The literal `[file join a b c]` shorthand ([`literal_file_join`]).
 /// 3. The **source graph's own** path evaluator
 ///    ([`tcl_compiler::auto_path_eval::evaluate_auto_path_expr_with_constants`],
-///    the same one `resolve_source_edge` uses for the M9 namespace-rehoming
+///    the same one `resolve_source_edge` uses for the namespace-rehoming
 ///    source graph), with the document's single-assignment `set` constants
 ///    substituted — which is what carries the corpus idiom `set dir [file
 ///    dirname [info script]]; source [file join $dir x.tcl]`, and its chained
@@ -859,11 +859,12 @@ mod tests {
         assert!(links.is_empty(), "{links:?}");
     }
 
-    // Issue #1140 / #923 idx 41 — computed `source` paths, exercised through
+    // Computed `source` paths, exercised through
     // the code path a real editor takes: `workspace_root = Some(...)` *and*
-    // `script_path = Some(...)`.  The pre-existing `dynamic_path_produces_no
-    // _link` above passes `None` for both, which short-circuits `resolve_path`
-    // on `let root = workspace_root?` before the fix's `carries_substitution`
+    // `script_path = Some(...)`.  The `dynamic_path_produces_no
+    // _link` test above passes `None` for both, which short-circuits
+    // `resolve_path` on `let root = workspace_root?` before the
+    // `carries_substitution`
     // gate is reached at all — so it never covered the bug.
 
     /// TP — the positive side nothing pinned before: the corpus idiom
@@ -895,15 +896,14 @@ mod tests {
 
     /// TN — a shape the evaluator cannot fold, so `dir` cannot be
     /// constant-propagated.  The whole expression must abstain rather than
-    /// fall through to percent-encoding its own raw text into a `file://` URI
-    /// (the original bug:
-    /// `file:///proj/%5Bfile%20join%20$dir%20helper.tcl%5D`).
+    /// fall through to percent-encoding its own raw text into a `file://`
+    /// URI (`file:///proj/%5Bfile%20join%20$dir%20helper.tcl%5D`).
     ///
-    /// The `file normalize` wrapper used to be this test's first fixture; it
-    /// folds now (#775 — see `auto_path_eval::eval_file_normalize`), and
-    /// `a_normalized_computed_source_path_resolves_775` below pins its target.
-    /// `file readlink` stands in for it here: a command the subset does not
-    /// model, and cannot without touching the filesystem.
+    /// `file readlink` is the unmodellable command here: the subset does not
+    /// model it, and cannot without touching the filesystem.  A `file
+    /// normalize` wrapper does fold, and
+    /// `a_normalized_computed_source_path_resolves_775` below pins its
+    /// target.
     #[test]
     fn an_unfoldable_computed_source_path_produces_no_link_923_idx41() {
         for src in [
@@ -940,12 +940,12 @@ mod tests {
     /// unknowable statically; what must never happen is the two spellings
     /// disagreeing, or the answer depending on how the editor was launched.
     ///
-    /// The computed spelling is `[file join $dir helper.tcl]` rather than this
-    /// test's original `[file join $v]` (with `set v helper.tcl`): since #775
-    /// a substitution must end in a literal word to have anything to anchor
-    /// its link on, and `[file join $v]` ends in a variable.  The claim under
-    /// test — a *relative* computed result anchoring on `workspace_root` like
-    /// the literal beside it — is unchanged, since `dir` folds to `.`.
+    /// The computed spelling is `[file join $dir helper.tcl]` rather than
+    /// `[file join $v]` (with `set v helper.tcl`) because a substitution must
+    /// end in a literal word to have anything to anchor its link on, and
+    /// `[file join $v]` ends in a variable.  The claim under test — a
+    /// *relative* computed result anchoring on `workspace_root` like the
+    /// literal beside it — is unaffected, since `dir` folds to `.`.
     #[test]
     fn a_relative_computed_source_path_anchors_like_the_literal_beside_it_923_idx41() {
         let ctx = LinkContext {
@@ -973,7 +973,7 @@ mod tests {
         assert_eq!(literal[0].target, "file:///proj/helper.tcl");
     }
 
-    // Issue #775 — a `source` link must never span the code inside a
+    // A `source` link must never span the code inside a
     // command substitution.  The reporter's file is
     // georgtree/SpiceGenTcl's `test/arbitaryTest.tcl` shape: `set
     // currentDir [file … [info script]]` then `source [file join
@@ -1043,7 +1043,7 @@ mod tests {
 
     /// A directory reached through an intermediate resolves like a direct
     /// one — georgtree/SpiceGenTcl's own `SpiceGenTcl.tcl` shape, where every
-    /// one of seventeen `source` lines goes through `$sourceDir` (issue #775).
+    /// one of seventeen `source` lines goes through `$sourceDir`.
     ///
     /// Oracle (tclsh 8.6.16 / 9.0.4): running `/proj/SpiceGenTcl.tcl` loads
     /// `/proj/src/generalClasses.tcl`.

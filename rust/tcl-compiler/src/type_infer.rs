@@ -89,7 +89,7 @@ fn numbers_of(registry: &CommandRegistry) -> NumberSyntax {
 /// The integer-tower shape of a Tcl integer literal under `numbers` —
 /// [`TypeShape::Int`] when the value fits a wide (`i64`), [`TypeShape::Bignum`]
 /// beyond it (`9223372036854775808`, `0xFFFFFFFFFFFFFFFF` — promotion is by
-/// magnitude, never wrapping; oracle corpus in type-tracking.md). `None` when
+/// magnitude, never wrapping; see docs type-tracking.md). `None` when
 /// the text is not, in its entirety, an integer numeral of the target release.
 ///
 /// The grammar is the shared one ([`tcl_syntax::number`]), so which spellings
@@ -207,8 +207,8 @@ fn function_namespace(qname: &str) -> String {
 /// this file later `rename`s away therefore still types its constructor
 /// result here. Consumers that turn an `OBJECT(class)` into a *diagnostic*
 /// must apply the liveness gate themselves — `var_command.rs`'s
-/// `aggregate_object_types` does, at file-end granularity, for W308 (issue
-/// #1013). Consumers that only use the type internally (SCCP shape
+/// `aggregate_object_types` does, at file-end granularity, for W308.
+/// Consumers that only use the type internally (SCCP shape
 /// selection, codegen hints) are unaffected: a dead class's constructor
 /// raises at runtime, so no correct program reaches them.
 fn constructor_object_type<S: std::hash::BuildHasher>(
@@ -269,7 +269,7 @@ pub(crate) fn return_type_for_command<S: std::hash::BuildHasher>(
 
     // Resolved against this call, not just the command: `regexp -inline`
     // returns the matched substrings as a list where a bare `regexp` returns
-    // a match count (issue #1720).  Subcommand dispatch and the per-form
+    // a match count.  Subcommand dispatch and the per-form
     // refinement both live in `return_type_for_call`, so the taint sanitiser
     // test and the shimmer byte-array check cannot disagree with this.
     match spec.return_type_for_call(args) {
@@ -299,7 +299,7 @@ fn infer_expr_type(
     depth: u32,
     numbers: NumberSyntax,
 ) -> TypeLattice {
-    // Native-stack safety net (issue #996): `ExprNode` operator trees are
+    // Native-stack safety net: `ExprNode` operator trees are
     // walked with one native frame per nesting level. Past the cap, give up
     // conservatively with `overdefined` — the same "any type / can't tell"
     // top this function already returns for opaque `Command`/`Raw` nodes, so
@@ -325,8 +325,8 @@ fn infer_expr_type(
         } => {
             match op {
                 // BITWISE / shift → always Int (Tcl `expr` coerces the
-                // operands to integers). Previously these were grouped
-                // with arithmetic and degraded to Numeric.
+                // operands to integers), never the weaker Numeric that
+                // arithmetic yields.
                 BinOp::LShift | BinOp::RShift | BinOp::BitAnd | BinOp::BitOr | BinOp::BitXor => {
                     TypeLattice::of(TclType::Int)
                 }
@@ -399,8 +399,7 @@ fn infer_expr_type(
         }
 
         // Math-function calls resolve through the expr-function table
-        // — `sqrt($x)` is Double, `int(...)` is Int, etc.,
-        // where they previously degraded to overdefined.
+        // — `sqrt($x)` is Double, `int(...)` is Int, etc.
         ExprNode::Call { function, args, .. } => {
             expr_call_type(function, args, var_types, depth, numbers)
         }
@@ -442,7 +441,7 @@ fn expr_call_type(
     numbers: NumberSyntax,
 ) -> TypeLattice {
     // `depth` is the level of the enclosing `Call` node; its args are one
-    // level deeper (issue #996 — `infer_expr_type` guards the cap itself).
+    // level deeper; `infer_expr_type` guards the cap itself.
     // Identity: `abs` preserves the operand type (Int fallback).
     if function == "abs" {
         return match args.first() {
@@ -554,7 +553,7 @@ impl<S: std::hash::BuildHasher> WordTypingCtx<'_, S> {
 /// The shape a builder argument *word* contributes as a container element,
 /// or `None` when no shape claim is defensible for downstream checks.
 ///
-/// Faithful to the runtime's by-reference elements (oracle corpus,
+/// Faithful to the runtime's by-reference elements (see docs
 /// type-tracking.md): a container shares its argument objects, so a
 /// **committed** source keeps its intrep inside the container —
 /// `[list [expr {2**20}] x]` genuinely holds an int, `[list [C new]]` an
@@ -793,8 +792,8 @@ fn var_elements_effect_lattice<S: std::hash::BuildHasher>(
         }
         // `dict append` concatenates: value intreps do not survive, but an
         // object's dispatch identity (the objref text) does — only
-        // object-class shapes flow into the bound (issue #797's
-        // collection-of-objects pattern); anything else contributes no
+        // object-class shapes flow into the bound (the collection-of-objects
+        // pattern); anything else contributes no
         // element fact.
         VarElementsEffect::ExtendsDictValuesByName { .. } => {
             let incoming = uniform_elements_of(ctx, value_words);
@@ -1152,7 +1151,7 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
 ///   `i` of the container. A tracked `Exact` container types each target
 ///   from its position — a position past the container's arity is the empty
 ///   string `lassign` pads with (`String`), an untracked position widens to
-///   `Overdefined` (the pre-element-tracking behaviour, issue #867).
+///   `Overdefined`.
 /// - **`foreach` / `lmap` / `dict for` headers** (`foreach_groups`
 ///   present): `defs` is the flattened per-group element vars and `args`
 ///   holds one container word per group. A single-var list group's element
@@ -1856,9 +1855,9 @@ mod tests {
 
     #[test]
     fn lassign_single_destructure_def_is_overdefined_not_list() {
-        // Issue #867 core regression: a *single*-target `lassign $l x` was the
-        // case the old `defs.len() > 1` heuristic missed — one write fell
-        // through to `lassign`'s `List` return type, so `x` was typed LIST and
+        // A *single*-target `lassign $l x` is the case a `defs.len() > 1`
+        // heuristic misses — one write falls
+        // through to `lassign`'s `List` return type, so `x` is typed LIST and
         // `expr {$x + 1}` fired a bogus S100. The registry's `Destructured`
         // typing widens it to OVERDEFINED regardless of target count.
         let stmt = Statement::Call {
@@ -1903,7 +1902,7 @@ mod tests {
 
     #[test]
     fn unannotated_multi_def_call_stays_overdefined_not_return_type() {
-        // Regression (PR #885 review): a call that writes SEVERAL variables
+        // A call that writes SEVERAL variables
         // under the default `ReturnValue` typing must not broadcast its
         // return type onto all of them. The synthetic `catch {body} resultVar
         // optionsVar` call `emit_opaque_catch` builds carries the body's
@@ -1934,7 +1933,7 @@ mod tests {
 
     /// End-to-end lattice checks for the registry-driven `VarWriteTyping`:
     /// each destructuring writer types its side-effect target correctly,
-    /// distinct from its return type (issue #867).
+    /// distinct from its return type.
     #[test]
     fn var_write_typing_shapes_destructure_target_types() {
         use crate::compilation_unit::CompilationUnit;
@@ -2229,8 +2228,7 @@ mod tests {
     /// An aliased `set` (`interp alias {} myset {} set`) keeps its runtime
     /// `Call` shape, but its single def takes the *value word's* intrep — the
     /// canonical-command value-passthrough. `myset x 5` types x as Int, exactly
-    /// as `set x 5` would, so the renamed/aliased store is no longer an opaque
-    /// OVERDEFINED `Call`.
+    /// as `set x 5` would, rather than an opaque OVERDEFINED `Call`.
     #[test]
     fn aliased_set_call_types_def_from_value() {
         use crate::compilation_unit::CompilationUnit;
@@ -2268,7 +2266,7 @@ mod tests {
     }
 
     /// A `dict set VAR k [Class new]` collection retrieved by `dict get` types
-    /// the element as the class (issue #797 `SpiceGenTcl` `Pins` shape).
+    /// the element as the class (the collection-of-objects shape).
     #[test]
     fn dict_of_objects_retrieval_types_element() {
         use crate::compilation_unit::CompilationUnit;
@@ -2384,9 +2382,9 @@ mod tests {
         assert_eq!(infer_str("nope($x)").tcl_type(), Some(TclType::Numeric));
     }
 
-    /// Regression coverage for issue #996: `infer_expr_type` (and its
+    /// `infer_expr_type` (and its
     /// mutually-recursive helper `expr_call_type`) recurse once per
-    /// `ExprNode` operator-tree level, with no depth cap before this fix.
+    /// `ExprNode` operator-tree level, so both need a depth cap.
     /// A long left-associative `1+1+1+…` chain parses *iteratively* (the
     /// Pratt parser's own `MAX_EXPR_DEPTH` never trips — it builds the
     /// left-nested `Binary` spine in a loop), so it hands this walker an
@@ -2629,7 +2627,7 @@ mod tests {
         );
     }
 
-    // --- P3: registry-driven container element inference (type-tracking.md) ---
+    // P3: registry-driven container element inference (type-tracking.md).
 
     /// Helper: the joined lattice of every version of `var` in `func`.
     fn type_of(
@@ -2647,7 +2645,7 @@ mod tests {
         acc
     }
 
-    /// Oracle: elements are shared objects — a committed computed element
+    /// Elements are shared objects — a committed computed element
     /// keeps its intrep inside the list, and `lindex` retrieves it.
     #[test]
     fn list_builder_tracks_committed_element_and_lindex_retrieves_it() {
@@ -2797,8 +2795,8 @@ mod tests {
     }
 
     /// P5: constant-keyed array elements are independent variables — each
-    /// carries its own type (the oracle's "array elements behave as
-    /// independent scalars"), and the conflated base claims nothing.
+    /// carries its own type ("array elements behave as independent
+    /// scalars"), and the conflated base claims nothing.
     #[test]
     fn array_elements_type_independently() {
         let cu = crate::compilation_unit::CompilationUnit::build_for(
@@ -2869,10 +2867,10 @@ mod tests {
         );
     }
 
-    /// Review-pinned dict-value semantics (tclsh 8.6/9.0 verified):
+    /// Dict-value semantics, verified on tclsh 8.6/9.0:
     /// a multi-key `dict set` stores a *dict* under the first key; `dict
     /// lappend` stores a *list*; `dict append` concatenates (intreps do
-    /// not survive), with only object dispatch-identity flowing (#797).
+    /// not survive), with only object dispatch-identity flowing.
     #[test]
     fn dict_value_effects_match_oracle() {
         let reg = tcl_registry::CommandRegistry::build_default();

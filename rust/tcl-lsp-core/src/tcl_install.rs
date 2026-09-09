@@ -46,8 +46,8 @@ pub struct TclInstallation {
     /// The Tcl library directory (the one containing `init.tcl`).
     pub tcl_library: PathBuf,
     /// `auto_path`-style roots to scan for `pkgIndex.tcl` — the library
-    /// directory and its parent (where sibling packages such as `tcllib`,
-    /// `tk8.6`, … live).
+    /// directory's parent (where sibling packages such as `tcllib`, `tk8.6`, …
+    /// live) followed by the library directory itself.
     pub auto_path: Vec<PathBuf>,
 }
 
@@ -190,8 +190,6 @@ pub fn tcllibpath_dirs() -> Vec<PathBuf> {
         .map(PathBuf::from)
         .collect()
 }
-
-// Config-file `libraryPaths`.
 
 /// The platform-native user config file (`config.ini`):
 ///

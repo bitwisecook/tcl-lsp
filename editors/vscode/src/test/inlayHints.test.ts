@@ -103,7 +103,7 @@ suite("Inlay Hints", () => {
 
       // `puts ?-nonewline? ?channelId? string` — one positional argument binds
       // to the required trailing `string`, never the leading optional
-      // `channelId` (the pre-#510 regression).  `?options?`/`?switches?`
+      // `channelId`.  `?options?`/`?switches?`
       // documentation placeholders are likewise never emitted.
       const doc = await vscode.workspace.openTextDocument({
         language: "tcl",
@@ -156,7 +156,7 @@ suite("Inlay Hints", () => {
     }
   });
 
-  // PR #643 split the single `inlayHints` toggle into two independent options.
+  // The `inlayHints` toggle is split into two independent options.
   // Enabling one must not turn on the other.
   test("parameter hints enabled alone produce labels but no type hints", async () => {
     const config = vscode.workspace.getConfiguration("tclLsp.features");

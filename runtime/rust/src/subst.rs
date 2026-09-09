@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Tcl substitution engine (`subst`, and the eval loop's word expander) — T1.2.
+//! Tcl substitution engine (`subst`, and the eval loop's word expander).
 //!
 //! The scan half is not implemented here: [`scan`] is a flag adapter over
 //! [`tcl_lexer::word_parts::decompose`], the one owner of Tcl word-component
@@ -28,9 +28,9 @@
 //! 2. **Resolve** each component to bytes ([`resolve_with`]) — backslashes and
 //!    literals resolve here; **variables** and **command substitutions** are
 //!    supplied as caller closures, because resolving them needs the var tables
-//!    and the eval loop (T1.3/T1.4). Wiring those closures to the runtime
-//!    completes `subst`/word-expansion; until then the engine is complete and
-//!    unit-tested against mock resolvers.
+//!    and the eval loop. The interpreter's own eval loop resolves those
+//!    directly instead of calling through [`resolve_with`], so this half is
+//!    exercised only by this module's own unit tests against mock resolvers.
 //!
 //! `unsafe`-free.
 
@@ -49,7 +49,7 @@ use tcl_lexer::{EscapeSyntax, LexerConfig};
 /// *resolver* will walk back down that same shape of tree when substituting
 /// it, since a `WordBody` can in principle reach this function from other
 /// callers than `crate::parse::scan_parts` — no shared helper ties the two
-/// recursions together, so each needs its own guard (issue #996). Same
+/// recursions together, so each needs its own guard. Same
 /// construct, same conservative value; see that constant's doc comment for
 /// the full empirical crash-threshold measurements.
 const MAX_RESOLVE_PARTS_DEPTH: RecursionLimit = RecursionLimit(64);
@@ -78,9 +78,8 @@ impl Default for SubstFlags {
 
 /// Scan `src` into substitution components per `flags`, without evaluating.
 /// `config` is the emulated release's resolved grammar — its backslash rules
-/// (issue #1479) and its `${…}` close rule (issue #1457) both differ by
-/// release, so `subst` must read the template the way that release's parser
-/// would.
+/// and its `${…}` close rule both differ by release, so `subst` must read
+/// the template the way that release's parser would.
 pub fn scan(src: &[u8], flags: SubstFlags, config: LexerConfig) -> WordBody<'_> {
     tcl_lexer::word_parts::decompose(
         src,
@@ -206,14 +205,15 @@ mod tests {
         resolve_with(&scan(src, SubstFlags::default(), config), &var, &cmd)
     }
 
-    /// Issue #1457 — the `${…}` close rule moves with the release.
+    /// The `${…}` close rule moves with the release.
     ///
     /// `Tcl_ParseVarName` ends the brace form at the **first** literal `}` in
     /// 8.4–8.6 (`tclParse.c(8.6.16):1398`) but counts nested `{…}` and skips
     /// `\X` pairs from 9.0 (`tclParse.c(9.0.4):1315`). `subst` reads its
     /// template with the parser of the release it emulates, so
-    /// `subst {${a{b}c}}` names `a{b` under 8.x and `a{b}c` under 9.x. The
-    /// engine used to scan to the first `}` regardless of the pinned release.
+    /// `subst {${a{b}c}}` names `a{b` under 8.x and `a{b}c` under 9.x.
+    /// Scanning to the first `}` regardless of the pinned release would miss
+    /// that difference.
     #[test]
     fn braced_var_close_rule_follows_the_emulated_release() {
         let nine = LexerConfig {
@@ -307,11 +307,12 @@ mod tests {
         assert_eq!(subst(b"$arr($arr(k))"), b"nested-val");
     }
 
-    /// Regression coverage for issue #996: `resolve_parts` recurses once per
-    /// `$name(index)` nesting level while resolving a `WordPart::Variable`'s
-    /// own `index` components, with no depth cap before this fix. In the
+    /// Regression coverage for the native-stack recursion hazard
+    /// `MAX_RESOLVE_PARTS_DEPTH` guards against: `resolve_parts` recurses
+    /// once per `$name(index)` nesting level while resolving a
+    /// `WordPart::Variable`'s own `index` components. In the
     /// live pipeline this tree comes from `crate::parse::scan_parts`, which
-    /// this same sweep capped at `MAX_SCAN_PARTS_DEPTH` (64) — bounding what
+    /// `MAX_SCAN_PARTS_DEPTH` (64) bounds — bounding what
     /// `resolve_with` receives via the normal `scan` -> `resolve_with` path —
     /// but `resolve_parts` has no shared helper with `scan_parts` (see
     /// `MAX_RESOLVE_PARTS_DEPTH`'s doc comment) and `resolve_with` is public
@@ -320,7 +321,7 @@ mod tests {
     /// `scan_parts` entirely — to exercise `resolve_parts`'s own cap in
     /// isolation. 5000 levels is comfortably past `MAX_RESOLVE_PARTS_DEPTH`
     /// (64) and the same order of magnitude past the crash depths this class
-    /// of unguarded recursion hit elsewhere in this sweep (SIGABRT between
+    /// of unguarded recursion hits elsewhere in this crate (SIGABRT between
     /// depth 100-150 on a 256 KiB stack, still crashing at depth 2000 on a 1
     /// MiB stack); the assertion is that resolution returns at all, not what
     /// it returns.
@@ -361,8 +362,8 @@ mod tests {
         assert_eq!(subst(b"a$%b"), b"a$%b");
     }
 
-    /// `subst` decodes under the emulated release's escape grammar — the
-    /// user-visible half of issue #1479 (`--tcl-version 8.4`).
+    /// `subst` decodes under the emulated release's escape grammar — visible
+    /// via `--tcl-version 8.4`.
     #[test]
     fn subst_backslashes_follow_the_release() {
         assert_eq!(subst_in(b"\\x4142", EscapeSyntax::Tcl84), b"B");

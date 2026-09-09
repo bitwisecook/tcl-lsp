@@ -268,7 +268,7 @@ const FOLDABLE: &[Case] = &[
     ("scan", None, &["a(b)", "%s"]),
 ];
 
-/// `namespace qualifiers` / `namespace tail` (issue #1096) — pure string
+/// `namespace qualifiers` / `namespace tail` — pure string
 /// splitting at the last `::`, kept as its own matrix because it is also
 /// replayed against 8.6 by [`namespace_string_op_folds_match_tcl86`] to pin
 /// the version-invariant (`const_fold`, not `const_fold_versioned`)

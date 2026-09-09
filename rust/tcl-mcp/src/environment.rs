@@ -4,8 +4,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The MCP server's dialect ingress — its face of the one shared seam,
-//! [`tcl_registry::model::ingress`] (centralisation contract R-a; P1-F
-//! wave 4, alongside the CLIs and the spec studio).
+//! [`tcl_registry::model::ingress`].
 //!
 //! Every dialect **name** an MCP tool accepts — a tool call's `dialect`
 //! argument, the process-wide session dialect `set_dialect` holds, a
@@ -15,10 +14,11 @@
 //! than by `ProfileQueries` over a threaded profile.
 //!
 //! Nothing here changes a tool's answer. The catalogue names the tools resolve
-//! map to their same-named environments, whose `unit_profile` is the profile
-//! the retired validators returned, and whose document context answers under
-//! the **document authoring mask** — test-pinned equal to the threaded
-//! profile's `surface_query` for every profile an ingress can produce.
+//! map to their same-named environments, whose `unit_profile` is the same
+//! profile `DialectProfile::by_name` returns for that name, and whose
+//! document context answers under the **document authoring mask** —
+//! test-pinned equal to the threaded profile's `surface_query` for every
+//! profile an ingress can produce.
 
 use tcl_dialect::DialectProfile;
 use tcl_registry::model::ResolvedContext;
@@ -26,19 +26,14 @@ use tcl_registry::model::ResolvedContext;
 /// Resolve a dialect **name** to the profile a tool threads — the
 /// environment-model form of `DialectProfile::by_name` and of the named
 /// constructors (`plain_tcl`, `irules`, `tk`).
-///
-/// Post-P1-G (which deleted the name validators): the threaded profile
-/// handle itself retires with ledger C1's re-type, when the tools read
-/// their labels off the environment instead.
 pub fn profile_for_dialect(name: &str) -> &'static DialectProfile {
     tcl_registry::model::resolve_environment(name).unit_profile()
 }
 
 /// Resolve a dialect **name** only when it names a real environment — the
-/// validator form, replacing `DialectProfile::find` / `resolve_known` at
+/// validator form, mirroring `DialectProfile::find` / `resolve_known` at
 /// the two MCP ingresses that must reject an unknown spelling rather than
-/// serve the lenient fallback: `set_dialect` and `tk_layout` (ledger rows
-/// F9/T6).
+/// serve the lenient fallback: `set_dialect` and `tk_layout`.
 pub fn known_profile_for_dialect(name: &str) -> Option<&'static DialectProfile> {
     tcl_registry::model::resolve_known_environment(name)
         .map(|environment| environment.unit_profile())
@@ -50,9 +45,9 @@ pub fn known_profile_for_dialect(name: &str) -> Option<&'static DialectProfile> 
 /// The `&'static` comes from the promoted document context, which the
 /// generation cache retains for the process by design — the same promotion
 /// [`context_for_dialect`] relies on. It replaces the manual
-/// `KNOWN_DIALECTS` membership scan the session-dialect plumbing used to
-/// recover a `&'static` spelling with, and folds aliases to the canonical
-/// id on the way (the session already holds a canonical id, so no shipped
+/// `KNOWN_DIALECTS` membership scan the session-dialect plumbing relies on
+/// to recover a `&'static` spelling, and folds aliases to the canonical id
+/// on the way (the session already holds a canonical id, so no shipped
 /// path changes answer).
 pub fn canonical_id_for_dialect(name: &str) -> Option<&'static str> {
     tcl_registry::model::is_known_environment_name(name)
@@ -60,9 +55,8 @@ pub fn canonical_id_for_dialect(name: &str) -> Option<&'static str> {
 }
 
 /// The **document context** a dialect name's answers are given under — the
-/// assistance view that replaces the whole `ProfileQueries` surface
-/// (ledger row F1's assistance half): command resolution, availability,
-/// options, keyed version ranges.
+/// assistance view that replaces the whole `ProfileQueries` surface:
+/// command resolution, availability, options, keyed version ranges.
 pub fn context_for_dialect(name: &str) -> &'static ResolvedContext {
     tcl_registry::model::static_document_context_for(name)
 }

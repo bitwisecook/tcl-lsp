@@ -817,8 +817,7 @@ fn split_call_arguments(command_text: &str, config: tcl_lexer::LexerConfig) -> O
 /// ends with `]`, but stripping the outer brackets and splitting would build
 /// the syntactically invalid `tailcall a $x][b $y`. Lexing the value and
 /// requiring exactly one top-level `Cmd` word rejects the concat, nested-close
-/// (`[a]] [b`), and trailing-text shapes a naive strip would accept (issue
-/// 152).
+/// (`[a]] [b`), and trailing-text shapes a naive strip would accept.
 fn parse_return_subst(value: &str, config: tcl_lexer::LexerConfig) -> Option<(String, String)> {
     let v = value.trim();
     let sm = tcl_lexer::SourceMap::new(v);
@@ -890,7 +889,7 @@ mod tests {
         ctx.optimisations
     }
 
-    /// Regression coverage for issue #996: `collect_tail_sites` and the
+    /// `collect_tail_sites` and the
     /// mutually-recursive `non_tail_self_call_in_expression`/
     /// `non_tail_in_stmt` pair recurse once per nested `if`/`for`/`while`/
     /// `foreach`/`catch`/`try`/`switch` body, and carry their own depth
@@ -939,7 +938,7 @@ mod tests {
             Some(("foo".to_owned(), String::new()))
         );
         // A concatenation of two substitutions is NOT a single subst — a naive
-        // strip would yield the invalid `a $x][b $y` (issue 152).
+        // strip would yield the invalid `a $x][b $y`.
         assert_eq!(
             parse_return_subst("[a $x][b $y]", tcl_lexer::LexerConfig::default()),
             None

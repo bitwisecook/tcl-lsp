@@ -44,8 +44,7 @@ pub const SEVERITIES: [&str; 3] = ["error", "warning", "info"];
 /// report's `"category"` field) and [`run_lint`]'s `category` filter argument
 /// (the CLI `--category config|irule` spelling) both use this internally, but
 /// the wire spelling itself — the JSON string value, the CLI `value_parser` list
-/// — stays `"config"`/`"irule"` via [`LintCategory::as_str`]/`FromStr`, unchanged
-/// from before this enum existed.
+/// — stays `"config"`/`"irule"` via [`LintCategory::as_str`]/`FromStr`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LintCategory {
     /// The BIG-IP model / config-structure rules.
@@ -650,8 +649,7 @@ pub fn run_lint(
 
     // The config-category rules, then the irule-category rules, in the fixed
     // registration order. An unparseable `category` (neither "config" nor
-    // "irule") matches neither — same as before this enum, when it compared
-    // the raw string against both literals and matched neither.
+    // "irule") matches neither.
     let parsed_category = category.map(str::parse::<LintCategory>);
     let run_config = matches!(parsed_category, None | Some(Ok(LintCategory::Config)));
     let run_irule = matches!(parsed_category, None | Some(Ok(LintCategory::Irule)));

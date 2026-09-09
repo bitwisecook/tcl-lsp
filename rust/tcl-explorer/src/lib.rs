@@ -23,8 +23,8 @@
 //! TUI, and the Rust → WASM web GUI all share. It is a *thin aggregator*:
 //! the heavy lifting (lexing, lowering, CFG/SSA, the analyses) lives in
 //! `tcl-compiler`; this crate only assembles those artefacts into the
-//! shape the explorer front-ends render, and (in later phases) serialises
-//! them to the `wasm-explorer-view.md` JSON contract.
+//! shape the explorer front-ends render, and serialises them to the
+//! `wasm-explorer-view.md` JSON contract.
 //!
 //! No `pyo3` dependency, no filesystem, no I/O — `run_pipeline` is pure
 //! compute over a source string so the same code compiles to
@@ -219,8 +219,8 @@ pub fn run_pipeline(source: &str, dialect: &str) -> ExplorerResult {
     // (upvar / global / variable / namespace upvar). Without it the
     // `aliases` list degrades to empty.
     let profile = environment::profile_for_dialect(dialect);
-    // Ledger C1: one resolved environment for the whole deep-inspection
-    // build, where the retired form passed `profile.surface_query()`.
+    // One resolved environment drives the whole deep-inspection build,
+    // rather than passing `profile.surface_query()` directly.
     let semantic_context = Some(tcl_registry::model::semantic::SemanticContext::for_profile(
         profile,
     ));

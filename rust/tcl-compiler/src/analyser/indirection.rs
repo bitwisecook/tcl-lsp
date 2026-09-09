@@ -29,10 +29,10 @@
 //! call hierarchy — has to follow the same chain, the same way, or they
 //! disagree with each other and with `tclsh`.
 //!
-//! This module is that single implementation.  It was factored out of
-//! `diagnostics::var_command`'s `class_reachable_by_indirection` (issue
-//! #1049, PR #1062), which now consumes it, so the navigation providers in
-//! `tcl-lsp-core` cannot drift from the diagnostics.
+//! This module is that single implementation.
+//! `diagnostics::var_command`'s `class_reachable_by_indirection` consumes it,
+//! so the navigation providers in `tcl-lsp-core` cannot drift from the
+//! diagnostics.
 //!
 //! # The model
 //!
@@ -189,9 +189,8 @@ pub fn in_effect_within(established: u32, call_off: u32, enclosing_body: Option<
 /// Both maps may carry the same key: `rename a x` then `interp alias {} x {}
 /// b` leaves `x` with a rename record *and* an alias record, and only the
 /// offsets say which one the slot actually holds (oracle in the module docs:
-/// the alias wins, because it ran last).  Reading one map before the other —
-/// as this walk originally did — silently prefers whichever kind the code
-/// happened to check first.
+/// the alias wins, because it ran last).  Reading one map before the other
+/// would silently prefer whichever kind the code happened to check first.
 fn latest_binding<'a>(result: &'a AnalysisResult, key: &str, as_of: u32) -> Option<Binding<'a>> {
     let rename = result
         .renamed_commands
@@ -317,7 +316,7 @@ pub struct Reaching {
 /// The reverse of [`walk`], for consumers that start from a definition rather
 /// than from a call site — find-references has to attribute a call spelled
 /// through a live alias (`interp alias {} sayHi {} greet` makes `[sayHi]` a
-/// call site of `greet`) to the proc it really reaches (issue #923 idx 21).
+/// call site of `greet`) to the proc it really reaches.
 ///
 /// The name alone is not the answer: when the terminal name has been
 /// redeclared, only *one* of its declarations is the one the chain captured,

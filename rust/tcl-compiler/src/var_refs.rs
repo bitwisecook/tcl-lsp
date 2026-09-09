@@ -51,7 +51,7 @@ pub struct NameRoleWord {
     /// rename provider points at.
     pub span: Span,
     /// The word is a single brace-quoted token, so Tcl substitutes nothing
-    /// inside it and its content is the name verbatim (issue #1078).
+    /// inside it and its content is the name verbatim.
     pub braced_literal: bool,
     /// Which naming role the registry gave the word.
     pub role: ArgRole,
@@ -172,7 +172,7 @@ const DEFAULT_CACHE_SIZE: usize = 512;
 /// lexer creation and tokenisation. The mode is part of the key because
 /// value-body and script-body scans of identical text give different
 /// answers (`set literal {$x}` reads `x` as a value word, nothing as a
-/// script) — issue #1024.
+/// script).
 pub struct VarReferenceScanner {
     options: VarScanOptions,
     /// Exact lexical policy for the local words / bodies this scanner reads.
@@ -258,8 +258,8 @@ impl VarReferenceScanner {
     /// [`Self::canonical_name`] for a word whose delimiters make its content a
     /// literal name — a brace-quoted write target (`set {$n} 1`) or the
     /// `${…}` reference form. See
-    /// [`crate::naming::element_var_name_braced`] for the oracle: the content
-    /// is the name verbatim, `$` and all (issue #1078).
+    /// [`crate::naming::element_var_name_braced`]: the content is the name
+    /// verbatim, `$` and all.
     #[must_use]
     pub fn canonical_name_braced<'a>(&self, raw: &'a str, braced_literal: bool) -> &'a str {
         if self.options.element_qualified {
@@ -283,7 +283,7 @@ impl VarReferenceScanner {
     /// `source` is a genuine script body (an `eval`/`catch`/`uplevel` body,
     /// a proc body), so ordinary top-level Tcl word-splitting and
     /// brace-quoting apply: a `{…}` word inside it really does suppress
-    /// substitution (issue #1024). Use [`Self::scan_word`] for a value word.
+    /// substitution. Use [`Self::scan_word`] for a value word.
     pub fn scan_script(&mut self, source: &str, registry: &CommandRegistry) -> BTreeSet<String> {
         self.scan_cached(source, registry, false)
     }
@@ -339,7 +339,7 @@ fn var_token_name(source_map: &SourceMap, tok: &Token, options: VarScanOptions) 
     // 9.0.4 / 8.6.14: `set {$n} v; set ${$n}` → `can't read "v"`, i.e. it read
     // `$n` and got `v`).  The sigil-stripped token text can't show that; the
     // raw span keeps the `${` prefix.  Applies to both naming modes — dropping
-    // the `$` in the base-name mode keyed the read on `n` (issue #1078).
+    // the `$` in the base-name mode would key the read on `n`.
     let braced = source_map.text(tok.span).starts_with("${");
     let name = if options.element_qualified {
         crate::naming::element_var_name_braced(text, braced)
@@ -358,8 +358,8 @@ fn var_token_name(source_map: &SourceMap, tok: &Token, options: VarScanOptions) 
 ///   text whose own enclosing quotes (if any) were stripped by whatever
 ///   produced it, so it's tokenised via [`Lexer::as_quoted_body`] — no
 ///   top-level word-splitting/brace-quoting, since a `{`/`}` here is
-///   ordinary literal content, not a fresh word boundary (issue #923 idx
-///   125: `set s "prefix {$vroot} suffix"` — the value word's `{$vroot}`
+///   ordinary literal content, not a fresh word boundary
+///   (`set s "prefix {$vroot} suffix"` — the value word's `{$vroot}`
 ///   is an ordinary substitution, exactly like a bare `$x` beside it,
 ///   because braces have no grouping meaning *inside* an already-open
 ///   quoted string; re-tokenising the extracted text with ordinary
@@ -458,7 +458,7 @@ fn scan_var_read_role_names(
     // Segment into commands by splitting on EOL/EOF.  Each word carries
     // whether it is a *brace-quoted literal* — a single `Str` token, the one
     // word form Tcl leaves entirely unsubstituted, so `unset {$n}` names the
-    // variable literally called `$n` rather than reading `n` (issue #1078).
+    // variable literally called `$n` rather than reading `n`.
     let mut words: Vec<(String, bool)> = Vec::new();
     let mut prev_is_sep = true;
 
@@ -583,8 +583,8 @@ fn collect_ref_forms(text: &str, out: &mut Vec<(String, bool)>, config: LexerCon
                 // `token_text` already drops the `$` / `${` decoration, so the
                 // remainder *is* the form.  Re-running `deref_form` over it
                 // would strip a second sigil that belongs to the name itself:
-                // `${$n}` reads the variable literally called `$n` (issue
-                // #1078), whose de-decorated text is `$n`, not `n`.  The
+                // `${$n}` reads the variable literally called `$n`,
+                // whose de-decorated text is `$n`, not `n`.  The
                 // `${…}` form's content is literal, which the flag carries so
                 // consumers do not re-normalise it either.
                 let braced = source_map.text(tok.span).starts_with("${");
@@ -628,7 +628,7 @@ pub fn scan_var_ref_forms_with_config(text: &str, config: LexerConfig) -> Vec<St
 /// [`scan_var_ref_forms_with_config`], also reporting whether each reference used the
 /// `${…}` **brace form**, whose content is a literal name — `${$n}` reads the
 /// variable called `$n`, `${arr($i)}` the element whose key is the two
-/// characters `$i` (issue #1078).
+/// characters `$i`.
 ///
 /// A consumer that canonicalises the form must pass the flag on to
 /// [`crate::naming::element_var_name_braced`] rather than re-stripping a `$`
@@ -772,11 +772,10 @@ mod tests {
         assert!(vars.contains("arr"), "should find array base name");
     }
 
-    // Issue #923 idx 125: a value-body word (a `set` value, a `foreach` list
-    // arg, …) may carry an embedded `{…}` run that survived, as ordinary
-    // literal text, from an originally double-quoted or bareword-
-    // concatenated source word — real tcllib repro
-    // (`modules/htmlparse/htmlparse.tcl`): `eval "$cmd {$vroot} {} {}
+    // A value-body word (a `set` value, a `foreach` list arg, …) may carry an
+    // embedded `{…}` run that survived, as ordinary literal text, from an
+    // originally double-quoted or bareword-concatenated source word — as in
+    // tcllib's `modules/htmlparse/htmlparse.tcl`: `eval "$cmd {$vroot} {} {}
     // \{$html\}"`. Braces have no word-grouping meaning *inside* an
     // already-open quoted string (only `$`, `[`, `\`, and the closing quote
     // are special there), so `{$vroot}` is an ordinary substitution, exactly
@@ -784,7 +783,7 @@ mod tests {
 
     #[test]
     fn scan_word_finds_a_var_inside_braces_within_a_value_body() {
-        // TP — the core idx 125 fix: `{$a}` survived from a double-quoted
+        // TP — the core case: `{$a}` survived from a double-quoted
         // source word, so `a` must be found, not swallowed as a
         // non-substituting brace-quoted word.
         let reg = default_registry();

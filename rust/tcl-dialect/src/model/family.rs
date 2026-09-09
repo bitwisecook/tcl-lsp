@@ -45,7 +45,7 @@ use crate::version::StringCharacterModel;
 /// A core-language family: a variant with its own lexical/syntactic or
 /// core-evaluation fingerprint no other family's ladder provides (§2).
 ///
-/// Room to grow is deliberate: a future `SslicTcl` (issue #1543) becomes a
+/// Room to grow is deliberate: a new dialect becomes a
 /// variant here **only** if it earns a grammar axis under the §2
 /// classification rule; otherwise it is an environment. Picol is the
 /// negative control: it is rejected explicitly rather than misdescribed.
@@ -211,10 +211,10 @@ impl Family {
     /// grammatical is inherited. What the edge carries is the *command
     /// surface* — "implementing a significant subset of the Tcl 8.6
     /// command set" (`jim_tcl.txt`, INTRODUCTION) — which is precisely
-    /// the inherit-then-override mechanism the old bare-vendor-bit model
-    /// lacked, and whose absence made the jim branch re-author 76 core
-    /// commands by hand (§1's wiring tax). The *override* half landed with
-    /// design **Q6**: a reimplementation implements a *subset* of its
+    /// the inherit-then-override mechanism a bare-vendor-bit model
+    /// lacks: without it the jim branch would have to re-author 76 core
+    /// commands by hand (§1's wiring tax). A reimplementation implements a
+    /// *subset* of its
     /// ancestor, so the edge alone over-admits, and the subset is
     /// enumerated as a roster
     /// ([`mod@super::inherited_surface`]) authored in
@@ -305,7 +305,7 @@ const TCL_LADDER: &[Release] = &[
     Release::TCL_9_1,
 ];
 
-/// The F5 trunk ladder: a single TMOS-keyed release line for now (§3.1);
+/// The F5 trunk ladder: a single TMOS-keyed release line (§3.1);
 /// post-fork deltas per TMOS release come from the evidence corpus
 /// (F5 evidence review F2).
 const F5_TCL_LADDER: &[Release] = &[Release::F5_TCL_TMOS];
@@ -514,8 +514,8 @@ const GRAMMAR_F5_TCL: LexerGrammar = LexerGrammar {
 /// grammar.
 const GRAMMAR_IRULES: LexerGrammar = GRAMMAR_F5_TCL;
 
-/// Jim through 0.80, read out of the upstream sources at each tag (the
-/// clone the P6 lane worked from; every claim below cites `jim.c` at
+/// Jim through 0.80, read out of the upstream sources at each tag
+/// (every claim below cites `jim.c` at
 /// `0.84` unless a per-release note says otherwise):
 ///
 /// - `expand_syntax`: **true**. Jim implements `{*}` — "A new addition to
@@ -1025,8 +1025,8 @@ mod tests {
             grammar(Family::F5Irules, Release::F5_IRULES_TMM),
             DialectProfile::irules().grammar
         );
-        // Jim is no longer the permissive stand-in: P6 replaced the
-        // interim value with the measured one, and the two differ on
+        // Jim's grammar is the measured value, not the permissive
+        // stand-in, and the two differ on
         // exactly the axes the sources name.
         let jim = grammar(Family::Jim, Release::JIM_0_84);
         assert_ne!(jim, DialectProfile::plain_tcl().grammar);
@@ -1096,7 +1096,7 @@ mod tests {
         );
         assert_eq!(scriptd.mathfunc("sqrt"), CapabilityAnswer::Yes);
 
-        // Jim's canonical column is measured from `auto.def` as of P6 —
+        // Jim's canonical column is measured from `auto.def`,
         // and it is release-keyed, because 0.82 flipped the default.
         let jim = CoreProfileId::new(Release::JIM_0_84, BuildProfileId::Canonical).resolve();
         assert_eq!(jim.mathfunc("sqrt"), CapabilityAnswer::Yes);
@@ -1169,7 +1169,7 @@ mod tests {
         assert!(!offshoot.expand_syntax);
     }
 
-    /// P6: Jim's lexer grammar is measured, not the permissive stand-in,
+    /// Jim's lexer grammar is measured, not the permissive stand-in,
     /// and the nine `jim0.76`–`jim0.84` profiles collapse into one value
     /// plus one struct update.
     #[test]

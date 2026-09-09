@@ -6,8 +6,8 @@
  * typed fields, attributes and choice lists — but it may embed Tcl inside
  * `[ … ]` bracket expressions, which `injections.scm` re-parses as Tcl.
  *
- * Written for tcl-lsp (issue #903). Zed pointed its APL language at the *Tcl*
- * grammar, which produces a garbage parse tree for a file that is not Tcl.
+ * APL needs its own grammar rather than reusing the *Tcl* one: parsing an APL
+ * file as Tcl produces a garbage parse tree, since APL is not Tcl.
  *
  * @file APL grammar for tree-sitter
  * @author tcl-lsp contributors

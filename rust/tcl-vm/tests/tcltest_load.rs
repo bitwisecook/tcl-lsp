@@ -238,7 +238,7 @@ fn run_upstream_definitions(
     Some(result)
 }
 
-/// Issue #1598: run the upstream binary/UTF-8 channel cases through the real
+/// Run the upstream binary/UTF-8 channel cases through the real
 /// Tcl 9.0.4 `init.tcl` and `tcltest`, then pin strict-profile prefix output
 /// with the same setup as upstream io-75.9.  The upstream io-75.9 body uses a
 /// bidirectional streaming channel, which this focused output change does not

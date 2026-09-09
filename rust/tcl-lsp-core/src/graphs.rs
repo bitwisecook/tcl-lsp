@@ -19,10 +19,10 @@
 //! Analysis graph JSON builders — the call graph, symbol graph, and
 //! dataflow/taint graph, each rendered to a `serde_json::Value`.
 //!
-//! This is the shared, consumer-agnostic home for the graph shapes: the
-//! `tcl` CLI (`callgraph` / `symbolgraph` / `dataflow` verbs), the LSP
-//! server, and the `tcl_lsp_py` `PyO3` facades all build the *same* graphs
-//! from this one implementation. Callers supply a resolved
+//! This is the shared, consumer-agnostic home for the graph shapes. Every
+//! consumer — the `tcl` CLI (`callgraph` / `symbolgraph` / `dataflow`
+//! verbs), the LSP server, `tcl-mcp` and the WASM hosts — builds the *same*
+//! graphs from this one implementation. Callers supply a resolved
 //! [`CommandRegistry`] and the dialect string; every position is 0-based
 //! and UTF-16 counted, matching the LSP wire convention.
 
@@ -1101,10 +1101,9 @@ mod tests {
     use super::*;
     use std::fmt::Write as _;
 
-    /// Regression coverage for issue #996: `scope_to_value`,
-    /// `count_variables`, and `count_namespaces` recurse once per nested
-    /// namespace scope, with no depth cap before this fix
-    /// (`MAX_SCOPE_WALK_DEPTH`, `crate::lib`). 80 nested `namespace eval`
+    /// `scope_to_value`, `count_variables`, and `count_namespaces` recurse
+    /// once per nested namespace scope, capped by
+    /// `MAX_SCOPE_WALK_DEPTH` (`crate::lib`). 80 nested `namespace eval`
     /// levels is past the point (confirmed empirically: 100+) where
     /// unguarded namespace-scope recursion overflows `cargo test`'s bare
     /// ~2 MiB per-test default — namespace nesting costs meaningfully more

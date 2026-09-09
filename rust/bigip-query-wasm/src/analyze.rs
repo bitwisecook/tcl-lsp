@@ -40,7 +40,7 @@ use tcl_lsp_core::formatting::{FormatterConfig, format_tcl};
 pub fn format_irule_source(source: &str) -> String {
     let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
     // One resolved profile carries every dialect fact the formatter needs
-    // (issue #1465) — the iRules lexer grammar included.
+    // — the iRules lexer grammar included.
     let config = FormatterConfig::for_dialect("f5-irules");
     format_tcl(source, &config, registry)
 }

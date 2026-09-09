@@ -429,7 +429,7 @@ mod tests {
 
     /// A name `find` rejects still picks the compile's *target* numeral
     /// grammar, not the ambient one — and the target is the name's **own**
-    /// point, not the fallback it used to sink to.
+    /// point, not a permissive fallback.
     ///
     /// `tk` has no catalogue row; its grammar is the `tk` environment's
     /// 8.6 core, so a `tk` compile reads `010` as octal 8 — under 8.6's
@@ -437,7 +437,7 @@ mod tests {
     /// `emit_profile("tk")` is still the anonymous fallback profile *by
     /// design* (the cache-key and help-filter reasons on
     /// `DocumentEnvironment::analyser_profile`), which is exactly why the
-    /// compile no longer takes its numerals from that profile: it takes them,
+    /// compile does not take its numerals from that profile: it takes them,
     /// and its `expr` re-parse grammar, from `grammar_of_dialect_name`, so
     /// the two cannot disagree inside one compile as they did for `tk`.
     #[test]

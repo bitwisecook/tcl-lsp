@@ -1,4 +1,4 @@
-# W302 quick-fix fixture (issue #1190).
+# W302 quick-fix fixture.
 #
 # The diagnostic anchors at the `catch` word, but the quick fix must splice
 # the result variable in after the *body's* closing brace. Applying it at the

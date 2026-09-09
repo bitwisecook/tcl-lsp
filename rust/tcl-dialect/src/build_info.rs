@@ -22,7 +22,7 @@
 //! This lives beside the release vocabulary rather than inside either engine
 //! because the leading component *is* the pinned release's patch level: an
 //! engine that keeps its own copy reports a build identity that disagrees with
-//! its own `[info patchlevel]` (ledger row B4). Both `tcl-vm` and
+//! its own `[info patchlevel]`. Both `tcl-vm` and
 //! `runtime/rust` compose and query the string through here, so they cannot
 //! answer `::tcl::build-info patchlevel` differently for the same pin.
 //!

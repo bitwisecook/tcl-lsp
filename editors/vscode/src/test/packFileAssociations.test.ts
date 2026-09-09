@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 // Lazy file-extension registration for SpecTcl packs, through the extension
-// host (issue #1626).
+// host.
 //
 // The server half of this is already lazy and has a unit test of its own: a
 // discovered pack's `file_extension` rows are consulted by
@@ -194,7 +194,7 @@ suite("Pack-declared file extensions through the extension host", () => {
     assert.strictEqual(associations[PACK_GLOB], EXPECTED_LANGUAGE);
   });
 
-  // Review finding P2-2: the written glob has to match any casing, because
+  // The written glob has to match any casing, because
   // `files.associations` is matched case-sensitively on a case-sensitive
   // filesystem while every server-side predicate folds case.
   test("the association glob matches the extension in any casing", async function () {
@@ -222,7 +222,7 @@ suite("Pack-declared file extensions through the extension host", () => {
     fs.writeFileSync(PACK, PACK_BODY, "utf8");
   });
 
-  // Review finding P1-1: an association the user retargets is theirs from
+  // An association the user retargets is theirs from
   // then on — neither overwritten by a later sync nor deleted when the pack
   // that prompted it goes away.
   test("a user's edit to our association survives resync and pack removal", async function () {

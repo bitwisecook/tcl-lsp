@@ -16,8 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Variable-trace semantics on the read-modify-write commands (issue #1633
-//! rows 1, 3 and 4).
+//! Variable-trace semantics on the read-modify-write commands.
 //!
 //! Two C facts drive every vector here:
 //!
@@ -257,11 +256,11 @@ const VECTORS: &[Vector] = &[
     // (`tclExecute.c:3110-3121`) and fire `write` only, and so do this VM's.
     //
     // The in-proc single-value spellings (`proc-local1`, `proc-elem1`) reach
-    // the write-only opcodes and are on this sheet: `cmd_proc` used to look the
-    // pre-compiled body up under the *unqualified* `reg_name` while the
-    // compiler keys module procedures by `::name`, so a global proc always
-    // missed and its body was recompiled as a top-level script, losing every
-    // `is_proc` specialisation. Rooting that lookup made both correct.
+    // the write-only opcodes and are on this sheet: `cmd_proc` looking the
+    // pre-compiled body up under the *unqualified* `reg_name`, while the
+    // compiler keys module procedures by `::name`, would make a global proc
+    // always miss and its body get recompiled as a top-level script, losing
+    // every `is_proc` specialisation. Rooting that lookup keeps both correct.
     //
     // `proc-eval` is the one that separates "is a proc body" from "is a
     // compiled local". C has no `eval` compiler: the script becomes its own
@@ -330,7 +329,7 @@ const VECTORS: &[Vector] = &[
                proc-elem2: read write\n\
                proc-elem1: write",
     },
-    // Rows 3 + 4: the read a read-modify-write command performs treats a
+    // The read a read-modify-write command performs treats a
     // trace error as "no current value" rather than as a failure — `incr`
     // counts from 0, `lappend` discards the old value — and the swallowed
     // error stays logged in `::errorInfo` with its `(read trace on "x")`

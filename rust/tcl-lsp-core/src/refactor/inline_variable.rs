@@ -223,9 +223,8 @@ mod tests {
         inline_variable(source, cursor, &analysis, &reg, &li).map(|r| r.apply(source))
     }
 
-    /// Regression coverage for issue #996: `walk_scopes_at_depth` recurses
-    /// once per nested namespace/proc scope, with no depth cap before this
-    /// fix (`MAX_SCOPE_WALK_DEPTH`, `crate::lib`). 80 nested `namespace
+    /// `walk_scopes_at_depth` recurses once per nested namespace/proc scope,
+    /// capped by `MAX_SCOPE_WALK_DEPTH` (`crate::lib`). 80 nested `namespace
     /// eval` levels is past the point (confirmed empirically: 100+) where
     /// unguarded namespace-scope recursion overflows `cargo test`'s bare
     /// ~2 MiB per-test default. The assertion is that this returns at

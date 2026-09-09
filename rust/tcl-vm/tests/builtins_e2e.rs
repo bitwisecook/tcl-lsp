@@ -285,9 +285,9 @@ fn lsort_shared_core() {
     assert_eq!(msg, "element 5 missing from sublist \"a b\"");
 }
 
-/// `namespace exists`/`parent`/`children` now route through the shared core over
-/// the `Namespaces` handle trait (the VM's String model honouring `NsId`).
-/// Sharing gave `children` its `?pattern?` filter and the missing-namespace
+/// `namespace exists`/`parent`/`children` route through the shared core over
+/// the `Namespaces` handle trait (the VM's String model honouring `NsId`),
+/// which gives `children` its `?pattern?` filter and the missing-namespace
 /// error. Pinned to tclsh 9.0.
 #[test]
 fn namespace_nav_shared() {
@@ -347,7 +347,7 @@ fn arrays() {
     out_eq("puts [array exists nope]\n", "0\n");
 }
 
-/// `array` exists/size/names/get/unset now route through the shared
+/// `array` exists/size/names/get/unset route through the shared
 /// `tcl_cmd_core::array` core (over the VM's `VarStore`). Pinned to tclsh 9.0.
 #[test]
 fn array_shared_core() {
@@ -369,7 +369,7 @@ fn array_shared_core() {
         run("array set a {x 1 y 2 z 3}; array unset a y; lsort [array names a]").1,
         "x z"
     );
-    // The fixed bug: `array unset a` (no pattern) removes the *whole* array.
+    // `array unset a` (no pattern) removes the *whole* array.
     assert_eq!(
         run("array set a {x 1 y 2 z 3}; array unset a; array exists a").1,
         "0"
@@ -608,11 +608,11 @@ fn subst_command() {
     out_eq("puts [subst {x[expr 1][expr 2]y}]\n", "x12y\n");
 }
 
-/// Issue #1443 — `subst`'s option words resolve through the one shared
+/// `subst`'s option words resolve through the one shared
 /// `tcl-cmd-core::prefix` matcher, so they word every miss exactly as
 /// `Tcl_GetIndexFromObj` at flags `0` does (`TclSubstOptions`,
-/// `tclCmdMZ.c:3341`). The **empty** word is the case that used to diverge: it
-/// prefixes all three entries, so C calls it `ambiguous`, not `bad`.
+/// `tclCmdMZ.c:3341`). The **empty** word is the case a naive matcher gets
+/// wrong: it prefixes all three entries, so C calls it `ambiguous`, not `bad`.
 #[test]
 fn subst_option_words_resolve_like_tcl_get_index_from_obj() {
     const MUST: &str = "must be -nobackslashes, -nocommands, or -novariables";
@@ -640,12 +640,11 @@ fn subst_option_words_resolve_like_tcl_get_index_from_obj() {
     out_eq("puts [subst -noc {[cmd]}]\n", "[cmd]\n");
 }
 
-/// Issue #1443's bug, found repeated verbatim in `interp limit`'s option
-/// matcher by the centralisation audit: a hand-rolled `starts_with` filter can
-/// only ever say `bad option`, so the empty word — a prefix of *every* entry —
-/// reported `bad option ""` where C reports `ambiguous option ""`. Both
-/// engines now route through `prefix::OptionTable::abbreviating`, which owns
-/// the verdict and the `", or"` enumeration alike.
+/// A hand-rolled `starts_with` filter can only ever say `bad option`: the
+/// empty word — a prefix of *every* entry — reports `bad option ""` where C
+/// reports `ambiguous option ""`. Both engines route `interp limit` through
+/// `prefix::OptionTable::abbreviating`, which owns the verdict and the
+/// `", or"` enumeration alike.
 ///
 /// Byte-checked against tclsh 8.6.16 and 9.0.4, which agree on every row.
 #[test]
@@ -675,7 +674,7 @@ fn interp_limit_option_words_resolve_like_tcl_get_index_from_obj() {
     assert!(ok);
 }
 
-/// Issue #1607: `interp debug`'s option word is a `Tcl_GetIndexFromObj` table
+/// `interp debug`'s option word is a `Tcl_GetIndexFromObj` table
 /// whose noun is `debug option` (`debugTypes[]`, `tclInterp.c`), so `-f`/`-fr`
 /// abbreviate and the one-entry table never says `ambiguous`. The arity check
 /// runs first, as it does in C.
@@ -720,7 +719,7 @@ fn interp_debug_option_uses_c_noun_and_abbreviates() {
     );
 }
 
-/// Issue #1607: `binary`, `binary encode`/`decode`, `encoding` and `namespace`
+/// `binary`, `binary encode`/`decode`, `encoding` and `namespace`
 /// are `TclMakeEnsemble` commands. `binary encode`/`decode` run with
 /// **`-prefixes` off**, so nothing abbreviates there and the miss is worded
 /// `unknown subcommand`, never `unknown or ambiguous`.
@@ -799,7 +798,7 @@ fn ensemble_subcommand_words_resolve_like_tclsh() {
     );
 }
 
-/// Issue #1607: `package`'s subcommand word is a `Tcl_GetIndexFromObj(…,
+/// `package`'s subcommand word is a `Tcl_GetIndexFromObj(…,
 /// "option", 0)` table (`pkgOptions[]`, `tclPkg.c`) — both engines said
 /// `unknown or ambiguous subcommand "x"` with no list, which is the *ensemble*
 /// wording; `package` is not an ensemble. `package prefer`'s word is a second
@@ -865,7 +864,7 @@ fn package_option_words_resolve_like_tcl_get_index_from_obj() {
     assert_eq!(run("package provide foo 1.0\npackage files foo\n").1, "");
 }
 
-/// Issue #1607: the `interp` ensemble and the child-as-command dispatch are
+/// The `interp` ensemble and the child-as-command dispatch are
 /// `Tcl_GetIndexFromObj(…, "option", 0)` tables (`options[]` in `Tcl_InterpObjCmd`
 /// and `NRChildCmd`, `tclInterp.c`), so subcommands abbreviate and the empty
 /// word — a prefix of every entry — is `ambiguous option ""`.
@@ -936,7 +935,7 @@ fn interp_subcommand_words_resolve_like_tcl_get_index_from_obj() {
     );
 }
 
-/// Issue #1607: `interp create`'s and `interp invokehidden`'s leading options
+/// `interp create`'s and `interp invokehidden`'s leading options
 /// are `Tcl_GetIndexFromObj(…, "option", 0)` tables (`createOptions[]` /
 /// `hiddenOptions[]`, `tclInterp.c`), so they abbreviate and the lone `-` —
 /// a prefix of every entry — is `ambiguous`, not `bad`.
@@ -981,7 +980,7 @@ fn interp_create_and_invokehidden_options_resolve_like_tcl_get_index_from_obj() 
     );
 }
 
-/// Issue #1607: `interp limit`'s type word is `Tcl_GetIndexFromObj(…,
+/// `interp limit`'s type word is `Tcl_GetIndexFromObj(…,
 /// "limit type", 0)` (`limitTypes[]`, `tclInterp.c`), so `c`/`t` abbreviate
 /// and the empty word — a prefix of both entries — is `ambiguous`.
 ///
@@ -1086,7 +1085,7 @@ fn regexp_shared_features() {
     // option. tclsh: `regexp -no a A x` errors identically; only tclsh's
     // compiled no-match-var fast path (`regexp -no a A`) abbreviates
     // `-nocase`, and the VM implements the runtime semantics everywhere
-    // (S4.2, TclCompileRegexpCmd).
+    // (`TclCompileRegexpCmd`).
     let (ok, msg, _) = run("regexp -no {a} A x");
     assert!(!ok);
     assert_eq!(
@@ -1244,8 +1243,8 @@ fn variable_traces() {
         "trace add variable x write cb\nputs [trace info variable x]\n",
         "{write cb}\n",
     );
-    // Op validation + the type error now route through the shared catalogue
-    // (the VM previously accepted any op word, and used the wrong type error).
+    // Op validation and its type error route through the shared catalogue, so
+    // an unrecognised op word is rejected rather than accepted.
     let (ok, msg, _) = run("trace add variable v bogus {}");
     assert!(!ok);
     assert_eq!(
@@ -1266,7 +1265,7 @@ fn variable_traces() {
     );
     // The type word abbreviates (Tcl_GetIndexFromObj, flags 0): tclsh accepts
     // `trace add var …`, and the empty word prefixes all three types, so it
-    // is *ambiguous* — not bad (probed tclsh 8.6.14; S4.2).
+    // is *ambiguous* — not bad (probed tclsh 8.6.14).
     out_eq(
         "trace add var x write cb\nputs [trace info variable x]\n",
         "{write cb}\n",
@@ -1302,7 +1301,7 @@ fn variable_traces() {
 
 /// A write-trace error fails the command and wraps the message, but the value
 /// stays stored — C swaps the new value in before calling the traces and never
-/// puts the old one back (`TclPtrSetVarIdx`, `tclVar.c`). Issue #1438; every
+/// puts the old one back (`TclPtrSetVarIdx`, `tclVar.c`); every
 /// line below is byte-pinned against tclsh 8.6.16 and 9.0.4.
 #[test]
 fn write_trace_error_keeps_the_stored_value() {
@@ -1392,7 +1391,7 @@ fn switch_shared_core() {
         "puts [switch -glob x { a - b {expr 3} x {expr 4} }]\n",
         "4\n",
     );
-    // `-regexp` now matches through the engine (previously fell back to exact).
+    // `-regexp` matches through the engine.
     out_eq("puts [switch -regexp aXb { {a(.)b} {expr 11} }]\n", "11\n");
     // TIP #75 -matchvar/-indexvar.
     out_eq(
@@ -1911,12 +1910,12 @@ fn channel_io() {
     );
 }
 
-/// Issue #1607: `glob`'s option words are a
+/// `glob`'s option words are a
 /// `Tcl_GetIndexFromObj(…, "option", 0)` table (`globOptions[]`,
-/// `tclFileName.c`). This engine used to *skip* an unrecognised `-word`
-/// silently — `glob -x a` ran, and `-types d` leaked its value into the
-/// pattern list. Rejecting an unknown option is a deliberate behaviour change,
-/// ruled on for this sweep, so the new rejection is pinned byte for byte.
+/// `tclFileName.c`). Silently *skip*ping an unrecognised `-word` would let
+/// `glob -x a` run, and `-types d` leak its value into the
+/// pattern list. Rejecting an unknown option is a deliberate behaviour choice,
+/// pinned byte for byte.
 ///
 /// tclsh 8.6.16 and 9.0.4 agree on every row (no dialect split):
 ///   glob -x a  -> bad option "-x": must be -directory, -join, -nocomplain,
@@ -1963,7 +1962,7 @@ fn glob_option_words_resolve_like_tcl_get_index_from_obj() {
     );
 }
 
-/// Issue #1607: `seek`'s origin word is a `Tcl_GetIndexFromObj(…, "origin", 0)`
+/// `seek`'s origin word is a `Tcl_GetIndexFromObj(…, "origin", 0)`
 /// table (`originOptions[]`, `tclIOCmd.c`). This engine silently treated any
 /// unknown origin as `start`; C rejects it, abbreviates `s`/`c`/`e`, and words
 /// the empty origin — a prefix of all three — `ambiguous`.
@@ -2013,10 +2012,11 @@ fn seek_origin_resolves_like_tcl_get_index_from_obj() {
 }
 
 /// `-failindex` must be written. The inline `string is` codegen gates on arity
-/// alone, so it used to accept `CLASS -failindex var value`, take the last word
-/// as the value, and silently drop the option — the class answer was right and
-/// the variable was never assigned. Pinned against tclsh 8.6.16 / 9.0.4, which
-/// report index 1 here.
+/// alone, so gating on arity without checking the option name would accept
+/// `CLASS -failindex var value`, take the last word as the value, and
+/// silently drop the option — the class answer would be right but the
+/// variable would never be assigned. Pinned against tclsh 8.6.16 / 9.0.4,
+/// which report index 1 here.
 #[test]
 fn string_is_failindex_is_written() {
     out_eq(

@@ -50,11 +50,10 @@ use crate::value::Value;
 
 /// Explicit, ambient-free configuration for a query run.
 ///
-/// Mutation and merge are out of scope for the read-only runner;
-/// `partitions` and `names`
-/// are kept because they affect parsing and `$name` resolution. Network
-/// probes (`--enable-probes` / `--ca-bundle` / the UCS reader) thread through
-/// to the [`EvalContext`].
+/// Covers read and mutating queries alike, including `--merge` (see
+/// `merge` below); `partitions` and `names` are kept because they affect
+/// parsing and `$name` resolution. Network probes (`--enable-probes` /
+/// `--ca-bundle` / the UCS reader) thread through to the [`EvalContext`].
 //
 // `Debug` is hand-written because `ucs_cert_reader` is an `Rc<dyn Fn>`, which
 // is not `Debug`; `Default` / `Clone` derive cleanly (`Option`/`Rc`).
@@ -123,7 +122,7 @@ pub struct SideInput {
     pub spec: InputSpec,
 }
 
-/// The combined output of a single read-only `run_query` invocation.
+/// The combined output of a single `run_query` invocation.
 ///
 /// Port of `runner.QueryResult` (read fields only): per-file values in
 /// source order, plus a `has_mutation` flag the verb uses to reject mutating

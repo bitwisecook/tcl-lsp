@@ -1215,7 +1215,7 @@ mod tests {
         // `type_section()` is the non-mutating view the explorer reads before
         // anything has serialised the module. It must already agree with the
         // table `to_bytes` ends up interning, or the explorer's `(module)`
-        // header under-reports the module's types (issue #1182).
+        // header under-reports the module's types.
         let mut m = sample_module();
         let before = m.type_section();
         assert_eq!(
@@ -1232,7 +1232,7 @@ mod tests {
         assert_eq!(m.type_section(), m.types);
     }
 
-    /// A module shaped like the one issue #1774 emits: it imports the
+    /// A module shaped like the AOT output: it imports the
     /// runtime's table, keeps the grown base in a global, and declares the
     /// function it installs.
     fn table_install_module() -> WasmModule {

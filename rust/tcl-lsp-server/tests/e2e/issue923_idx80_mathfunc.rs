@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Issue #923 differential audit, finding idx 80 — a `tcl::mathfunc` override
+//! A `tcl::mathfunc` override
 //! injected in one file and applied by an `expr` in a sibling file.
 //!
 //! Two surfaces had to be brought into agreement, and only the real protocol

@@ -97,7 +97,7 @@ pub(in crate::analyser) struct VersionGateSite {
 /// a rule that release does not have. A constraint with an
 /// [`Lifecycle::UNSPECIFIED`] lifecycle never reaches this buffer: it holds in
 /// every release and is queued inline onto [`Analyser::pending_arity`] at the
-/// dispatch site, exactly as before.
+/// dispatch site.
 ///
 /// The fields after `lifecycle` are the `pending_arity` tuple this becomes
 /// once [`Analyser::flush_gated_option_conflicts`] decides the relationship
@@ -123,12 +123,12 @@ pub(in crate::analyser) struct GatedOptionConflict {
 }
 
 /// A call to a command whose signature **changed across releases**, held
-/// until the whole-file floor picks which shape applies (issue #1627).
+/// until the whole-file floor picks which shape applies.
 ///
 /// A command with no [`tcl_registry::arity::ArityWindow`]s — which is almost
 /// every command — never reaches this buffer: its arity is the same in every
-/// release, so the verdict is computed and queued inline at the dispatch site
-/// exactly as before. When windows *do* exist the verdict cannot be computed
+/// release, so the verdict is computed and queued inline at the dispatch
+/// site. When windows *do* exist the verdict cannot be computed
 /// during the walk at all, in either direction: a count that fits the
 /// fallback might not fit the selected window, and a count that fails the
 /// fallback might be exactly right for it. Both are wrong answers, so the
@@ -1008,9 +1008,9 @@ impl Analyser {
     /// [`tcl_dialect::DialectProfile`]'s name. Every compiled environment
     /// shares its name with its profile, so no shipped message moves; a
     /// **pack-declared** environment has no compiled profile and sinks to
-    /// the permissive fallback, which used to make its placements report as
-    /// `tcl ships Tk 8.6` — naming a profile the author never chose instead
-    /// of the shell they declared.
+    /// the permissive fallback, which would otherwise make its placements
+    /// report as `tcl ships Tk 8.6` — naming a profile the author never chose
+    /// instead of the shell they declared.
     fn environment_label(&self) -> String {
         let id = self
             .analysis_context()
@@ -1130,7 +1130,7 @@ impl Analyser {
     }
 
     /// Decide every call to a command whose signature changed across
-    /// releases, now that the whole-file floor is known (issue #1627).
+    /// releases, now that the whole-file floor is known.
     ///
     /// Three outcomes, in the order they are checked:
     ///
@@ -1833,8 +1833,8 @@ mod tests {
     /// `package require`" is the worst of both worlds: the analyser tells the
     /// author to add a require for something the pack has just declared the
     /// runtime already provides, and offers an insert fix that would be
-    /// wrong. Codex found this on #1642 — the floor was wired, the three
-    /// consumers that ask "is this ambient?" were not.
+    /// wrong.  Wiring the floor is not enough on its own: the three consumers
+    /// that ask "is this ambient?" have to honour the declaration too.
     #[test]
     fn a_pack_ambient_package_is_not_reported_as_a_missing_require() {
         // `entry` belongs to Tk, which is *hosted* on tcl8.6 — so with no
@@ -1944,7 +1944,7 @@ mod tests {
         );
     }
 
-    // -- versioned arity, W149 (issue #1627) ------------------------------
+    // Versioned arity, W149.
 
     /// Install a command owned by `Probe` whose signature changed: two
     /// arguments from 3.0 until 5.0, three from 5.0. The plain `arity` is the
@@ -2029,7 +2029,7 @@ mod tests {
     /// window is not chosen until the floor is known. Reporting a narrower
     /// window's verdict with that stale anchor makes the "remove surplus
     /// arguments" fix delete only the tail of the surplus and leave a call
-    /// that is still wrong. Codex found this on #1642.
+    /// that is still wrong.
     #[test]
     fn the_surplus_run_follows_the_window_not_the_fallback() {
         let mut analyser = analyser_with_narrowing_window(0x1642_0002);
@@ -2096,9 +2096,8 @@ mod tests {
     /// floor like every other arity fact.
     ///
     /// `SubcommandSig::subcommand_required` is derived from the *fallback*
-    /// arity, so before this the parent's windows were simply never consulted
-    /// and a versioned ensemble's E001 ignored the floor entirely. Codex
-    /// found this on #1642.
+    /// arity, so without consulting the parent's windows a versioned
+    /// ensemble's E001 would ignore the floor entirely.
     #[test]
     fn a_versioned_ensembles_bare_call_verdict_follows_the_floor() {
         let e001 = |analyser: &mut Analyser, src: &str| {
@@ -2481,7 +2480,7 @@ mod tests {
 
     #[test]
     fn baseline_floor_declares_the_f5_surface_15_0_plus() {
-        // M9: F5 specs with no explicit introduction inherit the declared
+        // F5 specs with no explicit introduction inherit the declared
         // 15.0 baseline. TN at the 16.1 default and any 15.0+ pin…
         let src = "when HTTP_REQUEST {\n  pool p\n  HTTP::uri\n}\n";
         for pin in [None, Some("15.0.0"), Some("17.1.0")] {
@@ -2622,9 +2621,8 @@ mod tests {
         // The floors are equal, so which one the message *names* is the
         // reporting tie-break, and it names the require: of the ways a floor
         // can arise, the line in this file is the one whose author is reading
-        // the diagnostic. (Before versioned arity there were only two sources
-        // and the tie went to the pin; issue #1627 made the tie-break
-        // explicit — see `FloorSource` — and the file's own require leads it.)
+        // the diagnostic.  The tie-break is explicit — see `FloorSource` — and
+        // the file's own require leads it.
         let src = "package require Tk 8.4\nttk::button .b\n";
         let diags = version_diags_for(src, "tcl8.4", None);
         assert!(
@@ -2983,7 +2981,7 @@ mod tests {
         }
     }
 
-    // -- §5.4 range targeting, W150 / W151 (P1b) ---------------------------
+    // §5.4 range targeting, W150 / W151.
 
     mod range_targeting {
         use super::super::super::super::state::Analyser;
@@ -3239,7 +3237,7 @@ mod tests {
             assert_eq!(base, pinned, "single target ⇒ today's behaviour");
         }
 
-        // -- P3: the Tk pilot rides the same range machinery ------------
+        // The Tk pilot rides the same range machinery.
         //
         // §5.4's "packages take range targets exactly like cores" (§3.2,
         // last bullet), proved on the acceptance case. `Tk` is a package
@@ -3287,7 +3285,7 @@ mod tests {
             assert!(!fires(&diags(body, "tcl8.6"), "W150"), "undeclared");
         }
 
-        // -- P5: the tcllib adversarial modules ------------------------
+        // The tcllib adversarial modules.
         //
         // A tcllib module is an independently versioned package with its
         // own axis, so `supports struct::tree …` gates on the *module's*
@@ -3368,7 +3366,7 @@ mod tests {
             assert!(!fires(&diags(none, "tcl8.6"), "W135"));
         }
 
-        // -- P6: the jim ladder -----------------------------------------
+        // The jim ladder.
         //
         // Jim's releases are targets on the `jim` **core** axis, not nine
         // catalogue profiles, so a jim range is declared exactly as a Tcl
@@ -3394,9 +3392,8 @@ mod tests {
             assert!(declared.contains(&Version::parse("0.78").expect("version")));
             assert!(!declared.contains(&Version::parse("0.84").expect("version")));
             // I2, both spellings of the leak: not the Tcl core axis, and
-            // not a fictitious `package:jim` axis either — which is what
-            // the pre-P6 ingress minted, because it recognised only the
-            // name `tcl` as a family.
+            // not a fictitious `package:jim` axis either, which is what an
+            // ingress recognising only the name `tcl` as a family would mint.
             assert!(
                 context
                     .declared_targets(&VersionAxisId::core(Family::Tcl))

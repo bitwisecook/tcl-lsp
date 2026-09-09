@@ -266,7 +266,7 @@ impl TclVersion {
     /// upstream release each of this project's engines was re-derived from —
     /// the tarballs under `tmp/` — so `tcl-vm` and `runtime/rust` cannot
     /// report different patch levels for the same emulated release by each
-    /// keeping their own table (issue #1328's centralisation finding).
+    /// keeping their own table.
     ///
     /// A release line the engines have no pinned reference build for reports
     /// `.0`, which is the honest answer: the line's semantics are modelled,
@@ -492,7 +492,7 @@ impl TclVersion {
     /// line satisfy it, **none** of them, or some" — a requirement's satisfying
     /// set is a version interval (`package(n)`: `min` … `max`), and so is a
     /// release line, so the three answers are decided by two endpoint tests
-    /// plus one containment test (issue #1126 item 3):
+    /// plus one containment test:
     ///
     /// | line vs requirement interval | answer |
     /// |---|---|
@@ -635,8 +635,7 @@ const PATCH_CEILING: &str = "99999999999999999999";
 /// So a component of any length compares exactly: `package vcompare
 /// 9223372036854775807 9223372036854775808` is `-1` on both interpreters, and
 /// a forty-digit component still orders correctly.  Parsing into any fixed
-/// integer width would collapse everything past that width into one value
-/// (issue #1090 review, finding 2).
+/// integer width would collapse everything past that width into one value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Segment<'v> {
     /// The `a` (alpha) separator — C's `-2`, below every other segment.
@@ -1188,7 +1187,7 @@ mod tests {
     }
 
     /// TN — a patch-level requirement the line's *major/minor* already settles
-    /// is decided, not abstained on (issue #1126 item 3).
+    /// is decided, not abstained on.
     ///
     /// Oracle (`tclsh8.6`, `[package provide Tcl]` = 8.6.14): `vsatisfies
     /// 8.6.14 9.0.1` = 0, `vsatisfies 8.6.14 8.6.0` = 1 — and no 8.6.x
@@ -1268,8 +1267,7 @@ mod tests {
             Ternary::Yes,
         );
         // Both requirements name the 9 line, which no 8.6.x reaches — so the
-        // OR is a decided `No`, not the abstention the old three-component
-        // rule produced (issue #1126 item 3).
+        // OR is a decided `No`, not an abstention.
         assert_eq!(
             TclVersion::V8_6.satisfies_any_ternary(&["9.0.1", "9"]),
             Ternary::No,
@@ -1283,7 +1281,7 @@ mod tests {
         );
     }
 
-    /// Per-rule TP/FP/TN/FN for the four requirement forms, issue #1090.
+    /// Per-rule TP/FP/TN/FN for the four requirement forms.
     ///
     /// The whole grid lives in the pinned corpus
     /// (`tests/data/package_version_oracle.txt`); these are the rows that name
@@ -1333,7 +1331,7 @@ mod tests {
         }
     }
 
-    /// `select_package_version`'s two selection axes, issue #1090: highest
+    /// `select_package_version`'s two selection axes: highest
     /// acceptable version, and `package prefer`'s stable-first tie-break.
     #[test]
     fn selection_takes_the_highest_acceptable_preferring_stable() {

@@ -19,9 +19,9 @@
 //! The `array` ensemble builtin — a thin adapter over the shared
 //! [`tcl_cmd_core::array`] core. The read-side (`exists`/`size`/`names`/`get`) and
 //! `unset` are shared over the VM's `VarStore`/`Frames`/`ValueOps`; `set` (whose
-//! per-element write traces must fail the command) stays here. Sharing fixed the
-//! VM's `array unset a` (no pattern), which used to iterate-and-unset elements
-//! (leaving an empty array) instead of removing the whole array.
+//! per-element write traces must fail the command) stays here. An unshared
+//! `array unset a` (no pattern) that iterates and unsets elements would leave
+//! an empty array instead of removing the whole array.
 
 use tcl_registry::{ArgRole, InvocationWord, InvocationWords};
 use tcl_runtime_api::completion_options::{
@@ -148,7 +148,7 @@ fn array_op_after_trace(
                 // the standard variable lookup *before* it looks at the list,
                 // and that lookup parses the name: an element-form name yields
                 // a scalar element cell, never an array, so the command refuses
-                // it (issue #1578). The check therefore precedes both the list
+                // it. The check therefore precedes both the list
                 // parse and the even-length test.
                 //
                 // Oracle, identical on tclsh 8.4.20 / 8.5.19 / 8.6.14 / 9.0.4 /

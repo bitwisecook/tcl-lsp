@@ -149,13 +149,13 @@ struct Row {
 }
 
 /// Cross-file call-site evidence across every input document, plus the
-/// project-wide procedure-name set the scan resolved against (issue #977).
+/// project-wide procedure-name set the scan resolved against.
 ///
 /// `tcl diag a.tcl b.tcl` is a multi-file compilation just as much as the
 /// editor's workspace is: without this, `a.tcl` would fold a parameter that
 /// `b.tcl` calls with a different literal.  `None` for a single input — one
-/// file is not a project, and asserting a closed world from it would be the
-/// very claim issue #977 is about.
+/// file is not a project, and asserting a closed world from it would be
+/// wrong.
 fn cross_file_call_site_evidence(
     documents: &[InputDocument],
     dialect_override: Option<&'static tcl_dialect::DialectProfile>,
@@ -218,9 +218,8 @@ fn document_proc_names(
 /// projection the server publishes.
 ///
 /// It reads the same normalised `source` and maps through the same
-/// `line_index` as every other code here — the loader used to normalise for
-/// itself (#1794), which was correct but left every other code on the raw
-/// form.
+/// `line_index` as every other code here, rather than normalising separately
+/// for itself while every other code reads the raw form.
 fn push_sslictcl_rows(
     rows: &mut Vec<Row>,
     source: &str,
@@ -261,7 +260,7 @@ fn collect_rows(
     // `InputDocument::analysis_source`. `LineIndex` is built over it too:
     // `LineIndex::new(normalise_lone_cr(t))` is byte-identical to
     // `LineIndex::new_lsp(t)`, so the lexer's line model and the client's
-    // coincide (issue #1799).
+    // coincide.
     let source = document.analysis_source();
     let source = source.as_ref();
     let line_index = LineIndex::new(source);
@@ -283,14 +282,14 @@ fn collect_rows(
     }
 
     // One compilation unit for both consumers, built with whatever cross-file
-    // call-site evidence the caller gathered (issue #977).  The analyser's
+    // call-site evidence the caller gathered.  The analyser's
     // CFG/SSA tail would otherwise build its **own** unit — with no evidence —
     // and its I230 / I231 constant-branch findings would disagree with the
     // compiler-checks pass below.  The document's own environment grammar
     // matches what `emit_cfg_ssa_diagnostics` builds for itself, mirroring the
-    // server's `set_cu_override` seam in `tcl_lsp_db::analyse_per_item_with`
-    // (redesign §11.4 row E1: it used to be `LexerConfig::default()` on all
-    // four hosts — agreeing, but wrong for every non-9.x dialect).
+    // server's `set_cu_override` seam in `tcl_lsp_db::analyse_per_item_with`.
+    // Falling back to `LexerConfig::default()` on all four hosts would make
+    // them agree, but wrongly, for every non-9.x dialect.
     let registry = registry_for_dialect(dialect.name);
     let file_path = document.path.as_deref().map(|p| p.display().to_string());
     // The document's own stub declarations, ingested exactly as the analyser
@@ -354,9 +353,9 @@ fn collect_rows(
     // `compiler_check_diagnostics`. Built once per document; `diag` is a batch
     // verb, not latency-sensitive.
     // The checks pass lowers under the document's own environment grammar,
-    // which is now what the analyser tail above built under too — so the unit
+    // which is what the analyser tail above builds under too — so the unit
     // is always reused, exactly as the server's shared `compilation_unit`
-    // query now shares for every environment (redesign §11.4 row E1).
+    // query shares it for every environment.
     let cu = analysis_cu.as_ref();
     let dialect_opt = Some(dialect);
     for d in run_all_checks(cu, &registry, dialect_opt) {
@@ -402,7 +401,7 @@ fn collect_rows(
 }
 
 /// The only findings a document whose bytes are not UTF-8 text may carry: the
-/// byte-backed W107 / W109 integrity codes (issue #1326).
+/// byte-backed W107 / W109 integrity codes.
 ///
 /// Everything derived from the decoded text would be about decoding artefacts
 /// rather than about the user's code, pointing at positions the file does not

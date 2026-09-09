@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Registry-declared command-to-event emission (issue #1708).
+//! Registry-declared command-to-event emission.
 //!
 //! Every claim here is F5-documented behaviour, cited on the registry spec:
 //! `TCP::notify` (<https://clouddocs.f5.com/api/irules/TCP__notify.html>) and

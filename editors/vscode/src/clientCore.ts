@@ -107,18 +107,18 @@ export const FEATURE_EDITOR_DEFAULTS: Record<string, () => boolean> = {
       .get<boolean | string>("semanticHighlighting.enabled", true);
     return v !== false; // "configuredByTheme" and true both resolve to enabled
   },
-  // Deliberately NOT inherited from `editor.folding` (issue #1122). Vanilla
+  // Deliberately NOT inherited from `editor.folding`. Vanilla
   // VS Code's sticky-scroll model provider calls
   // `FoldingController.getFoldingRangeProviders` unconditionally — it never
   // reads `EditorOption.folding` — so a user who has switched the folding UI
-  // off in vanilla VS Code still gets provider-based sticky scroll. Our
-  // toggle used to inherit `editor.folding`, so the same user's Tcl files
-  // got NO folding ranges at all; since VS Code >=1.105 treats an empty
+  // off in vanilla VS Code still gets provider-based sticky scroll.
+  // Inheriting `editor.folding` here would give that same user's Tcl files
+  // NO folding ranges at all; since VS Code >=1.105 treats an empty
   // folding-range array as a *terminal* sticky model (only null/undefined
-  // falls through to the indentation heuristic), that silently killed
-  // sticky scroll for every Tcl file — a divergence from platform semantics
-  // and the most consistent explanation of the bug report. Folding stays
-  // on unless a user explicitly sets `tclLsp.features.folding: false`.
+  // falls through to the indentation heuristic), that would silently kill
+  // sticky scroll for every Tcl file — a divergence from platform semantics.
+  // Folding stays on unless a user explicitly sets
+  // `tclLsp.features.folding: false`.
   folding: () => true,
   signatureHelp: () =>
     workspace.getConfiguration("editor").get<boolean>("parameterHints.enabled", true),
@@ -148,8 +148,8 @@ export const FEATURE_EDITOR_DEFAULTS: Record<string, () => boolean> = {
  * The VS Code editor settings a feature toggle inherits from, so a change to
  * one can be re-pushed to the server.
  *
- * `editor.folding` is deliberately absent (issue #1122): `features.folding` no
- * longer inherits it, so changing it has nothing to re-push.
+ * `editor.folding` is deliberately absent: `features.folding` does not
+ * inherit it, so changing it has nothing to re-push.
  */
 export const EDITOR_SETTINGS_AFFECTING_FEATURES = [
   "editor.hover.enabled",
@@ -233,9 +233,9 @@ export function buildClientOptions(
       // `workspace/didChangeWatchedFiles` dynamically at `initialized`, naming
       // its own extension set (case-folded per character, so `UPPER.TCL` is
       // watched on Linux too) plus `**/.tcl-lsp.ini` for the layered-settings
-      // live-reload. Duplicating that list here gave us two sources of truth
-      // that had already drifted — the client list was missing `.exp` and
-      // `.apl` — and made every watched change arrive twice (issue #1215).
+      // live-reload. Duplicating that list here would give two sources of
+      // truth that can drift — the client list was missing `.exp` and
+      // `.apl` — and would make every watched change arrive twice.
     },
     middleware: {
       handleDiagnostics: (uri, diagnostics, next) =>
@@ -290,9 +290,9 @@ export function buildClientOptions(
                   ) {
                     delete diag.genericVariablePatterns;
                   }
-                  // Same absent-vs-empty distinction for `diagnostics.exclude`
-                  // (#1556): a folder answering with the explicit `[]` default
-                  // would *replace* an exclude list configured at another layer
+                  // Same absent-vs-empty distinction for `diagnostics.exclude`:
+                  // a folder answering with the explicit `[]` default would
+                  // *replace* an exclude list configured at another layer
                   // (global config file, user settings) with "exclude nothing".
                   if (Array.isArray(diag.exclude) && diag.exclude.length === 0) {
                     delete diag.exclude;
@@ -307,7 +307,7 @@ export function buildClientOptions(
         // LanguageClient behaviour sends an empty didChangeConfiguration
         // notification when settings change, and the server then pulls
         // per-folder via workspace/configuration — that's what we want for
-        // multi-folder workspaces (issue #230).  A custom push that reads
+        // multi-folder workspaces.  A custom push that reads
         // workspace.getConfiguration("tclLsp") without a scopeUri would
         // clobber per-folder settings with the workspace-merged value.
       },

@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The variable resolver (T1.5) — the variable parallel of the command resolver.
+//! The variable resolver — the variable parallel of the command resolver.
 //!
 //! One classification + one link walk, modelled on `tclVar.c:TclLookupSimpleVar`
 //! (`tmp/tcl9.0.4`) and `namespace-tree.md` §5.3. Given a name and the current
@@ -143,7 +143,7 @@ fn classify(frames: &FrameStack, ns: &Namespaces, current_ns: NsId, name: &[u8])
     })
 }
 
-/// M11: the Tcl 8.x namespace-scope fallback.  An unqualified name whose home
+/// The Tcl 8.x namespace-scope fallback.  An unqualified name whose home
 /// is a non-global namespace with **no such cell** — a `variable` declaration
 /// installs a link cell, so declared names never fall through — resolves to
 /// the GLOBAL namespace when it holds one, for reads and writes alike; under
@@ -394,11 +394,11 @@ pub(crate) fn get_element_at_target(
 /// (`tclTrace.c`'s `TraceVarProc`), so `trace add variable ::v write …` fires
 /// for a later `set v X` in the global namespace and — under the 8.x
 /// namespace-scope fallback — for a `set v X` inside `namespace eval` that
-/// reaches the same global (issue #1328). Reading the frame level and the
-/// element off the resolved place is what extends that to an `upvar` alias,
-/// whose home frame and array element the access spelling cannot show
-/// (issue #1633's `upvar` rows). Registration and firing share this one
-/// `resolve` call, including the dialect-gated fallback.
+/// reaches the same global. Reading the frame level and the element off the
+/// resolved place is what extends that to an `upvar` alias, whose home
+/// frame and array element the access spelling cannot show. Registration
+/// and firing share this one `resolve` call, including the dialect-gated
+/// fallback.
 pub(crate) struct TraceHome {
     /// The home namespace, for a cell that lives in one.
     pub(crate) ns: Option<NsId>,
@@ -501,7 +501,7 @@ pub(crate) fn resolved_full_name(
     Some(fqn)
 }
 
-// -- the public coordinator API (mirrors the old FrameStack surface) ---------
+// the public coordinator API (mirrors the old FrameStack surface)
 
 /// `set name value` — write through links to wherever `name` resolves. The cell
 /// takes a **+1** on `obj`. A qualified write into a missing namespace errors.
@@ -562,7 +562,7 @@ pub(crate) fn get(
     }
 }
 
-// -- frame-addressed access (the `VarStore` `FrameId`-honouring path) ---------
+// frame-addressed access (the `VarStore` `FrameId`-honouring path)
 //
 // These resolve `name` as if `level` were the active frame, following links —
 // the `set`/`get`/`unset`/`exists` above are exactly these at the active level.
@@ -993,7 +993,7 @@ pub(crate) fn resolve_var_bytes(
     }
 }
 
-// -- link installation (global / variable / upvar) ---------------------------
+// link installation (global / variable / upvar)
 
 /// Install a link from the current context's `local` name to `target`, unless it
 /// would be a self-link (already that exact cell — the no-op `global`/`variable`
@@ -1099,7 +1099,7 @@ fn make_variable_mapped_with_origin(
     // namespace variable itself as an *undefined Var* before any value is
     // set.  The self-link cell is our stand-in: persistent in the namespace
     // table, it reads / `info exists` as missing, a write replaces it — and,
-    // under the 8.x semantics, it blocks the M11 namespace-scope global
+    // under the 8.x semantics, it blocks the namespace-scope global
     // fallback exactly as C's undefined Var does.  An existing value is
     // never clobbered.
     if ns.var_table(target_ns).cell(target).is_none() {

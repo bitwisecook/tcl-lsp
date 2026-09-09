@@ -80,8 +80,6 @@ fn with_code(diags: &[Value], code: &str) -> Vec<Value> {
         .collect()
 }
 
-// -- TestPushDiagnostics -------------------------------------------------
-
 #[test]
 fn unbraced_expr_is_w100() {
     let mut lsp = Lsp::tcl();
@@ -270,19 +268,17 @@ fn unbraced_expr_inside_catch_body_is_w100() {
 #[test]
 fn unbraced_expr_inside_tcltest_body_is_w100() {
     // `tcltest::test` evaluates its body as Tcl, so diagnostics inside it are
-    // real (tcltest body-role resolver fix).
+    // real.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "package require tcltest\ntcltest::test t {d} { set y [expr $a + $b] } {}\n";
     assert!(has_code(&lsp.open_ready(&uri, src), "W100"));
 }
 
-// -- TestSubcommandOptionArity -------------------------------------------
-// End-to-end arity checks for per-subcommand option flags (issue #581).
 // `file link -symbolic linkName target` is valid Tcl — the optional
-// `-linktype` flag precedes the two positionals — but the packaged server used
-// to emit "Too many arguments for 'file link'" because the subcommand's declared
-// options were never skipped before the positional count.
+// `-linktype` flag precedes the two positionals — so the arity check must
+// skip declared option flags before counting positionals, or a valid call
+// wrongly reports "Too many arguments for 'file link'".
 
 #[test]
 fn file_link_symbolic_has_no_arity_error() {
@@ -323,9 +319,8 @@ fn string_match_nocase_has_no_arity_error() {
     assert!(!has_code(&diags, "E003"));
 }
 
-// -- E003 tight range + registry arity-data corrections ------------------
 // The too-many-args squiggle covers only the surplus words, and several
-// command arities are corrected to match C Tcl 9.
+// command arities match C Tcl 9.
 
 #[test]
 fn e003_too_many_args_highlights_only_the_surplus_words() {
@@ -431,10 +426,9 @@ fn w216_upvar_local_indirect_array_is_silent() {
     assert!(has_code(&diags2, "W216"), "got {diags2:?}");
 }
 
-// -- TestW004DialectInvalidOption -----------------------------------------
-// End-to-end coverage for W004 (option not available in the active
-// dialect): the abbreviated-subcommand fix, and the shadow-suppression
-// fix for a same-file proc that redefines a builtin.
+// W004 fires when an option is unavailable in the active dialect. It must
+// also recognise abbreviated subcommands, and stay silent when a same-file
+// proc redefines the builtin it would otherwise apply to.
 
 #[test]
 fn lsearch_stride_on_tcl86_is_w004() {
@@ -535,12 +529,10 @@ fn user_proc_shadowing_lsearch_suppresses_w004() {
     );
 }
 
-// -- TestE001MissingDispatchWord ------------------------------------------
-// End-to-end coverage for E001 ("missing subcommand" / TclOO "missing
-// method"): tight command-head-only highlighting, the `history`
-// bare-call carve-out (issue: bare `history` defaults to `history info`
-// per history(n), so it must not be flagged), and the TclOO object-
-// dispatch generalisation (`$obj` with no method word at all).
+// E001 ("missing subcommand" / TclOO "missing method") highlights only the
+// command head. Bare `history` defaults to `history info` per history(n), so
+// it must not be flagged; TclOO object dispatch (`$obj` with no method word
+// at all) is the same diagnostic generalised to objects.
 
 #[test]
 fn bare_string_is_e001_with_tight_command_head_span() {
@@ -603,9 +595,9 @@ fn history_unknown_subcommand_is_still_w001_not_e001() {
 
 #[test]
 fn bare_tcloo_command_substitution_head_is_e001() {
-    // Issue #1200: `[Dog new]` runs the constructor, then invokes the object
-    // command with no method word — tclsh 9.0 fails `wrong # args: should be
-    // "::oo::Obj… method ?arg ...?"` (`-errorcode {TCL WRONGARGS}`).  The
+    // `[Dog new]` runs the constructor, then invokes the object command
+    // with no method word — tclsh 9.0 fails `wrong # args: should be
+    // "::oo::Obj… method ?arg ...?"` (`-errorcode {TCL WRONGARGS}`). The
     // span anchors on the substitution head.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
@@ -632,9 +624,9 @@ fn bare_tcloo_command_substitution_head_is_e001() {
 
 #[test]
 fn method_return_captured_handle_has_no_w307_and_bare_dispatch_is_e001() {
-    // Issue #1143 + #1200's variable flow, end to end: `set b [$a make]`
-    // types `b` through the lattice's method-return edge, so `$b greet` is
-    // silent (no W307), and a bare `$b` is the zero-word E001. The producing
+    // `set b [$a make]` types `b` through the lattice's method-return edge,
+    // so `$b greet` is silent (no W307), and a bare `$b` is the zero-word
+    // E001. The producing
     // method roots its command heads so TclOO's runtime receiver namespace
     // cannot select a different `return` or constructor implementation.
     let mut lsp = Lsp::tcl();
@@ -666,8 +658,6 @@ fn method_return_captured_handle_has_no_w307_and_bare_dispatch_is_e001() {
         "the bare `$b` dispatch must be E001: {diags2:?}"
     );
 }
-
-// -- W002 (disabled-in-dialect command), end to end -----------------------
 
 /// The `(character, character)` span of the first diagnostic carrying `code`
 /// on `line`, or `None` if there isn't one.
@@ -886,7 +876,7 @@ fn unshadowed_ensemble_command_still_fires_w001_alongside_a_shadowed_one() {
 
 #[test]
 fn namespace_ensemble_configure_splice_onto_tk_suppresses_w001_end_to_end() {
-    // FP regression, issue #923 idx 84: the real `tk/library/systray.tcl`
+    // The real `tk/library/systray.tcl`
     // idiom splices `systray`/`sysnotify` onto the pre-existing,
     // registry-builtin `tk` ensemble via `namespace ensemble configure tk
     // -map [dict merge [namespace ensemble configure tk -map] {systray
@@ -967,7 +957,6 @@ fn bare_snit_instance_dispatch_is_not_e001() {
     assert!(!has_code(&lsp.open_ready(&uri, src), "E001"));
 }
 
-// -- TestT101OutputSinkSpan ------------------------------------------------
 // T101 (tainted data into `puts`) end-to-end: the diagnostic must highlight
 // only the tainted argument word, not the whole `puts $x` statement.
 
@@ -997,16 +986,14 @@ fn puts_tainted_data_has_tight_argument_span() {
     );
 }
 
-// -- TestSameFileCallArity ------------------------------------------------
-// End-to-end arity checks generalised beyond the builtin registry to
-// same-file proc / `interp alias` / `rename` calls. Previously, calling a
-// same-file proc with the wrong number of arguments produced no diagnostic
-// at all — an out-of-range variable reference inside the proc body would
-// correctly fire W210, but the call site itself was silently accepted.
+// Arity checks apply beyond the builtin registry to same-file proc /
+// `interp alias` / `rename` calls: the call site itself must be checked, not
+// just out-of-range variable references inside the proc body (which fire
+// W210 independently).
 
 #[test]
 fn same_file_proc_call_too_many_args_is_e003() {
-    // The reported repro: a 7-parameter proc called with 8 arguments.
+    // A 7-parameter proc called with 8 arguments.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "\
@@ -1112,9 +1099,7 @@ $w1 fwd 1 2 3
 #[test]
 fn same_file_tcloo_constructor_call_arity_is_checked() {
     // `ClassName new ?args?` / `ClassName create name ?args?` is checked
-    // against the class's own (or nearest inherited) `constructor` — a
-    // gap this review closed; previously neither form drew any arity
-    // diagnostic at all.
+    // against the class's own (or nearest inherited) `constructor`.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(
@@ -1173,10 +1158,9 @@ fn same_file_tcloo_no_explicit_constructor_is_never_checked() {
 
 #[test]
 fn same_file_tcloo_next_call_arity_is_checked() {
-    // `next` re-invokes the current method's next-in-MRO implementation —
-    // a gap this review closed; previously `next` drew no arity
-    // diagnostic at all regardless of the resolved superclass method's
-    // own signature.
+    // `next` re-invokes the current method's next-in-MRO implementation, so
+    // its arity is checked against the resolved superclass method's own
+    // signature.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(
@@ -1202,15 +1186,12 @@ fn same_file_tcloo_next_call_arity_is_checked() {
 
 #[test]
 fn same_file_tcloo_next_in_a_constructor_has_its_arity_checked() {
-    // A `next` inside a `constructor` chains to the superclass
-    // constructor — pinned against tclsh 9.0.4, where
-    // `oo::class create Base { constructor {n} {…} }` /
+    // A `next` inside a `constructor` chains to the superclass constructor.
+    // Against tclsh 9.0.4, `oo::class create Base { constructor {n} {…} }` /
     // `oo::class create Derived { superclass Base; constructor {} { next 1 2 3 } }`
-    // then `Derived new` crashes `wrong # args: should be "next n"`.
-    // Every `next`-resolution path keyed off `ClassDef.methods` only, so
-    // the whole check was silently dropped for constructors while the
-    // byte-for-byte-analogous shape via a `method` was correctly flagged
-    // (issue #923 idx 37).
+    // then `Derived new` crashes with `wrong # args: should be "next n"`, so
+    // constructor `next` chains must be arity-checked the same as a `next`
+    // inside an ordinary method.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(
@@ -1253,8 +1234,8 @@ fn same_file_tcloo_nextto_call_arity_checks_named_target() {
 
 #[test]
 fn same_file_apply_lambda_call_arity_is_checked() {
-    // A direct `apply {{params} body} ?args?` call — another gap this
-    // review closed.
+    // A direct `apply {{params} body} ?args?` call has its arity checked
+    // against the lambda's own parameter list.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(&uri, "apply {{a b} {return [expr {$a+$b}]}} 1\n");
@@ -1270,9 +1251,7 @@ fn same_file_apply_lambda_call_arity_is_checked() {
 
 #[test]
 fn dict_create_odd_key_value_tail_is_checked() {
-    // `dict create ?key value ...?` needs an even tail — a gap this
-    // review closed; previously an odd (unpaired) tail drew no
-    // diagnostic at all.
+    // `dict create ?key value ...?` needs an even tail.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(&uri, "dict create a\n");
@@ -1318,10 +1297,9 @@ fn switch_flat_unpaired_pattern_is_checked() {
     assert!(!has_code(&diags_braced, "E005"));
 }
 
-// -- TestDiagnosticCanaries ----------------------------------------------
 // One canary per analysis family, locked to the server's published output.
 
-// -- W210: read of a possibly-unset variable -----------------------------
+// W210: read of a possibly-unset variable.
 
 #[test]
 fn w210_read_before_set_on_path_merge() {
@@ -1354,14 +1332,13 @@ fn w210_silent_when_set_on_all_paths() {
     assert!(!has_code(&lsp.open_ready(&uri, src), "W210"));
 }
 
-// Issue #923 idx 122: a helper proc's `upvar` write, reached only through
-// a `while`/`if` loop CONDITION rather than a bare statement, was invisible
-// to W210 — only 4 hardcoded builtins (`catch`/`scan`/`gets`/`regexp`) were
-// recognised there. Real tcllib repro: `modules/cmdline/cmdline.tcl`'s
-// `getopt`/`getKnownOpt` chain, `while {[set err [getopt argv $opts opt
-// arg]]} { ... }`. tclsh9.0/8.6-verified the condition's own command
-// substitution (including the upvar write) completes before the guarded
-// body ever runs.
+// A helper proc's `upvar` write, reached only through a `while`/`if` loop
+// condition rather than a bare statement, must be visible to W210 — not
+// just calls to the hardcoded builtins (`catch`/`scan`/`gets`/`regexp`).
+// The tcllib idiom is `modules/cmdline/cmdline.tcl`'s `getopt`/`getKnownOpt`
+// chain, `while {[set err [getopt argv $opts opt arg]]} { ... }`. tclsh
+// 9.0/8.6 confirm the condition's own command substitution (including the
+// upvar write) completes before the guarded body ever runs.
 
 #[test]
 fn w210_silent_for_upvar_proc_call_in_while_condition_923_idx122() {
@@ -1396,8 +1373,8 @@ fn w210_silent_for_upvar_proc_call_in_if_condition_923_idx122() {
 
 #[test]
 fn w210_still_fires_for_a_genuinely_dynamic_condition_call_923_idx122() {
-    // TN — a condition call to a proc that does *not* upvar-write its
-    // argument must still warn: the fix must not blanket-suppress every
+    // A condition call to a proc that does *not* upvar-write its argument
+    // must still warn: the check must not blanket-suppress every
     // `$var`-in-condition read, only ones a known upvar proc actually
     // populates.
     let mut lsp = Lsp::tcl();
@@ -1406,21 +1383,17 @@ fn w210_still_fires_for_a_genuinely_dynamic_condition_call_923_idx122() {
     assert!(has_code(&lsp.open_ready(&uri, src), "W210"));
 }
 
-// Issue #923 idx 18 (tcllib), revisited after PR #1020 review: a wrapper
-// proc that reaches an `upvar`+`uplevel` "custom control structure" proc
-// through a *plain* call (not `uplevel`) does NOT propagate the effect to
-// its own caller — tclsh9.0/8.6-verified (`can't read "myf": no such
-// variable` when the caller reads the variable outside any `uplevel`'d
-// script argument). An earlier version of this fix treated every such
-// pass-through as transitive based on a misleading test (reading the
-// variable *inside* the same script block that wrote it, which
+// A wrapper proc that reaches an `upvar`+`uplevel` "custom control
+// structure" proc through a *plain* call (not `uplevel`) does NOT propagate
+// the effect to its own caller — tclsh 9.0/8.6 confirm `can't read "myf":
+// no such variable` when the caller reads the variable outside any
+// `uplevel`'d script argument. Reading the variable *inside* the same
+// script block that wrote it is not a valid test of this, since that
 // coincidentally lands in the same frame regardless of whether real
-// propagation happened); these tests now pin the correct, tclsh-verified
-// behaviour instead. The real tcllib idiom (`page::util::flow`) reaches its
-// worker via `uplevel 1 [list ...]`, which genuinely does propagate one
-// frame further (also tclsh9.0-verified) — soundly modelling that shape is
-// tracked at https://github.com/bitwisecook/tcl-lsp/issues/1019, not
-// attempted here.
+// propagation happened. The real tcllib idiom (`page::util::flow`) reaches
+// its worker via `uplevel 1 [list ...]`, which genuinely does propagate one
+// frame further (also tclsh 9.0-verified); soundly modelling that shape is
+// not attempted here.
 
 #[test]
 fn w210_still_fires_for_a_plain_call_wrapper_923_idx18() {
@@ -1450,7 +1423,7 @@ fn w210_still_fires_when_wrapper_does_not_pass_its_own_params_through_923_idx18(
     assert!(has_code(&lsp.open_ready(&uri, src), "W210"));
 }
 
-// -- W307: a variable used in command position ---------------------------
+// W307: a variable used in command position.
 
 #[test]
 fn w307_known_literal_non_command_fires() {
@@ -1471,7 +1444,7 @@ fn w307_silent_for_opaque_dispatch_target() {
     assert!(!has_code(&diags, "W307"), "{:?}", codes(&diags));
 }
 
-// -- W220: dead store -----------------------------------------------------
+// W220: dead store.
 
 #[test]
 fn w220_dead_store_fires() {
@@ -1496,9 +1469,10 @@ fn w220_silent_when_value_is_read_between() {
 
 #[test]
 fn w220_silent_for_command_name_read_nested_in_dict_for_if() {
-    // Issue #833: `$x` is read as the command name of `$x a $key`, nested inside
-    // `if {$value}` inside `dict for`. Before dict-for bodies were lowered into
-    // real CFG blocks, that read was invisible and `set x set` false-fired W220.
+    // `$x` is read as the command name of `$x a $key`, nested inside
+    // `if {$value}` inside `dict for`. `dict for` bodies are lowered into
+    // real CFG blocks, so this read is visible and `set x set` does not
+    // false-fire W220.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "proc demo {} {\n    set x set\n    set d [dict create a true b false c true]\n    dict for {key value} $d {\n        if {$value} {\n            $x a $key\n        }\n    }\n}\n";
@@ -1509,8 +1483,8 @@ fn w220_silent_for_command_name_read_nested_in_dict_for_if() {
 
 #[test]
 fn w220_dead_store_inside_dict_for_body_fires() {
-    // Precision gained by #833's fix: a dead store *inside* the (now lowered)
-    // dict-for body is a real W220 — it was invisible while the body was opaque.
+    // A dead store *inside* a `dict for` body is a real W220, since the
+    // body is lowered into real CFG blocks rather than treated as opaque.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "proc demo {d} {\n    dict for {k v} $d {\n        set tmp 1\n        set tmp 2\n        puts $tmp\n    }\n}\n";
@@ -1519,12 +1493,11 @@ fn w220_dead_store_inside_dict_for_body_fires() {
     assert!(on_line(&diags, "W220").contains(&2));
 }
 
-// Issue #923 idx 125 (tcllib): a value word's embedded `{…}` run that
-// survived, as ordinary literal content, from an originally double-quoted
-// or bareword-concatenated source word must not hide the `$var`
-// substitutions inside it from W220 — real tcllib repro:
-// `modules/htmlparse/htmlparse.tcl`'s `eval "$cmd {$vroot} {} {}
-// \{$html\}"`. tclsh9.0/8.6-verified `{$vroot}` here is an ordinary
+// A value word's embedded `{…}` run that survives, as ordinary literal
+// content, inside a double-quoted or bareword-concatenated source word,
+// must not hide the `$var` substitutions inside it from W220. The tcllib
+// idiom is `modules/htmlparse/htmlparse.tcl`'s `eval "$cmd {$vroot} {} {}
+// \{$html\}"`. tclsh 9.0/8.6 confirm `{$vroot}` here is an ordinary
 // substitution, exactly like the bare `$cmd` beside it.
 
 #[test]
@@ -1550,15 +1523,13 @@ fn w220_still_fires_for_a_genuinely_brace_quoted_value_923_idx125() {
     assert!(has_code(&diags, "W220"), "{:?}", codes(&diags));
 }
 
-// Regression guards (found while fixing idx 125): `itcl::class` /
-// `snit::widget` / `snit::type` / `snit::widgetadaptor` bodies were missing
-// the registry's `body_kind: Structural` classification `oo::class`
-// already carries — their body argument was scanned as ordinary value text
-// instead of being excluded as a separate definition scope. This was
-// invisible before idx 125's fix only because the class/method body's own
-// nested braces were, by the same quote-context bug, mis-read as a single
-// non-substituting brace-quoted word, which happened to swallow every
-// `$this` / instance-variable reference along with it.
+// `itcl::class` / `snit::widget` / `snit::type` / `snit::widgetadaptor`
+// bodies carry the registry's `body_kind: Structural` classification, the
+// same as `oo::class`, so their body argument is excluded as a separate
+// definition scope rather than scanned as ordinary value text. Without
+// that classification, the class/method body's own nested braces are
+// mis-read as a single non-substituting brace-quoted word, which swallows
+// every `$this` / instance-variable reference along with it.
 
 #[test]
 fn w210_silent_for_this_and_instance_vars_in_an_itcl_method_body_923_idx125() {
@@ -1580,8 +1551,8 @@ fn w210_silent_for_self_and_instance_vars_in_a_snit_widget_method_body_923_idx12
 
 #[test]
 fn uplevel_issue_837_body_is_silent_through_server() {
-    // Issue #837: the exact reproducer must produce no diagnostics through the
-    // packaged server — the recursed `uplevel` body is clean Tcl.
+    // The recursed `uplevel` body is clean Tcl and must produce no
+    // diagnostics through the packaged server.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "proc forgetXyce {} {\n    uplevel 1 {foreach nameSpc [namespace children ::Foo] {\n        namespace forget ${nameSpc}::*\n    }}\n}\n";
@@ -1604,7 +1575,7 @@ fn uplevel_unbraced_substituted_body_fires_w105_through_server() {
     assert!(has_code(&diags, "W105"), "{:?}", codes(&diags));
 }
 
-// -- Clean code stays clean (cross-family negative control) --------------
+// Clean code stays clean (cross-family negative control).
 
 #[test]
 fn clean_dataflow_has_no_diagnostics() {
@@ -1614,7 +1585,6 @@ fn clean_dataflow_has_no_diagnostics() {
     assert!(lsp.open_ready(&uri, src).is_empty());
 }
 
-// -- TestIndirectArrayIdiom ----------------------------------------------
 // FP-STY-12: `${var}(idx)` in a varname position is the indirect-array-element
 // idiom (`var` holds the array name), not a broken `$var(idx)` — so neither
 // W216 nor W212 fire through the server pipeline. A value-position `${arr}(x)`
@@ -1663,7 +1633,6 @@ fn bare_dollar_name_still_fires_w212() {
     assert!(has_code(&lsp.open_ready(&uri, "set $x v\n"), "W212"));
 }
 
-// -- TestOverridableLibraryProcs -----------------------------------------
 // FP-STY-13: redefining an overridable Tcl *library* proc (`unknown`,
 // `history`, `auto_*` …) is not shadowing a C built-in — no W113. Redefining a
 // genuine built-in (`set`/`clock`) still fires.
@@ -1710,7 +1679,6 @@ fn non_bytecompiled_c_command_still_fires() {
     }
 }
 
-// -- TestSingleVarBodyW105 -----------------------------------------------
 // FP-STY-14: a body argument that is a single bare variable substitution
 // (`eval $cmd`, `$state(-command)`, `after 0 $coroName`) is a script-valued
 // reference, not an inline block — no W105 through the server pipeline. A
@@ -1818,7 +1786,6 @@ fn composite_body_still_fires() {
     assert!(has_code(&lsp.open_ready(&uri, "eval $cmd$args\n"), "W105"));
 }
 
-// -- TestDollarBeforeCloseQuoteW306 --------------------------------------
 // FP-STY-15: a `$` immediately before a closing `"` (the regex end-anchor
 // `"^foo$"` / `"\n$"`) is literal — the lexer must not merge the quoted word
 // with the next, so no E002/E205 and no spurious W306. A live `$bar` in a quoted
@@ -1878,10 +1845,9 @@ fn quoted_pure_var_pattern_no_w306() {
     ));
 }
 
-// -- TestControlFlowRBSFamilyE2E -----------------------------------------
-// W210 read-before-set, control-flow modelling family (PR #634).
+// W210 read-before-set, control-flow modelling family.
 
-// -- tailcall ends straight-line flow (FP-RBS-13) ------------------------
+// Tailcall ends straight-line flow (FP-RBS-13).
 
 #[test]
 fn tailcall_terminated_branch_silent() {
@@ -1904,7 +1870,7 @@ fn non_terminating_branch_still_fires() {
     assert!(has_code(&diags, "W210"), "{:?}", codes(&diags));
 }
 
-// -- non-empty-literal foreach runs its body (FP-RBS-17) -----------------
+// A non-empty-literal foreach runs its body (FP-RBS-17).
 
 #[test]
 fn foreach_non_empty_literal_silent() {
@@ -1923,7 +1889,7 @@ fn foreach_empty_literal_still_fires() {
     assert!(has_code(&lsp.open_ready(&uri, src), "W210"));
 }
 
-// -- for whose condition is true on entry runs its body (FP-RBS-18) ------
+// A for whose condition is true on entry runs its body (FP-RBS-18).
 
 #[test]
 fn for_true_on_entry_silent() {
@@ -1941,7 +1907,7 @@ fn for_false_on_entry_still_fires() {
     assert!(has_code(&lsp.open_ready(&uri, src), "W210"));
 }
 
-// -- while 1 only exits via break, where the var is set (FP-RBS-16) ------
+// while 1 only exits via break, where the var is set (FP-RBS-16).
 
 #[test]
 fn while1_break_set_silent() {
@@ -1953,7 +1919,7 @@ fn while1_break_set_silent() {
 
 #[test]
 fn normal_while_body_defined_silent() {
-    // FP-RBS-19 (#756): a non-constant `while` may run zero times, but its body
+    // FP-RBS-19: a non-constant `while` may run zero times, but its body
     // unconditionally sets `y`, so a read after the loop is defined whenever the
     // loop ran. Matching C Tcl (which errors only when the condition is false on
     // entry at runtime), we assume a may-run loop runs — no W210.
@@ -1965,10 +1931,9 @@ fn normal_while_body_defined_silent() {
 
 #[test]
 fn foreach_accumulator_after_loop_silent() {
-    // FP-RBS-19 (#756), the reporter's exact pattern: a `lappend` accumulator
-    // built inside a dynamic multi-group `foreach`, read after the loop. The
-    // body defines the accumulators on every iteration, so the after-loop reads
-    // are not read-before-set.
+    // FP-RBS-19: a `lappend` accumulator built inside a dynamic multi-group
+    // `foreach`, read after the loop. The body defines the accumulators on
+    // every iteration, so the after-loop reads are not read-before-set.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "set data [getDataDict]\n\
@@ -1989,7 +1954,7 @@ fn foreach_empty_literal_after_loop_still_fires() {
     assert!(has_code(&lsp.open_ready(&uri, src), "W210"));
 }
 
-// -- opaque switch whose every arm exits is a terminator (FP-RBS-15) -----
+// An opaque switch whose every arm exits is a terminator (FP-RBS-15).
 
 #[test]
 fn all_arms_return_makes_trailing_read_unreachable() {
@@ -2024,17 +1989,16 @@ fn returning_arm_excluded_from_must_define() {
 
 #[test]
 fn break_arm_escaping_loop_still_fires() {
-    // Codex regression on #634: `break`/`continue` are loop-jumps, not
-    // proc-exits, so a break arm does NOT define the other arm's var on the path
-    // that escapes the loop — `y` is maybe-unset, W210 must fire.
+    // `break`/`continue` are loop-jumps, not proc-exits, so a break arm does
+    // NOT define the other arm's var on the path that escapes the loop —
+    // `y` is maybe-unset, W210 must fire.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "proc f {} {\n    foreach x {a} { switch -glob -- $x { a* { break } default { set y 1 } } }\n    puts $y\n}\n";
     assert!(has_code(&lsp.open_ready(&uri, src), "W210"));
 }
 
-// -- TestWhenBodyDialectGatingE2E ----------------------------------------
-// `when` is an iRules-only builtin (PR #640). Under plain Tcl it is an unknown
+// `when` is an iRules-only builtin. Under plain Tcl it is an unknown
 // would-be user command whose braced argument is opaque *data*, not a handler
 // script — so its body must not be analysed.
 
@@ -2044,10 +2008,10 @@ fn when_body_not_analysed_under_plain_tcl() {
     let uri = unique_uri("tcl");
     // Opened with the *versioned* `tcl8.6` language id, which is a deliberate
     // editor choice and outranks detection. The bare `tcl` id every editor
-    // sends for a `.tcl` buffer now defers to the shared detector, and a
-    // `when EVENT {` handler is one of its iRules content signatures (issue
-    // #1048) — so this source would otherwise be analysed as an iRule, which
-    // is not the case under test.
+    // sends for a `.tcl` buffer defers to the shared detector, and a
+    // `when EVENT {` handler is one of its iRules content signatures — so
+    // this source would otherwise be analysed as an iRule, which is not the
+    // case under test.
     let diags = lsp.open_ready_lang(
         &uri,
         "when HTTP_REQUEST {\n    boguscmd $undefvar\n}\n",
@@ -2063,11 +2027,9 @@ fn when_body_not_analysed_under_plain_tcl() {
     assert!(!has_code(&diags, "W210"), "{:?}", codes(&diags));
 }
 
-// -- TestConstantStringConditionFoldE2E ----------------------------------
-// I230 (always-true/false condition; alternate branch unreachable) now folds
+// I230 (always-true/false condition; alternate branch unreachable) folds
 // `==`/`!=` on string operands, matching Tcl's polymorphic compare
-// (`expr {"foo" == "foo"}` -> 1) — previously only the `eq`/`ne` spelling folded
-// (PR #640).
+// (`expr {"foo" == "foo"}` -> 1), the same as the `eq`/`ne` spelling.
 
 #[test]
 fn double_equals_string_condition_folds() {
@@ -2089,12 +2051,12 @@ fn bang_equals_string_condition_folds() {
     }
 }
 
-// Issue #1177: a method callee reached via `my` is invisible to the
-// caller's upvar context, so its `upvar 1 $refvar ref` caller-frame
-// definition read as a no-op and `[info exists ref]` in the calling method
-// folded always false. Oracle (tclsh 9.0.4 / 8.6.14): after `my Reference?
-// $lookup ref` returns true the guard is 1; on a miss, 0 — live code, so
-// the fold must abstain.
+// A method callee reached via `my` can be invisible to the caller's upvar
+// context, so its `upvar 1 $refvar ref` caller-frame definition must not be
+// treated as a no-op — `[info exists ref]` in the calling method must not
+// fold to always-false. tclsh 9.0.4 / 8.6.14: after `my Reference? $lookup
+// ref` returns true the guard is 1; on a miss, 0 — live code, so the fold
+// must abstain.
 
 #[test]
 fn info_exists_after_my_dispatch_to_an_upvar_sibling_does_not_fire_i230() {
@@ -2126,12 +2088,11 @@ fn info_exists_still_fires_i230_when_no_method_reaches_the_caller_frame() {
     );
 }
 
-// Issue #1198: O102 forwarded a stale global across a called proc's
-// `uplevel #0` write. `setter`'s `uplevel #0 {set x 99}` needs no `global`
-// declaration, so the interprocedural summary missed the global-frame
-// write and the optimiser rewrote `puts $x` to `puts 5` where tclsh
-// 9.0.3/9.0.4 prints 99. O102 is `constant_folding` category, outside the
-// default `readability` profile — opt into `standard` so it can surface.
+// `setter`'s `uplevel #0 {set x 99}` needs no `global` declaration, so an
+// interprocedural summary that misses this global-frame write would let
+// O102 rewrite `puts $x` to `puts 5`, where tclsh 9.0.3/9.0.4 prints 99.
+// O102 is in the `constant_folding` category, outside the default
+// `readability` profile, so the test opts into the `standard` profile.
 
 #[test]
 fn o102_does_not_forward_a_global_across_a_callees_uplevel_hash_zero_write() {
@@ -2162,19 +2123,17 @@ fn o102_still_fires_when_the_callees_uplevel_hash_zero_writes_nothing() {
     );
 }
 
-// -- TestI230InterproceduralCallSiteSeedingE2E ---------------------------
-// Issue #969: "Condition '$count & 1' is always false" fired on a genuinely
-// alternating parity check. Root cause: the interprocedural param-constant
-// seed (`params_constants_from_call_sites`) trusted a proc's parameter as a
-// compile-time literal whenever every call site *it could resolve* passed
-// the same value — but a namespaced proc's own bare-name recursive
-// self-call resolved incorrectly (namespace-blind lookup), so that call
-// site (with its necessarily-varying argument) silently vanished from the
-// evidence, leaving only the one external caller's literal `0` and folding
-// `$count & 1` to a fixed `false`. See `compilation_unit.rs`'s
-// `collect_call_site_constants` / `params_constants_from_call_sites` for the
-// full fix (also closes a second, closely-related gap: a call site
-// embedded inside a `catch` / `uplevel` body's `ArgRole::Body` argument).
+// A genuinely alternating parity check must not fold to
+// "Condition '$count & 1' is always false". The interprocedural param-constant seed
+// (`params_constants_from_call_sites`) must not trust a proc's parameter as
+// a compile-time literal when a call site it cannot resolve exists — for
+// example a namespaced proc's own bare-name recursive self-call, which a
+// namespace-blind lookup would miss. Missing that call site (whose argument
+// necessarily varies) would leave only the one external caller's literal
+// `0` and fold `$count & 1` to a fixed `false`. See `compilation_unit.rs`'s
+// `collect_call_site_constants` / `params_constants_from_call_sites`; the
+// same hazard applies to a call site embedded inside a `catch` / `uplevel`
+// body's `ArgRole::Body` argument.
 
 #[test]
 fn namespaced_recursive_proc_parity_check_does_not_fire_i230() {
@@ -2218,14 +2177,14 @@ fn two_callers_with_uniform_literal_still_fires_i230() {
     );
 }
 
-// Issue #976: the interprocedural seed above enumerated only *literal*
-// command words, so a call dispatched through a variable (`set cmd helper;
-// $cmd dev`) was skipped entirely — it counted neither for nor against any
-// proc's parameters, even when it demonstrably reached one the scan had
-// already seeded from its literal call sites. The scan now resolves a
-// dispatch by value (`unit_scope.rs`): an enumerable one becomes an
-// ordinary call site for each name it can hold, and an unenumerable one
-// withdraws every seed in the module.
+// The interprocedural seed above must account for a call dispatched
+// through a variable (`set cmd helper; $cmd dev`), not just literal
+// command words — otherwise such a call counts neither for nor against any
+// proc's parameters, even when it demonstrably reaches one the scan
+// already seeded from its literal call sites. The scan resolves a dispatch
+// by value (`unit_scope.rs`): an enumerable one becomes an ordinary call
+// site for each name it can hold, and an unenumerable one withdraws every
+// seed in the module.
 
 #[test]
 fn dynamic_dispatch_with_a_differing_literal_does_not_fire_i230() {
@@ -2297,14 +2256,14 @@ fn command_prefix_callback_target_does_not_fire_i230() {
     );
 }
 
-// Issue #1044: Tcl dispatches every unresolved command word to the module's
-// own `unknown` handler, passing the word and that call's arguments — so the
+// Tcl dispatches every unresolved command word to the module's own
+// `unknown` handler, passing the word and that call's arguments — so the
 // handler's *direct* callers are never its complete caller set, and a
-// coincidentally-uniform set of them folded a condition that varies at
-// runtime. tclsh8.6/9.0-confirmed: with `proc unknown {cmd args}` in scope,
-// `bogus beta` runs the handler with `cmd` = `bogus`. The registry marks the
-// handler with `Traits::UNRESOLVED_COMMAND_HANDLER`, so no compiler code
-// spells the name.
+// coincidentally-uniform set of them must not fold a condition that varies
+// at runtime. tclsh 8.6/9.0 confirm: with `proc unknown {cmd args}` in
+// scope, `bogus beta` runs the handler with `cmd` = `bogus`. The registry
+// marks the handler with `Traits::UNRESOLVED_COMMAND_HANDLER`, so no
+// compiler code spells the name.
 
 #[test]
 fn unresolved_word_reaching_the_unknown_handler_does_not_fire_i230() {
@@ -2324,12 +2283,11 @@ fn unresolved_word_reaching_the_unknown_handler_does_not_fire_i230() {
 /// defining the handler is itself the unenumerable caller, so agreement
 /// among the callers the scan can see proves nothing and no fold happens.
 ///
-/// This previously asserted the opposite, on the premise that with no
-/// unresolved word in the file "the direct callers are all of them". That
-/// premise is false — Tcl routes to the handler every word that resolves to
-/// nothing at the instant of the call, and most of those (an autoloaded
-/// name, a name another sourced file introduces, a name built by string
-/// arithmetic) appear nowhere in the source for any scan to find.
+/// Tcl routes to the handler every word that resolves to nothing at the
+/// instant of the call, and most of those (an autoloaded name, a name
+/// another sourced file introduces, a name built by string arithmetic)
+/// appear nowhere in the source for any scan to find, so "no unresolved
+/// word in the file" does not mean "the direct callers are all of them".
 ///
 /// tclsh8.6 confirms the seeded words are wrong in both directions: `Dog
 /// new` after `oo::class create Dog` and `worker` after `coroutine worker
@@ -2364,13 +2322,13 @@ fn unresolved_word_without_an_unknown_handler_still_fires_i230() {
     );
 }
 
-// Issue #977: PR #970's `package provide` guard did not cover the more common
-// shape — a plain library file with NO `package provide`, `source`d by another
-// file that calls its procs with a different literal. `lib.tcl` analysed alone
-// sees only its own two `helper prod` callers, seeds `mode` as `"prod"`, and
-// folds. The fix threads the project's call sites into the compilation unit
-// (`tcl_lsp_db::project_call_site_evidence` → `SourceFile::external_call_sites`
-// → `tcl_compiler::unit_scope`), so `main.tcl`'s `helper dev` retracts it.
+// A plain library file with no `package provide`, `source`d by another file
+// that calls its procs with a different literal, must not fold. `lib.tcl`
+// analysed alone sees only its own two `helper prod` callers and would seed
+// `mode` as `"prod"`. The project's call sites are threaded into the
+// compilation unit (`tcl_lsp_db::project_call_site_evidence` →
+// `SourceFile::external_call_sites` → `tcl_compiler::unit_scope`), so
+// `main.tcl`'s `helper dev` retracts the fold.
 
 /// The library file from the issue: no `package provide`, two agreeing
 /// in-file callers.
@@ -2378,8 +2336,9 @@ const CROSS_FILE_LIB: &str = "proc helper {mode} {\n    if {$mode eq \"prod\"} {
 
 /// Also the standing proof that the project's call-site evidence is **not**
 /// an opt-in refinement: this session leaves `tclLsp.features.
-/// crossFileResolution` at its default (off), so gating the server's evidence
-/// sync on that toggle reinstates the unsound fold and fails here (#1148).
+/// crossFileResolution` at its default (off), so gating the server's
+/// evidence sync on that toggle would reinstate the unsound fold and fail
+/// here.
 #[test]
 fn caller_in_a_sourcing_file_with_a_differing_literal_clears_i230() {
     let mut lsp = Lsp::tcl();
@@ -2460,9 +2419,9 @@ fn callback_from_a_sourced_file_clears_i230_in_the_sourcing_file() {
 
 /// A workspace pools every file into one project, so an unrelated file that
 /// happens to reuse a common proc name must not drag its call sites into
-/// this one's evidence.  Regression for the VS Code suite, where ~200
-/// fixtures share a workspace folder and a second global `helper` (zero
-/// arity) silently killed issue #969's TP control.
+/// this one's evidence. The VS Code suite shares one workspace folder
+/// across roughly 200 fixtures, so a second global `helper` (zero arity)
+/// defined in an unrelated fixture must not suppress this control.
 #[test]
 fn an_unrelated_file_reusing_a_proc_name_does_not_clear_i230() {
     let mut lsp = Lsp::tcl();
@@ -2479,8 +2438,6 @@ fn an_unrelated_file_reusing_a_proc_name_does_not_clear_i230() {
         codes(&diags)
     );
 }
-
-// -- TestDiagnosticsTrackEdits -------------------------------------------
 
 #[test]
 fn fixing_the_source_clears_the_diagnostic() {
@@ -2524,12 +2481,10 @@ fn introducing_an_error_publishes_it() {
     assert!(has_code(&diags, "E002"));
 }
 
-// -- TestSoundnessRegressionsE2E -----------------------------------------
-// End-to-end coverage for three latent W210 soundness bugs surfaced while
-// reviewing the Rust port and fixed in the analyser. Ground truth is real
-// tclsh 9.0.3.
+// End-to-end coverage for three W210 soundness hazards, checked against
+// real tclsh 9.0.3 as ground truth.
 
-// -- Omitted-arg call-site constants are poisoned (interproc) ------------
+// Omitted-arg call-site constants are poisoned (interproc).
 
 #[test]
 fn omitted_default_arg_does_not_hide_read_before_set() {
@@ -2554,7 +2509,7 @@ fn uniform_literal_arg_still_binds_silent() {
     assert!(!has_code(&lsp.open_ready(&uri, src), "W210"));
 }
 
-// -- regexp `-expanded` is not unconditionally literal-safe --------------
+// regexp `-expanded` is not unconditionally literal-safe.
 
 #[test]
 fn regexp_expanded_whitespace_pattern_silent() {
@@ -2576,7 +2531,7 @@ fn regexp_expanded_clean_literal_still_fires() {
     assert!(has_code(&lsp.open_ready(&uri, src), "W210"));
 }
 
-// -- try body throw keeps its handler exception edge ---------------------
+// A try body throw keeps its handler exception edge.
 
 #[test]
 fn try_body_throw_keeps_handler_defs_silent() {
@@ -2598,13 +2553,13 @@ fn try_body_earlier_conditional_throw_fires() {
     assert!(has_code(&lsp.open_ready(&uri, src), "W210"));
 }
 
-// -- issue #777: `CLASS create NAME` binds a command NAME -----------------
+// `CLASS create NAME` binds a command NAME.
 
 #[test]
 fn w307_silent_for_create_named_objects_iterated() {
-    // Exact repro of issue #777: object commands are bound by `C create c1`,
-    // then iterated via `foreach elem [list c1 l1 …]` and dispatched through
-    // `$elem`.  The created names are known commands, so W307 must not fire.
+    // Object commands are bound by `C create c1`, then iterated via
+    // `foreach elem [list c1 l1 …]` and dispatched through `$elem`. The
+    // created names are known commands, so W307 must not fire.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "\
@@ -2638,7 +2593,7 @@ fn w123_silent_for_create_named_object_literal_dispatch() {
     );
 }
 
-// Issue #806 — report::defstyle scoped command environment.
+// `report::defstyle` scoped command environment.
 
 #[test]
 fn defstyle_body_scoped_commands_no_w123() {
@@ -2675,10 +2630,10 @@ fn defstyle_body_typo_still_w123() {
 
 #[test]
 fn w123_call_chain_reaching_a_command_before_its_deletion_issue_1015() {
-    // Issue #1015, end-to-end: `inner` is never invoked at the top level —
-    // only `outer` is — but `outer` calls `inner`, which calls `helper`,
-    // all before the `rename helper {}`. tclsh8.6/9.0 both run this clean
-    // (exit 0, no error), so the analyser must not draw W123 on `helper`.
+    // `inner` is never invoked at the top level — only `outer` is — but
+    // `outer` calls `inner`, which calls `helper`, all before the `rename
+    // helper {}`. tclsh 8.6/9.0 both run this clean (exit 0, no error), so
+    // the analyser must not draw W123 on `helper`.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(
@@ -2736,12 +2691,11 @@ fn report_object_methods_have_no_unknown_command() {
     );
 }
 
-// -- Issue #832: command defined in an auto_path library ------------------
 // A command a `tclIndex` on the configured `libraryPaths` auto-loads (the
 // BLT/Rbc idiom: `Rbc_ZoomStack` / `Rbc_ActiveLegend`) must not be flagged
 // "Unknown command" (W123), end-to-end against the packaged server, with
-// `xcDiagnostics` left at its default (off).  The package database resolves the
-// command exactly as go-to-definition does; the diagnostic must agree.
+// `xcDiagnostics` left at its default (off). The package database resolves
+// the command exactly as go-to-definition does; the diagnostic must agree.
 
 /// Per-call counter so repeat runs don't collide on the temp dir.
 static RBC_LIB_N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
@@ -2818,9 +2772,9 @@ static AUTOLOAD_DEF_N: std::sync::atomic::AtomicUsize = std::sync::atomic::Atomi
 fn autoload_library_command_go_to_definition_m8() {
     use std::sync::atomic::Ordering;
 
-    // Same fixture as #832: a library dir whose `tclIndex` auto-loads a global
-    // proc `Rbc_ActiveLegend`, defined on line 0 of `graph.tcl`.  The command
-    // is defined nowhere in the open workspace, so go-to-definition must fall
+    // A library dir whose `tclIndex` auto-loads a global proc
+    // `Rbc_ActiveLegend`, defined on line 0 of `graph.tcl`. The command is
+    // defined nowhere in the open workspace, so go-to-definition must fall
     // through to the autoload tier (M8) and jump into the library file.
     let libdir = std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-autoload-def-{}-{}",
@@ -2885,7 +2839,6 @@ fn autoload_library_command_go_to_definition_m8() {
     let _ = std::fs::remove_dir_all(&libdir);
 }
 
-// -- Issue #1017 / #923 idx 42: pkgIndex.tcl version guards ---------------
 // A `pkgIndex.tcl` that gates its `package ifneeded` behind
 // `package vsatisfies [package provide Tcl] …` supplies its commands only on
 // the releases the guard admits, so whether a call is "unknown" depends on the
@@ -2934,8 +2887,7 @@ fn pkg_libdir_with_index(index: &str) -> std::path::PathBuf {
 ///
 /// The call must live in a file with no `package require` of its own — the
 /// analyser drops every W123 in a file that has one — so the requirement
-/// reaches it through the `source` ancestor (#804), exactly as in the issue's
-/// repro.
+/// reaches it through the `source` ancestor.
 fn guarded_pkg_child_diagnostics(dialect: &str, libdir: &std::path::Path) -> Vec<Value> {
     let mut lsp = Lsp::with_config(serde_json::json!({
         "dialect": dialect,
@@ -2966,7 +2918,7 @@ fn guarded_pkg_child_diagnostics(dialect: &str, libdir: &std::path::Path) -> Vec
     diags
 }
 
-/// TP (issue #1017): under a 9.x target the guard's `return` fires, `mypkg`
+/// TP: under a 9.x target the guard's `return` fires, `mypkg`
 /// never registers, and the call really is an unknown command.
 #[test]
 fn guarded_pkgindex_unavailable_on_target_still_fires_w123_issue_1017() {
@@ -2980,7 +2932,7 @@ fn guarded_pkgindex_unavailable_on_target_still_fires_w123_issue_1017() {
     let _ = std::fs::remove_dir_all(&libdir);
 }
 
-/// TN (issue #923 idx 42's direction): under an 8.6 target the same guard does
+/// TN: under an 8.6 target the same guard does
 /// not fire, the package registers, and flagging the call would be a false
 /// positive.
 #[test]
@@ -3044,16 +2996,15 @@ fn patch_level_guarded_pkgindex_suppresses_w123() {
     let _ = std::fs::remove_dir_all(&libdir);
 }
 
-/// TN (issue #923 differential-audit finding idx 42) — the shape
-/// `georgtree/tclopt`'s real `pkgIndex.tcl.in` has: a TEA-style version
-/// branch whose **both** arms declare the same `package ifneeded`. The
-/// package is available whichever arm runs, so flagging its commands is a
-/// false positive.
+/// TN — the shape `georgtree/tclopt`'s real `pkgIndex.tcl.in` has: a
+/// TEA-style version branch whose **both** arms declare the same `package
+/// ifneeded`. The package is available whichever arm runs, so flagging its
+/// commands is a false positive.
 ///
-/// The e2e tier previously only covered the *early-return* guard (#1017);
-/// the both-arms shape was pinned only by a `package_resolver::reachability`
-/// unit test, so a regression in how the server's diagnostics pipeline
-/// consumes that module would not have been caught here.
+/// This e2e test exists because the both-arms shape is otherwise pinned
+/// only by a `package_resolver::reachability` unit test, which would not
+/// catch a regression in how the server's diagnostics pipeline consumes
+/// that module.
 ///
 /// Oracle (tclsh 8.6.16 and 9.0.4, `TCLLIBPATH` pointing at the fixture):
 /// `package require mypkg` succeeds and `mypkgHello` returns `hi` on both,
@@ -3107,10 +3058,10 @@ fn a_command_absent_from_a_branch_declared_package_still_fires_w123_923_idx42() 
     let _ = std::fs::remove_dir_all(&libdir);
 }
 
-/// TN (issue #923 differential-audit finding idx 72) — a package whose
-/// `pkgIndex.tcl` only `load`s a binary extension has **no** companion `.tcl`
-/// file at all (`pix`'s real shape). Such a declaration is still a real,
-/// known package: treating it as unknowable made the whole document's W120
+/// TN — a package whose `pkgIndex.tcl` only `load`s a binary extension has
+/// **no** companion `.tcl` file at all (`pix`'s real shape). Such a
+/// declaration is still a real, known package: treating it as unknowable
+/// made the whole document's W120
 /// "requires `package require …`" diagnostics vanish, including ones about
 /// entirely unrelated packages.
 ///
@@ -3173,16 +3124,15 @@ fn a_load_only_package_does_not_suppress_unrelated_w120s_923_idx72() {
     let _ = std::fs::remove_dir_all(&libdir);
 }
 
-/// TN (issue #923 differential-audit finding idx 64) — an unmatched literal
-/// `{` inside a *double-quoted* string does not stop substitution, so the
-/// `$ns` beside it is a genuine read and the `set` before it is not a dead
-/// store.
+/// TN — an unmatched literal `{` inside a *double-quoted* string does not
+/// stop substitution, so the `$ns` beside it is a genuine read and the
+/// `set` before it is not a dead store.
 ///
-/// Oracle (tclsh 8.6.16 and 9.0.4): `set ns "ctx"; puts "{ $ns"` prints
-/// `{ ctx` — the variable really is read. W220 fired anyway, on the exact
-/// shape `pix`'s `pixdoc.tcl` uses to emit generated `namespace eval`
-/// preambles. Pinned at the analyser's own `fires()` helper (FP-DS-13) but
-/// never through the server's publish path until now.
+/// tclsh 8.6.16 and 9.0.4: `set ns "ctx"; puts "{ $ns"` prints `{ ctx` —
+/// the variable really is read. This is the exact shape `pix`'s
+/// `pixdoc.tcl` uses to emit generated `namespace eval` preambles. The
+/// analyser's own `fires()` helper (FP-DS-13) pins this; this test drives
+/// it through the server's publish path as well.
 #[test]
 fn an_unmatched_brace_in_a_quoted_string_keeps_the_read_923_idx64() {
     let mut lsp = Lsp::tcl();
@@ -3312,7 +3262,7 @@ fn autoload_library_command_references_and_rename_m8() {
     let _ = std::fs::remove_dir_all(&libdir);
 }
 
-// -- #844 progressive (two-tier) diagnostics -----------------------------
+// Progressive (two-tier) diagnostics.
 
 /// Build a large Tcl document (~`n` procs, ~10×`n` lines), plus one
 /// proc whose unbraced `expr` yields a fast-tier **W100** (an analyser code) and
@@ -3341,7 +3291,7 @@ fn big_tcl_with_split_markers(n: usize) -> String {
     s
 }
 
-/// #844 acceptance criterion (b): on a large / cold file the client sees the
+/// On a large / cold file the client sees the
 /// workspace-independent **fast tier** first (analyser syntax / structural /
 /// style diagnostics) and then the **deep tier** (adding compiler / optimiser
 /// diagnostics), which is a strict superset and replaces it for the same
@@ -3435,15 +3385,14 @@ fn large_file_publishes_fast_tier_before_deep_tier() {
     );
 }
 
-// -- E100 / E102 stray-closer diagnostics --------------------------------
+// E100 / E102 stray-closer diagnostics.
 //
 // A bare `]` / `}` has no special meaning to Tcl outside `[...]` / `{...}`,
 // so these are "probably a typo" heuristics, not hard parse errors. The
-// range must be tight around the offending character — end-to-end coverage
-// for issue-class bugs found in review: the highlighted range excluding the
-// stray character itself, a fix-less diagnostic spanning the whole command
-// instead of just the character, and a bad repair corrupting an unrelated
-// "Unknown command" diagnostic elsewhere in the file.
+// range must be tight around the offending character: it must not exclude
+// the stray character itself, must not be a fix-less diagnostic spanning
+// the whole command instead of just the character, and a repair must not
+// corrupt an unrelated "Unknown command" diagnostic elsewhere in the file.
 
 fn range_of(diags: &[Value], code: &str) -> (i64, i64, i64, i64) {
     let d = diags
@@ -3495,11 +3444,11 @@ fn e102_range_is_tight_around_embedded_brace() {
 
 #[test]
 fn e100_repair_does_not_corrupt_unrelated_command_name() {
-    // Regression: a stray `]` after a call to an already-declared user
-    // proc used to get "repaired" into a virtual command-substitution
-    // token with a byte-offset bug, corrupting the recorded invocation
-    // and firing a phantom "Unknown command" (W123) on a garbled
-    // substring of the proc name — with no E100 fix to explain it either.
+    // A stray `]` after a call to an already-declared user proc must not
+    // be "repaired" into a virtual command-substitution token with a
+    // byte-offset bug — that would corrupt the recorded invocation and
+    // fire a phantom "Unknown command" (W123) on a garbled substring of
+    // the proc name, with no E100 fix to explain it either.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(
@@ -3557,17 +3506,16 @@ fn e101_recovery_does_not_swallow_a_call_to_a_known_proc() {
 
 #[test]
 fn e103_abstains_when_missing_brace_swallows_more_than_one_statement() {
-    // Regression: the "stolen close brace" heuristic used to fire on
-    // whichever `}` was LAST in the swallowed text, even when that
-    // text spanned more than one top-level statement (here a sibling
-    // `proc` swallowed along with the `if` that actually stole the
-    // brace). Applying that fix parsed clean but silently nested the
-    // sibling proc inside the unclosed one instead of closing it
-    // where the missing brace belongs — a structural corruption, not
-    // just an imprecise diagnostic. Pure brace-counting can't safely
-    // pick a location once more than one statement is swallowed, so
-    // this must fall back to the generic (fix-less) E200 instead of
-    // guessing wrong.
+    // The "stolen close brace" heuristic must not fire on whichever `}` is
+    // LAST in the swallowed text when that text spans more than one
+    // top-level statement (here a sibling `proc` swallowed along with the
+    // `if` that actually stole the brace) — picking that brace would parse
+    // clean but silently nest the sibling proc inside the unclosed one
+    // instead of closing it where the missing brace belongs, a structural
+    // corruption, not just an imprecise diagnostic. Pure brace-counting
+    // can't safely pick a location once more than one statement is
+    // swallowed, so this must fall back to the generic (fix-less) E200
+    // instead of guessing wrong.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(
@@ -3581,8 +3529,8 @@ fn e103_abstains_when_missing_brace_swallows_more_than_one_statement() {
 #[test]
 fn shimmer_committed_value_with_lindex_is_s100_info_with_tight_range() {
     // A *committed* Dict (from `[dict create]`) read as a list genuinely
-    // shimmers — a pure string literal would promote for free (issue #940). The
-    // range must cover only the `$x` argument, not the whole `lindex $x 0` call.
+    // shimmers — a pure string literal would promote for free. The range
+    // must cover only the `$x` argument, not the whole `lindex $x 0` call.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(&uri, "set x [dict create a 1 b 2]\nlindex $x 0\n");
@@ -3614,9 +3562,8 @@ fn clean_list_used_with_lindex_has_no_s100() {
 
 #[test]
 fn issue_940_braced_list_literal_in_foreach_has_no_s100() {
-    // Issue #940: a braced list literal is a pure string that `foreach` parses
-    // into a list once, for free — no shimmer. Covers the reporter's exact
-    // snippet plus the `{}` empty-list case named in the issue title.
+    // A braced list literal is a pure string that `foreach` parses into a
+    // list once, for free — no shimmer. Includes the `{}` empty-list case.
     let mut lsp = Lsp::tcl();
     for src in [
         "set fontSizes {10.0 12.0 16.0 24.0}\nforeach size $fontSizes { puts $size }\n",
@@ -3635,7 +3582,7 @@ fn issue_940_braced_list_literal_in_foreach_has_no_s100() {
 
 #[test]
 fn issue_940_committed_container_in_foreach_still_fires_s100() {
-    // TP control: the fix must not blanket-silence genuine shimmers — a
+    // TP control: the check must not blanket-silence genuine shimmers — a
     // committed dict read as a list still fires.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
@@ -3668,8 +3615,8 @@ fn element_tracking_committed_lindex_retrieval_is_silent() {
 
 #[test]
 fn union_lattice_three_way_merge_reports_every_type() {
-    // P2: a three-way differently-typed merge stays a tracked union
-    // (previously OVERDEFINED and silent); the phi message names every
+    // P2: a three-way differently-typed merge stays a tracked union rather
+    // than collapsing to a silent OVERDEFINED; the phi message names every
     // member.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
@@ -3848,9 +3795,9 @@ fn w214_two_unused_params_get_separate_tight_ranges() {
 
 #[test]
 fn w214_nested_proc_names_its_defining_namespace_and_anchors_on_the_param() {
-    // Issue #1077. `proc a::outer` runs its body in `::a` (the namespace it is
+    // `proc a::outer` runs its body in `::a` (the namespace it is
     // *defined* in), so the `proc helper` it executes creates `::a::helper` —
-    // NOT the lexical `::helper`. Oracle, identical on tclsh 9.0.4 / 8.6.16:
+    // NOT the lexical `::helper`. tclsh 9.0.4 / 8.6.16 agree:
     //
     //   namespace eval ::a {}
     //   proc a::outer {} { proc helper {x} {return $x} ; return [namespace current] }
@@ -3858,11 +3805,11 @@ fn w214_nested_proc_names_its_defining_namespace_and_anchors_on_the_param() {
     //   info commands ::helper    ;# -> {}
     //   info commands ::a::helper ;# -> ::a::helper
     //
-    // Before the fix, lowering homed `helper` lexically to `::helper`; the
-    // reported FQN was wrong AND — because the per-parameter name-span lookup
-    // is keyed on that FQN against the analyser's `all_procs` (which already
-    // homed it correctly) — the lookup missed and the squiggle fell back to
-    // the whole `proc` definition. Both halves are asserted here.
+    // Lowering must home `helper` to `::a::helper`, not lexically to
+    // `::helper`, and the per-parameter name-span lookup (keyed on that FQN
+    // against the analyser's `all_procs`) must find it — otherwise the
+    // squiggle falls back to the whole `proc` definition. Both halves are
+    // asserted here.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src =
@@ -3917,14 +3864,15 @@ fn ordering_compare_string_vs_numeric_literal_stays_silent() {
 
 #[test]
 fn shimmer_fires_inside_tcloo_method_body() {
-    // TclOO method bodies previously got zero shimmer coverage (the
-    // compiler-checks aggregator only walked the top level and procedures).
-    // Exactly one, not two: `tcl-lsp-db::proc_taint_solve` (the live server's
-    // memoised path) has its own top-up loop for methods/body units,
-    // independent of `compiler_checks.rs`'s direct path — a regression where
-    // both the top-up loop *and* the main loop covered methods/body units
-    // would double-emit every shimmer diagnostic inside one. Rooted builtins
-    // make the shimmer independent of receiver-namespace command shadows.
+    // TclOO method bodies must get shimmer coverage (the compiler-checks
+    // aggregator walks method/body units, not just the top level and
+    // procedures). Exactly one, not two: `tcl-lsp-db::proc_taint_solve`
+    // (the live server's memoised path) has its own top-up loop for
+    // methods/body units, independent of `compiler_checks.rs`'s direct
+    // path — if both the top-up loop *and* the main loop covered
+    // methods/body units, every shimmer diagnostic inside one would be
+    // double-emitted. Rooted builtins make the shimmer independent of
+    // receiver-namespace command shadows.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "oo::class create C {\n    method m {} {\n        ::set x hello\n        ::incr x\n    }\n}\n";
@@ -4066,7 +4014,7 @@ fn shimmer_noqa_for_unrelated_code_does_not_suppress_s100() {
     );
 }
 
-// -- S103 (shared-value copy-on-write) ------------------------------------
+// S103 (shared-value copy-on-write).
 
 #[test]
 fn s103_fires_on_shared_copy_mutation_as_hint_with_tight_range() {
@@ -4149,7 +4097,7 @@ fn s103_noqa_suppresses_and_shimmer_toggle_disables() {
     );
 }
 
-// -- W003 (dialect-gated expr operators) ---------------------------------
+// W003 (dialect-gated expr operators).
 
 #[test]
 fn w003_tight_span_covers_only_the_operator() {
@@ -4201,8 +4149,8 @@ fn w003_message_cites_the_relevant_tip() {
 
 #[test]
 fn w003_eda_vendor_dialect_does_not_over_fire_on_in() {
-    // Regression: `xilinx-eda-tcl` is documented as running on top of a
-    // real Tcl 8.5 core, so TIP 201's `in` must not be flagged there.
+    // `xilinx-eda-tcl` is documented as running on top of a real Tcl 8.5
+    // core, so TIP 201's `in` must not be flagged there.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(&uri, "# tcl-dialect: xilinx-eda-tcl\nexpr {2 in {1 2 3}}\n");
@@ -4211,8 +4159,8 @@ fn w003_eda_vendor_dialect_does_not_over_fire_on_in() {
 
 #[test]
 fn w003_f5_tmsh_flags_string_relational_operators() {
-    // Regression: `f5-tmsh` used to have no `SpecSurface` bit at all, so
-    // W003 silently never fired for it.
+    // `f5-tmsh` needs its own `SpecSurface` bit for W003 to fire — without
+    // it, string relational operators go unflagged.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(&uri, "# tcl-dialect: f5-tmsh\nif {$a lt $b} { puts hi }\n");
@@ -4511,11 +4459,11 @@ fn irules_subcommands_named_like_banned_commands_are_clean_end_to_end() {
     );
 }
 
-// -- Issue #968: W123 false-positived on every built-in `expr` math
-// function (`sin(...)`, `max(...)`, ...) — `expr_function_call_records_a_
-// mathfunc_invocation` (commands.rs) already resolved the call to
-// `::tcl::mathfunc::<name>`, but the W123 pass never recognised that
-// qualified name unless a same-named user proc happened to shadow it.
+// Every built-in `expr` math function (`sin(...)`, `max(...)`, ...) must
+// not fire W123. `expr_function_call_records_a_mathfunc_invocation`
+// (commands.rs) resolves the call to `::tcl::mathfunc::<name>`; the W123
+// pass must recognise that qualified name even when no same-named user
+// proc shadows it.
 
 #[test]
 fn issue_968_builtin_expr_math_functions_are_clean_end_to_end() {
@@ -4584,9 +4532,9 @@ fn issue_968_version_gated_math_function_dual_fires_end_to_end() {
     );
 }
 
-/// Issue #923 idx 103 — the **plain-command** spelling of a math function,
-/// `tcl::mathfunc::isinf`, which is a real, directly-callable, version-gated
-/// command and not only an `expr` production. The registry now carries it, so
+/// The **plain-command** spelling of a math function,
+/// `tcl::mathfunc::isinf`, is a real, directly-callable, version-gated
+/// command and not only an `expr` production. The registry carries it, so
 /// the generic per-dispatch-site availability check fires for free; this pins
 /// that it really reaches the wire, which the registry-level unit test
 /// (`mathfunc_command_spellings_are_registered_and_gated`) cannot show.
@@ -4641,7 +4589,7 @@ fn issue_923_idx103_plain_command_mathfunc_is_dialect_gated_end_to_end() {
 
 /// The VS Code extension contributes *undotted* version-pinned language ids
 /// (`tcl84` … `tcl91`) — a dotted id cannot carry a `configurationDefaults`
-/// override (issue #1122). The server must resolve them to the same dialects
+/// override. The server must resolve them to the same dialects
 /// the dotted forms resolve to, while still accepting the dotted ids the other
 /// editor integrations send.
 #[test]
@@ -4709,17 +4657,15 @@ fn issue_968_user_defined_mathfunc_override_still_resolves_end_to_end() {
     );
 }
 
-/// idx 77 (differential-audit main audit wave, high severity, tomato
-/// corpus): `Vector3d.tcl`'s `method * {type}` reads `$other`, a variable
+/// `Vector3d.tcl`'s `method * {type}` reads `$other`, a variable
 /// belonging to a *sibling* method (`DotProduct {other}`), never bound in
-/// `*`'s own scope — tclsh8.6/9.0.4 both crash with `can't read "other": no
-/// such variable` the instant `*` runs on an object operand. The entire
+/// `*`'s own scope — tclsh 8.6/9.0.4 both crash with `can't read "other":
+/// no such variable` the instant `*` runs on an object operand. The entire
 /// CFG/SSA dataflow diagnostic family (W210 read-before-set and its
-/// siblings) previously never ran on any `TclOO`/snit method body at all —
-/// a systemic false-negative gap, not a one-off miss — because the
-/// per-function diagnostic loop only ever iterated `cu.procedures`, never
-/// `cu.methods`. The identical unbound-read shape inside a plain `proc`
-/// already fired W210.
+/// siblings) must run on every `TclOO`/snit method body, not just plain
+/// `proc` bodies — the per-function diagnostic loop must iterate
+/// `cu.methods` as well as `cu.procedures`. The identical unbound-read
+/// shape inside a plain `proc` already fires W210.
 #[test]
 fn method_body_unbound_sibling_parameter_read_flags_w210_end_to_end() {
     let mut lsp = Lsp::tcl();
@@ -4735,8 +4681,8 @@ fn method_body_unbound_sibling_parameter_read_flags_w210_end_to_end() {
     );
 }
 
-/// FP guard (issue #923 idx 77): the fix must not flood false W210s on
-/// ordinary instance-variable reads or a method's own parameters —
+/// FP guard: the check must not flood false W210s on ordinary
+/// instance-variable reads or a method's own parameters —
 /// `TclOO` auto-binds class-level `variable` declarations in every
 /// method's scope with no visible `variable` statement in the body itself.
 #[test]
@@ -4754,12 +4700,12 @@ fn method_body_instance_variable_and_own_parameter_reads_stay_clean_end_to_end()
     );
 }
 
-/// idx 90 (differential-audit main audit wave, high severity): `tcl::OptProc`
-/// (the `opt` package's automatic-option-parsing proc definer) had no
-/// `AnalyserHookId` at all, so `all_procs` kept the stub's `{}`-arity
-/// `ProcDef` — every real call falsely drew "wrong number of arguments"
-/// (E003). tclsh9.0/8.6-verified: the runtime always installs
-/// `::proc $name args {...}`, so any call arity is legitimate.
+/// `tcl::OptProc` (the `opt` package's automatic-option-parsing proc
+/// definer) needs its own `AnalyserHookId` — without one, `all_procs`
+/// keeps the stub's `{}`-arity `ProcDef` and every real call falsely draws
+/// "wrong number of arguments" (E003). tclsh 9.0/8.6 confirm the runtime
+/// always installs `::proc $name args {...}`, so any call arity is
+/// legitimate.
 #[test]
 fn opt_proc_real_call_draws_no_false_arity_diagnostic_end_to_end() {
     let mut lsp = Lsp::tcl();
@@ -4775,7 +4721,7 @@ fn opt_proc_real_call_draws_no_false_arity_diagnostic_end_to_end() {
     );
 }
 
-/// Issue #988: a direct call into a private `::tcl::` implementation
+/// A direct call into a private `::tcl::` implementation
 /// namespace is flagged W143 with a concrete public-command suggestion.
 #[test]
 fn direct_private_tcl_namespace_call_is_w143_with_suggestion() {
@@ -4860,10 +4806,9 @@ fn own_proc_in_a_private_namespace_is_not_w143() {
     );
 }
 
-// Issue #1172 — lowering's OO extraction is driven by the registry definer
-// grammars, so `oo::objdefine`, snit, and itcl method bodies are analysed
-// end to end (they previously produced no method unit and therefore no
-// diagnostics of any kind).
+// Lowering's OO extraction is driven by the registry definer grammars, so
+// `oo::objdefine`, snit, and itcl method bodies must be analysed end to
+// end and produce diagnostics like any other method body.
 
 /// TP: an unbound read inside an `oo::objdefine` method body reaches the
 /// client as W210.
@@ -4908,8 +4853,8 @@ fn objdefine_per_object_variable_read_publishes_no_w210() {
     );
 }
 
-// Issue #1170 — W315 covers `oo::objdefine` bodies, judged against the
-// binding's cross-block per-object member state.
+// W315 covers `oo::objdefine` bodies, judged against the binding's
+// cross-block per-object member state.
 
 /// TP: a per-object retraction of a member nothing declares per-object
 /// aborts the object definition in real Tcl (`method ghost does not exist`,
@@ -4998,8 +4943,7 @@ fn itcl_method_bodies_are_analysed_end_to_end() {
     );
 }
 
-// -- Caller-frame injection through `upvar` / `uplevel` (issue #923 audit
-//    cluster C1 — idx 7, 38, 57, 59; issue #1019) --
+// Caller-frame injection through `upvar` / `uplevel`.
 //
 // The compiler-unit twins live in `tcl-compiler/tests/caller_frame_effects.rs`.
 // These pin the same facts through the **live server**, whose incremental
@@ -5007,10 +4951,10 @@ fn itcl_method_bodies_are_analysed_end_to_end() {
 // tests drive — a regression confined to the diagnostic-publishing pipeline
 // would be invisible to them.
 
-/// idx 57 — the ticklecharts `setdef` / `estruct` out-parameter shape:
-/// `upvar 1 $name local` plus a write through the alias, called with a
-/// literal name.  tclsh 9.0.4 / 8.6.16: `things::estruct itemLegend1 tree1`
-/// leaves `itemLegend1` set in the caller.
+/// The `setdef` / `estruct` out-parameter shape: `upvar 1 $name local`
+/// plus a write through the alias, called with a literal name. tclsh
+/// 9.0.4 / 8.6.16: `things::estruct itemLegend1 tree1` leaves
+/// `itemLegend1` set in the caller.
 #[test]
 fn an_upvar_out_parameter_draws_no_false_read_before_set_end_to_end() {
     let mut lsp = Lsp::tcl();
@@ -5046,8 +4990,8 @@ fn an_unrelated_local_still_draws_read_before_set_end_to_end() {
     );
 }
 
-/// idx 7 — `argparse` injects caller-frame locals from its own definition
-/// list, none of which the proc's own text assigns.  tclsh 9.0.4 / 8.6.16
+/// `argparse` injects caller-frame locals from its own definition
+/// list, none of which the proc's own text assigns. tclsh 9.0.4 / 8.6.16
 /// (argparse 0.5): `upvarProc p 1 2` prints `a=… b=1 c=2`.
 #[test]
 fn argparse_injected_locals_draw_no_false_read_before_set_end_to_end() {
@@ -5064,7 +5008,7 @@ fn argparse_injected_locals_draw_no_false_read_before_set_end_to_end() {
     );
 }
 
-/// idx 59 — the **cross-file** half, in the layout it was mined from:
+/// The **cross-file** half:
 /// `setdef` lives in `utils.tcl`, the caller in `options.tcl`, and only a
 /// `pkgIndex.tcl` ties them together, so the caller's compilation unit
 /// holds no definition of `setdef` at all.  tclsh 9.0.4 / 8.6.16 running
@@ -5122,17 +5066,17 @@ fn a_cross_file_upvar_helper_draws_no_false_read_before_set_end_to_end() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-/// idx 99 — the deliberate `tcl::OptProc` arity trade-off, pinned as a
-/// choice rather than left to look like an oversight.
+/// The `tcl::OptProc` arity trade-off is a deliberate choice, not an
+/// oversight.
 ///
 /// The definer installs `::proc $name args {…}` at run time, so the
 /// declared optlist says nothing about how many *positional* arguments a
 /// call may pass; C Tcl enforces it from the parsed optlist at call time,
-/// which is a runtime fact this analysis does not model.  tclsh 9.0.4 /
-/// 8.6.16 do raise `too many arguments` for the overflow below — and we
-/// deliberately stay silent about it, because the only alternative on
-/// offer was the false E003 the audit found on *legitimate* calls.  Both
-/// halves are asserted so the asymmetry cannot drift unnoticed.
+/// which is a runtime fact this analysis does not model. tclsh 9.0.4 /
+/// 8.6.16 do raise `too many arguments` for the overflow below — and this
+/// analysis deliberately stays silent about it, because the only
+/// alternative was a false E003 on legitimate calls. Both halves are
+/// asserted so the asymmetry cannot drift unnoticed.
 #[test]
 fn opt_proc_arity_is_deliberately_unchecked_in_both_directions_end_to_end() {
     let mut lsp = Lsp::tcl();
@@ -5161,7 +5105,7 @@ fn opt_proc_arity_is_deliberately_unchecked_in_both_directions_end_to_end() {
     );
 }
 
-/// idx 5 (differential-audit): `rename OLD NEW` must validate that `OLD`
+/// `rename OLD NEW` must validate that `OLD`
 /// resolves to a known command.
 ///
 /// tclsh 9.0.4 and 8.6.16 both abort the script:
@@ -5220,7 +5164,7 @@ fn w123_rename_of_an_existing_command_is_silent() {
     );
 }
 
-/// idx 24 (differential-audit): a variable assigned indirectly through
+/// A variable assigned indirectly through
 /// `uplevel` in an outer frame is not read-before-set, however many ordinary
 /// call frames sit between the writer and the frame it writes.
 ///
@@ -5244,8 +5188,7 @@ fn w210_not_published_for_a_multi_frame_uplevel_assignment() {
 }
 
 /// The one-hop spellings of the same idiom, both `[list …]`-built and
-/// word-concatenated. Silent before the multi-frame fix, pinned here because
-/// nothing else did.
+/// word-concatenated, must also stay silent.
 #[test]
 fn w210_not_published_for_a_single_hop_uplevel_assignment() {
     for body in [
@@ -5287,7 +5230,7 @@ fn w210_still_published_when_nothing_writes_the_outer_frame() {
     );
 }
 
-/// idx 24, second half: W212 must not read the literal word `set` inside a
+/// W212 must not read the literal word `set` inside a
 /// `[list …]`-built script as a directly-written `set $var` confusion — the
 /// substitution happens in the building frame and is the idiom itself.
 #[test]
@@ -5316,7 +5259,7 @@ fn w212_still_published_for_a_directly_written_name_word() {
     );
 }
 
-/// idx 38 (differential-audit): the canonical caller-frame-injection idiom
+/// The canonical caller-frame-injection idiom
 /// the `tclopt` corpus is built from — a `[list set $varName $value]` built
 /// inside a `foreach`, with both words substituted.
 ///

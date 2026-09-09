@@ -25,7 +25,7 @@ use tcl_lexer::Span;
 use crate::ty::{ByteOrder, Ty, Width};
 
 /// The reserved return value a handler yields for the `next` outcome — the
-/// explicit, non-terminal continuation of handler composition (issue #1204).
+/// explicit, non-terminal continuation of handler composition.
 ///
 /// It is the 32-bit all-ones sentinel (`-1` as a signed 32-bit action), a value
 /// no real verdict uses: socket-filter accept counts are non-negative byte

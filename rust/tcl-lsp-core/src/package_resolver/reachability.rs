@@ -36,7 +36,7 @@
 //!
 //! That is the head of 95 of tcllib 2.0's own `pkgIndex.tcl` files.  Reading
 //! the `package ifneeded` without the guard claims `log` is available on Tcl
-//! 8.4, where `package require log` really fails (issue #1017).
+//! 8.4, where `package require log` really fails.
 //!
 //! **Branch selection.**  The declaration lives *inside* a branch:
 //!
@@ -51,7 +51,7 @@
 //! That is the standard TEA shape for picking a Tcl-8 or Tcl-9 shared
 //! library.  Reading only *top-level* commands misses it entirely and the
 //! package looks nonexistent, so its commands draw a false "unknown command"
-//! (issue #923 idx 42) — the same mechanism, the opposite error.
+//! — the same mechanism, the opposite error.
 //!
 //! # What this module models
 //!

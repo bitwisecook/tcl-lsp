@@ -37,8 +37,9 @@
 //!   `runtime/rust/src/bignum.rs`);
 //! - the **compiler's const-folder** implements it over `num-bigint`
 //!   (`tcl_compiler::tcl_expr_eval`);
-//! - the **VM** (`tcl_vm::expr`) is the same `num-bigint` shape and is the
-//!   next planned adopter.
+//! - the **VM** (`tcl_vm::expr`) drives the same `num-bigint` shape from its
+//!   bignum tier, hand-rolling only the `i128` fast tier the orphan rule keeps
+//!   out of [`BigIntOps`].
 //!
 //! Because every operation here takes and returns backend values (never a
 //! second bignum representation), swapping libtommath for a pure-Rust
@@ -391,7 +392,7 @@ pub mod conformance {
 }
 
 /// The `num-bigint` backend adapter (feature `num-bigint`) — shared by the
-/// pure-Rust adopters (the compiler's const-folder today, the VM next). The
+/// pure-Rust adopters (the compiler's const-folder and the VM). The
 /// faithful runtime implements [`BigIntOps`] over the real libtommath
 /// `mp_int` instead; both backends run these identical semantics.
 #[cfg(feature = "num-bigint")]

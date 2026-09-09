@@ -18,14 +18,13 @@
 
 //! `tclpkg.tcl` manifest loader.
 //!
-//! The manifest is a tiny Tcl
-//! file evaluated under a whitelist of 13 directives; any other command is
-//! refused with `command not permitted in safe mode: <cmd>`, as in a
-//! safe Tcl interpreter. Because manifests are
-//! pure data (no variable/command substitution), the script is parsed
-//! into commands and words using Tcl grouping rules (braces, quotes,
-//! backslash, comments, semicolons) and dispatches each directive directly —
-//! no VM required.
+//! The manifest is a tiny Tcl file evaluated under a whitelist of 14
+//! directives; any other command is refused with `command not permitted in
+//! safe mode: <cmd>`, as in a safe Tcl interpreter. Because manifests are pure
+//! data (no variable/command substitution), the script is parsed into
+//! commands and words using Tcl grouping rules (braces, quotes, backslash,
+//! comments, semicolons) and dispatches each directive directly — no VM
+//! required.
 
 use std::path::Path;
 use std::sync::LazyLock;

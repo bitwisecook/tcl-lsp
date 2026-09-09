@@ -390,9 +390,8 @@ fn invert_comparison_flips_relational_operator() {
 
 #[test]
 fn invert_comparison_flips_tip461_string_ordering_operator() {
-    // Issue #983/#986: the hand-typed inversion list never included the
-    // 9.0+ `lt`/`le`/`gt`/`ge` word-form comparisons at all, so this quick
-    // fix silently never offered itself for one of them.
+    // An inversion list that omits the 9.0+ `lt`/`le`/`gt`/`ge` word-form
+    // comparisons never offers this quick fix for one of them.
     //
     // tclsh 9.0: `$a lt $b` ≡ `!($a ge $b)` for any string pair (a total
     // order, same identity as the numeric/`<=` case above).
@@ -475,9 +474,9 @@ fn demorgan_reverse_collapses_disjunction_of_negations() {
 
 #[test]
 fn demorgan_forward_recognises_irules_word_operators() {
-    // Adversarial-review finding: `demorgan_transform` only recognised the
-    // symbolic `&&`/`||`/`!` forms, so it silently never offered the rewrite
-    // for a selection written in iRules' word style — `!($a and $b)` (the
+    // Recognising only the symbolic `&&`/`||`/`!` forms would never offer
+    // the rewrite for a selection written in iRules' word style — `!($a and
+    // $b)` (the
     // same shape `demorgan_reverse_collapses_disjunction_of_negations`
     // above exercises symbolically) got no "Apply De Morgan's law" action
     // at all, an inconsistent gap given the sibling `invert_comparison` fix
@@ -619,7 +618,7 @@ fn inline_declines_control_flow_body() {
     // A proc whose body is a control-flow command (`return`) is NOT inlinable:
     // `return` acts on the call frame, so running it in the caller's frame
     // would return from the *caller*.  The action is surfaced greyed out with
-    // that reason rather than silently omitted (issue #1199), so a user can
+    // that reason rather than silently omitted, so a user can
     // tell "cannot be done here" from "is broken".
     let src = "proc f {} { return 1 }\nf\n";
     let analysis = analyse(src);
@@ -649,12 +648,12 @@ fn inline_declines_multi_command_body() {
     assert!(inline.edits.is_empty(), "a refusal carries no edits");
 }
 
-// FIXED: inline_proc_action no longer brace-truncates a body with a braced
-// sub-expression. It previously sliced the body with `proc_def.body_span` —
-// whose `.end()` excludes the proc's closing `}` (lexer inner-end convention) —
-// then `.trim_end_matches('}')` greedily ate the INNER expr brace, so
-// `proc double {n} { expr {$n * 2} }` inlined `double 5` to `expr {5 * 2`
-// (unparseable). It now strips a trailing `}` only when it is the unbalanced
+// `inline_proc_action` must not brace-truncate a body with a braced
+// sub-expression. Slicing the body with `proc_def.body_span` — whose `.end()`
+// excludes the proc's closing `}` (lexer inner-end convention) — and then
+// `.trim_end_matches('}')` greedily eats the INNER expr brace, so
+// `proc double {n} { expr {$n * 2} }` inlines `double 5` to `expr {5 * 2`
+// (unparseable). It strips a trailing `}` only when it is the unbalanced
 // outer brace, preserving the inner sub-expression brace.
 //
 // Proven on tclsh8.6 + tclsh9.0: info complete {expr {5 * 2}} -> 1 (complete);

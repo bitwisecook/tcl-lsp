@@ -18,9 +18,9 @@
 
 //! Byte-range spans threaded through the whole compiler.
 //!
-//! Every positional entity — [`Token`], future IR nodes, future CFG
-//! nodes, future diagnostics — carries a [`Span`] pointing into the
-//! source buffer. Text and `(line, character, offset)` positions are
+//! Every positional entity — [`Token`], IR nodes, CFG nodes,
+//! diagnostics — carries a [`Span`] pointing into the source
+//! buffer. Text and `(line, character, offset)` positions are
 //! resolved on demand via a [`SourceMap`] rather than being stored
 //! inline on every entity. This mirrors the design used by
 //! rust-analyzer (`TextRange`), tree-sitter (`Range`), and swc

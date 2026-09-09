@@ -16,9 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Oracle-pinned regression coverage for the r4-parser-gaps lane
-//! (#1576, #1586, #1577) and the two lenient cases r10-word-parts closed on
-//! top of it (`missing "`, `missing close-bracket`). Every expected
+//! Oracle-pinned regression coverage for parser edge cases around word
+//! delimiters and array-element writes, plus two lenient cases
+//! (`missing "`, `missing close-bracket`). Every expected
 //! message/errorCode/value below was taken verbatim from `tclsh9.0` (9.0.4)
 //! and/or `tclsh8.6` (8.6.16); a reader can paste the sheet into a real
 //! `tclsh` and re-derive the expectation without this harness.
@@ -42,12 +42,10 @@ fn run(sheet: &str) -> (Code, String, String) {
     (code, result, error_code)
 }
 
-// ---------------------------------------------------------------------------
-// #1576 — an unterminated `{` word must raise `missing close-brace`, not
-// tokenize best-effort. Oracle: tclsh 8.6.16/9.0.4 both raise `missing
-// close-brace` with `-errorcode NONE` for every repro in the issue (`list`,
+// An unterminated `{` word must raise `missing close-brace`, not
+// tokenise best-effort. Oracle: tclsh 8.6.16/9.0.4 both raise `missing
+// close-brace` with `-errorcode NONE` for each of these constructs (`list`,
 // `set`, `string length`).
-// ---------------------------------------------------------------------------
 
 #[test]
 fn unterminated_brace_word_raises_missing_close_brace() {
@@ -72,8 +70,7 @@ fn unterminated_brace_word_raises_for_string_length_too() {
 }
 
 /// A properly closed braced word — including one glued to a second braced
-/// word (`{*}{b c}`, no unterminated construct) — is unaffected by the
-/// #1576 fix.
+/// word (`{*}{b c}`, no unterminated construct) — parses without error.
 #[test]
 fn well_formed_braced_words_still_parse() {
     let (code, result, _) = run("list a {hello world} c");
@@ -85,15 +82,13 @@ fn well_formed_braced_words_still_parse() {
     assert_eq!(result, "a b c d");
 }
 
-// ---------------------------------------------------------------------------
-// #1586 — an unterminated `${` inside a script word (or a script word nested
+// An unterminated `${` inside a script word (or a script word nested
 // in a command substitution) must raise `missing close-brace for variable
 // name`, the same message `subst` already raises for the identical
 // construct — not the lenient lexer recovery's `${a{` == name `a{` reading
 // (which then fails downstream as `can't read "a{"`). Oracle: tclsh
 // 8.6.16/9.0.4 both raise `missing close-brace for variable name` with
 // `-errorcode NONE`.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn unterminated_braced_var_in_a_script_word_raises_missing_close_brace_for_var() {
@@ -113,7 +108,7 @@ fn unterminated_braced_var_nested_in_a_command_subst_raises_the_same_error() {
     // `t`'s value is the 14-byte string `[set y ${a{b]` — built through
     // `format` rather than a literal `{...}` word, since its raw text has
     // two unmatched `{` and would itself be an unterminated *outer* brace
-    // word (this file's own #1576 sibling gap, not what this test targets).
+    // word (a different case from the one this test targets).
     let (code, result, _) = run(r#"set t [format {[set y $%sa%sb]} "{" "{"]
 subst $t"#);
     assert_eq!(code, Code::Error);
@@ -121,7 +116,7 @@ subst $t"#);
 }
 
 /// A well-formed `${name}` (including one immediately followed by more
-/// substitution) is unaffected by the #1586 fix.
+/// substitution) substitutes without error.
 #[test]
 fn well_formed_braced_var_still_substitutes() {
     let (code, result, _) = run("set a hi\nsubst {x${a}y}");
@@ -129,14 +124,12 @@ fn well_formed_braced_var_still_substitutes() {
     assert_eq!(result, "xhiy");
 }
 
-// ---------------------------------------------------------------------------
-// #1577 — `lassign`, `catch` (result/options vars), `regexp` match vars,
+// `lassign`, `catch` (result/options vars), `regexp` match vars,
 // `scan`, `binary scan`, and `foreach`/`lmap` loop vars must write `arr(a)`
 // as the array *element*, like `set` already does, not as a literal scalar
 // named `arr(a)`. Oracle: tclsh 8.6.16/9.0.4 all agree `array get arr` comes
 // back `a p b q` (etc.) after each of these commands targets `arr(a)`/
 // `arr(b)`.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn lassign_writes_array_elements() {
@@ -198,9 +191,8 @@ fn lmap_writes_loop_var_as_array_element_too() {
 
 /// The zero-length-array-name spelling `(k)` — base name `""` — routes
 /// through the same `split_array_ref` owner as every other element write, so
-/// it comes along for free (tracked separately as #1458 for whether the
-/// *owner itself* handles every edge of that spelling; this only pins that
-/// these six sites don't bypass it).
+/// it comes along for free; this pins only that these six sites don't
+/// bypass that owner.
 #[test]
 fn zero_length_array_name_spelling_routes_through_the_same_owner() {
     let (code, result, _) = run("lassign {v} (k)\narray get {}");
@@ -208,9 +200,8 @@ fn zero_length_array_name_spelling_routes_through_the_same_owner() {
     assert_eq!(result, "k v");
 }
 
-// ---------------------------------------------------------------------------
 // R10 — the two cases R4 left lenient. Both are word-delimiter failures the
-// lexer recovers from (it is shared with the LSP and must keep tokenizing
+// lexer recovers from (it is shared with the LSP and must keep tokenising
 // half-typed source), so the eval-facing parser is the one that must fail
 // closed. Before the shared `tcl_lexer::word_parts` owner landed, this
 // runtime read `list a "b` as the two-word list `a b` and evaluated the `b`
@@ -219,7 +210,6 @@ fn zero_length_array_name_spelling_routes_through_the_same_owner() {
 // Oracle (both interpreters):
 //   % eval {list a "b}    => missing "                -errorcode NONE
 //   % eval {list a [b}    => missing close-bracket    -errorcode NONE
-// ---------------------------------------------------------------------------
 
 #[test]
 fn unterminated_quoted_word_raises_missing_quote() {
@@ -260,8 +250,8 @@ fn subst_reports_the_missing_bracket_after_running_the_earlier_one() {
 }
 
 /// An unterminated `$name(` array index is C's `missing )` — the third
-/// delimiter failure the same owner now spells, previously read as a scalar
-/// literally named `x(`.
+/// delimiter failure the same owner spells, rather than being read as a
+/// scalar literally named `x(`.
 ///
 /// Oracle: `eval {list a $x(}` and `subst {$x(}` both give `missing )`.
 #[test]
@@ -295,13 +285,10 @@ fn well_formed_quoted_and_bracketed_words_still_parse() {
     }
 }
 
-// ---------------------------------------------------------------------------
-// r5b-leftovers follow-up — `regsub`'s target variable has the identical
-// #1577 shape (flagged, not fixed, by r4-parser-gaps): `arr(k)` must write
+// `regsub`'s target variable has the identical shape: `arr(k)` must write
 // the array *element*, not a literal scalar named `arr(k)`. Oracle: tclsh
 // 8.6.16/9.0.4 both give `array get arr` => `k xbx` after `regsub -all a $s
 // b arr(k)` on `s = xax`.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn regsub_writes_its_target_variable_as_an_array_element() {
@@ -310,13 +297,13 @@ fn regsub_writes_its_target_variable_as_an_array_element() {
     assert_eq!(result, "k xbx");
 }
 
-// ---------------------------------------------------------------------------
-// #1786 — text welded straight onto a `{…}` word's close-brace. The boundary
-// question moved to `tcl_lexer::script::group_commands`, which records the
+// Text welded straight onto a `{…}` word's close-brace. The boundary
+// question is `tcl_lexer::script::group_commands`'s, which records the
 // weld as `WordSpan::welded_after_close`; this eval-facing engine turns it
-// into C's hard error, closing a gap both Rust groupers had (and disagreed
-// about: this crate welded `{a}` and `$b` into one `Bare` word, the compiler's
-// segmenter split them into two, and C accepts neither).
+// into C's hard error. Without that, this crate and the compiler's
+// segmenter could disagree on the same input — this crate reading `{a}$b`
+// as one welded `Bare` word, the segmenter splitting it into two — even
+// though C accepts neither.
 //
 // Oracle, measured on tclsh 8.4.20 / 8.5.19 / 8.6.16 / 9.0.4 / 9.1b0 — every
 // row identical on every release:
@@ -330,16 +317,14 @@ fn regsub_writes_its_target_variable_as_an_array_element() {
 // already run, since `Tcl_EvalEx` parses one command at a time — pinned below
 // by `sfx pre`.
 //
-// The ordering nuance this header once recorded as pending — C parses every
-// word of a command before substituting any, so `list [side] {a}b` never runs
-// `side` — is closed by #1787 and pinned below by
+// C parses every word of a command before substituting any, so `list [side]
+// {a}b` never runs `side` — pinned below by
 // `a_command_parses_whole_before_any_of_its_words_substitute`.
 //
 // Not welded, and still accepted (measured the same on 8.6.16 / 9.0.4):
 // `a{b}c`, `x{a}y`, `$a{b}c`, `[b]{c}d` — a `{` away from word start is an
 // ordinary literal byte, and the lexer never emits a `Str` token for it — and
 // `{a} {b}` / `list a {*}{b c} d`, which have a real separator between them.
-// ---------------------------------------------------------------------------
 
 /// Every welded shape raises C's message, with `-errorcode NONE`.
 #[test]
@@ -411,8 +396,7 @@ fn a_brace_away_from_word_start_or_after_a_separator_is_not_a_weld() {
     }
 }
 
-// ---------------------------------------------------------------------------
-// #1787 — C's script-parsing ORDER. `Tcl_EvalEx` parses one whole command
+// C's script-parsing ORDER. `Tcl_EvalEx` parses one whole command
 // (`Tcl_ParseCommand`, every word of it) and only then substitutes and
 // dispatches, so a parse failure anywhere in a command is the *command's*
 // failure: nothing that command would have substituted runs, however early in
@@ -421,10 +405,10 @@ fn a_brace_away_from_word_start_or_after_a_separator_is_not_a_weld() {
 // inside a later bracket also stops an earlier bracket — and stops the earlier
 // commands *inside* the failing bracket too.
 //
-// Property (1) of the same issue — earlier commands of the script have already
-// run — this engine has had since it was written (`parse.rs`'s `next`-offset
-// `Command` and the per-command loop in `interp.rs`); every row below pins it
-// as well, through the `sfx pre` that always shows up in `ran`.
+// Property (1) — earlier commands of the script have already run — holds
+// through `parse.rs`'s `next`-offset `Command` and the per-command loop in
+// `interp.rs`; every row below pins it as well, through the `sfx pre` that
+// always shows up in `ran`.
 //
 // Oracle: `PARSE_ORDER_SHEET` below, saved to a file and run as
 // `tclsh sheet.tcl` (FROM A FILE — a stdin-fed tclsh swallows the error text)
@@ -433,7 +417,6 @@ fn a_brace_away_from_word_start_or_after_a_separator_is_not_a_weld() {
 // harness. The sheet builds its `${abc` rows with `format` because a sheet that
 // spelled `${` inside a braced `catch`/`probe` word would itself be an
 // unbalanced brace group.
-// ---------------------------------------------------------------------------
 
 /// The oracle sheet, verbatim. `$ob` is a literal `{`.
 const PARSE_ORDER_SHEET: &str = r#"set ob "\173"
@@ -512,15 +495,13 @@ fn subst_is_not_a_command_parse_and_still_runs_the_earlier_bracket() {
     assert_eq!(result, "1 {missing close-bracket}");
 }
 
-// ---------------------------------------------------------------------------
 // A `$` that starts no variable reference is the text `$`, not an unterminated
-// brace (#1787). C reads it as `justADollarSign` and keeps parsing
-// (`Tcl_ParseVarName` form 3, tmp/tcl9.0.4/generic/tclParse.c:1454); this
-// parser classified it as a brace-delimited fragment, because `Str` is the
-// lexer's literal-fragment class and not its brace class, and raised `missing
-// close-brace` for ordinary source. Oracle: every row below is the plain text
-// on 8.4.20, 8.5.19, 8.6.16, 9.0.4 and 9.1b0.
-// ---------------------------------------------------------------------------
+// brace. C reads it as `justADollarSign` and keeps parsing
+// (`Tcl_ParseVarName` form 3, tmp/tcl9.0.4/generic/tclParse.c:1454); a parser
+// that classified it as a brace-delimited fragment — treating `Str` as its
+// brace class rather than its literal-fragment class — would instead raise
+// `missing close-brace` for ordinary source. Oracle: every row below is the
+// plain text on 8.4.20, 8.5.19, 8.6.16, 9.0.4 and 9.1b0.
 
 /// `$` alone, `$` before punctuation, `$` before a space, `$` at end of a
 /// word — bare and quoted, since the two take different paths through
@@ -602,13 +583,12 @@ fn a_brace_that_really_is_one_still_raises() {
     assert_eq!((code, result.as_str()), (Code::Ok, "x{a}{b"));
 }
 
-// ---------------------------------------------------------------------------
-// #1828 — text welded straight onto a `"…"` word's close-quote, the sibling of
-// the #1786 close-brace weld above. The boundary owner records it as
+// Text welded straight onto a `"…"` word's close-quote, the sibling of
+// the close-brace weld above. The boundary owner records it as
 // `WordSpan::welded_after_close_quote`; this eval-facing engine turns it into
-// C's hard error. It was the one shape `tests/parse_cut_agreement.rs` had to
-// pin as a known divergence: `tcl_lexer::first_parse_cut` already reported it,
-// and this crate concatenated `"a"b` to `ab`.
+// C's hard error. This is the one shape `tests/parse_cut_agreement.rs` pins:
+// `tcl_lexer::first_parse_cut` reports it from source, and concatenating
+// `"a"b` to `ab` instead would be the divergence.
 //
 // Oracle, measured on tclsh 8.4.20 / 8.5.19 / 8.6.16 / 9.0.4 / 9.1b0, one
 // script per file — every row identical on every release:
@@ -628,7 +608,6 @@ fn a_brace_that_really_is_one_still_raises() {
 // closer; a `"` inside a bare word (`a"b"c`) is literal; a separator or a
 // backslash-newline after the `"` starts a new word; an empty `""` on its own
 // is the empty string.
-// ---------------------------------------------------------------------------
 
 /// Every welded shape raises C's message, with `-errorcode NONE`.
 #[test]

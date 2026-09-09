@@ -65,12 +65,10 @@ use core::cmp::Ordering;
 use tcl_syntax::expr::mathfunc::{Num, dispatch};
 use tcl_syntax::expr::{BinOp, ExprNode, ExprOps, NumericCompare, UnaryOp, eval, parse_expr};
 
-// Part A — `mathfunc::dispatch` directly.
-//
 // `dispatch(name, &[Num]) -> Option<Num>` is the public math-function seam.
 // The parse-only ports never call it, and the in-source unit tests touch only
-// a subset of the function table; here we hit every branch family and pin each
-// result to tclsh.
+// a subset of the function table; the tests below hit every branch family and
+// pin each result to tclsh.
 
 /// Float equality with a tolerance, for transcendental results whose last bit
 /// is platform-libm-dependent.
@@ -321,7 +319,7 @@ fn num_as_f64_widens_int_rung() {
     assert_eq!(Num::Float(2.5).as_f64().to_bits(), 2.5_f64.to_bits());
 }
 
-// Part B — the shared `eval` walker driven by a real `ExprOps`.
+// The shared `eval` walker, driven by a real `ExprOps`.
 //
 // `Tower` is a full numeric evaluator over `mathfunc::Num`: literals parse to
 // Int/Float, `$var` reads a small fixed environment, `[cmd]` is stubbed, and

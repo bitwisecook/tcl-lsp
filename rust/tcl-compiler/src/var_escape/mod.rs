@@ -26,7 +26,7 @@
 //! Components:
 //!
 //! * [`types`]: vocabulary + summary types.
-//! * [`cfg_propagation`]: intra-procedural rule audit and
+//! * [`cfg_propagation`]: intra-procedural rule application and
 //!   flow-sensitive SSA-version propagation.
 //! * [`info_subcommands`]: which `info` subcommands
 //!   force pessimism.

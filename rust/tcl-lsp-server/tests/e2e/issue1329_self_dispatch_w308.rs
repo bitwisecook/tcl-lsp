@@ -16,19 +16,19 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Issue #1329 — bareword `my <method>` is a dispatch site, and issue #1330
-//! — the ranges every `CmdCommandSite`-anchored diagnostic reports.
+//! Bareword `my <method>` is a dispatch site, and every
+//! `CmdCommandSite`-anchored diagnostic must report the correct range.
 //!
-//! Both are span-and-wire tests on purpose. #1329's diagnostic did not exist
-//! at all before the fix, so "it fires" is a real assertion; #1330's *did*
-//! fire and only its `range` was wrong, so a test that merely checked for
-//! the code would have passed against the bug. Every assertion here pins the
+//! Both are span-and-wire tests on purpose: whether the bareword-dispatch
+//! diagnostic fires at all is a real assertion, not just a smoke check, and
+//! a diagnostic that already fires but reports the wrong `range` would pass
+//! a test that merely checked for the code. Every assertion here pins the
 //! exact `range` the editor receives.
 
 use crate::common::{Lsp, unique_uri};
 use serde_json::Value;
 
-/// The ticket's own repro (#1329), plus the two shapes that must stay
+/// The repro for bareword `my` dispatch, plus the two shapes that must stay
 /// silent beside it: a real method, and `my variable` — `oo::object`'s
 /// unexported member, which only `my` can reach.
 const SRC_1329: &str = "\
@@ -44,7 +44,7 @@ oo::class create test {
 ";
 
 /// A `[cmd] method` dispatch inside a proc body — the shape whose W308 the
-/// incremental path reported at the *body fragment's* offsets (#1330).
+/// incremental path must not report at the *body fragment's* own offsets.
 const SRC_1330: &str = "\
 oo::class create Dog {
     method bark {} { return {} }
@@ -73,7 +73,7 @@ fn diags_at(lsp: &mut Lsp, uri: &str, src: &str, code: &str) -> Vec<(u64, u64, u
         .collect()
 }
 
-/// TP (#1329) — `my nosuchmethod` draws exactly one W308, on the wire, and
+/// TP: `my nosuchmethod` draws exactly one W308, on the wire, and
 /// its range covers the method word alone: line 3, `nosuchmethod` at
 /// columns 11..23.
 #[test]
@@ -99,7 +99,7 @@ fn bareword_my_unknown_method_draws_w308_on_the_method_word() {
     );
 }
 
-/// FP guard (#1329) — nothing in the same document draws W307 either. The
+/// FP guard: nothing in the same document draws W307 either. The
 /// `my` head is a dispatch keyword, not a non-literal command name, so
 /// recording it as a dispatch site must not leak into W307's population.
 #[test]
@@ -113,11 +113,11 @@ fn bareword_my_draws_no_w307() {
     );
 }
 
-/// #1330 — the W308 on a `[cmd] method` dispatch *inside a proc body*,
+/// The W308 on a `[cmd] method` dispatch *inside a proc body*,
 /// which is the shape the LSP's per-item analysis isolates and re-bases.
-/// Before the fix the reported range was computed against the body
-/// fragment's own offsets and landed on unrelated text near the top of the
-/// file; it must cover `badmethod` on line 4, columns 14..23.
+/// The reported range must not be computed against the body fragment's own
+/// offsets — that would land on unrelated text near the top of the file;
+/// it must cover `badmethod` on line 4, columns 14..23.
 #[test]
 fn cmd_dispatch_w308_range_covers_the_method_word() {
     let mut lsp = Lsp::tcl();
@@ -132,9 +132,9 @@ fn cmd_dispatch_w308_range_covers_the_method_word() {
     );
 }
 
-/// #1330's other half — a diagnostic anchored on the `CmdCommandSite`'s
+/// The other half — a diagnostic anchored on the `CmdCommandSite`'s
 /// *head* span rather than its method span. E001 for a bare `[Dog new]`
-/// with no method word used to stop one byte short, underlining `[Dog new`
+/// with no method word must not stop one byte short, underlining `[Dog new`
 /// and leaving the `]` outside the squiggle; it must cover the whole
 /// substitution, columns 0..9.
 #[test]
@@ -152,8 +152,8 @@ fn bare_cmd_dispatch_e001_range_covers_the_closing_bracket() {
     );
 }
 
-/// #1330, third consumer — W307 on an unresolvable `[cmd] method` head is
-/// anchored on the same head span and was short by the same byte.
+/// Third consumer — W307 on an unresolvable `[cmd] method` head is
+/// anchored on the same head span and must not be short by the same byte.
 #[test]
 fn cmd_dispatch_w307_range_covers_the_closing_bracket() {
     let src = "[getcmd] doit\n";

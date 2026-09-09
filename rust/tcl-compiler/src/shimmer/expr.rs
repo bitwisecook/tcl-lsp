@@ -125,13 +125,13 @@ pub(crate) fn find_expr_shimmers(
                     };
                     collect_expr_shimmers(&mut ctx, expr, 0);
                 }
-                // An `[expr …]` written inside another command's word — the
-                // `puts [expr {$d % 2}]` half of the asymmetry issue #1814
-                // reported. The lowerer turns a *statement* `expr` into the
-                // node above but leaves a nested one as opaque argument text,
+                // An `[expr …]` written inside another command's word, such as
+                // `puts [expr {$d % 2}]`. The lowerer turns a *statement* `expr`
+                // into the node above but leaves a nested one as opaque
+                // argument text,
                 // so it is lifted and parsed here (see [`crate::word_subst`]).
                 // Its operands resolve through the statement's own `uses`,
-                // which `ssa::scan_nested_substitution_words` now populates
+                // which `ssa::scan_nested_substitution_words` populates
                 // for a nested command's in-frame braced words.
                 //
                 // Both statement kinds that carry substitutable words are
@@ -139,8 +139,8 @@ pub(crate) fn find_expr_shimmers(
                 // command decides nothing about what Tcl evaluates inside a
                 // word, so `set r [list [expr {0 in $x}]]` runs the same
                 // expression as `puts [list [expr {0 in $x}]]`. Only the
-                // `Call` half was lifted, so the assignment spelling reported
-                // nothing (issue #1844 review). A `set x [expr {…}]` whose
+                // Lifting only the `Call` half would leave the assignment
+                // spelling reporting nothing. A `set x [expr {…}]` whose
                 // value word *is* the substitution never reaches here — the
                 // lowerer already made it the `AssignExpr` above — so the two
                 // arms cannot both report the same expression.
@@ -209,9 +209,9 @@ struct TerminatorWalk<'a> {
 /// Walk the expression a block's terminator evaluates, if it has one.
 ///
 /// Both arms are expressions Tcl evaluates in this frame, so both are walked
-/// on the same terms as a statement `expr`. The `return` arm closes the
-/// asymmetry issue #1814 reported — `expr {$u0 * $dx}` as a statement was
-/// walked while `return [expr {$u0 * $dx}]` was not, so the same expression
+/// on the same terms as a statement `expr`. Without the `return` arm,
+/// `expr {$u0 * $dx}` as a statement is
+/// walked while `return [expr {$u0 * $dx}]` is not, so the same expression
 /// reported differently depending only on its position. The lowerer already
 /// parses it onto `Terminator::Return::expr`, and leaves that `None` for the
 /// braced `return {[expr …]}` that Tcl never evaluates, so reading it is both
@@ -307,7 +307,7 @@ impl ExprShimmerCtx<'_> {
 }
 
 fn collect_expr_shimmers(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, depth: u32) {
-    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // Native-stack safety net: walks the `ExprNode` tree, one
     // native frame per level. Past the cap, stop descending — a collector
     // that returns the shimmer warnings gathered so far is the safe fallback
     // (operands buried deeper than the cap go unflagged; never a crash).
@@ -753,8 +753,8 @@ mod tests {
         )
     }
 
-    /// Regression coverage for issue #996: `collect_expr_shimmers` recurses
-    /// once per `ExprNode` level with no depth cap before this fix. A tree
+    /// `collect_expr_shimmers` recurses
+    /// once per `ExprNode` level, so it needs a depth cap. A tree
     /// built directly is unbounded (the Pratt parser caps its own output at
     /// 256) and empirically overflowed the native stack (SIGABRT) in the low
     /// thousands of levels on a 2 MiB thread. 3000 is past that crash range
@@ -828,7 +828,7 @@ mod tests {
         assert!(w.is_empty(), "unexpected expr shimmers: {w:?}");
     }
 
-    /// Issue #1814: a double accumulator narrowed through a loop keeps a
+    /// A double accumulator narrowed through a loop keeps a
     /// double intrep, and a later arithmetic use reads it in place — no
     /// shimmer, whatever the surrounding statement shape. `expr` as a bare
     /// statement and `set z [expr …]` both lower to an expr statement the
@@ -869,11 +869,10 @@ mod tests {
         assert!(w.is_empty(), "unexpected expr shimmers: {w:?}");
     }
 
-    /// Issue #1814 reported the same expression reporting differently
-    /// depending only on where it sat: `expr {$u0 * $dx}` was walked,
-    /// `return [expr {$u0 * $dx}]` was not. The return value is an
-    /// `ExprNode` the lowerer already parsed onto the terminator, so the
-    /// walker simply had to read it.
+    /// The same expression must not report differently depending only on
+    /// where it sits — as a statement, or inside a `return`. The return value
+    /// is an `ExprNode` the lowerer already parsed onto the terminator, so the
+    /// walker reads it there.
     #[test]
     fn expr_shimmer_fires_in_a_return_expression() {
         let src = "proc f {x} {\n set d [expr {sqrt($x)}]\n return [expr {$d % 2}]\n}";
@@ -923,7 +922,7 @@ mod tests {
         assert!(expr_shimmers(fu, &registry()).is_empty());
     }
 
-    /// Issue #1844 review: a nested `[expr …]` must be lifted out of an
+    /// A nested `[expr …]` must be lifted out of an
     /// assignment value exactly as it is out of a call argument. The outer
     /// command decides nothing about what Tcl evaluates inside the word, so
     /// `set r <word>` and `puts <word>` run the same expression — but only the
@@ -981,7 +980,7 @@ mod tests {
         );
     }
 
-    /// Review follow-up on #1814: `%`, the shifts and the bitwise operators
+    /// `%`, the shifts and the bitwise operators
     /// are integer-only, so a committed double is still a mismatch there even
     /// though `Double` is now numeric-compatible. tclsh 8.6.16 / 9.0.4:
     /// `expr {$d % 2}` on a double raises `can't use floating-point value as
@@ -1002,7 +1001,7 @@ mod tests {
         }
     }
 
-    /// The arithmetic operators keep accepting it, which is the #1814 fix.
+    /// The arithmetic operators keep accepting it.
     #[test]
     fn no_expr_shimmer_double_for_true_arithmetic_operators() {
         for op in ["+", "-", "*", "/", "**"] {
@@ -1116,7 +1115,7 @@ mod tests {
         assert_eq!(warning.from_type, TclType::Dict);
         assert_eq!(warning.to_type, TclType::List);
 
-        // TN (issue #940): a pure string haystack is a free first conversion.
+        // TN: a pure string haystack is a free first conversion.
         let cu_pure = CompilationUnit::build_for(
             "set hay [string trim \"a b c\"]\nset y [expr {\"b\" in $hay}]",
             &registry(),
@@ -1391,9 +1390,7 @@ mod tests {
     /// comparison operators compare string *representations*, not numeric
     /// value: `"10" lt "2"` is true (lexicographic) while `10 < 2` is false,
     /// so the rewrite silently changes program behaviour. `ShimmerWarning`
-    /// no longer carries a `fixes` field at all — this only re-confirms the
-    /// informational warning still fires for the case that used to (wrongly)
-    /// offer a fix.
+    /// carries no `fixes` field: the warning is informational only.
     #[test]
     fn expr_shimmer_lt_both_numeric_still_fires_with_no_fix_offered() {
         let src = "set x 10\nset y 2\nset z [expr {$x lt $y}]";

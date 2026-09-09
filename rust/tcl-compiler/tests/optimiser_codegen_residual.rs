@@ -79,7 +79,7 @@ use tcl_compiler::optimiser::manager::optimise_raw;
 use tcl_compiler::optimiser::{Optimisation, PassContext, PassId, run_passes};
 use tcl_registry::CommandRegistry;
 
-// ── Shared helpers ──────────────────────────────────────────────────────────
+// Shared helpers.
 
 fn registry() -> CommandRegistry {
     CommandRegistry::build_default()
@@ -147,9 +147,7 @@ fn arg_ops(is_proc: bool, params: &[&str], arg: &str, braced: bool) -> Vec<Op> {
     ctx.instructions.iter().map(|i| i.op).collect()
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
 // propagation.rs — value-position folds on NON-`Call` statement kinds
-// ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
 fn prop_return_o101_folds_literal_expr() {
@@ -309,9 +307,7 @@ fn prop_recurses_into_if_else_body() {
     assert!(repls(src, "O100").iter().filter(|s| *s == "2").count() >= 1);
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
 // code_sinking.rs (O125) — sink-placement decision branches
-// ═══════════════════════════════════════════════════════════════════════════
 
 #[test]
 fn sink_into_switch_arm_and_default() {
@@ -500,9 +496,7 @@ fn sink_assign_expr_and_assign_value_shapes_are_sinkable() {
     assert!(cmd.is_empty(), "cmd-subst RHS must not sink, got {cmd:?}");
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
 // cmd_subst.rs — command-substitution lowering discriminators
-// ═══════════════════════════════════════════════════════════════════════════
 //
 // These assert the emitted OPCODE SHAPE (compiler-internal bytecode layout).
 // Where a `string is` form has a fixed boolean truth value for a literal the
@@ -715,7 +709,7 @@ fn cmd_subst_lindex_multi_index_form() {
     // tclsh: lindex {a b c} 1 → b ; lindex {{a b} c} 0 0 → a  (8.6 + 9.0)
 }
 
-// ── cmd_subst.rs — free functions + emit_value / emit_cmd_subst_arg paths ───
+// cmd_subst.rs — free functions + emit_value / emit_cmd_subst_arg paths.
 
 #[test]
 fn cmd_subst_unroll_nested_set_chain() {
@@ -872,14 +866,14 @@ fn emit_cmd_subst_arg_composite_and_special_forms() {
     // grouping braces; it is pushed once on the verbatim literal path.
     assert_eq!(arg_ops(true, &[], "$x", true), vec![Op::PUSH1]);
     // `$={n}` is literal user text, not a marker: `$` before `=` is not a
-    // substitution trigger in any release, so the whole word is pushed
-    // (issue #1617). It used to load the variable `n`.
+    // substitution trigger in any release, so the whole word is pushed,
+    // not the variable `n`.
     assert_eq!(arg_ops(true, &["n"], "$={n}", false), vec![Op::PUSH1]);
     // A bare `$name` form loads the scalar directly.
     assert_eq!(arg_ops(true, &["v"], "$v", false), vec![Op::LOAD_SCALAR1]);
 }
 
-// Issue #1080 — `[self class]` folds to the enclosing method's defining class.
+// `[self class]` folds to the enclosing method's defining class.
 //
 // The value is a registry fact (`CommandSpec::oo_context_facts` maps `self`'s
 // `class` word to `OoContextFact::DefiningClass`), answered by the optimiser
@@ -1073,13 +1067,13 @@ fn runtime_selected_my_abstains_from_the_entire_method_body() {
     );
 }
 
-// Issues #1096 / #1097 — completing the ticklecharts `${ns}::setdef` chain.
+// Completing the ticklecharts `${ns}::setdef` chain.
 //
-// #1096 put `const_fold` callbacks on `namespace qualifiers` / `namespace
-// tail` (pure string splitting at the last `::`, oracle-pinned byte-identical
-// on tclsh 9.0.4 and 8.6.14 — see `tcl-registry`'s `namespace_` unit tests and
-// the `differential_fold` matrix).  #1097 ported `elimination.rs`'s
-// instance-variable escaping model into the propagation lattice, so a
+// `const_fold` callbacks on `namespace qualifiers` / `namespace tail` (pure
+// string splitting at the last `::`, oracle-pinned byte-identical on tclsh
+// 9.0.4 and 8.6.14 — see `tcl-registry`'s `namespace_` unit tests and the
+// `differential_fold` matrix) combine with `elimination.rs`'s
+// instance-variable escaping model, ported into the propagation lattice, so a
 // provably method-local variable propagates inside a method body while object
 // state still does not.
 
@@ -1136,11 +1130,10 @@ fn namespace_qualifiers_abstains_on_a_dynamic_argument() {
 
 #[test]
 fn method_local_variable_propagates_into_the_fold_chain() {
-    // TP (#1097). `base` is a method local: the class declares no instance
+    // TP: `base` is a method local: the class declares no instance
     // variable, nothing aliases it, so the propagation lattice may carry its
-    // value into the `namespace qualifiers` argument.  Before #1097 the
-    // method-body walk carried no constants map at all, so this folded
-    // nothing.
+    // value into the `namespace qualifiers` argument. The method-body walk
+    // must carry a constants map for this to fold at all.
     let r = o129(
         "oo::class create ::ticklecharts::Gauge {\n    method m {} {\n        ::set base ::ticklecharts::Gauge\n        ::set ns [::namespace qualifiers $base]\n    }\n}\n",
     );
@@ -1148,14 +1141,14 @@ fn method_local_variable_propagates_into_the_fold_chain() {
         r.contains(&"::ticklecharts".to_string()),
         "the `$base` hop must fold, got {r:?}",
     );
-    // TP — the same for a `[string …]` fold over a method-local, the other
-    // example issue #1097 lists.
+    // TP — the same for a `[string …]` fold over a method-local, another
+    // example of the same propagation.
     let r = o129(
         "oo::class create ::A {\n    method m {} {\n        ::set s abcde\n        ::puts [::string length $s]\n    }\n}\n",
     );
     assert!(r.contains(&"5".to_string()), "got {r:?}");
     // TP — plain `$var` propagation inside a method body (O100), the other
-    // half of what #1097 switched on.
+    // half of the same propagation.
     let r = repls(
         "oo::class create ::A {\n    method m {} {\n        ::set v 42\n        ::puts $v\n    }\n}\n",
         "O100",
@@ -1165,7 +1158,7 @@ fn method_local_variable_propagates_into_the_fold_chain() {
 
 #[test]
 fn an_instance_variable_never_propagates_inside_a_method_body() {
-    // TN (#1097's whole point). `ns` here is *object state* — declared by the
+    // TN: `ns` here is *object state* — declared by the
     // class's `variable ns`, so the constructor or any other method may have
     // written it and `my …` may rewrite it between the two statements.  The
     // frame-constant `[self class]` still folds (it reads no variable), but
@@ -1189,7 +1182,7 @@ fn an_instance_variable_never_propagates_inside_a_method_body() {
     );
     // TN — plain O100 `$var` propagation must not touch object state
     // either: `my bump` can rewrite `n` between the write and the read, which
-    // is exactly the miscompile issue #1097 opens with.
+    // is exactly the miscompile this guards against.
     assert!(
         repls(
             "oo::class create ::C {\n    variable n\n    method bump {} { ::incr n }\n    method m {} {\n        ::set n 1\n        my bump\n        ::puts $n\n    }\n}\n",
@@ -1225,11 +1218,11 @@ fn runtime_selected_my_abstains_when_the_target_can_reach_its_caller_frame() {
     );
 }
 
-// The method-body propagation barrier's EVIDENCE SOURCES (review findings on
-// #1096 / #1097).  Each was a would-be miscompile: the optimiser proposed
-// replacing `$x` with `1` where real Tcl prints `2`.  The governing rule is
-// that when the module's evidence about what a `my` / `next` dispatch can do
-// is incomplete, the barrier widens to abstention.
+// The method-body propagation barrier's evidence sources.  Each guards a
+// potential miscompile: the optimiser would replace `$x` with `1` where real
+// Tcl prints `2`.  The governing rule is that when the module's evidence
+// about what a `my` / `next` dispatch can do is incomplete, the barrier
+// widens to abstention.
 //
 // Every oracle below is byte-identical on tclsh 9.0.4 and 8.6.14.
 
@@ -1264,8 +1257,7 @@ fn instance_vars_declared_in_a_later_definition_block_bar_propagation() {
 
 #[test]
 fn a_redefined_method_bars_propagation() {
-    // FP guard, finding 2 — now answered from the RETAINED replacement
-    // body (issue #1166): the lowering keeps the *first* body in
+    // FP guard: the lowering keeps the *first* body in
     // `methods` and every replacement in `redefined_methods`, so the
     // caller-frame scan reads them all and this replacement — which
     // reaches its caller's frame — still bars.  Oracle:
@@ -1292,7 +1284,7 @@ fn a_redefined_method_bars_propagation() {
 
 #[test]
 fn a_benign_redefinition_no_longer_bars_propagation() {
-    // TP (issue #1166's precision win): every retained body of the
+    // TP: every retained body of the
     // redefined `helper` is caller-frame-clean, so its presence does not
     // impose a class-wide barrier on an exact, dispatch-free sibling method.
     // The formerly-used bare `my` is intentionally absent: it is resolved in
@@ -1349,7 +1341,7 @@ fn a_substituted_upvar_source_counts_as_a_caller_frame_alias() {
     // caller_target` route) and a dynamic *local* side (`upvar 1 x $dst`,
     // which the resolvable-buckets summary drops outright) both count.
     // The guarded miscompile is `$x` in `m` folding to `1`; the per-method
-    // barrier (issue #1164) legitimately still propagates `helper`'s OWN
+    // barrier legitimately still propagates `helper`'s OWN
     // harmless local (`set n x; upvar 1 $n b` → `upvar 1 x b`, identical
     // behaviour) — helper dispatches nothing, so nothing can alias its
     // frame.
@@ -1365,7 +1357,7 @@ fn a_substituted_upvar_source_counts_as_a_caller_frame_alias() {
     }
 }
 
-// Issue #1134 — SCCP feeds registry const-fold results back into the value
+// SCCP feeds registry const-fold results back into the value
 // lattice, so multi-statement fold chains close instead of stopping after
 // one hop.  Oracle for the headline chain (tclsh 9.0.4, run while
 // authoring): inside an instance method of `::ticklecharts::Gauge`,
@@ -1374,10 +1366,10 @@ fn a_substituted_upvar_source_counts_as_a_caller_frame_alias() {
 
 #[test]
 fn sccp_closes_the_two_hop_self_class_chain_in_a_method() {
-    // TP — the exact residual from PR #1131: the O129 rewrite of
-    // `[self class]` used to be a *suggestion*, so `base` was never a
-    // lattice constant and the second hop never folded.  With the lattice
-    // fold (issue #1134) both hops fold and the `$ns` use propagates.
+    // TP: an O129 rewrite of `[self class]` alone is only a *suggestion*,
+    // leaving `base` out of the lattice as a constant so the second hop
+    // never folds on its own. Combined with the lattice fold, both hops
+    // fold and the `$ns` use propagates.
     let src = "oo::class create ::ticklecharts::Gauge {\n    method m {} {\n        ::set base [::oo::Helpers::self class]\n        ::set ns [::namespace qualifiers $base]\n        ::puts $ns\n    }\n}\n";
     let r = o100(src);
     assert!(
@@ -1449,11 +1441,10 @@ fn sccp_lattice_fold_stays_out_of_class_side_frames() {
     );
 }
 
-// Issue #1164 — the method-dispatch barrier is PER-METHOD, keyed by actual
-// reachability of the invalidating fact: one caller-frame-reaching helper
-// bars only the methods whose dispatches (transitively, across hierarchy
-// components and through called procs) can reach it — no longer the whole
-// module.
+// The method-dispatch barrier is PER-METHOD, keyed by actual reachability of
+// the invalidating fact: one caller-frame-reaching helper bars only the
+// methods whose dispatches (transitively, across hierarchy components and
+// through called procs) can reach it, not the whole module.
 
 #[test]
 fn an_unrelated_class_keeps_propagation_despite_a_classvar_helper_elsewhere() {

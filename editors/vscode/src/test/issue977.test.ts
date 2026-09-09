@@ -16,8 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Issue #977: the interprocedural call-site seed was unsound for a plain
-// library file — no `package provide`, so PR #970's guard never fired —
+// The interprocedural call-site seed must stay sound for a plain
+// library file — no `package provide` to guard it —
 // `source`d by another file that calls its procs with a different literal.
 // The deep TP/FP/TN/FN coverage lives in `tcl-compiler`'s `unit_scope` /
 // `call_site_param_constants` unit tests, `tcl-lsp-db`'s

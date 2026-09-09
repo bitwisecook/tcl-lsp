@@ -4,10 +4,10 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# Offline contract test for the shared release attestation action (issue
-# #1685). It exercises every release glob the workflow actually passes the
-# action, and guards the action pin, subject binding, SBOM inputs, and
-# least-privilege workflow permissions.
+# Offline contract test for the shared release attestation action. It
+# exercises every release glob the workflow actually passes the action, and
+# guards the action pin, subject binding, SBOM inputs, and least-privilege
+# workflow permissions.
 
 set -euo pipefail
 

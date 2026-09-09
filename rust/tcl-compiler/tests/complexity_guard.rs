@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Deep-analysis complexity guard (Phase 6).
+//! Deep-analysis complexity guard.
 //!
 //! ## What the guard does
 //!

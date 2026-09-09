@@ -148,7 +148,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // this subcommand rather than to `package` as a whole, since it is the
         // only `package` form with a body. tclsh 8.6.16 and 9.0.4,
         // byte-identical: `proc p {} { package ifneeded x 1.0 {error stop};
-        // set ::reached 1 }` sets `::reached` (issue #1672 audit).
+        // set ::reached 1 }` sets `::reached`.
         analyser_hook: Some(crate::hooks::AnalyserHookId::PackageIfneeded),
         // Registering a load script names *this* file as the thing that
         // supplies `package`, so the commands it defines are public API a
@@ -176,8 +176,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         closed_value_args: &[0],
         // The setter form writes interpreter-global state that every later
         // `package require` in *any* file reads — which release it selects
-        // when the best acceptable version is a prerelease (issue #1126
-        // item 1).
+        // when the best acceptable version is a prerelease.
         analyser_hook: Some(crate::hooks::AnalyserHookId::PackagePrefer),
         // Added in Tcl 8.5 (TIP 268).
         surface: Some(SpecSurface::TCL85_PLUS),

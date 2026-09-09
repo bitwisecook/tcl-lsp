@@ -99,7 +99,7 @@ pub fn ends_with_separator(name: &[u8]) -> bool {
 /// separator run — such a spelling addresses the empty-string `{}` command
 /// inside its full qualifier chain (`proc x:: {} {}` defines `::x::`;
 /// `rename foo x::` binds `::x::`; `rename bar ::` the global `{}` command
-/// — all tclsh 8.6/9.0-pinned, #934) — otherwise the last colon-run
+/// — all tclsh 8.6/9.0-pinned) — otherwise the last colon-run
 /// segment, or the whole name when unqualified.  The resolution-direction
 /// counterparts apply the same rule (`Namespaces::home_of` in the runtime,
 /// `canonical_cmd_key` in the VM), so definition and dispatch can never
@@ -137,7 +137,7 @@ pub fn qualifier_segments_owned(name: &str) -> Vec<String> {
 }
 
 /// Canonicalise a **written** command / variable word into the constructed-key
-/// convention (issue #934): a colon run of ≥2 is one separator (the whole run
+/// convention: a colon run of ≥2 is one separator (the whole run
 /// collapses to `::`), a lone `:` is an ordinary name character, and a
 /// *trailing* separator survives as `::` — it names the empty-string (`{}`)
 /// command/variable in the qualified namespace, which is a real, addressable
@@ -152,7 +152,7 @@ pub fn qualifier_segments_owned(name: &str) -> Vec<String> {
 /// This is for **written words only** — never re-apply it to a constructed
 /// key: a key holding an all-colon *segment* (a namespace or command
 /// legitimately named `:`) would collapse into its parent, which is exactly
-/// how a `proc :` used to collide with the empty-named `::` key.
+/// how a `proc :` would collide with the empty-named `::` key.
 ///
 /// ```
 /// use tcl_syntax::naming::canonical_written_command;
@@ -193,8 +193,8 @@ pub fn canonical_written_command(name: &str) -> String {
 /// The simple (tail) name of a **constructed** qualified key — the inverse of
 /// the `"{ns_key}::{simple}"` / `"::{simple}"` construction the analyser, the
 /// workspace index, and the VM use as canonical identity, where `simple` never
-/// contains a `::` run but may itself contain (or be) a lone `:` (issue #934:
-/// `proc : args {…}`).
+/// contains a `::` run but may itself contain (or be) a lone `:`
+/// (`proc : args {…}`).
 ///
 /// This is **not** C's `namespace tail` of a *written* word — C consumes a
 /// whole colon run as one separator, so the written `:::` has an empty tail.
@@ -367,7 +367,7 @@ pub fn key_segments(key: &str) -> Vec<String> {
 
 /// Whether a definition written as `simple_name` inside the namespace whose
 /// **written segments** are `ns_segments` can be reached by *any* absolute
-/// (fully-qualified) written form (issue #934).
+/// (fully-qualified) written form.
 ///
 /// Unaddressable shapes (tclsh 8.6/9.0-verified, invariant in C 8.4→9.1):
 /// an all-colon simple name (only `:` is writable — a written colon run of ≥2
@@ -444,12 +444,12 @@ fn braced_var_name(word: &str, style: tcl_dialect::BracedVarStyle) -> Option<&st
 ///
 /// This is the one place `tcl-syntax` decodes the brace form. The closer is
 /// located by the shared owner [`tcl_lexer::braced_var_name_end`] under
-/// `style`, never by a local scan — this module used to carry three private
-/// scans that disagreed with each other on the same bytes:
-/// `normalise_var_name` stripped the **last** `}` (the 9.x answer, at every
-/// release), while `split_array_name` and `element_var_name_braced` took the
-/// **first** (the 8.x answer, at every release), so one crate answered
-/// `${a{b}c}` two ways (issue #1604).
+/// `style`, never by a local scan: three independent private scans here
+/// (`normalise_var_name` stripping the **last** `}` — the 9.x answer, at
+/// every release — while `split_array_name` and `element_var_name_braced`
+/// take the **first** — the 8.x answer, at every release) would disagree
+/// with each other on the same bytes, so the crate would answer
+/// `${a{b}c}` two ways.
 ///
 /// `None` when the word does not open with `${`, or when the reference never
 /// closes — an unterminated name is `Tcl_ParseVarName`'s
@@ -510,7 +510,7 @@ pub fn split_braced_var_ref(
 /// resolved the document's dialect must pass it through
 /// [`normalise_var_name_for_style`] instead: under an 8.x dialect the closer
 /// moves, and reading it with the 9.x rule names a variable the source never
-/// mentions (issue #1604).
+/// mentions.
 #[must_use]
 pub fn normalise_var_name(name: &str) -> &str {
     normalise_var_name_for_style(name, tcl_dialect::BracedVarStyle::default())
@@ -536,7 +536,7 @@ pub fn normalise_var_name_for_style(name: &str, style: tcl_dialect::BracedVarSty
     // `${a{b}c}` **is** the reference `${a{b}` followed by the literal `c}`,
     // and the variable it names is `a{b`. The historical `strip_suffix('}')`
     // could only see a whole-word reference, so it read that same word as the
-    // name `a{b}c` — the 9.x answer, at every release (issue #1604). It also
+    // name `a{b}c` — the 9.x answer, at every release. It also
     // mis-read `${arr}(foo)` as `{arr}`, where [`split_array_name`] has always
     // documented the scalar `arr`.
     let base = match braced_var_name(name, style) {
@@ -619,7 +619,7 @@ pub fn element_var_name_for_style(name: &str, style: tcl_dialect::BracedVarStyle
 /// info exists arr(5)      -> 0
 /// ```
 ///
-/// Stripping the sigil here (issue #1078) keyed every consumer — defs, reads,
+/// Stripping the sigil here keyed every consumer — defs, reads,
 /// W210/W211/W220, rename, semantic highlighting — on the wrong variable.
 ///
 /// ```
@@ -644,7 +644,7 @@ pub fn element_var_name_braced(name: &str, braced_literal: bool) -> &str {
 /// The brace form is delimited by [`split_braced_var_ref`], i.e. by the shared
 /// owner, rather than by a first-`}` scan that answered for 8.x at every
 /// release — a harvest keyed on `a{b` where the lexer spanned `a{b}c` drops the
-/// use and lets a live write be reported dead (issue #1604).
+/// use and lets a live write be reported dead.
 ///
 /// ```
 /// use tcl_dialect::BracedVarStyle;
@@ -748,7 +748,7 @@ pub fn split_array_name_braced_for_style(
     }
     // A braced-literal word carries no sigil to strip, so the element split is
     // the owner's rule applied to the whole word — call it rather than
-    // re-deriving it here (issue #1606).
+    // re-deriving it here.
     match split_element_ref(name) {
         Some((array, elem)) => (array, Some(elem)),
         None => (name, None),
@@ -765,7 +765,7 @@ pub fn split_array_name_braced_for_style(
 /// delimiters a **new** name needs depend on that new name.  A rewrite is
 /// therefore not a matter of substituting new text into the recorded spans,
 /// which is what the rename edit builder does — so rename refuses instead of
-/// emitting an edit set that would produce `set q} 1` (issue #1078).
+/// emitting an edit set that would produce `set q} 1`.
 ///
 /// A namespace-qualified bareword (`::ns::v`) needs no quoting; neither does
 /// an array element whose base and key are barewords (`arr(k)`), since it is
@@ -982,7 +982,7 @@ pub fn normalise_qualified_name(name: &str) -> String {
 /// * A relative `name` resolves under `prefix`, which may be given rooted
 ///   (`::a::b`) or unrooted (`a::b`).  The *written* `name`'s colon runs
 ///   collapse ([`canonical_written_command`]); the `prefix` is a constructed
-///   key and is joined verbatim (issue #934).
+///   key and is joined verbatim.
 /// * An empty / root prefix roots the name at `::`.
 ///
 /// The one shared join for the analyser / signature-scan / class-lattice
@@ -992,7 +992,7 @@ pub fn qualify(prefix: &str, name: &str) -> String {
     // Canonicalise the *written* name once (colon-run rule, trailing-separator
     // preservation), then join with one exact separator — never re-parse the
     // joined result, which would collapse a legitimately colon-named segment
-    // into its parent (issue #934: `proc :` inside `namespace eval :`).
+    // into its parent (`proc :` inside `namespace eval :`).
     let canonical = canonical_written_command(name);
     if name.starts_with("::") {
         return canonical;
@@ -1116,7 +1116,7 @@ pub fn command_resolution_candidates<S: AsRef<str>>(
     path: &[S],
     cmd_name: &str,
 ) -> Vec<String> {
-    // Canonicalise the *written* command word once (colon-run rule, #934):
+    // Canonicalise the *written* command word once (colon-run rule):
     // `a:::b` names `a::b`, a lone `:` is an ordinary character, and a
     // trailing separator names the `{}` command in the qualified namespace.
     // An absolute word is complete after canonicalisation (`:::` → `::`, the
@@ -1211,7 +1211,7 @@ pub fn resolve_command_with<S: AsRef<str>, F: FnMut(&str) -> bool>(
 ///
 /// Note what the rule does *not* require: the `(` may sit at offset 0, so a
 /// **zero-length array name** is legal — `set (x) 5` writes element `x` of the
-/// array named `""`, exactly as tclsh does (issue #1458). A consumer that adds
+/// array named `""`, exactly as tclsh does. A consumer that adds
 /// a "base must be non-empty" test silently demotes those references to
 /// ordinary scalars.
 ///
@@ -1334,7 +1334,7 @@ pub fn is_dynamic_word(word: &str) -> bool {
 /// `namespace path {$ns ::a}` the first entry is a namespace literally named
 /// `$ns`.  [`is_dynamic_word`] alone re-scans the *reconstructed* content —
 /// braces already stripped — and so mistakes such a word for a dynamic one,
-/// making the whole command abstain (issue #1245).
+/// making the whole command abstain.
 ///
 /// Only braces suppress substitution: a `"…"`-quoted word does substitute, so
 /// it is scanned like a bare word.
@@ -1543,7 +1543,7 @@ pub mod conformance {
     /// Namespace / definition fields are **constructed keys** (see the vector
     /// -file header): a key may hold a colon-named segment (`":::"` is the
     /// namespace — or proc — named `:`; `"::"` names the empty-string `{}`
-    /// proc), which has no absolute written spelling (issue #934).  Everything
+    /// proc), which has no absolute written spelling.  Everything
     /// is therefore created *relatively*, descending the key's holder chain one
     /// `namespace eval` at a time with brace-quoted tails.
     fn run(ns_key: &str, body: &str) -> String {
@@ -1561,9 +1561,9 @@ pub mod conformance {
     /// Split out from [`vector_script`] so a backend can pair it with its own
     /// result capture.  The runtime port needs exactly that: its `if` is gated
     /// on the bignum tower being linked, so the `if`-based capture
-    /// [`vector_script`] uses made the whole conformance gate unrunnable in a
-    /// tower-less build — which is what issue #1058's `invalid command name
-    /// "if"` actually was.  Every command emitted here (`namespace`, `proc`,
+    /// [`vector_script`] uses would make the whole conformance gate unrunnable
+    /// in a tower-less build, surfacing as `invalid command name "if"`.
+    /// Every command emitted here (`namespace`, `proc`,
     /// `return`) is tower-free, so a backend that can only manage
     /// `set`/`catch` can still run all the vectors.
     #[must_use]
@@ -1636,15 +1636,16 @@ pub mod conformance {
 
 #[cfg(test)]
 mod tests {
-    /// Issue #1604 — every `${…}` reader in this module resolves the closer
+    /// Every `${…}` reader in this module resolves the closer
     /// through the one owner, so they agree with each other *and* move
     /// together with the release.
     ///
-    /// Before the fix this module answered `${a{b}c}` two ways at once:
-    /// `normalise_var_name` stripped the **last** `}` (`a{b}c`, the 9.x
-    /// answer) while `split_array_name` / `element_var_name_braced` took the
-    /// **first** (`a{b`, the 8.x answer) — neither of them consulting the
-    /// dialect. Oracles: `set {a{b}c} HIT; subst {${a{b}c}}` is `HIT` on
+    /// Without that shared owner this module could answer `${a{b}c}` two
+    /// ways at once: `normalise_var_name` stripping the **last** `}`
+    /// (`a{b}c`, the 9.x answer) while `split_array_name` /
+    /// `element_var_name_braced` take the **first** (`a{b`, the 8.x answer)
+    /// — neither of them consulting the dialect. Oracles:
+    /// `set {a{b}c} HIT; subst {${a{b}c}}` is `HIT` on
     /// 9.0.4 and `can't read "a{b"` on 8.6.16
     /// (`Tcl_ParseVarName`, `tclParse.c:1315` vs `:1398`).
     #[test]
@@ -1736,8 +1737,8 @@ mod tests {
     #[test]
     fn written_command_tail_follows_the_trailing_separator_rule() {
         use super::written_command_tail as tail;
-        // Trailing separator run → the empty-string `{}` command (#934,
-        // tclsh 8.6/9.0-pinned: `proc x:: {} {}` defines `::x::`).
+        // Trailing separator run → the empty-string `{}` command
+        // (tclsh 8.6/9.0-pinned: `proc x:: {} {}` defines `::x::`).
         assert_eq!(tail(b"x::"), b"");
         assert_eq!(tail(b"::x::"), b"");
         assert_eq!(tail(b"a::b:::"), b"");
@@ -1770,7 +1771,7 @@ mod tests {
         assert_eq!(qualify("::ns", ""), "::ns::");
     }
 
-    // Issue #934 — names carrying lone colons (`proc :`, `namespace eval :`)
+    // Names carrying lone colons (`proc :`, `namespace eval :`)
     // and written colon runs.  tclsh 8.6/9.0-pinned; C 8.4→9.1-invariant
     // (`TclGetNamespaceForQualName`).
 
@@ -1922,7 +1923,7 @@ mod tests {
         assert_eq!(split_array_name("weird)"), ("weird)", None));
     }
 
-    /// Issue #1078 — the full brace-literal spelling matrix, pinned against
+    /// The full brace-literal spelling matrix, pinned against
     /// tclsh 9.0.4 and 8.6.14 (byte-identical transcripts):
     ///
     /// ```text
@@ -1982,7 +1983,7 @@ mod tests {
         assert_eq!(normalise_var_name("${$n}"), "$n");
     }
 
-    /// The rename gate's predicate (issue #1078): a name that can only be
+    /// The rename gate's predicate: a name that can only be
     /// written quoted is not renameable by span substitution.
     #[test]
     fn quoting_requirement_matches_the_writable_spellings() {

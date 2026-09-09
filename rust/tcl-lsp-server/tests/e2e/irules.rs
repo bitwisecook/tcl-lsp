@@ -174,8 +174,6 @@ fn irules_typed(lsp: &mut Lsp, uri: &str) -> Vec<(SemToken, String)> {
         .collect()
 }
 
-// -- TestIrulesHover -----------------------------------------------------
-
 #[test]
 fn irules_subcommand_hover() {
     let mut lsp = Lsp::irules();
@@ -207,8 +205,6 @@ fn namespace_only_irules_hover_shows_profile_requirement() {
     assert!(text.contains("Requires"), "{text:?}");
     assert!(text.contains("ACCESS"), "{text:?}");
 }
-
-// -- TestIrulesCompletion ------------------------------------------------
 
 #[test]
 fn when_event_name_completion() {
@@ -337,8 +333,6 @@ fn argument_value_has_documentation() {
     );
 }
 
-// -- TestIrulesCollectCodeActions ----------------------------------------
-
 #[test]
 fn irule1005_adds_only_registered_collect_bootstrap() {
     let mut lsp = Lsp::irules();
@@ -385,8 +379,6 @@ fn irule1006_prefers_server_ssl_handshake_bootstrap() {
         "{snippets:?}"
     );
 }
-
-// -- TestIrulesTaintQuickFixes -------------------------------------------
 
 /// The `_fix` helper: open `source`, synthesise `diag`, request quickfix-only
 /// code actions.
@@ -690,8 +682,6 @@ fn irule3004_no_autofix() {
     assert!(matched.is_empty(), "{matched:?}");
 }
 
-// -- TestIrulesTaintProcInsertion ----------------------------------------
-
 #[test]
 fn t103_inserts_regex_quote_proc() {
     let mut lsp = Lsp::irules();
@@ -764,8 +754,6 @@ fn irule3002_no_proc_insert() {
             .any(|s| s.contains("proc "))
     );
 }
-
-// -- TestIrulesProfilesHeader --------------------------------------------
 
 /// The `_src` helper: open `source`, return its `source`-kind code actions
 /// at position (0, 0).
@@ -882,8 +870,6 @@ fn irule1006_bootstrap_action_is_deduplicated() {
     assert_eq!(collect.len(), 1);
 }
 
-// -- TestIrulesTaintProcAlreadyDefined -----------------------------------
-
 #[test]
 fn t103_no_proc_insert_when_already_defined() {
     let mut lsp = Lsp::irules();
@@ -933,8 +919,6 @@ fn irule3001_no_proc_insert_when_already_defined() {
     assert!(snippets.iter().any(|s| s.contains("[html_encode $raw]")));
     assert!(!snippets.iter().any(|s| s.contains("proc html_encode")));
 }
-
-// -- TestIrulesProfilesHeaderExtended ------------------------------------
 
 #[test]
 fn http_event_plus_ssl_command() {
@@ -1172,8 +1156,6 @@ fn clientssl_clienthello_omits_persist_helper_profile() {
     assert!(!text.contains("PERSIST"), "{text:?}");
 }
 
-// -- TestIrulesSemanticTokens --------------------------------------------
-
 #[test]
 fn comment_with_namespace_qualifiers_stays_one_comment() {
     let source = "# TCP::collect / TCP::payload / TCP::release\n";
@@ -1199,7 +1181,6 @@ fn comment_header_block_all_comments() {
     assert!(tokens.iter().all(|(_, ty)| ty == "comment"), "{tokens:?}");
 }
 
-// -- TestIrulesTaintDiagnostics ------------------------------------------
 // Taint diagnostics must actually *fire* on the wire (positive + negative).
 
 #[test]
@@ -1234,7 +1215,6 @@ fn constant_in_http_sink_is_silent() {
     );
 }
 
-// -- TestIrulesByteArrayCorruption ---------------------------------------
 // S110 byte-array corruption on the wire (F5 KB K22406348).
 
 /// Open `source` and poll the version-1 publish until the deep marker lands,
@@ -1337,7 +1317,7 @@ fn binary_scan_fix_silent() {
 #[test]
 fn mqtt_payload_roundtrip_fires_s110() {
     // MQTT `replace <data>` puts the data operand at index 1, not 3 — the
-    // registry-driven layout must still fire S110 here (PR #658 review gap).
+    // registry-driven layout must still fire S110 here.
     let mut lsp = Lsp::irules();
     let diags = deep_diags(
         &mut lsp,
@@ -1386,8 +1366,7 @@ fn diameter_payload_roundtrip_fires_s110_without_collect_warning() {
     );
 }
 
-// -- TestIrulesWhenBodyAnalysed ------------------------------------------
-// Dialect-gated `when` body recursion (PR #640), iRules side.
+// Dialect-gated `when` body recursion, iRules side.
 
 #[test]
 fn when_body_is_analysed_under_irules() {
@@ -1407,9 +1386,8 @@ fn when_body_is_analysed_under_irules() {
     );
 }
 
-// -- TestIrulesWordOperatorFold ------------------------------------------
-// Issue #1048: the dialect reaches the lowering, so a word-operator condition
-// on a known-constant subject folds and draws I230 on the wire.
+// The dialect reaches the lowering, so a word-operator condition on a
+// known-constant subject folds and draws I230 on the wire.
 
 /// Open `source` as an iRule and poll the version-1 publish until `marker`
 /// lands, returning the final diagnostics. Mirrors [`deep_diags`], but for a
@@ -1474,9 +1452,9 @@ fn recollect_inside_http_data_event_reports_irule1007_end_to_end() {
 /// `$x contains "cd"` with `$x` a known literal is a constant condition, so the
 /// alternate branch is unreachable and I230 fires.
 ///
-/// Before issue #1048 the lowering parsed every condition with no dialect, so
-/// the word operator reached the IR as an opaque expression the fold could not
-/// evaluate — I230 could not fire here even with the iRules dialect selected.
+/// Without dialect-aware lowering, the word operator reaches the IR as an
+/// opaque expression the fold cannot evaluate, so I230 would not fire here
+/// even with the iRules dialect selected.
 /// The plain-Tcl control (the same text must draw no I230, only W003) lives in
 /// `tcl-compiler`'s `dialect_threading` suite: this server is iRules-dedicated,
 /// so opening a plain Tcl document on it would switch its dialect.

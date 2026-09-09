@@ -23,8 +23,8 @@
 //! each script through a pair of backend engines, and records any divergence
 //! in stdout, error status, or (opt-in) error message text. The `run`
 //! subcommand pairs any two [`engine::Engine`]s — `tclvm`/`tclsh` (the
-//! original, and still the default), `runtime-rust`/`tclsh`, or
-//! `tclvm`/`runtime-rust` (issue #1313) — over the same subprocess harness.
+//! default), `runtime-rust`/`tclsh`, or `tclvm`/`runtime-rust` — over the
+//! same subprocess harness.
 //! See the module docs for the generator scope and the comparison rules.
 
 #![forbid(unsafe_code)]
@@ -398,7 +398,7 @@ fn run_campaign(
     );
     // Probe both engines once, before any script runs, so every finding this
     // campaign records carries the releases it was produced against, and a
-    // skewed pair announces itself up front (issue #1328).
+    // skewed pair announces itself up front.
     let versions = match probe_pair_versions(&pair, timeout) {
         Ok(versions) => versions,
         Err(error) => {
@@ -565,7 +565,7 @@ fn select_replay(findings: &Path, pair: PairArgs, seed: u64) -> Result<ReplaySel
     let legacy_dir = pair_findings_dir(findings, pair.reference, pair.subject, None);
     let mut unpinned_legacy = None;
     if let Some(finding) = load_existing_finding(&legacy_dir, seed)? {
-        // The pre-#1467 directory has no release component. Even a manually
+        // The legacy findings directory has no release component. A manually
         // copied record that happens to carry one is inconsistent, so reject
         // it rather than guessing which namespace owns the seed.
         let campaign = finding.campaign_tcl_version()?;
@@ -2090,9 +2090,9 @@ mod tests {
 
     #[test]
     fn default_pair_keeps_the_plain_findings_dir() {
-        // Issue #1313: the original `tclvm` subject / `tclsh` reference pair
-        // must keep writing to `<findings>/` so existing registries need no
-        // migration when other pairs are added.
+        // The default `tclvm` subject / `tclsh` reference pair must keep
+        // writing to `<findings>/` so existing registries need no migration
+        // when other pairs are added.
         let base = Path::new("fuzz-findings");
         assert_eq!(
             pair_findings_dir(base, Engine::Tclsh, Engine::Tclvm, None),

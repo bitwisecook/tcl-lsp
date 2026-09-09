@@ -85,7 +85,7 @@ jobs:
   #                        has the identical Git tree, and whose PR run is
   #                        green within 24 h. The release-tag fallback covers
   #                        the race where the rust push run has not completed
-  #                        yet (issue #1913).
+  #                        yet.
   #                    The 24 h bound stops the skip compounding into stale
   #                    territory: the floating `stable` toolchain and the
   #                    advisory database both move under an unchanged tree, so
@@ -121,8 +121,8 @@ jobs:
   #                    those tests, and `wasm-real-link` builds and links the
   #                    crate without running a single one of them, so before
   #                    this flag existed a standalone-runtime semantic
-  #                    regression could land with every partition green
-  #                    (issue #1768).  The closure lives in
+  #                    regression could land with every partition green.
+  #                    The closure lives in
   #                    scripts/dev/runtime-rust-path.sh and is gated against
   #                    the committed lockfile by
   #                    scripts/dev/test-runtime-rust-paths.sh, so it cannot
@@ -135,8 +135,7 @@ jobs:
   #                    pull request resolved their dependency trees at all, and
   #                    the only workflow that does (github-pages.yml) runs on
   #                    push to `rust`, never on a PR.  A broken bump therefore
-  #                    merged green and took the Pages deploy down afterwards
-  #                    (#1867 and #1868, fixed in #1884 and #1889).
+  #                    merged green and took the Pages deploy down afterwards.
   #   runner_policy_changed — the self-hosted runner policy, dependency-update
   #                    policy, or the scheduling contract test changed. Such
   #                    PRs prove themselves on an isolated GitHub-hosted runner;
@@ -481,7 +480,7 @@ jobs:
 
       # The hosted image can retain the unused, untrusted aws/tap. The Rust
       # setup action installs bash through Homebrew, which inspects configured
-      # taps and emits an annotation before doing any Rust work (issue #1684).
+      # taps and emits an annotation before doing any Rust work.
       - name: Remove unused runner Homebrew tap
         run: scripts/dev/prepare-homebrew-ci.sh
 
@@ -1166,7 +1165,7 @@ jobs:
   #   wasm-real-link    the real whole-program WASM link, with the only CI
   #                     install of wasmtime / wasm32-wasip1 / wasi-sdk /
   #                     libtommath and `TCL_REQUIRE_WASM_LINK=1` so a missing
-  #                     one fails instead of skipping (issue #1542).  NOT yet
+  #                     one fails instead of skipping.  NOT yet
   #                     wired into `create-release`'s `needs`, deliberately: it
   #                     downloads a wasi-sdk release asset, and a transient
   #                     404/timeout there must not be able to block a release.
@@ -1193,12 +1192,12 @@ jobs:
   #
   # Each nextest consumer keeps the exact whole-workspace/all-features resolver
   # graph, links every lib/bin unit harness, and links only its assigned
-  # integration-test targets. Run 34289762415 showed that direct hash shards
-  # spent 3m34–3m51 compiling/linking all 319 binaries before each 3m30–4m26
-  # test partition. A local exact-tree prototype linked/listed the 50 common
-  # unit harnesses in 1m47 on a cold target and added 64 assigned integration
-  # targets in 7.46s; its 4,568-test shard executed in 94.8s. The committed
-  # binary map came from that run's complete timings. The aggregate checks it
+  # integration-test targets. Measured: direct hash shards spent 3m34–3m51
+  # compiling/linking all 319 binaries before each 3m30–4m26 test partition.
+  # A local exact-tree prototype linked/listed the 50 common unit harnesses
+  # in 1m47 on a cold target and added 64 assigned integration targets in
+  # 7.46s; its 4,568-test shard executed in 94.8s. The committed binary map
+  # came from that measurement's complete timings. The aggregate checks it
   # against locked Cargo metadata and proves that every non-ignored testcase is
   # selected exactly once, so target drift or a bad filter fails closed.
   #
@@ -1210,17 +1209,14 @@ jobs:
     # Unaffected changes and already-green tags retain the aggregate status
     # without allocating five test runners.
     if: ${{ needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') }}
-    # Historically the longest pole (155s on the 16-core self-hosted box when
-    # healthy — a 2026-08 regression to 16 min turned out to be two oversized
-    # `tcl-compiler` per_item tests, since fixed; if this job blows past ~5
-    # min again, suspect a runaway test before suspecting the box or the
-    # cache).  No longer the longest pole: the three archived `lsp-e2e`
-    # consumers now overlap their test pools instead of one unsharded run
-    # carrying the full suite.  Note that neither is the workflow's critical
-    # path — the
-    # `build-tcl-lsp-server` -> `test-ext` chain is, finishing 40-80s after
-    # `lsp-e2e` does, so shortening the test jobs cuts cost and the local
-    # `make test-rust` loop rather than PR turnaround.
+    # Typically ~155s on the 16-core self-hosted box when healthy; if this
+    # job blows past ~5 min, suspect a runaway test before suspecting the box
+    # or the cache. Not the workflow's critical path: the three archived
+    # `lsp-e2e` consumers overlap their test pools instead of one unsharded
+    # run carrying the full suite, and the `build-tcl-lsp-server` ->
+    # `test-ext` chain finishes 40-80s after `lsp-e2e` does, so shortening
+    # the test jobs cuts cost and the local `make test-rust` loop rather than
+    # PR turnaround.
     #
     # It is the ONLY job routed to the self-hosted runner, and that is
     # deliberate.  `tank` is one physical host but may have multiple runner
@@ -1716,7 +1712,7 @@ jobs:
           fi
           cargo nextest run $extra -p tcl-irule-test -p f5-cli -p tcl-fuzz --all-features
 
-  # The standalone `runtime/rust` unit suite (issue #1768).
+  # The standalone `runtime/rust` unit suite.
   #
   # `runtime/rust` is its own cargo workspace, deliberately excluded from the
   # root one (it needs `unsafe` over the shared linear memory, and its churn
@@ -1724,10 +1720,9 @@ jobs:
   # that `cargo test --workspace --all-features` in `rust-tests` never runs a
   # single test in it, and `wasm-real-link` compiles and LINKS the crate
   # without executing its tests either.  `pr-gate` only formats and clippies
-  # it.  So until this job existed, a standalone-runtime semantic regression
-  # could land with every required check green — which is exactly how the
-  # #1750 error-stack work would have added and changed many runtime tests
-  # that CI never ran.
+  # it.  Without this job, a standalone-runtime semantic regression could
+  # land with every required check green, since a large body of runtime
+  # tests could be added and changed without CI ever running them.
   #
   # This is an ADDITIONAL semantic gate, not a replacement: `wasm-real-link`
   # remains the real-link check, and this job never links anything.
@@ -1781,7 +1776,7 @@ jobs:
       # the source `runtime/rust`'s build script prints a `cargo:warning` and
       # builds with the bignum backend DISABLED, which un-registers `expr` and
       # the `::tcl::mathfunc`/`mathop` ensembles.  The suite would still be
-      # green while covering far less than it appears to (issue #1542's shape).
+      # green while covering far less than it appears to.
       # `make runtime-rust-test` passes the directory explicitly.
       - name: Fetch the Tcl 9.0.4 source (libtommath)
         if: needs.channel.outputs.runtime_rust_changed == 'true' && needs.channel.outputs.already_green != 'true'
@@ -1804,7 +1799,7 @@ jobs:
   # because before it existed the suite was permanently vacuous: every one of
   # those tests skipped-and-passed when the toolchain was absent, and no CI job
   # installed the wasmtime CLI, the `wasm32-wasip1` target, or wasi-sdk.  Eight
-  # green tests, zero real links, for the whole life of the file (issue #1542).
+  # green tests, zero real links, for the whole life of the file.
   # `TCL_REQUIRE_WASM_LINK=1` is what makes this job meaningful: with it set, a
   # missing dimension of the toolchain is a hard failure instead of a skip, so
   # the job cannot silently revert to reporting green for nothing.
@@ -1878,7 +1873,7 @@ jobs:
       # Same skip/downgrade contract as rust-tests — see the channel job header.
       # No `--no-run` downgrade: the point of this job is that the link really
       # executes, and building the test binary without running it would be
-      # exactly the vacuity #1542 is about.
+      # exactly the vacuity this job exists to prevent.
       # `wasm_tiers` rides the same gate: its sample-oracle tests return early
       # when the toolchain is absent, so anywhere but here they pass without
       # linking a single sample — the vacuity this job exists to prevent.
@@ -1901,9 +1896,9 @@ jobs:
   # The real browser LSP server: release-link the wasm-bindgen facade, verify
   # the produced module, then drive a scripted JSON-RPC session under Node.
   # This is intentionally distinct from `wasm-real-link`, which exercises the
-  # compiler's WASI runtime rather than the browser language server.  Before
-  # this job, browser-only regressions first appeared after merge in the Pages
-  # deployment (#1662).
+  # compiler's WASI runtime rather than the browser language server.  Without
+  # this job, browser-only regressions would surface only after merge, in the
+  # Pages deployment.
   lsp-server-wasm:
     needs: [channel]
     runs-on: ubuntu-26.04
@@ -2575,13 +2570,12 @@ jobs:
         if: env.RUN_PY == 'true'
         run: make test-py-engine
 
-  # The two npm roots that are NOT `editors/vscode`.  Nothing on a pull
-  # request used to install them: every `npm ci` in this workflow is in
+  # The two npm roots that are NOT `editors/vscode`.  Nothing else on a pull
+  # request installs them: every `npm ci` in this workflow is in
   # `editors/vscode`, and the only workflow that resolves these two trees
   # (github-pages.yml) triggers on push to `rust` and on tags, never on a PR.
-  # So a dependency bump that cannot resolve passed the whole gate and only
-  # broke afterwards, on the deploy — which is exactly how #1867 and #1868
-  # landed and put three consecutive Pages runs red.
+  # Without this job, a dependency bump that cannot resolve passes the whole
+  # gate and only breaks afterwards, on the deploy.
   #
   # Node only: no Rust, no wasm, no browser, so it is cheap enough to be a
   # release prerequisite as well as a PR gate.
@@ -2636,10 +2630,10 @@ jobs:
 
       # `npm ci` and not the Make stamps' `npm install`, because only `npm ci`
       # reliably rejects the committed pair.  On a cold tree — which is what a
-      # runner always has — `npm install` resolved #1867's package.json/lockfile
-      # combination and exited 0, leaving a peer-violating tree behind; `npm ci`
-      # on the same pair fails ERESOLVE. That is the failure this job exists to
-      # catch, so it has to be the strict command.
+      # runner always has — `npm install` can resolve a peer-violating
+      # package.json/lockfile combination and exit 0, leaving a broken tree
+      # behind; `npm ci` on the same pair fails ERESOLVE. That is the failure
+      # this job exists to catch, so it has to be the strict command.
       #
       # Then record the stamps, exactly as the `test-ext` job does, so the Make
       # targets below consume this install instead of immediately running a
@@ -2823,7 +2817,7 @@ jobs:
 
       # Both Darwin legs share the hosted image's Homebrew state. Remove only
       # the unused aws/tap before Rust setup invokes `brew install bash`; never
-      # trust the tap or weaken Homebrew's trust policy (issue #1684).
+      # trust the tap or weaken Homebrew's trust policy.
       - name: Remove unused runner Homebrew tap
         if: runner.os == 'macOS'
         run: scripts/dev/prepare-homebrew-ci.sh
@@ -3060,9 +3054,9 @@ jobs:
   # `tcl-lsp-server` MUST be in that list.  A Zed extension is a single
   # cross-platform WASM module and cannot embed a per-platform binary, so
   # editors/zed resolves `tcl-lsp-server-<triple>[.exe]` from this release at
-  # runtime, pinned to its own tag.  Drop it and every Zed install has no server
-  # (issue #826).  The VSIX takes its copy from the build-server-matrix
-  # artifacts, not from here.
+  # runtime, pinned to its own tag.  Drop it and every Zed install has no
+  # server.  The VSIX takes its copy from the build-server-matrix artifacts,
+  # not from here.
   #
   # publish-checksums then sums + signs whatever is attached, so these assets are
   # covered automatically.

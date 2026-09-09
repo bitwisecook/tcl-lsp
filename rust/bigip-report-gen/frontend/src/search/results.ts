@@ -1,11 +1,11 @@
 // tcl-lsp — a language server and toolchain for Tcl
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
-// The global "search everything" box. Unlike the old per-device row filter,
-// this searches every device's objects at once and renders a single ranked,
-// cross-device results list (name · type · device · tier). Picking a result
-// jumps to that object in its device. Scope prefixes (`t<n>:`, `<devname>:`)
-// and fuzzy/phonetic matching come from ./query and ./matcher.
+// The global "search everything" box: searches every device's objects at once
+// and renders a single ranked, cross-device results list (name · type · device
+// · tier). Picking a result jumps to that object in its device. Scope prefixes
+// (`t<n>:`, `<devname>:`) and fuzzy/phonetic matching come from ./query and
+// ./matcher.
 
 import { MatchKind, scoreText, KIND_SCORE } from "./matcher";
 import { ParsedQuery, deviceInScope, parseQuery } from "./query";

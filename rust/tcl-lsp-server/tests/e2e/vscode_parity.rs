@@ -107,9 +107,7 @@ fn edits_of(action: &Value) -> Vec<Value> {
     out
 }
 
-// ── diagnostics ──────────────────────────────────────────────────────────────
-
-// -- TestDiagnosticsParity -----------------------------------------------
+// diagnostics.
 
 #[test]
 fn test_w100_fires_for_expr_in_command_substitution() {
@@ -183,9 +181,7 @@ fn test_w216_quick_fixes() {
     assert!(new_texts.iter().any(|t| t == "$arr(name)"));
 }
 
-// ── completion ───────────────────────────────────────────────────────────────
-
-// -- TestCompletionParity ------------------------------------------------
+// completion.
 
 const COMMAND_CONTEXTS: &str = concat!(
     "proc t {} {\n",
@@ -264,9 +260,7 @@ fn test_directive_dialect_hides_newer_commands() {
     assert!(!ls.contains("try"));
 }
 
-// ── commands ─────────────────────────────────────────────────────────────────
-
-// -- TestCommandParity ---------------------------------------------------
+// commands.
 
 #[test]
 fn test_set_dialect_returns_success() {
@@ -364,9 +358,7 @@ fn test_compiler_explorer_empty_source_is_error() {
     assert!(err.is_some() && !err.unwrap().is_null());
 }
 
-// ── config toggles ───────────────────────────────────────────────────────────
-
-// -- TestConfigToggleParity ----------------------------------------------
+// config toggles.
 
 #[test]
 fn test_folding_toggle_suppresses_ranges() {
@@ -391,7 +383,7 @@ fn test_folding_toggle_suppresses_ranges() {
     lsp.apply_configuration_settle(json!({ "features": { "folding": false } }), &uri, |c| {
         c.get("features").and_then(|f| f.get("folding")) == Some(&Value::Bool(false))
     });
-    // `null`, never an empty array (issue #1122): VS Code's sticky-scroll
+    // `null`, never an empty array: VS Code's sticky-scroll
     // model provider accepts a non-null folding model as valid and terminal,
     // so an authoritative empty set would leave sticky scroll permanently
     // blank instead of falling through to its indentation model.
@@ -408,7 +400,7 @@ fn test_optimiser_toggle_suppresses_o_codes() {
     lsp.clear_notifications();
     lsp.apply_configuration(json!({ "optimiser": { "enabled": false } }));
     // Await convergence, not the first version-1 republish: the coalesced
-    // config reload (#1213) may reschedule once on the inline settings before
+    // config reload may reschedule once on the inline settings before
     // the pulled config lands, so an early republish can still carry the old
     // profile's O-codes. The toggle is proven by the *latest* publish going
     // O-free within the window; a broken toggle times out here instead.
@@ -468,8 +460,8 @@ fn test_diagnostics_master_switch_clears_all() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     assert!(!lsp.open_ready(&uri, "catch {error e}\n").is_empty()); // non-empty by default
-    // A version-tagged `await_diagnostics_version` races here (issue #1135):
-    // the just-opened document's own analysis can still have a later publish
+    // A version-tagged `await_diagnostics_version` races here: the
+    // just-opened document's own analysis can still have a later publish
     // for version 1 in flight (e.g. a converged correction), and a config
     // change never bumps the document version, so that stale non-empty
     // publish and the master-off empty one are indistinguishable by
@@ -515,9 +507,7 @@ fn test_optimiser_code_override_does_not_leak() {
     assert!(!codes(&lsp.open_ready(&uri, clean)).contains(&"O100".to_owned()));
 }
 
-// ── capabilities ─────────────────────────────────────────────────────────────
-
-// -- TestCapabilityParity ------------------------------------------------
+// capabilities.
 
 #[test]
 fn test_type_hierarchy_advertised() {
@@ -548,9 +538,7 @@ fn test_pull_diagnostics_not_advertised_by_default() {
     );
 }
 
-// ── navigation ───────────────────────────────────────────────────────────────
-
-// -- TestNavigationParity ------------------------------------------------
+// navigation.
 
 #[test]
 fn test_method_parameter_definition_resolves_to_name() {
@@ -576,9 +564,7 @@ fn test_method_parameter_definition_resolves_to_name() {
     assert!(end_ch - start_ch <= i64::try_from("greeting".len()).unwrap());
 }
 
-// ── code actions / lenses ────────────────────────────────────────────────────
-
-// -- TestCodeActionParity ------------------------------------------------
+// code actions / lenses.
 
 #[test]
 fn test_code_lens_resolves_show_references_command() {
@@ -648,9 +634,8 @@ fn test_brace_expr_refactor_offered() {
     );
 }
 
-// ── follow-ups from PR #733 review (Codex bot) ───────────────────────────────
-
-// -- TestReviewFollowups -------------------------------------------------
+// Completion edge cases: local shadowing, command-substitution var binders,
+// and dialect re-resolution after an edit.
 
 #[test]
 fn test_local_shadowing_global_stays_bare() {

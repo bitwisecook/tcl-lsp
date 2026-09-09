@@ -43,12 +43,12 @@ pub struct ForeachInfo {
     ///
     /// A braced word is a literal: `TclFindElement`'s brace semantics mean
     /// neither the word nor any braced element inside it takes `$` / `[…]`
-    /// substitution. Without this the emitter pushed the list as an ordinary
-    /// literal and the VM's `subst_word` ran the `[…]` at loop entry —
-    /// `foreach e {{a[b]c} x}` raised `invalid command name "b"` (issue
-    /// #1572). The fact is already recorded on the header `Call`'s
-    /// `CommandTokens` by `cfg_lower::foreach_header_tokens` (issue #1260's
-    /// `list_braced`); this carries it through to codegen.
+    /// substitution. Without this the emitter pushes the list as an ordinary
+    /// literal and the VM's `subst_word` runs the `[…]` at loop entry, so
+    /// `foreach e {{a[b]c} x}` raises `invalid command name "b"`. The fact is
+    /// recorded on the header `Call`'s `CommandTokens` by
+    /// `cfg_lower::foreach_header_tokens` as `list_braced`; this carries it
+    /// through to codegen.
     pub list_braced: Vec<bool>,
     /// Loop-variable groups (one per iterator), reconstructed from the
     /// header `Call`'s `defs` + `foreach_groups`. Carried onto the

@@ -47,11 +47,8 @@ name: Deploy GitHub Pages (BIG-IP report + compiler explorer + spec studio)
 #                          multi-file dist — index.html (registry + compiler
 #                          analyser inlined as WASM), assets/ (the lazily
 #                          loaded editor chunk), lsp/ (the server worker) —
-#                          built by `make spec-studio-wasm`, which now also
-#                          builds `make lsp-server-wasm` as a prerequisite.
-#
-# This supersedes the old `pages.yml` (Python `make explorer-build-cdn`), which
-# no longer exists on the Python-free `rust` line.
+#                          built by `make spec-studio-wasm`, which builds
+#                          `make lsp-server-wasm` as a prerequisite.
 on:
   push:
     # `rust` is the active development and default line. Every

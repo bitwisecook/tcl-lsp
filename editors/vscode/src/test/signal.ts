@@ -46,9 +46,8 @@
 //! mod.rs`): every deadline here is a *hang backstop*, not an assertion. A
 //! fixed wall-clock backstop is wrong in exactly one direction — on a machine
 //! the OS is giving a fraction of a core, a correct server misses it and a
-//! *content* test fails as a *timeout*. That is the failure mode issue #1274
-//! records: the VS Code suite stalled while ~9 agent build trees shared the
-//! container.
+//! *content* test fails as a *timeout*. That is a real failure mode: the VS
+//! Code suite has stalled while ~9 agent build trees shared the container.
 //!
 //! So deadlines are multiplied by [`loadFactor`], a measured probe of how much
 //! capacity this process is actually getting. On an idle machine the factor is
@@ -130,8 +129,8 @@ export function sleep(ms: number): Promise<void> {
  *
  * For sleeps that outlive the await that started them — [`bounded`]'s guard
  * keeps counting after its work has already won the race. A ref'd timer there
- * would hold the event loop open after the last test finished, which is the
- * "mocha completed but the runner never exited" half of issue #1274.
+ * would hold the event loop open after the last test finished, which
+ * produces the "mocha completed but the runner never exited" failure mode.
  */
 function sleepDetached(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -303,9 +302,9 @@ export interface AwaitSignalOptions<T> {
  * appended to the timeout message.
  *
  * A timeout says the answer never came; it does not say what the server was
- * doing instead, which is the gap issue #1294 records — four consecutive waits
- * on one document's `didOpen` drain expired with a healthy machine, and the
- * evidence could not tell "the server is wedged" apart from "this document's
+ * doing instead, which is a real gap — four consecutive waits
+ * on one document's `didOpen` drain can expire even on a healthy machine, and the
+ * evidence alone cannot tell "the server is wedged" apart from "this document's
  * queue is wedged". A caller that knows a cheaper, independent question to ask
  * supplies it here, and the answer lands in the same message as the failure.
  *
@@ -522,8 +521,8 @@ export async function awaitSignal<T>(opts: AwaitSignalOptions<T>): Promise<T> {
  * command round-trip to the server, `extension.activate()`, opening a
  * document. They resolve when the work is done, which is the right shape
  * already; what they lack is a bound. Without one the only backstop is mocha's
- * per-test timeout, which is how issue #1274's stall became 60s per test and
- * then a runner that never exited: the mocha timeout fires with no idea which
+ * per-test timeout, which turns a stall into a flat 60s-per-test failure and
+ * then a runner that never exits: the mocha timeout fires with no idea which
  * await was outstanding.
  *
  * The underlying promise is left running on rejection — the test is failing

@@ -92,16 +92,14 @@ struct KnownNameTiers {
     /// a tail may match several qualified names (same simple name in
     /// different namespaces), each with its own deletion history, so
     /// resolution checks every one for a call-site-specific live match
-    /// (issue #973) rather than a plain tail-membership test.
+    /// rather than a plain tail-membership test.
     proc_defs_by_tail: HashMap<String, Vec<(String, u32)>>,
     /// [`Self::proc_defs_by_tail`]'s twin for classes.
     class_defs_by_tail: HashMap<String, Vec<(String, u32)>>,
-    /// [`Self::proc_defs_by_tail`]'s twin for `interp alias` targets
-    /// (issue #1006 — previously a plain tail `HashSet`, checked only at
-    /// file-end granularity via `fact_live_at_file_end`).
+    /// [`Self::proc_defs_by_tail`]'s twin for `interp alias` targets.
     alias_defs_by_tail: HashMap<String, Vec<(String, u32)>>,
     /// [`Self::proc_defs_by_tail`]'s twin for static `rename OLD NEW`
-    /// targets (issue #1006, same history as `alias_defs_by_tail`).
+    /// targets.
     rename_defs_by_tail: HashMap<String, Vec<(String, u32)>>,
     ensemble_cmds: HashSet<String>,
     stub_names: HashSet<String>,
@@ -112,7 +110,7 @@ struct KnownNameTiers {
     import_pattern_tails: Vec<String>,
     /// Registry names whose *bare* spelling only resolves from inside a
     /// `TclOO` method context — `link` / `my` / `next` / `nextto` / `self`
-    /// / `classvariable` (issue #1026). Membership of
+    /// / `classvariable`. Membership of
     /// [`Self::registry_names`] alone is not enough for these: the call
     /// site has to be in a method body too, or real Tcl raises `invalid
     /// command name` (tclsh 9.0.4).
@@ -126,9 +124,9 @@ struct KnownNameTiers {
 
 /// Group `(qualified_name, establishing_offset)` pairs by their
 /// `::`-tail — shared by the proc and class def maps in
-/// [`Analyser::build_w123_known_names`] (issue #973) and its siblings
+/// [`Analyser::build_w123_known_names`] and its siblings
 /// (`var_command.rs`'s `build_w307_known_names` / interpolated-W123
-/// resolution, issue #1010): a tail may match several qualified names
+/// resolution): a tail may match several qualified names
 /// (the same simple name in different namespaces), each kept with its
 /// own offset for a later per-call live check
 /// ([`Analyser::fact_live_for_call`]). `pub(super)` (not private) so
@@ -266,7 +264,7 @@ impl Analyser {
     /// (`alias_offsets`) or a `rename` target (`rename_offsets`), recorded
     /// at `fact_off` — is still live at file end: no `rename NAME {}` /
     /// `interp alias {} NAME {}` deletion of `qualified` itself has a
-    /// *later* offset recorded in `deleted_commands` (issue #973: a
+    /// *later* offset recorded in `deleted_commands` (a
     /// rename/alias target that was later renamed away must not still
     /// count as known — calling it fails "invalid command name" in real
     /// Tcl, confirmed against tclsh 8.6.14).
@@ -284,7 +282,7 @@ impl Analyser {
     /// `interp alias` under the same name) reads as live again.
     ///
     /// `pub(super)`: also reused by `var_command.rs`'s
-    /// `compute_factory_object_ranges` (issue #1010), whose
+    /// `compute_factory_object_ranges`, whose
     /// `is_object_returning_head` predicate classifies a bare command
     /// head with no specific call site in hand — the same file-end
     /// question, not [`Self::fact_live_for_call`]'s per-call one.
@@ -302,9 +300,9 @@ impl Analyser {
     /// specific call resolves against, so this additionally applies the
     /// same call-site + conditional-body awareness
     /// [`Self::qualified_name_deleted_before`] already gives registry
-    /// builtins (issue #973's "conditional deletion never triggered" and
-    /// "call textually before a later deletion" cases — confirmed against
-    /// tclsh 8.6.14 that both still resolve):
+    /// builtins — the "conditional deletion never triggered" and "call
+    /// textually before a later deletion" cases, both confirmed against
+    /// tclsh 8.6.14 to still resolve:
     ///
     /// - No recorded deletion, or the fact was re-established *after* the
     ///   last one (`fact_off` postdates `del_off`) — live.
@@ -320,7 +318,7 @@ impl Analyser {
     ///
     /// `pub(super)` (not private) so sibling passes over the same
     /// `command_invocations` question — `const_dispatch.rs`'s constant-
-    /// `$cmd` settlement (issue #1009) — reuse this rather than
+    /// `$cmd` settlement — reuse this rather than
     /// reimplementing it.
     ///
     /// A call *inside* a body carries no execution-order meaning from its
@@ -330,13 +328,13 @@ impl Analyser {
     /// show the innermost enclosing definition
     /// ([`super::super::types::AnalysisResult::enclosing_definition_qualified_name`])
     /// provably *reached* before the deletion? If so, that invocation's own
-    /// nested calls already resolved (issue #1009 Codex review: `proc
+    /// nested calls already resolved (`proc
     /// helper {}`, `proc caller {} { helper }`, `caller`, `rename helper
     /// {}` resolves in real Tcl — confirmed against tclsh 8.6.14 — because
     /// `caller`'s own top-level call runs before the rename).
     ///
-    /// "Reached" is transitive over the whole call graph, not one level
-    /// (issue #1015): `proc helper {}`, `proc inner {} { helper }`, `proc
+    /// "Reached" is transitive over the whole call graph, not one level:
+    /// `proc helper {}`, `proc inner {} { helper }`, `proc
     /// outer {} { inner }`, `outer`, `rename helper {}` also runs clean on
     /// tclsh8.6/9.0, because `outer`'s own top-level call reaches `helper`
     /// two bodies deep. Absent such proof (the enclosing definition is
@@ -498,19 +496,18 @@ impl Analyser {
         // These two tail sets feed only the "did you mean…?" candidate list
         // below (same convention as `proc_tail_names` / `class_tail_names`
         // above) — resolution itself uses `alias_defs_by_tail` /
-        // `rename_defs_by_tail` (built further down), issue #1006.
+        // `rename_defs_by_tail` (built further down).
         let alias_names =
             self.live_tail_names(self.result.command_aliases.keys(), &self.alias_offsets);
         let rename_target_names =
             self.live_tail_names(self.renamed_commands.keys(), &self.rename_offsets);
         // Grouped by tail, unfiltered by deletion — same per-call live
-        // check as `proc_defs_by_tail` / `class_defs_by_tail` (issue
-        // #1006: an alias/rename-target call textually before a later
-        // deletion, or a deletion recorded inside a never-triggered
-        // proc/class body, must still resolve; previously these two were
-        // plain tail `HashSet`s checked only via `fact_live_at_file_end`
-        // — file-end granularity, no call site or conditional-body
-        // awareness).
+        // check as `proc_defs_by_tail` / `class_defs_by_tail`: an
+        // alias/rename-target call textually before a later deletion, or a
+        // deletion recorded inside a never-triggered proc/class body, must
+        // still resolve.  A plain tail `HashSet` checked only via
+        // `fact_live_at_file_end` has file-end granularity, with no call site
+        // or conditional-body awareness.
         let alias_defs_by_tail = group_defs_by_tail(
             self.result
                 .command_aliases
@@ -572,9 +569,9 @@ impl Analyser {
         }
 
         // The method-context-scoped subset of the registry names, asked of
-        // the registry itself so no command name appears here (issue
-        // #1026). Built from `registry_names` so the dialect gate already
-        // applied above carries over.
+        // the registry itself so no command name appears here. Built from
+        // `registry_names` so the dialect gate already applied above carries
+        // over.
         let method_context_names: HashSet<String> = registry_names
             .iter()
             .filter(|name| registry.resolves_only_in_method_context(name))
@@ -677,7 +674,7 @@ impl Analyser {
     /// Whether byte offset `off` sits in a `TclOO` **method context** — a
     /// `method` / `constructor` / `destructor` / class-side method /
     /// `oo::objdefine method` body — the only place the `oo::Helpers`
-    /// family and the per-object `my` resolve by bare name (issue #1026).
+    /// family and the per-object `my` resolve by bare name.
     ///
     /// The same scope walk the `::oo::Helpers` reference gate already uses
     /// ([`crate::analyser::scope::innermost_scope_reaches_oo_helpers`]), so
@@ -722,8 +719,8 @@ impl Analyser {
     /// procs / classes / alias targets / rename targets. A tail may match
     /// several qualified names (the same simple name in different
     /// namespaces) — a fact counts only while still live for this
-    /// specific call (issue #973 for procs/classes, issue #1006 for
-    /// aliases/rename targets: a name renamed or deleted away, with no
+    /// specific call (for procs/classes as well as aliases/rename
+    /// targets: a name renamed or deleted away, with no
     /// later re-establishment, must not resolve here;
     /// [`Analyser::fact_live_for_call`] also keeps a top-level call
     /// textually before a later deletion, and a deletion recorded inside
@@ -866,8 +863,8 @@ impl Analyser {
         // registry command whose only registered spelling is qualified —
         // e.g. `exists`/`get` called bare from inside `proc
         // ::tcl::dict::getnull {...}` resolve to the real, separately
-        // -callable `::tcl::dict::exists` / `::tcl::dict::get` (issue #923
-        // idx 105), not the ensemble-subcommand-only `dict exists` spec.
+        // -callable `::tcl::dict::exists` / `::tcl::dict::get`, not the
+        // ensemble-subcommand-only `dict exists` spec.
         // `resolution_candidates` already carries the correctly-qualified,
         // Tcl-priority-ordered candidate list for this exact call
         // (`finalise_invocation_resolutions` / `command_resolution_candidates`);
@@ -879,7 +876,7 @@ impl Analyser {
         // already-qualified string — pairs with the registry-membership
         // check the same way the bare-name check above already pairs
         // `registry_name_deleted_before` with `known.registry_names`
-        // (issue #923: a candidate that is registry-known but renamed/
+        // (a candidate that is registry-known but renamed/
         // deleted away before this call, e.g. `::tcl::mathfunc::sin` after
         // `rename ::tcl::mathfunc::sin {}`, must not resolve here either —
         // confirmed against tclsh 9.0.4).
@@ -931,7 +928,7 @@ impl Analyser {
         }
         // Absolute-form fallback — ``cmd`` may be defined as ``::cmd`` in
         // the global namespace. Same per-call deletion gate as the
-        // proc/class tail check above (issue #973): a `::cmd` renamed or
+        // proc/class tail check above: a `::cmd` renamed or
         // deleted away, with no later re-establishment, must not resolve
         // here either.
         let absolute = format!("::{name}");
@@ -949,14 +946,14 @@ impl Analyser {
         // A command bound by `CLASS create NAME` (or a registry
         // `defines_command_at` argument — `coroutine NAME cmd`, `interp
         // create NAME`) — later calls dispatch on a real command, not an
-        // unknown (issue #777).
+        // unknown.
         if self.result.created_instance_commands.contains(name) {
             return BindingKnowledge::Must(BindingTarget::document(name));
         }
         // A bare head inside a scoped command environment (a
         // `report::defstyle` style script, …) resolves against that
         // environment's registry-declared command set — plus any sibling
-        // definitions it exposes (#806).  Registry data drives the check;
+        // definitions it exposes.  Registry data drives the check;
         // no command name is matched here.
         if self.is_scoped_command_resolved(name, range) {
             return BindingKnowledge::Must(BindingTarget::document(name));
@@ -997,8 +994,8 @@ impl Analyser {
             let name = &inv.name;
             // An existence probe (`namespace which -command NAME`, exact
             // `info commands NAME`) asserts nothing about the name's
-            // existence — reference identity and existence are orthogonal
-            // (issue #945 fault 9), so the record never feeds W123.
+            // existence — reference identity and existence are orthogonal, so
+            // the record never feeds W123.
             if inv.existence_probe {
                 continue;
             }
@@ -1140,7 +1137,7 @@ impl Analyser {
         // refinement — resolving a `package require X` through the
         // project's `pkgIndex.tcl` files to learn what `X` (transitively)
         // pulls in, e.g. a wrapper package whose body does `package
-        // require Tk` (#723) — is layered on top by the LSP server, which
+        // require Tk` — is layered on top by the LSP server, which
         // owns the `tcl-lsp-core::package_resolver` package database and
         // the workspace/`auto_path` it was scanned from.  Keeping the
         // analyser single-file mirrors C Tcl, where the set of available
@@ -1184,7 +1181,7 @@ impl Analyser {
             // dialect entirely and would pick an arbitrary same-name spec —
             // e.g. `link`'s 8.6-`ooutil`-gated spec even under a 9.0+
             // dialect where the unconditional core spec is the one that's
-            // actually visible, issue #923/Codex PR #1020 review). Matches
+            // actually visible). Matches
             // the primitive `build_w123_known_names` already resolves
             // `registry_names` through, so a command's package-gating is
             // read from the one spec this dialect actually sees.
@@ -1209,10 +1206,9 @@ impl Analyser {
             // spell the same word. The real corpus case is the package's own
             // implementation file: georgtree/argparse's `proc ::argparse
             // {args}` beside its own uses was told to `package require
-            // argparse` — i.e. to require the very package it is
-            // (issue #923 idx 11, verification pass; the sibling W113
-            // false positive on the same declaration is gated by
-            // `is_package_gated_non_ambient`).
+            // argparse` — i.e. to require the very package it is.  The
+            // sibling W113 false positive on the same declaration is gated by
+            // `is_package_gated_non_ambient`.
             let candidates: Vec<String> = if inv.resolution_candidates.is_empty() {
                 crate::naming::bareword_resolution_candidates("", &inv.name)
             } else {
@@ -1272,9 +1268,8 @@ impl Analyser {
 
     /// H301 — a command used *above* the `package require` that provides it.
     ///
-    /// **The assistance half of Q8** (owner ruling 2026-08-28: on by
-    /// default). The semantic view is position-insensitive and stays that
-    /// way: a `package require` anywhere in the file makes its commands
+    /// On by default.  The semantic view is position-insensitive and stays
+    /// that way: a `package require` anywhere in the file makes its commands
     /// available for the whole file, because Tcl only resolves a command
     /// name when the call actually runs, so
     ///

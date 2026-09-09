@@ -96,8 +96,6 @@ fn param_labels_on_line(hints: &Value, line: i64) -> Vec<(i64, String)> {
     out
 }
 
-// -- TestCodeLens --------------------------------------------------------
-
 #[test]
 fn test_proc_gets_reference_count_lens() {
     let mut lsp = Lsp::tcl();
@@ -158,11 +156,10 @@ fn test_unresolved_call_scoped_to_namespace() {
 }
 
 /// Resolve the method / member lens anchored on `line` (0-based) and return
-/// the resolved `command`.  Since issue #956, member lenses resolve lazily
+/// the resolved `command`.  Member lenses resolve lazily
 /// the same way proc/class lenses do (range + `data`, no `command` until
-/// `codeLens/resolve` — see `tcl-lsp-server`'s `code_lens` handler and the
-/// `#724` "reference is not active" defect it fixed for proc/class lenses),
-/// so a raw, unresolved listing has no `command` for a caller to read
+/// `codeLens/resolve` — see `tcl-lsp-server`'s `code_lens` handler), so a
+/// raw, unresolved listing has no `command` for a caller to read
 /// directly; this always resolves first.
 fn resolve_member_lens_on_line(lsp: &mut Lsp, ls: &[Value], line: i64) -> Value {
     let lens = ls
@@ -175,9 +172,9 @@ fn resolve_member_lens_on_line(lsp: &mut Lsp, ls: &[Value], line: i64) -> Value 
 
 #[test]
 fn test_method_lens_counts_external_obj_dispatch_issue_864() {
-    // Regression for issue #864: the lens above `method get` must count the
+    // The lens above `method get` must count the
     // external `$b get foo` dispatch (`set b [Bar new]`), reading
-    // "1 reference" rather than the "0 references" the old heuristic showed.
+    // "1 reference" rather than "0 references".
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(
@@ -200,10 +197,8 @@ fn test_method_lens_counts_external_obj_dispatch_issue_864() {
     // `method get` is on line 6 (0-based).
     let command = resolve_member_lens_on_line(&mut lsp, &ls, 6);
     assert_eq!(command["title"], json!("1 reference"), "{ls:?}");
-    // Regression for issue #956: the lens must resolve to a *clickable*
-    // command, not the empty-id inert shape (the `#724` defect recurring
-    // for methods — the count above was already correct before the fix;
-    // only the command was empty).
+    // The lens must resolve to a *clickable*
+    // command, not the empty-id inert shape.
     assert_eq!(
         command["command"],
         json!("tcl-lsp.showReferences"),
@@ -292,7 +287,7 @@ fn test_property_lens_counts_my_dispatch_and_resolves_clickable() {
     // TP mirroring `test_method_lens_counts_external_obj_dispatch_issue_864`:
     // a `property`'s auto-generated accessor is dispatched via `my <name>`,
     // just like a method, so its lens must count those sites and resolve to
-    // a clickable command the same way (issue #992).
+    // a clickable command the same way.
     // `property` is Tcl 9.0+, so pin the dialect via the in-source directive
     // (shifts every line below down by one).
     let mut lsp = Lsp::tcl();
@@ -339,12 +334,11 @@ fn test_property_lens_zero_when_unused() {
 
 #[test]
 fn test_property_method_constructor_and_class_all_get_lenses_issue_992() {
-    // Repro from issue #992: a class with a `property`, a `constructor`, and
+    // A class with a `property`, a `constructor`, and
     // a `method` gets a lens for every one of them — the class itself, the
     // property, the constructor, and the method. The constructor's lens is
-    // scoped to the next-chain relationship (issue #992's own "Constructors
-    // / destructors" follow-up), not a general dispatch count, so it reads
-    // "0 references" here (nothing chains into it).
+    // scoped to the next-chain relationship, not a general dispatch count,
+    // so it reads "0 references" here (nothing chains into it).
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(
@@ -376,7 +370,7 @@ fn test_property_method_constructor_and_class_all_get_lenses_issue_992() {
 
 #[test]
 fn test_constructor_lens_counts_and_resolves_subclass_next_chain() {
-    // TP for issue #992's own follow-up: a subclass constructor chaining to
+    // TP: a subclass constructor chaining to
     // its superclass's via `next` is a name-independent but still
     // meaningful reference — the superclass constructor's lens must count
     // it and resolve to a clickable command, the same as every other lens
@@ -404,8 +398,6 @@ fn test_constructor_lens_counts_and_resolves_subclass_next_chain() {
     };
     assert_eq!(refs.len(), 1, "peek disagrees with lens: {refs:?}");
 }
-
-// -- TestDocumentLinks ---------------------------------------------------
 
 #[test]
 fn test_source_command_is_linked() {
@@ -443,8 +435,6 @@ fn test_package_require_is_linked() {
     );
 }
 
-// -- TestFormatting ------------------------------------------------------
-
 #[test]
 fn test_full_document_formatting_normalises_spacing() {
     let mut lsp = Lsp::tcl();
@@ -470,11 +460,11 @@ fn test_already_formatted_is_stable() {
     }
 }
 
-/// Issue #1186 — the formatting engine consumes registry grammar, so the
+/// The formatting engine consumes registry grammar, so the
 /// absolute global spellings C Tcl resolves to the same commands
 /// (`namespace which -command ::if` → `::if`) format identically to their
-/// bare forms. The old `name == "if"` / `"for"` / `"try"` comparisons did
-/// not fire for them at all.
+/// bare forms. A literal `name == "if"` / `"for"` / `"try"` comparison
+/// would not fire for them at all.
 #[test]
 fn test_formatting_qualified_control_flow_matches_bare_form() {
     let mut lsp = Lsp::tcl();
@@ -512,7 +502,7 @@ fn test_formatting_qualified_control_flow_matches_bare_form() {
     }
 }
 
-/// Issue #1275 — the formatter lays a command out under the grammar of the
+/// The formatter lays a command out under the grammar of the
 /// command it **is**, not the one it is spelled as, end-to-end through the
 /// packaged server.
 ///
@@ -558,7 +548,7 @@ fn test_formatting_follows_effective_command_identity() {
     assert!(!expanded("set y 1\nguard {$x} {puts a}\n"));
 }
 
-/// Issue #1186 — `for`'s `start` / `next` scripts stay on the header line
+/// `for`'s `start` / `next` scripts stay on the header line
 /// (registry `ArgPresentation::InlineScript`) while only the body expands,
 /// and range formatting agrees with whole-document formatting.
 #[test]
@@ -585,10 +575,10 @@ fn test_range_formatting_keeps_for_header_inline() {
     }
 }
 
-/// Issue #1196 — formatting must never change a proc's arity. C Tcl 9
+/// Formatting must never change a proc's arity. C Tcl 9
 /// collapses the backslash-newline in a pre-pass before the parameter word is
 /// list-parsed (even inside braces), so this proc has two required
-/// parameters; the old formatter emitted `{a\ b}`, which is one *optional*
+/// parameters; formatting must not emit `{a\ b}`, which is one *optional*
 /// parameter `a` defaulting to `b`.
 #[test]
 fn test_formatting_preserves_proc_arity_across_backslash_newline() {
@@ -606,7 +596,7 @@ fn test_formatting_preserves_proc_arity_across_backslash_newline() {
     );
 }
 
-/// Issue #1196 — the same document formatted twice is a fixed point, and the
+/// The same document formatted twice is a fixed point, and the
 /// escaped-space form (genuinely one element) keeps its identity.
 #[test]
 fn test_formatting_param_lists_are_idempotent() {
@@ -648,8 +638,6 @@ fn test_range_formatting_returns_edits() {
     );
 }
 
-// -- TestInlayHints ------------------------------------------------------
-
 #[test]
 fn test_provider_responds_with_a_list() {
     // Inlay hints are gated off by default; the provider must still answer with
@@ -677,7 +665,6 @@ fn test_hint_kinds_are_valid_when_present() {
     }
 }
 
-// -- TestInlayHintOptionalPositionals ------------------------------------
 // These run against `Lsp::inlay()` (inlay hints on) so the provider actually
 // produces hints — the default server keeps them off.
 
@@ -732,7 +719,6 @@ fn test_no_documentation_placeholder_labels() {
     );
 }
 
-// -- TestInlayToggleIndependenceE2E --------------------------------------
 // The single `inlayHints` toggle was split into two independent options, both
 // off by default: `inlayTypeHints` and `inlayParameterHints`. Enabling one must
 // not turn on the other. Each test owns its server, so `apply_configuration_settle`
@@ -792,7 +778,6 @@ fn test_type_hints_only_emit_no_parameter_labels() {
     ); // no Parameter leaked in
 }
 
-// -- TestInlayLegacyAliasE2E ---------------------------------------------
 // The retired `features.inlayHints` key is a backward-compatible alias that
 // enables *type* hints only — parameter hints stay off.
 

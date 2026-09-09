@@ -29,7 +29,7 @@ import {
 
 // Sticky Scroll Health -- decision logic
 //
-// Decision matrix (issue #1122 residuals):
+// Decision matrix:
 //   1. Any language-level value (global/workspace/workspace-folder scoped)
 //      -> the user made an explicit per-Tcl choice -> no action, ever.
 //   2. Else a global value present (no language-level override) -> case B,

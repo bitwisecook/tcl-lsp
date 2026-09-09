@@ -1550,9 +1550,8 @@ impl Parser<'_> {
                     Some(mut k) => {
                         // Under -nocase, C Tcl's `cclass()` remaps CC_UPPER /
                         // CC_LOWER to CC_ALPHA — *letters*, not alnum. Folding to
-                        // `Alnum` wrongly matched digits, so
-                        // `regexp -nocase {[[:upper:]]} 5` matched here but not
-                        // in tclsh.
+                        // `Alnum` instead would wrongly match digits under
+                        // `-nocase`, diverging from tclsh.
                         if set.nocase && matches!(k, ClassKind::Lower | ClassKind::Upper) {
                             k = ClassKind::Alpha;
                         }
@@ -1679,7 +1678,7 @@ fn collating_element(chars: &[Chr]) -> Option<Chr> {
     }
     // Named collating elements — a faithful port of C Tcl's `cnames[]` table
     // (`generic/regc_locale.c`): the POSIX portable-character-set names plus the
-    // ASCII control-code mnemonics. Verified entry-by-entry against tclsh 9.0.3
+    // ASCII control-code mnemonics. Verified entry-by-entry against tclsh 9.0
     // (see `tests/collating_names_oracle.rs`). Names are case-sensitive, exactly
     // as C Tcl compares them.
     let name: String = chars.iter().filter_map(|&c| char::from_u32(c)).collect();

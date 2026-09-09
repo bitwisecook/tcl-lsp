@@ -283,9 +283,9 @@ pub fn generate_report(
     };
     // Optional report settings the builder page persists / exports as JSON: the
     // report *content* copyright notice (distinct from the fixed tooling
-    // copyright in the footer) and, in later phases, the front-matter and logo.
-    // Parsed leniently via `Value` (no serde-derive dep) so an empty string or
-    // an older builder page still works; only `copyright` is consumed today.
+    // copyright in the footer), the Markdown front-matter, and the logo. Parsed
+    // leniently via `Value` (no serde-derive dep) so an empty string or an older
+    // builder page still works.
     let settings: serde_json::Value = if settings_json.trim().is_empty() {
         serde_json::Value::Null
     } else {

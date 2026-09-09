@@ -30,18 +30,19 @@
 //! - [`snapshot`] — [`AnalyserSnapshot`] for chunked re-analysis.
 //! - [`utils`] — pure helpers.
 //!
-//! Per-concern modules cover commands (`commands.rs`), procs
-//! (`proc.rs`), diagnostics (`diagnostics/`), `TclOO` and recovery
-//! (`oo.rs` + `recovery.rs`), plus the public entry point.
+//! Per-concern modules cover command dispatch (`commands.rs`), the
+//! per-command handlers (`handlers.rs`), diagnostics (`diagnostics/`),
+//! `TclOO` and recovery (`oo.rs` + `recovery.rs`), plus the public entry
+//! point.
 //!
 //! This pure analyser is consumed directly by the native
 //! `tcl-lsp-server`.
 
 pub mod bounds_checks;
 pub mod class_hierarchy;
-/// EXPERIMENT — object→class binding lattice + dispatch resolver.
-/// Not wired into shipping diagnostics; measured by the `mro_eval`
-/// harness.  See `docs/design/analysis/name-resolution.md` §5.6.
+/// Object→class binding lattice and dispatch resolver. Experimental: not
+/// wired into shipping diagnostics; measured by the `mro_eval` harness.
+/// See `docs/design/analysis/name-resolution.md` §5.6.
 pub mod class_lattice;
 pub mod commands;
 pub mod confusables_table;
@@ -72,8 +73,8 @@ pub use class_lattice::{
 pub use item_tree::{FileDecls, Item, ItemId, ItemKind, ItemSig, ItemTree};
 // The MRO linearisation lives in `tcl-syntax` so the bytecode VM (which must
 // not depend on the compiler — the `CompileService` injection keeps the wasm
-// core light) can share it. Re-exported here so `tcl_compiler::analyser::…`
-// callers are unchanged.
+// core light) can share it. Re-exported here so callers can reach it as
+// `tcl_compiler::analyser::…`.
 pub use scope::{
     VariableAliasLink, command_resolution_namespace_at, implicit_command_namespace_path_at,
     innermost_scope_is_oo_method_frame, innermost_scope_reaches_oo_helpers,

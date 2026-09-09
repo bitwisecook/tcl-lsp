@@ -23,18 +23,15 @@
 //! command-name bindings (the flow-sensitive lattice in
 //! `tcl_compiler::command_binding`, the lowerer's alias table, the
 //! analyser's rename / alias records) need to know *which* calls do this
-//! and *what they did*; before this descriptor existed each of them matched
-//! `proc` / `rename` / `interp alias` by name.
+//! and *what they did*.
 //!
-//! ## What this is now (centralisation ledger C8)
+//! ## What this is
 //!
-//! This enum was for a time a **second** transition vocabulary: the
-//! registry declared the coarse effect, consumers dispatched on it, and
-//! each then re-destructured the argument layout for itself — beside
-//! [`crate::state_transition`]'s `CommandBindingTransition`, which already
-//! said the same thing precisely.  It is now a one-word **selector** for a
-//! stock [`crate::StateTransitionDescriptor`]
-//! ([`CommandTableEffect::transitions`]), and nothing else:
+//! This enum is a one-word **selector** for a stock
+//! [`crate::StateTransitionDescriptor`]
+//! ([`CommandTableEffect::transitions`]) — not a second transition
+//! vocabulary beside [`crate::state_transition`]'s
+//! `CommandBindingTransition`, which already says the same thing precisely:
 //!
 //! - a shipped spec names the stock descriptor directly and does not stamp
 //!   the selector as well;
@@ -97,9 +94,9 @@ mod tests {
     use crate::state_transition::{CommandBindingTransition, StateTransition};
 
     /// The selector a `SpecTcl` pack writes resolves to the *same* facts the
-    /// shipped specs' descriptors produce — one vocabulary, one resolver
-    /// (ledger C8). A pack cannot supply a Rust resolver, so this is the
-    /// only route its declaration has, and it must not be a second one.
+    /// shipped specs' descriptors produce — one vocabulary, one resolver. A
+    /// pack cannot supply a Rust resolver, so this is the only route its
+    /// declaration has, and it must not be a second one.
     #[test]
     fn the_pack_selector_resolves_to_the_stock_transitions() {
         let defined = CommandTableEffect::DefinesProcedure

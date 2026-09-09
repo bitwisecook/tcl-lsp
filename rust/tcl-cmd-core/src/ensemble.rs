@@ -20,7 +20,8 @@
 //! `must be …` enumeration — the shared owner both runtimes resolve
 //! `namespace ensemble` and ensemble dispatch through (`tclEnsemble.c`).
 //!
-//! Three facts C keeps in one file and the runtimes used to keep twice each:
+//! Three facts C keeps in one file, shared here rather than duplicated by
+//! each runtime:
 //!
 //! - the **option tables**. `namespace ensemble create` and `namespace
 //!   ensemble configure` do **not** share a table: `create` has `-command`

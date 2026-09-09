@@ -28,9 +28,10 @@
 //!
 //! Arg-driven `*` width/`.*` precision parse into `width_star`/`precision_star`
 //! (the runtime renderer consumes a leading argument; the const-folder declines
-//! them). The modelled subset still bails (`None`) on an over-[`MAX_FIELD`]
-//! field, positional `%n$`, and unknown size modifiers — a missed parse is
-//! never wrong for a const-fold, and the runtime can extend it.
+//! them), and a positional `%n$` selector into `arg_index`. The modelled subset
+//! still bails (`None`) on an over-[`MAX_FIELD`] field and on unknown size
+//! modifiers — a missed parse is never wrong for a const-fold, and the runtime
+//! can extend it.
 
 /// Field sizes beyond this bail — never fold a literal into kilobytes of
 /// padding (sound: a missed fold is never wrong).
@@ -211,9 +212,9 @@ enum Field {
     Size(usize),
 }
 
-/// Parse one conversion's flags / width / `.precision` / verb, starting just
-/// past the `%` and advancing `i` past the verb. Bails on `*` width / precision,
-/// an over-[`MAX_FIELD`] field, or a missing verb.
+/// Parse one conversion's selector / flags / width / `.precision` / size / verb,
+/// starting just past the `%` and advancing `i` past the verb. Bails on an
+/// over-[`MAX_FIELD`] field or a missing verb.
 pub fn parse_spec(fmt: &[u8], i: &mut usize) -> Option<Spec> {
     parse_spec_with_limit(fmt, i, MAX_FIELD)
 }

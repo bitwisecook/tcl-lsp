@@ -264,8 +264,7 @@ pub fn spec() -> CommandSpec {
         // by the argument script" for `timer in`/`timer at`, and for `timer
         // idle`, "Arranges for the script to be evaluated later as an idle
         // callback … the next time the event loop is entered". A scheduled
-        // script cannot stop control reaching the caller's next statement
-        // (issue #1672 audit).
+        // script cannot stop control reaching the caller's next statement.
         traits: Traits::BYTE_COMPILED.union(Traits::DEFERS_BODY),
         surface: Some(SpecSurface::TCL91),
         arity: Arity::at_least(1),

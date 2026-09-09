@@ -144,8 +144,7 @@ pub fn infer_param_traits_deep(
 /// counter on every `apply`, defeating [`MAX_DEPTH`] while the *native*
 /// call stack keeps growing one `scan_deep` ↔
 /// `infer_param_traits_deep_at_depth` frame group per level regardless —
-/// the same "guard exists but doesn't cover every recursive edge" bug
-/// class as issue #996 / #997.
+/// the same "guard exists but doesn't cover every recursive edge" bug class.
 fn infer_param_traits_deep_at_depth(
     params: &[&str],
     body_source: &str,
@@ -220,7 +219,7 @@ struct ScanCtx<'p, 'r> {
     param_set: &'r HashSet<&'p str>,
     surface: DocumentCommandSurface<'r>,
     config: LexerConfig,
-    /// The **document's** proven command-identity facts (issue #1275), so a
+    /// The **document's** proven command-identity facts, so a
     /// role, frame-effect, or structural handler is chosen by the command a
     /// head *is* rather than the one it is spelled as.
     ///
@@ -438,9 +437,9 @@ fn scan_deep<'p>(
         // share a name with an enclosing param (`proc f {body} { apply {x
         // {eval $body}} 1 }`) would wrongly mark `f`'s `body` param as
         // evaluated, while the real forwarding case (`apply {x {eval $x}}
-        // $body`) would be missed entirely (codex review of #954's
-        // follow-up). Instead: infer the lambda's own traits in complete
-        // isolation — as if it were its own tiny proc — then propagate a
+        // $body`) would be missed entirely. Instead: infer the lambda's own
+        // traits in complete isolation — as if it were its own tiny proc —
+        // then propagate a
         // lambda param's trait back onto an enclosing param only when the
         // corresponding actual argument is a bare, unadorned reference to
         // that enclosing param, i.e. only when the value genuinely flows
@@ -521,7 +520,7 @@ fn scan_deep<'p>(
 /// reference.
 ///
 /// The `${…}` scan here is deliberately **not** threaded through
-/// [`tcl_lexer::braced_var_name_end`], and that is not the #1604 gap it looks
+/// [`tcl_lexer::braced_var_name_end`], and that is not the gap it looks
 /// like: the identifier gate below accepts only `[A-Za-z_][A-Za-z0-9_:]*`, and
 /// the two release rules can only disagree about a name containing `{`, `}`,
 /// or `\` — every one of which this rejects, under either rule. The two
@@ -567,8 +566,7 @@ fn extract_var_name(text: &str) -> Option<&str> {
 /// document declares for the same name (gap ruling R1) — the surface
 /// unions the two, so a declaration widens a shipped command's role set
 /// and never narrows it.  When two roles claim the same index the later
-/// role in the iteration order below wins, exactly as it did when the
-/// registry and the overlay were consulted separately.
+/// role in the iteration order below wins.
 fn resolve_arg_roles(
     command: &str,
     args: &[String],
@@ -617,7 +615,7 @@ fn scan_command<'p>(
     let param_set = ctx.param_set;
     // The *written* spelling is what a `$param` head test reads (a `$cmd` head
     // is a substitution, not a command binding); every registry query and
-    // structural handler below reads the resolved one (issue #1275).
+    // structural handler below reads the resolved one.
     let cmd_name = head.written;
     let resolved = head.resolved;
     // A `$param` command *head* (`$cmd arg1 arg2`) means the param's value names
@@ -658,15 +656,12 @@ fn scan_command<'p>(
     // the var name — `set`/`incr`/`append`/`lappend`/`global`/
     // `variable` etc. — are already covered by
     // `apply_arg_role_traits` above, which marks `ProcArgTrait::VarWrite`
-    // for any arg whose registry `ArgRole` is `VarWrite`.  The old
-    // hardcoded `var_write_index` name list was a redundant duplicate
-    // of that registry query and has been removed.  `regexp` capture
-    // vars and `regsub`'s output var are covered the same way: their
-    // specs' `arg_role_resolver` performs the spec-declared switch skip
-    // (`-start` consumes a value, `--` terminates) and resolves the
-    // trailing vars as `VarWrite`, so the old hardcoded
-    // `REGEXP_SWITCHES` skip — which missed `-about` and the Tcl 9
-    // `regsub -command` — has been removed too.)
+    // for any arg whose registry `ArgRole` is `VarWrite`, so no hardcoded
+    // name list is needed here.  `regexp` capture vars and `regsub`'s output
+    // var are covered the same way: their specs' `arg_role_resolver` performs
+    // the spec-declared switch skip (`-start` consumes a value, `--`
+    // terminates) and resolves the trailing vars as `VarWrite` — a hardcoded
+    // switch list would miss `-about` and the Tcl 9 `regsub -command`.)
 
     // Track writes through upvar aliases — ``set local …`` where
     // ``local`` was registered as an alias for some param.
@@ -731,8 +726,8 @@ fn scan_command<'p>(
 ///
 /// `braced[i]` is `true` when argument `i` was a braced (`{…}`) literal word,
 /// in which case **no substitution occurs**: `set {arr($k)} 1` names the literal
-/// variable `arr($k)`, so the `$k` inside must not be read as a substitution
-/// (issue #814 review).  The braced guard applies only to the variable-name
+/// variable `arr($k)`, so the `$k` inside must not be read as a substitution.
+/// The braced guard applies only to the variable-name
 /// roles; a braced `Body` / `Expr` word still substitutes internally when Tcl
 /// evaluates it, and the deep pass recurses into it.
 fn apply_arg_role_traits<'p>(
@@ -855,7 +850,7 @@ fn var_substitutions(text: &str, braced_var: tcl_dialect::BracedVarStyle) -> Vec
             // after them (`${v}($k)`) is still scanned.
             // The closer comes from the shared owner under this document's
             // release rule; a first-`}` scan took the leading identifier of
-            // `a{b` where the lexer spanned `a{b}c` (issue #1604).
+            // `a{b` where the lexer spans `a{b}c`.
             if let tcl_lexer::BracedVarEnd::Closed(close) =
                 tcl_lexer::braced_var_name_end(bytes, i + 2, braced_var)
             {
@@ -955,7 +950,7 @@ fn apply_eval_traits<'a>(
 /// itself lives in the registry as
 /// [`tcl_registry::frame_effect::FrameLevelWord::ArityParity`], queried here
 /// through the spec rather than re-derived, so this stays the one description
-/// of `upvar`'s shape (issue #1069).
+/// of `upvar`'s shape.
 ///
 /// A level word whose value is not a frame at all (C Tcl's `bad level "…"`)
 /// answers [`FrameLevel::Dynamic`] — unplaceable, which is the abstaining
@@ -1053,8 +1048,8 @@ pub fn caller_frame_upvar_params(
 
 /// The **literal caller-frame targets** a proc body binds through `upvar` —
 /// caller-frame names the callee spells in its *own* text, with no call-site
-/// argument word to key on (`upvar 1 name name`, issue #923 audit idx 22 /
-/// issue #1139).  Returns `caller_name → written-through-alias`.
+/// argument word to key on (`upvar 1 name name`).  Returns
+/// `caller_name → written-through-alias`.
 ///
 /// Strictly the complement of [`caller_frame_upvar_params`]: that fact keys
 /// on a `$param` **source** (the name arrives from the call site); this one
@@ -1070,12 +1065,12 @@ pub fn caller_frame_upvar_params(
 ///   different frame entirely, see [`caller_frame_upvar_params`]'s table;
 /// * a `::`-qualified source (`upvar 1 ::ns::x local`) — a fixed global/
 ///   namespace cell, level-independent, already linked by the analyser's
-///   `handle_upvar_command` `otherVar` link (issue #923 idx 98);
+///   `handle_upvar_command` `otherVar` link;
 /// * an array element or any substituted/computed source — not a plain
 ///   caller-frame scalar name this scan can claim;
 /// * a dynamic **local** side — with no alias name, the write-through scan
 ///   below has nothing to match, so the pair contributes nothing here (the
-///   compiler-side summary still widens the call site, issue #1165).
+///   compiler-side summary still widens the call site).
 ///
 /// The write-through upgrade mirrors [`record_upvar_pairs`]'s rule for
 /// params: a later registry-declared `VarWrite` on the alias local (`set
@@ -1318,8 +1313,7 @@ fn handle_after<'a>(
 /// separately via the upvar-alias path, which emits a genuine
 /// `VarWrite`).  Emitting [`ProcArgTrait::DynamicNameLocal`] (+
 /// `VarRead`) rather than `VarWrite` keeps caller-side dead-store /
-/// unused-variable suppression from silencing the caller's literal
-/// arg (PR #498 / #499 finding 6).
+/// unused-variable suppression from silencing the caller's literal arg.
 fn handle_variadic_var_write<'a>(
     args: &[String],
     param_set: &HashSet<&'a str>,
@@ -1398,7 +1392,7 @@ mod tests {
         assert_trait(&traits, "body", ProcArgTrait::Eval);
     }
 
-    /// Issue #954's param-trait sibling gap: the *deep* pass
+    /// The *deep* pass
     /// (`infer_param_traits_deep`, which alone recurses into braced body
     /// arguments) must reach real commands *inside* an `apply` lambda body,
     /// not misread the whole `{argList} {body}` blob as one script (which
@@ -1407,9 +1401,9 @@ mod tests {
     /// swapping the registry-known `apply`/`LambdaLiteral` shape in for a
     /// stub-declared `Body` shape. The lambda's own param is `x`, bound to
     /// the literal `1` — an enclosing `body` param is neither the lambda's
-    /// param nor forwarded into the call, so it must record nothing (codex
-    /// review of #954's follow-up: a lambda body runs in a fresh frame, and
-    /// a same-named enclosing param is not implicitly in scope there).
+    /// param nor forwarded into the call, so it must record nothing: a lambda
+    /// body runs in a fresh frame, and a same-named enclosing param is not
+    /// implicitly in scope there.
     #[test]
     fn eval_inside_apply_lambda_body_does_not_leak_to_unrelated_enclosing_param() {
         let registry = CommandRegistry::build_default();
@@ -1554,7 +1548,7 @@ mod tests {
         }
     }
 
-    /// Issue #1139: the literal-target fact — `upvar 1 name name` binds the
+    /// The literal-target fact — `upvar 1 name name` binds the
     /// caller's `name`, written through the alias when the body assigns it.
     /// tclsh 9.0.4: `proc np {} {upvar name name; set name W1}` then
     /// `np; puts $name` prints `W1` in the caller.
@@ -1624,8 +1618,8 @@ mod tests {
 
     /// `upvar $lvl a b` has three words, so parity puts `$lvl` in the level
     /// slot and `(a, b)` in the pair slot — the level is unplaceable, so no
-    /// caller-frame parameter is claimed, but the *pair* handling (and hence
-    /// the trait map) is unchanged by the refactor.
+    /// caller-frame parameter is claimed, while the *pair* handling (and hence
+    /// the trait map) still applies.
     #[test]
     fn dynamic_level_word_keeps_parity_pairing_but_claims_no_frame() {
         let registry = CommandRegistry::build_default();
@@ -1646,7 +1640,7 @@ mod tests {
     fn upvar_my_var_slot_param_is_callee_local_not_var_write() {
         // `upvar 1 caller $local` — the param in the `myVar` slot names the
         // *callee-local* alias, not a caller variable, so it is a
-        // `DynamicNameLocal` use, never a caller-frame `VarWrite` (PR review).
+        // `DynamicNameLocal` use, never a caller-frame `VarWrite`.
         let traits = infer(&["local"], "upvar 1 caller $local");
         assert_trait(&traits, "local", ProcArgTrait::DynamicNameLocal);
         assert!(
@@ -1704,8 +1698,8 @@ mod tests {
     #[test]
     fn braced_var_name_has_no_substitution() {
         // `set {arr($k)} 1` — the braces make `arr($k)` a *literal* variable
-        // name, so `$k` is not a substitution and must not mark `k` (issue #814
-        // review: the segmenter drops the braces, so the guard is by token kind).
+        // name, so `$k` is not a substitution and must not mark `k` (the
+        // segmenter drops the braces, so the guard is by token kind).
         assert!(!infer(&["k"], "set {arr($k)} 1").contains_key("k"));
         assert!(!infer(&["p"], "set {$p} 1").contains_key("p"));
         // The unbraced form *does* substitute, so it still marks the component.
@@ -1946,7 +1940,7 @@ mod tests {
     #[test]
     fn regsub_command_switch_is_skipped_to_output_var() {
         // Tcl 9 `regsub -command exp string cmdPrefix varName` — `-command`
-        // is a spec-declared flag the old hardcoded switch list missed, so
+        // is a spec-declared flag (one a hardcoded switch list misses), so
         // the output var must still resolve at exp + 3.
         let traits = infer(&["out"], "regsub -command {x+} $s myCb $out");
         assert_trait(&traits, "out", ProcArgTrait::DynamicNameLocal);
@@ -1959,7 +1953,7 @@ mod tests {
         // (registry `VarWrite` role on the `$p` substitution).  The
         // refined trait is DynamicNameLocal (+ VarRead), NOT VarWrite:
         // a caller passing a literal name (`f x`) does not have its `x`
-        // consumed by this callee.  Pins the PR #498 finding-10 fix.
+        // consumed by this callee.
         let traits = infer(&["p"], "set $p 1");
         assert_trait(&traits, "p", ProcArgTrait::DynamicNameLocal);
         assert_trait(&traits, "p", ProcArgTrait::VarRead);
@@ -2053,25 +2047,22 @@ mod tests {
         );
     }
 
-    /// Same-bug-class regression as issue #996's own fix, in the sibling
-    /// walker the issue explicitly calls out (`param_traits.rs`): before
-    /// this fix, `scan_deep`'s `apply` (`ArgRole::LambdaLiteral`) handling
-    /// re-entered `infer_param_traits_deep_with_config` — the *public*,
-    /// depth-0 entry point — instead of threading its own `depth + 1`
-    /// through. Alternating `if {1} { apply {x {…}} … }` nesting therefore
-    /// reset the *logical* [`MAX_DEPTH`] counter back to 0 on every `apply`
-    /// boundary while the *native* Rust call stack (`scan_deep` ↔
-    /// `infer_param_traits_deep_at_depth`) kept growing one frame group per
-    /// level regardless of the reset — unboundedly, for however deep the
-    /// input alternates. `MAX_DEPTH` (8) never actually bit.
+    /// Depth coverage for the `apply` seam: `scan_deep`'s `apply`
+    /// (`ArgRole::LambdaLiteral`) handling must thread its own `depth + 1`
+    /// rather than re-enter `infer_param_traits_deep_with_config` — the
+    /// *public*, depth-0 entry point. Re-entering resets the *logical*
+    /// [`MAX_DEPTH`] counter to 0 on every `apply` boundary while the
+    /// *native* Rust call stack (`scan_deep` ↔
+    /// `infer_param_traits_deep_at_depth`) keeps growing one frame group per
+    /// level regardless — unboundedly, for however deep the input
+    /// alternates, so `MAX_DEPTH` (8) never bites.
     ///
     /// 2000 alternating pairs (4000 real nesting levels) is far beyond
-    /// anything the old bypass would have tolerated on a small-stack
+    /// anything such a bypass would survive on a small-stack
     /// thread; this must terminate cleanly, not hang or overflow the
     /// stack — the same rationale as the big-stack helpers in
     /// `analyser::commands::tests` / `lowering::tests` (`cargo test`'s
-    /// per-test thread has the same undersized default stack that made
-    /// issue #996 reproduce in production).
+    /// per-test thread has the same undersized default stack production hits).
     #[test]
     fn deep_pass_bounds_alternating_if_apply_nesting() {
         const PAIRS: usize = 2000;
@@ -2316,8 +2307,8 @@ mod tests {
         assert_eq!(none, empty);
     }
 
-    /// Issue #1275 — trait inference must resolve a command head's *effective
-    /// identity*, not its written spelling.
+    /// Trait inference must resolve a command head's *effective identity*, not
+    /// its written spelling.
     ///
     /// tclsh oracle (8.6.16 and 9.0.4, byte-identical): `interp alias {} run
     /// {} eval` makes `run $body` evaluate `$body`; `rename eval run` moves it

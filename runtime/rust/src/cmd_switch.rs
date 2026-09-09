@@ -257,7 +257,7 @@ fn write_var(interp: &mut Interp, name: &[u8], obj: *mut TclObj) -> Result<(), (
     }
 }
 
-// -- list-element scanning (located bodies) ---------------------------------
+// list-element scanning (located bodies)
 
 /// A located list element: its interior byte range and whether it is `literal`
 /// (verbatim, no backslash collapse). `value.start` doubles as the line-tracking

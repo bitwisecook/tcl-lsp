@@ -18,10 +18,8 @@
 
 //! The `highlight` verb — emit ANSI- or HTML-highlighted source.
 //!
-//! Note the tab
-//! handling differs from the transform verbs: here highlighting runs *first*
-//! and tab expansion *after* (so tab expansion sees the escape codes), which
-//! is the order for this verb specifically.
+//! Tab handling differs from the transform verbs: here highlighting runs
+//! *first* and tab expansion *after*, so tab expansion sees the escape codes.
 
 use tcl_cli_support::{
     OutputTarget, combine_sources, combined_effective_dialect, expand_tabs, highlight_ansi,
