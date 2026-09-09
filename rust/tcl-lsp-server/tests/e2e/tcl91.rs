@@ -52,7 +52,6 @@ fn complete_cmd(lsp: &mut Lsp, dialect: &str, partial: &str) -> BTreeSet<String>
     labels(&lsp.completion(&uri, 1, u32::try_from(partial.len()).unwrap()))
 }
 
-
 #[test]
 fn unicode_and_timer_offered_in_91() {
     // doc/unicode.n, doc/timer.n — both are new commands in 9.1.

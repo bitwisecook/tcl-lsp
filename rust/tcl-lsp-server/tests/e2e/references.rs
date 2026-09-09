@@ -29,7 +29,6 @@ use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 use std::time::Duration;
 
-
 #[test]
 fn find_proc_definition_and_calls() {
     let mut lsp = Lsp::tcl();
@@ -314,7 +313,6 @@ fn qualified_calls_do_not_cross_two_level_nested_namespace() {
     assert!(lines_cd.contains(&8), "{lines_cd:?}");
 }
 
-
 #[test]
 fn find_var_refs() {
     let mut lsp = Lsp::tcl();
@@ -376,7 +374,6 @@ fn var_refs_respect_shadowing_local_target() {
     let expected: std::collections::BTreeSet<i64> = [3, 4].into_iter().collect();
     assert_eq!(s, expected);
 }
-
 
 #[test]
 fn superclass_and_mixin_references() {

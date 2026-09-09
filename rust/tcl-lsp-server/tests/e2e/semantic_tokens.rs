@@ -106,7 +106,6 @@ fn modifier_bit(mods: &[String], name: &str) -> i64 {
     1i64 << idx
 }
 
-
 /// Representative + adversarial documents the encoder must keep coherent.
 fn invariant_corpus() -> Vec<(&'static str, &'static str)> {
     let mut v = vec![
@@ -237,7 +236,6 @@ fn test_escape_before_multibyte_char_does_not_panic() {
         );
     }
 }
-
 
 #[test]
 fn test_simple_puts() {
@@ -710,7 +708,6 @@ fn test_bind_query_forms_do_not_recurse() {
     );
 }
 
-
 /// The set of source words rendered as keyword tokens.
 fn keyword_words(
     lsp: &mut Lsp,
@@ -787,7 +784,6 @@ fn test_quoted_structural_keyword_offsets_past_quote() {
         covered(source, kw)
     );
 }
-
 
 const RE_TYPES: &[&str] = &[
     "regexp",
@@ -922,7 +918,6 @@ fn test_regsub_multiple_backrefs() {
         .collect();
     assert_eq!(nums.len(), 2);
 }
-
 
 #[test]
 fn test_when_event_name_highlighted_as_event() {
@@ -1070,7 +1065,6 @@ fn test_global_qualified_command() {
     assert_eq!(ns[0].length, i64::try_from("::".len()).unwrap());
 }
 
-
 #[test]
 fn test_builtin_command_has_default_library() {
     let mut lsp = Lsp::tcl();
@@ -1138,7 +1132,6 @@ fn test_proc_definition_no_default_library() {
         .expect("definition function token");
     assert_eq!(fn_tok.modifiers & modifier_bit(&mods, "defaultLibrary"), 0);
 }
-
 
 #[test]
 fn test_backslash_n_highlighted() {

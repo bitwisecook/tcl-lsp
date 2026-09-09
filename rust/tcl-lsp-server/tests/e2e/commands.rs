@@ -56,7 +56,6 @@ fn source(result: &Value) -> &str {
     result.get("source").and_then(Value::as_str).unwrap_or("")
 }
 
-
 #[test]
 fn fix_all_safe_issues_braces_a_substitution_free_expression() {
     // TP: nothing substitutes in `abs(-2)`, so `expr` receives the same
@@ -336,7 +335,6 @@ fn minify_preserves_switch_braced_quoted_pattern_closers() {
     assert_eq!(out.matches('{').count(), out.matches('}').count(), "{out}");
 }
 
-
 #[test]
 fn describe_event_known() {
     let mut lsp = Lsp::tcl();
@@ -383,7 +381,6 @@ fn list_irule_events_nonempty() {
         .unwrap_or_default();
     assert!(events.contains(&"HTTP_REQUEST"), "{events:?}");
 }
-
 
 #[test]
 fn diagram_extracts_irule_events() {
@@ -574,7 +571,6 @@ fn tk_preview_fingerprints_the_editors_raw_line_endings() {
         "{result}"
     );
 }
-
 
 /// Commands advertised in `executeCommandProvider` that every conforming backend
 /// must expose.

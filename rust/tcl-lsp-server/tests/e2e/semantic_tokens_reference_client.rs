@@ -623,7 +623,6 @@ fn open_and_seed(lsp: &mut Lsp, uri: &str, text: &str) -> (Mirror, SemtokState) 
     (Mirror::new(uri, text), client)
 }
 
-
 /// The reference client and the server must stay in lock-step through a mix of
 /// inserts, deletes, renames and comment toggles applied as incremental edits,
 /// checked after *every* edit.

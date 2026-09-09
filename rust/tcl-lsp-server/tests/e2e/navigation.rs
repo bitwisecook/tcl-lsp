@@ -22,7 +22,6 @@ use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 use serde_json::Value;
 
-
 #[test]
 fn set_with_class_new() {
     let mut lsp = Lsp::tcl();
@@ -52,7 +51,6 @@ fn my_call_returns_enclosing_class() {
     assert_eq!(locs.len(), 1);
     assert_eq!(locs[0].range["start"]["line"].as_i64(), Some(0));
 }
-
 
 #[test]
 fn global_var_in_proc_returns_declaration_not_set() {

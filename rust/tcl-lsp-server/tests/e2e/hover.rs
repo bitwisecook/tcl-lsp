@@ -31,7 +31,6 @@ fn hover(lsp: &mut Lsp, uri: &str, line: u32, ch: u32) -> String {
     hover_text(&lsp.hover(uri, line, ch))
 }
 
-
 #[test]
 fn builtin_command() {
     let mut lsp = Lsp::tcl();
@@ -121,7 +120,6 @@ fn curated_command_hover_does_not_mark_refinement_status() {
         "hover should not mark refinement status"
     );
 }
-
 
 #[test]
 fn proc_signature() {
@@ -364,7 +362,6 @@ fn global_call_hover_fallback_is_deterministic() {
     }
 }
 
-
 #[test]
 fn var_hover() {
     let mut lsp = Lsp::tcl();
@@ -439,7 +436,6 @@ fn option_hover_omits_snippet() {
     assert!(text.contains("-myaddr"), "hover: {text:?}");
     assert!(!text.contains("multi-homed"), "hover: {text:?}");
 }
-
 
 #[test]
 fn sprintf_format_hover() {
@@ -593,7 +589,6 @@ fn regexp_literal_no_metachar() {
         "hover: {text:?}"
     );
 }
-
 
 #[test]
 fn alias_hover_shows_target() {

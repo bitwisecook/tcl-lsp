@@ -666,7 +666,6 @@ impl Lsp {
         }
     }
 
-
     /// Run the `initialize` handshake and send `initialized`.
     pub fn initialize(&mut self) -> Value {
         let root = format!("file:///e2e/root-{}", std::process::id());
@@ -991,7 +990,6 @@ impl Lsp {
             .cloned()
             .unwrap_or_default()
     }
-
 
     /// A marker into the notification log for `await_log(..., since)`.
     pub fn notification_cursor(&self) -> usize {
@@ -1750,7 +1748,6 @@ impl Lsp {
         params["arguments"] = arguments;
         self.request("workspace/executeCommand", params)
     }
-
 
     /// The server's *resolved* config for `uri` (`tcl-lsp.getEffectiveConfig`) —
     /// the view the analyser/formatter actually applies.

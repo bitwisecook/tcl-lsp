@@ -47,7 +47,6 @@ fn name_of(item: &Value) -> String {
         .to_owned()
 }
 
-
 #[test]
 fn prepare_returns_proc_item() {
     let mut lsp = Lsp::tcl();
@@ -193,7 +192,6 @@ fn bare_dispatch_on_a_same_named_proc_is_not_a_classmethod_edge() {
     );
 }
 
-
 #[test]
 fn method_implementations_across_subclasses() {
     let mut lsp = Lsp::tcl();
@@ -205,7 +203,6 @@ fn method_implementations_across_subclasses() {
     assert!(lines.contains(&1), "{lines:?}");
     assert!(lines.contains(&5), "{lines:?}");
 }
-
 
 #[test]
 fn recursive_self_calls_linked_with_declaration() {

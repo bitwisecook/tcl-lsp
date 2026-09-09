@@ -97,7 +97,6 @@ fn settle(lsp: &mut Lsp, what: &str, predicate: impl Fn(&mut Lsp) -> bool) {
     }
 }
 
-
 #[test]
 fn reports_resolved_feature_map() {
     let mut lsp = Lsp::tcl();
@@ -249,7 +248,6 @@ disable_feature_test!(
     "documentLinks"
 );
 
-
 #[test]
 fn optimiser_disable_round_trips() {
     let mut lsp = Lsp::tcl();
@@ -292,7 +290,6 @@ fn optimiser_disable_round_trips() {
         "{on_again}"
     );
 }
-
 
 const FMT_SRC: &str = "proc f {} {\nputs hi\n}\n";
 

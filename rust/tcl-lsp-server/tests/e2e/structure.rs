@@ -51,7 +51,6 @@ fn folds(result: &Value) -> Vec<Value> {
     result.as_array().cloned().unwrap_or_default()
 }
 
-
 #[test]
 fn proc_body_folds() {
     let mut lsp = Lsp::tcl();
@@ -122,7 +121,6 @@ fn escaped_backslash_is_not_a_continuation() {
     assert!(!s.contains(&(0, 1)), "{s:?}");
 }
 
-
 #[test]
 fn widens_from_inner_to_outer() {
     let mut lsp = Lsp::tcl();
@@ -142,7 +140,6 @@ fn widens_from_inner_to_outer() {
     }
     assert!(depth >= 2);
 }
-
 
 #[test]
 fn find_proc() {

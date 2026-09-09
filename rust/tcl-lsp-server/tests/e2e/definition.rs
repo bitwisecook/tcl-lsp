@@ -34,7 +34,6 @@ fn start_line(loc: &Loc) -> i64 {
         .unwrap_or(-1)
 }
 
-
 #[test]
 fn jump_to_proc() {
     let mut lsp = Lsp::tcl();
@@ -226,7 +225,6 @@ fn mathfunc_call_jumps_to_namespace_local_override() {
         "must resolve to the local override"
     );
 }
-
 
 #[test]
 fn jump_to_var_definition() {

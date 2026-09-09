@@ -61,7 +61,6 @@ fn doc_text(item: &Value) -> String {
     }
 }
 
-
 #[test]
 fn empty_line_returns_commands() {
     let mut lsp = Lsp::tcl();
@@ -113,7 +112,6 @@ fn builtin_command_has_documentation() {
         "doc: {dt:?}"
     );
 }
-
 
 #[test]
 fn dollar_triggers_vars() {
@@ -328,7 +326,6 @@ fn dollar_completion_tolerates_cursor_past_eol() {
     assert!(labels(&mut lsp, &uri, 1, 100).contains(&"$greeting".to_owned()));
 }
 
-
 #[test]
 fn array_element_completion_offers_known_indices() {
     let mut lsp = Lsp::tcl();
@@ -361,7 +358,6 @@ fn array_element_completion_consumes_existing_close_paren() {
     assert_eq!(edit["range"]["end"]["character"], 15);
     assert_eq!(edit["newText"], "$arr(name)");
 }
-
 
 #[test]
 fn string_subcommands() {
@@ -411,7 +407,6 @@ fn namespace_subcommands() {
         assert!(ls.contains(expected), "missing {expected:?} in {ls:?}");
     }
 }
-
 
 #[test]
 fn regexp_switches() {
@@ -521,7 +516,6 @@ fn switch_text_edit_with_longer_partial() {
     assert_eq!(edit["newText"], "-nocase");
 }
 
-
 #[test]
 fn dollar_global_var_from_namespace_offers_qualified() {
     let mut lsp = Lsp::tcl();
@@ -619,7 +613,6 @@ fn dollar_completion_uplevel_one_abstains_from_proc_scope() {
         "the uplevel body's own variable should be offered: {ls:?}"
     );
 }
-
 
 #[test]
 fn array_element_completion_picks_up_read_only_indices() {

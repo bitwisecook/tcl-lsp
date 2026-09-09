@@ -170,7 +170,6 @@ fn with_code(diags: &[Value], code: &str) -> Vec<Value> {
         .collect()
 }
 
-
 #[test]
 fn test_w100_offers_brace_wrap() {
     let mut lsp = Lsp::tcl();
@@ -483,7 +482,6 @@ fn test_t102_fires_for_assign_value_wrapped_call() {
     );
 }
 
-
 #[test]
 fn test_extract_proc_available_without_diagnostics() {
     let mut lsp = Lsp::tcl();
@@ -502,7 +500,6 @@ fn test_extract_proc_available_without_diagnostics() {
             .any(|t| t.to_lowercase().contains("extract"))
     );
 }
-
 
 #[test]
 fn test_extract_proc_snippets() {
@@ -737,7 +734,6 @@ fn test_inline_proc_refuses_a_returning_proc_with_a_reason() {
     );
 }
 
-
 /// The `_rewrite` helper: request `refactor.rewrite`-only actions.
 fn rewrite(lsp: &mut Lsp, uri: &str, start: (u32, u32), end: (u32, u32)) -> Vec<Value> {
     let actions = code_actions_only(
@@ -839,7 +835,6 @@ fn test_invert_subexpression_in_compound() {
     assert_eq!(inv.len(), 1);
 }
 
-
 #[test]
 fn test_simple_continuation_fix() {
     let mut lsp = Lsp::tcl();
@@ -901,7 +896,6 @@ fn test_already_commented_continuation_not_doubled() {
     assert_eq!(lines[0], "# line1");
     assert_eq!(lines[1], "# line2");
 }
-
 
 #[test]
 fn test_ipv4_offers_ipv6_mapped() {
@@ -1090,7 +1084,6 @@ fn test_body_style_inserts_inside_the_proc_not_on_the_decl_line() {
     );
 }
 
-
 #[test]
 fn test_eval_string_to_list_action() {
     let mut lsp = Lsp::tcl();
@@ -1105,7 +1098,6 @@ fn test_eval_string_to_list_action() {
             .any(|s| s.contains("[list process $x]"))
     );
 }
-
 
 #[test]
 fn test_no_profiles_action_for_tcl_dialect() {
@@ -1239,7 +1231,6 @@ fn test_e102_no_fix_offered_for_embedded_brace() {
         titles(&actions)
     );
 }
-
 
 #[test]
 fn test_s100_offers_noqa_suppress_action() {

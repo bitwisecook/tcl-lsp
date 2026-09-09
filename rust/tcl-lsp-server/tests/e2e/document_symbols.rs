@@ -66,7 +66,6 @@ fn children(sym: &Value) -> Vec<Value> {
         .unwrap_or_default()
 }
 
-
 #[test]
 fn single_proc() {
     let mut lsp = Lsp::tcl();
@@ -192,7 +191,6 @@ fn proc_symbol_range_contains_selection() {
     assert!(start_line(outer) <= start_line(inner));
     assert!(end_line(outer) >= end_line(inner));
 }
-
 
 #[test]
 fn class_symbol_emitted() {
@@ -555,7 +553,6 @@ fn tcltest_constraint_and_match_mode_are_symbols() {
         .unwrap_or_else(|| panic!("match mode not found in {syms:?}"));
     assert_eq!(kind(matcher), OPERATOR);
 }
-
 
 #[test]
 fn all_symbols_have_non_empty_names() {

@@ -80,7 +80,6 @@ fn with_code(diags: &[Value], code: &str) -> Vec<Value> {
         .collect()
 }
 
-
 #[test]
 fn unbraced_expr_is_w100() {
     let mut lsp = Lsp::tcl();
@@ -2439,7 +2438,6 @@ fn an_unrelated_file_reusing_a_proc_name_does_not_clear_i230() {
         codes(&diags)
     );
 }
-
 
 #[test]
 fn fixing_the_source_clears_the_diagnostic() {

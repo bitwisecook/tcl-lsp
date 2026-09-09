@@ -174,7 +174,6 @@ fn irules_typed(lsp: &mut Lsp, uri: &str) -> Vec<(SemToken, String)> {
         .collect()
 }
 
-
 #[test]
 fn irules_subcommand_hover() {
     let mut lsp = Lsp::irules();
@@ -206,7 +205,6 @@ fn namespace_only_irules_hover_shows_profile_requirement() {
     assert!(text.contains("Requires"), "{text:?}");
     assert!(text.contains("ACCESS"), "{text:?}");
 }
-
 
 #[test]
 fn when_event_name_completion() {
@@ -335,7 +333,6 @@ fn argument_value_has_documentation() {
     );
 }
 
-
 #[test]
 fn irule1005_adds_only_registered_collect_bootstrap() {
     let mut lsp = Lsp::irules();
@@ -382,7 +379,6 @@ fn irule1006_prefers_server_ssl_handshake_bootstrap() {
         "{snippets:?}"
     );
 }
-
 
 /// The `_fix` helper: open `source`, synthesise `diag`, request quickfix-only
 /// code actions.
@@ -686,7 +682,6 @@ fn irule3004_no_autofix() {
     assert!(matched.is_empty(), "{matched:?}");
 }
 
-
 #[test]
 fn t103_inserts_regex_quote_proc() {
     let mut lsp = Lsp::irules();
@@ -759,7 +754,6 @@ fn irule3002_no_proc_insert() {
             .any(|s| s.contains("proc "))
     );
 }
-
 
 /// The `_src` helper: open `source`, return its `source`-kind code actions
 /// at position (0, 0).
@@ -876,7 +870,6 @@ fn irule1006_bootstrap_action_is_deduplicated() {
     assert_eq!(collect.len(), 1);
 }
 
-
 #[test]
 fn t103_no_proc_insert_when_already_defined() {
     let mut lsp = Lsp::irules();
@@ -926,7 +919,6 @@ fn irule3001_no_proc_insert_when_already_defined() {
     assert!(snippets.iter().any(|s| s.contains("[html_encode $raw]")));
     assert!(!snippets.iter().any(|s| s.contains("proc html_encode")));
 }
-
 
 #[test]
 fn http_event_plus_ssl_command() {
@@ -1163,7 +1155,6 @@ fn clientssl_clienthello_omits_persist_helper_profile() {
     assert_eq!(text, "# Profiles: CLIENTSSL\n");
     assert!(!text.contains("PERSIST"), "{text:?}");
 }
-
 
 #[test]
 fn comment_with_namespace_qualifiers_stays_one_comment() {

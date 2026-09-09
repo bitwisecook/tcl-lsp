@@ -55,7 +55,6 @@ fn complete(
         .collect()
 }
 
-
 #[test]
 fn button_absent_in_plain_tcl() {
     // No `package require Tk` — Tk commands must not surface.
@@ -78,7 +77,6 @@ fn button_offered_after_package_require_tk() {
     );
     assert!(labels.contains("button"), "{labels:?}");
 }
-
 
 #[test]
 fn button_never_offered_in_irules() {

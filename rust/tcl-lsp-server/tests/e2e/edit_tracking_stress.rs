@@ -393,7 +393,6 @@ fn codes(diags: &[Value]) -> std::collections::BTreeSet<String> {
 
 const SEED_DOC: &str = "proc greet {name} {\n    puts \"Hello $name\"\n}\nset total [expr {1 + 2}]\nif $cond { puts $total }\ngreet World\n";
 
-
 /// Dumps the full state of a random-seeded run when the test thread is
 /// unwinding, so a failure — a mirror-vs-server divergence *or* the diagnostics
 /// barrier inside [`assert_buffer_equiv`] timing out under load — is
@@ -540,7 +539,6 @@ fn batched_multi_edit_changes_64() {
     batched_multi_edit_changes(64);
 }
 
-
 #[test]
 fn rapid_edits_final_version_wins() {
     // Fire a burst of edits without waiting between them, then demand the publish
@@ -576,7 +574,6 @@ fn introduce_then_immediately_fix_error() {
     let final_diags = lsp.await_diagnostics_version(&uri, Some(3), Duration::from_secs(30));
     assert!(!codes(&final_diags).contains("E002"));
 }
-
 
 #[test]
 fn multiline_insertions_and_deletions() {
@@ -657,7 +654,6 @@ fn delete_to_empty_then_rebuild() {
     assert_buffer_equiv(&mut lsp, &uri, version, &fresh, &text);
 }
 
-
 #[test]
 fn utf16_offsets_survive_astral_chars() {
     // Astral-plane characters occupy two UTF-16 code units; a tracker that
@@ -701,7 +697,6 @@ fn utf16_offsets_survive_astral_chars() {
     let text = mirror.text.clone();
     assert_buffer_equiv(&mut lsp, &uri, version, &fresh, &text);
 }
-
 
 #[test]
 fn close_and_reopen_resets_version_without_stale_cache() {
@@ -814,7 +809,6 @@ fn every_snapshot_consumer_stays_correct_while_typing_a_large_document() {
 // Token alignment: semantic tokens must never go out of alignment under edits.
 
 const ALIGN_DOC: &str = "proc tally {items} {\n    set count 0\n    foreach item $items {\n        set count [expr {$count + 1}]\n        puts \"item $item count $count\"\n    }\n    return $count\n}\n";
-
 
 #[test]
 fn multicursor_rename_keeps_tokens_aligned() {

@@ -96,7 +96,6 @@ fn param_labels_on_line(hints: &Value, line: i64) -> Vec<(i64, String)> {
     out
 }
 
-
 #[test]
 fn test_proc_gets_reference_count_lens() {
     let mut lsp = Lsp::tcl();
@@ -400,7 +399,6 @@ fn test_constructor_lens_counts_and_resolves_subclass_next_chain() {
     assert_eq!(refs.len(), 1, "peek disagrees with lens: {refs:?}");
 }
 
-
 #[test]
 fn test_source_command_is_linked() {
     let mut lsp = Lsp::tcl();
@@ -436,7 +434,6 @@ fn test_package_require_is_linked() {
         "{links:?}"
     );
 }
-
 
 #[test]
 fn test_full_document_formatting_normalises_spacing() {
@@ -640,7 +637,6 @@ fn test_range_formatting_returns_edits() {
         arr[0]
     );
 }
-
 
 #[test]
 fn test_provider_responds_with_a_list() {
