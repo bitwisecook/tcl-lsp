@@ -974,6 +974,24 @@ mod literal_expected {
     }
 
     #[test]
+    fn regex_quoting_substitution_pattern_clean() {
+        // The wrap T103's quick fix produces. Its whole job is to hand the
+        // engine a pattern that matches literally, so it is the remedy rather
+        // than the foot-gun — and braces would defeat it by matching the
+        // substitution's own source text. Both spellings are exempt.
+        assert!(!fires("regexp -- [regex::quote $p] $text", D, "W306"));
+        assert!(!fires("regexp -- \"[regex::quote $p]\" $text", D, "W306"));
+    }
+
+    #[test]
+    fn unproven_command_pattern_still_warns() {
+        // The control for the exemption above: it is keyed on the declared
+        // REGEX_LITERAL colour, not on the shape, so a command that proves
+        // nothing about its result is still flagged.
+        assert_eq!(count("regexp -- [build_pattern $p] $text", D, "W306"), 1);
+    }
+
+    #[test]
     fn quoted_pure_var_pattern_no_w306() {
         // `"$pattern"` is byte-for-byte identical at runtime to the bare
         // `$pattern` parameterised-pattern idiom (the quotes group nothing), so

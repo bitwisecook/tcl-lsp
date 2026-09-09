@@ -160,8 +160,10 @@ This index lists every per-code KCS page.
 - [T100 — taint code execution sink](kcs-diagnostic-t100-taint-code-execution-sink.md)
 - [T101 — taint output sink](kcs-diagnostic-t101-taint-output-sink.md)
 - [T102 — taint option injection](kcs-diagnostic-t102-taint-option-injection.md)
+- [T103 — taint regexp pattern](kcs-diagnostic-t103-taint-regexp-pattern.md)
 - [T104 — taint network address sink](kcs-diagnostic-t104-taint-network-address-sink.md)
 - [T105 — taint cross-interpreter eval](kcs-diagnostic-t105-taint-cross-interpreter-eval.md)
+- [T106 — taint double-encoding](kcs-diagnostic-t106-taint-double-encoding.md)
 
 ## Tk toolkit (TK1xxx)
 
@@ -265,11 +267,16 @@ This index lists every per-code KCS page.
 
 ## Internal codes
 
-`T103` and `T106` are internal taint-propagation codes with no page of
-their own: they exist so the propagation engine can emit structured
-records the analyser later resolves into a T100/T101/T102 finding. Other
-internal codes (E004, E100–E103, E201–E207, IRULE3103, IRULE5003,
-IRULE6001, TK1001–TK1003, W310–W312) are always active and carry no
-per-code editor setting; the ones with pages say so. See the
+A code marked internal in the diagnostic registry is reported like any
+other, but gets no generated entry in the editor settings list, so it has no
+tick-box of its own. Every suppression scope still applies: `# noqa: <CODE>`,
+the file-level `# tcl-lsp: disable=<CODE>` directive, `disabled = <CODE>`
+under `[diagnostics]` in `.tcl-lsp.ini`, and a hand-written
+`"tclLsp.diagnostics.<CODE>": false`. Each page's *How to suppress* section
+says what applies to that code.
+
+The internal codes are E004, E100–E103, E201–E207, IRULE3103, IRULE5003,
+IRULE6001, T103, T106, TK1001–TK1003 and W310–W312. Several have pages of
+their own, listed above. See the
 [taint analysis glossary entry](../../GLOSSARY.md#taint-analysis) for the
-data-flow model.
+data-flow model behind the taint codes.
