@@ -324,6 +324,16 @@ pub const GAPS: &[Gap] = &[
         spelling: "",
         kind: GapKind::Excluded,
     },
+    // The same shape, over `subst`'s own switch table: which substitutions a
+    // call runs is read from options a pack can already declare, but the answer
+    // is computed, and the only commands carrying `PERFORMS_SUBSTITUTION` are
+    // core Tcl's. Excluded until a declarative selector exists, rather than
+    // inventing a Tcl-body hook family for one command.
+    Gap {
+        key: "substitution_resolver",
+        spelling: "",
+        kind: GapKind::Excluded,
+    },
     // The native-lowering descriptor is the compiler's own account of how it
     // may compile a command to native code — a representation lattice and the
     // framing it is allowed to elide, meaningful only to `tcl-compiler`'s
