@@ -80,8 +80,8 @@ if (seen.get("serverHealth.test.js") !== "1") {
   throw new Error("serverHealth.test.js must run exactly once in partition 1");
 }
 if (
-  manifest.expected_tests?.single_root?.identities !== 976 ||
-  manifest.expected_tests?.single_root?.passed !== 975 ||
+  manifest.expected_tests?.single_root?.identities !== 977 ||
+  manifest.expected_tests?.single_root?.passed !== 976 ||
   manifest.expected_tests?.single_root?.pending !== 1 ||
   manifest.expected_tests?.multi_folder?.identities !== 14 ||
   manifest.expected_tests?.multi_folder?.passed !== 14 ||
