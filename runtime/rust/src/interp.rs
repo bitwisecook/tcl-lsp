@@ -582,9 +582,14 @@ pub enum Command {
     /// `Interp` stored in [`Interp::children`].
     ChildInterp(Vec<u8>),
     /// A TclOO object or class, addressable as a command (`$obj method …`,
-    /// `Class new`). The `Vec<u8>` is the FQN; dispatch routes to
-    /// [`crate::cmd_oo`] via the [`OoState`](crate::cmd_oo::OoState) registry.
-    OoObject(Vec<u8>),
+    /// `Class new`). The opaque token remains stable across rename and same-name
+    /// recreation; Tcl-facing names are projections owned by `OoState`.
+    OoObject(tcl_core_types::OoId),
+    /// The private per-object `my` dispatcher, carrying the same stable owner
+    /// identity as the object command rather than rediscovering it by name.
+    OoMy(tcl_core_types::OoId),
+    /// The private per-object `myclass` dispatcher.
+    OoMyClass(tcl_core_types::OoId),
     /// A cross-interp alias installed in a *child* interp that delegates to a
     /// command in the *parent* (`interp alias child name {} parentCmd …`). When
     /// invoked, it runs `target` (+ `prefix` + the call args) in the parent.
@@ -625,7 +630,9 @@ impl Command {
                 Rc::ptr_eq(a, b)
             }
             (Self::ChildInterp(a), Self::ChildInterp(b)) => a == b,
-            (Self::OoObject(a), Self::OoObject(b)) => a == b,
+            (Self::OoObject(a), Self::OoObject(b))
+            | (Self::OoMy(a), Self::OoMy(b))
+            | (Self::OoMyClass(a), Self::OoMyClass(b)) => a == b,
             _ => false,
         }
     }
@@ -1600,7 +1607,11 @@ impl Interp {
             // stays release-invariant.
             let gated = match &cmd {
                 Command::Builtin(_) => true,
-                Command::OoObject(fqn) => self.0.registry_object_roots.borrow().contains(fqn),
+                Command::OoObject(id) => self
+                    .0
+                    .registry_object_roots
+                    .borrow()
+                    .contains(&self.oo_name(*id)),
                 _ => false,
             };
             if !gated {
@@ -1949,6 +1960,10 @@ impl Interp {
         let Some(old_fqn) = self.resolve_cmd_fqn(old) else {
             return RenameOutcome::NoSuchCommand;
         };
+        let oo_object = match self.namespaces.borrow().resolve(self.current_ns.get(), old) {
+            Some(Command::OoObject(id)) => Some(id),
+            _ => None,
+        };
         let Some(publication) = self.namespaces.borrow_mut().publish_rename_destination(
             self.current_ns.get(),
             old,
@@ -1976,7 +1991,10 @@ impl Interp {
         self.retarget_import_sources(&old_fqn, &new_fqn);
         crate::cmd_coro::on_command_renamed(self, &old_fqn, &new_fqn);
         if !self.oo_is_empty() {
-            self.oo_command_renamed(&old_fqn, Some(&new_fqn));
+            self.oo_private_command_renamed(&old_fqn, &new_fqn);
+        }
+        if let Some(object) = oo_object {
+            self.oo_command_renamed(object, Some(&new_fqn));
         }
         self.traces
             .borrow_mut()
@@ -2013,6 +2031,10 @@ impl Interp {
         // captured here, not whatever the name holds when the callback returns
         // — so the binding is captured alongside the name.
         let bound_before = self.namespaces.borrow().resolve(self.current_ns.get(), old);
+        let oo_object = match &bound_before {
+            Some(Command::OoObject(id)) => Some(*id),
+            _ => None,
+        };
         // The token whose trace list this deletion frees, captured before the
         // callbacks can bind a replacement at the same name.
         let dying_token = self.resolve_cmd_token(old);
@@ -2090,8 +2112,8 @@ impl Interp {
                 }
             }
             self.remove_imports_for_deleted_origins(origins, &tokens);
-            if !self.oo_is_empty() {
-                self.oo_command_renamed(&of, None);
+            if let Some(object) = oo_object {
+                self.oo_command_renamed(object, None);
             }
         }
         outcome
@@ -4745,6 +4767,10 @@ impl Interp {
         if self.defer_namespace_teardown(ns) {
             return;
         }
+        // TclOO state follows the exact namespace token. This must happen only
+        // once deletion is no longer deferred: an active old token can coexist
+        // with fresh objects at the same Tcl-facing name.
+        self.oo_namespace_deleted(ns);
         let teardown_ids = self.namespaces.borrow().descendant_ids(ns);
         self.delete_namespace_token(ns);
         self.sweep_dying_namespace(ns, &teardown_ids);
@@ -5248,9 +5274,11 @@ impl Interp {
                 // builtins; every script-created object stays invariant.
                 let gated = match ns.resolve(id, name) {
                     Some(Command::Builtin(_)) => true,
-                    Some(Command::OoObject(fqn)) => {
-                        self.0.registry_object_roots.borrow().contains(&fqn)
-                    }
+                    Some(Command::OoObject(id)) => self
+                        .0
+                        .registry_object_roots
+                        .borrow()
+                        .contains(&self.oo_name(id)),
                     _ => false,
                 };
                 let mut full_name = prefix.clone();
@@ -7254,7 +7282,9 @@ impl Interp {
             Command::Ensemble(token) => self.dispatch_ensemble(&token, argv),
             Command::Proc(def) => self.call_proc(&def, argv),
             Command::ChildInterp(name) => self.dispatch_child(&name, argv),
-            Command::OoObject(fqn) => self.oo_dispatch(&fqn, argv),
+            Command::OoObject(id) => self.oo_dispatch(id, argv),
+            Command::OoMy(id) => crate::cmd_oo::my_cmd(self, id, argv),
+            Command::OoMyClass(id) => crate::cmd_oo::myclass_cmd(self, id, argv),
             Command::ParentAlias { target, prefix, .. } => {
                 self.dispatch_parent_alias(&target, &prefix, argv)
             }
@@ -7345,9 +7375,8 @@ impl Interp {
             .borrow()
             .resolve(self.current_ns.get(), name)?;
         Some(match cmd {
-            // A coroutine resume command and the per-object `my`/`myclass`
-            // commands all register as builtins but report their own cmdType
-            // (C's per-command registrations).
+            // A coroutine resume command registers as a builtin but reports
+            // its own cmdType (C's per-command registration).
             Command::Builtin(_) => {
                 let fqn = self
                     .namespaces
@@ -7355,8 +7384,7 @@ impl Interp {
                     .resolve_fqn(self.current_ns.get(), name);
                 match fqn {
                     Some(fqn) if self.coros.borrow().contains_key(&fqn) => b"coroutine",
-                    Some(fqn) => self.oo_private_cmd_kind(&fqn).unwrap_or(b"native"),
-                    None => b"native",
+                    _ => b"native",
                 }
             }
             Command::Proc(_) => b"proc",
@@ -7364,6 +7392,8 @@ impl Interp {
             Command::Imported { .. } => b"import",
             Command::Ensemble(_) => b"ensemble",
             Command::OoObject(_) => b"object",
+            Command::OoMy(_) => b"privateObject",
+            Command::OoMyClass(_) => b"privateClass",
             Command::ChildInterp(_) => b"interp",
         })
     }

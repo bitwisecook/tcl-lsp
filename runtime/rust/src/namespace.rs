@@ -566,10 +566,9 @@ impl Namespaces {
     ///
     /// A `Command::Proc` carries its home namespace and FQN, so `namespace
     /// current` inside its body reports the new namespace. A
-    /// `Command::OoObject` carries the FQN it is registered under in
-    /// [`crate::cmd_oo::OoState`], so dispatch reaches the object the
-    /// accompanying `Interp::oo_command_renamed` moved. Every other variant
-    /// carries no site of its own and passes through unchanged.
+    /// `Command::OoObject` carries a stable identity, so it deliberately passes
+    /// through unchanged; `OoState` updates only its Tcl-facing name projection.
+    /// Every other variant carries no site of its own and passes through unchanged.
     fn rehome_command(command: Command, ns: NsId, fqn: &[u8]) -> Command {
         match command {
             Command::Proc(def) if def.ns != ns => {
@@ -578,7 +577,6 @@ impl Namespaces {
                 def.fqn = fqn.to_vec();
                 Command::Proc(std::rc::Rc::new(def))
             }
-            Command::OoObject(_) => Command::OoObject(fqn.to_vec()),
             other => other,
         }
     }

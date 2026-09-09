@@ -165,7 +165,6 @@ fn ns_delete(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             m.extend_from_slice(b"\" in namespace delete command");
             return interp.set_error(&m);
         };
-        interp.oo_namespace_deleted(ns_id);
         // Delete by id so variable unset traces in the namespace fire as it is
         // torn down (the named `delete_namespace` path does not).
         interp.delete_namespace_by_id(ns_id);
@@ -1936,6 +1935,58 @@ mod tests {
                 set a [::N::p]
                 list $a [info commands ::N::*] [namespace exists ::N]"#,
             br#"{Q 1 {invalid command name "r"} ::N::r R ::N 1 ::N::q {} q} ::N::r 1"#,
+        );
+    }
+
+    /// #1764: the object command retained by an active namespace frame keeps
+    /// its original OO identity when a new namespace generation publishes a
+    /// same-named object. Absolute lookup reaches the new command while the
+    /// relative retained command continues to dispatch to the old object.
+    #[test]
+    fn recreated_namespace_keeps_old_and_new_object_identities_distinct() {
+        pins(
+            br#"set r [namespace eval N {
+                    oo::class create C {method m {} {return OLD}}
+                    C create o
+                    proc p {} {
+                        namespace delete ::N
+                        namespace eval ::N {
+                            oo::class create C {method m {} {return NEW}}
+                            C create o
+                        }
+                        set a [catch {o m} am]
+                        set b [catch {::N::o m} bm]
+                        list $a $am $b $bm [info commands o] [info commands ::N::o]
+                    }
+                    p
+                }]
+                set c [catch {::N::o m} cm]
+                list $r $c $cm"#,
+            b"{0 OLD 0 NEW o ::N::o} 0 NEW",
+        );
+    }
+
+    #[test]
+    fn retained_object_teardown_cannot_delete_replacement_private_dispatcher() {
+        pins(
+            br#"set r [namespace eval N {
+                    oo::class create C {method m {} {return OLD}}
+                    C create o
+                    proc p {} {
+                        namespace delete ::N
+                        namespace eval ::N {
+                            oo::class create C {
+                                method m {} {return NEW}
+                                method n {} {my m}
+                            }
+                            C create o
+                        }
+                        o m
+                    }
+                    p
+                }]
+                list $r [info commands ::N::o::my] [::N::o n]"#,
+            b"OLD ::N::o::my NEW",
         );
     }
 
