@@ -6028,7 +6028,7 @@ fn collect_entries(
     // The document's command-identity facts: bare-name aliases for commands
     // imported from an exported namespace (`namespace import tcltest::*` →
     // `test` = `tcltest::test`), plus every statically proven `interp alias` /
-    // `rename` / built-in-shadowing `proc` (issue #1185).  Empty (no lookups)
+    // `rename` / built-in-shadowing `proc`.  Empty (no lookups)
     // unless the document actually binds something.
     let head_identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
 
@@ -6040,14 +6040,14 @@ fn collect_entries(
 
     // Object-handle → class provenance (`set chart [ticklecharts::chart new]`
     // → `chart`), so a `$chart Xaxis -name …` dispatch resolves the method's
-    // options through the registry (issue #748).  Empty without a
+    // options through the registry.  Empty without a
     // `CompilationUnit` or when the document creates no tracked object handles.
     let mut object_classes: ObjectClassMap = cu.map_or_else(ObjectClassMap::default, |cu| {
         tcl_compiler::object_types::object_handle_classes(cu, registry)
     });
 
     // A bareword instance command bound by a *user*-class `CLASS create
-    // NAME` (issue #1312) — the object-type lattice above only tracks `set`
+    // NAME` — the object-type lattice above only tracks `set`
     // assignments and registry naming factories, never a plain `CLASS create
     // NAME` statement, so a named instance's class comes from the analyser's
     // `instance_classes` instead, gated on `created_instance_commands`
@@ -6069,7 +6069,7 @@ fn collect_entries(
 
     // Object-*collection* → element-class map (`dict set Pins $k [Pin new]` →
     // `Pins` is a `Dict` of `Pin`), so a `[dict get $Pins $k] method …`
-    // retrieval dispatch resolves the element's method (issue #797).  Empty
+    // retrieval dispatch resolves the element's method.  Empty
     // without a `CompilationUnit`.
     let object_collections: ObjectClassMap = cu.map_or_else(ObjectClassMap::default, |cu| {
         tcl_compiler::object_types::object_collection_classes(cu)
@@ -6081,7 +6081,7 @@ fn collect_entries(
     // including `return [dict map {k v} $coll {…}]` / `set x [dict map …]`,
     // where the loop is nested in a command substitution and the IR never
     // surfaces it as a loop — and feeds the value variable(s) into the handle
-    // map (issue #797, SpiceGenTcl `allNodes` / `actOnParam` shape).
+    // map (the SpiceGenTcl `allNodes` / `actOnParam` shape).
     augment_loop_var_handles(source, dialect, &object_collections, &mut object_classes);
 
     // snit object-handle bindings the compiler CFG doesn't surface — `install
@@ -6223,7 +6223,7 @@ fn push_escape_subtokens(
     }
     // `subspec_content` yields the word's *content*, so this path — unlike
     // `push_token` — must emit both delimiters itself: `"with \"esc\" inside"`
-    // left its opening and closing `"` unstyled (#898 §1).  Entries are sorted by
+    // would otherwise leave its opening and closing `"` unstyled.  Entries are sorted by
     // position before encoding, so appending them out of order here is fine.
     let start = tok.span.start() as usize;
     push_subtoken(
@@ -6284,9 +6284,9 @@ fn classify_arg_token(tok: Token, source: &str, numbers: NumberSyntax) -> Option
             } else if text.contains("::") && tok.content_offset == 0 {
                 // Only a *bare* word can be a namespace reference.  A quoted or
                 // braced word is a string literal even when its content happens
-                // to contain `::` — `append cmd "::scan \$field"` was painting
-                // the whole quoted word as a namespace, and in doing so lost the
-                // `\$` escape inside it (#898 §8).
+                // to contain `::` — painting `append cmd "::scan \$field"`'s
+                // whole quoted word as a namespace would also lose the `\$`
+                // escape inside it.
                 Some(TokenKind::Namespace)
             } else {
                 // Bareword argument words classify as String, so `puts
@@ -6339,7 +6339,7 @@ fn push_comment_tokens(source: &str, line_index: &LineIndex, entries: &mut Vec<E
             // Find the end of the comment, honouring backslash line
             // continuation: a physical line ending in an *odd* run of
             // backslashes (before the newline) continues the comment onto the
-            // next physical line, matching Tcl's parser (issue #759).  An even
+            // next physical line, matching Tcl's parser.  An even
             // run (e.g. `\\`) is an escaped backslash and terminates the line.
             let mut p = idx;
             loop {
@@ -6375,7 +6375,7 @@ fn push_comment_tokens(source: &str, line_index: &LineIndex, entries: &mut Vec<E
             // comment.  The overlap test is per-*position* (not per-line) so a
             // genuine `;#` tail comment — whose line also carries code tokens —
             // still survives.  Suppress it to avoid an overlapping token the LSP
-            // client would reject (#757, #758).
+            // client would reject.
             let already_covered = entries.iter().any(|(l, c, ln, _, _)| {
                 *l == pos.line && *c <= pos.character.get() && pos.character.get() < *c + *ln
             });
@@ -6402,7 +6402,7 @@ fn push_comment_tokens(source: &str, line_index: &LineIndex, entries: &mut Vec<E
         }
         // A command separator `;` returns us to command position, so a `#`
         // right after it is a trailing comment (`puts hi ;# tail`) — matching
-        // Tcl and the TextMate grammar (issue #759 review).  A `;` inside a
+        // Tcl and the TextMate grammar.  A `;` inside a
         // string / braced literal is harmless here: the `#` it exposes is
         // already covered by that literal's tokens and suppressed above.
         if c == ';' {
@@ -6413,15 +6413,13 @@ fn push_comment_tokens(source: &str, line_index: &LineIndex, entries: &mut Vec<E
     }
 }
 
-/// Push a single token into the entries list, computing
-/// (line, column, length-in-chars, kind).
 /// The closing delimiter a word opened at `start` expects, if it is delimited.
 ///
 /// The lexer's span convention (documented on the `switch` case-list rebuild
 /// above) is that a delimited word's `span.end()` sits **at** its closing `}` /
 /// `"`, not past it — so an emitter that takes `start..end` verbatim covers
 /// `opener + content` and silently drops the terminator.  Every delimited-word
-/// emit path therefore has to ask for the closer back.  Issue #898 §1.
+/// emit path therefore has to ask for the closer back.
 fn closing_delimiter(source: &str, start: u32) -> Option<u8> {
     let bytes = source.as_bytes();
     match bytes.get(start as usize)? {
@@ -6447,6 +6445,8 @@ fn end_over_terminator(source: &str, start: u32, end: u32) -> u32 {
     }
 }
 
+/// Push a single token into the entries list, computing
+/// (line, column, length-in-chars, kind).
 fn push_token(
     line_index: &LineIndex,
     source: &str,
@@ -6476,7 +6476,7 @@ fn push_token(
         end = start + u32::from(tok.content_offset);
     } else {
         // Cover the word's closing `}` / `"`, which the lexer's span convention
-        // leaves just past `span.end()` (#898 §1).  Not applied to the clamped
+        // leaves just past `span.end()`.  Not applied to the clamped
         // fragment above: that one was trimmed *back* precisely because its span
         // ran into the next token, and re-extending it would overlap.
         end = end_over_terminator(source, start, end);
@@ -6487,7 +6487,7 @@ fn push_token(
     let text = source.get(start as usize..end as usize).unwrap_or("");
     // The LSP encoding wants per-line entries, so a multi-line token (a braced
     // or quoted string literal spanning lines) is split into one entry per
-    // line rather than dropped — see [`push_span_entries`] and issue #757.
+    // line rather than dropped — see [`push_span_entries`].
     push_span_entries(
         source,
         line_index,

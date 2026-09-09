@@ -1520,8 +1520,8 @@ pub unsafe extern "C" fn tcl_obj_new_string_owned(ptr: *const u8, len: i32) -> *
 /// `tcl_eval(script) -> result` — evaluate `script` against the current interp.
 /// **Adopts (frees)** the `rc 0` `script`; returns a **new owned (`+1`)**
 /// reference to the result that the caller must release with
-/// [`tcl_obj_release`]. (Completion codes are discarded in this tier — faithful
-/// `return`/`break`/`error` propagation is an AOT-tier follow-up.)
+/// [`tcl_obj_release`]. (Completion codes are discarded in this tier: faithful
+/// `return`/`break`/`error` propagation is not implemented in this ABI tier.)
 ///
 /// # Safety
 /// `script` must be a live `rc 0` object from [`tcl_obj_new_string`]; the current

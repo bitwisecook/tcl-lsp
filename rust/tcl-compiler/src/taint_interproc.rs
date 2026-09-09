@@ -65,7 +65,7 @@ use crate::value_shapes::parse_command_substitution_with_config;
 ///
 /// Purely an internal solver vocabulary: never serialised, never a CLI/`.tclspec`
 /// spelling, so no `FromStr`/`Display` boundary is needed (unlike the
-/// dialect-name discipline in #1405).
+/// dialect-name discipline).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum TaintBasis {
     Generic,
@@ -305,7 +305,7 @@ fn word_uses_from_versions(
 
 /// Whether `fu`'s return taint is a **constant** — the same value whatever
 /// taint map [`collect_return_taint`] is handed — so the whole summary can be
-/// produced without running the dataflow at all (issue #1187).
+/// produced without running the dataflow at all.
 ///
 /// [`collect_return_taint`] joins `word_taint` over the value word of every
 /// executable block's `Return` terminator, and `word_taint` reads the taint map
@@ -373,7 +373,7 @@ fn collect_return_taint(
 ///
 /// `graph` carries the CFG-derived indices, built once by the caller: one
 /// summary inference runs this `1 + params × TaintBasis::ALL` times and the
-/// indices are identical across all of them (issue #1251).
+/// indices are identical across all of them.
 #[allow(clippy::too_many_arguments)]
 fn run_propagation(
     graph: &TaintGraph<'_>,
@@ -451,7 +451,7 @@ pub type InferProcSummaryFn<'a> = dyn FnMut(
 /// interprocedural taint pass (about 80% of `run_all_checks` on tcllib's
 /// `practcl.tcl`).
 ///
-/// Two prunes cut that down (issue #1187).  Both are **proofs that the solve
+/// Two prunes cut that down.  Both are **proofs that the solve
 /// would return a value already in hand**, not approximations, so every summary
 /// stays bit-identical to the unpruned one — which is what lets the debug
 /// fixpoint guard and the `compiler_check` corpus differential keep validating
@@ -897,7 +897,7 @@ pub fn converge_summaries_with(
     // `callers[Q]` = procedures that directly call `Q`; when `Q`'s summary changes
     // its callers are re-queued. Without a call graph, re-queue everything.
     //
-    // Two sources, unioned (issue #1187).  `InterproceduralAnalysis::direct_calls`
+    // Two sources, unioned.  `InterproceduralAnalysis::direct_calls`
     // is the declared call graph, but it misses a callee reached through a
     // command substitution the analyser recorded as a plain value —
     // `symbolNodeOf` in `set n [$t get [symbolNodeOf …] …]`, or a self-call
@@ -1185,7 +1185,7 @@ fn solve_interprocedural_taints_with_context(
 
     // The entry-taint worklist re-propagates a procedure every time one of its
     // callers' argument taints move, so its CFG-derived indices are built once
-    // per procedure and cached rather than once per dequeue (issue #1251).
+    // per procedure and cached rather than once per dequeue.
     let mut graphs: HashMap<String, TaintGraph<'_>> = HashMap::new();
     let mut instance_classes_by_proc: HashMap<String, LocalInstanceClasses> = HashMap::new();
 
@@ -1262,14 +1262,13 @@ mod tests {
 
     #[test]
     fn taint_basis_lattice_matches_expected_colours() {
-        // Mutation guard for the basis-name -> lattice mapping (issue #1614):
-        // pins each `TaintBasis` variant to its exact expected `TaintColour`
-        // set. Swapping which colour two variants map to (e.g. giving `Path`
+        // Mutation guard for the basis-name -> lattice mapping: pins each
+        // `TaintBasis` variant to its exact expected `TaintColour` set.
+        // Swapping which colour two variants map to (e.g. giving `Path`
         // `NON_DASH_PREFIXED` and `NonDash` `PATH_PREFIXED`) flips two of
-        // these assertions and fails the test — the array/match could
-        // silently drift before #1614 (that was the whole point of the
-        // `panic!` fallthrough this enum removes), so this test is the
-        // regression net the exhaustiveness alone doesn't provide.
+        // these assertions and fails the test — the mapping can drift without
+        // breaking exhaustiveness, so this is the net exhaustiveness alone
+        // does not provide.
         let t = TaintColour::TAINTED;
         let expected: [(TaintBasis, TaintColour); 17] = [
             (TaintBasis::Generic, t),
@@ -1426,8 +1425,8 @@ mod tests {
         assert_eq!(crate::taint::instance_class_solve_count(), 1);
     }
 
-    /// The unpruned reference: re-derive one procedure's summary the way
-    /// `infer_proc_summary` did before issue #1187, by seeding every
+    /// The unpruned reference: re-derive one procedure's summary without the
+    /// prunes, by seeding every
     /// `(parameter, basis)` pair with a full dataflow solve.  A test can then
     /// assert the pruned result is bit-identical rather than merely plausible.
     fn summary_without_prunes(src: &str, target: &str) -> ProcTaintSummary {
@@ -1491,7 +1490,7 @@ mod tests {
     }
 
     /// Assert every summary the solver produces for `src` is bit-identical to
-    /// the unpruned computation — the acceptance bar for #1187.
+    /// the unpruned computation.
     fn prunes_are_bit_identical(src: &str) {
         let pruned = summaries_for(src);
         assert!(!pruned.is_empty(), "fixture defines no procedures");

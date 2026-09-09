@@ -21629,7 +21629,7 @@ impl LanguageServer for Backend {
         // Push is the sole diagnostics channel by default: pull is opt-in and
         // the server does not advertise `diagnosticProvider` (see
         // `build_server_capabilities`).  A client that *supports* pull will not
-        // actually pull unless the server advertises it, so the #721
+        // actually pull unless the server advertises it, so the
         // "stop pushing when the client pulls" suppression must stay OFF here —
         // otherwise a pull-capable client (VS Code advertises the capability)
         // gets neither push (suppressed) nor pull (unadvertised), i.e. zero
@@ -21737,8 +21737,8 @@ impl LanguageServer for Backend {
             .edit_order
             .take_ticket("didOpen", &params.text_document.uri);
         let turn = self.edit_order.wait_turn(ticket).await;
-        // Phase markers (see `EditTurn::at`): `did_open` is the handler issue
-        // #1657's captures name as the holder, so every `await` it reaches
+        // Phase markers (see `EditTurn::at`): `did_open` is the handler a wedge
+        // most often names as the turn holder, so every `await` it reaches
         // inside the turn is marked before it is entered.
         turn.at("did_open: dialect_for_open");
         let dialect = self
@@ -21754,9 +21754,9 @@ impl LanguageServer for Backend {
         let dialect_for_diags = dialect.clone();
         // Make the authoritative live buffer visible in arrival order, then
         // release the *global* request barrier before waiting on either shared
-        // store. The v2.2.2 release wedge retained this turn while
-        // suspended on `db_source_matches`, so every request blocked in
-        // `edits_settled()` even though the transport remained alive (#1849).
+        // store. Retaining this turn while suspended on a shared store blocks
+        // every request in `edits_settled()` even though the transport is
+        // still alive.
         let state = DocumentState::with_version(params.text_document.text, dialect, version)
             .with_language_id(params.text_document.language_id.clone())
             .with_publication_pending();
@@ -21785,7 +21785,7 @@ impl LanguageServer for Backend {
 
         // Await only after releasing the global barrier. This wait holds no
         // other store or edit turn, so a pre-existing index reader/writer
-        // cannot recreate the whole-server wedge (#1800, #1854 review).
+        // cannot recreate the whole-server wedge.
         let mut index = match index_guard {
             Some(guard) => guard,
             None => index_write.await,
@@ -21798,7 +21798,7 @@ impl LanguageServer for Backend {
         // document map before its no-await mutation, so a later edit or close
         // wins rather than being overwritten by this open. The ordinary
         // unindexed-open-document fallback covers the short gap until live
-        // analysis republishes the buffer (#1619).
+        // analysis republishes the buffer.
         if !self
             .commit_open_document(&uri, &text, &dialect_for_diags, version)
             .await
@@ -21937,7 +21937,7 @@ impl LanguageServer for Backend {
             return;
         }
         // An ordinarily indexed document deliberately keeps its previous
-        // workspace facts until diagnostics republishes this revision (#1149):
+        // workspace facts until diagnostics republishes this revision:
         // that is less misleading than a per-keystroke absence. The exception
         // above is an edit that superseded a cold-open seed after its disk slot
         // was removed; there are no previous facts to retain, so it restores a
@@ -22007,7 +22007,7 @@ impl LanguageServer for Backend {
         // settings — the inline `params.settings` handling above covers the
         // flat MCP-bridge shape that carries the values directly.  Coalesced:
         // a settings-editor burst is one pull and one re-analysis, not one per
-        // notification (issue #1213).
+        // notification.
         self.coalesced_config_reload().await;
     }
 
@@ -22023,7 +22023,7 @@ impl LanguageServer for Backend {
         {
             // The ordered mutation is removal of the authoritative live
             // buffer. Index/caches are derived publications and happen only
-            // after the turn is free (#1849).
+            // after the turn is free.
             turn.at("did_close: documents.lock");
             let mut docs = self.documents.lock("did_close").await;
             docs.remove(uri);
@@ -22038,18 +22038,18 @@ impl LanguageServer for Backend {
         if !self.commit_closed_live_state(uri).await {
             return;
         }
-        // The transaction above also releases the diagnostics slot (#1144),
+        // The transaction above also releases the diagnostics slot,
         // semantic-token baseline/refresh marker, and workspace-class memo.
         // Keeping those removals in the same final closed-state check prevents
         // a close superseded by `didOpen` from clearing the reopened buffer's
         // newly-armed state.
         // The ordering turn is already free before every derived cleanup and
-        // the heavy tail below (#1150). `EditOrder` is
-        // a *global* barrier — every request handler awaits `edits_settled`, and
-        // the next `did_change` waits for this ticket — so holding it across a
-        // disk read, a full uncached `Analyser::analyse`, an index rebuild and
-        // the closed-file diagnostics pipeline froze hover / completion /
-        // semantic tokens in *every* open document for the length of a close.
+        // the heavy tail below. `EditOrder` is a *global* barrier — every
+        // request handler awaits `edits_settled`, and the next `did_change`
+        // waits for this ticket — so holding it across a disk read, a full
+        // uncached `Analyser::analyse`, an index rebuild and the closed-file
+        // diagnostics pipeline would freeze hover / completion / semantic
+        // tokens in *every* open document for the length of a close.
         // None of that tail is an ordered buffer mutation. The live document
         // removal is already visible; each derived publication checks that the
         // URI remains closed, so a `did_open` that now wins the race keeps it.
@@ -22063,26 +22063,26 @@ impl LanguageServer for Backend {
         // refreshes both the salsa db source and the disk-backed index entry (or
         // drops both when the URI is not a readable file).
         self.reindex_index_from_disk(uri).await;
-        // #865: keep the file's Problems / File-Explorer badge after its editor
-        // tab closes.  Rather than the old unconditional empty publish — which
-        // made a closed-but-on-disk workspace file lose its diagnostics until it
-        // was reopened — republish its on-disk diagnostics through the same
-        // pipeline the open path uses (so the set is identical, kept accurate
+        // Keep the file's Problems / File-Explorer badge after its editor tab
+        // closes.  An unconditional empty publish would make a
+        // closed-but-on-disk workspace file lose its diagnostics until it was
+        // reopened, so republish its on-disk diagnostics through the same
+        // pipeline the open path uses (the set is identical, kept accurate
         // against disk).  For a URI with no readable on-disk source (untitled
-        // buffer, deleted file) this clears the squiggles and drops the pull-cache
-        // entry, exactly as before.  The reindex above primed the salsa source it
+        // buffer, deleted file) this clears the squiggles and drops the
+        // pull-cache entry.  The reindex above primed the salsa source it
         // reads; both re-check the document is still closed under the `documents`
         // lock, so a racing `did_open` can never have a stale closed publish land
         // on a freshly reopened buffer.
         self.publish_closed_file_diagnostics(uri).await;
-        // #865 sync guarantee: the VS Code e2e harness (`waitForDeepDiagnostics`)
-        // keys on the `[timing] deep diagnostics (uri=…)` marker to know the
-        // close's republish settled before it asserts the retained badge. That
-        // marker is emitted *inside* the currency-gated publish, so a close run
+        // Sync guarantee: a harness (`waitForDeepDiagnostics`) keys on the
+        // `[timing] deep diagnostics (uri=…)` marker to know the close's
+        // republish settled before it asserts the retained badge. That marker
+        // is emitted *inside* the currency-gated publish, so a close run
         // legitimately superseded by a racing config / watched-file refresh —
         // which bumps the per-URI closed generation — or one that settles an
-        // empty file emits none, and the harness times out even though the badge
-        // settled correctly (the source of the `test-ext` flakiness). Emit an
+        // empty file emits none, and the harness would time out even though the
+        // badge settled correctly. Emit an
         // unconditional completion marker here, ordered after the republish above
         // has delivered its publish, so the signal is reliable regardless of the
         // internal delivery outcome. Notifications are ordered on the client, so

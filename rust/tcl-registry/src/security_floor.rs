@@ -22,8 +22,8 @@
 //!
 //! [`SecurityFloor`] is the fix, and it is deliberately **not** keyed on the
 //! tier. §6.4 keys its untrusted class on the editor's Workspace Trust state,
-//! which nothing on the discovery path is told (ledger O9), so a tier-keyed
-//! rule would protect nothing today; and a security fact that a *trusted*
+//! which nothing on the discovery path is told, so a tier-keyed rule would
+//! protect nothing today; and a security fact that a *trusted*
 //! pack may quietly drop is not much of a security fact. Every override, from
 //! every tier, keeps the shipped command's floor.
 //!

@@ -54,7 +54,7 @@ pub fn spec() -> CommandSpec {
         // runs when a report applies that style, not at the definition.
         // tclsh 8.6.16 / 9.0.4, byte-identical: `proc p {} {
         // report::defstyle s {} {error stop}; set ::reached 1 }` sets
-        // `::reached` (issue #1672 audit).
+        // `::reached`.
         traits: Traits::DEFERS_BODY,
         hover: Some(HoverSnippet {
             summary: "Defines the new style styleName.",
@@ -72,7 +72,7 @@ pub fn spec() -> CommandSpec {
         // configuration methods (`top`, `data`, `columns`, …) as commands, plus
         // every previously-defined style.  That command set is registry data,
         // so the analyser / LSP resolve those heads inside the body instead of
-        // flagging them unknown (#806).
+        // flagging them unknown.
         body_scope: Some(&crate::scoped::REPORT_DEFSTYLE_ENV),
         ..CommandSpec::DEFAULT
     }

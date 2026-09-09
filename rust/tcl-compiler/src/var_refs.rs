@@ -783,7 +783,7 @@ mod tests {
 
     #[test]
     fn scan_word_finds_a_var_inside_braces_within_a_value_body() {
-        // TP — the core idx 125 fix: `{$a}` survived from a double-quoted
+        // TP — the core case: `{$a}` survived from a double-quoted
         // source word, so `a` must be found, not swallowed as a
         // non-substituting brace-quoted word.
         let reg = default_registry();

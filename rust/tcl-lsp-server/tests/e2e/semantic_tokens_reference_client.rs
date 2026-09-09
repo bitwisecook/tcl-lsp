@@ -33,15 +33,15 @@
 //!     eglot harness is compared against; and
 //!
 //!   * **harsh edit sequences** — 5000+ line files, rapid-fire incremental
-//!     edits, edit-then-undo (the exact trigger the reporter calls out in
-//!     issue #333) — after which the server's `semanticTokens/full` and the
+//!     edits, edit-then-undo (a known trigger for eglot's painter drift) —
+//!     after which the server's `semanticTokens/full` and the
 //!     reference client's reconstruction must both equal a cold reopen.
 //!
 //! If any of these fail, the server itself is losing track and the bug is
 //! (partly) ours. As long as they pass, the server tracks correctly and the
 //! elisp harness's eglot drift is upstream.
 //!
-//! # Content assertions vs latency assertions (issue #1082)
+//! # Content assertions vs latency assertions
 //!
 //! These tests mix two kinds of claim, and they are load-sensitive in opposite
 //! ways. Keeping them apart is what makes the file deterministic under CPU
@@ -55,13 +55,13 @@
 //!   **progress signal** rather than a stack of wall-clock polls: the server
 //!   logs `semantic_tokens.{full,range}_convergence.settled (uri=…, refresh=…)`
 //!   the instant a request's coarse-vs-enriched decision is made, so a waiter
-//!   keys on that (the #1072 pattern) instead of racing the debounced
+//!   keys on that settled-log pattern instead of racing the debounced
 //!   `workspace/semanticTokens/refresh` that only *sometimes* follows it.
 //!   Second, every remaining backstop in the harness is multiplied by the
 //!   machine's measured capacity (`common::load_factor`), so it stays a hang
 //!   guard rather than a speed test.
 //!
-//! * **Latency** — issue #829's guarantee that a cold/large file's *first*
+//! * **Latency** — the guarantee that a cold/large file's *first*
 //!   token response is never starved behind the whole-file analysis. This is a
 //!   real promise about the server's design, so it is not deleted, but as a
 //!   wall-clock absolute it is a claim about the *machine*, not the server.
@@ -87,7 +87,7 @@
 //! claims belong in `perf.yml`-style trend tracking — its correctness half is
 //! what the two convergence tests already pin.  The two `*_response_is_prompt`
 //! tests measure a single first response rather than looping to convergence,
-//! so they stay in CI and keep #829's promise on the merge gate.
+//! so they stay in CI and keep that promise on the merge gate.
 //!
 //! What that leaves in the merge gate is the *correctness* of the token
 //! stream — the reference client, the delta protocol, the harsh edit

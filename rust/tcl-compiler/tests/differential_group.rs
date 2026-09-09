@@ -54,9 +54,9 @@
 //! *post-pass*: an `else` / `elseif` command one single newline after an
 //! `if` is folded back into that `if` (measurements N5 — the lookahead is
 //! performed by `if` itself, not by the lexical grammar).  It is a
-//! command-level rule the compiler owns and keeps owning; putting it in
-//! the lexer would make the compiler apply it twice
-//! once `build.rs` consumes the owner.  So the harness replays that exact
+//! command-level rule the compiler owns and keeps owning; putting it in the
+//! lexer would make the compiler apply it twice once `build.rs` consumes
+//! the owner.  So the harness replays that exact
 //! post-pass on the owner's side for the `f5-irules` config, using the
 //! segmenter's own predicate (`word_piece` texts + `single_newline_gap`).
 //! Every other boundary question is compared unadapted.

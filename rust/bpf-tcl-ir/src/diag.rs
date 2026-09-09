@@ -62,7 +62,7 @@ pub enum BpfDiag {
     /// concurrency word), or a map access incompatible with the declaration.
     BadMap,
     /// Two handlers of the same event share a priority — an ambiguous, non
-    /// deterministic composition order (issue #1204).
+    /// deterministic composition order.
     AmbiguousComposition,
     /// An internal invariant failure (a compiler bug, not user error).
     Internal,

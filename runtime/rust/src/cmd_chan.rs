@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Channels (M2 / L2) — `open`/`close`/`read`/`gets`/`puts`/`flush`/`eof`/
+//! Channels — `open`/`close`/`read`/`gets`/`puts`/`flush`/`eof`/
 //! `seek`/`tell`/`fconfigure`/`fblocked`. C refs `tclIO.c`/`tclIOCmd.c`.
 //!
 //! `stdout`/`stderr` go through the host's [`StdIo`](tcl_platform::StdIo)

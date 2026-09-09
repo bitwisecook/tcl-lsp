@@ -60,10 +60,10 @@ use crate::model::surface::{
 use tcl_dialect::model::{SurfaceQuery, surface_admits};
 // The vendor-surface summary payload: plain registry-derived data, not
 // part of the retiring profile trait, so both faces answer with the one
-// type and the parity pin can compare them directly. P1-G removed the
-// trait from the public surface (it survives crate-internally, plus a
-// cfg(test) oracle for the sweeps); the type moves here when the trait
-// goes entirely under ledger C1/F1.
+// type and the parity pin can compare them directly. The retiring trait
+// survives crate-internally, plus a cfg(test) oracle for the sweeps,
+// until it goes entirely under ledger C1/F1; the type lives here in the
+// meantime.
 use crate::profile_queries::VendorSurface;
 use crate::registry::CommandRegistry;
 use crate::spec::{CommandSpec, SubCommand, SubSubCommand};
@@ -217,7 +217,7 @@ pub struct ResolvedContext {
     /// Packages explicitly required by the document/workspace — the
     /// "explicitly-floored" half of the `AmbientPlusRequire` world policy.
     /// Empty for a bare environment context; the §5.2 `package require`
-    /// scan feeds it in P2.
+    /// scan feeds it.
     required_packages: Vec<Arc<str>>,
     /// Packages a loaded `SpecTcl` pack declared ambient for this context's
     /// generation, with each declared floor verbatim — recorded by the
@@ -445,7 +445,7 @@ impl ResolvedContext {
     /// - and nothing at all under `Closed`, where `package require` is not
     ///   part of the language.
     ///
-    /// **P3 (the Tk pilot).** This is the query ledger row F4 retires
+    /// **The Tk pilot.** This is the query ledger row F4 retires
     /// `tk_loaded` / `hosts_tk` / the `TK_PACKAGE` substring scan onto, and
     /// the pilot is what makes it load-bearing: `Tk` is ambient under the
     /// `tk` environment and hosted under plain Tcl, so one function answers
@@ -526,8 +526,8 @@ impl ResolvedContext {
     ///
     /// [`Self::provider_active`] answers the ancestor channel's *carrier*
     /// question: is a `Core(Tcl)` declaration reachable from a `jim`
-    /// document at all? Yes — that edge is the whole reason P6 could
-    /// delete 76 re-authored specs. But a
+    /// document at all? Yes — that edge is what makes deleting the 76
+    /// re-authored specs sound. But a
     /// [`Lineage::Reimplementation`](tcl_dialect::model::family::Lineage)
     /// implements a *subset* of its ancestor, so the carrier alone
     /// over-admits: measured against a built `jimsh`, the inherited Tcl
@@ -1210,7 +1210,7 @@ fn compute_authoring_scope(context: &ResolvedContext) -> AuthoringScope {
             // as 8.4.
             //
             // `jim`: the 8.6 command-set anchor (`jim_tcl.txt`), which is
-            // the whole of P6's inherit-then-override — a `jim` document
+            // the whole of jim's inherit-then-override — a `jim` document
             // resolves `set`, `if`, `proc`, `lassign`, `dict` and `lmap`
             // from the shared core specs instead of from 76
             // hand-re-authored copies.
@@ -1924,7 +1924,7 @@ mod tests {
     }
 
     /// The **one enumerated delta** from the old model, pinned directly rather
-    /// than only as an allowlist in the P1-E sweeps: a world that is not open
+    /// than only as an allowlist in the parity sweeps: a world that is not open
     /// stops resolving the Tk surface on its own. `package require` is not
     /// part of the `bpf`, `spectcl` or `f5-irules` language, and an iApp gets
     /// only what it requires, so `wm` was never callable in any of them; the
@@ -1992,7 +1992,7 @@ mod tests {
         assert!(vendor.is_empty());
     }
 
-    /// **P6.** A `jim` context resolves the shared core surface through
+    /// A `jim` context resolves the shared core surface through
     /// its ancestry edge instead of through 76 re-authored specs: the
     /// `Core(Tcl)` provider is active, the Tcl-axis primary is the 8.6
     /// anchor, and the derived point is the 8.6 line — so
@@ -2060,7 +2060,7 @@ mod tests {
         }
     }
 
-    /// **P6, invariant I2.** A declared `jim` range gates on the jim
+    /// **Invariant I2.** A declared `jim` range gates on the jim
     /// axis and says nothing on the Tcl axis — and vice versa. The
     /// axis machinery needed no jim-specific code: `targets_from_clauses`,
     /// `ladder_releases_in` and `ladder_coverage` all read the family's
@@ -2143,7 +2143,7 @@ mod tests {
         );
     }
 
-    /// **P6.** A `Core(Jim)` declaration restricted to part of the jim
+    /// A `Core(Jim)` declaration restricted to part of the jim
     /// ladder reports exactly the covered subset — the same
     /// `available_at_targets` machinery Tk and the tcllib modules use,
     /// on a core family's own axis.
@@ -2216,7 +2216,7 @@ mod tests {
         assert_eq!(specificity_breadth(&hosted), 5);
     }
 
-    /// **P1-F parity sweep 1**: every context-derived authoring fact —
+    /// **Parity sweep 1**: every context-derived authoring fact —
     /// the point, the option ceiling, the operator-head rule, the vendor
     /// provider, and every placement's ambience and static floor —
     /// reproduces the old profile's value for every catalogue profile,
@@ -2320,7 +2320,7 @@ mod tests {
         assert!(tk.placement_is_ambient("Tk"));
     }
 
-    /// **P1-F parity sweep 2**: the spec/subcommand/option availability
+    /// **Parity sweep 2**: the spec/subcommand/option availability
     /// queries answer exactly as the old `ProfileQueries` for every spec
     /// in the compiled universe under every catalogue profile — commands,
     /// each subcommand, each sub-subcommand (at no version and at a pinned
@@ -2414,7 +2414,7 @@ mod tests {
         println!("profile-query parity sweep: {checks} item checks, 0 divergences");
     }
 
-    /// **P1-F wave-4 parity pin**: the context's vendor-surface summary
+    /// **Wave-4 parity pin**: the context's vendor-surface summary
     /// reproduces `ProfileQueries::vendor_surface` for every catalogue
     /// profile, over that profile's own registry generation — the store
     /// the generated AI prompt has always read it from. At least one

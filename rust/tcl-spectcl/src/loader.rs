@@ -5042,7 +5042,7 @@ fn apply_command_stmt(
     let key = stmt.word_text(0).to_owned();
     let value = stmt.word_text(1).to_owned();
     match key.as_str() {
-        // --- identity and availability -----------------------------------
+        // Identity and availability.
         "dialects" => spec.surface = parse_dialects(&value, stmt.line, log),
         "available" => {
             log.v20(stmt.line, "available");
@@ -5146,7 +5146,7 @@ fn apply_command_stmt(
             }
         }
 
-        // --- shape --------------------------------------------------------
+        // Shape.
         "arg" => acc.args.apply(stmt, tables, log),
         "repeat" => {
             if let Some(layout) = repeat_row(stmt, log) {
@@ -5201,7 +5201,7 @@ fn apply_command_stmt(
             spec.arg_role_resolver_roles = arg_role_capabilities(&value, stmt.line, log);
         }
 
-        // --- types --------------------------------------------------------
+        // Types.
         "return_type" => {
             spec.return_type = enum_by_name(TCL_TYPES, &value, "return type", stmt.line, log);
         }
@@ -5261,7 +5261,7 @@ fn apply_command_stmt(
             }
         }
 
-        // --- documentation ------------------------------------------------
+        // Documentation.
         "hover" => {
             if let Some(word) = stmt.arg(1) {
                 spec.hover = Some(hover_block(&block(word), log));
@@ -5275,7 +5275,7 @@ fn apply_command_stmt(
             }
         }
 
-        // --- effects ------------------------------------------------------
+        // Effects.
         "side_effect" => {
             if let Some(effect) = side_effect_row(stmt, log) {
                 acc.side_effects.push(effect);
@@ -5295,7 +5295,7 @@ fn apply_command_stmt(
         "state_transitions" => {
             spec.state_transitions = state_transitions_value(stmt, tables, log);
         }
-        // --- the ratified words (design §6.2, §6.3's blind spot) -----------
+        // The ratified words (design §6.2, §6.3's blind spot).
         "result_stability" => {
             if let Some(stability) = result_stability_row(stmt, log) {
                 spec.result_stability = Some(stability);
@@ -5330,7 +5330,7 @@ fn apply_command_stmt(
             }
         }
 
-        // --- taint --------------------------------------------------------
+        // Taint.
         "taint_source" => spec.taint_source = Some(parse_taint(&value, stmt.line, log)),
         "taint_transform" => spec.taint_transform = Some(parse_taint(&value, stmt.line, log)),
         "taint_double_encode_colour" => {
@@ -5360,10 +5360,10 @@ fn apply_command_stmt(
         "credential_options" => spec.credential_options = leak_strs(&list_words(&value)),
         "sensitive_headers" => spec.sensitive_headers = leak_strs(&list_words(&value)),
 
-        // --- iRules -------------------------------------------------------
+        // IRules.
         "event_requires" => spec.event_requires = event_requires_value(stmt, tables, log),
 
-        // --- options ------------------------------------------------------
+        // Options.
         "option" => {
             let (option, hook) = option_row(stmt, tables, log);
             if let Some((source, option_name)) = hook {
@@ -5410,7 +5410,7 @@ fn apply_command_stmt(
             }
         }
 
-        // --- descriptors --------------------------------------------------
+        // Descriptors.
         "case_list" => spec.case_list = case_list_value(stmt, tables, log),
         "definition_body" => spec.definition_body = definition_body_value(stmt, tables, log),
         "manufacturer" => acc.manufacturers.push(manufacturer_row(stmt, log)),
@@ -5433,14 +5433,14 @@ fn apply_command_stmt(
             }
         }
 
-        // --- subcommands ---------------------------------------------------
+        // Subcommands.
         "subcommand" => {
             if let Some(sub) = load_subcommand(stmt, tables, &mut acc.hooks, "subcommand", log) {
                 acc.subcommands.push(sub);
             }
         }
 
-        // --- named engine hooks -------------------------------------------
+        // Named engine hooks.
         "lowering_hook" => {
             spec.lowering_hook = native_id(stmt, LOWERING_HOOKS, "lowering hook", log);
             if spec.lowering_hook.is_some() {
@@ -5472,7 +5472,7 @@ fn apply_command_stmt(
             spec.semantic_operation = parse_semantic_operation(&value, stmt.line, log);
         }
 
-        // --- Tcl-body hooks -------------------------------------------------
+        // Tcl-body hooks.
         "arg_role_resolver"
         | "command_prefix_resolver"
         | "script_timing_resolver"
