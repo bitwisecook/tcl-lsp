@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! End-to-end coverage for the issue #945 resolution-model follow-up:
+//! End-to-end coverage for the resolution model:
 //! flow-sensitive constant dispatch with writable provenance (faults 1–2),
 //! multi-seed source views (fault 3), `TclOO` export visibility + dispatch
 //! entry + per-object binding identity (faults 4–6), the interpreter

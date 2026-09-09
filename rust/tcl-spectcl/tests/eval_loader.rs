@@ -344,7 +344,7 @@ fn a_command_body_may_template_its_own_rows() {
 /// lines. That preference has to stop at a statement that substitutes:
 /// replaying `ambient Tk $tkver` verbatim hands the reader the dollar sign
 /// instead of the version, and the pack silently means something it did not
-/// say (issue #1643).
+/// say.
 #[test]
 fn a_variable_substitutes_into_rows_at_every_scope() {
     let source = "speclib versioned 2.0 {\n\nset tkver 8.6\n\nenvironment probe-shell {\n    core tcl 8.6\n    ambient Tk $tkver\n}\n\ncommand demo {\n    arity 1\n    available \"package Tk $tkver-\"\n}\n\n}\n";
