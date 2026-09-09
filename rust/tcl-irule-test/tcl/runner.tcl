@@ -1,13 +1,14 @@
-# runner.tcl -- Test runner and Python-Tcl communication protocol
+# runner.tcl -- standalone test runner and JSON communication protocol
 #
-# This is the entry point that Python launches via tclsh.  It:
+# This is the entry point, launched via tclsh for an external process to
+# drive.  It:
 #   1. Sources the framework components (compat, shim, state, mocks, expr_ops)
-#   2. Listens on stdin for JSON-like commands from the Python orchestrator
+#   2. Listens on stdin for JSON-like commands from the driving process
 #   3. Executes commands and returns results on stdout
 #
 # Protocol (line-oriented, one JSON object per line):
 #
-#   Python -> Tcl:
+#   Caller -> Tcl:
 #     {"cmd": "init", "tmos_version": "16.1"}
 #     {"cmd": "load_irule", "source": "when HTTP_REQUEST { ... }"}
 #     {"cmd": "set_state", "layer": "connection", "values": {"client_addr": "10.0.0.1"}}
@@ -21,7 +22,7 @@
 #     {"cmd": "eval", "script": "..."}
 #     {"cmd": "quit"}
 #
-#   Tcl -> Python:
+#   Tcl -> Caller:
 #     {"status": "ok", "result": ...}
 #     {"status": "error", "message": "...", "errorInfo": "..."}
 #

@@ -95,7 +95,7 @@ fn definition_settled(lsp: &mut Lsp, uri: &str, line: u32, ch: u32) -> Vec<Loc> 
     }
 }
 
-/// TP — the ticket. Four documents, a three-link chain, and the call site's
+/// TP: four documents, a three-link chain, and the call site's
 /// method resolves to its declaration in the document that writes the class.
 #[test]
 fn a_three_level_cross_file_metaclass_chain_resolves_from_a_call_site() {
@@ -131,10 +131,10 @@ fn a_three_level_cross_file_metaclass_chain_resolves_from_a_call_site() {
     );
 }
 
-/// TP control — the two-document form of the same three-level chain (the
-/// ticket's "collapse `b_meta.tcl` into `a_meta.tcl`" row, which resolved
-/// before the fix). It must keep resolving, and it is what tells a regression
-/// in publish *depth* apart from one in the analyser.
+/// TP control — the two-document form of the same three-level chain
+/// (collapsing `b_meta.tcl` into `a_meta.tcl`). It must keep resolving, and
+/// it is what tells a regression in publish *depth* apart from one in the
+/// analyser.
 #[test]
 fn the_same_chain_in_two_documents_still_resolves() {
     let mut lsp = Lsp::tcl();
@@ -150,7 +150,7 @@ fn the_same_chain_in_two_documents_still_resolves() {
     assert_eq!(found[0].uri, widget, "{found:?}");
 }
 
-/// TP — a chain deeper than the ticket's, to show the publish follows the chain
+/// TP: a chain deeper than the three-level one above, to show the publish follows the chain
 /// rather than a fixed number of links: five documents, four metaclasses.
 ///
 /// Oracle (tclsh 9.0.4 / 8.6.16): `[::D::Leaf new] go` -> went.

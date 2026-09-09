@@ -341,10 +341,10 @@ fn a_delete_trace_recreating_an_identical_alias_keeps_the_new_binding() {
     assert_eq!(interp.result_bytes(), b"R".as_slice());
 }
 
-/// R1: `$child hide|expose` takes the same one- *or* two-word form the
-/// ensemble does. The arm used to guard on `argv.len() == 3`, so the two-word
-/// spelling fell through to the `bad option` fallthrough and reported
-/// `bad option "hide"` — an option the same message lists as valid.
+/// `$child hide|expose` takes the same one- *or* two-word form the
+/// ensemble does. Guarding on `argv.len() == 3` alone would make the
+/// two-word spelling fall through to the `bad option` fallthrough and
+/// report `bad option "hide"` — an option the same message lists as valid.
 ///
 /// tclsh9.0.4 (and 8.6.16):
 ///   interp create kid
@@ -412,9 +412,9 @@ fn child_hide_and_expose_arity_errors_name_the_child() {
     );
 }
 
-/// R2: the shorthand goes through the same structural checks as the ensemble
-/// form. It used to call `hide_command(&cmd, &cmd)` directly, so
-/// `kid hide ::foo::bar` silently filed a namespaced command under the token
+/// The shorthand goes through the same structural checks as the ensemble
+/// form. Calling `hide_command(&cmd, &cmd)` directly instead would let
+/// `kid hide ::foo::bar` silently file a namespaced command under the token
 /// `::foo::bar` — a token C has never allowed. The last element re-reads the
 /// command to prove the refusal left it in place.
 ///
@@ -516,11 +516,11 @@ fn expose_check_order_matches_c() {
     );
 }
 
-/// R2d / R2e: `Tcl_HideCommand`'s order is the mirror question — token
+/// `Tcl_HideCommand`'s order is the mirror question — token
 /// qualifiers, *then* resolve the source, *then* reject a non-global source,
-/// *then* refuse an occupied token. The runtime used to test non-global before
-/// existence and occupancy before both, so a missing source could be reported
-/// as either of the other two.
+/// *then* refuse an occupied token. Testing non-global before existence, and
+/// occupancy before both, would let a missing source be reported as either
+/// of the other two.
 ///
 /// tclsh9.0.4 (and 8.6.16):
 ///   interp create kid
@@ -566,8 +566,8 @@ fn hide_check_order_matches_c() {
     );
 }
 
-/// R3: `$child invokehidden` parses its options. The arm used to take
-/// `argv[2]` as the command word unconditionally, so `-global` was looked up as
+/// `$child invokehidden` parses its options. Taking
+/// `argv[2]` as the command word unconditionally would look `-global` up as
 /// a hidden command name. `-global` and `-namespace ns` both switch the child's
 /// evaluation context for the one call; passing both is legal and the **last**
 /// one wins (there is no mutual-exclusion error in C — see

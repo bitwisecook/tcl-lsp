@@ -749,7 +749,7 @@ fn handle_keyword_expr(keyword: HandleKeyword) -> String {
 ///
 /// The whole descriptor is plain data (two indices, a fieldless-payload enum,
 /// and an optional keyword), so it round-trips: `&`-borrowing a constant struct
-/// literal promotes to the `&'static` the field wants (issue #1185).
+/// literal promotes to the `&'static` the field wants.
 fn handle_binding_expr(spec: &HandleBindingSpec) -> String {
     format!(
         "Some(&HandleBindingSpec {{ name_from: {}, class_from: {}, keyword: {} }})",
@@ -768,7 +768,7 @@ fn handle_binding_expr(spec: &HandleBindingSpec) -> String {
 /// Like [`handle_binding_expr`], the whole descriptor is plain data — two
 /// fieldless-payload enums and a couple of indices — so `&`-borrowing the
 /// struct literal promotes to the `&'static` the field wants and the value
-/// round-trips through the draft (issue #1707).
+/// round-trips through the draft.
 fn remote_method_expr(role: RemoteMethodRole) -> String {
     let inner = match role {
         RemoteMethodRole::OpensHandle(spec) => format!(

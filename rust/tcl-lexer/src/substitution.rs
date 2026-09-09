@@ -729,8 +729,9 @@ mod release_vector_tests {
 
     #[test]
     fn split_segments_follow_the_release_widths() {
-        // `\x4142` is one six-byte escape under 8.5 and a four-byte escape plus
-        // literal `42` under 8.6 — a highlighter must colour them differently.
+        // `\x4142` is one six-byte escape under 8.4/8.5 and a four-byte escape
+        // plus a literal `42` from 8.6 — a highlighter must colour them
+        // differently.
         let pieces = |escapes| {
             super::split_backslash_escapes_in(r"a\x4142z", escapes)
                 .into_iter()
@@ -819,11 +820,11 @@ pub struct EscapeSegment {
 /// Split `text` into alternating literal runs and backslash escapes.
 ///
 /// Every highlighter that colours a Tcl string has to do this — the Tcl token
-/// walker, the APL lexer, the BIG-IP config lexer — and each had grown its own
-/// copy. They drifted: one consumed unbounded hex digits, one never recognised
-/// `\U`, one assumed every escape was two bytes, so `\x41` was tokenised as an
-/// escape `\x` plus a string `41`. One rule, one implementation, beside the
-/// [`backslash_subst`] evaluator that defines it.
+/// walker, the APL lexer, the BIG-IP config lexer — and they all share this
+/// one rule, so none of them can disagree with the [`backslash_subst`]
+/// evaluator that defines it: a hand-rolled split that assumes a fixed
+/// two-byte escape, or an unbounded hex run, cuts `\x41` into an escape `\x`
+/// and a string `41`.
 ///
 /// Segments are contiguous and cover `text` exactly; a text with no backslash
 /// yields a single literal segment (or none, when empty). Widths come from
@@ -966,7 +967,7 @@ mod jim_braced_unicode_tests {
         assert_eq!(backslash_subst_in(r"\u{ 41}", EscapeSyntax::Jim), "u{ 41}");
     }
 
-    /// The unbraced forms are untouched by the new arm.
+    /// The braced arm leaves the unbraced forms alone.
     #[test]
     fn unbraced_forms_still_decode() {
         assert_eq!(backslash_subst_in(r"A", EscapeSyntax::Jim), "A");

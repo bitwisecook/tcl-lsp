@@ -104,7 +104,7 @@ pub enum LibraryVersion {
     /// A fixed shipped version (Expect `5.45.4`, Itcl `3.4`/`4.2`).
     Pinned(&'static str),
     /// Resolved through an external [`VersionKey`] (BIG-IP / EDA tool /
-    /// SDC), defaulting to the key's oldest supported version (D5).
+    /// SDC), defaulting to the key's oldest supported version.
     Keyed(VersionKey),
 }
 
@@ -142,7 +142,7 @@ pub struct LibraryPin {
 
 /// Per-session/per-file overrides for the [`VersionKey`] axes — the
 /// resolved `--bigip-version`-style pins. Absent keys fall back to
-/// [`VersionKey::default_version`] (oldest supported, D5).
+/// [`VersionKey::default_version`] (oldest supported).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct LibraryVersionOverrides {
     /// Pinned BIG-IP TMOS release, e.g. `17.1.0`.
@@ -191,7 +191,7 @@ mod tests {
 
     #[test]
     fn bigip_defaults_to_the_oldest_supported_tmos() {
-        // D5: oldest supported, not latest — the conservative floor.
+        // Oldest supported, not latest — the conservative floor.
         assert_eq!(
             VersionKey::BigipVersion.default_version(),
             Some("16.1.0"),

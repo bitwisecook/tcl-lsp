@@ -536,12 +536,12 @@ export async function waitForFeatureToggle(
  * Each await here is already the right *shape* — it resolves when the work
  * completes — but none of them carried a bound, so a wedged step could only be
  * caught by mocha's 60s per-test timeout, which fires knowing nothing about
- * which step was outstanding.  That is what issue #1274 recorded: two
- * `shimmerPrecision` tests each hit the raw 60s timeout, a number no wait in
- * their body could produce (``waitForDiagnostics`` bounds at 20s and would have
- * failed the assertion long before), so the stall was inside this function and
- * the log said nothing about where.  [`bounded`] wraps each step with a
- * load-scaled deadline that names it.
+ * which step was outstanding — as when two `shimmerPrecision` tests each hit
+ * that raw 60s timeout, a number no wait in their body could produce
+ * (``waitForDiagnostics`` bounds at 20s and would have failed the assertion
+ * long before), so the stall was inside this function and the log said
+ * nothing about where.  [`bounded`] wraps each step with a load-scaled
+ * deadline that names it.
  */
 export async function activate(docUri: vscode.Uri): Promise<vscode.TextDocument> {
   // Ensure the extension is activated first.
@@ -696,7 +696,7 @@ interface ThreadSyscalls {
  * The file reports the syscall number followed by its arguments, so a thread
  * parked in `read` or `write` names the descriptor it is parked on — which is
  * exactly the "is anything still reading stdin / stuck writing stdout"
- * question issue #1657 turns on.
+ * question a transport wedge turns on.
  *
  * Syscall numbers are architecture-specific, so an unrecognised architecture
  * degrades to bare numbers rather than guessing wrong names. A thread that is
