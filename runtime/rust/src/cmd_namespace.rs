@@ -403,7 +403,9 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 source.extend_from_slice(b"::");
             }
             source.extend_from_slice(&simple);
-            let Some((source, ensemble)) = interp.import_metadata_at(&source) else {
+            let Some((source, source_generation, ensemble)) =
+                interp.import_metadata_in(src_ns, &simple)
+            else {
                 continue;
             };
             // Without `-force`, re-importing the *same* command from the *same*
@@ -452,6 +454,7 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 &simple,
                 Command::Imported {
                     source,
+                    source_generation,
                     ensemble,
                     identity: std::rc::Rc::new(crate::interp::ImportToken),
                 },
@@ -2799,6 +2802,68 @@ mod tests {
                 Code::Ok
             );
             assert_eq!(i.result_bytes(), b"PROC ::S::Moved 0 PROC ::S::Final");
+        });
+    }
+
+    /// Retained and recreated namespace tokens may expose identical command
+    /// FQNs simultaneously. Imports, renames, origins, dispatch, and teardown
+    /// remain qualified by the exact source command generation throughout.
+    #[test]
+    fn retained_and_recreated_import_sources_stay_generation_distinct() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval N {
+                          proc x {} {return OLD}
+                          proc p {} {
+                              namespace delete ::N
+                              namespace eval ::N {
+                                  proc x {} {return NEW}
+                                  namespace export x
+                              }
+                              namespace eval ::B {namespace import ::N::x}
+                              rename x y
+                              list [namespace origin ::A::x] \
+                                   [namespace origin ::B::x] \
+                                   [::A::x] [::B::x] [y]
+                          }
+                          namespace export x p
+                      }
+                      namespace eval A {namespace import ::N::x}
+                      set inside [N::p]
+                      list $inside [namespace origin ::B::x] [B::x] \
+                           [info commands ::A::x]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"{::N::y ::N::x OLD NEW OLD} ::N::x NEW {}"
+            );
+        });
+    }
+
+    /// Command replacement adopts surviving imports onto the fresh source
+    /// generation, so its later rename and true deletion remain exact too.
+    #[test]
+    fn replacement_import_source_adopts_the_fresh_generation() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval S {
+                          proc p {} {return OLD}
+                          namespace export p
+                      }
+                      namespace eval I {namespace import ::S::p}
+                      proc ::S::p {} {return NEW}
+                      rename ::S::p ::S::q
+                      set before [list [I::p] [namespace origin ::I::p]]
+                      rename ::S::q {}
+                      list $before [info commands ::I::p]",
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"{NEW ::S::q} {}");
         });
     }
 

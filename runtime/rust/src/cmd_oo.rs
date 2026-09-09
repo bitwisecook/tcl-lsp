@@ -52,7 +52,7 @@ use tcl_registry::commands::tcl::{
 };
 
 use crate::interp::{
-    obj_bytes, CallMeta, Code, Command, Interp, MethodFrameWhat, Param, ProcFrame,
+    obj_bytes, CallMeta, Code, Command, Interp, MethodFrameWhat, OoCommandRole, Param, ProcFrame,
 };
 use crate::list;
 use crate::namespace::{NsId, GLOBAL};
@@ -5943,7 +5943,12 @@ impl Interp {
             self.oo_destroy_class_descendants(obj);
         }
         let var_ns = self.oo.borrow().objects.get(&obj).map(|o| o.var_ns);
-        // Delete the instance namespace first — this unsets its variables and
+        // The public object's delete trace runs before private dispatcher and
+        // instance-namespace teardown. It may relocate `my`/`myclass`; their
+        // later identity-based retirement must find the moved token (Tcl 9.0.4
+        // `FreeObject` command order).
+        self.fire_oo_command_delete_traces(obj, Some(OoCommandRole::Object));
+        // Then delete the instance namespace — this unsets its variables and
         // fires their unset traces while the object is still registered and
         // torn-down, so a trace callback sees `info object isa object` true, the
         // namespace already gone, and a method call as "impossible to invoke
@@ -5951,7 +5956,7 @@ impl Interp {
         if let Some(ns) = var_ns {
             self.delete_namespace_by_id(ns);
         }
-        // Then retire every public/private command token by owner identity,
+        // Finally retire every remaining public/private command token by identity,
         // wherever rename or hide moved it, before dropping the registry
         // records those delete callbacks may inspect.
         self.retire_oo_command_identity(obj);
@@ -7718,6 +7723,90 @@ mod tests {
                         list $before $log"#,
                 ),
                 br#"{M {{delete cbnew}} {{d ::x} {t ::myx {} delete}}} {{d ::x} {t ::myx {} delete} {r ::myx {} delete}}"#,
+            );
+        });
+    }
+
+    /// The public object's delete callback runs before private dispatchers. A
+    /// dispatcher it moves is found again by identity and retired at its new
+    /// location, including a trace attached there by the callback.
+    #[test]
+    fn public_delete_callback_can_relocate_a_private_dispatcher() {
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    br#"set log {}
+                        oo::class create C
+                        C create x
+                        set ns [info object namespace x]
+                        proc cb {ns old new op} {
+                            lappend ::log [list move \
+                                [catch {rename ${ns}::my ::movedmy} msg] \
+                                $msg [info commands ::movedmy]]
+                            trace add command ::movedmy delete mygone
+                        }
+                        proc mygone {old new op} {
+                            lappend ::log [list mygone $old $op]
+                        }
+                        trace add command x delete [list cb $ns]
+                        x destroy
+                        list $log [info commands ::movedmy]"#,
+                ),
+                br#"{{move 0 {} ::movedmy} {mygone ::movedmy delete}} {}"#,
+            );
+        });
+    }
+
+    /// Tcl retires an object's three command roles in semantic order rather
+    /// than their table-generation order, even after both private dispatchers
+    /// have moved out of the instance namespace.
+    #[test]
+    fn object_command_roles_retire_public_myclass_my() {
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    br#"set log {}
+                        oo::class create C
+                        C create x
+                        set ns [info object namespace x]
+                        rename ${ns}::my ::mm
+                        rename ${ns}::myclass ::mc
+                        proc t {tag old new op} {lappend ::log $tag}
+                        trace add command x delete [list t public]
+                        trace add command ::mm delete [list t my]
+                        trace add command ::mc delete [list t myclass]
+                        x destroy
+                        set log"#,
+                ),
+                b"public myclass my",
+            );
+        });
+    }
+
+    /// Namespace imports retain the source command token across `interp hide`.
+    /// They keep dispatching the hidden OO object, report its hidden origin,
+    /// and retire with it.
+    #[test]
+    fn hidden_object_imports_follow_and_retire_with_the_source_token() {
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    br#"oo::class create C {method ping {} {return ok}}
+                        C create x
+                        namespace export x
+                        namespace eval dst {namespace import ::x}
+                        set before [dst::x ping]
+                        interp hide {} x hx
+                        set hiddenCall [dst::x ping]
+                        set hiddenOrigin [namespace eval dst {namespace origin x}]
+                        interp invokehidden {} hx destroy
+                        list $before $hiddenCall $hiddenOrigin \
+                             [namespace eval dst {info commands x}]"#,
+                ),
+                b"ok ok ::hx {}",
             );
         });
     }

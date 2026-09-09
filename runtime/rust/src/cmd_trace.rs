@@ -136,7 +136,7 @@ pub struct CmdTrace {
     /// (see [`TraceTable::firing_exec_traces`]).
     pub id: u64,
     /// The generation of the command **token** this trace hangs off, or `None`
-    /// when the binding had none (a hidden command).
+    /// when an internal caller had no bound token to identify.
     ///
     /// C keeps the list on the `Command` itself and frees exactly that list
     /// when the token dies. Our registry is keyed by FQN, so a delete callback

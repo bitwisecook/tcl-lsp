@@ -41,7 +41,7 @@ use tcl_core_types::OoId;
 use tcl_syntax::naming::{ends_with_separator, qualifier_segments as split_qualifier};
 
 use crate::frame::VarTable;
-use crate::interp::Command;
+use crate::interp::{Command, OoCommandRole};
 
 /// An index into the namespace arena. The global namespace `::` is always 0.
 pub type NsId = usize;
@@ -427,15 +427,19 @@ impl Namespaces {
         self.arena[ns].commands.get(name).cloned()
     }
 
-    /// Every visible or retained namespace-table binding owned by one TclOO
-    /// identity. Retained namespace generations live in this same arena, so an
-    /// identity scan cannot accidentally resolve through a newer same-named
-    /// namespace token.
-    pub(crate) fn oo_command_locations(&self, owner: OoId) -> Vec<(Vec<u8>, u64)> {
+    /// The command generations owned by `owner`, optionally restricted to one
+    /// public/private dispatcher role.
+    pub(crate) fn oo_command_role_locations(
+        &self,
+        owner: OoId,
+        role: Option<OoCommandRole>,
+    ) -> Vec<(Vec<u8>, u64)> {
         let mut hits = Vec::new();
         for (ns, node) in self.arena.iter().enumerate() {
             for (name, command) in node.commands.iter() {
-                if command.oo_binding().is_some_and(|(id, _)| id == owner) {
+                if command.oo_binding().is_some_and(|(id, candidate)| {
+                    id == owner && role.is_none_or(|expected| expected == candidate)
+                }) {
                     let generation = node
                         .commands
                         .generation(name)
@@ -803,16 +807,19 @@ impl Namespaces {
         loops
     }
 
-    /// Rewrite every [`Command::Imported`] redirect whose source is `old_fqn`
-    /// to point at `new_fqn`. Even an ensemble import keeps this by-name shadow
-    /// alongside its retained token: if a later replacement retires the token,
-    /// dispatch and `namespace origin` fall back through the source's *latest*
-    /// binding. Rename is cold-path, so the full-tree scan is fine.
-    pub fn retarget_imports(&mut self, old_fqn: &[u8], new_fqn: &[u8]) {
+    /// Rewrite redirects retaining one exact source generation. The FQN is a
+    /// projection only: retained and recreated namespace tokens may expose the
+    /// same spelling simultaneously, so it cannot identify the imports to move.
+    pub fn retarget_imports(&mut self, source_generation: u64, new_fqn: &[u8]) {
         for ns in &mut self.arena {
             for cmd in ns.commands.values_mut() {
-                if let Command::Imported { source, .. } = cmd {
-                    if source.as_slice() == old_fqn {
+                if let Command::Imported {
+                    source,
+                    source_generation: candidate,
+                    ..
+                } = cmd
+                {
+                    if *candidate == source_generation {
                         *source = new_fqn.to_vec();
                     }
                 }
@@ -820,30 +827,51 @@ impl Namespaces {
         }
     }
 
-    /// Attach imports of `source_fqn` (and imports retaining `old`, when this is
-    /// an ensemble-to-ensemble replacement) to `new`. This changes alias
-    /// metadata only; the displaced token itself remains retired and immutable.
-    pub(crate) fn retarget_imports_to_ensemble(
+    /// Attach by-name fallback redirects to the fresh token that replaced
+    /// their now-retired source generation. A simultaneously retained token
+    /// with the same FQN remains live and is deliberately left alone.
+    pub(crate) fn reattach_missing_imports(
         &mut self,
         source_fqn: &[u8],
-        old: Option<&std::rc::Rc<crate::ensemble::EnsembleToken>>,
+        new_generation: u64,
+        live_generations: &std::collections::HashSet<u64>,
+    ) {
+        for ns in &mut self.arena {
+            for command in ns.commands.values_mut() {
+                let Command::Imported {
+                    source,
+                    source_generation,
+                    ..
+                } = command
+                else {
+                    continue;
+                };
+                if source == source_fqn && !live_generations.contains(source_generation) {
+                    *source_generation = new_generation;
+                }
+            }
+        }
+    }
+
+    /// Attach imports of one exact source generation to its ensemble token.
+    /// This changes alias metadata only; same-FQN imports of another retained
+    /// namespace generation remain untouched.
+    pub(crate) fn retarget_imports_to_ensemble(
+        &mut self,
+        source_generation: u64,
         new: &std::rc::Rc<crate::ensemble::EnsembleToken>,
     ) {
         for ns in &mut self.arena {
             for command in ns.commands.values_mut() {
                 let Command::Imported {
-                    source, ensemble, ..
+                    source_generation: candidate,
+                    ensemble,
+                    ..
                 } = command
                 else {
                     continue;
                 };
-                let retains_old = old.is_some_and(|old| {
-                    ensemble
-                        .as_ref()
-                        .is_some_and(|token| std::rc::Rc::ptr_eq(token, old))
-                });
-                if source.as_slice() == source_fqn || retains_old {
-                    *source = source_fqn.to_vec();
+                if *candidate == source_generation {
                     *ensemble = Some(std::rc::Rc::clone(new));
                 }
             }
@@ -1276,6 +1304,27 @@ impl Namespaces {
         self.arena[ns].commands.generation(&simple)
     }
 
+    /// Resolve an interpreter-unique command generation in any visible or
+    /// retained namespace table, including its current Tcl-facing location.
+    pub(crate) fn command_by_generation(&self, generation: u64) -> Option<(Vec<u8>, Command)> {
+        self.arena.iter().enumerate().find_map(|(ns, node)| {
+            node.commands.entries.iter().find_map(|(name, binding)| {
+                (binding.generation == generation)
+                    .then(|| (self.command_fqn(ns, name), binding.command.clone()))
+            })
+        })
+    }
+
+    /// Every command generation currently resident in a visible or retained
+    /// namespace table.
+    pub(crate) fn command_generations(&self) -> std::collections::HashSet<u64> {
+        self.arena
+            .iter()
+            .flat_map(|node| node.commands.entries.values())
+            .map(|binding| binding.generation)
+            .collect()
+    }
+
     /// The fully-qualified name of the binding at `(ns, name)`.
     pub(crate) fn command_fqn_at(&self, ns: NsId, name: &[u8]) -> Vec<u8> {
         self.command_fqn(ns, name)
@@ -1371,23 +1420,24 @@ impl Namespaces {
         })
     }
 
-    /// Imported aliases whose immediate source name is in `origins` or whose
-    /// retained ensemble identity is in `tokens`. Each result includes the
+    /// Imported aliases whose immediate source generation is in `origins` or
+    /// whose retained ensemble identity is in `tokens`. Each result includes the
     /// import binding's stable identity so callers can fire delete traces while
     /// it is still visible, then remove only that original command after any
     /// reentrant replacement performed by the callback.
     pub(crate) fn imports_for_origins(
         &self,
-        origins: &std::collections::HashSet<Vec<u8>>,
+        origins: &std::collections::HashSet<u64>,
         tokens: &[std::rc::Rc<crate::ensemble::EnsembleToken>],
     ) -> Vec<(Vec<u8>, std::rc::Rc<crate::interp::ImportToken>)> {
         let mut hits = Vec::new();
         for (id, node) in self.arena.iter().enumerate() {
             for (name, command) in node.commands.iter() {
                 let Command::Imported {
-                    source,
+                    source_generation,
                     ensemble,
                     identity,
+                    ..
                 } = command
                 else {
                     continue;
@@ -1397,7 +1447,7 @@ impl Namespaces {
                         .iter()
                         .any(|victim| std::rc::Rc::ptr_eq(imported, victim))
                 });
-                if origins.contains(source) || retains_token {
+                if origins.contains(source_generation) || retains_token {
                     hits.push((self.command_fqn(id, name), std::rc::Rc::clone(identity)));
                 }
             }
@@ -1554,17 +1604,6 @@ impl Namespaces {
             i += 1;
         }
         out
-    }
-
-    /// Fully-qualified command bindings in an explicit set of retained arena
-    /// nodes, including tokens already detached from their former parent during
-    /// teardown.
-    #[must_use]
-    pub(crate) fn command_fqns_in_ids(&self, ids: &[NsId]) -> Vec<Vec<u8>> {
-        self.command_slots_in_ids(ids)
-            .into_iter()
-            .map(|(id, tail)| self.command_fqn(id, &tail))
-            .collect()
     }
 
     /// Fully-qualified locations and exact command generations in retained
