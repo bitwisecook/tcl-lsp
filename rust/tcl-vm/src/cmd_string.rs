@@ -171,7 +171,7 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if let Some(result) = tcl_cmd_core::string::dispatch_canon(vm, canon, rest) {
         return match result {
             Ok(v) => ok(v),
-            Err(e) => err(e.into_message()),
+            Err(e) => crate::command::completion_from_cmd_error(e),
         };
     }
     match canon {

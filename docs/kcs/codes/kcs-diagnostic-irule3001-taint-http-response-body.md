@@ -9,7 +9,7 @@ all-editors, diagnostic, taint
 
 ## Profiles
 
-irule
+default, dialect:irule
 
 ## Question
 
@@ -21,13 +21,17 @@ User-controlled input in the response body can inject HTML or JavaScript, enabli
 
 ## Symptoms
 
-- A yellow squiggle appears under the `HTTP::respond` call, with the message "tainted data in HTTP response body".
+- A yellow squiggle appears under the tainted argument, with the message
+  "Tainted variable $host in HTTP response body (HTTP::respond); risk of XSS or
+  content injection".
 
 ## Example that triggers it
 
 ```tcl
-set host [HTTP::host]
-HTTP::respond 200 content "<h1>$host</h1>"
+when HTTP_REQUEST {
+  set host [HTTP::host]
+  HTTP::respond 200 content "<h1>$host</h1>"
+}
 ```
 
 The analyser reports **`IRULE3001`** because `host` carries tainted data into the response body.
@@ -35,12 +39,16 @@ The analyser reports **`IRULE3001`** because `host` carries tainted data into th
 ## Fix
 
 ```tcl
-set host [HTTP::host]
-set safe_host [string map {& &amp; < &lt; > &gt; \" &quot;} $host]
-HTTP::respond 200 content "<h1>$safe_host</h1>"
+when HTTP_REQUEST {
+  set host [HTTP::host]
+  set safe [htmlencode $host]
+  HTTP::respond 200 content "<h1>$safe</h1>"
+}
 ```
 
-HTML-escape the value before embedding it in the response.
+`htmlencode` (equally `HTML::encode`) marks its result HTML-escaped, which
+clears the finding. Hand-rolled escaping with `string map` does not: the
+analyser has no way to tell a complete escape from a partial one.
 
 ## How to suppress
 

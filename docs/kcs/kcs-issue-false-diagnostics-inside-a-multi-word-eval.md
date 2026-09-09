@@ -15,13 +15,9 @@ is a variable it sets still reported as read before it is set?
 ## Symptoms
 
 - A red squiggle under a multi-word `eval`, `uplevel`, or `namespace eval`
-  call, reporting **`E002`** — too few arguments — for a command that is
-  perfectly well formed.
+  call, reporting **`E002`** — too few arguments.
 - A yellow squiggle further down the file reporting **`W210`** — "Variable
-  'total' is read before it is set" — even though the `eval` above it sets
-  that very variable.
-- The same code written as `eval {set total 0}`, with the whole script in one
-  braced word, reports nothing.
+  'total' is read before it is set" — on a variable one of those calls sets.
 
 ## Why
 
@@ -35,26 +31,21 @@ eval {set total} 0
 eval {set total 0}
 ```
 
-The analyser joins the words the same way and analyses the resulting script,
-so neither report should appear on a well-formed multi-word call. If you do
-see one, you are on a build older than the fix — update, and the reports go.
-
-The same joining rule applies to `uplevel`, `namespace eval`, and
-`interp eval`. It does **not** apply to `catch`, whose script is a single
-bounded argument.
+The analyser joins the words the same way and analyses the joined script.
+The same rule covers `uplevel`, `namespace eval`, and `interp eval`. It does
+**not** cover `catch`, whose script is a single bounded argument.
 
 ## Answer
 
-A genuinely malformed joined script *is* reported, because the analyser
-checks the script Tcl actually runs:
+The report is about the joined script, not the first word:
 
 ```tcl
 eval set
 ```
 
-still reports `E002` — the joined script really is `set` on its own. So the
+reports `E002` because the joined script really is `set` on its own. So the
 question to ask about an `E002` or `W210` on an `eval` is whether the
-*joined* script is well formed, not whether the first word is.
+*joined* script is well formed.
 
 ## When the analyser stays quiet
 
@@ -78,9 +69,9 @@ claim about the call.
 
 ## How to suppress
 
-If you still see one of these on a shape not covered above, add
-`# noqa: E002` or `# noqa: W210` on the line **above** the offending command, and please
-open an issue with the snippet.
+If you see one of these on a shape not covered above, add `# noqa: E002` or
+`# noqa: W210` on the line **above** the offending command, and open an issue
+with the snippet.
 
 ## Related
 

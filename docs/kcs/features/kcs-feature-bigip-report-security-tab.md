@@ -83,9 +83,9 @@ outcomes, not just alarms.
 ## Default-credential detection, in a bit more detail
 
 `root`/`default` and `admin`/`admin` are checked against every stored
-password representation this generator can verify **without ever calling the
-platform `crypt(3)`** (so the native binary, the wasm in-browser generator,
-and any future backend agree byte-for-byte):
+password representation this generator can verify **without calling the
+platform `crypt(3)`**, so the native binary and the wasm in-browser generator
+agree byte-for-byte:
 
 - `$6$…` SHA-512-crypt and `$5$…` SHA-256-crypt — what a current BIG-IP
   (TMOS 11+) stores;
@@ -105,42 +105,23 @@ applicable** with that reason.
 ## Limitations
 
 - **`sys sshd` (remote root / SSH access) and `sys httpd` (management GUI
-  TLS/HTTP settings) are not yet checked.** The generated BIG-IP object model
-  keeps both as untyped records that drop every property, and the Python
-  generator that would normally add the missing fields has been retired from
-  this branch (see `AGENTS.md`) — there's no generator left to run. This is
-  tracked as a follow-up (either restore codegen for these two kinds or add
-  hand-maintained parsing).
+  TLS/HTTP settings) are not checked.** The generated BIG-IP object model
+  keeps both as untyped records with no properties, so there is nothing to
+  check against.
 - A **partial `bigip.conf`** (no `auth password-policy` block, no UCS
-  filestore, no `/etc/shadow`) naturally shows more **not applicable**/
-  **could not inspect** results — the report is telling you what it
-  *couldn't* check, which is expected, not a bug.
-- The **Security tab is Rust-only for now** (native CLI and the wasm
-  in-browser generator share the exact same code, so those two always agree).
-  `rust/bigip-report-gen/python/python/f5report/report.py` is a parallel,
-  hand-maintained Python port of the *rest* of the model — kept only as "the
-  PyO3/Python demonstration of driving the query engine as a library" per
-  `AGENTS.md`'s "Python has been fully retired on this branch" — and was not
-  given a matching Security tab in this change. Porting it (including a
-  from-scratch Python MD5-crypt/SHA-crypt implementation, since the platform
-  `crypt(3)` module is explicitly out of scope for the same reason it is
-  here) is a follow-up if the Python demo needs to stay at parity.
-- The report's query console still embeds the entire raw source text
-  verbatim (for live queries), the same way it always has for other tabs
-  (e.g. the Secrets tab's own reveal-behind-a-button values) — so a stored
-  password hash is not literally absent from the HTML file. What this feature
-  guarantees is narrower and still meaningful: the *Security tab's own
-  findings* never carry the stored hash, salt, candidate password, or any
-  other secret value — only the pass/fail verdict.
+  filestore, no `/etc/shadow`) shows more **not applicable** / **could not
+  inspect** results. That is the report telling you what it could not check.
+- The report's query console embeds the raw source text verbatim so live
+  queries can run against it, as every other tab does, so a stored password
+  hash is not absent from the HTML file. The guarantee is narrower: the
+  Security tab's own findings never carry a hash, salt, candidate password,
+  or any other secret value — only the verdict.
 
 ## Why it is built this way
 
-Findings are declared as a small rule table (one stable id + check function
-per row, in `rust/bigip-report-gen/rust/src/security.rs`) rather than
-one-off logic scattered through the report — the same shape
-`crate::forensics`'s ATT&CK checklist uses. Fields the generated BIG-IP model
-doesn't carry (the real SNMP `community-name` value, an `auth user`'s `role`)
-are read directly off the config text with the same low-level block/property
-helpers the certificates and secrets tabs already use, rather than guessing
-from a stanza label or hand-extending a `@generated` model file with no
-generator left to keep it honest.
+Findings are declared as a rule table — one stable id and check function per
+row — rather than one-off logic scattered through the report, the same shape
+the forensics tab's ATT&CK checklist uses. Fields the generated BIG-IP model
+does not carry (the real SNMP `community-name` value, an `auth user`'s
+`role`) are read off the config text with the same block/property helpers the
+certificates and secrets tabs use, rather than guessed from a stanza label.

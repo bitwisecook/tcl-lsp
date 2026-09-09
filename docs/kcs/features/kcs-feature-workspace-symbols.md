@@ -25,12 +25,11 @@ definition — `tcltest` test cases, constraints, custom match modes, and iRules
 `when EVENT` handlers — whose simple or qualified name contains the query,
 case-insensitively (an empty query matches everything). The definer-backed
 kinds are recorded from any command whose registry `CommandSpec` declares
-`defines_symbol`, so the set grows by spec data rather than provider edits
-(#790).
+`defines_symbol`, so the set grows by spec data rather than provider edits.
 
 Because the answer comes from the index and not from the open-document map, a
 symbol in a file the folder scan indexed but the editor never opened is
-searchable (#1156). The index is refreshed on each document's diagnostics
+searchable. The index is refreshed on each document's diagnostics
 publish, which the debounce puts about 50 ms behind an edit, so a name typed a
 moment ago appears once that publish lands; an open-but-not-yet-published
 buffer still contributes the symbols of its last publish.

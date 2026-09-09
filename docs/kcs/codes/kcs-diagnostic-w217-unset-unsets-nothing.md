@@ -17,11 +17,11 @@ Why does the analyser warn that my `unset` command unsets nothing?
 
 ## Why
 
-`unset` accepts the options `-nocomplain` and `--` before its variable names. When **every** argument looks like an option, Tcl consumes them all as options and no variable name remains, so nothing is unset. This happens when a variable is genuinely named with a leading dash (for example `set -x 1; unset -x` — the `-x` is read as an unknown option and the command errors, or with `-nocomplain` alone nothing happens at all).
+`unset` accepts the options `-nocomplain` and `--` before its variable names. When **every** argument is one of those two words, no variable name remains, so nothing is unset. Only `-nocomplain` and `--` are options: any other word ends option processing and is used as a name, so `unset -x` really does unset a variable called `-x`. The warning therefore fires on `unset -nocomplain`, `unset --`, and `unset -nocomplain --` — usually written by an author who meant to unset a `-`-named variable.
 
 ## Symptoms
 
-- A yellow squiggle appears under the `unset` command, with the message "`unset` unsets nothing".
+- A yellow squiggle appears under the `unset` arguments, with the message *"`unset` unsets no variable here — `-nocomplain` / `--` are consumed as options. To unset a variable whose name begins with `-`, put `--` before it (e.g. `unset -- -nocomplain`)."*
 
 ## Example that triggers it
 
@@ -37,7 +37,7 @@ The analyser reports **`W217`** — every argument was consumed as an option, so
 unset -nocomplain -- -x
 ```
 
-Add `--` to end option processing, then name the variable — a `-`-named variable must appear after `--`.
+Add `--` to end option processing, then name the variable — a `-`-named variable must appear after `--`. The editor offers a quick fix that inserts `--` before the first word for you.
 
 ## How to suppress
 

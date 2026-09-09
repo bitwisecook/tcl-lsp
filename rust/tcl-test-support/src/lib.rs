@@ -117,6 +117,7 @@ pub enum OracleError {
     InvalidOverride(String),
     InvalidInterpreter(String),
     InvalidSourceTree(String),
+    InvalidTestDefinition(String),
 }
 
 impl fmt::Display for OracleError {
@@ -125,7 +126,8 @@ impl fmt::Display for OracleError {
             Self::Io { action, source } => write!(formatter, "{action}: {source}"),
             Self::InvalidOverride(message)
             | Self::InvalidInterpreter(message)
-            | Self::InvalidSourceTree(message) => formatter.write_str(message),
+            | Self::InvalidSourceTree(message)
+            | Self::InvalidTestDefinition(message) => formatter.write_str(message),
         }
     }
 }
@@ -134,11 +136,36 @@ impl std::error::Error for OracleError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Io { source, .. } => Some(source),
-            Self::InvalidOverride(_) | Self::InvalidInterpreter(_) | Self::InvalidSourceTree(_) => {
-                None
-            }
+            Self::InvalidOverride(_)
+            | Self::InvalidInterpreter(_)
+            | Self::InvalidSourceTree(_)
+            | Self::InvalidTestDefinition(_) => None,
         }
     }
+}
+
+/// Extract one definition from a pinned upstream Tcl test file.
+///
+/// The adjacent definition marker is part of the contract: if an upstream
+/// refresh renames, removes, or reorders either definition, the focused test
+/// fails instead of silently running a hand-copied substitute.
+pub fn upstream_test_definition<'a>(
+    source: &'a str,
+    start_marker: &str,
+    next_marker: &str,
+) -> Result<&'a str, OracleError> {
+    let Some(start) = source.find(start_marker) else {
+        return Err(OracleError::InvalidTestDefinition(format!(
+            "pinned upstream test is missing {start_marker:?}"
+        )));
+    };
+    let after_start = &source[start + start_marker.len()..];
+    let Some(relative_end) = after_start.find(next_marker) else {
+        return Err(OracleError::InvalidTestDefinition(format!(
+            "pinned upstream test after {start_marker:?} is missing adjacent marker {next_marker:?}"
+        )));
+    };
+    Ok(&source[start..start + start_marker.len() + relative_end])
 }
 
 struct ReleaseLocation {
@@ -244,6 +271,26 @@ pub fn tclsh_from_source_tree(
         )));
     }
     Ok(interpreter)
+}
+
+/// Run a script with the exact interpreter and shared library built in a
+/// validated source tree.
+///
+/// This is the execution counterpart to [`tclsh_from_source_tree`]. Tests
+/// which consume upstream definitions should use the pair as one oracle
+/// selection rather than validating against one library and later executing
+/// with whatever dynamic library lookup happens to find.
+pub fn run_script_from_source_tree(
+    source_tree: &TclSourceTree,
+    version: TclVersion,
+    script: &[u8],
+) -> Result<ScriptOutcome, OracleError> {
+    let interpreter = tclsh_from_source_tree(source_tree, version)?;
+    run_script_with_library(
+        &interpreter.path,
+        script,
+        Some(source_tree.root.join("unix").as_path()),
+    )
 }
 
 /// Every available reference interpreter, in release order.
@@ -499,7 +546,8 @@ fn which_on_path(name: &str) -> Option<PathBuf> {
 mod tests {
     use super::{
         OracleError, locate_source_tree, patchlevel_from_header, reference_patchlevel,
-        reference_source_tag, validate_reference_source_tree, validate_source_tree,
+        reference_source_tag, upstream_test_definition, validate_reference_source_tree,
+        validate_source_tree,
     };
     use std::fs;
     use std::path::{Path, PathBuf};
@@ -507,6 +555,23 @@ mod tests {
     use tcl_dialect::TclVersion;
 
     const SOURCE_ENV_CHILD: &str = "TCL_TEST_SUPPORT_SOURCE_ENV_CHILD";
+
+    #[test]
+    fn upstream_definition_is_bounded_by_its_adjacent_marker() {
+        let source = "prefix\ntest one {body}\ntest two {body}\nsuffix";
+        assert_eq!(
+            upstream_test_definition(source, "test one", "test two").expect("definition"),
+            "test one {body}\n"
+        );
+        assert!(matches!(
+            upstream_test_definition(source, "test missing", "test two"),
+            Err(OracleError::InvalidTestDefinition(_))
+        ));
+        assert!(matches!(
+            upstream_test_definition(source, "test two", "test three"),
+            Err(OracleError::InvalidTestDefinition(_))
+        ));
+    }
 
     #[test]
     fn patchlevel_is_read_from_the_c_header() {

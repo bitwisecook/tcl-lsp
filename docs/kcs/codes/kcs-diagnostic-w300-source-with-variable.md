@@ -21,7 +21,7 @@ Sourced files execute as Tcl code; an attacker-controlled path leads to arbitrar
 
 ## Symptoms
 
-- A yellow squiggle appears under the `source` call, with the message "source with variable argument".
+- A yellow squiggle appears under the path argument, with the message *"source with a dynamic path (variable or command substitution) executes arbitrary Tcl code. Ensure the path is not influenced by untrusted input."*
 
 ## Example that triggers it
 
@@ -34,10 +34,13 @@ The analyser reports **`W300`** on the `source` call.
 ## Fix
 
 ```tcl
-source [file join $safe_dir $name]
+set helpers "/opt/app/lib/helpers.tcl"
+source $helpers
 ```
 
-Constrain the path to a known safe directory before sourcing.
+Source a fixed path, or a variable the analyser can prove holds a literal
+one. A computed path — `source [file join $dir $name]` included — stays
+flagged, because the file it loads is decided at run time.
 
 ## How to suppress
 

@@ -295,6 +295,50 @@ fn object_display(obj: &[u8]) -> Vec<u8> {
         .unwrap_or_else(|| obj.to_vec())
 }
 
+/// Exact command words whose dispatch entered a TclOO method body. Keeping
+/// this construction beside the OO dispatcher makes `info level 0` and TIP
+/// 348's `CALL` record agree for every proc-like consumer of [`CallMeta`].
+struct MethodInvocation {
+    external: bool,
+    level_words: Option<Vec<Vec<u8>>>,
+}
+
+impl MethodInvocation {
+    fn internal() -> Self {
+        Self {
+            external: false,
+            level_words: None,
+        }
+    }
+
+    fn with_words(external: bool, words: Vec<Vec<u8>>) -> Self {
+        Self {
+            external,
+            level_words: Some(words),
+        }
+    }
+}
+
+fn method_invocation(
+    obj: &[u8],
+    invoked: Option<&[u8]>,
+    method: &[u8],
+    args: &[*mut TclObj],
+    external: bool,
+) -> MethodInvocation {
+    let mut words = Vec::with_capacity(args.len() + 2);
+    words.push(if external {
+        invoked
+            .map(<[u8]>::to_vec)
+            .unwrap_or_else(|| object_display(obj))
+    } else {
+        b"my".to_vec()
+    });
+    words.push(method.to_vec());
+    words.extend(args.iter().map(|&arg| obj_bytes(arg)));
+    MethodInvocation::with_words(external, words)
+}
+
 /// The TclOO *execution* state (the per-flow stacks, not the shared class/object
 /// definitions): swapped in/out when a coroutine suspends/resumes so a method
 /// running inside a coroutine has its own `self`/`my`/`next` call chain and
@@ -851,13 +895,13 @@ fn oo_configure(interp: &mut Interp, obj: &[u8], args: &[*mut TclObj]) -> Code {
 /// ReadProperty).
 fn read_property(interp: &mut Interp, obj: &[u8], prop_hyph: &[u8]) -> Code {
     let mname = property_method_name(b"<ReadProp", prop_hyph);
-    let code = interp.oo_invoke(obj, &mname, &[], false);
+    let code = interp.oo_invoke(obj, &mname, &[], false, None);
     property_loopword_error(interp, code, b"getter", prop_hyph)
 }
 
 fn write_property(interp: &mut Interp, obj: &[u8], prop_hyph: &[u8], value: *mut TclObj) -> Code {
     let mname = property_method_name(b"<WriteProp", prop_hyph);
-    let code = interp.oo_invoke(obj, &mname, &[value], false);
+    let code = interp.oo_invoke(obj, &mname, &[value], false, None);
     property_loopword_error(interp, code, b"setter", prop_hyph)
 }
 
@@ -1255,7 +1299,7 @@ fn slot_m_unknown(interp: &mut Interp, obj: &[u8], args: &[*mut TclObj]) -> Code
     if !args.is_empty() && first.first() == Some(&b'-') {
         return interp.oo_unknown_method(obj, &first);
     }
-    interp.oo_invoke(obj, b"--default-operation", args, false)
+    interp.oo_invoke(obj, b"--default-operation", args, false, None)
 }
 
 fn err(interp: &mut Interp, msg: &[u8]) -> Code {
@@ -1548,7 +1592,7 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut usage = dst.clone();
     usage.extend_from_slice(b" <cloned>");
     interp.oo.borrow_mut().fwd_usage = Some(usage);
-    let code = interp.oo_invoke(&dst, b"<cloned>", &[src_obj], false);
+    let code = interp.oo_invoke(&dst, b"<cloned>", &[src_obj], false, None);
     interp.oo.borrow_mut().fwd_usage = None;
     unsafe { obj::decr_ref_count(src_obj) };
     if code == Code::Error {
@@ -2174,7 +2218,7 @@ fn slot_call(
     for &a in &argv {
         unsafe { obj::incr_ref_count(a) };
     }
-    let code = interp.oo_invoke(obj, method, &argv, false);
+    let code = interp.oo_invoke(obj, method, &argv, false, None);
     for &a in &argv {
         unsafe { obj::decr_ref_count(a) };
     }
@@ -2943,7 +2987,7 @@ fn my_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return err(interp, b"my may only be called from inside a method");
     };
     let method = obj_bytes(argv[1]);
-    interp.oo_invoke(&object, &method, &argv[2..], false)
+    interp.oo_invoke(&object, &method, &argv[2..], false, None)
 }
 
 fn myclass_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -2985,7 +3029,7 @@ fn myclass_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return err(interp, b"myclass may only be called from inside a method");
     };
     let method = obj_bytes(argv[1]);
-    interp.oo_invoke(&class, &method, &argv[2..], false)
+    interp.oo_invoke(&class, &method, &argv[2..], false, None)
 }
 
 fn next_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -3013,7 +3057,17 @@ fn next_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         if from_filter {
             interp.oo.borrow_mut().filter_handling = false;
         }
-        let code = interp.oo_run(&object, chain, index + 1, &target, &argv[1..], external);
+        let code = interp.oo_run(
+            &object,
+            chain,
+            index + 1,
+            &target,
+            &argv[1..],
+            MethodInvocation::with_words(
+                external,
+                argv.iter().map(|&word| obj_bytes(word)).collect(),
+            ),
+        );
         interp.oo.borrow_mut().filter_handling = saved_fh;
         code
     } else if target.is_empty() {
@@ -3079,7 +3133,17 @@ fn nextto_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // Search forward (past the current step) for the class's implementation.
     for i in index + 1..chain.len() {
         if chain[i].provider == class && is_target(&chain[i]) {
-            return interp.oo_run(&object, chain, i, &target, &argv[2..], external);
+            return interp.oo_run(
+                &object,
+                chain,
+                i,
+                &target,
+                &argv[2..],
+                MethodInvocation::with_words(
+                    external,
+                    argv.iter().map(|&word| obj_bytes(word)).collect(),
+                ),
+            );
         }
     }
     // Not reachable ahead: distinguish "behind us" from "not in the chain".
@@ -4498,12 +4562,12 @@ impl Interp {
 
     /// Dispatch a command bound to the OO object/class FQN `fqn`.
     pub(crate) fn oo_dispatch(&mut self, fqn: &[u8], argv: &[*mut TclObj]) -> Code {
+        let invoked = obj_bytes(argv[0]);
         if self.oo.borrow().classes.contains_key(fqn) {
-            let cmd = obj_bytes(argv[0]);
             // The class instantiation built-ins honour the class's own
             // `export`/`unexport` for this external call.
             if let Some(sub) = argv.get(1).map(|&a| obj_bytes(a)) {
-                if let Some(code) = self.oo_class_factory(fqn, &cmd, &sub, &argv[2..], true) {
+                if let Some(code) = self.oo_class_factory(fqn, &invoked, &sub, &argv[2..], true) {
                     return code;
                 }
             }
@@ -4517,14 +4581,16 @@ impl Interp {
                 // `oo::define … self method`); dispatch it on the class object.
                 // An unknown method funnels through `oo_invoke` →
                 // `oo_unknown_method` for the C error text.
-                Some(other) => self.oo_invoke(fqn, other, &argv[2..], true),
+                Some(other) => self.oo_invoke(fqn, other, &argv[2..], true, Some(&invoked)),
                 // No method name: C forces the unknown handler (`FORCE_UNKNOWN`)
                 // with an empty method, so a *user* `unknown` runs with no args.
                 // With only the default handler, report the `wrong # args` usage
                 // naming the command as invoked (`argv[0]`, not the FQN).
-                None if self.has_user_unknown(fqn) => self.oo_invoke(fqn, b"unknown", &[], false),
+                None if self.has_user_unknown(fqn) => {
+                    self.oo_invoke(fqn, b"unknown", &[], false, None)
+                }
                 None => {
-                    let mut u = obj_bytes(argv[0]);
+                    let mut u = invoked;
                     u.extend_from_slice(b" method ?arg ...?");
                     wrong_args(self, &u)
                 }
@@ -4551,12 +4617,14 @@ impl Interp {
                     }
                     code
                 }
-                Some(method) => self.oo_invoke(fqn, &method, &argv[2..], true),
+                Some(method) => self.oo_invoke(fqn, &method, &argv[2..], true, Some(&invoked)),
                 // No method name: force a *user* `unknown` (C's `FORCE_UNKNOWN`)
                 // with empty args; else the `wrong # args` usage (as invoked).
-                None if self.has_user_unknown(fqn) => self.oo_invoke(fqn, b"unknown", &[], false),
+                None if self.has_user_unknown(fqn) => {
+                    self.oo_invoke(fqn, b"unknown", &[], false, None)
+                }
                 None => {
-                    let mut u = obj_bytes(argv[0]);
+                    let mut u = invoked;
                     u.extend_from_slice(b" method ?arg ...?");
                     wrong_args(self, &u)
                 }
@@ -4666,7 +4734,7 @@ impl Interp {
             })
             .collect();
         if !chain.is_empty() {
-            let code = self.oo_run(&fqn, chain, 0, b"", args, false);
+            let code = self.oo_run(&fqn, chain, 0, b"", args, MethodInvocation::internal());
             if code == Code::Error {
                 // A failed constructor tears the partially-built object down,
                 // running its destructor (C: the object is deleted, firing the
@@ -4704,6 +4772,7 @@ impl Interp {
         method: &[u8],
         args: &[*mut TclObj],
         external: bool,
+        invoked: Option<&[u8]>,
     ) -> Code {
         if !self.oo.borrow().objects.contains_key(obj) {
             return self.invalid_command(obj);
@@ -4807,7 +4876,8 @@ impl Interp {
                 if destroy_ok || objbuiltin_ok {
                     let filters = self.active_filters(obj, &providers);
                     if !filters.is_empty() {
-                        return self.oo_run(obj, filters, 0, method, args, external);
+                        let invocation = method_invocation(obj, invoked, method, args, external);
+                        return self.oo_run(obj, filters, 0, method, args, invocation);
                     }
                 }
             }
@@ -4873,7 +4943,7 @@ impl Interp {
                 }
                 // `unknown` is itself usually unexported, so dispatch it
                 // internally (it is the object's own fallback handler).
-                let code = self.oo_invoke(obj, b"unknown", &uargs, false);
+                let code = self.oo_invoke(obj, b"unknown", &uargs, false, None);
                 for a in uargs {
                     unsafe { obj::decr_ref_count(a) };
                 }
@@ -4896,10 +4966,12 @@ impl Interp {
             if !filters.is_empty() {
                 let mut chain: Vec<CallStep> = filters;
                 chain.append(&mut steps);
-                return self.oo_run(obj, chain, 0, method, args, external);
+                let invocation = method_invocation(obj, invoked, method, args, external);
+                return self.oo_run(obj, chain, 0, method, args, invocation);
             }
         }
-        self.oo_run(obj, steps, 0, method, args, external)
+        let invocation = method_invocation(obj, invoked, method, args, external);
+        self.oo_run(obj, steps, 0, method, args, invocation)
     }
 
     /// The unexported object built-in methods (`variable`/`varname`/`eval`),
@@ -5579,8 +5651,12 @@ impl Interp {
         index: usize,
         target: &[u8],
         args: &[*mut TclObj],
-        external: bool,
+        invocation: MethodInvocation,
     ) -> Code {
+        let MethodInvocation {
+            external,
+            level_words,
+        } = invocation;
         let prov = chain[index].provider.clone();
         let method = chain[index].method.clone();
         // Object-vs-class facet of this step (a class mixed into its own instance
@@ -5824,9 +5900,9 @@ impl Interp {
         // invocation (e.g. `oo::object create foo`), captured by the dispatcher,
         // rather than the synthetic `<constructor>` name (oo-2.1).
         let level_words = if method.is_empty() {
-            self.oo.borrow_mut().ctor_words.take()
+            self.oo.borrow_mut().ctor_words.take().or(level_words)
         } else {
-            None
+            level_words
         };
         // A filter step (its method differs from the invoked target) runs with
         // `filter_handling` set, so its own `my` calls — and everything they
@@ -5996,7 +6072,14 @@ impl Interp {
         // The destructor result is returned to the caller: explicit `obj
         // destroy` propagates it (C's `AfterNRDestructor`); implicit teardown
         // ignores it (routing to `bgerror`).
-        self.oo_run(obj, chain, 0, b"<destructor>", &[], false)
+        self.oo_run(
+            obj,
+            chain,
+            0,
+            b"<destructor>",
+            &[],
+            MethodInvocation::internal(),
+        )
     }
 
     fn oo_destroy_class(&mut self, class: &[u8]) {
@@ -7633,6 +7716,20 @@ mod tests {
             assert!(
                 contains(&ei, b"(in \"my eval\" script line 1)"),
                 "got {ei:?}"
+            );
+
+            // The shared proc runner uses the full external invocation for
+            // both `info level 0` and TIP 348's procedure-boundary `CALL`.
+            ok(i, b"oo::define cls method stack {arg} {error stacked}");
+            ok(i, b"catch {obj stack value} m o");
+            assert_eq!(
+                ok(i, b"lindex [dict get $o -errorstack] end"),
+                b"obj stack value"
+            );
+            ok(i, b"catch {::obj stack rooted} m o");
+            assert_eq!(
+                ok(i, b"lindex [dict get $o -errorstack] end"),
+                b"::obj stack rooted"
             );
         });
     }

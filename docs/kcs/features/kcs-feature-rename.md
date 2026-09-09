@@ -21,9 +21,9 @@ What does the rename feature do, and how do I use it?
 - **In the editor**: put your cursor on the proc or variable, press
   `F2`, type the new name, and press **Enter**. The editor updates the
   definition and every reference in the current file in one step.
-- **From a script or MCP tool**: call the `rename` tool with the source
-  file, a cursor position, and the new name. The tool returns the full
-  set of text edits for the editor or script to apply.
+- **From a script or MCP tool**: call the `rename` tool with `source`,
+  `line`, `character`, and `new_name`. It returns the full set of text
+  edits, or null when the symbol is not renameable.
 
 ## Options
 
@@ -53,7 +53,7 @@ rather than left half-applied. A file sourced under several namespaces
 is one physical declaration with several runtime names; renaming it
 updates every namespace's call sites together. For the full contract,
 see
-[name resolution](../../design/name-resolution.md).
+[name resolution](../../design/analysis/name-resolution.md).
 
 Rename follows the **command table**, not the spelling. A proc whose name
 an `interp alias` has taken over is dead under that name, so renaming it
@@ -123,9 +123,8 @@ different member than the one you clicked.
 ### When rename refuses
 
 Rename answers with an **error and a reason**, not a silent no-op, whenever
-it can see that no edit set would keep the program running. Precision is the
-point: a refused rename costs you a keystroke, a wrong one silently breaks
-code. The gate refuses when:
+it can see that no edit set would keep the program running. The gate refuses
+when:
 
 - a member of the class you are renaming is dispatched on a **receiver whose
   class is not tracked** — `$other X` where `$other` came from `lindex
@@ -147,9 +146,7 @@ code. The gate refuses when:
   **aliases a cell computed at run time** (`namespace upvar $ns v local`)
   that could be this one. A collision refusal **names the documents** the
   cell was found in (up to three, then a count). The workspace the gate reads
-  is every scanned folder, not the files you have open, so without a name the
-  refusal is a claim you cannot check — and a refusal you cannot check is
-  indistinguishable from a bug;
+  is every scanned folder, not just the files you have open;
 - the variable's **name can only be written quoted** — `set {$n} 1` creates a
   variable literally called `$n`, `set {a b} 1` one called `a b`. These are
   ordinary variables (tclsh: `info exists {$n}` is 1 while `info exists n` is
@@ -169,8 +166,7 @@ code. The gate refuses when:
 The gate is checked across **every file the rename would edit** — the class's
 own file, every file defining or extending a class in its override family,
 and every file that merely *calls* the member. A dispatch it cannot account
-for in any of them refuses the whole rename, because a rename that is only
-partly safe is not safe at all.
+for in any of them refuses the whole rename.
 
 In each case, running **Find References** first shows you what rename can and
 cannot see.
@@ -198,7 +194,7 @@ cannot see.
 
 ## Screenshots
 
-![rename dialog inline](../screenshots/18-rename.png)
+![rename dialog inline](../../screenshots/18-rename.png)
 
 ## Related
 

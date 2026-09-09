@@ -14,7 +14,7 @@ how do I add a new platform?
 
 ## Before you start
 
-- A Rust toolchain (rustup, 1.95+) and Node.js with npm installed.
+- A Rust toolchain (rustup, 1.98+) and Node.js with npm installed.
 - Cross-compilation dependencies for your host: run `make
   ensure-server-cross-deps` (adds the rustup targets, and on Linux the
   cross-linkers plus QEMU).
@@ -52,8 +52,7 @@ package must contain it, a targeted package must not.
 ### What is in a package, and why it is large
 
 The universal package unpacks to roughly **430 MiB** and downloads as roughly
-**120-130 MiB**. That is expected, and it is worth knowing where it goes
-before someone tries to "fix" it:
+**120-130 MiB**. Where that goes:
 
 - Seven native `tcl-lsp-server` binaries, about 47 MiB each (13 MiB
   compressed) — the bulk of the package.
@@ -80,7 +79,7 @@ mount at startup. The WASI rung has no executable path either: its copy is a
 directory mounted into the guest and named by `TCL_LSP_SPEC_PACK_DIR`. Three
 rungs, three ways of reaching a file, one set of packs — see
 [`lsp-runtime-and-transports.md`](../design/rust/lsp-runtime-and-transports.md)
-Part 6 and [`spec-packs.md`](../design/spec-packs.md).
+Part 6 and [`spec-packs.md`](../design/registry/spec-packs.md).
 
 (Sizes measured on an x86-64 Linux build; other triples differ by a few MiB.)
 
@@ -122,7 +121,12 @@ The real release artefacts are built by CI: the tag-triggered
 `build-server-matrix` job starts after the tag channel is classified and
 compiles the Darwin and Windows binaries on native
 runners, the x86_64/aarch64 GNU/Linux binaries in architecture-matched UBI 8
-containers, and RISC-V with Ubuntu 22.04's packaged cross toolchain. The matrix
+containers, and RISC-V with Ubuntu 22.04's packaged cross toolchain. Its
+platform and program axes build `tcl-lsp-server`, `tcl-mcp`, `tcl`, and
+`f5-query` independently and concurrently, preserving each program's Cargo
+feature graph. A branch workflow dispatch can enable the read-only
+`native_release_build_proof` input to exercise those builds without creating
+or publishing a release. The matrix
 uploads only short-lived workflow artefacts; the
 `linux-release-portability` fan-in waits for the release gate and enforces
 those Linux ABI floors before
@@ -169,7 +173,7 @@ package — it should list exactly one `server/<dir>/` entry and no
 `server/wasm/`). After installing any of the seven `.vsix` files, the
 **Tcl Language Server** output channel shows `Using native
 tcl-lsp-server: .../server/<platform>-<arch>/tcl-lsp-server`, and
-diagnostics and hovers work with no Python on the `PATH`.
+diagnostics and hovers work.
 
 ## Related
 

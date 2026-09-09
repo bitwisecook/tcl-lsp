@@ -35,7 +35,7 @@ puts "after=$x"
 into a proc that takes `x` as an ordinary parameter prints `after=0` instead
 of `after=1`: a parameter is a *copy*, and the caller never sees it change.
 
-The extraction now classifies each variable the selection touches:
+The extraction classifies each variable the selection touches:
 
 | Variable | Becomes |
 |---|---|
@@ -43,7 +43,9 @@ The extraction now classifies each variable the selection touches:
 | Written, and read again after the selection | Passed **by name** and re-bound with `upvar 1`, so the assignment lands in the caller's frame. |
 | Written, and never read again | A proc local. It stops leaking into the caller entirely. |
 
-So the example above extracts to:
+## Example
+
+Selecting the middle two lines above extracts to:
 
 ```tcl
 set x 0
@@ -93,6 +95,11 @@ descending registry-resolved `ArgRole::Body` arguments.
 - A selection that covers no complete command offers nothing at all.
 - Variables reached only through `upvar`, a trace, or a computed name are not
   modelled; those selections are refused rather than guessed at.
+- Only writes made by the selection's own top-level commands are carried back
+  by name. A write nested inside a body the selection encloses — `set total …`
+  inside a selected `foreach` — is not seen, so that variable is passed by
+  value and the update does not reach the caller. Extract the enclosing
+  command's whole statement, or check the result before keeping it.
 - The extracted proc is always created at the top level of the current file;
   cross-file placement is not supported.
 

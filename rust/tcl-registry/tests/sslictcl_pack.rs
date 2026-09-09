@@ -20,7 +20,7 @@
 //! data.
 //!
 //! registry-metadata: every assertion here reads registry data or the
-//! vocabulary table in `docs/design/sslictcl-vocabulary.md`, not C-Tcl
+//! vocabulary table in `docs/design/f5/sslictcl-vocabulary.md`, not C-Tcl
 //! behaviour — `SslicTcl` is our own DSL, so the table *is* its oracle.
 use tcl_dialect::model::SpecSurface;
 use tcl_registry::ArgRole;
@@ -224,7 +224,7 @@ fn every_declaration_word_is_gated_to_sslictcl() {
         assert!(!hover.synopsis.is_empty(), "{}: synopsis", spec.name);
         assert!(!hover.snippet.is_empty(), "{}: description", spec.name);
         assert_eq!(
-            hover.source, "SslicTcl (docs/design/sslictcl-vocabulary.md)",
+            hover.source, "SslicTcl (docs/design/f5/sslictcl-vocabulary.md)",
             "{}: source",
             spec.name
         );

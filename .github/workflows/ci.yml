@@ -12,10 +12,12 @@ on:
   # maintainer kick off the same CI graph from the Actions tab instead of
   # having to push a throwaway commit just to re-send the event.
   #
-  # NOTE: workflow_dispatch lets you pick any ref, tags included, and every
-  # release/publish job is gated on `startsWith(github.ref, 'refs/tags/v')`.
-  # Dispatching against a `v*` tag therefore re-runs create-release and the
-  # marketplace publishes. Dispatch against a branch unless you mean that.
+  # NOTE: workflow_dispatch lets you pick any ref, tags included. Release and
+  # publish jobs are gated on `startsWith(github.ref, 'refs/tags/v')`; the one
+  # branch exception is an explicit read-only native-build proof that uploads
+  # only one-day workflow artifacts. Dispatching against a `v*` tag re-runs
+  # create-release and the marketplace publishes. Dispatch against a branch
+  # unless you mean that.
   workflow_dispatch:
     inputs:
       rust_tests_runner:
@@ -26,9 +28,14 @@ on:
         options:
           - tank
           - hosted
+      native_release_build_proof:
+        description: Build the feature-isolated native release matrix without publishing
+        required: true
+        default: false
+        type: boolean
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && inputs.native_release_build_proof && !startsWith(github.ref, 'refs/tags/v') && 'native-release-proof' || 'ordinary' }}-${{ github.ref }}
   cancel-in-progress: true
 
 # The repo's own build-hygiene contract (scripts/dev/agent-build-env.sh):
@@ -187,9 +194,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # The helper is covered by scripts/dev/test-already-green.sh and
-          # fails closed on every local Git, API, and schema error.
-          bash scripts/dev/already-green.sh
+          # Green-result reuse is only for a protected-branch merge push or a
+          # release tag. A pull request must not execute its checkout's helper
+          # to decide whether its own required tests run.
+          if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then
+            echo 'already_green=false' >> "$GITHUB_OUTPUT"
+            echo 'already_green=false (pull requests cannot reuse results)'
+          else
+            # The helper is covered by scripts/dev/test-already-green.sh and
+            # fails closed on every local Git, API, and schema error.
+            bash scripts/dev/already-green.sh
+          fi
 
       - name: Classify changed paths
         id: paths
@@ -281,7 +296,7 @@ jobs:
                   web_frontends_changed=true ;;
               esac
               case "$f" in
-                .github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/changed-paths.sh | scripts/dev/rust-tests-path.sh | scripts/dev/rust-tests-input-paths.txt | scripts/dev/rust-tests-package-paths.txt | scripts/dev/select-rust-tests-runner.sh | scripts/dev/persistent-cargo-target.sh | scripts/dev/test-rust-tests-paths.sh | scripts/dev/test-rust-tests-runner.sh | scripts/dev/test-persistent-cargo-target.sh)
+                .github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/changed-paths.sh | scripts/dev/rust-tests-path.sh | scripts/dev/rust-tests-input-paths.txt | scripts/dev/rust-tests-package-paths.txt | scripts/dev/rust-test-binary-shard.sh | scripts/dev/rust-test-binary-shards.tsv | scripts/dev/verify-nextest-binary-shards.py | scripts/dev/test-nextest-binary-shards.sh | scripts/dev/select-rust-tests-runner.sh | scripts/dev/persistent-cargo-target.sh | scripts/dev/test-rust-tests-paths.sh | scripts/dev/test-rust-tests-runner.sh | scripts/dev/test-persistent-cargo-target.sh)
                   runner_policy_changed=true ;;
               esac
               if "$rust_tests_path" "$f"; then
@@ -388,8 +403,9 @@ jobs:
   # checks through the central `make rust-check` contract: root and standalone
   # crate formatting/Clippy plus generated-file drift gates. The test surface
   # runs
-  # concurrently in `rust-tests`, `rust-tests-heavy`, `lsp-e2e`, `cargo-deny`,
-  # `test-ext` and `python` — all on every PR and push.  See AGENTS.md for the
+  # concurrently in `rust-tests-shard` (with its `rust-tests` aggregate),
+  # `rust-tests-heavy`, `lsp-e2e`, `cargo-deny`, `test-ext` and `python` — all
+  # on every PR and push. See AGENTS.md for the
   # local gates (`make check-all`, plus the heavier suites) agents must run
   # before pushing / opening a PR.
   pr-gate:
@@ -514,6 +530,7 @@ jobs:
       # or the tag's SHA is already green).  Same condition as test-ext's
       # steps — keep the two in sync.
       RUN_EXT: ${{ (needs.channel.outputs.ext_changed == 'true' || startsWith(github.ref, 'refs/tags/')) && needs.channel.outputs.already_green != 'true' && needs.channel.outputs.prerelease != 'true' }}
+      SCCACHE_GHA_ENABLED: "true"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -525,6 +542,31 @@ jobs:
         with:
           toolchain: stable
           cache-key: build-tcl-lsp-server
+
+      # rust-cache deliberately drops workspace artefacts before save. Keep
+      # their compiler outputs reusable without making cache availability part
+      # of the extension gate's correctness.
+      - name: Set up sccache
+        id: sccache
+        if: env.RUN_EXT == 'true'
+        continue-on-error: true
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+        with:
+          version: v0.17.0
+          disable_annotations: true
+
+      - name: Enable sccache when available
+        if: env.RUN_EXT == 'true'
+        env:
+          SCCACHE_SETUP_OUTCOME: ${{ steps.sccache.outcome }}
+        run: |
+          if [[ "$SCCACHE_SETUP_OUTCOME" == success ]] \
+              && command -v sccache >/dev/null 2>&1 \
+              && sccache --version >/dev/null 2>&1; then
+            echo 'RUSTC_WRAPPER=sccache' >> "$GITHUB_ENV"
+          else
+            echo '::warning::sccache is unavailable; continuing with uncached compilation'
+          fi
 
       # The `ci` profile (root Cargo.toml) is release-grade opt-level with thin
       # LTO and codegen-units=1 relaxed — measured, the full `--release`
@@ -543,6 +585,16 @@ jobs:
           path: target/ci/tcl-lsp-server
           if-no-files-found: error
           retention-days: 1
+
+      - name: Report sccache statistics
+        if: always() && env.RUN_EXT == 'true'
+        continue-on-error: true
+        run: |
+          if command -v sccache >/dev/null 2>&1; then
+            sccache --show-stats
+          else
+            echo '::warning::sccache statistics unavailable; compilation ran uncached'
+          fi
 
   # VS Code extension tests: Node.js + xvfb driving the VS Code test host
   # against the native server.  A distinct, heavier stack than the cargo
@@ -855,16 +907,17 @@ jobs:
   # `cargo test --workspace --all-features --no-fail-fast`, Swatinem cache,
   # toolchain resolved from rust-toolchain.toml.
   #
-  # The Rust/WASM surface is split across SIX concurrent jobs so the CPU-bound
-  # suites don't serialise behind each other.  Wall-clock is the max of the
-  # six, not their sum.  The first four are required status checks on `rust`:
+  # The Rust/WASM surface is split across concurrent jobs so the CPU-bound
+  # suites don't serialise behind each other. The first five required status
+  # checks on `rust` are:
   #
-  #   rust-tests        workspace minus the VM-sim heavies and tcl-lsp-server,
-  #                     plus ALL workspace doctests (cheap; nextest can't run
-  #                     doctests, so they live here once rather than in each job)
+  #   rust-tests-shard   five binary-aware consumers of the workspace suite
+  #                     (minus VM-sim heavies and tcl-lsp-server)
+  #   rust-tests-doctest all workspace doctests, independently concurrent with
+  #                     the direct nextest consumers
   #   rust-tests-heavy  the VM-sim heavies (`tcl-irule-test`, `f5-cli`) plus
   #                     `tcl-fuzz`'s plumbing unit tests (excluded from
-  #                     rust-tests so wasmtime/cranelift stay out of the main
+  #                     rust-tests-shard so wasmtime/cranelift stay out of the main
   #                     partition's build graph; fuzz campaigns themselves are
   #                     manual-only, never CI).  Measured 2026-08-13: ~44 s
   #                     total.  Kept split for concurrency, not because it is
@@ -883,7 +936,7 @@ jobs:
   #                     404/timeout there must not be able to block a release.
   #                     Promote it (and to a required check) once it has proved
   #                     stable over a few weeks.  `tcl-compiler` is in
-  #                     `rust-tests`' workspace run too, so `wasm_real_link.rs`
+  #                     `rust-tests-shard`'s workspace run too, so `wasm_real_link.rs`
   #                     also executes there — without the toolchain, where it
   #                     skips loudly by naming what is missing.
   #   lsp-server-wasm   the real wasm-bindgen LSP server, driven through a
@@ -902,14 +955,25 @@ jobs:
   #                     Release — the same producer/attacher split
   #                     `build-server-matrix` uses.
   #
-  # nextest runs every test binary's tests in ONE global parallel pool, so the
-  # VM-sim suites overlap instead of running one binary at a time — a large
-  # wall-clock win over `cargo test`, which runs test binaries serially.
+  # Each nextest consumer keeps the exact whole-workspace/all-features resolver
+  # graph, links every lib/bin unit harness, and links only its assigned
+  # integration-test targets. Run 34289762415 showed that direct hash shards
+  # spent 3m34–3m51 compiling/linking all 319 binaries before each 3m30–4m26
+  # test partition. A local exact-tree prototype linked/listed the 50 common
+  # unit harnesses in 1m47 on a cold target and added 64 assigned integration
+  # targets in 7.46s; its 4,568-test shard executed in 94.8s. The committed
+  # binary map came from that run's complete timings. The aggregate checks it
+  # against locked Cargo metadata and proves that every non-ignored testcase is
+  # selected exactly once, so target drift or a bad filter fails closed.
   #
-  # `tcl-lsp-server` is excluded from rust-tests because lsp-e2e runs that crate
+  # `tcl-lsp-server` is excluded from rust-tests-shard because lsp-e2e runs that crate
   # in full.  The crate declares no [features], so dropping it from the
   # `--all-features` workspace run costs no coverage.
-  rust-tests:
+  rust-tests-shard:
+    name: rust-tests-shard (${{ matrix.shard }})
+    # Unaffected changes and already-green tags retain the aggregate status
+    # without allocating five test runners.
+    if: ${{ needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') }}
     # Historically the longest pole (155s on the 16-core self-hosted box when
     # healthy — a 2026-08 regression to 16 min turned out to be two oversized
     # `tcl-compiler` per_item tests, since fixed; if this job blows past ~5
@@ -942,7 +1006,26 @@ jobs:
     # explicit override, and runner-policy changes prove themselves on hosted
     # capacity.
     needs: [channel]
-    runs-on: ${{ ((github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]' || needs.channel.outputs.runner_policy_changed == 'true')) || needs.channel.outputs.rust_tests_runner == 'hosted') && 'ubuntu-26.04' || 'tank' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: "1/5"
+            id: "1-5"
+            tank_capable: true
+          - shard: "2/5"
+            id: "2-5"
+            tank_capable: false
+          - shard: "3/5"
+            id: "3-5"
+            tank_capable: false
+          - shard: "4/5"
+            id: "4-5"
+            tank_capable: false
+          - shard: "5/5"
+            id: "5-5"
+            tank_capable: false
+    runs-on: ${{ matrix.tank_capable && needs.channel.outputs.rust_tests_runner == 'tank' && !(github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]' || needs.channel.outputs.runner_policy_changed == 'true')) && 'tank' || 'ubuntu-26.04' }}
     # The action starts the sccache server during setup, so the backend must be
     # configured at job scope rather than only on the later Cargo steps.
     # Self-hosted Tank has several runner registrations on one host. Their
@@ -958,19 +1041,21 @@ jobs:
       CARGO_HOME: /home/runner/.cargo
       RUSTUP_HOME: /home/runner/.rustup
       SCCACHE_GHA_ENABLED: "true"
+      RUNNER_MODE: ${{ matrix.tank_capable && needs.channel.outputs.rust_tests_runner == 'tank' && !(github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]' || needs.channel.outputs.runner_policy_changed == 'true')) && 'tank' || 'hosted' }}
     concurrency:
-      group: rust-tests-${{ ((github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]' || needs.channel.outputs.runner_policy_changed == 'true')) || needs.channel.outputs.rust_tests_runner == 'hosted') && format('hosted-{0}', github.run_id) || 'tank' }}
+      group: rust-tests-${{ matrix.tank_capable && needs.channel.outputs.rust_tests_runner == 'tank' && !(github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]' || needs.channel.outputs.runner_policy_changed == 'true')) && 'tank' || format('hosted-{0}-{1}', github.run_id, matrix.shard) }}
       queue: max
       cancel-in-progress: false
     steps:
-      # Keep this required job alive for unrelated changes; only the checkout
-      # runs when the channel says the root Rust test archive is unaffected.
+      # The channel job-level condition skips this matrix for unrelated
+      # changes and already-green tags; the stable rust-tests aggregate keeps
+      # the required status context in those no-op cases.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
 
       - name: Verify canonical Rust homes
-        if: needs.channel.outputs.rust_tests_changed == 'true'
+        if: needs.channel.outputs.rust_tests_changed == 'true' && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
         shell: bash
         run: |
           set -euo pipefail
@@ -993,7 +1078,7 @@ jobs:
       # The action installs the current stable and wires up the Swatinem cache
       # (keyed per job, so the concurrent cargo jobs don't race on save).
       - name: Set up Rust
-        if: needs.channel.outputs.rust_tests_changed == 'true'
+        if: needs.channel.outputs.rust_tests_changed == 'true' && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
         with:
           toolchain: stable
@@ -1011,7 +1096,7 @@ jobs:
       # that registrations with different absolute workspace paths share them.
       - name: Set up sccache
         id: sccache
-        if: needs.channel.outputs.rust_tests_changed == 'true'
+        if: needs.channel.outputs.rust_tests_changed == 'true' && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
         continue-on-error: true
         uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
         with:
@@ -1023,7 +1108,7 @@ jobs:
       # Do not export the wrapper until both action setup and the installed
       # binary have succeeded; Cargo then falls back to rustc automatically.
       - name: Enable sccache when available
-        if: needs.channel.outputs.rust_tests_changed == 'true'
+        if: needs.channel.outputs.rust_tests_changed == 'true' && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
         shell: bash
         env:
           SCCACHE_SETUP_OUTCOME: ${{ steps.sccache.outcome }}
@@ -1040,7 +1125,7 @@ jobs:
       # is safe to retain per runner registration.  Hosted overflow never
       # touches the root and keeps Cargo's ordinary ephemeral target.
       - name: Prepare persistent Tank Cargo target
-        if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.rust_tests_runner == 'tank'
+        if: needs.channel.outputs.rust_tests_changed == 'true' && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5') && env.RUNNER_MODE == 'tank'
         shell: bash
         run: |
           registration="${TCL_LSP_TANK_REGISTRATION_ID:-${RUNNER_NAME:-}}"
@@ -1048,7 +1133,7 @@ jobs:
           printf 'CARGO_TARGET_DIR=%s\n' "$target" >> "$GITHUB_ENV"
 
       - name: Install cargo-nextest
-        if: needs.channel.outputs.rust_tests_changed == 'true'
+        if: needs.channel.outputs.rust_tests_changed == 'true' && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
         uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
         with:
           tool: nextest@0.9.143
@@ -1077,42 +1162,65 @@ jobs:
       # `--no-run --no-fail-fast` outright ("the argument '--no-run' cannot be
       # used with '--no-fail-fast'"), and the flag is meaningless anyway when
       # no tests are executed.
-      - name: cargo nextest run (workspace minus VM-sim heavies and lsp-e2e)
-        if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
+      - name: cargo nextest run (binary-aware workspace shard)
+        if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
         env:
           ALREADY_GREEN: ${{ needs.channel.outputs.already_green }}
-          RUST_TESTS_RUNNER: ${{ needs.channel.outputs.rust_tests_runner }}
+          RUST_TESTS_RUNNER: ${{ env.RUNNER_MODE }}
+          SHARD: ${{ matrix.shard }}
         run: |
           extra="--no-fail-fast"
           if [ "$ALREADY_GREEN" = "true" ]; then
             echo "tree already green on its PR run — building test binaries (cache warmth) without re-running them"
-            extra="--no-run"
+            if [ "$RUST_TESTS_RUNNER" = tank ]; then
+              bash scripts/dev/persistent-cargo-target.sh with-lock "$CARGO_TARGET_DIR" cargo nextest run --no-run --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --all-features
+            else
+              cargo nextest run --no-run --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --all-features
+            fi
+            exit 0
           fi
           if [ "$RUST_TESTS_RUNNER" = tank ]; then
-            bash scripts/dev/persistent-cargo-target.sh with-lock "$CARGO_TARGET_DIR" cargo nextest run $extra --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --all-features
+            bash scripts/dev/persistent-cargo-target.sh with-lock "$CARGO_TARGET_DIR" bash scripts/dev/rust-test-binary-shard.sh run "$SHARD" $extra
           else
-            cargo nextest run $extra --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --all-features
+            bash scripts/dev/rust-test-binary-shard.sh run "$SHARD" $extra
           fi
 
-      # nextest does not run doctests; run them for the WHOLE workspace (incl.
-      # the crates excluded above — doctests are cheap) so the other jobs need
-      # not duplicate them.  Deps are already built, so this is compile + run.
-      - name: cargo test --doc
+      - name: Record selected shard listing
         if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
         env:
-          RUST_TESTS_RUNNER: ${{ needs.channel.outputs.rust_tests_runner }}
-        shell: bash
+          SHARD: ${{ matrix.shard }}
         run: |
-          if [ "$RUST_TESTS_RUNNER" = tank ]; then
-            bash scripts/dev/persistent-cargo-target.sh with-lock "$CARGO_TARGET_DIR" cargo test --workspace --all-features --doc --no-fail-fast
-          else
-            cargo test --workspace --all-features --doc --no-fail-fast
+          shard_file=$(printf '%s' "$SHARD" | tr '/' '-')
+          bash scripts/dev/rust-test-binary-shard.sh list "$SHARD" --message-format json > "$RUNNER_TEMP/rust-tests-$shard_file.json"
+          if [ "$SHARD" = "1/5" ]; then
+            cargo metadata --no-deps --locked --format-version 1 > "$RUNNER_TEMP/rust-tests-metadata.json"
           fi
 
+      - name: Upload selected shard listing
+        if: always() && needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rust-tests-listing-${{ matrix.id }}
+          path: ${{ runner.temp }}/rust-tests-${{ matrix.id }}.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+          overwrite: true
+
+      - name: Upload authoritative Cargo metadata
+        if: always() && matrix.shard == '1/5' && needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rust-tests-metadata
+          path: ${{ runner.temp }}/rust-tests-metadata.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+          overwrite: true
       # Setup is intentionally skipped when the root Rust-test closure is
       # unaffected, so sccache is unavailable on those required no-op runs.
       - name: Report sccache statistics
-        if: always() && needs.channel.outputs.rust_tests_changed == 'true'
+        if: always() && needs.channel.outputs.rust_tests_changed == 'true' && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
         shell: bash
         run: |
           if ! command -v sccache >/dev/null 2>&1; then
@@ -1136,7 +1244,7 @@ jobs:
       # Keep final target telemetry independent from test correctness.  This
       # runs after every Tank attempt, including failed Cargo commands.
       - name: Report final Tank Cargo target
-        if: always() && needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.rust_tests_runner == 'tank'
+        if: always() && needs.channel.outputs.rust_tests_changed == 'true' && env.RUNNER_MODE == 'tank'
         continue-on-error: true
         shell: bash
         run: |
@@ -1146,11 +1254,17 @@ jobs:
             echo '::warning::persistent Cargo target was not prepared; final telemetry unavailable'
           fi
 
-  # Fail-closed SpecTcl compatibility on every PR that changes its TclVM,
-  # compiler, registry, runtime, pack, or exact-reference-toolchain closure.
-  # The Make target installs/resolves the manifest-pinned Tcl 9.0 oracle and
-  # runs the 15+3+4+2 internal cases plus the one real-C-Tcl parse case.
-  spectcl-compat:
+  # nextest does not run doctests. Keep the whole-workspace doctest command
+  # separate from the CPU-bound binary shards, so its build does not extend the
+  # slowest shard's wall time. This job is deliberately hosted: Tank capacity
+  # is reserved for shard 1, and doctests do not need its persistent target.
+  # It remains a step-gated job so the stable aggregate context is preserved
+  # for unrelated changes, docs-only changes, and already-green revisions.
+  rust-tests-doctest:
+    # Match the shard matrix's job-level no-op rules. The stable aggregate is
+    # the required context and accepts this skipped result only when the
+    # channel facts prove that no test command was required.
+    if: ${{ needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') }}
     needs: [channel]
     runs-on: ubuntu-26.04
     steps:
@@ -1159,22 +1273,175 @@ jobs:
           fetch-depth: 1
 
       - name: Set up Rust
+        if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        with:
+          toolchain: stable
+          cache-key: rust-tests-doctest-v1
+          cache-targets: false
+
+      # The whole workspace includes crates intentionally omitted from the
+      # direct nextest selection. Doctests are a separate semantic surface,
+      # not a cache-warming duplicate of a nextest shard.
+      - name: cargo test --doc
+        if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        run: cargo test --workspace --all-features --doc --no-fail-fast
+
+  # Stable required status context. Locked Cargo metadata must agree with the
+  # committed binary map, every non-ignored testcase must be selected by
+  # exactly one listing, every shard must pass, and the independent
+  # whole-workspace doctest job must pass.
+  rust-tests:
+    if: ${{ always() }}
+    needs: [channel, rust-tests-shard, rust-tests-doctest]
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Require all Rust test shards
+        env:
+          CHANNEL_RESULT: ${{ needs.channel.result }}
+          SHARDS_RESULT: ${{ needs.rust-tests-shard.result }}
+          DOCTEST_RESULT: ${{ needs.rust-tests-doctest.result }}
+          RUST_TESTS_CHANGED: ${{ needs.channel.outputs.rust_tests_changed }}
+          ALREADY_GREEN: ${{ needs.channel.outputs.already_green }}
+          IS_TAG: ${{ startsWith(github.ref, 'refs/tags/') }}
+        run: |
+          set -euo pipefail
+          echo "channel=$CHANNEL_RESULT shards=$SHARDS_RESULT doctests=$DOCTEST_RESULT rust_tests_changed=$RUST_TESTS_CHANGED already_green=$ALREADY_GREEN is_tag=$IS_TAG"
+          test "$CHANNEL_RESULT" = success
+          if [ "$SHARDS_RESULT" = success ] && [ "$DOCTEST_RESULT" = success ]; then
+            exit 0
+          fi
+          if [ "$SHARDS_RESULT" = skipped ] && [ "$DOCTEST_RESULT" = skipped ] && {
+            [ "$RUST_TESTS_CHANGED" != true ] ||
+            { [ "$IS_TAG" = true ] && [ "$ALREADY_GREEN" = true ]; };
+          }; then
+            echo 'Rust test shards and doctests were intentionally skipped by the channel decision'
+            exit 0
+          fi
+          echo '::error::Rust test shards or doctests did not complete successfully'
+          exit 1
+
+      - name: Check out verifier
+        if: needs.channel.result == 'success' && needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Download shard listings
+        if: needs.channel.result == 'success' && needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: rust-tests-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/rust-tests-listings
+
+      - name: Verify complete five-way binary selection
+        if: needs.channel.result == 'success' && needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        run: |
+          python3 scripts/dev/verify-nextest-binary-shards.py --partition-count 5 \
+            "$RUNNER_TEMP/rust-tests-listings/rust-tests-metadata.json" \
+            scripts/dev/rust-test-binary-shards.tsv \
+            "$RUNNER_TEMP/rust-tests-listings/rust-tests-1-5.json" \
+            "$RUNNER_TEMP/rust-tests-listings/rust-tests-2-5.json" \
+            "$RUNNER_TEMP/rust-tests-listings/rust-tests-3-5.json" \
+            "$RUNNER_TEMP/rust-tests-listings/rust-tests-4-5.json" \
+            "$RUNNER_TEMP/rust-tests-listings/rust-tests-5-5.json"
+
+  # Fail-closed SpecTcl compatibility on every PR that changes its TclVM,
+  # compiler, registry, runtime, pack, or exact-reference-toolchain closure.
+  # The Make target installs/resolves the manifest-pinned Tcl 9.0 oracle and
+  # runs the 15+3+4+2 internal cases plus the one real-C-Tcl parse case.
+  spectcl-compat:
+    needs: [channel]
+    runs-on: ubuntu-26.04
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Resolve the exact Tcl 9.0 cache identity
+        if: needs.channel.outputs.spectcl_compat_changed == 'true' && needs.channel.outputs.already_green != 'true'
+        id: tcl-oracle
+        shell: bash
+        run: |
+          set -euo pipefail
+          . scripts/dev/tcl-reference-toolchains.sh
+          tcl_reference_load_toolchains "$PWD"
+          patchlevel="$(tcl_reference_patchlevel 9.0)"
+          echo "path=tmp/tcl${patchlevel}" >> "$GITHUB_OUTPUT"
+          echo "key=spectcl-tcl90-ubuntu-26.04-x64-${{ hashFiles('rust/tcl-dialect/data/reference-toolchains.tsv', '.claude/skills/fetch-tcl-source/fetch_tcl_source.sh', 'scripts/dev/ensure-test-deps.sh', 'scripts/dev/tcl-reference-toolchains.sh') }}" >> "$GITHUB_OUTPUT"
+
+      # The static Tcl shell is only about 23 MB with its source tree, but a
+      # cold runner otherwise fetches, configures and builds it on every gate.
+      # Restore and save are separate so a failed bootstrap cannot publish a
+      # partial tree. The Make target below still probes the exact patchlevel
+      # and repairs a missing or unusable binary before any test can run.
+      - name: Restore the exact Tcl 9.0 source and build tree
+        if: needs.channel.outputs.spectcl_compat_changed == 'true' && needs.channel.outputs.already_green != 'true'
+        id: tcl-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.tcl-oracle.outputs.path }}
+          key: ${{ steps.tcl-oracle.outputs.key }}
+
+      - name: Set up Rust
         if: needs.channel.outputs.spectcl_compat_changed == 'true' && needs.channel.outputs.already_green != 'true'
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
         with:
           toolchain: stable
           cache-key: spectcl-compat
 
+      - name: Set up sccache
+        id: sccache
+        if: needs.channel.outputs.spectcl_compat_changed == 'true' && needs.channel.outputs.already_green != 'true'
+        continue-on-error: true
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+        with:
+          version: v0.17.0
+          disable_annotations: true
+
+      - name: Enable sccache when available
+        if: needs.channel.outputs.spectcl_compat_changed == 'true' && needs.channel.outputs.already_green != 'true'
+        shell: bash
+        env:
+          SCCACHE_SETUP_OUTCOME: ${{ steps.sccache.outcome }}
+        run: |
+          if [[ "$SCCACHE_SETUP_OUTCOME" == success ]] \
+              && command -v sccache >/dev/null 2>&1 \
+              && sccache --version >/dev/null 2>&1; then
+            echo 'RUSTC_WRAPPER=sccache' >> "$GITHUB_ENV"
+          else
+            echo '::warning::sccache is unavailable; continuing with uncached compilation'
+          fi
+
       - name: Run exact SpecTcl 1.x + 2.0 + real-Tcl compatibility gate
         if: needs.channel.outputs.spectcl_compat_changed == 'true' && needs.channel.outputs.already_green != 'true'
         run: make test-spectcl-compat
 
+      - name: Save the validated Tcl 9.0 source and build tree
+        if: needs.channel.outputs.spectcl_compat_changed == 'true' && needs.channel.outputs.already_green != 'true' && success() && steps.tcl-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.tcl-oracle.outputs.path }}
+          key: ${{ steps.tcl-oracle.outputs.key }}
+
+      - name: Report sccache statistics
+        if: always() && needs.channel.outputs.spectcl_compat_changed == 'true' && needs.channel.outputs.already_green != 'true'
+        continue-on-error: true
+        shell: bash
+        run: |
+          if command -v sccache >/dev/null 2>&1; then
+            sccache --show-stats || true
+          fi
+
   # The heavy VM-simulation suites, split out to run concurrently with
-  # `rust-tests` (see that job's header).  Doctests are covered there.
+  # `rust-tests-shard` (see that job's header). Doctests are covered there.
   rust-tests-heavy:
     # Deliberately hosted.  The self-hosted box has a single runner, so jobs
     # sent there execute serially; measured, moving this job as well pushed the
-    # critical path from 239s to 253s.  See `rust-tests` for the full reasoning.
+    # critical path from 239s to 253s. See `rust-tests-shard` for the full reasoning.
     needs: [channel]
     runs-on: ubuntu-26.04
     steps:
@@ -1187,7 +1454,7 @@ jobs:
         with:
           toolchain: stable
           # This job builds only the heavy crates + their deps, so it gets its
-          # own cache rather than racing rust-tests on save.
+          # own cache rather than racing rust-tests-shard on save.
           cache-key: rust-tests-heavy
 
       - name: Install cargo-nextest
@@ -1195,8 +1462,8 @@ jobs:
         with:
           tool: nextest@0.9.143
 
-      # Same skip/downgrade contract as rust-tests — see the channel job header.
-      # tcl-fuzz lives here, not in rust-tests: its wasmtime/cranelift
+      # Same skip/downgrade contract as rust-tests-shard — see the channel job header.
+      # tcl-fuzz lives here, not in rust-tests-shard: its wasmtime/cranelift
       # dependency chain (~40 crates, cranelift-codegen alone an 81 MB rlib)
       # would otherwise sit in the main partition's build graph.  Only the
       # fuzzer's own fast plumbing unit tests run — fuzz CAMPAIGNS are
@@ -1526,6 +1793,10 @@ jobs:
 
       - name: Build and exercise the WASI LSP server
         if: env.RUN_LSP_WASI == 'true'
+        env:
+          # Functional PR coverage may use thin LTO. A tag can execute this
+          # same functional step, but must produce the fat-LTO release module.
+          CARGO_PROFILE_RELEASE_LTO: ${{ startsWith(github.ref, 'refs/tags/v') && 'true' || 'thin' }}
         run: make lsp-server-wasi-test
 
       # The link only, for a tag whose test surface step-skipped as already
@@ -1533,6 +1804,10 @@ jobs:
       # ran, so this is the else-branch, not a second build.
       - name: Build the WASI LSP server (release artefact)
         if: env.RELEASE_WASI == 'true' && env.RUN_LSP_WASI != 'true'
+        env:
+          # Keep the shipped module on the canonical fat-LTO profile even if a
+          # runner has exported a different Cargo profile override.
+          CARGO_PROFILE_RELEASE_LTO: true
         run: make lsp-server-wasi
 
       # Same handoff shape as `build-server-matrix`'s `server-bins-*`: a plain,
@@ -1733,6 +2008,8 @@ jobs:
               "package": "tcl-lsp-server",
               "filter": "default",
               "partition": "all",
+              "partition_count": 3,
+              "shard_count": 3,
               "result": "success",
               "archive_sha256": archive_sha,
               "listings": {"all.json": all_sha, "1-3.json": first_sha, "2-3.json": second_sha, "3-3.json": third_sha},
@@ -1915,6 +2192,8 @@ jobs:
               "package": "tcl-lsp-server",
               "filter": "default",
               "partition": f"hash:{partition}",
+              "partition_count": 3,
+              "shard_count": 3,
               "result": result,
               "archive_sha256": archive_sha,
               "selected_listing_sha256": listing_sha,
@@ -2218,8 +2497,9 @@ jobs:
           gh release upload "$tag" install.sh --clobber
 
   # ---------------------------------------------------------------------
-  # build-server-matrix — compile the four native programs for every supported
-  # platform. Linux x86_64 and aarch64 build natively inside UBI 8 to retain a
+  # build-server-matrix — compile each native program independently for every
+  # supported platform. Linux x86_64 and aarch64 build natively inside UBI 8
+  # to retain a
   # GLIBC_2.28 ABI floor; RISC-V uses an Ubuntu 22.04 container's glibc 2.35
   # cross sysroot because EL8 did not ship a RISC-V architecture. No Zig or
   # separately downloaded libc is involved. Each leg smoke-tests its binary
@@ -2237,18 +2517,18 @@ jobs:
   # Every consumer that attaches these bytes to a Release keeps its explicit
   # `create-release` plus test/portability dependencies below.
   build-server-matrix:
-    if: startsWith(github.ref, 'refs/tags/v')
+    name: native ${{ matrix.platform.id }} / ${{ matrix.program.id }}
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.native_release_build_proof)
     needs: [channel]
     strategy:
       fail-fast: false
-      # One job per target triple (not per OS): the old 3-leg matrix built up
-      # to 12 binaries serially on one runner (4 bins x 3 Linux triples), so
-      # the whole release waited on the slowest leg.  Per-triple legs make the
-      # wall-clock the slowest SINGLE triple's 4 builds, at the cost of extra
-      # (parallel, cheap) runners.  Keep this list and the Makefile's
-      # SERVER_TARGET_MAP in sync (7 triples total).
+      # Cargo unions dependency features across roots in one invocation. Keep
+      # one program per job so release bytes retain their independently-built
+      # feature graphs, while the runner matrix removes the old four-command
+      # serial critical path. Keep the platform list and the Makefile's
+      # SERVER_TARGET_MAP in sync (7 triples total), and keep all four programs.
       matrix:
-        include:
+        platform:
           - os: macos-latest
             id: darwin-arm64
             target: aarch64-apple-darwin
@@ -2276,7 +2556,20 @@ jobs:
           - os: windows-latest
             id: win32-arm64
             target: aarch64-pc-windows-msvc
-    runs-on: ${{ matrix.os }}
+        program:
+          - package: tcl-lsp-server
+            binary: tcl-lsp-server
+            id: server
+          - package: tcl-mcp
+            binary: tcl-mcp
+            id: mcp
+          - package: tcl-cli
+            binary: tcl
+            id: tcl
+          - package: f5-cli
+            binary: f5-query
+            id: f5
+    runs-on: ${{ matrix.platform.os }}
     permissions:
       contents: read
     steps:
@@ -2296,6 +2589,10 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
         with:
           toolchain: stable
+          # Keep registry caching, but never restore compiled target trees here.
+          # A host-built build script can require a newer glibc than UBI 8 and
+          # cannot safely cross the host/container or platform matrix boundary.
+          cache-targets: false
 
       # Use the runner's architecture-matched UBI image, so x86_64 and aarch64
       # both link against the maintained EL8 glibc 2.28 ABI without a cross
@@ -2303,11 +2600,13 @@ jobs:
       # only the distro C toolchain lives in the container. aarch64 overrides
       # the local-development cross-linker from .cargo/config.toml with native
       # `gcc`/`ar`.
-      - name: Build GNU/Linux binaries against glibc 2.28
-        if: matrix.ubi8
+      - name: Build GNU/Linux program against glibc 2.28
+        if: matrix.platform.ubi8
         env:
-          TARGET: ${{ matrix.target }}
-          TCL_LSP_VERSION: ${{ github.ref_name }}
+          TARGET: ${{ matrix.platform.target }}
+          PACKAGE: ${{ matrix.program.package }}
+          BINARY: ${{ matrix.program.binary }}
+          TCL_LSP_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.0.0-proof' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -2317,6 +2616,8 @@ jobs:
           export GIT_HASH="${GITHUB_SHA:0:8}"
           docker run --rm \
             --env TARGET \
+            --env PACKAGE \
+            --env BINARY \
             --env TCL_LSP_VERSION \
             --env GIT_HASH \
             --env CARGO_HOME=/cargo \
@@ -2337,12 +2638,9 @@ jobs:
                 export AR_aarch64_unknown_linux_gnu=ar
               fi
               rustup target add "$TARGET"
-              cargo build -p tcl-lsp-server --release --target "$TARGET"
-              cargo build -p tcl-mcp --release --target "$TARGET"
-              cargo build -p tcl-cli --release --target "$TARGET"
-              cargo build -p f5-cli --release --target "$TARGET"
+              cargo build -p "$PACKAGE" --release --target "$TARGET"
               expected="${TCL_LSP_VERSION#v}+g$GIT_HASH"
-              scripts/verify-native-versions.sh \
+              TCL_LSP_RELEASE_BINARIES="$BINARY" scripts/verify-native-versions.sh \
                 "$expected" "target/$TARGET/release"
             '
 
@@ -2350,17 +2648,21 @@ jobs:
       # ships a complete glibc 2.35 cross toolchain. Keep it inside a container
       # rather than pinning the outer GitHub runner to an aging image. The QEMU
       # handshake runs in the same container so it uses that matching sysroot.
-      - name: Build RISC-V GNU/Linux binaries against glibc 2.35
-        if: matrix.riscv_glibc
+      - name: Build RISC-V GNU/Linux program against glibc 2.35
+        if: matrix.platform.riscv_glibc
         env:
-          TARGET: ${{ matrix.target }}
-          TCL_LSP_VERSION: ${{ github.ref_name }}
+          TARGET: ${{ matrix.platform.target }}
+          PACKAGE: ${{ matrix.program.package }}
+          BINARY: ${{ matrix.program.binary }}
+          TCL_LSP_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.0.0-proof' }}
         shell: bash
         run: |
           set -euo pipefail
           export GIT_HASH="${GITHUB_SHA:0:8}"
           docker run --rm \
             --env TARGET \
+            --env PACKAGE \
+            --env BINARY \
             --env TCL_LSP_VERSION \
             --env GIT_HASH \
             --env CARGO_HOME=/cargo \
@@ -2385,80 +2687,77 @@ jobs:
               test -f "$(gcc -print-file-name=Scrt1.o)"
               test -f "$(riscv64-linux-gnu-gcc -print-file-name=Scrt1.o)"
               rustup target add "$TARGET"
-              cargo build -p tcl-lsp-server --release --target "$TARGET"
-              cargo build -p tcl-mcp --release --target "$TARGET"
-              cargo build -p tcl-cli --release --target "$TARGET"
-              cargo build -p f5-cli --release --target "$TARGET"
+              cargo build -p "$PACKAGE" --release --target "$TARGET"
               expected="${TCL_LSP_VERSION#v}+g$GIT_HASH"
-              scripts/verify-native-versions.sh \
+              TCL_LSP_RELEASE_BINARIES="$BINARY" scripts/verify-native-versions.sh \
                 "$expected" "target/$TARGET/release" \
                 qemu-riscv64 -L /usr/riscv64-linux-gnu
-              scripts/verify-glibc-baseline.sh 2.35 \
-                "target/$TARGET/release/tcl-lsp-server" \
-                "target/$TARGET/release/tcl-mcp" \
-                "target/$TARGET/release/tcl" \
-                "target/$TARGET/release/f5-query"
-              make server-cross-test
+              if [[ "$BINARY" == tcl-lsp-server ]]; then
+                make server-cross-test
+              fi
             '
 
       # Stamp the release version into every user-facing binary. The
       # tcl-version crate prefers this over `git describe`; without it a tag
       # build would still be correct, but this avoids depending on the checkout
       # having tags fetched.
-      - name: Cross-compile native binaries (server + mcp + CLIs)
-        if: matrix.ubi8 != true && matrix.riscv_glibc != true
+      - name: Cross-compile native program
+        if: matrix.platform.ubi8 != true && matrix.platform.riscv_glibc != true
         env:
-          TCL_LSP_VERSION: ${{ github.ref_name }}
+          TCL_LSP_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.0.0-proof' }}
         shell: bash
         run: |
           set -euo pipefail
-          t="${{ matrix.target }}"
-          echo "==> $t"
+          t="${{ matrix.platform.target }}"
+          echo "==> $t / ${{ matrix.program.package }}"
           rustup target add "$t"
-          cargo build -p tcl-lsp-server --release --target "$t"
-          cargo build -p tcl-mcp --release --target "$t"
-          cargo build -p tcl-cli --release --target "$t"
-          cargo build -p f5-cli --release --target "$t"
+          cargo build -p "${{ matrix.program.package }}" --release --target "$t"
+
+      - name: Verify native program version
+        if: >-
+          matrix.platform.ubi8 != true && matrix.platform.riscv_glibc != true &&
+          ((runner.arch == 'X64' && startsWith(matrix.platform.target, 'x86_64-')) ||
+          (runner.arch == 'ARM64' && startsWith(matrix.platform.target, 'aarch64-')))
+        env:
+          BINARY: ${{ matrix.program.binary }}
+          TARGET: ${{ matrix.platform.target }}
+          TCL_LSP_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.0.0-proof' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="${TCL_LSP_VERSION#v}+g${GITHUB_SHA:0:8}"
+          TCL_LSP_RELEASE_BINARIES="$BINARY" scripts/verify-native-versions.sh \
+            "$expected" "target/$TARGET/release"
 
       - name: Verify GNU/Linux glibc ABI ceiling
-        if: matrix.glibc_max
+        if: matrix.platform.glibc_max
         shell: bash
         run: |
           set -euo pipefail
-          t="${{ matrix.target }}"
-          scripts/verify-glibc-baseline.sh "${{ matrix.glibc_max }}" \
-            "target/$t/release/tcl-lsp-server" \
-            "target/$t/release/tcl-mcp" \
-            "target/$t/release/tcl" \
-            "target/$t/release/f5-query"
+          t="${{ matrix.platform.target }}"
+          scripts/verify-glibc-baseline.sh "${{ matrix.platform.glibc_max }}" \
+            "target/$t/release/${{ matrix.program.binary }}"
 
       # scripts/test-cross-server.sh tests whatever is already built and skips
       # absent triples loudly, so each per-triple leg smoke-tests just its own
       # binary (natively or under QEMU where runnable).
       - name: Smoke-test built binaries
-        if: matrix.riscv_glibc != true
+        if: matrix.program.id == 'server' && matrix.platform.riscv_glibc != true
         shell: bash
         run: make server-cross-test
 
       - name: Upload server binaries
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          # Per-triple artifact; downstream consumers merge `server-bins-*`
-          # so the per-triple split is invisible to them.
-          name: server-bins-${{ matrix.id }}
+          # Per-triple/program artifacts have disjoint filenames; downstream
+          # consumers merge `server-bins-*` into the original directory shape.
+          name: server-bins-${{ matrix.platform.id }}-${{ matrix.program.id }}
           # Common ancestor of all matched files is `target/`, so the artifact
           # stores `<triple>/release/<exe>` — build-vsix restores tcl-lsp-server
-          # under `target/`; the tcl-mcp / tcl / f5-query binaries ride along for
-          # publish-native-binaries to attach as standalone release assets.
+          # under `target/`; the four independent jobs merge before packaging.
           path: |
-            target/*/release/tcl-lsp-server
-            target/*/release/tcl-lsp-server.exe
-            target/*/release/tcl-mcp
-            target/*/release/tcl-mcp.exe
-            target/*/release/tcl
-            target/*/release/tcl.exe
-            target/*/release/f5-query
-            target/*/release/f5-query.exe
+            target/*/release/${{ matrix.program.binary }}
+            target/*/release/${{ matrix.program.binary }}.exe
           if-no-files-found: error
           retention-days: 1
 

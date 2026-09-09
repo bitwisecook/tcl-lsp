@@ -53,7 +53,7 @@ Only the fields that shape *resolution* and *storage* are called out
 here.  Refcounting, traces, deletion handlers, resolver plug-ins, and
 ensembles are listed in §4 and skipped from the Rust mirror.
 
-### `Namespace` (`tclInt.h:271`)
+### `Namespace` (`tclInt.h:278`)
 
 Per-namespace storage and metadata.  Fields we mirror:
 
@@ -76,7 +76,7 @@ Fields we skip (tracked in §4): `clientData`, `deleteProc`,
 `resolverEpoch`, `cmdResProc`, `varResProc`, `compiledVarResProc`,
 `exportLookupEpoch`, `ensembles`, `unknownHandlerPtr`.
 
-### `NamespacePathEntry` (`tclInt.h:396`)
+### `NamespacePathEntry` (`tclInt.h:402`)
 
 One ordered entry in a namespace's `commandPathArray`.  Two pointers
 each:
@@ -88,7 +88,7 @@ each:
   ns invalidate every path entry pointing *at* it when its own
   commands change.
 
-### `Command` (`tclInt.h:1837`)
+### `Command` (`tclInt.h:1840`)
 
 One per proc / built-in / imported redirect.  Mirror fields:
 
@@ -107,7 +107,7 @@ Skipped: `hPtr` (the `BTreeMap` key is the identity here), `refCount`,
 payload each variant needs is in the variant rather than behind a flags-tagged
 `void *`.
 
-### `ImportRef` + `ImportedCmdData` (`tclInt.h:1804`, `:1823`)
+### `ImportRef` + `ImportedCmdData` (`tclInt.h:1807`, `:1826`)
 
 Pair that implements `namespace import`:
 
@@ -119,7 +119,7 @@ Pair that implements `namespace import`:
   on `realCmdPtr->importRefPtr`.  Each node points back at a redirect
   so deleting the source can walk the list and remove every redirect.
 
-### `Var` (`tclInt.h:637`)
+### `Var` (`tclInt.h:644`)
 
 Union by `flags`:
 
@@ -147,7 +147,7 @@ WASM-compiled proc's locals are native locals, and an interpreted proc's
 are ordinary `Var` cells in the frame's `VarTable`, so neither needs a
 compiled-local classification on the cell).
 
-### `CallFrame` (`tclInt.h:1275`)
+### `CallFrame` (`tclInt.h:1278`)
 
 Per-proc-invocation frame.  `runtime/rust/src/frame.rs` covers the
 local-var + alias slice (`Var::Link` stands in for `VAR_LINK`).  The one
@@ -365,8 +365,7 @@ subtree, `info commands` / `info procs` / `namespace children` read it by
 token id, and a relative definition is absorbed into it. Its final teardown
 splices each token back into the live map one at a time, so the shared command
 lifecycle runs unchanged. Two pieces of the retained token are not in the
-record yet (#1751 milestone 2): its command-trace sidecars, which are still
-keyed by name and can therefore be reached by a recreation's traces during the
+record: its command-trace sidecars, which are still keyed by name and can therefore be reached by a recreation's traces during the
 window, and its variables, which stay in the VM's one flat global table under
 their canonical names.
 
@@ -479,7 +478,7 @@ that shapes both resolvers —
 **a name ending in a separator run names the empty-string `{}` entry** in the
 qualified namespace, with *every* segment treated as a namespace component.
 With `proc {} {} {}` defined, both `::` and `:::` dispatch it (tclsh 8.6/9.0
-pinned, issue #934), and `rename foo x::` binds `::x::{}`. Handling this in the
+pinned), and `rename foo x::` binds `::x::{}`. Handling this in the
 shared splitter is what keeps `home_of`, `var_home`, `rename`, and the ensemble
 name split agreeing about what a written name means.
 

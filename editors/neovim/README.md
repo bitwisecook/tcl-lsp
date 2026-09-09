@@ -16,20 +16,9 @@ See the [Installation Guide](../../INSTALL-editors.md) for full details.
 Point `cmd` at the binary — either its name (`tcl-lsp-server`) if it is on
 your PATH, or an absolute path to it.
 
-## Via nvim-lspconfig (recommended once merged upstream)
-
-Once the tcl-lsp config is merged into
-[`neovim/nvim-lspconfig`](https://github.com/neovim/nvim-lspconfig), the
-setup is a one-liner:
-
-```lua
-require('lspconfig').tcl_lsp.setup({})
-```
-
-The config expects the `tcl-lsp-server` binary to be on your PATH.
-Download it from the
-[latest release](https://github.com/bitwisecook/tcl-lsp/releases/latest)
-and drop it somewhere on PATH.
+tcl-lsp is not yet in
+[`neovim/nvim-lspconfig`](https://github.com/neovim/nvim-lspconfig)'s
+built-in server list, so configure it with one of the forms below.
 
 ## Neovim 0.11+ (native LSP)
 
@@ -134,9 +123,9 @@ Settings are sent under the `tclLsp` namespace. Key options:
 | `formatting.braceStyle` | string | `k_and_r` | `k_and_r` |
 | `formatting.maxLineLength` | integer | `120` | Maximum line length |
 
-The eighteen dialect profiles `dialect` accepts: `tcl8.4`, `tcl8.5`,
-`tcl8.6`, `tcl9.0`, `tcl9.1`, `f5-irules`, `f5-iapps`, `f5-tmsh`,
-`f5-bigip`, `bpf`, `expect`, `spectcl`, `cadence-eda-tcl`,
+The dialect profiles `dialect` accepts: `tcl8.4`, `tcl8.5`, `tcl8.6`,
+`tcl9.0`, `tcl9.1`, `f5-irules`, `f5-iapps`, `f5-tmsh`, `f5-bigip`, `bpf`,
+`expect`, `spectcl`, `sslictcl`, `cadence-eda-tcl`,
 `intel-quartus-eda-tcl`, `mentor-eda-tcl`, `microchip-libero-eda-tcl`,
 `synopsys-eda-tcl`, `xilinx-eda-tcl`.
 

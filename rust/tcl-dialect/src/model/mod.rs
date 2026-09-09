@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The new core/environment model of the registry redesign (issue #1631,
-//! `docs/design/dialect-and-package-registry-redesign.md` — P1 of §8).
+//! `docs/design/registry/dialect-and-package-registry-redesign.md` — P1 of §8).
 //!
 //! Five submodules carry the model's first layer and its algebra:
 //!

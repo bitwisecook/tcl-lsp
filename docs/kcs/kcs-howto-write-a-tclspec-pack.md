@@ -77,8 +77,8 @@ reports, per command, which fields your declaration actually set; every
 dropped or misspelled word, with the line it was on; every hook you
 declared and whether it is cheap to call repeatedly; and any name
 collision with a shipped command. Fix every notice — a dropped word is
-otherwise silent. A `tcl spec check` command-line equivalent is planned;
-the MCP tool is what exists today.
+otherwise silent. The MCP tool is the only validator; `tcl spec` itself has
+`import`, `upgrade`, and `export`.
 
 ### The server loads your pack automatically
 
@@ -120,6 +120,6 @@ notice or shipped-command collision.
 
 - [How to create a command spec without knowing Rust](kcs-howto-create-command-specs-without-rust.md)
 - [How to annotate commands with stubs](kcs-howto-annotate-commands-with-stubs.md)
-- [SpecTcl pack design](../design/spec-packs.md)
+- [SpecTcl pack design](../design/registry/spec-packs.md)
 - [The frozen SpecTcl syntax](../design/spec-dsl-examples/README.md)
 - [KCS index](README.md)

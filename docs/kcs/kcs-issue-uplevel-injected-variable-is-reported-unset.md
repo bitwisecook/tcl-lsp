@@ -10,24 +10,19 @@ all-editors, diagnostic, analyser
 ## Question
 
 My helper procedure assigns a variable in its caller's frame with
-`uplevel 1 [list set $varName $value]`. Why does the caller's read of that
-variable draw "read before set", and why is the `$varName` inside the
-`[list …]` reported as a name/value confusion?
+`uplevel 1 [list set $varName $value]`. When does the analyser believe that
+write, and when does it still report the caller's read as unset?
 
 ## Symptoms
 
 - A yellow squiggle reporting **`W210`** — "Variable 'answer' is read before
-  it is set" — on a read of a variable a helper really does assign, when the
-  helper is reached through one or more ordinary calls.
+  it is set" — on a read of a variable you expect a helper to have assigned.
 - A yellow squiggle reporting **`W212`** — "'set' expects a variable name,
-  got substitution (`$varName`)" — on the `[list set $varName …]` word
-  itself.
-- The one-hop spelling (`helper` called directly from the frame it writes)
-  is quiet, while the same helper reached one call deeper is not.
+  got substitution" — on a `set $var …` word.
 
 ## Why
 
-Two independent causes, both about *whose* frame a write lands in.
+Both checks turn on *whose* frame a write lands in.
 
 **`W210`.** A procedure that writes its caller's frame is summarised once,
 and every call site consults that summary. A level that lands on the direct
@@ -54,15 +49,11 @@ author meant. The substitution is the whole idiom, not a slip.
 
 ## Answer
 
-Neither shape draws a report. The summary carries a level that lands past
-the direct caller one hop further along an ordinary call, and `W212` does not
-ask its question inside a `[list …]`-built script at all. If you see either
-report on the three-frame example above, you are on a build older than the
-fix — update, and both go.
+Neither shape above draws a report: the summary carries a past-the-caller
+level one hop further along an ordinary call, and `W212` does not ask its
+question inside a `[list …]`-built script at all.
 
 ## What still reports
-
-Neither check is switched off:
 
 ```tcl
 proc setLocally {var} { set $var 99 }     ;# W212 — written by hand
@@ -92,8 +83,8 @@ that shape.
 
 ## How to suppress
 
-Add `# noqa: W210` or `# noqa: W212` on the line **above** the offending command, and
-please open an issue with the snippet.
+Add `# noqa: W210` or `# noqa: W212` on the line **above** the offending
+command, and open an issue with the snippet.
 
 ## Related
 

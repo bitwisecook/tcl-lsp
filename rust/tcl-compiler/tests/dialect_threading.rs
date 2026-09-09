@@ -277,7 +277,7 @@ fn i230_still_fires_on_a_plain_tcl_constant_condition() {
 }
 
 // N5 — the F5 `if` else/elseif single-newline lookahead
-// (`docs/design/bigip-irule-parser-measurements.md` §2 N5, measured on TMM
+// (`docs/design/f5/bigip-irule-parser-measurements.md` §2 N5, measured on TMM
 // in a cli script reproducing the parser).
 
 /// Under the F5 grammar, `else {…}` on the immediately following line is

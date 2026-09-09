@@ -1,35 +1,34 @@
-# KCS: Var-escape analysis
+# KCS: feature — Var-escape analysis
 
 > **Audience:** Contributor
 > **Type:** Functionality
 
+## Summary
+
+Proves whether a procedure variable can stay local to compiled code or must stay visible by name in a Tcl runtime frame.
+
 ## Applies to
 
-tcl-lsp CLI, compiler Explorer, analyser, codegen
+codegen
 
-## What does var-escape analysis prove?
+## How to use
 
-Var-escape analysis decides whether a procedure variable can remain local to
-compiled code or must be visible by name in a Tcl runtime frame. A variable is
-tagged `Local` only when the compiler can prove that features such as `upvar`,
+There is nothing to switch on and no CLI verb: the analysis runs inside the
+compiler and its results reach you through the optimisations they enable.
+
+A variable is tagged `Local` only when the compiler can prove that `upvar`,
 `uplevel`, dynamic `eval`, and dynamic variable names cannot observe it. Any
-uncertainty raises the result to `Frame`.
+uncertainty raises the result to `Frame`. Dynamic, malformed, or unmodelled
+constructs degrade to `Frame`; they never make an optimisation eligible.
 
-The Rust implementation lives in `rust/tcl-compiler/src/var_escape/`. It
-produces a `ProcEscapeSummary` containing per-name and per-[static single
+The implementation lives in `rust/tcl-compiler/src/var_escape/`. It produces a
+`ProcEscapeSummary` carrying per-name and per-[static single
 assignment](../../GLOSSARY.md#ssa) tags, typed barriers, source ranges,
-interprocedural `upvar` sources, and conservative predicates such as
-`safe_to_inline`, `safe_to_dce`, and `safe_for_frame_elision`.
-
-The production inliner consumes the registry-aware IR analysis. A separate
-`CompilationUnit` entry runs the flow-sensitive control-flow-graph and static
-single-assignment analysis for consumers that need versioned facts. Neither is
-an alternative WebAssembly compiler: `compile_wasm` remains the sole public
-code-generation entry, and any future frame plan must consume these common
-facts through that pipeline.
-
-There is no user-facing switch. Dynamic, malformed, or unmodelled constructs
-degrade to `Frame`; they never make an optimisation eligible by default.
+interprocedural `upvar` sources, and the conservative predicates
+`safe_to_inline`, `safe_to_dce`, and `safe_for_frame_elision`. The inliner
+consumes the registry-aware IR analysis; a separate `CompilationUnit` entry
+runs the flow-sensitive control-flow-graph and static-single-assignment
+analysis for consumers that need versioned facts.
 
 ## Example
 

@@ -29,17 +29,44 @@
 use std::fs::OpenOptions;
 use std::io::Write as _;
 
+use tcl_cmd_core::CmdError;
+use tcl_cmd_core::channel::{
+    ChannelConfig, channel_output_error, config_list, config_value, encode_output,
+    is_standard_channel, resolve_open_access_mode, set_config_value,
+};
 use tcl_runtime_api::Completion;
 
+use crate::command::completion_from_cmd_error;
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
 /// An open file channel.
 pub(crate) enum Channel {
     /// A readable channel: whole-file contents with a byte cursor.
-    Read { data: Vec<u8>, pos: usize },
+    Read {
+        data: Vec<u8>,
+        pos: usize,
+        config: ChannelConfig,
+    },
     /// A writable (create/truncate or append) channel.
-    Write(std::fs::File),
+    Write {
+        file: std::fs::File,
+        config: ChannelConfig,
+    },
+}
+
+impl Channel {
+    fn config(&self) -> ChannelConfig {
+        match self {
+            Self::Read { config, .. } | Self::Write { config, .. } => *config,
+        }
+    }
+
+    fn set_config(&mut self, replacement: ChannelConfig) {
+        match self {
+            Self::Read { config, .. } | Self::Write { config, .. } => *config = replacement,
+        }
+    }
 }
 
 pub(crate) fn register(vm: &mut Vm) {
@@ -68,36 +95,37 @@ fn cmd_open(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if name.starts_with('|') {
         return err("command pipelines are not supported");
     }
-    // Normalise an access-flag list (`{RDWR CREAT}`) down to the leading mode
-    // character set; the simple string forms map directly.
     let m = mode.trim();
-    let read = m.starts_with('r') || m.contains('+') || m.contains("RD");
-    let truncate = m.starts_with('w') || m.contains("TRUNC");
-    let append = m.starts_with('a') || m.contains("APPEND");
-    let writing = truncate || append || m.contains('+') || m.contains("WR");
+    let version = vm.runtime_version();
+    let access = match resolve_open_access_mode(version, m) {
+        Ok(access) => access,
+        Err(error) => return completion_from_cmd_error(error),
+    };
+    let config = ChannelConfig::for_open_access(version, vm.system_encoding(), access);
 
-    if read && !writing {
+    if access.is_readable() && !access.is_writable() {
         match std::fs::read(&name) {
             Ok(data) => {
-                let id = vm.add_channel(Channel::Read { data, pos: 0 });
+                let id = vm.add_channel(Channel::Read {
+                    data,
+                    pos: 0,
+                    config,
+                });
                 ok(Value::string(id))
             }
             Err(e) => err(format!("couldn't open \"{name}\": {}", io_reason(&e))),
         }
     } else {
         let mut opts = OpenOptions::new();
-        opts.write(true).create(true);
-        if append {
-            opts.append(true);
-        } else if truncate {
-            opts.truncate(true);
-        }
-        if read {
-            opts.read(true);
-        }
+        opts.read(access.is_readable())
+            .write(access.is_writable())
+            .append(access.appends())
+            .truncate(access.truncates())
+            .create(access.creates())
+            .create_new(access.creates() && access.is_exclusive());
         match opts.open(&name) {
             Ok(file) => {
-                let id = vm.add_channel(Channel::Write(file));
+                let id = vm.add_channel(Channel::Write { file, config });
                 ok(Value::string(id))
             }
             Err(e) => err(format!("couldn't open \"{name}\": {}", io_reason(&e))),
@@ -150,7 +178,7 @@ fn cmd_gets(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         };
     }
     let line = match vm.channel_mut(&id) {
-        Some(Channel::Read { data, pos }) => {
+        Some(Channel::Read { data, pos, .. }) => {
             if *pos >= data.len() {
                 None
             } else {
@@ -169,7 +197,7 @@ fn cmd_gets(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 Some(s)
             }
         }
-        Some(Channel::Write(_)) => {
+        Some(Channel::Write { .. }) => {
             return err(format!("channel \"{id}\" wasn't opened for reading"));
         }
         None => return err(format!("can not find channel named \"{id}\"")),
@@ -216,7 +244,7 @@ fn cmd_read(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return ok(Value::string(""));
     }
     match vm.channel_mut(&id) {
-        Some(Channel::Read { data, pos }) => {
+        Some(Channel::Read { data, pos, .. }) => {
             let start = *pos;
             let end = match count {
                 Some(n) if n >= 0 => (start + usize::try_from(n).unwrap_or(0)).min(data.len()),
@@ -230,7 +258,7 @@ fn cmd_read(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             *pos = end;
             ok(Value::string(s))
         }
-        Some(Channel::Write(_)) => err(format!("channel \"{id}\" wasn't opened for reading")),
+        Some(Channel::Write { .. }) => err(format!("channel \"{id}\" wasn't opened for reading")),
         None => err(format!("can not find channel named \"{id}\"")),
     }
 }
@@ -244,8 +272,8 @@ fn cmd_eof(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return ok(Value::bool(&*id == "stdin"));
     }
     match vm.channel_mut(&id) {
-        Some(Channel::Read { data, pos }) => ok(Value::bool(*pos >= data.len())),
-        Some(Channel::Write(_)) => ok(Value::bool(false)),
+        Some(Channel::Read { data, pos, .. }) => ok(Value::bool(*pos >= data.len())),
+        Some(Channel::Write { .. }) => ok(Value::bool(false)),
         None => err(format!("can not find channel named \"{id}\"")),
     }
 }
@@ -259,8 +287,8 @@ fn cmd_flush(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return ok(Value::empty());
     }
     match vm.channel_mut(&id) {
-        Some(Channel::Write(f)) => {
-            let _ = f.flush();
+        Some(Channel::Write { file, .. }) => {
+            let _ = file.flush();
             ok(Value::empty())
         }
         Some(Channel::Read { .. }) => ok(Value::empty()),
@@ -297,7 +325,7 @@ fn cmd_seek(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         }
         _ => return err("wrong # args: should be \"seek channelId offset ?origin?\""),
     };
-    if let Some(Channel::Read { data, pos }) = vm.channel_mut(&id) {
+    if let Some(Channel::Read { data, pos, .. }) = vm.channel_mut(&id) {
         let base = match origin {
             1 => i64::try_from(*pos).unwrap_or(0),
             2 => i64::try_from(data.len()).unwrap_or(0),
@@ -309,65 +337,115 @@ fn cmd_seek(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     ok(Value::empty())
 }
 
-/// `fconfigure channelId ?option ?value?? ...` — channel options are accepted
-/// but not modelled; getters return conventional defaults.
-fn cmd_fconfigure(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let Some((_chan, rest)) = args.split_first() else {
+/// `fconfigure channelId ?option ?value?? ...` — retain the options that
+/// affect byte output; conventional non-output options remain accepted.
+fn cmd_fconfigure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let Some((chan, rest)) = args.split_first() else {
         return err("wrong # args: should be \"fconfigure channelId ?-option value ...?\"");
     };
+    let id = chan.to_str().to_string();
+    let Some(mut config) = channel_config(vm, &id) else {
+        return err(format!("can not find channel named \"{id}\""));
+    };
+    let version = vm.runtime_version();
     match rest {
-        // Query all options: return a small conventional set.
-        [] => ok(Value::string(
-            "-blocking 1 -buffering full -encoding utf-8 -translation lf",
-        )),
-        // Query one option.
-        [opt] => ok(Value::string(match &*opt.to_str() {
-            "-blocking" => "1",
-            "-buffering" => "full",
-            "-buffersize" => "4096",
-            "-encoding" => "utf-8",
-            "-translation" => "lf",
-            // `-eofchar` and any unmodelled option report empty.
-            _ => "",
-        })),
-        // Setting one or more options: accepted, no-op.
-        _ => ok(Value::empty()),
+        [] => ok(Value::string(config_list(version, &id, config))),
+        [opt] => {
+            let option = match tcl_registry::commands::tcl::resolve_fconfigure_option(
+                vm.dialect_profile(),
+                &opt.to_str(),
+            ) {
+                Ok(option) => option,
+                Err(error) => return completion_from_cmd_error(error),
+            };
+            ok(Value::string(config_value(option, &id, config)))
+        }
+        values if values.len() % 2 == 0 => {
+            for pair in values.as_chunks::<2>().0 {
+                let option = match tcl_registry::commands::tcl::resolve_fconfigure_option(
+                    vm.dialect_profile(),
+                    &pair[0].to_str(),
+                ) {
+                    Ok(option) => option,
+                    Err(error) => return completion_from_cmd_error(error),
+                };
+                let configured = set_config_value(version, &mut config, option, &pair[1].to_str());
+                // Tcl preserves any direction changed before a later
+                // direction of the same translation value reports an error.
+                set_channel_config(vm, &id, config);
+                if let Err(error) = configured {
+                    return completion_from_cmd_error(error);
+                }
+            }
+            ok(Value::empty())
+        }
+        _ => err("wrong # args: should be \"fconfigure channelId ?-option value ...?\""),
+    }
+}
+
+fn channel_config(vm: &Vm, id: &str) -> Option<ChannelConfig> {
+    if is_std(id) {
+        vm.standard_channels.borrow().get(id)
+    } else {
+        vm.channel(id).map(Channel::config)
+    }
+}
+
+fn set_channel_config(vm: &mut Vm, id: &str, config: ChannelConfig) {
+    if is_std(id) {
+        let _ = vm.standard_channels.borrow_mut().set(id, config);
+    } else if let Some(channel) = vm.channel_mut(id) {
+        channel.set_config(config);
     }
 }
 
 /// True for a predefined standard channel name.
 pub(crate) fn is_std(id: &str) -> bool {
-    matches!(id, "stdin" | "stdout" | "stderr")
+    is_standard_channel(id)
 }
 
 /// Write `text` (optionally with a trailing newline) to channel `id`. Used by
 /// `puts`. Standard channels follow the VM's output / process stderr.
-pub(crate) fn chan_puts(vm: &mut Vm, id: &str, text: &str, newline: bool) -> Result<(), String> {
+pub(crate) fn chan_puts(vm: &mut Vm, id: &str, text: &str, newline: bool) -> Result<(), CmdError> {
+    if id == "stdin" {
+        return Err(CmdError::new("channel \"stdin\" wasn't opened for writing"));
+    }
+    let Some(config) = channel_config(vm, id) else {
+        return Err(CmdError::new(format!(
+            "can not find channel named \"{id}\""
+        )));
+    };
+    let encoded = encode_output(text, newline, config);
     match id {
-        "stdout" => {
-            vm.write_output(text, newline);
-            Ok(())
-        }
+        "stdout" => vm
+            .write_output_bytes(&encoded.bytes)
+            .map_err(|error| write_error(id, &error))?,
         "stderr" => {
-            eprint!("{text}");
-            if newline {
-                eprintln!();
-            }
-            Ok(())
+            vm.host().stdio().write_stderr(&encoded.bytes);
+            vm.host().stdio().flush_stderr();
         }
-        "stdin" => Err("channel \"stdin\" wasn't opened for writing".to_string()),
         _ => match vm.channel_mut(id) {
-            Some(Channel::Write(f)) => {
-                let _ = f.write_all(text.as_bytes());
-                if newline {
-                    let _ = f.write_all(b"\n");
-                }
-                Ok(())
-            }
+            Some(Channel::Write { file, .. }) => file
+                .write_all(&encoded.bytes)
+                .map_err(|error| write_error(id, &error))?,
             Some(Channel::Read { .. }) => {
-                Err(format!("channel \"{id}\" wasn't opened for writing"))
+                return Err(CmdError::new(format!(
+                    "channel \"{id}\" wasn't opened for writing"
+                )));
             }
-            None => Err(format!("can not find channel named \"{id}\"")),
+            None => {
+                return Err(CmdError::new(format!(
+                    "can not find channel named \"{id}\""
+                )));
+            }
         },
     }
+    if let Some(error) = encoded.error {
+        return Err(channel_output_error(id, error));
+    }
+    Ok(())
+}
+
+fn write_error(id: &str, error: &std::io::Error) -> CmdError {
+    CmdError::new(format!("error writing \"{id}\": {error}"))
 }

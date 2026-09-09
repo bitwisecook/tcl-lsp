@@ -14,9 +14,11 @@ does each one do?
 
 ## Answer
 
-tcl-lsp reads five kinds of structured comment from your Tcl source.
-They all live in plain Tcl comments — no separate config file is required,
-and they have no effect on the running interpreter.
+tcl-lsp reads six kinds of structured comment from your Tcl source, plus
+the `# tcl-dialect:` directive covered by
+[dialect detection](../design/contracts/dialect-detection.md). They all live
+in plain Tcl comments — no separate config file is required, and they have
+no effect on the running interpreter.
 
 ### 1. File-wide diagnostic suppression
 
@@ -70,37 +72,35 @@ outside the markers are ignored.
 The same syntax works in a workspace-wide `<dialect>.tcl.stubs` file, with
 the `# tcl-lsp:` prefix optional.
 
-Argument roles include `body` (recursively analysed script), `expr`, `var`,
-`var_read`, `name`, `pattern`, `channel`, and the default `value`. Roles
-plus arity drive the analyses today — adding a `body` role makes the call
-graph descend into the script, adding `var` lets the variable-usage
-analyser see the write, and so on.
+Argument roles are `body` (a Tcl script), `expr`, `var`, `var_read`,
+`name`, `pattern`, `channel`, and the default `value`. Roles and arity give
+the analyser a shape for the call: the argument count is checked, and each
+word is read as the kind of thing its role names rather than as an opaque
+string.
 
-Flags (`-barrier`, `-loop`, `-pure`, `-mutator`, `-unsafe`, `-scope_alias`)
-are parsed and recorded on the `StubCommandDef`, but most of them are
-not yet wired into downstream passes — only `-barrier` is consulted by
-the call-graph scanner. See
+Six flags are accepted — `-barrier`, `-loop`, `-pure`, `-mutator`,
+`-unsafe`, and `-scope_alias`. Only `-barrier` changes analysis: it marks
+the command a dynamic barrier for the call-graph scanner. See
 [kcs-howto-annotate-commands-with-stubs.md](kcs-howto-annotate-commands-with-stubs.md)
-for which flags affect analysis today.
+for the full flag reference.
 
 **Worked example — sqlite `eval`:** sqlite's per-row callback is the
-trailing argument, which is a Tcl script. Stubbing it as `body` lets the
-call graph see edges into the callback procs:
+trailing argument, which is a Tcl script:
 
 ```tcl
 # tcl-lsp: stubs-begin
 # tcl-lsp: stub sqlite_eval {sql script:body} -barrier
 # tcl-lsp: stubs-end
 
-proc on_row {} { ... }
-
 proc dump {} {
     sqlite_eval "SELECT * FROM kv" {on_row}
 }
 ```
 
-After this, `tcl callgraph` reports the edge `::dump → ::on_row` and the
-unused-proc analyser leaves `on_row` alone.
+Without the block, `sqlite_eval` draws
+[W123](codes/kcs-diagnostic-w123-unresolved-command.md) — "Unknown command".
+With it, the call is recognised, its argument count is checked, and the
+trailing word is read as a script.
 
 Full syntax and more examples live in
 [kcs-howto-annotate-commands-with-stubs.md](kcs-howto-annotate-commands-with-stubs.md).
@@ -146,6 +146,22 @@ in a file that never requires that extension.
 The same fact can be declared once for a whole project instead, under
 `[packages.provides]` in `.tcl-lsp.ini` — see
 [how do I tell tcl-lsp that a binary extension also loads Tk?](kcs-howto-declare-a-package-a-binary-extension-loads.md).
+
+### 6. Version targets
+
+`# tcl-lsp: supports NAME RANGE…` in the leading comment block declares
+which releases the file must run on. `NAME` is `tcl` for the core, or a
+package name; `RANGE` is one or more clauses such as `8.5-9.0`, `8.5-`, or
+a bare `8.5`.
+
+```tcl
+# tcl-lsp: supports tcl 8.5-9.0
+
+lmap x {1 2} {set x}   ;# W150 — 'lmap' requires Tcl 8.6
+```
+
+The analyser then reports every command, option, and value the declared
+range cannot reach, regardless of the dialect the file resolved to.
 
 ### What annotations do *not* do
 

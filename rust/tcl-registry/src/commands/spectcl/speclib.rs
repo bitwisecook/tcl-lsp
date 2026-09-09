@@ -37,7 +37,7 @@ pub fn spec() -> CommandSpec {
             summary: "Open a SpecTcl command pack.",
             synopsis: &["speclib name dsl-version { declarations }"],
             snippet: "The one loader directive of a `.tclspec` pack. `dsl-version` is the DSL *vocabulary* version, not the library's: it gates hard breaks (a word whose meaning changed), never additions. A pack is one Tcl script, read from the CST and never executed — the only Tcl ever evaluated is a hook body, at query time, in the sandbox.",
-            source: "SpecTcl (docs/design/spec-packs.md)",
+            source: "SpecTcl (docs/design/registry/spec-packs.md)",
             examples: "speclib mylib 1.0 {\n    default required_package mylib\n    command mylib::sort {\n        arity 1..\n        option -command -takes commandprefix -appends {Exactly 2}\n    }\n}",
             return_value: "",
         }),

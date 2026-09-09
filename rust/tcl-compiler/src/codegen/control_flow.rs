@@ -21,8 +21,10 @@
 //! Extends [`CodegenCtx`] with methods for emitting `beginCatch4`/`endCatch`
 //! bytecodes for `catch` and `try` commands.
 
+use tcl_bytecode::ErrorStackContext;
 use tcl_registry::hooks::{InlineCodegenHookId, LoweringHookId};
 use tcl_registry::{CommandRegistry, Traits, TryClauseKind, TryCompletionSelector};
+use tcl_runtime_api::completion_options::ControlOptionPolicy;
 
 use crate::cfg::Function as CfgFunction;
 use crate::expr_ast::{BinOp, ExprNode};
@@ -425,12 +427,13 @@ impl CodegenCtx<'_> {
 
         // Load the dict value, then begin the iterator under a catch range.
         self.emit_value(dict_text, true);
-        self.emit(
+        let begin_idx = self.emit(
             Op::BEGIN_CATCH4,
             vec![Operand::Imm(
                 i32::try_from(self.catch_depth).expect("catch_depth fits in i32"),
             )],
         );
+        self.mark_completion_option_scope(begin_idx, ControlOptionPolicy::FRESH_SETTLED);
         self.catch_depth += 1;
         let dict_first_idx = self.emit(Op::DICT_FIRST, vec![Operand::Imm(0)]);
         // Tag the loop-control jumps `dict_for` so the layout pass keeps them
@@ -445,7 +448,9 @@ impl CodegenCtx<'_> {
 
         // Loop body: bind key/value, run the body, advance.
         self.place_label(&loop_lbl);
-        self.emit_comment(Op::STORE_SCALAR1, vec![Operand::Imm(k_slot)], &vnames[0]);
+        let iteration_idx =
+            self.emit_comment(Op::STORE_SCALAR1, vec![Operand::Imm(k_slot)], &vnames[0]);
+        self.mark_completion_option_scope(iteration_idx, ControlOptionPolicy::FRESH_SETTLED);
         self.emit(Op::POP, vec![]);
         self.emit_comment(Op::STORE_SCALAR1, vec![Operand::Imm(v_slot)], &vnames[1]);
         self.emit(Op::POP, vec![]);
@@ -479,7 +484,8 @@ impl CodegenCtx<'_> {
 
         // Normal exit: drop the leftover key/value from the final dictNext.
         self.place_label(&end_lbl);
-        self.emit(Op::POP, vec![]);
+        let settle_idx = self.emit(Op::POP, vec![]);
+        self.mark_completion_option_scope(settle_idx, ControlOptionPolicy::FRESH_SETTLED);
         self.emit(Op::POP, vec![]);
         // `dict for` yields the empty string.
         self.push_lit("");
@@ -535,12 +541,13 @@ impl CodegenCtx<'_> {
         self.emit(Op::POP, vec![]);
 
         self.emit_value(dict_text, true);
-        self.emit(
+        let begin_idx = self.emit(
             Op::BEGIN_CATCH4,
             vec![Operand::Imm(
                 i32::try_from(self.catch_depth).expect("catch_depth fits in i32"),
             )],
         );
+        self.mark_completion_option_scope(begin_idx, ControlOptionPolicy::FRESH_FORWARDED);
         self.catch_depth += 1;
         let dict_first_idx = self.emit(Op::DICT_FIRST, vec![Operand::Imm(0)]);
         self.emit_comment(
@@ -550,7 +557,9 @@ impl CodegenCtx<'_> {
         );
 
         self.place_label(&loop_lbl);
-        self.emit_comment(Op::STORE_SCALAR1, vec![Operand::Imm(k_slot)], &vnames[0]);
+        let iteration_idx =
+            self.emit_comment(Op::STORE_SCALAR1, vec![Operand::Imm(k_slot)], &vnames[0]);
+        self.mark_completion_option_scope(iteration_idx, ControlOptionPolicy::FRESH_FORWARDED);
         self.emit(Op::POP, vec![]);
         self.emit_comment(Op::STORE_SCALAR1, vec![Operand::Imm(v_slot)], &vnames[1]);
         self.emit(Op::POP, vec![]);
@@ -994,7 +1003,7 @@ impl CodegenCtx<'_> {
         // invoke arm, as do guard failures.
         match self.inline_cmd_subst_hook(body_cmd, body_args) {
             Some(InlineCodegenHookId::Return) => self.emit_catch_return(body_args),
-            Some(InlineCodegenHookId::Error) => self.emit_catch_error(body_args),
+            Some(InlineCodegenHookId::Error) => self.emit_catch_error(body_cmd, body, body_args),
             Some(InlineCodegenHookId::Break) => {
                 self.emit(Op::BREAK, vec![]);
             }
@@ -1111,17 +1120,26 @@ impl CodegenCtx<'_> {
     }
 
     /// Compile `error msg ?info? ?code?` inside a catch body.
-    pub fn emit_catch_error(&mut self, args: &[(String, bool)]) {
+    pub fn emit_catch_error(
+        &mut self,
+        command: &str,
+        source_command: &str,
+        args: &[(String, bool)],
+    ) {
         if let Some(first) = args.first() {
             self.emit_cmd_subst_arg(&first.0, first.1);
         } else {
             self.push_lit("");
         }
         self.push_lit(""); // options
-        self.emit(
+        let throw = self.emit(
             Op::RETURN_IMM,
             vec![Operand::Imm(1), Operand::Imm(0)], // code=error, level=0
         );
+        self.instructions[throw].error_stack_context = Some(ErrorStackContext::CommandResult {
+            head: command.to_owned(),
+            error_info_command: source_command.trim().to_owned(),
+        });
     }
 
     // -- inline try/on error compilation --
@@ -1524,13 +1542,18 @@ impl CodegenCtx<'_> {
                 &args.iter().map(String::as_str).collect::<Vec<_>>(),
             ) == Some(InlineCodegenHookId::Error)
         {
+            let error_info_command = self.source_text(stmt.span());
             if let Some(arg) = args.first() {
                 self.emit_value(arg, false);
             } else {
                 self.push_lit("");
             }
             self.push_lit("");
-            self.emit(Op::RETURN_IMM, vec![Operand::Imm(1), Operand::Imm(0)]);
+            let throw = self.emit(Op::RETURN_IMM, vec![Operand::Imm(1), Operand::Imm(0)]);
+            self.instructions[throw].error_stack_context = Some(ErrorStackContext::CommandResult {
+                head: command.clone(),
+                error_info_command,
+            });
             self.cmd_index += 1;
             return;
         }
@@ -1875,7 +1898,7 @@ mod tests {
     fn catch_error_emits_return_imm() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &[], &registry);
-        ctx.emit_catch_error(&[("oops".into(), false)]);
+        ctx.emit_catch_error("error", "error oops", &[("oops".into(), false)]);
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::RETURN_IMM));
     }

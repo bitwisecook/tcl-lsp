@@ -21,7 +21,9 @@ The first assignment is wasted work; the value is thrown away before anything re
 
 ## Symptoms
 
-- A yellow squiggle appears under the first assignment, with the message "variable set but overwritten before being read".
+- The first assignment is faded out rather than squiggled — W220 is a hint
+  tagged as unnecessary code, so editors grey it instead of underlining it.
+- The Problems panel carries a message like `Assignment to 'x' is never read`.
 
 ## Example that triggers it
 

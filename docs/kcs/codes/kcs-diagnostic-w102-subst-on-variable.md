@@ -21,7 +21,10 @@ Variable content undergoes `$` and `[]` substitution, allowing command execution
 
 ## Symptoms
 
-- A yellow squiggle appears under the `subst` call, with the message "subst on variable input".
+- A yellow squiggle appears under the `subst` call, with the message "subst with
+  a variable argument enables code injection: any [cmd] and $var in the string
+  will be evaluated. Add -nocommands -novariables to limit substitution scope,
+  or use [format] / [string map] for safe templating."
 
 ## Example that triggers it
 

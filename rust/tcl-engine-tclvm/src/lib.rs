@@ -19,7 +19,7 @@
 //! `tcl-engine-tclvm` — the bytecode VM behind the Tcl extension interface.
 //!
 //! The first implementation of [`tcl_engine_api::Engine`], and the one the
-//! interface was built against: `docs/design/spec-packs.md` names `tcl-vm` the
+//! interface was built against: `docs/design/registry/spec-packs.md` names `tcl-vm` the
 //! canonical engine everywhere (server, CLI, and studio, which ships it to
 //! wasm already).
 //!

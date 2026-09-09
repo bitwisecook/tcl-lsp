@@ -4,10 +4,14 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# Verify the version reported at runtime by every native release binary.
+# Verify the version reported at runtime by native release binaries.
 #
 # Usage:
 #   scripts/verify-native-versions.sh VERSION BINDIR [RUNNER [ARG...]]
+#
+# By default all four shipping binaries are required. A feature-isolated
+# matrix leg sets TCL_LSP_RELEASE_BINARIES to one or more space-separated
+# names from that same set.
 #
 # RUNNER is optional. For example, a RISC-V build can be checked with:
 #   scripts/verify-native-versions.sh 2.2.1+g12345678 DIR \
@@ -29,8 +33,32 @@ bindir="$2"
 shift 2
 runner=("$@")
 
-for binary in tcl-lsp-server tcl-mcp tcl f5-query; do
-	if [[ ! -x "$bindir/$binary" ]]; then
+read -r -a binaries <<<"${TCL_LSP_RELEASE_BINARIES-tcl-lsp-server tcl-mcp tcl f5-query}"
+if [[ ${#binaries[@]} -eq 0 ]]; then
+	printf 'error: TCL_LSP_RELEASE_BINARIES selected no binaries\n' >&2
+	exit 2
+fi
+
+native_executable() {
+	local binary="$1"
+	if [[ -x "$bindir/$binary" ]]; then
+		printf '%s\n' "$bindir/$binary"
+	elif [[ -x "$bindir/$binary.exe" ]]; then
+		printf '%s\n' "$bindir/$binary.exe"
+	else
+		return 1
+	fi
+}
+
+for binary in "${binaries[@]}"; do
+	case "$binary" in
+		tcl-lsp-server | tcl-mcp | tcl | f5-query) ;;
+		*)
+			printf 'error: unsupported native release binary: %s\n' "$binary" >&2
+			exit 2
+			;;
+	esac
+	if ! native_executable "$binary" >/dev/null; then
 		printf 'error: executable release binary not found: %s\n' "$bindir/$binary" >&2
 		exit 2
 	fi
@@ -60,15 +88,20 @@ frame() {
 	printf 'Content-Length: %d\r\n\r\n%s' "${#body}" "$body"
 }
 
-lsp_request='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"processId":null,"rootUri":null,"capabilities":{}}}'
-lsp_output="$(frame "$lsp_request" | run_binary "$bindir/tcl-lsp-server" 2>/dev/null || true)"
-require_version tcl-lsp-server "$lsp_output"
-
-mcp_request='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"release-check","version":"0"}}}'
-mcp_output="$(printf '%s\n' "$mcp_request" | run_binary "$bindir/tcl-mcp" 2>/dev/null | head -1 || true)"
-require_version tcl-mcp "$mcp_output"
-
-for binary in tcl f5-query; do
-	output="$(run_binary "$bindir/$binary" --version 2>&1 || true)"
+for binary in "${binaries[@]}"; do
+	executable="$(native_executable "$binary")"
+	case "$binary" in
+		tcl-lsp-server)
+			request='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"processId":null,"rootUri":null,"capabilities":{}}}'
+			output="$(frame "$request" | run_binary "$executable" 2>/dev/null || true)"
+			;;
+		tcl-mcp)
+			request='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"release-check","version":"0"}}}'
+			output="$(printf '%s\n' "$request" | run_binary "$executable" 2>/dev/null | head -1 || true)"
+			;;
+		tcl | f5-query)
+			output="$(run_binary "$executable" --version 2>&1 || true)"
+			;;
+	esac
 	require_version "$binary" "$output"
 done

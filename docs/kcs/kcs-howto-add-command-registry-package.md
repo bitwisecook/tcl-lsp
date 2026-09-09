@@ -54,10 +54,10 @@ sqlite3`, so it belongs under `stdlib/`.
 **The EDA vendor libraries are not Rust modules.** `sdc_base` and the five
 vendor packs are bundled `SpecTcl` loadables — `specs/*.tclspec`, shipped
 beside the server executable and read by the pack loader
-([spec-packs.md](../design/spec-packs.md)). Adding or editing an EDA command
+([spec-packs.md](../design/registry/spec-packs.md)). Adding or editing an EDA command
 means editing the `.tclspec` file: the syntax is
 [kcs-howto-write-a-tclspec-pack.md](kcs-howto-write-a-tclspec-pack.md),
-`tcl spec check` validates a pack, and
+`mcp__tcl-lsp__spectcl_check` validates a pack, and
 `rust/tcl-spectcl/tests/eda_loadables.rs` is the gate. None of the steps
 below — no module, no `mod` line, no collector entry, no codegen refresh —
 applies to them.
@@ -146,9 +146,9 @@ fail if they are stale.
   `sqlite3 db :memory:` no longer draws an unresolved-command diagnostic
   on `sqlite3`.
 - Hovering `sqlite3` shows the synopsis from your `HoverSnippet`.
-- `tcl callgraph` on a sqlite-using file shows edges into row callbacks
-  *without* a `# tcl-lsp: stub` block in the source — the registry now
-  knows the command shape directly.
+- `tcl diag` reports an arity or subcommand error when you call `sqlite3`
+  wrongly — the registry now knows the command shape directly, with no
+  `# tcl-lsp: stub` block in the source.
 
 ## Related
 

@@ -57,12 +57,17 @@ expect_relevant scripts/dev/changed-paths.sh
 expect_relevant scripts/dev/rust-tests-input-paths.txt
 expect_relevant scripts/dev/rust-tests-package-paths.txt
 expect_relevant scripts/dev/rust-tests-path.sh
+expect_relevant scripts/dev/rust-test-binary-shard.sh
+expect_relevant scripts/dev/rust-test-binary-shards.tsv
 expect_relevant scripts/dev/select-rust-tests-runner.sh
 expect_relevant scripts/dev/persistent-cargo-target.sh
 expect_relevant scripts/dev/test-already-green.sh
+expect_relevant scripts/dev/test-nextest-binary-shards.sh
 expect_relevant scripts/dev/test-rust-tests-paths.sh
 expect_relevant scripts/dev/test-rust-tests-runner.sh
 expect_relevant scripts/dev/test-persistent-cargo-target.sh
+expect_relevant scripts/dev/verify-nextest-binary-shards.py
+expect_relevant scripts/dev/verify-nextest-partitions.py
 expect_relevant rust/bigip-report-gen/templates/report.html.j2
 expect_relevant rust/tcl-vm-wasm/Cargo.toml
 expect_relevant rust/tcl-vm-wasm/Cargo.lock
@@ -255,16 +260,26 @@ grep -Fq '"$rust_tests_path" "$f"' "$WORKFLOW" \
 grep -Fq 'rust_tests_changed=true' "$WORKFLOW" \
     || fail "channel has no fail-closed Rust-test fallback"
 rust_job=$(awk '
-    /^  rust-tests:/ { in_job = 1 }
-    in_job && /^  [A-Za-z0-9_-]+:/ && $1 != "rust-tests:" { exit }
+    /^  rust-tests-shard:/ { in_job = 1 }
+    in_job && /^  [A-Za-z0-9_-]+:/ && $1 != "rust-tests-shard:" { exit }
     in_job { print }
 ' "$WORKFLOW")
-[ -n "$rust_job" ] || fail "ci.yml must define rust-tests"
+[ -n "$rust_job" ] || fail "ci.yml must define rust-tests-shard"
 printf '%s\n' "$rust_job" | grep -Fq "if: needs.channel.outputs.rust_tests_changed == 'true'" \
     || fail "rust-tests expensive steps are not path-gated"
 case "$rust_job" in
     *'if: always() && needs.channel.outputs.rust_tests_changed == '\''true'\'''*'sccache --show-stats'*) ;;
     *) fail "sccache statistics must be skipped when Rust setup is skipped" ;;
+esac
+doctest_job=$(awk '
+    /^  rust-tests-doctest:/ { in_job = 1 }
+    in_job && /^  [A-Za-z0-9_-]+:/ && $1 != "rust-tests-doctest:" { exit }
+    in_job { print }
+' "$WORKFLOW")
+[ -n "$doctest_job" ] || fail "ci.yml must define rust-tests-doctest"
+case "$doctest_job" in
+    *"if: \${{ needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') }}"*'needs: [channel]'*'runs-on: ubuntu-26.04'*"if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'"*'cargo test --workspace --all-features --doc --no-fail-fast'*) ;;
+    *) fail "doctests must be independently hosted and retain changed-path/exact-green step gates" ;;
 esac
 
 echo "root Rust test path and changed-file contracts passed"

@@ -21,26 +21,38 @@ Each loop iteration converts the value between types, multiplying the cost by th
 
 ## Symptoms
 
-- Yellow squiggle under the variable use, with the message "shimmer inside loop body".
+- A yellow squiggle under the variable use, with a message naming both types:
+  "variable 'item' has numeric intrep but 'lindex' expects list (argument 1)".
+  A value that changes type on the loop's back edge reads "'total' merges string
+  and int at control-flow join" instead.
 
 ## Example that triggers it
 
 ```tcl
-foreach item $list {
-    expr {$item + 0}
-    string length $item
+set items [list 1 2 3]
+foreach item $items {
+    puts [expr {$item + 0}]
+    puts [lindex $item 0]
 }
 ```
 
-The analyser reports **`S101`** because `item` shimmers on every iteration.
+The analyser reports **`S101`** on the `lindex`: `item` is converted from
+numeric to list on every iteration.
 
 ## Fix
 
 ```tcl
-foreach item $list {
-    set item_num [expr {$item + 0}]; string length $item
+set items [list 1 2 3]
+foreach item $items {
+    set n [expr {$item + 0}]
+    puts $n
+    puts [lindex [list $item] 0]
 }
 ```
+
+Read each value as one type. `S101` is the in-loop sibling of
+[`S100`](kcs-diagnostic-s100-shimmer-outside-loop.md); the conversion cost is
+the same, multiplied by the iteration count.
 
 ## How to suppress
 

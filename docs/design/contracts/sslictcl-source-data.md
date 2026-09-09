@@ -6,7 +6,7 @@ dependency on a web site, package manager, or source repository.
 
 ## Layout
 
-When the data crate is present, its checked-in bundle has this shape:
+The checked-in bundle has this shape:
 
 ~~~text
 rust/tcl-sslictcl/data/
@@ -15,14 +15,13 @@ rust/tcl-sslictcl/data/
   provenance.json
 ~~~
 
-The checked-in trust snapshot currently comes from Trust Stores Observatory at
-commit `4497c0a43a810c9ddd2c249ae61fecc10ce4c7a6`, covering Apple, Android
-AOSP, Microsoft Windows, Mozilla NSS, OpenJDK, and Oracle Java snapshots. The
-browser coverage additionally pins Chromium Chrome Root Store commit
-`d8639ab8e5fa06c9353560b15afe1c9a8b5c4bc4` and parses its `root_store.certs`
-and `root_store.textproto` (including SCT constraints). The raw PEM bundles
-are parsed during generation; available roots carry complete
-DER, SPKI digest, SKI, and validity metadata in `trust-seed.json`. Roots that
+The trust snapshot comes from Trust Stores Observatory, covering Apple,
+Android AOSP, Microsoft Windows, Mozilla NSS, OpenJDK, and Oracle Java. The
+browser coverage additionally pins the Chromium Chrome Root Store and parses
+its `root_store.certs` and `root_store.textproto` (including SCT constraints).
+`provenance.json` records the exact pinned revision of each. The raw PEM
+bundles are parsed during generation; available roots carry complete DER, SPKI
+digest, SKI, and validity metadata in `trust-seed.json`. Roots that
 the YAML lists but the pinned PEM archive does not contain remain visible as
 memberships and are listed, with a reason, in
 `generated/trust-material-exceptions.json`. They must not be treated as
@@ -66,11 +65,10 @@ kind and path prefix must agree, and the recorded SHA-256 must match the
 checked-in bytes. Paths are repository-relative and cannot escape the data
 tree.
 
-The data crate may provide
-rust/tcl-sslictcl/scripts/update-source-data.sh for the explicit,
-network-capable refresh and
-rust/tcl-sslictcl/scripts/generate-source-data.sh --check for a deterministic
-generated-output check. The top-level wrappers are:
+`rust/tcl-sslictcl/scripts/update-source-data.sh` is the explicit,
+network-capable refresh; `rust/tcl-sslictcl/scripts/generate-source-data.sh
+--check` is the deterministic generated-output check. The top-level wrappers
+are:
 
 ~~~text
 make update-source-data   # network-capable; refresh, normalise, and hash

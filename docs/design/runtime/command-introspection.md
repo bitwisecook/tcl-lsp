@@ -66,7 +66,7 @@ qualified hidden names are rejected up front.
 sorted and deterministic, the same choice the namespace command tables
 make. C answers `interp hidden` — and `info commands` — in
 `Tcl_FirstHashEntry` order instead; that remains the divergence here. Only
-namespace *teardown* reads the retained Tcl hash order (issue #1752), because
+namespace *teardown* reads the retained Tcl hash order, because
 delete traces make it observable in a way an unsorted listing is not.
 
 There is nothing to invalidate downstream: no namespace path targets
@@ -178,18 +178,10 @@ one is, and is created if unknown — C's ``TCL_GLOBAL_ONLY |
 TCL_CREATE_NS_IF_UNKNOWN`` (tclsh-pinned: `-namespace bar` from inside
 `::foo` still names `::bar`).
 
-Two clarifications, both measured on 8.6.16 and 9.0.4:
-
-- **There is no `cannot use -global option and -namespace option
-  together` error.** Earlier revisions of this document, and issue
-  #1412's own item 5, asserted C rejects the pair; it does not, on
-  either release. `-global` is simply spelled `-namespace ::`
-  internally, so the **last** option given wins:
-  `-global -namespace foo` lands in `::foo`, and
-  `-namespace foo -global` lands in `::`.
-- Option matching here is exact, where C's `Tcl_GetIndexFromObj`
-  accepts unambiguous abbreviations (`-g`, `-n`). That gap is part of
-  the wider option-prefix sweep (#1607), not of this surface.
+One clarification, measured on 8.6.16 and 9.0.4: **there is no `cannot use
+-global option and -namespace option together` error.** `-global` is simply
+spelled `-namespace ::` internally, so the **last** option given wins —
+`-global -namespace foo` lands in `::foo`, `-namespace foo -global` in `::`.
 
 ## 3. `info commands` / `info procs`
 
@@ -396,22 +388,6 @@ Running tcllib's `counter.test` as a bundle traps with
 bundle's invocation site even though tcltest's first-stage sourcing completes.
 The cause is the interaction between tcltest's initialisation and the
 namespace-path resolver, not the introspection surface described here.
-
-### 8.3 Divergences in the hidden-command surface
-
-One behavioural gap remains, and it is shared with the rest of the
-`interp` ensemble rather than special to this surface: option words are
-matched **exactly**, where C accepts any unambiguous abbreviation
-(`interp invokehidden {} -g …`, `interp hid …`) and answers the empty
-option word with `ambiguous option ""`. Converting the ensemble's
-hand-spelled option lists to the shared prefix matcher is issue #1607;
-until it lands, only the full spellings are accepted.
-
-The three divergences this section used to list — silent hide/expose
-misses, an overwriting `expose` destination, and `invokehidden` flags
-parsed and discarded — are fixed, on both the `interp <op> path` form
-and the `$child <op>` shorthand. §2.2, §2.3 and §2.5 describe what the
-runtime now does.
 
 ## 9. Implementation map
 

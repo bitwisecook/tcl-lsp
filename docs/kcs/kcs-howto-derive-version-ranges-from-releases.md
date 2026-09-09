@@ -110,6 +110,6 @@ sure about is exactly what the evidence header's notes are for.
 - [How to write a SpecTcl pack](kcs-howto-write-a-tclspec-pack.md)
 - [How to create a command spec without knowing Rust](kcs-howto-create-command-specs-without-rust.md)
 - [The Command Spec Studio](features/kcs-feature-spec-studio.md)
-- [SpecTcl pack design](../design/spec-packs.md)
+- [SpecTcl pack design](../design/registry/spec-packs.md)
 - [KCS index](README.md)
 - [Glossary](../GLOSSARY.md)

@@ -15,11 +15,11 @@ does each section accept, and what values are valid?
 ## Answer
 
 Both the global `config.ini` and the project `.tcl-lsp.ini` use the
-same INI schema. Twelve sections are recognised in total — ten of
-them work in either file, plus one location-specific section for each
-file (`[global]` and `[project]`). Any section or key the parser does
-not know is silently ignored, so a typo turns into a no-op rather
-than an error — check your config takes effect after editing.
+same INI schema. Every section below works in either file except the
+two location-specific ones, `[global]` and `[project]`. Any section or
+key the parser does not know is silently ignored, so a typo turns into
+a no-op rather than an error — check your config takes effect after
+editing.
 
 Keys inside INI sections are **snake_case** (`indent_size`,
 `line_length`). The same settings exposed through editor settings
@@ -33,7 +33,9 @@ when this section appears in the **global** XDG `config.ini`; a
 `[global]` section in `.tcl-lsp.ini` is logged and ignored.
 
 - `dialect` — default dialect for files that have no per-file hint.
-  One of `tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, `tcl9.1`, `f5-irules`, `expect`.
+  Any dialect name the tools accept — `tcl8.4` through `tcl9.1`,
+  `f5-irules`, `f5-iapps`, `f5-tmsh`, `f5-bigip`, `expect`, `tk`, and
+  the EDA dialects. `tcl diag --help` prints the current list.
 - `extraCommands` — comma- or newline-separated list of extra Tcl
   command names the analyser should recognise.
 - `libraryPaths` — one path per line, or comma-separated for one-line
@@ -79,6 +81,18 @@ Controls which diagnostic codes the analyser reports.
   at any depth. See
   [how do I turn off all diagnostics for certain files?](kcs-howto-exclude-files-from-diagnostics.md).
 
+### `[diagnosticSeverity]`
+
+Overrides the severity a code is reported at. Every key is a
+diagnostic code, so there is no fixed key list; each value is
+`default`, `error`, `warning`, `information`, or `hint`.
+
+```ini
+[diagnosticSeverity]
+W112 = hint
+E002 = error
+```
+
 ### `[optimiser]`
 
 Controls the optimiser pipeline.
@@ -86,8 +100,8 @@ Controls the optimiser pipeline.
 - `enabled` — boolean. Turn the optimiser off entirely.
 - `profile` — one of `off`, `readability`, `standard`, `full`,
   `aggressive`. Picks the default set of optimisations.
-- `disabled` — comma- or whitespace-separated list of O-codes
-  (`O100`–`O127`) to turn off, on top of the profile.
+- `disabled` — comma- or whitespace-separated list of O-codes to turn
+  off, on top of the profile.
 
 ### `[shimmer]`
 
@@ -109,11 +123,15 @@ the server stop advertising or running that feature. Valid keys:
 `hover`, `completion`, `diagnostics`, `semanticTokens`,
 `codeActions`, `definition`, `references`, `documentSymbols`,
 `folding`, `rename`, `signatureHelp`, `workspaceSymbols`,
-`inlayHints`, `callHierarchy`, `documentLinks`, `selectionRange`,
-`documentHighlight`, `codeLens`, `workspaceFileOps`,
-`willSaveWaitUntil`, `progress`,
-`implementation`, `typeDefinition`, `declaration`,
-`linkedEditingRange`, `crossFileResolution`.
+`inlayTypeHints`, `inlayParameterHints`, `callHierarchy`,
+`documentLinks`, `selectionRange`, `documentHighlight`, `codeLens`,
+`workspaceFileOps`, `willSaveWaitUntil`, `implementation`,
+`typeDefinition`, `declaration`, `linkedEditingRange`,
+`crossFileResolution`.
+
+Four are opt-in and off until you set them: `inlayTypeHints`,
+`inlayParameterHints`, `willSaveWaitUntil`, and
+`crossFileResolution`.
 
 ### `[signatureHelp]`
 
@@ -136,30 +154,35 @@ effect on plain Tcl projects.
 
 ### `[formatting]`
 
-Controls the formatter. The most commonly tuned keys are:
+Controls the formatter. The keys an INI file can set are:
 
 - `indent_size` — integer, 1–16.
 - `indent_style` — `spaces` or `tabs`.
 - `continuation_indent` — integer, 1–16.
 - `brace_style` — currently `k_and_r`.
 - `max_line_length`, `goal_line_length` — integers, both ≥ 40.
-- `line_ending` — `lf`, `crlf`, or `cr`.
+- `line_ending` — `auto`, `lf`, `crlf`, or `cr`.
+- `blank_lines_between_procs`, `blank_lines_between_blocks`,
+  `max_consecutive_blank_lines` — integers.
 - `ensure_final_newline`, `trim_trailing_whitespace`,
   `space_after_comment_hash`, `space_between_braces`,
-  `align_comments_to_code`, `enforce_braced_variables`,
-  `enforce_braced_expr`, `expand_single_line_bodies`,
-  `docstring_decoration` — booleans.
-- `docstring_style` — `preceding`, `body`, or `none`.
-- `docstring_tag_style` — `doxygen`, `plain`, or `none`.
+  `enforce_braced_variables`, `expand_single_line_bodies` — booleans.
 
-The complete list, with defaults and ranges, is in the
+The formatter's remaining knobs — docstrings, comment alignment,
+`enforce_braced_expr`, abbreviation expansion — are editor settings
+only (`tclLsp.formatting.*`); the INI parser does not read them.
+Defaults and ranges are in the
 [configuration contract](../design/contracts/xdg-config.md).
 
 ### `[style]`
 
 Style settings that affect linting but not formatting.
 
-- `line_length` — integer.
+- `line_length` — integer, ≥ 40. The
+  [W111](codes/kcs-diagnostic-w111-line-too-long.md) threshold.
+- `nonAscii` — `strict`, `confusables`, `common`, or `off`. How much
+  non-ASCII text
+  [W108](codes/kcs-diagnostic-w108-non-ascii-characters.md) flags.
 
 ### `[packages]` and `[packages.provides]`
 
@@ -232,9 +255,9 @@ it. The same settings are available to editors as `tclLsp.iruleslx`
 ### What you cannot put in an INI file
 
 A handful of settings are only honoured when they come from editor
-settings via `workspace/configuration`; the INI parser ignores them.
-Today this includes the `runtimeValidation`, `ai`, and
-`packageManager` sections.
+settings via `workspace/configuration`; the INI parser ignores them:
+the `runtimeValidation`, `ai`, `packageManager`, `notifications`, and
+`web` sections.
 
 If you set one of these in `config.ini` or `.tcl-lsp.ini` it has no
 effect — use your editor's settings instead. See
@@ -248,5 +271,5 @@ for the full list of layers and where to put each kind of setting.
 - [How do I turn a diagnostic, optimisation, or shimmer off?](kcs-howto-suppress-diagnostics.md)
 - [How do I turn off all diagnostics for certain files?](kcs-howto-exclude-files-from-diagnostics.md)
 - [Per-code catalogue](codes/README.md)
-- [iRulesLX remote methods](../design/iruleslx-remote-methods.md)
+- [iRulesLX remote methods](../design/f5/iruleslx-remote-methods.md)
 - [Glossary](../GLOSSARY.md)

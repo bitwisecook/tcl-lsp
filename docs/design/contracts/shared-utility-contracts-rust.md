@@ -33,6 +33,7 @@ entry point, or gate moves without this contract being updated.
 | Surface | Owner source paths | Public entry points | Dialect/release axis | Drift gate |
 | --- | --- | --- | --- | --- |
 | names / namespaces | `rust/tcl-syntax/src/naming.rs`; `rust/tcl-cmd-core/src/namespace.rs` | `qualifier_segments`; `command_resolution_candidates`; `qualifiers`; `tail`; `exists`; `exists_bytes`; `parent`; `parent_bytes`; `children`; `children_bytes`; `which_request`; `which_command`; `which_command_bytes`; `which_variable`; `variable_fqn`; `variable_fqn_bytes`; `import_pattern`; `origin`; `origin_bytes`; `TclStringHashOrder`; `TclStringHashOrder::statistics` | invariant, except `which_variable`'s alternate (global) candidate, which 9.0 drops; absolute-marker contract from #1493 | `xtask-resolution-drift` |
+| runtime command-table identity | `rust/tcl-core-types/src/lib.rs`; `rust/tcl-runtime-api/src/command_identity.rs` | `CommandSlot`; `StaticNamespacePath`; `StaticCommandSlot`; `display_namespace`; `display_command`; `encode_command_slot`; `CommandId`; `NsId`; `OoId` | invariant; written-name parsing remains selected at ingress by the document/runtime dialect | none |
 | lists | `rust/tcl-syntax/src/list.rs` | `find_element`; `split_list`; `list_element`; `join_list`; `append_list_element`; `junk_fragment` | invariant | none |
 | dicts | `rust/tcl-syntax/src/list.rs`; `rust/tcl-syntax/src/value.rs`; `rust/tcl-cmd-core/src/dict.rs` | `find_element`; `split_list`; `canonical_dict_slots`; `ValueOps::dict_pairs`; `ValueOps::dict_hash_bucket_count`; `ValueOps::new_dict_with_hash_bucket_count`; `worded_parse_error`; `dict::info` | invariant | none |
 | glob matching | `rust/tcl-syntax/src/glob.rs` | `string_match`; `string_match_bytes`; `string_case_match` | invariant | none |
@@ -48,7 +49,10 @@ entry point, or gate moves without this contract being updated.
 | option words / subcommands | `rust/tcl-cmd-core/src/prefix.rs`; `rust/tcl-cmd-core/src/ensemble.rs`; `rust/tcl-registry/src/hover.rs`; `rust/tcl-registry/src/spec.rs` | `OptionTable`; `OptionSpec`; `SubCommand`; `first_positional_index`; `ensemble::EnsembleToken`; `ensemble::InvocationLayout`; `ensemble::invocation_layout`; `ensemble::UNKNOWN_DELETED_MESSAGE`; `ensemble::UNKNOWN_DELETED_ERROR_CODE`; `ensemble::CREATE_OPTIONS`; `ensemble::CONFIG_OPTIONS`; `ensemble::SUBCOMMANDS`; `ensemble::resolve_subcommand`; `ensemble::subcommand_choices`; `ensemble::unknown_subcommand_message`; `ensemble::validate_map_targets` | option surface per release/dialect; ensemble token lifecycle and invocation layout invariant | `xtask-option-registry-drift` |
 | trace argument decoding | `rust/tcl-cmd-core/src/trace.rs` | `TraceKind`; `resolve_option`; `resolve_type`; `parse_ops`; `parse_legacy_variable_ops`; `legacy_ops_letters`; `callback_op_word` | option surface per release (the 8.x-only `variable`/`vdelete`/`vinfo` forms) | none |
 | sort numeric parsing | `rust/tcl-cmd-core/src/sort.rs` | `parse_wide`; `parse_real` | `NumberSyntax` per release | none |
-| command errors | `rust/tcl-cmd-core/src/error.rs` | `CmdError`; `wrong_args`; `bad_choice` | invariant | none |
+| command errors | `rust/tcl-cmd-core/src/error.rs` | `CmdError`; `wrong_args`; `bad_choice`; `with_error_details` | invariant | none |
+| channel output configuration / encoding | `rust/tcl-platform/src/lib.rs`; `rust/tcl-cmd-core/src/channel.rs`; `rust/tcl-registry/src/commands/tcl/fconfigure_.rs` | `SystemEncoding`; `Host::system_encoding`; `ChannelConfig`; `StandardChannelConfigs`; `OpenAccess`; `resolve_open_access_mode`; `ChannelDirection`; `ChannelEncoding`; `EncodingProfile`; `OutputTranslation`; `resolve_fconfigure_option`; `config_list`; `config_value`; `set_config_value`; `encode_output`; `encode_output_bytes`; `EncodedOutput`; `EILSEQ_ERROR_CODE` | system encoding per host locale and interpreter tree; option availability per dialect profile; open-access validation and profile/binary defaults per Tcl release; mutable direction-specific state per channel | none |
+| Tcl completion options / structured error stacks | `rust/tcl-runtime-api/src/completion_options.rs`; `rust/tcl-runtime-api/src/error_stack.rs` | `completion_options::plan`; `completion_options::retained_array_read_options`; `completion_options::ControlOptionPolicy`; `completion_options::ErrorOptions`; `completion_options::OptionValue`; `error_stack::ErrorStack`; `error_stack::validate_error_stack`; `error_stack::ErrorStackValueError` | standard option overlay follows completion code/level; control commands independently select inherited/fresh body options and forwarded/settled success options; TIP 348 `-errorstack` is available from Tcl 8.6; shifted contexts use the concrete runtime's frame count | none |
+| trace-aware array enumeration | `rust/tcl-runtime-api/src/lib.rs`; `rust/tcl-cmd-core/src/array.rs`; `rust/tcl-syntax/src/value.rs` | `ArrayTarget`; `ArrayElementRead`; `ArrayReadMiss`; `ArrayReadFailure`; `ArrayInvalidation`; `VarStore::array_target`; `VarStore::array_read_elem_at`; `ValueOps::pin_value`; `ValueOps::unpin_value`; `array::dispatch_at` | Tcl variable-cell identity and array-before-element trace ordering; linked-element recovery/reporting follows the selected release | none |
 | expression grammar / evaluation | `rust/tcl-syntax/src/expr/parser.rs`; `rust/tcl-syntax/src/expr/eval.rs`; `rust/tcl-registry/src/expr_surface.rs` | `parse_expr`; `eval`; `RuntimeExprSurface` | `RuntimeExprSurface` per release | none |
 | expr math functions and the `rand` generator | `rust/tcl-syntax/src/expr/mathfunc.rs`; `rust/tcl-syntax/src/expr/rand.rs` | `NumValue`; `dispatch`; `dispatch_with_backend_int_width`; `try_dispatch_with_backend_int_width`; `IntWidth`; `MathFuncError`; `MathFuncSince`; `spec`; `all`; `added_in`; `seed_from_wide`; `next_draw`; `seed_and_draw` | `MathFuncSince` per release for the function surface and `IntWidth` for `int()`'s width; the Park-Miller generator is release-invariant | none |
 | command / word segmentation | `rust/tcl-lexer/src/script.rs`; `rust/tcl-compiler/src/segmenter.rs`; `rust/tcl-compiler/src/parsing/syntax/build.rs`; `rust/tcl-compiler/src/parsing/syntax/segment.rs` | `group_commands`; `CommandSpan`; `WordSpan`; `WordKind`; `SegmentedCommand`; `segment_commands` | `LexerConfig` per document dialect | `xtask-segmentation-drift` |
@@ -58,7 +62,7 @@ entry point, or gate moves without this contract being updated.
 | iRules execution boundaries and placement | `rust/tcl-syntax/src/event_handler.rs`; `rust/tcl-registry/src/events.rs`; `rust/tcl-registry/src/registry.rs`; `rust/tcl-irules/src/when_block.rs`; `rust/tcl-irules/src/executable.rs` | `event_handlers`; `event_handlers_with_head_predicate`; `script_commands`; `top_level_when_handlers_with_registry_and_head_resolver`; `IrulesDeclarationArguments`; `IrulesExecutionContext`; `IrulesCommandPlacement`; `IrulesTopLevelDeclaration`; `IrulesTopLevelEffect`; `CommandRegistry::irules_command_placement`; `CommandRegistry::irules_event_declaration`; `CommandRegistry::irules_top_level_declaration`; `CommandRegistry::irules_top_level_declaration_shape`; `CommandRegistry::irules_top_level_effect`; `when_blocks`; `irules_executable_commands` | caller-supplied `LexerConfig`; offset-keyed resolved command identity; exact single-braced declaration body; declaration-only top level; known-event roots; call-reachable procedure bodies; stateful priority (`0..=1000`, default 500) | `xtask-gen-ai-diagnostics` |
 | text similarity | `rust/tcl-compiler/src/text.rs` | `edit_distance`; `rank_suggestions`; `rank_containment_suggestions` | invariant | none |
 | per-command knowledge | `rust/tcl-registry/src/spec.rs`; `rust/tcl-registry/src/hooks.rs`; `rust/tcl-registry/src/registry.rs` | `CommandSpec`; `SubCommand`; `CommandRegistry` | per release/dialect | `xtask-command-backing` |
-| dialect / release facts | `rust/tcl-dialect/src/profile.rs`; `rust/tcl-dialect/src/grammar.rs`; `rust/tcl-dialect/src/version.rs`; `rust/tcl-dialect/data/reference-toolchains.tsv` | `DialectProfile`; `LexerGrammar`; `TclVersion`; `TclVersion::patchlevel`; `TclVersion::reference_source_tag`; `find` | the resolved dialect/release axis plus exact pinned reference patchlevel/source tag | `xtask-editor-extensions` |
+| dialect / release facts | `rust/tcl-dialect/src/profile.rs`; `rust/tcl-dialect/src/grammar.rs`; `rust/tcl-dialect/src/version.rs`; `rust/tcl-dialect/data/reference-toolchains.tsv` | `DialectProfile`; `LexerGrammar`; `TclVersion`; `TclVersion::patchlevel`; `TclVersion::reference_source_tag`; `TclVersion::has_error_stack`; `find` | the resolved dialect/release axis plus exact pinned reference patchlevel/source tag | `xtask-editor-extensions` |
 | C Tcl conformance oracles | `rust/tcl-test-support/src/lib.rs` | `reference_patchlevel`; `reference_source_tag`; `locate_tclsh`; `available_tclshs`; `run_script`; `locate_source_tree`; `Tclsh`; `TclSourceTree`; `ScriptOutcome` | exact interpreter/source agreement and provenance for the selected release line | none |
 | interpreter platform bootstrap | `rust/tcl-platform/src/lib.rs` | `bootstrap::Values`; `bootstrap::Snapshot`; `bootstrap::snapshot`; `bootstrap::entries`; `bootstrap::HOST_ARRAYS`; `bootstrap::HOST_PATH_GLOBALS`; `bootstrap::safe_scrub_keys`; `bootstrap::SHARED_LIBRARY_EXTENSION` | key, selected-host snapshot, rebootstrap-clear, safe-scrub, and canonical Unix shared-library suffix invariant; runtime identity supplied per engine | none |
 | shared plain types | `rust/tcl-core-types/src/diag_code.rs` | `DiagCode` | invariant | `xtask-diag-tables` |
@@ -117,6 +121,56 @@ entry point, or gate moves without this contract being updated.
   each engine's `make_safe` consumes the derived scrub iterator. A fresh
   tree-walk `Interp`, its normal children, and bytecode-VM children all install
   the surface before any `init.tcl` work.
+
+### `tcl-runtime-api` — completion metadata
+
+- `completion_options::plan` owns the standard Tcl return-options overlay.
+  Engines supply their concrete values and live error metadata; the owner
+  preserves carried custom and explicit return options, replaces `-code` and
+  `-level` with their settled values, and release-gates only the synthesis of
+  TIP 348 `-errorstack`. A carried option named `-errorstack` remains an
+  ordinary custom pair on Tcl 8.4/8.5 and must not be deleted or validated as
+  TIP 348 metadata there.
+- `completion_options::retained_array_read_options` owns the carried metadata
+  for a candidate read that `array get` skips. Both runtime adapters materialise
+  the typed `ArrayReadMiss` into their value model and pass the pairs through
+  `plan`; neither assembles a private return-options dictionary.
+- `completion_options::ControlOptionPolicy` owns control-command boundaries as
+  two independent axes: whether a nested body activation begins with inherited
+  or fresh options, and whether the successful owner forwards that body's
+  options or settles an ordinary option set. Both runtime engines consume this
+  vocabulary; bytecode carries the activation scope as instruction metadata
+  instead of recognising command names in the executor. Alias trampolines use
+  the same fresh/forwarded policy, including when they cross interpreters, so
+  target-produced options cross the wrapper but caller options do not leak in.
+- `error_stack::ErrorStack` owns TIP 348's flat tag/value shape, lazy reset,
+  explicit-stack adoption, and procedure-boundary `CALL` rule. The native VM
+  and portable runtime render their own value types but do not reproduce that
+  lifecycle. `TclVersion::has_error_stack` is the release fact: Tcl 8.6 and
+  later expose it; older and vendor profiles inherit their selected runtime.
+
+### `tcl-runtime-api` + `tcl-cmd-core` — trace-aware array enumeration
+
+- `ArrayTarget` is the variable cell located before an array-operation trace.
+  `array::dispatch_at` snapshots candidate keys from that cell, then asks
+  `VarStore::array_read_elem_at` to perform each live, trace-aware read. This is
+  the one boundary at which a runtime may combine its stable cell identity,
+  frame/namespace lookup, alias movement, and trace engine.
+- The runtime fires the containing-array and element read traces in Tcl order,
+  resolving the element group only after the containing-array callbacks have
+  completed. It then reports `Value`, `Missing(ArrayReadMiss)`,
+  `TraceError(ArrayReadFailure)`, or `ArrayInvalidated`. A callback error wins
+  when that callback also invalidated the base; otherwise the shared command
+  owner skips a missing candidate and chronologically merges miss metadata.
+- `ArrayElementRead` returns its `Value` variant transiently owned across the
+  runtime boundary.
+  Pointer-backed runtimes call `ValueOps::pin_value` before releasing the
+  selected cell; the shared owner calls `unpin_value` after `new_list` has
+  retained every element, and on every earlier hard-error exit. Owning value
+  models implement those hooks as no-ops.
+- The cell/ordering rules apply across the runtime releases. The callback name
+  recovered through a scalar-looking alias to an array element does not:
+  engines continue to gate that spelling through their selected Tcl release.
 
 ### `tcl-syntax` — the parse grammars and value seam
 
@@ -208,8 +262,8 @@ entry point, or gate moves without this contract being updated.
   hexadecimal digits; a fourteenth digit invalidates the parenthesised form.
   The scanner and value parser share it.
 
-- `tcl_dialect::DialectProfile::find` — the one **catalogue** lookup left on
-  the profile (P1-G): canonical name or registered alias to interned profile,
+- `tcl_dialect::DialectProfile::find` — the one **catalogue** lookup on the
+  profile: canonical name or registered alias to interned profile,
   `None` for everything else. It is what the environment seam and the
   documented per-crate interop twins are built on, and it resolves an
   environment id, never a user-written string. The retired name validators
@@ -242,9 +296,8 @@ entry point, or gate moves without this contract being updated.
   then `ResolvedContext::authoring_query`, as
   `static_document_context_for` returns it). It is what keeps the additive
   `tk` ingress working: the `tk` environment's point names `Tk` among its
-  packages even though the analyser-facing fallback's does not — the union
-  the retired `availability_for_name` used to compute at the string
-  boundary, now a fact of the resolved environment.
+  packages even though the analyser-facing fallback's does not — the union is
+  a fact of the resolved environment, never recomputed at a string boundary.
 
 ### `tcl-lexer` — source-text decoding
 
@@ -359,14 +412,13 @@ entry point, or gate moves without this contract being updated.
   `segmenter.rs` / `ir.rs` `WordExpr` builder. Only one raised C's `missing
   close-bracket`; only one found a `]` without being fooled by a brace,
   quote or comment in the substituted script; only one decoded a literal
-  run's escapes. All four are consumers now: `runtime/rust`, `tcl-vm`, and
-  — since #1785 — the compiler, whose `WordExpr` builder moved out of
-  `ir.rs`'s fragment walk into `word_expr.rs` over `decompose_spanned`.
-  The segmenter keeps what it owns, command and word boundaries; only the
-  within-word breakdown is the owner's. `differential_word_expr` holds a
-  frozen copy of the walk that was replaced and asserts the new production
-  against it across crafted edge cases, the sample corpus and tcllib, so
-  the adoption's behaviour changes are enumerated rather than assumed.
+  run's escapes. All four are consumers: `runtime/rust`, `tcl-vm`, and the compiler, whose
+  `WordExpr` builder lives in `word_expr.rs` over `decompose_spanned` rather
+  than in `ir.rs`'s fragment walk. The segmenter keeps what it owns, command
+  and word boundaries; only the within-word breakdown is the owner's.
+  `differential_word_expr` asserts that production against a frozen reference
+  walk across crafted edge cases, the sample corpus and tcllib, so any
+  behaviour difference is enumerated rather than assumed.
 
   The module sits in `tcl-lexer` because its dependencies already do —
   `braced_var_name_end`, `scan_array_index`, `command_substitution_end`,
@@ -409,15 +461,6 @@ entry point, or gate moves without this contract being updated.
   reference, so a surviving bare `$` is data. Modelling that as a flag on
   the shared scan is what keeps the VM on this owner rather than justifying
   a private copy.
-
-  **Not yet adopted: `tcl-compiler::segmenter`.** The fourth copy is still
-  live. The API is shaped for it — `decompose` takes a word's content span
-  plus a `LexerConfig` and returns parts whose byte extents are recoverable
-  from the borrows, which is what `WordExpr` / `WordPart` need to keep
-  their public shape, so `CommandTokens::from_segmented` maps part for
-  part. The segmenter keeps owning *command* and *word* boundaries; only
-  the within-word breakdown moves. Tracked in
-  `docs/design/lanes/wasm-native-lowering.md` § `r10-word-parts`.
 
 - `structural_index::command_boundaries` — the byte-scanned **reparse
   split points**, and, with `script_is_complete` and `reparse_window`, its
@@ -480,6 +523,21 @@ entry point, or gate moves without this contract being updated.
 
 ### `tcl-cmd-core` — portable command logic
 
+- `channel` owns output-facing channel configuration and encoding. The host
+  supplies one typed `SystemEncoding`; `ChannelConfig` derives Tcl 8/Tcl 9
+  profile defaults, retains each channel's input/output translation and common
+  encoding, and `StandardChannelConfigs` owns the predefined handle defaults.
+  The command registry resolves the dialect-filtered `fconfigure` option into
+  a typed operation; `config_list`, `config_value`, and `set_config_value` own
+  its runtime-neutral state policy. `OpenAccess` and
+  `resolve_open_access_mode` normalise both simple and Tcl-list access modes so
+  handle permissions, creation flags, direction, and binary configuration
+  cannot diverge between adapters. `encode_output` and `encode_output_bytes`
+  return raw bytes together with a possible conversion error, preserving Tcl's
+  successfully converted prefix before `POSIX EILSEQ`. Runtime channel tables
+  own handles, sharing topology, and mutable instances of this state, but do
+  not reimplement access modes, encoders, binary mode, locale interpretation,
+  translation, option availability, or conversion-profile policy.
 - `namespace` — the pure `::` byte-ops `tail` / `qualifiers`
   (`last_sep_run`: colon runs are one separator) plus the
   `Namespaces`-generic cores. Runtime name resolution routes through
@@ -488,8 +546,8 @@ entry point, or gate moves without this contract being updated.
   (rename re-homing, `proc` namespace derivation) are built on them.
   The generic cores cover `current` / `exists` / `parent` / `children`
   (including byte-valued twins and Tcl string-hash enumeration order), the
-  positional `which_request`, import-source validation, `which_command` and,
-  since #1442, `which_variable` (the
+  positional `which_request`, import-source validation, `which_command`, and
+  `which_variable` (the
   `Tcl_FindNamespaceVar` probe — namespace variable tables only, never
   a call frame; its *alternate* global-rooted candidate is the one
   release axis, dropped by 9.0's `flags |= TCL_NAMESPACE_ONLY`) and
@@ -520,14 +578,11 @@ entry point, or gate moves without this contract being updated.
   a comma before `or` even for two entries (`bar, or baz`) — the
   wording `prefix::choice_list` must not be used for.
   Consumers of the scan and of `unknown_subcommand_message`: both
-  engines' script ensembles, and — since #1607 — their built-in `info`
-  and `file` ensembles (the VM's two hand-rolled
-  exact-then-unique-prefix loops and its list-less miss sentence are
-  gone; the runtime's `file` keeps the registry's release-gated name
-  set and borrows only the sentence), plus their `string` and
-  `tcl::prefix` ensembles — `tcl::prefix`'s enumeration used to come
-  from `prefix::choice_list_bytes`, the wrong owner, which happens to
-  agree only because that list has three entries — and their `dict` and
+  engines' script ensembles and their built-in `info` and `file`
+  ensembles (the runtime's `file` keeps the registry's release-gated
+  name set and borrows only the sentence), plus their `string` and
+  `tcl::prefix` ensembles — `tcl::prefix`'s enumeration comes from the
+  ensemble owner, not `prefix::choice_list_bytes` — and their `dict` and
   `array` ensembles, where resolving the word first is also what makes
   `array e a` fire the variable's `array` trace under the canonical
   name — and their `binary`, `binary encode`/`decode` (the one
@@ -576,8 +631,8 @@ entry point, or gate moves without this contract being updated.
   match` `-message`). Consumers: `switch`/`lsort`/`lsearch`/`regexp`/
   `regsub`/`trace`/`string is` option words (this crate), the VM's
   `tcl::prefix match` and `string is`, the WASM runtime's `string`
-  ensemble, `tcl::prefix match`, OO option tables, and — since #1607 —
-  both engines' `interp debug` option word (noun `debug option`),
+  ensemble, `tcl::prefix match`, OO option tables, and both engines'
+  `interp debug` option word (noun `debug option`),
   `interp limit` type word (noun `limit type`), and the `interp`
   ensemble, child-as-command, `interp create` and `interp invokehidden`
   option words. Where an engine advertises only the subcommands it
@@ -673,6 +728,25 @@ entry point, or gate moves without this contract being updated.
   or the file-level bucket, which silences a different set of findings than
   the directive names.
 
+### `tcl-core-types` + `tcl-runtime-api` — command-table identity
+
+- `CommandSlot` is the dependency-low, generic identity of one Tcl
+  command-table entry. A namespace handle/path and the simple tail remain
+  separate because Tcl permits distinct slots whose fully-qualified display
+  strings collide (`a: -> b` and `a -> :b` both render as `::a:::b`). Runtime
+  tables use `CommandSlot<String, NsId>`; static compiler and workspace tables
+  use the `StaticCommandSlot` alias over `StaticNamespacePath`.
+- `display_namespace` and `display_command` are output projections only.
+  `encode_command_slot` is the sole injective compatibility encoding for a
+  consumer that still requires a string map key. No consumer may parse either
+  projection back into semantic identity. Native namespace tables retain
+  explicit parent/child `NsId` edges.
+- `OoId` is the shared interpreter-local identity for a TclOO object or class.
+  The native runtime carries it through class/object/provider and active-call
+  relationships; mutable command slots and display names remain projections
+  attached to that stable token. The standalone migration tracked by #1764
+  must import this owner rather than declare a private duplicate.
+
 ### `tcl-syntax` — event-handler boundaries
 
 - `event_handlers` is the dependency-low extractor for live
@@ -727,7 +801,7 @@ entry point, or gate moves without this contract being updated.
   It walks the canonical syntax tree and constructs no interpreter, so the
   document is never evaluated — not even a `check`'s `predicate`, which it
   retains verbatim. `DECLARATIONS` is the machine-readable statement of the
-  vocabulary the loader implements; `docs/design/sslictcl-vocabulary.md` is
+  vocabulary the loader implements; `docs/design/f5/sslictcl-vocabulary.md` is
   its prose, and a unit test holds the two together.
 - `evaluate_policy` owns **finding identity**: a policy finding is
   `(check id, endpoint)`, which is why the `grade` id is reserved and why
@@ -791,18 +865,14 @@ entry point, or gate moves without this contract being updated.
    vanishes silently, which is the defect the record shape exists to
    prevent.
 
-   *Retired (redesign §11.1 O2, ruled 2026-08-27).* The per-argument
-   **lifecycle** machinery this point used to describe —
-   `arg_rows: &[VersionedArgRow]` retained beside the slices,
-   `project_arg_rows`, `ArgTables`, `CommandSpec::arg_tables_at`,
-   `CommandRegistry::arg_indices_for_role_at` and `command_prefixes_at` —
-   is deleted. It was declared-and-unpopulated surface: no shipped spec and
-   no pack ever gated an argument row, so every accessor took the
-   `is_empty()` fast path at every call and the only consumers were their
-   own tests. The retired-api gate now holds all seven spellings. Anything
-   that needs a per-argument version gate later comes back **with** its
-   consumer (principle P-C), and the projection point above is where it
-   would attach.
+   There is no per-argument **lifecycle** machinery, and the retired-api gate
+   (`make xtask-retired-api-gate`) bans every spelling of it — `arg_rows`,
+   `VersionedArgRow`, `ProjectedArgs`, `ArgTables`, `arg_tables_at`,
+   `project_arg_rows`, `arg_indices_for_role_at`, `command_prefixes_at`.
+   Declared-and-unpopulated surface costs an `is_empty()` probe on every call
+   and has no consumer but its own tests. A per-argument version gate comes
+   back **with** its consumer (principle P-C), and `ArgRows::seal` above is
+   where it would attach.
 
    The version-gated facts that remain — a *value*'s own `Lifecycle` and
    `versioned_arg_values` — keep the request-time discipline the rest of
@@ -841,25 +911,21 @@ entry point, or gate moves without this contract being updated.
   lookup are hash probes, not tables: only the **join**
   (`prefix::tcloo_choice_list_bytes`) is shared.
 - `glob` is **not** an exception — both engines resolve its option words
-  through `OptionTable` since #1607 — but the two halves landed for
-  different reasons and the record belongs here. The WASM runtime's
-  scan already rejected an unknown option exactly as C does, so its
-  conversion changed no accept/reject decision. The bytecode VM's
-  silently *skipped* any unrecognised `-word`, so `glob -x a` ran and
-  `-types d` leaked its value into the pattern list; converting it makes
-  the VM reject unknown options, which is a deliberate behaviour change
-  ruled on for that sweep rather than an incidental one. Because the
-  table now advertises `-tails` and `-types`, the VM honours them too —
-  no engine may advertise an option it ignores. Both engines' text is
+  through `OptionTable`, and the record belongs here because the VM's
+  rejection of an unknown option is a ruled-on behaviour, not an incidental
+  one: `glob -x a` must error rather than run, and `-types d` must not leak
+  its value into the pattern list. The table advertises `-tails` and
+  `-types`, so the VM honours them — no engine may advertise an option it
+  ignores. Both engines' text is
   tclsh 8.6.16/9.0.4-exact (`bad option "-x": must be -directory, -join,
   -nocomplain, -path, -tails, -types, or --`), pinned in
   `glob_option_words_resolve_like_tcl_get_index_from_obj` on each side.
 - `tcl_registry::abbrev::KeywordTable` is a fourth prefix matcher (it
   supports `min_abbrev` and carries the ambiguous candidates), reached
   through `CommandSpec::resolve_subcommand_word` by the WASM runtime's
-  `file` dispatch and the VM's `namespace`. It is out of scope for the
-  "new command modules MUST resolve through `OptionTable`" rule above;
-  reconciling the two matchers is its own piece of work (#1607).
+  `file` dispatch. It answers a registry-authored keyword set rather than an
+  `OptionTable`, so the "new command modules MUST resolve through
+  `OptionTable`" rule above does not reach it.
 
 Each of these is a *documented* divergence — keep the comment at the
 site pointing back here, and do not "fix" them onto the canonical
@@ -906,10 +972,8 @@ helper without reading the rationale:
 - `tcl-cmd-core::ensemble::subcommand_choices` — the **ensemble**
   subcommand enumeration, which C renders with a comma before `or`
   even for two items (`x1, or x2`), unlike `Tcl_GetIndexFromObj`; it
-  must not be collapsed onto `tcl-cmd-core::prefix::choice_list`.
-  (Both runtimes used to keep their own copy — the VM's `oxford_or`
-  and the WASM runtime's `ensemble::must_be`; #1453 moved the quirk
-  into the owner instead of leaving it duplicated.)
+  must not be collapsed onto `tcl-cmd-core::prefix::choice_list`, and
+  neither runtime may keep a private copy of the quirk.
 - The LSP-side matchers (semantic-tokens / minify candidate ranking)
   and `tcl_syntax::boolean` keep their own prefix rules — different
   contracts (ranking, fixed vocabulary with cross-set ambiguity), not
@@ -1054,10 +1118,12 @@ helper without reading the rationale:
 - `rust/tcl-vm/tests/language_e2e.rs` —
   `zero_length_array_name_is_an_array_element` and
   `link_commands_reject_element_looking_names` (`split_element_ref`).
-- `rust/tcl-registry/src/spec.rs` —
-  `projection_carries_every_row_column` (rule 6's drift gate) and
-  `a_row_outside_the_floor_is_filtered_from_every_slice`;
-  `rust/tcl-registry/src/arity.rs` —
+- `rust/tcl-spectcl/src/loader.rs` — `ArgRows::seal`, the single projection
+  point rule 6 names; `rust/tcl-registry/src/spec.rs` —
+  `available_arg_values_filters_the_declared_table`,
+  `primary_synopsis_skips_a_form_the_floor_predates` and
+  `sub_subcommand_resolution_honours_the_package_floor` for the request-time
+  floor; `rust/tcl-registry/src/arity.rs` —
   `adjacent_windows_do_not_overlap_but_straddling_ones_do`;
   `rust/tcl-registry/tests/registry_sweep.rs` —
   `arity_window_gate_rejects_each_malformed_shape` (the shipped-spec
@@ -1079,8 +1145,8 @@ helper without reading the rationale:
   `dialect_divergences_are_pinned` for the two axes the byte scanner is
   deliberately blind to. `make xtask-segmentation-drift` is the
   banned-spelling gate that keeps a *new* consumer from re-deriving
-  either boundary privately — including, since #1787, by collecting C's
-  parse-error messages into a private list instead of asking
+  either boundary privately — including by collecting C's parse-error
+  messages into a private list instead of asking
   `tcl_lexer::first_parse_cut`.
 - `runtime/rust/tests/parse_cut_agreement.rs` — the parse-error cut gate.
   The cut is applied twice on purpose: `first_parse_cut` answers it from
@@ -1098,8 +1164,8 @@ helper without reading the rationale:
 
 ## Discoverability
 
-- [KCS index](../README.md)
+- [design docs index](../README.md)
 - [project-layout.md](project-layout.md) — the crate boundaries these
   ownership rules sit inside.
-- [family-b-routing.md](../family-b-routing.md) — the runtime seam this
+- [family-b-routing.md](../runtime/family-b-routing.md) — the runtime seam this
   crate layering serves.

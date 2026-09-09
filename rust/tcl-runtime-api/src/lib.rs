@@ -28,7 +28,7 @@
 //! `Value`. It deliberately contains no implementations; a runtime such as the
 //! bytecode VM (`tcl-vm`) satisfies it over its own value/storage model.
 //!
-//! See `docs/design/common-runtime-emitter-architecture.md` §4 (Family B).
+//! See `docs/design/runtime/family-b-routing.md` §1.
 
 // The value-less vocabulary (the completion `Code`, the generic `Completion<V>`,
 // and the opaque arena handles) lives in the dependency-free `tcl-core-types`
@@ -38,8 +38,17 @@
 // these role traits without pulling in `tcl-bytecode`. Re-exported here so
 // existing `tcl_runtime_api::{Code, Completion, NsId, …}` consumers are unaffected.
 pub use tcl_core_types::{
-    Code, CommandId, Completion, FrameId, GLOBAL_FRAME, NsId, ROOT_NS, VarId,
+    Code, CommandId, CommandSlot, Completion, FrameId, GLOBAL_FRAME, NsId, OoId, ROOT_NS, VarId,
 };
+
+/// Shared structured identities and one-way static display projections.
+pub mod command_identity;
+
+/// Standard Tcl return-option construction policy.
+pub mod completion_options;
+
+/// Shared TIP 348 structured error-stack state and validation.
+pub mod error_stack;
 
 /// An owned, byte-preserving script completion for host and embedding
 /// boundaries.
@@ -90,6 +99,147 @@ pub struct ArrayTarget {
     frame: FrameId,
     name: String,
     cell: Option<VarId>,
+}
+
+/// Result of one trace-aware element read performed for `array get`.
+///
+/// The command snapshots keys from [`ArrayTarget`] but reads each candidate
+/// through the source spelling. A callback can therefore make the element
+/// disappear without invalidating the walk, or destroy/retype the captured
+/// array, which is a command error. Keeping that distinction in the runtime
+/// contract prevents the shared command core from guessing storage identity.
+#[derive(Debug, Clone)]
+pub enum ArrayElementRead<V> {
+    /// The selected element still has a value after its read traces. Pointer
+    /// runtimes return this with one transient ownership hold already acquired;
+    /// the shared command core releases it after list materialisation.
+    Value(V),
+    /// The element is absent, or its read trace errored. Tcl skips it while the
+    /// captured base remains an array; the runtime retains any swallowed trace
+    /// completion in its interpreter error state.
+    Missing(ArrayReadMiss),
+    /// A read trace failed and invalidated the captured base in the same
+    /// callback. Unlike an ordinary trace miss, Tcl propagates the callback's
+    /// contextual variable-read error rather than replacing it with a generic
+    /// array invalidation diagnostic.
+    TraceError(ArrayReadFailure),
+    /// The array cell captured for the operation is no longer an array.
+    ArrayInvalidated(ArrayInvalidation),
+}
+
+/// A variable-read trace failure which an `array get` candidate must
+/// propagate because that same callback invalidated the captured array.
+///
+/// The message is already the variable subsystem's contextual `can't read
+/// "a(k)": reason` result. The remaining fields preserve the callback's
+/// accumulated error trace across the shared command/runtime boundary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArrayReadFailure {
+    message: String,
+    code: Vec<u8>,
+    info: Option<Vec<u8>>,
+    line: Option<i64>,
+}
+
+impl ArrayReadFailure {
+    /// Construct a hard traced-read failure.
+    #[must_use]
+    pub fn new(
+        message: impl Into<String>,
+        code: Vec<u8>,
+        info: Option<Vec<u8>>,
+        line: Option<i64>,
+    ) -> Self {
+        Self {
+            message: message.into(),
+            code,
+            info,
+            line,
+        }
+    }
+
+    /// Consume the failure into its command-error parts.
+    #[must_use]
+    pub fn into_parts(self) -> (String, Vec<u8>, Option<Vec<u8>>, Option<i64>) {
+        (self.message, self.code, self.info, self.line)
+    }
+}
+
+/// Completion metadata retained when `array get` swallows one candidate's
+/// failed variable read.
+///
+/// Tcl exposes the variable subsystem's read classification on the surrounding
+/// successful completion (`TCL READ VARNAME`, or `TCL LOOKUP VARNAME name`
+/// when an operation trace retargeted the source alias away from an array). A
+/// callback error also contributes its accumulated trace and source line; a
+/// callback that merely removes the element contributes no error trace and
+/// does not publish the error globals.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArrayReadMiss {
+    code: Vec<u8>,
+    info: Option<Vec<u8>>,
+    line: Option<i64>,
+}
+
+impl Default for ArrayReadMiss {
+    fn default() -> Self {
+        Self::missing()
+    }
+}
+
+impl ArrayReadMiss {
+    /// A read that found no value after otherwise-successful callbacks.
+    #[must_use]
+    pub fn missing() -> Self {
+        Self {
+            code: b"TCL READ VARNAME".to_vec(),
+            info: None,
+            line: None,
+        }
+    }
+
+    /// A source-spelling lookup that no longer resolves to an array.
+    #[must_use]
+    pub fn lookup(error_code: Vec<u8>) -> Self {
+        Self {
+            code: error_code,
+            info: None,
+            line: None,
+        }
+    }
+
+    /// A read whose trace callback errored before `array get` swallowed it.
+    #[must_use]
+    pub fn trace_error(error_info: Option<Vec<u8>>, error_line: i64) -> Self {
+        Self {
+            code: b"TCL READ VARNAME".to_vec(),
+            info: error_info,
+            line: Some(error_line),
+        }
+    }
+
+    /// Merge a later candidate miss into this operation's retained metadata.
+    ///
+    /// Tcl exposes the most recent read classification, but an ordinary later
+    /// miss has no callback trace of its own and must not erase the earlier
+    /// callback's `errorInfo` or source line.
+    #[must_use]
+    pub fn followed_by(self, later: Self) -> Self {
+        Self {
+            code: later.code,
+            info: later.info.or(self.info),
+            line: later.line.or(self.line),
+        }
+    }
+}
+
+/// Why a captured array can no longer supply a candidate element.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArrayInvalidation {
+    /// The captured variable is now undefined.
+    Unset,
+    /// The captured variable is now a defined non-array.
+    Retyped,
 }
 
 impl ArrayTarget {
@@ -678,6 +828,33 @@ pub trait VarStore {
     /// [`array_target`](Self::array_target).
     fn unset_elem_at(&mut self, target: &ArrayTarget, key: &str) -> bool {
         self.unset_elem(target.frame(), target.name(), key)
+    }
+
+    /// Read one `array get` candidate through variable-read traces.
+    ///
+    /// The default preserves storage-only implementations. Tcl runtimes
+    /// override this to pin the live element before callbacks, retain a
+    /// swallowed callback error in interpreter metadata, and distinguish a
+    /// missing element from destruction of `target`.
+    fn array_read_elem_at(
+        &mut self,
+        target: &ArrayTarget,
+        key: &str,
+    ) -> ArrayElementRead<Self::Value> {
+        let value = self.get_elem(target.frame(), target.name(), key);
+        if self.array_keys_at(target).is_none() {
+            let invalidation = if self.exists(target.frame(), target.name()) {
+                ArrayInvalidation::Retyped
+            } else {
+                ArrayInvalidation::Unset
+            };
+            ArrayElementRead::ArrayInvalidated(invalidation)
+        } else {
+            value.map_or_else(
+                || ArrayElementRead::Missing(ArrayReadMiss::missing()),
+                ArrayElementRead::Value,
+            )
+        }
     }
 }
 

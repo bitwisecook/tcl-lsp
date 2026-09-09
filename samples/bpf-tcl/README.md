@@ -2,12 +2,13 @@
 
 These demos exercise the backend targets that exist today. The default `rbpf`
 target executes real eBPF instructions over synthetic packet bytes in a
-userspace virtual machine. The explicit `kernel-xdp` (`struct xdp_md`) and
-`kernel-socket` (`struct __sk_buff`) targets emit Linux-loadable objects with
-real context access, verifier-safe packet bounds proofs, and BTF-defined maps
-with relocations (issue #1203). The map-free verdict-only XDP demo below is
-verifier-loaded and test-run end to end; the packet-access and map objects are
-validated structurally here and load on a real kernel behind the `#[ignore]`d
+userspace virtual machine. The explicit `kernel-xdp` (`struct xdp_md`),
+`kernel-socket` (`struct __sk_buff`), `kernel-tc`, and
+`kernel-cgroup-sockaddr` targets emit Linux-loadable objects with real context
+access, verifier-safe packet bounds proofs, and BTF-defined maps with
+relocations. The verdict-only XDP demo below is verifier-loaded and test-run
+end to end; the packet-access and map objects are validated structurally here
+and load on a real kernel behind the `#[ignore]`d
 `rust/bpf-tcl/tests/kernel_load.rs` gate.
 
 The clean-room instructions and full script were validated on Ubuntu 26.04
@@ -17,7 +18,7 @@ The demos do **not** attach programs to a network interface or socket. Default
 ELF output uses the simulator context ABI and is for inspection only; pass an
 object to `bpftool prog load` only when it was compiled with `--target
 kernel-xdp`. See the
-[backend architecture and roadmap](../../docs/design/compiler/ebpf-backend.md).
+[backend architecture](../../docs/design/compiler/ebpf-backend.md).
 
 ## Install prerequisites on Debian or Ubuntu
 
@@ -126,12 +127,13 @@ target/debug/bpf-tcl run samples/bpf-tcl/map-counter.bpftcl \
 
 The final output includes `map hits: 0=3`.
 
-## Run the first real kernel XDP program
+## Load a kernel XDP program
 
-The explicit `kernel-xdp` target currently supports map-free, verdict-only XDP
-handlers. It rejects packet/context access and maps until their verifier-proof
-and relocation lowering is implemented. This gives the project a small but
-genuine kernel-loaded vertical slice without silently emitting unsafe code.
+`run-kernel-xdp-demo.sh` takes the verdict-only `xdp-kernel-pass.bpftcl`
+through a real verifier load and test run. `xdp-kernel-portcount.bpftcl` is
+the map-and-packet-access counterpart: it emits a `.maps` section, a `.BTF`
+description, and `R_BPF_64_64` map-fd relocations, with a dominating
+`data_end` bounds proof on its 16-bit port read.
 
 Requirements:
 
@@ -162,7 +164,7 @@ not mounted, mount it once with:
 sudo mount -t bpf bpf /sys/fs/bpf
 ```
 
-## Handler composition and the loader plan (issue #1204)
+## Handler composition and the loader plan
 
 Multiple `when EVENT priority N { … }` handlers for one event compose into an
 ordered chain. Lower priority numbers run first; the first handler that returns a
@@ -224,9 +226,9 @@ llvm-objdump -d /tmp/bpf-tcl-xdp.o  # optional
 ```
 
 The ELF has an `EM_BPF` machine header, an `xdp` or `socket` program section, a
-GPL licence section, and a function symbol. The default target is still
-`rbpf`, so structural validity does not imply kernel loadability. Use
-`--target kernel-xdp` only with the currently supported verdict-only XDP subset.
+GPL licence section, and a function symbol. The default target is `rbpf`, so
+structural validity under it does not imply kernel loadability — pass an
+explicit `--target kernel-*` for an object you intend to load.
 
 ## Execute synthetic packets
 

@@ -1,4 +1,4 @@
-# tcl-bigip-report — the BIG-IP report generator (Rust)
+# bigip-report-gen-rust — the BIG-IP report generator (Rust)
 
 The Rust port of the [`f5report`](../python) generator: given one or more
 loaded `(uri, scf_text)` configs it produces a single, self-contained,
@@ -29,12 +29,14 @@ via [`bigip-report-wasm`](../wasm).
 | `src/model.rs` | port of `f5report.report` — the per-object shaping + orphan/insight passes. |
 | `src/graph.rs` | port of `f5report.graph` — the object graph, listener fields, iRule dynamic actions. |
 | `src/certs.rs` | the SSL-certificate + private-key inventory (read from the parsed model, since the DSL only projects `ltm`). |
-| `src/apm.rs` | the APM access-profile walk — parses the `apm …` stanzas from the config text and emits a per-profile `{nodes, edges}` dependency-graph model (rendered client-side by the elkjs orthogonal renderer, `templates/elk-graph.js`) plus its linked-object list. |
-| `src/secrets.rs` | `f5mku` master-key secret decryption. |
-| `src/render.rs` + `templates/` | minijinja rendering to one HTML file (CSS/JS/Mermaid/wasm-console embedded). |
+| `src/apm.rs` | the APM access-profile walk — parses the `apm …` stanzas from the config text and emits a per-profile `{nodes, edges}` dependency-graph model (rendered client-side by the elkjs orthogonal renderer, `../frontend/src/pages/elk-graph.ts`) plus its linked-object list. |
+| `src/certs.rs`, `src/tls.rs` | the SSL-certificate / private-key inventory and TLS posture. |
+| `src/secrets.rs`, `src/crypt.rs` | `f5mku` master-key secret decryption. |
+| `src/forensics.rs`, `src/security.rs`, `src/lifecycle.rs`, `src/services.rs` | the UCS forensic inventory, security findings, release-lifecycle facts, and the service catalogue. |
+| `src/render.rs` + `../templates/report.html.j2` | minijinja rendering to one HTML file (CSS/JS/Mermaid/wasm-console embedded from `../frontend/` and `../assets/`). |
 
 The CSS/JS/Mermaid and the vendored WASM query-console assets are the same
-artifacts the Python `f5report` package ships, embedded at compile time so both
+artefacts the Python `f5report` package ships, embedded at compile time so both
 generators emit the same page. The two are validated against the **same UCS
 fixtures** (`tests/report.rs`).
 

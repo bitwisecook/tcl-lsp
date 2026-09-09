@@ -154,7 +154,7 @@ pub(crate) fn registry_for_profile(profile: &'static DialectProfile) -> &'static
 /// ago anyway.
 ///
 /// It exists because the **analyser** needs it. Since the EDA vendor libraries
-/// became bundled loadables (`docs/design/spec-packs.md`), "which commands
+/// became bundled loadables (`docs/design/registry/spec-packs.md`), "which commands
 /// exist" is no longer answerable from compiled-in data alone, and the
 /// analyser — which resolves its own registry from its `DialectProfile` — has
 /// to be able to reach the pack-carrying entry without depending on the
@@ -186,7 +186,7 @@ pub(crate) fn registry_for_profile_if_built(
 /// # Why this lives here, and takes a closure
 ///
 /// The one caller today is `tcl-spectcl`, inserting a workspace's `SpecTcl`
-/// packs (`docs/design/spec-packs.md`: packs layer into the per-profile cached
+/// packs (`docs/design/registry/spec-packs.md`: packs layer into the per-profile cached
 /// registry at **workspace scope**, never the per-document overlay path stubs
 /// use). This crate must not depend on that one — the registry is the bottom
 /// of the stack — so the extension arrives as a closure and the identity as a

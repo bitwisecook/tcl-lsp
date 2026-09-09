@@ -3,7 +3,7 @@
 # This pack IS the source of truth for these commands. The Rust modules that
 # used to hold them (rust/tcl-registry/src/commands/eda_xilinx/) were deleted when
 # the EDA vendor libraries migrated to bundled `.tclspec` loadables, per
-# docs/design/spec-packs.md ("the EDA vendor libraries ship as bundled
+# docs/design/registry/spec-packs.md ("the EDA vendor libraries ship as bundled
 # `.tclspec` loadables … so the loader path is exercised in production from day
 # one rather than reserved for private packs"). Every command was proved
 # field-for-field equal to its compiled spec by the SpecTcl round-trip gate

@@ -81,7 +81,7 @@ fn cmd_trace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let options = visible_options(vm);
     let option = match core_trace::resolve_option(&sub.to_str(), &options) {
         Ok(o) => o,
-        Err(e) => return err(e.into_message()),
+        Err(e) => return crate::command::completion_from_cmd_error(e),
     };
     match option {
         "add" => trace_add_remove(vm, "add", rest, true),
@@ -119,7 +119,7 @@ fn trace_add_remove(vm: &mut Vm, sub: &str, rest: &[Value], add: bool) -> Comple
     let typeword = kindw.to_str();
     let kind = match core_trace::resolve_type(&typeword) {
         Ok(k) => k,
-        Err(e) => return err(e.into_message()),
+        Err(e) => return crate::command::completion_from_cmd_error(e),
     };
     let [name, ops, command] = args else {
         return err(format!(
@@ -129,7 +129,7 @@ fn trace_add_remove(vm: &mut Vm, sub: &str, rest: &[Value], add: bool) -> Comple
     // Validate the op list against the type's table (`bad operation …`).
     let ops: Vec<String> = match core_trace::parse_ops(ops.to_str().as_bytes(), kind) {
         Ok(o) => o.iter().map(|s| (*s).to_string()).collect(),
-        Err(e) => return err(e.into_message()),
+        Err(e) => return crate::command::completion_from_cmd_error(e),
     };
     match kind {
         core_trace::TraceKind::Variable => {
@@ -161,7 +161,7 @@ fn trace_info(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let typeword = kindw.to_str();
     let kind = match core_trace::resolve_type(&typeword) {
         Ok(k) => k,
-        Err(e) => return err(e.into_message()),
+        Err(e) => return crate::command::completion_from_cmd_error(e),
     };
     let [name] = args else {
         return err(format!(
@@ -228,7 +228,7 @@ fn legacy_variable(vm: &mut Vm, args: &[Value], add: bool) -> Completion<Value> 
     };
     let ops: Vec<String> = match core_trace::parse_legacy_variable_ops(ops.to_str().as_bytes()) {
         Ok(o) => o.iter().map(|s| (*s).to_string()).collect(),
-        Err(e) => return err(e.into_message()),
+        Err(e) => return crate::command::completion_from_cmd_error(e),
     };
     let command = command.to_str().to_string();
     if add {
