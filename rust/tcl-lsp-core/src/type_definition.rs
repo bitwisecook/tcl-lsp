@@ -52,7 +52,7 @@ pub fn type_definition(
     // 1. Variable receiver: `$obj` with a known instance class —
     //    `instance_classes` first, then the object-type lattice's
     //    scope-keyed singleton at the cursor, the same accessor precedence
-    //    every dispatch consumer uses (issue #994 C5b).
+    //    every dispatch consumer uses.
     if let Some(var_name) = find_var_at_position(source, line, character) {
         let cursor = byte_offset_at(&line_index, source, line, character);
         if let Some(class_q) =

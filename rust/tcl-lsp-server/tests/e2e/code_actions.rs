@@ -170,7 +170,6 @@ fn with_code(diags: &[Value], code: &str) -> Vec<Value> {
         .collect()
 }
 
-// -- TestQuickFixes ------------------------------------------------------
 
 #[test]
 fn test_w100_offers_brace_wrap() {
@@ -484,7 +483,6 @@ fn test_t102_fires_for_assign_value_wrapped_call() {
     );
 }
 
-// -- TestRefactorActions -------------------------------------------------
 
 #[test]
 fn test_extract_proc_available_without_diagnostics() {
@@ -505,7 +503,6 @@ fn test_extract_proc_available_without_diagnostics() {
     );
 }
 
-// -- TestRefactorActionsExtended -----------------------------------------
 
 #[test]
 fn test_extract_proc_snippets() {
@@ -741,7 +738,6 @@ fn test_inline_proc_refuses_a_returning_proc_with_a_reason() {
     );
 }
 
-// -- TestExprRefactorActions ---------------------------------------------
 
 /// The `_rewrite` helper: request `refactor.rewrite`-only actions.
 fn rewrite(lsp: &mut Lsp, uri: &str, start: (u32, u32), end: (u32, u32)) -> Vec<Value> {
@@ -844,7 +840,6 @@ fn test_invert_subexpression_in_compound() {
     assert_eq!(inv.len(), 1);
 }
 
-// -- TestW115CommentContinuation -----------------------------------------
 
 #[test]
 fn test_simple_continuation_fix() {
@@ -908,7 +903,6 @@ fn test_already_commented_continuation_not_doubled() {
     assert_eq!(lines[1], "# line2");
 }
 
-// -- TestIPConversionActions ---------------------------------------------
 
 #[test]
 fn test_ipv4_offers_ipv6_mapped() {
@@ -998,7 +992,6 @@ fn test_cursor_past_last_line_does_not_crash() {
     assert!(result.is_null() || result.is_array());
 }
 
-// -- TestGenerateDocstringAction -----------------------------------------
 //
 // The generate-docstring source action is gated by the resolved
 // `tclLsp.formatting.docstringStyle` setting (#1314). Its documented
@@ -1098,7 +1091,6 @@ fn test_body_style_inserts_inside_the_proc_not_on_the_decl_line() {
     );
 }
 
-// -- TestEvalListQuickFix ------------------------------------------------
 
 #[test]
 fn test_eval_string_to_list_action() {
@@ -1115,7 +1107,6 @@ fn test_eval_string_to_list_action() {
     );
 }
 
-// -- TestProfilesNotOfferedForTcl ----------------------------------------
 
 #[test]
 fn test_no_profiles_action_for_tcl_dialect() {
@@ -1128,7 +1119,6 @@ fn test_no_profiles_action_for_tcl_dialect() {
     let sa = kinds(&actions, "source");
     assert!(sa.iter().all(|a| !action_title(a).contains("Profiles")));
 }
-// -- TestE100E102QuickFixes -----------------------------------------------
 
 #[test]
 fn test_e100_offers_insert_bracket_before_known_command() {
@@ -1251,7 +1241,6 @@ fn test_e102_no_fix_offered_for_embedded_brace() {
     );
 }
 
-// -- TestShimmerNoqaSuppressQuickFix --------------------------------------
 
 #[test]
 fn test_s100_offers_noqa_suppress_action() {

@@ -210,7 +210,7 @@ pub trait SourceStore: std::fmt::Debug + Send + Sync {
     /// Read a file through the shared lossy decoder.
     ///
     /// The counterpart of [`crate::source_decode::read_source_file`], and the
-    /// reason it exists (issue #1326): a closed file with one ill-formed byte
+    /// reason it exists: a closed file with one ill-formed byte
     /// must still contribute its procs, its `source` edges, and its symbols,
     /// so decoding is lossy and only the *read* can fail.
     ///

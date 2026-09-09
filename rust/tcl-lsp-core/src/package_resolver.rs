@@ -67,7 +67,7 @@ pub use tcl_dialect::PackagePrefer;
 
 /// The `package prefer` mode in force at `at` in `analysis` — the
 /// interpreter-global selection rule [`PackageResolver::resolve_require`]
-/// needs (issue #1126 item 1).
+/// needs.
 ///
 /// `package prefer` is a monotone latch: it starts at `default`, a
 /// `package prefer latest` raises it, and
@@ -88,7 +88,7 @@ pub use tcl_dialect::PackagePrefer;
 /// not run, and flipping the selection rule would move go-to-definition onto a
 /// different release of the package.  That abstention is toward `default`.
 ///
-/// # What `default` carries (issue #1253)
+/// # What `default` carries
 ///
 /// The interpreter's own starting mode is not always `stable`:
 /// `TCL_PKG_PREFER_LATEST` in the environment makes it `latest`, and on 9.0+
@@ -949,7 +949,7 @@ impl PackageResolver {
     /// Tcl rejects as a syntax error; it is treated here as unconstrained.
     ///
     /// **Equal-comparing duplicate providers contribute every one of their
-    /// files** (issue #1126 item 2). C Tcl collapses two `package ifneeded`
+    /// files**. C Tcl collapses two `package ifneeded`
     /// registrations whose versions compare equal (`1.0` / `1.0.0`, `5` /
     /// `0005`) into one entry, keeping the *first* registration's version
     /// string and the *last* one's script — and the registration order is
@@ -1128,7 +1128,7 @@ impl PackageResolver {
     /// This is the package-database analogue of the built-in command registry:
     /// a command an installed library makes available through its auto-load
     /// index is as *resolvable* as a built-in, so the unknown-command (W123)
-    /// check must treat it as known rather than flag it (issue #832). The
+    /// check must treat it as known rather than flag it. The
     /// decision is data-driven — it never matches on a specific command name.
     #[must_use]
     pub fn auto_loads_command(&self, cmd: &str, namespace: &str) -> bool {
@@ -1176,7 +1176,7 @@ impl PackageResolver {
     /// ([`reachability::Availability::Conditional`]) counts as loadable: the
     /// scan does not know it *won't* run, and treating "unsure" as "absent"
     /// would resurrect exactly the false unknown-command reports this
-    /// modelling exists to remove (issue #923 idx 42).
+    /// modelling exists to remove.
     #[must_use]
     pub fn reachable_files(
         &self,

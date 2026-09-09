@@ -41,7 +41,7 @@
 //! never a bare-callable command (`greet` alone errors "invalid
 //! command name"; only `my greet` dispatches), so this is the same
 //! `my`-aware, control-flow-recursing matcher Find-References / rename
-//! / the code lens use (issue #957's general form), not a bare-head
+//! / the code lens use, not a bare-head
 //! comparison.  Plain proc calls inside a method body — genuinely
 //! bare-headed — still use
 //! [`tcl_compiler::segmenter::segment_commands_with_offset`] directly
@@ -135,7 +135,7 @@ pub fn prepare(
 ///
 /// Which proc a call edge points at is a call resolution, so a `namespace
 /// import -force` whose covering `namespace export` lives in another file
-/// changes the hierarchy (issue #1116 item 1). Without the oracle the graph
+/// changes the hierarchy. Without the oracle the graph
 /// would draw an edge to a definition go-to-definition refuses to open.
 #[must_use]
 pub fn prepare_in_program(
@@ -173,7 +173,7 @@ pub fn prepare_in_program(
 /// `my`, `next`, `nextto`, or `self`.
 ///
 /// The registry-first replacement for the `matches!(head, "my" | "next" |
-/// "nextto")` literals this module carried (issue #1050): a dialect that
+/// "nextto")` literals this module carried: a dialect that
 /// gains or loses one of these propagates through its `CommandSpec`, never
 /// through an edit here. All three kinds are excluded together because none
 /// of them is an *unresolved command reference* — a dispatch keyword resolves
@@ -358,7 +358,7 @@ fn enclosing_class_method<'a>(
 ///
 /// The item name is `<class-key>::<method>` — a construction; split it by
 /// the construction-inverse rule so a colon-bearing class key (or method
-/// name) survives (#934).  A method and a classmethod sharing a name (rare,
+/// name) survives.  A method and a classmethod sharing a name (rare,
 /// but `TclOO` keeps them in independent tables, so it's legal) collide on
 /// this name alone, so disambiguate first by the item's exact
 /// `selection_range` — the declaration's name-token location, which
@@ -603,7 +603,7 @@ pub fn unresolved_outgoing_calls(
 ///
 /// Which proc a call edge points at is a call resolution, so a `namespace
 /// import -force` whose covering `namespace export` lives in another file
-/// changes the hierarchy (issue #1116 item 1). Without the oracle the graph
+/// changes the hierarchy. Without the oracle the graph
 /// would draw an edge to a definition go-to-definition refuses to open.
 #[must_use]
 pub fn unresolved_outgoing_calls_in_program(
@@ -679,7 +679,7 @@ fn unresolved_method_outgoing_calls(
         // reference — the actual dispatch target (the word *after* `my`) is
         // handled by `method_outgoing_calls`'s `scan_my_method_sites` pass,
         // never by this bare-head scan. Membership comes from the registry,
-        // not a name list (issue #1050).
+        // not a name list.
         if is_method_dispatch_keyword(dialect, &head) {
             continue;
         }
@@ -743,7 +743,7 @@ pub fn incoming_calls(
 ///
 /// Which proc a call edge points at is a call resolution, so a `namespace
 /// import -force` whose covering `namespace export` lives in another file
-/// changes the hierarchy (issue #1116 item 1). Without the oracle the graph
+/// changes the hierarchy. Without the oracle the graph
 /// would draw an edge to a definition go-to-definition refuses to open.
 #[must_use]
 pub fn incoming_calls_in_program(
@@ -867,7 +867,7 @@ pub fn outgoing_calls(
 ///
 /// Which proc a call edge points at is a call resolution, so a `namespace
 /// import -force` whose covering `namespace export` lives in another file
-/// changes the hierarchy (issue #1116 item 1). Without the oracle the graph
+/// changes the hierarchy. Without the oracle the graph
 /// would draw an edge to a definition go-to-definition refuses to open.
 #[must_use]
 pub fn outgoing_calls_in_program(
@@ -930,7 +930,7 @@ pub fn outgoing_calls_in_program(
 /// bare head errors "invalid command name" at runtime), so this matches
 /// through [`crate::references::scan_my_method_sites`] — the same
 /// control-flow-recursing matcher Find-References / rename / the code lens
-/// use (issue #957's general form) — rather than comparing a bare head.
+/// use — rather than comparing a bare head.
 fn method_incoming_calls(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
@@ -1248,7 +1248,7 @@ fn method_outgoing_calls(
 }
 
 /// Add every bare `ClassName <classmethod>` dispatch inside `body` to
-/// `by_target`, keyed by the classmethod it names (issue #995).
+/// `by_target`, keyed by the classmethod it names.
 ///
 /// Every class the document declares is a candidate, not just the calling
 /// method's own: a class command is global, so an instance method of one
@@ -1744,7 +1744,7 @@ mod tests {
         assert_eq!(outgoing[0].from_ranges.len(), 2, "{outgoing:?}");
     }
 
-    /// FN→TP (issue #957's general form): a `my method` dispatch nested
+    /// FN→TP: a `my method` dispatch nested
     /// inside `if` / `foreach` / `switch` control flow is an outgoing call
     /// too — `scan_my_method_sites` recurses generically via the
     /// registry's `Plain`-`BodyKind` body roles, so call hierarchy inherits
@@ -1765,7 +1765,7 @@ mod tests {
         assert_eq!(names, vec!["::C::greet"], "{outgoing:?}");
     }
 
-    /// FN→TP (issue #957's general form): a `my method` dispatch nested
+    /// FN→TP: a `my method` dispatch nested
     /// inside control flow is an *incoming* call edge too, mirroring
     /// `outgoing_calls_from_method_nested_in_control_flow` — previously
     /// verified only via a VS Code integration test, never at the Rust
@@ -1921,7 +1921,7 @@ mod tests {
         assert_eq!(incoming_cd[0].from.name, "caller");
     }
 
-    // Bare `ClassName <classmethod>` dispatch (issue #995).  `classmethod`
+    // Bare `ClassName <classmethod>` dispatch.  `classmethod`
     // is Tcl 9.0+, so these analyse at 9.0.
 
     fn analyse_tcl9(source: &str) -> AnalysisResult {
@@ -1929,7 +1929,7 @@ mod tests {
         a.analyse(source, "tcl9.0").clone()
     }
 
-    /// FN→TP (issue #995's own repro): a `classmethod` dispatches on the
+    /// FN→TP: a `classmethod` dispatches on the
     /// class's own command (`Factory make`), so its callers are the
     /// top-level statement *and* the sibling classmethod's body — neither
     /// of which has the member's own name as its head word, which is why
@@ -1980,7 +1980,7 @@ mod tests {
         assert_eq!(outgoing[0].from_ranges.len(), 1, "{outgoing:?}");
     }
 
-    /// FN→TP (issue #990): [incr Tcl]'s class-scoped `proc` dispatches as a
+    /// FN→TP: [incr Tcl]'s class-scoped `proc` dispatches as a
     /// single `::`-qualified word, so the two-word scan that finds a
     /// `classmethod`'s edges never saw it and itcl call hierarchies were
     /// empty.  Oracle (tclsh 8.6.14 + Itcl 3.4): a bare `make` inside a

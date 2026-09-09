@@ -38,7 +38,7 @@
 //! % [Mpfit new] addPars                   -> ok
 //! ```
 //!
-//! and for the constructor chain (issue #923 idx 37):
+//! and for the constructor chain:
 //!
 //! ```text
 //! % oo::class create Base { constructor {n} { puts "base $n" } }
@@ -315,7 +315,7 @@ oo::class create Derived {
 
 /// `self mixin -append X` — `TclOO`'s `self` wrapper forwards to
 /// `oo::objdefine <thisclass> mixin -append X`, so `X` is genuinely
-/// referenced there (issue #923 idx 15). Pinned against tclsh 9.0.4:
+/// referenced there. Pinned against tclsh 9.0.4:
 ///
 /// ```text
 /// % oo::class create Marker { method marker {} { return m } }
@@ -354,7 +354,7 @@ oo::class create ViaPlain {
 }
 
 /// Two `oo::configurable` classes whose `initialize {}` blocks declare a
-/// **same-named** class-scoped variable (issue #923 idx 36). Pinned against
+/// **same-named** class-scoped variable. Pinned against
 /// tclsh 9.0.4 — the two are fully independent, each setter rejecting the
 /// other's values, and each `initialize` body runs in its own class-object
 /// namespace (`::oo::Obj20` / `::oo::Obj22`):
@@ -627,7 +627,7 @@ $c3 options
         outline_members(src).contains(&("C3".to_string(), "getType".to_string())),
         "the abstention must not erase what *was* readable",
     );
-    // The *name* is now honestly known (issue #1277) — go-to-definition
+    // The *name* is now honestly known — go-to-definition
     // lands on the loop's own literal list, line 5 (`foreach m {options}
     // …`), not on a wrong or invented target.
     let t = trio_at(src, cursor_at_line(src, "$c3 options", "options"));

@@ -390,7 +390,6 @@ fn tk1003_silent_on_real_option() {
     assert_silent(case_for("TK1003"));
 }
 
-// -- TestOptimisationMatrix ----------------------------------------------
 // Optimiser offers (O-codes) surface through `optimiseDocument`.
 
 #[test]

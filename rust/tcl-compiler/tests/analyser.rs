@@ -4903,7 +4903,7 @@ mod class_factories {
 
     #[test]
     fn unknown_dispatch_that_constructs_and_returns_the_word_is_proved() {
-        // TP (#1303) — the Tk idiom. The metaclass declares `unknown`, that
+        // TP — the Tk idiom. The metaclass declares `unknown`, that
         // body constructs an object named from its first parameter, and it
         // returns exactly that parameter, so a bare `Widget .w` call binds an
         // instance.
@@ -5104,7 +5104,7 @@ mod class_factories {
 
     #[test]
     fn unknown_dispatch_returning_something_else_abstains() {
-        // TN (#1303) — it constructs, but hands back the *class*, so the
+        // TN — it constructs, but hands back the *class*, so the
         // caller's variable is not the new object's name. Guessing here would
         // type a handle that does not exist.
         let src = concat!(
@@ -5124,7 +5124,7 @@ mod class_factories {
 
     #[test]
     fn unknown_dispatch_that_does_not_construct_abstains() {
-        // TN (#1303) — an `unknown` that merely echoes its argument creates
+        // TN — an `unknown` that merely echoes its argument creates
         // no object at all, so binding a handle to it would be a fabrication.
         let src = concat!(
             "oo::class create Meta {\n",
@@ -5140,7 +5140,7 @@ mod class_factories {
 
     #[test]
     fn unknown_dispatch_with_no_return_abstains() {
-        // TN (#1303) — a pure delegation to `next` proves nothing about the
+        // TN — a pure delegation to `next` proves nothing about the
         // value the call yields.
         let src = concat!(
             "oo::class create Meta {\n",
@@ -5156,7 +5156,7 @@ mod class_factories {
 
     #[test]
     fn unknown_dispatch_returning_a_derived_word_abstains() {
-        // TN (#1303) — `return $w.hull` is not the caller's word, and a
+        // TN — `return $w.hull` is not the caller's word, and a
         // consumer binding the caller's variable to the class would be wrong.
         let src = concat!(
             "oo::class create Meta {\n",
@@ -5175,7 +5175,7 @@ mod class_factories {
 
     #[test]
     fn unknown_dispatch_constructing_a_derived_word_abstains() {
-        // FP guard (#1303) — the returned value is exactly the caller's word,
+        // FP guard — the returned value is exactly the caller's word,
         // but the constructed command has a suffix. Seeing the parameter
         // somewhere in the name word is not proof that the returned handle
         // names that object.
@@ -5196,7 +5196,7 @@ mod class_factories {
 
     #[test]
     fn unknown_dispatch_cannot_combine_evidence_from_different_branches() {
-        // FP guard (#1303). One branch constructs but does not return the
+        // FP guard: One branch constructs but does not return the
         // handle; the other returns the requested word without constructing
         // it. No successful path proves both facts, so flattening nested
         // scripts and combining their evidence would invent an object type.
@@ -5218,7 +5218,7 @@ mod class_factories {
 
     #[test]
     fn a_metaclass_without_unknown_dispatch_abstains() {
-        // TN (#1303) — regression guard: the ordinary metaclass shape must
+        // TN — regression guard: the ordinary metaclass shape must
         // keep answering `false`, so nothing that used to need `create`
         // silently starts binding bare words.
         let src = concat!(
@@ -5332,7 +5332,7 @@ mod class_factories {
 
     #[test]
     fn a_computed_metaclass_name_resolves_through_a_literal_call_site() {
-        // TP (#1306) — the literal argument proves `${ns}::class` is
+        // TP — the literal argument proves `${ns}::class` is
         // `::T::D::class`, so the metaclass enters the factory index and
         // everything it later manufactures becomes visible.
         let result = analysis(COMPUTED_METACLASS, "tcl9.0");
@@ -5449,7 +5449,7 @@ mod class_factories {
 
     #[test]
     fn a_collection_loop_in_the_dominating_prefix_preserves_provenance() {
-        // TP (#1571) — `foreach` iterates a value the invocation itself
+        // TP — `foreach` iterates a value the invocation itself
         // supplies, so it runs a bounded number of times and control reaches
         // the creation below it exactly when the loop body falls through.
         // Nothing is read *out* of the loop: the body writes only its own
@@ -5575,7 +5575,7 @@ mod class_factories {
 
     #[test]
     fn a_declaration_body_the_walk_cannot_read_is_not_a_blocker() {
-        // TP (#1571) — `proc NAME ARGS [string map … {…}]` *stores* its body;
+        // TP — `proc NAME ARGS [string map … {…}]` *stores* its body;
         // nothing in it runs at this call, so an unreadable body word says
         // nothing about whether the declaration falls through. `proc` says so
         // itself, through `Traits::DEFERS_BODY` — see
@@ -5685,7 +5685,7 @@ mod class_factories {
 
     #[test]
     fn a_post_pass_metaclass_classifies_a_creation_in_its_own_file() {
-        // TP (#1660) — `::T::D::class` is proved a metaclass only by the
+        // TP — `::T::D::class` is proved a metaclass only by the
         // parameterised-class join, which runs *after* the walk, so a
         // creation call naming it in the same document had nothing to be
         // classified against and the class it makes went unrecorded: no
@@ -5994,7 +5994,7 @@ mod class_factories {
 
     #[test]
     fn a_readable_body_that_runs_now_but_is_untyped_still_abstains() {
-        // TP (#1672) — the readable twin of the #1652 guard. These commands
+        // TP — the readable twin of the #1652 guard. These commands
         // carry no typed control-arm semantics, so the arm they contribute was
         // *ignored*: the walk claimed the creation below on the strength of
         // having no descriptor, not on any reading of the body.
@@ -6141,7 +6141,7 @@ mod class_factories {
 
     #[test]
     fn an_apply_of_an_unreadable_lambda_still_abstains() {
-        // FP guard (#1656) — the same soundness class as the `uplevel` vector
+        // FP guard — the same soundness class as the `uplevel` vector
         // above, reached through the *other* role. `apply`'s argument is
         // `ArgRole::LambdaLiteral`, not `Body`, so before this fix
         // `control_arms_for_segment` never saw it: the walk neither read the
@@ -6410,7 +6410,7 @@ mod class_factories {
 
     #[test]
     fn the_unresolvable_record_is_retracted_once_a_real_name_is_proved() {
-        // FP guard (#1306) — a class literally named `::T::${ns}::class`
+        // FP guard — a class literally named `::T::${ns}::class`
         // exists in no interpreter, so once the real name is proved the
         // phantom must not remain beside it in the class index.
         let result = analysis(COMPUTED_METACLASS, "tcl9.0");
@@ -6423,7 +6423,7 @@ mod class_factories {
 
     #[test]
     fn a_later_define_stub_does_not_cost_the_metaclass_its_factory() {
-        // TP (#1653) — an `oo::define` on the computed-name class creates a
+        // TP — an `oo::define` on the computed-name class creates a
         // stub whose `metaclass` was never written, so it holds
         // `ClassDef::default()`'s `"oo::class"`. That default is not an
         // observation: joining it against the proved `::T::Mother` must not
@@ -6577,7 +6577,7 @@ mod class_factories {
 
     #[test]
     fn each_literal_call_site_proves_its_own_metaclass() {
-        // TP (#1306) — two call sites, two literals, two real metaclasses.
+        // TP — two call sites, two literals, two real metaclasses.
         // This is the clay / practcl shape: one `oo::dialect::create` proc
         // manufacturing a per-dialect metaclass for each caller.
         let src = concat!(
@@ -7197,7 +7197,7 @@ mod class_factories {
 
     #[test]
     fn a_dynamic_call_site_argument_proves_nothing() {
-        // TN (#1306) — the sole call site passes a runtime value, so no name
+        // TN — the sole call site passes a runtime value, so no name
         // is knowable and the pass must record nothing. Abstention is the
         // documented contract; a guess here would invent a class.
         let src = concat!(
@@ -7223,7 +7223,7 @@ mod class_factories {
 
     #[test]
     fn a_call_site_inside_another_proc_body_proves_nothing() {
-        // TN (#1306) — the call runs at *call* time, if the enclosing proc is
+        // TN — the call runs at *call* time, if the enclosing proc is
         // ever invoked, so sourcing the file creates nothing. Same load-level
         // rule the destruction filter applies.
         let src = concat!(
@@ -7244,7 +7244,7 @@ mod class_factories {
 
     #[test]
     fn a_relative_computed_name_still_abstains() {
-        // TN (#1306) — the resolved name has no absolute written form, so
+        // TN — the resolved name has no absolute written form, so
         // homing it needs the call site's namespace, which this pass does not
         // model. Abstaining beats homing it into the wrong namespace.
         let src = concat!(
@@ -7269,7 +7269,7 @@ mod class_factories {
 
     #[test]
     fn a_proc_nobody_calls_proves_nothing() {
-        // TN (#1306) — no call site, no binding, nothing proved. The
+        // TN — no call site, no binding, nothing proved. The
         // regression guard for the whole pass: a workspace whose procs are
         // never called must analyse exactly as it did before.
         let src = concat!(
@@ -8325,7 +8325,7 @@ mod const_cmd_subst_set_rhs {
 
     #[test]
     fn a_class_side_method_abstains_from_the_self_class_fold() {
-        // FP guard (issue #1132 design constraint 2): `self class` never
+        // FP guard: `self class` never
         // answers the written class in a class-side frame (tclsh 9.0.4:
         // raises in a `self method`; answers the internal delegate class
         // in a `classmethod`) — folding it would invent a value. The head
@@ -8354,7 +8354,7 @@ mod const_cmd_subst_set_rhs {
 
     #[test]
     fn a_later_rename_of_the_folding_head_blocks_the_fold() {
-        // FP guard (issue #1132 design constraint 3): the trust oracle is
+        // FP guard: the trust oracle is
         // whole-module — a `rename` AFTER the `set`, buried inside a proc
         // body, still unbinds `namespace` from its builtin semantics
         // before some later call can run. The mid-walk `renamed_commands`

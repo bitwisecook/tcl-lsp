@@ -217,7 +217,7 @@ fn reconstruct_arg(sm: &SourceMap, arg: &CommandArg, braced_vars: bool) -> Strin
 /// parameters in C Tcl 9 (the backslash-newline is collapsed to a space by
 /// the script pre-pass *before* the word is list-parsed), but re-emitting the
 /// pieces joined by a space produced `{a\ b}` — one *optional* parameter `a`
-/// defaulting to `b` (issue #1196).
+/// defaulting to `b`.
 ///
 /// Two shared pieces do the work, in the order C Tcl applies them, and both
 /// under the **document's** dialect rather than a re-derived default:
@@ -379,7 +379,7 @@ fn parse_commands(
 /// registry data.
 ///
 /// Every classification here comes from the command's spec, so no command
-/// name appears (issue #1186):
+/// name appears:
 ///
 /// * **Bodies** are the [`ArgRole::Body`] positions the spec (or its dynamic
 ///   resolver) reports — for `if` and `try` that is the C-Tcl-shaped clause
@@ -418,7 +418,7 @@ fn identify_body_args(
     // Resolve the head's *effective command identity* once, and let every
     // registry-driven decision below — body / keyword / param-list / lambda
     // roles, presentation, expression bracing, keyword rewrites, the traits —
-    // key off it (issue #1275).  Without this a document doing `rename format
+    // key off it.  Without this a document doing `rename format
     // origfmt` or `interp alias {} myfmt {} format` was still laid out under
     // the grammar of the command it no longer is.
     //
@@ -1050,7 +1050,7 @@ fn append_body_no_space(
 /// collapsed for a bare/quoted element — [`split_lambda_literal_decoded`])
 /// before use, not pasted through as raw source spelling: a non-literal
 /// element's escapes would otherwise survive reformatting and change what it
-/// means (codex review of #954's follow-up). The namespace is re-quoted with
+/// means. The namespace is re-quoted with
 /// [`tcl_syntax::list::list_element`] on reassembly rather than always left
 /// bare, so an element that needs quoting (e.g. an escaped space) still
 /// round-trips safely; `normalise_param_list` already unconditionally
@@ -1105,7 +1105,7 @@ struct WordArgContext<'a> {
     expr_args: &'a [usize],
     config: &'a FormatterConfig,
     indent_level: usize,
-    /// Canonical replacement text for this word (#1232 / #1233), if any.
+    /// Canonical replacement text for this word, if any.
     keyword_rewrite: Option<&'a str>,
 }
 
@@ -1123,7 +1123,7 @@ fn append_word_arg(ctx: &WordArgContext<'_>, parts: &mut Vec<String>) -> bool {
         keyword_rewrite,
     } = *ctx;
     let arg = &args[i];
-    // A keyword rewrite (#1232 abbreviation expansion, #1233 boolean form)
+    // A keyword rewrite
     // replaces the whole word. It is only ever computed for a plain, static,
     // unbraced, unquoted keyword word, so there are no delimiters to preserve
     // and no expression/body handling to run.
@@ -1184,7 +1184,7 @@ fn append_word_arg(ctx: &WordArgContext<'_>, parts: &mut Vec<String>) -> bool {
     true
 }
 
-/// The keyword rewrites (#1232 abbreviation expansion, #1233 boolean form)
+/// The keyword rewrites
 /// that apply to this command, keyed by argument index.
 ///
 /// Only plain `Word` arguments that are neither braced nor quoted are

@@ -56,7 +56,6 @@ fn source(result: &Value) -> &str {
     result.get("source").and_then(Value::as_str).unwrap_or("")
 }
 
-// -- TestDocumentTransforms ----------------------------------------------
 
 #[test]
 fn fix_all_safe_issues_braces_a_substitution_free_expression() {
@@ -337,7 +336,6 @@ fn minify_preserves_switch_braced_quoted_pattern_closers() {
     assert_eq!(out.matches('{').count(), out.matches('}').count(), "{out}");
 }
 
-// -- TestRegistryLookups -------------------------------------------------
 
 #[test]
 fn describe_event_known() {
@@ -386,7 +384,6 @@ fn list_irule_events_nonempty() {
     assert!(events.contains(&"HTTP_REQUEST"), "{events:?}");
 }
 
-// -- TestDiagramAndConfig ------------------------------------------------
 
 #[test]
 fn diagram_extracts_irule_events() {
@@ -578,7 +575,6 @@ fn tk_preview_fingerprints_the_editors_raw_line_endings() {
     );
 }
 
-// -- TestCommandSurface --------------------------------------------------
 
 /// Commands advertised in `executeCommandProvider` that every conforming backend
 /// must expose.

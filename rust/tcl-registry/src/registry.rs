@@ -572,13 +572,13 @@ pub struct CommandRegistry {
     /// Empty for every compiled-in registry. A pack fills it through
     /// [`Self::insert_ambient_package`], which is how a package that comes
     /// *with* a dialect rather than being `package require`d gets a version
-    /// floor at all (issue #1627).
+    /// floor at all.
     ///
     /// This is the pack-authored twin of [`tcl_dialect::LibraryPin`] with
     /// `ambient: true`. The profile axis is compiled in and describes the
     /// dialects this repository models; this one is authored outside it, which
     /// is the axis that has to exist before `tk` / `tcllib` / `iapps` can move
-    /// to packs (issue #1631) — a package's own version floor must not depend
+    /// to packs — a package's own version floor must not depend
     /// on whether this crate happens to know the package's name.
     ambient_packages: Vec<(&'static str, &'static str)>,
     /// The member grammar of a **document** in this registry's dialect, when
@@ -1386,8 +1386,8 @@ impl CommandRegistry {
     /// **this registry's own** dialect: the attached profile's, or `None`
     /// — surface-blind — for a profile-less registry.
     ///
-    /// This is what lets a version-pinned compile pipeline (issues
-    /// #1462/#1463) suppress a structured lowering or codegen hook for a
+    /// This is what lets a version-pinned compile pipeline suppress a
+    /// structured lowering or codegen hook for a
     /// command the emulated release does not have — `lmap` under a tcl8.4
     /// registry resolves to no spec, so the call reaches the runtime's
     /// availability gate as a generic dispatch instead of being inlined.
@@ -1681,7 +1681,7 @@ impl CommandRegistry {
     /// availability gate entirely, so a fold that does not ask this question
     /// silently *adds* the command to releases that never had it — a
     /// `tcl8.4` compile folded `[dict create a 1 a 2]` to a literal instead of
-    /// raising `invalid command name "dict"` (issue #1427).
+    /// raising `invalid command name "dict"`.
     ///
     /// A profile-less registry (`build_default`) answers dialect-agnostically,
     /// exactly as [`Self::get`] does.
@@ -1692,9 +1692,9 @@ impl CommandRegistry {
 
     /// Which `TclOO` method-context keyword `head` is, if it is one.
     ///
-    /// The registry-first replacement for the `head == "my"` /
-    /// `matches!(head, "my" | "next" | "nextto")` literals consumers used to
-    /// carry (issue #1050). Every consumer that needs "is this word a method
+    /// The single source of truth other consumers would otherwise duplicate as
+    /// `head == "my"` / `matches!(head, "my" | "next" | "nextto")` literals.
+    /// Every consumer that needs "is this word a method
     /// dispatch or introspection keyword, and which kind" asks here, so a
     /// dialect that gains or loses one of them propagates through the specs
     /// rather than through a walker edit.
@@ -1715,8 +1715,8 @@ impl CommandRegistry {
     /// dialect-agnostically, exactly as [`Self::get`] does.
     ///
     /// `link` is **not** a keyword here and must not be added: it creates
-    /// per-class bareword commands rather than dispatching one (issue
-    /// #1026). Nor is `self`'s definer-grammar homonym — the `self` word
+    /// per-class bareword commands rather than dispatching one. Nor is
+    /// `self`'s definer-grammar homonym — the `self` word
     /// inside an `oo::define` body is a member-grammar wrapper, resolved
     /// through [`crate::definer`], not a command head.
     #[must_use]
@@ -1765,8 +1765,7 @@ impl CommandRegistry {
     }
 
     /// Whether `head`'s **bare** spelling resolves only from inside a
-    /// `TclOO` method context — the registry-side half of issue #1026's
-    /// scoping rule; see [`Traits::TCLOO_METHOD_CONTEXT`] for the oracle
+    /// `TclOO` method context; see [`Traits::TCLOO_METHOD_CONTEXT`] for the oracle
     /// transcripts.
     ///
     /// Consumers pair this with their own "is this call site inside a
@@ -1849,7 +1848,7 @@ impl CommandRegistry {
     /// The union over every definer grammar, for the one consumer that has a
     /// class name but not the family it belongs to: a *pure consumer*
     /// document holding `set w [Widget create x]` where `Widget` is declared
-    /// in another file (issue #1303). A consumer that knows the family must
+    /// in another file. A consumer that knows the family must
     /// ask its grammar
     /// ([`crate::definer::DefinitionBodyGrammar::manufacturer`]) instead —
     /// that answer is exact, this one is a union.
@@ -1972,9 +1971,9 @@ impl CommandRegistry {
     /// Whether `head` binds bareword aliases for methods of the current
     /// object — `TclOO`'s `link`; see [`Traits::TCLOO_BINDS_METHOD_ALIAS`].
     ///
-    /// The registry-first replacement for the `texts[0] == "link"` literal
-    /// the analyser's class-body walk used to carry (issue #1026), and
-    /// dialect-aware for the same reason [`Self::method_dispatch_keyword`]
+    /// The registry-first replacement for a `texts[0] == "link"` literal an
+    /// analyser's class-body walk would otherwise carry, and dialect-aware
+    /// for the same reason [`Self::method_dispatch_keyword`]
     /// is: `link` is 9.0-core / 8.6-via-`ooutil`, so an 8.5 registry answers
     /// `false`.
     #[must_use]
@@ -2809,7 +2808,7 @@ impl CommandRegistry {
     /// members. Prefer the class's own grammar
     /// (`CommandSpec::definition_body`) whenever it resolves; this is the
     /// fallback that keeps such a class from being told its generated
-    /// accessor does not exist (issue #1362), without any consumer spelling
+    /// accessor does not exist, without any consumer spelling
     /// `configure` itself.
     ///
     /// Sorted and deduplicated. Empty for a dialect with no such metaclass
@@ -2833,7 +2832,7 @@ impl CommandRegistry {
     /// How a call to `name` binds a variable to an **object handle**, when it
     /// does — [`CommandSpec::binds_handle`], resolved through [`Self::get`] so
     /// the explicitly global spelling (`::set`) answers identically to the
-    /// bare one (issue #1185).
+    /// bare one.
     ///
     /// The member-body-only installers a class system injects (snit's
     /// `install NAME using TYPE …`) are **not** here: they are not global
@@ -2852,7 +2851,7 @@ impl CommandRegistry {
 
     /// What role `name` plays in a **cross-language RPC family**, when it plays
     /// one — [`CommandSpec::remote_method`], resolved through [`Self::get`] so
-    /// `::ILX::call` answers exactly as the bare spelling does (issue #1707).
+    /// `::ILX::call` answers exactly as the bare spelling does.
     ///
     /// This is also the dialect gate for the whole relation: the ILX commands
     /// are `SpecSurface::IRULES` specs, so a registry built for stock Tcl holds
@@ -2926,8 +2925,8 @@ impl CommandRegistry {
     ///
     /// The single membership query for the write-command consumers —
     /// loop-bound checks, dead-store cancellation, embedded-script def
-    /// collection, catch-body out-vars — which previously each kept a
-    /// hardcoded (and mutually inconsistent) name set.
+    /// collection, catch-body out-vars — rather than each keeping its own
+    /// hardcoded (and easily inconsistent) name set.
     #[must_use]
     pub fn writes_first_arg_variable(&self, name: &str) -> bool {
         self.get(name).is_some_and(|s| {
@@ -2989,8 +2988,7 @@ impl CommandRegistry {
     /// import`) says another unit's script runs in this interpreter and can
     /// call back in.  Any of the three sinks the "every caller of this
     /// file's procs is in this file" assumption that
-    /// `tcl_compiler::unit_scope`'s interprocedural call-site seed rests on
-    /// (issue #977).
+    /// `tcl_compiler::unit_scope`'s interprocedural call-site seed rests on.
     ///
     /// Resolved through [`Self::resolve_call`], so the subcommand word is
     /// honoured (`package provide` is a boundary, `package names` is not)
@@ -3299,8 +3297,8 @@ impl CommandRegistry {
             LoweringHookId::NamespaceEval => Some(ControlArmSemantics::FrameBoundary),
             // `apply`'s lambda runs **now**, in a fresh procedure frame that
             // inherits none of the caller's locals — a frame boundary, and the
-            // only [`ArgRole::LambdaLiteral`] position in the registry today
-            // (issue #1656). The role is one level removed from a body (the
+            // only [`ArgRole::LambdaLiteral`] position in the registry. The
+            // role is one level removed from a body (the
             // argument is the `{argList body ?ns?}` *list*), so the index is
             // gated on the role rather than assumed, exactly as the `if` arm
             // above gates on `ArgRole::Body`.
@@ -3312,9 +3310,9 @@ impl CommandRegistry {
             // whereas `namespace eval`'s script propagates its `return` to the
             // enclosing procedure (tclsh 8.6.16 / 9.0.4 agree on both). Errors
             // propagate from either. The compiler's fall-through walk does not
-            // separate an early *normal* completion from an abnormal one — a
-            // limit recorded on PR #1652 — so it reads a lambda that returns
-            // as one it cannot walk past, which is conservative and sound.
+            // separate an early *normal* completion from an abnormal one, so
+            // it reads a lambda that returns as one it cannot walk past,
+            // which is conservative and sound.
             LoweringHookId::Apply => self
                 .arg_indices_for_role(name, args, ArgRole::LambdaLiteral)
                 .contains(&body_index)
@@ -4186,7 +4184,7 @@ impl CommandRegistry {
     /// documents: a dynamic `arg_role_resolver`, the static `arg_roles`
     /// table, and — for the unbounded regular tails a fixed table cannot
     /// express — the [`RepeatedArgLayout`]s of
-    /// [`CommandSpec::repeated_args`] (issue #1185).  The repeated layouts
+    /// [`CommandSpec::repeated_args`].  The repeated layouts
     /// are *additive*: a spec may pin its leading words with `arg_roles`
     /// (`namespace upvar`'s leading namespace word) and still declare the
     /// repeating pair tail.
@@ -4295,7 +4293,7 @@ impl CommandRegistry {
     /// [`ArgRole::braced_word_evaluated_in_frame`] owns. This is the one
     /// place that asks it over a call's argument words, so the SSA use
     /// classifier and the shimmer detectors share a single answer instead of
-    /// each rebuilding the set (issue #1845).
+    /// each rebuilding the set.
     #[must_use]
     pub fn arg_indices_evaluated_in_frame(&self, name: &str, args: &[&str]) -> Vec<usize> {
         let mut out: Vec<usize> = ArgRole::ALL
@@ -4573,11 +4571,11 @@ impl CommandRegistry {
     /// positions carry a conversion / field string, and which mini-language
     /// each is written in.
     ///
-    /// The single registry answer to a question the LSP used to answer by
-    /// matching command spellings — `match head { "format" => …, "scan" =>
-    /// …, "clock" => …, "binary" => …, "regsub" => … }` in both the
+    /// The single registry answer, in place of matching command spellings —
+    /// `match head { "format" => …, "scan" =>
+    /// …, "clock" => …, "binary" => …, "regsub" => … }` — in both the
     /// semantic-token walk and the inlay-hint collector, each with its own
-    /// copy of the argument layout (issue #1185). It combines the two facts
+    /// copy of the argument layout. It combines the two facts
     /// the registry already models:
     ///
     /// * **Where** — the [`ArgRole::FormatString`] / [`ArgRole::ScanFormat`]
@@ -4805,7 +4803,7 @@ impl CommandRegistry {
 
     /// How a formatter should **present** argument `index` of a call to
     /// `name` — the layout fact that refines the argument's semantic
-    /// [`ArgRole`] (issue #1186).
+    /// [`ArgRole`].
     ///
     /// Returns the declared override, or [`ArgPresentation::BlockScript`]
     /// (the default) when the spec says nothing. `for`'s `start` and `next`
@@ -5550,7 +5548,7 @@ impl ResolvedCall<'_> {
     ///
     /// The compiler's type-inference pass consults this to type the
     /// variables a command writes as a side effect, rather than assuming
-    /// they receive the command's return value (issue #867).
+    /// they receive the command's return value.
     #[must_use]
     pub fn var_write_typing(&self) -> VarWriteTyping {
         self.sub
@@ -5957,7 +5955,7 @@ mod tests {
         check_subcommand("trace", "add", &["variable", "name", "write", "callback"]);
     }
 
-    // -- cross-language RPC roles (issue #1707) ---------------------------
+    // Cross-language RPC roles.
 
     /// The remote-method relation is registry data on the iRules surface, so
     /// it exists there and nowhere else. A consumer asking the registry —
@@ -5992,7 +5990,7 @@ mod tests {
         );
     }
 
-    // -- ambient packages (issue #1627) -----------------------------------
+    // Ambient packages.
 
     /// Two packs naming the same package are two claims that the runtime
     /// provides at least that version. The strongest claim is the one that
@@ -6021,8 +6019,6 @@ mod tests {
         assert_eq!(reversed.ambient_package_floor("Tk"), Some("8.6"));
     }
 
-    // -- unfilled_trailing_roles (issue #1190) ----------------------------
-    //
     // The complement of `arg_indices_for_role`: what the *next* words would
     // mean, which is the question a splice-a-trailing-argument quick fix asks.
 
@@ -6811,7 +6807,7 @@ mod tests {
 
     #[test]
     fn uplevel_body_arg_role_skips_optional_level() {
-        // Issue #837: `uplevel ?level? {body}` — the body word's index depends
+        // `uplevel ?level? {body}` — the body word's index depends
         // on whether a leading `level` word is present. The registry resolver
         // is the single source of truth every body consumer (semantic tokens,
         // green-tree descent, SSA) queries.
@@ -6872,9 +6868,9 @@ mod tests {
         assert_eq!(kw, vec![1, 5], "{kw:?}");
     }
 
-    /// Issue #1185 — the format families answer from registry data alone:
+    /// The format families answer from registry data alone:
     /// the *position* from the `FormatString` / `ScanFormat` roles, the
-    /// *family* from `format_string_type` (previously never populated).
+    /// *family* from `format_string_type`.
     #[test]
     fn format_string_args_cover_every_family() {
         use crate::patterns::FormatType;
@@ -7303,7 +7299,7 @@ mod tests {
 
     /// Pattern locations come from the owning specs' option descriptors, not
     /// from an LSP walk guessing where a `-start` value ends.  Exercise the
-    /// three shapes that previously drifted: abbreviations, value-taking
+    /// three shapes prone to diverging: abbreviations, value-taking
     /// options, and glob's unbounded pattern tail.
     #[test]
     fn pattern_roles_follow_declared_option_prefixes() {
@@ -7541,8 +7537,8 @@ mod tests {
         }
     }
 
-    /// Issue #1185 — the repeated argument tails a fixed index table cannot
-    /// express now answer through the ordinary role query.
+    /// The repeated argument tails a fixed index table cannot
+    /// express answer through the ordinary role query.
     #[test]
     fn repeated_layouts_answer_through_arg_indices_for_role() {
         let reg = CommandRegistry::build_default();
@@ -7626,7 +7622,7 @@ mod tests {
         );
     }
 
-    /// Issue #1186 — `for`'s three script arguments share the semantic
+    /// `for`'s three script arguments share the semantic
     /// [`ArgRole::Body`], and the *presentation* fact is what separates the
     /// trailing body (block-expanded) from `start` / `next` (inline).
     #[test]
@@ -7670,7 +7666,7 @@ mod tests {
         );
     }
 
-    // -- Option-value roles (Phase 1) ------------------------------------
+    // Option-value roles.
 
     fn opt(name: &'static str, value: crate::hover::OptionValue) -> crate::hover::OptionSpec {
         crate::hover::OptionSpec {

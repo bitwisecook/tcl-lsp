@@ -19,10 +19,9 @@
 //! Native LSP server backend for Tcl.
 //!
 //! Exposes a [`Backend`] that implements [`tower_lsp_server::LanguageServer`]
-//! and is wrapped in an `LspService` by the binary. This crate is the
-//! second consumer of [`tcl_lsp_core`] (the first is `tcl-lsp-rust`),
-//! so the pure-Rust crate boundary now has both production drivers
-//! exercising it.
+//! and is wrapped in an `LspService` by the binary. This crate is one of two
+//! consumers of [`tcl_lsp_core`] (the other is `tcl-lsp-rust`), so the
+//! pure-Rust crate boundary has both production drivers exercising it.
 //!
 //! LSP methods without a wired provider return
 //! [`tower_lsp_server::jsonrpc::ErrorCode::MethodNotFound`].
@@ -163,7 +162,7 @@ fn sha256_hex(bytes: &[u8]) -> String {
 
 /// Document store value: source text + dialect string.
 ///
-/// # Snapshot ownership and revision currency (issue #1184)
+/// # Snapshot ownership and revision currency
 ///
 /// This type is both the **mutable owner** of an open document (under
 /// `Backend::documents`' mutex) and the **immutable snapshot** every request
@@ -191,8 +190,7 @@ fn sha256_hex(bytes: &[u8]) -> String {
 struct DocumentState {
     /// The document's text **as analysis sees it**, behind an [`Arc`] so a
     /// snapshot handed to a request handler ([`Backend::read_document`]) is a
-    /// reference-count bump rather than a copy of the whole buffer (issue
-    /// #1184).
+    /// reference-count bump rather than a copy of the whole buffer.
     ///
     /// Inside [`Backend::documents`] this is byte-for-byte what the client
     /// sent (the shadow buffer every incremental `didChange` splices into).
@@ -264,7 +262,7 @@ struct DocumentState {
     backing_file_deleted: bool,
     /// How far deferred publication has caught up with this exact live
     /// revision. Semantic tokens need the Salsa boundary; cross-document
-    /// providers need the indexed boundary (#829, #1849, #1854 review).
+    /// providers need the indexed boundary.
     publication: DocumentPublication,
     /// Monotonic request to re-resolve `dialect` from the current language id,
     /// text hints, folder settings, and session default. A later edit carries
@@ -397,7 +395,7 @@ impl DocumentState {
 /// Symbols captured from one workspace-index snapshot, together with the exact
 /// open-document snapshots their byte spans were analysed against. Keeping the
 /// snapshots beside both fallback and indexed hits avoids mapping an old span
-/// through newer live text after fallback analysis has awaited (#1854 review).
+/// through newer live text after fallback analysis has awaited.
 struct WorkspaceSymbolCandidates {
     fallback_hits: Vec<core_workspace_symbols::IndexedWorkspaceSymbol>,
     indexed_hits: Vec<core_workspace_symbols::IndexedWorkspaceSymbol>,
@@ -453,7 +451,7 @@ struct FreshAnalysisSeed {
 /// Built by [`Backend::open_document_texts`] and handed to the iRulesLX
 /// cross-file walk, which reads other files itself and must see the same bytes
 /// [`Backend::read_document`] would — the open buffer first, disk only for what
-/// is not open (issue #1707 review).
+/// is not open.
 struct OpenDocumentTexts(HashMap<PathBuf, Arc<str>>);
 
 /// A source-rehoming read that never waits for live publication while holding
@@ -512,21 +510,20 @@ const EDIT_BARRIER_STALL_LOG: &str = "[stall] document-sync barrier has not adva
 ///
 /// Salsa grants `&mut` on the database through `Storage::cancel_others`, which
 /// parks on a condvar until every *other* `DatabaseImpl` clone has been
-/// dropped. The original `did_open` / `did_change` path reached that while it
-/// held the [`EditOrder`] turn, so one slow-to-drop snapshot stopped the whole
-/// server (issue #1657). Live publication is now deferred past that turn and
-/// additionally requires its database's census to be empty before entering a
-/// setter.
+/// dropped. Reaching that while holding the [`EditOrder`] turn would let one
+/// slow-to-drop snapshot stop the whole server, so live publication is deferred
+/// past the turn and additionally requires its database's census to be empty
+/// before entering a setter.
 ///
-/// The stall report could already say the barrier had stopped and which handler
-/// held it. It could not say *what the handler was waiting for*, because a
-/// snapshot leaves no trace — and the process is gone by the time anyone looks.
-/// This is that trace: every clone registers here with the site that made it and
-/// when, and retires on drop.
+/// A stall report can name the barrier that stopped and the handler holding it,
+/// but not *what that handler is waiting for*, because a snapshot otherwise
+/// leaves no trace — and the process is gone by the time anyone looks. This is
+/// that trace: every clone registers here with the site that made it and when,
+/// and retires on drop.
 ///
 /// The census belongs to the [`TrackedMutex`] that owns one Salsa database.
 /// That scope is a correctness property: a snapshot from an unrelated backend
-/// must not delay this backend's publication (#1854 review).
+/// must not delay this backend's publication.
 ///
 /// # Cost
 ///
@@ -651,14 +648,14 @@ impl SnapshotCensus {
 
 /// A salsa database snapshot that retires itself from its database's census.
 ///
-/// Derefs to the database, so a call site reads `&*snapshot` where it used to
-/// read `&snapshot` and is otherwise unchanged. Move it into the worker it was
+/// Derefs to the database, so a call site reads `&*snapshot` rather than
+/// `&snapshot` and is otherwise unchanged. Move it into the worker it was
 /// cloned for and let it drop there — see [`Backend::db_set_source`] for what
 /// holding one across an unrelated `await` costs.
 struct DbSnapshot<T = tcl_lsp_db::TclDatabase> {
     // `Option` lets `Drop` destroy the value explicitly before retiring its
     // census entry. Rust otherwise runs `Drop::drop` before dropping fields,
-    // which left a small false-zero window while the Salsa clone still lived.
+    // which would leave a false-zero window while the Salsa clone still lives.
     db: Option<T>,
     census: Arc<SnapshotCensus>,
     id: u64,
@@ -676,7 +673,7 @@ impl<T> std::ops::Deref for DbSnapshot<T> {
 
 impl<T> Drop for DbSnapshot<T> {
     fn drop(&mut self) {
-        // The census is also a publication-safety barrier (#1800), not merely
+        // The census is also a publication-safety barrier, not merely
         // telemetry: zero means a Salsa setter cannot enter `cancel_others`.
         // Destroy the clone synchronously before making that assertion true.
         drop(self.db.take());
@@ -688,7 +685,7 @@ impl<T> Drop for DbSnapshot<T> {
 /// stores on the live-publication path.
 ///
 /// Unlike the document store's task-poll instrumentation below, this records
-/// call sites and ages only. That is the evidence #1849 lacked: when a live
+/// call sites and ages only. That is what a stall report needs: when a live
 /// publication cannot acquire `db` or `db_files`, the stall line can name the
 /// current (or last) holder and the oldest queued waiter instead of merely
 /// reporting that `try_lock` failed.
@@ -932,18 +929,15 @@ impl<T> TrackedMutex<T> {
 ///
 /// # Why the map needs a name attached
 ///
-/// Issue #1657's wedge is a whole server answering nothing, and the chain that
-/// produces it is: some task holds this lock and does not give it back → the
-/// document-sync handler holding the [`EditOrder`] turn blocks on it → every
-/// request handler blocks on the barrier behind that turn. The phase marker on
-/// [`TurnHolder`] names the *waiter* (it reported `did_change: documents.lock`,
-/// with the phase as old as the turn). Nothing named the holder.
+/// A whole server answering nothing is produced by this chain: some task holds
+/// this lock and does not give it back → the document-sync handler holding the
+/// [`EditOrder`] turn blocks on it → every request handler blocks on the
+/// barrier behind that turn. The phase marker on [`TurnHolder`] names only the
+/// *waiter* — `did_change: documents.lock`, with the phase as old as the turn.
 ///
-/// Inferring it from the surrounding log — a `diagnostics.publish.enqueued`
-/// marker with no matching completion — got the investigation one suspect, but
-/// an inference from adjacent log lines is not a name, and the next occurrence
-/// may not leave so tidy a trail. This records it directly, so the stall line
-/// states the holder instead of implying it.
+/// Inferring the holder from adjacent log lines is not a name, and a wedge need
+/// not leave a tidy trail. This records it directly, so the stall line states
+/// the holder instead of implying it.
 ///
 /// # Cost
 ///
@@ -956,20 +950,20 @@ struct DocumentStore {
     /// Who holds the map, who held it last, and how many times it has been
     /// taken — under **one** lock, deliberately.
     ///
-    /// These were three separate fields (two mutexes and an atomic), and a
-    /// snapshot built from them could interleave: read the holder, watch that
-    /// guard drop and another task acquire, then read the last-holder and the
-    /// count from *after* that change. The result is a stall line pairing one
-    /// task's identity with another's metadata — "old task still holds", or
+    /// Split across separate fields (two mutexes and an atomic), a snapshot
+    /// built from them could interleave: read the holder, watch that guard drop
+    /// and another task acquire, then read the last-holder and the count from
+    /// *after* that change. The result is a stall line pairing one task's
+    /// identity with another's metadata — "old task still holds", or
     /// free-while-held — which is precisely the confusion the discriminator
-    /// exists to remove (Codex P2 on #1677).
+    /// exists to remove.
     ///
     /// A single lock makes the whole snapshot atomic rather than merely
     /// contemporaneous. Dating every age from one clock reading fixes when the
     /// numbers were taken; it cannot fix which state they describe.
     ///
-    /// Cheaper than what it replaces, too: acquiring the map now takes one
-    /// uncontended `std::sync::Mutex` instead of a mutex plus an atomic RMW.
+    /// It is also cheap: acquiring the map takes one uncontended
+    /// `std::sync::Mutex` rather than a mutex plus an atomic RMW.
     tracking: std::sync::Mutex<DocumentsTracking>,
 }
 
@@ -980,7 +974,7 @@ struct DocumentsTracking {
     /// `None` whenever the map is free.
     holder: Option<DocumentsHolder>,
     /// The previous holder, kept after it releases, so a stall line that finds
-    /// the map free can still say who had it last (issue #1657).
+    /// the map free can still say who had it last.
     last: Option<DocumentsHolder>,
     /// Total successful acquisitions, ever.
     ///
@@ -996,7 +990,7 @@ struct DocumentsTracking {
     ///   never woken. That is a lost wakeup in the ordinary sense.
     acquisitions: u64,
     /// Every task currently parked in [`DocumentStore::lock`]'s contended slow
-    /// path, with its poll/wake telemetry (issue #1657).
+    /// path, with its poll/wake telemetry.
     ///
     /// Registered on entering the slow path, removed by a drop guard when the
     /// acquire completes **or is cancelled** — a `did_close` future dropped
@@ -1008,10 +1002,10 @@ struct DocumentsTracking {
 
 /// Poll/wake telemetry for one task parked on the open-document map.
 ///
-/// # What this discriminates (issue #1657)
+/// # What this discriminates
 ///
-/// A captured wedge showed the map **free** with its acquisition count frozen
-/// while `did_open` sat parked on `documents.lock()` — a waiter that was never
+/// A wedge can leave the map **free** with its acquisition count frozen while
+/// `did_open` sits parked on `documents.lock()` — a waiter that was never
 /// resumed. Two mechanisms produce that and they need different fixes:
 ///
 /// * **The wake was lost.** The waiter's waker was never invoked: nothing told
@@ -1110,12 +1104,8 @@ struct DocumentsHolder {
     /// Without this, a long hold reports only where it currently is and how long
     /// it has held in total, which cannot distinguish "spent a minute in an
     /// earlier phase and just arrived here" from "has been stuck here the whole
-    /// time". A #1657 capture read `cache_and_deliver: publish send (71.8s)` and
-    /// was ambiguous between exactly those, because retagging overwrites the
-    /// site and leaves no trace of the phase before it.
-    ///
-    /// [`TurnHolder`] has carried this pairing since #1667; this is the same
-    /// idea, belatedly made consistent.
+    /// time": a retag overwrites the site and leaves no trace of the phase
+    /// before it. [`TurnHolder`] carries the same pairing.
     phase_since: crate::rt::Instant,
     /// The longest phase this hold has finished, and where it was.
     ///
@@ -1123,10 +1113,9 @@ struct DocumentsHolder {
     /// only ever about the phase running right now. A hold that spent a minute
     /// in an earlier phase and then moved on reports a young `in_phase` and a
     /// large `held`, and nothing says which of the phases behind it burned the
-    /// time — the retag overwrites the site (issue #1678: a capture read
-    /// `publish send (71.8s)` for a send that could not have taken more than
-    /// its 2s budget, so the time was spent in a phase that had already been
-    /// relabelled away).
+    /// time — the retag overwrites the site. Without this field, a hold blamed
+    /// on a phase whose own budget is far smaller than the reported age is
+    /// really being blamed for time spent in a phase already relabelled away.
     ///
     /// Recorded on every retag *and* on release, because a hold whose slowest
     /// phase is its last one never retags again — without the release update
@@ -1214,7 +1203,7 @@ impl DocumentStore {
         DocumentsGuard { docs, store: self }
     }
 
-    /// The contended acquire, instrumented (issue #1657).
+    /// The contended acquire, instrumented.
     ///
     /// Registers a [`WaiterTelemetry`] for the stall line to read, counts every
     /// poll of the acquire future, and wraps the waker so every wake of this
@@ -1327,8 +1316,8 @@ impl DocumentStore {
     fn contention(&self) -> DocumentsContention {
         // One lock, one clock reading. The lock makes the three fields describe
         // the same *state*; the clock reading makes their ages describe the same
-        // *instant*. Both are needed — an earlier version had only the second
-        // and could still pair one task's identity with another's metadata.
+        // *instant*. Both are needed: one clock reading alone would still let
+        // one task's identity be paired with another's metadata.
         let now = crate::rt::Instant::now();
         let (held_by, last, acquisitions) = {
             let tracking = self.tracking();
@@ -1353,7 +1342,7 @@ impl DocumentStore {
     /// guard in hand. This one exists for code that runs *under* a caller's
     /// guard without being given it — `DeliveryCtx::cache_and_enqueue`, which
     /// both of its callers invoke while holding the map, and whose pull-cache
-    /// await is worth naming separately (issue #1657).
+    /// await is worth naming separately.
     ///
     /// **Precondition:** the calling task must be the holder. There is no way to
     /// check that, so a call from a task that does not hold the map would
@@ -1492,14 +1481,14 @@ impl Drop for DocumentsGuard<'_> {
     fn drop(&mut self) {
         // Move the departing holder aside rather than discarding it, so a stall
         // line that finds the map free can still say who had it last and how
-        // long ago they let go (issue #1657). `since` is left as the *hold's*
+        // long ago they let go. `since` is left as the *hold's*
         // start, so the reported age reads as "released, having held from N
         // seconds ago" — the release instant is recoverable from the pair.
         let mut tracking = self.store.tracking();
         if let Some(mut departing) = tracking.holder.take() {
             // The phase that was running at release is a finished phase like
             // any other, and it is the one a hold whose *last* step is the slow
-            // one would otherwise never record (issue #1678).
+            // one would otherwise never record.
             departing.close_phase(crate::rt::Instant::now());
             tracking.last = Some(departing);
         }
@@ -1507,7 +1496,7 @@ impl Drop for DocumentsGuard<'_> {
 }
 
 /// Render the map's waiter telemetry into the stall line's
-/// poll-discrimination clause (issue #1657).
+/// poll-discrimination clause.
 ///
 /// This is the reading that separates the three remaining stories for a waiter
 /// parked on a free map:
@@ -1530,8 +1519,8 @@ fn describe_documents_waiters(waiters: &[WaiterSnapshot], map_held: bool) -> Str
         use std::fmt::Write as _;
         // A waiter behind a HELD map has not been woken because no wake was
         // ever due — the holder has not released. Framing that as a lost wake
-        // (as the first capture with this clause did) invites the reader to
-        // suspect the mutex when the waiters are merely victims of the holder.
+        // invites the reader to suspect the mutex when the waiters are merely
+        // victims of the holder.
         // The wake analysis below is only evidence when the map is free.
         if map_held {
             let _ = write!(
@@ -1575,10 +1564,9 @@ fn describe_documents_waiters(waiters: &[WaiterSnapshot], map_held: bool) -> Str
     out
 }
 
-/// How long a waiter may sit parked on a FREE map before the watchdog nudges
-/// (the run-12 shape). A held map never triggers this: waiters behind a
-/// holder are victims, and a long #1678-style hold must not cause false
-/// nudges.
+/// How long a waiter may sit parked on a FREE map before the watchdog nudges.
+/// A held map never triggers this: waiters behind a holder are victims, and a
+/// long but legitimate hold must not cause false nudges.
 #[cfg(not(target_family = "wasm"))]
 const NUDGE_WAITER_THRESHOLD: std::time::Duration = std::time::Duration::from_secs(4);
 
@@ -1644,7 +1632,7 @@ fn unpark_watchdog_step(
     UNPARK_NUDGES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     // Plain facts, not the stall line's two-sample clauses — a nudge takes one
     // sample, and borrowing wording that claims a sample window would be the
-    // instrument overclaiming again.
+    // instrument overclaiming.
     let holder = contention.held_by.map_or_else(
         || "map free".to_owned(),
         |h| format!("map held by {} ({:.1}s)", h.site, h.held.as_secs_f64()),
@@ -1754,7 +1742,7 @@ fn try_taskdump(
     }
 }
 
-/// Start the opt-in #1657 evidence watchdog on a plain std thread outside the
+/// Start the opt-in wedge-evidence watchdog on a plain std thread outside the
 /// runtime it observes.
 ///
 /// Samples the open-document map's telemetry every 250 ms; on a trigger shape
@@ -1763,11 +1751,11 @@ fn try_taskdump(
 /// named by `TCL_LSP_NUDGE_LOG` when set, because the ext-host harness does
 /// not reliably capture server stderr and the acceptance loop greps the file.
 ///
-/// This is not a mitigation. The loaded experiment produced zero true
-/// resumptions and falsified the external-unpark recovery theory. Normal server
-/// startup therefore does not call this function; `main` requires the explicit
-/// `TCL_LSP_WEDGE_EVIDENCE` opt-in. The retained poke is a repeatable
-/// discriminator, and every action logs whether the exact target progressed.
+/// This is not a mitigation: an external unpark does not recover a wedged
+/// waiter. Normal server startup therefore does not call this function; `main`
+/// requires the explicit `TCL_LSP_WEDGE_EVIDENCE` opt-in. The poke is a
+/// repeatable discriminator, and every action logs whether the exact target
+/// progressed.
 #[cfg(not(target_family = "wasm"))]
 pub fn spawn_unpark_watchdog(backend: &Backend, handle: tokio::runtime::Handle) {
     let store = Arc::clone(&backend.documents);
@@ -1841,9 +1829,9 @@ fn describe_documents_contention(
         // Three readings, never fewer: `held` says the hold is long,
         // `in_phase` says whether *this* step is what is long, and the
         // high-water mark names the slowest step already behind it — which a
-        // retag would otherwise have relabelled away (issue #1678). The
-        // acquisition counter is deliberately not printed here — nobody else
-        // can acquire a held map, so it is trivially zero (issue #1657).
+        // retag would otherwise have relabelled away. The acquisition counter
+        // is deliberately not printed here — nobody else can acquire a held
+        // map, so it is trivially zero.
         return format!(
             "the open-document map is held by {} — {:.1}s in total, {:.1}s at this point{}",
             h.site,
@@ -1903,9 +1891,9 @@ type DepartedHolder = (&'static str, std::time::Duration, Option<PhaseSpan>);
 /// in total, and how long it has been at that point.
 ///
 /// The pair is the reading that matters. `held` alone says a hold is long;
-/// `in_phase` says whether *this* step is what is long. A #1657 capture reported
-/// `publish send (71.8s)` and could not distinguish a send that had just started
-/// after a slow earlier phase from a send that had itself hung.
+/// `in_phase` says whether *this* step is what is long. Without both, a long
+/// hold sitting at `publish send` cannot be told apart from a send that has
+/// just started after a slow earlier phase.
 #[derive(Debug, Clone, Copy)]
 struct HeldFor {
     site: &'static str,
@@ -1913,7 +1901,7 @@ struct HeldFor {
     in_phase: std::time::Duration,
     /// The longest phase this hold has *finished*, and where — the third
     /// reading, and the one that names an earlier phase a retag has since
-    /// relabelled away (issue #1678).
+    /// relabelled away.
     longest_phase: Option<PhaseSpan>,
 }
 
@@ -1924,7 +1912,7 @@ struct HeldFor {
 /// covers only *finished* phases, so a hold that is 70s into `publish send`
 /// after a 1s earlier phase would otherwise read `70.0s at this point;
 /// longest phase so far <earlier> (1.0s)` — false, and pointing an
-/// investigation at the wrong step (PR #1958 review). The clause is therefore
+/// investigation at the wrong step. The clause is therefore
 /// suppressed unless the mark actually outlasts the live phase; when it does
 /// not, `in_phase` has already named the longest phase and repeating it adds a
 /// number to squint at rather than a fact. A hold still in its first phase has
@@ -1957,8 +1945,8 @@ struct DocumentsContention {
 /// (SSA/SCCP-informed: regex-source retagging, user-class object-method
 /// resolution) token stream before falling back to the cheap coarse tier
 /// (segmenter + registry only — no `CompilationUnit`/analysis) and letting the
-/// enriched computation finish in the background (issue #829: semantic tokens
-/// must not block indefinitely on a large/cold file's whole-file analysis).
+/// enriched computation finish in the background: semantic tokens must not
+/// block indefinitely on a large/cold file's whole-file analysis.
 /// Comparable to [`DIAGNOSTICS_DEBOUNCE`]: in the common case the diagnostics
 /// worker has already primed the shared per-item analysis for this revision,
 /// so the enriched query is a cache hit well inside this budget and callers
@@ -1968,7 +1956,7 @@ const SEMANTIC_TOKENS_FAST_PATH_BUDGET: std::time::Duration = std::time::Duratio
 /// Upper bound the diagnostics pipeline waits for the full deep pass — the
 /// compiler / optimiser checks, the cross-file resolution, the W120 / W123
 /// workspace refinement, and the lift — before publishing the cheap,
-/// flicker-safe **fast tier** (#844): the workspace-independent syntax /
+/// flicker-safe **fast tier**: the workspace-independent syntax /
 /// structural / style diagnostics, computed from the per-file analyser walk
 /// alone.  A document whose whole pipeline settles inside this budget — a small
 /// or warm file — never reaches the fast tier, so it costs no redundant publish
@@ -2061,7 +2049,7 @@ const DOCUMENTS_CONTENTION_SAMPLE_GAP: std::time::Duration = std::time::Duration
 /// `diagnostics_delivery_smoke` tests pin), while the budget race still
 /// suppresses the fast tier for *large but warm* files whose memoised deep pass
 /// lands inside the budget.  Set well above any trivial file yet far below the
-/// multi-thousand-line documents #844 targets.
+/// multi-thousand-line documents the fast tier targets.
 const DIAGNOSTICS_FAST_TIER_MIN_LINES: usize = 500;
 
 /// How long to wait for the editor to answer a *server-to-client* request
@@ -2083,8 +2071,8 @@ const IRULES_DIALECT: &str = "f5-irules";
 /// The iApps dialect key — an APL presentation's embedded `[ … ]` Tcl.
 const IAPPS_DIALECT: &str = "f5-iapps";
 
-/// Ceiling on how many **open** documents the background workspace warm (#844
-/// Gap 3, narrowed by #1151) analyses concurrently.  The warm pre-populates the
+/// Ceiling on how many **open** documents the background workspace warm
+/// analyses concurrently.  The warm pre-populates the
 /// memoised per-file analysis for already-open documents across the blocking
 /// pool so their first hover / semantic-tokens / diagnostics request finds a
 /// cache hit instead of a cold `file_analysis_incremental` walk; the cap keeps
@@ -2095,14 +2083,14 @@ const WORKSPACE_WARM_MAX_CONCURRENCY: usize = 16;
 
 /// Ceiling on how many workspace files [`Backend::scan_workspace_folders`] and
 /// the [`Backend::did_change_watched_files`] batch reindex analyse concurrently
-/// (#1151 / #1161).  Both read-and-analyse many independent on-disk files, so
+/// concurrently.  Both read-and-analyse many independent on-disk files, so
 /// they share this bound and the [`run_bounded`] helper; clamped to the
 /// machine's parallelism (see [`WORKSPACE_WARM_MAX_CONCURRENCY`]'s rationale)
 /// so a huge tree can't oversubscribe the blocking pool.
 const WORKSPACE_ANALYSIS_MAX_CONCURRENCY: usize = 16;
 
 /// How many analysed files [`Backend::scan_workspace_folders`] accumulates
-/// before merging them into `workspace_index` / the salsa `Project` (#1151).
+/// before merging them into `workspace_index` / the salsa `Project`.
 /// Merging in batches rather than once for the whole scan bounds how many
 /// `AnalysisResult`s (and their source text) are held in memory at once on a
 /// large tree, while still running the *analysis* itself across the full
@@ -2130,10 +2118,10 @@ const SEMANTIC_TOKENS_REFRESH_DEBOUNCE: std::time::Duration = std::time::Duratio
 
 /// How many **closed** files keep a server-side diagnostics badge record
 /// (`pull_diag_cache` + `closed_diag_gen`) before the least-recently-published
-/// one is evicted (#1144).
+/// one is evicted.
 ///
-/// #865 keeps a closed workspace file's Problems badge, but the cache had no
-/// bound: browsing a large tree retained a full `Vec<Diagnostic>` for every file
+/// A closed workspace file keeps its Problems badge, so without a bound,
+/// browsing a large tree would retain a full `Vec<Diagnostic>` for every file
 /// the editor ever opened, for the process's life.  Every entry is re-derivable
 /// from disk, so evicting the oldest costs nothing but a recompute on reopen.
 /// Sized well above a realistic "recently visited" working set (`VS Code`'s own
@@ -2153,10 +2141,9 @@ const FIX_ALL_MAX_PASSES: usize = 4;
 
 /// One fix selected for a `tcl-lsp.fixAllSafeIssues` pass.
 ///
-/// A named struct rather than the tuple the selection used to build: the
-/// tuple's five same-typed fields were positional, and the apply loop indexed
-/// them (`f.0`, `f.2`) at the point where getting one wrong silently rewrites
-/// the wrong bytes.
+/// A named struct rather than a tuple: five same-typed fields indexed
+/// positionally (`f.0`, `f.2`) in the apply loop is exactly where getting one
+/// wrong silently rewrites the wrong bytes.
 struct BulkFix {
     /// Inclusive start byte offset of the replaced range.
     start: u32,
@@ -2180,7 +2167,7 @@ struct BulkFix {
 ///
 /// A run against an **open** buffer is current only while the document is still
 /// open at the revision it was captured for.  A run against a **closed** but
-/// on-disk workspace file (#865 — so its Problems / File-Explorer badge survives
+/// on-disk workspace file (so its Problems / File-Explorer badge survives
 /// the editor tab closing) is current only while the document is still closed:
 /// a concurrent `did_open` makes the open buffer authoritative, so a late
 /// closed-file publish must not land on top of it.
@@ -2189,7 +2176,7 @@ enum DiagCurrency {
     /// Open buffer at this revision.
     Open(u64),
     /// A closed workspace file analysed from its on-disk contents at this
-    /// per-URI generation (#865). The generation lets the publish-time guard
+    /// per-URI generation. The generation lets the publish-time guard
     /// drop a closed run that a newer close / watched-change refresh has
     /// superseded, so an older run cannot overwrite the current set.
     ClosedFromDisk(u64),
@@ -2204,7 +2191,7 @@ enum DiagCurrency {
 struct DiagJob {
     /// The document snapshot's shared text handle — a reference-count bump, not
     /// a copy of the buffer, so scheduling a diagnostics run for a large file
-    /// costs nothing in memory (issue #1184).
+    /// costs nothing in memory.
     text: Arc<str>,
     /// Decoding evidence for precisely this text, when it came from matching
     /// on-disk bytes. See [`DocumentState::decode_report`].
@@ -2215,7 +2202,7 @@ struct DiagJob {
     /// by language id / basename, not by the resolved dialect alone — see
     /// [`is_apl_source`]).
     language_id: String,
-    /// Whether this run targets the open buffer or a closed on-disk file (#865),
+    /// Whether this run targets the open buffer or a closed on-disk file,
     /// deciding what the publish-time currency guard re-checks.
     currency: DiagCurrency,
     version: Option<i32>,
@@ -2253,8 +2240,7 @@ struct PullDiagEntry {
 /// asks are also coalesced, so the answer is a *set*, not a single value.
 /// [`SemanticTokensRefreshCtx::request_refresh_coalesced`] accumulates the
 /// reasons that rode along and names every one of them on the fired marker, so
-/// an observer that owns one reason can tell its own refresh from another's
-/// (issue #1951).
+/// an observer that owns one reason can tell its own refresh from another's.
 #[derive(Clone, Copy)]
 enum SemanticTokensRefreshReason {
     /// A viewport's enriched stream disagreed with the coarse tier served, or a
@@ -2311,7 +2297,7 @@ fn describe_refresh_reasons(bits: u8) -> String {
 /// The twin of the convergence settled markers, and it exists for the same
 /// reason: an observer needs a message-passing signal for *which* subsystem's
 /// refresh reached the client, rather than a wall-clock guess that any refresh
-/// arriving in its window must be its own (issue #1951).
+/// arriving in its window must be its own.
 async fn log_semantic_tokens_refresh_fired(client: &Client, reasons: u8) {
     client
         .log_message(
@@ -2332,7 +2318,7 @@ struct SemanticTokensRefreshCtx {
 }
 
 /// URIs whose detached semantic-token convergence continuation is still in
-/// flight (#1147) — the dedup map behind [`ConvergenceGuard`].
+/// flight — the dedup map behind [`ConvergenceGuard`].
 ///
 /// The value records whether any later request was **coalesced** onto that
 /// claim, so the claim holder knows it is answering for more than itself (see
@@ -2344,16 +2330,16 @@ struct SemanticTokensRefreshCtx {
 type ConvergenceInFlight = Arc<std::sync::Mutex<HashMap<Uri, bool>>>;
 
 /// A claim on one URI's convergence continuation: at most one may be detached
-/// per document at a time (#1147).
+/// per document at a time.
 ///
 /// A `semanticTokens/range` or `semanticTokens/full` request that overruns
 /// [`SEMANTIC_TOKENS_FAST_PATH_BUDGET`] detaches a continuation that holds the
 /// document's text and its coarse token stream and queues a blocking recompute.
-/// Nothing bounded that: an editor scrolling a cold file issues a viewport
-/// request per frame, so N in-flight range requests on one document meant N live
-/// document copies and N queued jobs, and the pre-existing coalescing
-/// ([`SemanticTokensRefreshCtx::request_refresh_coalesced`]) collapsed only the
-/// resulting notification, never the work behind it.
+/// Without this bound, an editor scrolling a cold file issues a viewport request
+/// per frame, so N in-flight range requests on one document mean N live document
+/// copies and N queued jobs; coalescing the resulting notification
+/// ([`SemanticTokensRefreshCtx::request_refresh_coalesced`]) collapses only the
+/// notification, never the work behind it.
 ///
 /// The continuations are redundant with each other by construction: the only
 /// output is a *workspace-scoped* `workspace/semanticTokens/refresh`, which asks
@@ -2394,7 +2380,7 @@ impl ConvergenceGuard {
     }
 
     /// Release the claim, reporting whether any request was coalesced onto it
-    /// while it was held (PR #1179 review, Codex P2).
+    /// while it was held.
     ///
     /// A coalesced request skips its own continuation on the strength of this
     /// one's refresh — but this one only refreshes when *its own* comparison
@@ -2468,7 +2454,7 @@ fn refresh_if_coalesced(
 }
 
 /// Per-URI hash of the enriched token stream a convergence continuation has
-/// already asked the client to re-pull (PR #1179 review).
+/// already asked the client to re-pull.
 ///
 /// The termination bound on the converge → refresh → re-request cycle.  A
 /// request that overruns [`SEMANTIC_TOKENS_FAST_PATH_BUDGET`] serves the coarse
@@ -2478,12 +2464,12 @@ fn refresh_if_coalesced(
 /// machine misses it even on a warm memo, since the budget races
 /// `spawn_blocking` dispatch and the `db` lock), the coarse tier is served and
 /// cached again, and the identical enriched stream asks for the identical
-/// refresh.  Nothing broke the cycle: the server kept firing a workspace-wide
-/// `workspace/semanticTokens/refresh` every debounce window, which cancels and
-/// re-issues the editor's in-flight token request forever.  Recording the
-/// stream we already asked about means a *repeat* ask for the same bytes is
-/// dropped: the client has been told, and telling it again cannot change the
-/// answer.  Any real change — an edit, a cross-file class landing — produces
+/// refresh.  Unbounded, that cycle never breaks: the server fires a
+/// workspace-wide `workspace/semanticTokens/refresh` every debounce window,
+/// which cancels and re-issues the editor's in-flight token request forever.
+/// Recording the stream already asked about means a *repeat* ask for the same
+/// bytes is dropped: the client has been told, and telling it again cannot
+/// change the answer.  Any real change — an edit, a cross-file class landing — produces
 /// different enriched bytes and re-arms the ask.
 ///
 /// Entries are dropped with the token cache on close / rename, so this is
@@ -2497,7 +2483,7 @@ type EnrichedRefreshAsked = Arc<Mutex<HashMap<Uri, u64>>>;
 /// side.
 type SemanticTokensCache = Arc<Mutex<HashMap<Uri, (String, Vec<u32>)>>>;
 
-/// What a timed-out `semantic_tokens_range` request (#844 Gap 4) hands to its
+/// What a timed-out `semantic_tokens_range` request hands to its
 /// convergence continuation: the partial CU / analysis results plus their reads.
 /// Each `Option<Option<..>>` slot is `Some` iff that read landed within the
 /// budget — in which case it is reused directly and its `JoinHandle` (still
@@ -2514,7 +2500,7 @@ type RangeConvergencePending = (
 
 /// The document-side inputs `spawn_range_convergence` needs to recompute the
 /// enriched viewport off the LSP event loop and diff it against the coarse tier
-/// already served (#844 Gap 4). Bundled so the detach helper stays under the
+/// already served. Bundled so the detach helper stays under the
 /// argument-count lint rather than threading six positional clones.
 struct RangeConvergenceInputs {
     /// The document URI, for the settled-marker log line tests key on.
@@ -2523,7 +2509,7 @@ struct RangeConvergenceInputs {
     served: Vec<u32>,
     registry: Arc<CommandRegistry>,
     /// The document text, shared with the request's own coarse tokenisation
-    /// rather than cloned for the continuation (#1147): one buffer per request,
+    /// rather than cloned for the continuation: one buffer per request,
     /// not one per tier.
     text: Arc<str>,
     dialect: String,
@@ -2705,7 +2691,7 @@ enum FullSettleOutcome {
     /// from a freshly-built unit + analysis.
     NoAnalysis,
     /// A convergence continuation for this document was already in flight, so
-    /// no second one was detached (#1147): the pending one's workspace-scoped
+    /// no second one was detached: the pending one's workspace-scoped
     /// refresh covers this request too.
     Coalesced,
 }
@@ -2787,9 +2773,10 @@ struct DiagSlot {
     ///
     /// The cache above may only be reused while the configuration it was read
     /// from is still current.  Without this stamp the edit path (which does not
-    /// force a refresh) silently analysed under whatever config was in force at
-    /// the *previous* schedule — see [`Backend::invalidate_diag_inputs`] for the
-    /// window that made that observable (issue #1651).
+    /// force a refresh) would silently analyse under whatever config was in
+    /// force at the *previous* schedule — see
+    /// [`Backend::invalidate_diag_inputs`] for the window that makes that
+    /// observable.
     ///
     /// Two invariants make the stamp trustworthy, both enforced in
     /// [`Backend::schedule_diagnostics_impl`]: the epoch was the same before and
@@ -2832,9 +2819,9 @@ struct DiagToggles {
     /// the pipeline publishes an empty set (clearing squiggles) instead of
     /// analysing.
     diagnostics_enabled: bool,
-    /// `tclLsp.diagnostics.exclude` matched this document (#1556): the
-    /// pipeline publishes an empty set (clearing squiggles) instead of
-    /// analysing, exactly as the master switch does.
+    /// `tclLsp.diagnostics.exclude` matched this document: the pipeline
+    /// publishes an empty set (clearing squiggles) instead of analysing,
+    /// exactly as the master switch does.
     excluded: bool,
     /// `tclLsp.optimiser.enabled`: gates the optimiser/perf-hint diagnostics.
     optimiser_enabled: bool,
@@ -2875,7 +2862,7 @@ struct DiagInputs {
     /// workspace facts changed by this publication.
     diag_slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>,
     workspace_index: Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
-    /// M9: the applied source-site seed record (see [`Backend`]); the publish
+    /// The applied source-site seed record (see [`Backend`]); the publish
     /// path invalidates a document's entry when it re-indexes it standalone,
     /// so the next cross-document query re-applies the seeded views.
     rehomed_source_seeds: Arc<Mutex<HashMap<String, Vec<String>>>>,
@@ -2886,12 +2873,12 @@ struct DiagInputs {
     /// Serialises the coverage/project snapshot with live source membership
     /// publication. See [`Backend::live_publication_gate`].
     live_publication_gate: Arc<Mutex<()>>,
-    /// Package database for the W120 workspace-refinement post-filter (#723).
+    /// Package database for the W120 workspace-refinement post-filter.
     package_resolver: Arc<RwLock<PackageResolver>>,
     /// Memo for the unclosed-delimiter recovery path's widened known-command
     /// set (see [`RecoveryNameCache`]).
     recovery_names: Arc<Mutex<RecoveryNameCache>>,
-    /// `.tcl-lsp.ini [project] entryPoints` for this document's folder (#804):
+    /// `.tcl-lsp.ini [project] entryPoints` for this document's folder:
     /// when non-empty, the W120 refinement inherits these entries' requires and
     /// disables the automatic `source`-graph inheritance.
     entry_points: Vec<String>,
@@ -2921,7 +2908,7 @@ struct DiagInputs {
     /// `textDocument/diagnostic` / `workspace/diagnostic` paths return the
     /// last-published set.
     pull_diag_cache: Arc<Mutex<HashMap<Uri, PullDiagEntry>>>,
-    /// Per-URI generation counter for **closed**-file diagnostics runs (#865).
+    /// Per-URI generation counter for **closed**-file diagnostics runs.
     /// Each `publish_closed_file_diagnostics` bumps it and captures the new
     /// value into its `DiagCurrency::ClosedFromDisk`; the publish-time currency
     /// guard drops any closed run whose captured generation is no longer the
@@ -2936,7 +2923,7 @@ struct DiagInputs {
     toggles: DiagToggles,
     /// Snapshot of [`Backend::client_supports_pull_diagnostics`].  When `true`
     /// the worker keeps the pull cache current and asks the client to re-pull
-    /// instead of pushing — see that field for the rationale (#721).
+    /// instead of pushing — see that field for the rationale.
     client_supports_pull: bool,
     /// Where the recovery-widening package read gets its bytes — see
     /// [`crate::vfs`].
@@ -2954,9 +2941,9 @@ impl DiagInputs {
             let docs = self.documents.lock("capture_job").await;
             let doc = docs.get(uri)?;
             // The edit handler makes the new buffer visible before its Salsa
-            // source so it can release EditOrder without wedging requests
-            // (#1849). A worker left over from the preceding revision can
-            // drain inside that gap; declining the capture makes it retire,
+            // source so it can release EditOrder without wedging requests.
+            // A worker left over from the preceding revision can drain
+            // inside that gap; declining the capture makes it retire,
             // and the successful source commit schedules a fresh worker.
             // Combining this text/revision with the preceding SourceFile
             // would pass the revision-only delivery guard and briefly publish
@@ -2999,7 +2986,7 @@ impl DiagInputs {
     /// The folder-scoped salsa [`tcl_lsp_db::AnalyserConfig`] handle for `uri`
     /// (longest matching folder override, else the process-global config) — the
     /// same resolution [`Self::capture_job`] applies, reused for the closed-file
-    /// job capture (#865) so a closed file honours the same per-folder
+    /// job capture so a closed file honours the same per-folder
     /// disabled-code / non-ASCII settings it did while open.
     async fn closed_file_config(&self, uri: &Uri) -> tcl_lsp_db::AnalyserConfig {
         let folder = self.folder_db_configs.lock().await;
@@ -3011,14 +2998,13 @@ impl DiagInputs {
 }
 
 /// Run the analyser + diagnostic lifts for one document and publish the result,
-/// off the LSP event loop.  This is the detached body the old synchronous
-/// `publish_analyser_diagnostics` became.
+/// off the LSP event loop.
 ///
-/// The base analysis runs through the cancellable salsa `file_analysis_incremental`
-/// query (slice 5): the per-item walk is memoised and a concurrent edit's
-/// `set_text` cancels an in-flight read at a per-item query boundary, so the
-/// diagnostics path no longer needs the uncancellable direct-`analyse` detour
-/// that previously decoupled it from salsa to avoid write-contention stalls.
+/// The base analysis runs through the cancellable salsa
+/// `file_analysis_incremental` query: the per-item walk is memoised and a
+/// concurrent edit's `set_text` cancels an in-flight read at a per-item query
+/// boundary, so the diagnostics path needs no uncancellable direct-`analyse`
+/// detour to keep write contention from stalling it.
 /// Deliver a freshly-computed diagnostic set to the client.
 ///
 /// The pull cache is always updated by the caller *before* this runs, so a
@@ -3029,7 +3015,7 @@ impl DiagInputs {
 ///   client to re-pull via `workspace/diagnostic/refresh`; it then issues a
 ///   `textDocument/diagnostic` and reads the cache we just primed. Pushing
 ///   *and* pulling the same set makes such clients show every diagnostic
-///   twice (#721); a refresh also covers cross-file (`crossFileResolution`)
+///   twice; a refresh also covers cross-file (`crossFileResolution`)
 ///   updates the client would otherwise not know to re-pull.
 /// - **Push-only client**: publish as before, the only channel it has.
 ///
@@ -3060,8 +3046,8 @@ async fn deliver_diagnostics(
 /// One diagnostics notification committed after its currency check.
 ///
 /// The outbound LSP channel is deliberately consumed by a single persistent
-/// publisher.  A slow client may park that publisher, but it can no longer park
-/// the global document map (issue #1657).
+/// publisher.  A slow client may park that publisher, but it cannot park the
+/// global document map.
 struct PendingDiagnosticPublish {
     uri: Uri,
     diagnostics: Vec<tower_lsp_server::ls_types::Diagnostic>,
@@ -3121,11 +3107,11 @@ impl DiagnosticPublisher {
     /// A `.tclspec` is both a spec pack and — `.tclspec` being a Tcl source
     /// extension — an analysed document, and `publishDiagnostics` replaces a
     /// URI's whole set. Two independent producers publishing the same URI
-    /// therefore overwrite each other, and editing an open pack used to show
-    /// the analyser's view alone until the next reload restored the loader's
-    /// notices. Making this the one place a URI's set is assembled means the
-    /// two are merged rather than raced: whichever producer moved last, the
-    /// other's findings survive it.
+    /// therefore overwrite each other: without this, editing an open pack
+    /// shows the analyser's view alone until the next reload restores the
+    /// loader's notices. Making this the one place a URI's set is assembled
+    /// means the two are merged rather than raced: whichever producer moved
+    /// last, the other's findings survive it.
     ///
     /// The notices are the *pack* layer; everything else a document produces
     /// is the analysed layer and stays owned by the diagnostics pipeline. A
@@ -3304,7 +3290,7 @@ struct DeliveryCtx<'a> {
     diag_slots: &'a Arc<Mutex<HashMap<Uri, DiagSlot>>>,
     pull_diag_cache: &'a Arc<Mutex<HashMap<Uri, PullDiagEntry>>>,
     /// The closed-file generation map, consulted by the currency guard for a
-    /// [`DiagCurrency::ClosedFromDisk`] run (#865).
+    /// [`DiagCurrency::ClosedFromDisk`] run.
     closed_diag_gen: &'a Arc<Mutex<HashMap<Uri, u64>>>,
     uri: &'a Uri,
     currency: DiagCurrency,
@@ -21456,7 +21442,7 @@ enum RangeSettleOutcome {
     /// enriched tier for this request to converge to.
     NoAnalysis,
     /// A convergence continuation for this document was already in flight, so
-    /// no second one was detached (#1147): the pending one's workspace-scoped
+    /// no second one was detached: the pending one's workspace-scoped
     /// refresh covers this viewport too.
     Coalesced,
 }

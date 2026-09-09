@@ -27,15 +27,14 @@ context/all/completion/code-lens touching more than one file's worth of
 state — workspace variables, package tiers, sibling-file completions,
 workspace-wide lens counts) wait out the server's background workspace scan
 first via `LspClient.wait_for_workspace_scan()` (bounded by --scan-timeout,
-default 30s — measured/tuned per issue #1111) rather than racing it — see
-issue #1094 and that method's
+default 30s) rather than racing it — see that method's
 docstring for the exact server-side signal it waits on. Single-file
 subcommands (semantic-tokens, hover, format, ...) are unaffected and
 don't wait.
 
 Pass `--also-open FILE` (repeatable) to open one or more companion files
 before the main <file> argument — the first-class "open two files and
-assert" helper (issue #1111) for a cross-file check (a definition/reference
+assert" helper for a cross-file check (a definition/reference
 in <file> resolving into FILE, a sibling-file completion, a workspace-wide
 lens count). Companion files are opened *after* the workspace-scan wait
 above and *before* <file>, so whichever subcommand you run sees them.
@@ -144,15 +143,15 @@ LSP_SEVERITY = {1: "ERROR", 2: "WARNING", 3: "INFO", 4: "HINT"}
 # `package_resolver` / `workspace_index` have been (re)built from disk —
 # unconditionally, even for a zero-root / single-file session — via a
 # `window/logMessage` notification (MessageType::LOG). The server's own doc
-# comment on that call site says explicitly: "a client (or a test) that
+# comment on that call site says explicitly: a client (or a test) that
 # needs to know the autoload / cross-file workspace state is current rather
 # than racing this scan should wait on this line instead of an unrelated
-# per-document signal (issue #1003)". See issue #1094.
+# per-document signal.
 #
 # NOT the same marker as `[timing] workspace_state.update`, which is a
 # *per-document* diagnostics-publish timing line (fires once per open
 # document, unrelated to workspace-scan completion) — waiting on that one
-# instead is the exact confusion issue #1094 warns against.
+# instead races the scan just the same.
 WORKSPACE_SCAN_SIGNAL = "[timing] workspace_folders_scan"
 
 COMPLETION_KIND = {
@@ -184,7 +183,7 @@ COMPLETION_KIND = {
 }
 
 # Subcommands whose results can depend on cross-file workspace state
-# (workspace variables, package tiers — issue #1094): `definition` and
+# (workspace variables, package tiers): `definition` and
 # `references` query `workspace_index` directly per-request, so waiting
 # right before the request (see `cmd_definition`/`cmd_references`) is
 # sufficient. `diagnostics`, `code-actions`, `context`, and `all` are
@@ -200,13 +199,11 @@ COMPLETION_KIND = {
 # workspace-wide references), so they wait too — before `didOpen` via
 # `main()`, which is also sufficient for their per-request reads.
 #
-# Verified live (issue #1111) against a real `tcl-lsp-server` build (this
-# reasoning previously rested on code inspection only — no binary was
-# buildable in the sandbox that filed the issue): `--also-open` + `definition`
-# resolving a companion file's symbol on the *first* request of 20/20 freshly
-# spawned server processes, with no `--scan-timeout` override, confirms
-# waiting before `didOpen` sidesteps the race the comment above describes
-# rather than merely happening not to trigger it.
+# Verified live against a real `tcl-lsp-server` build: `--also-open` +
+# `definition` resolving a companion file's symbol on the *first* request of
+# 20/20 freshly spawned server processes, with no `--scan-timeout` override,
+# confirms waiting before `didOpen` sidesteps the race the comment above
+# describes rather than merely happening not to trigger it.
 CROSS_FILE_COMMANDS = {
     "definition",
     "references",
@@ -324,13 +321,13 @@ class LspClient:
 
         Writes through a raw, `select()`-bounded loop on the stdin file
         descriptor rather than the buffered file object's blocking
-        `write()`/`flush()`. That blocking write had no timeout at all: a
-        server that stops draining stdin (wedged, or mid-crash, or the
-        intermittent #1399 hang — a client stuck in `write()` opposite a
-        server idle in `read()`) blocked here forever, and `REQUEST_TIMEOUT_S`
-        in `send_request` never even got a chance to fire because the
-        request was never fully sent. `select()` reports writability before
-        each chunk, so a stalled peer surfaces as a `TimeoutError` a caller
+        `write()`/`flush()`, which has no timeout: a server that stops
+        draining stdin (wedged, mid-crash, or a client stuck in `write()`
+        opposite a server idle in `read()`) would block here forever, and
+        `REQUEST_TIMEOUT_S` in `send_request` would never get a chance to
+        fire because the request was never fully sent. `select()` reports
+        writability before each chunk, so a stalled peer surfaces as a
+        `TimeoutError` a caller
         can catch (as `Bench.check`/`Bench.request` in `bench.py` already
         do for the read side) instead of a wedged process indistinguishable
         from real work.
@@ -454,11 +451,9 @@ class LspClient:
     def send_request(self, method: str, params: dict, timeout: float = 30.0) -> Any:
         """Send a request and wait for the response.
 
-        `timeout` now bounds *both* halves of the round-trip: getting the
-        request onto the wire (the `_send` write, previously unbounded — see
-        `_send`'s docstring) and waiting for the reply. A caller that passed
-        a generous `timeout` for a slow server got that generosity on the
-        write before too; it just also now has a ceiling.
+        `timeout` bounds both halves of the round-trip: getting the request
+        onto the wire (the `_send` write — see its docstring for why that
+        needs a bound) and waiting for the reply.
         """
         self._request_id += 1
         rid = self._request_id
@@ -591,7 +586,7 @@ class LspClient:
         `Backend::scan_workspace_folders` populates in the background —
         kicked off from the `initialized` handler, running concurrently
         with whatever `didOpen` the client sends next. Asserting before
-        that scan lands is issue #1094: results flip between "resolved"
+        that scan lands makes results flip between "resolved"
         and "unresolved" depending on scan timing.
 
         Waits for the `[timing] workspace_folders_scan` `window/logMessage`
@@ -604,7 +599,7 @@ class LspClient:
         defensively from multiple places).
 
         Raises TimeoutError with a pointer back to the server-side signal
-        and this issue if the line never arrives within *timeout* seconds.
+        if the line never arrives within *timeout* seconds.
         """
         deadline = time.monotonic() + timeout
         while True:
@@ -1248,7 +1243,7 @@ def cmd_completion(client: LspClient, uri: str, line: int, col: int) -> None:
 def cmd_definition(client: LspClient, uri: str, line: int, col: int) -> None:
     """Request and display definitions.
 
-    A "navigation request" per issue #1094: waits out the background
+    This is a "navigation request": it waits out the background
     workspace scan first (idempotent/cheap if `main()` already did) so a
     cross-file definition isn't raced. Belt-and-suspenders for callers that
     invoke this directly rather than through `main()`.
@@ -1269,7 +1264,7 @@ def cmd_definition(client: LspClient, uri: str, line: int, col: int) -> None:
 def cmd_references(client: LspClient, uri: str, line: int, col: int) -> None:
     """Request and display references.
 
-    A "navigation request" per issue #1094: waits out the background
+    This is a "navigation request": it waits out the background
     workspace scan first (idempotent/cheap if `main()` already did) so
     cross-file references aren't raced. Belt-and-suspenders for callers
     that invoke this directly rather than through `main()`.
@@ -2008,12 +2003,12 @@ examples:
             # one diagnostics publish (and any definition/references
             # request issued below) already sees the fully-populated
             # workspace_index / package_resolver instead of racing the
-            # scan (issue #1094).
+            # scan.
             if args.command in CROSS_FILE_COMMANDS:
                 client.wait_for_workspace_scan(timeout=args.scan_timeout)
 
-            # `--also-open FILE` (repeatable): the multi-file helper (issue
-            # #1111) — open every companion file *before* the main one, in
+            # `--also-open FILE` (repeatable): the multi-file helper — open
+            # every companion file *before* the main one, in
             # the order given, after the scan wait above so a cross-file
             # subcommand's request against `args.file` already sees them.
             # Each open gets the same post-didOpen settle main() gives the

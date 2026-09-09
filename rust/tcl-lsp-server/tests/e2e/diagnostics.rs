@@ -80,7 +80,6 @@ fn with_code(diags: &[Value], code: &str) -> Vec<Value> {
         .collect()
 }
 
-// -- TestPushDiagnostics -------------------------------------------------
 
 #[test]
 fn unbraced_expr_is_w100() {
@@ -270,19 +269,17 @@ fn unbraced_expr_inside_catch_body_is_w100() {
 #[test]
 fn unbraced_expr_inside_tcltest_body_is_w100() {
     // `tcltest::test` evaluates its body as Tcl, so diagnostics inside it are
-    // real (tcltest body-role resolver fix).
+    // real.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "package require tcltest\ntcltest::test t {d} { set y [expr $a + $b] } {}\n";
     assert!(has_code(&lsp.open_ready(&uri, src), "W100"));
 }
 
-// -- TestSubcommandOptionArity -------------------------------------------
-// End-to-end arity checks for per-subcommand option flags (issue #581).
 // `file link -symbolic linkName target` is valid Tcl — the optional
-// `-linktype` flag precedes the two positionals — but the packaged server used
-// to emit "Too many arguments for 'file link'" because the subcommand's declared
-// options were never skipped before the positional count.
+// `-linktype` flag precedes the two positionals — so the arity check must
+// skip declared option flags before counting positionals, or a valid call
+// wrongly reports "Too many arguments for 'file link'".
 
 #[test]
 fn file_link_symbolic_has_no_arity_error() {
@@ -323,9 +320,8 @@ fn string_match_nocase_has_no_arity_error() {
     assert!(!has_code(&diags, "E003"));
 }
 
-// -- E003 tight range + registry arity-data corrections ------------------
 // The too-many-args squiggle covers only the surplus words, and several
-// command arities are corrected to match C Tcl 9.
+// command arities match C Tcl 9.
 
 #[test]
 fn e003_too_many_args_highlights_only_the_surplus_words() {
@@ -431,10 +427,9 @@ fn w216_upvar_local_indirect_array_is_silent() {
     assert!(has_code(&diags2, "W216"), "got {diags2:?}");
 }
 
-// -- TestW004DialectInvalidOption -----------------------------------------
-// End-to-end coverage for W004 (option not available in the active
-// dialect): the abbreviated-subcommand fix, and the shadow-suppression
-// fix for a same-file proc that redefines a builtin.
+// W004 fires when an option is unavailable in the active dialect. It must
+// also recognise abbreviated subcommands, and stay silent when a same-file
+// proc redefines the builtin it would otherwise apply to.
 
 #[test]
 fn lsearch_stride_on_tcl86_is_w004() {
@@ -535,12 +530,10 @@ fn user_proc_shadowing_lsearch_suppresses_w004() {
     );
 }
 
-// -- TestE001MissingDispatchWord ------------------------------------------
-// End-to-end coverage for E001 ("missing subcommand" / TclOO "missing
-// method"): tight command-head-only highlighting, the `history`
-// bare-call carve-out (issue: bare `history` defaults to `history info`
-// per history(n), so it must not be flagged), and the TclOO object-
-// dispatch generalisation (`$obj` with no method word at all).
+// E001 ("missing subcommand" / TclOO "missing method") highlights only the
+// command head. Bare `history` defaults to `history info` per history(n), so
+// it must not be flagged; TclOO object dispatch (`$obj` with no method word
+// at all) is the same diagnostic generalised to objects.
 
 #[test]
 fn bare_string_is_e001_with_tight_command_head_span() {
@@ -666,8 +659,6 @@ fn method_return_captured_handle_has_no_w307_and_bare_dispatch_is_e001() {
         "the bare `$b` dispatch must be E001: {diags2:?}"
     );
 }
-
-// -- W002 (disabled-in-dialect command), end to end -----------------------
 
 /// The `(character, character)` span of the first diagnostic carrying `code`
 /// on `line`, or `None` if there isn't one.
@@ -886,7 +877,7 @@ fn unshadowed_ensemble_command_still_fires_w001_alongside_a_shadowed_one() {
 
 #[test]
 fn namespace_ensemble_configure_splice_onto_tk_suppresses_w001_end_to_end() {
-    // FP regression, issue #923 idx 84: the real `tk/library/systray.tcl`
+    // The real `tk/library/systray.tcl`
     // idiom splices `systray`/`sysnotify` onto the pre-existing,
     // registry-builtin `tk` ensemble via `namespace ensemble configure tk
     // -map [dict merge [namespace ensemble configure tk -map] {systray
@@ -967,7 +958,6 @@ fn bare_snit_instance_dispatch_is_not_e001() {
     assert!(!has_code(&lsp.open_ready(&uri, src), "E001"));
 }
 
-// -- TestT101OutputSinkSpan ------------------------------------------------
 // T101 (tainted data into `puts`) end-to-end: the diagnostic must highlight
 // only the tainted argument word, not the whole `puts $x` statement.
 
@@ -997,16 +987,14 @@ fn puts_tainted_data_has_tight_argument_span() {
     );
 }
 
-// -- TestSameFileCallArity ------------------------------------------------
-// End-to-end arity checks generalised beyond the builtin registry to
-// same-file proc / `interp alias` / `rename` calls. Previously, calling a
-// same-file proc with the wrong number of arguments produced no diagnostic
-// at all — an out-of-range variable reference inside the proc body would
-// correctly fire W210, but the call site itself was silently accepted.
+// Arity checks apply beyond the builtin registry to same-file proc /
+// `interp alias` / `rename` calls: the call site itself must be checked, not
+// just out-of-range variable references inside the proc body (which fire
+// W210 independently).
 
 #[test]
 fn same_file_proc_call_too_many_args_is_e003() {
-    // The reported repro: a 7-parameter proc called with 8 arguments.
+    // A 7-parameter proc called with 8 arguments.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "\
@@ -1112,9 +1100,7 @@ $w1 fwd 1 2 3
 #[test]
 fn same_file_tcloo_constructor_call_arity_is_checked() {
     // `ClassName new ?args?` / `ClassName create name ?args?` is checked
-    // against the class's own (or nearest inherited) `constructor` — a
-    // gap this review closed; previously neither form drew any arity
-    // diagnostic at all.
+    // against the class's own (or nearest inherited) `constructor`.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(
@@ -1173,10 +1159,9 @@ fn same_file_tcloo_no_explicit_constructor_is_never_checked() {
 
 #[test]
 fn same_file_tcloo_next_call_arity_is_checked() {
-    // `next` re-invokes the current method's next-in-MRO implementation —
-    // a gap this review closed; previously `next` drew no arity
-    // diagnostic at all regardless of the resolved superclass method's
-    // own signature.
+    // `next` re-invokes the current method's next-in-MRO implementation, so
+    // its arity is checked against the resolved superclass method's own
+    // signature.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(
@@ -1202,15 +1187,12 @@ fn same_file_tcloo_next_call_arity_is_checked() {
 
 #[test]
 fn same_file_tcloo_next_in_a_constructor_has_its_arity_checked() {
-    // A `next` inside a `constructor` chains to the superclass
-    // constructor — pinned against tclsh 9.0.4, where
-    // `oo::class create Base { constructor {n} {…} }` /
+    // A `next` inside a `constructor` chains to the superclass constructor.
+    // Against tclsh 9.0.4, `oo::class create Base { constructor {n} {…} }` /
     // `oo::class create Derived { superclass Base; constructor {} { next 1 2 3 } }`
-    // then `Derived new` crashes `wrong # args: should be "next n"`.
-    // Every `next`-resolution path keyed off `ClassDef.methods` only, so
-    // the whole check was silently dropped for constructors while the
-    // byte-for-byte-analogous shape via a `method` was correctly flagged
-    // (issue #923 idx 37).
+    // then `Derived new` crashes with `wrong # args: should be "next n"`, so
+    // constructor `next` chains must be arity-checked the same as a `next`
+    // inside an ordinary method.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(
@@ -1253,8 +1235,8 @@ fn same_file_tcloo_nextto_call_arity_checks_named_target() {
 
 #[test]
 fn same_file_apply_lambda_call_arity_is_checked() {
-    // A direct `apply {{params} body} ?args?` call — another gap this
-    // review closed.
+    // A direct `apply {{params} body} ?args?` call has its arity checked
+    // against the lambda's own parameter list.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(&uri, "apply {{a b} {return [expr {$a+$b}]}} 1\n");
@@ -1270,9 +1252,7 @@ fn same_file_apply_lambda_call_arity_is_checked() {
 
 #[test]
 fn dict_create_odd_key_value_tail_is_checked() {
-    // `dict create ?key value ...?` needs an even tail — a gap this
-    // review closed; previously an odd (unpaired) tail drew no
-    // diagnostic at all.
+    // `dict create ?key value ...?` needs an even tail.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(&uri, "dict create a\n");
@@ -1318,7 +1298,6 @@ fn switch_flat_unpaired_pattern_is_checked() {
     assert!(!has_code(&diags_braced, "E005"));
 }
 
-// -- TestDiagnosticCanaries ----------------------------------------------
 // One canary per analysis family, locked to the server's published output.
 
 // -- W210: read of a possibly-unset variable -----------------------------
@@ -1614,7 +1593,6 @@ fn clean_dataflow_has_no_diagnostics() {
     assert!(lsp.open_ready(&uri, src).is_empty());
 }
 
-// -- TestIndirectArrayIdiom ----------------------------------------------
 // FP-STY-12: `${var}(idx)` in a varname position is the indirect-array-element
 // idiom (`var` holds the array name), not a broken `$var(idx)` — so neither
 // W216 nor W212 fire through the server pipeline. A value-position `${arr}(x)`
@@ -1663,7 +1641,6 @@ fn bare_dollar_name_still_fires_w212() {
     assert!(has_code(&lsp.open_ready(&uri, "set $x v\n"), "W212"));
 }
 
-// -- TestOverridableLibraryProcs -----------------------------------------
 // FP-STY-13: redefining an overridable Tcl *library* proc (`unknown`,
 // `history`, `auto_*` …) is not shadowing a C built-in — no W113. Redefining a
 // genuine built-in (`set`/`clock`) still fires.
@@ -1710,7 +1687,6 @@ fn non_bytecompiled_c_command_still_fires() {
     }
 }
 
-// -- TestSingleVarBodyW105 -----------------------------------------------
 // FP-STY-14: a body argument that is a single bare variable substitution
 // (`eval $cmd`, `$state(-command)`, `after 0 $coroName`) is a script-valued
 // reference, not an inline block — no W105 through the server pipeline. A
@@ -1818,7 +1794,6 @@ fn composite_body_still_fires() {
     assert!(has_code(&lsp.open_ready(&uri, "eval $cmd$args\n"), "W105"));
 }
 
-// -- TestDollarBeforeCloseQuoteW306 --------------------------------------
 // FP-STY-15: a `$` immediately before a closing `"` (the regex end-anchor
 // `"^foo$"` / `"\n$"`) is literal — the lexer must not merge the quoted word
 // with the next, so no E002/E205 and no spurious W306. A live `$bar` in a quoted
@@ -1878,7 +1853,6 @@ fn quoted_pure_var_pattern_no_w306() {
     ));
 }
 
-// -- TestControlFlowRBSFamilyE2E -----------------------------------------
 // W210 read-before-set, control-flow modelling family (PR #634).
 
 // -- tailcall ends straight-line flow (FP-RBS-13) ------------------------
@@ -2033,7 +2007,6 @@ fn break_arm_escaping_loop_still_fires() {
     assert!(has_code(&lsp.open_ready(&uri, src), "W210"));
 }
 
-// -- TestWhenBodyDialectGatingE2E ----------------------------------------
 // `when` is an iRules-only builtin (PR #640). Under plain Tcl it is an unknown
 // would-be user command whose braced argument is opaque *data*, not a handler
 // script — so its body must not be analysed.
@@ -2063,7 +2036,6 @@ fn when_body_not_analysed_under_plain_tcl() {
     assert!(!has_code(&diags, "W210"), "{:?}", codes(&diags));
 }
 
-// -- TestConstantStringConditionFoldE2E ----------------------------------
 // I230 (always-true/false condition; alternate branch unreachable) now folds
 // `==`/`!=` on string operands, matching Tcl's polymorphic compare
 // (`expr {"foo" == "foo"}` -> 1) — previously only the `eq`/`ne` spelling folded
@@ -2162,7 +2134,6 @@ fn o102_still_fires_when_the_callees_uplevel_hash_zero_writes_nothing() {
     );
 }
 
-// -- TestI230InterproceduralCallSiteSeedingE2E ---------------------------
 // Issue #969: "Condition '$count & 1' is always false" fired on a genuinely
 // alternating parity check. Root cause: the interprocedural param-constant
 // seed (`params_constants_from_call_sites`) trusted a proc's parameter as a
@@ -2480,7 +2451,6 @@ fn an_unrelated_file_reusing_a_proc_name_does_not_clear_i230() {
     );
 }
 
-// -- TestDiagnosticsTrackEdits -------------------------------------------
 
 #[test]
 fn fixing_the_source_clears_the_diagnostic() {
@@ -2524,7 +2494,6 @@ fn introducing_an_error_publishes_it() {
     assert!(has_code(&diags, "E002"));
 }
 
-// -- TestSoundnessRegressionsE2E -----------------------------------------
 // End-to-end coverage for three latent W210 soundness bugs surfaced while
 // reviewing the Rust port and fixed in the analyser. Ground truth is real
 // tclsh 9.0.3.

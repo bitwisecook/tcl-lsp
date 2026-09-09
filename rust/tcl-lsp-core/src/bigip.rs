@@ -55,7 +55,7 @@ use crate::folding::{FoldKind, FoldingRange};
 /// the dialect catalog, which is what the editors' generator projects into
 /// each editor's per-language `filenames` list. They used to be a private
 /// list here, invisible to the editors — so VS Code contributed no
-/// `filenames` and a `bigip.conf` never associated (issue #1625).
+/// `filenames` and a `bigip.conf` never associated.
 #[must_use]
 pub fn is_bigip_conf_name(uri: &str) -> bool {
     let basename = uri.rsplit(['/', '\\']).next().unwrap_or(uri);
@@ -901,7 +901,7 @@ ltm virtual /Common/v {
     /// A stanza whose closing `}` is the file's last line must not fold past
     /// it — with or without a trailing newline.  A fold end at or beyond the
     /// client's `lineCount` is discarded wholesale by VS Code's sticky-scroll
-    /// filter, taking the candidate's whole subtree with it (issue #1122).
+    /// filter, taking the candidate's whole subtree with it.
     #[test]
     fn stanza_ending_at_eof_stays_in_bounds() {
         let base = "ltm pool /Common/p1 {\n    members {\n        1.2.3.4:80 { }\n    }\n}";

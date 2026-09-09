@@ -907,7 +907,7 @@ fn actions_catch_without_result_var_offers_capture_fixes() {
     // analyser's, computed from the argument tokens: the diagnostic itself
     // spans only the `catch` keyword, so a provider reconstructing the point
     // from the diagnostic's end writes the word before the body and turns the
-    // call into a catch of the script `result` (issue #1190).
+    // call into a catch of the script `result`.
     let src = "proc f {} {\n    catch {expr {1/0}}\n}\n";
     let analysis = analyse(src);
     // Sanity: the analyser actually flagged W302 here; otherwise this test

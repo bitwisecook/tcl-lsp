@@ -666,7 +666,6 @@ impl Lsp {
         }
     }
 
-    // -- lifecycle --------------------------------------------------------
 
     /// Run the `initialize` handshake and send `initialized`.
     pub fn initialize(&mut self) -> Value {
@@ -993,7 +992,6 @@ impl Lsp {
             .unwrap_or_default()
     }
 
-    // -- awaiting --------------------------------------------------------
 
     /// A marker into the notification log for `await_log(..., since)`.
     pub fn notification_cursor(&self) -> usize {
@@ -1753,7 +1751,6 @@ impl Lsp {
         self.request("workspace/executeCommand", params)
     }
 
-    // -- configuration ---------------------------------------------------
 
     /// The server's *resolved* config for `uri` (`tcl-lsp.getEffectiveConfig`) —
     /// the view the analyser/formatter actually applies.

@@ -109,7 +109,6 @@ fn edits_of(action: &Value) -> Vec<Value> {
 
 // ── diagnostics ──────────────────────────────────────────────────────────────
 
-// -- TestDiagnosticsParity -----------------------------------------------
 
 #[test]
 fn test_w100_fires_for_expr_in_command_substitution() {
@@ -185,7 +184,6 @@ fn test_w216_quick_fixes() {
 
 // ── completion ───────────────────────────────────────────────────────────────
 
-// -- TestCompletionParity ------------------------------------------------
 
 const COMMAND_CONTEXTS: &str = concat!(
     "proc t {} {\n",
@@ -266,7 +264,6 @@ fn test_directive_dialect_hides_newer_commands() {
 
 // ── commands ─────────────────────────────────────────────────────────────────
 
-// -- TestCommandParity ---------------------------------------------------
 
 #[test]
 fn test_set_dialect_returns_success() {
@@ -366,7 +363,6 @@ fn test_compiler_explorer_empty_source_is_error() {
 
 // ── config toggles ───────────────────────────────────────────────────────────
 
-// -- TestConfigToggleParity ----------------------------------------------
 
 #[test]
 fn test_folding_toggle_suppresses_ranges() {
@@ -517,7 +513,6 @@ fn test_optimiser_code_override_does_not_leak() {
 
 // ── capabilities ─────────────────────────────────────────────────────────────
 
-// -- TestCapabilityParity ------------------------------------------------
 
 #[test]
 fn test_type_hierarchy_advertised() {
@@ -550,7 +545,6 @@ fn test_pull_diagnostics_not_advertised_by_default() {
 
 // ── navigation ───────────────────────────────────────────────────────────────
 
-// -- TestNavigationParity ------------------------------------------------
 
 #[test]
 fn test_method_parameter_definition_resolves_to_name() {
@@ -578,7 +572,6 @@ fn test_method_parameter_definition_resolves_to_name() {
 
 // ── code actions / lenses ────────────────────────────────────────────────────
 
-// -- TestCodeActionParity ------------------------------------------------
 
 #[test]
 fn test_code_lens_resolves_show_references_command() {
@@ -650,7 +643,6 @@ fn test_brace_expr_refactor_offered() {
 
 // ── follow-ups from PR #733 review (Codex bot) ───────────────────────────────
 
-// -- TestReviewFollowups -------------------------------------------------
 
 #[test]
 fn test_local_shadowing_global_stays_bare() {

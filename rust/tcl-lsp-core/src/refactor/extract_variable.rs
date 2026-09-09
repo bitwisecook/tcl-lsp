@@ -30,7 +30,7 @@ use crate::code_actions::ActionKind;
 ///
 /// Every [`BinOp`](tcl_syntax::expr::ast::BinOp) variant is, by
 /// construction, a genuine infix binary operator — derived from
-/// `tcl_syntax::expr::operators::ALL_BIN_OPS` (issue #983's unification)
+/// `tcl_syntax::expr::operators::ALL_BIN_OPS`
 /// rather than a hand-typed 17-entry list that used to miss the bitwise/
 /// shift symbols (`<<`/`>>`/`&`/`|`/`^`), the TIP 461 string-ordering words
 /// (`lt`/`le`/`gt`/`ge`), and every iRules word operator (`contains`/

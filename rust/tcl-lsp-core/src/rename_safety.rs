@@ -34,7 +34,7 @@
 //!
 //! # What is gated
 //!
-//! ## Untracked receivers (issue #923 differential-audit finding idx 79)
+//! ## Untracked receivers
 //!
 //! ```tcl
 //! oo::class create Vector3d {
@@ -80,7 +80,7 @@
 //! word for it (an `oo::define` block the class record does not span), the
 //! rename is refused rather than emitted incomplete.
 //!
-//! ## Ambiguous object commands (issue #981, object-command half)
+//! ## Ambiguous object commands
 //!
 //! `CLASS create NAME` binds `NAME` in the *creation site's* namespace, so
 //! `::a::Factory create rex` and `::b::Widget create rex` are two different
@@ -99,7 +99,7 @@
 //! may be naming the very cell being renamed, with no word to rewrite — so
 //! a rename that would touch that namespace is refused.
 //!
-//! The refusal is decided **per site**, not per document (issue #1093): a
+//! The refusal is decided **per site**, not per document: a
 //! word's written text bounds the names it can produce, because a
 //! substitution can evaluate to anything but the literal characters around it
 //! cannot change.  `set ::other::$n 1` therefore stops refusing a rename of
@@ -202,7 +202,7 @@ pub fn method_rename_hazard(
 }
 
 /// The requested new name would turn a `renamemethod` in this document into one
-/// that **aborts the whole class definition** (issue #1121 review).
+/// that **aborts the whole class definition**.
 ///
 /// A moved member's declaration site *is* the `renamemethod`'s destination word
 /// (that is what makes the arrived member navigable at all), so renaming it
@@ -352,7 +352,7 @@ fn unlocatable_member_reference(
         // Both sides count. The word is load-bearing wherever it was written,
         // and a `self export X` / `self filter X` left behind breaks the class
         // command's dispatch of the renamed member exactly as an unwrapped one
-        // breaks an instance's (issue #1119) — so the class-side sets have to
+        // breaks an instance's — so the class-side sets have to
         // be consulted here or the refusal silently stops covering them.
         let recorded = class_def.exports.contains(target.method)
             || class_def.unexports.contains(target.method)
@@ -390,7 +390,7 @@ fn unlocatable_member_reference(
 /// Two different classes binding the very same **qualified** object-command
 /// name (`::a::Factory create rex` and `::a::Widget create rex`).
 ///
-/// Namespace scoping (issue #981) tells `::a::rex` from `::b::rex`, but two
+/// Namespace scoping tells `::a::rex` from `::b::rex`, but two
 /// creations of the same qualified name are genuinely indistinguishable: a
 /// later `rex make` reaches whichever creation ran last, which is a runtime
 /// fact.  Rewriting either class's `make` would rewrite call sites that may
@@ -486,7 +486,7 @@ fn dispatch_hazard(
             // The receiver's class binding: the analyser's `instance_classes`
             // walk first, then the object-type lattice's scope-keyed map — a
             // **singleton** there is the same sound fact the reference scan
-            // rewrites through (issue #994 C5b), so a site the scan covers is
+            // rewrites through, so a site the scan covers is
             // no hazard and a site provably of a *different* class is not
             // either.  A multi-class or absent lattice binding stays the
             // untracked-receiver refusal: widening an abstention into "not
@@ -557,7 +557,7 @@ fn dispatch_hazard(
 ///
 /// Shared with [`crate::namespace_rename`] so the two rename gates scan the
 /// same regions — a gate that visits fewer regions than its edit collector is
-/// a hollow guarantee (issue #1092).
+/// a hollow guarantee.
 pub(crate) fn walk_document(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
@@ -688,7 +688,7 @@ fn slice(source: &str, span: Span) -> Option<&str> {
 /// [`tcl_compiler::dynamic_names::names_a_dynamic_variable`]'s.  No command
 /// name is matched here.
 ///
-/// # Per-site provenance (issue #1093)
+/// # Per-site provenance
 ///
 /// The refusal is **per site**, not per document: a dynamic word refuses only
 /// when it can be proved *unprovable* — when the names it can produce include
@@ -705,7 +705,7 @@ fn slice(source: &str, span: Span) -> Option<&str> {
 /// Abstain-toward-refuse is unchanged — the predicate answers "could spell it"
 /// for everything it cannot rule out.
 ///
-/// # Per-site value provenance (issue #1262)
+/// # Per-site value provenance
 ///
 /// A lone `$n` is a bare wildcard, so the text bound alone rules nothing out.
 /// The *value* set can: the analyser resolves each computed name word through
@@ -763,7 +763,7 @@ pub fn namespace_variable_rename_hazard(
                 };
                 // …and neither is one whose *value* the analyser proved:
                 // `set n other; set $n 2` names `other` at that site, never
-                // this cell, however wildcard the text is (issue #1262).
+                // this cell, however wildcard the text is.
                 // Narrowing only — a site with no recorded resolution, or one
                 // the analyser's walk never reached, keeps refusing.
                 if site_resolution_rules_out(analysis, tok.span, cell, dialect) {
@@ -790,7 +790,7 @@ pub fn namespace_variable_rename_hazard(
 }
 
 /// Whether the analyser's per-site provenance proves the dynamic name word at
-/// `span` cannot spell `cell` (issue #1262).
+/// `span` cannot spell `cell`.
 ///
 /// The word's *text* bounds the names it can produce, but a bare `$n` is a
 /// lone wildcard and bounds nothing.  The analyser knows more while it walks:

@@ -353,7 +353,7 @@ pub fn member_param_indices_in(
 ///
 /// The grammar has always carried [`ArgRole::Name`]; the semantic-token walk
 /// simply never consumed it, so a member's declared name fell through to the
-/// default literal classification and painted as a plain `string` (#898 §2).
+/// default literal classification and painted as a plain `string`.
 #[must_use]
 pub fn member_name_indices(
     grammar: &DefinitionBodyGrammar,

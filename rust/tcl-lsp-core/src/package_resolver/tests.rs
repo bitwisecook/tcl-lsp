@@ -433,7 +433,7 @@ fn resolve_picks_the_highest_release_satisfying_the_constraint() {
 
     // An **unconstrained** require picks the highest, not the first
     // discovered — `package require widget` loads 2.3 on 8.6.14 and 9.0.4
-    // alike, whichever order the two directories were scanned in (#1090).
+    // alike, whichever order the two directories were scanned in.
     assert_eq!(
         resolver.resolve("widget", None),
         vec![root.join("v2").join("widget23.tcl")],
@@ -621,7 +621,7 @@ fn prefer_latest_selects_the_prerelease() {
 }
 
 /// `package_prefer_at` reads the document's own raise, ordered against the
-/// `package require` that asks (issue #1126 item 1).
+/// `package require` that asks.
 #[test]
 fn package_prefer_state_is_ordered_against_the_require() {
     use tcl_compiler::analyser::Analyser;

@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The **namespace rename tier** (issue #1114).
+//! The **namespace rename tier**.
 //!
 //! Renaming a namespace is not one symbol's rename: `::old` is written in
 //! every `namespace eval` block that opens it, in every qualified name
@@ -63,7 +63,7 @@
 //!   $paths`) — its entries are unknowable, and any of them may be this
 //!   namespace.  A *literal* path list is rewritten, not refused: each of its
 //!   elements is recorded as a `NamespaceRef` at its own span, so the entry
-//!   moves through the ordinary edit path (issue #1261);
+//!   moves through the ordinary edit path;
 //! * a **collision** with a namespace that already exists — the server's
 //!   half, since it is a workspace question.
 //!
@@ -118,7 +118,7 @@ pub fn namespace_rename_edits(
     //    it — the `namespace eval` / `children` / `exists` / `delete` /
     //    `upvar` / `inscope` arguments the analyser recorded.  Descendants
     //    count: `namespace eval ::old::sub {}` writes `old` too, and it is
-    //    also how an implicitly-created namespace (#1113 item 1) is renamed
+    //    also how an implicitly-created namespace is renamed
     //    at all — it has no declaring word of its own.
     for nref in &analysis.namespace_refs {
         if names_at_or_under(cell, &nref.qualified_name) {
@@ -329,7 +329,7 @@ fn namespace_rename_hazard(
     // and there is no element word to rewrite.  A *literal* list needs no
     // arm here: each of its elements is recorded as a `NamespaceRef` at its
     // own span, so the edit collector rewrites the ones naming the renamed
-    // cell like any other spelling (issue #1261).
+    // cell like any other spelling.
     if let Some(&span) = analysis.namespace_path_computed.first() {
         let written = source
             .get(span.start() as usize..span.end() as usize)
@@ -546,7 +546,7 @@ mod tests {
 
     /// TP — a deeper block is how an **implicitly created** namespace is
     /// renamed at all: it has no declaring word of its own, so the edit is the
-    /// covering segment of the deeper name (issue #1113 item 1).
+    /// covering segment of the deeper name.
     ///
     /// tclsh-proof (8.6.14): `namespace eval ::p::q::r {}` leaves `namespace
     /// exists ::p::q` -> 1, so `::p::q` is a real namespace with no block.

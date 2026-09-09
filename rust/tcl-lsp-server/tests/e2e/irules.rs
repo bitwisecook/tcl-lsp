@@ -174,7 +174,6 @@ fn irules_typed(lsp: &mut Lsp, uri: &str) -> Vec<(SemToken, String)> {
         .collect()
 }
 
-// -- TestIrulesHover -----------------------------------------------------
 
 #[test]
 fn irules_subcommand_hover() {
@@ -208,7 +207,6 @@ fn namespace_only_irules_hover_shows_profile_requirement() {
     assert!(text.contains("ACCESS"), "{text:?}");
 }
 
-// -- TestIrulesCompletion ------------------------------------------------
 
 #[test]
 fn when_event_name_completion() {
@@ -337,7 +335,6 @@ fn argument_value_has_documentation() {
     );
 }
 
-// -- TestIrulesCollectCodeActions ----------------------------------------
 
 #[test]
 fn irule1005_adds_only_registered_collect_bootstrap() {
@@ -386,7 +383,6 @@ fn irule1006_prefers_server_ssl_handshake_bootstrap() {
     );
 }
 
-// -- TestIrulesTaintQuickFixes -------------------------------------------
 
 /// The `_fix` helper: open `source`, synthesise `diag`, request quickfix-only
 /// code actions.
@@ -690,7 +686,6 @@ fn irule3004_no_autofix() {
     assert!(matched.is_empty(), "{matched:?}");
 }
 
-// -- TestIrulesTaintProcInsertion ----------------------------------------
 
 #[test]
 fn t103_inserts_regex_quote_proc() {
@@ -765,7 +760,6 @@ fn irule3002_no_proc_insert() {
     );
 }
 
-// -- TestIrulesProfilesHeader --------------------------------------------
 
 /// The `_src` helper: open `source`, return its `source`-kind code actions
 /// at position (0, 0).
@@ -882,7 +876,6 @@ fn irule1006_bootstrap_action_is_deduplicated() {
     assert_eq!(collect.len(), 1);
 }
 
-// -- TestIrulesTaintProcAlreadyDefined -----------------------------------
 
 #[test]
 fn t103_no_proc_insert_when_already_defined() {
@@ -934,7 +927,6 @@ fn irule3001_no_proc_insert_when_already_defined() {
     assert!(!snippets.iter().any(|s| s.contains("proc html_encode")));
 }
 
-// -- TestIrulesProfilesHeaderExtended ------------------------------------
 
 #[test]
 fn http_event_plus_ssl_command() {
@@ -1172,7 +1164,6 @@ fn clientssl_clienthello_omits_persist_helper_profile() {
     assert!(!text.contains("PERSIST"), "{text:?}");
 }
 
-// -- TestIrulesSemanticTokens --------------------------------------------
 
 #[test]
 fn comment_with_namespace_qualifiers_stays_one_comment() {
@@ -1199,7 +1190,6 @@ fn comment_header_block_all_comments() {
     assert!(tokens.iter().all(|(_, ty)| ty == "comment"), "{tokens:?}");
 }
 
-// -- TestIrulesTaintDiagnostics ------------------------------------------
 // Taint diagnostics must actually *fire* on the wire (positive + negative).
 
 #[test]
@@ -1234,7 +1224,6 @@ fn constant_in_http_sink_is_silent() {
     );
 }
 
-// -- TestIrulesByteArrayCorruption ---------------------------------------
 // S110 byte-array corruption on the wire (F5 KB K22406348).
 
 /// Open `source` and poll the version-1 publish until the deep marker lands,
@@ -1386,7 +1375,6 @@ fn diameter_payload_roundtrip_fires_s110_without_collect_warning() {
     );
 }
 
-// -- TestIrulesWhenBodyAnalysed ------------------------------------------
 // Dialect-gated `when` body recursion (PR #640), iRules side.
 
 #[test]
@@ -1407,7 +1395,6 @@ fn when_body_is_analysed_under_irules() {
     );
 }
 
-// -- TestIrulesWordOperatorFold ------------------------------------------
 // Issue #1048: the dialect reaches the lowering, so a word-operator condition
 // on a known-constant subject folds and draws I230 on the wire.
 

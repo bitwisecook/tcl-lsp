@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Source-decoding tests (issue #1326), organised as a true/false ×
+//! Source-decoding tests, organised as a true/false ×
 //! positive/negative matrix: each new code has to fire on every malformation
 //! class it claims to cover (TP), stay silent on the legitimate inputs closest
 //! to those classes (TN / FP guard), and keep firing through the paths that

@@ -33,7 +33,7 @@
 //!   path.  The **anchor is the analyser's**, computed from the
 //!   invocation's argument tokens: this provider must not re-derive an
 //!   insertion point from the diagnostic's span, which covers only the
-//!   command head (issue #1190).
+//!   command head.
 //! * `unset -nocomplain` action — W213 (unset on possibly-undefined
 //!   variable) carries an `Add '-nocomplain' to unset` insert `CodeFix`
 //!   (the analyser knows the exact keyword span); the provider lifts it via
@@ -51,7 +51,7 @@
 //!   evidence — the cursor is inside a recorded command-invocation
 //!   head, and an unknown-command (W123) diagnostic covers it — so
 //!   it never fires on a comment, a string, an argument word, or a
-//!   definition's name (issue #1191).
+//!   definition's name.
 //!
 //! * Spec-pack did-you-mean actions ([`spec_pack_quick_fixes`]) — the
 //!   `SpecTcl` loader drops a word it does not know and says so; the
@@ -314,7 +314,7 @@ fn push_brace_expr_refactors(
 /// passes).  It is a separate argument from `analysis` precisely because it is
 /// *not* `analysis.diagnostics`: reading the analyser's raw set here is what
 /// let the server offer a "did you mean 'ni'?" rewrite over a cross-file
-/// `Pi()` call whose diagnostic it had already suppressed (issue #923 idx 80).
+/// `Pi()` call whose diagnostic it had already suppressed.
 /// A host with no workspace knowledge passes `&analysis.diagnostics`, which is
 /// then the same set by definition.
 ///
@@ -356,7 +356,7 @@ pub fn code_actions(
 /// with a workspace index needs to supply both.
 ///
 /// `docstring_style` is the resolved `tclLsp.formatting.docstringStyle`
-/// setting (#1314): it decides where the "Generate docstring" source action
+/// setting: it decides where the "Generate docstring" source action
 /// inserts a new stub (`Preceding` / `Body`), or suppresses the action
 /// entirely (`None`).
 #[must_use]
@@ -395,7 +395,7 @@ pub fn code_actions_in_program(
         // command head, not at the body — so the inserted word landed before
         // the body and turned `catch {error oops}` into
         // `catch result {error oops}`, i.e. a catch of the script `result`
-        // storing its message in a variable named `error` (issue #1190).
+        // storing its message in a variable named `error`.
         // The analyser computes the anchor from the argument tokens instead,
         // and `lift_fixes` below surfaces it unchanged.
         //
@@ -668,7 +668,7 @@ fn ranges_overlap(a: LspRange, b: LspRange) -> bool {
 /// missing.  The provider used to take whichever identifier-like word sat
 /// under the cursor and fuzzy-match its prefix, with no notion of context at
 /// all, so a cursor anywhere on `http::geturl` in *any* of these offered
-/// `package require http` (issue #1191):
+/// `package require http`:
 ///
 /// ```tcl
 /// # Documentation: http::geturl
@@ -750,7 +750,7 @@ pub fn package_require_actions(
 ///
 /// Gate 4 ("nothing answers to this head") runs the shared call resolver, so
 /// it must run it with the same context go-to-definition uses or the two can
-/// disagree about whether a call is satisfied (issue #1116 item 1).
+/// disagree about whether a call is satisfied.
 ///
 /// In practice the `-force` shadow cannot change this provider's answer: gate
 /// 3 only lets a *package-qualified* head through, and a `-force` import
@@ -2698,7 +2698,7 @@ mod tests {
     fn fp_inline_refuses_a_braced_argument_that_is_not_a_plain_word() {
         // `f {a b}` passes the *value* `a b`, not the four characters
         // `{a b}`.  Splicing the written word makes the body print the
-        // braces, so the transform declines and says why (issue #1199).
+        // braces, so the transform declines and says why.
         let src = "proc f {p} { puts $p }\nf {a b}\n";
         let reason = inline_outcome(src, 1).unwrap_err();
         assert!(reason.contains("plain word"), "{reason}");

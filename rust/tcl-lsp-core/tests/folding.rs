@@ -108,7 +108,7 @@ fn empty_file_and_single_comment_have_no_folds() {
 
 #[test]
 fn if_else_bodies_are_disjoint() {
-    // `} else {` must not put body1 and body2 on the same fold line (issue #182).
+    // `} else {` must not put body1 and body2 on the same fold line.
     let src = "if {1} {\n    puts \"yes\"\n    puts \"really\"\n} else {\n    puts \"no\"\n    puts \"nope\"\n}\n";
     let mut r: Vec<FoldingRange> = regions(src)
         .into_iter()

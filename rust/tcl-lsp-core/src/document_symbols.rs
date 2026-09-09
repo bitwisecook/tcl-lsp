@@ -67,7 +67,7 @@ pub enum SymbolKind {
     /// scope.
     Variable,
     /// A named definition from a registry symbol-definer command — a
-    /// `tcltest::test` case (issue #790).  Surfaced with the LSP
+    /// `tcltest::test` case.  Surfaced with the LSP
     /// `Function` wire kind: an editor has no dedicated "test" kind, and a
     /// named, runnable unit reads naturally as function-like in the outline
     /// (matching how other language servers list test definitions).
@@ -217,7 +217,7 @@ pub fn document_symbols_from_analysis(
     // namespace its own name spells — tclsh, and this LSP's own hover /
     // definition / references, all agree on `::pix::svg::parse`. The outline
     // used to place it lexically, contradicting the very same response's
-    // `Namespace pix > svg` tree (issue #1140 idx 67). Home each one under
+    // `Namespace pix > svg` tree. Home each one under
     // the namespace node its qualified name names; a namespace this document
     // never opens has no node, so the symbol stays where it was written.
     for (home, symbol) in rehomed {
@@ -321,7 +321,7 @@ fn place_under_namespace(
 /// Per-walk state [`scope_symbols`] threads through the scope tree.
 struct SymbolCtx<'a> {
     /// Procs whose semantic home namespace differs from the scope they were
-    /// lexically written in, paired with that home (issue #1140 idx 67).
+    /// lexically written in, paired with that home.
     rehomed: &'a mut Vec<(String, DocumentSymbol)>,
 }
 
@@ -601,7 +601,7 @@ fn scope_symbols(
             // revealed when this symbol is picked" — the *name*, exactly as
             // `proc_symbol` does.  A namespace used to answer its whole body
             // for both ranges, so clicking it in the outline selected the
-            // entire block (issue #1218).  `range` then widens to cover the
+            // entire block.  `range` then widens to cover the
             // name **and** the body, keeping the LSP containment invariant
             // (`selectionRange` ⊆ `range`) that the narrowing would otherwise
             // break — the name word sits before the body's opening brace.
@@ -1104,7 +1104,7 @@ mod tests {
 
     #[test]
     fn fp_guard_local_proc_named_test_shadows_imported_definer() {
-        // FP-guard (PR #821 review): a user `proc test` shadows the imported
+        // FP-guard: a user `proc test` shadows the imported
         // `::tcltest::test` under Tcl's command resolution, so bare `test`
         // calls invoke the local proc, not the definer — they must not be
         // recorded as tcltest test cases.  The proc itself still lists.
@@ -1352,7 +1352,7 @@ mod tests {
     /// `tcl-compiler`'s own `deeply_nested_if_survives_full_optimiser_pipeline`,
     /// this spawns its own production-sized (64 MiB) thread rather than
     /// asserting on the test harness's thread directly; every real
-    /// consumer already wraps analysis in one (issue #996's primary fix).
+    /// consumer already wraps analysis in one.
     /// The assertion is that this returns at all, not what it returns.
     #[test]
     fn deeply_nested_namespaces_produce_a_symbol_tree() {
@@ -2433,7 +2433,7 @@ mod tests {
         }
     }
 
-    // Namespace-resolved proc homing (issue #1140 idx 67).
+    // Namespace-resolved proc homing.
 
     #[test]
     fn tp_a_qualified_proc_written_outside_its_namespace_block_nests_under_it() {

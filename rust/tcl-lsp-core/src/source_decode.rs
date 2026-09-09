@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The source-decoding contract — one decoder, and the diagnostics that say
-//! what it had to substitute (issue #1326).
+//! what it had to substitute.
 //!
 //! # The problem
 //!

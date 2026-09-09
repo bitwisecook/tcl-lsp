@@ -55,7 +55,7 @@
 //!   no frame level at all, and only `upvar 1` (or an omitted level) reaches
 //!   the caller: `upvar 0` aliases the callee's *own* frame, `upvar #0` the
 //!   global one, `upvar 2` the caller's caller.  Trusting the trait alone
-//!   navigated a variable the frame never gains (codex review of PR #1085).
+//!   navigated a variable the frame never gains.
 //!
 //! No command name appears here: which words name variables, and which
 //! nested scripts still run in this frame, are registry- and
@@ -73,7 +73,7 @@
 //! build0           ;# → 0 — `upvar 0` aliased p0's OWN local, nothing here
 //! ```
 //!
-//! # Literal caller-frame targets (issue #1139)
+//! # Literal caller-frame targets
 //!
 //! A callee that binds a **literal** caller-side name (`upvar 1 name name`,
 //! issue #923 audit idx 22) spells that name nowhere at the call site, so
@@ -87,7 +87,7 @@
 //! cell, which the analyser's `handle_upvar_command` now defines and links
 //! directly.
 //!
-//! # Methods reached by `my` dispatch (issue #923 audit idx 22)
+//! # Methods reached by `my` dispatch
 //!
 //! A callee reached through `my <method>` is a method the *call* never
 //! names — but the **method-resolution order** does, mixins included, and
@@ -119,7 +119,7 @@ use tcl_lexer::Span;
 /// bareword (command / class-member) resolution is legitimate.  It never is
 /// for a `$`-led read: Tcl keeps variables and commands in disjoint
 /// namespaces, so `$dataset` can only ever be the variable, never a method
-/// called `dataset` (issue #923 audit idx 58).
+/// called `dataset`.
 #[must_use]
 pub(crate) fn substituted_var_read_at(
     source: &str,
@@ -281,7 +281,7 @@ pub(crate) fn caller_frame_bindings(
     // Built once for the whole scan, not per command: the self-dispatch walk
     // below resolves method-body heads through it, and a `rename` or
     // `interp alias` in this document has to read the same way here as it does
-    // in every other consumer (issue #1275).
+    // in every other consumer.
     // Without a registry there is no way to know which commands mutate the
     // command table, so there is no fact to record and the shared empty map is
     // the honest answer.
@@ -317,11 +317,11 @@ struct BindingScan<'a> {
     dialect: &'static tcl_dialect::DialectProfile,
     /// The whole-program context every [`crate::definition::resolve_called_proc`]
     /// in this scan is answered in — the builtin gate and, when the host has a
-    /// workspace index, the export oracle (issue #1116 item 1).
+    /// workspace index, the export oracle.
     resolution: crate::definition::CallResolution<'a>,
     /// The document's proven command-identity facts, built once per scan and
     /// handed to every trait scan below so a rebound head resolves here the
-    /// same way it does everywhere else (issue #1275).
+    /// same way it does everywhere else.
     identities: &'a tcl_compiler::realm::CommandBindingRealm,
     namespace: String,
     name: &'a str,
@@ -901,7 +901,7 @@ oo::class create chart {
         assert!(spans[0].start() < offset_of(IDX58, "$dataset"));
     }
 
-    /// **Finding 1 (codex review of PR #1085).** The `VarRead` / `VarWrite`
+    /// **Finding 1.** The `VarRead` / `VarWrite`
     /// trait says a parameter's value is used as a variable *name* through an
     /// `upvar`; it does not say which frame the alias lands in.  Only
     /// `upvar 1` lands in the caller's, so every other level must bind

@@ -180,7 +180,7 @@ fn comment_lines(source: &str, dialect: &str) -> std::collections::BTreeSet<u32>
 #[test]
 fn comment_line_continuation_is_comment() {
     // A `#` comment whose line ends in an unescaped backslash continues onto
-    // the next physical line, and that continuation is a comment too (#759).
+    // the next physical line, and that continuation is a comment too.
     let source = "# a comment \\\nstill a comment\nset x 1\n";
     let lines = comment_lines(source, "tcl8.6");
     assert!(lines.contains(&0) && lines.contains(&1), "{lines:?}");
@@ -263,7 +263,7 @@ fn comment_continuation_crlf() {
 #[test]
 fn comment_after_semicolon_is_a_comment() {
     // `#` is a comment at command position, which includes right after a `;`
-    // command separator — `puts hi ;# tail` (issue #759 review).
+    // command separator — `puts hi ;# tail`.
     let source = "puts hi ;# tail comment\n";
     let t = decode(source, "tcl8.6");
     assert!(
@@ -320,7 +320,7 @@ fn if_elseif_else_are_keywords() {
     }
 }
 
-// TclOO definition-body highlighting (issue #747).
+// TclOO definition-body highlighting.
 //
 // C-Tcl proof: `oo::configurable`, `oo::abstract`, and `oo::singleton` are
 // real Tcl 9.0 metaclasses (`info commands oo::*`) that manufacture classes
@@ -1167,7 +1167,7 @@ fn snit_type_members_highlight() {
         "snit `variable` name must be a variable: {:?}",
         decode(src, "tcl8.6"),
     );
-    // Method parameter — the standard LSP `parameter` type (#898 §4).
+    // Method parameter — the standard LSP `parameter` type.
     assert_eq!(
         kind_of_word(src, "tcl8.6", "volume").as_deref(),
         Some("parameter"),
@@ -1250,7 +1250,7 @@ fn itcl_class_members_highlight() {
         );
     }
     // The instance variable declaration is a variable; the method's parameter
-    // carries the standard LSP `parameter` type (#898 §4).
+    // carries the standard LSP `parameter` type.
     assert_eq!(
         kind_of_word(src, "tcl8.6", "contents").as_deref(),
         Some("variable")
@@ -1279,7 +1279,7 @@ fn itcl_access_modifier_wraps_inner_member() {
         );
     }
     // The wrapped method's parameter and the wrapped variable's name both
-    // resolve — the parameter as `parameter` (#898 §4), the variable as a
+    // resolve — the parameter as `parameter`, the variable as a
     // variable.
     assert_eq!(
         kind_of_word(src, "tcl8.6", "ww").as_deref(),

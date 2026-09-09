@@ -497,7 +497,7 @@ pub fn style_diagnostics<SD: BuildHasher, H: BuildHasher, I: BuildHasher>(
         out.extend(check_line_endings(source, line_ending));
     }
 
-    // Source-text *integrity* (issue #1326).  These run on `source`, not
+    // Source-text *integrity*.  These run on `source`, not
     // `lines_source`: a mis-decoded file's byte offsets must not be shifted by
     // a lone-CR rewrite.
     for d in crate::source_decode::encoding_integrity_diagnostics(source, decode) {

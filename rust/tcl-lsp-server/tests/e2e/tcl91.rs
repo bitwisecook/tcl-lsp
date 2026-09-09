@@ -52,7 +52,6 @@ fn complete_cmd(lsp: &mut Lsp, dialect: &str, partial: &str) -> BTreeSet<String>
     labels(&lsp.completion(&uri, 1, u32::try_from(partial.len()).unwrap()))
 }
 
-// -- TestTcl91Completion -------------------------------------------------
 
 #[test]
 fn unicode_and_timer_offered_in_91() {
@@ -418,7 +417,6 @@ fn classvariable_in_86_asks_for_ooutil_rather_than_being_unknown() {
     );
 }
 
-// -- TestTcl91Operators --------------------------------------------------
 // doc/expr.n — the `lt`/`le`/`gt`/`ge` string operators (TIP 461) are 9.0+.
 
 #[test]

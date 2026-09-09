@@ -97,7 +97,6 @@ fn settle(lsp: &mut Lsp, what: &str, predicate: impl Fn(&mut Lsp) -> bool) {
     }
 }
 
-// -- TestEffectiveConfigShape --------------------------------------------
 
 #[test]
 fn reports_resolved_feature_map() {
@@ -250,7 +249,6 @@ disable_feature_test!(
     "documentLinks"
 );
 
-// -- TestOptimiserToggle -------------------------------------------------
 
 #[test]
 fn optimiser_disable_round_trips() {
@@ -295,7 +293,6 @@ fn optimiser_disable_round_trips() {
     );
 }
 
-// -- TestFormattingIndentRoundTrip ---------------------------------------
 
 const FMT_SRC: &str = "proc f {} {\nputs hi\n}\n";
 
@@ -347,7 +344,6 @@ fn four_space_indent() {
     assert_eq!(body_indent(&first_edit_text(&edits)), "    ");
 }
 
-// -- TestToggleNoStickyState ---------------------------------------------
 //
 // A feature flipped off and back on leaves no sticky state: across repeated
 // disable→re-enable cycles the provider works, goes empty while off, and works

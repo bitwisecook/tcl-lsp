@@ -31,7 +31,6 @@ fn hover(lsp: &mut Lsp, uri: &str, line: u32, ch: u32) -> String {
     hover_text(&lsp.hover(uri, line, ch))
 }
 
-// -- TestCommandHover ----------------------------------------------------
 
 #[test]
 fn builtin_command() {
@@ -123,7 +122,6 @@ fn curated_command_hover_does_not_mark_refinement_status() {
     );
 }
 
-// -- TestProcHover -------------------------------------------------------
 
 #[test]
 fn proc_signature() {
@@ -317,7 +315,6 @@ fn proc_with_defaults() {
     assert!(hover(&mut lsp, &uri, 1, 2).contains("World"));
 }
 
-// -- TestNamespaceResolutionHover ------------------------------------------
 // C Tcl resolves an unqualified command in the current namespace first, then
 // the global namespace (`Tcl_FindCommand`, `tclNamesp.c`) — never a sibling
 // namespace picked by proc-table iteration order.
@@ -367,7 +364,6 @@ fn global_call_hover_fallback_is_deterministic() {
     }
 }
 
-// -- TestVariableHover ---------------------------------------------------
 
 #[test]
 fn var_hover() {
@@ -405,7 +401,6 @@ fn namespace_var_hover() {
     assert!(text.contains("nsVar"), "hover: {text:?}");
 }
 
-// -- TestLeanHover -------------------------------------------------------
 // Hover shows synopsis + summary but omits snippet/examples.
 
 #[test]
@@ -445,7 +440,6 @@ fn option_hover_omits_snippet() {
     assert!(!text.contains("multi-homed"), "hover: {text:?}");
 }
 
-// -- TestFormatStringHover -----------------------------------------------
 
 #[test]
 fn sprintf_format_hover() {
@@ -600,7 +594,6 @@ fn regexp_literal_no_metachar() {
     );
 }
 
-// -- TestAliasHover ------------------------------------------------------
 
 #[test]
 fn alias_hover_shows_target() {

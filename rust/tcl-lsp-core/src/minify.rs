@@ -80,7 +80,7 @@
 //!   name is present.
 //! * Array member keys (`arr(member)`) are Tcl **data**, never
 //!   compacted: `array get` / `array names` / serialization observe
-//!   them (issue #1192).
+//!   them.
 //!
 //! `isolated` also compacts global-scope variables.
 //!
@@ -535,7 +535,7 @@ pub fn minify_tcl(
 /// string substrings, then minify whitespace.  Returns a
 /// [`MinifyResult`].
 ///
-/// **Not frame-transparent** (issue #1194): the aliasing phases
+/// **Not frame-transparent**: the aliasing phases
 /// inject `set alias …` preambles, which create real Tcl variables
 /// — observable via `info vars`, variable traces, and any
 /// same-named variable in the hosting interpreter.  The alias
@@ -556,7 +556,7 @@ pub fn minify_tcl_aggressive(
     minify_tcl_aggressive_with(source, dialect, isolated, registry, true)
 }
 
-/// [`minify_tcl_aggressive`] with the keyword-abbreviation phase (#1230)
+/// [`minify_tcl_aggressive`] with the keyword-abbreviation phase
 /// switchable.
 ///
 /// `abbreviations = false` is the CLI's `--no-abbreviations`: abbreviated
@@ -688,7 +688,7 @@ struct MinifyEnv<'a> {
     /// The document's statically proven command-identity facts
     /// ([`tcl_compiler::realm`]), so a body / lambda / expression /
     /// clause-list argument is recognised by the command a head *is* rather
-    /// than the one it is spelled as (issue #1275).
+    /// than the one it is spelled as.
     ///
     /// Read *unpositioned*: this recursion re-minifies each nested body from
     /// its own slice, segmented at offset 0, so no document-absolute offset
@@ -969,7 +969,7 @@ fn find_rename_barriers(
         // The head's *effective command identity*: an observability trait
         // belongs to the command a head really names.  A proven
         // `interp alias {} peek {} upvar` still bars every variable scope, and
-        // a `proc upvar …` that takes the name over does not (issue #1275).
+        // a `proc upvar …` that takes the name over does not.
         // The invocation carries its own absolute offset, so this is the
         // positioned read.
         let written = inv.name.trim_start_matches(':');
@@ -1228,7 +1228,7 @@ fn find_proc_call_sites(name: &str, qualified_name: &str, analysis: &AnalysisRes
 ///
 /// Array member keys are **never** compacted: `arr(member)` is Tcl
 /// data observable through `array get` / `array names` / traces /
-/// serialization, not a private compiler symbol (issue #1192).
+/// serialization, not a private compiler symbol.
 fn compact_names(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
@@ -1266,7 +1266,7 @@ fn compact_names(
     // `namespace export`, `unknown`, traces, and callable by code
     // outside this script — so it is renamed only when the caller
     // asserts a closed world (`isolated`) AND no command-name
-    // reflection or computed command name is present (issue #1193).
+    // reflection or computed command name is present.
     if isolated && !barriers.procs {
         let mut proc_gen = NameGenerator::new();
         let mut used_proc_names: FxHashSet<String> = FxHashSet::default();
@@ -1532,7 +1532,7 @@ fn collect_symbol_shorts(sm: &SymbolMap) -> HashSet<String> {
 }
 
 /// Every variable name the compiler can see in `source`, for seeding
-/// the aggressive tier's alias generators (issue #1194): the
+/// the aggressive tier's alias generators: the
 /// analyser's per-scope variable tables (recursively), the SSA
 /// symbol tables of every function unit (which include names only
 /// *read* through name-taking commands, e.g. `[set a]`), and every
@@ -1663,7 +1663,7 @@ fn alias_repeated_commands(
     alias_by_uses(source, &order, &uses, claimed)
 }
 
-/// Phase 2.8: emit unique-prefix keyword abbreviations (#1230).
+/// Phase 2.8: emit unique-prefix keyword abbreviations.
 ///
 /// Tcl's `Tcl_GetIndexFromObj` accepts any unique prefix of an ensemble
 /// subcommand or an `-option`, and `Tcl_GetBoolean` any unique prefix of a
@@ -1798,7 +1798,7 @@ fn command_word_runs(sm: &SourceMap, tokens: &[Token]) -> Vec<Vec<CommandWord>> 
 ///
 /// The range and its packs come from
 /// [`tcl_registry::version_range`] — the one helper the formatter and the
-/// analyser share — rather than a release list kept here (issue #1257). The
+/// analyser share — rather than a release list kept here. The
 /// target's own pack is dropped because the caller already holds it and
 /// [`keyword_tables`] puts it first.
 fn later_core_registries(
@@ -1827,7 +1827,7 @@ fn abbreviate_command(
     }
     // Which subcommands and options a head has is registry data about the
     // command it *is*: abbreviating `myfmt`'s words under `format`'s tables
-    // when `myfmt` is not `format` would rewrite live text (issue #1275).
+    // when `myfmt` is not `format` would rewrite live text.
     // `base` makes the head's offset document-absolute even inside a
     // recursively-scanned braced word, so this is the positioned read.
     let head_name = identities
@@ -2624,7 +2624,7 @@ fn has_unsafe_tainted_inputs(
 /// the document's own `${…}` close rule: on a Tcl 9 document `${a{b}c}` is
 /// one variable named `a{b}c`, where the 8.x first-`}` rule reads `a{b` and
 /// leaves `c}` as word text. Minify rewrites these spans, so reading the
-/// wrong one changes what the output program means (issue #1605).
+/// wrong one changes what the output program means.
 fn parse_var_ref(
     text: &str,
     pos: usize,
@@ -2834,7 +2834,7 @@ fn render_command(sm: &SourceMap, cmd_args: &[Arg], env: MinifyEnv<'_>, depth: u
     let expr_indices = role_indices(registry, head, &post_refs, ArgRole::Expr);
     // The braced clause-list form of a registry `case_list` command
     // (`switch … { pat body … }`, Expect's `expect { … }`).  Registry
-    // data, never a spelled command name (issue #1197).
+    // data, never a spelled command name.
     let case_list_spec = registry.get(head).and_then(|s| s.case_list);
     let dialect = Some(crate::document_context_for_profile(env.dialect).authoring_query());
     let case_invocation = registry.case_invocation(head, &post_refs, dialect);
@@ -2978,7 +2978,7 @@ fn reconstruct_raw(
             // braced: `${a{b}c}` names the variable `a{b}c`, but `$a{b}c` is
             // the variable `a` followed by the literal `{b}c`. The predicate
             // is the shared one quick fixes use for exactly this `${x}` ↔
-            // `$x` equivalence (issue #1605).
+            // `$x` equivalence.
             if !tcl_syntax::naming::is_bare_var_name(name) {
                 return format!("${{{name}}}");
             }
@@ -3031,7 +3031,7 @@ fn can_strip_quotes(raw: &str, style: tcl_dialect::BracedVarStyle) -> bool {
 /// ends at the first `}`, so `c}` is a *real* residual brace and the quotes
 /// must stay; under 9.x the whole thing is one reference and they may go.
 /// Scanning by the wrong rule strips quotes that were load-bearing, or
-/// keeps ones that were not (issue #1605).
+/// keeps ones that were not.
 fn strip_braced_var_refs(raw: &str, style: tcl_dialect::BracedVarStyle) -> String {
     let bytes = raw.as_bytes();
     let n = bytes.len();
@@ -3314,7 +3314,7 @@ fn shrink_expr_ast(text: &str, env: MinifyEnv<'_>, depth: u32) -> String {
 /// rewrites source text with no type information whatsoever, so it can never
 /// discharge that precondition for an operand like `$x`. `==`/`!=` are exact
 /// complements even for NaN, and the string / membership operators never
-/// compare numerically, so those rows stay available (issue #1437).
+/// compare numerically, so those rows stay available.
 fn comparison_inversion(op: BinOp) -> Option<BinOp> {
     if op.inverse_needs_non_nan() {
         return None;
@@ -3596,7 +3596,7 @@ fn is_expr_op_byte(b: u8) -> bool {
 /// whitespace (`eq`, `ne`, `in`, `ni`, the TIP 461 `lt`/`le`/`gt`/`ge`, the
 /// iRules word operators, …).
 ///
-/// Derived from `tcl_syntax::expr::operators` (issue #983's unification)
+/// Derived from `tcl_syntax::expr::operators`
 /// rather than a hand-typed 4-entry list that used to miss every other
 /// word-form operator — `lt`/`le`/`gt`/`ge` in particular, since they were
 /// never classified as an operator *anywhere* until this same unification
@@ -3884,7 +3884,7 @@ mod tests {
     #[test]
     fn compact_renames_proc_local_vars_and_params() {
         // Param `name`→`b`, local `message`→`a`.  The PROC name is a public
-        // command identity (issue #1193): non-isolated compaction must keep
+        // command identity: non-isolated compaction must keep
         // `greet` callable by external code.
         assert_eq!(
             min_compact(
@@ -3910,7 +3910,7 @@ mod tests {
         // REFLECTS_COMMAND_NAMES), so even `isolated` must keep them.
         // tclsh 9.0.4: renaming only the definition+call leaves
         // `info procs longprocedure` returning an empty list — an
-        // observable change (issue #1193).
+        // observable change.
         let out = min_compact_isolated(
             "proc longprocedure {} {return ok}\nputs [info procs longprocedure]\nputs [longprocedure]\n",
         );
@@ -3923,7 +3923,7 @@ mod tests {
         // `info locals` reflects local variable names (registry
         // INTROSPECTS_BY_NAME), so the scope must not be renamed.
         // tclsh 9.0.4: the original prints `longvariable`; a compacted
-        // `set a 1` would print `a` (issue #1193).
+        // `set a 1` would print `a`.
         let out = min_compact("proc f {} {\n    set longvariable 1\n    return [info locals]\n}\n");
         assert_eq!(out, "proc f {} {set longvariable 1;return [info locals]}");
     }
@@ -4008,7 +4008,7 @@ mod tests {
     #[test]
     fn compact_returns_symbol_map() {
         let registry = CommandRegistry::build_default();
-        // Non-isolated: variables compact, procs do not (issue #1193).
+        // Non-isolated: variables compact, procs do not.
         let (_, sym) = minify_tcl_compact(
             "proc greet {name} {\n    return $name\n}\n",
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
@@ -4278,7 +4278,7 @@ mod tests {
     fn compact_never_renames_array_members() {
         // Array member names are Tcl DATA, not private symbols: `array
         // get` / `array names` / traces / serialization observe them, so
-        // no tier may rename them (issue #1192).  tclsh 9.0.4: the
+        // no tier may rename them.  tclsh 9.0.4: the
         // original prints `longmember 1`; the pre-fix compaction printed
         // `a 1`.
         let out = min_compact(
@@ -4612,7 +4612,7 @@ mod tests {
         );
     }
 
-    // Keyword abbreviations (#1230).
+    // Keyword abbreviations.
     //
     // tclsh ground truth (8.6.16): `string le abc` → `3`, `string eq a a` → `1`,
     // `lsearch -noc {A b} a` → `0`; `string l abc` → `unknown or ambiguous

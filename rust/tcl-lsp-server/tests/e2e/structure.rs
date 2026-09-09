@@ -51,7 +51,6 @@ fn folds(result: &Value) -> Vec<Value> {
     result.as_array().cloned().unwrap_or_default()
 }
 
-// -- TestFoldingRange ----------------------------------------------------
 
 #[test]
 fn proc_body_folds() {
@@ -73,7 +72,6 @@ fn no_folds_in_flat_file() {
     assert!(folds(&lsp.folding_range(&uri)).is_empty());
 }
 
-// -- TestLineContinuationFolding -----------------------------------------
 // Backslash line-continuation folding — issue #541, end-to-end.
 //
 // A command stretched across physical lines by trailing `\` joins is a single
@@ -124,7 +122,6 @@ fn escaped_backslash_is_not_a_continuation() {
     assert!(!s.contains(&(0, 1)), "{s:?}");
 }
 
-// -- TestSelectionRange --------------------------------------------------
 
 #[test]
 fn widens_from_inner_to_outer() {
@@ -146,7 +143,6 @@ fn widens_from_inner_to_outer() {
     assert!(depth >= 2);
 }
 
-// -- TestWorkspaceSymbols ------------------------------------------------
 
 #[test]
 fn find_proc() {

@@ -1136,7 +1136,7 @@ fn namespace_qualifiers_abstains_on_a_dynamic_argument() {
 
 #[test]
 fn method_local_variable_propagates_into_the_fold_chain() {
-    // TP (#1097). `base` is a method local: the class declares no instance
+    // TP: `base` is a method local: the class declares no instance
     // variable, nothing aliases it, so the propagation lattice may carry its
     // value into the `namespace qualifiers` argument.  Before #1097 the
     // method-body walk carried no constants map at all, so this folded
@@ -1165,7 +1165,7 @@ fn method_local_variable_propagates_into_the_fold_chain() {
 
 #[test]
 fn an_instance_variable_never_propagates_inside_a_method_body() {
-    // TN (#1097's whole point). `ns` here is *object state* — declared by the
+    // TN: `ns` here is *object state* — declared by the
     // class's `variable ns`, so the constructor or any other method may have
     // written it and `my …` may rewrite it between the two statements.  The
     // frame-constant `[self class]` still folds (it reads no variable), but
@@ -1292,7 +1292,7 @@ fn a_redefined_method_bars_propagation() {
 
 #[test]
 fn a_benign_redefinition_no_longer_bars_propagation() {
-    // TP (issue #1166's precision win): every retained body of the
+    // TP: every retained body of the
     // redefined `helper` is caller-frame-clean, so its presence does not
     // impose a class-wide barrier on an exact, dispatch-free sibling method.
     // The formerly-used bare `my` is intentionally absent: it is resolved in

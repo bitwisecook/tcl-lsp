@@ -26,7 +26,7 @@
 //! the receiver's own class and gave up on a miss. The result was that a
 //! method reached through a `mixin` or a `superclass` had working
 //! go-to-definition but no hover and no references at the identical cursor
-//! position (issue #923 idx 28 / 34 / 35).
+//! position.
 //!
 //! This module owns **one** walk — [`method_dispatch_provider`] — and the
 //! three features are thin renderings of its answer, so they cannot drift
@@ -45,7 +45,7 @@ use crate::definition::MethodBucket;
 /// What kind of `TclOO` frame a cursor sits in — the LSP-side half of issue
 /// #1026's scoping rule, and the one place the question is asked.
 ///
-/// Two facts, because real Tcl keeps them apart (Codex review of PR #1084):
+/// Two facts, because real Tcl keeps them apart:
 ///
 /// * `resolves` — the frame's namespace path reaches `::oo::Helpers` (and
 ///   the object's own namespace, home of `my`), so the family's bare

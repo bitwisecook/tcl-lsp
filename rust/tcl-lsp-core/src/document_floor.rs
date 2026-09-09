@@ -30,7 +30,7 @@
 //! document's `package require` lines, which exist only once the walk that
 //! records them has finished. A consumer running *during* the walk cannot use
 //! this — that is why the arity gate defers its verdict to a post-walk flush
-//! (issue #1627) rather than asking mid-walk.
+//! rather than asking mid-walk.
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_registry::model::KeyedVersions;

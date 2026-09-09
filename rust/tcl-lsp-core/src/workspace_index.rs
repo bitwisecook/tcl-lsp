@@ -53,14 +53,13 @@
 //! written with a `::` qualifier.  That is the same bound proc / class
 //! indexing already has — one cell, one namespace, one name, whatever
 //! file it is written in — and it is what makes `$::ns::v` resolve to a
-//! `namespace eval ns { variable v }` in a sibling document (issue #923
-//! differential-audit findings idx 65 / 75 / 78).  An **unqualified**
+//! `namespace eval ns { variable v }` in a sibling document.  An **unqualified**
 //! `$v` names whichever cell the local scope chain supplies, which is a
 //! per-document question with no statically-sound cross-file answer, so
 //! proc locals and bare occurrences are still not indexed.
 //!
 //! **Namespaces** are indexed as first-class symbols too
-//! ([`WorkspaceNamespaceRef`], issue #1088): every word the registry marks
+//! ([`WorkspaceNamespaceRef`]): every word the registry marks
 //! [`tcl_registry::ArgRole::NamespaceName`] — the declaring `namespace eval`
 //! name token and every other spelling (`namespace children ::tomato`,
 //! `namespace exists ns`, `namespace delete ::a`, `namespace upvar ns v l`).
@@ -104,7 +103,7 @@ pub struct WorkspaceProc {
     ///
     /// [`Self::param_count`] cannot answer an arity question: it is the raw
     /// formal count, which says nothing about defaults or `args`. Cross-file
-    /// arity checking (issue #1331) needs the real envelope, and it needs it
+    /// arity checking needs the real envelope, and it needs it
     /// from the same index that settles the call, so a caller is checked
     /// against the command navigation says it actually reaches.
     pub arity: tcl_registry::Arity,
@@ -139,8 +138,8 @@ pub struct WorkspaceClass {
     pub superclasses: Vec<String>,
     /// Declared class-level mixin names (as written).
     pub mixins: Vec<String>,
-    /// The methods this record *directly defines* — the typed method table
-    /// (issue #945 fault 4): each entry carries its receiver kind and its
+    /// The methods this record *directly defines* — the typed method table:
+    /// each entry carries its receiver kind and its
     /// **effective export state** at the end of this record's body, so
     /// cross-file dispatch can honour `TclOO` visibility instead of treating
     /// every name as callable.  Spans aren't stored — the server
@@ -160,10 +159,9 @@ pub struct WorkspaceClass {
     /// Its own channel because the instance-side pair is the instance-side
     /// record by contract: a `self unexport m` folded into `exports`/`unexports`
     /// would flip an identically-named *instance* method the wrapper never
-    /// touched (issue #1098).  Without a channel of its own the flip did not
-    /// travel at all, so a `self unexport m` in `a.tcl` left `b.tcl`'s
-    /// class-command dispatch advertising a member `::C m` rejects with
-    /// `unknown method "m"` (issue #1119).
+    /// touched.  Without a channel of its own the flip would not travel at
+    /// all, leaving `b.tcl`'s class-command dispatch advertising a member
+    /// that `::C m` rejects with `unknown method "m"`.
     ///
     /// Read by [`WorkspaceIndex::class_method_dispatch_chain`] under the same
     /// union rule, and carrying the same unordered-cross-file caveat, as the
@@ -180,7 +178,7 @@ pub struct WorkspaceClass {
     ///
     /// A `via_define` stub in another file has no local method table to remove
     /// from, so without these the workspace keeps advertising a method that
-    /// sourcing the extension deletes (issue #1101 review). Applied as an
+    /// sourcing the extension deletes. Applied as an
     /// unordered fact, the mirror of the way a cross-file `oo::define ::C {
     /// method extra … }` is an unordered addition: cross-file load order is not
     /// knowable from the index, and a retraction of a member the *same*
@@ -201,8 +199,8 @@ pub struct WorkspaceClass {
     pub metaclass: String,
     /// Whether this class's **own command** constructs an instance from a
     /// bare unrecognised word and yields its name — see
-    /// [`tcl_compiler::analyser::ClassDef::class_command_fallback`] (issue
-    /// #1303, Tk's `::tk::IconList .il`).
+    /// [`tcl_compiler::analyser::ClassDef::class_command_fallback`] (Tk's
+    /// `::tk::IconList .il`).
     ///
     /// Carried across the document boundary because the proof lives on the
     /// class's *metaclass*, which a consuming document need never see.
@@ -211,7 +209,7 @@ pub struct WorkspaceClass {
     /// order (`oo::configurable` admits more than one).  Constructors are not
     /// dispatchable members, so they stay out of [`Self::methods`]; they are
     /// carried only so `workspace/symbol` can offer them from an unopened file
-    /// the way the per-document outline does (issue #1156).
+    /// the way the per-document outline does.
     pub constructor_spans: Vec<Span>,
 }
 
@@ -235,8 +233,7 @@ impl WorkspaceClass {
     }
 
     /// Whether a `renamemethod` recorded on this record makes `name` a member
-    /// of the class — the **arrival** half of the tombstone channel (issue
-    /// #1167).
+    /// of the class — the **arrival** half of the tombstone channel.
     ///
     /// A cross-file `oo::define ::C { renamemethod old new }` declares no
     /// member of its own (the params / body / visibility stay in the defining
@@ -295,16 +292,16 @@ fn method_side(m: &WorkspaceMethod) -> MemberSide {
 
 /// One member of a class as the **workspace** sees it: the declaring record's
 /// entry, keyed under the name the class actually dispatches it by once every
-/// cross-document retraction and arrival has been applied (issue #1263).
+/// cross-document retraction and arrival has been applied.
 ///
 /// The raw [`WorkspaceClass::methods`] table is per-record and additive — it
 /// records what that record's own body declared and nothing else — so a member
 /// moved by a cross-file `oo::define ::C { renamemethod old new }` is still
 /// listed as `old` on the defining record and not listed at all on the stub.
-/// Resolving one name against the table already joined the two halves
-/// ([`WorkspaceIndex::dispatch_chain`], issue #1167); *listing* the table did
-/// not, so anything that enumerates a class's members (`workspace/symbol`, an
-/// outline, a member completion universe) showed the pre-rename name.
+/// Resolving one name against the table joins the two halves
+/// ([`WorkspaceIndex::dispatch_chain`]); *listing* the table must join them
+/// too, or anything that enumerates a class's members (`workspace/symbol`, an
+/// outline, a member completion universe) reports the pre-rename name.
 ///
 /// [`WorkspaceIndex::effective_members`] is the one place that fold happens,
 /// and the dispatch chain reads it too, so a single rule decides what a class's
@@ -340,12 +337,12 @@ type RetractionIndex<'a> = std::collections::HashMap<
 
 /// Apply the workspace's retraction / arrival fold to one member `declaring`
 /// declares, yielding the name the class dispatches it under — or `None` when
-/// a cross-document `deletemethod` removed it outright (issue #1263).
+/// a cross-document `deletemethod` removed it outright.
 ///
 /// The one place that decision is made; [`WorkspaceIndex::effective_members`]
 /// (and through it [`WorkspaceIndex::dispatch_chain`]) and the
 /// `workspace/symbol` member walk all route through it, so resolving a name
-/// and listing the member set can no longer disagree.
+/// and listing the member set cannot disagree.
 ///
 /// tclsh-proof (8.6.14), for the two arms:
 ///
@@ -364,7 +361,7 @@ fn effective_member<'a>(
 ) -> Option<EffectiveMember<'a>> {
     let side = method_side(method);
     // A `deletemethod` / `renamemethod` in *another* document's `oo::define`
-    // stub really removes the member (issue #1101 review). The union is taken
+    // stub really removes the member. The union is taken
     // per class — a subclass cannot retract an inherited member (real Tcl:
     // `method … does not exist`) — and the tombstone carries the side it
     // removed from, so a `self deletemethod m` never touches the
@@ -398,7 +395,7 @@ fn effective_member<'a>(
 }
 
 /// One method a class record directly defines, as indexed for cross-file
-/// dispatch (issue #945 faults 4 and 6).
+/// dispatch.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceMethod {
     /// Simple method name.
@@ -424,18 +421,18 @@ pub struct WorkspaceMethod {
     /// `Delegate`-mixin machinery.  The single-document scan reads
     /// [`tcl_compiler::analyser::MethodDef::is_self_method`] for this;
     /// carrying it here is what lets a *cross-file* consumer scan tell the
-    /// two apart (Codex review on #1047).
+    /// two apart.
     pub is_self_method: bool,
     /// Byte span of the method's name token in the declaring record's
     /// document.  Carried so `workspace/symbol` can locate a method in a file
-    /// the editor has never opened (issue #1156); cross-file *dispatch* uses
+    /// the editor has never opened; cross-file *dispatch* uses
     /// the name and the visibility flags and does not need it.
     pub name_span: Span,
 }
 
 /// The access context of a method call site — `TclOO` dispatches an
 /// external `$obj m` through exported methods only, while an internal
-/// `my m` reaches unexported ones too (issue #945 fault 4).
+/// `my m` reaches unexported ones too.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MethodAccess {
     /// `$obj m` / `objcmd m` — exported methods only.
@@ -472,19 +469,19 @@ pub struct WorkspaceInvocation {
     /// Byte span of the command-head token in `uri`'s source.
     pub range: Span,
     /// The span does not carry the written command name (an indirect site —
-    /// a constant `$cmd` head, M7): references may report it, but the
+    /// a constant `$cmd` head): references may report it, but the
     /// cross-document rename path must not rewrite it.
     pub indirect: bool,
     /// `false` when renaming this invocation's resolved command cannot be
     /// completed soundly from source edits (an indirect site with at least
     /// one contributing constant that has no exact writable source span) —
     /// the rename providers must abstain for the whole symbol rather than
-    /// leave the site dispatching the old name (issue #945 fault 1).
+    /// leave the site dispatching the old name.
     pub rename_safe: bool,
     /// `Some(provenance)` when this site is the **subcommand word** of an
     /// `<ensemble> <sub> …` dispatch, mirroring
     /// [`tcl_compiler::signature_scan::types::SignatureCommandInvocation::ensemble_dispatch`]
-    /// (issue #1281) so the cross-document rename path applies the same gate
+    /// so the cross-document rename path applies the same gate
     /// the in-document one does: a `-map` key is an arbitrary name, so it
     /// must survive a rename of its target unchanged; a `-subcommands` entry
     /// is the target's tail and must follow it.  References report the site
@@ -500,7 +497,7 @@ pub struct WorkspaceInvocation {
     /// offset compare, because the whole file loads before any body runs.
     /// Carried per row so [`WorkspaceIndex::invocation_resolves_to`] — which
     /// has no calling-document `AnalysisResult` in hand — can build a complete
-    /// [`CallSite`] (issue #1116 item 3).
+    /// [`CallSite`].
     ///
     /// The naive per-row lookup would be `O(procs × invocations)`;
     /// [`WorkspaceIndex::enclosing_body_spans`] computes the whole column in
@@ -510,8 +507,7 @@ pub struct WorkspaceInvocation {
 
 /// One **registry symbol-definer** definition recorded in the index — a
 /// `tcltest::test` case, a `testConstraint`, a `customMatch` mode, or an
-/// iRules `when EVENT` handler (issue #790's outline tier, lifted to the
-/// workspace for issue #1156).
+/// iRules `when EVENT` handler.
 ///
 /// Cross-document identity, as the index requires of every table: each of
 /// these is a *named* definition carrying its enclosing namespace, spellable
@@ -593,7 +589,7 @@ pub struct WorkspaceVariableAlias {
 }
 
 /// One occurrence of a word naming a **namespace**, recorded workspace-wide —
-/// the cross-document half of issue #1088, lifted verbatim from
+/// the cross-document half of the namespace tier, lifted verbatim from
 /// [`tcl_compiler::analyser::NamespaceRef`].
 ///
 /// One table, not two, because a namespace's declaring site *is* one of its
@@ -651,7 +647,7 @@ pub struct WorkspaceSource {
     pub is_literal: bool,
     /// Command-resolution namespace at the `source` call site (a constructed
     /// `::`-rooted key).  `source` evaluates the file in the caller's current
-    /// namespace (M9), so the sourced document's definitions re-home under
+    /// namespace, so the sourced document's definitions re-home under
     /// this namespace — see [`WorkspaceIndex::source_seed_map`].
     pub site_namespace: String,
     /// Span of the innermost proc/class body containing the `source`
@@ -660,7 +656,7 @@ pub struct WorkspaceSource {
     /// fact, needed here so a cross-document interpreter-state question
     /// ("had this statement already run when the child was loaded?") applies
     /// the identical [`tcl_compiler::analyser::indirection::in_effect_within`]
-    /// rule the single-document tier does (issue #1253).
+    /// rule the single-document tier does.
     pub enclosing_body: Option<Span>,
 }
 
@@ -671,7 +667,7 @@ pub struct WorkspaceSource {
 /// Which file runs first is not knowable in general — but along the `source`
 /// graph it is: a file that `source`s another runs the sourcing statement
 /// before the sourced file loads at all.  See
-/// [`WorkspaceIndex::source_ancestor_prefers_latest`] (issue #1253).
+/// [`WorkspaceIndex::source_ancestor_prefers_latest`].
 ///
 /// Conditional raises (inside `if` / `catch` / `try`) are not recorded at all:
 /// they may not run, and the abstention is toward the interpreter default.
@@ -704,7 +700,7 @@ fn is_literal_name(name: &str) -> bool {
 ///
 /// It is also an **ordered statement**: by the time it returns, the package's
 /// files have run.  [`WorkspaceIndex::package_run_edges`] turns that into the
-/// package half of the load order (issue #1279), which is why the position
+/// package half of the load order, which is why the position
 /// fields are here and not only on the `source` record.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspacePackageRequire {
@@ -732,7 +728,7 @@ pub struct WorkspacePackageRequire {
 /// The other end of a [`WorkspacePackageRequire`]: the document that, when it
 /// runs, makes the package available.  A `package require` whose name this
 /// resolves to a **single** indexed document is the load order's evidence that
-/// that document had run by the require (issue #1279).
+/// that document had run by the require.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspacePackageProvide {
     /// Document containing the `package provide` statement.
@@ -755,7 +751,7 @@ pub struct WorkspacePackageProvide {
 /// business — and the script is arbitrary, runs later, and runs in the global
 /// namespace.  The load order reads the mere existence of one as "which
 /// statements a `package require NAME` runs is not static here" and builds no
-/// package edge for that name (issue #1279, uncertainty 3).
+/// package edge for that name.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspacePackageIfneeded {
     /// Document containing the `package ifneeded` statement.
@@ -818,8 +814,8 @@ pub struct WorkspaceCommandLink {
     /// resolving the gate when the link is created, is what keeps the answer
     /// correct across edits: the export usually lives in a *different*
     /// document, re-indexed independently of this one, so a decision frozen
-    /// at creation time would go stale the moment that file changes (issue
-    /// #1027). [`WorkspaceIndex::live_command_links`] applies it against the
+    /// at creation time would go stale the moment that file changes.
+    /// [`WorkspaceIndex::live_command_links`] applies it against the
     /// current index, cached per [`WorkspaceIndex::generation`].
     pub import_gate: Option<WorkspaceImportGate>,
 }
@@ -874,8 +870,8 @@ pub struct WorkspaceGlobImport {
     ///
     /// The import's position on its own document's timeline: an import binds
     /// the names its source namespace exported *when the import ran*, so an
-    /// export declared in the same file is judged against this offset (issue
-    /// #1027). Meaningless against another file's offsets — which document
+    /// export declared in the same file is judged against this offset.
+    /// Meaningless against another file's offsets — which document
     /// loads first is not a static fact — so
     /// [`WildcardImportIndex::exports_name_at`] only compares within one URI.
     pub at: u32,
@@ -890,15 +886,15 @@ pub struct WorkspaceGlobImport {
     /// `AnalysisResult`, stored per row so the cross-document tier can apply
     /// that identical rule via
     /// [`tcl_compiler::analyser::indirection::in_effect_within`] instead of a
-    /// weaker `at <= import_at` — which rejected such an export and lost a
+    /// weaker `at <= import_at`, which would reject such an export and lose a
     /// real imported alias.
     pub enclosing_body: Option<Span>,
     /// `true` when the import carried its declared leading option word —
     /// `namespace import -force`.
     ///
     /// Decides what happens when the importing namespace already holds a
-    /// command of the imported name (oracle tclsh 8.6.14 / 9.0.4, issue
-    /// #1103): without `-force` the import raises `can't import command "p":
+    /// command of the imported name (oracle tclsh 8.6.14 / 9.0.4): without
+    /// `-force` the import raises `can't import command "p":
     /// already exists` and installs **nothing**, so a bare call still reaches
     /// the local definition; with `-force` it silently replaces it and the
     /// call reaches the source (`namespace origin` → `::src::p`). See
@@ -908,7 +904,7 @@ pub struct WorkspaceGlobImport {
 }
 
 /// One `namespace forget` **event** recorded in the index — the removal half
-/// of the import edge's lifecycle log (issue #1103).
+/// of the import edge's lifecycle log.
 ///
 /// Aggregated workspace-wide for the same reason
 /// [`WorkspaceNamespaceExport`] is: the forget and the import it undoes need
@@ -939,7 +935,7 @@ pub struct WorkspaceNamespaceForget {
 ///
 /// A deletion is a lifecycle event on every import edge pointing at the
 /// deleted command: the alias holds the command object, so deleting the
-/// source kills the alias too (issue #1103, oracle on
+/// source kills the alias too (oracle on
 /// [`tcl_compiler::analyser::AnalysisResult::deleted_commands`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceCommandDeletion {
@@ -998,12 +994,11 @@ impl WorkspaceImportGate {
 /// Aggregated workspace-wide (unlike
 /// [`tcl_compiler::analyser::AnalysisResult::namespace_exports`], which is
 /// per-document) so a wildcard import in one file can be checked against an
-/// export declared in *another* file — the cross-document half of issue
-/// #923 idx 18.
+/// export declared in *another* file.
 ///
 /// An *event*, not a member of a set: `-clear` tombstones and ordering are
 /// carried through so the cross-document tier applies the same per-import-site
-/// snapshot the same-document one does (issue #1027 — see
+/// snapshot the same-document one does (see
 /// [`crate::namespace_import`]). Ordering only means something *within* a
 /// document, which is why [`Self::uri`] and [`Self::at`] are always read
 /// together.
@@ -1024,7 +1019,7 @@ pub struct WorkspaceNamespaceExport {
 
 /// Collect `items` into source order by the span `key` reports, so a
 /// `HashMap`-valued analyser table lands in the index deterministically
-/// instead of in the process's random hash order (issue #1028).
+/// instead of in the process's random hash order.
 fn sorted_by_span<'a, T, I, F>(items: I, key: F) -> Vec<&'a T>
 where
     I: IntoIterator<Item = &'a T>,
@@ -1038,15 +1033,13 @@ where
     out
 }
 
-/// The names of a `HashSet`-valued analyser table, in a stable order.  See
-/// [`sorted_by_span`] for why the source order matters.
 /// One class record's `(exports, unexports)` pair **for `side`** — the sided
 /// visibility lookup [`WorkspaceIndex::dispatch_chain`] reads.
 ///
 /// `exports`/`unexports` are the instance-side record by contract and
 /// `class_exports`/`class_unexports` the class-object-side one; naming the
 /// choice once is what keeps a `self unexport m` from ever silencing an
-/// identically-named instance method (issues #1098 / #1119).
+/// identically-named instance method.
 fn visibility_sets_for(c: &WorkspaceClass, side: MemberSide) -> (&[String], &[String]) {
     match side {
         MemberSide::Instance => (&c.exports, &c.unexports),
@@ -1054,6 +1047,8 @@ fn visibility_sets_for(c: &WorkspaceClass, side: MemberSide) -> (&[String], &[St
     }
 }
 
+/// The names of a `HashSet`-valued analyser table, in a stable order.  See
+/// [`sorted_by_span`] for why the source order matters.
 fn sorted_names(names: &std::collections::HashSet<String>) -> Vec<String> {
     let mut out: Vec<String> = names.iter().cloned().collect();
     out.sort();
@@ -1074,7 +1069,7 @@ fn resolved_user_definition(
 ///
 /// Grouping the tables per document is what makes
 /// [`WorkspaceIndex::remove_document`] cost the document's own records rather
-/// than the workspace's (issue #1149).  Flat workspace-wide vectors made a
+/// than the workspace's.  Flat workspace-wide vectors would make a
 /// removal fourteen `Vec::retain` passes with a `String` compare per element
 /// over tables that hold one row per call site and per qualified variable
 /// occurrence — 10⁵–10⁶ rows on a tcllib-sized workspace — and the server runs
@@ -1082,8 +1077,7 @@ fn resolved_user_definition(
 ///
 /// Consumers never see this type: [`WorkspaceIndex`] exposes each table as a
 /// workspace-wide iterator that chains the per-document vectors in slot order,
-/// which is the order the records were added in and therefore exactly the
-/// order the previous flat vectors held them in.
+/// which is the order the records were added in.
 #[derive(Debug, Clone, Default)]
 struct DocumentRecords {
     /// Index-wide mutation token for the indexed revision. The server uses it
@@ -1315,7 +1309,7 @@ impl DocumentRecords {
             // this record's own table: a member a cross-file `oo::define ::C {
             // renamemethod old new }` moved is declared here under `old` and
             // dispatches as `new`, and one deleted the same way is not a
-            // member at all (issue #1263).  An arrived member's location is
+            // member at all.  An arrived member's location is
             // the arrival word in the retracting document, which is also what
             // go-to-definition on the new name answers with.
             for method in &class_def.methods {
@@ -1378,7 +1372,7 @@ impl DocumentRecords {
         // iterating them directly would order this document's index entries by
         // the process's random hash seed — and consumers that answer with the
         // *first* matching record (go-to-definition's dispatch entry, most
-        // visibly) then answer differently run to run (issue #1028).  Source
+        // visibly) then answer differently run to run.  Source
         // order is the stable, meaningful order: it is also the order the
         // records take effect in when the file is sourced.
         for proc_def in sorted_by_span(analysis.all_procs.values(), |p| p.name_span) {
@@ -1452,7 +1446,7 @@ impl DocumentRecords {
         // Only the unconditional raises: a `package prefer latest` inside an
         // `if` / `catch` / `try` may not run, and the cross-document tier
         // abstains toward the interpreter default exactly as the
-        // single-document one does (issue #1253).
+        // single-document one does.
         for prefer in analysis
             .package_prefer_latest
             .iter()
@@ -1477,12 +1471,6 @@ impl DocumentRecords {
         self.index_command_links(uri, analysis);
     }
 
-    /// Lift one document's class definitions, each with its members flattened
-    /// into one source-ordered [`WorkspaceMethod`] list (instance methods
-    /// first, then the class-side ones).
-    ///
-    /// Split out of [`Self::index_document`] only for size; the source-order
-    /// rule that walk documents applies here unchanged.
     /// The document's `source` rows, plus the raw path-constant candidates
     /// the edge resolver folds them with — recorded together because they
     /// are consumed together (a computed row without its constants is
@@ -1502,6 +1490,12 @@ impl DocumentRecords {
             .clone_from(&analysis.path_constant_assignments);
     }
 
+    /// Lift one document's class definitions, each with its members flattened
+    /// into one source-ordered [`WorkspaceMethod`] list (instance methods
+    /// first, then the class-side ones).
+    ///
+    /// Split out of [`Self::index_document`] only for size; the source-order
+    /// rule that walk applies here unchanged.
     fn index_classes(&mut self, uri: &str, analysis: &AnalysisResult) {
         for class_def in sorted_by_span(analysis.all_classes.values(), |c| c.name_span) {
             let methods: Vec<WorkspaceMethod> =
@@ -1552,7 +1546,7 @@ impl DocumentRecords {
     }
 
     /// Lift a document's `namespace forget` events and command **destructions**
-    /// — the removal half of the import edge's lifecycle (issue #1103).
+    /// — the removal half of the import edge's lifecycle.
     ///
     /// A destroying `rename OLD {}` / `interp alias {} NAME {}` kills every
     /// import alias pointing at `OLD`, because the alias holds the command
@@ -1570,7 +1564,7 @@ impl DocumentRecords {
             });
         }
         // `HashMap`-valued, so sort into source order for the same reason
-        // `sorted_by_span` exists (issue #1028): a consumer answering with the
+        // `sorted_by_span` exists: a consumer answering with the
         // first matching record must not answer differently run to run.
         let mut destroyed: Vec<(&String, &u32)> = analysis.destroyed_commands.iter().collect();
         destroyed.sort_unstable_by(|a, b| a.1.cmp(b.1).then_with(|| a.0.cmp(b.0)));
@@ -1633,7 +1627,7 @@ impl DocumentRecords {
     /// Lift a document's namespace-name occurrences
     /// ([`tcl_compiler::analyser::AnalysisResult::namespace_refs`]) into the
     /// workspace table, so `namespace children ::tomato` in one file reaches
-    /// the `namespace eval ::tomato { … }` in another (issue #1088).
+    /// the `namespace eval ::tomato { … }` in another.
     ///
     /// A straight copy: the analyser has already rooted relative spellings
     /// and dropped computed ones, so there is no second resolution rule here
@@ -1660,7 +1654,7 @@ impl DocumentRecords {
         // command, so it introduces no fixed `WorkspaceCommandLink` — instead
         // it is indexed as a [`WorkspaceGlobImport`], consulted per-call by
         // [`Self::resolve_wildcard_import`] against whichever bare name the
-        // invocation actually writes (issue #923 idx 18).
+        // invocation actually writes.
         for imp in &analysis.namespace_imports {
             if imp.pattern.contains(['*', '?', '[']) {
                 if let Some((source_ns, tail_pattern)) = import_pattern_parts(&imp.pattern) {
@@ -1681,7 +1675,7 @@ impl DocumentRecords {
             };
             // An exact import is export-gated exactly like a glob one — real
             // Tcl silently installs nothing when the name is not exported at
-            // the import's own position (issue #1027; oracle on
+            // the import's own position (oracle on
             // `WorkspaceCommandLink::import_gate`). One shape stays ungated:
             // a *conjectured* import, which is inferred from a tcllib
             // `<NS>::import <ALIAS>` wrapper rather than read off a real
@@ -1690,8 +1684,7 @@ impl DocumentRecords {
             //
             // A pattern rooted at the global namespace (`namespace import
             // ::p`) is **not** one of them, though it reads as an empty
-            // source namespace and both tiers used to skip it on that basis —
-            // the last import shape bypassing the gate (#1104's review note).
+            // source namespace, which makes it easy to skip on that basis.
             // Real Tcl treats it like any other unexported import: a silent
             // no-op leaving `info commands ::dst::*` empty (oracle 8.6.14 /
             // 9.0.4). `::` is its source namespace, the same spelling every
@@ -1740,8 +1733,8 @@ impl DocumentRecords {
         }
         // `rename OLD NEW` makes `NEW` run what `OLD` denoted.  The recorded
         // map is `NEW → OLD`, both already `::`-normalised.  `OLD`'s own
-        // word is already a first-class command invocation (issue #923 idx
-        // 39) — the ordinary reference/rename path covers it — so, like
+        // word is already a first-class command invocation — the ordinary
+        // reference/rename path covers it — so, like
         // `interp alias`'s `TARGET` word above, it needs no `target_span`
         // here.
         for (new, old) in &analysis.renamed_commands {
@@ -1825,7 +1818,7 @@ pub struct WorkspaceIndex {
     /// [`WorkspaceIndex::run_order`].
     run_order: Derived<crate::source_graph::RunOrder>,
     /// Per-document **imported** path constants — values source-graph
-    /// ancestors establish before the document runs (issue #1368) — see
+    /// ancestors establish before the document runs — see
     /// [`WorkspaceIndex::imported_constants`].
     imported_constants: Derived<HashMap<String, HashMap<String, String>>>,
 }
@@ -1846,7 +1839,7 @@ pub struct WorkspaceIndex {
 /// raw pairs rather than a folded map.
 /// The fifth argument is the document's **imported** constants — values its
 /// source-graph ancestors establish before it runs
-/// ([`WorkspaceIndex::imported_constants`], issue #1368); empty until the
+/// ([`WorkspaceIndex::imported_constants`]); empty until the
 /// import fixpoint has something to say.
 pub type SourceResolver = fn(
     &str,
@@ -1873,7 +1866,7 @@ pub type ConstantFolder = fn(
 /// dropped by the mutation hook that bumps it.
 ///
 /// The workspace-indexing contract's rule 5 in one type, so the reset/build
-/// boilerplate is written once rather than per view (issue #1105). Excluded
+/// boilerplate is written once rather than per view. Excluded
 /// from equality and dropped on clone — the same discipline
 /// `tcl_compiler::analyser::HierarchyCache` uses for the class hierarchy it
 /// derives from `all_classes`. `Arc` because a caller may hold the view while
@@ -1900,31 +1893,32 @@ impl<T> Derived<T> {
     }
 }
 
-/// Every invocation's **settled target**, grouped by that target's
-/// `::`-stripped qualified name: `target -> [(doc slot, index within that
-/// slot's invocations)]`.
-///
-/// [`WorkspaceIndex::invocations_of`] (code-lens's per-proc / per-class
-/// reference count, issue #1152) used to re-settle *every* invocation in the
-/// workspace against the candidate target on every call — `code_lenses`
-/// calls it once per proc and once per class, so an N-proc document paid an
-/// O(N × invocations) walk, each rebuilding [`WildcardImportIndex`] (five
-/// `HashMap`s over the whole index) from scratch. Settling every invocation
-/// once per generation and grouping the results turns each subsequent
-/// `invocations_of` call into a hash lookup plus a direct index into the
-/// owning document's slot — the indices are stable because a document's
-/// `Vec<WorkspaceInvocation>` is only ever cleared and refilled wholesale
-/// (`DocumentRecords::clear` / `index_document`), never reordered in place,
-/// and any mutation that could invalidate a stored `(slot, index)` pair also
-/// bumps the generation and drops the [`Derived`] view holding it.
 /// One document's contribution to the settled-target index: target name and
 /// the invocation indices in that document which reach it.
+///
+/// [`WorkspaceIndex::invocations_of`] backs code-lens's per-proc / per-class
+/// reference count, which calls it once per proc and once per class, so
+/// re-settling *every* invocation in the workspace against the candidate
+/// target on each call would cost an N-proc document an O(N × invocations)
+/// walk, each rebuilding [`WildcardImportIndex`] (five `HashMap`s over the
+/// whole index) from scratch. Settling every invocation once per generation
+/// and grouping the results turns each `invocations_of` call into a hash
+/// lookup plus a direct index into the owning document's slot — the indices
+/// are stable because a document's `Vec<WorkspaceInvocation>` is only ever
+/// cleared and refilled wholesale (`DocumentRecords::clear` /
+/// `index_document`), never reordered in place, and any mutation that could
+/// invalidate a stored `(slot, index)` pair also bumps the generation and
+/// drops the [`Derived`] view holding it.
 type DocumentSettledTargets = Vec<(String, usize)>;
 
-/// The workspace-wide reverse index used by find-references and code lenses.
+/// The workspace-wide reverse index used by find-references and code lenses:
+/// every invocation's settled target, grouped by that target's `::`-stripped
+/// qualified name (`target -> [(doc slot, index within that slot's
+/// invocations)]`).
+///
 /// A `BTreeSet` permits removal of the old contribution from one changed
 /// document without scanning every caller of a popular command, while keeping
-/// the stable document-slot/source-order answer the former vector provided.
+/// a stable document-slot / source-order answer.
 type SettledTargets = std::collections::HashMap<String, BTreeSet<(usize, usize)>>;
 
 /// Incremental storage for one of the direct or link-following settlement
@@ -2001,8 +1995,8 @@ impl ClassEdges {
     /// The two are needed together because C's call-chain builder treats the
     /// paths differently: each mixin is entered with a *fresh copy* of the
     /// dispatch flags, so a mixin's `unexport` empties only its own branch
-    /// while the same word on the spine decides the whole dispatch (issue
-    /// #1705).  Both come from the one canonical
+    /// while the same word on the spine decides the whole dispatch.  Both
+    /// come from the one canonical
     /// [`tcl_syntax::mro::tcloo_linearise`] over the same resolved edges, so
     /// they cannot disagree about which qualified name a bare `superclass
     /// Device` meant.  Empty when the hierarchy is cyclic or too complex to
@@ -2029,7 +2023,7 @@ impl ClassEdges {
     /// `tcl_lsp_core::oo_dispatch`'s `dispatch_branch_spines`, and the same
     /// rule, since C enters each mixin with a **fresh copy** of the dispatch
     /// flags and so lets a branch's `export` / `unexport` govern that branch
-    /// alone (issue #1705).
+    /// alone.
     fn branch_spines(&self, class_q: &str, linearisation: &[String]) -> Vec<Vec<String>> {
         let mut roots: Vec<String> = Vec::new();
         let mut queue: std::collections::VecDeque<String> =
@@ -2154,8 +2148,8 @@ impl WorkspaceIndex {
     /// for a whole column of offsets at once, in the order they were given.
     ///
     /// That single-offset lookup scans every recorded proc and class body, so
-    /// calling it once per invocation is `O(procs × invocations)` — the cost
-    /// that kept a per-call body span out of the index (issue #1116 item 3).
+    /// calling it once per invocation is `O(procs × invocations)` — far too
+    /// dear to run once per indexed call site.
     /// It is not the cost the answer actually needs: definition bodies are
     /// syntactic, so they **nest properly** — no two of them partially overlap
     /// — which means one pass over the bodies in start order, keeping the
@@ -2229,7 +2223,7 @@ impl WorkspaceIndex {
 
     /// The whole-program export oracle the *single-document* tier consults
     /// when deciding whether a `namespace import -force` really deleted the
-    /// importing namespace's own command (issue #1116 item 1).
+    /// importing namespace's own command.
     ///
     /// One document cannot answer that on its own: the `namespace export` that
     /// decides it may live in another file, and two programs whose single
@@ -2270,8 +2264,7 @@ impl WorkspaceIndex {
 
     /// Install the host's literal-`source`-path → document-URI resolver, so
     /// the index can build the [`crate::source_graph::RunOrder`] the
-    /// import-lifecycle gates rank cross-document events with (issue #1104
-    /// item 3).
+    /// import-lifecycle gates rank cross-document events with.
     ///
     /// The index deliberately holds no URI ↔ filesystem-path mapping of its
     /// own — that is the host's knowledge, and every other `source`-graph
@@ -2294,9 +2287,8 @@ impl WorkspaceIndex {
     /// as a literal and is the idiom real multi-file projects actually write.
     /// A path the host cannot prove returns `None` and sequences nothing.
     ///
-    /// **Without a resolver the order is empty**, and both tiers behave
-    /// exactly as they did before the `source` graph existed — every
-    /// cross-document event unrankable, every same-document one ordered.
+    /// **Without a resolver the order is empty**: every cross-document event
+    /// is then unrankable and every same-document one ordered.
     pub fn set_source_resolver(&mut self, resolve: SourceResolver, fold: ConstantFolder) {
         self.source_resolver = Some(resolve);
         self.constant_folder = Some(fold);
@@ -2316,8 +2308,7 @@ impl WorkspaceIndex {
     /// `source $dir/x.tcl` with `$dir` unknown — names no document statically
     /// and sequences nothing.  The package half needs **no** resolver: a
     /// `package require NAME` names its provider through the index's own
-    /// `package provide` records, so it works on a host that installs none
-    /// (issue #1279).
+    /// `package provide` records, so it works on a host that installs none.
     fn run_order(&self) -> Arc<crate::source_graph::RunOrder> {
         self.run_order.get_or_build(|| {
             let imports = self.imported_constants();
@@ -2348,7 +2339,7 @@ impl WorkspaceIndex {
         })
     }
 
-    /// Per-document **imported** path constants (issue #1368): the values a
+    /// Per-document **imported** path constants: the values a
     /// document's source-graph ancestors establish before it runs, agreed
     /// across every route that reaches it.
     ///
@@ -2421,8 +2412,7 @@ impl WorkspaceIndex {
                         // body-local route instead contributes an **empty**
                         // candidate: it still reaches the child, and
                         // intersecting the agreement with an empty map
-                        // correctly drops every name for it (issue #1370
-                        // review).
+                        // correctly drops every name for it.
                         if s.enclosing_body.is_some() {
                             candidates
                                 .entry(child.as_str())
@@ -2492,8 +2482,7 @@ impl WorkspaceIndex {
 
     /// The `package require` half of the load order: one
     /// [`crate::source_graph::RunEdgeKind::PackageRequire`] edge per require
-    /// site whose package this workspace provably provides (issue #1279,
-    /// design §3.4).
+    /// site whose package this workspace provably provides (design §3.4).
     ///
     /// A `package require NAME` that returns has left `NAME` loaded, so the
     /// providing document's statements have all run — even though the require
@@ -2603,7 +2592,7 @@ impl WorkspaceIndex {
     /// The command name-links that are actually installed — every `interp
     /// alias` / `rename` link, plus each exact `namespace import` link whose
     /// [`WorkspaceCommandLink::import_gate`] its source namespace's export
-    /// timeline admits (issue #1027).
+    /// timeline admits.
     ///
     /// Every consumer of `command_links` that answers "does this name exist /
     /// what does it reach" goes through here, so an import Tcl never
@@ -2641,10 +2630,10 @@ impl WorkspaceIndex {
                         // the link it would introduce is not live either.
                         // "Already holds" is a real *definition*, a command
                         // a fresh interpreter of this document's dialect
-                        // already has (issue #1302 — the exact-import twin
-                        // of `GlobImportRow::declares_builtin_at`), or an
+                        // already has (the exact-import twin of
+                        // `GlobImportRow::declares_builtin_at`), or an
                         // earlier live alias from a **different** source
-                        // in the same document (issue #1116 finding 4);
+                        // in the same document;
                         // a same-source re-import is a silent no-op, and
                         // two links cancelling each other out is what the
                         // different-source test rules out.
@@ -2666,7 +2655,7 @@ impl WorkspaceIndex {
                         // …and the alias it installed can be taken away
                         // again: `namespace forget`, a redefinition of the
                         // imported name, or destruction of the source
-                        // command (issue #1116 finding 2).
+                        // command.
                         wci.link_alias_live(importing_ns, g, &l.uri)
                     })
                 })
@@ -2678,10 +2667,6 @@ impl WorkspaceIndex {
             .collect()
     }
 
-    /// Whether the workspace holds a real proc or class definition at
-    /// `qualified_name` — the "already exists" side of a non-`-force`
-    /// `namespace import` conflict.
-    ///
     /// The registry a decision about `uri`'s content must be made against —
     /// the one for the dialect that document was analysed under.
     ///
@@ -2696,6 +2681,10 @@ impl WorkspaceIndex {
         (!dialect.is_empty()).then(|| crate::registry_for_dialect(dialect))
     }
 
+    /// Whether the workspace holds a real proc or class definition at
+    /// `qualified_name` — the "already exists" side of a non-`-force`
+    /// `namespace import` conflict.
+    ///
     /// Deliberately *not* [`Self::workspace_command_exists`], which also
     /// admits linked names: a link is what this question is being asked
     /// about, so counting one would make an import conflict with itself.
@@ -2703,8 +2692,8 @@ impl WorkspaceIndex {
     /// Answered from the link-free reading of [`Self::defined_command_names`]
     /// — which is that same proc + class name set, already derived once per
     /// generation — rather than by re-walking every indexed proc and class.
-    /// This sits inside `import_hop`'s per-call filter chain, so the scan cost
-    /// was O(procs) *per call site per in-scope import* (issue #1297).
+    /// This sits inside `import_hop`'s per-call filter chain, where a re-walk
+    /// would cost O(procs) *per call site per in-scope import*.
     fn defines_command(&self, qualified_name: &str) -> bool {
         self.defined_command_names(false)
             .contains(qualified_name.trim_start_matches("::"))
@@ -2718,11 +2707,11 @@ impl WorkspaceIndex {
     /// (a fact) and "this namespace is not in the workspace at all" (no
     /// information) — see [`Self::live_command_links`].
     ///
-    /// The declaring-block source (issue #1088) closes a hole the first two
-    /// leave: a `namespace eval ::ns { namespace import ::other::* }` block
-    /// that declares no proc, class, or export of its own *is* a namespace
-    /// the workspace can see, and treating it as unknown made the import gate
-    /// abstain where it had the evidence to decide.
+    /// The declaring-block source closes a hole the first two leave: a
+    /// `namespace eval ::ns { namespace import ::other::* }` block that
+    /// declares no proc, class, or export of its own *is* a namespace the
+    /// workspace can see, and treating it as unknown would make the import
+    /// gate abstain where it has the evidence to decide.
     fn observable_namespaces(&self) -> HashSet<&str> {
         fn owning_ns(qualified: &str) -> &str {
             qualified
@@ -2749,7 +2738,7 @@ impl WorkspaceIndex {
     ///
     /// Call [`Self::remove_document`] first when re-indexing a changed document
     /// to avoid stale duplicates.  Adding the **same** URI twice without an
-    /// intervening removal deliberately accumulates: the M9 source-rehoming
+    /// intervening removal deliberately accumulates: the source-rehoming
     /// pass indexes one analysis per source-site namespace, and those views are
     /// several runtime identities of one physical file, not a replacement of
     /// each other.
@@ -2848,7 +2837,7 @@ impl WorkspaceIndex {
     /// re-indexing a changed document, or on `did_close`).
     ///
     /// Costs that document's own records, not the workspace's: its slot is
-    /// cleared and handed back to the free list (issue #1149).
+    /// cleared and handed back to the free list.
     pub fn remove_document(&mut self, uri: &str) {
         if let Some(slot) = self.slots.remove(uri) {
             self.docs[slot].clear();
@@ -2960,7 +2949,7 @@ impl WorkspaceIndex {
 
     /// Whether the interpreter-global `package prefer latest` latch is already
     /// raised by the time `target_uri` is loaded, because a document that
-    /// (transitively) `source`s it raised it first (issue #1253).
+    /// (transitively) `source`s it raised it first.
     ///
     /// `resolve` maps a literal `source` path written in a document to the
     /// child document's URI, exactly as for
@@ -3005,10 +2994,10 @@ impl WorkspaceIndex {
         crate::source_graph::ancestor_prefer_latest_raised(target_uri, &edges, &raises)
     }
 
-    /// The **source-site namespace seeds** per sourced document (M9): for
+    /// The **source-site namespace seeds** per sourced document: for
     /// every `source` statement `resolve` can place (the closure maps
     /// `(parent-uri, raw-path, is_literal)` to the child's URI — handling
-    /// relative literals and, for stage 9.2, statically-foldable computed
+    /// relative literals and statically-foldable computed
     /// paths), the child URI maps to the set of namespaces it is sourced
     /// under.  `source` runs the file in the caller's namespace, so a child
     /// sourced from `namespace eval ::x` must be (re-)analysed seeded with
@@ -3057,7 +3046,7 @@ impl WorkspaceIndex {
     }
 
     /// Whether any `source` statement is indexed at all — the cheap guard
-    /// that lets the server skip the M9 re-homing pass entirely for
+    /// that lets the server skip the re-homing pass entirely for
     /// workspaces that never `source`.
     #[must_use]
     pub fn has_source_edges(&self) -> bool {
@@ -3065,7 +3054,7 @@ impl WorkspaceIndex {
     }
 
     /// The workspace's symbols matching `query`, at most `limit` of them —
-    /// the whole `workspace/symbol` answer (issue #1156).
+    /// the whole `workspace/symbol` answer.
     ///
     /// Every indexed document is searched, not only the ones the editor has
     /// open, so a symbol in a file the user has never opened is reachable from
@@ -3074,7 +3063,7 @@ impl WorkspaceIndex {
     /// gets: a name typed a moment ago appears once that publish lands.  It is
     /// the same staleness every other cross-document feature answers with, and
     /// the alternative — re-analysing every open buffer per keystroke in the
-    /// Ctrl+T box — is what this replaces.
+    /// Ctrl+T box — costs far more than the freshness is worth.
     ///
     /// The scan is **document-major**: each document contributes its procs,
     /// then its classes (with their methods and constructors), then its

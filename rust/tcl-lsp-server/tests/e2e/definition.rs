@@ -34,7 +34,6 @@ fn start_line(loc: &Loc) -> i64 {
         .unwrap_or(-1)
 }
 
-// -- TestProcDefinition --------------------------------------------------
 
 #[test]
 fn jump_to_proc() {
@@ -126,7 +125,6 @@ fn recursive_call_navigates_to_definition() {
     assert_eq!(start_line(&locs[0]), 0);
 }
 
-// -- TestNamespaceResolution -----------------------------------------------
 // C Tcl resolves an unqualified command in the current namespace first, then
 // the global namespace (`Tcl_FindCommand`, `tclNamesp.c`) — never a sibling
 // namespace picked by proc-table iteration order.
@@ -183,7 +181,6 @@ fn global_call_fallback_is_deterministic_across_repeats() {
     }
 }
 
-// -- TestMathFunctionDefinition -------------------------------------------
 // `expr` math-function calls (`sin(...)`) dispatch through the fixed
 // `::tcl::mathfunc` sub-namespace, never the calling namespace — a generic
 // one-hop resolver that (mis)treated the qualified dispatch name as
@@ -230,7 +227,6 @@ fn mathfunc_call_jumps_to_namespace_local_override() {
     );
 }
 
-// -- TestVariableDefinition ----------------------------------------------
 
 #[test]
 fn jump_to_var_definition() {

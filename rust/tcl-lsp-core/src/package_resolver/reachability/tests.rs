@@ -388,7 +388,7 @@ fn a_dynamic_lambda_is_not_descended() {
 }
 
 /// A requirement the members of a release *line* disagree about abstains —
-/// and only then (issue #1126 item 3).
+/// and only then.
 ///
 /// Oracle (`tclsh9.0`, `[package provide Tcl]` = 9.0.4):
 ///

@@ -54,7 +54,6 @@ fn texts(
         .collect()
 }
 
-// -- TestPrepareRename ---------------------------------------------------
 
 #[test]
 fn prepare_rename_proc_name() {
@@ -105,7 +104,6 @@ fn prepare_rename_unknown_rejected() {
     assert!(lsp.prepare_rename(&uri, 0, 5).is_null());
 }
 
-// -- TestRenameProc ------------------------------------------------------
 
 #[test]
 fn rename_definition_and_calls() {
@@ -208,7 +206,6 @@ fn rename_rewrites_unbraced_if_body_bareword_call_site() {
     assert!(for_uri.iter().all(|e| e["newText"] == "bar"));
 }
 
-// -- TestRenameVariable --------------------------------------------------
 
 #[test]
 fn rename_var() {
@@ -356,7 +353,6 @@ fn rename_respects_scope() {
     assert!(!lines.contains(&0), "{lines:?}");
 }
 
-// -- TestRenameSafety ----------------------------------------------------
 
 #[test]
 fn rejects_invalid_new_symbol_name() {

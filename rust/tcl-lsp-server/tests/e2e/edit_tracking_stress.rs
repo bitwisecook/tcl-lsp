@@ -397,7 +397,6 @@ fn codes(diags: &[Value]) -> std::collections::BTreeSet<String> {
 
 const SEED_DOC: &str = "proc greet {name} {\n    puts \"Hello $name\"\n}\nset total [expr {1 + 2}]\nif $cond { puts $total }\ngreet World\n";
 
-// -- TestRandomEditStorm -------------------------------------------------
 
 /// Dumps the full state of a random-seeded run when the test thread is
 /// unwinding, so a failure — a mirror-vs-server divergence *or* the diagnostics
@@ -545,7 +544,6 @@ fn batched_multi_edit_changes_64() {
     batched_multi_edit_changes(64);
 }
 
-// -- TestSupersession ----------------------------------------------------
 
 #[test]
 fn rapid_edits_final_version_wins() {
@@ -583,7 +581,6 @@ fn introduce_then_immediately_fix_error() {
     assert!(!codes(&final_diags).contains("E002"));
 }
 
-// -- TestStructuralEdits -------------------------------------------------
 
 #[test]
 fn multiline_insertions_and_deletions() {
@@ -664,7 +661,6 @@ fn delete_to_empty_then_rebuild() {
     assert_buffer_equiv(&mut lsp, &uri, version, &fresh, &text);
 }
 
-// -- TestUnicodeTracking -------------------------------------------------
 
 #[test]
 fn utf16_offsets_survive_astral_chars() {
@@ -710,7 +706,6 @@ fn utf16_offsets_survive_astral_chars() {
     assert_buffer_equiv(&mut lsp, &uri, version, &fresh, &text);
 }
 
-// -- TestReopenLifecycle -------------------------------------------------
 
 #[test]
 fn close_and_reopen_resets_version_without_stale_cache() {
@@ -826,7 +821,6 @@ fn every_snapshot_consumer_stays_correct_while_typing_a_large_document() {
 
 const ALIGN_DOC: &str = "proc tally {items} {\n    set count 0\n    foreach item $items {\n        set count [expr {$count + 1}]\n        puts \"item $item count $count\"\n    }\n    return $count\n}\n";
 
-// -- TestTokenAlignmentUnderEdits ----------------------------------------
 
 #[test]
 fn multicursor_rename_keeps_tokens_aligned() {

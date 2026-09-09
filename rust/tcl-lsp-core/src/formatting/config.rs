@@ -254,7 +254,7 @@ pub struct FormatterConfig {
     /// rewritten — never a value-definition site.
     pub boolean_form: BooleanForm,
     /// The document's resolved dialect profile — the **single** dialect fact
-    /// the formatter carries (issue #1465).
+    /// the formatter carries.
     ///
     /// The formatter needs three dialect-derived facts: the lexer preset it
     /// tokenises with ([`Self::lexer_config`]), the availability point that
@@ -347,7 +347,7 @@ impl FormatterConfig {
     ///
     /// The one way to aim the formatter at a dialect: the lexer preset, the
     /// rewrite-candidate filter, and the forward range all follow from this
-    /// one resolved profile, so none of them can be forgotten (issue #1465).
+    /// one resolved profile, so none of them can be forgotten.
     #[must_use]
     pub fn for_profile(profile: &'static DialectProfile) -> Self {
         Self {

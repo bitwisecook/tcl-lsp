@@ -97,7 +97,6 @@ fn symbol_name_list(result: &Value) -> Vec<Option<String>> {
         .collect()
 }
 
-// -- TestBigipDocumentOutline --------------------------------------------
 // Issue #534 — every outline symbol carries a non-empty name.
 
 #[test]
@@ -132,7 +131,6 @@ fn nameless_singleton_falls_back_to_kind_label() {
     assert!(names.contains("auth"), "{names:?}");
 }
 
-// -- TestBigipFolding ----------------------------------------------------
 // A `.conf` is not Tcl, so the Tcl brace walk found only comment blocks in it
 // and left every stanza unfoldable; folding now runs off the stanza tree.
 
@@ -180,7 +178,6 @@ fn tcl_inside_an_embedded_rule_folds() {
     assert!(spans.contains(&(17, 18)), "when block: {spans:?}");
 }
 
-// -- TestBigipDiagnosticSuppression --------------------------------------
 // Issue #571 — no general Tcl diagnostics on BIG-IP config text.
 
 #[test]

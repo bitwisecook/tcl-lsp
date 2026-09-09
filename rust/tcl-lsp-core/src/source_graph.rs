@@ -159,7 +159,7 @@ pub fn ancestor_requires<S: BuildHasher>(
 }
 
 /// A package a document acquires by `source`ing another file, together with
-/// **where in this document** it becomes available (issue #1332).
+/// **where in this document** it becomes available.
 ///
 /// The position is what separates this from a plain package name: `source`
 /// runs the child inline at that statement, so a command needing the package
@@ -180,7 +180,7 @@ pub struct PlacedRequire {
 }
 
 /// The `package require`s a document acquires from the files it (transitively)
-/// `source`s — the **up** direction of the graph (issue #1332).
+/// `source`s — the **up** direction of the graph.
 ///
 /// `edges` are the workspace's resolved `source` edges; only
 /// [`RunEdgeKind::Source`] edges are followed, because only a `source` inlines
@@ -244,7 +244,7 @@ pub fn descendant_requires<S: BuildHasher>(
 
 /// **How** one document enters another's execution — the difference between
 /// a statement that says *exactly* when the child ran and one that only
-/// bounds it (issue #1279).
+/// bounds it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RunEdgeKind {
     /// `source CHILD`: the child's whole body is inlined **at this
@@ -314,7 +314,7 @@ pub struct RunEdge {
 
 /// Whether the **interpreter-global** `package prefer latest` latch is already
 /// raised by the time `target` is loaded, given the raises recorded per
-/// document (issue #1253).
+/// document.
 ///
 /// `package prefer` is a monotone latch on interpreter state, so a raise in a
 /// file that runs first really does change a later file's version selection.
@@ -418,7 +418,7 @@ pub struct Placed {
     /// `true` for a point in its own document and for one reached entirely
     /// through `source` statements; `false` once a
     /// [`RunEdgeKind::PackageRequire`] edge is on the path, where the true
-    /// position is *at most* `at` (issue #1279).  A bounded position still
+    /// position is *at most* `at`.  A bounded position still
     /// answers half the questions — see [`RunOrder::trusted`].
     pub exact: bool,
 }
@@ -521,7 +521,7 @@ pub struct RunOrder {
     /// to three hash probes on owned URI strings inside the import walk, and
     /// the `package_entries.is_empty()` fast path that was supposed to make it
     /// free vanished the moment *any* document in the workspace contributed a
-    /// package edge (issue #1297).  Folding it into one probe of one map costs
+    /// package edge.  Folding it into one probe of one map costs
     /// nothing extra: the site vectors are shared with `Arc`, so a root's
     /// entry is stored once however many documents it covers, and a workspace
     /// with no package edge leaves the map empty and every probe a miss.
@@ -971,7 +971,7 @@ mod tests {
         assert!(ancestor_requires("app", &edges, &requires).is_empty());
     }
 
-    // `package prefer latest` across the source graph (issue #1253 item 1).
+    // `package prefer latest` across the source graph.
     //
     // tclsh-proof (8.6.14) that the latch really is interpreter-global and
     // crosses `source`:  with `lib.tcl` holding `puts [package prefer]`,
@@ -1095,7 +1095,7 @@ mod tests {
         ));
     }
 
-    // The `source`-graph load order (issue #1104 item 3, #1116 item 6).
+    // The `source`-graph load order.
     //
     // Oracle for the whole shape, byte-identical on tclsh 8.6.14 and 9.0.4 —
     // `source` inlines the sourced file's whole body at the `source`
@@ -1315,7 +1315,7 @@ mod tests {
         assert_eq!(order.has_run(point("lib", 7), point("lib", 7)), Some(false));
     }
 
-    // The `package require` half of the load order (issue #1279, design §3.4).
+    // The `package require` half of the load order.
     //
     // Oracle, byte-identical on tclsh 8.6.14 and 9.0.4.  `pkg/lib.tcl` holds
     //
@@ -1645,7 +1645,7 @@ mod tests {
         assert!(!RunOrder::trusted(false, bound, bound));
     }
 
-    // `descendant_requires` — the up direction (issue #1332)
+    // `descendant_requires` — the up direction
     //
     // Oracle for the whole group, C Tcl 9.0.4:
     //

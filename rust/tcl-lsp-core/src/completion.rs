@@ -301,7 +301,7 @@ struct SwitchCompletionCtx<'a> {
 /// A two-level ensemble narrows once more: `namespace ensemble create` and
 /// `namespace ensemble configure` recognise different options, so the
 /// dispatch word at index 2 selects between them through
-/// [`SubCommand::option_scope`] (issue #1610). Offering the merged set put
+/// [`SubCommand::option_scope`]. Offering the merged set put
 /// `-command` — a guaranteed `bad option` — in `configure`'s list and left
 /// its readable `-namespace` out of it.
 ///
@@ -446,7 +446,7 @@ fn context_aware_completions(
     {
         let bucket = crate::definition::receiver_method_bucket(analysis, &recv, is_dollar);
         // Per-object member state layers over the class chain in real
-        // dispatch order (issue #1170): per-object members offered first,
+        // dispatch order: per-object members offered first,
         // an unexport masks, a later export revives.
         let object_state =
             crate::definition::object_member_state_at(analysis, source, &recv, line, character);
@@ -737,7 +737,7 @@ pub fn completions(
     let usage = document_usage_counts(analysis);
     let mut items = proc_completions(analysis, &partial, &usage);
     // Inside an `expr` expression argument the bare `expr` math functions are
-    // in scope (issue #974 defect 2) — before this they were offered nowhere
+    // in scope — before this they were offered nowhere
     // at all, so `expr {si` surfaced only unrelated `simulation::*` procs.
     // The context test is registry-driven (`ArgRole::Expr`); see
     // `crate::expr_context`.
@@ -1424,7 +1424,7 @@ fn method_items(
     let mut items: Vec<CompletionItem> = Vec::new();
     // Per-object members first — `TclOO` layers an `oo::objdefine`d method
     // ahead of the class chain, so the receiver's own members claim their
-    // names before any class provider (issue #1170).
+    // names before any class provider.
     if bucket == MethodBucket::Instance
         && let Some(st) = object_state
     {
@@ -1444,7 +1444,7 @@ fn method_items(
         };
         // Per-object visibility flips override the declared state for this
         // receiver: an `oo::objdefine … export` revives an unexported class
-        // member, an `… unexport` masks an exported one (issue #1170).
+        // member, an `… unexport` masks an exported one.
         let flipped = |name: &str, declared_public: bool| {
             object_state.map_or(declared_public, |st| {
                 if bucket != MethodBucket::Instance {
@@ -1518,7 +1518,7 @@ fn method_items(
     Some(items)
 }
 
-/// The per-object leg of [`method_items`] (issue #1170): offer the
+/// The per-object leg of [`method_items`]: offer the
 /// receiver's own externally dispatchable `oo::objdefine`d members ahead of
 /// the class chain, and claim the names of its *unexported* per-object
 /// members so they cannot resurface from the class walk — an unexported
@@ -1614,7 +1614,7 @@ fn registry_method_items(
 /// The rule itself lives in [`crate::document_floor::DocumentFloor`], the one
 /// place a request-time provider resolves a floor. Completion is no longer its
 /// only consumer, so the definition moved to where the next one can reach it
-/// without copying it (issue #1644).
+/// without copying it.
 fn package_version_floor<'a>(
     analysis: &'a AnalysisResult,
     spec: &tcl_registry::CommandSpec,
@@ -1706,7 +1706,7 @@ fn switch_completions(
 /// even when iRules isn't in scope, so we keep it local instead.
 fn event_name_completions(partial: &str) -> Vec<CompletionItem> {
     let reg = tcl_registry::events::EventRegistry::build();
-    // Lifecycle rule (#1210): completion omits *retired* events and keeps
+    // Lifecycle rule: completion omits *retired* events and keeps
     // deprecated ones, labelled with their deprecating release. The target is
     // the axis default (the D5 oldest-supported release) since this entry
     // point carries no resolved BIG-IP version.
@@ -1945,7 +1945,7 @@ fn scoped_op_completions(
 
 /// Build completions for the second-level subcommands of a two-level ensemble
 /// (`info object <op>` / `info class <op>`), filtered by `partial`.  Each
-/// item's detail is the operation's one-line description (issue #798).
+/// item's detail is the operation's one-line description.
 fn sub_subcommand_completions(
     mut subs: Vec<&'static tcl_registry::SubSubCommand>,
     partial: &str,
@@ -2228,7 +2228,7 @@ fn builtin_completions(
         .collect()
 }
 
-/// `expr` math-function completions (issue #974 defect 2) — the bare names
+/// `expr` math-function completions — the bare names
 /// (`sin`, `max`, …) that are callable *only* inside an expression.
 ///
 /// Sourced from the registry's own `::tcl::mathfunc::*` specs
@@ -2421,7 +2421,7 @@ fn fuzzy_command_fallback(
     // Receiver-method context — the method universe the instance branch of
     // `context_aware_completions` declined to fuzzy-match (see
     // `method_completions`) joins the ranking here, resolved with the same
-    // `$var`-vs-bareword gate that branch applies (issue #927).
+    // `$var`-vs-bareword gate that branch applies.
     if let Some((cmd, word_idx)) = command_context_on_line(source, line, character)
         && word_idx == 1
         && let Some((recv, is_dollar)) = dispatch_receiver_of(&cmd)

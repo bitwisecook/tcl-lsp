@@ -54,7 +54,7 @@ pub enum WorkspaceSymbolKind {
     /// instance construction.
     Constructor,
     /// A named definition from a registry symbol-definer command — a
-    /// `tcltest::test` case (issue #790).
+    /// `tcltest::test` case.
     Test,
     /// A named `tcltest::testConstraint` — a boolean test condition.
     Constant,

@@ -106,7 +106,6 @@ fn modifier_bit(mods: &[String], name: &str) -> i64 {
     1i64 << idx
 }
 
-// -- TestTokenInvariants -------------------------------------------------
 
 /// Representative + adversarial documents the encoder must keep coherent.
 fn invariant_corpus() -> Vec<(&'static str, &'static str)> {
@@ -238,7 +237,6 @@ fn test_escape_before_multibyte_char_does_not_panic() {
     }
 }
 
-// -- TestCoreTokens ------------------------------------------------------
 
 #[test]
 fn test_simple_puts() {
@@ -543,7 +541,6 @@ fn test_command_subst_inside_expression() {
     assert!(tokens.iter().any(|t| t.ttype == "variable"));
 }
 
-// -- TestTcllibBodyRecursion ---------------------------------------------
 //
 // tcllib commands that carry a script body (`control::do`,
 // `struct::list foreachperm`) or an expression (`control::do`'s test,
@@ -712,7 +709,6 @@ fn test_bind_query_forms_do_not_recurse() {
     );
 }
 
-// -- TestStructuralKeywords ----------------------------------------------
 
 /// The set of source words rendered as keyword tokens.
 fn keyword_words(
@@ -791,7 +787,6 @@ fn test_quoted_structural_keyword_offsets_past_quote() {
     );
 }
 
-// -- TestRegexTokens -----------------------------------------------------
 
 const RE_TYPES: &[&str] = &[
     "regexp",
@@ -927,7 +922,6 @@ fn test_regsub_multiple_backrefs() {
     assert_eq!(nums.len(), 2);
 }
 
-// -- TestEventDecoratorNamespace -----------------------------------------
 
 #[test]
 fn test_when_event_name_highlighted_as_event() {
@@ -1075,7 +1069,6 @@ fn test_global_qualified_command() {
     assert_eq!(ns[0].length, i64::try_from("::".len()).unwrap());
 }
 
-// -- TestModifiers -------------------------------------------------------
 
 #[test]
 fn test_builtin_command_has_default_library() {
@@ -1145,7 +1138,6 @@ fn test_proc_definition_no_default_library() {
     assert_eq!(fn_tok.modifiers & modifier_bit(&mods, "defaultLibrary"), 0);
 }
 
-// -- TestStringContentTokens ---------------------------------------------
 
 #[test]
 fn test_backslash_n_highlighted() {

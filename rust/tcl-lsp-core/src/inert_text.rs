@@ -296,7 +296,7 @@ mod tests {
         assert!(offset_in_comment(trailing, offset_of(trailing, "$v")));
     }
 
-    /// TN (Codex review of PR #1073, finding 1): a `{` **inside** a bare word
+    /// TN: a `{` **inside** a bare word
     /// is an ordinary character, so the `#` after it is not in command
     /// position and `$v` is a genuine, substituted read.
     ///

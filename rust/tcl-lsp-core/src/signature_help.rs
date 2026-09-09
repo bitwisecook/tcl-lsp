@@ -131,7 +131,7 @@ pub fn signature_help(
 ///
 /// The signature rendered is *the reached proc's*, so a `namespace import
 /// -force` whose covering `namespace export` lives in another file changes
-/// which parameter list is correct at this call (issue #1116 item 1).  Showing
+/// which parameter list is correct at this call.  Showing
 /// the shadowed local proc's signature would mis-describe the call that
 /// actually runs.
 ///

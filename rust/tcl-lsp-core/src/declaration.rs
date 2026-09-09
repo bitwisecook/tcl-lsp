@@ -88,7 +88,7 @@ pub fn declaration(
 
     // The document's proven command-identity facts, so a scoping statement is
     // recognised by the command a head *is* rather than the one it is spelled
-    // as (issue #1275).  Empty — and lookup-free — unless the document binds
+    // as.  Empty — and lookup-free — unless the document binds
     // something.
     let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
     let scan = DeclScan {
@@ -211,7 +211,7 @@ fn collect_declarations_in_region(
         // semantic-token walk resolves it: a proven `interp alias` / `rename` /
         // `namespace import` answers with the command the head really names,
         // and a spelling whose binding was provably taken over answers with
-        // nothing, so no registry grammar is applied to it (issue #1275).
+        // nothing, so no registry grammar is applied to it.
         let written = token_text(source, head_tok.span);
         let head = identities
             .head_words(written, head_tok.span.start())
@@ -240,7 +240,7 @@ fn collect_declarations_in_region(
 
         // `apply {argList body ?ns?} …` (and any future command sharing the
         // shape) — recurse into the real body *element*, not the whole
-        // lambda literal (issue #954): re-segmenting the whole `{argList}
+        // lambda literal: re-segmenting the whole `{argList}
         // {body}` blob as a script misread the parameter word as a command
         // name, so a `global` / `variable` / `upvar` genuinely inside the
         // body was never reached (and, worse, a parameter that happened to

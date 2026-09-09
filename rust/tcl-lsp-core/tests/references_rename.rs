@@ -189,7 +189,7 @@ fn references_proc_called_inside_oo_objdefine_method_body() {
 fn namespace_which_command_probe_navigates_and_renames_945() {
     // `namespace which -command greet` is an existence PROBE (it returns ""
     // for an unknown command) — but reference identity and existence
-    // assertion are orthogonal (issue #945 fault 9): the typed
+    // assertion are orthogonal: the typed
     // `CommandNameProbe` role records a first-class, exactly-writable
     // reference (Find-All-References and rename reach the probe site)
     // whose record never feeds W123.
@@ -1066,7 +1066,7 @@ fn rename_class_rewrites_its_superclass_and_mixin_sites() {
 fn references_variable_held_command_name_is_not_resolved_documented_limitation() {
     // A command name stored in a variable and invoked indirectly is, in the
     // general case, statically undecidable.  The flow-sensitive value model
-    // (issue #945 faults 1–2) narrows the limitation further than M7's
+    // narrows the limitation further than M7's
     // original constant map: a pure single-`$var` copy chain
     // (`set src helper; set cmd $src; $cmd`) now resolves — see
     // `const_cmd_head_resolves_through_a_pure_copy_chain_m7` — so the
@@ -2496,7 +2496,7 @@ fn rename_abstains_when_a_contributing_constant_has_no_writable_span_945() {
     // (SCCP folds the loop variable to the element CONSTSET) but the list
     // elements carry no per-element writable span — an edit set could not
     // keep the dispatch alive, so the rename must abstain wholly rather
-    // than corrupt (issue #945 fault 1's "sound abstention" arm).
+    // than corrupt.
     let src = "proc target {} { return hi }\nforeach cmd {target other} { $cmd }\ntarget\n";
     let analysis = analyse(src);
     let has_unsafe_indirect = analysis
@@ -2570,7 +2570,7 @@ fn rename_rewrites_a_consumed_dispatch_table_literal_m7() {
     assert_eq!(table_edit.new_text, "sum");
 }
 
-// rename — [incr Tcl] `Factory::make` class-proc dispatch (issue #990)
+// rename — [incr Tcl] `Factory::make` class-proc dispatch
 
 /// TP: renaming an itcl class-scoped `proc` rewrites its declaration, its
 /// bare sibling call, and the tail of every `::`-qualified dispatch — the
@@ -2668,7 +2668,7 @@ fn rename_plain_namespace_qualified_proc_is_unaffected() {
     );
 }
 
-// rename — namespace-scoped bare class dispatch (issue #981)
+// rename — namespace-scoped bare class dispatch
 
 /// Two classes sharing a simple name in different namespaces, one bare
 /// `Factory make` dispatch each.  Oracle (tclsh 8.6.14 and 9.0.4): the

@@ -36,7 +36,7 @@
 //!
 //! That is the head of 95 of tcllib 2.0's own `pkgIndex.tcl` files.  Reading
 //! the `package ifneeded` without the guard claims `log` is available on Tcl
-//! 8.4, where `package require log` really fails (issue #1017).
+//! 8.4, where `package require log` really fails.
 //!
 //! **Branch selection.**  The declaration lives *inside* a branch:
 //!

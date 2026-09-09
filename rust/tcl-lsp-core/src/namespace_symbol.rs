@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Namespaces as **navigable symbols** — the one entry point every provider
-//! resolves a namespace name through (issue #1088).
+//! resolves a namespace name through.
 //!
 //! Before this, a namespace existed in the model only as a *container*: a
 //! [`ScopeKind::Namespace`](tcl_compiler::analyser::ScopeKind) node holding
@@ -80,7 +80,7 @@
 //! * A **computed** target (`namespace eval $ns { … }`) is recorded only when
 //!   its value is constant-dominated — `set ns ::app; namespace eval $ns
 //!   { … }` creates `::app` on every run, so the `$ns` word is that
-//!   namespace's declaring site (issue #1113 item 3).  A branch-conditional
+//!   namespace's declaring site.  A branch-conditional
 //!   or parameter-fed target proves nothing and is recorded nowhere, so it
 //!   neither answers nor pollutes another namespace's reference set.  A
 //!   computed word in *reference* position stays unrecorded either way.
@@ -156,7 +156,7 @@ pub fn namespace_cell_at_offset(
     //
     // The comment test stays: it is conservative (it answers "inert" only
     // when the position provably is), so it can only ever agree with the
-    // walk, and it costs a cheap scan (issue #923 idx 24).
+    // walk, and it costs a cheap scan.
     if crate::inert_text::offset_in_comment(source, cursor_off) {
         return None;
     }
@@ -276,7 +276,7 @@ pub fn namespace_strictly_contains(parent: &str, child: &str) -> bool {
 ///
 /// The single-row form of [`namespace_implicit_parent_spans`], split out so
 /// the workspace tier can ask the same question of a *sibling* document's
-/// row (issue #1246): the index knows the row's qualified name and span, but
+/// row: the index knows the row's qualified name and span, but
 /// the covering prefix is a sub-range of the written word, so the answer
 /// needs that document's own text.  One implementation, so the in-document
 /// and cross-document tiers cannot disagree about where the prefix ends.
@@ -450,7 +450,7 @@ pub fn namespace_facts(analysis: &AnalysisResult, cell: &str) -> NamespaceFacts 
 /// ([`crate::hover::qualified_variable_hover`]).  The abstention is what lets
 /// the server's cross-document tier answer; it must never become a
 /// fall-through to *command* hover, because the cursor is provably on a
-/// namespace-name argument (issue #1088 review, finding 1).
+/// namespace-name argument.
 ///
 /// The one renderer, so the in-document provider and the workspace tier
 /// cannot word the same fact differently — they differ only in how wide a set
@@ -678,7 +678,7 @@ mod tests {
     }
 
     // A **computed** target is recorded only when its value is
-    // constant-dominated (issue #1113 item 3): `set ns ::mypkg` then
+    // constant-dominated: `set ns ::mypkg` then
     // `namespace eval $ns {}` creates `::mypkg` on every run, so the `$ns`
     // word of the *declaring* command is that namespace's declaring site.
     // A reference-position `$ns` (`namespace children $ns`) is still
@@ -716,7 +716,7 @@ mod tests {
     // site of its own — `namespace eval ::p::q::r {}` really does create
     // `::p` and `::p::q` (both interpreters), but neither name is written as
     // a name of its own.  The answer is the covering prefix of the deepest
-    // written name, never the whole word (issue #1113 item 1).
+    // written name, never the whole word.
     #[test]
     fn tp_implicit_parent_answers_with_the_covering_prefix() {
         let src = "namespace eval ::p::q::r {}\nnamespace children ::p::q\n";
@@ -893,7 +893,7 @@ mod tests {
         );
     }
 
-    // TP (issue #1088 review, finding 3): the **empty literal** is an
+    // TP: the **empty literal** is an
     // ordinary relative namespace name, so it means `::` at global scope and
     // a namespace that cannot exist inside another one.
     //
@@ -1120,7 +1120,7 @@ mod tests {
         // TP — braces suppress substitution, so tclsh reads `$ns` here as a
         // *literal* namespace name (verified on 8.6.14).  The whole-word
         // dynamic gate used to read the de-braced text and skip the command
-        // outright (issue #1245); it now consults the token kind, so the
+        // outright; it now consults the token kind, so the
         // elements are recorded at their own spans.
         let src = "namespace eval ::a {}\nnamespace path {$ns ::a}\n";
         let analysis = analyse(src);

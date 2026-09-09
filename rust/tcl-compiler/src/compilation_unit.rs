@@ -200,18 +200,15 @@ pub type TaintCascadeCallback<'a> =
 /// The single method-body view of `TclOO` instance state, built **once** per
 /// method unit from its typed [`crate::ir::MethodDef`] and read by every
 /// consumer that needs "which names are auto-bound in this method's frame"
-/// (issue #1174).
+/// bound in this method's frame".
 ///
-/// Before this carrier existed the same fact reached method-body analyses
-/// through three independent channels — [`FunctionUnit::build_for_method`]'s
+/// Three analyses need that fact — [`FunctionUnit::build_for_method`]'s
 /// `object_state` (the `[info exists]` fold, I230 / O100 / O101), the
-/// analyser's `emit_method_body_diagnostics` rebuilding `known_bound` from the
-/// IR for W210/W211/W220, and the optimiser's `oo_method_constants` handing
-/// `MethodDef::instance_vars` to `sccp_with_extra_escaping` — exactly the
-/// parallel-channel shape that produced issue #1129 (two copies of the
-/// existence fold sourcing parameters from different maps).  All three now
-/// read this struct off [`FunctionUnit::method_facts`], so they cannot diverge
-/// by construction.
+/// analyser's `emit_method_body_diagnostics` `known_bound` set for
+/// W210/W211/W220, and the optimiser's `oo_method_constants` escaping set —
+/// and parallel channels for it diverge (two copies of the existence fold
+/// sourcing parameters from different maps).  All three read this struct off
+/// [`FunctionUnit::method_facts`], so they cannot diverge by construction.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct MethodBodyFacts {
     /// The method's own formal parameter names, in declaration order.
@@ -269,8 +266,7 @@ pub struct FunctionUnit {
     /// because it is **span-free**: [`crate::lattice_rebase::rebase_function_unit`]
     /// never touches it, so a memoised unit taken from the salsa
     /// `function_lattice` cache and rebased to a new offset keeps the very same
-    /// lattice. Deep-copying it per procedure per read was pure waste
-    /// (issue #1159).
+    /// lattice, so it need not be deep-copied per procedure per read.
     pub def_use: Arc<DefUseResult>,
     /// SCCP result: lattice values, executable blocks, constant
     /// branches.
@@ -335,7 +331,7 @@ pub struct FunctionUnit {
     /// `ValueKey`) are unaffected.
     pub base_offset: i64,
     /// The method-body instance-state view, for a unit built from a
-    /// [`crate::ir::MethodDef`] (issue #1174) — `None` for procs, lambdas,
+    /// [`crate::ir::MethodDef`] — `None` for procs, lambdas,
     /// `namespace eval` bodies, and the top level, none of which have any.
     ///
     /// Span-free (names only), so offset rebasing never touches it.  Behind
@@ -408,11 +404,11 @@ struct FunctionBuildInputs<'a> {
     /// Names auto-bound to out-of-frame *object* storage on entry — a
     /// `TclOO` method body's [`crate::ir::MethodDef::instance_vars`].  `None`
     /// for procs, lambdas, and the top level, none of which have any.  The
-    /// `[info exists]` fold must abstain on these (issue #1129).
+    /// `[info exists]` fold must abstain on these.
     object_state: Option<&'a HashSet<String>>,
     /// Whether this is the compilation unit's **top-level** body — the
     /// interpreter's initial global frame.  The `[info exists]` fold must
-    /// abstain on the registry's special variables there (issue #1557).
+    /// abstain on the registry's special variables there.
     initial_global: bool,
 }
 
@@ -567,10 +563,10 @@ impl FunctionUnit {
     ///
     /// The instance-variable half feeds the existence fold (a class-level
     /// `variable x` binds `x` in every method frame with no binding command
-    /// in the body, so without it `[info exists x]` folded to "always
-    /// absent" — issue #1129), and — via [`Self::method_facts`], the single
-    /// carrier built here (issue #1174) — the analyser's W210/W211/W220
-    /// `known_bound` set and the optimiser's method-constants escaping set.
+    /// in the body, so without it `[info exists x]` folds to "always
+    /// absent"), and — via [`Self::method_facts`], the single carrier built
+    /// here — the analyser's W210/W211/W220 `known_bound` set and the
+    /// optimiser's method-constants escaping set.
     #[must_use]
     pub fn build_for_method(
         name: impl Into<String>,
@@ -649,14 +645,14 @@ impl FunctionUnit {
         // (f5-bigip, an unknown dialect) — plus whether the dialect's `expr`
         // grammar carries the iRules word operators, so `if {$x contains
         // "cd"}` folds under `f5-irules`. A hand-assembled registry without a
-        // profile keeps the historical loaded-packs octal derivation.
-        // Dynamic-name facts (issue #923 audit cluster C10): a `set $var v`
+        // profile falls back to deriving the octal rule from the loaded packs.
+        // Dynamic-name facts: a `set $var v`
         // means any name may be defined, an `unset $n` that any name may have
         // stopped existing — so the existence fold below must abstain in that
         // direction rather than hand the optimiser a wrong constant branch.
         //
         // Computed *before* SCCP because a dynamic write / destroy blinds the
-        // value lattice too (issue #1374): after `set $name v` any variable in
+        // value lattice too: after `set $name v` any variable in
         // the frame may hold any value, so no definition is a trustworthy
         // constant. Reuse the "every variable is externally mutable" switch a
         // dynamic trace target already throws — same lattice consequence, one
@@ -665,7 +661,7 @@ impl FunctionUnit {
         // the value lattice alone.
         // Split the `[…]` texts this walk re-reads under the very config the
         // lowering used, so the barrier and the IR agree on word boundaries
-        // (issue #1393) — the unit's own, not one derived from the registry's
+        // — the unit's own, not one derived from the registry's
         // profile, which is not the document's grammar for a pack-layered
         // registry or `tk`.
         let dynamic_names = crate::dynamic_names::dynamic_name_barrier(&cfg, registry, config);
@@ -690,7 +686,7 @@ impl FunctionUnit {
         // `existence_constant_branches`; the SCCP pass proper has no
         // parameter/existence facts to fold them itself.  A method body's
         // instance variables are handed over too, so the fold abstains on
-        // object state instead of calling it absent (issue #1129).
+        // object state instead of calling it absent.
         sccp.constant_branches
             .extend(crate::sccp::existence_constant_branches(
                 &cfg,
@@ -781,7 +777,7 @@ impl FunctionUnit {
 
     /// Whether this function's [`Self::dynamic_names`] barrier forbids any
     /// pass that *moves, folds, or deletes* a variable's value across other
-    /// statements (issue #1374).
+    /// statements.
     ///
     /// A computed variable name (`set $name v`, `unset $n`, `[set $v]`)
     /// can create, destroy, or observe **any** variable in the frame, so no
@@ -1131,7 +1127,7 @@ fn resolve_unit_scope(
     );
     // Fold in the call sites a host with a cross-file view supplied — callers
     // in *other* files, which this single-source unit can never see for itself
-    // (issue #977). Merging is monotone: extra evidence can retract a fold,
+    // Merging is monotone: extra evidence can retract a fold,
     // never manufacture one.
     if let Some(external) = options.external_call_sites {
         call_sites.merge_from(external);
@@ -1681,13 +1677,14 @@ impl CompilationUnit {
         if ir_module.methods.is_empty() {
             return HashMap::new();
         }
-        // Issue #1177: a callee reached via `my` / `next` is a method, never
-        // in the upvar-procs table (the dispatch does not name its target),
-        // so its `upvar 1 $refvar …` caller-frame definition was invisible
-        // and every defs-based check treated the dispatch as a no-op — a
-        // false always-false I230 on `info exists` of an upvar-defined local
-        // (oracle, tclsh 9.0.4 / 8.6.14: after `my Reference? $lookup ref`
-        // returns true, `[info exists ref]` in the caller is 1).  Widen the
+        // A callee reached via `my` / `next` is a method, never in the
+        // upvar-procs table (the dispatch does not name its target), so its
+        // `upvar 1 $refvar …` caller-frame definition is invisible to a
+        // defs-based check, which would treat the dispatch as a no-op and
+        // raise a false always-false I230 on `info exists` of an
+        // upvar-defined local (on tclsh 9.0.4 / 8.6.14, after
+        // `my Reference? $lookup ref` returns true, `[info exists ref]` in
+        // the caller is 1).  Widen the
         // dispatch sites of exactly the methods whose reachable dispatch
         // surface meets a caller-frame-reaching (or unanalysable) class —
         // the same per-method barrier the optimiser's propagation gate
@@ -1726,7 +1723,7 @@ impl CompilationUnit {
                     // The guarded unit still carries its method facts: the
                     // deep lattices are skipped, but every consumer of "which
                     // names are bound in this method's frame" must read the
-                    // same carrier as the deep path (issue #1174).
+                    // same carrier as the deep path.
                     let mut fu = FunctionUnit::trivial_guarded(mqname, cfg);
                     fu.method_facts = Some(Arc::new(MethodBodyFacts::from_method(method)));
                     fu
@@ -1884,7 +1881,7 @@ impl CompilationUnit {
         // cb` instance-method callback becomes a call-graph / reachability edge.
         let object_types = crate::object_types::object_handle_classes(&self, registry);
         // The unit's own proven command-identity facts, so the call-graph scan
-        // classifies a rebound head as the command it is (issue #1275).
+        // classifies a rebound head as the command it is.
         let identities = crate::realm::document_realm_bindings_with_config(
             &self.source,
             tcl_lexer::LexerConfig::for_profile(dialect),
@@ -1960,7 +1957,7 @@ impl CompilationUnit {
     ) -> Self {
         let object_types = crate::object_types::object_handle_classes(&self, registry);
         // The unit's own proven command-identity facts, so the call-graph scan
-        // classifies a rebound head as the command it is (issue #1275).
+        // classifies a rebound head as the command it is.
         let identities = crate::realm::document_realm_bindings_with_config(
             &self.source,
             tcl_lexer::LexerConfig::for_profile(dialect),
@@ -2255,8 +2252,8 @@ fn collect_known_classes(source: &str, registry: &CommandRegistry) -> HashSet<St
     // `oo::class` / `itcl::class` (both contain "class") **or** by another stock
     // `TclOO` metaclass — `oo::configurable` / `oo::abstract` / `oo::singleton`,
     // none of which contain the word "class" — so also admit any `oo::` head
-    // (issue #797: an `oo::configurable` class was skipped here, leaving its
-    // `[Class new]` untyped).  snit definers (`snit::type` / `snit::widget` /
+    // — skipping one would leave its `[Class new]` untyped.  snit definers
+    // (`snit::type` / `snit::widget` /
     // `snit::widgetadaptor`) contain neither "class" nor "oo::", so admit
     // `snit::` too, or a pure-snit file's `[Name create obj]` stays untyped.
     if !source.contains("class") && !source.contains("oo::") && !source.contains("snit::") {
@@ -2378,8 +2375,8 @@ mod tests {
         );
     }
 
-    /// Issue #1174: every method unit carries exactly one instance-state
-    /// carrier (`method_facts`), and its content matches the typed IR — the
+    /// Every method unit carries exactly one instance-state carrier
+    /// (`method_facts`), and its content matches the typed IR — the
     /// invariant that keeps the existence fold (I230/O100/O101), the
     /// W210/W211/W220 `known_bound` set, and the optimiser's method-constants
     /// escaping set reading the same struct.
@@ -2405,7 +2402,7 @@ mod tests {
         assert_eq!(facts.params, ir.params);
     }
 
-    /// TN for #1174: bodies with no object state — the top level and plain
+    /// TN: bodies with no object state — the top level and plain
     /// procedures — carry no `method_facts`, so no consumer can mistake a
     /// proc frame for a method frame.
     #[test]
@@ -2672,10 +2669,9 @@ mod tests {
 
     #[test]
     fn switch_glob_arm_body_read_counts_as_param_use() {
-        // A `switch -glob`/`-regexp` arm body is now a
-        // real analysed CFG region (it used to vanish into a barrier).
-        // A parameter referenced *only* inside a glob-arm body therefore
-        // has a live def-use chain — the precise path behind W214.
+        // A `switch -glob`/`-regexp` arm body is a real analysed CFG region,
+        // so a parameter referenced *only* inside a glob-arm body has a live
+        // def-use chain — the precise path behind W214.
         // Multi-arg arm form (the single-braced-body form is a separate,
         // pre-existing lowering gap affecting every mode equally).
         for (mode, pat) in [("-glob", "a*"), ("-regexp", "a.*")] {
@@ -2853,22 +2849,19 @@ mod tests {
         assert_eq!(count, cu.procedures.len() + 1);
     }
 
-    /// Issue #969 / interprocedural call-site literal seeding (TP/FP/TN/FN
-    /// suite for [`collect_call_site_constants`] / [`params_constants_from_call_sites`]).
+    /// Interprocedural call-site literal seeding (TP/FP/TN/FN suite for
+    /// [`collect_call_site_constants`] / [`params_constants_from_call_sites`]).
     mod call_site_param_constants {
         use super::*;
         use crate::analyses::LatticeValue;
 
         /// FN regression: a call from inside a `TclOO` method body to an
         /// ordinary user proc is a real caller with a differing argument,
-        /// but methods are built in a *separate* pass that runs after (and
-        /// was invisible to) the call-site scan — the same "call site
-        /// silently vanishes from the evidence" failure as issue #969's own
-        /// root cause, reached through a method body instead of
-        /// namespace-blind recursion or a `catch`/`uplevel` body. Before
-        /// `build_extra_call_site_scan_contexts`, this scan only ever saw
-        /// the one external `helper a` call, so it wrongly seeded `mode` as
-        /// the constant `"a"`.
+        /// but methods are built in a *separate* pass that runs after the
+        /// call-site scan. Without
+        /// `build_extra_call_site_scan_contexts` the scan sees only the one
+        /// external `helper a` call and wrongly seeds `mode` as the constant
+        /// `"a"`.
         #[test]
         fn call_site_inside_tcloo_method_body_is_not_missed() {
             let reg = registry();
@@ -2894,11 +2887,8 @@ mod tests {
         /// FN regression: a call reached only via a `namespace import` alias
         /// is a real caller with a differing argument, but
         /// `resolve_internal_call` alone only tries the caller's own
-        /// namespace and the global one — it doesn't know about imports. The
-        /// same "call site silently vanishes from the evidence" failure as
-        /// issue #969's own root cause, reached through an imported bare
-        /// name instead of namespace-blind recursion, a `catch`/`uplevel`
-        /// body, or a `TclOO` method body.
+        /// namespace and the global one — it doesn't know about imports, so
+        /// the call site would vanish from the evidence.
         #[test]
         fn call_site_via_namespace_import_alias_is_not_missed() {
             let reg = registry();
@@ -2961,7 +2951,7 @@ mod tests {
             );
         }
 
-        /// FP guard (issue #977): adding `namespace export *` to the very
+        /// FP guard: adding `namespace export *` to the very
         /// same source must stop the fold — and, unlike a `source` boundary,
         /// must keep stopping it even when a host supplies a workspace view.
         /// An export publishes `::lib::helper` for *any* other unit to import
@@ -2987,7 +2977,7 @@ mod tests {
             }
         }
 
-        /// Pinning test for issue #979: a proc reached only through a
+        /// A proc reached only through a
         /// `namespace ensemble` `-map` redirection is a real caller the
         /// call-site scan cannot resolve — it has no model of ensemble
         /// dispatch. tclsh8.6/9.0-confirmed: with `namespace ensemble
@@ -2998,12 +2988,11 @@ mod tests {
         /// registry marks `namespace ensemble` with `Traits::EXPORTS_COMMAND`,
         /// which `params_constants_from_call_sites` treats as a boundary
         /// publishing the file's commands to callers it cannot enumerate, so
-        /// the whole module declines seeding. Sound but blunt — and a future
-        /// registry edit narrowing that trait (or a precision follow-up that
-        /// starts resolving *some* ensemble maps) would silently reopen
-        /// issue #969's exact false-fold shape here. This test guards that
-        /// mechanism, whatever replaces it: the fold must stay off unless a
-        /// real ensemble-map resolution lands.
+        /// the whole module declines seeding. Sound but blunt — narrowing
+        /// that trait, or resolving *some* ensemble maps, would silently
+        /// reopen the false-fold shape here. This test guards the mechanism,
+        /// whatever replaces it: the fold must stay off unless a real
+        /// ensemble-map resolution exists.
         #[test]
         fn ensemble_map_redirected_caller_does_not_fold_issue_979() {
             let reg = registry();
@@ -3030,7 +3019,7 @@ mod tests {
             }
         }
 
-        /// FP guard (Codex review, PR #970): a `TclOO` method body resolves
+        /// FP guard: a `TclOO` method body resolves
         /// bare commands against the GLOBAL namespace, never the class's own
         /// namespace — tclsh8.6-confirmed live: `[::foo::Widget new] go`
         /// (method body `helper b`) calls `::helper`, never
@@ -3083,7 +3072,7 @@ mod tests {
             );
         }
 
-        /// FN regression (issue #980, Codex review of PR #970): `uplevel #0
+        /// FN regression: `uplevel #0
         /// { … }`'s body resolves bare commands against the GLOBAL
         /// namespace — tclsh8.6/9.0-confirmed live: `uplevel #0 { helper b
         /// }` inside `::foo::runIt` prints `GLOBAL helper mode=b`, never the
@@ -3146,7 +3135,7 @@ mod tests {
         /// and `::foo::helper` lost its only varying call site — folding a
         /// branch that real Tcl reaches both ways.
         ///
-        /// Oracle (tclsh8.6 and tclsh9.0, `review-probes/up1.tcl`): inside
+        /// On tclsh8.6 and tclsh9.0: inside
         /// `::foo::runIt`, `uplevel #0 { helper b }` prints `GLOBAL helper`
         /// while `uplevel 0 { helper c }` prints `FOO helper`.
         #[test]
@@ -3177,7 +3166,7 @@ mod tests {
             );
         }
 
-        /// Approximation pin (issue #980): a *relative* `uplevel N { … }`
+        /// Approximation pin: a *relative* `uplevel N { … }`
         /// keeps resolving against the enclosing unit's own namespace. The
         /// target frame's namespace depends on the live call stack, so this
         /// is a deliberate, permanent approximation — but it must stay an
@@ -3212,7 +3201,7 @@ mod tests {
         }
 
         /// FN guard for the `Traits::DEFINES_PROCEDURE` body-recursion skip
-        /// (issue #980): a definition body is no longer re-walked from the
+        /// a definition body is not re-walked from the
         /// definition site, so its call sites must still arrive through the
         /// defined procedure's *own* CFG. A conditionally-defined proc is
         /// the shape most at risk — its `proc` call is not a plain top-level
@@ -3240,7 +3229,7 @@ mod tests {
             );
         }
 
-        /// FP guard (Codex review, PR #970): `namespace eval ::other { … }`
+        /// FP guard: `namespace eval ::other { … }`
         /// runs its body in `::other`, never the enclosing proc's own
         /// namespace — tclsh8.6-confirmed live: a bare call inside such a
         /// block, nested arbitrarily deep inside an unrelated proc, still
@@ -3289,8 +3278,8 @@ mod tests {
         /// vanished from `::foo::helper`'s evidence, folding a branch real
         /// Tcl reaches both ways.
         ///
-        /// Oracle (tclsh8.6 and tclsh9.0, `review-probes/ap3_run.tcl`):
-        /// inside `::foo::runIt`, `apply {{x} { helper $x } ::foo} b`
+        /// On tclsh8.6 and tclsh9.0: inside `::foo::runIt`,
+        /// `apply {{x} { helper $x } ::foo} b`
         /// returns 2 — the `else` arm of `::foo::helper` — while the direct
         /// `::foo::helper a` returns 1.
         #[test]
@@ -3358,8 +3347,8 @@ mod tests {
         /// diagnostic, and the O101/O107 optimiser suggestions, all key off.
         /// Build `src` under a **closed world**: an empty cross-file evidence
         /// set, which is the host asserting "I enumerated the project and no
-        /// other file calls into this one".  The pre-issue-#977 semantics for
-        /// a file that is genuinely the whole program.
+        /// other file calls into this one" — the semantics for a file that is
+        /// genuinely the whole program.
         fn build_closed_world(src: &str, reg: &CommandRegistry) -> CompilationUnit {
             let empty = crate::unit_scope::CallSiteEvidence::default();
             CompilationUnit::build_with_options(
@@ -3699,10 +3688,10 @@ mod tests {
             );
         }
 
-        /// FP guard (Codex review, PR #970): `package provide` merely
-        /// *mentioned* in a comment must not disable the interprocedural
-        /// seed — the guard now checks the lowered IR for a real, resolved
-        /// invocation, not a raw-text substring match over the whole file.
+        /// FP guard: `package provide` merely *mentioned* in a comment must
+        /// not disable the interprocedural seed — the guard checks the lowered
+        /// IR for a real, resolved invocation, not a raw-text substring match
+        /// over the whole file.
         #[test]
         fn package_provide_mentioned_only_in_a_comment_does_not_disqualify() {
             let reg = registry();
@@ -3723,10 +3712,10 @@ mod tests {
             );
         }
 
-        /// FN guard (Codex review, PR #970): a real `package provide`
-        /// invocation must still disqualify the seed even when it's spelled
-        /// with unusual whitespace or fully namespace-qualified — cases the
-        /// old `source.contains("package provide")` substring check missed.
+        /// FN guard: a real `package provide` invocation must still
+        /// disqualify the seed even when it is spelled with unusual
+        /// whitespace or fully namespace-qualified — cases a
+        /// `source.contains("package provide")` substring check would miss.
         #[test]
         fn package_provide_with_unusual_spelling_still_disqualifies() {
             let reg = registry();
@@ -3747,17 +3736,16 @@ mod tests {
             );
         }
 
-        /// Issue #977 (the two-file repro, verbatim): `lib.tcl` has **no**
-        /// `package provide`, so PR #970's guard never fires; its only two
-        /// visible callers both pass `"prod"`, so `mode` was seeded as that
-        /// constant and the condition folded — even though `main.tcl`
-        /// `source`s it and calls `helper dev`.
+        /// Two-file repro: `lib.tcl` has **no** `package provide`, so the
+        /// provide guard never fires; its only two visible callers both pass
+        /// `"prod"`, so seeding `mode` as that constant folds the condition —
+        /// even though `main.tcl` `source`s it and calls `helper dev`.
         mod cross_file {
             use super::*;
             use crate::unit_scope::CallSiteEvidence;
 
-            /// `lib.tcl` from the issue: a plain library file, no `package
-            /// provide`, whose in-file callers agree.
+            /// A plain library file, no `package provide`, whose in-file
+            /// callers agree.
             const LIB: &str = "
                 proc helper {mode} {
                     if {$mode eq \"prod\"} { set r 1 } else { set r 2 }
@@ -3766,8 +3754,8 @@ mod tests {
                 helper prod
             ";
 
-            /// `main.tcl` from the issue: sources the library and calls its
-            /// proc with a literal `lib.tcl` never sees.
+            /// Sources the library and calls its proc with a literal
+            /// `lib.tcl` never sees.
             const MAIN: &str = "
                 source lib.tcl
                 helper dev

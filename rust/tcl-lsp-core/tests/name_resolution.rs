@@ -180,7 +180,7 @@ mod obj_method_dispatch {
         assert_eq!(refs_at(src, 1, 11), vec![1], "declaration only");
     }
 
-    /// FN→TP (issue #957's general form): an external `$obj method` /
+    /// FN→TP: an external `$obj method` /
     /// `NAME method` dispatch nested inside `if` / `foreach` at the
     /// top level (not inside any proc/method) is a reference too — the
     /// top-level scan region gets the same `Plain`-`BodyKind` recursion
@@ -323,7 +323,7 @@ mod classmethod_dispatch {
         );
     }
 
-    /// FN→TP (issue #990): [incr Tcl]'s class-scoped `proc` maps to the same
+    /// FN→TP: [incr Tcl]'s class-scoped `proc` maps to the same
     /// `class_methods` bucket as `classmethod`/`typemethod`, but itcl
     /// dispatches it as a single `::`-qualified identifier
     /// (`Factory::make`), never the two-word `Factory make` form the

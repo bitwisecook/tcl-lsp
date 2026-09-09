@@ -61,7 +61,6 @@ fn doc_text(item: &Value) -> String {
     }
 }
 
-// -- TestCommandCompletion -----------------------------------------------
 
 #[test]
 fn empty_line_returns_commands() {
@@ -115,7 +114,6 @@ fn builtin_command_has_documentation() {
     );
 }
 
-// -- TestVariableCompletion ----------------------------------------------
 
 #[test]
 fn dollar_triggers_vars() {
@@ -330,7 +328,6 @@ fn dollar_completion_tolerates_cursor_past_eol() {
     assert!(labels(&mut lsp, &uri, 1, 100).contains(&"$greeting".to_owned()));
 }
 
-// -- TestArrayElementCompletion ------------------------------------------
 
 #[test]
 fn array_element_completion_offers_known_indices() {
@@ -365,7 +362,6 @@ fn array_element_completion_consumes_existing_close_paren() {
     assert_eq!(edit["newText"], "$arr(name)");
 }
 
-// -- TestSubcommandCompletion --------------------------------------------
 
 #[test]
 fn string_subcommands() {
@@ -416,7 +412,6 @@ fn namespace_subcommands() {
     }
 }
 
-// -- TestSwitchCompletion ------------------------------------------------
 
 #[test]
 fn regexp_switches() {
@@ -526,7 +521,6 @@ fn switch_text_edit_with_longer_partial() {
     assert_eq!(edit["newText"], "-nocase");
 }
 
-// -- TestScopeBindingCompletion ------------------------------------------
 
 #[test]
 fn dollar_global_var_from_namespace_offers_qualified() {
@@ -626,7 +620,6 @@ fn dollar_completion_uplevel_one_abstains_from_proc_scope() {
     );
 }
 
-// -- TestArrayReadOnlyIndices --------------------------------------------
 
 #[test]
 fn array_element_completion_picks_up_read_only_indices() {
@@ -639,7 +632,6 @@ fn array_element_completion_picks_up_read_only_indices() {
     assert!(ls.contains(&"$arr(role)".to_owned()));
 }
 
-// -- TestFuzzyFallback -----------------------------------------------------
 // The fuzzy fallback only runs when the prefix filter yields nothing, so
 // every test here pairs a typo case with the byte-identity guarantee that
 // prefix responses never change (see `string_to_prefix_list_is_unchanged`).

@@ -47,7 +47,6 @@ fn name_of(item: &Value) -> String {
         .to_owned()
 }
 
-// -- TestCallHierarchy ---------------------------------------------------
 
 #[test]
 fn prepare_returns_proc_item() {
@@ -194,7 +193,6 @@ fn bare_dispatch_on_a_same_named_proc_is_not_a_classmethod_edge() {
     );
 }
 
-// -- TestImplementation --------------------------------------------------
 
 #[test]
 fn method_implementations_across_subclasses() {
@@ -208,7 +206,6 @@ fn method_implementations_across_subclasses() {
     assert!(lines.contains(&5), "{lines:?}");
 }
 
-// -- TestLinkedEditingRange ----------------------------------------------
 
 #[test]
 fn recursive_self_calls_linked_with_declaration() {

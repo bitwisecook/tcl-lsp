@@ -29,7 +29,6 @@ use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 use std::time::Duration;
 
-// -- TestProcReferences --------------------------------------------------
 
 #[test]
 fn find_proc_definition_and_calls() {
@@ -317,7 +316,6 @@ fn qualified_calls_do_not_cross_two_level_nested_namespace() {
     assert!(lines_cd.contains(&8), "{lines_cd:?}");
 }
 
-// -- TestVariableReferences ----------------------------------------------
 
 #[test]
 fn find_var_refs() {
@@ -381,7 +379,6 @@ fn var_refs_respect_shadowing_local_target() {
     assert_eq!(s, expected);
 }
 
-// -- TestClassSuperclassMixinReferences ----------------------------------
 
 #[test]
 fn superclass_and_mixin_references() {

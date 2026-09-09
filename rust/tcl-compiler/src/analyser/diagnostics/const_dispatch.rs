@@ -16,8 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Constant-`$cmd` dispatch settlement (M7, reworked for issue #945
-//! faults 1–2).
+//! Constant-`$cmd` dispatch settlement.
 //!
 //! Settles the `$var`-head dispatch sites the walk recorded against the
 //! compiler's **flow-sensitive value model**
@@ -41,9 +40,7 @@
 //!
 //! A resolved target any of whose contributors has *no* exact source
 //! span marks its indirect invocation `rename_safe: false`, so the
-//! rename providers abstain for that symbol instead of emitting an edit
-//! set that leaves the variable holding the old name (fault 1's
-//! corruption, inverted).
+//! set that leaves the variable still holding the old name.
 
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -111,8 +108,7 @@ fn settle_one_site(
 ) {
     // A write trace can mutate the variable at any read — the
     // reaching-definition walk cannot see the trace callback's writes, so
-    // a traced head (or any dynamic variable trace in the module) abstains
-    // (issue #945 fault 2's trace arm).
+    // a traced head (or any dynamic variable trace in the module) abstains.
     if cu.ir_module.has_dynamic_variable_trace
         || cu.ir_module.traced_variables.contains(&site.var_name)
     {
@@ -129,9 +125,9 @@ fn settle_one_site(
     // — the proc/class definition, or the establishing `interp alias` /
     // `rename` — is still live at this dispatch site: renamed away or
     // deleted with no later re-establishment no longer denotes a real
-    // command (issue #1009, the same question `unresolved.rs`'s W123
-    // pass already answers for ordinary bareword calls via
-    // `fact_live_for_call`, reused here rather than reimplemented).
+    // command. This is the same question `unresolved.rs`'s W123 pass answers
+    // for ordinary bareword calls, via `fact_live_for_call` reused here rather
+    // than reimplemented.
     let user_definition = |qualified: &str| user_definition_live(analyser, qualified, call_off);
     let user_defined = |qualified: &str| {
         user_definition(qualified)

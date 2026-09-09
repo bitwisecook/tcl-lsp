@@ -16,8 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Resource-bound regression tests for the `DoS` classes a code review (and,
-//! for #4, a later systematic sweep for issue #996) reproduced against this
+//! Resource-bound regression tests for the `DoS` classes found in this
 //! engine:
 //!
 //! 1. **Parser recursion → stack overflow** — a pattern of `(`×4000 drove the
@@ -30,7 +29,7 @@
 //! 3. **Reach-core blow-up** — plain `a*` over a long input is O(n²) and `(a*)*`
 //!    cubic in the set-simulation core. The same budget bounds that core's total
 //!    work, so these inputs return promptly instead of locking up.
-//! 4. **Dissection/backtrack recursion → stack overflow** (issue #996) —
+//! 4. **Dissection/backtrack recursion → stack overflow** —
 //!    matching a repeat quantifier against a long subject recurses once per
 //!    matched iteration in both `Matcher::dissect_repeat` (the POSIX
 //!    dissection phase run after every repeat match, not just backreference

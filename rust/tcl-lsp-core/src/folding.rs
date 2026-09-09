@@ -385,7 +385,7 @@ struct FoldCtx<'a> {
     availability: Option<SurfaceQuery<'a>>,
     /// The document's statically proven command-identity facts, so a body-arg
     /// role is resolved against the command a head *is* rather than the one it
-    /// is spelled as (issue #1275).  Empty — and lookup-free — for the
+    /// is spelled as.  Empty — and lookup-free — for the
     /// overwhelmingly common document that binds nothing.
     identities: &'a tcl_compiler::realm::CommandBindingRealm,
     line_index: &'a LineIndex,
@@ -431,7 +431,7 @@ fn collect_body_folds(
     }
     // The whole-file lexer rule (which may skip a leading byte-order mark)
     // applies at the top level only — a mark at the head of a *nested* body
-    // slice is ordinary data (issue #1243).
+    // slice is ordinary data.
     let commands = segment_commands_with_offset_and_config(
         body_source,
         base_offset,
@@ -451,7 +451,7 @@ fn collect_body_folds(
         // semantic-token walk resolves it: a proven `interp alias` / `rename` /
         // `namespace import` answers with the command the head really names, and
         // a spelling whose binding was provably taken over answers with nothing,
-        // so no registry grammar is applied to it (issue #1275).  The member
+        // so no registry grammar is applied to it.  The member
         // sub-keyword test below deliberately keeps the *written* spelling —
         // `method` inside a class body is a lexical keyword, not a command
         // binding a top-level `rename` could move.
@@ -492,7 +492,7 @@ fn collect_body_folds(
         // word is a *list* of pattern/body pairs, not a script: re-segmenting
         // it below would read each `pat body` pair as one bogus command, find
         // no body role on it, and emit nothing for the arms — only the outer
-        // block folded (issue #1216).  Which word holds the list, and how the
+        // block folded.  Which word holds the list, and how the
         // list is shaped, is registry data (`CommandSpec::case_list`), so this
         // walk names no command.
         let case_invocation = ctx.registry.get(head.resolved).and_then(|spec| {
@@ -1852,7 +1852,7 @@ mod tests {
     /// `end_line` at or past `line_count` would address a line the client
     /// does not have.  VS Code discards a whole sticky-scroll candidate
     /// *and its subtree* when the range is out of bounds, so an overflow
-    /// here silently removes the outline from sticky scroll (issue #1122).
+    /// here silently removes the outline from sticky scroll.
     ///
     /// The shape (a versioned `.tm` module holding one top-level
     /// `oo::class create` with a superclass, instance variables, a

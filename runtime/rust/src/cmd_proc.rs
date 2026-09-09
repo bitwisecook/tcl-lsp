@@ -242,10 +242,9 @@ mod tests {
 
     #[test]
     fn proc_default_arity_edges_dont_panic() {
-        // Regression: defaulted positionals must not panic when fewer args than
-        // positionals are supplied (the `args` split) or when a *required*
-        // parameter follows a defaulted one (non-trailing default). Matches
-        // tclsh 9.0.
+        // Defaulted positionals must not panic when fewer args than positionals
+        // are supplied (the `args` split) or when a *required* parameter
+        // follows a defaulted one (non-trailing default). Matches tclsh 9.0.
         leak_free(|i| {
             // All-defaulted positionals + args, called with none.
             run(i, b"proc q {{a 1} {b 2} args} {list $a $b $args}");

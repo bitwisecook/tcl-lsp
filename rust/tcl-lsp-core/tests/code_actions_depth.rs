@@ -561,7 +561,7 @@ fn inline_declines_control_flow_body() {
     // A proc whose body is a control-flow command (`return`) is NOT inlinable:
     // `return` acts on the call frame, so running it in the caller's frame
     // would return from the *caller*.  The action is surfaced greyed out with
-    // that reason rather than silently omitted (issue #1199), so a user can
+    // that reason rather than silently omitted, so a user can
     // tell "cannot be done here" from "is broken".
     let src = "proc f {} { return 1 }\nf\n";
     let analysis = analyse(src);

@@ -52,7 +52,7 @@
 //! and a `…/<ancestor>/PLUGIN/extensions/…` sibling — never by scanning the
 //! whole workspace.  If the name does not match, or two distinct directories
 //! match, nothing resolves: an unknown or ambiguous mapping abstains rather
-//! than guessing (issue #1707 criterion 4).  A plugin deliberately named
+//! than guessing.  A plugin deliberately named
 //! differently from its workspace is therefore **not** navigable yet; that is
 //! the "documented workspace/config mapping" half of criterion 2, and it is
 //! left for a follow-up rather than approximated here.
@@ -134,7 +134,7 @@ pub struct IlxDocument<'a> {
 /// then from disk. This relation reads *other* files too — sibling rules, and
 /// the extension's JavaScript — so it needs the same precedence, or a
 /// find-references over an edited-but-unsaved rule silently reports the text
-/// that was last written to disk (issue #1707 review).
+/// that was last written to disk.
 ///
 /// A trait rather than a map so the caller keeps ownership of its document
 /// store and this crate stays free of the server's types; the native server
@@ -502,7 +502,7 @@ pub fn references(
         // With no extension the method name is scoped to nothing, so the only
         // honest answer is this document's own equally-unscoped sites: matching
         // by name alone across the workspace is exactly the global uniqueness
-        // this model refuses (issue #1707 criterion 1).
+        // this model refuses.
         return call_sites_in(doc.path, doc.text, ctx, None, &call.method);
     };
     let Ok(site) = locate_extension(doc.path, target, ctx) else {
@@ -1259,7 +1259,7 @@ mod tests {
         // The reader is one seam, so proving it on the JavaScript half proves
         // it for the sibling rules too: a registration typed but not yet saved
         // must resolve, and one deleted in the editor must stop resolving,
-        // even though the disk still says otherwise (issue #1707 review).
+        // even though the disk still says otherwise.
         let store = workspace_store();
         let registry = registry();
         let js = "/w/my_plugin/extensions/my_extension/index.js";

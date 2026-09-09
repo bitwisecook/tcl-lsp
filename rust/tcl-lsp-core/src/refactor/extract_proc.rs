@@ -32,7 +32,7 @@
 //! ```
 //!
 //! into `proc extracted_proc {x} { set x 1; puts $x }` prints `after=0`, not
-//! `after=1`: the write moved into the proc's own `x` (issue #1201).
+//! `after=1`: the write moved into the proc's own `x`.
 //!
 //! Passing the variable in as a parameter is exactly what causes this.  A
 //! parameter is a *copy*; the caller never sees it change.
@@ -213,7 +213,7 @@ fn plan_extraction(
     reject_frame_sensitive_selection(source, selected, registry)?;
     // The document's own `${…}` close rule — a brace-bearing name read by
     // the wrong release's rule produces a proc built for a variable that
-    // does not exist (issue #1605).
+    // does not exist.
     let style = super::braced_var_style(analysis);
     let roles = classify_variables(source, selected, registry, style)?;
 
@@ -569,7 +569,7 @@ fn render_definition(
 /// *matching* `}`, so `${a{b}c}` reads `a{b}c`, and the 8.x scanner ends it at
 /// the first `}`, so `${a{b}` reads `a{b}`'s 8.x form `a{b`. Emitting the bare
 /// `$a{b}c` instead would parse as `$a` followed by literal text on **both**
-/// releases — the same mistake the minifier made (issue #1605, fifth site).
+/// releases — the same mistake the minifier made.
 fn var_ref(name: &str) -> String {
     if tcl_syntax::naming::is_bare_var_name(name) {
         format!("${name}")
@@ -635,7 +635,7 @@ fn unique_proc_name(analysis: &AnalysisResult, registry: &CommandRegistry) -> St
 /// `style` is the document's `${…}` close rule: the captured-variable set
 /// decides the generated proc's parameter list and its call-site arguments,
 /// so reading a brace-bearing name by the wrong release's rule emits a proc
-/// built for a variable that does not exist (issue #1605).
+/// built for a variable that does not exist.
 fn variable_references(text: &str, style: BracedVarStyle) -> BTreeSet<String> {
     super::variable_reference_spans(text, style)
         .into_iter()
@@ -670,7 +670,7 @@ mod tests {
     }
 
     /// [`at`] against a document analysed under a named release — the
-    /// `${…}` close rule is release-dependent (issue #1605).
+    /// `${…}` close rule is release-dependent.
     fn at_dialect(src: &str, needle: &str, dialect: &str) -> Option<Refactoring> {
         let registry = super::super::test_registry();
         let mut analyser = Analyser::new();
@@ -746,7 +746,7 @@ mod tests {
     /// The **plumb**: the style must come from the document's own dialect,
     /// not a constant. The reference sits inside a braced body so the whole
     /// command's span is balanced and the segmenter hands over the complete
-    /// `${a{b}c}` (issue #1568 only truncates a bare `${…}` word).
+    /// `${a{b}c}`.
     ///
     /// Oracle: `puts ${a{b}c}` reads the variable `a{b}c` on tclsh 9.0.4 and
     /// `a{b` on 8.6.16, so the two releases capture different names — and

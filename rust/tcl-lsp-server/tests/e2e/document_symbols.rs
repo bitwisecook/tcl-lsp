@@ -66,7 +66,6 @@ fn children(sym: &Value) -> Vec<Value> {
         .unwrap_or_default()
 }
 
-// -- TestDocumentSymbols -------------------------------------------------
 
 #[test]
 fn single_proc() {
@@ -194,7 +193,6 @@ fn proc_symbol_range_contains_selection() {
     assert!(end_line(outer) >= end_line(inner));
 }
 
-// -- TestTclOOSymbols ----------------------------------------------------
 
 #[test]
 fn class_symbol_emitted() {
@@ -558,7 +556,6 @@ fn tcltest_constraint_and_match_mode_are_symbols() {
     assert_eq!(kind(matcher), OPERATOR);
 }
 
-// -- TestSymbolNamesNonEmpty ---------------------------------------------
 
 #[test]
 fn all_symbols_have_non_empty_names() {
@@ -595,7 +592,6 @@ fn colon_named_proc_has_a_non_empty_symbol_name() {
     );
 }
 
-// -- TestIrulesEventHandlers ---------------------------------------------
 // An iRule's structure is its `when` blocks.  They carried no outline symbol
 // at all, so the outline, breadcrumbs and Cmd+Shift+O listed only whatever
 // variables the handlers happened to set.

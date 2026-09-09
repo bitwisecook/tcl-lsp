@@ -85,7 +85,7 @@ use crate::definition::LspRange;
 /// rule while the document is another's changes what the edit means: on a
 /// Tcl 9 document `${a{b}c}` is one variable named `a{b}c`, but the 8.x
 /// first-`}` rule reads `a{b` and leaves `c}` looking like ordinary word
-/// text (issue #1605).
+/// text.
 pub(crate) fn braced_var_style(
     analysis: &tcl_compiler::analyser::AnalysisResult,
 ) -> BracedVarStyle {
@@ -456,7 +456,7 @@ struct BodyWord {
 /// * [`ArgRole::LambdaLiteral`] — `apply`'s `{argList body ?ns?}` two- or
 ///   three-element list, where only element 1 is code.  It is split with
 ///   [`tcl_compiler::lambda_literal::split_lambda_literal`], the same
-///   splitter every other consumer uses (issue #1000).  Treating
+///   splitter every other consumer uses.  Treating
 ///   the whole literal as one body instead reads `argList` as a command
 ///   name and swallows the real body, which is why no refactor code action
 ///   fired inside an `apply` lambda.  Only a `{braced}` body element is
@@ -664,7 +664,7 @@ mod tests {
     }
 
     /// Parity with [`find_command_descends_into_proc_body`] for `apply`'s
-    /// lambda literal (issue #1000).  `apply`'s first argument is
+    /// lambda literal.  `apply`'s first argument is
     /// `ArgRole::LambdaLiteral`, not `Body`: the whole `{argList body}`
     /// blob is not a script, so descending into it verbatim reads
     /// `argList` as a command name and swallows the real body.  Splitting

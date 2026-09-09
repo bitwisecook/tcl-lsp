@@ -578,7 +578,7 @@ fn generate_stub_absent_when_cursor_off_declaration_line() {
     );
 }
 
-// `DocstringStyle` placement (#1314) — code_actions_in_program's
+// `DocstringStyle` placement — code_actions_in_program's
 // docstring_style parameter, the resolved `tclLsp.formatting.docstringStyle`
 // setting's actual consumer.
 

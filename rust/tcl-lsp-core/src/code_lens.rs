@@ -38,10 +38,10 @@
 //! always agree.  That resolver counts intra-class `my method` dispatch,
 //! external `$obj method` call sites (matched through the analyser's
 //! `instance_classes` variable-type tracking), and the sites of any
-//! subclass that inherits the definition (issue #864).  Each member lens
+//! subclass that inherits the definition.  Each member lens
 //! carries a `qname` ([`tcl_compiler::analyser::class_member_key`]) just
 //! like the proc / class lenses, so it resolves to a clickable
-//! `tcl-lsp.showReferences` command the same way (issue #956).
+//! `tcl-lsp.showReferences` command the same way.
 //!
 //! Per-property reference-count lenses: each `property` declaration gets
 //! the same treatment, sourced from
@@ -50,7 +50,7 @@
 //! property` dispatch shape and no inheritance model. Carries a
 //! `{class}::property::{name}` qname
 //! ([`tcl_compiler::analyser::class_property_key`]) so it resolves through
-//! the same click-to-references flow (issue #992).
+//! the same click-to-references flow.
 //!
 //! Constructor / destructor next-chain lenses: a class's own explicit
 //! `constructor` / `destructor` also gets a lens, but a conventional
@@ -215,7 +215,7 @@ pub fn code_lenses(
         // Per-method / classmethod lenses inside the class body.  The count
         // is derived from the *same* resolver the peek (Find All References)
         // uses — `references::method_references_for_class` — so the lens
-        // title and the peek can never drift (issue #864).  That resolver
+        // title and the peek can never drift.  That resolver
         // counts both intra-class `my method` dispatch and external
         // `$obj method` call sites (via `instance_classes` plus the
         // object-type lattice's scoped facts — issue #994 C5b), plus the
@@ -336,7 +336,7 @@ fn emit_class_member_lenses(
             lenses,
         );
     }
-    // Constructor / destructor next-chain lenses (issue #992): unlike a
+    // Constructor / destructor next-chain lenses: unlike a
     // method/classmethod/property, neither has a name to dispatch on, so a
     // conventional reference count has no general meaning — the one
     // meaningful, name-independent relationship is an overriding subclass's
@@ -377,7 +377,7 @@ fn emit_class_member_lenses(
 /// `"1 reference"` / `"N references"`.
 ///
 /// Public so the server can relabel a lens at `codeLens/resolve` time from
-/// the workspace-wide site set it resolves there (issue #991): the count
+/// the workspace-wide site set it resolves there: the count
 /// shown and the locations the click opens are then one number by
 /// construction, not two independently-derived ones.
 #[must_use]
@@ -396,7 +396,7 @@ pub fn reference_count_title(count: usize) -> String {
 /// `emit_class_member_lenses` apply (a member with an empty `name_span`
 /// gets no lens, so it must not answer `true` here either).
 ///
-/// `codeLens/resolve` (issue #1152) used this existence check to decide
+/// `codeLens/resolve` used this existence check to decide
 /// whether a lens is genuinely one of this document's own lenses before
 /// resolving its click locations — previously by calling [`code_lenses`] in
 /// full and searching its output for a matching `qname`, which recomputed
@@ -745,7 +745,7 @@ mod tests {
         assert_eq!(orphan_lens.command_title, "0 references", "{lenses:?}");
     }
 
-    // qname wiring (issue #956): a method / classmethod lens must carry a
+    // qname wiring: a method / classmethod lens must carry a
     // non-empty `qname` matching `tcl_compiler::analyser::class_member_key`
     // so the server treats it as resolvable (`has_qname` in
     // `tcl-lsp-server`'s `code_lens` handler) and attaches a clickable
@@ -829,7 +829,7 @@ mod tests {
         assert!(qnames.contains("::C::classmethod::foo"), "{qnames:?}");
     }
 
-    // property-member lenses (issue #992)
+    // property-member lenses
 
     /// `property` is Tcl 9.0+ — the shared `analyse()` helper above fixes the
     /// dialect at 8.6, so these tests analyse at 9.0 directly (mirrors
@@ -961,7 +961,7 @@ mod tests {
         assert_eq!(y_lens.command_title, "2 references", "{lenses:?}");
     }
 
-    // constructor / destructor next-chain lenses (issue #992)
+    // constructor / destructor next-chain lenses
 
     #[test]
     fn constructor_lens_counts_subclass_next_chain() {

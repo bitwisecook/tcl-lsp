@@ -516,7 +516,7 @@ fn regsub_short(c: char) -> Option<&'static str> {
 /// the semantic-token walk carried — `match head { "format" => …, "scan" =>
 /// …, "binary" => …, "clock" => …, "regsub" => … }`, each re-deriving its own
 /// argument layout, and neither firing for the explicitly global spellings
-/// C Tcl resolves to the same commands (issue #1185). Both now read one
+/// C Tcl resolves to the same commands. Both now read one
 /// registry answer, so they cannot drift.
 fn format_args(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
@@ -532,7 +532,7 @@ fn format_args(
     // Resolve the head's *effective command identity* first, exactly as the
     // semantic-token walk does, so a call through a proven `interp alias` /
     // `rename` gets the target's format family and a `rename`d-away or
-    // `proc`-shadowed spelling gets none (issue #1185).
+    // `proc`-shadowed spelling gets none.
     let resolved = identities.resolve(head, tok.span.start()).spec_name();
     let source_args = segmented_command_arguments(seg);
     registry

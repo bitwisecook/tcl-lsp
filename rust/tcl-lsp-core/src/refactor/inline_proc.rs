@@ -25,7 +25,7 @@
 //! three-character *value* `a b`, because the braces are the caller's quoting
 //! and are consumed by the parse.  Splicing the written word into the body
 //! therefore changes the value the body sees — the body's `$name` produced
-//! `a b` before and produces `{a b}` afterwards (issue #1199).  Nor is a
+//! `a b` before and produces `{a b}` afterwards.  Nor is a
 //! parameter with no written argument simply absent: `proc f {{name world}}`
 //! called as `f` binds `name` to `world`, so an inlining that drops the
 //! parameter leaves the body reading an unset variable.
@@ -108,7 +108,7 @@ pub fn inline_proc(
 /// Inlining substitutes *the body of the proc the call actually reaches*, so
 /// a `namespace import -force` whose covering `namespace export` lives in
 /// another file makes inlining the local same-named proc a behaviour change,
-/// not a refactor (issue #1116 item 1). With the oracle attached the head
+/// not a refactor. With the oracle attached the head
 /// simply does not resolve locally and no action is offered — the safe
 /// answer, and the same one go-to-definition gives.
 #[must_use]
@@ -155,7 +155,7 @@ pub fn inline_proc_in_program(
         .numbers;
     // …and its `${…}` close rule, for the same reason: which bytes are the
     // variable's name is release-dependent, and this transform rewrites the
-    // reference's own span (issue #1605).
+    // reference's own span.
     let style = super::braced_var_style(analysis);
 
     match plan_inline(source, &call, proc_def, registry, numbers, style, config) {
@@ -577,7 +577,7 @@ fn expr_argument_ranges(
 /// longer token being half-rewritten.
 /// Every `$name` / `${name}` reference in `text`, with the byte span of the
 /// whole reference — the span this transform rewrites, so it must be the
-/// span the document's own release would parse (issue #1605).
+/// span the document's own release would parse.
 fn variable_references(text: &str, style: BracedVarStyle) -> Vec<(String, usize, usize)> {
     super::variable_reference_spans(text, style)
 }

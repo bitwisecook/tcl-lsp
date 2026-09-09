@@ -96,7 +96,6 @@ fn param_labels_on_line(hints: &Value, line: i64) -> Vec<(i64, String)> {
     out
 }
 
-// -- TestCodeLens --------------------------------------------------------
 
 #[test]
 fn test_proc_gets_reference_count_lens() {
@@ -405,7 +404,6 @@ fn test_constructor_lens_counts_and_resolves_subclass_next_chain() {
     assert_eq!(refs.len(), 1, "peek disagrees with lens: {refs:?}");
 }
 
-// -- TestDocumentLinks ---------------------------------------------------
 
 #[test]
 fn test_source_command_is_linked() {
@@ -443,7 +441,6 @@ fn test_package_require_is_linked() {
     );
 }
 
-// -- TestFormatting ------------------------------------------------------
 
 #[test]
 fn test_full_document_formatting_normalises_spacing() {
@@ -648,7 +645,6 @@ fn test_range_formatting_returns_edits() {
     );
 }
 
-// -- TestInlayHints ------------------------------------------------------
 
 #[test]
 fn test_provider_responds_with_a_list() {
@@ -677,7 +673,6 @@ fn test_hint_kinds_are_valid_when_present() {
     }
 }
 
-// -- TestInlayHintOptionalPositionals ------------------------------------
 // These run against `Lsp::inlay()` (inlay hints on) so the provider actually
 // produces hints — the default server keeps them off.
 
@@ -732,7 +727,6 @@ fn test_no_documentation_placeholder_labels() {
     );
 }
 
-// -- TestInlayToggleIndependenceE2E --------------------------------------
 // The single `inlayHints` toggle was split into two independent options, both
 // off by default: `inlayTypeHints` and `inlayParameterHints`. Enabling one must
 // not turn on the other. Each test owns its server, so `apply_configuration_settle`
@@ -792,7 +786,6 @@ fn test_type_hints_only_emit_no_parameter_labels() {
     ); // no Parameter leaked in
 }
 
-// -- TestInlayLegacyAliasE2E ---------------------------------------------
 // The retired `features.inlayHints` key is a backward-compatible alias that
 // enables *type* hints only — parameter hints stay off.
 

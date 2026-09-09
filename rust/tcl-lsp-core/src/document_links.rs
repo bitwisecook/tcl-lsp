@@ -50,7 +50,7 @@
 //! must not span code.  A link is painted as one flat run, so a range
 //! covering a whole `[file join $dir x.tcl]` hides every token boundary
 //! inside it and the substitution stops looking like the command sequence
-//! it is (issue #775).  [`link_anchor`] is the rule — a literal word links
+//! it is.  [`link_anchor`] is the rule — a literal word links
 //! whole, a substitution links on its trailing literal word alone — and
 //! `tests/e2e/semantic_tokens.rs` pins the invariant it exists to keep: no
 //! link range covers more than one semantic token.
@@ -180,9 +180,9 @@ pub fn document_links_in_context(
     // Constant single-assignment `set` map for the `set dir [file dirname
     // [info script]] … source [file join $dir x.tcl]` idiom (issue #1140
     // idx 41), built once per request.  Chained assignments fold too, so a
-    // directory reached through an intermediate resolves (issue #775), and
+    // directory reached through an intermediate resolves, and
     // an import view from the host makes values sourced-in from ancestor
-    // documents resolve exactly as they do for navigation (issue #1368).
+    // documents resolve exactly as they do for navigation.
     let no_imports = std::collections::HashMap::new();
     let constants = tcl_compiler::auto_path_eval::fold_constant_assignments_with_imports(
         &tcl_compiler::auto_path_eval::constant_path_assignments(source, dialect),
@@ -900,7 +900,7 @@ mod tests {
     /// `file:///proj/%5Bfile%20join%20$dir%20helper.tcl%5D`).
     ///
     /// The `file normalize` wrapper used to be this test's first fixture; it
-    /// folds now (#775 — see `auto_path_eval::eval_file_normalize`), and
+    /// folds now, and
     /// `a_normalized_computed_source_path_resolves_775` below pins its target.
     /// `file readlink` stands in for it here: a command the subset does not
     /// model, and cannot without touching the filesystem.
@@ -1043,7 +1043,7 @@ mod tests {
 
     /// A directory reached through an intermediate resolves like a direct
     /// one — georgtree/SpiceGenTcl's own `SpiceGenTcl.tcl` shape, where every
-    /// one of seventeen `source` lines goes through `$sourceDir` (issue #775).
+    /// one of seventeen `source` lines goes through `$sourceDir`.
     ///
     /// Oracle (tclsh 8.6.16 / 9.0.4): running `/proj/SpiceGenTcl.tcl` loads
     /// `/proj/src/generalClasses.tcl`.

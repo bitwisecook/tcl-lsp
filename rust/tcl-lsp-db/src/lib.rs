@@ -50,7 +50,7 @@
 //!   exclusivity **while holding the server's db mutex**, so a read handle held
 //!   across uncancellable work blocks the next edit's write — and, through that
 //!   mutex, every other request, including ones that touch no document at all.
-//!   See `docs/design/rust/lsp-performance.md` and issue #829.  Work done
+//!   See `docs/design/rust/lsp-performance.md`.  Work done
 //!   inside the read must therefore stay minimal and cancellable; converting a
 //!   result into its `lsp-types` wire shape is neither.
 //!
@@ -67,14 +67,13 @@
 //!   (`bool` / `u64` / `NonAsciiMode` / a nested interned handle).  A `&bool`
 //!   getter is strictly worse; the copy is free.
 //!
-//! An earlier revision of this upgrade did put [`document_symbols`] and
-//! [`folding_ranges`] on `returns(ref)` and moved the `lsp-types` projection
-//! into the worker closure to contain the borrow.  It saved a copy and cost
-//! liveness: the projection is a pure allocation walk with no salsa
-//! cancellation checkpoint, so it extended the uncancellable tail of a read
-//! that `set_text` has to wait behind.  It reproduced as the VS Code suite
-//! wedging on a `didOpen` drain with even document-free requests unanswered —
-//! the #829 signature.  Do not reintroduce it.
+//! Putting [`document_symbols`] and [`folding_ranges`] on `returns(ref)` and
+//! moving the `lsp-types` projection into the worker closure to contain the
+//! borrow would save a copy and cost liveness: the projection is a pure
+//! allocation walk with no salsa cancellation checkpoint, so it would extend
+//! the uncancellable tail of a read that `set_text` has to wait behind. That
+//! shape reproduces as the VS Code suite wedging on a `didOpen` drain with
+//! even document-free requests unanswered.
 //!
 //! # Deep-memo eviction (`lru = N`)
 //!
@@ -83,8 +82,8 @@
 //! *replaces* it, and setting identical text backdates and changes nothing at
 //! all.  So a session that opens 150 files and closes them again retains
 //! every deep memo those files accrued while open — measured at ~930 MB of
-//! unreclaimed RSS across exactly that cycle (issue #1144 follow-up, PR #1179
-//! review).  Dropping the closed files' `SourceFile` handles does not help;
+//! unreclaimed RSS across exactly that cycle.  Dropping the closed files'
+//! `SourceFile` handles does not help;
 //! the memos are keyed on the salsa ids, which stay in the tables.
 //!
 //! `#[salsa::tracked(lru = N)]` is the one mechanism that releases a memo's
@@ -117,10 +116,10 @@
 //! to be resolvable from, and evicting them would make the cross-file
 //! resolution every open document depends on recompute from scratch.
 //!
-//! This composes correctly only because closed files no longer create deep
-//! memos at all (#1144: the closed-file republish takes the uncached
-//! pipeline).  While they did, every closed-file sweep would `record_use` on
-//! hundreds of closed files and evict the *open* documents' units instead.
+//! This composes correctly only because closed files never create deep memos
+//! at all: the closed-file republish takes the uncached pipeline, so no
+//! closed-file sweep can `record_use` on hundreds of closed files and evict
+//! the *open* documents' units instead.
 //!
 //! # The interned garbage collector is load-bearing
 //!
@@ -140,7 +139,7 @@
 //! Typing inside a body therefore mints a brand-new interned id for every one
 //! of them on every keystroke, each holding a body's worth of `Arc` payload in
 //! its memo table — the exact shape of an unbounded interning leak.  Measured
-//! against the #1181 corpus the edit path is nonetheless flat (~0 bytes/edit
+//! against a typing-session corpus the edit path is nonetheless flat (~0 bytes/edit
 //! steady state, ~66.5 MB across 60–500 edits), and the reason is **salsa's
 //! interned garbage collector**, not anything this crate does:
 //!
@@ -157,8 +156,8 @@
 //!   query had read when it interned — and with **no active query at all**
 //!   salsa stamps `Durability::MAX` / `Revision::MAX`, i.e. an immortal slot.
 //!
-//! Two rules follow, and breaking either restores a KB-per-keystroke leak of
-//! the #1035 class while looking like an optimisation in review:
+//! Two rules follow, and breaking either restores a KB-per-keystroke leak
+//! while looking like an optimisation:
 //!
 //! 1. **[`SourceFile`], [`AnalyserConfig`], and [`Project`] stay at
 //!    `Durability::LOW`** — salsa's default, which this workspace never
@@ -318,19 +317,17 @@ impl TclDb for TclDatabase {
         // EDA packs loaded, and — the part a hand-rolled `build_default +
         // load_dialect` silently dropped — the *profile stamped* on the
         // registry. Every registry-derived behaviour query keys off that
-        // stamp, so without it `FoldPolicy::from_registry` read the LSP's
-        // iRules documents as plain Tcl and declined every word-operator fold
-        // (issue #1048).
+        // stamp: without it `FoldPolicy::from_registry` reads the LSP's
+        // iRules documents as plain Tcl and declines every word-operator fold.
         tcl_lsp_core::registry_for_dialect(dialect)
     }
 
     fn registry_with_overlay(&self, dialect: &str, overlay: u64) -> Arc<CommandRegistry> {
-        // Ledger F7 (P2) holds here unchanged: an overlay generation that has
-        // not been installed yet falls back to the un-overlaid one rather
-        // than failing closed. `DocumentEnvironment::context_registry`
-        // threads exactly the old `registry_for_profile_if_built(profile,
-        // overlay)` door, so this keeps the shipped behaviour while the
-        // ingress moves to the environment model.
+        // An overlay generation that has not been installed yet falls back
+        // to the un-overlaid one rather than failing closed.
+        // `DocumentEnvironment::context_registry` threads through
+        // `registry_for_profile_if_built(profile, overlay)` to preserve
+        // that behaviour.
         let environment = tcl_lsp_core::environment_for_dialect(dialect);
         Arc::clone(
             environment
@@ -370,7 +367,7 @@ pub struct SourceFile {
     pub path: Option<String>,
     /// Call sites in **other** project files that reach the procedures this
     /// file defines — the cross-file half of the interprocedural constant
-    /// seed (issue #977).
+    /// seed.
     ///
     /// `None` means "no workspace view": the compilation unit is then on its
     /// own, and any registry-declared unit boundary in the file — including
@@ -392,11 +389,10 @@ pub struct SourceFile {
     /// The workspace's user-defined `TclOO` **class factories** (metaclasses),
     /// keyed by qualified name — the oracle that lets this file's walk
     /// classify `::tk::Megawidget create IconList …` when `::tk::Megawidget`
-    /// is written in another document (issue #1276).
+    /// is written in another document.
     ///
     /// `None` means "no workspace view", and the walk abstains on every such
-    /// call exactly as it did before the index existed — the deliberate
-    /// pre-#1276 behaviour, which every standalone consumer keeps.
+    /// call — the deliberate behaviour every standalone consumer keeps.
     ///
     /// Set by the server from [`project_class_factories`] (compare-then-set),
     /// the same discipline [`Self::external_call_sites`] uses: an index that
@@ -406,7 +402,7 @@ pub struct SourceFile {
     pub workspace_class_factories: Option<Arc<tcl_compiler::analyser::ClassFactoryIndex>>,
     /// Instance methods dispatchable on some workspace **descendant** of each
     /// class, keyed by ancestor qualified name — the cross-file half of the
-    /// template-method W308 abstention (issue #1367): a base class calling
+    /// template-method W308 abstention: a base class calling
     /// `my Render` is refuted by a subclass in a sibling document, which the
     /// per-file analysis cannot see.
     ///
@@ -498,8 +494,8 @@ pub struct AnalyserConfig {
     /// (`tclLsp.packages.provides` / `.tcl-lsp.ini` `[packages.provides]`),
     /// feeding `Analyser::with_package_provides`. A binary extension whose
     /// `Init` calls `Tcl_PkgRequire` / `Tk_InitStubs` leaves nothing in any
-    /// Tcl source to scan for, so the dependency can only be declared
-    /// (issue #1813). Empty — the default — changes nothing.
+    /// Tcl source to scan for, so the dependency can only be declared.
+    /// Empty — the default — changes nothing.
     #[returns(ref)]
     pub package_provides: Vec<(String, Vec<String>)>,
 }
@@ -508,10 +504,10 @@ pub struct AnalyserConfig {
 /// deep-clone.
 ///
 /// Wraps [`Analyser::analyse`] unchanged, uncancellable and with no per-item
-/// memoisation.  Every production feature provider now reads
-/// [`file_analysis_incremental`] instead (issue #829: this coarse query has no
+/// memoisation.  Every production feature provider reads
+/// [`file_analysis_incremental`] instead: this coarse query has no
 /// interior salsa cancellation checkpoint, so a caller holding a read blocks a
-/// concurrent edit's `set_text` until the whole walk finishes). `file_analysis`
+/// concurrent edit's `set_text` until the whole walk finishes. `file_analysis`
 /// itself stays live as the differential-fuzzer / corpus-gate ground truth
 /// [`file_analysis_incremental`] is proven byte-identical against.
 ///
@@ -564,8 +560,8 @@ pub fn item_tree(db: &dyn salsa::Database, file: SourceFile) -> Arc<ItemTree> {
     // non-divergent item extractor (gated by `file_decls_corpus`).
     let mut analyser = Analyser::new()
         .structure_only()
-        // The workspace class-factory oracle (issue #1276) is part of the
-        // *file's* input, not the analyser config, so the item tree stays a
+        // The workspace class-factory oracle is part of the *file's* input,
+        // not the analyser config, so the item tree stays a
         // function of `SourceFile` alone. It has to be here: a class a
         // cross-file metaclass manufactures is a declaration of this file, and
         // leaving it out of the item tree would leave it out of `file_decls`
@@ -641,7 +637,7 @@ pub fn project_proc_names(db: &dyn salsa::Database, project: Project) -> Arc<BTr
 
 /// The **class factories** one file declares — the user-defined `TclOO`
 /// metaclasses (`oo::class create Meta { superclass oo::class; self method
-/// create … }`) it publishes to the rest of the workspace (issue #1276).
+/// create … }`) it publishes to the rest of the workspace.
 ///
 /// Read straight off [`item_tree`], which every project file already
 /// computes for [`file_decls`] / [`project_proc_names`], so the factory index
@@ -656,9 +652,9 @@ pub fn project_proc_names(db: &dyn salsa::Database, project: Project) -> Arc<BTr
 /// published: the file holding `MetaA create MetaB` proves `MetaB` only on a
 /// round whose index already names `MetaA`. One publish is consequently one
 /// link of the chain deep, and no more — so the host must **iterate the
-/// publish to a fixpoint**, not publish once (issue #1296; before the fixpoint
-/// landed a cross-file `MetaA` → `MetaB` → `Widget` chain left `Widget`
-/// unknown, and a call site on one of its methods resolved to nothing).
+/// publish to a fixpoint**, not publish once: a single pass would leave a
+/// cross-file `MetaA` → `MetaB` → `Widget` chain's `Widget` unknown, with a
+/// call site on one of its methods resolving to nothing.
 ///
 /// The fixpoint is cheap and terminates: a round adds an entry only when some
 /// file *proved* it — never a guess — so the round function is normally
@@ -814,7 +810,7 @@ impl DispatchComponents {
 /// library's unreadable dispatch silently fails to retract its sourcing file's
 /// seeds — the hole this replaces.
 ///
-/// **Why this is a project query rather than per-file work** (issue #1148): the
+/// **Why this is a project query rather than per-file work:** the
 /// union-find is over the whole `source` graph and the merge visits every
 /// component member's [`file_decls`], so computing it inside
 /// [`file_dispatch_reach`] cost `O(N)` *per file* — `O(N²)` `String` clones and
@@ -899,7 +895,7 @@ pub fn file_dispatch_reach(
 /// Every call site **this** file contributes, resolved against the whole
 /// project's procedure names.
 ///
-/// The per-file half of the cross-file interprocedural seed (issue #977):
+/// The per-file half of the cross-file interprocedural seed:
 /// `lib.tcl`'s own compilation unit can never see `main.tcl`'s `helper dev`,
 /// so each file publishes its call sites here and
 /// [`project_call_site_evidence`] merges them.
@@ -1010,8 +1006,8 @@ fn w123_command(message: &str) -> Option<&str> {
 /// A **computed** parameter list (`proc p [makeargs] {…}`, `proc q $params
 /// {…}`) declares an unknown number of formals, so this abstains with the
 /// fully-open `0..MAX` rather than reading the empty recorded list as "takes
-/// no arguments" — which drew a false cross-file `E003` on code both
-/// interpreters run (issue #1107). Same abstention rule as the same-file
+/// no arguments" — which would draw a false cross-file `E003` on code both
+/// interpreters run. Same abstention rule as the same-file
 /// [`tcl_compiler::analyser::ProcDef::arity`].
 fn proc_arity(
     params: &[tcl_compiler::signature_scan::types::ParamDef],
@@ -1477,9 +1473,9 @@ pub struct ItemBodyKey<'db> {
     /// [`tcl_compiler::analyser::per_item::DeferredBody`] the aggregator built
     /// it from rather than copied out of it.  Interning is content-addressed, so
     /// the text must be *in* the key; what it must not be is a fresh `String`
-    /// per proc per edit (issue #1159 — on a 114-proc file that was 114 full
-    /// body copies before a single memo was consulted, and the copies were
-    /// discarded the moment the intern hit).  `Arc<str>` also makes
+    /// per proc per edit — on a 114-proc file that is 114 full body copies
+    /// before a single memo is consulted, with the copies discarded the
+    /// moment the intern hits.  `Arc<str>` also makes
     /// [`item_body_analysis`]'s rebuild of the `DeferredBody` a refcount bump.
     #[returns(ref)]
     pub body_text: Arc<str>,
@@ -1501,7 +1497,7 @@ pub struct ItemBodyKey<'db> {
     /// Class instance variables pre-bound in a method body (empty for procs).
     #[returns(ref)]
     pub class_variables: Vec<String>,
-    /// The constant command-substitution fold context (issue #1132): the
+    /// The constant command-substitution fold context: the
     /// whole-file command-mutation trust snapshot the shell attached for a
     /// body with a fold candidate, paired with the instance-side `TclOO`
     /// defining class (`[self class]`'s answer) when the body is such a
@@ -1546,8 +1542,7 @@ pub struct ItemBodyKey<'db> {
     ///     opt-out exactly as much as the whole-file walk does; the nested
     ///     pair is what stops a future edit from cloning one without the
     ///     other.
-    /// - `.1` — the enclosing safe-interpreter visibility context (issue
-    ///   #1001 follow-up), mirroring
+    /// - `.1` — the enclosing safe-interpreter visibility context, mirroring
     ///   [`tcl_compiler::analyser::per_item::DeferredBody::safe_interp_ctx`]
     ///   exactly (same flattened, sorted-`Vec` shape, for the same reason:
     ///   a live `HashSet`-based `SafeInterpCtx` isn't `Hash` and can't key
@@ -1556,7 +1551,7 @@ pub struct ItemBodyKey<'db> {
     ///   edits gets re-analysed rather than serving a stale cached `W129`
     ///   verdict.
     /// - `.2` — the workspace **class factory** oracle
-    ///   ([`SourceFile::workspace_class_factories`], issue #1276). A
+    ///   ([`SourceFile::workspace_class_factories`]). A
     ///   `Meta create …` inside a proc body is classified by the whole-file
     ///   walk from this index, so the isolated body pass must see the same
     ///   one or the two strategies disagree about whether a class exists.
@@ -1968,21 +1963,21 @@ fn build_unit_with_keys<'db>(
         // (`lattice_rebase::rebase_function_unit` mutates `cfg` / `ssa` /
         // `sccp.constant_branches` in place), so the span-carrying half genuinely
         // has to be owned here — an `Arc` reader would only defer the copy to
-        // the rebase. Issue #1159's win is instead that the *span-free* half
-        // (`def_use` / `types` / `taints` / `rendered_props`) is now `Arc`-held
-        // inside `FunctionUnit`, so this clone is a refcount bump for each of
-        // those four lattices and copies only what the rebase must rewrite.
+        // the rebase. The *span-free* half (`def_use` / `types` / `taints` /
+        // `rendered_props`) is `Arc`-held inside `FunctionUnit`, so this clone
+        // is a refcount bump for each of those four lattices and copies only
+        // what the rebase must rewrite.
         // Making the whole read an `Arc` would mean lazy rebasing via
         // `FunctionUnit::base_offset` / `abs_span`, which was deliberately
         // rejected: consumers read `fu.cfg` spans directly and would silently
         // get relative positions.
         (*function_lattice(db, key)).clone()
     };
-    // SRV-INCREMENTAL Task 3: lower each *eligible* top-level proc body through the
+    // Lower each *eligible* top-level proc body through the
     // `lower_proc_body` memo so a body-only edit re-lowers only the edited proc's
     // body (every other body's IR is reused). The per-body gate
     // (`lowering::body_cache_eligible`) decides which bodies take it, so a
-    // context-carrying sibling no longer disables the cache for the whole file.
+    // context-carrying sibling does not disable the cache for the whole file.
     // Byte-identical to the whole-file lowering (corpus differential gates).
     //
     // File-level precondition: a command alias declared *outside* any body
@@ -1995,7 +1990,7 @@ fn build_unit_with_keys<'db>(
     } else {
         // Same offset-0-plus-rebase contract as `lattice_memo` above: the caller
         // shifts the returned `Script` to the body's real position, so it needs
-        // an owned copy (issue #1159).
+        // an owned copy.
         let body_memo = |body_text: &str, namespace: &str| -> Script {
             let key = ProcBodyKey::new(
                 db,
@@ -2024,7 +2019,7 @@ fn build_unit_with_keys<'db>(
             // A hit returns the memoised map by refcount: `FunctionUnit::taints`
             // is span-free (the offset rebase never touches it), so the unit can
             // share the cached lattice rather than deep-copying it per procedure
-            // per build (issue #1159).
+            // per build.
             Some(taint_cascade(db, key, summary_key))
         },
     );
@@ -2570,11 +2565,11 @@ pub fn proc_taint_solve<'db>(
     // This must run the **whole** `function_nontaint_checks` family, not just
     // its `shimmer_family_checks` half: the direct path folds the SCCP
     // constant-branch (O100) and GVN full / partial / loop-invariant
-    // (O105/O106) halves in here too, and running only the shimmer half made
-    // the memoised path silently drop every O1xx finding inside a method or a
-    // `namespace eval` body — 20 of them on one large TclOO corpus file
-    // (issue #1117), a diff users on the LSP (memoised) path saw as missing
-    // hints the CLI reported.
+    // (O105/O106) halves in here too, and running only the shimmer half would
+    // make the memoised path silently drop every O1xx finding inside a method
+    // or a `namespace eval` body — 20 of them on one large TclOO corpus file
+    // — a diff users on the LSP (memoised) path would see as missing hints
+    // the CLI reported.
     //
     // These units never get an offset-0 `FnLatticeKey`, so they carry absolute
     // spans already and need no rebase, same as the `None` arm above (the
@@ -3184,7 +3179,7 @@ fn lexer_cfg_key<'db>(db: &'db dyn TclDb, dialect: &str) -> LexerCfgKey<'db> {
 /// optimiser/compiler-checks pass ([`compiler_check_diagnostics`]) **share one
 /// build per edit** whenever their configs coincide — every dialect bar
 /// `tcl8.4` and the three `f5-tcl`-grammar dialects (`f5-irules`, `f5-tmsh`,
-/// `f5-iapps`, all of which select `GRAMMAR_F5_TCL` since #1631's P1-G);
+/// `f5-iapps`, all of which select `GRAMMAR_F5_TCL`);
 /// for those four the configs differ, so each consumer builds its own.  Byte-identical to a direct
 /// `memoised_compilation_unit` call.
 // LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
@@ -3415,7 +3410,7 @@ pub fn compiler_check_diagnostics_uncached(
 // result out of `Cancelled::catch` and project it into `lsp-types` *outside*
 // the read, because that projection has no cancellation checkpoint and a read
 // held across it blocks a concurrent `set_text`. See the crate docs' "Return
-// modes" and issue #829.
+// modes".
 #[salsa::tracked(returns(clone))]
 pub fn document_symbols(
     db: &dyn TclDb,

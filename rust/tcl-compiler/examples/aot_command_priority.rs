@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `aot_command_priority` — real-corpus command-usage census for the AOT WASM
-//! compiler priority study (issue #1181).
+//! compiler priority study.
 //!
 //! Segments every `.tcl` / `.test` file under the given corpus roots with the
 //! **real segmenter** (`tcl_compiler::segmenter::segment_commands`, the same

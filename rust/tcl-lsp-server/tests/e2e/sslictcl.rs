@@ -154,7 +154,6 @@ fn line_of(source: &str, needle: &str) -> u32 {
     .expect("line fits u32")
 }
 
-// -- routing ------------------------------------------------------------
 
 /// All three routes reach the `sslictcl` registry, and hovering `endpoint`
 /// proves which pack answered.
@@ -374,7 +373,6 @@ fn the_outline_names_the_declarations() {
     }
 }
 
-// -- diagnostics -------------------------------------------------------
 
 /// The shipped sample yields exactly the notices its own header documents,
 /// and no error at all. It is the vocabulary document's worked example, so a

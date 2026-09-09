@@ -44,7 +44,7 @@
 //!   pick `p` up — each import site takes its own snapshot.
 //!
 //! Joining every import against a namespace's *final* export set gets both
-//! directions wrong (issue #1027): it drops an alias the program still has,
+//! directions wrong: it drops an alias the program still has,
 //! and invents one the program never had.
 //!
 //! # The model
@@ -81,7 +81,7 @@
 //!   alias timeline uses. (The in-document tier reaches it by giving every
 //!   event the document's own key; `in_effect(analysis, …)` is that same rule
 //!   with the body span read out of the analysis.) A plain offset comparison is
-//!   **not** good enough and was a real tier divergence (PR #1102 review): an
+//!   **not** good enough and was a real tier divergence: an
 //!   import written inside a body genuinely observes a top-level export
 //!   written later in the same file, because the whole file loads before any
 //!   body runs — oracle (tclsh 8.6.14 / 9.0.4), `namespace eval ::app {proc
@@ -111,7 +111,7 @@
 //!
 //! # The edge has a lifetime, not just a birth
 //!
-//! Installing the alias is only the first event on it (issue #1103). The same
+//! Installing the alias is only the first event on it. The same
 //! ordered-log discipline answers the second question — *does this namespace
 //! still hold the alias here?* — in [`alias_live_at`]:
 //!
@@ -174,7 +174,7 @@ pub enum ExportVerdict {
 
 /// Whole-program export knowledge, as the *single-document* tier needs it.
 ///
-/// # Why the in-document tier needs an oracle at all (issue #1116 item 1)
+/// # Why the in-document tier needs an oracle at all
 ///
 /// `namespace import -force` deletes the importing namespace's own command of
 /// that name — but only for names the source namespace actually exports. A
@@ -231,7 +231,7 @@ pub struct ExportEvent<'a> {
     /// Where the event sits in the workspace's execution timeline. Ordering it
     /// against anything else is [`RunOrder`]'s job — within one document
     /// always, and across documents wherever the `source` graph proves a load
-    /// order (issue #1104 item 3).
+    /// order.
     pub at: RunPoint<'a>,
 }
 
@@ -256,7 +256,7 @@ fn in_effect_at(order: &RunOrder, event: RunPoint<'_>, query: Option<RunPoint<'_
 }
 
 /// Whether the source namespace exported `name` **at the point the import
-/// ran** — the per-import-site snapshot (issue #1027).
+/// ran** — the per-import-site snapshot.
 ///
 /// `events` are that namespace's export events, in any order; `order` is the
 /// workspace's [`RunOrder`] and `import_site` the position of the import being
@@ -323,7 +323,7 @@ pub fn exported_at_import_site(
 /// *call site* made that walk run once per (invocation × in-scope import ×
 /// export row) — 26 s to answer one `textDocument/references` on the #1181
 /// corpus, where 88 load-level `namespace import`s meet 38 `namespace export`
-/// rows (issue #1297). An import's site does not move between edits, so the
+/// rows. An import's site does not move between edits, so the
 /// timeline half is decided once per recorded import at index-build time and
 /// only the glob match stays on the per-call path.
 #[must_use]
@@ -435,7 +435,7 @@ pub struct AliasEvent<'a> {
 }
 
 /// Whether the importing namespace still holds a live imported alias at the
-/// query point, given every lifecycle event that bears on it (issue #1103).
+/// query point, given every lifecycle event that bears on it.
 ///
 /// `namespace import` does not create a permanent name. `namespace forget`
 /// takes the alias away again, and so does deleting the source command the
@@ -492,7 +492,7 @@ pub struct AliasEvent<'a> {
 /// ordering left is each removal's position relative to the install.
 ///
 /// Gating the *install* is what makes a bare call written **before** its own
-/// `namespace import` stop resolving through it (issue #1104 item 1). Oracle
+/// `namespace import` stop resolving through it. Oracle
 /// (tclsh 8.6.14 / 9.0.4, byte-identical):
 ///
 /// ```tcl
@@ -855,7 +855,7 @@ mod tests {
         ])
     }
 
-    /// TP (issue #1104 item 3): a `namespace export` in a file the entry point
+    /// TP: a `namespace export` in a file the entry point
     /// sources **before** the importing file counts, as it always did — but
     /// now as a *fact* rather than an abstention.
     #[test]

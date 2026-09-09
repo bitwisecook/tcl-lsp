@@ -16,8 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Formatter keyword normalisation: abbreviation expansion (#1232) and the
-//! canonical boolean form (#1233).
+//! Formatter keyword normalisation: abbreviation expansion and the
+//! canonical boolean form.
 //!
 //! tclsh ground truth (8.6.16): `string le abc` → `3`, so `string le` and
 //! `string length` are the same call; `lsearch -noc {a b} a` → `0`;

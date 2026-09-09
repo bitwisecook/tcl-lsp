@@ -124,7 +124,7 @@ fn refs(source: &str) -> impl Fn(u32, u32) -> Vec<u32> + '_ {
     }
 }
 
-// rename — go-to-definition (issue #1064)
+// rename — go-to-definition
 
 #[test]
 fn tp_definition_follows_rename_to_the_original_proc() {
@@ -177,7 +177,7 @@ fn tp_definition_follows_rename_to_a_class() {
     );
 }
 
-// interp alias — go-to-definition (issue #923 idx 89)
+// interp alias — go-to-definition
 
 #[test]
 fn tp_definition_prefers_an_alias_over_the_proc_it_replaced() {
@@ -232,7 +232,7 @@ fn tn_definition_declines_an_argument_prepending_alias() {
     );
 }
 
-// find-references across the mutation (issue #923 idx 21 / 89)
+// find-references across the mutation
 
 #[test]
 fn tp_references_include_call_sites_spelled_through_an_alias() {
@@ -432,7 +432,7 @@ const ALIAS_SHADOW_SRC: &str = concat!(
     "::ttk::spinbox .sb -from 0 -to 100\n",
 );
 
-// proc self-redefinition (issue #923 idx 45)
+// proc self-redefinition
 
 #[test]
 fn tp_definition_between_two_declarations_reaches_the_first() {
@@ -556,7 +556,7 @@ fn tp_alias_onto_a_live_command_still_resolves_when_written_first() {
     );
 }
 
-// A rename moves the command object (PR #1075 review, P2)
+// A rename moves the command object
 
 /// Oracle (tclsh 9.0.4 and 8.6.14): `oldp` → `first`, `p` → `second`.  The
 /// rename handed `oldp` the object `p` held *then*; the later `proc p` builds
@@ -608,7 +608,7 @@ fn tp_references_through_a_rename_without_a_redefinition_are_unaffected() {
     assert_eq!(refs(src)(0, 6), vec![0, 1, 2]);
 }
 
-// Same-body redefinition order (PR #1075 review, P2)
+// Same-body redefinition order
 
 #[test]
 fn tp_definition_inside_a_body_respects_that_bodys_own_redefinitions() {
@@ -693,7 +693,7 @@ fn tp_definition_follows_a_rename_from_another_bodys_statement() {
     );
 }
 
-// `namespace code [list X]` callbacks (issue #923 idx 92)
+// `namespace code [list X]` callbacks
 
 const TRACER: &str = concat!(
     "namespace eval ::demo {\n",
@@ -772,7 +772,7 @@ fn tracer_source(callback: &str) -> String {
 fn tp_lens_counts_each_namespace_code_callback_shape_once() {
     // The lens count is the raw span count, so a call site recorded by both
     // the body recursion and the command-prefix unwrap shows up as two
-    // references for one callback (PR #1075 review, P2). One recorder per
+    // references for one callback. One recorder per
     // shape: `[namespace code X]` and `[namespace code {X}]` are recorded by
     // the analyser's `ArgRole::Body` walk, `[namespace code [list X]]` — which
     // that walk's `has_substitution` guard stops at — by the unwrap.
