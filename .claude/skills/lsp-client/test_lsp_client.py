@@ -18,7 +18,12 @@ import pytest
 CLIENT = Path(__file__).resolve().parent / "lsp_client.py"
 sys.path.insert(0, str(CLIENT.parent))
 
-from lsp_client import LspClient
+from lsp_client import (
+    SCAN_TIMEOUT_DEBUG_S,
+    SCAN_TIMEOUT_RELEASE_S,
+    LspClient,
+    default_scan_timeout,
+)
 
 
 def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
@@ -98,3 +103,60 @@ def test_launch_cmd_is_required():
 
     client = LspClient("/tmp", launch_cmd=["/nonexistent/tcl-lsp-server"])
     assert client._launch_cmd == ["/nonexistent/tcl-lsp-server"]
+
+
+@pytest.mark.parametrize(
+    ("server_bin", "expected"),
+    [
+        ("/repo/target/release/tcl-lsp-server", SCAN_TIMEOUT_RELEASE_S),
+        ("/repo/target/debug/tcl-lsp-server", SCAN_TIMEOUT_DEBUG_S),
+        ("/usr/local/bin/tcl-lsp-server", SCAN_TIMEOUT_DEBUG_S),
+    ],
+)
+def test_scan_timeout_follows_build_profile(server_bin: str, expected: float):
+    """A debug build needs a far larger ceiling; an unknown build gets it too."""
+    assert default_scan_timeout(server_bin) == expected
+
+
+def _client_with_publishes(*uris: str) -> LspClient:
+    client = LspClient("/tmp", launch_cmd=["/nonexistent/tcl-lsp-server"])
+    client._notifications = [
+        {
+            "method": "textDocument/publishDiagnostics",
+            "params": {"uri": uri, "diagnostics": [{"message": uri}]},
+        }
+        for uri in uris
+    ]
+    return client
+
+
+def test_diagnostics_wait_ignores_other_documents():
+    """A sibling file's publish must never answer for the requested one."""
+    client = _client_with_publishes("file:///other.tcl")
+
+    assert client.wait_for_diagnostics("file:///wanted.tcl", timeout=0.1) is None
+
+
+def test_diagnostics_wait_returns_the_requested_document():
+    client = _client_with_publishes("file:///other.tcl", "file:///wanted.tcl")
+
+    params = client.wait_for_diagnostics("file:///wanted.tcl", timeout=0.1)
+
+    assert params is not None
+    assert params["uri"] == "file:///wanted.tcl"
+
+
+def test_diagnostics_wait_takes_the_newest_publish():
+    """A republish supersedes the earlier set rather than adding to it."""
+    client = _client_with_publishes("file:///wanted.tcl")
+    client._notifications.append(
+        {
+            "method": "textDocument/publishDiagnostics",
+            "params": {"uri": "file:///wanted.tcl", "diagnostics": []},
+        }
+    )
+
+    params = client.wait_for_diagnostics("file:///wanted.tcl", timeout=0.1)
+
+    assert params is not None
+    assert params["diagnostics"] == []
