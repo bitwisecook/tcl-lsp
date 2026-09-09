@@ -241,7 +241,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         taint_code_sink_args: _,
         taint_interp_eval_subcommands: _,
         taint_source: _,
-        taint_transform: _, taint_double_encode_colour: _,
+        taint_transform: _, taint_transform_when: _, taint_double_encode_colour: _,
         taint_sink_safe_colour: _,
         taint_sink_gate: _,
         credential_options: _,
@@ -418,6 +418,7 @@ pub const COMMAND_SPEC: &[Field] = &[
     ),
     f("taint_source", Surface::Key("taint_source")),
     f("taint_transform", Surface::Key("taint_transform")),
+    f("taint_transform_when", Surface::Key("taint_transform_when")),
     f(
         "taint_double_encode_colour",
         Surface::Key("taint_double_encode_colour"),
@@ -533,6 +534,7 @@ pub fn witness_sub_command(sub: &SubCommand) {
         arg_values_accept_prefix: _,
         body_arg_implicit_args: _,
         taint_transform: _,
+        taint_transform_when: _,
         taint_double_encode_colour: _,
         taint_output_sink: _,
         credential_arg: _,
@@ -637,6 +639,7 @@ pub const SUB_COMMAND: &[Field] = &[
         Surface::Key("body_arg_implicit_args"),
     ),
     f("taint_transform", Surface::Key("taint_transform")),
+    f("taint_transform_when", Surface::Key("taint_transform_when")),
     f(
         "taint_double_encode_colour",
         Surface::Key("taint_double_encode_colour"),

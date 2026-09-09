@@ -1116,6 +1116,16 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Colour bits the command adds to a tainted value it returns.",
     ),
     f(
+        "taint_transform_when",
+        "Transform condition",
+        TAINT,
+        FieldKind::Enum {
+            catalogue: "taintTransformCondition",
+            optional: true,
+        },
+        "Argument-shape proof a call must pass before the transform colour is claimed.",
+    ),
+    f(
         "taint_double_encode_colour",
         "Double-encode colour",
         TAINT,
@@ -1889,6 +1899,16 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Colour bits this subcommand adds to a tainted value it returns.",
     ),
     f(
+        "taint_transform_when",
+        "Transform condition",
+        TAINT,
+        FieldKind::Enum {
+            catalogue: "taintTransformCondition",
+            optional: true,
+        },
+        "Argument-shape proof a call must pass before the transform colour is claimed.",
+    ),
+    f(
         "taint_double_encode_colour",
         "Double-encode colour",
         TAINT,
@@ -2164,7 +2184,7 @@ fn custom_catalogues() -> [(&'static str, Value); 5] {
 /// The variant catalogues the form's pickers read, keyed by catalogue id.
 #[must_use]
 pub fn catalogues() -> Value {
-    let standard: [(&str, &[catalogue::Variant]); 23] = [
+    let standard: [(&str, &[catalogue::Variant]); 24] = [
         ("argRole", catalogue::ARG_ROLES),
         ("tclType", catalogue::TCL_TYPES),
         ("bodyKind", catalogue::BODY_KINDS),
@@ -2175,6 +2195,10 @@ pub fn catalogues() -> Value {
         ("byteArrayEffect", catalogue::BYTE_ARRAY_EFFECTS),
         ("commandTableEffect", catalogue::COMMAND_TABLE_EFFECTS),
         ("patternType", catalogue::PATTERN_TYPES),
+        (
+            "taintTransformCondition",
+            catalogue::TAINT_TRANSFORM_CONDITIONS,
+        ),
         ("formatType", catalogue::FORMAT_TYPES),
         ("formKind", catalogue::FORM_KINDS),
         ("definedSymbolKind", catalogue::DEFINED_SYMBOL_KINDS),
