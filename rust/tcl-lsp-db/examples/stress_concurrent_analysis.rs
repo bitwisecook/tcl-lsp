@@ -241,8 +241,8 @@ fn reader_loop(
         let snapshot = db_handle.lock().expect("db mutex poisoned").clone();
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             salsa::Cancelled::catch(|| {
-                // Alternate between the two salsa queries every #829 fix
-                // routes through the same cancellable incremental analysis,
+                // Alternate between the two salsa queries that
+                // route through the same cancellable incremental analysis,
                 // mirroring the mix of `semanticTokens/full` and diagnostics
                 // requests a real editing session sends concurrently.
                 if local_iters.is_multiple_of(2) {

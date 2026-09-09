@@ -520,19 +520,18 @@ fn eval_of_a_dynamic_unresolvable_var_body_produces_no_edits_923_idx94() {
     );
 }
 
-// -- issue #923 idx 121: TclOO instance-class inference through a
-// `$var`-headed constructor -------------------------------------------
+// TclOO instance-class inference through a
+// `$var`-headed constructor.
 //
-// `record_instance_creation` / `class_from_constructor_subst` only
-// recognised a literal class-name bareword at the `new`/`create` call
-// site.  Real corpus (tcllib's `httpd/httpd.tcl:1970-1994`) instead flows
-// the class name through a single, unconditional `set` one line earlier
-// (`set class ::Derived; set obj [$class create NAME]`) — the analyser
-// never bound `obj`'s class, so hover / go-to-definition / rename on a
-// later `$obj method` call silently found nothing, exactly like the
-// `{*}$cmd` / `eval $cmd` dispatch gaps this file's fault 1 / idx 94
-// sections already cover, just for TclOO instance construction instead of
-// plain command dispatch.
+// `record_instance_creation` / `class_from_constructor_subst` must
+// recognise more than a literal class-name bareword at the `new`/`create`
+// call site.  Real corpus (tcllib's `httpd/httpd.tcl:1970-1994`) instead
+// flows the class name through a single, unconditional `set` one line
+// earlier (`set class ::Derived; set obj [$class create NAME]`) — the
+// analyser must bind `obj`'s class here too, or hover / go-to-definition /
+// rename on a later `$obj method` call silently finds nothing, exactly
+// like the `{*}$cmd` / `eval $cmd` dispatch gaps the sections above cover,
+// just for TclOO instance construction instead of plain command dispatch.
 
 #[test]
 fn hover_and_definition_resolve_a_method_through_a_var_headed_constructor_923_idx121() {
