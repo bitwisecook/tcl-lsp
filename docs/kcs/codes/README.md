@@ -92,6 +92,7 @@ This index lists every per-code KCS page.
 - [W152 — option relation unmet](kcs-diagnostic-w152-option-relation-unmet.md)
 - [W200 — binary format modifier needs a newer Tcl](kcs-diagnostic-w200-binary-format-modifier-needs-newer-tcl.md)
 - [W201 — manual path concatenation](kcs-diagnostic-w201-manual-path-concatenation.md)
+- [W202 — binary field letter needs a newer Tcl](kcs-diagnostic-w202-binary-field-letter-needs-newer-tcl.md)
 - [W230 — list index out of range](kcs-diagnostic-w230-list-index-out-of-range.md)
 - [W231 — lset index out of range](kcs-diagnostic-w231-lset-index-out-of-range.md)
 - [W232 — string index out of range](kcs-diagnostic-w232-string-index-out-of-range.md)

@@ -1,0 +1,11 @@
+# The Sublime package loads in Sublime Text's Python 3.8 plugin host, and its
+# Package Control entry declares `"python_versions": ["3.8"]`. The repo-wide
+# floor is py310, which lets `ruff format` collapse a multi-item `with` into the
+# parenthesised form 3.8 cannot parse — a SyntaxError there stops the module
+# importing, so the package never registers. This floor keeps the formatter and
+# the linter inside what the plugin host accepts.
+#
+# `extend` rather than a standalone config: a nested ruff config replaces the
+# parent outright, and the repo wants one style with one exception.
+extend = "../../ruff.toml"
+target-version = "py38"

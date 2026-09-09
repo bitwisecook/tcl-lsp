@@ -28,7 +28,7 @@ use serde::Serialize;
 use tcl_cli_support::{
     InputDocument, OutputTarget, read_input_documents, registry_for_dialect, write_text_output,
 };
-use tcl_compiler::analyser::{Analyser, Severity};
+use tcl_compiler::analyser::{Analyser, Severity, line_suppressed};
 use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
 use tcl_compiler::compiler_checks::run_all_checks;
 use tcl_compiler::unit_scope::CallSiteEvidence;
@@ -127,6 +127,16 @@ fn format_line(
     format!("{file}:{line}:{column}: {severity:<7} {code:<8} {message}")
 }
 
+/// The `suppressed_lines` key for a 0-based source line.
+///
+/// The analyser keys that map with `i32` (line `-1` is the file-wide
+/// directive), so a `u32` line has to be narrowed. Saturating rather than
+/// panicking: a line number that far out cannot be a key in the map, so it
+/// simply never matches.
+fn line_of(line: u32) -> i32 {
+    i32::try_from(line).unwrap_or(i32::MAX)
+}
+
 /// One collected diagnostic, pre-resolved to a 1-based line / column.
 struct Row {
     line: u32,
@@ -189,6 +199,32 @@ fn document_proc_names(
     .procs
     .into_keys()
     .collect()
+}
+
+/// Append the `SslicTcl` loader's own `SSLIC1xxx` findings, the same
+/// projection the server publishes.
+///
+/// It reads the same normalised `source` and maps through the same
+/// `line_index` as every other code here — the loader used to normalise for
+/// itself (#1794), which was correct but left every other code on the raw
+/// form.
+fn push_sslictcl_rows(
+    rows: &mut Vec<Row>,
+    source: &str,
+    line_index: &LineIndex,
+    disabled: &HashSet<String>,
+    suppressed_lines: &std::collections::HashMap<i32, HashSet<String>>,
+) {
+    for d in tcl_lsp_core::sslictcl_diagnostics::diagnostics(source, disabled, suppressed_lines) {
+        let pos = line_index.position_at_utf16(d.span.start(), source);
+        rows.push(Row {
+            line: pos.line + 1,
+            column: pos.character.get() + 1,
+            severity: d.severity,
+            code: d.code.to_string(),
+            message: d.message,
+        });
+    }
 }
 
 /// Collect every diagnostic the editor surfaces for one document: the analyser's
@@ -292,6 +328,13 @@ fn collect_rows(
             continue;
         }
         let pos = line_index.position_at_utf16(d.span.start(), source);
+        // Inline `# noqa` / top-of-file `# tcl-lsp: disable=…` suppression: the
+        // analyser records `suppressed_lines` without filtering by it, so the
+        // surface rendering a finding applies the contract. `pos.line` is the
+        // 0-based line the map is keyed by (`Row` adds the 1 for display).
+        if line_suppressed(d.code.as_str(), line_of(pos.line), &result.suppressed_lines) {
+            continue;
+        }
         rows.push(Row {
             line: pos.line + 1,
             column: pos.character.get() + 1,
@@ -315,6 +358,11 @@ fn collect_rows(
             continue;
         }
         let pos = line_index.position_at_utf16(d.span.start(), source);
+        // Same suppression the server's `lift_compiler_diagnostics` applies to
+        // this family.
+        if line_suppressed(d.code.as_str(), line_of(pos.line), &result.suppressed_lines) {
+            continue;
+        }
         rows.push(Row {
             line: pos.line + 1,
             column: pos.character.get() + 1,
@@ -324,26 +372,14 @@ fn collect_rows(
         });
     }
 
-    // The `SslicTcl` loader's own `SSLIC1xxx` findings, the same projection the
-    // server publishes. It reads the same normalised `source` and maps through
-    // the same `line_index` as every other code here — the loader used to
-    // normalise for itself (#1794), which was correct but left every other code
-    // on the raw form.
     if sslictcl {
-        for d in tcl_lsp_core::sslictcl_diagnostics::diagnostics(
+        push_sslictcl_rows(
+            &mut rows,
             source,
+            &line_index,
             disabled,
             &result.suppressed_lines,
-        ) {
-            let pos = line_index.position_at_utf16(d.span.start(), source);
-            rows.push(Row {
-                line: pos.line + 1,
-                column: pos.character.get() + 1,
-                severity: d.severity,
-                code: d.code.to_string(),
-                message: d.message,
-            });
-        }
+        );
     }
 
     rows.sort_by(|a, b| {

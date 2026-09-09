@@ -34,9 +34,9 @@
 #
 # Channel (the VS Code odd/even-minor convention — scripts/release/prerelease.sh
 # is the single source of truth): an odd-minor 2.x tag (v2.1.x) is published
-# as a GitHub *pre-release* so it never becomes "latest" and the 1.x line
-# stays the default download for everyone who hasn't opted in.  Even-minor
-# 2.x (v2.2.0) and 1.x publish as normal stable releases.
+# as a GitHub *pre-release* so it never becomes "latest".  An even-minor 2.x
+# tag (v2.2.0) publishes as a normal stable release and is the default
+# download for everyone who hasn't opted in.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"

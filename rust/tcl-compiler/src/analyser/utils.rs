@@ -41,6 +41,121 @@ pub use crate::signature_scan::params::{
 /// this.
 const FILE_DIRECTIVE_SCAN_LINES: usize = 100;
 
+/// Sentinel line key for a file-wide suppression directive: a
+/// `# tcl-lsp: disable=…` at the top of the file is recorded against
+/// line `-1` in `suppressed_lines`, alongside the real 0-based lines
+/// an inline `# noqa` covers.
+pub const FILE_SUPPRESS_KEY: i32 = -1;
+
+/// The one suppression contract every diagnostic surface obeys: is
+/// `code` silenced at 0-based `line` by an inline `# noqa` or a
+/// top-of-file `# tcl-lsp: disable=…` directive?
+///
+/// `suppressed` is the analyser's `suppressed_lines` map (see
+/// [`parse_noqa_line_suppressions_for_dialect`] and
+/// [`parse_file_suppression`], whose results
+/// `Analyser::analyse` merges into it). A `"*"` entry silences every
+/// code, and the file-level [`FILE_SUPPRESS_KEY`] bucket applies
+/// document-wide.
+///
+/// The analyser records the map but never filters with it — the
+/// consumer that renders diagnostics does, because only it knows
+/// which line a finding lands on. Both consumers (the language
+/// server's publish path and the `diag` / `lint` / `validate` CLI
+/// verbs) call this, so a `# noqa` means the same thing in the
+/// editor and on the command line; see
+/// `docs/kcs/kcs-howto-suppress-diagnostics.md`.
+///
+/// Generic over both hashers so a caller holding an `FxHashMap` /
+/// `FxHashSet` need not rebuild it as a `std` map to ask.
+#[must_use]
+pub fn line_suppressed<S, T>(
+    code: &str,
+    line: i32,
+    suppressed: &HashMap<i32, HashSet<String, T>, S>,
+) -> bool
+where
+    S: std::hash::BuildHasher,
+    T: std::hash::BuildHasher,
+{
+    let hit = |key: i32| {
+        suppressed
+            .get(&key)
+            .is_some_and(|codes| codes.contains("*") || codes.contains(code))
+    };
+    hit(FILE_SUPPRESS_KEY) || hit(line)
+}
+
+/// The codes a comment's `# noqa` directive silences, or `None` when the
+/// comment carries no directive.
+///
+/// Two spellings, the ones `docs/kcs/kcs-howto-suppress-diagnostics.md`
+/// documents:
+///
+/// * `noqa:` at a word boundary, anywhere in the comment, silences the codes
+///   listed after the colon — so an explanatory prefix (`# see #123, noqa:
+///   W210`) still carries the directive. An empty list means every code.
+/// * A comment line whose whole body is `noqa` silences every code (the `"*"`
+///   sentinel).
+///
+/// Prose that merely mentions the word is not a directive: `# do not use noqa
+/// here` would otherwise silence every finding on the command below it. A
+/// suppression nobody asked for is invisible by construction — the finding it
+/// hides is the only evidence it happened — so only the shapes above count.
+///
+/// `comment` is the comment text with or without its leading `#`, one physical
+/// line or several.
+#[must_use]
+pub fn parse_noqa_marker(comment: &str) -> Option<HashSet<String>> {
+    if let Some(codes) = coded_noqa_codes(comment) {
+        return Some(codes);
+    }
+    comment
+        .lines()
+        .any(|line| {
+            let body = line.trim().trim_start_matches('#').trim();
+            body.eq_ignore_ascii_case("noqa")
+        })
+        .then(|| std::iter::once("*".to_owned()).collect())
+}
+
+/// The code list of the first `noqa:` marker in `comment`, or `None` when it
+/// carries none.
+///
+/// A marker must start a word — `renoqa: W210` is a word, not a directive —
+/// and the colon must follow the token immediately.
+fn coded_noqa_codes(comment: &str) -> Option<HashSet<String>> {
+    // `to_ascii_lowercase` maps only A-Z, so every byte offset it reports is
+    // equally valid in `comment`, non-ASCII text included.
+    let lower = comment.to_ascii_lowercase();
+    let mut from = 0usize;
+    while let Some(offset) = lower[from..].find("noqa") {
+        let start = from + offset;
+        let end = start + "noqa".len();
+        let starts_a_word = !lower[..start]
+            .chars()
+            .next_back()
+            .is_some_and(|c| c.is_alphanumeric() || c == '_');
+        if starts_a_word && let Some(list) = comment[end..].strip_prefix(':') {
+            let codes: HashSet<String> = list
+                .split([',', ' ', '\t', '\r', '\n'])
+                .map(str::trim)
+                .filter(|code| !code.is_empty())
+                .map(str::to_owned)
+                .collect();
+            // `# noqa:` naming nothing is still a directive, and the only
+            // reading left is the one the bare form has.
+            return Some(if codes.is_empty() {
+                std::iter::once("*".to_owned()).collect()
+            } else {
+                codes
+            });
+        }
+        from = end;
+    }
+    None
+}
+
 /// Extract file-wide diagnostic suppression from top-of-file
 /// directives.
 ///
@@ -166,8 +281,10 @@ fn parse_supports_directive(line: &str) -> Option<(&str, &str)> {
 /// existing command-level (`apply_preceding_noqa`) and file-level
 /// (`parse_file_suppression`) passes.
 ///
-/// Bare ``# noqa`` (no ``: CODE`` list) is recorded with the `"*"`
-/// sentinel that the suppression filter treats as "every code".
+/// [`parse_noqa_marker`] decides what each comment carries: bare
+/// ``# noqa`` is recorded with the `"*"` sentinel the suppression
+/// filter treats as "every code", a ``noqa:`` marker with the codes
+/// it names, and prose that merely mentions the word with nothing.
 #[cfg(test)]
 #[must_use]
 pub fn parse_noqa_line_suppressions(
@@ -201,25 +318,8 @@ fn parse_noqa_line_suppressions_with_registry(
     let mut result: std::collections::HashMap<i32, HashSet<String>> =
         std::collections::HashMap::new();
     for fact in script_comment_facts(source, config, registry) {
-        let lower = fact.text.to_ascii_lowercase();
-        let Some(noqa_pos) = lower.find("noqa") else {
+        let Some(codes) = parse_noqa_marker(&fact.text) else {
             continue;
-        };
-        let rest = fact.text[noqa_pos + 4..].trim();
-        let codes: HashSet<String> = if let Some(after_colon) = rest.strip_prefix(':') {
-            let parsed: HashSet<String> = after_colon
-                .split([',', ' ', '\t', '\r', '\n'])
-                .map(str::trim)
-                .filter(|s| !s.is_empty())
-                .map(str::to_string)
-                .collect();
-            if parsed.is_empty() {
-                std::iter::once("*".to_string()).collect()
-            } else {
-                parsed
-            }
-        } else {
-            std::iter::once("*".to_string()).collect()
         };
         let next_line = i32::try_from(fact.line)
             .unwrap_or(i32::MAX)
@@ -1312,13 +1412,12 @@ pub fn extract_body_docstring(body: &str) -> String {
 /// segmented-command dispatch loop calls this on each command to
 /// attach the noqa codes to the *following* command's line range.
 ///
-/// Matching is substring-based (``find("noqa")``) against the
-/// comment body alone; a comment is only ever the source of a
-/// noqa directive, so there's no risk of false-positiving on a
-/// ``#`` inside a Tcl string — the segmenter's
-/// ``preceding_comment`` field carries comment text only.  Bare
+/// The directive shapes come from [`parse_noqa_marker`]: bare
 /// ``# noqa`` (no ``: CODE`` list) suppresses every code (`"*"`
-/// sentinel); ``# noqa: A, B`` suppresses the named codes.
+/// sentinel); ``# noqa: A, B`` suppresses the named codes. The
+/// text searched is the segmenter's ``preceding_comment`` field,
+/// which carries comment text only, so a ``#`` inside a Tcl
+/// string is never read as a directive.
 pub fn apply_preceding_noqa<S, T>(
     cmd: &crate::segmenter::SegmentedCommand,
     line_offsets: &[usize],
@@ -1330,26 +1429,8 @@ pub fn apply_preceding_noqa<S, T>(
     let Some(comment) = cmd.preceding_comment.as_deref() else {
         return;
     };
-    let lower = comment.to_ascii_lowercase();
-    let Some(noqa_pos) = lower.find("noqa") else {
+    let Some(codes) = parse_noqa_marker(comment) else {
         return;
-    };
-    let rest = comment[noqa_pos + 4..].trim_start();
-    let codes: std::collections::HashSet<String> = if let Some(after_colon) = rest.strip_prefix(':')
-    {
-        let parsed: std::collections::HashSet<String> = after_colon
-            .split([',', ' ', '\t', '\r', '\n'])
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .map(str::to_string)
-            .collect();
-        if parsed.is_empty() {
-            std::iter::once("*".to_string()).collect()
-        } else {
-            parsed
-        }
-    } else {
-        std::iter::once("*".to_string()).collect()
     };
     // Attribute to every line spanned by the command.
     // ``SegmentedCommand.span`` is byte offsets; convert each via
@@ -1973,6 +2054,100 @@ mod tests {
         // keyword's own 7-byte check.
         let em_dash_after_colon = "# tcl-lsp: abcdef\u{2014}ghi\nproc foo {} {}\n";
         assert!(parse_file_suppression(em_dash_after_colon).is_empty());
+    }
+
+    #[test]
+    fn line_suppressed_honours_the_named_code_the_wildcard_and_the_file_bucket() {
+        // The one contract every diagnostic surface asks through: an exact code
+        // match on the line, the `"*"` wildcard a bare `# noqa` records, and the
+        // file-wide `-1` bucket a `# tcl-lsp: disable=…` directive fills.
+        let mut map: HashMap<i32, HashSet<String>> = HashMap::new();
+        map.insert(3, std::iter::once("W210".to_owned()).collect());
+        map.insert(4, std::iter::once("*".to_owned()).collect());
+
+        assert!(line_suppressed("W210", 3, &map));
+        assert!(
+            !line_suppressed("W211", 3, &map),
+            "another code on that line"
+        );
+        assert!(!line_suppressed("W210", 2, &map), "another line");
+        assert!(
+            line_suppressed("S100", 4, &map),
+            "the wildcard takes every code"
+        );
+
+        map.insert(
+            FILE_SUPPRESS_KEY,
+            std::iter::once("S100".to_owned()).collect(),
+        );
+        assert!(
+            line_suppressed("S100", 99, &map),
+            "the file bucket applies to every line"
+        );
+        assert!(!line_suppressed("W211", 99, &map));
+    }
+
+    #[test]
+    fn line_suppressed_is_false_for_an_empty_map() {
+        let map: HashMap<i32, HashSet<String>> = HashMap::new();
+        assert!(!line_suppressed("W210", 0, &map));
+        assert!(!line_suppressed("W210", FILE_SUPPRESS_KEY, &map));
+    }
+
+    #[test]
+    fn parse_noqa_marker_reads_the_documented_shapes_and_rejects_prose() {
+        // Bare and coded directives, including the coded form after an
+        // explanatory prefix.
+        assert!(
+            parse_noqa_marker("# noqa")
+                .expect("bare directive")
+                .contains("*")
+        );
+        assert!(
+            parse_noqa_marker("noqa")
+                .expect("directive without the `#`")
+                .contains("*")
+        );
+        assert!(
+            parse_noqa_marker("# noqa: W210, W211")
+                .expect("coded directive")
+                .contains("W211")
+        );
+        assert!(
+            parse_noqa_marker("# see #123, noqa: W210")
+                .expect("coded directive after a prefix")
+                .contains("W210")
+        );
+        assert!(
+            parse_noqa_marker("# noqa:")
+                .expect("directive naming nothing")
+                .contains("*")
+        );
+
+        // Prose that only mentions the word, and a word that merely ends in
+        // it, are not directives.
+        for prose in [
+            "# do not use noqa here",
+            "# noqa is how you would silence this",
+            "# renoqa: W210",
+            "# ordinary comment",
+        ] {
+            assert!(
+                parse_noqa_marker(prose).is_none(),
+                "prose must not be a directive: {prose}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_noqa_line_suppressions_ignores_a_comment_that_only_mentions_noqa() {
+        // A substring match reads the trailing prose as a bare marker and
+        // silences every code on the command below.
+        let src = "# do not use noqa here\nputs $x\n";
+        assert!(
+            parse_noqa_line_suppressions(src).is_empty(),
+            "prose must not seed the suppression map"
+        );
     }
 
     #[test]
