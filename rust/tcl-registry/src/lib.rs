@@ -109,6 +109,7 @@ pub mod snapshot;
 pub mod spec;
 pub mod special_vars;
 pub mod state_transition;
+pub mod substitution;
 pub mod symbol_def;
 pub mod taint;
 pub mod tk_geometry;

@@ -74,7 +74,11 @@ nothing, so the `$notavar` of `set msg {$notavar}` and the `$a` of an `apply`
 lambda handed to `lsort -command` are literal text rather than variables the
 caller has to supply. A braced word that carries script or an expression is
 still read as such, and so is every word of a command that performs Tcl
-substitution itself: `subst {hello $name}` does read `name`.
+substitution itself: `subst {hello $name}` does read `name`. Which
+substitutions a call runs is the registry's own per-call answer, so
+`subst -novariables {hello $name}` reads nothing, while a `[…]` inside that
+same argument still runs and its contents are ordinary script — able to read
+and to write the caller's variables.
 
 ## Example
 

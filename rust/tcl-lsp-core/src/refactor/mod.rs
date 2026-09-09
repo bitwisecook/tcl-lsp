@@ -391,7 +391,72 @@ impl FrameWalk {
             command,
         );
         self.push_expression_substitutions(source, command, &mut regions);
+        self.push_substituted_commands(source, command, &mut regions);
         regions
+    }
+
+    /// The `[…]` a substituting command runs out of its own argument text.
+    ///
+    /// `subst {a[set x 1]b}` evaluates that bracket in the caller's frame, but
+    /// the argument is one braced word to the script lexer, so the dispatch
+    /// walker cannot see inside it. Whether the brackets run at all is the
+    /// registry's per-call answer (`subst -nocommands` leaves them as text),
+    /// and the closer is [`tcl_lexer::command_substitution_end`]'s, so nothing
+    /// here re-derives either fact.
+    fn push_substituted_commands(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+        out: &mut Vec<(usize, usize)>,
+    ) {
+        let head = command.name();
+        let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
+        if !self
+            .nesting
+            .substitutions_performed(head, &args)
+            .is_some_and(|kinds| kinds.commands)
+        {
+            return;
+        }
+        for token in command.argv.iter().skip(1) {
+            // Only a braced literal hides its brackets from the script lexer;
+            // an unbraced or quoted word has already been substituted, so its
+            // brackets are dispatch regions already.
+            if token.kind != TokenType::Str
+                || token.content_offset != 1
+                || source.as_bytes().get(token.span.start() as usize) != Some(&b'{')
+            {
+                continue;
+            }
+            let start = token.span.start() as usize + token.content_offset as usize;
+            let end = token.span.end() as usize;
+            let Some(text) = source.get(start..end) else {
+                continue;
+            };
+            let mut at = 0;
+            // An unterminated `[` closes at end-of-text, so the cursor is
+            // clamped rather than stepped past the closer.
+            while let Some(offset) = text.get(at..).and_then(|rest| rest.find('[')) {
+                let open = at + offset;
+                // The closer reports one byte past the `]`; the script inside
+                // the brackets is what runs.
+                let Some(after) = tcl_lexer::command_substitution_end(text, open) else {
+                    break;
+                };
+                let inner_end = if text.as_bytes().get(after - 1) == Some(&b']') {
+                    after - 1
+                } else {
+                    after
+                };
+                if open + 1 < inner_end {
+                    out.push((start + open + 1, start + inner_end));
+                }
+                at = after.min(text.len());
+                if at >= text.len() {
+                    break;
+                }
+            }
+        }
     }
 
     fn push_expression_substitutions(
