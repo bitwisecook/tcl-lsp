@@ -159,8 +159,8 @@ impl CommandVisibilityError {
 /// bodies, event dispatch, `source`, and more — all of it routine, and
 /// empirically safe to at least 1000 levels of pure nested substitution on
 /// a 2 MiB thread (measured via `probe_cmdsubst_*` during investigation).
-/// An early version of this fix capped `eval_source` itself at a low,
-/// uniform threshold and broke ordinary iRule execution (nested command
+/// Capping `eval_source` itself at a low,
+/// uniform threshold would break ordinary iRule execution (nested command
 /// substitution plus a few layers of event-dispatch/orchestration
 /// scaffolding routinely needs more than a very conservative cap allows,
 /// well short of any real danger). The actual danger is narrower:

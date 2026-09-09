@@ -26,9 +26,9 @@
 //! expansion, and the match-count return semantics). The two runtimes share the
 //! same engine *contract* but **not the same engine**: `runtime/rust` links the
 //! real Tcl 9 Henry-Spencer ARE engine (so it is byte-for-byte tclsh), while the
-//! bytecode VM drives the Rust `regex` crate (approximate — full ARE syntax like
-//! `\m`/`\M`/`[[:<:]]` is out of scope there). This module is everything *except*
-//! the engine: written once, run by both, so both runtimes share one option set
+//! bytecode VM drives the Rust `regex` crate (approximate — it does not
+//! implement full ARE syntax such as `\m`/`\M`/`[[:<:]]`). This module is
+//! everything *except* the engine: written once, run by both, so both runtimes share one option set
 //! and the same char-offset semantics.
 //!
 //! All offsets here are **character** (codepoint) offsets, matching Tcl's index

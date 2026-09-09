@@ -32,7 +32,7 @@
 //! `ValueOps`. The whole module is gated on `have_tommath` like `if`/`while`/`for`
 //! because the expr edge needs the numeric tower.
 //!
-//! Semantics verified against tclsh 9.0.
+//! Semantics match tclsh 9.0.
 //!
 #![cfg(have_tommath)]
 

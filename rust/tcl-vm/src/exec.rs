@@ -6022,7 +6022,7 @@ mod tests {
     /// for construction+drop alone, independent of any operation performed
     /// on the value). That is a separate, genuinely unbounded-depth concern
     /// in `Value`'s representation itself, not in `lset_descend`'s
-    /// now-iterative logic — out of scope for this fix.
+    /// iterative logic, and this test does not cover it.
     #[test]
     fn deeply_nested_lset_survives_and_is_correct() {
         const DEPTH: usize = 2_000;

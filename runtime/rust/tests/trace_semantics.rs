@@ -550,8 +550,9 @@ fn an_execution_callback_redefining_the_command_stops_that_walk() {
 /// (`CMD_DYING`, its hash entry taken over by the new command), not whatever
 /// the name holds afterwards. The old command's traces still go.
 ///
-/// tclsh 8.6.16 and 9.0.4 both print the transcript below; the runtime used to
-/// delete the callback's fresh `foo`, leaving `unknown command "foo"`.
+/// tclsh 8.6.16 and 9.0.4 both print the transcript below; deleting
+/// "whatever is at the name now" instead would delete the callback's fresh
+/// `foo`, leaving `unknown command "foo"`.
 #[test]
 fn a_delete_trace_that_recreates_the_command_leaves_it_alive() {
     let got = transcript(
@@ -578,8 +579,8 @@ fn a_delete_trace_that_recreates_the_command_leaves_it_alive() {
 /// writes a *different* element fires again — and one that writes the *same*
 /// element does not.
 ///
-/// tclsh 8.6.16 and 9.0.4 print the transcript below. Both engines used to
-/// suppress per whole array and stop after the first firing in each pair.
+/// tclsh 8.6.16 and 9.0.4 print the transcript below. Suppressing per whole
+/// array instead would stop after the first firing in each pair.
 // The sheet drives the traces with `if`, which only the tower build
 // registers (no `expr`, no condition to evaluate).
 #[cfg(have_tommath)]
@@ -1134,9 +1135,9 @@ fn a_twice_nested_rename_keeps_retargeting_the_enclosing_window() {
 // C sets that flag in exactly one place — `TraceExecutionProc` (tclTrace.c
 // 9.0.4:1765), around an `enter`/`leave`/`enterstep`/`leavestep` callback —
 // and reads it in exactly one place, `TclCheckInterpTraces` (:1426), the step
-// machinery. `CallCommandTraces` sets nothing. The runtime used to raise its
-// `exec_firing` stand-in for `rename`/`delete` callbacks too, which silently
-// untraced everything they dispatched.
+// machinery. `CallCommandTraces` sets nothing. Raising the runtime's
+// `exec_firing` stand-in for `rename`/`delete` callbacks too would silently
+// untrace everything they dispatched.
 
 /// A command invoked from a `rename` or `delete` callback is traced like any
 /// other: its `enter` traces fire, exactly as they do outside one.
@@ -1206,8 +1207,8 @@ fn an_execution_callbacks_own_commands_are_not_step_observed() {
 /// inside an execution callback still fires its **own** `enter` and `leave`
 /// traces, because C's `TclCheckExecutionTraces` (tclTrace.c 9.0.4:1301) never
 /// consults `INTERP_TRACE_IN_PROGRESS` — only `TclCheckInterpTraces` (:1426)
-/// does. Both engines used to read their stand-in at the whole traced-dispatch
-/// fast path and so fired neither.
+/// does. Reading the stand-in at the whole traced-dispatch fast path instead
+/// would fire neither.
 #[test]
 fn an_execution_callback_does_not_untrace_what_it_dispatches() {
     let got = transcript(
