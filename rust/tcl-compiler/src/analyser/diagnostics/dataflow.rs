@@ -36,8 +36,9 @@ use tcl_dialect::model::SurfaceQuery;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use super::helpers::{
-    UndefSuppression, block_dominated_by, build_phi_undef_index, collect_existence_guards,
-    find_dotted_quads, is_ident_continue, is_word_byte, phi_can_undef, source_slice,
+    PhiUndefMemo, UndefSuppression, block_dominated_by, build_phi_undef_index,
+    collect_existence_guards, find_dotted_quads, is_ident_continue, is_word_byte, phi_can_undef,
+    source_slice,
 };
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
@@ -1456,6 +1457,9 @@ file; this call falls through to the 'unknown' handler."
             phi_block: &phi_block,
             killed: &killed,
         };
+        // Every `return_read_fires_w210` call below traces the same phi graph
+        // with the same context, so they share one memo (issue #2021).
+        let mut memo = PhiUndefMemo::default();
 
         let mut scanner = VarReferenceScanner::with_config(
             VarScanOptions {
@@ -1526,7 +1530,7 @@ file; this call falls through to the 'unknown' handler."
                     .and_then(|s| ssa_block.exit_versions.get(&s))
                     .copied()
                     .unwrap_or(0);
-                if !Self::return_read_fires_w210(fu, &name, ver, bn, &phi_idx, ctx) {
+                if !Self::return_read_fires_w210(fu, &name, ver, bn, &phi_idx, ctx, &mut memo) {
                     continue;
                 }
                 reported.insert(name.clone());
@@ -1559,6 +1563,7 @@ file; this call falls through to the 'unknown' handler."
         bn: crate::cfg::BlockId,
         phi_idx: &PhiUndefIndex<'_>,
         ctx: &ReturnUndefCtx<'_>,
+        memo: &mut PhiUndefMemo,
     ) -> bool {
         // Version-0 return reads are recorded in def_use, so the version-0
         // (`DefKind::Parameter`) emitter handles them with the full suppression
@@ -1568,7 +1573,6 @@ file; this call falls through to the 'unknown' handler."
         if ver == 0 {
             return false;
         }
-        let mut seen = FxHashSet::default();
         let undef_ctx = super::helpers::PhiUndefCtx {
             phi_def: phi_idx.phi_def,
             phi_block: phi_idx.phi_block,
@@ -1581,7 +1585,7 @@ file; this call falls through to the 'unknown' handler."
             dialect: ctx.dialect,
             ssa: &fu.ssa,
         };
-        if !phi_can_undef(name, ver, &undef_ctx, &mut seen) {
+        if !phi_can_undef(name, ver, &undef_ctx, memo) {
             return false;
         }
         // A killed SSA version is concrete same-unit evidence that overrides
