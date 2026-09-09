@@ -7325,7 +7325,7 @@ impl Interp {
                     Ok(e) => e,
                     Err(e) => {
                         release_all(&argv);
-                        return self.error(e.message());
+                        return self.error_with_code(e.message(), e.error_code());
                     }
                 };
                 // For a `{*}` of a *literal* word, each element keeps its source
@@ -7359,6 +7359,10 @@ impl Interp {
         }
 
         if argv.is_empty() {
+            // TclEvalObjvInternal's empty expanded argv is a successful empty
+            // command. It still resets the prior interpreter result, just as
+            // the ordinary dispatch boundary below does.
+            self.set_result_bytes(b"");
             return Code::Ok;
         }
 

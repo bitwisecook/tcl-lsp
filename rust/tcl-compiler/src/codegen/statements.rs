@@ -913,32 +913,22 @@ impl CodegenCtx<'_> {
         expand_word: &[bool],
         tokens: Option<&crate::ir::CommandTokens>,
     ) {
-        self.emit_comment(Op::EXPAND_START, vec![], &format!("{cmd} (expanded)"));
-        // Build full word list: [cmd, *args]
-        self.emit_value_interpolated(cmd);
-        let mut word_count: u32 = 1;
-        for (i, arg) in args.iter().enumerate() {
-            // A braced single-token word stays verbatim even when expanded: the
-            // `{*}` splits its *list* elements without substituting them, so a
-            // `[…]`/`$…` inside `{*}{… [x] …}` is literal data (matches C, which
-            // expands the parsed list elements, not a re-substituted string).
-            let braced = tokens.is_some_and(|t| {
-                t.argv_kinds.get(i + 1) == Some(&tcl_lexer::TokenType::Str)
-                    && t.single_token_word.get(i + 1).copied().unwrap_or(false)
+        let words = std::iter::once(cmd)
+            .chain(args.iter().map(String::as_str))
+            .enumerate()
+            .map(|(index, word)| {
+                // A braced single-token word stays verbatim even when
+                // expanded: the split operates on its list value without
+                // substituting `[…]` / `$…` inside it. This applies equally to
+                // the command head (index zero) and to every argument.
+                let braced = tokens.is_some_and(|t| {
+                    t.argv_kinds.get(index) == Some(&tcl_lexer::TokenType::Str)
+                        && t.single_token_word.get(index).copied().unwrap_or(false)
+                });
+                let expanded = expand_word.get(index).copied().unwrap_or(false);
+                (word, braced, expanded)
             });
-            self.emit_word(arg, braced);
-            word_count += 1;
-            // expand_word[0] is the command itself, args start at [1]
-            if expand_word.get(i + 1).copied().unwrap_or(false) {
-                self.emit(
-                    Op::EXPAND_STKTOP,
-                    vec![Operand::Imm(
-                        i32::try_from(word_count).expect("word_count fits in i32"),
-                    )],
-                );
-            }
-        }
-        self.emit_comment(Op::INVOKE_EXPANDED, vec![], cmd);
+        self.emit_expanded_words(words, &format!("{cmd} (expanded)"));
         self.emit(Op::POP, vec![]);
     }
 
@@ -1448,10 +1438,26 @@ mod tests {
     fn emit_expanded_call_basic() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
-        ctx.emit_expanded_call("puts", &["hello".into()], &[false, true], None);
+        ctx.emit_expanded_call(
+            "list head",
+            &["ordinary".into(), "tail one tail two".into()],
+            &[true, false, true],
+            None,
+        );
         let ops = opcodes(&ctx);
-        assert!(ops.contains(&Op::EXPAND_START));
-        assert!(ops.contains(&Op::EXPAND_STKTOP));
-        assert!(ops.contains(&Op::INVOKE_EXPANDED));
+        assert_eq!(
+            ops,
+            vec![
+                Op::EXPAND_START,
+                Op::PUSH1,
+                Op::EXPAND_STKTOP,
+                Op::PUSH1,
+                Op::PUSH1,
+                Op::EXPAND_STKTOP,
+                Op::INVOKE_EXPANDED,
+                Op::POP,
+            ],
+            "head and tail words must use one ordered expansion path",
+        );
     }
 }

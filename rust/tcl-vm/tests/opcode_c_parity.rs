@@ -833,7 +833,33 @@ fn const_blocks_later_writes() {
     assert_eq!(err_str(&c), "can't set \"k\": variable is a constant");
 }
 
-// -- expandDrop ------------------------------------------------------
+// -- argument expansion ---------------------------------------------
+
+/// Expanding an empty command-head list leaves no argv. C Tcl treats that as
+/// an empty successful command rather than looking up the empty command name.
+#[test]
+fn invoke_expanded_with_no_words_returns_empty_success() {
+    let mut a = Asm::new();
+    a.op(Op::EXPAND_START, &[])
+        .push("")
+        .op(Op::EXPAND_STKTOP, &[1])
+        .op(Op::INVOKE_EXPANDED, &[]);
+    let (_, c) = run_fresh(a);
+    assert_eq!(ok_str(&c), "");
+}
+
+/// `Tcl_ListObjGetElements` supplies the structured list error code. The
+/// opcode boundary must preserve it when the expanded word is malformed.
+#[test]
+fn expand_stktop_preserves_list_error_code() {
+    let mut a = Asm::new();
+    a.op(Op::EXPAND_START, &[])
+        .push("list {")
+        .op(Op::EXPAND_STKTOP, &[1]);
+    let (_, c) = run_fresh(a);
+    assert_eq!(err_str(&c), "unmatched open brace in list");
+    assert_eq!(err_code(&c), "TCL VALUE LIST BRACE");
+}
 
 /// `expandDrop` abandons the innermost expansion, truncating the stack back to
 /// the depth its `expandStart` recorded (C `INST_EXPAND_DROP`).

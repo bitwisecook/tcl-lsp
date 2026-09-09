@@ -739,6 +739,34 @@ impl CodegenCtx<'_> {
         }
     }
 
+    /// Emit the ordered words of one `{*}` invocation.
+    ///
+    /// The command head and argument tail deliberately share this loop: Tcl's
+    /// expansion marker belongs to a *word position*, including position zero,
+    /// and every position must finish its substitutions before that value is
+    /// split as a list.  Callers supply words as `(text, braced, expanded)`;
+    /// [`Self::emit_cmd_word`] remains the single value-emission path for both
+    /// statement and command-substitution invocations.
+    pub(crate) fn emit_expanded_words<'w>(
+        &mut self,
+        words: impl IntoIterator<Item = (&'w str, bool, bool)>,
+        comment: &str,
+    ) {
+        self.emit_comment(Op::EXPAND_START, vec![], comment);
+        for (index, (word, braced, expanded)) in words.into_iter().enumerate() {
+            self.emit_cmd_word(word, braced);
+            if expanded {
+                self.emit(
+                    Op::EXPAND_STKTOP,
+                    vec![Operand::Imm(
+                        i32::try_from(index + 1).expect("word count fits in i32"),
+                    )],
+                );
+            }
+        }
+        self.emit_comment(Op::INVOKE_EXPANDED, vec![], comment);
+    }
+
     /// Inline compile `[list {*}$a {*}$b]` as `load a; load b; listConcat`.
     ///
     /// Only matches the exact two-argument form — `[list {*}$x]` (one
@@ -1268,27 +1296,12 @@ impl CodegenCtx<'_> {
     /// trailing `pop`.
     pub(super) fn emit_expanded_cmd_subst(&mut self, parts: &[(String, bool, bool)]) {
         self.used_inline_cmd_subst = true;
-        self.emit_comment(Op::EXPAND_START, vec![], "(expanded)");
-        let mut word_count: u32 = 0;
-        for (part, braced, expand) in parts {
-            if *braced {
-                // A braced expanded word splits its *list* elements without
-                // substitution, so push it verbatim.
-                self.push_lit_verbatim(part);
-            } else {
-                self.emit_cmd_subst_arg(part, false);
-            }
-            word_count += 1;
-            if *expand {
-                self.emit(
-                    Op::EXPAND_STKTOP,
-                    vec![Operand::Imm(
-                        i32::try_from(word_count).expect("word count fits in i32"),
-                    )],
-                );
-            }
-        }
-        self.emit_comment(Op::INVOKE_EXPANDED, vec![], "");
+        self.emit_expanded_words(
+            parts
+                .iter()
+                .map(|(word, braced, expanded)| (word.as_str(), *braced, *expanded)),
+            "(expanded)",
+        );
     }
 
     // -- Private inline helpers for emit_inline_cmd_subst --
