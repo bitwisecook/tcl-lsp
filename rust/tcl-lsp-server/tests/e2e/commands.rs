@@ -512,6 +512,53 @@ fn xc_translate_items_are_status_tagged() {
 }
 
 #[test]
+fn minimize_diagnostic_shrinks_to_the_lines_that_still_report_it() {
+    // Eight lines, six of which independently raise W211 "set but never
+    // used". A working reducer keeps one and drops the rest, so a result that
+    // is merely non-empty would not prove anything.
+    let mut lsp = Lsp::tcl();
+    let uri = "file:///minimize.tcl";
+    let source = "set a 1\nset b 2\nset c 3\nproc p {} {\n    set unused 1\n}\nset d 4\nset e 5\n";
+    lsp.open_ready(uri, source);
+
+    let result = lsp.execute_command("tcl-lsp.minimizeDiagnostic", json!([uri, "W211"]));
+    assert!(!result.is_null(), "no reproducer for W211");
+    assert_eq!(result["code"], Value::from("W211"), "{result}");
+
+    let original = result["originalLines"].as_u64().expect("originalLines");
+    let reduced = result["reducedLines"].as_u64().expect("reducedLines");
+    assert_eq!(original, 8, "{result}");
+    assert!(
+        reduced < original,
+        "nothing was removed from an eight-line document: {result}"
+    );
+
+    // The reproducer has to stand on its own, which is the whole point.
+    assert_eq!(result["reproduces"], Value::Bool(true), "{result}");
+    let minimal = result["source"].as_str().expect("source");
+    assert!(minimal.contains("set "), "{minimal:?}");
+    assert_eq!(
+        minimal.lines().count() as u64,
+        reduced,
+        "reducedLines disagrees with the source it describes: {result}"
+    );
+
+    // Line-based shrinking only, so the identifiers are the reporter's own.
+    assert_eq!(result["renamed"], Value::Bool(false), "{result}");
+}
+
+#[test]
+fn minimize_diagnostic_is_null_for_a_code_the_document_does_not_report() {
+    // Returning the whole document as its own "reproducer" would be worse
+    // than saying there is nothing to minimise.
+    let mut lsp = Lsp::tcl();
+    let uri = "file:///minimize_absent.tcl";
+    lsp.open_ready(uri, "set x 1\n");
+    let result = lsp.execute_command("tcl-lsp.minimizeDiagnostic", json!([uri, "W999"]));
+    assert!(result.is_null(), "{result}");
+}
+
+#[test]
 fn xc_translate_console_format_returns_pasteable_documents() {
     // The Console edits one object at a time, so each document has to stand
     // alone: `{metadata, spec}` as the object's create request takes it, with
@@ -715,6 +762,8 @@ const CORE_COMMANDS: &[&str] = &[
     "tcl-lsp.writeRuleBack",
     "tcl-lsp.extractLinkedObjects",
     "tcl-lsp.bigipCleanup",
+    "tcl-lsp.minimizeDiagnostic",
+    "tcl-lsp.renamePartition",
 ];
 
 #[test]

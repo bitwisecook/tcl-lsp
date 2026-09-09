@@ -16908,6 +16908,236 @@ impl Backend {
         Ok(value)
     }
 
+    /// Does `source` still report `code`?
+    ///
+    /// The oracle the reducer tests each candidate against. It runs the plain
+    /// analyser rather than the server's configured pipeline: a reproducer is
+    /// for a bug report, so it has to stand on its own in a fresh checkout,
+    /// not depend on the reporter's disabled-code set or spec packs.
+    fn reproduces_diagnostic(source: &str, dialect: &str, code: &str) -> bool {
+        tcl_compiler::analyser::Analyser::new()
+            .analyse(source, dialect)
+            .diagnostics
+            .iter()
+            .any(|d| d.code.to_string() == code)
+    }
+
+    /// Shrink `source` to the fewest lines that still report `code`.
+    ///
+    /// Delta debugging over lines, halving the granularity each pass: try
+    /// removing each chunk, keep every removal the oracle still accepts, and
+    /// when a pass at one granularity stops helping, halve the chunk and go
+    /// again. That reaches a one-minimal result in far fewer analyser runs
+    /// than removing one line at a time, which matters because each run is a
+    /// full analysis.
+    fn reduce_to_minimal(source: &str, dialect: &str, code: &str) -> Vec<String> {
+        let mut lines: Vec<String> = source.lines().map(str::to_owned).collect();
+        let mut chunk = lines.len().max(1);
+        // A budget, so a pathological document cannot hold the blocking pool.
+        let mut budget = 400_usize;
+
+        while chunk >= 1 {
+            let mut index = 0;
+            while index < lines.len() {
+                if budget == 0 {
+                    return lines;
+                }
+                let end = (index + chunk).min(lines.len());
+                let mut candidate = lines.clone();
+                candidate.drain(index..end);
+                budget -= 1;
+                if !candidate.is_empty()
+                    && Self::reproduces_diagnostic(&candidate.join("\n"), dialect, code)
+                {
+                    lines = candidate;
+                } else {
+                    index = end;
+                }
+            }
+            if chunk == 1 {
+                break;
+            }
+            chunk /= 2;
+        }
+        lines
+    }
+
+    /// Handle `tcl-lsp.minimizeDiagnostic`: the smallest document that still
+    /// reports a diagnostic.
+    ///
+    /// Arguments are `[uri, code]`. Null when the document does not report
+    /// that code at all, which is what the clients render as "could not build
+    /// a minimal repro".
+    ///
+    /// `renamed` is always false. Shrinking is line-based; renaming
+    /// identifiers would make a smaller reproducer but a less recognisable
+    /// one, and the field exists so a future pass can say it did that.
+    async fn minimize_diagnostic_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let Some(uri_str) = args.first().and_then(serde_json::Value::as_str) else {
+            return Ok(None);
+        };
+        let Ok(uri) = Uri::from_str(uri_str) else {
+            return Ok(None);
+        };
+        let Some(code) = args.get(1).and_then(serde_json::Value::as_str) else {
+            return Ok(None);
+        };
+        let Some(doc) = self.read_local_document(&uri).await else {
+            return Ok(None);
+        };
+
+        let text = doc.text.to_string();
+        let dialect = doc.dialect.clone();
+        let code = code.to_owned();
+        let value = crate::rt::spawn_blocking(move || {
+            // Nothing to minimise if the document does not report it. Saying
+            // so beats returning the whole document as its own "reproducer".
+            if !Self::reproduces_diagnostic(&text, &dialect, &code) {
+                return None;
+            }
+            let original_lines = text.lines().count();
+            let reduced = Self::reduce_to_minimal(&text, &dialect, &code);
+            let source = format!("{}\n", reduced.join("\n"));
+            Some(serde_json::json!({
+                "code": code,
+                "source": source,
+                "originalLines": original_lines,
+                "reducedLines": reduced.len(),
+                "renamed": false,
+                "reproduces": Self::reproduces_diagnostic(&source, &dialect, &code),
+            }))
+        })
+        .await
+        .unwrap_or(None);
+        Ok(value)
+    }
+
+    /// Handle `tcl-lsp.renamePartition`: rename a BIG-IP partition and every
+    /// path that names it.
+    ///
+    /// Arguments are `[uri, currentName, newName]`, bare partition names
+    /// rather than paths. The reply is `{success, edit?, error?}`: the client
+    /// applies the edit itself, so it can undo the rename as one step.
+    ///
+    /// The rewrite is the query engine's `rename_partition`, which owns the
+    /// cascade — the `auth partition` stanza and every `/<old>/` prefix
+    /// through the whole file. Doing it here with a search and replace would
+    /// be a second implementation of that cascade, and the wrong one.
+    ///
+    /// The result is re-parsed before it is offered. A rename that produced a
+    /// file the parser no longer reads is refused rather than handed to the
+    /// editor, because the client applies it without review.
+    async fn rename_partition_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let (Some(uri_str), Some(current), Some(new_name)) = (
+            args.first().and_then(serde_json::Value::as_str),
+            args.get(1).and_then(serde_json::Value::as_str),
+            args.get(2).and_then(serde_json::Value::as_str),
+        ) else {
+            return Ok(Some(
+                serde_json::json!({ "success": false, "error": "expected [uri, currentName, newName]" }),
+            ));
+        };
+        let Ok(uri) = Uri::from_str(uri_str) else {
+            return Ok(Some(
+                serde_json::json!({ "success": false, "error": "unreadable document URI" }),
+            ));
+        };
+        let Some(doc) = self.read_local_document(&uri).await else {
+            return Ok(Some(
+                serde_json::json!({ "success": false, "error": "document is not open" }),
+            ));
+        };
+
+        let text = doc.text.to_string();
+        let uri_owned = uri_str.to_owned();
+        let (current, new_name) = (current.to_owned(), new_name.to_owned());
+        let outcome = crate::rt::spawn_blocking(move || {
+            Self::rename_partition_outcome(&uri_owned, &text, &current, &new_name)
+        })
+        .await
+        .unwrap_or_else(|_| Err("the rename did not complete".to_owned()));
+
+        Ok(Some(match outcome {
+            Ok(new_source) => {
+                let index = tcl_lexer::LineIndex::new_lsp(&doc.text);
+                let last = index.position_at_utf16(
+                    u32::try_from(doc.text.len()).unwrap_or(u32::MAX),
+                    &doc.text,
+                );
+                let edit = TextEdit {
+                    range: Range {
+                        start: Position {
+                            line: 0,
+                            character: 0,
+                        },
+                        end: Position {
+                            line: last.line,
+                            character: last.character.get(),
+                        },
+                    },
+                    new_text: new_source,
+                };
+                let mut changes = HashMap::new();
+                changes.insert(uri, vec![edit]);
+                let workspace_edit = WorkspaceEdit {
+                    changes: Some(changes),
+                    ..WorkspaceEdit::default()
+                };
+                serde_json::json!({
+                    "success": true,
+                    "edit": serde_json::to_value(workspace_edit).unwrap_or(serde_json::Value::Null),
+                })
+            }
+            Err(message) => serde_json::json!({ "success": false, "error": message }),
+        }))
+    }
+
+    /// Run the partition rename and return the rewritten source.
+    ///
+    /// The name rules are the engine's: it refuses an empty name, a path
+    /// rather than a bare name, and `/Common` in either direction. Repeating
+    /// those checks here would be a second rulebook to keep in step, so the
+    /// engine's error is passed through as the message the client shows.
+    fn rename_partition_outcome(
+        uri: &str,
+        source: &str,
+        current: &str,
+        new_name: &str,
+    ) -> Result<String, String> {
+        // The engine quotes its own arguments; the names still must not carry
+        // a quote that would end the string early.
+        if current.contains('"') || new_name.contains('"') {
+            return Err("partition names must not contain quotes".to_owned());
+        }
+        let query = format!(r#"rename_partition("{current}", "{new_name}")"#);
+        let sources = vec![(uri.to_owned(), source.to_owned())];
+        let options = tcl_bigip_query::runner::QueryOptions::default();
+
+        let result = tcl_bigip_query::runner::run_query(&query, &sources, &options)
+            .map_err(|e| e.to_string())?;
+        let Some((_, applied)) = result.edits_per_file.into_iter().next() else {
+            return Err(format!("no partition named '{current}' in this file"));
+        };
+        if applied.new_source == source {
+            return Err(format!("no partition named '{current}' in this file"));
+        }
+
+        // A rewrite the parser can no longer read is a corrupt file, and the
+        // client applies this edit without review.
+        let reparsed = tcl_bigip::parser::driver::parse_bigip_conf(&applied.new_source, "Common");
+        let original = tcl_bigip::parser::driver::parse_bigip_conf(source, "Common");
+        if reparsed.objects.len() != original.objects.len() {
+            return Err("the rename changed how the file parses and was not applied".to_owned());
+        }
+        Ok(applied.new_source)
+    }
+
     /// Handle `tcl-lsp.xcTranslate`: statically translate an iRule to F5
     /// Distributed Cloud constructs and report the result.
     ///
@@ -24915,6 +25145,10 @@ impl LanguageServer for Backend {
                 self.extract_linked_objects_command(&params.arguments).await
             }
             "tcl-lsp.bigipCleanup" => self.bigip_cleanup_command(&params.arguments).await,
+            "tcl-lsp.minimizeDiagnostic" => {
+                self.minimize_diagnostic_command(&params.arguments).await
+            }
+            "tcl-lsp.renamePartition" => self.rename_partition_command(&params.arguments).await,
             "tcl-lsp.getEffectiveConfig" => {
                 self.get_effective_config_command(&params.arguments).await
             }
@@ -29786,6 +30020,8 @@ fn build_server_capabilities(
                 "tcl-lsp.writeRuleBack".to_owned(),
                 "tcl-lsp.extractLinkedObjects".to_owned(),
                 "tcl-lsp.bigipCleanup".to_owned(),
+                "tcl-lsp.minimizeDiagnostic".to_owned(),
+                "tcl-lsp.renamePartition".to_owned(),
                 "tcl-lsp.getEffectiveConfig".to_owned(),
                 "tcl-lsp.fixAllSafeIssues".to_owned(),
                 "tcl-lsp.listSubcommands".to_owned(),

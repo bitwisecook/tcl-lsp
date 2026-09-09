@@ -410,6 +410,86 @@ fn bigip_cleanup_spares_a_kept_path() {
     );
 }
 
+/// A partition and two objects inside it, so a rename has both the stanza
+/// header and the path prefixes to carry.
+const PARTITION_CONF: &str = "\
+auth partition Tenant {
+    description \"a tenant\"
+}
+ltm pool /Tenant/p1 {
+    members {
+        1.2.3.4:80 { }
+    }
+}
+ltm virtual /Tenant/vs1 {
+    destination 10.0.0.1:80
+    pool /Tenant/p1
+}
+";
+
+#[test]
+fn rename_partition_rewrites_the_stanza_and_every_path() {
+    let mut lsp = Lsp::bigip();
+    let uri = bigip_uri();
+    lsp.open_document(&uri, PARTITION_CONF);
+    lsp.await_diagnostics_version(&uri, Some(1), Duration::from_secs(30));
+
+    let result = lsp.execute_command(
+        "tcl-lsp.renamePartition",
+        serde_json::json!([uri, "Tenant", "Renamed"]),
+    );
+    assert_eq!(result["success"], serde_json::Value::Bool(true), "{result}");
+
+    let text = result["edit"]["changes"][&uri][0]["newText"]
+        .as_str()
+        .expect("edit text");
+    // The header and both object paths move together — a rename that missed
+    // any of them would leave the file referring to a partition that is gone.
+    assert!(text.contains("auth partition Renamed"), "{text}");
+    assert!(text.contains("/Renamed/p1"), "{text}");
+    assert!(text.contains("/Renamed/vs1"), "{text}");
+    assert!(!text.contains("/Tenant/"), "old paths survived:\n{text}");
+}
+
+#[test]
+fn rename_partition_reports_why_it_refused() {
+    let mut lsp = Lsp::bigip();
+    let uri = bigip_uri();
+    lsp.open_document(&uri, PARTITION_CONF);
+    lsp.await_diagnostics_version(&uri, Some(1), Duration::from_secs(30));
+
+    // A partition this file does not have.
+    let absent = lsp.execute_command(
+        "tcl-lsp.renamePartition",
+        serde_json::json!([uri, "Missing", "Renamed"]),
+    );
+    assert_eq!(
+        absent["success"],
+        serde_json::Value::Bool(false),
+        "{absent}"
+    );
+    assert!(
+        absent["error"].as_str().is_some_and(|e| !e.is_empty()),
+        "a refusal must say why: {absent}"
+    );
+
+    // A path rather than a bare name: the engine's own rule, surfaced as the
+    // message the client shows rather than re-checked here.
+    let path_form = lsp.execute_command(
+        "tcl-lsp.renamePartition",
+        serde_json::json!([uri, "/Tenant", "Renamed"]),
+    );
+    assert_eq!(
+        path_form["success"],
+        serde_json::Value::Bool(false),
+        "{path_form}"
+    );
+    assert!(
+        path_form["error"].as_str().is_some_and(|e| !e.is_empty()),
+        "{path_form}"
+    );
+}
+
 #[test]
 fn outline_symbols_all_have_non_empty_names() {
     let mut lsp = Lsp::bigip();
