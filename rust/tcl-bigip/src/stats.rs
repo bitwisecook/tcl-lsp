@@ -392,8 +392,8 @@ mod tests {
 
     #[test]
     fn is_root_kind_matches_virtual_and_wideip() {
-        // Cleanup roots (stats.rs had no unit coverage): the LTM virtual and
-        // any GTM wide-IP kind; everything else, and None, is a non-root.
+        // Cleanup roots are the LTM virtual and any GTM wide-IP kind;
+        // everything else, and None, is a non-root.
         assert!(is_root_kind(Some("ltm_virtual")));
         assert!(is_root_kind(Some("gtm_wideip")));
         assert!(is_root_kind(Some("gtm_wideip_a")));

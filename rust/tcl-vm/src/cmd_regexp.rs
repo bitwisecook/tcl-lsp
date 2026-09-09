@@ -22,10 +22,11 @@
 //!
 //! The command logic (option parsing, the match/advance loop, `-indices`/
 //! `-inline`/`-start`/`-all`, submatch assignment, the `regsub` spec expansion)
-//! is shared with `runtime/rust`; only the **engine** is provided here. The VM
-//! used to drive the approximate `regex` crate (no full ARE syntax — `\m`/`\M`/
-//! `[[:<:]]` word edges, POSIX longest-match submatches, etc.); it now uses the
-//! faithful [`tcl_regex`] engine, so the VM matches `tclsh` 9.0 behaviour.
+//! is shared with `runtime/rust`; only the **engine** is provided here. The
+//! approximate `regex` crate has no full ARE syntax — `\m`/`\M`/
+//! `[[:<:]]` word edges, POSIX longest-match submatches, etc. — so the VM
+//! uses the faithful [`tcl_regex`] engine instead, matching `tclsh` 9.0
+//! behaviour.
 
 use tcl_cmd_core::regex::{self as core_re, RegexEngine, RegexFlags, RegexpResult, RegsubResult};
 use tcl_runtime_api::Completion;

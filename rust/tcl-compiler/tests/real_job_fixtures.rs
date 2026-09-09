@@ -38,7 +38,7 @@ fn real_jobs_lower_and_keep_semantics_around_boundary_regions() {
 
     for fixture in FIXTURES {
         // Exercise the public lowering API independently of CompilationUnit so
-        // a future unit-builder shortcut cannot hide a source-parser failure.
+        // a unit-builder shortcut cannot hide a source-parser failure.
         let ir = lower_to_ir(fixture.source, registry);
         assert!(
             ir.top_level.statements.len() > 1,

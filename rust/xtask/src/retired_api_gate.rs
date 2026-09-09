@@ -16,9 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `retired-api-gate` — the zero-reference gate for the P1-G retirements
-//! (`docs/design/registry/dialect-and-package-registry-centralisation.md` §3), plus
-//! the P1a ledger-C4 retirement (the `head_identity` binding table, now
+//! `retired-api-gate` — the zero-reference gate for the retirements recorded
+//! in `docs/design/registry/dialect-and-package-registry-centralisation.md` §3, plus
+//! the `head_identity` binding table's retirement (now
 //! the realm command-binding state in `tcl_compiler::realm`).
 //!
 //! It also holds the `one-loader` retirements: the CST pack-loader front
@@ -27,12 +27,12 @@
 //! (`LOADER_BUILD`, `eval_snapshot_memoised`), all replaced by design E's
 //! evaluation loader behind one cache door.
 //!
-//! P1-G deleted the old dialect-name validators
+//! The retired dialect-name validators
 //! (`DialectProfile::by_name` / `by_opt_name` / `resolve_known` /
 //! `availability_for_name`) and the string-keyed registry doors
-//! (`tcl_registry::registry_for_dialect` / `registry_handle_for_dialect`),
-//! and made the profile-keyed cache doors and the `ProfileQueries` trait
-//! `pub(crate)` inside `tcl-registry`. The compiler enforces the deletion
+//! (`tcl_registry::registry_for_dialect` / `registry_handle_for_dialect`)
+//! are deleted, and the profile-keyed cache doors and the `ProfileQueries` trait
+//! are `pub(crate)` inside `tcl-registry`. The compiler enforces the deletion
 //! for the names that no longer exist; this gate additionally fails on any
 //! **textual** reintroduction — a same-named public twin, a revived
 //! import, a copy-pasted call — anywhere in the Rust tree, so the retired
@@ -41,7 +41,7 @@
 //! It also holds the `one-vocabulary` lane's two retirements: the
 //! `StubOverlay` per-document command overlay (gap ruling R1 — stubs are
 //! provenance-tagged `SurfaceDeclaration`s now) and the second command-table
-//! transition vocabulary (ledger C8 — `CommandRegistry::command_table_effect`
+//! transition vocabulary (`CommandRegistry::command_table_effect`
 //! and `tcl_compiler::alias`'s argument destructuring, both replaced by
 //! `CommandBindingTransition` facts).
 //!
@@ -56,13 +56,13 @@
 //! # The one-oracle gate (gap ruling R10)
 //!
 //! The second family this file carries is not about *deleted* spellings but
-//! about **owned** ones: the answers the #1631 programme centralised — does
+//! about **owned** ones: does
 //! this command exist here, is it available here, what did this call do to
 //! the command table — each of which a consumer could quietly grow a second
 //! copy of. R10's answer is visibility narrowing where that is enough
 //! (`Analyser::builtin_command_names` and
 //! `model::declaration::DeclaredSurface::get` are `pub(crate)`;
-//! `tcl-registry`'s cache doors and `ProfileQueries` were narrowed in P1-G)
+//! `tcl-registry`'s cache doors and `ProfileQueries` are narrowed too)
 //! **plus** this call-site sweep for the doors that cannot be narrowed
 //! because legitimate spec-content readers share them.
 //!
@@ -88,13 +88,13 @@ struct RetiredPattern {
 }
 
 /// The retired spellings. Every entry names a mechanism the §3 ledger
-/// retired in P1-G; the seam replacements are
+/// retired; the seam replacements are
 /// `tcl_registry::model::ingress::{resolve_environment,
 /// resolve_known_environment, static_context_for, static_context_for_profile,
 /// static_document_context_for, static_document_context_for_profile}` and
 /// `ResolvedContext`'s query surface.
 const RETIRED: &[RetiredPattern] = &[
-    // Q13: the availability bitmask, and every projection that only made
+    // The availability bitmask, and every projection that only made
     // sense as bits. Availability is stated as `SpecSurface` rows and asked
     // as a `SurfaceQuery` point.
     RetiredPattern {
@@ -165,7 +165,7 @@ const RETIRED: &[RetiredPattern] = &[
         needle: "special_vars::resolve_dialect",
         outside_registry_only: false,
     },
-    // Ledger C4 (P1a): the parallel offset-keyed head-identity binding
+    // The parallel offset-keyed head-identity binding
     // table is retired wholesale onto the realm command-binding state
     // (`tcl_compiler::realm`, answering `BindingKnowledge`).
     RetiredPattern {
@@ -184,11 +184,11 @@ const RETIRED: &[RetiredPattern] = &[
         needle: "command_head_identities",
         outside_registry_only: false,
     },
-    // Ledger O2 (redesign §11.1, owner ruling 2026-08-27): the M9 dead axes.
+    // The dead axes.
     // Each was declared-and-unpopulated model surface — a word no data used,
     // inviting packs to guess at semantics the engine never implemented.
-    // Principle P-C: anything genuinely needed later comes back *with* its
-    // consumer, under whatever name that consumer wants.
+    // Anything genuinely needed later comes back *with* its consumer, under
+    // whatever name that consumer wants.
     //
     // `ProfileSpec::conflicts` is deliberately NOT here: it is the one axis of
     // the six with a live consumer (`tcl-bigip`'s BIGIP6039 profile-graph
@@ -260,7 +260,7 @@ const RETIRED: &[RetiredPattern] = &[
         needle: "OptionConstraint",
         outside_registry_only: false,
     },
-    // The `one-loader` lane (redesign §11, ledger row L1): `SpecTcl` had two
+    // The `one-loader` lane: `SpecTcl` had two
     // live implementations of "load a pack" — design E's evaluation loader
     // and the CST front end it was proved byte-identical to. The CST front
     // end is deleted; `tcl_spectcl::loader::evaluate_pack` (uncached) and
@@ -291,7 +291,7 @@ const RETIRED: &[RetiredPattern] = &[
         needle: "eval_snapshot_memoised",
         outside_registry_only: false,
     },
-    // The `one-vocabulary` lane, gap ruling R1 (redesign §11.2 D18): the
+    // The `one-vocabulary` lane, gap ruling R1: the
     // per-document `# tcl-lsp: stub` overlay and its parallel vocabulary.
     // Stubs ingest as provenance-tagged `SurfaceDeclaration`s now
     // (`tcl_registry::model::declaration`), read through the one
@@ -320,8 +320,8 @@ const RETIRED: &[RetiredPattern] = &[
         needle: "to_stub_sig",
         outside_registry_only: false,
     },
-    // The `one-vocabulary` lane, ledger C8 (redesign §11.2 D9): the second
-    // command-table transition vocabulary. `CommandTableEffect` survives as
+    // The `one-vocabulary` lane: the second command-table transition
+    // vocabulary. `CommandTableEffect` survives as
     // the pack-authoring **selector** — `CommandSpec::command_table_effect`
     // is still a field a `SpecTcl` pack writes — but the consumer-facing
     // resolver is gone: the needle carries its call parenthesis so the
@@ -370,7 +370,7 @@ struct OwnedPattern {
 /// centralisation programme gave a single answer to.
 const OWNED: &[OwnedPattern] = &[
     // **Does this command exist at this program point?** — the one oracle
-    // (R-c, P1a). Its registry tier and its typed verdict live with it in
+    // (R-c). Its registry tier and its typed verdict live with it in
     // the analyser; nothing else may assemble either.
     OwnedPattern {
         needle: "CommandExistenceOracle",
@@ -390,8 +390,8 @@ const OWNED: &[OwnedPattern] = &[
     },
     // **Is this command available in this dialect?** — the registry's own
     // profile-visible surface. The compiler's constant folder is the one
-    // consumer outside the registry that legitimately asks (issue #1427: a
-    // fold skips the runtime availability gate, so it must); anything else
+    // consumer outside the registry that legitimately asks: a
+    // fold skips the runtime availability gate, so it must; anything else
     // asking is a second availability rule.
     OwnedPattern {
         needle: "has_command_in_this_dialect",
@@ -402,7 +402,7 @@ const OWNED: &[OwnedPattern] = &[
         owners: &["rust/tcl-registry/src/"],
     },
     // **Is this package's presence a placement question?** — the one
-    // closed-world classification (Q7). A profile-side gate and a resolved
+    // closed-world classification. A profile-side gate and a resolved
     // context must not disagree about which packages a runtime ships, so the
     // two predicates that answer it live with the surface model; a caller
     // that recomputes the set from the catalogue is a second rule.
@@ -414,7 +414,7 @@ const OWNED: &[OwnedPattern] = &[
         needle: "is_placement_gated_package",
         owners: &["rust/tcl-registry/src/"],
     },
-    // **What did this call do to the command table?** — ledger C8's one
+    // **What did this call do to the command table?** — one
     // vocabulary. The registry resolves the facts; `tcl_compiler::alias` is
     // the single bridge from reconstructed source words to that resolution.
     // A consumer building its own bridge is a second vocabulary.
@@ -714,7 +714,7 @@ mod tests {
                 "let map = command_head_identities(source, dialect, registry);",
                 1,
             ),
-            // Ledger O2 — the M9 dead axes.
+            // The dead axes.
             ("if spec.traits.contains(Traits::PASSWORD_OPTION) { }", 1),
             (
                 "PasswordOption => PASSWORD_OPTION, Security, \"takes a password option\";",
@@ -749,7 +749,8 @@ mod tests {
             ("let s: StubSig = def.to_stub_sig();", 2),
             ("flags: StubSigFlags::empty(),", 1),
             ("let o = build_stub_overlay(&defs);", 1),
-            // …and ledger C8. The surviving pack-authoring **field** read is
+            // The second command-table transition vocabulary. The surviving
+            // pack-authoring **field** read is
             // not a hit — only the retired resolver call is, which is what
             // the needle's own parenthesis buys.
             ("let e = registry.command_table_effect(name, sub);", 1),
@@ -844,7 +845,7 @@ mod tests {
         );
 
         // One answer may have several owners — the constant folder asks the
-        // registry's availability question legitimately (issue #1427).
+        // registry's availability question legitimately.
         let fold = "if registry.has_command_in_this_dialect(head) { }\n";
         assert!(scan_owned(fold, "rust/tcl-compiler/src/codegen/values.rs").is_empty());
         assert!(scan_owned(fold, "rust/tcl-registry/src/registry.rs").is_empty());

@@ -1,4 +1,4 @@
-# Minifier semantic-correctness fixture (issues #1192, #1193, #1194, #1197).
+# Minifier semantic-correctness fixture.
 proc longprocedure {} {
     set arr(longmember) 1
     return [array get arr]

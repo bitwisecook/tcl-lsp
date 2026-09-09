@@ -62,7 +62,7 @@ valid_library() {
 }
 
 # Existing environment wins.  This is the runtime contract consumed by
-# tooling.vm.interp.TclInterp.
+# `tcl-vm`'s interpreter (`rust/tcl-vm/src/interp.rs`).
 add_candidate "${TCL_LIBRARY:-}"
 
 # Same source-tree location exported by .claude/hooks/session-start.sh after

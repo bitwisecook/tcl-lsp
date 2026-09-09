@@ -16,9 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Phase-0 experiments for per-item incremental analysis.
+//! Experiments for per-item incremental analysis.
 //! E3: walk vs cross-item-aggregate (tail) cost split.
-//! E1: item-locality (perf heuristic) â a body edit should leave items defined
+//! E1: item-locality (perf heuristic) — a body edit should leave items defined
 //!     *before* it byte-identical. Robust perturbation: insert a benign comment
 //!     at the body start (always valid; only shifts offsets after the insert),
 //!     then compare every item/diagnostic that ends before the insert point.
@@ -73,7 +73,7 @@ fn main() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tmp");
     let dialect = "tcl8.6";
 
-    // ---- E3: walk vs tail cost split on practcl ----
+    // E3: walk vs tail cost split on practcl.
     let practcl = root.join("tcllib-2.0/modules/practcl/practcl.tcl");
     if let Ok(src) = std::fs::read_to_string(&practcl) {
         let cmds =
@@ -102,7 +102,7 @@ fn main() {
         );
     }
 
-    // ---- E1: item-locality (preceding items invariant under a body edit) ----
+    // E1: item-locality — preceding items must be invariant under a body edit.
     let mut files = Vec::new();
     for v in ["tcl8.6.18", "tcllib-2.0/modules"] {
         gather_tcl(&root.join(v), &mut files, 600);
@@ -198,7 +198,7 @@ fn main() {
     e6_e7_lattice_costs(&root, dialect);
 }
 
-/// E2: the whole analyser is offset-shift-invariant â prepend K blank lines and
+/// E2: the whole analyser is offset-shift-invariant — prepend K blank lines and
 /// every fact must reappear shifted by exactly K bytes / K lines. Validates that
 /// per-item facts can be produced at offset 0 and rebased.
 fn e2_offset_invariance(files: &[PathBuf], dialect: &str) {

@@ -16,15 +16,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Issue #1281 — renaming an ensemble `-map` target must not rewrite the
+//! Renaming an ensemble `-map` target must not rewrite the
 //! **subcommand word** at the dispatch site, while a `-subcommands` target
 //! must still rewrite it.
 //!
 //! Every case here **applies** the emitted `WorkspaceEdit` back onto the
-//! source and asserts the exact resulting program text, because the bug is
-//! invisible at the "some edits came back" layer: the pre-fix edit set looked
-//! complete and confident, and only the applied result — run under a real
-//! `tclsh` — showed it had broken the dispatch.
+//! source and asserts the exact resulting program text, because a wrong edit
+//! set can look complete and confident at the "some edits came back" layer —
+//! only the applied result, run under a real `tclsh`, shows whether the
+//! dispatch still works.
 //!
 //! Oracle for every expected text below (tclsh 8.6.14 and 9.0.4, identical):
 //!

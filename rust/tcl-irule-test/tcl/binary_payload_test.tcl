@@ -26,7 +26,7 @@ source [file join $script_dir orchestrator.tcl]
 # Hex view of a value as a byte array (latin-1 byte mapping).
 proc hx {s} { binary scan [binary format a* $s] H* h; return $h }
 
-# ── Configure test defaults ──────────────────────────────────────
+# Configure test defaults
 #
 # A single iRule handling both a TCP and an HTTP data event.  Each does a
 # binary-safe in-place rewrite: read the payload, re-binarify it with
@@ -48,7 +48,7 @@ proc hx {s} { binary scan [binary format a* $s] H* h; return $h }
         }
     }
 
-# ── Test cases ───────────────────────────────────────────────────
+# Test cases
 #
 # Payload "Józ" where ó = UTF-8 c3 b3, i.e. the wire bytes 4a c3 b3 7a.
 
@@ -81,6 +81,6 @@ proc hx {s} { binary scan [binary format a* $s] H* h; return $h }
         "HTTP::payload replace must splice bytes without re-encoding"
 }
 
-# ── Summary ──────────────────────────────────────────────────────
+# Summary
 
 ::orch::run_and_exit

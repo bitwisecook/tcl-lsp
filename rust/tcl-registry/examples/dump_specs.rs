@@ -19,8 +19,8 @@
 //! Registry spec dumper.
 //!
 //! Emits one JSON object per command spec (JSONL) for a given dialect
-//! group, using a normalised schema shared with the reference dumper.
-//! Used by the registry audit to diff against the reference dumper.
+//! group, using a normalised schema shared with the reference dumper, so
+//! the two outputs can be diffed to catch spec drift.
 //!
 //! Usage: `cargo run -q --example dump_specs -- <group>`
 //! where <group> is one of:
@@ -94,7 +94,7 @@ use tcl_registry::side_effects::SideEffect;
 use tcl_registry::spec::SubCommand;
 use tcl_registry::traits::Traits;
 
-/// Schema field name -> Rust trait, for the content audit's `bools`.
+/// Schema field name -> Rust trait, used to build the deep dump's `bools` map.
 const BOOL_TRAITS: &[(&str, Traits)] = &[
     ("creates_dynamic_barrier", Traits::CREATES_DYNAMIC_BARRIER),
     ("has_loop_body", Traits::HAS_LOOP_BODY),
@@ -403,8 +403,8 @@ fn main() {
         std::process::exit(2);
     });
 
-    // Deep per-command dump (content-level completeness audit). Pairs
-    // with the reference deep dumper.
+    // Deep per-command dump, emitting full per-command detail for diffing
+    // against a reference deep dumper.
     if let Some(g) = group.strip_prefix("deep-") {
         deep_dump(g);
         return;
@@ -420,12 +420,9 @@ fn main() {
             let object_types = json_str_list(ks.object_types);
             let prop_names: Vec<&str> = spec.properties.iter().map(|p| p.name).collect();
             let props = json_str_list(&prop_names);
-            // `(name, kind)` pairs as a sorted JSON array — keeps
-            // duplicate property names (the bgp object legitimately
-            // declares e.g. `distance` three times with different
-            // kinds), so the comparison is an order-independent multiset.
             // Full per-property signature (every field), as a sorted
-            // multiset — duplicates kept (bgp's `distance` ×3).
+            // multiset — duplicates kept (the bgp object legitimately
+            // declares e.g. `distance` three times with different kinds).
             let prop_pairs: Vec<String> = {
                 let mut pv: Vec<String> = spec.properties.iter().map(bigip_prop_sig).collect();
                 pv.sort_unstable();
@@ -556,8 +553,8 @@ fn main() {
         let body_kind = format!("{:?}", spec.body_kind);
 
         // event_requires: `CommandSpec` carries an `event_requires` field;
-        // emit it in the shared normalised schema so the audit's event_*
-        // dimensions compare like-for-like.
+        // emit it in the shared normalised schema so the event_* fields
+        // compare like-for-like with the reference dumper's output.
         let (event_profiles, event_also_in, event_requires_any) = match &spec.event_requires {
             None => (Vec::new(), Vec::new(), false),
             Some(er) => {

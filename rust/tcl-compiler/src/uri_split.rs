@@ -325,7 +325,7 @@ fn trace_to_uri_family(
                 // URI-getter result. Skipping it would attribute a merge like
                 // `φ(x0_livein, x1_from_HTTP::uri)` wholly to `HTTP::uri` and
                 // fire a spurious IRULE3103. The value is therefore not
-                // *provably* a single URI family: bail (issue 150).
+                // *provably* a single URI family: bail.
                 return None;
             }
             let candidate = trace_to_uri_family(var_name, *inc_ver, ctx, depth + 1)?;
@@ -736,7 +736,7 @@ fn walk_expr(
     out: &mut Vec<ExprHit>,
     depth: u32,
 ) {
-    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // Native-stack safety net: walks the `ExprNode` tree, one
     // native frame per level. Past the cap, stop descending — a collector
     // that returns the hits gathered so far is the safe fallback (IRULE31xx
     // hits buried deeper than the cap go unreported; never a crash).
@@ -1096,8 +1096,8 @@ mod tests {
         warnings_for_dialect(source, Some(tcl_dialect::DialectProfile::irules()))
     }
 
-    /// Regression coverage for issue #996: `walk_expr` recurses once per
-    /// `ExprNode` level with no depth cap before this fix. A tree built
+    /// `walk_expr` recurses once per
+    /// `ExprNode` level, so it needs a depth cap. A tree built
     /// directly is unbounded (the Pratt parser caps its own output at 256)
     /// and empirically overflowed the native stack (SIGABRT) in the low
     /// thousands of levels on a 2 MiB thread. 3000 is past that crash range
@@ -1221,7 +1221,7 @@ set m [::string match "/api/*" $uri]"#,
         // `uri` is `[HTTP::uri]` only on one branch; on the other it keeps its
         // parameter (live-in, version-0) value. The phi merge is therefore NOT
         // provably a single URI getter, so IRULE3103 must NOT fire — dropping
-        // the version-0 operand would mis-attribute it to HTTP::uri (issue 150).
+        // the version-0 operand would mis-attribute it to HTTP::uri.
         let ws = warnings_for(
             r#"proc handle {uri flag} {
     if {$flag} {

@@ -62,9 +62,7 @@ suite("Shimmer precision (S100 deep review)", () => {
     // `waitForDiagnostics` rejects on timeout, so an unsettled analysis fails
     // here with the helper's diagnostic (what was awaited, how long, what was
     // last published) rather than returning a partial set for those negative
-    // assertions to pass vacuously against.  This function used to re-assert
-    // the predicate afterwards because the helper resolved leniently instead;
-    // that check is now unreachable by construction (issue #1274).
+    // assertions to pass vacuously against.
     return waitForDiagnostics(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "S100"),
     });
@@ -141,7 +139,7 @@ suite("Shimmer precision (S100 deep review)", () => {
   });
 });
 
-// Issue #940 — a pure list literal used as a list is a free first conversion,
+// A pure list literal used as a list is a free first conversion,
 // not a shimmer. `issue940Shimmer.tcl` (0-indexed lines):
 //   4  foreach $fontSizes  FALSE — braced list literal (reporter's case)
 //   6  foreach $empty      FALSE — the `{}` empty list in the issue title
@@ -156,9 +154,7 @@ suite("Shimmer pure-literal suppression (issue #940)", () => {
     // The committed-dict case on line 12 is the "analysis ran" settle signal:
     // once its S100 lands, the absence of S100/S101 on the pure-literal lines
     // is meaningful rather than a not-yet-analysed empty set.  The wait rejects
-    // if it never lands (issue #1274), so the follow-up assertion this function
-    // used to carry — guarding against the helper's old lenient timeout — is
-    // now unreachable.
+    // if it never lands.
     return waitForDiagnostics(docUri, {
       predicate: (d) => d.some((x) => codeOf(x) === "S100" && x.range.start.line === 12),
     });

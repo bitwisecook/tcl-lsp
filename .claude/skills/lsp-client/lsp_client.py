@@ -1100,7 +1100,7 @@ def print_event_info(result: dict | None) -> None:
     print(f"  Deprecated: {'yes' if deprecated else 'no'}")
     print(f"  Valid commands: {cmd_count}")
     if samples:
-        # Show first 20 commands, then summarize
+        # Show first 20 commands, then summarise
         show = samples[:20]
         print(f"  Sample commands: {', '.join(show)}")
         if len(samples) > 20:
@@ -1628,7 +1628,7 @@ def cmd_bench(
         t_open = time.perf_counter()
 
         # VS Code sends didChangeConfiguration shortly after didOpen —
-        # detect iRules content or extension to match real editor behavior.
+        # detect iRules content or extension to match real editor behaviour.
         ext = uri.rsplit(".", 1)[-1].lower() if "." in uri else ""
         is_irules = ext in ("irul", "irule") or "when " in content[:2000]
         if is_irules:

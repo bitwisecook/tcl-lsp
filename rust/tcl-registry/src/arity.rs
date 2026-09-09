@@ -150,7 +150,7 @@ impl Default for Arity {
 }
 
 /// One version window of a signature that changed across its owning package's
-/// releases (issue #1627).
+/// releases.
 ///
 /// A command whose signature grew an argument in 3.0 has two shapes, and which
 /// one applies is a fact about the *resolved package floor*, not about the call

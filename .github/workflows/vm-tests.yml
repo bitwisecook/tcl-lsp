@@ -22,8 +22,8 @@ jobs:
           toolchain: stable
 
       # `make vm-test` runs `cargo test` for the bytecode VM crates
-      # (tcl-bytecode + tcl-runtime-api + tcl-vm). Python was retired, so there
-      # is no `uv sync`/pyproject.toml step, and the target is `vm-test` (not the
-      # non-existent `test-vm`).
+      # (tcl-bytecode + tcl-runtime-api + tcl-vm). No Python is involved, so
+      # no `uv sync`/pyproject.toml step is needed; the target is `vm-test`
+      # (not `test-vm`).
       - name: Run bytecode VM crate tests
         run: make vm-test

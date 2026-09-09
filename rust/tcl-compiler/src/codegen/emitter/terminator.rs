@@ -319,7 +319,7 @@ impl CodegenCtx<'_> {
             }
             // A jump table keys on *literal* strings, so only a pattern that
             // is one qualifies: a braced arm list's decoded element, or the
-            // `Literal` shape this used to be handed. A substituting pattern
+            // `Literal` shape. A substituting pattern
             // (the multi-word `switch $s $pat …` form) has no key until run
             // time and keeps the branch chain.
             let (ExprNode::Literal { text: pattern, .. }

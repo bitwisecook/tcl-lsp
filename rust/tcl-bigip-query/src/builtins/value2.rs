@@ -33,9 +33,8 @@
 //!   optional integer exit-code argument (default 5) and produces the
 //!   `halt_error: query halted (exit_code=N)` text.
 //! - `json_parse` parses a JSON string into the value model (objects
-//!   preserve key order, integers stay `Int`); the JSON parse-error line /
-//!   column wording is custom (divergent), so error cases stay out of the
-//!   golden fixture.
+//!   preserve key order, integers stay `Int`); the JSON parse-error text
+//!   reports the line and column of the failure.
 //! - `partition` / `basename` / `with_partition` are TMSH path-string
 //!   helpers operating purely on the `/`-segmented string.
 
@@ -131,9 +130,6 @@ fn bi_path(args: &[Value]) -> Result<Value, QueryError> {
 fn bi_json_parse(args: &[Value]) -> Result<Value, QueryError> {
     let text = as_str(&args[0], "json_parse", 1)?;
     let parsed: serde_json::Value = serde_json::from_str(&text).map_err(|e| {
-        // The JSON parse-error wording is custom (divergent); keep error cases
-        // out of the fixture. We surface the parse failure with line/column to
-        // stay shape-compatible.
         QueryError::builtin(format!(
             "json_parse: invalid JSON ({} at line {} col {})",
             e,

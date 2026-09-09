@@ -63,9 +63,6 @@
 //!    emitted codes / rewritten text) and are flagged as such. Several pair a
 //!    firing case with a control snippet whose only difference is the feature
 //!    under test, so the structural delta is the load-bearing signal.
-//!
-//! No genuine miscompiles were found while authoring this file; every test
-//! below is live and passing.
 
 use tcl_compiler::optimiser::manager::{
     apply_optimisations, optimise_source_multipass, optimise_with_dialect,
@@ -74,8 +71,6 @@ use tcl_registry::model::ingress::static_context_for;
 
 const TCL: &str = "tcl8.6";
 const IR: &str = "f5-irules";
-
-// Shared helpers (mirror the existing suites' harness exactly).
 
 /// Every `Oxxx` code emitted by a single optimiser pass over `src`.
 fn opt_codes(src: &str, dialect: &str) -> Vec<String> {

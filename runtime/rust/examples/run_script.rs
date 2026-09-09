@@ -33,14 +33,14 @@
 //! `rust/tcl-fuzz`) — a raw stdout comparison would otherwise see a spurious
 //! divergence on any script whose last command leaves a non-empty result.
 //!
-//! # The command surface is the engine's, not this file's (issue #1589)
+//! # The command surface is the engine's, not this file's
 //!
 //! The interpreter is built with [`Interp::new`], which runs
 //! `builtins::install` and therefore registers **every** command module the
 //! engine has — `if`/`while`/`for`/`foreach`/`switch` from `cmd_control`,
 //! `catch`/`error`/`try` from `cmd_error`, and the rest. A differential sheet
 //! written in ordinary Tcl runs through here unmodified; nothing has to be
-//! rewritten `if`-free, which is the gap #1589 reported.
+//! rewritten `if`-free.
 //!
 //! Do not add a hand-rolled registration list to this example. A private
 //! subset here silently narrows every campaign that uses this harness while
@@ -138,7 +138,7 @@ fn run() -> i32 {
                 args.remove(1);
             }
             // `--tcl-version X.Y` pins the Tcl release the interpreter
-            // emulates (issue #1328). Without it the runtime keeps its 9.0
+            // emulates. Without it the runtime keeps its 9.0
             // default. The differential fuzzer passes it so a `runtime-rust`
             // ↔ `tclsh` pair can be run *version-matched* against an 8.6
             // `tclsh`, instead of recording every deliberate 8.6-vs-9.0

@@ -164,12 +164,13 @@ puts [add $e $f]
     assert!(wat.contains(r#""tcl_codegen_expr_add""#), "{wat}");
     assert!(wat.contains(r#""tcl_codegen_proc_register""#), "{wat}");
     assert_eq!(eval_fallbacks(&wat), 0, "{wat}");
-    // The procedure and both assignments have proven direct forms. The
-    // analysis tier's `puts` fast path re-parsed compatibility text (issue
-    // #1772) and is retired with the direct `[add …]` call it carried, so the
-    // last statement is two generic prebuilt-argv invocations — the nested
-    // `add` and the `puts`; the native tier lowers the latter to its `Puts`
-    // intrinsic and P5 gives the former its table-installed direct call.
+    // The procedure and both assignments have proven direct forms. `puts`
+    // under the analysis tier always dispatches through prebuilt argv — no
+    // fast path re-parses compatibility text — and the direct `[add …]` call
+    // is retired along with it, so the last statement is two generic
+    // prebuilt-argv invocations — the nested `add` and the `puts`; the native
+    // tier lowers the latter to its `Puts` intrinsic and P5 gives the former
+    // its table-installed direct call.
     assert_eq!(import_calls(&wat, "tcl_invoke_argv"), 2, "{wat}");
     assert_eq!(import_calls(&wat, "tcl_codegen_puts"), 0, "{wat}");
     assert_eq!(&module.to_bytes()[0..4], b"\0asm");
@@ -305,12 +306,12 @@ fn analysed_direct_call_preserves_static_and_dynamic_execution_traces() {
     }
 }
 
-/// Issue #1376 — a clause word's token span already *excludes* its closing
-/// brace, so stripping a trailing `}` off the slice could only ever delete a
-/// byte of real content. Every clause whose last inner character is `}` was
-/// truncated: `${name}`, a trailing braced word, a nested dict/list literal.
-/// The truncated text then reaches `tcl_expr_bool` / `tcl_eval_code`, which
-/// raises an unbalanced-brace parse error on code the user wrote correctly.
+/// A clause word's token span already *excludes* its closing brace, so
+/// stripping a trailing `}` off the slice can only ever delete a byte of real
+/// content: any clause whose last inner character is `}` — `${name}`, a
+/// trailing braced word, a nested dict/list literal — would be truncated, and
+/// the truncated text reaching `tcl_expr_bool` / `tcl_eval_code` raises an
+/// unbalanced-brace parse error on code the user wrote correctly.
 ///
 /// Each vector below asserts the *exact* interned clause text, so a
 /// reintroduced strip (or an over-eager one, e.g. dropping the opener twice)
@@ -347,9 +348,9 @@ fn clause_text_keeps_a_trailing_brace_in_an_if_condition() {
     assert_eq!(&module.to_bytes()[0..4], b"\0asm");
 }
 
-/// The `for`-*next* clause is the residual half of #1376: `Statement::For`
-/// carries `condition_base` but no `next_base`, so this site is driven from
-/// the lowerer's `raw_args[2]` instead.
+/// The `for`-*next* clause is the residual half of the same hazard:
+/// `Statement::For` carries `condition_base` but no `next_base`, so this site
+/// is driven from the lowerer's `raw_args[2]` instead.
 #[test]
 fn clause_text_keeps_a_trailing_brace_in_a_for_step() {
     let mut module = compile_wasm("for {set i 0} {$i<2} {set x ${i}} {puts a}\n");
@@ -471,7 +472,7 @@ fn clause_text_keeps_a_quoted_if_condition_in_a_proc_body() {
     assert_eq!(&module.to_bytes()[0..4], b"\0asm");
 }
 
-/// A nested *dict/list* literal is the third shape #1376 named. Distinct from
+/// A nested *dict/list* literal is the third vulnerable shape. Distinct from
 /// the `${x}` and trailing-braced-word vectors above because the trailing `}`
 /// closes a word the condition itself opened.
 #[test]
@@ -486,8 +487,8 @@ fn clause_text_keeps_a_trailing_brace_from_a_nested_list_literal() {
     assert_eq!(&module.to_bytes()[0..4], b"\0asm");
 }
 
-/// Issue #1595 — the *whole-command* eval-fallback text path, the sibling of
-/// the clause-text path above. The segmenter's command span deliberately does
+/// The *whole-command* eval-fallback text path, the sibling of the
+/// clause-text path above. The segmenter's command span deliberately does
 /// not widen a final **quoted** word over its closing `"` (the
 /// `widen_word_end` type gate covers only `{…}` / `[…]`), so slicing that span
 /// raw truncated any command whose last word was quoted: `"puts hi"` interned
@@ -750,7 +751,7 @@ fn data_pool_relocates_to_reserved_base() {
         wat.contains(&format!("i32.const {RESERVED_DATA_BASE}")),
         "{wat}"
     );
-    // Still a valid module, and offset 0 no longer carries data.
+    // Still a valid module, and offset 0 carries no data.
     assert_eq!(&m.to_bytes()[0..4], b"\0asm");
     assert!(!wat.contains("(data (i32.const 0)"), "{wat}");
 }
@@ -973,9 +974,9 @@ fn wasmtime_validates_analysed_argv_modules() {
         // specialisation boxes the literal `2` before it reaches `$a(x)`, a
         // word it does not handle. Unless that prefix is rolled back it stays
         // in the body with its operand stranded, and wasmtime rejects the
-        // module with "values remaining on stack at end of block". Reported on
-        // #1413; a behavioural test cannot catch it because the statement's
-        // result is still correct — only validation sees the malformed body.
+        // module with "values remaining on stack at end of block". A
+        // behavioural test cannot catch it because the statement's result is
+        // still correct — only validation sees the malformed body.
         (
             "argv-after-partially-emitted-direct-decline",
             "proc add {b c} {return [expr {$b + $c}]}\nset a(x) 4\nputs [add 2 $a(x)]\n",
@@ -1054,7 +1055,7 @@ fn wasmtime_validates_emitted_modules() {
     }
 }
 
-// -- native proc entries (issue #1774) ---------------------------------------
+// Native proc entries.
 
 /// Compile under the native tier, standalone-free, for shape assertions.
 fn compile_native(source: &str) -> WasmModule {

@@ -289,7 +289,8 @@ const OPTIONS: &[OptionSpec] = &[
     },
 ];
 
-/// The command's subcommands.
+/// Recognised forms of the `selection` subcommand: `includes` is a pure
+/// query, unlike `selection`'s general read/write entry below.
 const SELECTION_FORMS: &[SubCommandForm] = &[SubCommandForm {
     name: "includes",
     arity: Arity::exact(2),
@@ -300,6 +301,7 @@ const SELECTION_FORMS: &[SubCommandForm] = &[SubCommandForm {
     ..SubCommandForm::DEFAULT
 }];
 
+/// The command's subcommands.
 static SUBCOMMANDS: [SubCommand; 18] = [
     SubCommand {
         name: "activate",

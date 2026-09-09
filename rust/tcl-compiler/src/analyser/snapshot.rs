@@ -113,13 +113,12 @@ pub struct AnalyserSnapshot {
     /// `pending_arity` post-walk). Snapshotted for the same rollback reason.
     pub(in crate::analyser) pending_option_conflicts:
         Vec<super::diagnostics::version_gate::GatedOptionConflict>,
-    /// Creation calls awaiting the parameterised-metaclass join (issue #1660,
-    /// PR #1673 review). Pending-verdict state like the buffers above, and
-    /// snapshotted for the same reason with one extra consequence: the
-    /// evidence that settles these calls — the placeholder class and the
-    /// load-time call site — travels in `result`, so a snapshot carrying that
-    /// evidence without the calls it settles makes the restored walk record
-    /// strictly less than a full one. That divergence is a wrong answer in
+    /// Creation calls awaiting the parameterised-metaclass join. Pending-verdict
+    /// state like the buffers above, and snapshotted for the same reason with one
+    /// extra consequence: the evidence that settles these calls — the placeholder
+    /// class and the load-time call site — travels in `result`, so a snapshot
+    /// carrying that evidence without the calls it settles makes the restored walk
+    /// record strictly less than a full one. That divergence is a wrong answer in
     /// the incremental path, not merely a stale diagnostic.
     pub(in crate::analyser) deferred_class_creations: Vec<super::types::DeferredClassCreation>,
 }
@@ -250,15 +249,12 @@ mod tests {
     #[test]
     fn restore_returns_analyser_to_snapshot_state() {
         let mut a = Analyser::new();
-        // Take an initial snapshot.
         let snap = a.snapshot();
-        // Mutate state.
         a.result.all_procs.insert("::foo".to_string(), proc("foo"));
         a.last_comment = "doc".to_string();
         a.conditional_depth = 3;
         a.command_aliases
             .insert("alias".to_string(), ("target".to_string(), vec![]));
-        // Restore.
         a.restore(snap);
         // State is back to empty.
         assert!(a.result.all_procs.is_empty());
@@ -284,7 +280,6 @@ mod tests {
 
         let snap = a.snapshot();
 
-        // Mutate after snapshot.
         a.result.all_procs.insert("::bar".to_string(), proc("bar"));
         a.last_comment = "second".to_string();
         a.conditional_depth = 9;

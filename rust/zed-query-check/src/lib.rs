@@ -32,10 +32,10 @@ mod tests {
     /// The grammar each Zed language directory is backed by.
     ///
     /// Not every language is Tcl. `apl/` and `tmsh/` have their own grammars
-    /// (issue #903) — validating their queries against the *Tcl* grammar would
-    /// reject every one of them, and validating them against nothing at all,
-    /// which is what happened before, let a query naming a node that does not
-    /// exist ship silently and simply not highlight.
+    /// — validating their queries against the *Tcl* grammar would reject
+    /// every one of them, and validating them against nothing at all would
+    /// let a query naming a node that does not exist ship silently and
+    /// simply not highlight.
     fn language_for(dir: &str) -> Language {
         let raw = unsafe {
             match dir {

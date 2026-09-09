@@ -37,7 +37,7 @@ pub enum BpfDiag {
     UndefinedVar,
     /// A malformed integer literal.
     BadInt,
-    /// An unbounded loop (no literal bound) — reserved for the loops milestone.
+    /// An unbounded loop (no literal bound): loops are not yet supported.
     UnboundedLoop,
     /// An unknown event name in a `when` block.
     BadEvent,
@@ -62,7 +62,7 @@ pub enum BpfDiag {
     /// concurrency word), or a map access incompatible with the declaration.
     BadMap,
     /// Two handlers of the same event share a priority — an ambiguous, non
-    /// deterministic composition order (issue #1204).
+    /// deterministic composition order.
     AmbiguousComposition,
     /// An internal invariant failure (a compiler bug, not user error).
     Internal,

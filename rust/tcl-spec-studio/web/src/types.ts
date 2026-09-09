@@ -230,7 +230,7 @@ export interface StagedFile {
   source: string;
 }
 
-/* The pack export --------------------------------------------------------- */
+// The pack export
 
 /**
  * Which artefact one exported file is, from `pack_export`.
@@ -281,7 +281,7 @@ export interface PackExport {
   error?: string;
 }
 
-/* The pack store ---------------------------------------------------------- */
+// The pack store
 
 /**
  * Where a name's *effective* definition comes from, from `store::Origin`.
@@ -401,7 +401,7 @@ export interface PackWrite {
   error?: string;
 }
 
-/* The Test tab ------------------------------------------------------------ */
+// The Test tab
 
 /** One diagnostic the analyser raised over the sample. */
 export interface TestDiagnostic {

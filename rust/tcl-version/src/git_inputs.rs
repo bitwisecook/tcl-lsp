@@ -63,7 +63,7 @@ fn git_path(manifest_dir: &Path, name: &str) -> Option<PathBuf> {
         manifest_dir.join(path)
     };
 
-    // Only emit live paths. Besides avoiding Cargo's perpetual-dirty behavior,
+    // Only emit live paths. Besides avoiding Cargo's perpetual-dirty behaviour,
     // this lets a fresh repository legitimately omit packed-refs or refs/tags.
     path.canonicalize().ok()
 }

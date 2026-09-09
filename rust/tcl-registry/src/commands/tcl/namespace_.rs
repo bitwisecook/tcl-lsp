@@ -47,7 +47,7 @@ const NAMESPACE_UPVAR_FORMS: &[SubCommandForm] = &[
 
 // `namespace ensemble`'s two option tables
 // `namespace ensemble create` and `namespace ensemble configure` are two
-// **different** option tables, not one shared table (issue #1610).
+// **different** option tables, not one shared table.
 //
 // C Tcl declares them side by side in `tclEnsemble.c` and dispatches each
 // through its own `Tcl_GetIndexFromObj` — `ensembleCreateOptions` is
@@ -213,7 +213,7 @@ static ENSEMBLE_CONFIG_OPTIONS: &[OptionSpec] = &[
 /// `-command` and `-namespace`, exactly one of which is always an error, so
 /// every consumer that *can* see the dispatch word must take the narrower
 /// table through [`SubCommand::option_scope`](crate::SubCommand::option_scope)
-/// instead (issue #1610).
+/// instead.
 static ENSEMBLE_ANY_OPTIONS: &[OptionSpec] = &[
     ENSEMBLE_OPT_COMMAND,
     ENSEMBLE_OPT_MAP,
@@ -235,7 +235,7 @@ static ENSEMBLE_ANY_OPTIONS: &[OptionSpec] = &[
 /// unknown-variable diagnostic, so a probe of an absent variable is harmless.
 ///
 /// The default / `-command` form is a [`ArgRole::CommandNameProbe`]
-/// reference (issue #945 fault 9): the name navigates — find-references /
+/// reference: the name navigates — find-references /
 /// go-to-definition / rename reach it like any direct reference — while
 /// the probe existence policy keeps it out of the W123 unresolved-command
 /// pass, so a perfectly valid existence check
@@ -391,8 +391,8 @@ fn namespace_delete_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
         .collect()
 }
 
-/// Compile-time folds for `namespace qualifiers` / `namespace tail`
-/// (issue #1096), consumed by the optimiser's O129 general-builtin
+/// Compile-time folds for `namespace qualifiers` / `namespace tail`,
+/// consumed by the optimiser's O129 general-builtin
 /// constant-fold path through the registry `const_fold` callbacks.
 ///
 /// Both are **pure string operations**: `namespace.n` describes them as
@@ -407,7 +407,7 @@ fn namespace_delete_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 /// The two functions are byte-exact ports of `NamespaceQualifiersCmd` /
 /// `NamespaceTailCmd` (`tclNamesp.c`), scanning bytes backwards for the last
 /// `::`.  Pinned against tclsh 9.0.4 and 8.6.14, byte-identical on every row
-/// (including the four edge cases issue #1096 tabulates), by the unit tests
+/// (including the four edge cases the oracle table below tabulates), by the unit tests
 /// below and the `tclsh`-differential matrix in
 /// `tests/differential_fold.rs`.  Working on bytes is UTF-8-safe here because
 /// `:` is ASCII and can never occur inside a multi-byte sequence: every cut
@@ -804,7 +804,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::List),
         // The optional first word names the namespace whose children are
-        // listed (`namespace children ::tomato` — issue #1088); the optional
+        // listed (`namespace children ::tomato`); the optional
         // second is a glob pattern filtering the *result*, not a namespace.
         arg_roles: &[(0, ArgRole::NamespaceName), (1, ArgRole::Pattern)],
         ..SubCommand::DEFAULT
@@ -874,7 +874,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // own, genuinely different tables on `ENSEMBLE_SUB_SUBCOMMANDS`, and
         // a consumer that can read the dispatch word takes those. This union
         // is what is left when the dispatch word is dynamic or absent — see
-        // `ENSEMBLE_ANY_OPTIONS` (issue #1610).
+        // `ENSEMBLE_ANY_OPTIONS`.
         options: ENSEMBLE_ANY_OPTIONS,
         // The dispatch word itself (index 0, right after `ensemble`) is a
         // closed 3-word enum in every version that has `namespace
@@ -909,7 +909,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // `Name`: it is the one form that *declares* a namespace (see
         // `Traits::DECLARES_NAMESPACE` below), and every other spelling of
         // the same namespace — `namespace children ::ns`, `namespace exists
-        // ns` — must navigate to it (issue #1088).
+        // ns` — must navigate to it.
         arg_roles: &[(0, ArgRole::NamespaceName), (1, ArgRole::Body)],
         lowering_hook: Some(crate::hooks::LoweringHookId::NamespaceEval),
         return_type: Some(TclType::String),
@@ -997,7 +997,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // The removal half of the import edge's lifecycle: the analyser
         // records each pattern as an ordered event so a bare call written
         // after the forget stops resolving through the alias it removed
-        // (issue #1103; `namespace import`'s own hook is the install half).
+        // (`namespace import`'s own hook is the install half).
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceForget),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(NAMESPACE_FORGET_TRANSITIONS),
@@ -1181,7 +1181,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_roles: &[(0, ArgRole::NamespaceName)],
         // `namespace upvar NS otherVar myVar ?otherVar myVar ...?` — the
         // *local* name of each pair, from index 2 after the subcommand word
-        // (issue #1185).
         repeated_args: &[RepeatedArgLayout::strided(ArgRole::VarWrite, 2, 2)],
         subcommand_forms: NAMESPACE_UPVAR_FORMS,
         creates_scope_alias: true,
@@ -1314,9 +1313,9 @@ mod tests {
         ));
     }
 
-    /// The oracle table, transcribed from tclsh 9.0.4 and 8.6.14 (issue
-    /// #1096; the four edge rows the issue tabulates are the last four
-    /// here plus `:::`).  Both interpreters produced **byte-identical**
+    /// The oracle table, transcribed from tclsh 9.0.4 and 8.6.14 (the four
+    /// edge rows tabulated here are the last four plus `:::`).  Both
+    /// interpreters produced **byte-identical**
     /// output for every row, so one table pins both.
     ///
     /// ```text

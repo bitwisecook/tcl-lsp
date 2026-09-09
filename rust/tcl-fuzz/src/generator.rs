@@ -284,10 +284,10 @@ const MALFORMED_BINARY_OPS: &[&str] = &[
 ///   one. A de-quoted word is a value, and handing it back to the VM's
 ///   `subst_word` reads it as source a second time, so a value that merely
 ///   looks braced lost a brace layer and one that looks braced *and* still
-///   carries a marker had the marker eaten (#1893).
+///   carries a marker had the marker eaten.
 /// * **Escape-bearing** — the value is what the escapes decode to, not the
-///   text that spells them. This is the release-parameterised escape grammar
-///   (#1479), and it is also where the word *boundary* moves: `a\ b` is one
+///   text that spells them. This is the release-parameterised escape grammar,
+///   and it is also where the word *boundary* moves: `a\ b` is one
 ///   word, not two.
 /// * **Non-ASCII and whitespace-bearing** — the value's character count is not
 ///   its byte count, and a value carrying a space, a `#`, or nothing at all is
@@ -333,8 +333,8 @@ enum WordShape {
     /// `"\{\}"` — both routes at once.
     QuotedEscapedBraces,
     /// `{{}}` — a *genuinely* braced word, which must still lose exactly one
-    /// layer (issue #1602). The positive control: the fix for every shape
-    /// above must not disturb this one.
+    /// layer. The positive control: the fix for every shape above must not
+    /// disturb this one.
     BracedDoubleGroup,
     /// `{a[…]}` — a braced word whose brackets are data. A engine that treats
     /// the de-braced value as source *runs* the command, so the shape names a
@@ -356,7 +356,7 @@ enum WordShape {
     /// so the escaped space is being read as a word break.
     EscapedSpace,
     /// `\x41` — a hex escape; the value is one character, the spelling four.
-    /// Hex escape width is a release axis (#1479).
+    /// Hex escape width is a release axis.
     EscapedHex,
     /// `\101` — the octal spelling of the same character, whose width is a
     /// release axis of its own.
@@ -812,7 +812,7 @@ impl Gen {
         // ever sees the inner loop's fixed exit value + 1) can end up never
         // reaching the outer bound at all. Found via the differential
         // fuzzer's own generator running against a real `tclsh` while
-        // verifying issue #983's mathfunc/operator additions — same-depth
+        // verifying the expression operator/mathfunc additions — same-depth
         // sequential loops still safely reuse the same name, since they
         // never overlap in time.
         let n = 1 + self.rng.below(4);
@@ -928,10 +928,11 @@ impl Gen {
     /// `generic/tclNamesp.c`), so a word holding whitespace or list punctuation
     /// must reach the invoked command as exactly one argument.
     ///
-    /// The differential regression seed for issue #1056: the VM space-joined
-    /// the tail, so `namespace inscope ns {p} {x y}` called `p` with two
-    /// arguments instead of one. The probe proc reports both the argument
-    /// *count* and each argument's text, so a wrong split is a stdout mismatch
+    /// A differential regression seed: a VM that space-joins the tail instead
+    /// of appending it as list elements calls `p` with two arguments where
+    /// `namespace inscope ns {p} {x y}` should pass one. The probe proc
+    /// reports both the argument *count* and each argument's text, so a wrong
+    /// split is a stdout mismatch
     /// against the reference `tclsh` rather than a silent pass. A zero-word
     /// tail is drawn too, covering C's `objc == 3` arm (script evaluated
     /// verbatim, nothing appended).
@@ -955,11 +956,10 @@ impl Gen {
     /// variable-held template.
     ///
     /// The compiler's SSA / dataflow treats these as whole-name-space
-    /// barriers (issue #923 audit cluster C10,
-    /// `tcl_compiler::dynamic_names`), which gates the constant-branch fold
-    /// and dead-store elimination feeding this backend's input IR — so the
-    /// differential needs the shapes present to catch a VM that resolves a
-    /// computed name differently from C Tcl.
+    /// barriers (`tcl_compiler::dynamic_names`), which gates the
+    /// constant-branch fold and dead-store elimination feeding this backend's
+    /// input IR — so the differential needs the shapes present to catch a VM
+    /// that resolves a computed name differently from C Tcl.
     ///
     /// Every arm keeps to a private `_dn*` name space the other productions
     /// never touch, so the emitted lines stay deterministic wherever they land
@@ -997,8 +997,8 @@ impl Gen {
     /// resolvable shapes, `uplevel`'s literal / constructed / opaque bodies,
     /// and the one-frame forward `uplevel 1 [list callee …]`.
     ///
-    /// The compiler summarises these per procedure (issue #923 audit cluster
-    /// C1, `tcl_compiler::cfg_builder::upvar_info`) and applies the summary
+    /// The compiler summarises these per procedure
+    /// (`tcl_compiler::cfg_builder::upvar_info`) and applies the summary
     /// at every call site, widening the caller's `defs` or raising a
     /// caller-frame barrier.  Both gate the constant-branch fold and
     /// dead-store elimination that feed this backend's input IR, so the
@@ -1293,10 +1293,9 @@ _cff2 _cfu; puts [info exists _cfu]}\n_cff0\n",
     /// those operators are exercised, and a fraction are a
     /// builtin math-function call (see [`Self::mathfunc_call`]).
     ///
-    /// Issue #983's plan: this operator list used to be missing every TIP 461
-    /// string-ordering word and every bitwise/shift symbol (`&`/`|`/`^`/`<<`/
-    /// `>>`) and `**` entirely — a real fuzz-coverage gap, since none of that
-    /// operator surface was ever differentially tested.
+    /// The operator list includes every TIP 461 string-ordering word and
+    /// every bitwise/shift symbol (`&`/`|`/`^`/`<<`/`>>`) plus `**`, so that
+    /// operator surface gets differential coverage too.
     fn expr(&mut self, depth: u32) -> String {
         if depth >= self.config.max_expr_depth || self.rng.chance(1, 2) {
             return self.expr_leaf();
@@ -1811,16 +1810,12 @@ mod tests {
         assert_ne!(generate(1, &cfg), generate(2, &cfg));
     }
 
-    /// Regression: `while`/`for` counters used to be a flat `_w`/`_f`
-    /// regardless of nesting depth, so a `while` nested inside another
-    /// `while` reset the *same* counter on every outer iteration — a
-    /// genuine infinite loop, not just a divergence risk (found by actually
-    /// running the generator's output through a real `tclsh` while
-    /// verifying issue #983's mathfunc/operator additions below — seed 127
-    /// under a deepened `GenConfig` hung indefinitely). Depth-qualifying
-    /// the name (`_w0`, `_w1`, …) fixes it structurally: nested loops can
-    /// never share a counter, so this checks the old un-qualified form
-    /// never reappears.
+    /// `while`/`for` counters are qualified by nesting depth (`_w0`, `_w1`,
+    /// …) so nested loops can never share a counter. A flat `_w`/`_f` name
+    /// regardless of depth would let a `while` nested inside another `while`
+    /// reset the *same* counter on every outer iteration — a genuine
+    /// infinite loop, not just a divergence risk — so this checks the
+    /// un-qualified form never reappears.
     #[test]
     fn while_and_for_counters_are_depth_qualified() {
         let cfg = GenConfig {
@@ -1838,8 +1833,8 @@ mod tests {
         }
     }
 
-    /// Adversarial-review finding: `**`/`<<`/`>>` guarded operand *sign*
-    /// (never negative) but not *magnitude*. Since `left`/`right` are
+    /// `**`/`<<`/`>>` guard operand *sign* (never negative) but not
+    /// *magnitude*. Since `left`/`right` are
     /// arbitrary nested `expr(depth+1)` calls — which can themselves be
     /// another `**`/`<<`/`>>` node — an unbounded exponent/shift-count could
     /// reach magnitudes that make bignum exponentiation/shift and its
@@ -1849,10 +1844,10 @@ mod tests {
     /// a spurious `Timeout`/`StatusMismatch` finding, not a real VM bug.
     ///
     /// A live `tclsh` sweep isn't a reliable regression guard here: the
-    /// magnitude collision that triggers the hang is probabilistic (an
-    /// adversarial-review simulation found it in ~1.6% of expression-root
-    /// draws), so a seed sweep small enough to run as a fast unit test can
-    /// pass on the *old*, unbounded code purely by chance — this asserts
+    /// magnitude collision that triggers the hang is probabilistic (observed
+    /// in roughly 1.6% of expression-root draws), so a seed sweep small
+    /// enough to run as a fast unit test could pass on unbounded operands
+    /// purely by chance — this asserts
     /// the actual generated Tcl source instead: every `**` exponent operand
     /// is deterministically reduced by `% 20` and every `<<`/`>>` count
     /// operand by `% 64`, which bounds the operand to a small range no
@@ -1967,14 +1962,14 @@ mod tests {
         assert!(proc_called, "no generated proc was ever called");
     }
 
-    /// Issue #1056's regression seed. `namespace inscope` was never generated
-    /// at all, so the whole list-element tail rule went differentially
-    /// untested and the VM's space-join (which turned `{x y}` into two
-    /// arguments) could not be caught by a campaign. Proves the production is
-    /// live and that every interesting tail shape — the whitespace-bearing
-    /// word that is the minimal reproducer, an empty element, and the
-    /// substitution/terminator characters that force list quoting — actually
-    /// reaches a generated script.
+    /// `namespace inscope`'s list-element tail rule needs differential
+    /// coverage, since a VM that space-joins the tail instead (turning
+    /// `{x y}` into two arguments) can only be caught if the production is
+    /// actually generated. Proves the production is live and that every
+    /// interesting tail shape — the whitespace-bearing word that is the
+    /// minimal reproducer, an empty element, and the substitution/terminator
+    /// characters that force list quoting — actually reaches a generated
+    /// script.
     #[test]
     fn namespace_inscope_list_args_are_exercised() {
         let cfg = GenConfig {
@@ -2022,13 +2017,11 @@ mod tests {
         );
     }
 
-    /// Issue #983's plan: `expr()`'s operator menu used to omit the TIP 461
-    /// string-ordering words, every bitwise/shift symbol, and `**` entirely,
-    /// and the generator never emitted a single `::tcl::mathfunc` call — all
-    /// real fuzz-coverage gaps (that whole surface went differentially
-    /// untested). Proves each newly-added production actually gets generated
-    /// (not dead code) over a decent seed sweep, mirroring
-    /// `broadened_grammar_is_exercised` above.
+    /// `expr()`'s operator menu includes the TIP 461 string-ordering words,
+    /// every bitwise/shift symbol, `**`, and `::tcl::mathfunc` calls, and
+    /// each needs differential coverage to avoid a fuzz-coverage gap. Proves
+    /// each production actually gets generated (not dead code) over a decent
+    /// seed sweep, mirroring `broadened_grammar_is_exercised` above.
     #[test]
     fn expr_and_mathfunc_additions_are_exercised() {
         let cfg = GenConfig {
@@ -2082,12 +2075,11 @@ mod tests {
         }
     }
 
-    /// Issue #923 audit cluster C10's coverage seed. Variable access through
-    /// a **computed name** was never generated, so the whole dynamic-name
-    /// path — which the compiler now treats as a dataflow barrier gating the
+    /// Variable access through a **computed name** needs differential
+    /// coverage: the compiler treats it as a dataflow barrier gating the
     /// constant-branch fold and dead-store elimination that feed this
-    /// backend's input IR — went differentially untested. Proves every arm
-    /// reaches a generated script.
+    /// backend's input IR, so an ungenerated dynamic-name path would leave
+    /// that barrier untested. Proves every arm reaches a generated script.
     #[test]
     fn dynamic_name_shapes_are_exercised() {
         let cfg = GenConfig {
@@ -2125,12 +2117,12 @@ mod tests {
         }
     }
 
-    /// Issue #923 audit cluster C1's coverage seed. A procedure writing its
-    /// **caller's** frame was never generated, so the whole caller-frame
-    /// path — which the compiler now summarises per procedure and applies at
+    /// A procedure writing its **caller's** frame needs differential
+    /// coverage: the compiler summarises this per procedure and applies it at
     /// every call site, gating the constant-branch fold and dead-store
-    /// elimination that feed this backend's input IR — went differentially
-    /// untested. Proves every arm reaches a generated script.
+    /// elimination that feed this backend's input IR, so an ungenerated
+    /// caller-frame path would leave that summary untested. Proves every arm
+    /// reaches a generated script.
     #[test]
     fn caller_frame_shapes_are_exercised() {
         let cfg = GenConfig {

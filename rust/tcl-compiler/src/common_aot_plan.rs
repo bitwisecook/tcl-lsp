@@ -174,7 +174,7 @@ pub enum DirectProcBodyDecline {
 /// Whether every registry spelling of one semantic operation retains its
 /// declared binding in this module.
 ///
-/// This target-neutral query is shared by common proof construction and legacy
+/// This target-neutral query is shared by common proof construction and the
 /// backends. Consumers never name Tcl commands themselves.
 #[must_use]
 pub fn semantic_operation_binding_is_trusted(
@@ -1981,9 +1981,8 @@ mod tests {
     #[test]
     fn dialect_tcloo_and_variable_trace_premises_are_retained() {
         let registry = tcl_registry::CommandRegistry::build_default();
-        // **Enumerated delta of the ledger C1 / §11.2 D1 re-key.** This
-        // assertion used to feed a multi-dialect availability set no
-        // production caller could produce, and pin the resulting decline.
+        // An availability set spanning several dialects is not something a
+        // production caller can produce, so it is not what this pins.
         // The executable-IR vocabulary is now a resolved
         // environment, which names exactly one context or none, so an
         // ambiguous premise is unrepresentable rather than declined. The

@@ -158,7 +158,7 @@ suite("Refactor Actions (applied)", () => {
     assert.strictEqual(editor.document.getText(), "expr {$a + $b}\n");
   });
 
-  // -- Extract into proc (issue #1201) --------------------------------------
+  // Extract into proc
 
   test("extract proc carries a caller-frame write through upvar", async () => {
     // Original output is `1` then `after=1`. Passing `x` as a value parameter
@@ -213,7 +213,7 @@ suite("Refactor Actions (applied)", () => {
     );
   });
 
-  // -- Inline proc binding (issue #1199) ------------------------------------
+  // Inline proc binding
 
   test("inline proc binds a declared default when the call omits the argument", async () => {
     const editor = await loadScratch("proc greet {{name world}} { puts $name }\ngreet\n");
@@ -249,7 +249,7 @@ suite("Refactor Actions (applied)", () => {
     );
   });
 
-  // -- W302 catch-result capture (issue #1190) ------------------------------
+  // W302 catch-result capture
   //
   // The cursor sits on the `catch` keyword — where the diagnostic anchors,
   // and where VS Code's lightbulb is invoked. The inserted word must still

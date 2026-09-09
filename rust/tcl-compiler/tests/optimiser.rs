@@ -209,8 +209,8 @@ fn proc_body_and_direct_expr_substitution() {
     // spurious rewrite, value preserved).
     assert_eq!(optimised("set v [expr {3}]", TCL), "set v [expr {3}]");
 
-    // Escaping command substitution ([eval $s]) is non-removable. Since
-    // issue #1374 the opaque `eval $s` script also blinds the whole frame's
+    // Escaping command substitution ([eval $s]) is non-removable. The
+    // opaque `eval $s` script also blinds the whole frame's
     // value lattice (its body may install a variable trace on `n` or reach
     // any name), so the O102 forward of `set n 1` into `puts $n` abstains
     // too and the source stays byte-identical — sound, just conservative.
@@ -399,8 +399,8 @@ fn instcombine_boolean_simplifications() {
     assert!(optimised("set v [expr {!!($a == $b)}]", TCL).contains("set v [expr {$a == $b}]"));
     assert!(optimised("set v [expr {!($a == $b)}]", TCL).contains("set v [expr {$a != $b}]"));
     // The ordered comparisons invert only on operands proved non-NaN — an
-    // untyped `$a` may hold NaN, for which `!($a < 1)` is 1 while `$a >= 1` is 0
-    // (issue #1437). The `int_x` wrapper supplies the proof.
+    // untyped `$a` may hold NaN, for which `!($a < 1)` is 1 while `$a >= 1` is 0.
+    // The `int_x` wrapper supplies the proof.
     assert!(!optimised("set v [expr {!($a < $b)}]", TCL).contains("$a >= $b"));
     assert!(optimised(&int_x("set v [expr {!($x < 1)}]"), TCL).contains("set v [expr {$x >= 1}]"));
 
@@ -418,7 +418,7 @@ fn instcombine_de_morgan() {
 
     // De Morgan + comparison inversion via fixpoint (tclsh 4-var sweep == ).
     // `==` inverts unconditionally; the ordered `$c < $d` half keeps its `!`
-    // because neither operand is proved non-NaN (issue #1437).
+    // because neither operand is proved non-NaN.
     assert!(
         optimised("set v [expr {!($a == $b && $c < $d)}]", TCL)
             .contains("set v [expr {$a != $b || !($c < $d)}]")
@@ -448,7 +448,7 @@ fn instcombine_de_morgan() {
 #[test]
 fn instcombine_self_comparison_tautologies() {
     // tclsh sweep: x == x ⇒ 1, x != x ⇒ 0 — but NOT for NaN, where tclsh gives
-    // 0 and 1 respectively, so the fold needs $x proved non-NaN (issue #1437).
+    // 0 and 1 respectively, so the fold needs $x proved non-NaN.
     assert!(optimised(&int_x("set v [expr {$x == $x}]"), TCL).contains("set v 1"));
     assert!(optimised(&int_x("set v [expr {$x != $x}]"), TCL).contains("set v 0"));
     // Untyped $x keeps the comparison.
@@ -498,12 +498,12 @@ fn instcombine_ternary_and_boolean_context() {
 /// The iRules word operators fold through **SCCP** — not just through the
 /// expression-simplification passes that already carried a dialect.
 ///
-/// Regression for the Codex #1046 / soundness review finding: SCCP,
-/// interprocedural propagation, the static-loop simulator, and codegen's
-/// expression folder all evaluated with a dialect-blind policy, so
-/// `FoldOps::is_irules` was `false` there and every word operator declined.
-/// The `eq` control below folded on the same input, proving the loss was
-/// dialect threading rather than the fold itself.
+/// SCCP, interprocedural propagation, the static-loop simulator, and
+/// codegen's expression folder must all evaluate under the document's actual
+/// dialect: a dialect-blind policy leaves `FoldOps::is_irules` `false`, so
+/// every word operator declines to fold. The `eq` control below folds on the
+/// same input, proving any loss is dialect threading rather than the fold
+/// itself.
 #[test]
 fn irules_word_operators_fold_through_sccp() {
     const IR: &str = "f5-irules";
@@ -710,12 +710,12 @@ fn unused_variable_elimination_o126() {
 
 #[test]
 fn branch_condition_ending_in_a_nested_empty_pair_rewrites_the_whole_word() {
-    // Issue #1423. The branch condition span is the lexer's word span, so
+    // The branch condition span is the lexer's word span, so
     // it stops one byte short of the outer `}`. Deciding the widening from
-    // the slice's last byte read `{$n == 0 && $y eq {}` as already whole —
-    // it does end in a `}`, the *inner* empty pair's — so the pass unwrapped
-    // an opener with no matching closer and emitted the unbalanced
-    // replacement `{0 == 0 && $y eq {}`.
+    // the slice's last byte would read `{$n == 0 && $y eq {}` as already
+    // whole — it does end in a `}`, the *inner* empty pair's — so naively
+    // the pass would unwrap an opener with no matching closer and emit the
+    // unbalanced replacement `{0 == 0 && $y eq {}`.
     let src = "proc p {y} {\n    set n 0\n    if {$n == 0 && $y eq {}} { puts a }\n}\n";
     let rewrites = opt_rewrites(src, TCL);
     let o100: Vec<&str> = rewrites
@@ -730,8 +730,8 @@ fn branch_condition_ending_in_a_nested_empty_pair_rewrites_the_whole_word() {
     );
 }
 
-/// Issue #1934 — a constant reaching an `incr` folds through it and the whole
-/// snippet collapses.
+/// A constant reaching an `incr` folds through it and the whole snippet
+/// collapses.
 ///
 /// `incr` is not a *load* of its target, it names the cell it mutates, and
 /// O102 only ever recognised a syntactic literal as a reaching definition. So
@@ -1822,12 +1822,11 @@ mod cross_event_dse {
     }
 }
 
-// Issues #1374 / #1377 / #1402 — the dynamic-name value-motion barrier and
-// the whole-module variable-trace fact. Every source below currently
-// miscompiled (or mis-reported) before the shared
-// `FunctionUnit::dynamic_barrier_blocks_value_motion` gate and the
-// `Module::traced_variables` widening landed; each pin asserts the
-// optimiser abstains. tclsh oracles cited per test.
+// The dynamic-name value-motion barrier and the whole-module variable-trace
+// fact. Every source below would miscompile (or be mis-reported) without
+// the shared `FunctionUnit::dynamic_barrier_blocks_value_motion` gate and
+// the `Module::traced_variables` widening; each pin asserts the optimiser
+// abstains. tclsh oracles cited per test.
 
 // tclsh 8.6/9.0: `f acc` returns `zzz b` — folding the chain to
 // `set acc {a b}` (O130) walks straight past the dynamic write.
@@ -1895,10 +1894,10 @@ fn traced_list_chain_is_not_folded_issue_1377() {
 
 // A computed command head (`$cmd $x`) lowers to a `Statement::Barrier`
 // whose retained words reference `$x` and raises no dynamic-name flag;
-// treating a barrier as referencing no variable let O125 sink `set x 1`
-// into the branch, leaving `f 0 puts` to read an unset `x` (tclsh:
+// treating a barrier as referencing no variable would let O125 sink
+// `set x 1` into the branch, leaving `f 0 puts` to read an unset `x` (tclsh:
 // `can't read "x"`). A dynamic `eval` spelling of the trailing reference
-// abstains too (that one via the issue-#1374 opaque-script barrier).
+// must abstain too (that one via the opaque-script barrier).
 #[test]
 fn barrier_reference_blocks_o125_issue_1402() {
     let src = "proc f {flag cmd} {\nset x 1\nif {$flag} { puts $x }\n$cmd $x\n}";
@@ -1907,22 +1906,21 @@ fn barrier_reference_blocks_o125_issue_1402() {
     assert!(!opt_fires(eval_src, TCL, "O125"));
 }
 
-// Issue #1385 — code motion and deletion must share one "is this block
-// executable" fact.
+// Code motion and deletion must share one "is this block executable" fact.
 //
 // The owner is `SccpResult::executable_blocks` (`sccp.rs:199`), the
 // optimistic set SCCP fills in while it folds constant branches. The
 // deletion side already reads it: `optimiser/elimination.rs:392`
 // (`unreachable_blocks`, the O107 source), and O112's constant-condition
 // deletions in `optimiser/structure_elimination.rs` are the structured-IR
-// view of the same constant facts. GVN's PRE and LICM used to answer the
-// question themselves with a plain terminator-successor walk, so a block
-// behind a constant-false branch still looked executable and drew an O106
-// hoist / O105 partial-redundancy offer into a region O112 was
+// view of the same constant facts. GVN's PRE and LICM must not answer the
+// question themselves with a plain terminator-successor walk: that would
+// let a block behind a constant-false branch still look executable and
+// draw an O106 hoist / O105 partial-redundancy offer into a region O112 is
 // simultaneously offering to delete.
 //
-// `find_loop_invariants` / `find_partial_redundancies` now take that set,
-// and `*_for_function` seed it from `fu.sccp.executable_blocks`.
+// `find_loop_invariants` / `find_partial_redundancies` take that set
+// instead, and `*_for_function` seed it from `fu.sccp.executable_blocks`.
 
 /// `src` compiled to a unit whose top level carries the SCCP result the
 /// deletion passes read.

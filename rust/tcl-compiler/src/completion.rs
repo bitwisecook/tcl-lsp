@@ -18,10 +18,9 @@
 
 //! Bounded completion facts shared by common compiler passes.
 //!
-//! This is deliberately independent of the current CFG terminators.  It gives
-//! analysis and future executable-IR work one representation for Tcl's
-//! code/result/options triple without changing the existing source CFG or
-//! enabling any specialisation.
+//! The representation is deliberately independent of the CFG terminators: it
+//! carries Tcl's code/result/options triple on its own, so passes share one
+//! set of completion facts without constraining the source CFG.
 
 use tcl_core_types::Code as CompletionCode;
 use tcl_registry::{
@@ -119,8 +118,8 @@ impl CompletionCodeLattice {
 
     /// Widen successive loop/fixpoint contributions.
     ///
-    /// This first foundation has no threshold distinct from its bounded exact
-    /// carrier, so widening is the same monotone operation as [`Self::join`].
+    /// The bounded exact carrier is the only threshold, so widening is the
+    /// same monotone operation as [`Self::join`].
     #[must_use]
     pub fn widen(&self, next: &Self) -> Self {
         self.join(next)
@@ -146,7 +145,7 @@ impl CompletionCodeLattice {
     }
 }
 
-/// Completion data-flow obligations for a future executable CFG edge.
+/// Completion data-flow obligations for one executable CFG edge.
 ///
 /// Every edge must carry a code, result, and return-options value. The code
 /// is bounded by [`Self::codes`]; the two payload fields record whether an

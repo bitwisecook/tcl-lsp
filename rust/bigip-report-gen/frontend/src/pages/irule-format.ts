@@ -1,4 +1,4 @@
-// @ts-nocheck -- vanilla DOM glue, typed incrementally.
+// @ts-nocheck -- vanilla DOM glue, not yet fully typed.
 // tcl-lsp — a language server and toolchain for Tcl
 // Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
 //

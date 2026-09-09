@@ -36,8 +36,6 @@ use crate::sccp::SccpResult;
 use crate::ssa::{SsaFunction, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
 
-// Edge classification
-
 /// Classification of a data-flow edge.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EdgeKind {
@@ -57,8 +55,6 @@ impl EdgeKind {
         }
     }
 }
-
-// Nodes and edges
 
 /// A single SSA value in the data-flow graph.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -165,8 +161,6 @@ impl DataFlowEdge {
     }
 }
 
-// Aliases and function/module graphs
-
 /// Summary of an alias relationship produced by memory-SSA.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AliasInfo {
@@ -237,8 +231,6 @@ impl DataFlowGraph {
             .sum()
     }
 }
-
-// Extractors
 
 /// Render a lattice entry for the node display column.
 ///
@@ -411,8 +403,6 @@ pub fn extract_function_dataflow<S: std::hash::BuildHasher>(
     }
 }
 
-// Module-level aggregator
-
 /// Per-function inputs to the module-level aggregator.
 ///
 /// The caller runs SSA + def-use + (optional) SCCP + (optional)
@@ -497,8 +487,6 @@ mod tests {
         assert_eq!(e.to_version, 3);
         assert_eq!(e.to_statement_index, -1);
     }
-
-    // -- extract_function_dataflow --
 
     use crate::cfg::{BlockId, Function as CfgFunction};
     use crate::def_use::build_def_use_chains;

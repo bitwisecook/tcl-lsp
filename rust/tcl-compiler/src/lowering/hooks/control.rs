@@ -19,10 +19,11 @@
 //! Lower the `expr` and `return` commands to typed IR statements.
 //!
 //! `expr <one-word>` lowers to [`Statement::ExprEval`] when the
-//! single argument is a single token (typically a braced
-//! expression). Multi-arg forms and `{*}` expansion fall through
-//! to a generic [`Statement::Call`] so the runtime sees the
-//! original argument list.
+//! single argument is a single *literal* token (typically a braced
+//! expression). Multi-arg forms, a lone substitution (`expr $e`)
+//! and `{*}` expansion fall through to a generic
+//! [`Statement::Call`] so the runtime sees the original argument
+//! list.
 //!
 //! `return ?value?` lowers to [`Statement::Return`] when the call
 //! is the simple `return` or `return value` shape. `return -code`

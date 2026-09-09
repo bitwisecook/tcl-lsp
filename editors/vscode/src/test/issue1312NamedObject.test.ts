@@ -16,9 +16,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Issue #1312, editor-integration layer: `ClassName create objName` (as
-// opposed to `[ClassName new]`) resolves no members — `obj method` gives no
-// diagnostics or semantic-token classification where the handle form does.
+// `ClassName create objName` (as
+// opposed to `[ClassName new]`) must resolve members just as the handle form
+// does — `obj method` must give the same diagnostics and semantic-token
+// classification either way.
 //
 // Fixture layout (0-based lines), `issue1312NamedObject.tcl`. The class and
 // instance names are deliberately unique to this fixture, not the generic
@@ -87,14 +88,14 @@ suite("Issue #1312 named-object dispatch", () => {
     // synchronously (`SEMANTIC_TOKENS_FAST_PATH_BUDGET`) while the enriched
     // (object-class-aware) tier keeps computing in the background and
     // arrives via `workspace/semanticTokens/refresh` — the same
-    // converge-later contract the "issue #829" tests in
+    // converge-later contract the tests in
     // `semanticTokens.test.ts` poll for. The coarse tier carries no class
     // information at all, so it always colours a bareword dispatch as
     // `string`; only the enriched tier resolves the instance's class through
     // `NamedInstanceMap` and marks `mrun` as `method`. Poll rather than
     // asserting on a single request so this doesn't flake under CI load.
     //
-    // Both bounds are load-scaled together (matching the #829 pattern in
+    // Both bounds are load-scaled together (matching the pattern in
     // `semanticTokens.test.ts`) with headroom between them: a fixed mocha
     // timeout with no slack over `pollUntil`'s own internal bound fires
     // before `pollUntil` gets to report *why* it timed out.
@@ -134,7 +135,7 @@ suite("Issue #1312 named-object dispatch", () => {
       },
     );
     // Line 8 is `obj mrun` — the dispatch site, not the declaration on
-    // line 5. Only the dispatch classification was broken by issue #1312.
+    // line 5; this test targets the dispatch classification specifically.
     const dispatched = toks.find((t) => t.line === 8 && covered(t) === "mrun");
     const dump = JSON.stringify(toks.map((t) => [t.line, t.char, covered(t), t.type]));
     assert.ok(dispatched, `the dispatched \`mrun\` must colour as a method: ${dump}`);

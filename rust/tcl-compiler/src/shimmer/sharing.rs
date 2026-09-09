@@ -226,7 +226,7 @@ pub(crate) fn find_sharing_warnings<S: std::hash::BuildHasher>(
 
         // Live copy pairs seen so far in this block. A `Barrier`/`UpFrame`
         // can rewrite arbitrary variables without an SSA version bump, so
-        // it clears the ledger (abstain across it).
+        // it clears the tracked pairs (abstain across it).
         let mut pairs: Vec<CopyPair> = Vec::new();
         for (idx, ss) in ssa_block.statements.iter().enumerate() {
             match &ss.statement {

@@ -166,7 +166,7 @@ pub fn hover(
 /// `program` is `None` for a host without one, which reproduces
 /// [`hover_with_profile`] exactly. It matters because a `namespace import
 /// -force` whose covering `namespace export` lives in another file changes
-/// *which proc* the hovered call reaches (issue #1116 item 1).
+/// *which proc* the hovered call reaches.
 #[must_use]
 pub fn hover_in_program(
     source: &str,
@@ -192,7 +192,7 @@ pub fn hover_in_program(
 ///
 /// `defining_analysis` is the analyser result for the document the symbol is
 /// declared in — the same result an in-document hover there would use, so the
-/// rendering is identical whichever file the cursor is in (issue #1018).
+/// rendering is identical whichever file the cursor is in.
 /// Class hover in particular reads superclass and mixin methods out of that
 /// analysis, which is why the *defining* file's result is required rather than
 /// the caller's.
@@ -222,7 +222,7 @@ pub fn qualified_symbol_hover(
 /// `qualified` is the `::`-rooted cell name
 /// ([`crate::definition::qualified_variable_cell_at`]); the reference count
 /// shown is the declaring document's, matching exactly what hovering the
-/// declaration itself renders (issue #923 idx 65 / 75 / 78).
+/// declaration itself renders.
 #[must_use]
 pub fn qualified_variable_hover(
     defining_analysis: &AnalysisResult,
@@ -245,7 +245,7 @@ pub fn qualified_variable_hover(
 
 /// Hover for a **namespace**, rendered from counts the caller gathered — one
 /// document for the in-document provider, the whole workspace index for the
-/// server's cross-document tier (issue #1088).
+/// server's cross-document tier.
 ///
 /// `qualified` is the `::`-rooted namespace name
 /// ([`crate::namespace_symbol::namespace_cell_at`]).  The markdown itself
@@ -265,7 +265,7 @@ pub fn namespace_hover(
 }
 
 /// `<ensemble> <subcommand>` hover — a static `namespace ensemble create
-/// -map`/`-subcommands` mapping (issue #923 idx 106), the hover twin of
+/// -map`/`-subcommands` mapping, the hover twin of
 /// `definition()`'s identical check. Extracted from
 /// [`hover_with_profile`] to stay within the line budget.
 fn ensemble_subcommand_hover(
@@ -303,9 +303,9 @@ fn ensemble_subcommand_hover(
 
 /// `expr` math-function hover — the **bare** in-expression spelling
 /// `sin(1.0)` / `max($a, $b)`, which renders from the same registry spec the
-/// qualified `::tcl::mathfunc::sin` spelling already did (issue #974 defect
-/// 1: only the qualified spellings were registered, so a bare call drew
-/// nothing at any column).
+/// qualified `::tcl::mathfunc::sin` spelling reads.  Both spellings must be
+/// registered: with only the qualified ones, a bare call draws nothing at any
+/// column.
 ///
 /// Definitive: once the cursor is on a recorded math-function call, this is
 /// what the call reaches — a user override, the built-in, or (when the
@@ -347,16 +347,16 @@ fn math_function_hover(
 /// Proc hover at `cursor_offset`: namespace-aware, following C Tcl's
 /// command resolution (`Tcl_FindCommand`, `tclNamesp.c`) — the cursor's
 /// namespace first (consulting `analysis.namespace_overrides` ahead of the
-/// ordinary lexical walk, issue #923 idx 116), then the global namespace.
+/// ordinary lexical walk), then the global namespace.
 /// Extracted from [`hover_with_profile`] to keep it within the line budget.
 /// Gated on the cursor's word actually occupying the enclosing command's
-/// head position (issue #1137 idx 50): hover shared `definition()`'s
-/// text-scan fallback, so an ordinary *argument* that happened to share a
-/// proc's name rendered that proc's documentation. See
+/// head position: hover shares `definition()`'s text-scan fallback, so
+/// without the gate an ordinary *argument* that happens to share a proc's
+/// name renders that proc's documentation. See
 /// [`crate::definition::offset_is_command_head`].
 ///
-/// An already-resolved **indirect** head (a constant `${ns}::cmd` / `$cmd`,
-/// issue #1133) is answered from the analyser's own resolution, since the
+/// An already-resolved **indirect** head (a constant `${ns}::cmd` / `$cmd`)
+/// is answered from the analyser's own resolution, since the
 /// span carries no written command name for the bareword lookup to use.
 fn proc_hover_at(
     analysis: &AnalysisResult,
@@ -401,16 +401,14 @@ fn proc_hover_at(
 /// bareword *declaration* / same-cell write site (a `set x`/`variable x`
 /// target, a proc/method parameter, a `catch` result-var) via
 /// [`crate::definition::var_def_at_declaration_offset`] — see that
-/// function's own doc for why it can't reuse the ordinary scope-chain walk
-/// (issue #923 differential-audit finding idx 9, main audit wave).
+/// function's own doc for why it can't reuse the ordinary scope-chain walk.
 /// Extracted from [`hover_with_profile`] to keep it within the line budget.
 ///
 /// `profile` carries the document's dialect through to the type/taint
 /// inference below: the intrep lattice is read off a freshly-built
 /// [`CompilationUnit`], and building that with the default (plain-Tcl) lexer
 /// config mis-tokenises a dialect-specific construct — an iRules word
-/// operator, `{*}` under 8.4 — which skews or drops the inferred type
-/// (issue #1054).
+/// operator, `{*}` under 8.4 — which skews or drops the inferred type.
 fn variable_hover(
     source: &str,
     line: u32,
@@ -429,7 +427,7 @@ fn variable_hover(
     // Resolved through the shared gate, not the raw character scan: a cursor
     // inside a brace-quoted variable-name word (`set {$n} 1`) is not a `$n`
     // reference, and must fall through to the declaration-span search below
-    // so it hovers the *literal* cell (PR #1106 review, P2).
+    // so it hovers the *literal* cell.
     if let Some(var_name) = crate::definition::substituting_var_at_position(
         source,
         profile,
@@ -439,8 +437,7 @@ fn variable_hover(
     ) {
         // Use the byte-offset scope-chain lookup (the local line-based helper
         // mis-resolves namespace/proc-scoped vars), gated on the occurrence
-        // actually being one Tcl substitutes — see `lookup_var_read_at`
-        // (issue #923 idx 24).
+        // actually being one Tcl substitutes — see `lookup_var_read_at`.
         if let Some(var_def) = crate::definition::lookup_var_read_at(
             &analysis.global_scope,
             source,
@@ -472,8 +469,8 @@ fn variable_hover(
             return Some(Hover::markdown(special_var_hover_text(spec, dialect)));
         }
         // Still no definition — but a variable this frame never assigns may
-        // be one a callee creates here through `upvar` (issue #923 audit
-        // idx 58).  The call site names it, so hover can say so.
+        // be one a callee creates here through `upvar`.  The call site names
+        // it, so hover can say so.
         let bindings = crate::caller_frame::caller_frame_bindings(
             analysis,
             source,
@@ -489,12 +486,10 @@ fn variable_hover(
     }
 
     let decl_byte_offset = crate::definition::byte_offset_at(line_index, source, line, character);
-    // #1073 guarded this lookup against a *computed* parameter list
-    // (`proc p [makeargs] …`), where the analyser used to record a stub
-    // `VarDef` named after the whole word (`"[makeargs]"`) and hovering it
-    // rendered a bogus variable card over what is really a call.  Since #1079
-    // no such stub is registered, so the lookup simply finds nothing and the
-    // caller falls through to the command hover — the guard is gone.
+    // A *computed* parameter list (`proc p [makeargs] …`) registers no
+    // `VarDef` for the whole word, so this lookup finds nothing there and the
+    // caller falls through to the command hover — which is what such a word
+    // really is.  No guard of its own is needed here.
     let var_def =
         crate::definition::var_def_at_declaration_offset(&analysis.global_scope, decl_byte_offset)?;
     let (type_info, taint_info) =
@@ -513,11 +508,10 @@ fn variable_hover(
 /// A `$`-led read resolving to nothing is **definitive**, not a
 /// fall-through: Tcl keeps variables and commands in disjoint namespaces, so
 /// `$dataset` can never denote a proc, a method, or a class member of that
-/// name.  Without this stop, hover answered a caller-frame `$dataset` read
-/// with the card of an unrelated same-named `TclOO` accessor method (issue
-/// #923 audit idx 58) — a wrong-kind answer, worse than none.
-/// `definition` has always forced this abstention (`position_definition`);
-/// hover and find-references did not.
+/// name.  Without this stop, hover answers a caller-frame `$dataset` read
+/// with the card of an unrelated same-named `TclOO` accessor method — a
+/// wrong-kind answer, worse than none.  `definition` forces the same
+/// abstention in `position_definition`.
 fn variable_position_hover(
     source: &str,
     line: u32,
@@ -554,7 +548,7 @@ enum PositionHover {
 /// and registry role walk used by semantic tokens.  In particular, do not
 /// inspect whichever literal happens to contain the cursor: the registry's
 /// `ArgRole` indices identify the one argument that actually carries the
-/// embedded language (issue #1386).
+/// embedded language.
 fn registry_pattern_format_hover(
     source: &str,
     line: u32,
@@ -813,7 +807,7 @@ fn hover_impl(
         PositionHover::FallThrough => {}
     }
 
-    // `expr` math-function hover (issue #974 defect 1) — asked before every
+    // `expr` math-function hover — asked before every
     // remaining path: inside an expression a `NAME(` word is a function-call
     // production, not a command lookup, so nothing else may claim it.  See
     // `math_function_hover`.
@@ -823,8 +817,8 @@ fn hover_impl(
 
     // A word inside an enclosing proc/method's own *literal* parameter list is
     // pure data — a parameter name (already answered by `variable_hover`) or a
-    // default value — never a command reference (issue #923 idx 104: both the
-    // parameter name `destroy` and the default-value literal `destroy` in
+    // default value — never a command reference (both the parameter name
+    // `destroy` and the default-value literal `destroy` in
     // `proc ::tk::RestoreFocusGrab {grab focus {destroy destroy}}` rendered
     // Tk's `destroy` *command* documentation).  A *computed* parameter list
     // (`proc p [makeargs] {…}`) holds live code and stays navigable.
@@ -832,7 +826,7 @@ fn hover_impl(
         return None;
     }
 
-    // A word naming a namespace (issue #1088) — span-precise, so it is asked
+    // A word naming a namespace — span-precise, so it is asked
     // before every word-based resolver AND it is **definitive**: once the
     // cursor is provably inside a registry-declared `ArgRole::NamespaceName`
     // argument, a proc, class, or built-in command of the same spelling is
@@ -841,7 +835,7 @@ fn hover_impl(
     // documentation for `namespace exists string` whenever `::string` was
     // declared in a sibling document — and, because that is a `Some`, the
     // server returned it and never consulted the cross-document namespace
-    // tier at all (issue #1088 review, finding 1).  `None` here means "no
+    // tier at all.  `None` here means "no
     // local answer", which is exactly the signal that tier needs.
     if let Some(cell) =
         crate::namespace_symbol::namespace_cell_at(source, analysis, line, character)
@@ -865,7 +859,7 @@ fn hover_impl(
     let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
 
     // `$obj m` / `my m` method-dispatch hover, including the per-object
-    // visibility mask (issue #1170) — `Break(None)` is a definitive
+    // visibility mask — `Break(None)` is a definitive
     // no-hover.
     if let std::ops::ControlFlow::Break(answer) = method_dispatch_hover(
         source,
@@ -879,7 +873,7 @@ fn hover_impl(
         return answer;
     }
 
-    // `<ensemble> <subcommand>` hover (issue #923 idx 106) — see
+    // `<ensemble> <subcommand>` hover — see
     // `ensemble_subcommand_hover`'s doc for the full rationale; must run
     // before the generic proc lookup below for the same reason as the
     // `$obj method` check above: `make` is never independently a command,
@@ -1018,8 +1012,8 @@ fn builtin_command_hover_text(
     };
     let name = name.as_ref();
     // A command whose *bare* spelling only works inside a `TclOO` method
-    // context (`link` / `my` / `next` / `nextto` / `self` / `classvariable`
-    // — issue #1026) has no hover anywhere else: at the top level real Tcl
+    // context (`link` / `my` / `next` / `nextto` / `self` /
+    // `classvariable`) has no hover anywhere else: at the top level real Tcl
     // answers `invalid command name`, so there is nothing to describe.
     // Registry data decides which commands those are; the frame classifier
     // decides where the cursor is. Hover keys on *callability*, not mere
@@ -1281,8 +1275,8 @@ fn scoped_command_hover_text(
 }
 
 /// Render a hover for the third word of a two-level ensemble — the
-/// second-level subcommand of `info object <op>` / `info class <op>` (issue
-/// #798) — when the cursor sits on it.  Accepts a unique prefix (`info object
+/// second-level subcommand of `info object <op>` / `info class <op>` — when
+/// the cursor sits on it.  Accepts a unique prefix (`info object
 /// cl` ⇒ `class`), matching Tcl's ensemble dispatch.
 fn sub_subcommand_hover_text(
     source: &str,
@@ -1368,7 +1362,7 @@ fn option_hover_text(
     // A two-level ensemble narrows once more, on the word after the
     // subcommand: `namespace ensemble configure -namespace` is a readable
     // option and `namespace ensemble create -namespace` is a bad one, so
-    // only the operation's own table can answer either (issue #1610). The
+    // only the operation's own table can answer either. The
     // owner line names whichever level supplied the table.
     let (options, parent_surface, owner) = match words
         .next()
@@ -1393,8 +1387,8 @@ fn option_hover_text(
         let _ = write!(out, "\nTakes a `{}` value.\n", opt.value_hint());
     }
     // A boolean-valued option accepts the whole boolean vocabulary, prefixes
-    // included — a fact the registry now declares (`ArgRole::Boolean`, issue
-    // #1256) rather than something a reader has to know.
+    // included — a fact the registry declares (`ArgRole::Boolean`) rather
+    // than something a reader has to know.
     if opt.value_is_boolean() {
         let _ = write!(
             out,
@@ -2801,8 +2795,7 @@ pub(crate) fn word_char_bounds(chars: &[char], col: usize) -> Option<(usize, usi
 
 /// [`word_char_bounds`] also reporting whether the word is the **residual
 /// tail of a computed name** — the literal fragment that follows a `${var}` /
-/// `[cmd]` substitution inside the same word (`${ns}::setdef` → `::setdef`,
-/// issue #923 idx 54).
+/// `[cmd]` substitution inside the same word (`${ns}::setdef` → `::setdef`).
 ///
 /// The scan cannot see the substitution (it stops at its closer, which is a
 /// delimiter), so without this flag `::setdef` is indistinguishable from a
@@ -2842,7 +2835,7 @@ pub(crate) fn word_char_bounds_kinded(chars: &[char], col: usize) -> Option<(usi
 /// A word that is the residual tail of a computed name — the literal
 /// fragment after a `${var}` / `[cmd]` substitution in the same word, as in
 /// `${ns}::setdef` — is reported as the *name* it spells (`setdef`), with the
-/// span narrowed past the `::` accordingly (issue #923 idx 54).  Keeping the
+/// span narrowed past the `::` accordingly.  Keeping the
 /// leading `::` made it indistinguishable from an absolute name, so
 /// resolution looked for a global proc literally called `::setdef` and every
 /// consumer reported nothing; narrowing the span as well is what keeps rename
@@ -3235,7 +3228,7 @@ fn caller_frame_hover_text(
              The name is passed at the call site, so this frame never assigns it directly.",
             binding.callee
         ),
-        // A literal target (`upvar 1 name name`, issue #1139): the callee
+        // A literal target (`upvar 1 name name`): the callee
         // spells the name in its own body, so nothing at the call site
         // carries it.
         None => format!(
@@ -3328,7 +3321,7 @@ fn tcl_type_label(t: TclType) -> String {
 /// inferred-intrep and taint annotations for `var_name`.  Returns
 /// `(type_label, taint_label)`; either may be `None`.
 ///
-/// Built **for the document's dialect** (issue #1054): the unit is lowered
+/// Built **for the document's dialect**: the unit is lowered
 /// with `LexerConfig::for_dialect` and the dialect is recorded on the build
 /// options, so word tokenisation, the expression grammar the lowering parses
 /// conditions with, and the lattice pipeline's fold policy all agree with the
@@ -3521,7 +3514,7 @@ fn infer_var_taint(unit: &CompilationUnit, var_name: &str) -> Option<String> {
 /// cursor and looks `word` up against `methods` /
 /// `class_methods` / `properties` — but ONLY when `word` is
 /// genuinely bareword-callable from a method body of this class
-/// (`ClassDef::linked_members`, issue #923 idx 113; see
+/// (`ClassDef::linked_members`; see
 /// `lookup_class_member`'s doc for the full rationale) — plus the
 /// `constructor` / `destructor` keywords, unconditionally.
 /// Returns a one-line markdown summary on hit, `None` otherwise.
@@ -3539,17 +3532,17 @@ fn class_member_hover_text(
     let qname = &class_def.qualified_name;
     // The member's **own declaration** token — `method reopened {v} {…}`'s
     // `reopened` — hovers as that member, wherever in the class the
-    // declaration was written (issue #1019 idx 16).  A class body is not a
+    // declaration was written.  A class body is not a
     // single lexical region: `oo::define Cls { … }` reopens the class and
     // its members are just as much `Cls`'s own, so this hangs off
     // `enclosing_class_at` (which already consults
     // `AnalysisResult::class_body_spans`, the multi-span record) rather than
     // any single `body_span`, and the reopening block behaves exactly like
-    // the creation block.  Declaration-site hover previously had no path at
-    // all — only *call* sites (`my m`, `$obj m`) and `link`-exposed
-    // barewords rendered — which left a class member the one declared
-    // symbol in the language that could not be hovered where it is
-    // declared, while `proc` and the class name itself both could.
+    // the creation block.  Without a declaration-site path only *call* sites
+    // (`my m`, `$obj m`) and `link`-exposed barewords render, which would
+    // leave a class member the one declared symbol in the language that
+    // cannot be hovered where it is declared, while `proc` and the class name
+    // itself both can.
     //
     // Gated on the cursor genuinely sitting inside the member's own
     // `name_span`, so this never fires for a same-named word elsewhere in
@@ -3599,7 +3592,7 @@ fn class_member_hover_text(
 }
 
 /// Hover text for a class member's **own declaration** name token, or
-/// `None` when the cursor is not sitting on one (issue #1019 idx 16).
+/// `None` when the cursor is not sitting on one.
 ///
 /// Which member a name belongs to is
 /// [`crate::references::resolve_member_span`] — the very same
@@ -3656,19 +3649,19 @@ fn member_declaration_hover_text(
 ///
 /// Resolution is the shared `TclOO` linearisation walk
 /// ([`crate::oo_dispatch::method_dispatch_provider`]), the same one
-/// go-to-definition and find-references use. It used to be a direct-only
-/// `class_def.methods.get(method)` on the receiver's own class, so a method
-/// reached purely through a `mixin` or a `superclass` — with no local
-/// override — hovered as nothing at all even though go-to-definition
-/// resolved it one line of code away in the same request path (issue #923
-/// idx 34 / 35, and the second half of idx 28). The MRO-aware provider was
+/// go-to-definition and find-references use. A direct-only
+/// `class_def.methods.get(method)` on the receiver's own class is not enough:
+/// a method reached purely through a `mixin` or a `superclass` — with no
+/// local override — would hover as nothing at all even though
+/// go-to-definition resolves it one line of code away in the same request
+/// path. The MRO-aware provider is
 /// already computed in this file, but only to *annotate* a hit the direct
 /// lookup had already found.
 ///
 /// `class_q` may name either a *user*-defined class (`analysis.all_classes`
 /// — `oo::class`/`oo::define`/snit/itcl bodies the analyser parsed) or a
 /// *registry*-modelled one (a `tcl-registry` `ObjectClassSpec` — tcllib
-/// factories, or a Tk/ttk widget's self-referential class, issue #927).
+/// factories, or a Tk/ttk widget's self-referential class).
 /// User classes are tried first (richer: params, MRO note); the registry is
 /// the fallback so e.g. `.t instate` still hovers even though `ttk::treeview`
 /// is never a user-defined class.
@@ -3684,7 +3677,7 @@ fn member_declaration_hover_text(
 /// `Break(Some(_))` is a rendered method hover, `Break(None)` is a
 /// **definitive no-hover** — a per-object mask (`oo::objdefine $o {
 /// unexport m }`, or an unexported per-object member) makes `$obj m` answer
-/// `unknown method` regardless of the class chain (issue #1170), never a
+/// `unknown method` regardless of the class chain, never a
 /// fall-through to a same-named proc or command — and `Continue(())` means
 /// the cursor is not a method-dispatch site at all, so the remaining hover
 /// tiers run.
@@ -3726,13 +3719,9 @@ fn method_dispatch_hover(
     // *variable* (`receiver_instance_class` above only resolves those), it
     // means "the class whose body lexically encloses this call", found via
     // `enclosing_class_at`. Without this, a definite, single-target `my
-    // methodName` call had no hover at all — go-to-definition and
-    // find-references already resolved it (issue #923 idx 76: the
-    // finding's own headline hypothesis, an ambiguous `switch`-dispatched
-    // `[$obj GetType]` guess, is REFUTED — the LSP correctly abstains
-    // there — but tracing it uncovered this genuinely CONFIRMED gap on the
-    // exact same class, reproducing identically whether or not the class
-    // is split across a separate `oo::define` block).
+    // methodName` call has no hover at all, even though go-to-definition and
+    // find-references resolve it.  The shape reproduces identically whether
+    // or not the class is split across a separate `oo::define` block.
     if let Some((inst, method, _)) = crate::definition::instance_method_at_cursor(
         source,
         line,
@@ -3755,11 +3744,11 @@ fn method_dispatch_hover(
 /// [`method_dispatch_hover`] can only answer when the whole class chain is
 /// visible in the requesting document's own analysis. The real corpus shape
 /// is the opposite: `my ArgsPreprocess` in one file, the `mixin`/`superclass`
-/// that provides `ArgsPreprocess` in another (issue #923 idx 28 — the
-/// `SpiceGenTcl` `RModel` / `Utility` split). Go-to-definition and
-/// find-references already crossed that boundary through the workspace index;
-/// hover answered nothing, because `hover.rs` has no cross-document tier at
-/// all. Rather than grow one here — the index and the document store live in
+/// that provides `ArgsPreprocess` in another (the `SpiceGenTcl` `RModel` /
+/// `Utility` split). Go-to-definition and
+/// find-references cross that boundary through the workspace index;
+/// `hover.rs` has no cross-document tier of its
+/// own. Rather than grow one here — the index and the document store live in
 /// the server — the server resolves the provider and asks this function to
 /// render it, so both tiers emit the identical heading and MRO note.
 ///
@@ -4044,7 +4033,7 @@ mod tests {
 
     #[test]
     fn hover_on_ensemble_subcommand_resolves_target_proc() {
-        // TP — issue #923 idx 106: hover on an ensemble subcommand call
+        // TP — hover on an ensemble subcommand call
         // site surfaces the resolved target proc's own signature.
         let src = "namespace eval ::e {\n    namespace ensemble create -map {\n        foo ::e::Foo\n    }\n}\nproc ::e::Foo {args} { return \"foo: $args\" }\n\nputs [e foo bar]\n";
         let analysis = analyse(src);
@@ -4057,7 +4046,7 @@ mod tests {
 
     #[test]
     fn hover_on_tk_ensemble_configure_splice_resolves_the_real_target() {
-        // TP — issue #923 idx 84: `tk`'s built-in ensemble is extended at
+        // TP — `tk`'s built-in ensemble is extended at
         // runtime via `namespace ensemble configure tk -map [dict merge
         // [namespace ensemble configure tk -map] {systray ::tk::systray}]`
         // (the real `tk/library/systray.tcl` idiom). Hover on the call
@@ -4074,10 +4063,9 @@ mod tests {
 
     #[test]
     fn hover_on_self_method_call_site_resolves() {
-        // TP — issue #923 idx 120: `self method make {n} {...}` records
-        // into `class_methods` (Part 1); `Widget make gadget`'s bare
-        // class-command receiver now resolves too (Part 2), so hover on
-        // the call site works end-to-end.
+        // TP — `self method make {n} {...}` records into `class_methods`,
+        // and `Widget make gadget`'s bare class-command receiver resolves
+        // against it, so hover on the call site works end-to-end.
         let src = "oo::class create Widget {\n    self method make {n} { return \"made $n\" }\n}\nWidget make gadget\n";
         let analysis = analyse(src);
         // Cursor on `make` in `Widget make gadget` (line 3, col 8).
@@ -4183,10 +4171,9 @@ mod tests {
 
     #[test]
     fn hover_on_proc_param_bareword_declaration_resolves() {
-        // TP — differential-audit finding idx 9 (main audit wave): a cursor
-        // on a proc parameter's own bareword name (not a `$`-prefixed
-        // read) previously returned no hover at all, even though the same
-        // variable's `$name` reads hovered fine.
+        // TP — a cursor on a proc parameter's own bareword name (not a
+        // `$`-prefixed read) must hover, just as the same variable's `$name`
+        // reads do.
         let src = "proc greet {name} { return $name }\n";
         let analysis = analyse(src);
         // Cursor on `name` inside the parameter list (col 12-16).
@@ -4196,7 +4183,7 @@ mod tests {
 
     #[test]
     fn hover_on_catch_resultvar_bareword_resolves() {
-        // TP — the finding's other confirmed shape: a `catch script name`
+        // TP — the other bareword shape: a `catch script name`
         // result-var reuses an existing variable; its own bareword token
         // must still hover, surfacing the same variable.
         let src = "proc resolveSwitch {name def} {\n    catch {foo} name\n    return $name\n}\n";
@@ -4287,7 +4274,7 @@ mod tests {
 
     #[test]
     fn builtin_hover_resolves_imported_command() {
-        // Peer of #776: a bare command imported into the global scope resolves
+        // A bare command imported into the global scope resolves
         // to its qualified spec — hovering `test` after `namespace import
         // ::tcltest::*` surfaces the `tcltest::test` documentation.
         let src = "namespace import ::tcltest::*\ntest t-1 {desc} -body { set x 1 } -result 1\n";
@@ -4482,7 +4469,7 @@ mod tests {
         assert!(text.contains("{name world}"), "got: {text}");
     }
 
-    /// Issue #1018: the cross-document renderer answers by qualified name and
+    /// The cross-document renderer answers by qualified name and
     /// produces the *same* body the in-document path does, for both a proc and
     /// a class — one renderer, so a call-site hover in another file can never
     /// drift from the declaration's own.
@@ -4647,7 +4634,7 @@ mod tests {
     #[test]
     fn special_var_hover_documents_auto_path() {
         // `$auto_path` has no user definition, but the special-variable
-        // registry provides documentation on hover (issue #831).
+        // registry provides documentation on hover.
         let src = "puts $auto_path\n";
         let analysis = analyse(src);
         let registry = tcl_registry::CommandRegistry::build_default();
@@ -5187,8 +5174,7 @@ mod tests {
     /// A substituted leading word is not a positional operand until Tcl has
     /// evaluated it.  The source-aware registry query must therefore keep
     /// every resolver-owned pattern and regsub replacement unclaimed, not
-    /// merely the lsearch-specific descriptor that originally grew this
-    /// guard (PR #1514 P2).
+    /// merely the lsearch-specific descriptor.
     #[test]
     fn dynamic_leading_options_abstain_for_pattern_and_regsub_format_hovers() {
         let registry = tcl_registry::CommandRegistry::build_default();
@@ -5635,7 +5621,7 @@ mod tests {
 
     #[test]
     fn sub_subcommand_hover_surfaces_for_info_object_class() {
-        // Issue #798 fix 3: hovering the third word of `info object class`
+        // Hovering the third word of `info object class`
         // returns the second-level subcommand's doc.
         let registry = tcl_registry::CommandRegistry::build_default();
         let src = "info object class $obj\n";
@@ -5738,7 +5724,7 @@ mod tests {
 
     #[test]
     fn class_member_hover_bare_sibling_method_without_link_abstains() {
-        // FP (issue #923 idx 113) — a bareword sibling method call is NOT
+        // FP — a bareword sibling method call is NOT
         // actually reachable from another method's body unless `link`
         // exposed it that way; real tclsh: "invalid command name". Must
         // abstain rather than falsely resolve.
@@ -5750,7 +5736,7 @@ mod tests {
 
     #[test]
     fn class_member_hover_linked_sibling_method_resolves() {
-        // TP (issue #923 idx 113) — `link greet` (called from the
+        // TP — `link greet` (called from the
         // constructor) makes `greet` genuinely bareword-callable, so
         // hover now resolves. alias == target here, so no "linked from"
         // note (see the two-element-alias test below for that).
@@ -5767,11 +5753,10 @@ mod tests {
 
     #[test]
     fn class_member_hover_resolves_when_class_extended_via_separate_oo_define() {
-        // Issue #923 idx 52 (main audit wave, high severity): `Gadget` is
-        // created via `oo::class create` with no body; the `link`, the
-        // linked method, and the bareword call site that depends on it are
-        // all added via a *separate*, later `oo::define Gadget { ... }`
-        // block — the real corpus shape (`ticklecharts::chart`). Hover on
+        // `Gadget` is created via `oo::class create` with no body; the
+        // `link`, the linked method, and the bareword call site that depends
+        // on it are all added via a *separate*, later `oo::define Gadget
+        // { ... }` block — the `ticklecharts::chart` shape. Hover on
         // the bareword `Helper` call must still resolve — the cursor sits
         // inside that separate block, which `class_member_hover_text`'s
         // `enclosing_class_at` containment check must recognise as part of
@@ -5787,7 +5772,7 @@ mod tests {
 
     #[test]
     fn class_member_hover_two_element_link_alias_notes_the_real_target() {
-        // TP (issue #923 idx 113) — `link {shortcut realMethod}` aliases
+        // TP — `link {shortcut realMethod}` aliases
         // a DIFFERENT bareword to the real method; hover on the alias
         // must resolve to `realMethod`'s own declaration and note it was
         // reached via the alias (a currently-live false negative this
@@ -5802,15 +5787,14 @@ mod tests {
         assert!(h.value.contains("linked from `shortcut`"), "{}", h.value);
     }
 
-    // `my method` internal-dispatch hover (issue #923 idx 76)
+    // `my method` internal-dispatch hover
 
     #[test]
     fn my_dispatch_hover_resolves_a_plain_call_in_a_single_block_class() {
-        // TP — issue #923 idx 76 (main audit wave, high severity, tomato
-        // corpus): a definite, single-target `my methodName` call had NO
-        // hover at all, unlike a `link`-exposed bareword sibling call
-        // (idx 113) or `$obj method` — go-to-definition and find-references
-        // already resolved this exact shape (they use
+        // TP — a definite, single-target `my methodName` call must hover,
+        // like a `link`-exposed bareword sibling call or `$obj method` —
+        // go-to-definition and find-references resolve this exact shape (they
+        // use
         // `enclosing_class_at`/`method_dispatch_definition` directly,
         // cursor-shape-driven; hover had no equivalent path, only the
         // word-match-driven `class_member_hover_text`, gated on
@@ -5827,12 +5811,11 @@ mod tests {
 
     #[test]
     fn my_dispatch_hover_resolves_when_class_extended_via_separate_oo_define() {
-        // TP — issue #923 idx 76's own CONFIRMED repro shape: exactly
-        // idx 52's two-block `oo::class create` + separate `oo::define`
-        // pattern (all 9 of tomato's real classes use this convention —
-        // constructor in `create`, every method including the dispatched-on
-        // one in a later `define`), reproduced here for hover specifically
-        // (definition/references already covered by idx 52's own tests).
+        // TP — the two-block `oo::class create` + separate `oo::define`
+        // pattern (constructor in `create`, every method including the
+        // dispatched-on one in a later `define`), exercised here for hover
+        // specifically; definition and references have their own tests for
+        // the same shape.
         let src = "oo::class create geo::Plane {\n    constructor {args} {}\n}\noo::define geo::Plane {\n    method GetType {} { return Plane }\n    method WhichAmI {} { return [my GetType] }\n}\n";
         let analysis = analyse(src);
         // Line 5: `    method WhichAmI {} { return [my GetType] }` — cursor
@@ -5852,11 +5835,9 @@ mod tests {
         assert!(hover(src, 1, 34, &analysis, None).is_none());
     }
 
-    // A class member's own declaration hovers as that member (issue #1019
-    // idx 16).  `proc` and the class name itself already hovered at their
-    // declarations; a method did not, which is what made the reopening-block
-    // half of idx 16 look like a block-specific bug rather than a missing
-    // feature — neither block hovered.
+    // A class member's own declaration hovers as that member, in the
+    // creation block and in a reopening `oo::define` block alike — the same
+    // way `proc` and the class name itself hover at their declarations.
 
     #[test]
     fn member_declaration_hover_resolves_in_the_creation_block() {
@@ -5872,7 +5853,7 @@ mod tests {
 
     #[test]
     fn member_declaration_hover_resolves_in_a_reopening_oo_define_block() {
-        // TP — issue #1019 idx 16's own shape (SpiceGenTcl
+        // TP — the SpiceGenTcl
         // `generalClasses.tcl`: `oo::configurable create Parameter { … }`
         // then a separate `oo::define Parameter { method <WriteProp-value>
         // … }`).  tclsh 9.0.4 dispatches `$f reopened hi` to the reopened
@@ -5920,8 +5901,7 @@ mod tests {
         let src = "oo::class create Foo {\n    method plain {} { return plain }\n}\n";
         let analysis = analyse(src);
         // Line 1, col 30 — the bareword `plain` in `return plain`, which is
-        // a value, not a call (an un-linked sibling name is not callable —
-        // issue #923 idx 113).
+        // a value, not a call (an un-linked sibling name is not callable).
         assert!(hover(src, 1, 30, &analysis, None).is_none());
     }
 
@@ -5941,7 +5921,7 @@ mod tests {
 
     #[test]
     fn class_member_hover_bare_sibling_classmethod_without_link_abstains() {
-        // FP (issue #923 idx 113) — same shape as the method case above,
+        // FP — same shape as the method case above,
         // for `classmethod`.
         let src = "oo::class create C {\n    classmethod factory {} {}\n    method use {} { factory }\n}\n";
         let analysis = analyse(src);
@@ -5950,7 +5930,7 @@ mod tests {
 
     #[test]
     fn class_member_hover_linked_sibling_classmethod_resolves() {
-        // TP (issue #923 idx 113) — `link factory` makes the classmethod
+        // TP — `link factory` makes the classmethod
         // hover resolve.
         let src = "oo::class create C {\n    constructor {} { link factory }\n    classmethod factory {} {}\n    method use {} { factory }\n}\n";
         let analysis = analyse(src);
@@ -5994,7 +5974,7 @@ mod tests {
 
     #[test]
     fn obj_method_hover_fires_for_a_literal_foreach_installed_method() {
-        // Issue #1277: the member's name comes from the loop's own literal
+        // The member's name comes from the loop's own literal
         // list, not a written `method NAME` word, but a call site must
         // still resolve to a hover — go-to-definition and hover share the
         // same member table this walk populates.
@@ -6023,7 +6003,7 @@ mod tests {
     }
 
     /// A Tk widget's instance command (a registry-modelled, self-referential
-    /// `object_class`, not a user-defined one — issue #927) needs the
+    /// `object_class`, not a user-defined one) needs the
     /// registry passed to resolve hover text at all.
     #[test]
     fn obj_method_hover_fires_for_bareword_widget() {
@@ -6096,7 +6076,7 @@ mod tests {
     }
 
     // tcl::OptProc — the `opt` package's automatic-option-parsing proc
-    // definer (issue #923 idx 90): hover on either the declaration or a
+    // definer: hover on either the declaration or a
     // call site must show the real `args`-only signature, never
     // `optlist`'s own literal text.
 
@@ -6117,14 +6097,14 @@ mod tests {
     }
 
     // Hover shares `definition()`'s command-resolution seam, so it shares
-    // both of its fixes — issue #1137 idx 50 (the command-position gate)
-    // and issue #1133 (the resolved-indirect-head preference).
+    // both of its gates — the command-position gate and the
+    // resolved-indirect-head preference.
 
     #[test]
     fn fp_argument_word_sharing_a_procs_name_does_not_hover_that_proc() {
-        // FP guard — issue #1137 idx 50: `dump` is `anotherproc`'s first
-        // argument, never a command, so rendering `proc ::dump`'s signature
-        // there was a wrong answer.
+        // FP guard — `dump` is `anotherproc`'s first argument, never a
+        // command, so rendering `proc ::dump`'s signature there is a wrong
+        // answer.
         let src = "proc anotherproc {a b} { return $a }\nproc dump {x} { return $x }\nproc caller {} {\n    return [anotherproc dump 5]\n}\n";
         let analysis = analyse(src);
         let h = hover(src, 3, 24, &analysis, None);
@@ -6145,7 +6125,7 @@ mod tests {
 
     #[test]
     fn tp_resolved_indirect_head_hovers_the_command_it_reaches() {
-        // TP — issue #1133, hover's half: the `${ns}::setdef` head carries
+        // TP — hover's half: the `${ns}::setdef` head carries
         // no written command name, so only the analyser's own resolution
         // can answer, and it must not lose to a same-named decoy.
         let src = "namespace eval ::tc { proc setdef {a} { return $a } }\nnamespace eval ::other { proc setdef {b c} { return $b } }\nset ns ::tc\n${ns}::setdef\n";

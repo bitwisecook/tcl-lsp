@@ -521,9 +521,9 @@ mod tests {
 
     #[test]
     fn procedure_target_matches_static_proc_across_profiles_and_dispatches() {
-        // Keep the cases together: each exercises module state that a
-        // procedure-target lowering used to assemble separately from a static
-        // `proc` body (procedure frame/LVT, namespace resolution, nested and
+        // Keep the cases together: each exercises module state a
+        // procedure-target lowering must assemble the same way a static
+        // `proc` body does (procedure frame/LVT, namespace resolution, nested and
         // const-materialised procedures, command aliases and rename, and
         // namespace directives).
         let body = "namespace import ::source::*\n\

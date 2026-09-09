@@ -40,10 +40,11 @@ pub const VALUE_JOIN_PREFIXES: &[&str] = &["if_end_", "switch_end_"];
 /// The loop command's result is always the empty string.
 pub const LOOP_END_PREFIXES: &[&str] = &["while_end_", "for_end_", "foreach_end_"];
 
-/// Block-name prefixes for loop header (condition test) blocks.
+/// Block-name prefixes for `for` and `while` loop header (condition test)
+/// blocks.
 pub const LOOP_HEADER_PREFIXES: &[&str] = &["for_header_", "while_header_"];
 
-/// Block-name prefixes for loop body blocks.
+/// Block-name prefixes for `for` and `while` loop body blocks.
 pub const LOOP_BODY_PREFIXES: &[&str] = &["while_body_", "for_body_"];
 
 /// Return `true` if `name` starts with any of `prefixes`.
@@ -60,9 +61,9 @@ pub fn starts_with_any(name: &str, prefixes: &[&str]) -> bool {
 /// if the value is unknown at compile time.
 #[must_use]
 pub fn fold_const_branch(cond: &ExprNode) -> Option<bool> {
-    // Only textual literals can be folded. Var/Command/Raw carry runtime
-    // values and structured nodes (Binary/Unary/Ternary/Call) are handled
-    // by the caller's own folding path — both collapse to `None` here.
+    // Only literal text is folded here. Every other node — variables, command
+    // substitutions, compiled words and structured operators — carries a runtime
+    // value or is folded by the caller, so it collapses to `None`.
     let (ExprNode::Literal { text, .. } | ExprNode::String { text, .. }) = cond else {
         return None;
     };
@@ -372,9 +373,9 @@ pub fn build_loop_context(cfg: &CfgFunction) -> HashMap<String, (Option<String>,
     // A `break`/`continue` targets the *innermost* enclosing loop. A more-nested
     // loop has a strictly smaller body, so assign in ascending body size and keep
     // the first (innermost) writer — otherwise an outer loop, whose body subsumes
-    // the inner one's blocks, would overwrite the inner continue target (HashMap
-    // order made this nondeterministic) and an inner `continue` would jump to the
-    // outer header, looping forever.
+    // the inner one's blocks, could overwrite the inner continue target (block
+    // iteration order is unordered, so which one won would be arbitrary) and an
+    // inner `continue` would jump to the outer header, looping forever.
     loops.sort_by_key(|l| l.body.len());
     let mut ctx: HashMap<String, (Option<String>, String)> = HashMap::new();
     for l in &loops {
@@ -392,8 +393,6 @@ pub fn build_loop_context(cfg: &CfgFunction) -> HashMap<String, (Option<String>,
 
     ctx
 }
-
-// Tests
 
 #[cfg(test)]
 mod tests {

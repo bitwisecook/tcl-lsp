@@ -17,15 +17,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Docstring parsing + stub generation — the shared, consumer-agnostic home
-//! for the proc-docstring model. Ports `tooling.formatter.docstring`.
+//! for the proc-docstring model.
 //!
 //! - [`parse_docstring`] turns raw `# @param …` comment text into a structured
 //!   [`DocstringInfo`];
 //! - [`render_comment_block`] / [`generate_stub_for_proc`] render a stub back to
 //!   Tcl comment lines (Doxygen or plain style, with optional decoration).
 //!
-//! The `tcl-lsp-core` code-actions layer and the `tcl_lsp_py` facade share this
-//! one implementation.
+//! The code-actions layer and the MCP docstring tools share this one
+//! implementation.
 
 use tcl_compiler::analyser::ProcDef;
 

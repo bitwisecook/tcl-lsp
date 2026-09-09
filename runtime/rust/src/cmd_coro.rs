@@ -30,7 +30,7 @@
 //! is shared by raw `Rc` clone across the threads, the accesses never overlap
 //! and the `RefCell`s never alias. The one `unsafe` is asserting `Send` on the
 //! handle that carries the `Rc` to the worker; it is sound precisely because of
-//! the serialized handoff (see [`SendPtr`]).
+//! the serialised handoff (see [`SendPtr`]).
 //!
 //! The interpreter's *per-flow execution context* (call frames, the `info frame`
 //! stack, current namespace, the TclOO call/define stacks, …) is swapped in/out
@@ -56,7 +56,7 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"::tcl::unsupported::corotype", corotype_cmd);
 }
 
-// -- the cross-thread plumbing --------------------------------------------
+// the cross-thread plumbing
 
 #[cfg(not(target_arch = "wasm32"))]
 mod imp {
@@ -125,7 +125,7 @@ mod imp {
     /// concurrently (strict channel ping-pong), so the `!Send` `Rc` interior is
     /// only ever touched by one thread at a time.
     struct SendPtr(Interp);
-    // SAFETY: serialized cooperative handoff — see the module docs.
+    // SAFETY: serialised cooperative handoff — see the module docs.
     unsafe impl Send for SendPtr {}
 
     /// A coroutine's current command name, shared between the main flow and its
@@ -203,7 +203,7 @@ mod imp {
         // Fresh execution context in the creating namespace.
         let context = CoroContext::fresh(interp.current_ns());
 
-        // Hand a clone of the interp to the worker (sound under serialization).
+        // Hand a clone of the interp to the worker (sound under serialisation).
         let send_interp = SendPtr(interp.clone_handle());
         let shared_name: CoroName = Arc::new(Mutex::new(name.clone()));
         let worker_name = Arc::clone(&shared_name);
@@ -700,7 +700,7 @@ pub fn in_coroutine() -> bool {
     imp::in_coroutine()
 }
 
-// -- wasm: no OS threads → coroutines need the explicit-stack evaluator -----
+// wasm: no OS threads → coroutines need the explicit-stack evaluator
 
 #[cfg(target_arch = "wasm32")]
 fn coroutine_cmd(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
@@ -870,9 +870,9 @@ mod tests {
     /// A `rename` carries a live coroutine with its command, as C carries it
     /// with the command *token*: the new name resumes it, `[info coroutine]`
     /// reports the new name from inside the body, `corotype` still finds it,
-    /// and the delete side still tears it down — across namespaces too. The
-    /// runtime used to leave the coroutine undispatchable under either name
-    /// (its registry stayed keyed by the vacated name).
+    /// and the delete side still tears it down — across namespaces too.
+    /// Keeping the registry keyed by the vacated name instead would leave
+    /// the coroutine undispatchable under either name.
     ///
     /// tclsh 8.6.16 and 9.0.4 both produce this sequence.
     #[test]

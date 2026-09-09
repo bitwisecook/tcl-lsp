@@ -40,8 +40,8 @@
 //!   all the *correct* kind — a `RULE_INIT` compile acceptance that the
 //!   measurements themselves say must not be read as "valid to use". The
 //!   sixteen open gaps this corpus made visible on its first run (fifteen
-//!   event cells and the missing `matches` operator) were closed in P4 by
-//!   moving the model to the measurement, never by weakening a row.
+//!   event cells and the missing `matches` operator) were closed by moving
+//!   the model to the measurement, never by weakening a row.
 //! - [`ModelExpectation::NotComparable`] — the measured cell has no model
 //!   counterpart at all (`static::` is a variable namespace, not a
 //!   command).
@@ -67,8 +67,8 @@ pub enum ModelExpectation {
 
 /// Why a model answer differs from the measured cell.
 ///
-/// The first variant is a *correct* difference, and since P4 closed the
-/// registry-data gaps it is the only one any row carries. The other three
+/// The first variant is a *correct* difference — the registry-data gaps
+/// are closed, so it is the only one any row carries. The other three
 /// stay as vocabulary rather than being deleted: a corpus that can only
 /// say "diverges" cannot say **which way** a future regression hurts, and
 /// the direction is the whole point — an over-permissive cell costs the
@@ -503,7 +503,7 @@ pub const PARSER_PARITY_VECTORS: &[ParserParityVector] = &[
         host85: Error("invalid bareword"),
         axis: ExprWordOperators,
         section: "§4a, §4b, §6",
-        // CLOSED in P4. The trunk's word-operator table carried nine
+        // The trunk's word-operator table carried nine
         // operators and the bare `matches` was not one of them, though
         // the appliance answered `1` for it in all three F5 contexts and
         // both host builds rejected it. It is the tenth operator now, at

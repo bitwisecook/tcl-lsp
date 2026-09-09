@@ -93,10 +93,10 @@ suite("Call Hierarchy", () => {
     }
   });
 
-  // Regression for issue #957's general form: TclOO method call-hierarchy
-  // edges must match `my <method>` dispatch (including nested in `if`
-  // control flow), never a bare method-name call — a method is not a
-  // bare-callable command in Tcl, so a bare `greet` head never dispatches.
+  // TclOO method call-hierarchy edges must match `my <method>` dispatch
+  // (including nested in `if` control flow), never a bare method-name call —
+  // a method is not a bare-callable command in Tcl, so a bare `greet` head
+  // never dispatches.
   suite("TclOO method dispatch (`my <method>`)", () => {
     const methodDocUri = getDocUri("methodCallHierarchy.tcl");
 

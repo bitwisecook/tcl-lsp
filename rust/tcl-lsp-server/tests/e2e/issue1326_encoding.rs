@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Issue #1326 — the encoding-integrity codes over real JSON-RPC.
+//! The encoding-integrity codes over real JSON-RPC.
 //!
 //! LSP synchronisation carries text, not source bytes. The server therefore
 //! retains an encoding report only when the on-disk bytes lossily decode to
@@ -315,12 +315,12 @@ fn f5_model_documents_publish_w107_and_w305_on_push_and_pull() {
     }
 }
 
-// #1325 regression guard — the complementary path must stay fixed.
+// Regression guard for the complementary path.
 
 #[test]
 fn valid_multi_byte_source_still_analyses_without_a_panic() {
-    // #1325 was a panic on valid UTF-8 whose token span landed mid-character.
-    // None of the new offset arithmetic may bring it back.
+    // Valid UTF-8 whose token span lands mid-character must not panic;
+    // the offset arithmetic above must never reintroduce that.
     let mut lsp = Lsp::irules();
     let uri = unique_uri("irule");
     let diags = lsp.open_ready(&uri, &BODY.replace("\"hit\"", "\"日本語 𝄞 émoji 🎈\""));

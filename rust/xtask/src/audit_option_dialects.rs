@@ -40,14 +40,14 @@
 //! degenerate-column behaviour deliberately (e.g. a quick partial run on a
 //! machine that only has some trees built).
 //!
-//! # The audit↔registry drift guard (`--check`, issue #1396)
+//! # The audit↔registry drift guard (`--check`)
 //!
-//! The audit above only measures *tclsh*. Nothing tied it back to
-//! `tcl-registry`, so the audit and the registry could describe two different
-//! option surfaces and neither would notice — which is exactly what happened:
-//! the audit probed `fconfigure -profile` (TIP 656, Tcl 9.0) while the
-//! registry had no such [`OptionSpec`], and the omission was found by hand.
-//! The gap is fixed; this guard is the detector that never landed.
+//! The audit above only measures *tclsh*. Nothing ties it back to
+//! `tcl-registry`, so without this guard the audit and the registry could
+//! describe two different option surfaces and neither would notice: the
+//! audit could probe `fconfigure -profile` (TIP 656, Tcl 9.0) while the
+//! registry has no such [`OptionSpec`], with the omission found only by
+//! hand.
 //!
 //! `cargo xtask audit-option-dialects --check` sources each probed command's
 //! option surface from the registry's `OptionSpec` tables and fails when a
@@ -57,9 +57,10 @@
 //! asserts the same thing under `cargo test -p xtask`.
 //!
 //! Known gaps are declared in [`KNOWN_UNSPECIFIED`], each with the issue
-//! tracking the registry work — migration debt is tracked, not grandfathered
-//! (`AGENTS.md`). An entry that has since been specified fails the gate too,
-//! so the waiver list cannot outlive the gap it documents.
+//! tracking the registry work, so a gap stays visible until it is closed
+//! rather than being grandfathered in silently (`AGENTS.md`). An entry that
+//! has since been specified fails the gate too, so the waiver list cannot
+//! outlive the gap it documents.
 
 use std::io::{Read, Write};
 use std::path::Path;
@@ -106,7 +107,7 @@ const NOT_SUPPORTED_TOKENS: &[&str] = &[
 /// Declaration order is preserved in the JSON output and the console log,
 /// matching `dict` insertion order.
 const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
-    // ---- lsearch ----
+    // lsearch
     ("lsearch", None, "-stride", "lsearch -stride 2 {a 1} *"),
     (
         "lsearch",
@@ -124,7 +125,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
     ("lsearch", None, "-inline", "lsearch -inline {a} a"),
     ("lsearch", None, "-not", "lsearch -not {a b} a"),
     ("lsearch", None, "-start", "lsearch -start 0 {a b} b"),
-    // ---- lsort ----
+    // lsort
     ("lsort", None, "-stride", "lsort -stride 2 {a 1 b 2}"),
     ("lsort", None, "-indices", "lsort -indices {a b c}"),
     ("lsort", None, "-unique", "lsort -unique {a b c}"),
@@ -134,7 +135,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-command",
         "lsort -command {string compare} {a b c}",
     ),
-    // ---- regsub ----
+    // regsub
     (
         "regsub",
         None,
@@ -152,7 +153,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
     ),
     ("regsub", None, "-all", "regsub -all {a} {aaa} X"),
     ("regsub", None, "-start", "regsub -start 0 {a} {abc} X"),
-    // ---- regexp ----
+    // regexp
     ("regexp", None, "-expanded", "regexp -expanded {a} {abc}"),
     ("regexp", None, "-line", "regexp -line {a} {abc}"),
     ("regexp", None, "-linestop", "regexp -linestop {a} {abc}"),
@@ -167,7 +168,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
     ("regexp", None, "-indices", "regexp -indices {a} {abc}"),
     ("regexp", None, "-start", "regexp -start 0 {a} {abc}"),
     ("regexp", None, "-about", "regexp -about {a}"),
-    // ---- exec ----
+    // exec
     (
         "exec",
         None,
@@ -175,7 +176,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "exec -ignorestderr -- echo hi",
     ),
     ("exec", None, "-keepnewline", "exec -keepnewline -- echo hi"),
-    // ---- glob ----
+    // glob
     (
         "glob",
         None,
@@ -202,7 +203,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-nocomplain",
         "glob -nocomplain /nonexistent/x/*",
     ),
-    // ---- file copy / delete / rename / link ----
+    // file copy / delete / rename / link
     (
         "file",
         Some("copy"),
@@ -233,7 +234,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-hard",
         "file link -hard /tmp/_audit_link /tmp/_audit_target",
     ),
-    // ---- chan / fconfigure (channel options) ----
+    // chan / fconfigure (channel options)
     (
         "fconfigure",
         None,
@@ -294,7 +295,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-inputmode",
         "fconfigure stdin -inputmode normal",
     ),
-    // ---- clock scan options ----
+    // clock scan options
     ("clock", Some("scan"), "-base", "clock scan now -base 0"),
     (
         "clock",
@@ -326,7 +327,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-validate",
         "clock scan {2020-13-01} -validate 0 -format {%Y-%m-%d}",
     ),
-    // ---- socket ----
+    // socket
     (
         "socket",
         None,
@@ -363,21 +364,21 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-reuseport",
         "set s [socket -server {} -reuseport 1 -myaddr 127.0.0.1 0]; close $s",
     ),
-    // ---- source ----
+    // source
     (
         "source",
         None,
         "-encoding",
         "set f [open /tmp/_audit_src w]; close $f; source -encoding utf-8 /tmp/_audit_src",
     ),
-    // ---- unset ----
+    // unset
     (
         "unset",
         None,
         "-nocomplain",
         "unset -nocomplain ::nonexistent_var_42",
     ),
-    // ---- string compare/equal ----
+    // string compare/equal
     (
         "string",
         Some("compare"),
@@ -426,7 +427,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-nocase",
         "string match -nocase A a",
     ),
-    // ---- switch ----
+    // switch
     ("switch", None, "-exact", "switch -exact a {a {set x 1}}"),
     ("switch", None, "-glob", "switch -glob a {a* {set x 1}}"),
     (
@@ -442,7 +443,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-matchvar",
         "switch -regexp -matchvar m a {{(.*)} {set x 1}}",
     ),
-    // ---- subst ----
+    // subst
     (
         "subst",
         None,
@@ -451,7 +452,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
     ),
     ("subst", None, "-nocommands", "subst -nocommands {[set x]}"),
     ("subst", None, "-novariables", r"subst -novariables {\$x}"),
-    // ---- interp ----
+    // interp
     (
         "interp",
         Some("create"),
@@ -476,7 +477,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-namespace",
         "set i [interp create]; interp hide $i set; interp invokehidden $i -namespace :: set x 1; interp delete $i",
     ),
-    // ---- package ----
+    // package
     (
         "package",
         Some("present"),
@@ -489,12 +490,12 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-exact",
         "catch {package require -exact Tcl 9.0}",
     ),
-    // ---- puts ----
+    // puts
     ("puts", None, "-nonewline", "puts -nonewline {}"),
-    // ---- load ----
+    // load
     ("load", None, "-global", "catch {load -global /nonexistent}"),
     ("load", None, "-lazy", "catch {load -lazy /nonexistent}"),
-    // ---- unload ----
+    // unload
     (
         "unload",
         None,
@@ -507,14 +508,14 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-keeplibrary",
         "catch {unload -keeplibrary /nonexistent}",
     ),
-    // ---- encoding ----
+    // encoding
     (
         "encoding",
         None,
         "-profile",
         "catch {encoding convertfrom -profile strict utf-8 hi}",
     ),
-    // ---- vwait (Tcl 9.0 added many) ----
+    // vwait (Tcl 9.0 added many)
     (
         "vwait",
         None,
@@ -575,7 +576,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-writable",
         "catch {vwait -writable stdout -timeout 1}",
     ),
-    // ---- namespace ensemble (issue #1610) ----
+    // namespace ensemble
     //
     // `create` and `configure` are two different C option tables
     // (`ensembleCreateOptions` / `ensembleConfigOptions`, `tclEnsemble.c`),
@@ -687,7 +688,7 @@ static TCL_SPECS: LazyLock<Vec<CommandSpec>> =
 /// itself is not in the registry.
 ///
 /// A **second-level** subcommand's own table (`SubSubCommand::options` —
-/// `namespace ensemble create` vs `configure`, issue #1610) is deliberately
+/// `namespace ensemble create` vs `configure`) is deliberately
 /// *not* folded in as a third source. Every option there also belongs to the
 /// owning subcommand's abstain table, because that table is what a consumer
 /// falls back to when the dispatch word is dynamic; walking the second level
@@ -1247,7 +1248,7 @@ mod tests {
         assert_eq!(keys.len(), total, "probe table has duplicate keys");
     }
 
-    /// The audit↔registry drift guard (issue #1396): every option the dialect
+    /// The audit↔registry drift guard: every option the dialect
     /// audit probes must be declared by the registry's `OptionSpec` tables, so
     /// the two cannot describe different option surfaces. `fconfigure
     /// -profile` (TIP 656) drifted exactly this way and was found by hand.
@@ -1276,8 +1277,9 @@ mod tests {
         );
     }
 
-    /// A waiver may only name a real probe, and must carry a tracking issue —
-    /// migration debt is tracked, not grandfathered.
+    /// A waiver may only name a real probe, and must carry a tracking issue,
+    /// so a gap stays visible until it is closed rather than being
+    /// grandfathered in silently.
     #[test]
     fn waivers_are_tracked_and_reachable() {
         for &(cmd, sub, opt, issue) in KNOWN_UNSPECIFIED {

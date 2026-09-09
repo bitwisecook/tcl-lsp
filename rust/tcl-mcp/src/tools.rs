@@ -89,12 +89,12 @@ fn set_dialect(args: &Value) -> Value {
     // Aliases (`irules`, `tclspec`, …) resolve here, so the session holds a
     // canonical environment id.
     //
-    // Ledger row F9/T6: the validator is now the one `Environment::resolve`,
-    // exactly as wave 2 made the LSP's `setDialect` — so this accepts every
-    // *declared* name (canonical ids, aliases, and the contributed editor
-    // identities) rather than only those the profile catalogue happened to
-    // hold, and still rejects an unknown spelling. The advertised `enum`
-    // stays the canonical catalogue (its payload is row T6).
+    // The validator is the one `Environment::resolve`, matching the LSP's
+    // `setDialect` — so this accepts every *declared* name (canonical ids,
+    // aliases, and the contributed editor identities) rather than only
+    // those the profile catalogue happens to hold, and still rejects an
+    // unknown spelling. The advertised `enum` stays the canonical
+    // catalogue.
     let Some(profile) = crate::environment::known_profile_for_dialect(requested) else {
         return json!({
             "error": format!(
@@ -396,9 +396,9 @@ fn event_order(args: &Value) -> Value {
 fn format_source(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    // The tool's resolved dialect drives the formatter as one fact (issue
-    // #1465): lexer grammar, rewrite-candidate release, and forward range.
-    // The default config formatted every dialect as modern Tcl.
+    // The tool's resolved dialect drives the formatter as one fact:
+    // lexer grammar, rewrite-candidate release, and forward range —
+    // otherwise every dialect would format as modern Tcl.
     let mut config = tcl_lsp_core::formatting::FormatterConfig::for_dialect(&dialect);
     if let Some(n) = args.get("indent_size").and_then(Value::as_u64) {
         config.indent_size = usize::try_from(n).unwrap_or(config.indent_size);
@@ -667,9 +667,9 @@ mod format_dialect_tests {
 
     #[test]
     fn the_format_tool_resolves_the_requested_dialect() {
-        // Issue #1465: `format_source` started from `FormatterConfig::default()`
-        // and never projected the tool's resolved dialect onto it, so an iRule
-        // was tokenised with the Tcl 9 lexer.
+        // `format_source` must project the tool's resolved dialect onto the
+        // formatter config, not start from `FormatterConfig::default()`,
+        // which would tokenise an iRule with the Tcl 9 lexer.
         for dialect in ["f5-irules", "irules"] {
             let result = format_source(&json!({
                 "source": GHOST_SEPARATOR_IRULE,
@@ -771,9 +771,9 @@ fn command_info(args: &Value) -> Value {
     let command = arg_str(args, "command_name").trim();
     let reg = registry(IRULES_DIALECT);
     // The fixed iRules assistance view — the `ResolvedContext` that
-    // replaces `ProfileQueries` (ledger row F1's assistance half). It
-    // answers over the pack-layered store this tool holds rather than its
-    // own generation, which is what `resolve_spec` exists for.
+    // replaces `ProfileQueries`. It answers over the pack-layered store
+    // this tool holds rather than its own generation, which is what
+    // `resolve_spec` exists for.
     let irules = crate::environment::context_for_dialect(IRULES_DIALECT);
     let Some(spec) = irules.resolve_spec(&reg, command) else {
         return json!({ "command": command, "found": false });
@@ -1318,22 +1318,22 @@ struct ToolDef {
 type Param = (&'static str, &'static str, &'static str);
 
 /// The property name every dialect-taking tool spells its dialect argument
-/// with. [`input_schema`] keys the catalog enum off it, so a tool advertises
+/// with. [`input_schema`] keys the catalogue enum off it, so a tool advertises
 /// the full dialect list by naming its parameter rather than by repeating the
-/// catalog per tool.
+/// catalogue per tool.
 const DIALECT_PARAM: &str = "dialect";
 
-/// Every canonical dialect name, in catalog order.
+/// Every canonical dialect name, in catalogue order.
 fn dialect_names() -> Vec<&'static str> {
     DialectProfile::all().iter().map(|p| p.name).collect()
 }
 
-/// The schema for a dialect-valued property: the catalog as a JSON-Schema
+/// The schema for a dialect-valued property: the catalogue as a JSON-Schema
 /// `enum`, plus the `name — display_name` pairs appended to `desc` so a model
 /// reading only the description still sees what each name means.
 ///
-/// The `enum` lists canonical names only (its payload is ledger row T6);
-/// the runtime ingress keeps accepting every declared name.
+/// The `enum` lists canonical names only; the runtime ingress keeps
+/// accepting every declared name.
 fn dialect_schema(desc: &str) -> Value {
     let pairs: Vec<String> = DialectProfile::all()
         .iter()

@@ -16,8 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! End-to-end coverage for issue #1122 — VS Code sticky scroll goes dead
-//! while the extension is enabled.
+//! End-to-end coverage for VS Code sticky scroll going dead while the
+//! extension is enabled.
 //!
 //! The extension sets `stickyScroll.defaultModel: foldingProviderModel` for
 //! Tcl languages, which makes VS Code build the sticky model from the syntax
@@ -41,10 +41,10 @@ use serde_json::{Value, json};
 
 use crate::common::{Lsp, unique_uri};
 
-/// A versioned Tcl module in the shape of the one in the issue #1122 report
+/// A versioned Tcl module in the shape of the one that reproduced the defect
 /// — a top-level `oo::class create` with a superclass, instance variables, a
 /// constructor, and methods, whose closing brace is the document's last line.
-/// The reported module is proprietary, so every identifier here is invented;
+/// The original module is proprietary, so every identifier here is invented;
 /// only the structure is carried over.
 const MODULE_TM: &str = concat!(
     "package require Tcl 8.6\n",
@@ -261,8 +261,9 @@ fn tcloo_module_member_folds_survive_the_sticky_scroll_filter() {
 /// Outline-model sticky scroll builds `StickyRange(selectionRange.start,
 /// range.end)` and drops any symbol failing `TextModel.isValidRange` — while
 /// breadcrumbs, which read the same symbols without that check, keep working.
-/// That asymmetry is what masked #1122 for the dotted-language-id dialects
-/// and non-VS Code editors, so the bound is pinned end-to-end too.
+/// That asymmetry would hide an out-of-bounds range for the
+/// dotted-language-id dialects and non-VS Code editors alike, so the bound
+/// is pinned end-to-end too.
 #[test]
 fn document_symbol_ranges_stay_inside_the_document() {
     for (label, text) in module_variants() {
@@ -276,10 +277,10 @@ fn document_symbol_ranges_stay_inside_the_document() {
 /// A script whose top level is control flow, not definitions — the case the
 /// outline model has nothing to say about and the folding model must carry.
 ///
-/// The `switch` is the shape from issue #1216: its arms are a single
-/// clause-list argument, so before that fix the only fold covering a line
-/// inside an arm was the whole `switch` block and the sticky bar pinned the
-/// `switch` header rather than the arm's own pattern line.
+/// A `switch`'s arms are a single clause-list argument, so naive folding
+/// covers a line inside an arm with only the whole `switch` block — which
+/// would pin the sticky bar on the `switch` header rather than the arm's
+/// own pattern line.
 const CONTROL_FLOW_SCRIPT: &str = concat!(
     "foreach item $items {\n",              // 0
     "    if {[string match a* $item]} {\n", // 1

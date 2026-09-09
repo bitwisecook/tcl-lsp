@@ -47,9 +47,9 @@
 //!   from the word's own [`Span`], for callers that kept a span but not
 //!   the [`Token`] it came from.
 //! - [`group_commands`], [`CommandSpan`], [`WordSpan`], [`WordKind`] —
-//!   the one owner of command and word boundaries (issue #1786): a
-//!   token-stream grouper both `tcl-compiler` and `runtime/rust` fold
-//!   onto, reporting spans and token indices only.  See [`script`].
+//!   the one owner of command and word boundaries: a token-stream grouper
+//!   both `tcl-compiler` and `runtime/rust` fold onto, reporting spans and
+//!   token indices only.  See [`script`].
 //! - [`Lexer`], [`LexerConfig`], [`LexError`] — the lexer itself.
 //!   Handles EOF, SEP, EOL, COMMENT, and plain ESC tokens; every other
 //!   construct is surfaced as a `SyntaxError` (in strict-quoting mode)

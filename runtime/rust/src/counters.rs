@@ -17,9 +17,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Alloc / free / double-free counters — the leak-check instrumentation
-//! (`memory-management.md` MM-C). These back the T1.1 acceptance gate (a
-//! balanced round-trip leaves zero residual) and the T1.3 frame/var leak tests,
-//! the `tcl_test_*` leak-check surface.
+//! (`memory-management.md` MM-C). These back the round-trip leak check (a
+//! balanced round-trip leaves zero residual) and the frame/var leak tests,
+//! via the `tcl_test_*` leak-check surface.
 //!
 //! **Thread-local**, not global. The production runtime is a single-threaded
 //! WASM reactor, so per-thread counters are semantically identical there (one

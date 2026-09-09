@@ -16,8 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! **`PackDialect` → runtime family data** — the P3 rider on §6.2's
-//! `dialect` block (redesign Q1's endgame direction).
+//! **`PackDialect` → runtime family data**, from §6.2's `dialect` block.
 //!
 //! The loader already parses a `dialect NAME { … }` block against the
 //! closed axis vocabulary, projects its axes onto a
@@ -55,7 +54,7 @@
 //! `LexerGrammar` today is `tcl_lexer::LexerConfig`, built from a
 //! `&'static DialectProfile` the ingress hands out of a compiled table —
 //! so the last step, handing the analysis path a grammar that is not a
-//! compiled profile's, waits on the `DialectProfile` re-type (ledger C1).
+//! compiled profile's, is not yet possible.
 //! See [`tcl_dialect::model::dynamic`] for the same boundary stated from
 //! the model side.
 

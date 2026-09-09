@@ -36,7 +36,7 @@
 //!    by *value* — the scope's literal assignments, unioned for a parameter
 //!    with the literals its own callers pass — and recorded as an ordinary
 //!    call site for each name it may hold, so a dispatch retracts exactly the
-//!    seed it can reach and no more (issue #976).  Because that reads
+//!    seed it can reach and no more.  Because that reads
 //!    evidence this scan itself produces, layer 1 is a monotone fixpoint
 //!    ([`run_to_fixpoint`]); a module with no dispatch converges in one walk.
 //!    A dispatch whose values cannot be enumerated, or a script a command
@@ -48,9 +48,9 @@
 //!    registry-driven walk over *another* file's source text, resolving each
 //!    call against the whole project's proc names, so a host with a workspace
 //!    view can hand this unit the call sites it could never see itself
-//!    ([`CallSiteEvidence::merge_from`]).  Issue #977: a plain library file
+//!    ([`CallSiteEvidence::merge_from`]).  Without it, a plain library file
 //!    with no `package provide`, `source`d by a file that calls its procs
-//!    with a different literal, folded a genuinely varying parameter.
+//!    with a different literal, folds a genuinely varying parameter.
 //! 3. **Registry-declared boundaries** — [`scan_unit_linkage`] asks the
 //!    registry ([`CommandRegistry::unit_linkage`]) whether the file itself
 //!    admits to being part of a bigger program: `package provide` /
@@ -224,8 +224,7 @@ impl CallSiteEvidence {
     /// [`Self::slice_for`] correctly: a flag has no callee to narrow by, so
     /// merging a project's evidence would spread one file's `eval $script`
     /// to every other file's seed — the same disproportionate collateral
-    /// damage PR #970 reverted the module-wide dispatch wildcard for, at
-    /// project scope.
+    /// damage a module-wide dispatch wildcard causes, at project scope.
     ///
     /// `reach` is what bounds it: the value of an unenumerable word is
     /// resolved against the command table *the scanning unit has loaded*, so
@@ -677,8 +676,7 @@ fn resolve_via_namespace_import<S: std::hash::BuildHasher>(
 /// script embedded in a nested script, and so on, up to
 /// [`MAX_CALL_SITE_BODY_DEPTH`].
 ///
-/// This is the fix for the residual gap issue #969's own root cause left
-/// open: `catch { isEven 4 }`, a non-exact `switch` arm, a literal `uplevel
+/// `catch { isEven 4 }`, a non-exact `switch` arm, a literal `uplevel
 /// {…}` / `apply {{…} {…}}` body, and friends all carry their nested script
 /// as one opaque *argument string* to a builtin (`catch`, `switch`,
 /// `uplevel`, `apply`) that is never itself a user proc — so a flat,
@@ -708,10 +706,10 @@ fn record_call_site_evidence(
     // A dispatched command word (`$cmd args`) is resolved by *value*, not
     // skipped: the scope's own literal assignments (unioned, for a parameter,
     // with the literals its callers pass) give the set of names it may hold,
-    // and each becomes an ordinary call site.  Skipping it — the behaviour
-    // before issue #976 — let a dispatch reach a proc this scan had already
-    // seeded from its literal call sites, silently unsoundly.  A word whose
-    // value set is not enumerable withdraws every seed instead.
+    // and each becomes an ordinary call site.  Skipping it would let a
+    // dispatch reach a proc this scan had already seeded from its literal call
+    // sites, silently unsoundly.  A word whose value set is not enumerable
+    // withdraws every seed instead.
     record_invocation(out, ctx, caller, command, IndirectArgs::Words(args));
     if is_dynamic_word(command) {
         // Which of a computed head's arguments carry scripts, callbacks, or a
@@ -763,11 +761,11 @@ fn record_call_site_evidence(
         // namespace. Recursing here as well would scan it a second time under
         // the wrong one, inventing a call to a same-named proc in the caller's
         // namespace. Cross-file that is a false edge into another file's
-        // procedure; in-unit it was merely invisible, because a bare global
-        // `::helper` is rarely in a single file's own `known` set (issue #977).
+        // procedure; in-unit it is merely invisible, because a bare global
+        // `::helper` is rarely in a single file's own `known` set.
         //
         // Both name roles are consulted: `ArgRole::NamespaceName` is the
-        // precise one (`namespace eval` / `inscope`, issue #1088), while a
+        // precise one (`namespace eval` / `inscope`), while a
         // generic `ArgRole::Name` still covers any other command whose
         // symbolic name word is written absolutely.
         if [
@@ -787,8 +785,8 @@ fn record_call_site_evidence(
         // defined procedure's own namespace and frame. Lowering has already
         // registered it as a procedure / method / body unit, all of which
         // this scan visits with the right context, so recursing here would
-        // only re-walk it under the definer's. Issue #980: `namespace eval
-        // ::foo { proc runIt {} { uplevel #0 { helper b } } }` invented a
+        // only re-walk it under the definer's. Otherwise `namespace eval
+        // ::foo { proc runIt {} { uplevel #0 { helper b } } }` invents a
         // call to `::foo::helper` — a proc tclsh8.6/9.0 confirm real Tcl
         // never reaches this way.
         //
@@ -894,7 +892,7 @@ fn record_invocation(
 /// arguments (tclsh8.6/9.0-confirmed). A module that defines one therefore
 /// has callers no scan of its *direct* call sites can enumerate, and a
 /// coincidentally-uniform set of those direct calls would fold a parameter
-/// the unresolved words genuinely vary (issue #1044).
+/// the unresolved words genuinely vary.
 ///
 /// Which command is the handler comes from
 /// [`Traits::UNRESOLVED_COMMAND_HANDLER`], never a literal name here. The
@@ -921,7 +919,7 @@ fn unresolved_command_handler<'a, S: std::hash::BuildHasher>(
 }
 
 /// Record the unresolved-command handler's own invocation for a literal
-/// command word this scan could not resolve (issue #1044).
+/// command word this scan could not resolve.
 ///
 /// Only fires when the module defines a handler, and only for a word the
 /// registry does not know either — everything else either resolves or is a
@@ -992,11 +990,9 @@ fn resolve_target(
 /// `after 0 helper`, `trace add variable v write helper`, `-command helper`
 /// all invoke `helper` with runtime-supplied words appended, and `rename
 /// helper other` / `interp alias {} h {} helper` let a call reach `helper`
-/// under a name no scan attributed to it. Before this they were simply
-/// *absent* from the evidence, which reads to
-/// [`params_constants_from_call_sites`] as "no caller disagrees" — the exact
-/// shape issue #969 reported, reached through a callback instead of a missed
-/// call site. Recording them as opaque callers states the truth instead: a
+/// under a name no scan attributed to it. Left out of the evidence entirely
+/// they read to [`params_constants_from_call_sites`] as "no caller
+/// disagrees". Recording them as opaque callers states the truth instead: a
 /// call site exists whose arguments are unknown.
 ///
 /// Command-surface-driven throughout — the callback positions come from
@@ -1004,8 +1000,8 @@ fn resolve_target(
 /// ([`tcl_registry::model::DocumentCommandSurface::arg_indices_for_role`])
 /// and the rebinding forms from
 /// [`crate::alias::command_table_transitions`], so no command name appears
-/// here.  Closes, for both the in-unit and the cross-unit scan, the
-/// `CommandPrefix` limitation PR #970 documented as shared and pre-existing.
+/// here.  Covers the `CommandPrefix` forms for both the in-unit and the
+/// cross-unit scan.
 fn record_indirect_callers(
     out: &mut CallSiteEvidence,
     ctx: &CallSiteScanCtx<'_, impl std::hash::BuildHasher>,
@@ -1096,7 +1092,7 @@ pub(crate) fn needs_extra_call_site_scan_contexts(ir_module: &IrModule) -> bool 
 
 /// The synthetic caller name prefix an `uplevel` body's bare CFG carries:
 /// unique per occurrence, so its own variable-scope facts never clobber
-/// another scope's (issue #980).
+/// another scope's.
 const UPFRAME_SCOPE_PREFIX: &str = "@upframe@";
 
 /// One `uplevel ?level? { … }` body the call-site scan visits as a caller.
@@ -1116,7 +1112,7 @@ struct UpFrameCaller<'a> {
 /// body runs in the global frame, so bare command words resolve against the
 /// global namespace, not the enclosing proc's — tclsh8.6/9.0-confirmed,
 /// `uplevel #0 { helper b }` inside `::foo::runIt` calls `::helper`, never
-/// `::foo::helper` (issue #980).
+/// `::foo::helper`.
 ///
 /// Every other level keeps the enclosing unit's own namespace:
 ///
@@ -1211,11 +1207,11 @@ impl ExtraCallSiteScanContext {
 /// (`build_method_units` / `build_body_units` always pass `None` for their
 /// own analysis), but a call *from* one of their bodies *to* an ordinary
 /// user proc is a real call site whose argument can vary between call
-/// sites, exactly like a bare top-level or proc-body call — invisible to
-/// the collector before this, which walked only `cfg_module.top_level` and
-/// `cfg_module.procedures`. The same class of bug as issue #969's own root
-/// cause (a real, varying call site silently missing from the "every
-/// caller agrees" evidence), reached through a method/lambda body instead
+/// sites, exactly like a bare top-level or proc-body call — and invisible to
+/// a collector that walks only `cfg_module.top_level` and
+/// `cfg_module.procedures`. That is a real, varying call site silently
+/// missing from the "every caller agrees" evidence, reached through a
+/// method/lambda body instead
 /// of namespace-blind recursion or a `catch`/`uplevel` body.
 ///
 /// Returns an empty `Vec` (no cost beyond
@@ -1340,9 +1336,9 @@ pub(crate) fn build_extra_call_site_scan_contexts(
 /// resolve doesn't just go uncounted — it *vanishes* from
 /// [`params_constants_from_call_sites`]'s "every caller passes the same
 /// literal" evidence, which can flip an absence of contradicting evidence
-/// into a false positive. Issue #969: a proc declared inside a `namespace
-/// eval` block recursed into itself by its bare (unqualified) name; the old
-/// resolver only ever tried global-qualified spellings of the command word,
+/// into a false positive. A proc declared inside a `namespace eval` block
+/// recurses into itself by its bare (unqualified) name; a resolver that only
+/// tries global-qualified spellings of the command word
 /// so it could never match the proc's namespaced qualified name, and the
 /// recursive self-call — whose argument necessarily varies call to call —
 /// was silently dropped. Only the one external, fully-qualified caller's
@@ -1447,7 +1443,7 @@ fn run_to_fixpoint(
 ///
 /// This is what keeps an unreadable dispatch's blast radius proportionate:
 /// without it, one `eval $script` anywhere in a workspace would withdraw
-/// every interprocedural seed in every file (issue #976's cross-file half).
+/// every interprocedural seed in every file.
 fn unenumerable_reach(
     declared: &HashMap<String, crate::ir::Procedure>,
     declared_linkage: Traits,
@@ -1515,8 +1511,7 @@ fn scan_cfg_callers<'a>(
     funcs: impl Iterator<Item = (&'a str, &'a CfgFunction)>,
 ) {
     // The unresolved-command handler's caller set is *never* enumerable, so
-    // it is poisoned before a single statement is read (issue #1044, and the
-    // adversarial review that followed).
+    // it is poisoned before a single statement is read.
     //
     // Tcl routes to it every command word that resolves to nothing at the
     // moment of the call — a name typed at a prompt, a name a package
@@ -1559,7 +1554,7 @@ fn scan_cfg_callers<'a>(
 /// Collect the call sites **another** file contributes, resolved against the
 /// whole project's procedure names.
 ///
-/// This is the cross-file half of issue #977: a plain library file with no
+/// The cross-file half: a plain library file with no
 /// `package provide` is `source`d by a file that calls its procs with a
 /// different literal, and the library's own compilation unit — single-source
 /// by construction — can never see that caller.  A host with a workspace view
@@ -1611,7 +1606,8 @@ pub fn scan_source_call_sites<S: std::hash::BuildHasher>(
     // does — `scan_cfg_callers`/`record_call_site_evidence` are shared, so a
     // `set cmd helper; $cmd dev` in *another* file retracts this unit's seed
     // just as an in-unit one would.  Without the same var facts and fixpoint
-    // here, issue #976 would simply reopen across the file boundary.
+    // here, an unreadable dispatch would stop retracting seeds across the
+    // file boundary.
     let var_facts = collect_module_scope_var_facts(
         &cfg_module,
         &extra,
@@ -1693,13 +1689,13 @@ pub fn scan_source_call_sites<S: std::hash::BuildHasher>(
 /// teaching the compiler about a new boundary command is a registry edit
 /// (see [`tcl_registry::traits::UNIT_LINKAGE_TRAITS`]).
 ///
-/// Replaces the raw-text `package provide` substring scan (PR #970) and then
-/// the IR walk that hardcoded the `package`/`provide` word pair: the former
-/// both over-triggered (any script merely *mentioning* the phrase in a
-/// comment or string disabled every interprocedural seed in the file) and
-/// under-triggered (`package\tprovide`, `::package provide`); the latter was
-/// correct but knew a command by name, and missed every other way a file
-/// admits to being part of a larger program.
+/// Neither a raw-text `package provide` substring scan nor an IR walk keyed
+/// on the `package`/`provide` word pair would do: the first both
+/// over-triggers (any script merely *mentioning* the phrase in a comment or
+/// string disables every interprocedural seed in the file) and under-triggers
+/// (`package\tprovide`, `::package provide`); the second knows a command by
+/// name and misses every other way a file admits to being part of a larger
+/// program.
 #[must_use]
 pub fn scan_unit_linkage(
     ir_module: &IrModule,
@@ -1834,7 +1830,7 @@ pub(crate) struct UnitCallerView<'a> {
     pub linkage: Traits,
     /// Whether a host supplied cross-file call-site evidence for this unit.
     /// With evidence, `merged` is the whole project's view and a
-    /// registry-declared boundary no longer has to be treated as an unknown
+    /// registry-declared boundary does not have to be treated as an unknown
     /// caller; without it, the unit is on its own and any boundary sinks the
     /// seed.
     pub has_cross_file_evidence: bool,
@@ -1905,7 +1901,7 @@ impl UnitCallerView<'_> {
 ///   enumerated, or a script a command receives only as a *value* (`eval
 ///   $script`, `apply $fn`), names a caller of *something* this scan cannot
 ///   identify — and since it could be any procedure with any argument, every
-///   seed in the unit is withdrawn (issue #976).
+///   seed in the unit is withdrawn.
 pub(crate) fn params_constants_from_call_sites(
     params: &[String],
     evidence: &CallSiteEvidence,
@@ -2243,10 +2239,10 @@ mod tests {
     /// The body is scanned once, as the properly-namespaced body unit lowering
     /// registers for it. Walking it a second time through the enclosing
     /// statement's `ArgRole::Body` — with the caller's namespace — invents a
-    /// call to whatever `::helper` happens to exist. Within one file that was
+    /// call to whatever `::helper` happens to exist. Within one file that is
     /// invisible (a bare global `::helper` is rarely in a single file's own
     /// `known` set); across a project it is a false edge into *another file's*
-    /// procedure, which is how it surfaced (issue #977).
+    /// procedure.
     #[test]
     fn a_namespace_eval_body_resolves_against_its_own_namespace() {
         let reg = registry();
@@ -2410,7 +2406,7 @@ mod tests {
         assert!(ev.get("::helper").unwrap().binds_position(0));
     }
 
-    // Issue #1044 — a module's own `unknown` handler. Tcl dispatches every
+    // A module's own `unknown` handler. Tcl dispatches every
     // unresolved command word to it, so its direct callers are never its
     // complete caller set. tclsh8.6/9.0-confirmed: with `proc unknown {cmd
     // args}` in scope, `bogus beta gamma` runs the handler with
@@ -2418,9 +2414,9 @@ mod tests {
 
     #[test]
     fn an_unresolved_word_is_a_call_site_of_the_modules_unknown_handler_1044() {
-        // TP, the issue's repro: `bogus` names nothing, so real Tcl calls
-        // the handler with `bogus`. Seeing only the two `unknown alpha`
-        // calls, the scan bound `cmd` to the constant `"alpha"` and folded
+        // TP: `bogus` names nothing, so real Tcl calls the handler with
+        // `bogus`. Seeing only the two `unknown alpha`
+        // calls, the scan would bind `cmd` to the constant `"alpha"` and fold
         // `$cmd eq "alpha"` on a genuinely runtime-varying condition.
         let ev = evidence(
             "proc unknown {cmd args} { if {$cmd eq \"alpha\"} { return 1 } else { return 2 } }\nunknown alpha\nunknown alpha\nbogus beta\n",
@@ -2462,15 +2458,14 @@ mod tests {
         // The handler's caller set is unenumerable *by construction*, so
         // agreement among the callers a scan can see proves nothing.
         //
-        // This test previously asserted the opposite — that with no
-        // unresolved word in the file "the direct callers really are all of
-        // them" — and that premise is false. Real Tcl routes to the handler
+        // "With no unresolved word in the file the direct callers really are
+        // all of them" is false: real Tcl routes to the handler
         // every word that resolves to nothing at the instant of the call:
         // an auto-loaded name, a name another sourced file introduces, a
         // name built by string arithmetic, a name typed at a prompt. None of
         // those appear in the source for any scan to find.
         //
-        // Oracle (tclsh8.6, `review-probes-sound/`): the seeded words are
+        // On tclsh8.6, the seeded words are
         // wrong in *both* directions. `Dog new` after `oo::class create Dog`
         // and `worker` after `coroutine worker body` are recorded as
         // dispatches, yet neither ever reaches the handler. And a `bogus
@@ -2489,7 +2484,7 @@ mod tests {
 
     #[test]
     fn a_class_command_never_seeds_the_handler_1044() {
-        // Oracle (tclsh8.6): `oo::class create Dog` binds `Dog`, so `Dog
+        // On tclsh8.6, `oo::class create Dog` binds `Dog`, so `Dog
         // new` dispatches to the class command and the handler is never
         // called. The scan cannot resolve `Dog` and records it as an
         // unresolved-word dispatch anyway; the unconditional poison is what
@@ -2506,7 +2501,7 @@ mod tests {
 
     #[test]
     fn a_coroutine_command_never_seeds_the_handler_1044() {
-        // Oracle (tclsh8.6): `coroutine worker body` binds `worker`, so
+        // On tclsh8.6, `coroutine worker body` binds `worker`, so
         // calling it resumes the coroutine and the handler is never called.
         let ev = evidence(
             "proc unknown {cmd args} { if {$cmd eq \"worker\"} { return 1 } else { return 2 } }\nproc body {} { yield ; return done }\ncoroutine worker body\nworker\n",
@@ -2520,7 +2515,7 @@ mod tests {
 
     #[test]
     fn a_word_written_before_the_handler_never_seeds_it_1044() {
-        // Oracle (tclsh8.6): `bogus beta` on line 1, with `proc unknown`
+        // On tclsh8.6, `bogus beta` on line 1, with `proc unknown`
         // defined only afterwards, is handled by the *builtin* `::unknown`
         // and errors with `invalid command name "bogus"`. The scan is
         // definition-order-insensitive, so it records the dispatch anyway.
@@ -2644,7 +2639,7 @@ mod tests {
         assert_eq!(uniform(&ev, "::cmp", 1), None);
     }
 
-    /// Issue #978's reported shape: `trace add variable v write cb`. The
+    /// The `trace add variable v write cb` shape. The
     /// callback's position is registry data (`ArgRole::CommandPrefix` on the
     /// `trace add variable` subcommand), and the runtime appends the trace's
     /// own three arguments, so every parameter of the named proc is poisoned.

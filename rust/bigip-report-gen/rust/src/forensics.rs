@@ -156,9 +156,9 @@ fn parse_passwd(content: &str) -> Vec<(String, String, String)> {
 /// (T1546.004). Returns the worst severity seen and the reasons, ignoring
 /// comment lines (a `#`-commented line does not execute on login).
 ///
-/// Regex-level for now (a shell-aware parser is the planned upgrade): the real
-/// `.bashrc` implants aren't grammar-obfuscated — they bet on the file being
-/// unread — so a focused pattern set catches the live-fire shapes.
+/// Regex-level rather than a shell-aware parser: the real `.bashrc` implants
+/// aren't grammar-obfuscated — they bet on the file being unread — so a
+/// focused pattern set catches the live-fire shapes.
 fn scan_shell_dotfile(content: &str) -> Option<(&'static str, &'static str)> {
     // Uncomment-stripped body: drop whole-line comments so a documented example
     // in a comment doesn't trip the scan.
@@ -442,7 +442,7 @@ pub fn collect_forensics(files: &[J], rules: &[J]) -> J {
         }));
     }
 
-    // ---- Checklist findings (most severe first is applied in the UI) -------
+    // Checklist findings; most severe first is applied in the UI.
     let mut checklist: Vec<J> = Vec::new();
 
     // SSH authorized_keys — key-based persistence.

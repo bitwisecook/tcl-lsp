@@ -49,7 +49,7 @@
 #   --force         re-measure a version that already has a result file
 #   --skip-build    reuse target/release/tcl-lsp-server as-is
 #   --deadline SECS outer wall-clock budget forwarded to `bench.py --deadline`
-#                   (issue #1399; default: bench.py's own, currently 240s)
+#                   (default: bench.py's own, currently 240s)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -150,10 +150,9 @@ echo "==> Reconstituting the pinned corpus (scope: $scope)"
 # --- 3. the measurement ------------------------------------------------------
 
 echo "==> Benchmarking $V"
-# bench.py's own outer `--deadline` (issue #1399) reports which
+# bench.py's own outer `--deadline` reports which
 # phase/binary/request it died on before exiting nonzero, rather than this
-# call — which had no timeout of any kind before that existed — wedging a
-# release cut indefinitely with nothing to say why. Left unset here, bench.py
+# call wedging a release cut indefinitely with nothing to say why. Left unset here, bench.py
 # falls back to its own default / BENCH_DEADLINE_S; pass --deadline to this
 # script for a scope that legitimately needs longer.
 bench_args=(python3 bench.py --server "$server" --version "$V" --scope "$scope" --out results)

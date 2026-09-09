@@ -16,10 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Issue #1305, editor-integration layer: a `rename`d metaclass command
-// manufactures nothing — the class-factory record stayed keyed on the name
-// the metaclass was *created* with, so a creation call through the renamed
-// command was not recognised as a factory call.
+// A creation call through a `rename`d metaclass command must still be
+// recognised as a factory call — the class-factory record must not stay
+// keyed only on the name the metaclass was *created* with.
 //
 // Fixture layout (0-based lines), `issue1305RenamedMetaclass.tcl`:
 //   4  oo::class create ::R::M { superclass oo::class }

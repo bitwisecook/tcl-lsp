@@ -1343,8 +1343,8 @@ namespace eval ::itest::cmd {
                 # explicit `--` terminator may precede the positional
                 # <value> <operator> <datagroup> triple. Parse them off the
                 # front rather than assuming the value is at index 0, so
-                # `class match -- [HTTP::host] equals hosts` no longer treats
-                # `equals` as the datagroup name.
+                # `class match -- [HTTP::host] equals hosts` parses `equals`
+                # as the operator, not the datagroup name.
                 set flags {}
                 set idx 0
                 set n [llength $rest]

@@ -48,7 +48,7 @@
 //! (`run_rename_partition`: JSON-quote args → `run_query` → reparse guard →
 //! single-file `WorkspaceEdit`) belongs in `tcl-lsp-server` (it would force
 //! `tcl-lsp-core` to depend on `tcl-bigip-query`), not in a minimal
-//! `code_actions.rs` arm — see the `// GAP:` markers near the end.
+//! `code_actions.rs` arm — see the notes near the end of this file.
 //!
 //! Presentation vs semantic split
 //! A code ACTION is an editor-presentation / LSP-wire artefact: its TITLE,
@@ -316,42 +316,30 @@ fn cursor_inside_multiline_stanza_resolves_object() {
     );
 }
 
-// GAPs — run_rename_partition (the query-engine-backed LSP wrapper)
+// Not covered here: `run_rename_partition`, the LSP wrapper that builds a
+// WorkspaceEdit by running the `rename_partition(old, new)` query-DSL
+// expression through the F5 query engine. That wrapper has no
+// `tcl-lsp-core` home: it would force a dependency on the `tcl-bigip-query`
+// crate and reproduce the JSON-quote → `run_query` → reparse-guard →
+// WorkspaceEdit glue, which is LSP-server territory, not a
+// `code_actions.rs` arm.
 //
-// The behaviours below are NOT covered here. They drive
-// `run_rename_partition`, the LSP wrapper that builds a WorkspaceEdit by
-// running the `rename_partition(old, new)` query-DSL expression through the
-// F5 query engine. That wrapper has no `tcl-lsp-core` home: it would force
-// a dependency on the `tcl-bigip-query` crate and reproduce the
-// JSON-quote → `run_query` → reparse-guard → WorkspaceEdit glue, which is
-// LSP-server territory, not a `code_actions.rs` arm.
-//
-// The underlying ENGINE is already implemented and tested elsewhere:
+// The underlying engine is implemented and tested elsewhere:
 //   * `tcl-bigip-query/src/builtins/rename.rs::bi_rename_partition` performs
 //     name validation ("partition names must match [A-Za-z0-9_.-]+")
 //     and both-direction `/Common` refusal.
 //   * `f5-cli/tests/query_mutation_parity.rs` covers the cascade rewrite.
 //
-// GAP: driving a rename through the query engine — the
-//      `run_rename_partition` wrapper (DSL build + run_query + reparse guard
-//      + single-file WorkspaceEdit) is unimplemented in the LSP layer.
-//      Size: small–medium, belongs in tcl-lsp-server (needs a
-//      tcl-bigip-query dependency + a `tclLsp.renamePartition`
-//      execute_command verb).
+// The LSP layer does not drive a rename through the query engine itself:
+// the `run_rename_partition` wrapper (DSL build + run_query + reparse
+// guard + single-file WorkspaceEdit), the safe JSON-quoting of its
+// arguments, and the user-facing `/Common` refusal all belong to that
+// wrapper — the engine already performs the validation and the refusal;
+// the wrapper only surfaces them as an LSP result.
 //
-// GAP: safely quoting query arguments — same wrapper; the safe JSON-quoting
-//      of hostile arguments is part of that wrapper (the engine's name
-//      validation, which ultimately rejects the injection, lives in
-//      tcl-bigip-query).
-//
-// GAP: refusing /Common renames — same wrapper; the `/Common` refusal
-//      surfacing as a user error is the wrapper's job (the refusal itself is
-//      enforced by the engine builtin).
-//
-// Also missing (beyond this file's scope, noted for completeness): the
-// `tclLsp.renamePartition` execute_command verb in tcl-lsp-server that the
-// emitted action's command targets, plus the server-side forwarding of
-// `ActionCommand.string_args` into the lifted LSP command arguments (the
-// server currently forwards only the integer `args`). The provider arm + its
-// command payload are complete and tested above; wiring them end-to-end
-// through the server is the remaining step.
+// Also outside this file's scope: the `tclLsp.renamePartition`
+// execute_command verb in tcl-lsp-server that the emitted action's command
+// targets, and the server-side forwarding of `ActionCommand.string_args`
+// into the lifted LSP command arguments (the server currently forwards
+// only the integer `args`). The provider arm and its command payload are
+// complete and tested above.

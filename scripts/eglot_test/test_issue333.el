@@ -556,7 +556,7 @@ canary for when eglot upstream fixes the painter."
                                        (nth 0 a) (nth 1 a) (nth 2 a))))
             nil)))))))
 
-;; NATURALLY FLAKY — DO NOT CHASE AS A SERVER BUG (issue #1323, closed).
+;; NATURALLY FLAKY — DO NOT CHASE AS A SERVER BUG.
 ;;
 ;; This scenario intermittently reports "no `edits' in any response — server
 ;; re-sent a full stream?" while passing on the next run, against an unchanged
@@ -662,7 +662,7 @@ window, small on large files.  Returns t when every assertion holds."
          ;; isn't marked :xfail.  The delta test is a real gate for our
          ;; server's `full/delta' implementation, so its failure fails the suite.
          ;;
-         ;; CAVEAT (issue #1323, closed as not-a-bug): `t333-delta-test' is
+         ;; CAVEAT: `t333-delta-test' is
          ;; NATURALLY FLAKY — see the comment above its definition.  It fails
          ;; roughly 1 run in 3 because eglot races its own pipelined requests,
          ;; not because the server regressed, and this line turns that noise

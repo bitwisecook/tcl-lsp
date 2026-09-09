@@ -80,7 +80,8 @@ pub fn wasm_to_explorer_json(module: &WasmModule, li: &LineIndex, source: &str) 
             .collect::<Vec<_>>(),
         // The type section as the module would emit it — see the
         // `types` field of docs/design/contracts/wasm-explorer-view.md.
-        // Omitting it broke the GUI's module header outright (issue #1182).
+        // The GUI's module header renders unconditionally on this field
+        // being an array, so omitting it breaks the header outright.
         "types": module
             .type_section()
             .iter()
@@ -572,13 +573,13 @@ mod tests {
         );
     }
 
-    /// Issue #1182: the GUI's `renderWasmModuleHeader` reads
-    /// `entry.imports.length`, `entry.types.length` and
-    /// `entry.dataSegments.length` unconditionally, so every field the
-    /// contract (`docs/design/contracts/wasm-explorer-view.md`) declares on
-    /// the `(module)` header must actually be emitted as an array. A missing
-    /// `types` threw a `TypeError` mid-render, which left the WASM tab empty
-    /// *and* wedged the compile spinner (issue #1183).
+    /// The GUI's `renderWasmModuleHeader` reads `entry.imports.length`,
+    /// `entry.types.length` and `entry.dataSegments.length`
+    /// unconditionally, so every field the contract
+    /// (`docs/design/contracts/wasm-explorer-view.md`) declares on the
+    /// `(module)` header must actually be emitted as an array. A missing
+    /// `types` throws a `TypeError` mid-render, which leaves the WASM tab
+    /// empty *and* wedges the compile spinner.
     #[test]
     fn module_header_carries_every_contract_field() {
         let entries = wasm_entries("proc add {a b} { expr {$a + $b} }\nputs [add 1 2]");

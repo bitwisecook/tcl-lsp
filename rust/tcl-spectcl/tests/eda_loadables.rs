@@ -18,14 +18,14 @@
 
 //! The shipped EDA loadables, end to end.
 //!
-//! `sdc_base` and the five vendor libraries used to be ~350 Rust modules under
-//! `tcl-registry/src/commands/`. They are `.tclspec` files under `specs/` now
+//! `sdc_base` and the five vendor libraries are `.tclspec` files under
+//! `specs/`
 //! (`docs/design/registry/spec-packs.md`: "the EDA vendor libraries ship as bundled
 //! `.tclspec` loadables … so the loader path is exercised in production from
 //! day one rather than reserved for private packs"), so *every* fact an EDA
 //! dialect knows arrives through discovery → parse → merge → install.
 //!
-//! This file is what used to be true by construction and now has to be tested:
+//! Nothing about that arrival is built-in, so this file tests it directly:
 //! that the packs are found, that each EDA profile resolves its own vendor's
 //! commands and none of a rival's, and that the facts the analyser and the
 //! compiler read off those specs — arity, roles, traits, the shared
@@ -67,8 +67,7 @@ const PROFILES: &[(&str, &str, &str)] = &[
 ];
 
 /// The eight packs are on disk, load without a warning, and carry the whole
-/// command surface the Rust modules used to — plus the UPF library added for
-/// issue #1560.
+/// command surface — including the UPF library.
 #[test]
 fn the_eight_packs_load_clean_and_carry_every_command() {
     let set = shipped();
@@ -201,7 +200,7 @@ fn pack_declared_extensions_route_dialect_detection() {
     );
 }
 
-/// A plain-Tcl profile gets none of it, exactly as before the migration: the
+/// A plain-Tcl profile gets none of it: the
 /// packs are discovered for every dialect, and the vendor gate is what keeps
 /// `get_cells` out of a `tcl9.0` document.
 #[test]

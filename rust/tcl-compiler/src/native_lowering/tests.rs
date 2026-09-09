@@ -562,10 +562,10 @@ fn the_top_level_script_and_a_procedure_body_take_different_entry_protocols() {
 ///
 /// The materialising paths only fire inside a procedure body (both consult the
 /// const map, which is empty at depth 0), and no procedure-body site is proven
-/// under `UnknownWorld` — so today the two never coincide. This lowers the
-/// enclosing body under `PristineRegistryWorld` to remove that coincidence,
-/// because it is exactly the assumption P5 proper introduces, and the point of
-/// the guard is that the invariant holds by construction rather than by luck.
+/// under `UnknownWorld`, so in the current lowering the two never coincide.
+/// This lowers the enclosing body under `PristineRegistryWorld` to remove that
+/// coincidence, so the guard is exercised as a rule that holds by construction
+/// rather than by luck.
 #[test]
 fn a_definition_declines_a_body_the_statement_does_not_write_out() {
     let source = "proc make {} {\n set body {return hello}\n proc p {x} $body\n}\nmake\n";

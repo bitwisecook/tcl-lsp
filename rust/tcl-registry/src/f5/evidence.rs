@@ -609,7 +609,7 @@ const IRULE_MEASURED_DISCRIMINATORS: [(&str, DiscriminatorBehaviour); 4] = [
 pub static EMBEDDED_RUNTIME_EVIDENCE: std::sync::LazyLock<Vec<EmbeddedRuntimeEvidence>> =
     std::sync::LazyLock::new(|| {
         let mut rows = vec![
-            // ---- TmmIRule (§4a) ----
+            // TmmIRule (§4a).
             row(
                 TmmIRule,
                 RuntimeFact::ReportedPatchlevel {
@@ -644,7 +644,7 @@ pub static EMBEDDED_RUNTIME_EVIDENCE: std::sync::LazyLock<Vec<EmbeddedRuntimeEvi
                 },
                 LAB,
             ),
-            // ---- TmshCliScript (§4a) ----
+            // TmshCliScript (§4a).
             row(
                 TmshCliScript,
                 RuntimeFact::ReportedPatchlevel {
@@ -674,7 +674,7 @@ pub static EMBEDDED_RUNTIME_EVIDENCE: std::sync::LazyLock<Vec<EmbeddedRuntimeEvi
                 PARITY,
             ),
             surface(TmshCliScript, "exec", Present, PARITY),
-            // ---- IAppImplementation (§4/§4a) ----
+            // IAppImplementation (§4/§4a).
             row(
                 IAppImplementation,
                 RuntimeFact::ReportedPatchlevel {
@@ -704,7 +704,7 @@ pub static EMBEDDED_RUNTIME_EVIDENCE: std::sync::LazyLock<Vec<EmbeddedRuntimeEvi
                 PARITY,
             ),
             surface(IAppImplementation, "exec", Present, PARITY),
-            // ---- HostShellTcl — provenance only (§4a, E4 step 2) ----
+            // HostShellTcl — provenance only (§4a, E4 step 2).
             row(
                 HostShellTcl,
                 RuntimeFact::ReportedPatchlevel {

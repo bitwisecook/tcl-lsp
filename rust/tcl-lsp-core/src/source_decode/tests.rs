@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Source-decoding tests (issue #1326), organised as a true/false ×
+//! Source-decoding tests, organised as a true/false ×
 //! positive/negative matrix: each new code has to fire on every malformation
 //! class it claims to cover (TP), stay silent on the legitimate inputs closest
 //! to those classes (TN / FP guard), and keep firing through the paths that
@@ -211,7 +211,7 @@ fn positions_are_utf16_code_units_not_bytes_or_chars() {
     assert_eq!(super::position_of(&text, clef), (0, 7));
     assert_eq!(super::position_of(&text, clef + 4), (0, 9));
     // A byte offset landing *inside* the clef clamps to the boundary before it
-    // rather than panicking — the posture issue #1325 established.
+    // rather than panicking.
     assert_eq!(super::position_of(&text, clef + 2), (0, 7));
 }
 
@@ -298,13 +298,13 @@ fn w109_needs_both_a_nul_floor_and_a_ratio() {
     assert!(!should_abstain(Some(&report)));
 }
 
-// #1325 regression guard — the complementary path.
+// The complementary path: offsets inside a multi-byte character.
 
 #[test]
 fn positions_never_panic_on_offsets_inside_a_multi_byte_character() {
-    // #1325 was a panic on valid UTF-8 whose span landed mid-character. This
-    // module's own offset arithmetic must not reintroduce it: every offset
-    // into a multi-byte string, plus every out-of-range offset, must clamp.
+    // A span landing mid-character in valid UTF-8 must not panic: every
+    // offset into a multi-byte string, plus every out-of-range offset, must
+    // clamp.
     let text = "aé𝄞漢\u{fffd}z";
     for offset in 0..=text.len() + 8 {
         let _ = super::position_of(text, offset);

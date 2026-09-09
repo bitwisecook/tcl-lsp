@@ -118,9 +118,9 @@ impl ByteProvInfo {
 
 /// Registry-declared S110 classification of one `[cmd arg…]` form, resolved
 /// through the command spec (and its subcommand when the first arg names one).
-/// This replaces the command/subcommand name lists the pass used to hardcode:
-/// the effect, the byte-array-source flag, the operand window, and the
-/// diagnostic label are all spec data.
+/// No command or subcommand names are matched here: the effect, the
+/// byte-array-source flag, the operand window, and the diagnostic label are
+/// all spec data.
 struct CmdEffect {
     /// Effect declared on the resolved subcommand or on the bare command.
     effect: ByteArrayEffect,
@@ -160,7 +160,7 @@ fn resolve_cmd_effect(registry: &CommandRegistry, cmd: &str, args: &[String]) ->
     // Ask the registry what *this* call returns rather than reading
     // `return_type` raw, so a per-form result can never be classified here
     // differently from how SSA type propagation and the taint sanitiser
-    // classify it (issue #1720).  No byte-array command declares a
+    // classify it.  No byte-array command declares a
     // return-type hook today; this keeps that entry point honest if one
     // ever does.
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -978,13 +978,11 @@ mod tests {
         }
     }
 
-    /// 9.0-source-corrected classification (fire half): `string trim`/
-    /// `trimleft`/`trimright` build a fresh character string whenever they
-    /// actually trim, in both tclsh 8.6 and 9.0 (`StringTrimCmd` →
-    /// `Tcl_NewStringObj`; the compiled `INST_STR_TRIM` keeps the object only
-    /// for a no-op trim). They were previously misclassified as
-    /// byte-array-transparent, so a trimmed payload written back must now
-    /// fire.
+    /// Fire half: `string trim`/`trimleft`/`trimright` build a fresh
+    /// character string whenever they actually trim, in both tclsh 8.6 and 9.0
+    /// (`StringTrimCmd` → `Tcl_NewStringObj`; the compiled `INST_STR_TRIM`
+    /// keeps the object only for a no-op trim). They are not
+    /// byte-array-transparent, so a trimmed payload written back must fire.
     #[test]
     fn trim_ops_on_payload_fire() {
         let reg = irules_registry();
@@ -1064,15 +1062,15 @@ mod tests {
     }
 
     /// Drift guard: the registry-resolved classification reproduces the
-    /// legacy hardcoded source / re-binarify / label behaviour for the known
-    /// commands the pass used to name.
+    /// source / re-binarify / label behaviour pinned here for the known
+    /// commands.
     #[test]
     fn registry_resolution_matches_legacy_hardcoded_sets() {
         let reg = irules_registry();
         let args = |a: &[&str]| a.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
 
-        // Binary sources: exactly the legacy `binary format` / `binary
-        // decode` / `encoding convertto` (plus payload getters below).
+        // Binary sources: exactly `binary format` / `binary decode` /
+        // `encoding convertto` (plus payload getters below).
         for (cmd, sub) in [("binary", "format"), ("binary", "decode")] {
             let ce = resolve_cmd_effect(&reg, cmd, &args(&[sub, "x", "y"]));
             assert!(ce.returns_byte_array, "{cmd} {sub} must be a source");
@@ -1101,11 +1099,10 @@ mod tests {
         }
 
         // Re-binarifiers: exactly `binary scan` (value at sub-relative 0,
-        // i.e. call arg 1 — the legacy hardcoded slot) and `binary encode`
-        // (value at sub-relative 1).
+        // i.e. call arg 1) and `binary encode` (value at sub-relative 1).
         let scan = resolve_cmd_effect(&reg, "binary", &args(&["scan", "$q", "a*", "q"]));
         assert_eq!(scan.effect, ByteArrayEffect::Rebinarifies { value_arg: 0 });
-        // `operand_start + value_arg` = call arg 1, the legacy hardcoded slot.
+        // `operand_start + value_arg` = call arg 1.
         assert_eq!(scan.operand_start, 1);
         let encode = resolve_cmd_effect(&reg, "binary", &args(&["encode", "hex", "$q"]));
         assert_eq!(
@@ -1113,8 +1110,7 @@ mod tests {
             ByteArrayEffect::Rebinarifies { value_arg: 1 }
         );
 
-        // Payload getter/non-getter split matches the legacy
-        // `PAYLOAD_NON_GETTER_SUBS` list for the known payload commands.
+        // Payload getter/non-getter split for the known payload commands.
         let layouts = reg.byte_array_payload_layouts();
         for proto in [
             "TCP::payload",
@@ -1138,7 +1134,7 @@ mod tests {
                 );
             }
         }
-        // Sink data slots: the legacy hardcoded index logic per layout.
+        // Sink data slots, per layout.
         assert_eq!(
             layouts["TCP::payload"].replace_data_arg(&["replace", "0", "100", "$q"]),
             Some(3),

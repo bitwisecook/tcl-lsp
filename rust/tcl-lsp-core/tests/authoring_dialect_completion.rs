@@ -54,7 +54,7 @@ fn labels_at(source: &str, dialect: &'static str, line: u32, character: u32) -> 
 }
 
 /// At the root of a `.sslictcl` document the offer is exactly the nine
-/// top-level declarations — not the whole command registry, which used to put
+/// top-level declarations — not the whole command registry, which would put
 /// `hostname`, `severity`, and every base Tcl command at a position where none
 /// of them is legal.
 #[test]

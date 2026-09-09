@@ -51,9 +51,9 @@
 //! further DSL statements (a `command` body, an `options` list, a `hover`
 //! block, …) versus a flat word list (a `traits` or `dialects` set) versus
 //! prose/foreign code the DSL does not itself structure (a `hook` body, which
-//! is real Tcl carried verbatim). That is the "lexer-token-class based
-//! highlight" the brief allows as a first slice when full reuse of the
-//! server's classifier is not cleanly reachable.
+//! is real Tcl carried verbatim). This "lexer-token-class based highlight" is
+//! the appropriate approach when full reuse of the server's classifier is not
+//! cleanly reachable.
 //!
 //! ## Known imprecision (acceptable for a v1 overlay editor)
 //!
@@ -65,9 +65,8 @@
 //! - A `hook` body (real Tcl, carried verbatim per `tcl-spectcl`'s loader) is
 //!   painted as flat prose — its own `$vars` and `#` comments still classify
 //!   correctly, but it does not get full nested Tcl highlighting. Giving hook
-//!   bodies real Tcl colouring is a reasonable follow-up once this overlay
-//!   editor is not itself heading for replacement by the wasm-LSP-backed
-//!   Monaco editor.
+//!   bodies real Tcl colouring is not worth doing while this overlay editor
+//!   is itself heading for replacement by the wasm-LSP-backed Monaco editor.
 //! - An unrecognised statement head's trailing block defaults to prose. This
 //!   under-classifies rather than over-classifies: worst case a structured
 //!   block reads as plain text, never as invented structure.

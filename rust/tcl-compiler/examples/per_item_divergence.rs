@@ -18,8 +18,8 @@
 
 //! Probe: with the `body_needs_enclosing_context` fallback bypassed, how far is
 //! the per-item path from a full `analyse`?  Categorises the residual diagnostic
-//! divergences across the tmp/ corpus so the fast path can be widened to cover
-//! them.  Run: `cargo run --release -p tcl-compiler --example per_item_divergence`.
+//! divergences across the tmp/ corpus.  Run:
+//! `cargo run --release -p tcl-compiler --example per_item_divergence`.
 
 // Demonstration/experiment harness: percentage maths casts small counts to f64,
 // and `main` drives the divergence categorisation inline — neither the pedantic
@@ -99,7 +99,7 @@ fn main() {
     let mut total = 0usize;
     let mut fast_path = 0usize;
     let mut identical = 0usize;
-    let mut fell_back = 0usize; // still fell back for OTHER reasons (recovery/dup)
+    let mut fell_back = 0usize; // diagnostics equal, other result fields differ
     let mut diverged = 0usize;
     // category -> (missing_count, extra_count, files_affected)
     let mut by_code: BTreeMap<String, (usize, usize, usize)> = BTreeMap::new();

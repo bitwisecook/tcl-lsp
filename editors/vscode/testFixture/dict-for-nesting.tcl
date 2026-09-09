@@ -1,4 +1,4 @@
-# Issue #833 regression fixture.
+# Regression fixture.
 #
 # Reads nested inside a `dict for` body must keep their feeding store live: here
 # `$x` is read as the command name of `$x a $key`, inside `if` inside `dict for`,

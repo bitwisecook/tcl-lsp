@@ -46,10 +46,9 @@ pub struct CommandSig {
     /// and the fallback whenever [`Self::arity_windows`] selects nothing.
     pub arity: Arity,
     /// Per-release signature shapes, when the owning package changed this
-    /// command's argument count across its releases (issue #1627).
+    /// command's argument count across its releases.
     ///
-    /// Empty for almost every command, which is why the arity check's
-    /// behaviour is unchanged for them: with no windows there is nothing to
+    /// Empty for almost every command: with no windows there is nothing to
     /// select and [`Self::arity`] is the whole answer. When non-empty, the
     /// verdict is **deferred** to the post-walk pass, because the window that
     /// applies depends on the resolved package floor and a `package require`
@@ -143,8 +142,8 @@ pub struct SubcommandSig {
     /// which is the wrong answer for an ensemble whose bare call is valid in
     /// one release and an error in another — so the windows travel with the
     /// signature and the bare-call verdict is taken again at the resolved
-    /// floor. Empty for the overwhelming majority of ensembles, which is the
-    /// "decide during the walk, exactly as before" path.
+    /// floor. Empty for the overwhelming majority of ensembles, which decide
+    /// the bare-call verdict during the walk.
     pub arity_windows: &'static [tcl_registry::arity::ArityWindow],
     /// The value shape a non-subcommand first word may take to select the
     /// command's *default* form (`after 200 …`), copied from

@@ -16,7 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `object_lattice_cost` — measurement gate **M1** for issue #994's C5a.
+//! `object_lattice_cost` — cost-measurement harness for the C5a design
+//! question.
 //!
 //! The object-handle lattice ([`tcl_compiler::object_types`]) rides on a
 //! [`CompilationUnit`] the analyser already builds, so the only question C5a

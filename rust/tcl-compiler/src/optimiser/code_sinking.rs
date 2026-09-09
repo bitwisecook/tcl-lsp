@@ -67,8 +67,8 @@ use super::{Optimisation, PassContext};
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // A computed variable name (`set $name …`) can read or write any
     // variable under a spelling the textual `$var` scans below cannot see,
-    // so the whole function abstains from sinking (issue #1374) — the same
-    // barrier O109 / O126 elimination and SCCP already consult.
+    // so the whole function abstains from sinking — the same barrier
+    // O109 / O126 elimination and SCCP already consult.
     if !cu.top_level.dynamic_barrier_blocks_value_motion() {
         walk_script(ctx, &cu.ir_module.top_level, 0);
     }
@@ -157,7 +157,7 @@ fn consider_sink_at(ctx: &mut PassContext<'_>, stmts: &[Statement], i: usize, de
         return;
     };
     // The document's `${…}` close rule, threaded into every textual use scan
-    // below so they agree with the spans the lexer produced (issue #1604).
+    // below so they agree with the spans the lexer produced.
     let braced_var = ctx.braced_var();
     // A variable that carries state across `when <event>` boundaries
     // (iRules) is observable after this event handler returns, so its
@@ -207,11 +207,10 @@ fn consider_sink_at(ctx: &mut PassContext<'_>, stmts: &[Statement], i: usize, de
         return;
     }
     let targets = decision_sink_targets(decision, &var, braced_var);
-    // A `Barrier` / `UpFrame` answers "uses every variable" (issue
-    // #1402), which is the right *blocking* answer for the later-use
-    // scan above but must never *enable* a sink: a branch whose first
-    // "use" is such a statement had no sink before that answer existed,
-    // and anchoring one there could move the def past an earlier
+    // A `Barrier` / `UpFrame` answers "uses every variable", which is the
+    // right *blocking* answer for the later-use scan above but must never
+    // *enable* a sink: a branch whose first "use" is such a statement has no
+    // real sink, and anchoring one there could move the def past an earlier
     // by-name read the textual scan cannot see. Decline instead.
     if targets.is_empty()
         || targets
@@ -728,7 +727,7 @@ fn statement_uses_var(
         // command's effects (a dynamic `eval` body, a computed head, …), and
         // its retained words may reference any variable — including `var`.
         // Answer `true`, matching `propagation`'s `has_intervening_barrier`
-        // (issue #1402). An `UpFrame` (literal-body `uplevel`/`interp eval`)
+        // An `UpFrame` (literal-body `uplevel`/`interp eval`)
         // evaluates in a *different* frame that can reach this one, so it
         // gets the same conservative answer rather than a body recursion.
         Statement::Barrier { .. } | Statement::UpFrame { .. } => true,
@@ -828,10 +827,10 @@ fn statement_uses_var(
 /// `braced_var` is the document's `${…}` close rule, resolved through the
 /// shared owner [`tcl_lexer::braced_var_name_end`]. A `false` here *permits* a
 /// sink, so a name this scan fails to recognise moves a statement past a real
-/// read — a miscompile, not a lost opportunity. The old first-`}` walk
-/// compared `a{b` against the `a{b}c` the rest of the pipeline uses, so under
-/// the default (9.x) rule `set v 1; if {…} {puts ${a{b}c}$v}` saw no use of a
-/// variable the branch does read (issue #1604).
+/// read — a miscompile, not a lost opportunity. A first-`}` walk compares
+/// `a{b` against the `a{b}c` the rest of the pipeline uses, so under the
+/// default (9.x) rule `set v 1; if {…} {puts ${a{b}c}$v}` sees no use of a
+/// variable the branch does read.
 fn text_references_var(text: &str, var: &str, braced_var: tcl_dialect::BracedVarStyle) -> bool {
     let bytes = text.as_bytes();
     let mut i = 0;
@@ -885,13 +884,13 @@ fn text_references_var(text: &str, var: &str, braced_var: tcl_dialect::BracedVar
 }
 
 fn expr_references_var(node: &ExprNode, var: &str) -> bool {
-    // Entry point: the top of a condition expression is nesting depth 0
-    // (issue #996 — the recursion cap lives in [`expr_references_var_at`]).
+    // Entry point: the top of a condition expression is nesting depth 0; the
+    // recursion cap lives in [`expr_references_var_at`].
     expr_references_var_at(node, var, 0)
 }
 
 fn expr_references_var_at(node: &ExprNode, var: &str, depth: u32) -> bool {
-    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // Native-stack safety net: walks the `ExprNode` tree, one
     // native frame per level. Past the cap, assume the var *is* referenced —
     // the conservative direction, since callers use this to *suppress* code
     // sinking when the sunk value's variable appears in a guard, so a false
@@ -940,8 +939,8 @@ mod tests {
         ctx.optimisations
     }
 
-    /// Regression coverage for issue #996: `expr_references_var` recurses
-    /// once per `ExprNode` level with no depth cap before this fix. A tree
+    /// `expr_references_var` recurses
+    /// once per `ExprNode` level, so it needs a depth cap. A tree
     /// built directly is unbounded (the Pratt parser caps its own output at
     /// 256) and empirically overflowed the native stack (SIGABRT) in the low
     /// thousands of levels on a 2 MiB thread. 3000 is past that crash range
@@ -1139,7 +1138,7 @@ mod tests {
         );
     }
 
-    /// Issue #1374 — the branch body's `set $name zzz` can write `flag`
+    /// The branch body's `set $name zzz` can write `flag`
     /// under a spelling the textual `$var` scan cannot see (`f flag 1`
     /// prints `zzz` in tclsh; the sunk `set flag hello` would print
     /// `hello`), so the whole proc abstains from O125.
@@ -1153,7 +1152,7 @@ mod tests {
         );
     }
 
-    /// Issue #1402 — a computed command head (`$cmd $x`) lowers to a
+    /// A computed command head (`$cmd $x`) lowers to a
     /// `Statement::Barrier` whose retained words reference `$x`, and it
     /// deliberately raises no dynamic-name flag (see
     /// [`crate::dynamic_names`]), so only the later-use scan protects it:
@@ -1164,7 +1163,7 @@ mod tests {
     fn barrier_reference_after_decision_suppresses_sink() {
         let src = "proc ::f {flag cmd} {\nset x 1\nif {$flag} { puts $x }\n$cmd $x\n}";
         // The pin must exercise the Barrier arm of `statement_uses_var`, not
-        // the issue-#1374 whole-function gate — assert the barrier is clear.
+        // the dynamic-name whole-function gate — assert the barrier is clear.
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.procedures.get("::f").expect("::f built");
         assert!(
@@ -1178,7 +1177,7 @@ mod tests {
         );
     }
 
-    /// Issue #1604 — the textual use scan reads `${…}` through the shared
+    /// The textual use scan reads `${…}` through the shared
     /// owner, so a nested-brace name is recognised as a use.
     ///
     /// `false` here *permits* the sink, so a name this scan misses moves the
@@ -1197,7 +1196,7 @@ mod tests {
         assert!(text_references_var("${a{b $x", "x", Tcl9Nesting));
     }
 
-    /// Issue #1402 — the conservative direction directly: a `Barrier` (and
+    /// The conservative direction directly: a `Barrier` (and
     /// an `UpFrame`) answers "uses every variable", matching
     /// `propagation`'s `has_intervening_barrier`.
     #[test]

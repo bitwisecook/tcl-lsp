@@ -39,7 +39,7 @@
 //!    file with any row left for the environment wire-up (U3) reports
 //!    *partially upgraded* and keeps its 1.x header.
 //!
-//! With the P1 environment registry live, the environment-shaped halves
+//! With the environment registry live, the environment-shaped halves
 //! are real translations rather than markers:
 //!
 //! - **U3** — an environment-membership token maps to the environment's

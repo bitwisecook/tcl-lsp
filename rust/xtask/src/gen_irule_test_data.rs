@@ -163,9 +163,9 @@ fn stub_entries(
         // available to analysis.  The Tcl harness, however, may only
         // register commands callable in its F5 iRules environment.  Resolve
         // through the environment's own context — the replacement for
-        // `ProfileQueries::resolve_command` (ledger row F1's assistance
-        // half) — instead of treating registry membership as visibility
-        // (notably excludes Tcllib, Tk, `file`, and `exec`).
+        // `ProfileQueries::resolve_command` — instead of treating registry
+        // membership as visibility (notably excludes Tcllib, Tk, `file`,
+        // and `exec`).
         if context.resolve_spec(registry, command).is_none() {
             continue;
         }
@@ -235,9 +235,9 @@ fn generated_files() -> Result<Vec<(&'static str, String)>> {
     // The harness simulates the F5 iRules environment, not every optional
     // package that `CommandRegistry::build_default` happens to preload.  The
     // resolved environment's registry generation is the same store
-    // LiveSession uses (ledger row B10: this generator is the replacement
-    // for the frozen `_registry_data.tcl` subtraction, so its own ingress
-    // goes through the one seam).
+    // LiveSession uses: this generator replaces the frozen
+    // `_registry_data.tcl` subtraction, so its own ingress goes through the
+    // one seam.
     let registry = crate::environment::store_for_dialect(IRULES_DIALECT);
     let irules_context = crate::environment::context_for_dialect(IRULES_DIALECT);
     let mocks = fs::read_to_string(root.join(HAND_WRITTEN_MOCKS_PATH))

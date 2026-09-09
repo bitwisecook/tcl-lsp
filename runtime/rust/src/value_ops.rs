@@ -27,8 +27,8 @@
 //!
 //! The copy-on-write asymmetry the contract is designed around is visible here:
 //! [`ValueOps::try_append_str_in_place`] performs the runtime's amortised
-//! in-place string growth when the object is an unshared plain string (the
-//! EXP-STRING decision in `cmd_string.rs`), whereas the VM always copies.
+//! in-place string growth when the object is an unshared plain string,
+//! whereas the VM always copies.
 //!
 //! Byte-array representation is runtime-only: it has no separate LSP request
 //! or VS Code UI surface. Its tests therefore sit beside the `ValueOps` seam
@@ -208,8 +208,8 @@ impl ValueOps for Interp {
             // fragment-less prefix: the `…FollowedByJunk` cases must surface the
             // offending text (`followed by "c" instead of space`). Every shared
             // command core that decodes a runtime list — `dict`'s read path
-            // among them — reports through here, so dropping the fragment made
-            // all of them disagree with C (issue #1573).
+            // among them — reports through here, so using the fragment-less
+            // message here would make all of them disagree with C.
             let msg = crate::parse::list_error_message(&crate::interp::obj_bytes(*v), e);
             ValueError::BadList(String::from_utf8_lossy(&msg).into_owned())
         })
@@ -254,7 +254,7 @@ impl ValueOps for Interp {
 
     fn try_append_bytes_in_place(&mut self, v: &mut *mut TclObj, bytes: &[u8]) -> bool {
         // Amortised O(1) growth when the object is an unshared plain string —
-        // the EXP-STRING in-place path the VM cannot take (it always copies).
+        // an in-place path the VM cannot take (it always copies).
         if obj::is_plain_string(*v) && !obj::is_shared(*v) {
             obj::string_append_inplace(*v, bytes);
             true
@@ -311,7 +311,7 @@ mod tests {
         b
     }
 
-    // -- bytes_to_str / str_to_bytes unit coverage -------------------------
+    // bytes_to_str / str_to_bytes unit coverage
 
     /// TP: an arbitrary invalid UTF-8 plain string gets Tcl's U+00XX byte view,
     /// not Rust's replacement character. Runtime-created binary values use the
@@ -355,7 +355,7 @@ mod tests {
         assert_eq!(str_to_bytes("a\u{65e5}b"), "a\u{65e5}b".as_bytes().to_vec());
     }
 
-    // -- end-to-end: byte-array dual ports, driven through `string`/`binary` --
+    // end-to-end: byte-array dual ports, driven through `string`/`binary`
 
     /// TP: `string index`/`range`/`replace`/`length` on a `binary format` value
     /// preserve binary bytes exactly in both C Tcl 8.6 and 9.0.

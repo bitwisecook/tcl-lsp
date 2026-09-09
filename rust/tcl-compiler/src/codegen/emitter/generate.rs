@@ -473,9 +473,9 @@ fn emit_foreach_header(
         // A braced list word is a literal in every direction: `TclFindElement`'s
         // brace semantics keep `$` / `[…]` inert both for the word itself and
         // for any braced element inside it, so it must be pushed verbatim.
-        // Pushing it as an ordinary literal let the VM's `subst_word` run the
-        // substitution at loop entry — `foreach e {{a[b]c} x}` raised
-        // `invalid command name "b"` where tclsh prints `a[b]c` (issue #1572).
+        // Pushing it as an ordinary literal lets the VM's `subst_word` run the
+        // substitution at loop entry — `foreach e {{a[b]c} x}` then raises
+        // `invalid command name "b"` where tclsh prints `a[b]c`.
         if fi.list_braced.get(i).copied().unwrap_or(false) {
             ctx.push_lit_verbatim(la);
         } else {
@@ -676,8 +676,8 @@ fn emit_block_terminator(
         // same bytecode offset. In a proc, Tcl emits the owning count-two
         // marker only when an earlier generic invocation could have changed
         // the compile epoch; the first body command then shares that marker.
-        // Top-level emission retains its historical marker policy and later
-        // peepholes remove it when the unit has no generic invocation.
+        // Top-level emission always emits the marker; later peepholes remove
+        // it when the unit has no generic invocation.
         if let Terminator::Branch {
             condition,
             true_target,

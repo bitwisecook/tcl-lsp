@@ -164,9 +164,9 @@ pub(crate) fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRe
     // subcommand word. An instance variable's intrep is externally
     // determined (the constructor / other methods can set it to anything),
     // so a use-site / merge / loop-oscillation check must treat it as
-    // escaping — the same protection FP-SH-02 / FP-SH-16 give a bare
-    // `variable`. Whether the head *is* the self-dispatch keyword comes from
-    // the registry, not a name literal (issue #1050); `get` resolves the
+    // escaping — the same protection a bare `variable` gets. Whether the head
+    // *is* the self-dispatch keyword comes from
+    // the registry, not a name literal; `get` resolves the
     // `::`-qualified spelling itself.
     if registry.method_dispatch_keyword(canon)
         == Some(tcl_registry::MethodDispatchKind::SelfDispatch)

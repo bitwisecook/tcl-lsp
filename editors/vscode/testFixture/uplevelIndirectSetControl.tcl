@@ -1,4 +1,4 @@
-# TRUE-POSITIVE control for uplevelIndirectSet.tcl (issue #923 audit idx 24).
+# TRUE-POSITIVE control for uplevelIndirectSet.tcl.
 #
 # Nothing reaches an outer frame, so `source`ing this and calling `useIt`
 # aborts on tclsh 9.0.4 and 8.6.16 alike: can't read "answer": no such

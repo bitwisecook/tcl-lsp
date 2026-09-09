@@ -51,8 +51,6 @@ fn folds(result: &Value) -> Vec<Value> {
     result.as_array().cloned().unwrap_or_default()
 }
 
-// -- TestFoldingRange ----------------------------------------------------
-
 #[test]
 fn proc_body_folds() {
     let mut lsp = Lsp::tcl();
@@ -73,14 +71,13 @@ fn no_folds_in_flat_file() {
     assert!(folds(&lsp.folding_range(&uri)).is_empty());
 }
 
-// -- TestLineContinuationFolding -----------------------------------------
-// Backslash line-continuation folding — issue #541, end-to-end.
+// Backslash line-continuation folding, end-to-end.
 //
 // A command stretched across physical lines by trailing `\` joins is a single
 // logical command; the provider folds the run down to its opening line. The
 // look-alikes that are *not* continuations (an escaped `\\` is a literal
-// backslash) must stay unfolded. The feature was dropped by the folding rewrite
-// and restored in #541 — this pins the editor-visible result.
+// backslash) must stay unfolded. A folding rewrite could silently drop this
+// case — this pins the editor-visible result.
 
 #[test]
 fn backslash_continued_command_folds() {
@@ -124,8 +121,6 @@ fn escaped_backslash_is_not_a_continuation() {
     assert!(!s.contains(&(0, 1)), "{s:?}");
 }
 
-// -- TestSelectionRange --------------------------------------------------
-
 #[test]
 fn widens_from_inner_to_outer() {
     let mut lsp = Lsp::tcl();
@@ -145,8 +140,6 @@ fn widens_from_inner_to_outer() {
     }
     assert!(depth >= 2);
 }
-
-// -- TestWorkspaceSymbols ------------------------------------------------
 
 #[test]
 fn find_proc() {

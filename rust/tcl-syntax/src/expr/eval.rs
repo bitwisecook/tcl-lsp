@@ -341,7 +341,8 @@ mod tests {
             Ok(V::Str(inner.to_string()))
         }
         fn var(&mut self, name: &str) -> Result<V, String> {
-            // `x` → 10, `arr(idx)` echoes its reference text, else 0.
+            // `x` → 10, `y` → 0; any other name (an `arr(idx)` reference
+            // included) echoes itself as a string.
             Ok(match name {
                 "x" => V::Num(10),
                 "y" => V::Num(0),

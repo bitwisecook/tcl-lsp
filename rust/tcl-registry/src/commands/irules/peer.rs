@@ -27,7 +27,7 @@ pub const fn spec() -> CommandSpec {
         surface: Some(SpecSurface::IRULES),
         // `peer NESTING_SCRIPT` — unlike clientside/serverside, peer has
         // no bare query form, so the script body is required: exactly
-        // one argument at index 0 (#501).
+        // one argument at index 0.
         arity: Arity::new(1, 1),
         // The nesting script (index 0) is a body evaluated under the
         // peer-side context; it runs synchronously in the caller's

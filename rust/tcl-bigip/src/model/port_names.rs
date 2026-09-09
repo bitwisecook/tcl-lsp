@@ -4573,8 +4573,7 @@ mod tests {
 
     #[test]
     fn name_to_port_looks_up_well_known_services() {
-        // mcpd SCF service-name → port table (port_names.rs had no unit
-        // coverage); unknown names return None.
+        // mcpd SCF service-name → port table; unknown names return None.
         assert_eq!(name_to_port("http"), Some(80));
         assert_eq!(name_to_port("https"), Some(443));
         assert_eq!(name_to_port("ssh"), Some(22));

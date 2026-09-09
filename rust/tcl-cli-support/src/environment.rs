@@ -17,8 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The CLIs' dialect ingress — the `tcl` / `f5` face of the one shared
-//! seam, [`tcl_registry::model::ingress`] (centralisation contract R-a;
-//! P1-F wave 4, alongside the MCP server and the spec studio).
+//! seam, [`tcl_registry::model::ingress`].
 //!
 //! Every dialect **name** a CLI verb accepts — an explicit `--dialect`, a
 //! detector verdict, the `tcl8.6` invocation default, the fixed
@@ -30,15 +29,15 @@
 //! Nothing here changes what a verb prints. The catalogue names the CLI
 //! resolves map to their same-named environments, whose
 //! [`unit_profile`](tcl_registry::model::DocumentEnvironment::unit_profile) is
-//! the profile the retired validators returned, and whose document context
-//! answers availability under the **document authoring mask** — test-pinned
-//! equal to the threaded profile's `surface_query` for every profile an
-//! ingress can produce.
+//! the same profile `DialectProfile::resolve_known`/`by_name` returns for
+//! that name, and whose document context answers availability under the
+//! **document authoring mask** — test-pinned equal to the threaded profile's
+//! `surface_query` for every profile an ingress can produce.
 //!
-//! Two ingress forms, deliberately distinct, because the CLI used both:
+//! Two ingress forms, deliberately distinct, because the CLI needs both:
 //!
-//! * [`profile_for_dialect`] is the *promoting* form (the old
-//!   `resolve_known(name).unwrap_or_else(|| by_name(name))` ingress), so
+//! * [`profile_for_dialect`] is the *promoting* form — it tries
+//!   `resolve_known(name)` first and falls back to `by_name(name)`, so
 //!   `tk` keeps the typed additive profile the CLI's `--dialect tk`
 //!   resolves to;
 //! * [`analyser_profile_for_dialect`] is the exact `DialectProfile::by_name`
@@ -51,10 +50,6 @@ use tcl_registry::model::ResolvedContext;
 /// Resolve a dialect **name** to the profile a CLI verb threads — the
 /// environment-model form of the CLI's `resolve_known`-then-`by_name`
 /// ingress and of the named constructors (`plain_tcl`, `irules`, `tk`).
-///
-/// Post-P1-G (which deleted the name validators): the threaded profile
-/// handle itself retires with ledger C1's re-type, when the verbs read
-/// their labels and grammar facts off the environment instead.
 #[must_use]
 pub fn profile_for_dialect(name: &str) -> &'static DialectProfile {
     tcl_registry::model::resolve_environment(name).unit_profile()
@@ -73,9 +68,9 @@ pub fn analyser_profile_for_dialect(name: &str) -> &'static DialectProfile {
 }
 
 /// Resolve a dialect **name** only when it names a real environment — the
-/// validator form, replacing `DialectProfile::resolve_known(name)` at the
+/// validator form, mirroring `DialectProfile::resolve_known(name)` at the
 /// CLI ingest boundary, where an unrecognised spelling must be an input
-/// error rather than a silent fallback to plain Tcl (ledger rows T1/T5).
+/// error rather than a silent fallback to plain Tcl.
 #[must_use]
 pub fn known_profile_for_dialect(name: &str) -> Option<&'static DialectProfile> {
     tcl_registry::model::resolve_known_environment(name)
@@ -83,9 +78,8 @@ pub fn known_profile_for_dialect(name: &str) -> Option<&'static DialectProfile> 
 }
 
 /// The **document context** a dialect name's answers are given under — the
-/// assistance view that replaces the whole `ProfileQueries` surface
-/// (ledger row F1's assistance half): command resolution, availability,
-/// subcommands, options.
+/// assistance view that replaces the whole `ProfileQueries` surface:
+/// command resolution, availability, subcommands, options.
 #[must_use]
 pub fn context_for_dialect(name: &str) -> &'static ResolvedContext {
     tcl_registry::model::static_document_context_for(name)

@@ -288,10 +288,11 @@ pub fn detect_factory_shape(
     })
 }
 
-/// Extract the brace-string template from a `subst -nocommands
-/// {template}` (or `subst -nocommands -nobackslashes {template}`)
-/// command-substitution body. Returns `None` for any non-matching
-/// shape. Used by [`detect_factory_shape`].
+/// Extract the brace-string template from a `subst -nocommands {template}`
+/// command-substitution body. Returns `None` for any other shape, including
+/// one that also passes `-nobackslashes` or `-novariables` — those change
+/// what the template substitutes to, so the materialised body would not
+/// match. Used by [`detect_factory_shape`].
 fn extract_subst_nocommands_template(
     inner: &str,
     config: tcl_lexer::LexerConfig,
@@ -350,8 +351,8 @@ fn rewrite_script(
 ) -> Vec<(String, String, Script)> {
     let mut synthesised: Vec<(String, String, Script)> = Vec::new();
     for stmt in &mut script.statements {
-        // Recurse into Block bodies (other structured statements
-        // are out of scope per main's rewriter).
+        // Recurse into Block bodies; call sites nested in other structured
+        // statements are not rewritten.
         if let Statement::Block { body, .. } = stmt {
             let inner = rewrite_script(body, factories, registry, namespace, counts, cap);
             synthesised.extend(inner);
