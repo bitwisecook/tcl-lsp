@@ -211,8 +211,9 @@ mod tests {
     /// 8.4–8.6 (`tclParse.c(8.6.16):1398`) but counts nested `{…}` and skips
     /// `\X` pairs from 9.0 (`tclParse.c(9.0.4):1315`). `subst` reads its
     /// template with the parser of the release it emulates, so
-    /// `subst {${a{b}c}}` names `a{b` under 8.x and `a{b}c` under 9.x. The
-    /// engine used to scan to the first `}` regardless of the pinned release.
+    /// `subst {${a{b}c}}` names `a{b` under 8.x and `a{b}c` under 9.x.
+    /// Scanning to the first `}` regardless of the pinned release would miss
+    /// that difference.
     #[test]
     fn braced_var_close_rule_follows_the_emulated_release() {
         let nine = LexerConfig {

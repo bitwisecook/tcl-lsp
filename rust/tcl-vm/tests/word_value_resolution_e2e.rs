@@ -262,7 +262,7 @@ puts "{[pz]}"
     },
     // The negative boundary: the braced-word rule is untouched.
     Vector {
-        // The positive control for the arm this fix sits next to: a genuinely
+        // The positive control for the arm above: a genuinely
         // braced word still loses exactly one brace layer, and its `$` / `[`
         // stay data. Freezing the quoted case must not disturb it.
         name: "a genuinely braced word still loses exactly one layer",
@@ -342,9 +342,8 @@ switch -- "{}$z" "{}x" { puts B:hit } default { puts B:def }
         since: TclVersion::V8_4,
     },
     Vector {
-        // A brace-shaped value that is not a *whole* braced word never reached
-        // the VM's strip in the first place, so the fix is measured against a
-        // case it cannot have changed.
+        // A brace-shaped value that is not a *whole* braced word never reaches
+        // the VM's strip in the first place, so this rule cannot affect it.
         name: "a value that is not whole-word braced is unaffected",
         script: r#"puts [string length "{} {}"]:[string length "a{}b"]
 "#,

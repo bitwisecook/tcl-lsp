@@ -379,7 +379,7 @@ suite("LSP Command Execution", () => {
   });
 
   test("tcl-lsp.fixAllSafeIssues applies only semantics-equivalent fixes", async () => {
-    // Issue #1195. Every fix the bulk pass applies must report itself as
+    // Every fix the bulk pass applies must report itself as
     // `semantics-equivalent`; the behaviour-changing ones (W100 over a
     // substituted operand, W110's `==` → `eq`) stay behind their own named
     // code actions. Asserting the class each applied fix reports is what

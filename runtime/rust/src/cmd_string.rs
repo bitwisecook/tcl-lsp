@@ -105,8 +105,8 @@ pub(crate) fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
     // Always store back: rebinds the variable to `result` — a refcount-neutral
     // re-set when it was grown in place — and fires the write trace exactly once
-    // (the in-place path used to skip the store and so fire no trace, diverging
-    // from C; this fixes that). `store_var_result` holds a protective reference
+    // (an in-place path that skipped the store would fire no trace, diverging
+    // from C). `store_var_result` holds a protective reference
     // across the store so a write trace that unsets the variable can't free a
     // fresh `result` before it becomes the result (a use-after-free).
     match interp.store_var_result(&base, elem.as_deref(), result) {

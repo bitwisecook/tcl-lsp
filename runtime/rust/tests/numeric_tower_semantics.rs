@@ -200,7 +200,7 @@ fn a_float_left_operand_beats_a_negative_shift_count() {
 
 /// tclsh 8.6.16/9.0.4: TIP 237 makes `entier()` unbounded, so `entier(1e300)`
 /// is the exact 301-digit value of the double `1e300` — not `10^300`, and not
-/// a domain error (which is what the runtime used to raise).
+/// a domain error.
 #[test]
 fn entier_of_a_beyond_wide_float_is_the_exact_integer() {
     expr_is("entier(1e300)", E1E300);
@@ -375,8 +375,7 @@ const NAN_MSG: &str = "floating point value is Not a Number";
 const NAN_CODE: &str = "TCL VALUE DOUBLE NAN";
 
 /// tclsh 8.6.16/9.0.4: an infinity reaching an integer conversion is
-/// `ARITH IOVERFLOW`, not the generic `ARITH DOMAIN` the runtime used to
-/// report.
+/// `ARITH IOVERFLOW`, not the generic `ARITH DOMAIN`.
 #[test]
 fn an_infinity_in_an_integer_conversion_is_ioverflow() {
     for body in [

@@ -851,8 +851,8 @@ fn incr_shared_core() {
 /// `append`/`lappend` routed through the shared cores
 /// (`tcl_cmd_core::var::{append_bytes, lappend_value}`). Pins the user-visible
 /// behaviour against tclsh: concatenation/list building, the no-values read
-/// form, and — the fix — `append`/`lappend` of an unset variable with no values
-/// errors (`can't read`) rather than the VM's old silent empty-variable create.
+/// form, and `append`/`lappend` of an unset variable with no values
+/// errors (`can't read`) rather than silently creating an empty variable.
 #[test]
 fn append_lappend_shared_core() {
     assert_eq!(run("set x ab\nappend x cd ef").1, "abcdef");

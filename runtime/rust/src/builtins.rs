@@ -1064,10 +1064,10 @@ mod tests {
     }
 
     /// A loop's condition is parsed **once**, not once per iteration: the
-    /// parsed AST caches on the condition object as `TCL_EXPR_TYPE`. This is
-    /// the runtime finding recorded as §2.6.2 of the native-lowering plan —
-    /// `parse_runtime_expr` used to re-lex, re-parse and re-validate the
-    /// condition text on every evaluation.
+    /// parsed AST caches on the condition object as `TCL_EXPR_TYPE`. A
+    /// `parse_runtime_expr` call that re-lexed, re-parsed and re-validated
+    /// the condition text on every evaluation would cost this repeatedly on
+    /// every pass of a hot loop.
     #[cfg(have_tommath)]
     #[test]
     fn a_loop_condition_parses_once_for_the_whole_loop() {

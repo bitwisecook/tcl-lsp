@@ -140,9 +140,9 @@ suite("Caller-frame variables (issue #923 audit cluster C1)", () => {
   });
 
   // idx 22 — the callee is a *mixin* method the call site never names
-  // statically. The method-resolution-order walk (issues #1177 / #1164)
-  // resolves `my NameProcess` through the mixin, so the literal
-  // `upvar name name` target is now answerable.
+  // statically. The method-resolution-order walk resolves `my NameProcess`
+  // through the mixin, so the literal
+  // `upvar name name` target is answerable.
   test("a mixin method reached by `my` dispatch creates this frame's variable", async () => {
     await activate(docUri);
     // Line 48: `        puts "name=$name params=$params"` — inside `name`.

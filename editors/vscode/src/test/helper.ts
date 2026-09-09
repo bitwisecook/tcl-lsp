@@ -48,16 +48,12 @@ export function getDocUri(fileName: string): vscode.Uri {
   return vscode.Uri.file(path.resolve(__dirname, "../../testFixture", fileName));
 }
 
-// ---------------------------------------------------------------------------
-// Server log capture
-//
-// The LSP server emits ``window/logMessage`` notifications which the
-// vscode-languageclient routes into an OutputChannel.  Output channels are
-// write-only from a test's perspective, so we snoop the messages directly
-// off the client with ``onNotification`` once on first request and let
-// tests query the ring buffer when they want to see what the server was
+// Server log capture: the LSP server emits ``window/logMessage`` notifications
+// which the vscode-languageclient routes into an OutputChannel.  Output
+// channels are write-only from a test's perspective, so we snoop the messages
+// directly off the client with ``onNotification`` once on first request and
+// let tests query the ring buffer when they want to see what the server was
 // doing (e.g. dialect resolution diagnostics).
-// ---------------------------------------------------------------------------
 
 const _serverLog: string[] = [];
 const _SERVER_LOG_MAX = 2000;
