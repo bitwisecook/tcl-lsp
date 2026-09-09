@@ -40,7 +40,7 @@ use core::ffi::c_char;
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
-use tcl_core_types::RecursionLimit;
+use tcl_core_types::{OoId, RecursionLimit};
 use tcl_runtime_api::codegen_abi::NATIVE_PROC_STATUS_DECLINED;
 use tcl_runtime_api::error_stack::{validate_error_stack, ErrorStack};
 use tcl_runtime_api::guard::{
@@ -601,7 +601,34 @@ pub enum Command {
     },
 }
 
+/// Which command token owned by one TclOO identity a binding exposes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum OoCommandRole {
+    Object,
+    My,
+    MyClass,
+}
+
 impl Command {
+    /// Stable TclOO identity and role carried by this command, if any.
+    pub(crate) fn oo_binding(&self) -> Option<(OoId, OoCommandRole)> {
+        match self {
+            Self::OoObject(id) => Some((*id, OoCommandRole::Object)),
+            Self::OoMy(id) => Some((*id, OoCommandRole::My)),
+            Self::OoMyClass(id) => Some((*id, OoCommandRole::MyClass)),
+            _ => None,
+        }
+    }
+
+    /// The object lifecycle token this command owns. Private dispatchers carry
+    /// the same identity but their replacement does not destroy the object.
+    pub(crate) fn oo_object(&self) -> Option<OoId> {
+        match self {
+            Self::OoObject(id) => Some(*id),
+            _ => None,
+        }
+    }
+
     /// Whether `self` and `other` are the **same** command binding rather than
     /// two bindings that happen to look alike.
     ///
@@ -1048,7 +1075,11 @@ pub struct InterpState {
     /// a builtin does; every other object command is user-created and
     /// release-invariant. Filled at bootstrap (`cmd_oo::install`), read by
     /// [`Interp::resolve_dispatchable`].
-    registry_object_roots: RefCell<std::collections::HashSet<Vec<u8>>>,
+    registry_object_roots: RefCell<std::collections::HashMap<OoId, Vec<u8>>>,
+    /// TclOO owners whose visible, retained, and hidden commands are currently
+    /// being retired. Delete traces are re-entrant, so the stable owner guards
+    /// the one retirement transaction instead of any mutable spelling.
+    retiring_oo_commands: RefCell<std::collections::HashSet<OoId>>,
 }
 
 /// An ensemble-rewrite record (C's `iPtr->ensembleRewrite`, see
@@ -1361,7 +1392,8 @@ impl Interp {
             dialect_point: Cell::new(Some(crate::environment::surface_point(
                 crate::environment::profile_for_dialect(""),
             ))),
-            registry_object_roots: RefCell::new(std::collections::HashSet::new()),
+            registry_object_roots: RefCell::new(std::collections::HashMap::new()),
+            retiring_oo_commands: RefCell::new(std::collections::HashSet::new()),
         }));
         // The numeric grammar is thread-ambient and may have been left on
         // another release by an interpreter built earlier on this thread, so a
@@ -1528,22 +1560,19 @@ impl Interp {
         })
     }
 
-    /// Record `fqn` as an engine-installed TclOO root object command, so the
-    /// release-availability gate treats it like a builtin (see
-    /// [`InterpState::registry_object_roots`]).
-    pub(crate) fn declare_registry_object_root(&self, fqn: &[u8]) {
+    /// Record `owner` as an engine-installed TclOO root object command. The
+    /// registry spelling is retained only as the dialect availability key;
+    /// command rename changes the display projection, not this identity.
+    pub(crate) fn declare_registry_object_root(&self, owner: OoId, registry_name: &[u8]) {
         self.0
             .registry_object_roots
             .borrow_mut()
-            .insert(fqn.to_vec());
+            .insert(owner, registry_name.to_vec());
     }
 
-    /// Drop `fqn`'s engine-installed root marking. The marking is an identity,
-    /// not a reservation on the *name*: once a script creates its own object
-    /// under that name the entry is release-invariant like any proc, so the
-    /// marking must not outlive the entry it described.
-    pub(crate) fn forget_registry_object_root(&self, fqn: &[u8]) {
-        self.0.registry_object_roots.borrow_mut().remove(fqn);
+    /// Drop an engine-installed root marking with the OO identity it described.
+    pub(crate) fn forget_registry_object_root(&self, owner: OoId) {
+        self.0.registry_object_roots.borrow_mut().remove(&owner);
     }
 
     /// Whether `fqn` is an engine-installed TclOO root that this release does
@@ -1552,8 +1581,35 @@ impl Interp {
     /// that asks "is this name taken?" it must read as free — real tclsh 8.6
     /// has no `::oo::configurable`, and a script may define one.
     pub(crate) fn is_gate_hidden_object_root(&self, fqn: &[u8]) -> bool {
-        self.0.registry_object_roots.borrow().contains(fqn)
-            && !self.builtin_command_visible_for_surface(fqn)
+        let owner = match self.0.namespaces.borrow().resolve(GLOBAL, fqn) {
+            Some(Command::OoObject(owner)) => owner,
+            _ => return false,
+        };
+        self.0
+            .registry_object_roots
+            .borrow()
+            .get(&owner)
+            .is_some_and(|registry_name| !self.builtin_command_visible_for_surface(registry_name))
+    }
+
+    /// Retire the engine root hidden at `fqn` by the selected dialect before a
+    /// script claims that spelling. Its OO lifecycle must finish before the
+    /// replacement creates or adopts the same instance namespace.
+    pub(crate) fn retire_gate_hidden_object_root(&mut self, fqn: &[u8]) -> bool {
+        let owner = match self.0.namespaces.borrow().resolve(GLOBAL, fqn) {
+            Some(Command::OoObject(owner)) => owner,
+            _ => return false,
+        };
+        let hidden = self
+            .0
+            .registry_object_roots
+            .borrow()
+            .get(&owner)
+            .is_some_and(|registry_name| !self.builtin_command_visible_for_surface(registry_name));
+        if hidden {
+            self.oo_command_renamed(owner, None);
+        }
+        hidden
     }
 
     /// The availability half of [`Self::builtin_command_visible_for_surface`]:
@@ -1594,7 +1650,7 @@ impl Interp {
     /// 8.6/9.0 for `interp alias {} la {} nosuchcmd; la`), which is precisely
     /// the "this release does not have that command" contract of #1462.
     pub(crate) fn resolve_dispatchable(&self, origin: NsId, name: &[u8]) -> Option<Command> {
-        let (cmd, fqn) = {
+        let (cmd, registry_name) = {
             let ns = self.namespaces.borrow();
             let cmd = ns.resolve(origin, name)?;
             // Only a *directly* bound builtin carries a release identity. Procs,
@@ -1605,22 +1661,17 @@ impl Interp {
             // TCL86_PLUS / TCL90_PLUS): those must vanish with the release the
             // way a builtin does, while every script-created object command
             // stays release-invariant.
-            let gated = match &cmd {
-                Command::Builtin(_) => true,
-                Command::OoObject(id) => self
-                    .0
-                    .registry_object_roots
-                    .borrow()
-                    .contains(&self.oo_name(*id)),
-                _ => false,
+            let registry_name = match &cmd {
+                Command::Builtin(_) => ns.resolve_fqn(origin, name),
+                Command::OoObject(id) => self.0.registry_object_roots.borrow().get(id).cloned(),
+                _ => None,
             };
-            if !gated {
+            let Some(registry_name) = registry_name else {
                 return Some(cmd);
-            }
-            let fqn = ns.resolve_fqn(origin, name)?;
-            (cmd, fqn)
+            };
+            (cmd, registry_name)
         };
-        self.builtin_command_visible_for_surface(&fqn)
+        self.builtin_command_visible_for_surface(&registry_name)
             .then_some(cmd)
     }
 
@@ -1690,10 +1741,9 @@ impl Interp {
     /// Register a built-in command (a possibly-qualified `name`, creating
     /// intermediate namespaces; overwrites any existing command of `name`).
     pub fn register_builtin(&mut self, name: &[u8], f: BuiltinFn) {
-        self.namespaces
-            .borrow_mut()
-            .register(name, Command::Builtin(f));
-        self.invalidate_command_environment();
+        let ns = self.namespaces.borrow_mut().command_home_ns(GLOBAL, name);
+        let tail = tcl_syntax::naming::written_command_tail(name).to_vec();
+        self.bind_command_replacement(ns, &tail, Command::Builtin(f));
     }
 
     /// Register a builtin with a stable semantic identity understood by
@@ -1908,12 +1958,14 @@ impl Interp {
         // #1412 item 1). A release-gated TclOO root this build hides reads
         // as free here too (`is_gate_hidden_object_root`), same as every
         // other "is this name taken?" check.
-        if let Some(occupant_fqn) = self
+        let occupant_fqn = self
             .namespaces
             .borrow_mut()
-            .destination_occupant_fqn(self.current_ns.get(), new)
-        {
-            if !self.is_gate_hidden_object_root(&occupant_fqn) {
+            .destination_occupant_fqn(self.current_ns.get(), new);
+        if let Some(occupant_fqn) = occupant_fqn {
+            if self.is_gate_hidden_object_root(&occupant_fqn) {
+                self.retire_gate_hidden_object_root(&occupant_fqn);
+            } else {
                 return RenameOutcome::TargetExists;
             }
         }
@@ -1972,15 +2024,6 @@ impl Interp {
             return RenameOutcome::NoSuchCommand;
         };
         let new_fqn = publication.destination_fqn.clone();
-        // `Namespaces::publish_rename_destination` writes the table entry
-        // directly rather than going through `ns_register`, so drop the marking
-        // that described whatever it displaced at the destination. Today an OO
-        // rename is also re-registered through the funnel by
-        // `oo_command_renamed`, which clears it; doing it here as well makes the
-        // invariant — "a root marking never outlives the entry it described" —
-        // hold for the rename path on its own, rather than by way of a
-        // follow-up call that a future refactor could reorder or drop.
-        self.forget_registry_object_root(&new_fqn);
         // The trace list (and any OO object) follows to the new name, and so
         // does every `namespace import` redirect of the old name — C's imports
         // hold the source's command token, so they survive a source rename
@@ -1990,9 +2033,6 @@ impl Interp {
         self.move_cmd_traces(&old_fqn, &new_fqn);
         self.retarget_import_sources(&old_fqn, &new_fqn);
         crate::cmd_coro::on_command_renamed(self, &old_fqn, &new_fqn);
-        if !self.oo_is_empty() {
-            self.oo_private_command_renamed(&old_fqn, &new_fqn);
-        }
         if let Some(object) = oo_object {
             self.oo_command_renamed(object, Some(&new_fqn));
         }
@@ -2133,18 +2173,18 @@ impl Interp {
         target: Vec<u8>,
         prefix: Vec<Vec<u8>>,
     ) -> Result<(), Vec<u8>> {
-        self.invalidate_command_environment();
-        let mut namespaces = self.namespaces.borrow_mut();
-        let Some((ns, simple)) = namespaces.register_at(
-            name,
+        let simple = tcl_syntax::naming::written_command_tail(name).to_vec();
+        let ns = self.namespaces.borrow_mut().command_home_ns(GLOBAL, name);
+        self.bind_command_replacement(
+            ns,
+            &simple,
             Command::Alias {
                 target,
                 prefix,
                 identity: Rc::new(()),
             },
-        ) else {
-            return Ok(()); // no tail to bind — nothing was registered
-        };
+        );
+        let mut namespaces = self.namespaces.borrow_mut();
         if namespaces.alias_chain_loops(ns, &simple) {
             namespaces.unbind_in(ns, &simple);
             return Err(simple);
@@ -2358,7 +2398,27 @@ impl Interp {
     /// is then a no-op).
     pub(crate) fn bind_command_replacement(&mut self, ns: NsId, tail: &[u8], command: Command) {
         self.invalidate_command_environment();
+        let displaced = self.namespaces.borrow().command_in(ns, tail);
         self.on_bound_command_replaced(ns, tail);
+        if let Some(owner) = displaced.as_ref().and_then(Command::oo_object) {
+            // The old object command's delete trace has run while the token was
+            // still visible. Unlink that exact binding before TclOO teardown so
+            // identity-based cleanup cannot remove the replacement installed
+            // below, then run the displaced owner's destructor and cascades.
+            let still_displaced =
+                self.namespaces
+                    .borrow()
+                    .command_in(ns, tail)
+                    .is_some_and(|current| {
+                        displaced
+                            .as_ref()
+                            .is_some_and(|old| old.is_same_binding(&current))
+                    });
+            if still_displaced {
+                self.namespaces.borrow_mut().remove_in(ns, tail);
+            }
+            self.oo_command_renamed(owner, None);
+        }
         self.namespaces.borrow_mut().bind(ns, tail, command);
     }
 
@@ -2394,6 +2454,61 @@ impl Interp {
             return;
         }
         self.fire_delete_traces_of_token(&fqn, dying);
+    }
+
+    /// Retire every command token carried by one TclOO owner identity. The
+    /// namespace arena covers both visible and retained generations; the
+    /// interpreter-owned hidden table is folded into the same transaction.
+    /// Delete-trace callbacks may move a token between those stores, so the
+    /// commands are rescanned by identity after callbacks before removal.
+    pub(crate) fn retire_oo_command_identity(&mut self, owner: OoId) {
+        if !self.0.retiring_oo_commands.borrow_mut().insert(owner) {
+            return;
+        }
+
+        let mut traced = self.namespaces.borrow().oo_command_locations(owner);
+        traced.extend(
+            self.hidden
+                .borrow()
+                .iter()
+                .filter(|(_, command)| command.oo_binding().is_some_and(|(id, _)| id == owner))
+                .map(|(name, _)| {
+                    let mut fqn = b"::".to_vec();
+                    fqn.extend_from_slice(name);
+                    (fqn, None)
+                }),
+        );
+        for (fqn, generation) in &traced {
+            self.fire_delete_traces_of_token(fqn, *generation);
+        }
+
+        let mut removed: std::collections::BTreeSet<Vec<u8>> = self
+            .namespaces
+            .borrow_mut()
+            .remove_oo_command_identity(owner)
+            .into_iter()
+            .collect();
+        let hidden_names: Vec<Vec<u8>> = self
+            .hidden
+            .borrow()
+            .iter()
+            .filter(|(_, command)| command.oo_binding().is_some_and(|(id, _)| id == owner))
+            .map(|(name, _)| name.clone())
+            .collect();
+        for name in hidden_names {
+            self.hidden.borrow_mut().remove(&name);
+            let mut fqn = b"::".to_vec();
+            fqn.extend_from_slice(&name);
+            removed.insert(fqn);
+        }
+        removed.extend(traced.into_iter().map(|(fqn, _)| fqn));
+        self.remove_imports_for_deleted_origins(removed.iter().cloned(), &[]);
+        for fqn in removed {
+            self.remove_cmd_traces(&fqn);
+        }
+        self.forget_registry_object_root(owner);
+        self.0.retiring_oo_commands.borrow_mut().remove(&owner);
+        self.invalidate_command_environment();
     }
 
     /// Fire `fqn`'s `delete` traces and drop the ones the dying token owned.
@@ -4749,6 +4864,18 @@ impl Interp {
             .ensure_namespace(self.current_ns.get(), name)
     }
 
+    /// Create an OO command's default instance namespace under the exact
+    /// namespace token that will receive the command. This differs from public
+    /// `namespace eval` creation only during a synchronous delete callback,
+    /// where the command and its owned namespace must both join the dying
+    /// generation.
+    pub(crate) fn ensure_command_owned_namespace(&mut self, name: &[u8]) -> NsId {
+        self.invalidate_command_environment();
+        self.namespaces
+            .borrow_mut()
+            .ensure_command_owned_namespace(self.current_ns.get(), name)
+    }
+
     /// Resolve (creating if needed) a namespace by name, anchored at the
     /// **global** namespace regardless of the current one — C's
     /// `TclGetNamespaceForQualName(..., TCL_GLOBAL_ONLY |
@@ -4767,11 +4894,12 @@ impl Interp {
         if self.defer_namespace_teardown(ns) {
             return;
         }
+        let teardown_ids = self.namespaces.borrow().descendant_ids(ns);
         // TclOO state follows the exact namespace token. This must happen only
         // once deletion is no longer deferred: an active old token can coexist
-        // with fresh objects at the same Tcl-facing name.
+        // with fresh objects at the same Tcl-facing name. Descendants receive
+        // the same check when recursion reaches their own token.
         self.oo_namespace_deleted(ns);
-        let teardown_ids = self.namespaces.borrow().descendant_ids(ns);
         self.delete_namespace_token(ns);
         self.sweep_dying_namespace(ns, &teardown_ids);
         self.namespaces
@@ -4801,6 +4929,7 @@ impl Interp {
         if self.defer_namespace_teardown(ns) {
             return;
         }
+        self.oo_namespace_deleted(ns);
         self.delete_namespace_token(ns);
     }
 
@@ -4902,12 +5031,17 @@ impl Interp {
                     retired_any = true;
                     continue;
                 }
-                let ensemble_tokens = match self.namespaces.borrow().command_in(ns, &tail) {
-                    Some(Command::Ensemble(token)) => vec![token],
+                let command = self.namespaces.borrow().command_in(ns, &tail);
+                let ensemble_tokens = match &command {
+                    Some(Command::Ensemble(token)) => vec![Rc::clone(token)],
                     _ => Vec::new(),
                 };
+                let oo_owner = command.as_ref().and_then(Command::oo_object);
                 self.namespaces.borrow_mut().remove_in(ns, &tail);
                 self.remove_imports_for_deleted_origins([fqn], &ensemble_tokens);
+                if let Some(owner) = oo_owner {
+                    self.oo_command_renamed(owner, None);
+                }
                 retired_any = true;
             }
             if !retired_any {
@@ -5272,18 +5406,22 @@ impl Interp {
                 // that then fail to dispatch. The TclOO roots the engine
                 // installs on the registry's behalf are gated alongside
                 // builtins; every script-created object stays invariant.
-                let gated = match ns.resolve(id, name) {
-                    Some(Command::Builtin(_)) => true,
-                    Some(Command::OoObject(id)) => self
-                        .0
-                        .registry_object_roots
-                        .borrow()
-                        .contains(&self.oo_name(id)),
-                    _ => false,
+                let registry_name = match ns.resolve(id, name) {
+                    Some(Command::Builtin(_)) => {
+                        let mut full_name = prefix.clone();
+                        full_name.extend_from_slice(name);
+                        Some(full_name)
+                    }
+                    Some(Command::OoObject(owner)) => {
+                        self.0.registry_object_roots.borrow().get(&owner).cloned()
+                    }
+                    _ => None,
                 };
-                let mut full_name = prefix.clone();
-                full_name.extend_from_slice(name);
-                (!gated || self.builtin_command_visible_for_surface(&full_name))
+                registry_name
+                    .as_deref()
+                    .is_none_or(|registry_name| {
+                        self.builtin_command_visible_for_surface(registry_name)
+                    })
                     .then(|| name.to_vec())
             })
             .collect()
@@ -5416,6 +5554,24 @@ impl Interp {
     /// The current result's string bytes (copied).
     pub fn result_bytes(&self) -> Vec<u8> {
         obj_bytes(self.result.get())
+    }
+
+    /// Run an implicit callback while preserving the caller's result and
+    /// carried completion options. The callback may inspect and replace the
+    /// live result internally; its final value is discarded when `f` returns.
+    pub(crate) fn with_preserved_result<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
+        let saved = self.result.get();
+        // SAFETY: the interpreter owns `saved`; hold an independent reference
+        // while callback evaluation replaces the result slot.
+        unsafe { obj::incr_ref_count(saved) };
+        let saved_options = self.take_return_options();
+        let output = f(self);
+        // SAFETY: discard the callback's owned result and transfer the saved
+        // reference back into the interpreter result slot.
+        unsafe { obj::decr_ref_count(self.result.get()) };
+        self.result.set(saved);
+        self.restore_return_options(saved_options);
+        output
     }
 
     /// The current result **object** — a borrowed pointer (the interp keeps its
@@ -7294,23 +7450,12 @@ impl Interp {
     /// Register `cmd` under the (possibly qualified) name `name` — for the OO
     /// object/class commands.
     pub(crate) fn ns_register(&mut self, name: &[u8], cmd: Command) {
-        // The TclOO root marking is an identity, not a reservation on the
-        // *name*: it says "the engine installed this entry on the registry's
-        // behalf, so date it by the registry". Registering over that name
-        // replaces the identity with a script-created one, which is
-        // release-invariant like any proc, so the marking must not outlive the
-        // entry it described — otherwise the availability gate hides the new
-        // command forever.
-        //
-        // This lives in the single registration funnel rather than at the
-        // individual creation verbs so that every path is covered: `create`,
-        // `new`, `oo::copy`, `rename` onto the name, and any funnel added
-        // later. (The VM is immune for the same structural reason — its clear
-        // lives in `register_command`.) Safe against the engine's own installs
-        // because each declares its root *after* registering it.
-        self.forget_registry_object_root(name);
-        self.namespaces.borrow_mut().register(name, cmd);
-        self.invalidate_command_environment();
+        let ns = self
+            .namespaces
+            .borrow_mut()
+            .command_home_ns(self.current_ns.get(), name);
+        let tail = tcl_syntax::naming::written_command_tail(name).to_vec();
+        self.bind_command_replacement(ns, &tail, cmd);
     }
 
     /// The fully-qualified name a (relative or absolute) command/object name

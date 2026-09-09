@@ -233,9 +233,18 @@ the namespace immediately but retains its exact namespace and command
 generation until the last active frame returns. A newly created namespace may
 therefore publish an object at the same fully-qualified spelling while a
 relative call in the retained frame still reaches the old object. OO cleanup
-runs when that retained namespace generation is finally torn down, and checks
-the command identity before deleting a public binding so it cannot remove the
-replacement generation.
+runs only after each exact namespace token passes its own activation check.
+Commands and default object namespaces created by a delete-trace callback join
+the dying command-home token and its fixed-point teardown; they do not recreate
+the visible namespace tree.
+
+Command retirement is likewise identity-based. One runtime-owned seam removes
+every public, retained-generation, or hidden command variant carrying an
+`OoId`, including the private `my` and `myclass` dispatchers, without touching a
+same-named replacement. Unknown-method scope and registry-installed root
+classification also carry `OoId`; the root's original registry spelling is
+retained only as its dialect-availability key. `OoId` has no universal missing
+or default value because allocation policy belongs to each runtime.
 
 Native command mutation keeps the exact `OoId` attached to the command
 generation through ordinary rename, replacement, and deletion. Callback-

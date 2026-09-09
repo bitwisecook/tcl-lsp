@@ -2126,6 +2126,56 @@ mod tests {
         );
     }
 
+    /// TclOO destruction follows the same per-token activation check as the
+    /// namespace command table. Deleting an inactive parent must not tear down
+    /// objects owned by its active child generation.
+    #[test]
+    fn active_child_retains_its_oo_state_during_parent_deletion() {
+        pins(
+            br#"namespace eval P::N {
+                    oo::class create C {method m {} {return OLD}}
+                    C create o
+                    proc p {} {
+                        namespace delete ::P
+                        set a [list [namespace current] [namespace exists ::P] \
+                                    [catch {o m} om] $om]
+                        namespace eval ::P::N {
+                            oo::class create C {method m {} {return NEW}}
+                            C create o
+                        }
+                        set b [list [catch {o m} om] $om \
+                                    [catch {::P::N::o m} nm] $nm]
+                        list $a $b
+                    }
+                }
+                set r [::P::N::p]
+                list $r [::P::N::o m]"#,
+            b"{{::P::N 0 0 OLD} {0 OLD 0 NEW}} NEW",
+        );
+    }
+
+    /// An OO command and its default instance namespace created by a delete
+    /// trace join the exact dying namespace token. The fixed-point sweep then
+    /// retires them instead of publishing a fresh visible namespace tree.
+    #[test]
+    fn oo_created_by_delete_trace_joins_dying_generation() {
+        pins(
+            br#"set log {}
+                proc mk {old new op} {
+                    lappend ::log make
+                    oo::object create ::N::late
+                    lappend ::log made
+                }
+                namespace eval N {proc p {} {}}
+                trace add command ::N::p delete mk
+                namespace delete ::N
+                list $log [namespace exists ::N] [info commands ::N::*] \
+                     [info object isa object ::N::late] \
+                     [catch {::N::late destroy} m] $m"#,
+            br#"{make made} 0 {} 0 1 {invalid command name "::N::late"}"#,
+        );
+    }
+
     /// Nothing in the retained token fires until the last frame pops — and a
     /// second `namespace eval N` around the call is a second activation, so
     /// even returning from the proc is not enough.

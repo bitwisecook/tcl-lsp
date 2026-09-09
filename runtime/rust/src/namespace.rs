@@ -37,6 +37,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use tcl_cmd_core::namespace::TclStringHashOrder;
+use tcl_core_types::OoId;
 use tcl_syntax::naming::{ends_with_separator, qualifier_segments as split_qualifier};
 
 use crate::frame::VarTable;
@@ -382,6 +383,42 @@ impl Namespaces {
     /// already located).
     pub(crate) fn command_in(&self, ns: NsId, name: &[u8]) -> Option<Command> {
         self.arena[ns].commands.get(name).cloned()
+    }
+
+    /// Every visible or retained namespace-table binding owned by one TclOO
+    /// identity. Retained namespace generations live in this same arena, so an
+    /// identity scan cannot accidentally resolve through a newer same-named
+    /// namespace token.
+    pub(crate) fn oo_command_locations(&self, owner: OoId) -> Vec<(Vec<u8>, Option<u64>)> {
+        let mut hits = Vec::new();
+        for (ns, node) in self.arena.iter().enumerate() {
+            for (name, command) in node.commands.iter() {
+                if command.oo_binding().is_some_and(|(id, _)| id == owner) {
+                    hits.push((self.command_fqn(ns, name), node.commands.generation(name)));
+                }
+            }
+        }
+        hits
+    }
+
+    /// Remove all namespace-table commands carrying `owner`, returning their
+    /// last fully-qualified locations. Hidden commands are held by `Interp`
+    /// and are retired by the same caller after this arena half.
+    pub(crate) fn remove_oo_command_identity(&mut self, owner: OoId) -> Vec<Vec<u8>> {
+        let mut hits = Vec::new();
+        for (ns, node) in self.arena.iter().enumerate() {
+            for (name, command) in node.commands.iter() {
+                if command.oo_binding().is_some_and(|(id, _)| id == owner) {
+                    hits.push((ns, name.clone()));
+                }
+            }
+        }
+        let mut removed = Vec::with_capacity(hits.len());
+        for (ns, name) in hits {
+            self.arena[ns].commands.remove(&name);
+            removed.push(self.command_fqn(ns, &name));
+        }
+        removed
     }
 
     /// Remove the binding at `(ns, name)`, returning it — the rollback for a
@@ -819,6 +856,20 @@ impl Namespaces {
             ns = self.ensure_child(ns, part);
         }
         ns
+    }
+
+    /// Create the namespace owned by a command at `name` under the exact
+    /// namespace token that receives the command binding. During synchronous
+    /// namespace teardown that may be a detached dying token; TclOO objects
+    /// created by a delete trace must join that generation and its fixed-point
+    /// sweep, not recreate the visible qualifier chain.
+    pub(crate) fn ensure_command_owned_namespace(&mut self, current: NsId, name: &[u8]) -> NsId {
+        let home = self.command_home_ns(current, name);
+        let tail = tcl_syntax::naming::written_command_tail(name);
+        if tail.is_empty() {
+            return home;
+        }
+        self.ensure_child(home, tail)
     }
 
     /// Find (creating if needed) the namespace named `qualified`, rooted at
