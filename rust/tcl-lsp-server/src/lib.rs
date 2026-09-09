@@ -36713,10 +36713,10 @@ proc p {} {
     }
 
     /// Every `"scope": "resource"` analyser input resolves per folder, not
-    /// just `packages.provides`. `bigipVersion` and `targets` had the same two
-    /// holes: no folder override at all, and the folder handle constructed
-    /// with `None` / `Vec::new()` so *any* folder override of an unrelated
-    /// knob dropped the global value.
+    /// just `packages.provides`. `bigipVersion` and `targets` are prone to the
+    /// same two holes: no folder override at all, and a folder handle
+    /// constructed with `None` / `Vec::new()` so *any* folder override of an
+    /// unrelated knob drops the global value.
 
     #[tokio::test]
     async fn resource_scoped_analyser_inputs_resolve_per_folder() {

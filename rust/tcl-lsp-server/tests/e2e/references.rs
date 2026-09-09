@@ -530,17 +530,15 @@ fn references_unify_a_procs_global_alias_with_the_callers_canonical_set() {
     );
 }
 
-/// idx 71 (differential-audit main audit wave, high severity, pix corpus):
-/// reduces nico-robert/pix's `test_context.test` (`source [file join [file
+/// Reduces nico-robert/pix's `test_context.test` (`source [file join [file
 /// dirname [info script]] data_b64.test]`, then calls `isEqual` bare) to a
-/// literal-`source` control shape — the finding's own control repro proved
-/// the identical bug reproduces with a trivial `source lib.tcl`, no
-/// `[info script]` at all. `main.tcl` sources `lib.tcl` (which declares
-/// `helper`) and calls `helper` itself; `main.tcl` has no local declaration
-/// of `helper` to anchor `cross_document_references`'s exclusion of the
-/// current document on, so the call under the cursor — in the very
-/// document the query was issued from — was previously dropped entirely,
-/// returning only `lib.tcl`'s declaration.
+/// literal-`source` control shape — a trivial `source lib.tcl`, no
+/// `[info script]`, reproduces the identical shape. `main.tcl` sources
+/// `lib.tcl` (which declares `helper`) and calls `helper` itself;
+/// `main.tcl` has no local declaration of `helper` to anchor
+/// `cross_document_references`'s exclusion of the current document on, so
+/// the call under the cursor — in the very document the query was issued
+/// from — must not be dropped, returning only `lib.tcl`'s declaration.
 #[test]
 fn references_reach_the_current_documents_own_call_when_it_has_no_local_declaration() {
     let mut lsp = Lsp::tcl();
@@ -559,11 +557,11 @@ fn references_reach_the_current_documents_own_call_when_it_has_no_local_declarat
     assert_eq!(lines.len(), 2, "{lines:?}");
 }
 
-/// idx 21 (differential-audit main audit wave): `interp alias {} sayHi {}
+/// `interp alias {} sayHi {}
 /// greet` makes every `[sayHi]` a real call site of `greet` — tclsh 9.0.4
 /// and 8.6.16 both execute `greet`'s body twice for the two calls below.
-/// Find-references never consulted the alias table, so a user asking whether
-/// `greet` was safe to delete was told it had no callers.
+/// Find-references must consult the alias table, or a user asking whether
+/// `greet` was safe to delete would be told it had no callers.
 #[test]
 fn references_include_call_sites_spelled_through_an_alias() {
     let mut lsp = Lsp::tcl();

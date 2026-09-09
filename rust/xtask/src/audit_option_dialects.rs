@@ -106,7 +106,7 @@ const NOT_SUPPORTED_TOKENS: &[&str] = &[
 /// Declaration order is preserved in the JSON output and the console log,
 /// matching `dict` insertion order.
 const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
-    // ---- lsearch ----
+    // lsearch
     ("lsearch", None, "-stride", "lsearch -stride 2 {a 1} *"),
     (
         "lsearch",
@@ -124,7 +124,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
     ("lsearch", None, "-inline", "lsearch -inline {a} a"),
     ("lsearch", None, "-not", "lsearch -not {a b} a"),
     ("lsearch", None, "-start", "lsearch -start 0 {a b} b"),
-    // ---- lsort ----
+    // lsort
     ("lsort", None, "-stride", "lsort -stride 2 {a 1 b 2}"),
     ("lsort", None, "-indices", "lsort -indices {a b c}"),
     ("lsort", None, "-unique", "lsort -unique {a b c}"),
@@ -134,7 +134,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-command",
         "lsort -command {string compare} {a b c}",
     ),
-    // ---- regsub ----
+    // regsub
     (
         "regsub",
         None,
@@ -152,7 +152,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
     ),
     ("regsub", None, "-all", "regsub -all {a} {aaa} X"),
     ("regsub", None, "-start", "regsub -start 0 {a} {abc} X"),
-    // ---- regexp ----
+    // regexp
     ("regexp", None, "-expanded", "regexp -expanded {a} {abc}"),
     ("regexp", None, "-line", "regexp -line {a} {abc}"),
     ("regexp", None, "-linestop", "regexp -linestop {a} {abc}"),
@@ -167,7 +167,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
     ("regexp", None, "-indices", "regexp -indices {a} {abc}"),
     ("regexp", None, "-start", "regexp -start 0 {a} {abc}"),
     ("regexp", None, "-about", "regexp -about {a}"),
-    // ---- exec ----
+    // exec
     (
         "exec",
         None,
@@ -175,7 +175,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "exec -ignorestderr -- echo hi",
     ),
     ("exec", None, "-keepnewline", "exec -keepnewline -- echo hi"),
-    // ---- glob ----
+    // glob
     (
         "glob",
         None,
@@ -202,7 +202,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-nocomplain",
         "glob -nocomplain /nonexistent/x/*",
     ),
-    // ---- file copy / delete / rename / link ----
+    // file copy / delete / rename / link
     (
         "file",
         Some("copy"),
@@ -233,7 +233,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-hard",
         "file link -hard /tmp/_audit_link /tmp/_audit_target",
     ),
-    // ---- chan / fconfigure (channel options) ----
+    // chan / fconfigure (channel options)
     (
         "fconfigure",
         None,
@@ -294,7 +294,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-inputmode",
         "fconfigure stdin -inputmode normal",
     ),
-    // ---- clock scan options ----
+    // clock scan options
     ("clock", Some("scan"), "-base", "clock scan now -base 0"),
     (
         "clock",
@@ -326,7 +326,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-validate",
         "clock scan {2020-13-01} -validate 0 -format {%Y-%m-%d}",
     ),
-    // ---- socket ----
+    // socket
     (
         "socket",
         None,
@@ -363,21 +363,21 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-reuseport",
         "set s [socket -server {} -reuseport 1 -myaddr 127.0.0.1 0]; close $s",
     ),
-    // ---- source ----
+    // source
     (
         "source",
         None,
         "-encoding",
         "set f [open /tmp/_audit_src w]; close $f; source -encoding utf-8 /tmp/_audit_src",
     ),
-    // ---- unset ----
+    // unset
     (
         "unset",
         None,
         "-nocomplain",
         "unset -nocomplain ::nonexistent_var_42",
     ),
-    // ---- string compare/equal ----
+    // string compare/equal
     (
         "string",
         Some("compare"),
@@ -426,7 +426,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-nocase",
         "string match -nocase A a",
     ),
-    // ---- switch ----
+    // switch
     ("switch", None, "-exact", "switch -exact a {a {set x 1}}"),
     ("switch", None, "-glob", "switch -glob a {a* {set x 1}}"),
     (
@@ -442,7 +442,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-matchvar",
         "switch -regexp -matchvar m a {{(.*)} {set x 1}}",
     ),
-    // ---- subst ----
+    // subst
     (
         "subst",
         None,
@@ -451,7 +451,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
     ),
     ("subst", None, "-nocommands", "subst -nocommands {[set x]}"),
     ("subst", None, "-novariables", r"subst -novariables {\$x}"),
-    // ---- interp ----
+    // interp
     (
         "interp",
         Some("create"),
@@ -476,7 +476,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-namespace",
         "set i [interp create]; interp hide $i set; interp invokehidden $i -namespace :: set x 1; interp delete $i",
     ),
-    // ---- package ----
+    // package
     (
         "package",
         Some("present"),
@@ -489,12 +489,12 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-exact",
         "catch {package require -exact Tcl 9.0}",
     ),
-    // ---- puts ----
+    // puts
     ("puts", None, "-nonewline", "puts -nonewline {}"),
-    // ---- load ----
+    // load
     ("load", None, "-global", "catch {load -global /nonexistent}"),
     ("load", None, "-lazy", "catch {load -lazy /nonexistent}"),
-    // ---- unload ----
+    // unload
     (
         "unload",
         None,
@@ -507,14 +507,14 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-keeplibrary",
         "catch {unload -keeplibrary /nonexistent}",
     ),
-    // ---- encoding ----
+    // encoding
     (
         "encoding",
         None,
         "-profile",
         "catch {encoding convertfrom -profile strict utf-8 hi}",
     ),
-    // ---- vwait (Tcl 9.0 added many) ----
+    // vwait (Tcl 9.0 added many)
     (
         "vwait",
         None,
@@ -575,7 +575,7 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-writable",
         "catch {vwait -writable stdout -timeout 1}",
     ),
-    // ---- namespace ensemble (issue #1610) ----
+    // namespace ensemble
     //
     // `create` and `configure` are two different C option tables
     // (`ensembleCreateOptions` / `ensembleConfigOptions`, `tclEnsemble.c`),

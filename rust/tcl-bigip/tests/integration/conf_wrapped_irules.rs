@@ -47,8 +47,6 @@ use tcl_bigip::rule_extract::{
     find_embedded_rules, find_rule_at_offset, is_conf_wrapped_irules, replace_rule_body,
 };
 
-// -- Detection ---------------------------------------------------------------
-
 /// A bare `when … { }` is not conf-wrapped.
 #[test]
 fn standalone_irule_not_detected() {
@@ -82,8 +80,6 @@ fn multiple_rules_detected() {
 // `# tcl-dialect:` directive override it. That dialect-selection layer is not
 // part of `rule_extract`; only the underlying `is_conf_wrapped_irules` predicate
 // is covered (asserted above).
-
-// -- Embedded-rule extraction range ------------------------------------------
 
 /// The stanza range starts at the `ltm rule` header (line 0, col 0) and ends
 /// at the closing `}`.
@@ -124,7 +120,6 @@ fn find_rule_at_offset_inside_block() {
     assert_eq!(rule.unwrap().full_path, "/Common/a");
 }
 
-// -- Analysis: rule count + names --------------------------------------------
 // `analyse_conf_wrapped` returns `(result, rules)`; the *rules* half is exactly
 // `find_embedded_rules`. The diagnostics half (IRULE5006/5007 etc.) is a GAP.
 
@@ -193,7 +188,6 @@ fn multiple_when_blocks_in_one_rule() {
     assert!(rules[0].body.contains("HTTP_REQUEST"));
 }
 
-// -- Range / offset facts ----------------------------------------------------
 // GAP: shift_position / _shift_range (line/char/offset rebasing of a sub-range
 // into file coordinates) and the IRULE* diagnostics are part of the analysis
 // layer and not modelled here. The *structural* offset facts they guard — that

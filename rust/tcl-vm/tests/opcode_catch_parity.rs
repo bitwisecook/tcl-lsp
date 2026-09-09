@@ -89,8 +89,8 @@ fn push_lit(lits: &mut LiteralTable, s: &str) -> Instruction {
     i
 }
 
-// -- compiled inline catch: the error path used to be unexecutable
-//    (`pushReturnCode` had no arm; `beginCatch4` was inert) --
+// Compiled inline catch: the error path must be reachable
+// (`pushReturnCode` needs an arm; `beginCatch4` must not be inert).
 
 /// 3-arg `catch` over an erroring body binds code 1, the message, and an
 /// options dict carrying `-code`/`-errorcode`/`-errorinfo` (catch-3.1-ish).

@@ -48,7 +48,6 @@ fn foreach_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 /// sit at every other argument from 0, and the body — the last word — is
 /// excluded.  The role resolver marks that body; this declares the repeating
 /// head so no consumer has to re-derive the stride from the command's name
-/// (issue #1185).
 static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout {
     exclude_trailing: 1,
     ..RepeatedArgLayout::strided(ArgRole::LoopVarList, 0, 2)

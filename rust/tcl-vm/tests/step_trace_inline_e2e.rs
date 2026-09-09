@@ -16,8 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Issue #946 (M16.3 completion) — step-trace (`enterstep`/`leavestep`)
-//! parity for opcode-inlined commands.
+//! Step-trace (`enterstep`/`leavestep`) parity for opcode-inlined commands.
 //!
 //! C Tcl forces a step-traced proc "out of bytecode"
 //! (`iPtr->flags |= DONT_COMPILE_CMDS_INLINE`, `tclTrace.c`

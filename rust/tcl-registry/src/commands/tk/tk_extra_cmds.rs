@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Additional standalone Tk commands not previously registered — `bindtags`,
+//! Additional standalone Tk commands not otherwise registered — `bindtags`,
 //! `tk_optionMenu`, `tk_dialog`, `tk_setPalette`, `tk_bisque`,
 //! `tk_focusNext`, `tk_focusPrev`, and `tk_focusFollowsMouse`.
 //!

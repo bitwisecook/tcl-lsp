@@ -37,9 +37,9 @@ use crate::obj::TclObj;
 
 /// Every operator spelling with a `::tcl::mathop` command form — derived from
 /// `tcl_syntax::expr::operators`, the single source of truth for which
-/// operators exist and whether they have a mathop command form at all
-/// (issue #983's registry/runtime convergence: this used to be a hand-typed
-/// list that could silently drift from the operator grammar it mirrors).
+/// operators exist and whether they have a mathop command form at all,
+/// rather than a hand-typed list that could silently drift from the
+/// operator grammar it mirrors.
 ///
 /// `BinOp`/`UnaryOp` share a spelling for `-`/`+` (`Sub`/`Neg`, `Add`/`Pos`) —
 /// one command handles both the fold and the single-argument reading, so the

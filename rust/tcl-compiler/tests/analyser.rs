@@ -8460,7 +8460,7 @@ mod const_cmd_subst_set_rhs {
     }
 }
 
-// Leading byte-order mark (issue #1218).
+// Leading byte-order mark.
 mod leading_bom {
     use super::{Analyser, analyser_diags, fires};
 
@@ -8528,7 +8528,7 @@ mod leading_bom {
     }
 }
 
-// A TclOO member body's implicit `namespace path` — issue #1137 idx 51.
+// A TclOO member body's implicit `namespace path`.
 //
 // tclsh 8.6.16 and 9.0.4, inside `oo::class create C { method m {} { … } }`:
 //     namespace current -> ::oo::ObjN        namespace path -> ::oo::Helpers
@@ -8638,7 +8638,7 @@ mod oo_helpers_namespace_path {
     }
 }
 
-// A constant-dominated computed `namespace eval` target — issue #1113 item 3.
+// A constant-dominated computed `namespace eval` target.
 //
 // `set ns ::app; namespace eval $ns { … }` creates `::app` on every run, so
 // the block's procs really do home to `::app::…`.  The word is settled by the
