@@ -69,6 +69,8 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::BuildHasher;
 
+use tcl_compiler::analyser::line_suppressed;
+
 use crate::definition::{LspRange, utf16_len};
 
 /// Severity of a source-text diagnostic. W111 / W115 / W107 / W109 are
@@ -114,30 +116,6 @@ pub const DEFAULT_LINE_LENGTH: usize = 120;
 
 /// Default expected line ending.
 pub const DEFAULT_LINE_ENDING: &str = "\n";
-
-/// Sentinel for a file-wide suppress directive: a file-wide directive
-/// is recorded against line `-1` in `suppressed_lines`.
-const FILE_SUPPRESS_KEY: i32 = -1;
-
-/// Return `true` when `code` is suppressed at `line` by an inline
-/// `# noqa` or a top-of-file `# tcl-lsp: disable=…` directive.
-/// A `"*"` entry suppresses every code, and the file-level (`-1`)
-/// bucket applies document-wide.
-fn is_suppressed<H: BuildHasher, I: BuildHasher>(
-    code: &str,
-    line: i32,
-    suppressed: &HashMap<i32, HashSet<String, I>, H>,
-) -> bool {
-    if let Some(file_codes) = suppressed.get(&FILE_SUPPRESS_KEY)
-        && (file_codes.contains("*") || file_codes.contains(code))
-    {
-        return true;
-    }
-    match suppressed.get(&line) {
-        Some(codes) => codes.contains("*") || codes.contains(code),
-        None => false,
-    }
-}
 
 /// W111: flag lines exceeding `max_length` characters.
 ///
@@ -469,7 +447,7 @@ pub fn style_diagnostics<SD: BuildHasher, H: BuildHasher, I: BuildHasher>(
             // it fits `i32`; `MAX` is an unreachable fallback that
             // can never collide with the `-1` file-level bucket.
             let line = i32::try_from(d.range.start_line).unwrap_or(i32::MAX);
-            if is_suppressed(d.code, line, suppressed) {
+            if line_suppressed(d.code, line, suppressed) {
                 continue;
             }
             out.push(d);
@@ -511,6 +489,7 @@ pub fn style_diagnostics<SD: BuildHasher, H: BuildHasher, I: BuildHasher>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tcl_compiler::analyser::FILE_SUPPRESS_KEY;
 
     fn no_suppress() -> HashMap<i32, HashSet<String>> {
         HashMap::new()
