@@ -407,6 +407,59 @@ struct VariableRoles {
     written: BTreeMap<String, u32>,
 }
 
+/// The braced word interiors of `command` that substitute nothing, appended to
+/// `out`.
+///
+/// A braced word is a literal: `set msg {$notavar}` reads no variable at all,
+/// and scanning its text for `$name` would put a name in the generated
+/// parameter list that the caller need not have — the extraction then rewrites
+/// a working file into one that dies on `can't read`.
+///
+/// Three kinds of braced word are *not* such a literal and stay scanned: an
+/// [`ArgRole::Expr`] word, whose `$name`s `expr` substitutes; any word a
+/// same-frame or frame-opening region overlaps, which is script rather than
+/// data; and every word of a command the registry does not know, where nothing
+/// says the word is data.
+fn literal_word_holes(
+    source: &str,
+    command: &SegmentedCommand,
+    registry: &CommandRegistry,
+    walk: &super::FrameWalk,
+    out: &mut Vec<(u32, u32)>,
+) {
+    let head = command.name();
+    if registry.get(head).is_none() {
+        return;
+    }
+    let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
+    let evaluated: Vec<usize> = registry.arg_indices_for_role(head, &args, ArgRole::Expr);
+    let mut scripts = walk.same_frame_regions(source, command);
+    scripts.extend(walk.frame_shifted_regions(source, command));
+    for (index, token) in command.argv.iter().enumerate().skip(1) {
+        if evaluated.contains(&(index - 1)) {
+            continue;
+        }
+        if token.kind != tcl_lexer::TokenType::Str
+            || token.content_offset != 1
+            || source.as_bytes().get(token.span.start() as usize) != Some(&b'{')
+        {
+            continue;
+        }
+        let start = token.span.start() + u32::from(token.content_offset);
+        let end = token.span.end();
+        if start >= end {
+            continue;
+        }
+        let overlaps_script = scripts.iter().any(|(from, to)| {
+            u32::try_from(*to).is_ok_and(|to| to > start)
+                && u32::try_from(*from).is_ok_and(|from| from < end)
+        });
+        if !overlaps_script {
+            out.push((start, end));
+        }
+    }
+}
+
 /// `start..end` with every range in `holes` cut out of it.
 fn same_frame_slices(start: u32, end: u32, holes: &[(u32, u32)]) -> Vec<(u32, u32)> {
     let mut cuts: Vec<(u32, u32)> = holes
@@ -461,17 +514,22 @@ fn classify_variables(
         written: BTreeMap::new(),
     };
     let mut nested = Vec::new();
-    let mut frames = Vec::new();
+    let mut holes = Vec::new();
     for command in selected {
         // One text scan per selected command covers the `$name` reads of its
-        // whole subtree, minus the bodies that open a variable frame of their
-        // own: a `$name` in a nested proc body or an `apply` lambda names that
-        // frame's variable, so making it a parameter would ask the caller for
-        // a variable it does not have.
+        // whole subtree, minus the parts of it that read nothing the caller
+        // owns: a body that opens a variable frame of its own, and a braced
+        // word that substitutes nothing.  Either one would ask the caller for
+        // a variable that need not exist there.
         let (start, end) = command_span_offsets(source, command);
-        frames.clear();
-        walk.frame_shifted_regions_within(source, command, &mut frames);
-        for (from, to) in same_frame_slices(start, end, &frames) {
+        nested.clear();
+        walk.nested_same_frame_commands(source, command, &mut nested);
+        holes.clear();
+        walk.frame_shifted_regions_within(source, command, &mut holes);
+        for inner in std::iter::once(*command).chain(nested.iter()) {
+            literal_word_holes(source, inner, registry, walk, &mut holes);
+        }
+        for (from, to) in same_frame_slices(start, end, &holes) {
             let text = source.get(from as usize..to as usize).unwrap_or("");
             for (name, at, _) in super::variable_reference_spans(text, style) {
                 let at = from.saturating_add(u32::try_from(at).unwrap_or(0));
@@ -483,8 +541,6 @@ fn classify_variables(
             }
         }
         classify_command(source, command, registry, &mut roles)?;
-        nested.clear();
-        walk.nested_same_frame_commands(source, command, &mut nested);
         for inner in &nested {
             classify_command(source, inner, registry, &mut roles)?;
         }
@@ -1088,6 +1144,43 @@ mod tests {
     }
 
     // -- TP: caller-frame writes survive via upvar -------------------------
+    /// A braced word substitutes nothing, so the `$name` spelled inside one
+    /// is not a variable the caller has to supply.
+    ///
+    /// Oracle (tclsh 8.6.18 and 9.0.4 alike): the original prints the four
+    /// characters `$notavar`; so does the extraction.  A `notavar` parameter
+    /// makes the rewritten call die with `can't read "notavar"`.
+    #[test]
+    fn tp_a_braced_literal_is_not_a_variable_read() {
+        let src = "set msg {$notavar}\nputs $msg\n";
+        let result = outcome(src, "set msg {$notavar}").unwrap();
+        assert!(
+            result.contains("proc extracted_proc {msgName} {"),
+            "a braced word reads nothing: {result}"
+        );
+        assert!(result.contains("extracted_proc msg\n"), "{result}");
+    }
+
+    /// The same rule reaches a lambda inside a callback word. `lsort`'s
+    /// `-command` value is data to the script lexer, so the lambda's own
+    /// parameters are neither the selection's reads nor the caller's to pass.
+    ///
+    /// Oracle: the original prints `1 2 3`; so does the extraction.
+    #[test]
+    fn tp_a_lambda_in_a_callback_word_is_not_a_parameter() {
+        let src = "set items {3 1 2}\nset sorted [lsort -command {apply {{a b} {expr {$a - $b}}}} $items]\nputs $sorted\n";
+        let result = outcome(
+            src,
+            "set sorted [lsort -command {apply {{a b} {expr {$a - $b}}}} $items]",
+        )
+        .unwrap();
+        assert!(
+            result.contains("proc extracted_proc {items sortedName} {"),
+            "only the list is the caller's: {result}"
+        );
+        assert!(result.contains("extracted_proc $items sorted"), "{result}");
+    }
+
     /// A name the selection reads *before* it writes is still an input. The
     /// list word of `foreach x $x` is evaluated before the loop binds `x`, so
     /// the caller has to hand that list over.

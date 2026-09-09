@@ -69,6 +69,12 @@ counted, in either direction: what it writes and what it reads are that
 frame's variables, not the selection's, so a nested proc's parameter never
 becomes a parameter of the extracted one.
 
+Nor does a name that only *looks* like a reference. A braced word substitutes
+nothing, so the `$notavar` of `set msg {$notavar}` and the `$a` of an `apply`
+lambda handed to `lsort -command` are literal text rather than variables the
+caller has to supply. A braced word that carries script or an expression is
+still read as such.
+
 ## Example
 
 Selecting the middle two lines of the first example extracts to:
