@@ -484,7 +484,7 @@ fn operand_type_errors_use_the_9_0_wording_and_code() {
     // (`expr {NaN + 1}` is a separate, pre-existing gap: the runtime's tower
     // accepts a *typed* double NaN as an arithmetic operand and answers `NaN`
     // where tclsh raises the operand-type error. That is an operand-acceptance
-    // bug, not a taxonomy one, and is left outside this lane.)
+    // bug, not a taxonomy one, and is out of scope here.)
 }
 
 /// The same errors at Tcl 8.6: no value, no side, and no list branch.

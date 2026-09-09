@@ -1005,9 +1005,9 @@ fn parse_runtime_expr(
 /// the expression text came from (`TCL_EXPR_TYPE`, [`crate::expr::cache_expr`]).
 ///
 /// Without this the condition of every `if`/`while`/`for` iteration is re-lexed,
-/// re-parsed, and re-validated from its text — the runtime finding recorded as
-/// §2.6.2 of the native-lowering plan. `cached_on` is `None` where the text
-/// belongs to no single object (a multi-word `expr`), which simply re-parses.
+/// re-parsed, and re-validated from its text on every evaluation. `cached_on`
+/// is `None` where the text belongs to no single object (a multi-word
+/// `expr`), which simply re-parses.
 ///
 /// Only a *successful* parse is cached: an invalid expression must raise its
 /// error on every evaluation, and caching a failure would need the message to be

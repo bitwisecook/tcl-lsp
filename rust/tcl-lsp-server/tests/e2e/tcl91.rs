@@ -451,7 +451,7 @@ fn ge_operator_flags_w003_in_86() {
     assert!(codes(&diags).contains("W003"));
 }
 
-// -- Codex review of PR #1084 ------------------------------------------------
+// Multiple registry specs under one command name, disambiguated by dialect.
 
 /// Whether any completion item labelled `label` is a **built-in** — i.e. came
 /// from the registry rather than from a user `proc` of the same name.
@@ -606,9 +606,9 @@ fn class_init_body_does_not_hover_a_method_only_helper() {
 }
 
 /// Tcllib's `ooutil` installs a real `::oo::Helpers::link` under 8.6/8.7, so
-/// the **qualified** spelling needs the same package gating its bare twin has
-/// (Codex review of PR #1084). Without the second spec the fully qualified
-/// call was unknown on exactly the dialect where a user must reach for it.
+/// the **qualified** spelling needs the same package gating its bare twin
+/// has. Without the second spec the fully qualified call would be unknown
+/// on exactly the dialect where a user must reach for it.
 #[test]
 fn qualified_link_resolves_in_86_once_ooutil_is_required() {
     let mut lsp = Lsp::tcl();
@@ -647,9 +647,10 @@ fn qualified_link_needs_the_ooutil_require_in_86() {
 
 /// A Tcl 9 buffer must describe the **core** `link`, not the Tcllib one.
 ///
-/// `link` has two specs under one name; the completion item used to take its
-/// `detail` / `documentation` from whichever the by-name lookup returned
-/// first, so a `tcl9.0` document showed `tcllib (ooutil)` for a core command.
+/// `link` has two specs under one name; the completion item must not take
+/// its `detail` / `documentation` from whichever the by-name lookup returns
+/// first, or a `tcl9.0` document would show `tcllib (ooutil)` for a core
+/// command.
 #[test]
 fn a_tcl90_buffer_describes_the_core_link_not_the_tcllib_one() {
     let mut lsp = Lsp::tcl();

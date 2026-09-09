@@ -202,9 +202,7 @@ def _basename(full_path: str) -> str:
     return full_path.rsplit("/", 1)[-1]
 
 
-# ---------------------------------------------------------------------------
 # Per-device timelines
-# ---------------------------------------------------------------------------
 
 
 def _gen_ltm_lines(device: DeviceConfig, rng: random.Random) -> list[str]:
@@ -457,9 +455,7 @@ def _gen_gtm_lines(device: DeviceConfig, rng: random.Random) -> list[str]:
     return lines
 
 
-# ---------------------------------------------------------------------------
 # Entry point
-# ---------------------------------------------------------------------------
 
 
 def main() -> None:

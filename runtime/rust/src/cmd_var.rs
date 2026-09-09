@@ -53,8 +53,8 @@ use crate::obj::TclObj;
 /// where the numeric tower is linked, `incr`) to fix their return value after
 /// a write trace runs — see [`set_cmd`] and [`incr_cmd`].
 /// The override pattern mirrors TclOO's own `variable` override in
-/// `builtins::install` (installed later still wins; nothing after this lane's
-/// files re-registers `set`/`incr`).
+/// `builtins::install` (installed later still wins; nothing registered
+/// after this module re-registers `set`/`incr`).
 pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"global", global);
     interp.register_builtin(b"variable", variable);

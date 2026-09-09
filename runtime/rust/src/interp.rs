@@ -719,9 +719,10 @@ fn cmd_trace_owned_by(token: Option<u64>, dying: Option<u64>) -> bool {
 /// The entry point of a natively lowered proc body — a wasm32 function-table
 /// index on the emitted side, an ordinary function pointer here.
 ///
-/// `argv`/`argc` are the bound call arguments. P5-lite bodies do not read them
+/// `argv`/`argc` are the bound call arguments. Bodies do not read them today
 /// (they read their formals as named cells, which `run_proc` has already
-/// bound); they are the reserved seam for P5's native formal binder. `out` is
+/// bound); they are a reserved seam for a future native formal binder that
+/// would read them directly. `out` is
 /// caller-provided, zeroed completion storage — the same [`TclCompletionAbi`]
 /// layout `tcl_invoke_argv` writes in the other direction.
 ///

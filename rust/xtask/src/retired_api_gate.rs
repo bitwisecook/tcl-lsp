@@ -260,7 +260,7 @@ const RETIRED: &[RetiredPattern] = &[
         needle: "OptionConstraint",
         outside_registry_only: false,
     },
-    // The `one-loader` lane (redesign §11, ledger row L1): `SpecTcl` had two
+    // The `one-loader` lane: `SpecTcl` had two
     // live implementations of "load a pack" — design E's evaluation loader
     // and the CST front end it was proved byte-identical to. The CST front
     // end is deleted; `tcl_spectcl::loader::evaluate_pack` (uncached) and
@@ -291,7 +291,7 @@ const RETIRED: &[RetiredPattern] = &[
         needle: "eval_snapshot_memoised",
         outside_registry_only: false,
     },
-    // The `one-vocabulary` lane, gap ruling R1 (redesign §11.2 D18): the
+    // The `one-vocabulary` lane, gap ruling R1: the
     // per-document `# tcl-lsp: stub` overlay and its parallel vocabulary.
     // Stubs ingest as provenance-tagged `SurfaceDeclaration`s now
     // (`tcl_registry::model::declaration`), read through the one
@@ -320,7 +320,7 @@ const RETIRED: &[RetiredPattern] = &[
         needle: "to_stub_sig",
         outside_registry_only: false,
     },
-    // The `one-vocabulary` lane, ledger C8 (redesign §11.2 D9): the second
+    // The `one-vocabulary` lane (redesign §11 D9): the second
     // command-table transition vocabulary. `CommandTableEffect` survives as
     // the pack-authoring **selector** — `CommandSpec::command_table_effect`
     // is still a field a `SpecTcl` pack writes — but the consumer-facing
@@ -370,7 +370,7 @@ struct OwnedPattern {
 /// centralisation programme gave a single answer to.
 const OWNED: &[OwnedPattern] = &[
     // **Does this command exist at this program point?** — the one oracle
-    // (R-c, P1a). Its registry tier and its typed verdict live with it in
+    // (R-c). Its registry tier and its typed verdict live with it in
     // the analyser; nothing else may assemble either.
     OwnedPattern {
         needle: "CommandExistenceOracle",
@@ -390,8 +390,8 @@ const OWNED: &[OwnedPattern] = &[
     },
     // **Is this command available in this dialect?** — the registry's own
     // profile-visible surface. The compiler's constant folder is the one
-    // consumer outside the registry that legitimately asks (issue #1427: a
-    // fold skips the runtime availability gate, so it must); anything else
+    // consumer outside the registry that legitimately asks: a
+    // fold skips the runtime availability gate, so it must; anything else
     // asking is a second availability rule.
     OwnedPattern {
         needle: "has_command_in_this_dialect",
@@ -402,7 +402,7 @@ const OWNED: &[OwnedPattern] = &[
         owners: &["rust/tcl-registry/src/"],
     },
     // **Is this package's presence a placement question?** — the one
-    // closed-world classification (Q7). A profile-side gate and a resolved
+    // closed-world classification. A profile-side gate and a resolved
     // context must not disagree about which packages a runtime ships, so the
     // two predicates that answer it live with the surface model; a caller
     // that recomputes the set from the catalogue is a second rule.
@@ -414,7 +414,7 @@ const OWNED: &[OwnedPattern] = &[
         needle: "is_placement_gated_package",
         owners: &["rust/tcl-registry/src/"],
     },
-    // **What did this call do to the command table?** — ledger C8's one
+    // **What did this call do to the command table?** — one
     // vocabulary. The registry resolves the facts; `tcl_compiler::alias` is
     // the single bridge from reconstructed source words to that resolution.
     // A consumer building its own bridge is a second vocabulary.
@@ -697,7 +697,7 @@ mod tests {
                 "let map = command_head_identities(source, dialect, registry);",
                 1,
             ),
-            // Ledger O2 — the M9 dead axes.
+            // The dead axes.
             ("if spec.traits.contains(Traits::PASSWORD_OPTION) { }", 1),
             (
                 "PasswordOption => PASSWORD_OPTION, Security, \"takes a password option\";",
@@ -732,7 +732,8 @@ mod tests {
             ("let s: StubSig = def.to_stub_sig();", 2),
             ("flags: StubSigFlags::empty(),", 1),
             ("let o = build_stub_overlay(&defs);", 1),
-            // …and ledger C8. The surviving pack-authoring **field** read is
+            // The second command-table transition vocabulary. The surviving
+            // pack-authoring **field** read is
             // not a hit — only the retired resolver call is, which is what
             // the needle's own parenthesis buys.
             ("let e = registry.command_table_effect(name, sub);", 1),
@@ -827,7 +828,7 @@ mod tests {
         );
 
         // One answer may have several owners — the constant folder asks the
-        // registry's availability question legitimately (issue #1427).
+        // registry's availability question legitimately.
         let fold = "if registry.has_command_in_this_dialect(head) { }\n";
         assert!(scan_owned(fold, "rust/tcl-compiler/src/codegen/values.rs").is_empty());
         assert!(scan_owned(fold, "rust/tcl-registry/src/registry.rs").is_empty());

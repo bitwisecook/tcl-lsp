@@ -33,7 +33,7 @@
 //! `requested ∩ allowed` widened by the policy floor; if the host cannot enforce
 //! a floor the policy marked mandatory, execution **fails closed**.
 //!
-//! Two confinement tiers exist:
+//! Confinement comes in two tiers, of which only the first is implemented:
 //!
 //! * **Baseline** (every platform, always applied): the environment is cleared
 //!   to an explicit allow-list (so tokens, SSH keys and cloud credentials never
@@ -41,10 +41,11 @@
 //!   captured, and a wall-clock timeout kills runaway children.
 //! * **OS-native** (per platform, layered on top): Landlock + seccomp on Linux,
 //!   Seatbelt on macOS, `pledge`/`unveil` on OpenBSD, Capsicum on FreeBSD, and
-//!   restricted tokens + Job Objects on Windows. These are introduced behind the
-//!   [`Confinement`] trait; [`detect_confinement`] returns the strongest tier the
-//!   running host can provide and execution reports the [`IsolationLevel`]
-//!   actually achieved.
+//!   restricted tokens + Job Objects on Windows. **None of these are built
+//!   yet**: the [`Confinement`] trait is the seam they will arrive behind, and
+//!   [`detect_confinement`] today always answers [`Baseline`]. Execution
+//!   reports the [`IsolationLevel`] actually achieved, so a policy floor that
+//!   demands more than Baseline fails closed rather than running unconfined.
 //!
 //! The crate contains no `unsafe`: OS-native tiers are driven through wrapper
 //! crates that encapsulate the raw syscalls, honouring the workspace
