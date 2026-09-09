@@ -446,9 +446,9 @@ fn artifacts() -> Result<Vec<(&'static str, String)>> {
     ])
 }
 
-/// Write (or, with `check`, verify) the three generated `JetBrains` files.
-/// Every token type and modifier the plugin must have a colour rule for is
-/// one the server actually advertises, and vice versa.
+/// Every token type the plugin has a colour rule for is one the server
+/// actually advertises, and vice versa; every colour-mapped modifier key
+/// must at least be a real token type or modifier the server has.
 fn verify_semantic_token_colors(root: &std::path::Path) -> Result<()> {
     let path = root.join(SEMANTIC_TOKENS_PATH);
     let source =
@@ -506,6 +506,7 @@ fn quoted_keys(source: &str, start: &str, end: &str) -> Vec<String> {
     out
 }
 
+/// Write (or, with `check`, verify) the three generated `JetBrains` files.
 pub fn run(check: bool) -> Result<ExitCode> {
     let root = repo_root();
     verify_semantic_token_colors(&root)?;

@@ -126,9 +126,7 @@ latest_tag() {
     git -C "$ROOT" describe --tags --abbrev=0 2>/dev/null || true
 }
 
-# --------------------------------------------------------------------------
 # next — compute the version a bump produces
-# --------------------------------------------------------------------------
 
 cmd_next() {
     local bump="${1:-patch}"
@@ -148,9 +146,7 @@ EOF
     echo "$major.$minor.$patch"
 }
 
-# --------------------------------------------------------------------------
 # preflight — is this tree releasable as X.Y.Z at all?
-# --------------------------------------------------------------------------
 
 cmd_preflight() {
     local v; v="$(need_version "${1:-}")"
@@ -215,9 +211,7 @@ $(printf '%s\n' "$dirty" | sed 's/^/         /')
     fi
 }
 
-# --------------------------------------------------------------------------
 # perf / notes — the two artefact-producing steps
-# --------------------------------------------------------------------------
 
 cmd_perf() {
     local v; v="$(need_version "${1:-}")"; shift || true
@@ -231,9 +225,7 @@ cmd_notes() {
     python3 "$HERE/perf_notes.py" "$v"
 }
 
-# --------------------------------------------------------------------------
 # verify — do the committed artefacts agree with each other?
-# --------------------------------------------------------------------------
 
 cmd_verify() {
     local v; v="$(need_version "${1:-}")"
@@ -264,9 +256,7 @@ cmd_verify() {
     python3 "$HERE/perf_notes.py" "$v" --check
 }
 
-# --------------------------------------------------------------------------
 # prepare — everything that happens before the tag
-# --------------------------------------------------------------------------
 
 cmd_prepare() {
     local v; v="$(need_version "${1:-}")"; shift || true
@@ -323,9 +313,7 @@ cmd_prepare() {
     echo "                     scripts/release/rust_release.sh tag $v"
 }
 
-# --------------------------------------------------------------------------
 # tag — the point of no return
-# --------------------------------------------------------------------------
 
 cmd_tag() {
     local v; v="$(need_version "${1:-}")"
@@ -346,8 +334,6 @@ cmd_tag() {
 
     bash "$HERE/tag.sh" "$v"
 }
-
-# --------------------------------------------------------------------------
 
 case "${1:-}" in
     next)      shift; cmd_next "$@" ;;

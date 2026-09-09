@@ -875,7 +875,7 @@ fn mathfunc_hover_does_not_fire_outside_expr_974() {
     assert!(!text.contains("math function"), "hover: {text:?}");
 }
 
-// -- inert `$var` text (issue #923 idx 24) -------------------------------
+// Inert `$var` text.
 
 /// A `$var`-shaped substring inside a comment or a brace-quoted data word is
 /// emitted verbatim by Tcl, so it must not hover as a variable.
@@ -900,7 +900,7 @@ fn inert_dollar_ref_does_not_hover_923_idx24() {
     assert!(text.to_lowercase().contains("variable"), "hover: {text:?}");
 }
 
-// -- parameter-list data words (issue #923 idx 104) ----------------------
+// Parameter-list data words.
 
 /// A parameter's default-value literal is data, not a command reference.
 #[test]

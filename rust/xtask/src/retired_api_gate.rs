@@ -27,12 +27,12 @@
 //! (`LOADER_BUILD`, `eval_snapshot_memoised`), all replaced by design E's
 //! evaluation loader behind one cache door.
 //!
-//! P1-G deleted the old dialect-name validators
+//! The retired dialect-name validators
 //! (`DialectProfile::by_name` / `by_opt_name` / `resolve_known` /
 //! `availability_for_name`) and the string-keyed registry doors
-//! (`tcl_registry::registry_for_dialect` / `registry_handle_for_dialect`),
-//! and made the profile-keyed cache doors and the `ProfileQueries` trait
-//! `pub(crate)` inside `tcl-registry`. The compiler enforces the deletion
+//! (`tcl_registry::registry_for_dialect` / `registry_handle_for_dialect`)
+//! are deleted, and the profile-keyed cache doors and the `ProfileQueries` trait
+//! are `pub(crate)` inside `tcl-registry`. The compiler enforces the deletion
 //! for the names that no longer exist; this gate additionally fails on any
 //! **textual** reintroduction — a same-named public twin, a revived
 //! import, a copy-pasted call — anywhere in the Rust tree, so the retired
@@ -41,7 +41,7 @@
 //! It also holds the `one-vocabulary` lane's two retirements: the
 //! `StubOverlay` per-document command overlay (gap ruling R1 — stubs are
 //! provenance-tagged `SurfaceDeclaration`s now) and the second command-table
-//! transition vocabulary (ledger C8 — `CommandRegistry::command_table_effect`
+//! transition vocabulary (`CommandRegistry::command_table_effect`
 //! and `tcl_compiler::alias`'s argument destructuring, both replaced by
 //! `CommandBindingTransition` facts).
 //!
@@ -56,13 +56,13 @@
 //! # The one-oracle gate (gap ruling R10)
 //!
 //! The second family this file carries is not about *deleted* spellings but
-//! about **owned** ones: the answers the #1631 programme centralised — does
+//! about **owned** ones: does
 //! this command exist here, is it available here, what did this call do to
 //! the command table — each of which a consumer could quietly grow a second
 //! copy of. R10's answer is visibility narrowing where that is enough
 //! (`Analyser::builtin_command_names` and
 //! `model::declaration::DeclaredSurface::get` are `pub(crate)`;
-//! `tcl-registry`'s cache doors and `ProfileQueries` were narrowed in P1-G)
+//! `tcl-registry`'s cache doors and `ProfileQueries` are narrowed too)
 //! **plus** this call-site sweep for the doors that cannot be narrowed
 //! because legitimate spec-content readers share them.
 //!
