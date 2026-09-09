@@ -75,9 +75,10 @@ header actions, and WAF exclusion rules. That model is rendered two
 ways: Terraform HCL for the `volterra` provider, and ves.io JSON-API
 objects. The Terraform carries `TODO` comments where XC needs a value
 the iRule cannot supply, such as origin server addresses and
-load-balancer domains. Constructs with no XC equivalent are reported as
-items, never silently dropped, and the same analysis drives the
-XC100-301 diagnostics shown inline on iRule files.
+load-balancer domains. A command the translator has an entry for is
+always reported — mapped to its XC construct, or listed as having no XC
+equivalent — and the same analysis drives the XC100-301 diagnostics
+shown inline on iRule files.
 
 ## Failure modes
 
@@ -87,6 +88,11 @@ XC100-301 diagnostics shown inline on iRule files.
   `session` state have no static XC equivalent. The items list names
   each one and its XC-side alternative, such as App Stack, Rate
   Limiting, or Bot Defence.
+- **A command the translator has no entry for is dropped without an
+  item.** It counts neither for nor against coverage, so a run can
+  report 100 % with such a command in the iRule. Read the generated
+  configuration against the source rather than trusting the percentage
+  alone.
 - **The generated Terraform does not apply as-is.** Every `TODO` in the
   output marks a value you must supply before `terraform apply`.
 - **XC rejects the emitted configuration.** The translator renders what
