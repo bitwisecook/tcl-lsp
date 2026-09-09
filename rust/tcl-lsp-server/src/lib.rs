@@ -30,6 +30,11 @@
 #![forbid(unsafe_code)]
 
 pub mod config_ini;
+/// The exit watchdog that backstops `Server::serve` returning promptly once
+/// the session is over. Native only: it wraps `tokio::io::Stdin` and hard
+/// exits the process, neither of which apply to a browser worker.
+#[cfg(not(target_family = "wasm"))]
+pub mod exit_watchdog;
 pub mod path_glob;
 pub mod rt;
 pub mod service;
@@ -2483,11 +2488,58 @@ const DIAGNOSTICS_FAST_TIER_MIN_LINES: usize = 500;
 ///
 /// The transport keeps stdin routing independent of handler progress (see
 /// [`transport_liveness`](crate::transport_liveness)), so this timeout is
-/// defence in depth rather than the session's deadlock breaker. It bounds the
-/// existing configuration pull only; other server-to-client requests retain
-/// their own lifecycle until the dependency provides cancellation-safe pending
-/// request tracking.
+/// defence in depth rather than the session's deadlock breaker for stdin
+/// itself. It bounds every server-to-client request issued through
+/// [`bounded_client_request`] (which is every one of them but notifications —
+/// see that function's doc comment for why bounding all of them matters for
+/// process exit, not just stdin liveness).
 const CLIENT_REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Bound a server-to-client *request* (never a notification — those do not
+/// await a reply) with [`CLIENT_REQUEST_TIMEOUT`], mapping a timed-out
+/// request onto the same `jsonrpc::Error` shape a declined one already
+/// produces, so every existing `Err(..)`/`let _ = ..` call site is unchanged.
+///
+/// `tower-lsp-server` 0.23 resolves a server-to-client request by firing a
+/// `oneshot` held in its pending-response table (see the dependency's
+/// `service::client::pending`) when the matching response arrives on stdin.
+/// If the client is gone — the VS Code extension host exited without ever
+/// sending `shutdown`/`exit`, or exited right after sending them but before a
+/// reply this call happened to be waiting on landed — nothing ever fires that
+/// `oneshot`, and the `.await` here would hang forever. `Server::serve` does
+/// not return while *any* handler future is still pending, `exit`/stdin-EOF
+/// notwithstanding, so one unbounded await like that is enough on its own to
+/// keep the whole process alive indefinitely after the session is over
+/// (issue #2021) — the exit watchdog in `main.rs` is a backstop for exactly
+/// this and the analogous long-running-scan case, but bounding the awaits
+/// themselves is what lets the *normal* `serve`-returns exit path win most of
+/// the time instead of falling through to the watchdog's grace period.
+async fn bounded_client_request<T>(
+    request: impl Future<Output = jsonrpc::Result<T>>,
+) -> jsonrpc::Result<T> {
+    bounded_client_request_with_timeout(CLIENT_REQUEST_TIMEOUT, request).await
+}
+
+/// [`bounded_client_request`]'s body, parameterised on the timeout so tests
+/// can exercise the elapsed-deadline arm in milliseconds rather than the
+/// production 10s.
+async fn bounded_client_request_with_timeout<T>(
+    timeout: std::time::Duration,
+    request: impl Future<Output = jsonrpc::Result<T>>,
+) -> jsonrpc::Result<T> {
+    match crate::rt::timeout(timeout, request).await {
+        Ok(result) => result,
+        Err(_elapsed) => Err(jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!(
+                "tcl-lsp: the editor did not answer a server-to-client request within {}s",
+                timeout.as_secs()
+            )
+            .into(),
+            data: None,
+        }),
+    }
+}
 
 /// The iRules dialect key.  A BIG-IP config's `ltm rule { … }` bodies are iRules
 /// code, so they are tokenised against this registry rather than the config's
@@ -3037,7 +3089,7 @@ impl SemanticTokensRefreshCtx {
             // marker already written.
             let reasons = pending.swap(0, std::sync::atomic::Ordering::AcqRel);
             log_semantic_tokens_refresh_fired(&client, reasons).await;
-            let _ = client.semantic_tokens_refresh().await;
+            let _ = bounded_client_request(client.semantic_tokens_refresh()).await;
         });
     }
 }
@@ -3461,7 +3513,7 @@ async fn deliver_diagnostics(
         // Best-effort: a client that advertised pull support is expected to
         // honour the refresh, but a transport error here must not abort the
         // worker (the primed cache still serves the next manual pull).
-        let _ = client.workspace_diagnostic_refresh().await;
+        let _ = bounded_client_request(client.workspace_diagnostic_refresh()).await;
     } else {
         client
             .publish_diagnostics(uri.clone(), diags, version)
@@ -18444,11 +18496,9 @@ impl Backend {
         // a client without refresh support rejects the request, which is
         // harmless.  `foldingRange/refresh` (LSP 3.18) is not in ls-types, so it
         // is sent through a locally-defined request type.
-        let _ = self
-            .client
-            .send_request::<FoldingRangeRefreshRequest>(())
+        let _ = bounded_client_request(self.client.send_request::<FoldingRangeRefreshRequest>(()))
             .await;
-        let _ = self.client.code_lens_refresh().await;
+        let _ = bounded_client_request(self.client.code_lens_refresh()).await;
     }
 
     /// Apply the *content* of a pulled `tclLsp` config section (`cfg`) onto the
@@ -20589,7 +20639,9 @@ impl Backend {
             })
             .ok(),
         };
-        if let Err(err) = self.client.register_capability(vec![registration]).await {
+        if let Err(err) =
+            bounded_client_request(self.client.register_capability(vec![registration])).await
+        {
             self.client
                 .log_message(
                     MessageType::LOG,
@@ -20982,11 +21034,10 @@ impl Backend {
         // Best-effort: a client without refresh support rejects the request.
         if changed {
             self.request_semantic_tokens_retry(SemanticTokensRefreshReason::PackReload);
-            let _ = self
-                .client
-                .send_request::<FoldingRangeRefreshRequest>(())
-                .await;
-            let _ = self.client.code_lens_refresh().await;
+            let _ =
+                bounded_client_request(self.client.send_request::<FoldingRangeRefreshRequest>(()))
+                    .await;
+            let _ = bounded_client_request(self.client.code_lens_refresh()).await;
         }
 
         // Tell the client the reload is finished. A client that reacts to the
@@ -21067,13 +21118,13 @@ impl Backend {
                 (WILL_RENAME_ID, WILL_RENAME_METHOD),
                 (DID_RENAME_ID, DID_RENAME_METHOD),
             ] {
-                let _ = self
-                    .client
-                    .unregister_capability(vec![Unregistration {
+                let _ = bounded_client_request(self.client.unregister_capability(vec![
+                    Unregistration {
                         id: id.to_owned(),
                         method: method.to_owned(),
-                    }])
-                    .await;
+                    },
+                ]))
+                .await;
             }
         }
 
@@ -21132,7 +21183,9 @@ impl Backend {
             });
         }
 
-        if let Err(err) = self.client.register_capability(registrations).await {
+        if let Err(err) =
+            bounded_client_request(self.client.register_capability(registrations)).await
+        {
             // Same contract as every other dynamic registration here: a client
             // that cannot honour one declines it, and the server keeps working
             // with whatever the startup scan seeded.
@@ -21224,13 +21277,13 @@ impl Backend {
             // Unregister before registering: the id is the same, and a client
             // that already holds it would otherwise be left with both sets.
             if !current.is_empty() {
-                let _ = self
-                    .client
-                    .unregister_capability(vec![Unregistration {
+                let _ = bounded_client_request(self.client.unregister_capability(vec![
+                    Unregistration {
                         id: REGISTRATION_ID.to_owned(),
                         method: METHOD.to_owned(),
-                    }])
-                    .await;
+                    },
+                ]))
+                .await;
             }
             current.clone_from(&globs);
         }
@@ -21253,7 +21306,9 @@ impl Backend {
             })
             .ok(),
         };
-        if let Err(err) = self.client.register_capability(vec![registration]).await {
+        if let Err(err) =
+            bounded_client_request(self.client.register_capability(vec![registration])).await
+        {
             self.client
                 .log_message(
                     MessageType::LOG,
@@ -22948,9 +23003,7 @@ impl LanguageServer for Backend {
         // genuinely live.  Best-effort and idempotent, exactly as in
         // `did_change_configuration`: a client without refresh support
         // rejects the request, which is harmless.
-        let _ = self
-            .client
-            .send_request::<FoldingRangeRefreshRequest>(())
+        let _ = bounded_client_request(self.client.send_request::<FoldingRangeRefreshRequest>(()))
             .await;
     }
 
@@ -30623,6 +30676,30 @@ mod tests {
         Diagnostic, DiagnosticSeverity, NumberOrString, PartialResultParams, Range,
         ReferenceContext, TextDocumentIdentifier, WorkDoneProgressParams,
     };
+
+    /// `bounded_client_request` must turn a request that never resolves into
+    /// an error once its deadline passes — the load-bearing half of issue
+    /// #2021's fix: a server-to-client reply that will never arrive must not
+    /// keep a handler future (and with it, per `Server::serve`'s contract,
+    /// the whole process) alive forever. Goes through the parameterised inner
+    /// helper with a short deadline so the test does not have to wait out the
+    /// production 10s to prove it.
+    #[tokio::test]
+    async fn bounded_client_request_errors_once_its_deadline_elapses() {
+        let never: std::future::Pending<jsonrpc::Result<()>> = std::future::pending();
+        let started = std::time::Instant::now();
+        let result =
+            bounded_client_request_with_timeout(std::time::Duration::from_millis(20), never).await;
+        assert!(
+            result.is_err(),
+            "a request that never resolves must time out as an error, not hang forever"
+        );
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(5),
+            "the timeout must actually bound the wait: took {:?}",
+            started.elapsed()
+        );
+    }
 
     /// A typing burst must reset the diagnostics debounce window on every edit.
     /// A delay fixed from the burst's first edit launches fresh salsa reads
