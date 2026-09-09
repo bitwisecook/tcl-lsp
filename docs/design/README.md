@@ -56,6 +56,10 @@ passes, and ownership matrices.
   registry's dataflow axis (issue #1943): how a command invocation transforms
   the constant lattice, declared once per command, authorable from a
   `.tclspec` pack, and consumed generically by every pass and diagnostic.
+- [registry-consumer-contracts.md](compiler/registry-consumer-contracts.md)
+  — **proposal** companion: the description, identity, and implementation
+  contracts under which the registry can drive the analyser, codegen, and the
+  runtimes, with the dialect, package, and C-extension consequences.
 
 ## contracts/
 

@@ -72,6 +72,12 @@ User-facing compiler troubleshooting and how-tos live in
   command replacing the per-command fold and `incr` arms in SCCP, its
   SpecTcl `cell_fold` / `destructure_fold` families, the soundness gates,
   and what changes for every analysis, optimisation, and diagnostic.
+- [registry-consumer-contracts.md](registry-consumer-contracts.md) —
+  **proposal** companion to value-transfers: the description, identity, and
+  implementation contracts under which the registry and `.tclspec` packs can
+  drive the analyser, both code generators, and both runtimes; the four
+  rungs of a pack claim reaching emitted code; the dialect, package, and
+  C-extension consequences; and the rulings needed first.
 - [type-tracking.md](type-tracking.md) — the comprehensive value-type model
   (purity / first-use commitment, union nodes, container element types, the
   numeric tower) with its oracle corpus.

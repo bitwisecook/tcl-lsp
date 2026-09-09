@@ -29,7 +29,7 @@ flowchart LR
 
 ## Alphabetic index
 
-[AST](#ast) · [Barrier](#barrier) · [Basic block](#basic-block) · [C extension shim](#c-extension-shim) · [Call-site evidence](#call-site-evidence) · [CFG](#cfg) · [Codegen](#codegen) · [Codegen optimisation pass](#codegen-optimisation-pass) · [Command walk](#command-walk) · [CommandSpec](#commandspec) · [Compilation unit](#compilation-unit) · [Compiled artefact](#compiled-artefact) · [Concrete syntax tree (CST) / red-green tree](#concrete-syntax-tree-cst--red-green-tree) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [dialect](#dialect) · [Dispatch-stability proof](#dispatch-stability-proof) · [Dominance frontier](#dominance-frontier) · [Dominator / idom](#dominator--idom) · [Escape tag](#escape-tag) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [ICIP](#icip) · [InstCombine](#instcombine) · [Interpreter domain](#interpreter-domain) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Lifecycle (registry)](#lifecycle-registry) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Native proc entry](#native-proc-entry) · [Object handle](#object-handle) · [ObjectClassSpec](#objectclassspec) · [Pattern recognition](#pattern-recognition) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [Requirement straddle](#requirement-straddle) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail position](#tail-position) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Trace](#trace) · [Type inference](#type-inference) · [Unit linkage](#unit-linkage) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [Value transfer](#value-transfer) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis) · [Version floor](#version-floor) · [World-state contents lattice](#world-state-contents-lattice)
+[AST](#ast) · [Barrier](#barrier) · [Basic block](#basic-block) · [C extension shim](#c-extension-shim) · [Call-site evidence](#call-site-evidence) · [CFG](#cfg) · [Codegen](#codegen) · [Codegen optimisation pass](#codegen-optimisation-pass) · [Command walk](#command-walk) · [CommandSpec](#commandspec) · [Compilation unit](#compilation-unit) · [Compiled artefact](#compiled-artefact) · [Concrete syntax tree (CST) / red-green tree](#concrete-syntax-tree-cst--red-green-tree) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [dialect](#dialect) · [Dispatch-stability proof](#dispatch-stability-proof) · [Dominance frontier](#dominance-frontier) · [Dominator / idom](#dominator--idom) · [Escape tag](#escape-tag) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [Guard identity](#guard-identity) · [ICIP](#icip) · [InstCombine](#instcombine) · [Interpreter domain](#interpreter-domain) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Lifecycle (registry)](#lifecycle-registry) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Native proc entry](#native-proc-entry) · [Object handle](#object-handle) · [ObjectClassSpec](#objectclassspec) · [Pattern recognition](#pattern-recognition) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [Requirement straddle](#requirement-straddle) · [Runtime backing](#runtime-backing) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail position](#tail-position) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Trace](#trace) · [Type inference](#type-inference) · [Unit linkage](#unit-linkage) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [Value transfer](#value-transfer) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis) · [Version floor](#version-floor) · [World-state contents lattice](#world-state-contents-lattice)
 
 ---
 
@@ -694,7 +694,7 @@ one query, applied by SCCP under the trust, escape, trace, and dialect
 gates every fold already obeys, and authorable by a `.tclspec` pack as a
 `cell_fold` / `destructure_fold` body. Not yet implemented.
 
-See also: [Value transfers](design/compiler/value-transfers.md) and
+See also: [Value transfers](design/compiler/value-transfers.md), [Registry consumer contracts](design/compiler/registry-consumer-contracts.md), and
 [Constant folding](#constant-folding).
 
 ### Def-use chains
@@ -932,6 +932,20 @@ flowchart LR
 
 See also: [Interprocedural analysis](design/compiler/interprocedural-analysis.md).
 KCS tag: `ipa`.
+
+### Guard identity
+
+The stable identity a runtime attaches to a command it registered from a
+registry spec — `GuardIdentity` in `rust/tcl-runtime-api/src/guard.rs`, an
+intrinsic's stable id packed with its release-semantics key. Compiled code
+that wants to take an intrinsic fast path asks the runtime to attest the
+identity of the live command first, and falls back to generic dispatch
+when it cannot. Both runtimes derive identities through
+`register_spec_builtin` for one command today and clear their identity
+tables on every command-environment mutation, including the profile pin.
+See [Registry consumer contracts](design/compiler/registry-consumer-contracts.md).
+
+KCS tag: `codegen`.
 
 ### ICIP
 
@@ -1467,6 +1481,19 @@ typed values, not text. Shimmed extensions are *trusted native code*: loaded
 only by host configuration, never by a spec pack.
 
 See also: [The C Tcl extension shim](design/runtime/c-extension-shim.md).
+
+### Runtime backing
+
+The proposed per-command registry fact naming how a described command's
+executable behaviour arrives at run time: a shipped builtin with a
+[guard identity](#guard-identity), a Tcl body with its source, a
+host-registered native command, or nothing. Code generation would choose
+from it which identity the compiled artefact records — a procedure binding,
+a command binding, or none — so that the runtime can attest the claim at
+admission or fall back to generic dispatch. See
+[Registry consumer contracts](design/compiler/registry-consumer-contracts.md).
+
+KCS tag: `codegen`.
 
 ### salsa
 
