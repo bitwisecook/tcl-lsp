@@ -5959,7 +5959,7 @@ impl Interp {
         // Finally retire every remaining public/private command token by identity,
         // wherever rename or hide moved it, before dropping the registry
         // records those delete callbacks may inspect.
-        self.retire_oo_command_identity(obj);
+        self.retire_prefired_oo_command_identity(obj);
         self.oo.borrow_mut().objects.remove(&obj);
         self.oo.borrow_mut().classes.remove(&obj);
         self.oo.borrow_mut().names.remove(&obj);
@@ -7812,6 +7812,36 @@ mod tests {
                         set log"#,
                 ),
                 b"public myclass my var",
+            );
+        });
+    }
+
+    /// A later role may attach a trace to an earlier role while every command
+    /// token is still visible. Tcl discards that late trace at final removal;
+    /// it does not restart the semantic role walk (Tcl 9.0.4).
+    #[test]
+    fn object_command_role_walk_does_not_revisit_earlier_roles() {
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    br#"set log {}
+                        oo::class create C
+                        C create x
+                        set ns [info object namespace x]
+                        proc t {tag args} {lappend ::log $tag}
+                        proc mc {old new op} {
+                            set c [catch {trace add command ::x delete late} m]
+                            lappend ::log [list mc ::x $c $m]
+                        }
+                        proc late {old new op} {lappend ::log late}
+                        trace add command x delete [list t public]
+                        trace add command ${ns}::myclass delete mc
+                        trace add command ${ns}::my delete [list t my]
+                        x destroy
+                        set log"#,
+                ),
+                b"public {mc ::x 0 {}} my",
             );
         });
     }

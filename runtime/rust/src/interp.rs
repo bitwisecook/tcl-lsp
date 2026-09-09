@@ -2619,11 +2619,24 @@ impl Interp {
     /// Delete-trace callbacks may move a token between those stores, so the
     /// commands are rescanned by identity after callbacks before removal.
     pub(crate) fn retire_oo_command_identity(&mut self, owner: OoId) {
+        self.retire_oo_command_identity_impl(owner, true);
+    }
+
+    /// Remove an owner's command tokens after its semantic role walk already
+    /// fired. A later-role callback may add a trace to an earlier-role token;
+    /// final removal discards that late trace without revisiting the role.
+    pub(crate) fn retire_prefired_oo_command_identity(&mut self, owner: OoId) {
+        self.retire_oo_command_identity_impl(owner, false);
+    }
+
+    fn retire_oo_command_identity_impl(&mut self, owner: OoId, fire_traces: bool) {
         if !self.0.retiring_oo_commands.borrow_mut().insert(owner) {
             return;
         }
 
-        self.fire_oo_command_role_delete_traces(owner);
+        if fire_traces {
+            self.fire_oo_command_role_delete_traces(owner);
+        }
 
         let mut removed: Vec<(Vec<u8>, u64)> = self
             .namespaces
