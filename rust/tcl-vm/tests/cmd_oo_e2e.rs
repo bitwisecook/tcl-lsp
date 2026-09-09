@@ -852,6 +852,243 @@ fn destructor_next_chains() {
     assert_eq!(out, "B-d\nD-d\n");
 }
 
+#[test]
+fn rename_preserves_object_and_class_identity() {
+    // Tcl 9.0.4: object and class command names are mutable projections of
+    // stable TclOO identities. Renaming the class changes the class reported
+    // by existing instances, and deleting the renamed object runs its
+    // destructor under the destination name.
+    assert_eq!(
+        result(
+            "set log {}; \
+             oo::class create C { \
+               method who {} {self object}; \
+               destructor {lappend ::log [self object]} \
+             }; \
+             C create x; rename x y; rename C M; \
+             set before [list [y who] [info object class y]]; \
+             rename y {}; \
+             list $before [info object isa object y] $log"
+        ),
+        "{::y ::M} 0 ::y"
+    );
+}
+
+#[test]
+fn renamed_object_destroy_removes_the_destination_command() {
+    // Exact #1594 Tcl 9.0.4 acceptance vector.
+    assert_eq!(
+        result("oo::object create ::a; rename ::a ::b; ::b destroy; info commands ::b"),
+        ""
+    );
+}
+
+#[test]
+fn namespace_teardown_destroys_tcloo_commands() {
+    // Tcl 9.0.4 destroys the object and class command implementations during
+    // namespace teardown; the instance destructor still sees both identities.
+    assert_eq!(
+        result(
+            "set log {}; \
+             namespace eval N { \
+               oo::class create C { \
+                 destructor {lappend ::log [list D [self object] [self class]]} \
+               }; \
+               C create o \
+             }; \
+             namespace delete ::N; \
+             list [info commands ::N::*] $log"
+        ),
+        "{} {{D ::N::o ::N::C}}"
+    );
+}
+
+#[test]
+fn retained_and_recreated_tcloo_commands_have_distinct_identity() {
+    // Exact #1764 Tcl 9.0.4 oracle: a relative call in the retained frame
+    // reaches the old object token while an absolute call reaches the live
+    // same-spelled recreation; final old teardown leaves only the new object.
+    assert_eq!(
+        result(
+            "set r [namespace eval N { \
+               oo::class create C {method m {} {return OLD}}; \
+               C create o; \
+               proc p {} { \
+                 namespace delete ::N; \
+                 namespace eval ::N { \
+                   oo::class create C {method m {} {return NEW}}; \
+                   C create o \
+                 }; \
+                 set a [catch {o m} am]; \
+                 set b [catch {::N::o m} bm]; \
+                 list $a $am $b $bm [info commands o] [info commands ::N::o] \
+               }; \
+               p \
+             }]; \
+             set c [catch {::N::o m} cm]; \
+             list $r $c $cm"
+        ),
+        "{0 OLD 0 NEW o ::N::o} 0 NEW"
+    );
+}
+
+#[test]
+fn replacing_tcloo_commands_runs_their_delete_lifecycle() {
+    // Tcl_CreateObjCommand replacement fires the old object's destructor and
+    // class replacement cascades through its instances before publishing the
+    // new proc at that same command-table slot (Tcl 9.0.4).
+    assert_eq!(
+        result(
+            "set log {}; \
+             oo::class create C {destructor {lappend ::log [self object]}}; \
+             C create x; \
+             proc x {} {return NEW}; \
+             list [x] [info object isa object ::x] $log"
+        ),
+        "NEW 0 ::x"
+    );
+    assert_eq!(
+        result(
+            "set log {}; \
+             oo::class create C {destructor {lappend ::log [self object]}}; \
+             C create x; \
+             proc C {} {return CLASSNEW}; \
+             list [C] [info object isa object ::x] \
+                  [info object isa class ::C] $log"
+        ),
+        "CLASSNEW 0 0 ::x"
+    );
+}
+
+#[test]
+fn relative_qualified_object_publication_uses_the_resolved_slot() {
+    // `b::y` is relative to `::a`; the raw written spelling is not the
+    // command's display identity after resolution (Tcl 9.0.4).
+    assert_eq!(
+        result(
+            "namespace eval a { \
+               namespace eval b {}; \
+               oo::object create b::y; \
+               list [info commands b::y] [info commands ::a::b::y] \
+                    [info object isa object b::y] \
+             }"
+        ),
+        "::a::b::y ::a::b::y 1"
+    );
+}
+
+#[test]
+fn destroying_a_hidden_object_unlinks_its_hidden_command_token() {
+    // Exact Tcl 9.0.4 oracle. Hiding is not a rename, so `self object` keeps
+    // the original display name; destruction nevertheless follows the exact
+    // hidden sidecar and makes the token unreachable.
+    assert_eq!(
+        result(
+            "oo::class create C {method who {} {self object}}
+             C create x
+             interp hide {} x held
+             set before [interp invokehidden {} held who]
+             interp invokehidden {} held destroy
+             list $before [info commands x] \
+                  [catch {interp invokehidden {} held who} m] $m"
+        ),
+        "::x {} 1 {invalid hidden command name \"held\"}"
+    );
+}
+
+#[test]
+fn exposing_a_hidden_object_does_not_rename_its_public_identity() {
+    // Hide/expose changes only the interpreter command-table location. It is
+    // not a Tcl command rename, so methods and the destructor keep reporting
+    // the object's original public name. Exact Tcl 9.0.4 oracle result.
+    assert_eq!(
+        result(
+            "set log {}
+             oo::class create C {
+                 method who {} {self object}
+                 destructor {lappend ::log [self object]}
+             }
+             C create x
+             interp hide {} x held
+             set before [list [interp invokehidden {} held who] \
+                              [llength [info commands x]] [interp hidden {}]]
+             interp expose {} held y
+             set after [list [y who] [llength [info commands y]] \
+                             [llength [interp hidden {}]]]
+             y destroy
+             list $before $after $log"
+        ),
+        "{::x 0 held} {::x 1 0} ::x"
+    );
+}
+
+#[test]
+fn retained_tcloo_self_destroy_retires_the_exact_command_token() {
+    // A TclOO method can destroy its object or class after its owning
+    // namespace has been unpublished but remains retained by this frame.
+    // Lifecycle lookup uses the retained command generation, not the vanished
+    // public namespace path. Exact Tcl 9.0.4 oracle results.
+    assert_eq!(
+        result(
+            "namespace eval N {
+                 oo::object create o
+                 proc p {} {
+                     namespace delete ::N
+                     o destroy
+                     list [info commands o] [catch {o} m] $m
+                 }
+             }
+             ::N::p"
+        ),
+        "{} 1 {invalid command name \"o\"}"
+    );
+    assert_eq!(
+        result(
+            "namespace eval N {
+                 oo::class create K {}
+                 proc p {} {
+                     namespace delete ::N
+                     K destroy
+                     list [info commands K] [catch {K} m] $m
+                 }
+             }
+             ::N::p"
+        ),
+        "{} 1 {invalid command name \"K\"}"
+    );
+}
+
+#[test]
+fn colon_colliding_object_slots_keep_distinct_identity() {
+    // The two object commands render identically as `::a:::b`, but occupy
+    // distinct `(namespace token, simple name)` slots. All TclOO state stays
+    // attached to the command token through rename and deletion.
+    assert_eq!(
+        result(
+            "set log {}; \
+             oo::class create C {destructor {lappend ::log [list [self object] [my side]]}}; \
+             namespace eval {::a:} { \
+               C create b; oo::objdefine b method side {} {return LEFT} \
+             }; \
+             namespace eval ::a { \
+               C create :b; oo::objdefine :b method side {} {return RIGHT} \
+             }; \
+             set before [list \
+               [namespace eval {::a:} {b side}] \
+               [namespace eval ::a {:b side}]]; \
+             namespace eval {::a:} {rename b left}; \
+             namespace eval ::a {rename :b right}; \
+             set after [list \
+               [namespace eval {::a:} {left side}] \
+               [namespace eval ::a {right side}]]; \
+             namespace eval {::a:} {rename left {}}; \
+             namespace eval ::a {rename right {}}; \
+             list $before $after $log"
+        ),
+        "{LEFT RIGHT} {LEFT RIGHT} {{::a:::left LEFT} {::a::right RIGHT}}"
+    );
+}
+
 // oo::define / oo::objdefine
 
 #[test]

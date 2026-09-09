@@ -34,7 +34,7 @@ All paths are relative to `rust/tcl-compiler/src/` unless stated otherwise.
 | `optimiser/` | optimisation findings (`O100`–`O130`) | diagnostics aggregation, code-action surfaces | `optimise_unit` (`optimiser/manager.rs`) |
 | `gvn.rs` | redundancy findings (`O105`, `O106`) | diagnostics aggregation, optimisation-hint ranking | `find_pure_procs`, the redundancy message builders |
 | `taint.rs` | taint findings (`T100`–`T106`, `IRULE3xxx`) | diagnostics aggregation, security workflows | `find_taint_warnings`, `find_taint_warnings_for_cu` |
-| `shimmer/` | shimmer findings (`S100`–`S102`, `S110`) | diagnostics aggregation, performance guidance | `find_shimmer_warnings_for_cu` |
+| `shimmer/` | shimmer findings (`S100`–`S103`, `S110`) | diagnostics aggregation, performance guidance | `find_shimmer_warnings_for_cu` |
 | `irules_checks.rs` | iRules flow findings (`IRULE1xxx`–`IRULE5xxx`) | diagnostics aggregation for the iRules dialect | the `find_*_warnings` entry points |
 | `rust/tcl-lsp-db/src/lib.rs` | final LSP diagnostic projection, suppression policy | LSP publish pipeline, async tiering scheduler | `project_diagnostics`, `compiler_check_diagnostics` |
 

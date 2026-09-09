@@ -140,12 +140,13 @@ gate (`rust/tcl-compiler/src/optimiser/elimination.rs`); SF-2 / FP-OPT-12.
 
 ### Call resolution
 
-`resolve_internal_call(command, caller_qname, known)`:
-1. Extract namespace parts from the caller's qualified name.
-2. Try `::caller_namespace::command` first.
-3. Walk up the namespace hierarchy to `::command` (global).
-4. Return the first name present in `known`, or `None` if the callee is
-   external.
+`resolve_internal_call(command, caller_qname, known)` derives the caller's
+namespace from its qualified name and applies the shared two-level rule
+(`tcl_syntax::naming::resolve_command_with`, see
+[namespace-resolution.md](namespace-resolution.md)): an absolute name is
+looked up directly; a relative name tries `::caller_namespace::command`, then
+`::command`, never an intermediate ancestor. It returns the first name present
+in `known`, or `None` if the callee is external.
 
 Not every callee is named by a command *word*. Two registry-declared
 indirections also produce edges, so a procedure reachable only through them
@@ -159,12 +160,10 @@ is not mistaken for dead code:
 - a **`Traits::INVOKES_USER_PROC` head** (the iRules `call PROC ?args?`
   form) — the callee is the first argument, not the invoker.
 
-`command_prefix_head` is shared with
-[`call_site_scan`](interprocedural-call-site-seeding.md), the other consumer
-that has to answer "which command does this callback prefix name". Fixing the
-two independently is exactly what let the `[list cb]` shape work in one and
-not the other (issue #978); one primitive means a new prefix-building shape
-lands in both at once.
+`command_prefix_head` is shared with the
+[call-site scan](interprocedural-call-site-seeding.md), the other consumer
+that has to answer "which command does this callback prefix name", so a new
+prefix-building shape lands in both at once (issue #978).
 
 ## Decision rule
 
@@ -182,6 +181,6 @@ lands in both at once.
 
 ## Related docs
 
-- [Example 23 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-23-interprocedural-analysis--summary-construction)
+- [Example 23 in walkthroughs](../../../docs/design/compiler/example-walkthroughs.md#example-23-interprocedural-analysis--summary-construction)
 - [GLOSSARY.md — ICIP](../../GLOSSARY.md#icip)
-- [kcs-compiler-pipeline-overview.md](../../../docs/design/compiler/compiler-pipeline-overview.md)
+- [compiler-pipeline-overview.md](compiler-pipeline-overview.md)

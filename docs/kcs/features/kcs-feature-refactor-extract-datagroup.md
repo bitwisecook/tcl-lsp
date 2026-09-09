@@ -15,7 +15,7 @@ all-editors, MCP, Claude skill, refactoring
 
 ### Editor (all editors via LSP)
 
-Place the cursor on an `if` chain or `switch -exact` with literal value comparisons. Trigger code actions and choose **"Extract to data-group"**. The code action includes the tmsh data-group definition as a comment block.
+Place the cursor on an `if` chain or `switch -exact` with literal value comparisons. Trigger code actions and choose **"Extract to data-group '<name>' (<type>)"**. The code action includes the tmsh data-group definition as a comment block.
 
 Only available when the document dialect is iRules.
 
@@ -28,9 +28,9 @@ Only available when the document dialect is iRules.
 
 ### Claude Code
 
-- `suggest-datagroups <file>` — scan for all data-group extraction candidates
-- `extract-datagroup <file> --line N` — extract at a specific line
-- `/irule-datagroup <file>` — AI-enhanced analysis with LLM reasoning
+`/irule-datagroup <file>` — scans for candidates with
+`suggest_datagroup_extractions`, then converts the ones you pick with
+`extract_datagroup`.
 
 ## Before / After
 
@@ -198,7 +198,7 @@ The refactoring supports two source patterns:
 1. **if/elseif chains** — branches testing `$var eq "literal"`, including OR-chains (`$var eq "a" || $var eq "b"`)
 2. **switch -exact** — each arm is a literal key
 
-Type inference uses Python's `ipaddress` module for IP/CIDR detection, which natively supports both IPv4 and IPv6 address families. The AI-enhanced suggestion tool returns structured context including pattern type, variable name, inferred type, CIDR presence, body shape, confidence level, and a pre-computed static result for each candidate.
+IP/CIDR detection parses each value as an IPv4 or IPv6 address, so both families are recognised. `suggest_datagroup_extractions` returns pattern type, variable name, inferred type, CIDR presence, body shape, confidence, and a pre-computed static result for each candidate.
 
 ## Failure modes
 

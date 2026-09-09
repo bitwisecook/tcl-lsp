@@ -1,11 +1,11 @@
-# KCS: feature — `f5 query` renderers, builtins, and input formats
+# KCS: feature — `f5-query` renderers, builtins, and input formats
 
 > **Audience:** User
 > **Type:** Functionality
 
 ## Summary
 
-`f5 query` (alias `f5 q`) reaches beyond plain output along three axes —
+The `f5 query` verb reaches beyond plain output along three axes —
 output renderers that format the result, DSL builtin functions callable
 from the query language, and side-input parsers that read non-BIG-IP
 files into the query.
@@ -16,7 +16,7 @@ tcl-lsp CLI
 
 ## Question
 
-What renderers, builtins, and input formats does `f5 query` offer, and
+What renderers, builtins, and input formats does `f5` offer, and
 how do I use them?
 
 ## How to use
@@ -93,21 +93,7 @@ and surfaced via `f5 q --help-builtins`.
 
 ## Example
 
-### Before — pipe the query output through a sidecar Python script
-
-```sh
-f5 q --raw '
-    f5log_load("logs/t1-a.log")[]
-    | select(.module == "01340011" or .module == "01340012")
-    | tsv(.timestamp,
-          (sub(.message, "^.*member ", "") | sub(., " monitor.*$", "")),
-          (if .module == "01340011" then "DOWN" else "UP" end))
-  ' bigip.conf \
-  | grep -v '^#' \
-  | python3 sysadmin/monitor_timeline.py
-```
-
-### After — one tool, no glue
+Chart every monitor up/down transition in a BIG-IP log:
 
 ```sh
 f5 q --render gantt '
@@ -119,7 +105,7 @@ f5 q --render gantt '
   ' bigip.conf
 ```
 
-Both forms produce the same chart:
+This prints:
 
 ```
 members down/up over time (1 char = 5 min)
@@ -134,7 +120,7 @@ t2_c04_vip:443        |                  v#########^
 
 ## Related
 
-- [KCS: how-to — reproduce an HTTP monitor with `f5 query`](../kcs-howto-reproduce-http-monitor-with-query.md)
+- [KCS: how-to — reproduce an HTTP monitor with `f5`](../kcs-howto-reproduce-http-monitor-with-query.md)
 - [KCS: how-to — compose query streams](../kcs-howto-compose-query-streams.md)
-- [Design — `f5 query` plugin contract](../../design/f5-query-renderer-contract.md)
+- [Design — `f5 query` renderer contract](../../design/f5/f5-query-renderer-contract.md)
 - [KCS feature index](README.md)

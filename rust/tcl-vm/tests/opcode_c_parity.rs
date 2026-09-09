@@ -937,7 +937,7 @@ fn irule_string_tests_both_outcomes() {
         (Op::IRULE_EQUALS, "foobar", "FOOBAR", "0"),
         (Op::IRULE_EQUALS, "1", "1.0", "0"),
         // The bare `matches`. Row one is the measured appliance cell
-        // (`docs/design/bigip-irule-parser-measurements.md` §4a
+        // (`docs/design/f5/bigip-irule-parser-measurements.md` §4a
         // `e_matches`: `expr {"abc" matches "abc"}` → `1`); the rest
         // record the reading the VM takes — a string equality, the one
         // that measured cell exercises. §12 carries the discriminating

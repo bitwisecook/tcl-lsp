@@ -88,12 +88,11 @@ pack declares — matched case-sensitively, and answered as the resolved
 **canonical id**. An unrecognised value makes the directive tier abstain,
 and detection falls through to the next tier rather than erroring.
 
-`tk` therefore resolves (#1631 E8): it is a package plus an environment,
-never a dialect (§2), and the directive selects environments. The
-`KNOWN_DIALECTS` list still feeds the CLI's `--dialect` choices and the MCP
-`dialect_schema` enum — the payload rows tracked as D15 in
-[the #1631 open-questions ledger](../dialect-and-package-registry-redesign.md#11-the-open-questions-ledger)
-— but it no longer gates the directive.
+`tk` therefore resolves: it is a package plus an environment, never a
+dialect, and the directive selects environments. The dialect catalogue
+(`tcl_dialect::KNOWN_DIALECTS`, the same set as `DialectProfile::all()`,
+`spectcl` and `sslictcl` included) is what the CLI's `--dialect` choices and
+the MCP `dialect_schema` enum enumerate; it does not gate the directive.
 
 The directive takes priority over shebang detection.  This allows a file to
 have a generic `#!/usr/bin/tclsh` shebang while still targeting a specific
@@ -112,13 +111,14 @@ lower-cased first, so matching is case-insensitive.
 
 - The word `expect` anywhere on the line (at word boundaries) → `expect`.
   `#!/usr/bin/expect` and `#!/usr/bin/env expect` both match.
-- Otherwise, `tclsh<major>.<minor>` — `tclsh` at a left word boundary,
-  followed by digits, a `.`, digits, and a right word boundary. The version
-  must then be exactly one of `8.4`, `8.5`, `8.6`, `9.0`, or `9.1` to name a
-  dialect.
+- Otherwise, `tclsh<major>.<minor>` or `wish<major>.<minor>` — the shell
+  name at a left word boundary, followed by digits, a `.`, digits, and a right
+  word boundary. The version must then be exactly one of `8.4`, `8.5`, `8.6`,
+  `9.0`, or `9.1` to name a dialect. `wish` contributes only the version: Tk
+  is a library in this model, not a dialect.
 
-A plain `#!/usr/bin/tclsh` without a version number does not select a
-specific dialect and falls through to the next tier. So does a version this
+A plain `#!/usr/bin/tclsh` or `#!/usr/bin/wish` without a version number does
+not select a specific dialect and falls through to the next tier. So does a version this
 project does not model (`tclsh8.3`, `tclsh9.2`) — an unmodelled version is an
 abstention, not an error.
 
@@ -132,15 +132,14 @@ the language id, the BIG-IP basename and the in-source directive. It survives a
 `didClose`, because the entry belongs to the host session that installed it
 rather than to any one open/close cycle.
 
-It is the strongest tier deliberately. The two older dialect commands
+It is the strongest tier deliberately. The two other dialect commands
 (`tcl-lsp.setDialect`, `tcl-lsp.setSessionDialectOverride`) are session-global,
 so a host using either to re-tag a *single* buffer re-tags every other open
-buffer with it — the behaviour #1217 moved away from. The Spec Studio's dialect
-selector is the first caller: its sample surface is always materialised as
-`test.tcl`, so without a per-document seam the server resolves it as generic
-Tcl however the selector is set, and a pack whose commands only exist in
-another dialect shows nothing in the very buffer the studio exists to give
-feedback on (issue #1931).
+buffer with it. The Spec Studio's dialect selector needs the per-document
+form: its sample surface is always materialised as `test.tcl`, so without it
+the server would resolve that buffer as generic Tcl however the selector is
+set, and a pack whose commands only exist in another dialect would show
+nothing there.
 
 ## User setting (`tclLsp.dialect`)
 
@@ -156,7 +155,7 @@ hint.  Set it in your editor configuration:
 
 **XDG config** (`~/.config/tcl-lsp/config.ini`):
 ```ini
-[dialect]
+[global]
 dialect = tcl8.4
 ```
 
@@ -192,8 +191,13 @@ Dialect is re-evaluated when:
 
 ## Editor language ID mapping
 
-`Backend::dialect_from_language_id` maps every accepted spelling; each row's
-alternatives are all accepted and land on the same dialect.
+`Backend::dialect_from_language_id` maps five ids by hand (`tcl` → `tcl8.6`,
+`tcl-apl` → `f5-iapps`, `tcl-bpf` → `bpf`, `tcl-libero` →
+`microchip-libero-eda-tcl`, `tcl-spec` → `spectcl`) and resolves every other
+id through `tcl_registry::model::resolve_known_environment`, keeping only a
+*contributed identity* — an environment's canonical id or its declared editor
+id, never a legacy alias such as `irules`. Each row's alternatives land on the
+same dialect.
 
 | Language ID | Dialect |
 |-------------|---------|
@@ -212,35 +216,43 @@ alternatives are all accepted and land on the same dialect.
 | `tcl-xilinx`, `xilinx-eda-tcl` | `xilinx-eda-tcl` |
 | `tcl-quartus`, `intel-quartus-eda-tcl` | `intel-quartus-eda-tcl` |
 | `tcl-mentor`, `mentor-eda-tcl` | `mentor-eda-tcl` |
+| `tcl-libero`, `tcl-microchip`, `microchip-libero-eda-tcl` | `microchip-libero-eda-tcl` |
+| `tcl-bigip`, `f5-bigip` | `f5-bigip` |
+| `tcl-spec`, `tclspec`, `spectcl` | `spectcl` |
+| `sslictcl` | `sslictcl` |
 | `tk` | `tk` |
 
 `tcl-apl` is the APL (iApp presentation language) editor id — an iApp
 sublanguage, so it analyses as `f5-iapps` rather than falling through to the
 default. `tk` is not a catalog profile (it is a library pin, see
-[dialect-profile-model.md](../dialect-profile-model.md) §7.2) but it parses to
-a `DialectSet` bit, which the table's own debug assertion accepts. There is no
-`tcl-bigip` language-id row: `f5-bigip` is reached through the file's content
-and the BIG-IP layer, not an editor language mode.
+[dialect-profile-model.md](../registry/dialect-profile-model.md) §7.2) but it parses to
+a `DialectSet` bit, which the table's own debug assertion accepts.
 
 ## File extension mapping
 
-`dialect_from_extension` first checks two vendor filename *conventions* that
-are not a single trailing extension, then falls back to the extension itself.
-The whole basename is lower-cased first, so matching is case-insensitive.
+`dialect_from_extension` lower-cases the basename, then tries in order: two
+vendor filename *conventions* that are not a single trailing extension; the
+whole-basename claims in the profile catalogue (`bigip.conf` → `f5-bigip`);
+an extension a loaded SpecTcl pack declares; and finally the catalogue's
+`file_extensions` rows (`rust/tcl-dialect/src/profile.rs` — the table below
+mirrors them).
 
 | Filename shape | Dialect |
 |-----------|---------|
 | `*.synopsys_dc.setup`, `*.synopsys_pt.setup` | `synopsys-eda-tcl` |
 | `*.invs_setup.tcl`, `*.genus_setup.tcl` | `cadence-eda-tcl` |
+| `bigip.conf`, `bigip_base.conf`, `bigip_gtm.conf`, …; `.scf` | `f5-bigip` |
 | `.irul`, `.irule`, `.irules` | `f5-irules` |
-| `.iapp` | `f5-iapps` |
+| `.iapp`, `.iappimpl`, `.impl` | `f5-iapps` |
 | `.tmsh` | `f5-tmsh` |
 | `.exp`, `.expect` | `expect` |
 | `.xdc` | `xilinx-eda-tcl` |
-| `.sdc` | `synopsys-eda-tcl` |
+| `.sdc`, `.upf` | `synopsys-eda-tcl` |
 | `.do` | `mentor-eda-tcl` |
 | `.qsf`, `.qpf`, `.qip` | `intel-quartus-eda-tcl` |
 | `.globals` | `cadence-eda-tcl` |
+| `.tclspec` | `spectcl` |
+| `.sslictcl` | `sslictcl` |
 
 `.svrf` is **deliberately not mapped**: Calibre DRC/LVS rule decks are a
 declarative DSL, not Tcl, so the extension falls through to content detection

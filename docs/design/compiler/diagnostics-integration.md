@@ -5,52 +5,53 @@ aggregated, and the policy boundary that fixes severity, code family, ranges,
 and suppression. Read this when two producers disagree about the same
 finding.
 
-`get_diagnostics()` combines outputs from:
+The server's deep pass combines:
 
-- semantic analyser diagnostics,
-- style checks,
-- downstream compiler passes (optimiser/taint/shimmer/gvn/iRules flow),
-- optional compilation artefacts reused via `CompilationUnit`.
+- the semantic analyser (`tcl_lsp_db::file_analysis`);
+- the style checks (`tcl_lsp_core::source_style::style_diagnostics`);
+- the compiler checks and optimiser (`tcl_lsp_db::compiler_check_diagnostics`:
+  `run_all_checks` and `optimise_unit` over the memoised `CompilationUnit`);
+- cross-file resolution (`tcl_lsp_db::project_diagnostics`).
 
-The diagnostics layer is the contract boundary for code-family mapping and suppression semantics seen by LSP clients.
+The lifts in `rust/tcl-lsp-server/src/lib.rs` (`lift_analyser_diagnostics`,
+`lift_source_style_diagnostics`, `lift_compiler_diagnostics`) convert typed
+findings to LSP diagnostics, and `finalise_diagnostics` attaches tags and
+applies severity overrides. That layer is the contract boundary for
+code-family mapping and suppression semantics seen by LSP clients.
 
-## Aggregation and policy rules
+## Rules
 
-1. **Aggregation ownership lives in diagnostics layer**
-   - Passes emit typed findings; conversion and final policy mapping happen centrally.
-2. **Suppression is global and uniform**
-   - `# noqa` and disabled-code filtering applies consistently regardless of finding origin.
-3. **Prefer CU-backed consistency**
-   - When `CompilationUnit` is available, pass/analyser consumers should use shared artefacts to avoid drift.
-4. **Range trust boundary**
-   - Publish ranges exactly from producer facts; avoid ad-hoc line/column reconstruction during aggregation.
-
-## File-path anchors
-
-- `rust/tcl-lsp-db/src/lib.rs` (`get_diagnostics`, suppression, family aggregation)
-- `rust/tcl-compiler/src/analyser/` (semantic warning production)
-- `rust/tcl-compiler/src/compilation_unit.rs` (shared artefact generation)
-- `rust/tcl-lsp-server/src/lib.rs` (tiered publish integration)
+1. **Aggregation lives in the lifts.** Passes emit typed findings; conversion
+   and final policy mapping happen centrally.
+2. **Suppression is uniform.** `# noqa`, `# tcl-lsp: disable=`, and disabled
+   codes apply identically whatever the finding's origin.
+3. **One `CompilationUnit` per edit.** The analyser tail and the compiler
+   checks share the salsa-memoised unit; no consumer rebuilds its own.
+4. **Ranges come from producers.** Publish the producer's span; never
+   reconstruct lines and columns during aggregation.
+5. **One owner per overlap.** Where two producers flag the same site, one is
+   canonical at the LSP boundary — W110 over O120 (`suppress_duplicate_o120`).
 
 ## Failure modes
 
 - Duplicate diagnostics from overlapping pass ownership.
-- Mismatched severity defaults between pass-local assumptions and central mapping.
-- Source-only fallback path producing different outcomes from CU-backed path.
-- Broken suppression when code families are added without diagnostics-layer updates.
+- Severity defaults that differ between a pass and the central mapping.
+- The no-salsa fallback (`compiler_check_diagnostics_uncached`) diverging from
+  the memoised path.
+- A new code family added without a lift.
 
-## Tests
+## Anchors
 
-- `rust/tcl-lsp-server/tests/e2e/` — the LSP diagnostic end-to-end suites.
+- `rust/tcl-lsp-db/src/lib.rs` — `file_analysis`,
+  `compiler_check_diagnostics`, `project_diagnostics`
+- `rust/tcl-lsp-server/src/lib.rs` — the lifts, `finalise_diagnostics`,
+  `line_suppressed`
+- `rust/tcl-compiler/src/analyser/` — semantic warning production
+- `rust/tcl-compiler/src/compiler_checks.rs` — `run_all_checks`
+- `rust/tcl-lsp-server/tests/e2e/` — the diagnostic end-to-end suites
 
-## Related KCS notes
+## Related
 
-- [kcs-downstream-pass-contracts.md](../../../docs/design/compiler/downstream-pass-contracts.md)
-- [kcs-async-diagnostics-tiering.md](../../../docs/design/compiler/async-diagnostics-tiering.md)
-- [kcs-compilation-unit-contracts.md](../../../docs/design/compiler/compilation-unit-contracts.md)
-
-
-## See also
-
-- [compiler KCS index](README.md)
-- [compiler architecture overview](../../../docs/design/compiler-architecture.md)
+- [downstream-pass-contracts.md](downstream-pass-contracts.md)
+- [async-diagnostics-tiering.md](async-diagnostics-tiering.md)
+- [compilation-unit-contracts.md](compilation-unit-contracts.md)

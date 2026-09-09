@@ -1,7 +1,7 @@
 # Compiler Glossary
 
 Terms used throughout the Tcl LSP compiler documentation, ordered by
-pipeline phase.  See also the [example walkthroughs](design/example-script-walkthroughs.md)
+pipeline phase.  See also the [example walkthroughs](design/compiler/example-walkthroughs.md)
 for worked examples of each concept.
 
 ---
@@ -19,9 +19,9 @@ flowchart LR
     ANA --> SP["7. Specialised Passes"]
     SP --> CG["8. Codegen<br/>FunctionAsm"]
 
-    SP --- OPT["Optimiser<br/>O100–O126"]
+    SP --- OPT["Optimiser<br/>O100–O130"]
     SP --- TAINT["Taint<br/>T100–T106"]
-    SP --- SHIM["Shimmer<br/>S100–S103"]
+    SP --- SHIM["Shimmer<br/>S100–S103, S110"]
     SP --- INTERP["Interprocedural<br/>ProcSummary"]
 ```
 
@@ -29,7 +29,7 @@ flowchart LR
 
 ## Alphabetic index
 
-[AST](#ast) · [Barrier](#barrier) · [Basic block](#basic-block) · [C extension shim](#c-extension-shim) · [CFG](#cfg) · [Codegen](#codegen) · [Command walk](#command-walk) · [CommandSpec](#commandspec) · [Compilation unit](#compilation-unit) · [Compiled artefact](#compiled-artefact) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [dialect](#dialect) · [Dispatch-stability proof](#dispatch-stability-proof) · [Dominance frontier](#dominance-frontier) · [Dominator / idom](#dominator--idom) · [Escape tag](#escape-tag) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [ICIP](#icip) · [InstCombine](#instcombine) · [Interpreter domain](#interpreter-domain) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Lifecycle (registry)](#lifecycle-registry) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Native proc entry](#native-proc-entry) · [Pattern recognition](#pattern-recognition) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [Requirement straddle](#requirement-straddle) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail position](#tail-position) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Trace](#trace) · [Type inference](#type-inference) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis) · [Version floor](#version-floor) · [World-state contents lattice](#world-state-contents-lattice)
+[AST](#ast) · [Barrier](#barrier) · [Basic block](#basic-block) · [C extension shim](#c-extension-shim) · [Call-site evidence](#call-site-evidence) · [CFG](#cfg) · [Codegen](#codegen) · [Codegen optimisation pass](#codegen-optimisation-pass) · [Command walk](#command-walk) · [CommandSpec](#commandspec) · [Compilation unit](#compilation-unit) · [Compiled artefact](#compiled-artefact) · [Concrete syntax tree (CST) / red-green tree](#concrete-syntax-tree-cst--red-green-tree) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [dialect](#dialect) · [Dispatch-stability proof](#dispatch-stability-proof) · [Dominance frontier](#dominance-frontier) · [Dominator / idom](#dominator--idom) · [Escape tag](#escape-tag) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [ICIP](#icip) · [InstCombine](#instcombine) · [Interpreter domain](#interpreter-domain) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Lifecycle (registry)](#lifecycle-registry) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Native proc entry](#native-proc-entry) · [Object handle](#object-handle) · [ObjectClassSpec](#objectclassspec) · [Pattern recognition](#pattern-recognition) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [Requirement straddle](#requirement-straddle) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail position](#tail-position) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Trace](#trace) · [Type inference](#type-inference) · [Unit linkage](#unit-linkage) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis) · [Version floor](#version-floor) · [World-state contents lattice](#world-state-contents-lattice)
 
 ---
 
@@ -47,11 +47,11 @@ right character. Implemented by `Lexer` in `tcl_lexer::lexer`.
 ```mermaid
 flowchart LR
     SRC["set x $y"] --> L["Lexer"]
-    L --> T1["WORD 'set'"]
-    L --> T2["SEP"]
-    L --> T3["WORD 'x'"]
-    L --> T4["SEP"]
-    L --> T5["VAR_SUB '$y'"]
+    L --> T1["Esc 'set'"]
+    L --> T2["Sep"]
+    L --> T3["Esc 'x'"]
+    L --> T4["Sep"]
+    L --> T5["Var 'y'"]
 
     style L fill:#e1f5fe
 ```
@@ -111,7 +111,7 @@ KCS tag: `lexing`.
 ## Phase 2 — Segmentation and error recovery
 
 No new terms — this phase produces `SegmentedCommand` objects and *ghost*
-byte injections (see [Example 20](design/example-script-walkthroughs.md#example-20-error-recovery--unclosed-bracket)).
+byte injections (see [Example 20](design/compiler/example-walkthroughs.md#example-20-error-recovery--unclosed-bracket)).
 There is no distinct token type for an injected delimiter: `segment_with_recovery()`
 (`rust/tcl-compiler/src/segmenter.rs`) accumulates a `ghosts: BTreeMap<u32, u8>`
 mapping a source offset to the byte inserted there, and re-lexes through
@@ -152,10 +152,6 @@ adjacent token rather than living as sibling tokens, so a command is pure
 syntax while every byte still round-trips. `SegmentedCommand`s are derived from
 it byte-identically. Implemented in `tcl_compiler::parsing::syntax`.
 
-> Distinct from the [green token tree](design/compiler/green-token-tree.md),
-> an **unbuilt proposal** for a context-aware tokenisation memo with
-> absolute-position tokens. `TokenRegion` does not exist in the workspace.
-
 See also: [The canonical concrete syntax tree](design/compiler/syntax-tree.md).
 KCS tag: `lexing`.
 
@@ -193,57 +189,52 @@ KCS tag: `lowering`.
 
 Intermediate Representation — a structured, typed representation of Tcl
 commands between parsing and code generation.  Defined in
-`tcl_compiler::ir`; the union type `Statement` covers all statement
-kinds.
+`tcl_compiler::ir`; the `Statement` enum covers every statement kind,
+and each variant carries the source `Span` diagnostics point at.
 
 ```mermaid
 classDiagram
-    class IRStatement {
-        <<union>>
+    class Statement {
+        <<enum>>
     }
-    class IRAssignConst {
-        +name: str
-        +value: str
+    class AssignConst {
+        +name: String
+        +value: String
     }
-    class IRAssignExpr {
-        +name: str
+    class AssignExpr {
+        +name: String
         +expr: ExprNode
     }
-    class IRAssignValue {
-        +name: str
-        +value: str
+    class Call {
+        +command: String
+        +args: Vec~String~
+        +defs: Vec~String~
     }
-    class IRCall {
-        +command: str
-        +args: tuple
-        +defs: tuple
+    class Barrier {
+        +command: String
+        +reason: String
     }
-    class IRBarrier {
-        +reason: str
-        +command: str
+    class If {
+        +clauses: Vec~IfClause~
+        +else_body: Option~Script~
     }
-    class IRIf {
-        +clauses: tuple~IRIfClause~
-        +else_body: IRScript
-    }
-    class IRWhile {
-        +condition: ExprNode
-        +body: IRScript
-    }
-    class IRFor {
-        +init: IRScript
-        +condition: ExprNode
-        +next: IRScript
-        +body: IRScript
-    }
-    IRStatement <|-- IRAssignConst
-    IRStatement <|-- IRAssignExpr
-    IRStatement <|-- IRAssignValue
-    IRStatement <|-- IRCall
-    IRStatement <|-- IRBarrier
-    IRStatement <|-- IRIf
-    IRStatement <|-- IRWhile
-    IRStatement <|-- IRFor
+    Statement <|-- AssignConst
+    Statement <|-- AssignExpr
+    Statement <|-- AssignValue
+    Statement <|-- Incr
+    Statement <|-- ExprEval
+    Statement <|-- Call
+    Statement <|-- Return
+    Statement <|-- Barrier
+    Statement <|-- Block
+    Statement <|-- UpFrame
+    Statement <|-- If
+    Statement <|-- For
+    Statement <|-- While
+    Statement <|-- Foreach
+    Statement <|-- Catch
+    Statement <|-- Try
+    Statement <|-- Switch
 ```
 
 See also: [IR types and lowering](design/compiler/ir-types-lowering.md).
@@ -320,7 +311,7 @@ must stay inside its declaring parent's window — checked by
 `Lifecycle::intersect` — which the registry sweep enforces as a hard gate
 for every compiled-in spec. See `Lifecycle` in `tcl_registry::lifecycle`.
 
-See also: [SpecTcl pack design](design/spec-packs.md#version-ranges-introduced-deprecated-retired),
+See also: [SpecTcl pack design](design/registry/spec-packs.md#version-ranges-introduced-deprecated-retired),
 [W135](kcs/codes/kcs-diagnostic-w135-command-needs-newer-package.md),
 [W139](kcs/codes/kcs-diagnostic-w139-retired-at-resolved-version.md),
 [W144](kcs/codes/kcs-diagnostic-w144-deprecated-at-resolved-version.md).
@@ -792,7 +783,7 @@ analyser, taint / side-effect passes, and hover provider consult instead
 of hardcoding name lists. Dialect-aware — iRules provides the `static::`
 namespace and BIG-IP `tcl_platform` keys but not `env` / `argv`.
 
-See also: [Special-variable registry](design/special-variable-registry.md).
+See also: [Special-variable registry](design/registry/special-variable-registry.md).
 
 ### Rendered-value properties
 
@@ -819,7 +810,7 @@ makes the site unprovable, the sound abstention. Drives the
 constant-`$cmd` dispatch settlement: navigation anchors at the dispatch
 head, while rename rewrites the defining literals.
 
-See also: [Name resolution](design/name-resolution.md).
+See also: [Name resolution](design/analysis/name-resolution.md).
 
 ---
 
@@ -832,7 +823,7 @@ path is a fresh domain). Evaluation bodies home under the synthetic
 `@interp@<path>` namespace, unrepresentable in real Tcl, so a parent
 namespace of the same name can never collide.
 
-See also: [Name resolution](design/name-resolution.md).
+See also: [Name resolution](design/analysis/name-resolution.md).
 
 ---
 
@@ -1027,9 +1018,9 @@ list folding (`O116`, `O118`), and string-compare simplification
 (`O117`). Implemented in `tcl_compiler::optimiser::propagation`.
 
 `O102` forwards a variable's literal value into its use sites — a
-pure-literal `[expr {...}]}` substitution with no propagated variable
+pure-literal `[expr {...}]` substitution with no propagated variable
 is `O101`'s own fold instead. The two commonly co-fire: propagating a
-literal into an `[expr {...}]}` operand (`O102`) frequently exposes an
+literal into an `[expr {...}]` operand (`O102`) frequently exposes an
 `O101` fold of the resulting expression, as below.
 
 ```mermaid
@@ -1457,7 +1448,7 @@ shim's own header, `tclshim.h`; its `Tcl_Obj` values cross the interface as
 typed values, not text. Shimmed extensions are *trusted native code*: loaded
 only by host configuration, never by a spec pack.
 
-See also: [The C Tcl extension shim](design/c-extension-shim.md).
+See also: [The C Tcl extension shim](design/runtime/c-extension-shim.md).
 
 ### salsa
 

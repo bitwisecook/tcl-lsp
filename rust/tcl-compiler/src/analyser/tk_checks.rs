@@ -239,7 +239,7 @@ impl Analyser {
     /// `ttk::scrollbar` / `ttk::labelframe`, neither of which has ever had a
     /// registered spec on this branch), which is exactly the class of bug a
     /// second source of truth invites (issue #927;
-    /// `docs/design/tk-widget-instance-typing.md`).
+    /// `docs/design/analysis/tk-widget-instance-typing.md`).
     fn is_widget_command(&self, name: &str) -> bool {
         self.registry.as_deref().is_some_and(|r| {
             r.get(name).is_some_and(|s| {

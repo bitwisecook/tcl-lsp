@@ -3,7 +3,8 @@
 The architectural destination the Rust workspace is converging on, and the
 tensions and decisions that shape it. Companion to
 [`current-architecture.md`](current-architecture.md), which describes the crate
-graph as it stands. This page is the model, not a schedule.
+graph as it stands. Everything below is a **gap**: where a layer is partly
+built, the section says what is missing.
 
 The properties the design is aiming at:
 
@@ -42,28 +43,28 @@ of the architecture is the same either way.
 Each document version owns its bytes once: `Source { version, text: Arc<str> }`.
 That is the only allocation of the source for that version and the unit of
 MVCC — versions coexist, and a reader holds an `Arc` to the version it started
-against. The document store already shares `text` and its line index as
-`Arc`-backed handles installed together per revision; the remaining step is
-making the version a first-class key readers can hold and compare.
+against. The document store shares `text` and its line index as `Arc`-backed
+handles installed together per revision. **Missing:** the version is not a
+first-class key a reader can hold and compare.
 
 ### Layer 1 — Tokens, once
 
 One lex pass per version produces a structure-of-arrays token stream:
-`Tokens { source: Arc<str>, kinds: Vec<TokenKind>, spans: Vec<Span> }`. A
-token's text is `&source[span]` — zero copy. This removes the per-token owned
-`text` / `raw` strings the green tree stores and the ad-hoc re-segmentations
-scattered through the compiler: everything downstream consumes one stream, and
-incrementally only the edited region re-lexes.
+`Tokens { source: Arc<str>, kinds: Vec<TokenKind>, spans: Vec<Span> }`, so a
+token's text is `&source[span]` — everything downstream consumes one stream, and
+only the edited region re-lexes.
+
+`Token` is already span-only. **Missing:** the stream itself, and the owned
+`text` / `raw` strings `GreenToken` stores beside it (D1).
 
 ### Layer 2 — One CST, everything else a view
 
 The red-green CST is built from the token stream and is the **single** parse
 representation. This is already true of the segmenter: `segment_commands_local`
 derives `SegmentedCommand` from the CST, and the old token-loop segmenter
-survives only as a frozen oracle in the differential tests. The remaining work
-is to make the IR item tree and the lowering input likewise **views** over one
-reused CST rather than each rebuilding it, and to fold the ad-hoc sub-word lexer
-scans onto the tree.
+survives only as a frozen oracle in the differential tests. **Missing:** the IR
+item tree and the lowering input each rebuild rather than being views over one
+reused CST, and the sub-word lexer scans are not folded onto the tree.
 
 Green stores structure; the text-storage choice is **D1**. Red anchors absolute
 positions lazily and carries the one line index beside the tree.
@@ -77,9 +78,8 @@ A single position service lives with the CST and is the only place byte ↔
 - byte offset → token / node via binary search over token spans, or red-tree
   descent.
 
-One index, built once per version, instead of independent `LineIndex` builds per
-feature — and the UTF-16 conversion lands in one place rather than at every
-column call site.
+One index, built once per version. **Missing:** `LineIndex::new` is called from
+over two hundred sites outside `tcl-lexer`, so features still build their own.
 
 ### Layer 4 — Demand-driven incremental graph (the cascade)
 
@@ -115,11 +115,16 @@ Three properties do the heavy lifting:
   procs (**D4**). A proc's shape becoming known cascades a targeted re-parse of
   just its call sites.
 
-Layer 4 is the furthest along: the analyser walk, the per-procedure lattices,
-the interprocedural taint cascade, and the cross-file signature table all run as
-salsa queries today ([`incremental-analysis.md`](incremental-analysis.md)). What
-is not yet demand-driven is the *parse* half — tokens and CST are still rebuilt
-per version rather than being queries with their own firewalls.
+The analysis half runs as salsa queries today: the analyser walk, the
+per-procedure lattices, the interprocedural taint cascade, and the cross-file
+signature table ([`incremental-analysis.md`](incremental-analysis.md)).
+**Missing:** the *parse* half — tokens and CST are rebuilt per version rather
+than being queries with their own firewalls.
+
+The failure mode to avoid is adopting the *vocabulary* (snapshots, queries)
+without the firewall and per-item granularity that make the cascade cheap: a
+memoised graph with one coarse whole-file analysis query re-runs the whole file
+on every keystroke and buys nothing.
 
 ### Layer 5 — MVCC where reads and writes overlap
 
@@ -134,7 +139,9 @@ Reads run against an immutable snapshot; writes publish a new version:
   version tag, or are cancelled once they are pointless.
 
 This is MVCC **where necessary** — the document and its derived snapshots, not
-every small map.
+every small map. **Missing:** the derived state is a `Mutex<TclDatabase>`, not
+an atomic handle swap, so a write takes global exclusivity rather than
+publishing beside in-flight readers.
 
 ## Embedded sub-languages — one model, applied everywhere
 
@@ -185,8 +192,6 @@ no duplicates.
 | | Decision | Options | State |
 |---|---|---|---|
 | **D1** | Green-leaf text storage | (A) `Span` into `Arc<str>` — true zero-copy, weaker cross-file dedup, incremental reuse by re-spanning (tree-sitter model); (B) owned interned `SmolStr` — rowan-style sharing and hash-consing, not zero-copy | **Open.** Leans **A** per the zero-copy priority, but only if single-document zero-copy matters more than cross-file subtree sharing |
-| **D2** | Incremental engine | (A) `salsa`; (B) hand-rolled revision tags | **Resolved: A.** `tcl-lsp-db` is a salsa database |
-| **D3** | MVCC flavour | version-tag reads (complete, drop if stale) vs cancel-when-pointless | **Both** — tag for correctness, cancel for latency |
 | **D4** | "Parse once" boundary | see below | once per *(span, known-as-script)*, memoised |
 
 ### D4 — "where knowable" is progressive
@@ -229,21 +234,6 @@ This is also a *latency* win. The conservative pass-one parse needs only the
 static registry, so it paints fast (good for time-to-first-semantic-tokens); the
 refined parse arrives later as an ordinary cascade once shape discovery
 completes. Progressive enhancement, not a blocking dependency.
-
-## Getting there
-
-The convergence stays incremental for the same reasons it has so far:
-`segment_commands*` is a single chokepoint, the CST already exists and is
-differentially proven against the segmenter, and salsa wraps existing pure
-functions one query at a time. The natural order is CST-as-spine (Layers 1–3)
-first — pure refactor under the existing differential corpus, delivering the
-zero-copy token stream and one position service — then the parse half of the
-query graph (Layer 4), and finally the snapshot runtime (Layer 5).
-
-The failure mode to avoid is adopting the *vocabulary* (snapshots, queries)
-without the *firewall and per-item granularity* that make the cascade cheap: a
-memoised graph with one coarse whole-file analysis query re-runs the whole file
-on every keystroke and buys nothing.
 
 ## Related
 

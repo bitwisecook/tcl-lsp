@@ -56,21 +56,25 @@ never spans files.
 
 ## Extraction paths
 
-There are two independent priority extraction paths:
+Two paths read the `when` header; both parse it through
+`tcl_registry::events`, so they agree on what a priority word is:
 
-1. **Compiler path** — `lowering/mod.rs` parses `when EVENT priority N
-   { body }` during IR lowering and stores `base_priority` on the
-   `Procedure` it registers under `::when::EVENT` (or `::when::EVENT#n` for a
-   repeat handler). The priority word is read only when the command has at
-   least four words, `args[1]` is literally `priority`, and `args[2]` parses
-   as a `u32`; anything else keeps the 500 default. Consumed by
-   `rust/tcl-diagram/src/data.rs` for diagram data.
+1. **Compiler path** — `Lowerer::try_lower_when_declaration`
+   (`lowering/mod.rs`) resolves the declaration through
+   `IrulesDeclarationArguments` into `IrulesTopLevelDeclaration::Event
+   { priority: Option<u16>, … }` and `lower_when` stores it as
+   `base_priority` on the `Procedure` registered under `::when::EVENT` (or
+   `::when::EVENT#n` for a repeat handler). An absent priority takes the
+   inherited value — 500, or whatever the last standalone `priority N`
+   command set (`Lowerer::irules_priority`). Consumed by
+   `rust/tcl-diagram/src/data.rs`.
 
-2. **Lightweight segmenter path** — `serialise_event_order`
-   (`rust/tcl-explorer/src/serialise.rs`) segments the source directly and
-   reads `when EVENT priority N` from the words, without building a
-   `CompilationUnit`. It parses the priority as `i64`, so this path accepts
-   values the compiler path would reject.
+2. **Segmenter path** — `serialise_event_order`
+   (`rust/tcl-explorer/src/serialise.rs`) calls
+   `tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver`
+   without building a `CompilationUnit`; each handler's
+   `EventHandler::effective_priority` (`u16`) is its own `priority` word or
+   the inherited one (`apply_inherited_priorities`).
 
 ## JSON serialisation
 

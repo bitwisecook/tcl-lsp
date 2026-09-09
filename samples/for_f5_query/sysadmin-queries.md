@@ -30,10 +30,16 @@ $ f5 query [flags] -f <script.f5q> [paths...]
 ```
 
 Frequently-used flags appear in the cheat sheet at the end.
+Every command below is written to run from this directory.
 
 The probe-based scenarios in [Section 8](#8-live-probes) need
 `--enable-probes` and reach the network. All other scenarios are
 offline-only.
+
+**Module coverage.** The engine projects objects for `ltm`, `net`,
+`sys`, `cm`, `gtm`, `apm` and `security`. `f5 query --help-dsl` lists
+the exact kinds each covers; a kind outside them raises
+`<module>: no entry '<kind>'`.
 
 ---
 
@@ -109,8 +115,7 @@ $ f5 query --raw '
     "pool,member,host,port,monitor",
     (.ltm.pool[] as $p
      | $p.members[]
-     | csv($p.name, .name, .address, port(.name),
-           join($p.monitor.monitors, ",")))
+     | csv($p.name, .name, .address, port(.name), $p.monitor))
   ' ltm.conf
 ```
 
@@ -123,11 +128,10 @@ api_pool,/Common/api2:8443,10.0.2.21,8443,/Common/https
 legacy_pool,/Common/legacy1:80,192.168.50.10,80,/Common/http
 ```
 
-The pool's `.monitor` is a *monitor expression* (it can carry
-the `min N of {...}` quorum form). `.monitor.monitors` is the
-list of monitor names inside; `join` collapses it to a single
-CSV-safe cell. `unused_pool` (zero members) does not contribute
-a row — `.members[]` on an empty list emits nothing.
+The pool's `.monitor` is the monitor string as written in the
+config, so it drops straight into a CSV cell. `unused_pool` (zero
+members) does not contribute a row — `.members[]` on an empty list
+emits nothing.
 
 ### 1.3 Every IP the box advertises
 
@@ -264,7 +268,7 @@ profiles"][q16]* — common CSV deliverable for change reviews.
 ```
 $ f5 query --raw '
     .ltm.virtual[]
-    | tsv(.name, join(.profiles[]."full-path", ","))
+    | tsv(.name, join([.profiles[] | split(., " ")[0]], ","))
   ' ltm.conf
 ```
 
@@ -605,10 +609,11 @@ the ones a change will have to touch first."*
 ```
 $ f5 query --raw '
     .ltm.virtual[]
+    | [.profiles[] | split(., " ")[0]] as $profs
     | tsv(.name, .destination,
-          ([.profiles[]."full-path"] | count),
+          ([$profs[]] | count),
           ([.rules[]] | count),
-          ([.profiles[]."full-path"] | count) + ([.rules[]] | count))
+          ([$profs[]] | count) + ([.rules[]] | count))
   ' ltm.conf | sort -t$'\t' -k5 -rn
 ```
 
@@ -639,7 +644,7 @@ classic write-up.
 ```
 $ f5 query --raw '
     .ltm.pool[]
-    | join(.monitor.monitors, ",") as $mons
+    | .monitor as $mons
     | tsv(.name, $mons, ([.members[]] | count),
           (if startswith($mons, "/Common/http") then "L7"
            elif contains($mons, "icmp") then "L3-only"
@@ -885,7 +890,7 @@ the profile reference crosses files.
 ```
 $ f5 query --merge --raw '
     .ltm.virtual[]
-    | select(any(.profiles[]."full-path" == "/Common/employee_login_profile"))
+    | select(any([.profiles[] | split(., " ")[0]][] == "/Common/employee_login_profile"))
     | tsv(.name, .destination)
   ' ltm.conf apm.conf
 ```
@@ -906,9 +911,10 @@ contributes. Pipe through `grep -v '^#'` for a clean list.
 
 ```
 $ f5 query --raw '
-    .gtm.wideip[]
-    | tsv(.name, .pools[].name,
-          join(.pools[].members[], ","))
+    .gtm.wideip[] as $w
+    | $w.pools[] as $pp
+    | (.gtm.pool[] | select(."full-path" == str($pp))) as $gp
+    | tsv($w.name, $gp.name, join([$gp.members[].name], ","))
   ' gtm.conf
 ```
 
@@ -944,12 +950,13 @@ pool, all the way to the backend node:
 ```
 $ f5 query --name ltm=ltm.conf --name gtm=gtm.conf --merge --raw '
     $gtm.gtm.wideip[] as $w
-    | $w.pools[] as $gp
-    | $gp.members[]
-    | last(split(., ":")) as $vspath
-    | ($ltm.ltm.virtual[]
-       | select(."full-path" == $vspath)) as $vs
-    | $vs.pool.members[]
+    | $w.pools[] as $pp
+    | ($gtm.gtm.pool[] | select(."full-path" == str($pp))) as $gp
+    | $gp.members[].name as $m
+    | last(split($m, ":")) as $vspath
+    | ($ltm.ltm.virtual[] | select(."full-path" == $vspath)) as $vs
+    | ($ltm.ltm.pool[] | select(."full-path" == $vs.pool)) as $p
+    | $p.members[]
     | tsv($w.name, $gp.name, $vs.name, $vs.pool, .address, port(.name))
   ' ltm.conf gtm.conf | sort -u
 ```
@@ -1020,7 +1027,7 @@ audit cert expiry on?"*
 ```
 $ f5 query --raw '
     .ltm.virtual[]
-    | [.profiles[]."full-path"] as $profs
+    | [.profiles[] | split(., " ")[0]] as $profs
     | select(any($profs[] | contains(., "clientssl")))
     | tsv(.name, .destination,
           join([$profs[] | select(contains(., "ssl"))], ","))
@@ -1192,6 +1199,7 @@ $ f5 query --raw --input-f5log lt=multitier/logs/t1-a.log '
 ```
 
 ```
+# === file:///home/user/tcl-lsp/samples/for_f5_query/multitier/tier1-ltm-ha.conf ===
 Mar 14 06:32:36	BOOT	Boot complete on t1-a.example.test
 Mar 14 07:40:19	CFG-LOAD	Configuration loaded from /config/bigip.conf successfully.
 ```
@@ -1450,8 +1458,8 @@ $ f5 query '
 ```
 
 ```diff
---- samples/for_f5_query/ltm.conf
-+++ samples/for_f5_query/ltm.conf (modified)
+--- ltm.conf
++++ ltm.conf (modified)
 @@ -125,6 +125,7 @@
          /Common/http { }
          /Common/tcp { }
@@ -1497,8 +1505,8 @@ $ f5 query '
 ```
 
 ```diff
---- samples/for_f5_query/ltm.conf
-+++ samples/for_f5_query/ltm.conf (modified)
+--- ltm.conf
++++ ltm.conf (modified)
 @@ -11,7 +11,7 @@
      address 10.0.2.21
  }
@@ -1541,8 +1549,8 @@ $ f5 query 'rename("/Common/web_pool", "/Common/web_primary_pool")' ltm.conf
 
 ```
 renamed '/Common/web_pool' -> '/Common/web_primary_pool' (4 occurrence(s))
---- samples/for_f5_query/ltm.conf
-+++ samples/for_f5_query/ltm.conf (modified)
+--- ltm.conf
++++ ltm.conf (modified)
 @@ -13,7 +13,7 @@
  ltm node /Common/legacy1 {
      address 192.168.50.10

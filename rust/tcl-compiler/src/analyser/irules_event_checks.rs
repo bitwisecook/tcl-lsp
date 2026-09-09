@@ -1798,7 +1798,7 @@ mod tests {
 
     /// The two cells the appliance measurements single out as *"exactly
     /// the mistakes an editor should catch"*
-    /// (`docs/design/bigip-irule-parser-measurements.md` §8): the rule
+    /// (`docs/design/f5/bigip-irule-parser-measurements.md` §8): the rule
     /// compiler refuses `HTTP::uri` in `HTTP_RESPONSE` and `HTTP::status`
     /// in `HTTP_REQUEST` at rule load, though both events carry an HTTP
     /// profile. The model admitted both until the F5 conformance corpus

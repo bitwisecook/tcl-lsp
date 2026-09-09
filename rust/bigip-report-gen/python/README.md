@@ -6,7 +6,7 @@ interactive HTML report: virtual servers, pools and members, nodes, monitors,
 iRules, data groups and SSL profiles, plus a **reference/orphan analysis** that
 flags every object nothing points at.
 
-It also embeds four interactive views, all client-side in the one HTML file:
+It also embeds three interactive views, all client-side in the one HTML file:
 
 - **Topology** — a Mermaid object graph (vendored Mermaid, inlined). Every
   object is clickable → a detail drawer with its neighbourhood diagram; for a
@@ -47,8 +47,10 @@ parser in Python.
 | `src/lib.rs` | The PyO3 extension module `f5report._engine`: `query()`, `load_paths()`, `ucs_to_scf()`, `sys_file_ssl_certs()` / `sys_file_ssl_keys()` (cert inventory), `decrypt_secrets()` (`f5mku` master-key secret decryption). Converts engine `Value`s to native Python objects (no JSON round-trip). |
 | `python/f5report/report.py` | Runs the engine queries and shapes the report model, incl. the `referenced_by` graph → orphan detection. |
 | `python/f5report/certs.py` | The SSL-certificate + private-key expiry inventory (answers "which certs are expiring, and what do they front?"). |
-| `python/f5report/render.py` + `templates/` | MiniJinja rendering to one standalone HTML file (embedded CSS/JS, no external assets). |
+| `python/f5report/graph.py` | The object graph, listener fields, and iRule dynamic actions the topology view renders. |
+| `python/f5report/render.py` + `python/f5report/templates/` | MiniJinja rendering to one standalone HTML file (embedded CSS/JS, no external assets). |
 | `python/f5report/__main__.py` | The `f5-report` CLI (`--f5mku` / `--f5mku-file` reveal `$M$` secrets). |
+| `python/f5report/web.py` | A stdlib-only local report server, for browsing a generated report without a static host. |
 | `tests/` | pytest suite + real-world config fixtures (see `tests/data/PROVENANCE.md`). |
 
 > This Python package is deliberately kept as the demonstration of using the
@@ -72,7 +74,7 @@ python -m venv .venv && . .venv/bin/activate
 pip install maturin
 cd rust/bigip-report-gen/python
 maturin develop          # builds _engine and installs f5report editable
-pytest tests/            # 20 tests
+pytest tests/
 ```
 
 ## Using it

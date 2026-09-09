@@ -14,7 +14,7 @@ Dependency direction is consumer → provider, and no edge may point back up.
 
 ```
                   +--------------+
-                  |  tcl-lexer   |   spans, tokens, line index, source map, CST
+                  |  tcl-lexer   |   spans, tokens, line index, source map
                   +--------------+
                           ^
                           |
@@ -26,8 +26,8 @@ Dependency direction is consumer → provider, and no edge may point back up.
             |                    |             |
    +---------------+   +---------------+   +-----------------+
    | tcl-compiler  |   | tcl-lsp-core  |   | tcl-lsp-server  |
-   |  IR/CFG/SSA   |   | folding,      |   | tower-lsp       |
-   |  analyses,    |   | symbols,      |   | binary; holds   |
+   |  CST, IR/CFG, |   | folding,      |   | tower-lsp-server|
+   |  SSA, analyses|   | symbols,      |   | binary; holds   |
    |  codegen      |   | diagnostics   |   | the query db    |
    +---------------+   +---------------+   +-----------------+
             ^                  ^                 |
@@ -74,6 +74,7 @@ and the workspace lints `unsafe_code = "forbid"`.
 |---|---|---|
 | Backslash substitution, tokeniser | `tcl-lexer` | `substitution`, `lexer` / `tokens` |
 | Spans / line index / source map | `tcl-lexer` | `span` / `line_index` / `source_map` |
+| Red-green CST and command segmentation | `tcl-compiler` | `parsing::syntax` / `segmenter` |
 | Byte-exact list, subst, expr, format semantics | `tcl-syntax` | `list` / `subst` / `expr` / `format` |
 | Command registry & lookups | `tcl-registry` | `registry` / `commands/` |
 | Typed hook IDs, command forms, taint facts | `tcl-registry` | `hooks` / `forms` / `taint` |
@@ -144,8 +145,9 @@ and golden tests remain byte-stable.
 **Adding a verb.** Resolve inputs via `tcl_cli_support::read_input_documents`
 (+ `combine_sources`), call the pure engine, format the output (field order and
 separators are part of the contract; JSON via field-ordered structs), write via
-`write_text_output` / `write_highlighted_output`, and add a golden test to the
-matching `tests/cli_parity.rs` suite.
+`write_text_output` / `write_highlighted_output`, and add a case to the binary's
+CLI suite — `rust/tcl-cli/tests/` or `rust/f5-cli/tests/`, whose tests run the
+built binary and assert its output.
 
 ## Where to add a new fact
 
@@ -168,8 +170,6 @@ matching `tests/cli_parity.rs` suite.
   single-parse, cascading, MVCC destination.
 - [`incremental-analysis.md`](incremental-analysis.md) — the per-item analyser
   walk, the query graph, and the fallback contract.
-- [`incremental-analysis-experiments.md`](incremental-analysis-experiments.md) —
-  the corpus and the measurements behind that design.
 - [`lsp-performance.md`](lsp-performance.md) — how the server hits its latency
   targets, and how to measure it.
 - [`salsa-interned-gc.md`](salsa-interned-gc.md) — the interning invariant the

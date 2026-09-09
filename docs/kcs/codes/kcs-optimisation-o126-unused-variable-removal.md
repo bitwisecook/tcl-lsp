@@ -22,14 +22,18 @@ A variable that is set but never read is dead code; removing it simplifies the s
 ## Before
 
 ```tcl
-set unused 42
-puts "done"
+proc handle {} {
+    set unused 42
+    puts done
+}
 ```
 
 ## After
 
 ```tcl
-puts "done"
+proc handle {} {
+    puts done
+}
 ```
 
 ## Safety conditions
@@ -37,6 +41,7 @@ puts "done"
 - Skipped when the `set` command's right-hand side has [side effects](../../GLOSSARY.md#side-effects) that must be preserved.
 - Skipped when the variable has a [trace](../../GLOSSARY.md#trace) attached.
 - Skipped when the variable could be read via `upvar`, `uplevel`, or other dynamic access.
+- Skipped at the top level of a file, where another file or an interactive session can still read the variable.
 
 ## How to disable
 

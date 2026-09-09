@@ -21,11 +21,16 @@ The `==` and `!=` operators attempt numeric comparison first. If one operand loo
 
 ## Symptoms
 
-- A yellow squiggle appears under the operator, with the message "use eq/ne for string comparison, not ==/!=".
+- A hint underline under the operator, with the message "Use 'eq' instead of
+  '==' for string comparison in expressions to avoid ambiguous numeric/string
+  coercion."
+- A **Use 'eq' for string comparison** quick fix, offered only when every
+  `==`/`!=` in the expression has a string-literal operand.
 
 ## Example that triggers it
 
 ```tcl
+set name [gets stdin]
 if {$name == "admin"} { puts "welcome" }
 ```
 
@@ -34,6 +39,7 @@ The analyser reports **`W110`** on the `==` operator.
 ## Fix
 
 ```tcl
+set name [gets stdin]
 if {$name eq "admin"} { puts "welcome" }
 ```
 

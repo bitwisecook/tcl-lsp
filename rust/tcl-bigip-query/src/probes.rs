@@ -1043,7 +1043,7 @@ mod tls;
 // Registry wiring
 
 #[cfg(feature = "probes")]
-use crate::builtins::{BuiltinSpec, as_int, as_str, ctx, plain};
+use crate::builtins::{BuiltinSpec, as_int, as_str, ctx, plain, with_note};
 #[cfg(feature = "probes")]
 use crate::eval::EvalContext;
 
@@ -1261,6 +1261,13 @@ fn bi_ucs_cert(args: &[Value], ctx: &mut EvalContext) -> Result<Value, QueryErro
     }
 }
 
+/// The catalogue caveat every `url_*` builtin carries: the live request path
+/// is not wired, so a call returns the result dict with an `error` field
+/// instead of contacting the URL.
+#[cfg(feature = "probes")]
+const URL_NOT_LIVE: &str = "not implemented: returns the result shape with an `error` field, \
+                            makes no request";
+
 /// Probe builtin registrations — folded into the global registry by
 /// [`crate::builtins`].
 #[cfg(feature = "probes")]
@@ -1276,10 +1283,22 @@ pub(crate) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
         ctx("traceroute", "net", 1, Some(1), bi_traceroute),
         ctx("socket_get", "net", 2, Some(3), bi_socket_get),
         ctx("tls_handshake", "net", 2, Some(3), bi_tls_handshake),
-        ctx("url_get", "net", 1, Some(2), bi_url_get),
-        ctx("url_head", "net", 1, Some(2), bi_url_head),
-        ctx("url_options", "net", 1, Some(2), bi_url_options),
-        ctx("url_post", "net", 1, Some(3), bi_url_post),
+        // The `url_*` family is registered so a query mentioning it parses and
+        // degrades to a result dict, but no request is made — the catalogue
+        // has to say so rather than advertise a working probe.
+        with_note(ctx("url_get", "net", 1, Some(2), bi_url_get), URL_NOT_LIVE),
+        with_note(
+            ctx("url_head", "net", 1, Some(2), bi_url_head),
+            URL_NOT_LIVE,
+        ),
+        with_note(
+            ctx("url_options", "net", 1, Some(2), bi_url_options),
+            URL_NOT_LIVE,
+        ),
+        with_note(
+            ctx("url_post", "net", 1, Some(3), bi_url_post),
+            URL_NOT_LIVE,
+        ),
         ctx("ucs_cert", "net", 1, Some(1), bi_ucs_cert),
         // Pure x509 surface — ungated (plain, deterministic here).
         plain("x509_parse", "net", 1, Some(1), false, bi_x509_parse),

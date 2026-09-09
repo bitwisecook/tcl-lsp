@@ -19,7 +19,7 @@ How do I quickly add a `package require` for a package I need?
 
 Run **Tcl: Insert package require** from the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`).
 
-A picker appears with package suggestions. If the cursor is on a command from a known package (for example, `json::json2dict`), the picker pre-selects the matching package (`json`). Otherwise, it lists all packages the server knows about.
+A picker appears with package suggestions. If the cursor is on a command from a known package (for example, `json::json2dict`), the picker lists only the packages that provide it (`json`). Otherwise, it lists every package the server knows about.
 
 The command:
 
@@ -31,14 +31,12 @@ The command:
 With the cursor on `http::geturl`, running the command shows:
 
 ```
-> Tcl: Insert package require
-  → http    (suggested — matches symbol under cursor)
-    json
-    tls
-    ...
+Insert package require
+Select package to require for 'http::geturl'
+  http
 ```
 
-Selecting `http` inserts `package require http` after the last existing `package require` line.
+Selecting `http` inserts `package require http` after the last existing `package require` line, and reports `Inserted 'package require http'.`
 
 ## Related
 

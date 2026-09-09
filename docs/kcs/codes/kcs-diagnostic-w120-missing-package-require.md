@@ -21,7 +21,7 @@ Without an explicit `package require`, the command may not be available at runti
 
 ## Symptoms
 
-- A yellow squiggle appears under the command, with the message "command 'http::geturl' used without 'package require http'".
+- A yellow squiggle under the command, with the message "\"http::geturl\" requires `package require http`".
 
 ## Example that triggers it
 
@@ -80,27 +80,19 @@ shared object, and the directory holds nothing else:
 package ifneeded pix 0.8 [list apply {dir { load [file join $dir libpix.so] Pix }} $dir]
 ```
 
-The server treats such a package as **known but opaque**: it exists, so
-requiring it is fine and nothing complains about the package itself, but
-which commands it installs cannot be worked out without running it, so no
-claim is made about them either way.
-
-The practical consequence is that requiring one of these no longer silences
-W120 for *other* packages in the same file. Before, a file containing
-`package require pix` lost every W120 it had, including one about a
-completely unrelated missing `package require http`.
+The server treats such a package as **known but opaque**: requiring it is fine
+and nothing complains about the package itself, but which commands it installs
+cannot be worked out without running it, so no claim is made either way.
+Requiring one does not silence W120 for other packages in the same file.
 
 ## A W120 that clears itself a moment after a workspace opens
 
-If an editor restores several tabs on startup, a module that inherits its
-`package require` from an entry file (see above) can briefly show a
-false-positive W120 until the server finishes scanning the workspace for
-`source` ancestors and package providers. The server re-checks every open
-document's diagnostics once that scan completes, so the warning should
-disappear on its own within the same startup window — no edit or manual
-restart needed. If a false-positive W120 persists after the workspace has
-clearly finished loading (the status bar shows the server is idle), that is
-a bug — open an issue with the workspace layout.
+A module that inherits its `package require` from an entry file can briefly
+show a false-positive W120 while the server is still scanning the workspace
+for `source` ancestors and package providers. The server re-checks every open
+document once that scan completes, so it clears itself within the startup
+window — no edit or restart needed. One that persists after the server goes
+idle is a bug; report it with the workspace layout.
 
 ## The quick fix, and when it is offered
 

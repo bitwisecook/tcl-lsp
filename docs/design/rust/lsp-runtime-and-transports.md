@@ -41,11 +41,9 @@ browser arm links cleanly and then aborts on its first timer.
 
 ### Native — "nothing changed"
 
-Plain re-exports of Tokio's own items. Same types, same semantics, same
-scheduling as before the seam existed. `available_parallelism` is the one
-function with a body, and it is the expression that used to be written out at
-each of its call sites. The rule is deliberate: the native server must not be
-able to regress because of a port.
+Plain re-exports of Tokio's own items — same types, same semantics, same
+scheduling. `available_parallelism` is the one function with a body. The rule is
+deliberate: the native server must not be able to regress because of a port.
 
 ### Browser (wasm32-unknown-unknown) — "same shapes, single thread"
 
@@ -259,7 +257,7 @@ forever for diagnostics the server has all the information to produce.
 
 The readiness wait is the crate's entire `unsafe` budget: one call, in
 `src/wasi_poll.rs`, wrapped by a safe function that owns both the subscription
-array and the event array. Verified against wasmtime 47.0.3:
+array and the event array. Verified against the pinned wasmtime (48.0.1):
 
 | Situation | Result |
 |---|---|

@@ -1431,7 +1431,7 @@ static SUBCOMMANDS: [SubCommand; 48] = [
 /// `ttk::treeview`'s instance command (`.t instate …`, `.t tag …`)
 /// dispatches through the same subcommand table as its own constructor
 /// spec, so `object_class` is self-referential rather than naming a
-/// separate class (see `docs/design/tk-widget-instance-typing.md`).
+/// separate class (see `docs/design/analysis/tk-widget-instance-typing.md`).
 static TTK_TREEVIEW_CLASS: ObjectClassSpec = ObjectClassSpec {
     class_name: "ttk::treeview",
     instance_methods: &SUBCOMMANDS,

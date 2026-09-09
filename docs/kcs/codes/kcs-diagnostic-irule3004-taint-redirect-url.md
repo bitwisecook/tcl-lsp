@@ -34,7 +34,7 @@ is the standard opening move for credential phishing.
 
 ```tcl
 when HTTP_REQUEST {
-  set target [HTTP::header Location]
+  set target [HTTP::header value Location]
   HTTP::redirect $target
 }
 ```
@@ -58,14 +58,18 @@ allow-list first:
 
 ```tcl
 when HTTP_REQUEST {
-  set target [HTTP::header Location]
-  if {[class match $target equals allowed_redirects]} {
+  set target [HTTP::header value Location]
+  if {[class match -- $target equals allowed_redirects]} {
     HTTP::redirect $target
   } else {
     HTTP::redirect "/login"
   }
 }
 ```
+
+The analyser still reports the allow-listed branch: it cannot read the contents
+of a data group, so it cannot prove the guard is sound. Suppress that one line
+once you have checked the class yourself.
 
 ## When it does not fire
 

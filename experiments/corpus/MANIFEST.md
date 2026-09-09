@@ -37,8 +37,9 @@ oometa,ooutil}` (session-provided tcllib tree).
 
 ### `vendor/tcl-oo-tests/` — Tcl core `oo` test suites
 
-`oo.test`, `ooNext2.test`, `ooUtil.test` from the Tcl **8.6.16** and
-**9.0.3** source trees (`tests/`), copied and prefixed with the version.
+`oo.test`, `ooNext2.test`, `ooUtil.test` from the Tcl **8.6.18** and
+**9.0.4** source trees under `tmp/` (`tests/`), copied and prefixed with the
+version.
 Real TclOO exercised by the interpreter's own conformance tests.
 
 ### `repo-fixtures/` — this repo's analyser OO fixtures

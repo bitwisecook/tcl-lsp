@@ -7,8 +7,8 @@ names are the executable truth.
 ## Prerequisites
 
 - **Rust** — the floating `stable` channel pinned in `rust-toolchain.toml`;
-  `Cargo.toml`'s `rust-version` tracks it (1.98.1, 2026-09-03, as of this
-  writing). CI resolves `stable` at run time, so a fresh release can fail
+  `Cargo.toml`'s `rust-version` tracks it (currently 1.98.1, released
+  2026-09-03). CI resolves `stable` at run time, so a fresh release can fail
   `pr-gate`'s `cargo clippy -D warnings` on untouched code the day it lands:
   `rustup update` before debugging a clippy failure you cannot reproduce.
 - **Node.js 24+** with npm for the VS Code extension. npm is pinned to v12 via
@@ -59,8 +59,8 @@ upstream than `tcl.tk` / SourceForge on every cold session. The hook exports
 | Wasmtime, wasi-sdk, tcllib (laptop) | variables near the top of `scripts/dev/ensure-test-deps.sh` |
 
 Changing a minimum version touches all of: `rust-toolchain.toml`, `ci.yml`,
-the Makefile's Prerequisites comment block, `README.md`'s requirements, and
-this file.
+the Makefile's Prerequisites comment block, `README.md` § *Building and
+contributing*, and this file.
 
 ## Build isolation for parallel agents
 
@@ -99,6 +99,6 @@ publishing) and the publish-secret invariant are in
 
 ## Discoverability
 
-- [`AGENTS.md`](../../../AGENTS.md) links here from its prerequisites line.
+- [`AGENTS.md`](../../../AGENTS.md) links here from its *Environment* section.
 - [test-tiers-and-ci-gates.md](test-tiers-and-ci-gates.md) — what to run
   once the environment is up.

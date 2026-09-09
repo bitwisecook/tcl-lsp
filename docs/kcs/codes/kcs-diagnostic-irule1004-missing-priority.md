@@ -42,9 +42,9 @@ Use an explicit priority when the order matters:
 when HTTP_REQUEST priority 500 { pool main }
 ```
 
-`IRULE1004` remains available for a dialect whose command-registry policy
-requires explicit priorities. The standard BIG-IP policy does not enable that
-rule, because an omitted value has defined runtime behaviour.
+`IRULE1004` fires only where a loaded command-spec pack declares that its
+event command must carry an explicit priority. The standard BIG-IP policy does
+not, because an omitted value has defined runtime behaviour.
 
 ## Related
 

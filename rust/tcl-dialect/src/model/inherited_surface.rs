@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! **The enumerated half of inherit-then-override** — design **Q6**
-//! (`docs/design/dialect-and-package-registry-redesign.md` §6.2, ruled
+//! (`docs/design/registry/dialect-and-package-registry-redesign.md` §6.2, ruled
 //! 2026-08-28).
 //!
 //! [`Ancestry`](super::family::Ancestry) lets a derived family reach its

@@ -72,10 +72,10 @@ Because the key is the resolved location rather than the written name, a
 trace follows the variable or command through `upvar`/`global` links and
 through a `rename` (`move_cmd_traces`), and is dropped when the command is
 deleted (`remove_cmd_traces`) or its frame is popped
-(`clear_frame_var_traces`). The variable location does not yet carry a stable
-cell generation: an unset callback that recreates the same spelling can still
-collide with the old active scope. That remaining #1574 work is why this
-section does not describe the key as a variable identity.
+(`clear_frame_var_traces`). The key is a location, not an identity:
+`VarTraceScope` is `(base, element, frame level, namespace)` with no cell
+generation, so an unset callback that recreates the same spelling collides with
+the old active scope.
 
 ### `rust/tcl-vm` (bytecode VM)
 
@@ -219,16 +219,15 @@ cell-generation implementation for `runtime/rust`.
 
 Namespace teardown then fires **command**-delete traces one command at a time, in
 the order `TclTeardownNamespace` snapshots `nsPtr->cmdTable` — the retained
-`TCL_STRING_KEYS` bucket order, not registration or lexical order (issue
-#1752). Each token's traces fire while its entry is still in the table, then
+`TCL_STRING_KEYS` bucket order, not registration or lexical order. Each token's traces fire while its entry is still in the table, then
 its imports retire depth-first, then the loop moves to the next entry; the
 table is re-snapshotted while it is non-empty, so a command a callback creates
 is torn down in a later pass.
 
 A namespace deleted while a call frame was still running in it fires none of
 this at delete time: the token is retained and the whole loop runs from the pop
-that drops its last activation instead (issue #1751,
-[namespace-tree.md](namespace-tree.md) §4). Traces registered against the
+that drops its last activation instead
+([namespace-tree.md](namespace-tree.md) §4). Traces registered against the
 retained tokens are addressed by the exact `(namespace, tail)` slot rather than
 by re-resolving the name, because a retained `::N::q` and the `::N::q` of a
 namespace recreated under the same spelling are two tokens with one spelling,
@@ -309,18 +308,16 @@ the step machinery. So an execution callback's own dispatches are never
 step-observed, while `CallCommandTraces` sets nothing at all: a command a
 `rename`/`delete` callback dispatches is traced like any other — its
 `enter`/`leave` traces fire, and an enclosing step scope steps both the
-callback's invocation and the commands its body runs. Both runtimes used to
-raise their stand-in (`TraceTable::exec_firing`, and the VM's
-`trace_in_progress`) for command callbacks too, which silently untraced
-everything such a callback dispatched.
+callback's invocation and the commands its body runs. The stand-ins
+(`TraceTable::exec_firing` in the tree-walker, `trace_in_progress` in the VM)
+are raised for execution callbacks only.
 
 Both stand-ins are *read* exactly where C reads its flag and nowhere else:
 `runtime/rust` gates only the step firing in `Interp::dispatch_traced`, and the
 VM only its `step_scopes_to_fire`. So a command dispatched from inside an
 execution callback fires its own `enter` and `leave` traces, the way
 `TclCheckExecutionTraces` fires them; only an `enterstep`/`leavestep` scope
-goes quiet for the callback's duration. Both engines used to read the gate at
-the whole traced-dispatch fast path instead, and fired neither.
+goes quiet for the callback's duration.
 
 What bounds a callback that invokes the command it traces is C's **per-trace**
 `TCL_TRACE_EXEC_IN_PROGRESS` (:1655), not the interpreter-wide flag — and per

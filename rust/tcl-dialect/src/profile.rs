@@ -23,7 +23,7 @@
 //! the `&'static DialectProfile` is threaded from there, so consumers stop
 //! re-parsing dialect strings per query.
 //!
-//! This is the compositional model of `docs/design/dialect-profile-model.md`:
+//! This is the compositional model of `docs/design/registry/dialect-profile-model.md`:
 //! identity, the availability axis — masks, load layers, grammar unions —
 //! the behaviour/runtime axis — base versions, octal policy, expr grammar,
 //! lexer grammar, the per-dialect predicates — and the versioned-library
@@ -143,7 +143,7 @@ const GRAMMAR_TCL9X: LexerGrammar = LexerGrammar {
 /// `expr` comments) plus the two measured fork axes — the implicit word
 /// break (R-rules) and the brace-line continuation (N-rules), both
 /// live-measured on TMM 21.1.0.1 with same-host stock controls
-/// (`docs/design/bigip-irule-parser-measurements.md` §1-§3). Measured
+/// (`docs/design/f5/bigip-irule-parser-measurements.md` §1-§3). Measured
 /// **byte-identical in all three BIG-IP execution contexts** (§4a):
 /// TMM iRules, `IAppImplementation`, and tmsh `cli script` all reproduce
 /// the R-rules, the N-rules, and the inert `{*}`, so this one grammar
@@ -382,7 +382,7 @@ impl Eq for DialectProfile {}
 /// [`KNOWN_DIALECTS`](crate::KNOWN_DIALECTS) (sorted) order.
 ///
 /// Surface and behaviour values follow the per-dialect table in
-/// `docs/design/dialect-profile-model.md` §7.
+/// `docs/design/registry/dialect-profile-model.md` §7.
 static CATALOG: [DialectProfile; 19] = [
     // bpf embeds a genuine Tcl 9.0 (design doc D7): 9.0 runtime semantics —
     // decimal leading zeros, 9.0 expr grammar, the nesting `${…}` rule —
@@ -579,7 +579,7 @@ static CATALOG: [DialectProfile; 19] = [
     },
     // iApps ride the `f5-tcl` trunk (fork of Tcl at 8.4.6), NOT a real
     // 8.5 host: the 8.5 hypothesis is measured and falsified
-    // (`docs/design/bigip-irule-parser-measurements.md` §4a) —
+    // (`docs/design/f5/bigip-irule-parser-measurements.md` §4a) —
     // `IAppImplementation` reports patchlevel 8.4.6, fails every 8.5
     // discriminator (`dict`, `lassign`, `apply`, `0b101`), and carries
     // the full trunk grammar (R-rules, N-rules, inert `{*}`, expr word
@@ -685,7 +685,7 @@ static CATALOG: [DialectProfile; 19] = [
     },
     // f5-tmsh rides the `f5-tcl` trunk (fork of Tcl at 8.4.6): the
     // previous 8.5/8.5.13 claims are measured and falsified
-    // (`docs/design/bigip-irule-parser-measurements.md` §4a) — a
+    // (`docs/design/f5/bigip-irule-parser-measurements.md` §4a) — a
     // `TmshCliScript` reports patchlevel 8.4.6 and reproduces the entire
     // trunk grammar (R-rules, N-rules, inert `{*}`, expr word operators)
     // identically to TMM, and `::tcl::mathop` is measured absent. It is
@@ -1583,7 +1583,7 @@ impl DialectProfile {
     /// `starts_with`/`ends_with`/`equals`/`matches_glob`/`matches_regex`)
     /// are an **`f5-tcl` trunk fact**, measured byte-identical in tmsh and
     /// iApp contexts too, not iRules-only
-    /// (`docs/design/bigip-irule-parser-measurements.md` §4a) — so every
+    /// (`docs/design/f5/bigip-irule-parser-measurements.md` §4a) — so every
     /// F5Tcl-cored catalogue profile answers with the family's own
     /// [`ExprGrammar`](crate::model::expr_grammar::ExprGrammar) here and
     /// consumers read the word-operator surface off that table instead of

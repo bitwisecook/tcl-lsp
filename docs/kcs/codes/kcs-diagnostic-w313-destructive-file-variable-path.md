@@ -21,7 +21,8 @@ An attacker who controls the path can delete, rename, or create files outside th
 
 ## Symptoms
 
-- A yellow squiggle appears under the file operation, with the message "destructive file operation with variable path".
+- A yellow squiggle appears under the path argument, with the message *"file delete with a variable path ($userPath) risks path-traversal. Normalise with [file normalize] and verify it stays within the intended directory."*
+- Once the path is normalised but still unverified, the message changes to *"file delete with normalised path ($safe) — verify it stays within the intended directory."*
 
 ## Example that triggers it
 
@@ -35,10 +36,14 @@ The analyser reports **`W313`** on the `file delete` call.
 
 ```tcl
 set safe [file normalize $userPath]
-file delete -- $safe
+if {[string match "/srv/data/*" $safe]} {
+    file delete -- $safe
+}
 ```
 
-Normalise and validate the path, and use `--` to prevent option injection.
+Normalising alone is not enough — the warning stays until the path is also
+checked against the directory it must stay inside. The `--` keeps a
+`-`-prefixed value from being read as an option.
 
 ## How to suppress
 

@@ -25,8 +25,9 @@ specifier with more than two fields makes Tcl reject the whole callable.
 ## Symptoms
 
 - A red squiggle appears under the literal parameter-list word with `E006`.
-- The message gives Tcl's reason, such as `too many fields in argument
-  specifier` or `not a simple name`.
+- The message gives Tcl's reason: "Invalid formal parameter list: too many
+  fields in argument specifier \"name default extra\"", or "… not a simple
+  name".
 
 ## Example that triggers it
 

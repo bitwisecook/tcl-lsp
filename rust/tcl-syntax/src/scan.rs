@@ -26,7 +26,7 @@
 //! and the LSP/compiler's inline-`scan` const-folder (`tcl-registry`). Matching
 //! and folding are value-/dialect-specific and stay with each consumer; this is
 //! the one place the *grammar* lives (reference Tcl 9.0 `Tcl_ScanObjCmd` /
-//! `ValidateFormat`, `tmp/tcl9.0.3/generic/tclScan.c`).
+//! `ValidateFormat`, `tmp/tcl9.0.4/generic/tclScan.c`).
 //!
 //! [`parse_conversion`] both parses and validates a single specifier (rejecting
 //! a width on `%c`, a size modifier on `%c`/`%n`/`%s`/`%[`, an unterminated

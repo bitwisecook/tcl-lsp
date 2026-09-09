@@ -11,20 +11,13 @@ Interactive web panel showing bytecode disassembly, AST, IR, and compiler passes
 
 VS Code, JetBrains, tcl-lsp CLI
 
-## Availability
-
-| Context | How |
-|---------|-----|
-| VS Code | `Tcl: Open in Tcl Compiler Explorer` (Ctrl+Alt+E), or right-click a Tcl file → `Tcl` → `Open in Tcl Compiler Explorer` |
-| JetBrains | Right-click a Tcl/iRule file → `Open In Tcl Compiler Explorer`, or open the `Tcl Compiler Explorer` tool window |
-
 ## How to use
 
 - **VS Code**: Open a Tcl file and run `Tcl: Open in Tcl Compiler Explorer` from the command palette or press Ctrl+Alt+E. The panel shows bytecode disassembly side-by-side with the source, and updates live as you edit.
 - **JetBrains**: Right-click a Tcl/iRule file in the editor or project view and choose `Open In Tcl Compiler Explorer`, or open the `Tcl Compiler Explorer` tool window. The panel tracks the active editor and recompiles when you open or switch to a different Tcl file.
 - **Standalone GUI** (`tcl explore --serve`, or the published web build): type in the editor pane and it recompiles automatically after a short pause. Press Ctrl+Enter (⌘+Enter on macOS) or click **Compile** in the toolbar to recompile immediately — useful after switching dialect, or to re-run a compile whose source has not changed. The dialect dropdown is filled as soon as the WebAssembly module finishes loading, before any compile has run.
 
-If a single output tab cannot render a result, that tab shows the reason and the rest of the panel still renders — a broken pane no longer blanks the panel or leaves the compile throbber spinning.
+If a single output tab cannot render a result, that tab shows the reason and the rest of the panel still renders.
 
 ### World SSA
 
@@ -77,30 +70,20 @@ The IR, CFG, SSA, bytecode, and WASM tabs each carry an optimiser lens with thre
 
 The diff compares the *node* (an IR statement, a CFG block, a bytecode instruction), not the rendered text. Byte offsets, source ranges, statement and literal-pool indices, local-variable slots, header tallies, and the box-drawing tree/gutter glyphs all shift whenever the optimiser adds or removes a node, even when the surrounding nodes are untouched. The diff normalises those position-only tokens away so a single rewrite surfaces as a single localised change rather than flagging every following line. Operand values that carry meaning — instruction arities, increment immediates, literal text, variable names — are kept, so genuinely different nodes still differ.
 
-The `tcl-explorer` CLI and TUI render the same offset-free diff via `--opt diff` (for example `tcl-explorer script.tcl --show ir --opt diff`). The web panel does this for the IR/CFG diff and the bytecode "Show optimiser diff" view.
+`tcl explore --show opt` prints the same rewrite list on the command line, and `--tui` opens it in the terminal UI.
 
 ## Failure modes
 
 - Web GUI / editor panels fail to compile if the Rust → WASM module is missing or fails to instantiate; the editor panels then fall back to host-brokered compilation via the LSP server.
 - Stale display after compilation pipeline changes.
 
-## Test anchors
+## Example
 
-- `rust/tcl-explorer/` and `rust/tcl-cli/` crate tests (pipeline + `explore` verb)
-
-## Screenshots
-
-- `10-compiler-explorer` — bytecode disassembly panel
-- `11-compiler-cfg` — control flow graph (pre-optimisation)
-- `12-compiler-ssa` — CFG after SSA optimisation
-- `13-compiler-optimiser` — optimiser pass output
-- `14-compiler-irule` — iRule-specific IR view
-
-![bytecode disassembly panel](../screenshots/10-compiler-explorer.png)
-![control flow graph (pre-optimisation)](../screenshots/11-compiler-cfg.png)
-![CFG after SSA optimisation](../screenshots/12-compiler-ssa.png)
-![optimiser pass output](../screenshots/13-compiler-optimiser.png)
-![iRule-specific IR view](../screenshots/14-compiler-irule.png)
+![bytecode disassembly panel](../../screenshots/10-compiler-explorer.png)
+![control flow graph (pre-optimisation)](../../screenshots/11-compiler-cfg.png)
+![CFG after SSA optimisation](../../screenshots/12-compiler-ssa.png)
+![optimiser pass output](../../screenshots/13-compiler-optimiser.png)
+![iRule-specific IR view](../../screenshots/14-compiler-irule.png)
 
 ## Discoverability
 

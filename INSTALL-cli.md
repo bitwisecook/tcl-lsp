@@ -1,26 +1,26 @@
 # CLI installation
 
-The `tcl` and `f5` CLIs are self-contained native binaries. No Python,
-no runtime, no interpreter — download one file per tool and run it.
+The `tcl` and `f5` CLIs are self-contained native binaries: download one
+file per tool and run it.
 
 ## Install
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/rust/scripts/install/install.sh \
-  | TCL_LSP_VERSION=v2.1.19 sh
+curl -fsSL https://github.com/bitwisecook/tcl-lsp/releases/latest/download/install.sh | sh
 ```
 
 Works on macOS and glibc-based Linux (x86_64, arm64, and riscv64 on Linux).
 The x86_64 and arm64 binaries require glibc 2.28 or newer; RISC-V requires
 glibc 2.35 or newer. Alpine and other non-glibc systems build the native CLIs
-from source. Re-run the same line to update.
+from source. Re-run the same line to update; set `TCL_LSP_VERSION=vX.Y.Z` to
+pin a release.
 
 To inspect first, or run unattended:
 
 ```sh
-curl -fsSLo install.sh https://raw.githubusercontent.com/bitwisecook/tcl-lsp/rust/scripts/install/install.sh
+curl -fsSLo install.sh https://github.com/bitwisecook/tcl-lsp/releases/latest/download/install.sh
 less install.sh
-TCL_LSP_VERSION=v2.1.19 TCL_LSP_ASSUME_YES=1 sh install.sh
+TCL_LSP_ASSUME_YES=1 sh install.sh
 ```
 
 The installer picks the binary for your platform, verifies it against the
@@ -32,22 +32,14 @@ Bobbit is project-only because it discovers the project-root `.mcp.json`.
 Claude Code skills are offered separately. Run `sh install.sh --help` for the full env-var list
 (`TCL_LSP_ONLY`, `TCL_LSP_NO_MCP`, `TCL_LSP_NO_SKILLS`, `TCL_LSP_NO_PATH`, …).
 
-### Migrating from the main-branch Python installer
+### Upgrading from a 1.x install
 
-Migration is automatic, even when you decline an equivalent native component.
-The installer removes positively identified Python zipapps (`tcl`, `f5`, the
-two retired compiler-explorer launchers, and `tcl-lsp-mcp-server.pyz`), including
-installs with a suffix or in a custom directory recorded in your shell startup
-file. It also removes Python `argcomplete` scripts and stale Claude Code or
-Codex MCP registrations. The old Claude prompt and skill bundle is moved out of
-active discovery and backed up under `~/.claude/.tcl-lsp-python-backup-*` before
-the native bundle is installed.
-
-Shared system packages such as Python, Tcl, `curl`, `unzip`, `sshpass`, or
-Wireshark are not removed, because the installer did not own them. Existing
-`.tcl-lsp-bak-*` recovery directories are also preserved. Set
-`TCL_LSP_NO_LEGACY_CLEANUP=1` only if you deliberately need to keep the retired
-installation active.
+The installer removes a 1.x Python install it positively identifies — the
+`tcl` / `f5` zipapps, `tcl-lsp-mcp-server.pyz`, `argcomplete` scripts, and
+stale Claude Code or Codex MCP registrations — and backs up the old Claude
+bundle under `~/.claude/.tcl-lsp-python-backup-*`. Shared packages (Python,
+Tcl, `curl`, …) are left alone. Set `TCL_LSP_NO_LEGACY_CLEANUP=1` to keep the
+old install.
 
 ## Manual install
 
@@ -101,8 +93,7 @@ has the Helix and Neovim configurations.
 ## Verify downloads
 
 ```sh
-tag="v2.1.19"
-curl -fLO "https://github.com/bitwisecook/tcl-lsp/releases/download/$tag/SHA256SUMS"
+curl -fLO https://github.com/bitwisecook/tcl-lsp/releases/latest/download/SHA256SUMS
 sha256sum --ignore-missing -c SHA256SUMS \
     || shasum -a 256 --ignore-missing -c SHA256SUMS
 ```
@@ -119,6 +110,8 @@ rm -f "${ZDOTDIR:-$HOME}/.zsh/completions/_tcl"
 rm -f "${ZDOTDIR:-$HOME}/.zsh/completions/_f5"
 rm -f ~/.config/fish/completions/tcl.fish ~/.config/fish/completions/f5.fish
 rm -rf ~/.claude/skills/irule-* ~/.claude/skills/tcl-* ~/.claude/skills/tk-*
+rm -rf ~/.claude/skills/ai-help ~/.claude/skills/bigip-cleanup ~/.claude/skills/explain-flow
+rm -rf ~/.claude/skills/f5-query ~/.claude/skills/spec-author
 claude mcp remove tcl-lsp 2>/dev/null || true
 ```
 

@@ -5,7 +5,7 @@
 
 ## Applies to
 
-all-editors, optimisation, const-fold
+all-editors, optimisation, pattern
 
 ## Profiles
 
@@ -103,5 +103,5 @@ options.
 
 - [KCS codes index](README.md)
 - [Optimiser feature](../features/kcs-feature-optimiser.md)
-- [Constant folding](../../GLOSSARY.md#constant-folding)
+- [Pattern recognition](../../GLOSSARY.md#pattern-recognition)
 - Related codes: `O114`, `O117`, `O118`

@@ -17,33 +17,49 @@ Why does the analyser warn when a token contains non-ASCII characters?
 
 ## Why
 
-Non-ASCII characters in command or variable names are often the result of copy-pasting from rich-text sources and can introduce invisible characters that cause hard-to-debug runtime failures.
+A Unicode character that looks like an ASCII one — Cyrillic `х` for Latin `x`,
+a full-width digit, a non-breaking space — makes two different identifiers
+read as the same name. Invisible and direction-altering characters can make
+reviewed text lie about the code beside it.
 
-## What about comments?
+## What `tclLsp.style.nonAscii` controls
 
-Comments are prose, so ordinary non-ASCII text in a comment (an em-dash, a smart quote, or accented words) is **not** flagged in the default `confusables` mode or in `common` mode. Inside comments the analyser flags only invisible or direction-altering characters — bidirectional override and isolate controls, zero-width characters, and Unicode line separators — because those can make the reviewed text lie about the code next to it (the "Trojan Source" attack). Those characters are also flagged in code even when they have no ASCII replacement.
+`confusables` is the default for Tcl: it flags Unicode look-alikes and
+copy-paste artefacts. `common` allows intentional Unicode letters, digits, and
+symbols, flagging only look-alikes and control characters. `strict` — the
+default for F5 iRules and iApps, whose platforms expect ASCII-only files —
+flags every non-ASCII character, including in comments. `off` disables the
+check.
 
-In `strict` mode (the default for F5 iRules and iApps, whose platforms expect ASCII-only files) every non-ASCII character is still flagged, including inside comments.
+Ordinary non-ASCII prose in a comment (an em-dash, a smart quote, an accented
+word) is not flagged outside `strict`. Bidirectional override and isolate
+controls, zero-width characters, and Unicode line separators are always
+flagged, in comments as well as code.
 
 ## Symptoms
 
-- A yellow squiggle appears under the token, with the message "non-ASCII character in token".
+- A yellow squiggle under the character, with the message "Non-ASCII character
+  U+0445 'х' — outside the standard ASCII printable/whitespace set".
+- A **Replace with ASCII equivalent** quick fix when the character has one.
 
 ## Example that triggers it
 
 ```tcl
-set café "latte"
+set х 1
+puts $х
 ```
 
-The analyser reports **`W108`** on the `café` token.
+The `х` is Cyrillic U+0445, not Latin `x`. The analyser reports **`W108`** on
+each occurrence.
 
 ## Fix
 
 ```tcl
-set cafe "latte"
+set x 1
+puts $x
 ```
 
-Replace non-ASCII characters with their ASCII equivalents or remove them.
+Retype the identifier in ASCII rather than pasting it.
 
 ## How to suppress
 

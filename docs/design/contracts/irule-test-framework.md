@@ -36,7 +36,7 @@ The Rust modules are:
 | `embedded.rs` | the Tcl assets, materialised so `[file dirname [info script]]` sibling lookups resolve |
 | `live.rs` | `LiveSession` — bootstrap, compile, fire, read back; sources `FRAMEWORK_FILES` in the same order `runner.tcl` does |
 | `session.rs` | `SessionPlan` — assembles the bootstrap script |
-| `sim.rs` | `simulate_irule` — the config-agnostic entry point behind `f5 explain-flow --simulate` |
+| `sim.rs` | `simulate_irule` — the config-agnostic entry point behind `f5-query explain-flow --simulate` |
 | `topology.rs` | turn a parsed BIG-IP config into the `::orch::` setup commands for a virtual server |
 
 ## Decision rules / contracts
@@ -50,8 +50,7 @@ The Rust modules are:
    `::itest::cmd::_stub` proc rather than ~1500 individual stub procs, because
    defining that many proc bodies cost seconds of compilation on every fresh
    session; the decision log is identical either way. `_registry_data.tcl` is
-   a retained legacy fixture outside this generated-asset contract and is not
-   changed by this partial #1404 work.
+   a hand-maintained fixture outside this generated-asset contract.
 
 2. **Decision log over state inspection**: Tests assert on the
    decision log (`{category action args}` triples) rather than raw
@@ -76,23 +75,23 @@ The Rust modules are:
    Assertions share one pass/fail counter set, which `::orch::summary` and
    `::orch::done` read.
 
-8. **Keep-alive lifecycle**: `run_http_request` fires full event
+7. **Keep-alive lifecycle**: `run_http_request` fires full event
    chain (CLIENT_ACCEPTED -> HTTP_REQUEST -> ...).
    `run_next_request` fires only per-request events.
    `close_connection` fires CLIENT_CLOSED.
 
-9. **Static variables**: `::static::` namespace persists across
+8. **Static variables**: `::static::` namespace persists across
    connections.  `RULE_INIT` fires once.  `reset_all` clears them;
    `reset_connection_state` does not.
 
-10. **In-process execution.** `LiveSession` compiles and runs the
-    orchestrator on `tcl-vm` directly, so a caller needs no external
-    interpreter. Every VM or orchestrator failure is captured into the
-    outcome rather than panicking, so a caller (for example
-    `f5 explain-flow --simulate`) can still render its static analysis when
-    the simulation cannot complete.
+9. **In-process execution.** `LiveSession` compiles and runs the
+   orchestrator on `tcl-vm` directly, so a caller needs no external
+   interpreter. Every VM or orchestrator failure is captured into the
+   outcome rather than panicking, so a caller (for example
+   `f5-query explain-flow --simulate`) can still render its static analysis
+   when the simulation cannot complete.
 
-11. **Byte-accurate `*::payload`**: payloads are wire bytes, so the
+10. **Byte-accurate `*::payload`**: payloads are wire bytes, so the
     `*::payload` mocks treat them as byte arrays — `length`, the
     `<size>` getter, and `replace` are BYTE operations (offsets and
     lengths are byte counts, matching TMM), and `replace` re-wraps the
@@ -240,8 +239,15 @@ Use `compilation-mode` with a custom regexp:
 
 ### Sublime Text
 
-The `iRule-Test.sublime-build` file is provided.  Use
-`Ctrl+B` / `Cmd+B` to run the current test file.
+Add a build system (`Tools → Build System → New Build System…`):
+
+```json
+{
+    "cmd": ["tclsh", "$file"],
+    "file_regex": "^FAILED: (.*)$",
+    "selector": "source.tcl"
+}
+```
 
 ### Helix / Zed
 

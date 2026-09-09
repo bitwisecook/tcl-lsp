@@ -23,7 +23,7 @@ Call the `if_to_switch` tool with `source`, `line`, and `character`.
 
 ### Claude Code
 
-Use the `refactor` CLI command — it lists if-to-switch when the cursor is on an eligible `if`.
+The `/tcl-refactor` skill calls the `refactor` tool, which lists if-to-switch when the cursor is on an eligible `if`.
 
 ## Before / After
 
@@ -51,16 +51,16 @@ proc handle_method {method} {
 ```tcl
 proc handle_method {method} {
     switch -exact -- $method {
-        "GET" {
+        GET {
             set action read
         }
-        "POST" {
+        POST {
             set action create
         }
-        "PUT" {
+        PUT {
             set action update
         }
-        "DELETE" {
+        DELETE {
             set action remove
         }
         default {
@@ -83,6 +83,8 @@ The refactoring parses each branch's test expression looking for `$var eq "value
 - Branch uses `ne` / `!=` (returns `None`).
 - Single branch only (returns `None` — not useful as a switch).
 - Complex test expressions beyond simple equality.
+- A compared value that carries a substitution (`$y`, `[cmd]`, a `\`-escape):
+  switch patterns are literal, so the arm would never match.
 
 ## Samples
 

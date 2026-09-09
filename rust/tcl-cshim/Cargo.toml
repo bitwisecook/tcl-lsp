@@ -21,7 +21,7 @@
 # neutral Tcl extension interface (`tcl-engine-api`), so it runs on whichever
 # engine the host picked without knowing which. The C-facing header is
 # `include/tclshim.h`; every declaration there is implemented in `src/ffi.rs`.
-# See docs/design/c-extension-shim.md.
+# See docs/design/runtime/c-extension-shim.md.
 [package]
 name = "tcl-cshim"
 publish.workspace = true

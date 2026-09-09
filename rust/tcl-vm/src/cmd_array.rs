@@ -24,9 +24,14 @@
 //! (leaving an empty array) instead of removing the whole array.
 
 use tcl_registry::{ArgRole, InvocationWord, InvocationWords};
+use tcl_runtime_api::completion_options::{
+    self as shared_options, ControlOptionPolicy, OptionValue,
+};
 use tcl_runtime_api::{ArrayTarget, Code, Completion, VarStore};
 
-use crate::command::{completion_from_cmd_error, completion_from_tcl_error};
+use crate::command::{
+    completion_from_cmd_error, completion_from_tcl_error, settle_control_options,
+};
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
@@ -110,7 +115,27 @@ fn array_op_after_trace(
     // The read-side + `unset` live in the shared core.
     if let Some(result) = tcl_cmd_core::array::dispatch_at(vm, sub, rest, target) {
         return match result {
-            Ok(v) => ok(v),
+            Ok(result) => {
+                let Some(miss) = result.read_miss else {
+                    return ok(result.value);
+                };
+                let carried = shared_options::retained_array_read_options(&miss, |bytes| {
+                    Value::string(String::from_utf8_lossy(bytes))
+                });
+                let rows = shared_options::plan(vm.runtime_version(), Code::Ok, 0, &carried, None);
+                let options = Value::list(
+                    rows.into_iter()
+                        .flat_map(|(key, value)| {
+                            let value = match value {
+                                OptionValue::Integer(value) => Value::int(value),
+                                OptionValue::Value(value) => value,
+                            };
+                            [Value::string(String::from_utf8_lossy(&key)), value]
+                        })
+                        .collect(),
+                );
+                Completion::new(Code::Ok, result.value, options)
+            }
             Err(e) => completion_from_cmd_error(e),
         };
     }
@@ -302,7 +327,7 @@ fn array_for_after_trace(
             return array_for_changed();
         }
     }
-    ok(Value::empty())
+    settle_control_options(ok(Value::empty()), ControlOptionPolicy::FRESH_SETTLED)
 }
 
 fn same_array_target(vm: &Vm, name: &str, original: &ArrayTarget, revision: Option<u64>) -> bool {

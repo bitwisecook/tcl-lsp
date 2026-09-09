@@ -21,7 +21,8 @@ Without braces around the switch body, Tcl treats each case as a separate argume
 
 ## Symptoms
 
-- A red squiggle appears after the `switch` variable, with the message "missing '{' for switch body".
+- A red squiggle appears just after the `switch` subject word, with the
+  message "Missing '{' after switch — body cases follow without braces".
 
 ## Example that triggers it
 
@@ -30,7 +31,8 @@ switch $x
   1 {puts one}
 ```
 
-The analyser reports **`E101`** on the line following `switch $x`.
+The analyser reports **`E101`** immediately after `switch $x`, where the
+opening brace should have been.
 
 ## Fix
 
@@ -44,7 +46,12 @@ Wrap the entire set of cases in braces so the parser recognises them as a single
 
 ## How to suppress
 
-Add `# noqa: E101` on the line **above** the offending command.
+`E101` is an internal parse error: it has no per-code entry in the
+generated editor settings list. Silence it for one file with a
+`# tcl-lsp: disable=E101` directive at the top of the file, or for a
+whole project with `disabled = E101` under `[diagnostics]` in
+`.tcl-lsp.ini`. See
+[how to turn a diagnostic off](../kcs-howto-suppress-diagnostics.md).
 
 ## Related
 

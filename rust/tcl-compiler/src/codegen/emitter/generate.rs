@@ -633,10 +633,14 @@ fn emit_inline_block_command_boundary(
 
     ctx.set_command_boundary_site(Some(site));
     let end_label = ctx.fresh_label("inline_block_cmd_end");
-    ctx.emit_comment(
+    let begin = ctx.emit_comment(
         Op::START_CMD,
         vec![Operand::Label(end_label.clone()), Operand::Imm(1)],
         "",
+    );
+    ctx.mark_completion_option_scope(
+        begin,
+        tcl_runtime_api::completion_options::ControlOptionPolicy::FRESH_FORWARDED,
     );
     state
         .command_boundary_end_labels
@@ -658,6 +662,16 @@ fn emit_block_terminator(
 ) {
     let next_block = block_order.get(i + 1).map(String::as_str);
     if let Some(term) = &blk.terminator {
+        let switch_dispatch = matches!(
+            term,
+            Terminator::Branch {
+                true_target,
+                false_target,
+                ..
+            } if cfg.block_name(*true_target).starts_with("switch_arm_body_")
+                && (cfg.block_name(*false_target).starts_with("switch_next_")
+                    || cfg.block_name(*false_target).starts_with("switch_default_"))
+        );
         // A constant-true `if` and its first selected-body command begin at the
         // same bytecode offset. In a proc, Tcl emits the owning count-two
         // marker only when an earlier generic invocation could have changed
@@ -709,7 +723,14 @@ fn emit_block_terminator(
         } else if ctx.is_proc && matches!(term, Terminator::Return { .. }) {
             ctx.emit_proc_return(term, bname, next_block, block_order, i, cfg);
         } else {
+            let begin = ctx.instructions.len();
             ctx.emit_term(cfg, term, next_block);
+            if switch_dispatch && begin < ctx.instructions.len() {
+                ctx.mark_completion_option_scope(
+                    begin,
+                    tcl_runtime_api::completion_options::ControlOptionPolicy::FRESH_FORWARDED,
+                );
+            }
         }
     } else if next_block.is_some() {
         // Terminal block not last in layout — emit done to prevent

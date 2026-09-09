@@ -23,7 +23,7 @@ Call the `brace_expr` tool with `source`, `line`, and `character`.
 
 ### Claude Code
 
-Use the `refactor` CLI command — it lists brace-expr when the cursor is on an eligible `expr`.
+The `/tcl-refactor` skill calls the `refactor` tool, which lists brace-expr when the cursor is on an eligible `expr`.
 
 ## Before / After
 
@@ -45,13 +45,13 @@ set sum [expr {$a + $b}]
 set product [expr {$a * $b}]
 ```
 
-The double-quoted expression arguments are replaced with braced equivalents. This prevents double substitution, avoids code injection risk, and allows the Tcl bytecode compiler to compile the expression at parse time instead of runtime.
-
 ## Operational context
 
-Unbraced `expr` arguments are a well-known Tcl anti-pattern: they cause double substitution (the expression string is substituted once by the parser, then again by `expr`), which is both a security risk and a performance penalty. Bracing the argument lets the compiler see the expression structure statically.
-
-The refactoring extracts the raw source text of the quoted argument, strips the quotes, and re-wraps in braces.
+An unbraced `expr` argument is substituted twice — once by the parser, then
+again by `expr`. That is both an injection risk and a performance cost, and it
+stops the bytecode compiler seeing the expression. The refactoring takes the
+raw source text of the quoted argument, strips the quotes, and re-wraps it in
+braces.
 
 ## Failure modes
 

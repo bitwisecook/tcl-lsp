@@ -14,7 +14,7 @@ all-editors, tcl-lsp CLI, transform
 ## How to use
 
 - **VS Code command**: `Tcl: Minify Document` (Ctrl+Alt+M / Cmd+Alt+M) — prompts for basic or compact mode.
-- **Sublime Text command**: `Tcl: Minify Document` via the command palette.
+- **JetBrains command**: **Tools → Tcl → Minify Document**.
 - **CLI**: `tcl minify script.tcl` (basic) or `tcl minify --compact script.tcl --symbol-map map.txt` (with name compaction).
 - **LSP command**: `tcl-lsp.minifyDocument` — accepts `(uri, compact?, aggressive?, isolated?)`, returns `{ source, originalLength, minifiedLength, symbolMap?, optimisationsApplied? }`.
 
@@ -35,7 +35,7 @@ all-editors, tcl-lsp CLI, transform
 3. Collapses intra-command whitespace to single spaces.
 4. Recursively minifies braced body arguments (proc bodies, if/while/for/foreach blocks).
 5. Minifies the braced clause list of a `switch` (or Expect `expect`) with the Tcl **list** grammar: a braced case list is a list, not a script, so a `#` there is an ordinary pattern, never a comment.  Patterns, clause flags, and fall-through `-` markers are re-emitted exactly as written; only braced bodies are recursively minified.  A malformed (for example odd-length) case list is preserved verbatim so the runtime error is unchanged.
-6. Preserves string literals, expressions, and command substitutions verbatim.
+6. Preserves quoted strings and non-script braced literals verbatim.  Expressions and command substitutions keep their words; only the whitespace between them collapses.
 7. Never introduces variables, writes, or any other observable behaviour.
 
 ### Compact mode (`--compact`)
@@ -111,7 +111,7 @@ proc sum_list {numbers} {
 **Output:**
 
 ```tcl
-proc sum_list {numbers} {set total 0;foreach num $numbers {set total [expr {$total + $num}]};return $total}
+proc sum_list {numbers} {set total 0;foreach num $numbers {set total [expr {$total+$num}]};return $total}
 ```
 
 ### Basic minification: `#` switch patterns survive

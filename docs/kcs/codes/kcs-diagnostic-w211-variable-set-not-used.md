@@ -21,7 +21,9 @@ Unused variables waste memory and make the code harder to read; they often indic
 
 ## Symptoms
 
-- A faint hint-severity underline (the subtle "three dots") appears under the variable name, with the message "variable set but never used". Raise its prominence with `tclLsp.diagnosticSeverity.W211` (see [How to suppress](#how-to-suppress)).
+- The variable name is greyed out — the code carries the editor's
+  "unnecessary" tag — with the hint-severity message "Variable 'result' is set
+  but never used".
 
 ## Example that triggers it
 
@@ -29,7 +31,7 @@ Unused variables waste memory and make the code harder to read; they often indic
 set result [expr {1 + 1}]
 ```
 
-The analyser reports **`W211`** because `result` is never read.
+The analyser reports **`W211`** on `result`: nothing reads it.
 
 ## Fix
 
@@ -95,10 +97,10 @@ it. In VS Code settings:
 { "tclLsp.diagnosticSeverity.W211": "warning" }
 ```
 
-Accepted values are `"error"`, `"warning"`, `"information"`, and `"hint"` (the
-default). Any diagnostic code can be re-levelled with
-`tclLsp.diagnosticSeverity.<CODE>`; this changes only how the editor renders the
-diagnostic, never the analysis.
+Accepted values are `"default"` (the analyser's own severity, and the setting's
+default), `"error"`, `"warning"`, `"information"`, and `"hint"`. Any diagnostic
+code can be re-levelled with `tclLsp.diagnosticSeverity.<CODE>`; this changes
+only how the editor renders the diagnostic, never the analysis.
 
 ## Related
 
