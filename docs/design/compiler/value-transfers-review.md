@@ -10,7 +10,10 @@ assertion that the proposals have been approved.
 
 Reading map: [findings](#findings-that-should-change-the-design-before-implementation),
 [pipeline and diagnostic boundaries](#end-to-end-integration-and-diagnostic-separation),
+[constant-to-dynamic transitions and partial reduction](#constant-to-dynamic-transitions-and-partial-reduction),
 [adversarial follow-up](#adversarial-follow-up-try-to-break-the-architecture),
+[every-code coverage ledger](value-transfers-coverage-review.md),
+[fact interfaces and Rust/SpecTcl examples, including EDA and eBPF](value-transfers-authoring-review.md),
 and [owner decisions](#owner-decisions).
 
 ## Assessment
@@ -37,6 +40,15 @@ enforced ones. The design must finish that separation: reusable semantic
 facts first, diagnostic rules second, presentation last. R14 and the
 integration section below make this an explicit acceptance condition.
 
+The follow-up inventory covers all 228 central catalogue entries and the
+XC, BPF and TLS numbered catalogues: 275 numbered entries in total, plus
+certificate-chain, extensible policy/scanner and uncoded verifier findings.
+The answer to “does this already represent everything?” is **no**. Exact
+value transfer must integrate with independently available type, existence,
+alias, effect, completion, range, taint, representation, protocol and
+external-world facts. Structural plans and backend safety proofs are not
+replaceable by executing a command whose inputs happen to be constant.
+
 The intended completion test should be:
 
 > Adding a command that fits an existing analyser interface changes its
@@ -52,13 +64,13 @@ use bounded VM execution where that avoids duplicating an algorithm.
 Unresolved runtime inputs still produce an unknown answer: running an
 interpreter does not make unavailable information available.
 
-Two owner questions were raised during this review: whether specialised
-compiler handlers are an acceptable final home, and whether purity alone
-should trigger VM evaluation. Pending an answer, the recommendations below
-use registry-owned specialisation and explicitly declared execution routes.
-These are recommendations, not recorded owner ratifications. The owner
-explicitly confirmed during the review that the project should reuse its
-own regexp engine; that decision is incorporated below.
+The owner's requested end state is registry-owned specialisation behind
+generic analyser interfaces. Whether temporary compiler-owned handlers
+are acceptable during migration is a delivery choice, not a different
+architectural destination. The review recommends explicitly declared
+execution routes rather than inferring VM eligibility from purity alone;
+that execution policy still needs agreement. The owner explicitly
+confirmed reuse of the project's own regexp engine.
 
 ## Findings that should change the design before implementation
 
@@ -81,6 +93,8 @@ not a claim that this documentation-only branch already changes behaviour.
 | R12 | Medium | The companion conflates two identity mechanisms and makes unrelated work a prerequisite. |
 | R13 | High | Our regexp API currently hides resource exhaustion and capture approximation inside ordinary match results. |
 | R14 | High | Diagnostic producers still recreate semantic facts, and presentation sometimes acts as a fact source. |
+| R15 | High | Partial reduction needs proof-aware residual expressions; the existing reassociation helper changes floating-point results. |
+| R16 | High | A value-only contract cannot cover existing dynamic type hooks, vendor iteration or BPF language/safety semantics. |
 
 ### R1. Specify the analyser interface, not just the dispatch catalogue
 
@@ -725,6 +739,83 @@ available only as a side effect of emitting a warning. Materialise or memoise
 reusable facts where multiple consumers need them; keep cheap one-rule
 predicates local to their owning checker.
 
+### R15. Partial reduction is not supplied by an exact-value evaluator
+
+The owner's follow-up asks whether this design identifies loss of constant
+knowledge and reduces mixed constant/dynamic calculations. Those are
+essential capabilities, but not consequences of wiring an evaluator into
+SCCP. The former needs per-definition/use facts and loss evidence; the
+latter needs partial simplification with operation-specific equivalence
+proofs. The dedicated section below specifies both.
+
+There is already relevant machinery in
+[optimiser/helpers/expr_simplify.rs](../../../rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs):
+constant substitution, fixpoint simplification and O110 reassociation.
+[optimiser/propagation.rs](../../../rust/tcl-compiler/src/optimiser/propagation.rs)
+also substitutes known operands and attempts further simplification.
+Extend and connect these owners instead of adding a second partial
+expression evaluator inside the registry transfer driver.
+
+However, the existing helper cannot be taken as the correctness baseline.
+A direct probe linked this worktree's compiled `tcl-compiler` and called
+`instcombine_expr_typed` with `Some(&OperandTypes::default())`: a real,
+empty type-proof context, not its legacy aggressive `None` mode. It returned
+`$x + 3` for `$x + 1 + 2`, with `changed = true`. `reassociate_node` does
+not receive the numeric context; preserving non-constant terms protects
+some coercion errors but does not establish associativity for doubles.
+
+Both independent Tcl oracles show the semantic difference:
+
+~~~tcl
+set x 10000000000000000.0
+expr {$x + 1 + 2}  ;# 10000000000000002.0
+expr {$x + 3}      ;# 10000000000000004.0
+~~~
+
+This reproduces the helper's rewrite and the target-language inequivalence,
+not a complete LSP code-action/application test. The production expression
+pass calls this helper, and the proposal currently lists O110 as merely
+benefiting from better types. Reassociation must actually consume the
+relevant type/target proofs; supplying a richer lattice to neighbouring
+rewrites is not enough. Integer-only reasoning must still account for
+target overflow/bignum behaviour, errors, effects and evaluation order.
+
+### R16. Require multi-domain integration and distinct iteration/target contracts
+
+The existing `return_type_for_call` and registry-owned dynamic algorithms
+already serve type inference, sanitiser queries and representation checks.
+They must feed the new interface, preserving authoritative unknown answers
+and the distinction between semantic type and guaranteed intrep. A failed
+exact-value query must not erase these independently available facts.
+Per-subcommand hooks and expansion-aware resolved operands are natural
+extensions of this existing owner, not reasons to create another type table.
+
+The concrete EDA counterexample is `foreach_in_collection` in the bundled
+SDC pack: it currently declares `LOOP_LIST_HEADER` and dispatches to the
+native `Foreach` analyser hook. That handler does more than walk a body:
+it can split a braced literal iterable as a Tcl list and simulate selected
+definition effects. Vendor collection iteration needs its own declared
+protocol and opaque collection/object facts. A constant collection handle
+does not prove its contents, cardinality, order or stability. Analyse its
+body with typed unknown yields without requiring a vendor interpreter.
+
+The BPF counterexample is even stronger: BPF-Tcl is a distinct statically
+typed language, not Tcl running on a different deployment target. Its
+signed division truncates towards zero (`-7 / 2` is `-3`), whereas Tcl's
+integer division floors (`-4`). Shared syntax/engine infrastructure needs
+the correct language-semantic adapter. Do not use a Tcl VM result as a BPF
+constant, and do not let calculability imply subset acceptance or packet,
+map, pointer, stack, completion or capability safety.
+
+The [authoring supplement](value-transfers-authoring-review.md) specifies
+the multi-domain interface, construction-versus-solving boundary, existing
+hook integration, EDA iteration protocol, existing `BpfOpSpec` integration
+and worked proposed Rust/SpecTcl declarations. The
+[coverage ledger](value-transfers-coverage-review.md) maps every numbered
+code to its required evidence and migration/proof obligations. It also
+identifies TLS report-side grade/finding policy and stale explorer taint
+code spellings as additional centralisation boundaries outside SCCP.
+
 ## Proposed architecture
 
 ### Regexp evaluation: confirmed owner direction
@@ -947,6 +1038,124 @@ declined or validated rewrite, and identical behaviour through incremental
 and direct analysis. Then disable the diagnostic and prove the other facts
 are unchanged. `regexp` no-match and partial `scan` are especially revealing
 tests because a superficial return-value folder cannot satisfy them.
+
+## Constant-to-dynamic transitions and partial reduction
+
+**The direction supports these capabilities, but the current design does
+not yet provide everything needed.** Make them explicit interface and
+integration requirements, not incidental improvements expected from more
+folders. Also define "dynamic" carefully: inability to prove a value is
+constant does not prove that it varies at runtime.
+
+### Track knowledge at definitions and uses, not on a variable name forever
+
+The existing [SCCP vocabulary](../../../rust/tcl-compiler/src/analyses.rs)
+already distinguishes `Unknown`, `Const`, `ConstSet` and `Overdefined`.
+Preserve those distinctions:
+
+| Knowledge | Meaning | What must not be inferred |
+|---|---|---|
+| `Unknown` / pending | The solver has not obtained usable input evidence yet | Runtime dependence, missing variable, or a reason to erase a previously joined fact |
+| `Const(v)` | One exact value under the recorded assumptions | Permission to delete its producer, or permanent immutability of the source variable |
+| `ConstSet(S)` | A bounded collection of possible values | An arbitrary chosen member, correlation with another independent set, or ordered loop iterations |
+| `Overdefined` / no exact value | This domain cannot represent a sufficiently precise value | Proof that no future assignment can be constant, or that all other domains know nothing |
+| Evaluation decline | This execution route could not establish an answer, for a recorded reason | A Tcl error, no-match, missing cell, or inherently dynamic program behaviour |
+
+For example, consider a local variable with no aliases, traces or external
+observability:
+
+~~~tcl
+set x 3
+incr x 2
+set x $request_value
+set x 7
+~~~
+
+The successive definitions can have exact values 3, then 5, then an
+unproven value, then 7. The unknown input does not retroactively invalidate
+the earlier definitions. The final assignment creates a new constant
+definition; it does not violate monotonic convergence of the earlier SSA
+value. At a branch join, equal incoming constants can stay constant,
+different bounded constants can form a `ConstSet`, and an opaque incoming
+value forces a less precise join. A later source edit starts a new analysis
+snapshot rather than reversing a solver update in the old snapshot.
+
+An alias write, trace, callback, namespace mutation or opaque call may
+invalidate knowledge without an explicit `set x`. The value-loss fact must
+use the existing place/effect/observability owners. With today's
+whole-function conservative barriers, precision can be lost earlier than
+the actual runtime mutation: the design cannot promise the exact transition
+point in every dynamic Tcl program without more flow-sensitive evidence.
+
+Provide a query over the SSA use or storage place **at the requested program
+point**, returning the value-domain answer plus relevant type/shape/range,
+dependencies and bounded explanation evidence. Record why a fact ceased to
+be exact: dynamic input, conflicting incoming values, alias write, trace,
+binding uncertainty, unsupported semantics, release ambiguity or resource
+decline. Link that evidence to the responsible statement or incoming edge
+where known. Explorer explanations and diagnostic rules can consume it;
+they must not reconstruct it from warning messages or compare two arbitrary
+solver iterations. A permanent append-only log of every solver event is
+neither required nor desirable.
+
+### Separate exact evaluation, residual simplification and algebraic regrouping
+
+These are three different operations:
+
+1. **Exact evaluation:** every required input is proven, so the shared core,
+   expression engine or declared VM implementation computes a full result.
+2. **Partial simplification:** evaluate proven closed subexpressions, retain
+   unresolved operands and their evaluation structure, and return a simpler
+   residual expression. The whole expression remains non-constant.
+3. **Algebraic regrouping:** move/combine constants across unresolved terms
+   only when the operation, operand domains and target semantics justify
+   the equivalence. This requires more proof than the first two.
+
+| Input | Useful reduction | Required justification |
+|---|---|---|
+| `expr {2 + 3 + $x}` | `expr {5 + $x}` | Fold the already closed `2 + 3` subtree; preserve the remaining operation |
+| `expr {$x + 2 + 3}` | `expr {$x + 5}` only when proven safe | Reassociation across an unknown term; not valid for arbitrary doubles |
+| `expr {(2 + 3) * ($x + (4 + 5))}` | `expr {5 * ($x + 9)}` | Fold two independent closed subtrees without regrouping the dynamic calculation |
+| `expr {$x * 0}` | Usually retain it without further proof | Dropping `$x` can remove errors/effects or alter numeric result semantics |
+| `string cat {prefix:} {abc} $x {:} {suffix}` | Merge the two constant runs around `$x` | Registry-declared concatenation semantics; preserve exact strings, word evaluation and quoting |
+
+Do not replace the dynamic operand with a dummy and run the VM. That
+produces one sample, not a symbolic result. Reuse the shared expression
+parser and exact evaluator for closed subtrees; make the partial rewriter
+consume the same semantic facts and return a typed residual plus its
+dependencies and transformation proof. Keep it distinct from the evaluator
+outcome: `Residual(expr)` is not `Const(rendered_expr)`.
+
+Registry-owned command semantics should expose the supported generic
+operation or specialisation plan. Thus a concatenation command can use a
+generic segment simplifier without making the analyser recognise its name.
+Purity does not imply associativity or a valid identity element. Arithmetic
+laws belong with the expression/numeric semantic owners, with target and
+type proof obligations; they should not be copied into each command spec.
+
+### Preserve useful partial facts after the exact value is lost
+
+A non-constant integer can still have an interval. A non-constant list can
+have a known length and element type. A string assembled around an unknown
+segment can have an exact prefix/suffix or a length bound. Those facts can
+support diagnostics and further reductions without pretending the whole
+value is known. Conversely, a constant textual result does not prove a
+particular internal representation or absence of effects.
+
+Use the existing domains where they suffice; add bounded segment/residual
+facts only for concrete consumers that need them. Avoid putting an
+unbounded symbolic expression tree into every SCCP entry. Specify caps,
+joins, dependency invalidation and loop widening; on complexity exhaustion,
+drop residual precision without changing semantic truth. Cross-statement
+reductions must additionally respect storage versions and effect barriers,
+not merely recognise a sequence of syntactically constant operands.
+
+Acceptance tests must show constant → unknown → newly constant definitions,
+branch/loop joins, alias and trace invalidation, calculation declines,
+known type/shape surviving value loss, closed-subtree reduction, safe integer
+regrouping, unsafe floating-point regrouping refused, and mixed string runs
+with Tcl metacharacters preserved. Compare original and reduced programs
+for values, completion and effects, not only the generated source text.
 
 ## Adversarial follow-up: try to break the architecture
 
@@ -1371,6 +1580,11 @@ so do not dismiss all cross-checks as tautologies.
 | Diagnostic separation | Disable a rule or optimiser presentation without changing semantic facts; W100/O111 independence or explicit group policy; no private regexp/scan evaluator in W210 |
 | Diagnostic integration | Fast/deep availability, workspace refinement, intentional code overlap, suppression/severity parity, relative-span rebasing and stale-edit rejection |
 | Consumer parity and cost | Direct/memoised fact and finding equivalence under the same context; lightweight tokens/symbols do not trigger unnecessary evaluation |
+| Partial knowledge and reduction | Per-version constant loss/recovery with reasons; bounded residuals and shape facts; closed-subtree folding; type/target-guarded regrouping; floating-point counterexample in R15 |
+| Full fact integration | Existing dynamic return hooks retain intrep/unknown semantics; independently available type/taint/range facts survive exact-evaluation decline; graph changes rebuild SSA rather than mutate it inside hooks |
+| EDA iteration | New pack loop spelling, opaque list-looking handle, typed unknown yields, zero/multiple iterations, completion and vendor-world invalidation without consumer name cases |
+| BPF semantics and safety | Tcl/BPF division difference, literal loop-bound contract, pointer/map provenance, dominating packet guards, stack/capability checks and source mapping after unrolling |
+| Catalogue completeness | Every row in the coverage ledger has an owner and positive/negative/unknown case; independent diagnostic display; XC/BPF/TLS and extensible finding families have explicit gate owners |
 
 Record oracle release and platform per test run. Test the oldest relevant
 release for each supported behaviour, not only whatever `tclsh` happens to
@@ -1392,7 +1606,7 @@ this review.
 
 | Decision | Recommendation | Why the owner's call matters |
 |---|---|---|
-| Final ownership boundary | Specialisation lives in registry-owned code/data; analyser exposes generic operations | Determines whether command-specific native consumer hooks are an accepted end state or temporary debt |
+| Final ownership boundary | Requested: specialisation lives in registry-owned code/data; analyser exposes generic operations | Only the allowance and expiry of transitional compiler-owned handlers remain a delivery choice |
 | Automatic engine fallback | Require an explicit registry evaluator capability | Purity alone does not supply executable backing, dependencies, or bounded cost |
 | Regexp owner | Confirmed: reuse our own `tcl-regex` engine through existing shared command plumbing | Registry specialisations and analyser consumers must share matching semantics |
 | Which pack facts may drive proof-bearing optimisation | State one provenance policy for constants, reachability, summaries, and rewrites | Sandbox containment does not validate claimed semantics; existing documents disagree about workspace trust |
@@ -1437,7 +1651,20 @@ error, and correlated loop bindings. A3, A4 and A11 record their results.
 The hostile-pack, contradictory-descriptor, cyclic-query and budget-churn
 scenarios are design tests to implement, not executed vulnerability claims.
 
+The partial-reduction follow-up directly called this worktree's compiled
+expression simplifier with an empty, present type-proof context and compared
+the produced reassociation with Tcl 9.0.4 and 8.6.17. R15 records the
+observed difference. The Tcl probes also checked closed-subtree reduction,
+numeric-coercion preservation, and mixed constant/dynamic string assembly.
+
 The proposed APIs, cache changes, transfers, and new branch facts do not
 exist yet, so this review makes no claim that their test matrix has passed.
+The coverage ledger was mechanically checked against all central enum
+entries and the separately authored numbered XC/BPF/TLS codes, with no
+missing, duplicate or extra numbered rows. Chain kinds and open code
+families were separately inspected. EDA/BPF conclusions use repository
+source and contracts; no proprietary EDA engine or privileged kernel load
+was exercised. Authoring sketches are explicitly proposed, not executable
+fixtures or loader compatibility claims.
 Gate results for publishing this document are recorded with the review
 delivery; those checks validate the branch, not the unimplemented design.

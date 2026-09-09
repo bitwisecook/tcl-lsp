@@ -63,7 +63,9 @@ passes, and ownership matrices.
 - [value-transfers-review.md](compiler/value-transfers-review.md) — review
   of the value-transfer and consumer-contract proposals: registry-owned
   specialisation, shared expression/regexp evaluation, correctness findings,
-  analysis/diagnostic separation, adversarial attacks, and delivery order.
+  analysis/diagnostic separation, adversarial attacks, partial reduction,
+  an exhaustive code ledger, Rust/SpecTcl examples, EDA/BPF integration,
+  and delivery order.
 
 ## contracts/
 

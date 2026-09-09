@@ -81,7 +81,13 @@ User-facing compiler troubleshooting and how-tos live in
 - [value-transfers-review.md](value-transfers-review.md) — review of those
   proposals against registry-owned specialisation, with shared expression
   and regexp evaluation, analysis/diagnostic separation, correctness findings,
-  adversarial attacks, and a revised delivery order.
+  adversarial attacks, partial reduction, and a revised delivery order.
+- [value-transfers-coverage-review.md](value-transfers-coverage-review.md) —
+  code-by-code evidence and proof obligations for all 275 numbered diagnostic
+  and optimisation entries, plus extensible/domain finding families.
+- [value-transfers-authoring-review.md](value-transfers-authoring-review.md) —
+  proposed multi-domain fact interfaces and Rust/SpecTcl examples, integrating
+  existing type hooks, EDA collection loops and BPF semantics/safety.
 - [type-tracking.md](type-tracking.md) — the comprehensive value-type model
   (purity / first-use commitment, union nodes, container element types, the
   numeric tower) with its oracle corpus.
