@@ -98,7 +98,8 @@ jobs:
   #                    event (fail-safe: detection failure, a >300-file
   #                    compare, or a tag ref → everything counts as changed),
   #                    so jobs whose input surface didn't change stop
-  #                    re-testing it on every PR.
+  #                    re-testing it on every PR. Python includes the complete
+  #                    locked local dependency closure of its native engine.
   #   lsp_wasm_changed — a wasm LSP transport (browser or WASI) or one of the
   #                    transitive local dependencies they share changed.  This
   #                    keeps the two expensive real wasm builds and their
@@ -232,6 +233,8 @@ jobs:
             if [[ "$ok" == "true" ]]; then
               for path in \
                 scripts/dev/changed-paths.sh \
+                scripts/dev/python-ci-path.sh \
+                scripts/dev/python-engine-package-paths.txt \
                 scripts/dev/rust-tests-path.sh \
                 scripts/dev/rust-tests-package-paths.txt \
                 scripts/dev/rust-tests-input-paths.txt \
@@ -245,16 +248,19 @@ jobs:
               done
             fi
             if [[ "$ok" == "true" ]]; then
-              chmod +x "$trusted/changed-paths.sh" "$trusted/rust-tests-path.sh" "$trusted/lsp-e2e-path.sh"
+              chmod +x "$trusted/changed-paths.sh" "$trusted/python-ci-path.sh" "$trusted/rust-tests-path.sh" "$trusted/lsp-e2e-path.sh"
               changed_paths="$trusted/changed-paths.sh"
+              python_ci_path="$trusted/python-ci-path.sh"
               rust_tests_path="$trusted/rust-tests-path.sh"
               lsp_e2e_path="$trusted/lsp-e2e-path.sh"
+              export TCL_LSP_PYTHON_ENGINE_PACKAGE_MANIFEST="$trusted/python-engine-package-paths.txt"
               export TCL_LSP_RUST_TESTS_PACKAGE_MANIFEST="$trusted/rust-tests-package-paths.txt"
               export TCL_LSP_RUST_TESTS_INPUT_MANIFEST="$trusted/rust-tests-input-paths.txt"
               export TCL_LSP_E2E_PACKAGE_MANIFEST="$trusted/lsp-e2e-package-paths.txt"
               export TCL_LSP_E2E_INPUT_MANIFEST="$trusted/lsp-e2e-input-paths.txt"
             fi
           fi
+          python_ci_path=${python_ci_path:-scripts/dev/python-ci-path.sh}
           if [[ "$ok" == "true" ]] && files="$("$changed_paths" "$GITHUB_EVENT_NAME" "$GITHUB_REPOSITORY" "$PR_NUMBER" "$BEFORE" "$GITHUB_SHA" "$GITHUB_REF")"; then
             :
           else
@@ -274,12 +280,17 @@ jobs:
           docs_only=true
           if [ "$ok" = "true" ]; then
             while IFS= read -r f; do
+              if "$python_ci_path" "$f"; then
+                python_changed=true
+              else
+                status=$?
+                if [ "$status" -ne 1 ]; then
+                  ok=false
+                  break
+                fi
+              fi
               case "$f" in
-                *.py | *.pyi | typings/* | rust/bigip-report-gen/python/* | ruff.toml | pyrightconfig.json | Makefile | .github/workflows/ci.yml)
-                  python_changed=true ;;
-              esac
-              case "$f" in
-                editors/vscode/* | rust/* | grammars/* | ai/* | Cargo.toml | Cargo.lock | rust-toolchain.toml | Makefile | .github/workflows/ci.yml)
+                editors/vscode/* | scripts/dev/json-no-duplicate-keys.mjs | scripts/dev/test-vscode-test-partitions.sh | scripts/dev/verify-vscode-test-partitions.mjs | scripts/dev/verify-vscode-test-results.mjs | rust/* | grammars/* | ai/* | Cargo.toml | Cargo.lock | rust-toolchain.toml | Makefile | .github/workflows/ci.yml)
                   ext_changed=true ;;
               esac
               case "$f" in
@@ -599,7 +610,194 @@ jobs:
   # against the native server.  A distinct, heavier stack than the cargo
   # surfaces, so it reports as its own status check and runs concurrently with
   # them.  Runs on every PR and push, so it can serve as a required check.
-  test-ext:
+  test-ext-partition:
+    # Steps are gated, the job is not (see the channel job header): the whole
+    # suite step-skips on pre-release tags, on already-green tags, and when
+    # nothing extension-facing changed (`ext_changed`), while the job still
+    # reports success so the release graph and required checks stay unbroken.
+    needs: [channel, build-tcl-lsp-server]
+    strategy:
+      fail-fast: false
+      matrix:
+        partition:
+          - { index: 1, id: one }
+          - { index: 2, id: two }
+          - { index: 3, id: three }
+    runs-on: ubuntu-26.04
+    env:
+      # Keep in sync with build-tcl-lsp-server's RUN_EXT — this job consumes
+      # the artifact that job only uploads under the same condition.
+      RUN_EXT: ${{ (needs.channel.outputs.ext_changed == 'true' || startsWith(github.ref, 'refs/tags/')) && needs.channel.outputs.already_green != 'true' && needs.channel.outputs.prerelease != 'true' }}
+      TCL_LSP_TEST_PARTITION: ${{ matrix.partition.index }}/3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+      # `make test-ext` still needs `cargo` for `xtask-gen-zed-queries` /
+      # `zed-query-check` (generated Zed asset drift), even though the
+      # `tcl-lsp-server` binary itself now comes from build-tcl-lsp-server.
+      #
+      # That cargo work is small when cached and expensive when not (measured:
+      # `cargo xtask gen-zed-queries --check` is ~0s warm, ~157s cold), and this
+      # job sits on the workflow's critical path — `build-tcl-lsp-server` ->
+      # `test-ext` finishes after every other branch.  It was also the only
+      # cargo job here without an explicit `cache-key`, so it shared the default
+      # with whatever else did and could lose its cache to a collision.  Key it
+      # per job like the rest, so the critical path is not the one running on
+      # the least reliable cache.
+      - name: Set up Rust
+        if: env.RUN_EXT == 'true'
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        with:
+          toolchain: stable
+          cache-key: test-ext
+
+      - name: Set up Node.js
+        if: env.RUN_EXT == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+
+      # Pin the npm CLI via the `packageManager` field in
+      # editors/vscode/package.json. Corepack downloads and activates the
+      # pinned npm so `npm ci` runs the same version locally and in CI.
+      - name: Enable Corepack (pin npm via packageManager)
+        if: env.RUN_EXT == 'true'
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+        run: |
+          # `corepack enable` alone only shims pnpm/yarn; npm must be named
+          # explicitly (`corepack enable npm`) or the shim isn't created and
+          # the npm bundled with setup-node wins. Assert the pin is live so a
+          # silent regression fails loudly instead of using the wrong npm.
+          corepack enable npm
+          cd editors/vscode
+          active="$(npm --version)"
+          echo "Active npm: $active (pinned via packageManager)"
+          case "$active" in
+            12.*) ;;
+            *) echo "::error::expected npm 12 from packageManager pin, got $active"; exit 1 ;;
+          esac
+
+      # `package-lock.json` is committed, so installs are pinned by hash.
+      # Cache the npm metadata directory keyed on the lockfile so the
+      # cache invalidates whenever the resolved dependency tree changes.
+      - name: Cache npm registry
+        if: env.RUN_EXT == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('editors/vscode/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Install npm dependencies
+        if: env.RUN_EXT == 'true'
+        run: |
+          cd editors/vscode
+          npm ci
+          # `make test-ext` calls the ordinary compile target later. Record
+          # that this exact package/lock pair is already installed so it does
+          # not immediately run a second `npm install` in the same job.
+          mkdir -p ../../build/stamps
+          touch ../../build/stamps/npm-install
+
+      - name: Verify VS Code test partitions
+        if: env.RUN_EXT == 'true'
+        run: make check-vscode-test-partitions
+
+      # `@vscode/test-electron` downloads a full VS Code build on every run and
+      # nothing cached it, so the extension-test step paid that download each
+      # time — on the critical path (`build-tcl-lsp-server` -> `test-ext` is the
+      # last branch to finish, and its 275s step runs suites that report
+      # "14 passing (3s)": the cost is almost entirely fetch + host startup, not
+      # testing).
+      #
+      # The key carries the RESOLVED stable version, queried from the same
+      # endpoint test-electron itself uses.  Keying on anything coarser (a date
+      # window, say) is broken: `actions/cache` entries are immutable, so when a
+      # new stable ships mid-window test-electron downloads it, the save is
+      # skipped because the key already exists, and every remaining run in that
+      # window re-downloads — the cache silently stops working exactly when VS
+      # Code releases.  Version-keying rotates on release, stores the new build
+      # once, and hits thereafter, while still tracking the stable channel
+      # rather than pinning it.
+      #
+      # If the endpoint cannot be reached the key falls back to a date stamp:
+      # that only costs a download, whereas failing the step would take the
+      # whole critical path down over a cache.
+      - name: Resolve VS Code stable version
+        if: env.RUN_EXT == 'true'
+        id: vscode-version
+        run: |
+          set -uo pipefail
+          ver=""
+          if curl -fsSL --max-time 20 -o /tmp/vscode-stable.json \
+               https://update.code.visualstudio.com/api/update/linux-x64/stable/latest; then
+            ver=$(python3 -c 'import json; print(json.load(open("/tmp/vscode-stable.json"))["name"])' 2>/dev/null || true)
+          fi
+          if [ -z "$ver" ]; then
+            ver="unresolved-$(date -u +%Y-%m-%d)"
+            echo "::warning::could not resolve VS Code stable version; using $ver"
+          fi
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+          echo "VS Code stable resolves to: $ver"
+
+      - name: Cache VS Code test download
+        if: env.RUN_EXT == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: editors/vscode/.vscode-test
+          key: vscode-test-${{ runner.os }}-${{ hashFiles('editors/vscode/package-lock.json') }}-${{ steps.vscode-version.outputs.version }}
+
+      - name: Lint TypeScript
+        if: env.RUN_EXT == 'true'
+        run: cd editors/vscode && npm run lint
+
+      - name: Copy canonical AI data
+        if: env.RUN_EXT == 'true'
+        run: make copy-canonical
+
+      - name: Compile TypeScript
+        if: env.RUN_EXT == 'true'
+        run: cd editors/vscode && npx tsc -p ./
+
+      # Replaces the `make rust-server` build `make test-ext` would otherwise
+      # run inline: build-tcl-lsp-server already built this exact binary, so
+      # fetch it instead of compiling a second copy.
+      - name: Download tcl-lsp-server binary
+        if: env.RUN_EXT == 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: tcl-lsp-server-release
+          path: target/release
+
+      - name: Make tcl-lsp-server binary executable
+        if: env.RUN_EXT == 'true'
+        run: chmod +x target/release/tcl-lsp-server
+
+      - name: Run extension tests
+        if: env.RUN_EXT == 'true'
+        # Pre-set so `make test-ext` honours it and skips its own
+        # `make rust-server` build (see the Makefile recipe's comment).
+        env:
+          TCL_LSP_SERVER_BIN: ${{ github.workspace }}/target/release/tcl-lsp-server
+        run: make test-ext-partition
+
+      - name: Upload single-root partition metadata
+        if: always() && env.RUN_EXT == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: vscode-test-partition-${{ matrix.partition.id }}
+          path: editors/vscode/.vscode-test/mocha-result.json
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  # The unchanged multi-folder suite remains a distinct producer.
+  test-ext-multi-folder:
     # Steps are gated, the job is not (see the channel job header): the whole
     # suite step-skips on pre-release tags, on already-green tags, and when
     # nothing extension-facing changed (`ext_changed`), while the job still
@@ -685,6 +883,10 @@ jobs:
           mkdir -p ../../build/stamps
           touch ../../build/stamps/npm-install
 
+      - name: Verify VS Code test partitions
+        if: env.RUN_EXT == 'true'
+        run: make check-vscode-test-partitions
+
       # `@vscode/test-electron` downloads a full VS Code build on every run and
       # nothing cached it, so the extension-test step paid that download each
       # time — on the critical path (`build-tcl-lsp-server` -> `test-ext` is the
@@ -761,7 +963,54 @@ jobs:
         # `make rust-server` build (see the Makefile recipe's comment).
         env:
           TCL_LSP_SERVER_BIN: ${{ github.workspace }}/target/release/tcl-lsp-server
-        run: make test-ext
+        run: make test-ext-multi-folder
+
+      - name: Upload multi-folder test metadata
+        if: always() && env.RUN_EXT == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: vscode-test-multi-folder
+          path: editors/vscode/.vscode-test/mocha-result-multifolder.json
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  # Stable required status: all three single-root partitions and the unchanged
+  # multi-folder producer must pass, and their metadata must prove exact once.
+  test-ext:
+    if: ${{ always() }}
+    needs: [channel, test-ext-partition, test-ext-multi-folder]
+    runs-on: ubuntu-26.04
+    env:
+      RUN_EXT: ${{ (needs.channel.outputs.ext_changed == 'true' || startsWith(github.ref, 'refs/tags/')) && needs.channel.outputs.already_green != 'true' && needs.channel.outputs.prerelease != 'true' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+      - name: Propagate extension prerequisite failures
+        env:
+          CHANNEL: ${{ needs.channel.result }}
+          PARTITIONS: ${{ needs.test-ext-partition.result }}
+          MULTI: ${{ needs.test-ext-multi-folder.result }}
+        run: |
+          if [ "$CHANNEL" != success ] || { [ "$RUN_EXT" = true ] && { [ "$PARTITIONS" != success ] || [ "$MULTI" != success ]; }; }; then
+            echo "channel=$CHANNEL partitions=$PARTITIONS multi=$MULTI" >&2
+            exit 1
+          fi
+      - name: Download extension test metadata
+        if: env.RUN_EXT == 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: vscode-test-*
+          path: ${{ runner.temp }}/vscode-test-results
+          merge-multiple: false
+      - name: Verify extension test exact-once metadata
+        if: env.RUN_EXT == 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/vscode-test-results/partition-1" "$RUNNER_TEMP/vscode-test-results/partition-2" "$RUNNER_TEMP/vscode-test-results/partition-3" "$RUNNER_TEMP/vscode-test-results/multi-folder"
+          for pair in '1 one' '2 two' '3 three'; do set -- $pair; mv "$RUNNER_TEMP/vscode-test-results/vscode-test-partition-$2/mocha-result.json" "$RUNNER_TEMP/vscode-test-results/partition-$1/"; done
+          mv "$RUNNER_TEMP/vscode-test-results/vscode-test-multi-folder/mocha-result-multifolder.json" "$RUNNER_TEMP/vscode-test-results/multi-folder/"
+          node scripts/dev/verify-vscode-test-results.mjs "$GITHUB_WORKSPACE" "$RUNNER_TEMP/vscode-test-results"
 
   # The same extension in a BROWSER extension host — vscode.dev / github.dev.
   #
@@ -2284,14 +2533,17 @@ jobs:
       - name: Compute venv cache key
         if: env.RUN_PY == 'true'
         id: pykey
-        run: echo "pyver=$(python3 -V | tr ' ' '-')" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "pyver=$(python3 -V | tr ' ' '-')" >> "$GITHUB_OUTPUT"
+          engine=$(make --no-print-directory python-engine-source-hash)
+          echo "engine=$engine" >> "$GITHUB_OUTPUT"
 
       - name: Cache typecheck venv
         if: env.RUN_PY == 'true'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .venv-typecheck
-          key: ${{ runner.os }}-venv-typecheck-${{ steps.pykey.outputs.pyver }}-${{ hashFiles('rust/bigip-report-gen/python/**') }}
+          key: ${{ runner.os }}-venv-typecheck-${{ steps.pykey.outputs.pyver }}-${{ steps.pykey.outputs.engine }}
 
       # Pinned installer rather than a floating action, so the uv that resolves
       # the pinned tool versions is itself pinned.  The installer is fetched to
@@ -2326,6 +2578,10 @@ jobs:
       - name: ty + pyright
         if: env.RUN_PY == 'true'
         run: make typecheck-py
+
+      - name: Native engine binding tests
+        if: env.RUN_PY == 'true'
+        run: make test-py-engine
 
   # The two npm roots that are NOT `editors/vscode`.  Nothing else on a pull
   # request installs them: every `npm ci` in this workflow is in

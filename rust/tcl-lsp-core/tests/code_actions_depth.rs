@@ -105,6 +105,59 @@ fn irules_checks(
     run_all_checks(&cu, registry, Some(profile))
 }
 
+/// The plain-Tcl compiler-checks output (`run_all_checks`) for `source`.
+fn tcl_checks(
+    source: &str,
+    registry: &tcl_registry::CommandRegistry,
+) -> Vec<tcl_compiler::compiler_checks::Diagnostic> {
+    let cu =
+        CompilationUnit::build_for(source, registry, false).with_interprocedural(registry, None);
+    run_all_checks(&cu, registry, None)
+}
+
+/// Turn a real compiler diagnostic into the `ContextDiagnostic` the LSP hands
+/// `context_diagnostic_actions`, so a quick fix is exercised against the
+/// diagnostic the analyser actually emitted rather than a hand-written stand-in.
+fn as_context_diagnostic(
+    d: &tcl_compiler::compiler_checks::Diagnostic,
+    source: &str,
+) -> ContextDiagnostic {
+    let start = d.span.start() as usize;
+    let line = u32::try_from(source[..start].matches('\n').count()).unwrap_or(0);
+    let line_start = source[..start].rfind('\n').map_or(0, |i| i + 1);
+    let column = u32::try_from(start - line_start).unwrap_or(0);
+    let width = d.span.end().saturating_sub(d.span.start());
+    ContextDiagnostic {
+        code: d.code.to_string(),
+        message: d.message.clone(),
+        range: selection(line, column, column + width),
+    }
+}
+
+/// Apply an action's edits to `source` the way an editor would — last edit
+/// first, so an earlier edit's range is still valid when it is applied.
+///
+/// Line/character are UTF-16 units in the wire protocol; every source here is
+/// ASCII, where that is the byte offset.
+fn apply(action: &CodeAction, source: &str) -> String {
+    let mut lines: Vec<String> = source.split('\n').map(str::to_owned).collect();
+    let mut edits = action.edits.clone();
+    edits.sort_by_key(|e| std::cmp::Reverse((e.range.start_line, e.range.start_character)));
+    for e in edits {
+        assert_eq!(
+            e.range.start_line, e.range.end_line,
+            "these fixes rewrite within one line: {e:?}",
+        );
+        let line = &mut lines[e.range.start_line as usize];
+        let (start, end) = (
+            e.range.start_character as usize,
+            e.range.end_character as usize,
+        );
+        line.replace_range(start..end, &e.new_text);
+    }
+    lines.join("\n")
+}
+
 /// A single-position (empty) `LspRange` at `(line, character)`.
 fn cursor(line: u32, character: u32) -> LspRange {
     LspRange {
@@ -1275,3 +1328,60 @@ fn every_emitted_action_is_structurally_sound() {
 // inline-proc brace-completeness that exposed the BUG) are pinned to real
 // tclsh8.6 + tclsh9.0 via `scripts/dev/tclsh_check.sh` and cited at each
 // `// tclsh:` line.
+
+/// The T101 quick fix, applied and re-analysed: the diagnostic is gone.
+///
+/// A fix that leaves its own diagnostic standing is worse than no fix — the
+/// user applies it, the squiggle stays, and the advice reads as wrong. So this
+/// runs the whole loop the editor does: analyse, take the T101 the analyser
+/// really emitted, ask for its quick fix, apply the edit, analyse again.
+///
+/// tclsh 8.6.18 and 9.0.4: `string map {"\n" "" "\r" ""} "a\nb\rc"` has length
+/// 3 (`abc`), so the rewrite the fix writes really does delete both characters
+/// — the mapping's `"\n"` element is list-parsed with its backslash honoured,
+/// making the newline itself the key.
+#[test]
+fn context_t101_strip_crlf_fix_clears_its_own_diagnostic() {
+    let registry = tcl_registry::CommandRegistry::build_default();
+    let src = "set x [gets stdin]\nputs $x\n";
+
+    let before = tcl_checks(src, &registry);
+    let t101 = before
+        .iter()
+        .find(|d| d.code == DiagCode::T101)
+        .expect("puts of a tainted value raises T101");
+
+    let diag = as_context_diagnostic(t101, src);
+    let actions = context_diagnostic_actions(src, std::slice::from_ref(&diag));
+    let fix = find(&actions, "Sanitise").expect("a T101 CR/LF-stripping quick fix");
+    assert_eq!(fix.kind, ActionKind::QuickFix);
+    assert!(
+        edits_well_formed(fix) && edits_in_bounds(fix, src),
+        "{fix:?}"
+    );
+
+    let fixed = apply(fix, src);
+    assert_eq!(
+        fixed, "set x [gets stdin]\nputs [string map {\"\\n\" \"\" \"\\r\" \"\"} $x]\n",
+        "the fix wraps the tainted word in place",
+    );
+    let after = tcl_checks(&fixed, &registry);
+    assert!(
+        after.iter().all(|d| d.code != DiagCode::T101),
+        "applying the fix must clear T101, got {after:?}",
+    );
+}
+
+/// The control for the test above: a `string map` that does *not* delete CR
+/// and LF leaves T101 standing, so the fix is recognised for what it proves
+/// rather than for being a `string map` at all.
+#[test]
+fn an_unrelated_string_map_does_not_clear_t101() {
+    let registry = tcl_registry::CommandRegistry::build_default();
+    let src = "set x [gets stdin]\nputs [string map {a b} $x]\n";
+    let diags = tcl_checks(src, &registry);
+    assert!(
+        diags.iter().any(|d| d.code == DiagCode::T101),
+        "a mapping that proves nothing must keep the finding, got {diags:?}",
+    );
+}

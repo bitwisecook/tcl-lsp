@@ -137,7 +137,7 @@ fn catalogue_template(id: &str) -> Option<Example> {
         "loweringHook" | "codegenHook" | "inlineCodegenHook" | "analyserHook"
         | "returnTypeHook" => Some(CATALOGUE_HOOK),
         "traits" => Some(FIELD_TRAITS),
-        "taintColour" => Some(CATALOGUE_TAINT),
+        "taintColour" | "taintTransformCondition" => Some(CATALOGUE_TAINT),
         "dialects" => Some(CATALOGUE_DIALECT),
         "appendedArity" => Some(CATALOGUE_PREFIX),
         "optionArity" => Some(CATALOGUE_OPTION),

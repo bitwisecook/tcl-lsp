@@ -76,12 +76,34 @@ export async function run(): Promise<void> {
   }
 
   const heartbeatWriter = createHeartbeatWriter({ heartbeatMarker, probeServer });
+  let testsStarted = 0;
+  let testsCompleted = 0;
+  let testsPassed = 0;
+  let testsPending = 0;
+  const testIdentities: string[] = [];
+  const discoveredTestIdentities: string[] = [];
+  const fileDurationsMs: Record<string, number> = {};
+  const testStartTimes = new Map<Mocha.Test, number>();
 
   return new Promise<void>((resolve, reject) => {
     const runner = mocha.run((failures) => {
       heartbeatWriter.stop();
       fs.mkdirSync(path.dirname(resultMarker), { recursive: true });
-      fs.writeFileSync(resultMarker, JSON.stringify({ failures }) + "\n", "utf8");
+      fs.writeFileSync(
+        resultMarker,
+        JSON.stringify({
+          failures,
+          files,
+          discoveredTestIdentities,
+          testIdentities,
+          fileDurationsMs,
+          testsStarted,
+          testsCompleted,
+          testsPassed,
+          testsPending,
+        }) + "\n",
+        "utf8",
+      );
       if (failures > 0) {
         reject(new Error(`${failures} test(s) failed.`));
       } else {
@@ -89,8 +111,30 @@ export async function run(): Promise<void> {
       }
     });
 
-    runner.on("test", (test: Mocha.Test) => heartbeatWriter.onTestStart(test.fullTitle()));
-    runner.on("test end", (test: Mocha.Test) => heartbeatWriter.onTestEnd(test.fullTitle()));
+    runner.suite.eachTest((test: Mocha.Test) => {
+      const file = test.file ? path.relative(testsRoot, test.file).split(path.sep).join("/") : "";
+      discoveredTestIdentities.push(`${file}:${test.fullTitle()}`);
+    });
+
+    runner.on("test", (test: Mocha.Test) => {
+      testsStarted++;
+      testStartTimes.set(test, Date.now());
+      heartbeatWriter.onTestStart(test.fullTitle());
+    });
+    runner.on("pass", () => {
+      testsPassed++;
+    });
+    runner.on("pending", () => {
+      testsPending++;
+    });
+    runner.on("test end", (test: Mocha.Test) => {
+      testsCompleted++;
+      const file = test.file ? path.relative(testsRoot, test.file).split(path.sep).join("/") : "";
+      testIdentities.push(`${file}:${test.fullTitle()}`);
+      fileDurationsMs[file] =
+        (fileDurationsMs[file] ?? 0) + (Date.now() - (testStartTimes.get(test) ?? Date.now()));
+      heartbeatWriter.onTestEnd(test.fullTitle());
+    });
     runner.on("fail", (test: Mocha.Test, err: Error) => {
       heartbeatWriter.onFail();
       console.error(`\nFAIL: ${test.fullTitle()}`);

@@ -439,6 +439,89 @@ fn diagram_data_serialises_completion_contract_for_clients() {
     assert_eq!(return_node["completion"], "return", "{result}");
 }
 
+// -- TestXcTranslation ---------------------------------------------------
+
+/// A pool selection, a redirect, and a construct with no XC equivalent, so
+/// one fixture exercises both output documents and the coverage summary.
+const XC_IRULE: &str = r#"when HTTP_REQUEST {
+    if { [HTTP::uri] starts_with "/api" } {
+        pool api_pool
+    }
+    if { [HTTP::host] eq "old.example.com" } {
+        HTTP::redirect "https://new.example.com[HTTP::uri]"
+    }
+}
+"#;
+
+#[test]
+fn xc_translate_returns_terraform_and_json_documents() {
+    // The command the palette entry, the JetBrains action, and `@irule /xc`
+    // all send.  Both documents the clients open must be present, and the
+    // Terraform must carry the translated pool rather than just a header.
+    let mut lsp = Lsp::tcl();
+    let result = lsp.execute_command("tcl-lsp.xcTranslate", json!([XC_IRULE, "both"]));
+    assert!(!result.is_null(), "xcTranslate must be dispatched");
+    assert!(result.get("error").is_none(), "{result}");
+
+    let terraform = result["terraform"].as_str().expect("terraform HCL");
+    assert!(terraform.contains("volterra_origin_pool"), "{terraform}");
+    assert!(terraform.contains("api_pool"), "{terraform}");
+
+    let json_api = result["json_api"].as_object().expect("ves.io JSON");
+    assert!(!json_api.is_empty(), "{result}");
+
+    assert!(result["coverage_pct"].as_f64().is_some(), "{result}");
+    assert!(
+        result["translatable_count"].as_u64().unwrap_or(0) > 0,
+        "{result}"
+    );
+    assert!(
+        result["untranslatable_count"].as_u64().is_some(),
+        "{result}"
+    );
+}
+
+#[test]
+fn xc_translate_items_are_status_tagged() {
+    // `@irule /xc` filters `items` by `status` client-side to render the
+    // untranslatable and advisory sections.
+    let mut lsp = Lsp::tcl();
+    let result = lsp.execute_command("tcl-lsp.xcTranslate", json!([XC_IRULE, "both"]));
+    let items = result["items"].as_array().expect("items array");
+    assert!(!items.is_empty(), "{result}");
+    for item in items {
+        assert!(
+            item.get("status").and_then(Value::as_str).is_some(),
+            "{item}"
+        );
+        assert!(
+            item.get("command").and_then(Value::as_str).is_some(),
+            "{item}"
+        );
+    }
+    assert!(
+        items.iter().any(|i| i["status"] == "translated"),
+        "{result}"
+    );
+}
+
+#[test]
+fn xc_translate_honours_the_output_format_argument() {
+    let mut lsp = Lsp::tcl();
+    let result = lsp.execute_command("tcl-lsp.xcTranslate", json!([XC_IRULE, "terraform"]));
+    assert!(result.get("terraform").is_some(), "{result}");
+    assert!(result.get("json_api").is_none(), "{result}");
+}
+
+#[test]
+fn xc_translate_is_null_for_blank_source() {
+    // Nothing to translate is `null`, not an error object — the editors
+    // refuse an empty buffer before they ever send the command.
+    let mut lsp = Lsp::tcl();
+    let result = lsp.execute_command("tcl-lsp.xcTranslate", json!(["   \n"]));
+    assert!(result.is_null(), "{result}");
+}
+
 #[test]
 fn effective_config_shape() {
     let mut lsp = Lsp::tcl();
@@ -585,6 +668,7 @@ const CORE_COMMANDS: &[&str] = &[
     "tcl-lsp.listIruleEvents",
     "tcl-lsp.diagramData",
     "tcl-lsp.tkPreview",
+    "tcl-lsp.xcTranslate",
 ];
 
 #[test]

@@ -140,7 +140,7 @@ use tcl_registry::spec::{
     SubSubCommand,
 };
 use tcl_registry::symbol_def::{DefinedSymbolKind, SymbolDef};
-use tcl_registry::taint::SetterConstraint;
+use tcl_registry::taint::{SetterConstraint, TaintTransformCondition};
 use tcl_registry::traits::Traits;
 use tcl_registry::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 use tcl_registry::world_effect::WorldEffectDescriptor;
@@ -5332,6 +5332,22 @@ fn apply_command_stmt(
         // Taint.
         "taint_source" => spec.taint_source = Some(parse_taint(&value, stmt.line, log)),
         "taint_transform" => spec.taint_transform = Some(parse_taint(&value, stmt.line, log)),
+        "taint_transform_when" => {
+            spec.taint_transform_when = enum_by_name(
+                TaintTransformCondition::ALL.as_slice(),
+                &value,
+                "taint transform condition",
+                stmt.line,
+                log,
+            );
+            // A condition names the proof that earns the colour, so an
+            // unreadable one has to take the colour with it. Dropping only the
+            // condition would leave the transform unconditional — a typo would
+            // widen a sanitiser to every call of the command.
+            if spec.taint_transform_when.is_none() {
+                spec.taint_transform = None;
+            }
+        }
         "taint_double_encode_colour" => {
             spec.taint_double_encode_colour = Some(parse_taint(&value, stmt.line, log));
         }
@@ -6410,6 +6426,22 @@ fn apply_subcommand_stmt(
         "retired_version" => sub.lifecycle.retired = Some(leak_str(&value)),
         "taint_output_sink" => sub.taint_output_sink = Some(leak_str(&value)),
         "taint_transform" => sub.taint_transform = Some(parse_taint(&value, stmt.line, log)),
+        "taint_transform_when" => {
+            sub.taint_transform_when = enum_by_name(
+                TaintTransformCondition::ALL.as_slice(),
+                &value,
+                "taint transform condition",
+                stmt.line,
+                log,
+            );
+            // A condition names the proof that earns the colour, so an
+            // unreadable one has to take the colour with it. Dropping only the
+            // condition would leave the transform unconditional — a typo would
+            // widen a sanitiser to every call of the command.
+            if sub.taint_transform_when.is_none() {
+                sub.taint_transform = None;
+            }
+        }
         "taint_double_encode_colour" => {
             sub.taint_double_encode_colour = Some(parse_taint(&value, stmt.line, log));
         }

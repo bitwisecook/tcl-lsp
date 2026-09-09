@@ -165,7 +165,6 @@ fn ns_delete(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             m.extend_from_slice(b"\" in namespace delete command");
             return interp.set_error(&m);
         };
-        interp.oo_namespace_deleted(ns_id);
         // Delete by id so variable unset traces in the namespace fire as it is
         // torn down (the named `delete_namespace` path does not).
         interp.delete_namespace_by_id(ns_id);
@@ -404,7 +403,9 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 source.extend_from_slice(b"::");
             }
             source.extend_from_slice(&simple);
-            let Some((source, ensemble)) = interp.import_metadata_at(&source) else {
+            let Some((source, source_generation, ensemble)) =
+                interp.import_metadata_in(src_ns, &simple)
+            else {
                 continue;
             };
             // Without `-force`, re-importing the *same* command from the *same*
@@ -412,13 +413,13 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             // check, tclNamesp.c) — common when a file and its sourced helper
             // both import `::tcltest::*`. `-force` deliberately replaces even
             // that same-origin import with a fresh command token.
-            let existing_import = interp
-                .namespaces()
-                .imported_in(dest)
-                .into_iter()
-                .find(|(k, _)| k == &simple)
-                .map(|(_, s)| s);
-            if !force && existing_import.as_deref() == Some(source.as_slice()) {
+            let existing_import = match interp.namespaces().command_in(dest, &simple) {
+                Some(Command::Imported {
+                    source_generation, ..
+                }) => Some(source_generation),
+                _ => None,
+            };
+            if !force && existing_import == Some(source_generation) {
                 continue;
             }
             // Reject clobbering an existing (different) command unless -force.
@@ -428,18 +429,18 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 m.extend_from_slice(b"\": already exists");
                 return interp.error_with_code(&m, b"TCL IMPORT OVERWRITE");
             }
-            let mut destination_fqn = interp.namespaces().qualified_name(dest);
-            if destination_fqn != b"::" {
-                destination_fqn.extend_from_slice(b"::");
-            }
-            destination_fqn.extend_from_slice(&simple);
             // Follow immediate import origins before mutating the destination.
             // If the source chain already reaches the command being replaced,
             // this new edge would close Tcl's ImportRef graph into a cycle.
-            if interp
-                .namespaces()
-                .import_chain_contains(&source, &destination_fqn)
+            let destination_generation = interp.namespaces().command_generation(dest, &simple);
+            if destination_generation
+                .is_some_and(|needle| interp.import_chain_contains(source_generation, needle))
             {
+                let mut destination_fqn = interp.namespaces().qualified_name(dest);
+                if destination_fqn != b"::" {
+                    destination_fqn.extend_from_slice(b"::");
+                }
+                destination_fqn.extend_from_slice(&simple);
                 let mut message = b"import pattern \"".to_vec();
                 message.extend_from_slice(pat);
                 message.extend_from_slice(b"\" would create a loop containing command \"");
@@ -453,6 +454,7 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 &simple,
                 Command::Imported {
                     source,
+                    source_generation,
                     ensemble,
                     identity: std::rc::Rc::new(crate::interp::ImportToken),
                 },
@@ -1939,6 +1941,58 @@ mod tests {
         );
     }
 
+    /// #1764: the object command retained by an active namespace frame keeps
+    /// its original OO identity when a new namespace generation publishes a
+    /// same-named object. Absolute lookup reaches the new command while the
+    /// relative retained command continues to dispatch to the old object.
+    #[test]
+    fn recreated_namespace_keeps_old_and_new_object_identities_distinct() {
+        pins(
+            br#"set r [namespace eval N {
+                    oo::class create C {method m {} {return OLD}}
+                    C create o
+                    proc p {} {
+                        namespace delete ::N
+                        namespace eval ::N {
+                            oo::class create C {method m {} {return NEW}}
+                            C create o
+                        }
+                        set a [catch {o m} am]
+                        set b [catch {::N::o m} bm]
+                        list $a $am $b $bm [info commands o] [info commands ::N::o]
+                    }
+                    p
+                }]
+                set c [catch {::N::o m} cm]
+                list $r $c $cm"#,
+            b"{0 OLD 0 NEW o ::N::o} 0 NEW",
+        );
+    }
+
+    #[test]
+    fn retained_object_teardown_cannot_delete_replacement_private_dispatcher() {
+        pins(
+            br#"set r [namespace eval N {
+                    oo::class create C {method m {} {return OLD}}
+                    C create o
+                    proc p {} {
+                        namespace delete ::N
+                        namespace eval ::N {
+                            oo::class create C {
+                                method m {} {return NEW}
+                                method n {} {my m}
+                            }
+                            C create o
+                        }
+                        o m
+                    }
+                    p
+                }]
+                list $r [info commands ::N::o::my] [::N::o n]"#,
+            b"OLD ::N::o::my NEW",
+        );
+    }
+
     /// A command trace belongs to a token, not to a spelling: the retained
     /// `::N::q` and the recreated `::N::q` each fire their own, in their own
     /// teardown (C walks `cmdPtr->tracePtr`).
@@ -2072,6 +2126,56 @@ mod tests {
                 set a [::N::C::p]
                 list $a $log"#,
             br#"{0 0 ::N::C CQ 1 {invalid command name "::N::C::cq"} 1} {{::N::np delete} {::N::C::cq delete}}"#,
+        );
+    }
+
+    /// TclOO destruction follows the same per-token activation check as the
+    /// namespace command table. Deleting an inactive parent must not tear down
+    /// objects owned by its active child generation.
+    #[test]
+    fn active_child_retains_its_oo_state_during_parent_deletion() {
+        pins(
+            br#"namespace eval P::N {
+                    oo::class create C {method m {} {return OLD}}
+                    C create o
+                    proc p {} {
+                        namespace delete ::P
+                        set a [list [namespace current] [namespace exists ::P] \
+                                    [catch {o m} om] $om]
+                        namespace eval ::P::N {
+                            oo::class create C {method m {} {return NEW}}
+                            C create o
+                        }
+                        set b [list [catch {o m} om] $om \
+                                    [catch {::P::N::o m} nm] $nm]
+                        list $a $b
+                    }
+                }
+                set r [::P::N::p]
+                list $r [::P::N::o m]"#,
+            b"{{::P::N 0 0 OLD} {0 OLD 0 NEW}} NEW",
+        );
+    }
+
+    /// An OO command and its default instance namespace created by a delete
+    /// trace join the exact dying namespace token. The fixed-point sweep then
+    /// retires them instead of publishing a fresh visible namespace tree.
+    #[test]
+    fn oo_created_by_delete_trace_joins_dying_generation() {
+        pins(
+            br#"set log {}
+                proc mk {old new op} {
+                    lappend ::log make
+                    oo::object create ::N::late
+                    lappend ::log made
+                }
+                namespace eval N {proc p {} {}}
+                trace add command ::N::p delete mk
+                namespace delete ::N
+                list $log [namespace exists ::N] [info commands ::N::*] \
+                     [info object isa object ::N::late] \
+                     [catch {::N::late destroy} m] $m"#,
+            br#"{make made} 0 {} 0 1 {invalid command name "::N::late"}"#,
         );
     }
 
@@ -2698,6 +2802,137 @@ mod tests {
                 Code::Ok
             );
             assert_eq!(i.result_bytes(), b"PROC ::S::Moved 0 PROC ::S::Final");
+        });
+    }
+
+    /// Retained and recreated namespace tokens may expose identical command
+    /// FQNs simultaneously. Imports, renames, origins, dispatch, and teardown
+    /// remain qualified by the exact source command generation throughout.
+    #[test]
+    fn retained_and_recreated_import_sources_stay_generation_distinct() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval N {
+                          proc x {} {return OLD}
+                          proc p {} {
+                              namespace delete ::N
+                              namespace eval ::N {
+                                  proc x {} {return NEW}
+                                  namespace export x
+                              }
+                              namespace eval ::B {namespace import ::N::x}
+                              rename x y
+                              list [namespace origin ::A::x] \
+                                   [namespace origin ::B::x] \
+                                   [::A::x] [::B::x] [y]
+                          }
+                          namespace export x p
+                      }
+                      namespace eval A {namespace import ::N::x}
+                      set inside [N::p]
+                      list $inside [namespace origin ::B::x] [B::x] \
+                           [info commands ::A::x]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"{::N::y ::N::x OLD NEW OLD} ::N::x NEW {}"
+            );
+        });
+    }
+
+    /// `namespace origin` follows an imported source chain by command token,
+    /// even while a recreated namespace exposes a direct command at the same
+    /// intermediate FQN.
+    #[test]
+    fn retained_import_origin_chain_ignores_a_recreated_same_fqn_command() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval Root {
+                          proc x {} {return ROOT}
+                          namespace export x
+                      }
+                      namespace eval O {
+                          namespace import ::Root::x
+                          namespace export x
+                      }
+                      namespace eval N {
+                          namespace import ::O::x
+                          proc p {} {
+                              namespace delete ::N
+                              namespace eval ::N {proc x {} {return NEW}}
+                              list [namespace origin ::A::x] [::A::x] \
+                                   [namespace origin ::N::x] [::N::x]
+                          }
+                          namespace export x p
+                      }
+                      namespace eval A {namespace import ::N::x}
+                      N::p",
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"::Root::x ROOT ::N::x NEW");
+        });
+    }
+
+    /// Same-origin reimport compares source generations, not display FQNs. A
+    /// retained old and recreated new `::N::x` are different import origins.
+    #[test]
+    fn same_fqn_different_generation_reimport_is_not_idempotent() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval N {
+                          proc x {} {return OLD}
+                          proc p {} {
+                              namespace delete ::N
+                              namespace eval ::N {
+                                  proc x {} {return NEW}
+                                  namespace export x
+                              }
+                              namespace eval ::A {
+                                  set c [catch {namespace import ::N::x} m]
+                                  list $c $m [namespace origin x] [x]
+                              }
+                          }
+                          namespace export x p
+                      }
+                      namespace eval A {namespace import ::N::x}
+                      N::p",
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"1 {can't import command \"x\": already exists} ::N::x OLD"
+            );
+        });
+    }
+
+    /// Command replacement adopts surviving imports onto the fresh source
+    /// generation, so its later rename and true deletion remain exact too.
+    #[test]
+    fn replacement_import_source_adopts_the_fresh_generation() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval S {
+                          proc p {} {return OLD}
+                          namespace export p
+                      }
+                      namespace eval I {namespace import ::S::p}
+                      proc ::S::p {} {return NEW}
+                      rename ::S::p ::S::q
+                      set before [list [I::p] [namespace origin ::I::p]]
+                      rename ::S::q {}
+                      list $before [info commands ::I::p]",
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"{NEW ::S::q} {}");
         });
     }
 

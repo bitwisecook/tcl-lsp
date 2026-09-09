@@ -1201,6 +1201,7 @@ schema order. "excluded" rows carry the reason.
 | `taint_interp_eval_subcommands` | `taint_interp_eval_subcommands {NAME …}` |  |
 | `taint_source` | `taint_source {COLOUR …}` |  |
 | `taint_transform` | `taint_transform {COLOUR …}` |  |
+| `taint_transform_when` | `taint_transform_when MappingDeletesCrlf` | the argument-shape proof a call must pass before `taint_transform` is claimed; absent = always claimed |
 | `taint_double_encode_colour` | `taint_double_encode_colour {COLOUR …}` |  |
 | `taint_sink_safe_colour` | `taint_sink_safe_colour {COLOUR …}` |  |
 | `taint_sink_gate` | `taint_sink_gate {words ctx} { … }` \| `-native ID` | emitter verbs `sink-applies` / `sink-suppressed`; no call = **applies** |
@@ -1295,6 +1296,7 @@ schema order. "excluded" rows carry the reason.
 | `arg_values_accept_prefix` | `arg_values_accept_prefix ?yes\|no?` |  |
 | `body_arg_implicit_args` | `body_arg_implicit_args N` |  |
 | `taint_transform` | `taint_transform {COLOUR …}` |  |
+| `taint_transform_when` | `taint_transform_when MappingDeletesCrlf` | the argument-shape proof a call must pass before `taint_transform` is claimed; absent = always claimed |
 | `taint_double_encode_colour` | `taint_double_encode_colour {COLOUR …}` |  |
 | `taint_output_sink` | `taint_output_sink CODE` |  |
 | `credential_arg` | `credential_arg N` | **verbatim coordinates**: the W310 consumer counts the subcommand word itself as index 0, unlike every other per-index subcommand field — see the `HTTP::header` fidelity note |

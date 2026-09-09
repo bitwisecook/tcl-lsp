@@ -633,6 +633,137 @@ pub fn taint_transform(
     spec.taint_transform
 }
 
+/// A condition on a call's own argument words that must hold before the
+/// declaring spec's [`taint_transform`] colour is claimed for that call.
+///
+/// Most sanitising commands earn their colour unconditionally: `URI::encode`
+/// URL-encodes whatever it is handed. A few earn it from the *literal they
+/// were given* instead — `string map` rewrites text by a mapping the caller
+/// writes, so it launders nothing in general and everything for the one
+/// mapping that deletes CR and LF. This closed vocabulary is how such a spec
+/// says which calls qualify, keeping the fact in the registry rather than as a
+/// command name matched inside the analyser.
+///
+/// Silence is conservative in the safe direction: a condition whose proof does
+/// not go through yields no colour, so a value keeps whatever taint it had.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum TaintTransformCondition {
+    /// The call's mapping — its first braced argument word — is a literal
+    /// `string map` mapping that provably deletes every CR and LF from
+    /// whatever it is applied to. See [`mapping_deletes_crlf`].
+    MappingDeletesCrlf,
+}
+
+impl TaintTransformCondition {
+    /// Every condition, in declaration order — the closed vocabulary a pack
+    /// may name (by variant spelling, as every catalogued enum is named) and
+    /// the studio may offer.
+    pub const ALL: [Self; 1] = [Self::MappingDeletesCrlf];
+
+    /// Whether this call's argument words (command name excluded) satisfy the
+    /// condition.
+    #[must_use]
+    pub fn holds(self, args: &[&str]) -> bool {
+        match self {
+            Self::MappingDeletesCrlf => mapping_deletes_crlf(args),
+        }
+    }
+}
+
+/// Does this call's mapping provably delete every CR and LF from whatever it
+/// is applied to?
+///
+/// The call is read as `SUB ?-option ...? MAPPING SUBJECT` — the subcommand
+/// word, then any leading options, then exactly two operands. The mapping is
+/// the first of those two, found by position rather than by scanning for a
+/// braced word: a call whose mapping is dynamic and whose *subject* is braced
+/// (`string map $m {…}`) would otherwise be judged on the subject, and a
+/// mapping nobody can see cannot prove anything about the result.
+///
+/// Given Tcl's `string map` semantics (scan left to right; at each position try
+/// each key in list order; on a hit emit that key's value and skip the key;
+/// otherwise copy one character), the proof is:
+///
+/// - every mapping *value* is free of CR and LF, so no replacement can put one
+///   back, and
+/// - `\r` and `\n` are both keys, so a CR or LF that no earlier key consumed
+///   still matches one of them and is replaced.
+///
+/// Together those make a surviving CR or LF impossible: at the position of one,
+/// either some key matches — contributing a CR/LF-free value — or the
+/// single-character key for that very character matches.
+///
+/// Only a **braced** mapping qualifies. A braced word's value is its inner text
+/// verbatim, so the list read here is the list the command will receive; any
+/// other spelling either substitutes (`$m`, `[f]` — unknown to this pass) or
+/// takes a round of backslash processing first, and a mapping that cannot be
+/// pinned exactly proves nothing.
+#[must_use]
+pub fn mapping_deletes_crlf(args: &[&str]) -> bool {
+    let [_subcommand, rest @ ..] = args else {
+        return false;
+    };
+    // A braced word never starts with `-`, so the first non-option word is the
+    // mapping, and the subject is the only word allowed to follow it.
+    let Some(mapping_idx) = rest.iter().position(|w| !w.starts_with('-')) else {
+        return false;
+    };
+    if rest.len() != mapping_idx + 2 {
+        return false;
+    }
+    let Some(inner) = rest[mapping_idx]
+        .strip_prefix('{')
+        .and_then(|w| w.strip_suffix('}'))
+    else {
+        return false;
+    };
+    let Ok(elements) = tcl_syntax::list::split_list(inner) else {
+        return false;
+    };
+    if elements.len() < 2 || elements.len() % 2 != 0 {
+        return false;
+    }
+    let pairs = elements.as_chunks::<2>().0;
+    let has_crlf = |s: &str| s.contains('\r') || s.contains('\n');
+    pairs.iter().all(|kv| !has_crlf(&kv[1]))
+        && ["\r", "\n"]
+            .iter()
+            .all(|c| pairs.iter().any(|kv| kv[0] == *c))
+}
+
+/// Colour added to a tainted value by this *call* of `command` — the
+/// args-aware form of [`taint_transform`].
+///
+/// `args` are the call's raw argument words, command name excluded. The
+/// subcommand is resolved from `args[0]` (prefix-aware, so an unambiguous
+/// abbreviation still resolves) and its transform takes priority over the
+/// command-level
+/// one, exactly as in [`taint_transform`]. The difference is the condition: a
+/// declaration carrying a [`TaintTransformCondition`] only colours the result
+/// on the calls that satisfy it, so a command whose sanitising effect depends
+/// on the literal it was handed (`string map`) proves its colour where it is
+/// earned and nothing elsewhere.
+#[must_use]
+pub fn taint_transform_for_call(
+    registry: &CommandRegistry,
+    command: &str,
+    args: &[&str],
+) -> Option<TaintColour> {
+    let spec = registry.get(command)?;
+    if let Some(sub) = args.first().and_then(|w| spec.resolve_subcommand(w))
+        && let Some(colour) = sub.taint_transform
+    {
+        return sub
+            .taint_transform_when
+            .is_none_or(|when| when.holds(args))
+            .then_some(colour);
+    }
+    let colour = spec.taint_transform?;
+    spec.taint_transform_when
+        .is_none_or(|when| when.holds(args))
+        .then_some(colour)
+}
+
 /// Colour whose presence on the input means `command`/`subcommand`
 /// would double-encode the value (T106). Subcommand takes priority.
 ///
@@ -771,6 +902,64 @@ mod tests {
     fn non_source_has_no_source_colour() {
         let registry = CommandRegistry::build_default();
         assert!(taint_source_colour(&registry, "string", &["length", "$x"], None).is_none());
+    }
+
+    /// `string map` earns `CRLF_FREE` only from a mapping that provably
+    /// deletes both characters, and only when that mapping is a braced
+    /// literal this pass can read.
+    #[test]
+    fn string_map_claims_crlf_free_only_for_a_crlf_deleting_mapping() {
+        let registry = CommandRegistry::build_default();
+        let colour = |args: &[&str]| taint_transform_for_call(&registry, "string", args);
+        let crlf = r#"{"\n" "" "\r" ""}"#;
+        assert_eq!(
+            colour(&["map", crlf, "$x"]),
+            Some(TaintColour::CRLF_FREE),
+            "the CR/LF-deleting mapping proves the colour",
+        );
+        assert_eq!(
+            colour(&["map", "-nocase", crlf, "$x"]),
+            Some(TaintColour::CRLF_FREE),
+            "-nocase only widens what the keys match",
+        );
+        // Reordered pairs and extra pairs still prove it, as long as no value
+        // reintroduces a CR or LF.
+        assert_eq!(
+            colour(&["map", r#"{"\r" "" "\n" "" & "&amp;"}"#, "$x"]),
+            Some(TaintColour::CRLF_FREE),
+        );
+        for refuted in [
+            "{a b}",
+            r#"{"\n" ""}"#,
+            r#"{"\r" ""}"#,
+            // A value that puts a newline back.
+            r#"{"\n" "" "\r" "x
+y"}"#,
+            // Odd length is not a mapping at all.
+            r#"{"\n" "" "\r"}"#,
+            // Not a braced literal: the mapping is unknown here.
+            "$m",
+            "[crlf_map]",
+        ] {
+            assert_eq!(
+                colour(&["map", refuted, "$x"]),
+                None,
+                "{refuted} must prove nothing",
+            );
+        }
+        // The mapping is read by position, so a dynamic mapping over a braced
+        // *subject* proves nothing — the braced word there is the text being
+        // rewritten, and the rewriting is what nobody can see.
+        //
+        // tclsh 8.6.18 and 9.0.4: `set m [list X "a\nb"]; string map $m
+        // {"\n" "" "\r" "" X}` yields a string containing a newline.
+        assert_eq!(colour(&["map", "$m", crlf]), None);
+        assert_eq!(colour(&["map", "-nocase", "$m", crlf]), None);
+        // Nor does a call whose shape is not `?-nocase? mapping string`.
+        assert_eq!(colour(&["map", crlf]), None, "no subject word");
+        assert_eq!(colour(&["map", crlf, "$x", "extra"]), None, "extra word");
+        // Another `string` subcommand carries no transform at all.
+        assert_eq!(colour(&["range", "$x", "0", "5"]), None);
     }
 
     #[test]

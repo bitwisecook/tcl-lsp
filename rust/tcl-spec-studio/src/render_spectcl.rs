@@ -2487,6 +2487,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     text_list(out, ctx, draft, "taint_interp_eval_subcommands");
     set_word(out, ctx, draft, "taint_source");
     set_word(out, ctx, draft, "taint_transform");
+    enum_word(out, ctx, draft, "taint_transform_when");
     set_word(out, ctx, draft, "taint_double_encode_colour");
     set_word(out, ctx, draft, "taint_sink_safe_colour");
     native_hook(out, ctx, draft, "taint_sink_gate");
@@ -3017,6 +3018,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
 
     text(out_body, ctx, sub, "taint_output_sink");
     set_word(out_body, ctx, sub, "taint_transform");
+    enum_word(out_body, ctx, sub, "taint_transform_when");
     set_word(out_body, ctx, sub, "taint_double_encode_colour");
     if ctx.set(sub, "credential_arg") {
         out_body.line(&format!("credential_arg {}", sub["credential_arg"]));

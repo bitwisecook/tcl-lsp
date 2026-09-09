@@ -7360,21 +7360,20 @@ fn analyse_w308_emitted_for_unknown_method_on_known_class_constructor() {
     );
 }
 
-// `emit_cmd_command_diagnostics`'s constructor recognition (`[Cls new]
-// method`) must not type the result as `Object(Cls)` when `Cls` is renamed
-// or deleted away with no later re-establishment: that draws a misleading
-// "unknown method" W308 implying `Cls` exists. On tclsh 8.6.14 the
-// constructor call itself fails "invalid command name" first, so the
-// dispatch falls back to the conservative "non-literal, cannot statically
-// analyze" (W307), with W123 on `Cls` itself as the real, primary
+// `emit_cmd_command_diagnostics` must not type `[Cls new] method` as
+// `Object(Cls)` when `Cls` is renamed or deleted with no later
+// re-establishment. In C Tcl 8.6.14 the constructor call itself fails with
+// "invalid command name", so an "unknown method" W308 would wrongly imply
+// `Cls` exists. The dispatch falls back to the conservative "non-literal,
+// cannot statically analyse" (W307), leaving W123 on `Cls` as the primary
 // diagnostic.
 //
-// `harvest_constructor_object_types` (the `set x [Cls new]` variable-
-// assignment sibling of this same check) is gated the same way. The
-// deeper, independent source in `type_infer.rs`'s `constructor_object_type`
-// — which types `x` as `Object(Cls)` for that shape via the SSA type
-// lattice — is gated in `aggregate_object_types`, where both sources are
-// unioned and the analyser's own deletion facts are in scope (see the
+// `harvest_constructor_object_types` (the `set x [Cls new]`
+// variable-assignment sibling of this check) behaves the same way. The
+// independent source in `type_infer.rs`'s `constructor_object_type`, which
+// types `x` as `Object(Cls)` for that shape via the SSA type lattice, is
+// gated in `aggregate_object_types`, where both sources are unioned and the
+// analyser's own deletion facts are in scope (see the
 // `w308_*_issue_1013_*` cases below).
 
 #[test]

@@ -106,6 +106,11 @@ impl SecurityFloor {
         take_shipped(&mut spec.taint_code_sink_args, shipped.taint_code_sink_args);
         take_shipped(&mut spec.taint_source, shipped.taint_source);
         take_shipped(&mut spec.taint_transform, shipped.taint_transform);
+        // The condition travels with the colour it qualifies, so a pack
+        // cannot keep a shipped command-level `taint_transform` while dropping
+        // the proof that earns it. The floor reads `CommandSpec` fields only:
+        // the same pairing inside a `SubCommand` is not restored here.
+        take_shipped(&mut spec.taint_transform_when, shipped.taint_transform_when);
         take_shipped(
             &mut spec.taint_double_encode_colour,
             shipped.taint_double_encode_colour,
@@ -176,6 +181,7 @@ pub const MERGED_FIELDS: &[&str] = &[
     "taint_interp_eval_subcommands",
     "taint_source",
     "taint_transform",
+    "taint_transform_when",
     "taint_double_encode_colour",
     "taint_sink_safe_colour",
     "taint_sink_gate",

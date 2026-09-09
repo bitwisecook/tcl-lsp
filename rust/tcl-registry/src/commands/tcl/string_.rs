@@ -1291,6 +1291,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_string_map),
+        // Claimed per call, not per command — `string map {a b} $x` launders
+        // nothing, so the colour is earned from the mapping the call was
+        // written with (`taint::mapping_deletes_crlf`). The
+        // CR/LF-stripping mapping is the fix T101 / IRULE3003 document and the
+        // one their quick fix writes, so the colour it earns has to be the
+        // colour those sinks read (`CRLF_FREE`).
+        taint_transform: Some(TaintColour::CRLF_FREE),
+        taint_transform_when: Some(TaintTransformCondition::MappingDeletesCrlf),
         options: const {
             &[OptionSpec {
                 name: "-nocase",

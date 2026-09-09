@@ -37,10 +37,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use tcl_cmd_core::namespace::TclStringHashOrder;
+use tcl_core_types::OoId;
 use tcl_syntax::naming::{ends_with_separator, qualifier_segments as split_qualifier};
 
 use crate::frame::VarTable;
-use crate::interp::Command;
+use crate::interp::{Command, OoCommandRole};
 
 /// An index into the namespace arena. The global namespace `::` is always 0.
 pub type NsId = usize;
@@ -79,6 +80,18 @@ pub(crate) struct RenamePublication {
     /// The destination's fully-qualified name: the key the command's traces,
     /// imports and TclOO registration move to, and the callbacks' second word.
     pub(crate) destination_fqn: Vec<u8>,
+    /// Stable identity of the command token being moved. Rename, hide, and
+    /// expose change placement without minting a new token.
+    pub(crate) generation: u64,
+}
+
+/// One command token and the interpreter-unique generation that owns all of
+/// its sidecars. Placements may move between namespace and hidden tables, but
+/// this pair moves intact.
+#[derive(Clone)]
+pub(crate) struct CommandBinding {
+    pub(crate) generation: u64,
+    pub(crate) command: Command,
 }
 
 /// One namespace's command table: the `BTreeMap` the resolver looks names up
@@ -96,13 +109,13 @@ pub(crate) struct RenamePublication {
 /// distinct `::N::q` tokens at once.
 #[derive(Default)]
 struct CommandTable {
-    entries: BTreeMap<Vec<u8>, (u64, Command)>,
+    entries: BTreeMap<Vec<u8>, CommandBinding>,
     order: TclStringHashOrder,
 }
 
 impl CommandTable {
     fn get(&self, key: &[u8]) -> Option<&Command> {
-        self.entries.get(key).map(|(_, command)| command)
+        self.entries.get(key).map(|binding| &binding.command)
     }
 
     fn contains_key(&self, key: &[u8]) -> bool {
@@ -116,25 +129,33 @@ impl CommandTable {
     fn iter(&self) -> impl Iterator<Item = (&Vec<u8>, &Command)> {
         self.entries
             .iter()
-            .map(|(key, (_, command))| (key, command))
+            .map(|(key, binding)| (key, &binding.command))
     }
 
     fn values(&self) -> impl Iterator<Item = &Command> {
-        self.entries.values().map(|(_, command)| command)
+        self.entries.values().map(|binding| &binding.command)
     }
 
     fn values_mut(&mut self) -> impl Iterator<Item = &mut Command> {
-        self.entries.values_mut().map(|(_, command)| command)
+        self.entries
+            .values_mut()
+            .map(|binding| &mut binding.command)
     }
 
     /// Bind `command` at `key`, returning whatever it displaced. A live key is
     /// re-created at its bucket head, as C's `TclCreateObjCommandInNs` does
     /// when it deletes the old hash entry and creates a fresh one.
     fn insert(&mut self, key: Vec<u8>, command: Command, generation: u64) -> Option<Command> {
-        match self.entries.insert(key.clone(), (generation, command)) {
-            Some((_, displaced)) => {
+        match self.entries.insert(
+            key.clone(),
+            CommandBinding {
+                generation,
+                command,
+            },
+        ) {
+            Some(displaced) => {
                 self.order.reinsert(&key);
-                Some(displaced)
+                Some(displaced.command)
             }
             None => {
                 self.order.insert(&key);
@@ -146,21 +167,28 @@ impl CommandTable {
     /// Delete `key`'s entry, returning its binding. The bucket array keeps its
     /// capacity (`Tcl_DeleteHashEntry` never shrinks).
     fn remove(&mut self, key: &[u8]) -> Option<Command> {
-        let (_, command) = self.entries.remove(key)?;
-        self.order.remove(key);
+        let command = self.remove_binding(key)?.command;
         Some(command)
+    }
+
+    /// Remove `key` while preserving the command token generation for a
+    /// placement move such as hide/expose.
+    fn remove_binding(&mut self, key: &[u8]) -> Option<CommandBinding> {
+        let binding = self.entries.remove(key)?;
+        self.order.remove(key);
+        Some(binding)
     }
 
     /// Take a slot's binding out while leaving its hash entry in place —
     /// C's alias-loop probe (`TclRenameCommand`) reassigns `cmdPtr->hPtr` and
     /// undoes the move without ever deleting the source's entry.
-    fn take_slot(&mut self, key: &[u8]) -> Option<(u64, Command)> {
+    fn take_slot(&mut self, key: &[u8]) -> Option<CommandBinding> {
         self.entries.remove(key)
     }
 
     /// Put a slot taken by [`Self::take_slot`] back, creating the hash entry
     /// when the probe's destination did not already have one.
-    fn restore_slot(&mut self, key: Vec<u8>, slot: (u64, Command)) -> Option<(u64, Command)> {
+    fn restore_slot(&mut self, key: Vec<u8>, slot: CommandBinding) -> Option<CommandBinding> {
         self.order.insert(&key);
         self.entries.insert(key, slot)
     }
@@ -171,8 +199,8 @@ impl CommandTable {
     /// the one `Command` both entries point at, so the vacating name reports
     /// the destination's namespace for the callbacks' duration.
     fn rebind_slot(&mut self, key: &[u8], command: Command) {
-        if let Some((_, bound)) = self.entries.get_mut(key) {
-            *bound = command;
+        if let Some(binding) = self.entries.get_mut(key) {
+            binding.command = command;
         }
     }
 
@@ -198,7 +226,7 @@ impl CommandTable {
 
     /// The token generation currently bound at `key`.
     fn generation(&self, key: &[u8]) -> Option<u64> {
-        self.entries.get(key).map(|(generation, _)| *generation)
+        self.entries.get(key).map(|binding| binding.generation)
     }
 
     /// The live `(name, generation)` slots in `Tcl_FirstHashEntry` order — the
@@ -340,6 +368,21 @@ impl Namespaces {
         self.arena[ns].commands.insert(simple, command, generation);
     }
 
+    /// Publish an existing command token at a new placement. Visibility and
+    /// rename moves retain the generation because they move Tcl's `Command *`;
+    /// only a new definition goes through [`Self::insert_bound`].
+    fn insert_moved_binding(&mut self, ns: NsId, simple: Vec<u8>, binding: CommandBinding) {
+        if let Some(displaced) = self.arena[ns].commands.remove(&simple) {
+            Self::mark_command_deleted(&displaced);
+        }
+        if let Command::Ensemble(token) = &binding.command {
+            token.rename(self.command_fqn(ns, &simple));
+        }
+        self.arena[ns]
+            .commands
+            .insert(simple, binding.command, binding.generation);
+    }
+
     /// A fresh tree with just the global namespace `::`.
     #[must_use]
     pub fn new() -> Namespaces {
@@ -382,6 +425,61 @@ impl Namespaces {
     /// already located).
     pub(crate) fn command_in(&self, ns: NsId, name: &[u8]) -> Option<Command> {
         self.arena[ns].commands.get(name).cloned()
+    }
+
+    /// The command generations owned by `owner`, optionally restricted to one
+    /// public/private dispatcher role.
+    pub(crate) fn oo_command_role_locations(
+        &self,
+        owner: OoId,
+        role: Option<OoCommandRole>,
+    ) -> Vec<(Vec<u8>, u64)> {
+        let mut hits = Vec::new();
+        for (ns, node) in self.arena.iter().enumerate() {
+            for (name, command) in node.commands.iter() {
+                if command.oo_binding().is_some_and(|(id, candidate)| {
+                    id == owner && role.is_none_or(|expected| expected == candidate)
+                }) {
+                    let generation = node
+                        .commands
+                        .generation(name)
+                        .expect("an iterated command has a generation");
+                    hits.push((self.command_fqn(ns, name), generation));
+                }
+            }
+        }
+        hits
+    }
+
+    /// Remove namespace-table commands carrying `owner` in one of `roles`,
+    /// returning their last fully-qualified locations. Hidden commands are
+    /// held by `Interp` and are retired by the same caller after this half.
+    pub(crate) fn remove_oo_command_roles(
+        &mut self,
+        owner: OoId,
+        roles: &[OoCommandRole],
+    ) -> Vec<(Vec<u8>, u64)> {
+        let mut hits = Vec::new();
+        for (ns, node) in self.arena.iter().enumerate() {
+            for (name, command) in node.commands.iter() {
+                if command
+                    .oo_binding()
+                    .is_some_and(|(id, role)| id == owner && roles.contains(&role))
+                {
+                    let generation = node
+                        .commands
+                        .generation(name)
+                        .expect("an iterated command has a generation");
+                    hits.push((ns, name.clone(), generation));
+                }
+            }
+        }
+        let mut removed = Vec::with_capacity(hits.len());
+        for (ns, name, generation) in hits {
+            self.arena[ns].commands.remove(&name);
+            removed.push((self.command_fqn(ns, &name), generation));
+        }
+        removed
     }
 
     /// Remove the binding at `(ns, name)`, returning it — the rollback for a
@@ -458,9 +556,24 @@ impl Namespaces {
 
     /// Remove a command binding without deleting its token. Used only for
     /// visibility moves such as `interp hide`; the token remains alive.
-    pub fn take(&mut self, current: NsId, name: &[u8]) -> Option<Command> {
+    pub(crate) fn take(&mut self, current: NsId, name: &[u8]) -> Option<CommandBinding> {
         let (ns, simple) = self.home_of(current, name)?;
-        self.arena[ns].commands.remove(&simple)
+        self.arena[ns].commands.remove_binding(&simple)
+    }
+
+    /// Restore a command token taken for a visibility move under `name`,
+    /// preserving its generation while creating any destination namespaces.
+    pub(crate) fn restore(&mut self, name: &[u8], binding: CommandBinding) -> bool {
+        let segments = split_qualifier(name);
+        let Some((simple, ns_parts)) = segments.split_last() else {
+            return false;
+        };
+        let mut ns = GLOBAL;
+        for part in ns_parts {
+            ns = self.ensure_child(ns, part);
+        }
+        self.insert_moved_binding(ns, (*simple).to_vec(), binding);
+        true
     }
 
     /// Publish the destination half of `rename old new` — both names resolved
@@ -503,6 +616,10 @@ impl Namespaces {
         // rebuild a delete-first order would not.
         self.arena[ns].commands.reserve_entry(&simple);
         // SAFETY of expect: `home_of` reported the binding exists.
+        let source_generation = self.arena[old_ns]
+            .commands
+            .generation(&old_simple)
+            .expect("home_of reported a binding at the rename source");
         let cmd = self.arena[old_ns]
             .commands
             .get(&old_simple)
@@ -515,10 +632,18 @@ impl Namespaces {
         self.arena[old_ns]
             .commands
             .rebind_slot(&old_simple, cmd.clone());
-        self.insert_bound(ns, simple, cmd);
+        self.insert_moved_binding(
+            ns,
+            simple,
+            CommandBinding {
+                generation: source_generation,
+                command: cmd,
+            },
+        );
         Some(RenamePublication {
             source: (old_ns, old_simple),
             destination_fqn,
+            generation: source_generation,
         })
     }
 
@@ -566,10 +691,9 @@ impl Namespaces {
     ///
     /// A `Command::Proc` carries its home namespace and FQN, so `namespace
     /// current` inside its body reports the new namespace. A
-    /// `Command::OoObject` carries the FQN it is registered under in
-    /// [`crate::cmd_oo::OoState`], so dispatch reaches the object the
-    /// accompanying `Interp::oo_command_renamed` moved. Every other variant
-    /// carries no site of its own and passes through unchanged.
+    /// `Command::OoObject` carries a stable identity, so it deliberately passes
+    /// through unchanged; `OoState` updates only its Tcl-facing name projection.
+    /// Every other variant carries no site of its own and passes through unchanged.
     fn rehome_command(command: Command, ns: NsId, fqn: &[u8]) -> Command {
         match command {
             Command::Proc(def) if def.ns != ns => {
@@ -578,7 +702,6 @@ impl Namespaces {
                 def.fqn = fqn.to_vec();
                 Command::Proc(std::rc::Rc::new(def))
             }
-            Command::OoObject(_) => Command::OoObject(fqn.to_vec()),
             other => other,
         }
     }
@@ -691,16 +814,19 @@ impl Namespaces {
         loops
     }
 
-    /// Rewrite every [`Command::Imported`] redirect whose source is `old_fqn`
-    /// to point at `new_fqn`. Even an ensemble import keeps this by-name shadow
-    /// alongside its retained token: if a later replacement retires the token,
-    /// dispatch and `namespace origin` fall back through the source's *latest*
-    /// binding. Rename is cold-path, so the full-tree scan is fine.
-    pub fn retarget_imports(&mut self, old_fqn: &[u8], new_fqn: &[u8]) {
+    /// Rewrite redirects retaining one exact source generation. The FQN is a
+    /// projection only: retained and recreated namespace tokens may expose the
+    /// same spelling simultaneously, so it cannot identify the imports to move.
+    pub fn retarget_imports(&mut self, source_generation: u64, new_fqn: &[u8]) {
         for ns in &mut self.arena {
             for cmd in ns.commands.values_mut() {
-                if let Command::Imported { source, .. } = cmd {
-                    if source.as_slice() == old_fqn {
+                if let Command::Imported {
+                    source,
+                    source_generation: candidate,
+                    ..
+                } = cmd
+                {
+                    if *candidate == source_generation {
                         *source = new_fqn.to_vec();
                     }
                 }
@@ -708,30 +834,51 @@ impl Namespaces {
         }
     }
 
-    /// Attach imports of `source_fqn` (and imports retaining `old`, when this is
-    /// an ensemble-to-ensemble replacement) to `new`. This changes alias
-    /// metadata only; the displaced token itself remains retired and immutable.
-    pub(crate) fn retarget_imports_to_ensemble(
+    /// Attach by-name fallback redirects to the fresh token that replaced
+    /// their now-retired source generation. A simultaneously retained token
+    /// with the same FQN remains live and is deliberately left alone.
+    pub(crate) fn reattach_missing_imports(
         &mut self,
         source_fqn: &[u8],
-        old: Option<&std::rc::Rc<crate::ensemble::EnsembleToken>>,
+        new_generation: u64,
+        live_generations: &std::collections::HashSet<u64>,
+    ) {
+        for ns in &mut self.arena {
+            for command in ns.commands.values_mut() {
+                let Command::Imported {
+                    source,
+                    source_generation,
+                    ..
+                } = command
+                else {
+                    continue;
+                };
+                if source == source_fqn && !live_generations.contains(source_generation) {
+                    *source_generation = new_generation;
+                }
+            }
+        }
+    }
+
+    /// Attach imports of one exact source generation to its ensemble token.
+    /// This changes alias metadata only; same-FQN imports of another retained
+    /// namespace generation remain untouched.
+    pub(crate) fn retarget_imports_to_ensemble(
+        &mut self,
+        source_generation: u64,
         new: &std::rc::Rc<crate::ensemble::EnsembleToken>,
     ) {
         for ns in &mut self.arena {
             for command in ns.commands.values_mut() {
                 let Command::Imported {
-                    source, ensemble, ..
+                    source_generation: candidate,
+                    ensemble,
+                    ..
                 } = command
                 else {
                     continue;
                 };
-                let retains_old = old.is_some_and(|old| {
-                    ensemble
-                        .as_ref()
-                        .is_some_and(|token| std::rc::Rc::ptr_eq(token, old))
-                });
-                if source.as_slice() == source_fqn || retains_old {
-                    *source = source_fqn.to_vec();
+                if *candidate == source_generation {
                     *ensemble = Some(std::rc::Rc::clone(new));
                 }
             }
@@ -821,6 +968,20 @@ impl Namespaces {
             ns = self.ensure_child(ns, part);
         }
         ns
+    }
+
+    /// Create the namespace owned by a command at `name` under the exact
+    /// namespace token that receives the command binding. During synchronous
+    /// namespace teardown that may be a detached dying token; TclOO objects
+    /// created by a delete trace must join that generation and its fixed-point
+    /// sweep, not recreate the visible qualifier chain.
+    pub(crate) fn ensure_command_owned_namespace(&mut self, current: NsId, name: &[u8]) -> NsId {
+        let home = self.command_home_ns(current, name);
+        let tail = tcl_syntax::naming::written_command_tail(name);
+        if tail.is_empty() {
+            return home;
+        }
+        self.ensure_child(home, tail)
     }
 
     /// Find (creating if needed) the namespace named `qualified`, rooted at
@@ -1150,6 +1311,27 @@ impl Namespaces {
         self.arena[ns].commands.generation(&simple)
     }
 
+    /// Resolve an interpreter-unique command generation in any visible or
+    /// retained namespace table, including its current Tcl-facing location.
+    pub(crate) fn command_by_generation(&self, generation: u64) -> Option<(Vec<u8>, Command)> {
+        self.arena.iter().enumerate().find_map(|(ns, node)| {
+            node.commands.entries.iter().find_map(|(name, binding)| {
+                (binding.generation == generation)
+                    .then(|| (self.command_fqn(ns, name), binding.command.clone()))
+            })
+        })
+    }
+
+    /// Every command generation currently resident in a visible or retained
+    /// namespace table.
+    pub(crate) fn command_generations(&self) -> std::collections::HashSet<u64> {
+        self.arena
+            .iter()
+            .flat_map(|node| node.commands.entries.values())
+            .map(|binding| binding.generation)
+            .collect()
+    }
+
     /// The fully-qualified name of the binding at `(ns, name)`.
     pub(crate) fn command_fqn_at(&self, ns: NsId, name: &[u8]) -> Vec<u8> {
         self.command_fqn(ns, name)
@@ -1200,7 +1382,7 @@ impl Namespaces {
     pub(crate) fn remove_ensemble_identity(
         &mut self,
         identity: &std::rc::Rc<crate::ensemble::EnsembleToken>,
-    ) -> Option<Vec<u8>> {
+    ) -> Option<(Vec<u8>, u64)> {
         let mut found = None;
         for (ns, node) in self.arena.iter().enumerate() {
             if let Some(name) = node.commands.iter().find_map(|(name, command)| {
@@ -1216,27 +1398,53 @@ impl Namespaces {
             }
         }
         let (ns, name) = found?;
-        self.arena[ns].commands.remove(&name);
-        Some(self.command_fqn(ns, &name))
+        let binding = self.arena[ns].commands.remove_binding(&name)?;
+        Some((self.command_fqn(ns, &name), binding.generation))
     }
 
-    /// Imported aliases whose immediate source name is in `origins` or whose
-    /// retained ensemble identity is in `tokens`. Each result includes the
+    /// Locate one ensemble command by stable identity, including the exact
+    /// command generation that owns its trace sidecars.
+    pub(crate) fn ensemble_identity_location(
+        &self,
+        identity: &std::rc::Rc<crate::ensemble::EnsembleToken>,
+    ) -> Option<(Vec<u8>, u64)> {
+        self.arena.iter().enumerate().find_map(|(ns, node)| {
+            node.commands.iter().find_map(|(name, command)| {
+                matches!(
+                    command,
+                    Command::Ensemble(current)
+                        if std::rc::Rc::ptr_eq(current, identity)
+                )
+                .then(|| {
+                    (
+                        self.command_fqn(ns, name),
+                        node.commands
+                            .generation(name)
+                            .expect("iterated command has a generation"),
+                    )
+                })
+            })
+        })
+    }
+
+    /// Imported aliases whose immediate source generation is in `origins` or
+    /// whose retained ensemble identity is in `tokens`. Each result includes the
     /// import binding's stable identity so callers can fire delete traces while
     /// it is still visible, then remove only that original command after any
     /// reentrant replacement performed by the callback.
     pub(crate) fn imports_for_origins(
         &self,
-        origins: &std::collections::HashSet<Vec<u8>>,
+        origins: &std::collections::HashSet<u64>,
         tokens: &[std::rc::Rc<crate::ensemble::EnsembleToken>],
     ) -> Vec<(Vec<u8>, std::rc::Rc<crate::interp::ImportToken>)> {
         let mut hits = Vec::new();
         for (id, node) in self.arena.iter().enumerate() {
             for (name, command) in node.commands.iter() {
                 let Command::Imported {
-                    source,
+                    source_generation,
                     ensemble,
                     identity,
+                    ..
                 } = command
                 else {
                     continue;
@@ -1246,7 +1454,7 @@ impl Namespaces {
                         .iter()
                         .any(|victim| std::rc::Rc::ptr_eq(imported, victim))
                 });
-                if origins.contains(source) || retains_token {
+                if origins.contains(source_generation) || retains_token {
                     hits.push((self.command_fqn(id, name), std::rc::Rc::clone(identity)));
                 }
             }
@@ -1260,7 +1468,7 @@ impl Namespaces {
     pub(crate) fn remove_import_identity(
         &mut self,
         identity: &std::rc::Rc<crate::interp::ImportToken>,
-    ) -> Option<Vec<u8>> {
+    ) -> Option<(Vec<u8>, u64)> {
         let mut found = None;
         for (ns, node) in self.arena.iter().enumerate() {
             if let Some(name) = node.commands.iter().find_map(|(name, command)| {
@@ -1276,8 +1484,33 @@ impl Namespaces {
             }
         }
         let (ns, name) = found?;
-        self.arena[ns].commands.remove(&name);
-        Some(self.command_fqn(ns, &name))
+        let binding = self.arena[ns].commands.remove_binding(&name)?;
+        Some((self.command_fqn(ns, &name), binding.generation))
+    }
+
+    /// Locate one imported command by stable identity, including the exact
+    /// command generation that owns its trace sidecars.
+    pub(crate) fn import_identity_location(
+        &self,
+        identity: &std::rc::Rc<crate::interp::ImportToken>,
+    ) -> Option<(Vec<u8>, u64)> {
+        self.arena.iter().enumerate().find_map(|(ns, node)| {
+            node.commands.iter().find_map(|(name, command)| {
+                matches!(
+                    command,
+                    Command::Imported { identity: current, .. }
+                        if std::rc::Rc::ptr_eq(current, identity)
+                )
+                .then(|| {
+                    (
+                        self.command_fqn(ns, name),
+                        node.commands
+                            .generation(name)
+                            .expect("iterated command has a generation"),
+                    )
+                })
+            })
+        })
     }
 
     /// `namespace delete name` — delete the namespace `qualified` resolves to
@@ -1380,15 +1613,21 @@ impl Namespaces {
         out
     }
 
-    /// Fully-qualified command bindings in an explicit set of retained arena
-    /// nodes, including tokens already detached from their former parent during
-    /// teardown.
-    #[must_use]
-    pub(crate) fn command_fqns_in_ids(&self, ids: &[NsId]) -> Vec<Vec<u8>> {
-        self.command_slots_in_ids(ids)
-            .into_iter()
-            .map(|(id, tail)| self.command_fqn(id, &tail))
-            .collect()
+    /// Fully-qualified locations and exact command generations in retained
+    /// arena nodes. Teardown uses these to discard only the sidecars of the
+    /// bindings it is about to clear.
+    pub(crate) fn command_locations_in_ids(&self, ids: &[NsId]) -> Vec<(Vec<u8>, u64)> {
+        let mut locations = Vec::new();
+        for &id in ids {
+            locations.extend(
+                self.arena[id]
+                    .commands
+                    .hash_order()
+                    .into_iter()
+                    .map(|(name, generation)| (self.command_fqn(id, &name), generation)),
+            );
+        }
+        locations
     }
 
     /// The same bindings as `(namespace, simple name)` pairs. A retained token
@@ -1479,31 +1718,6 @@ impl Namespaces {
                 _ => None,
             })
             .collect()
-    }
-
-    /// Whether the immediate-source chain beginning at `source_fqn` reaches
-    /// `needle_fqn`. `namespace import -force` consults this before replacing
-    /// the destination binding: installing that edge would otherwise close an
-    /// ImportRef cycle. Normal construction keeps the graph acyclic; the
-    /// visited set makes the invariant check finite for malformed legacy state.
-    pub(crate) fn import_chain_contains(&self, source_fqn: &[u8], needle_fqn: &[u8]) -> bool {
-        let mut current = source_fqn.to_vec();
-        let mut visited = BTreeSet::new();
-        while visited.insert(current.clone()) {
-            if current == needle_fqn {
-                return true;
-            }
-            let Some(Command::Imported {
-                source, ensemble, ..
-            }) = self.resolve(GLOBAL, &current)
-            else {
-                return false;
-            };
-            current = ensemble
-                .filter(|token| !token.is_deleted())
-                .map_or(source, |token| token.name());
-        }
-        false
     }
 
     /// Remove the simple-named command `name` directly from `ns` (no resolution

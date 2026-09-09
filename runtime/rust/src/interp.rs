@@ -40,7 +40,7 @@ use core::ffi::c_char;
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
-use tcl_core_types::RecursionLimit;
+use tcl_core_types::{OoId, RecursionLimit};
 use tcl_runtime_api::codegen_abi::NATIVE_PROC_STATUS_DECLINED;
 use tcl_runtime_api::error_stack::{validate_error_stack, ErrorStack};
 use tcl_runtime_api::guard::{
@@ -49,7 +49,7 @@ use tcl_runtime_api::guard::{
 
 use crate::builtins;
 use crate::frame::{FrameStack, Link, VarError};
-use crate::namespace::{Namespaces, NsId, RenameOutcome, GLOBAL};
+use crate::namespace::{CommandBinding, Namespaces, NsId, RenameOutcome, GLOBAL};
 use crate::obj::{self, TclObj};
 use crate::parse::{self, WordBody, WordPart};
 
@@ -558,13 +558,15 @@ pub enum Command {
         /// Per-instance identity — see [`Command::is_same_binding`].
         identity: Rc<()>,
     },
-    /// A `namespace import` redirect. Ordinary imports re-resolve `source` by
-    /// name; an ensemble import additionally retains the source's stable command
-    /// token. The latter is what lets an import follow a source ensemble through
-    /// hide/expose without accidentally switching to a replacement installed at
-    /// the vacated name.
+    /// A `namespace import` redirect. The source generation is the retained
+    /// command-token identity; `source` is its mutable Tcl-facing projection
+    /// and the deliberate fallback after command replacement adopts a fresh
+    /// generation. Together they let every import follow rename/hide/expose
+    /// without switching to a replacement installed at the vacated spelling.
+    /// Ensemble imports additionally retain the ensemble's configuration token.
     Imported {
         source: Vec<u8>,
+        source_generation: u64,
         ensemble: Option<Rc<crate::ensemble::EnsembleToken>>,
         identity: Rc<ImportToken>,
     },
@@ -582,9 +584,14 @@ pub enum Command {
     /// `Interp` stored in [`Interp::children`].
     ChildInterp(Vec<u8>),
     /// A TclOO object or class, addressable as a command (`$obj method …`,
-    /// `Class new`). The `Vec<u8>` is the FQN; dispatch routes to
-    /// [`crate::cmd_oo`] via the [`OoState`](crate::cmd_oo::OoState) registry.
-    OoObject(Vec<u8>),
+    /// `Class new`). The opaque token remains stable across rename and same-name
+    /// recreation; Tcl-facing names are projections owned by `OoState`.
+    OoObject(tcl_core_types::OoId),
+    /// The private per-object `my` dispatcher, carrying the same stable owner
+    /// identity as the object command rather than rediscovering it by name.
+    OoMy(tcl_core_types::OoId),
+    /// The private per-object `myclass` dispatcher.
+    OoMyClass(tcl_core_types::OoId),
     /// A cross-interp alias installed in a *child* interp that delegates to a
     /// command in the *parent* (`interp alias child name {} parentCmd …`). When
     /// invoked, it runs `target` (+ `prefix` + the call args) in the parent.
@@ -596,7 +603,41 @@ pub enum Command {
     },
 }
 
+/// Which command token owned by one TclOO identity a binding exposes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum OoCommandRole {
+    Object,
+    My,
+    MyClass,
+}
+
+const OO_COMMAND_RETIREMENT_ORDER: [OoCommandRole; 3] = [
+    OoCommandRole::Object,
+    OoCommandRole::MyClass,
+    OoCommandRole::My,
+];
+const OO_PRIVATE_COMMAND_ROLES: [OoCommandRole; 2] = [OoCommandRole::MyClass, OoCommandRole::My];
+
 impl Command {
+    /// Stable TclOO identity and role carried by this command, if any.
+    pub(crate) fn oo_binding(&self) -> Option<(OoId, OoCommandRole)> {
+        match self {
+            Self::OoObject(id) => Some((*id, OoCommandRole::Object)),
+            Self::OoMy(id) => Some((*id, OoCommandRole::My)),
+            Self::OoMyClass(id) => Some((*id, OoCommandRole::MyClass)),
+            _ => None,
+        }
+    }
+
+    /// The object lifecycle token this command owns. Private dispatchers carry
+    /// the same identity but their replacement does not destroy the object.
+    pub(crate) fn oo_object(&self) -> Option<OoId> {
+        match self {
+            Self::OoObject(id) => Some(*id),
+            _ => None,
+        }
+    }
+
     /// Whether `self` and `other` are the **same** command binding rather than
     /// two bindings that happen to look alike.
     ///
@@ -625,10 +666,21 @@ impl Command {
                 Rc::ptr_eq(a, b)
             }
             (Self::ChildInterp(a), Self::ChildInterp(b)) => a == b,
-            (Self::OoObject(a), Self::OoObject(b)) => a == b,
+            (Self::OoObject(a), Self::OoObject(b))
+            | (Self::OoMy(a), Self::OoMy(b))
+            | (Self::OoMyClass(a), Self::OoMyClass(b)) => a == b,
             _ => false,
         }
     }
+}
+
+/// Result of resolving a retained command generation. A surface-gated token
+/// is distinct from an absent token: imports may follow the Tcl by-name
+/// replacement fallback only after their exact source generation has retired.
+enum CommandGenerationLookup {
+    Missing,
+    Unavailable,
+    Found { fqn: Vec<u8>, command: Command },
 }
 
 thread_local! {
@@ -704,15 +756,14 @@ pub struct ProcDef {
 }
 
 /// Whether a command trace hangs off the token being deleted. Generations are
-/// minted in binding order across the whole interpreter, so anything at or
-/// below the dying token's generation is part of its list, and a trace on a
-/// later token bound at the same name is not. `None` on either side means the
-/// binding carried no identity (a hidden command, or a caller with no token to
-/// discriminate by) and the whole name is taken.
+/// interpreter-unique and travel with the token through rename, hide, and
+/// expose, so equality is the complete ownership test. `None` remains only as
+/// a conservative fallback for an unbound internal caller.
 fn cmd_trace_owned_by(token: Option<u64>, dying: Option<u64>) -> bool {
     match (token, dying) {
-        (Some(token), Some(dying)) => token <= dying,
-        _ => true,
+        (Some(token), Some(dying)) => token == dying,
+        (None, None) => true,
+        _ => false,
     }
 }
 
@@ -784,12 +835,13 @@ impl core::ops::Deref for Interp {
 /// re-borrows freshly instead of aliasing. The command resolver returns *cloned*
 /// `Command` handles precisely so dispatch holds no table borrow.
 /// The command-identity arena backing `Namespaces::find_command` /
-/// `Commands::dispatch_id`: a bijection between a command's FQN and a dense raw
-/// `CommandId` (the index into `fqns`). Minted on first `find_command`.
+/// `Commands::dispatch_id`: a bijection between an exact `(FQN, generation)`
+/// token and a dense raw `CommandId`. Retained and recreated namespaces may
+/// expose the same FQN simultaneously, so the display name alone is not an id.
 #[derive(Default)]
 struct CmdArena {
-    ids: std::collections::HashMap<Vec<u8>, u32>,
-    fqns: Vec<Vec<u8>>,
+    ids: std::collections::HashMap<(Vec<u8>, u64), u32>,
+    commands: Vec<(Vec<u8>, u64)>,
 }
 
 #[derive(Clone, Debug)]
@@ -816,6 +868,11 @@ pub struct InterpState {
     guards: RefCell<GuardManager>,
     guarded_commands:
         RefCell<std::collections::BTreeMap<Vec<u8>, std::collections::BTreeSet<GuardIdentity>>>,
+    /// Registry identity of each engine-installed builtin command generation.
+    /// A command keeps this key across rename and hide, so imports of a moved
+    /// token continue to apply the final builtin's dialect availability rather
+    /// than treating its new display spelling as an unrelated extension.
+    registry_builtin_names: RefCell<std::collections::HashMap<u64, Vec<u8>>>,
     /// The current namespace for command resolution (the eval context; a proc
     /// runs in its *defining* namespace — wired with procs). Global at top level.
     current_ns: Cell<NsId>,
@@ -862,7 +919,7 @@ pub struct InterpState {
     /// Hidden commands (`interp hide`): removed from the command table but
     /// invocable via `interp invokehidden`. A safe interp hides the dangerous
     /// commands here.
-    hidden: RefCell<std::collections::BTreeMap<Vec<u8>, Command>>,
+    hidden: RefCell<std::collections::BTreeMap<Vec<u8>, CommandBinding>>,
     /// While this interp runs as a child (`$parent eval`/`$child eval`), a `Weak`
     /// handle to its parent — for cross-interp aliases that delegate to a parent
     /// command. `Weak` (not `Rc`) so the parent→child ownership has no cycle;
@@ -991,11 +1048,8 @@ pub struct InterpState {
     /// since the chain is then consumed.
     during: Cell<Option<*mut TclObj>>,
     result: Cell<*mut TclObj>,
-    /// Command-FQN ⇆ dense raw `CommandId` arena for `Namespaces::find_command`
-    /// and `Commands::dispatch_id`. Interior-mutable because `find_command` is
-    /// `&self` but mints a handle on first sight; `state_traits.rs` wraps the raw id
-    /// in the contract's `CommandId`. Bidirectional: `find_command` interns an
-    /// FQN, `dispatch_id` reverses the id back to its FQN to invoke it.
+    /// Exact command token ⇆ dense raw `CommandId` arena for
+    /// `Namespaces::find_command` and `Commands::dispatch_id`.
     cmd_arena: RefCell<CmdArena>,
     /// `interp limit` configuration. The `time` limit is enforced by the loop
     /// commands; `commands` is stored for query/set only.
@@ -1042,7 +1096,11 @@ pub struct InterpState {
     /// a builtin does; every other object command is user-created and
     /// release-invariant. Filled at bootstrap (`cmd_oo::install`), read by
     /// [`Interp::resolve_dispatchable`].
-    registry_object_roots: RefCell<std::collections::HashSet<Vec<u8>>>,
+    registry_object_roots: RefCell<std::collections::HashMap<OoId, Vec<u8>>>,
+    /// TclOO owners whose visible, retained, and hidden commands are currently
+    /// being retired. Delete traces are re-entrant, so the stable owner guards
+    /// the one retirement transaction instead of any mutable spelling.
+    retiring_oo_commands: RefCell<std::collections::HashSet<OoId>>,
 }
 
 /// An ensemble-rewrite record (C's `iPtr->ensembleRewrite`, see
@@ -1296,6 +1354,7 @@ impl Interp {
             active_var_trace_scopes: RefCell::new(Vec::new()),
             guards: RefCell::new(guards),
             guarded_commands: RefCell::new(std::collections::BTreeMap::new()),
+            registry_builtin_names: RefCell::new(std::collections::HashMap::new()),
             current_ns: Cell::new(GLOBAL),
             recursion_depth: Cell::new(0),
             recursion_limit: Cell::new(RECURSION_LIMIT),
@@ -1355,7 +1414,8 @@ impl Interp {
             dialect_point: Cell::new(Some(crate::environment::surface_point(
                 crate::environment::profile_for_dialect(""),
             ))),
-            registry_object_roots: RefCell::new(std::collections::HashSet::new()),
+            registry_object_roots: RefCell::new(std::collections::HashMap::new()),
+            retiring_oo_commands: RefCell::new(std::collections::HashSet::new()),
         }));
         // The numeric grammar is thread-ambient and may have been left on
         // another release by an interpreter built earlier on this thread, so a
@@ -1521,22 +1581,19 @@ impl Interp {
         })
     }
 
-    /// Record `fqn` as an engine-installed TclOO root object command, so the
-    /// release-availability gate treats it like a builtin (see
-    /// [`InterpState::registry_object_roots`]).
-    pub(crate) fn declare_registry_object_root(&self, fqn: &[u8]) {
+    /// Record `owner` as an engine-installed TclOO root object command. The
+    /// registry spelling is retained only as the dialect availability key;
+    /// command rename changes the display projection, not this identity.
+    pub(crate) fn declare_registry_object_root(&self, owner: OoId, registry_name: &[u8]) {
         self.0
             .registry_object_roots
             .borrow_mut()
-            .insert(fqn.to_vec());
+            .insert(owner, registry_name.to_vec());
     }
 
-    /// Drop `fqn`'s engine-installed root marking. The marking is an identity,
-    /// not a reservation on the *name*: once a script creates its own object
-    /// under that name the entry is release-invariant like any proc, so the
-    /// marking must not outlive the entry it described.
-    pub(crate) fn forget_registry_object_root(&self, fqn: &[u8]) {
-        self.0.registry_object_roots.borrow_mut().remove(fqn);
+    /// Drop an engine-installed root marking with the OO identity it described.
+    pub(crate) fn forget_registry_object_root(&self, owner: OoId) {
+        self.0.registry_object_roots.borrow_mut().remove(&owner);
     }
 
     /// Whether `fqn` is an engine-installed TclOO root that this release does
@@ -1545,8 +1602,35 @@ impl Interp {
     /// that asks "is this name taken?" it must read as free — real tclsh 8.6
     /// has no `::oo::configurable`, and a script may define one.
     pub(crate) fn is_gate_hidden_object_root(&self, fqn: &[u8]) -> bool {
-        self.0.registry_object_roots.borrow().contains(fqn)
-            && !self.builtin_command_visible_for_surface(fqn)
+        let owner = match self.0.namespaces.borrow().resolve(GLOBAL, fqn) {
+            Some(Command::OoObject(owner)) => owner,
+            _ => return false,
+        };
+        self.0
+            .registry_object_roots
+            .borrow()
+            .get(&owner)
+            .is_some_and(|registry_name| !self.builtin_command_visible_for_surface(registry_name))
+    }
+
+    /// Retire the engine root hidden at `fqn` by the selected dialect before a
+    /// script claims that spelling. Its OO lifecycle must finish before the
+    /// replacement creates or adopts the same instance namespace.
+    pub(crate) fn retire_gate_hidden_object_root(&mut self, fqn: &[u8]) -> bool {
+        let owner = match self.0.namespaces.borrow().resolve(GLOBAL, fqn) {
+            Some(Command::OoObject(owner)) => owner,
+            _ => return false,
+        };
+        let hidden = self
+            .0
+            .registry_object_roots
+            .borrow()
+            .get(&owner)
+            .is_some_and(|registry_name| !self.builtin_command_visible_for_surface(registry_name));
+        if hidden {
+            self.oo_command_renamed(owner, None);
+        }
+        hidden
     }
 
     /// The availability half of [`Self::builtin_command_visible_for_surface`]:
@@ -1561,6 +1645,37 @@ impl Interp {
             || registry
                 .get_for_surface(name, self.0.dialect_point.get())
                 .is_some()
+    }
+
+    /// Apply the selected dialect's command-surface gate to an already-bound
+    /// command token. Engine builtins retain their registry identity by exact
+    /// generation across rename and hide; other native commands use their
+    /// current Tcl-facing spelling as before.
+    fn command_visible_for_surface_at(
+        &self,
+        command: &Command,
+        fqn: &[u8],
+        generation: Option<u64>,
+    ) -> bool {
+        match command {
+            Command::Builtin(_) => {
+                let registry_name = generation.and_then(|generation| {
+                    self.0
+                        .registry_builtin_names
+                        .borrow()
+                        .get(&generation)
+                        .cloned()
+                });
+                self.builtin_command_visible_for_surface(registry_name.as_deref().unwrap_or(fqn))
+            }
+            Command::OoObject(id) => self
+                .0
+                .registry_object_roots
+                .borrow()
+                .get(id)
+                .is_none_or(|name| self.builtin_command_visible_for_surface(name)),
+            _ => true,
+        }
     }
 
     /// Resolve `name` (from namespace `origin`) to a command handle, applying
@@ -1586,30 +1701,16 @@ impl Interp {
     /// the "this release does not have that command" contract this gate
     /// implements.
     pub(crate) fn resolve_dispatchable(&self, origin: NsId, name: &[u8]) -> Option<Command> {
-        let (cmd, fqn) = {
+        let (command, fqn, generation) = {
             let ns = self.namespaces.borrow();
-            let cmd = ns.resolve(origin, name)?;
-            // Only a *directly* bound builtin carries a release identity. Procs,
-            // aliases and ensembles are script-created, and a nested redirect
-            // (import/alias) is gated when it resolves in its turn. The one
-            // object exception is the TclOO **roots** the engine installs on
-            // the registry's behalf (`::oo::class` and friends, dated
-            // TCL86_PLUS / TCL90_PLUS): those must vanish with the release the
-            // way a builtin does, while every script-created object command
-            // stays release-invariant.
-            let gated = match &cmd {
-                Command::Builtin(_) => true,
-                Command::OoObject(fqn) => self.0.registry_object_roots.borrow().contains(fqn),
-                _ => false,
-            };
-            if !gated {
-                return Some(cmd);
-            }
-            let fqn = ns.resolve_fqn(origin, name)?;
-            (cmd, fqn)
+            (
+                ns.resolve(origin, name)?,
+                ns.resolve_fqn(origin, name)?,
+                ns.resolve_generation(origin, name),
+            )
         };
-        self.builtin_command_visible_for_surface(&fqn)
-            .then_some(cmd)
+        self.command_visible_for_surface_at(&command, &fqn, generation)
+            .then_some(command)
     }
 
     /// Convert `obj` to the byte view consumed by Tcl's `binary` command.
@@ -1678,10 +1779,22 @@ impl Interp {
     /// Register a built-in command (a possibly-qualified `name`, creating
     /// intermediate namespaces; overwrites any existing command of `name`).
     pub fn register_builtin(&mut self, name: &[u8], f: BuiltinFn) {
-        self.namespaces
+        let ns = self.namespaces.borrow_mut().command_home_ns(GLOBAL, name);
+        let tail = tcl_syntax::naming::written_command_tail(name).to_vec();
+        self.bind_command_replacement(ns, &tail, Command::Builtin(f));
+        let (fqn, generation) = {
+            let namespaces = self.namespaces.borrow();
+            (
+                namespaces.command_fqn_at(ns, &tail),
+                namespaces
+                    .command_generation(ns, &tail)
+                    .expect("the builtin command was just bound"),
+            )
+        };
+        self.0
+            .registry_builtin_names
             .borrow_mut()
-            .register(name, Command::Builtin(f));
-        self.invalidate_command_environment();
+            .insert(generation, fqn);
     }
 
     /// Register a builtin with a stable semantic identity understood by
@@ -1896,12 +2009,14 @@ impl Interp {
         // release-gated TclOO root this build hides reads as free here too
         // (`is_gate_hidden_object_root`), same as every other "is this name
         // taken?" check.
-        if let Some(occupant_fqn) = self
+        let occupant_fqn = self
             .namespaces
             .borrow_mut()
-            .destination_occupant_fqn(self.current_ns.get(), new)
-        {
-            if !self.is_gate_hidden_object_root(&occupant_fqn) {
+            .destination_occupant_fqn(self.current_ns.get(), new);
+        if let Some(occupant_fqn) = occupant_fqn {
+            if self.is_gate_hidden_object_root(&occupant_fqn) {
+                self.retire_gate_hidden_object_root(&occupant_fqn);
+            } else {
                 return RenameOutcome::TargetExists;
             }
         }
@@ -1948,6 +2063,10 @@ impl Interp {
         let Some(old_fqn) = self.resolve_cmd_fqn(old) else {
             return RenameOutcome::NoSuchCommand;
         };
+        let oo_object = match self.namespaces.borrow().resolve(self.current_ns.get(), old) {
+            Some(Command::OoObject(id)) => Some(id),
+            _ => None,
+        };
         let Some(publication) = self.namespaces.borrow_mut().publish_rename_destination(
             self.current_ns.get(),
             old,
@@ -1956,32 +2075,29 @@ impl Interp {
             return RenameOutcome::NoSuchCommand;
         };
         let new_fqn = publication.destination_fqn.clone();
-        // `Namespaces::publish_rename_destination` writes the table entry
-        // directly rather than going through `ns_register`, so drop the marking
-        // that described whatever it displaced at the destination. Today an OO
-        // rename is also re-registered through the funnel by
-        // `oo_command_renamed`, which clears it; doing it here as well makes the
-        // invariant — "a root marking never outlives the entry it described" —
-        // hold for the rename path on its own, rather than by way of a
-        // follow-up call that a future refactor could reorder or drop.
-        self.forget_registry_object_root(&new_fqn);
         // The trace list (and any OO object) follows to the new name, and so
         // does every `namespace import` redirect of the old name — C's imports
         // hold the source's command token, so they survive a source rename
         // (tclsh-pinned; see `Namespaces::retarget_imports`). All of it happens
         // here, before the callbacks, because C had moved its one `Command`
         // before it fired them.
-        self.move_cmd_traces(&old_fqn, &new_fqn);
-        self.retarget_import_sources(&old_fqn, &new_fqn);
+        self.move_cmd_traces(&old_fqn, &new_fqn, publication.generation);
+        self.retarget_import_sources(publication.generation, &new_fqn);
         crate::cmd_coro::on_command_renamed(self, &old_fqn, &new_fqn);
-        if !self.oo_is_empty() {
-            self.oo_command_renamed(&old_fqn, Some(&new_fqn));
+        if let Some(object) = oo_object {
+            self.oo_command_renamed(object, Some(&new_fqn));
         }
         self.traces
             .borrow_mut()
             .rename_windows
             .push((old_fqn.clone(), new_fqn.clone()));
-        self.fire_cmd_trace(&new_fqn, &old_fqn, &new_fqn, crate::cmd_trace::ops::RENAME);
+        self.fire_cmd_trace_of_token(
+            &new_fqn,
+            &old_fqn,
+            &new_fqn,
+            crate::cmd_trace::ops::RENAME,
+            Some(publication.generation),
+        );
         self.traces.borrow_mut().rename_windows.pop();
         // C's `Tcl_DeleteHashEntry(oldHPtr)` at the tail of `TclRenameCommand`:
         // a plain table removal, firing no `delete` trace, after which the
@@ -2012,13 +2128,23 @@ impl Interp {
         // captured here, not whatever the name holds when the callback returns
         // — so the binding is captured alongside the name.
         let bound_before = self.namespaces.borrow().resolve(self.current_ns.get(), old);
+        let oo_object = match &bound_before {
+            Some(Command::OoObject(id)) => Some(*id),
+            _ => None,
+        };
         // The token whose trace list this deletion frees, captured before the
         // callbacks can bind a replacement at the same name.
         let dying_token = self.resolve_cmd_token(old);
         let old_fqn = self.resolve_cmd_fqn(old);
         if let Some(of) = &old_fqn {
             if !self.traces.borrow().cmd_traces.is_empty() {
-                self.fire_cmd_trace(of, of, b"", crate::cmd_trace::ops::DELETE);
+                self.fire_cmd_trace_of_token(
+                    of,
+                    of,
+                    b"",
+                    crate::cmd_trace::ops::DELETE,
+                    dying_token,
+                );
             }
         }
         let existed = old_fqn.is_some();
@@ -2081,16 +2207,16 @@ impl Interp {
         if let (Some(of), RenameOutcome::Deleted) = (old_fqn, outcome) {
             self.remove_cmd_traces_of_token(&of, dying_token);
             let tokens: Vec<_> = ensemble_token.into_iter().collect();
-            let mut origins = vec![of.clone()];
-            if let Some(removed_fqn) = removed_import_fqn {
+            let mut origins: Vec<u64> = dying_token.into_iter().collect();
+            if let Some((removed_fqn, removed_generation)) = removed_import_fqn {
                 if removed_fqn != of {
-                    self.remove_cmd_traces(&removed_fqn);
-                    origins.push(removed_fqn);
+                    self.remove_cmd_traces_of_token(&removed_fqn, Some(removed_generation));
                 }
+                origins.push(removed_generation);
             }
             self.remove_imports_for_deleted_origins(origins, &tokens);
-            if !self.oo_is_empty() {
-                self.oo_command_renamed(&of, None);
+            if let Some(object) = oo_object {
+                self.oo_command_renamed(object, None);
             }
         }
         outcome
@@ -2110,18 +2236,18 @@ impl Interp {
         target: Vec<u8>,
         prefix: Vec<Vec<u8>>,
     ) -> Result<(), Vec<u8>> {
-        self.invalidate_command_environment();
-        let mut namespaces = self.namespaces.borrow_mut();
-        let Some((ns, simple)) = namespaces.register_at(
-            name,
+        let simple = tcl_syntax::naming::written_command_tail(name).to_vec();
+        let ns = self.namespaces.borrow_mut().command_home_ns(GLOBAL, name);
+        self.bind_command_replacement(
+            ns,
+            &simple,
             Command::Alias {
                 target,
                 prefix,
                 identity: Rc::new(()),
             },
-        ) else {
-            return Ok(()); // no tail to bind — nothing was registered
-        };
+        );
+        let mut namespaces = self.namespaces.borrow_mut();
         if namespaces.alias_chain_loops(ns, &simple) {
             namespaces.unbind_in(ns, &simple);
             return Err(simple);
@@ -2200,7 +2326,7 @@ impl Interp {
         self.invalidate_command_environment();
         // If `name` is a suspended coroutine, terminate its worker first.
         crate::cmd_coro::on_command_deleted(self, name);
-        let source_fqn = self.resolve_cmd_fqn(name);
+        let source_generation = self.resolve_cmd_token(name);
         let ensemble_token = match self
             .namespaces
             .borrow()
@@ -2214,9 +2340,9 @@ impl Interp {
             .borrow_mut()
             .delete(self.current_ns.get(), name);
         if deleted {
-            if let Some(source_fqn) = source_fqn {
+            if let Some(source_generation) = source_generation {
                 let tokens: Vec<_> = ensemble_token.into_iter().collect();
-                self.remove_imports_for_deleted_origins([source_fqn], &tokens);
+                self.remove_imports_for_deleted_origins([source_generation], &tokens);
             }
         }
         deleted
@@ -2239,7 +2365,8 @@ impl Interp {
         // Written-name tail: empty for a trailing separator run (the `{}`
         // command) — must match `home_of`'s resolution split.
         let tail = tcl_syntax::naming::written_command_tail(name).to_vec();
-        let old_token = match self.namespaces.borrow().command_in(ns, &tail) {
+        let displaced = self.namespaces.borrow().command_in(ns, &tail);
+        let old_token = match displaced.as_ref() {
             Some(Command::Ensemble(token)) => Some(token),
             _ => None,
         };
@@ -2250,14 +2377,26 @@ impl Interp {
         // unknown callback observes UNKNOWN_DELETED), while imports of the
         // occupied source binding are explicitly reattached to the new token.
         if let Some(old_token) = old_token.as_ref() {
-            self.retire_ensemble_identity(&fqn, old_token);
+            self.retire_ensemble_identity(old_token);
         } else {
             self.on_command_replaced(&fqn);
         }
         self.namespaces
             .borrow_mut()
             .bind(ns, &tail, Command::Ensemble(Rc::clone(&new_token)));
-        self.retarget_imports_to_ensemble(&fqn, old_token.as_ref(), &new_token);
+        let (new_fqn, new_generation) = {
+            let namespaces = self.namespaces.borrow();
+            (
+                namespaces.command_fqn_at(ns, &tail),
+                namespaces
+                    .command_generation(ns, &tail)
+                    .expect("the new ensemble was just bound"),
+            )
+        };
+        if displaced.is_some() {
+            self.reattach_missing_import_sources(&new_fqn, new_generation);
+        }
+        self.retarget_imports_to_ensemble(new_generation, &new_token);
     }
 
     /// Define a user proc (`proc name params body`). The proc's defining
@@ -2335,8 +2474,40 @@ impl Interp {
     /// is then a no-op).
     pub(crate) fn bind_command_replacement(&mut self, ns: NsId, tail: &[u8], command: Command) {
         self.invalidate_command_environment();
+        let displaced = self.namespaces.borrow().command_in(ns, tail);
         self.on_bound_command_replaced(ns, tail);
+        if let Some(owner) = displaced.as_ref().and_then(Command::oo_object) {
+            // The old object command's delete trace has run while the token was
+            // still visible. Unlink that exact binding before TclOO teardown so
+            // identity-based cleanup cannot remove the replacement installed
+            // below, then run the displaced owner's destructor and cascades.
+            let still_displaced =
+                self.namespaces
+                    .borrow()
+                    .command_in(ns, tail)
+                    .is_some_and(|current| {
+                        displaced
+                            .as_ref()
+                            .is_some_and(|old| old.is_same_binding(&current))
+                    });
+            if still_displaced {
+                self.namespaces.borrow_mut().remove_in(ns, tail);
+            }
+            self.oo_command_renamed(owner, None);
+        }
         self.namespaces.borrow_mut().bind(ns, tail, command);
+        if displaced.is_some() {
+            let (fqn, generation) = {
+                let namespaces = self.namespaces.borrow();
+                (
+                    namespaces.command_fqn_at(ns, tail),
+                    namespaces
+                        .command_generation(ns, tail)
+                        .expect("the replacement command was just bound"),
+                )
+            };
+            self.reattach_missing_import_sources(&fqn, generation);
+        }
     }
 
     /// A command at `fqn` is being replaced or deleted: fire its `delete`
@@ -2373,6 +2544,149 @@ impl Interp {
         self.fire_delete_traces_of_token(&fqn, dying);
     }
 
+    /// Current visible, retained, and hidden locations of an owner's exact
+    /// command tokens, optionally restricted to one TclOO dispatcher role.
+    fn oo_command_locations(
+        &self,
+        owner: OoId,
+        role: Option<OoCommandRole>,
+    ) -> Vec<(Vec<u8>, u64)> {
+        let mut locations = self
+            .namespaces
+            .borrow()
+            .oo_command_role_locations(owner, role);
+        locations.extend(
+            self.hidden
+                .borrow()
+                .iter()
+                .filter(|(_, binding)| {
+                    binding.command.oo_binding().is_some_and(|(id, candidate)| {
+                        id == owner && role.is_none_or(|expected| expected == candidate)
+                    })
+                })
+                .map(|(name, binding)| {
+                    let mut fqn = b"::".to_vec();
+                    fqn.extend_from_slice(name);
+                    (fqn, binding.generation)
+                }),
+        );
+        locations
+    }
+
+    /// Fire one delete-trace walk per command generation, resolving the
+    /// generation's current placement immediately before its turn. An earlier
+    /// callback may rename or hide a later token. The callback may also move
+    /// the token currently firing, so clean its trace sidecar again at every
+    /// post-callback placement rather than falling back to a display name.
+    pub(crate) fn fire_oo_command_delete_traces(
+        &mut self,
+        owner: OoId,
+        role: Option<OoCommandRole>,
+    ) {
+        let generations: std::collections::BTreeSet<u64> = self
+            .oo_command_locations(owner, role)
+            .into_iter()
+            .map(|(_, generation)| generation)
+            .collect();
+        for generation in generations {
+            let location = self
+                .oo_command_locations(owner, role)
+                .into_iter()
+                .find(|(_, candidate)| *candidate == generation);
+            if let Some((fqn, _)) = location {
+                self.fire_delete_traces_of_token(&fqn, Some(generation));
+            }
+            for (fqn, _) in self
+                .oo_command_locations(owner, role)
+                .into_iter()
+                .filter(|(_, candidate)| *candidate == generation)
+            {
+                self.remove_cmd_traces_of_token(&fqn, Some(generation));
+            }
+        }
+    }
+
+    /// Fire an owner's public and private command-token traces in TclOO's
+    /// semantic teardown order. Resolving each role immediately before its
+    /// turn lets an earlier callback relocate a later dispatcher.
+    pub(crate) fn fire_oo_command_role_delete_traces(&mut self, owner: OoId) {
+        for role in OO_COMMAND_RETIREMENT_ORDER {
+            self.fire_oo_command_delete_traces(owner, Some(role));
+        }
+    }
+
+    /// Remove already-prefired command roles without replaying their delete
+    /// callbacks. Object teardown uses this for the private dispatchers before
+    /// instance-variable traces run; the public command remains until after
+    /// that namespace phase.
+    pub(crate) fn remove_prefired_oo_private_commands(&mut self, owner: OoId) {
+        self.remove_oo_command_roles(owner, &OO_PRIVATE_COMMAND_ROLES);
+    }
+
+    /// Retire every command token carried by one TclOO owner identity. The
+    /// namespace arena covers both visible and retained generations; the
+    /// interpreter-owned hidden table is folded into the same transaction.
+    /// Delete-trace callbacks may move a token between those stores, so the
+    /// commands are rescanned by identity after callbacks before removal.
+    pub(crate) fn retire_oo_command_identity(&mut self, owner: OoId) {
+        self.retire_oo_command_identity_impl(owner, true);
+    }
+
+    /// Remove an owner's command tokens after its semantic role walk already
+    /// fired. A later-role callback may add a trace to an earlier-role token;
+    /// final removal discards that late trace without revisiting the role.
+    pub(crate) fn retire_prefired_oo_command_identity(&mut self, owner: OoId) {
+        self.retire_oo_command_identity_impl(owner, false);
+    }
+
+    fn retire_oo_command_identity_impl(&mut self, owner: OoId, fire_traces: bool) {
+        if !self.0.retiring_oo_commands.borrow_mut().insert(owner) {
+            return;
+        }
+
+        if fire_traces {
+            self.fire_oo_command_role_delete_traces(owner);
+        }
+
+        self.remove_oo_command_roles(owner, &OO_COMMAND_RETIREMENT_ORDER);
+        self.forget_registry_object_root(owner);
+        self.0.retiring_oo_commands.borrow_mut().remove(&owner);
+        self.invalidate_command_environment();
+    }
+
+    fn remove_oo_command_roles(&mut self, owner: OoId, roles: &[OoCommandRole]) {
+        let mut removed: Vec<(Vec<u8>, u64)> = self
+            .namespaces
+            .borrow_mut()
+            .remove_oo_command_roles(owner, roles);
+        let hidden_names: Vec<Vec<u8>> = self
+            .hidden
+            .borrow()
+            .iter()
+            .filter(|(_, binding)| {
+                binding
+                    .command
+                    .oo_binding()
+                    .is_some_and(|(id, role)| id == owner && roles.contains(&role))
+            })
+            .map(|(name, _)| name.clone())
+            .collect();
+        for name in hidden_names {
+            if let Some(binding) = self.hidden.borrow_mut().remove(&name) {
+                let mut fqn = b"::".to_vec();
+                fqn.extend_from_slice(&name);
+                removed.push((fqn, binding.generation));
+            }
+        }
+        let origins: std::collections::BTreeSet<u64> =
+            removed.iter().map(|(_, generation)| *generation).collect();
+        self.remove_imports_for_deleted_origins(origins, &[]);
+        for (fqn, generation) in removed {
+            self.remove_cmd_traces_of_token(&fqn, Some(generation));
+        }
+        self.invalidate_command_environment();
+    }
+
     /// Fire `fqn`'s `delete` traces and drop the ones the dying token owned.
     fn fire_delete_traces_of_token(&mut self, fqn: &[u8], dying: Option<u64>) {
         if self
@@ -2394,6 +2708,74 @@ impl Interp {
         self.namespaces
             .borrow()
             .resolve_generation(self.current_ns.get(), name)
+    }
+
+    /// Resolve one retained command token wherever rename or visibility moves
+    /// placed it, distinguishing an unavailable token from a retired one.
+    fn command_by_generation(&self, generation: u64) -> CommandGenerationLookup {
+        let Some((fqn, command)) = self.raw_command_location_by_generation(generation) else {
+            return CommandGenerationLookup::Missing;
+        };
+        if !self.command_visible_for_surface_at(&command, &fqn, Some(generation)) {
+            return CommandGenerationLookup::Unavailable;
+        }
+        CommandGenerationLookup::Found { fqn, command }
+    }
+
+    /// Resolve an exact generation and its current projection without applying
+    /// dispatch-surface policy.
+    fn raw_command_location_by_generation(&self, generation: u64) -> Option<(Vec<u8>, Command)> {
+        if let Some((fqn, command)) = self.namespaces.borrow().command_by_generation(generation) {
+            return Some((fqn, command));
+        }
+        self.hidden.borrow().iter().find_map(|(name, binding)| {
+            if binding.generation != generation {
+                return None;
+            }
+            let mut fqn = b"::".to_vec();
+            fqn.extend_from_slice(name);
+            Some((fqn, binding.command.clone()))
+        })
+    }
+
+    /// The command half of [`Self::raw_command_location_by_generation`].
+    fn raw_command_by_generation(&self, generation: u64) -> Option<Command> {
+        self.raw_command_location_by_generation(generation)
+            .map(|(_, command)| command)
+    }
+
+    /// Whether an exact imported-command source chain reaches another command
+    /// generation. The import loop gate must not substitute a recreated
+    /// same-FQN namespace token for a retained source.
+    pub(crate) fn import_chain_contains(&self, source_generation: u64, needle: u64) -> bool {
+        let mut generation = source_generation;
+        let mut visited = std::collections::BTreeSet::new();
+        while visited.insert(generation) {
+            if generation == needle {
+                return true;
+            }
+            let Some(Command::Imported {
+                source_generation, ..
+            }) = self.raw_command_by_generation(generation)
+            else {
+                return false;
+            };
+            generation = source_generation;
+        }
+        false
+    }
+
+    /// Resolve an import's retained source token. Tcl redirects follow the
+    /// exact generation through rename and visibility moves. Once that token
+    /// truly retires, command replacement deliberately falls back through the
+    /// mutable source projection; a merely surface-gated token is still
+    /// present and must not take that fallback.
+    fn resolve_import_source(&self, source: &[u8], generation: u64) -> Option<Command> {
+        match self.command_by_generation(generation) {
+            CommandGenerationLookup::Found { command, .. } => Some(command),
+            CommandGenerationLookup::Unavailable => None,
+            CommandGenerationLookup::Missing => self.resolve_dispatchable(GLOBAL, source),
+        }
     }
 
     /// Drop the command/execution traces on `fqn` that belonged to the token
@@ -2465,22 +2847,27 @@ impl Interp {
         &self,
         name: &[u8],
     ) -> Option<Rc<crate::ensemble::EnsembleToken>> {
-        let ns = self.namespaces.borrow();
-        let mut cur = ns.resolve(self.current_ns.get(), name)?;
+        let mut cur = self
+            .namespaces
+            .borrow()
+            .resolve(self.current_ns.get(), name)?;
         // Bounded walk: an import chain cannot outlive the table, and a
         // malformed cycle terminates instead of spinning.
         for _ in 0..64 {
             match cur {
                 Command::Ensemble(token) => return Some(token),
                 Command::Imported {
-                    source, ensemble, ..
+                    source,
+                    source_generation,
+                    ensemble,
+                    ..
                 } => {
                     if let Some(token) = ensemble {
                         if !token.is_deleted() {
                             return Some(token);
                         }
                     }
-                    cur = ns.resolve(GLOBAL, &source)?;
+                    cur = self.resolve_import_source(&source, source_generation)?;
                 }
                 _ => return None,
             }
@@ -4260,17 +4647,12 @@ impl Interp {
     /// commands"). Re-entrant firing on *this* command is suppressed (C's
     /// per-`Command` `CMD_TRACE_ACTIVE`/`CMD_DYING`); the interp result is
     /// preserved across the callbacks.
-    fn fire_cmd_trace(&mut self, key: &[u8], old_fqn: &[u8], new_fqn: &[u8], op_bit: u8) {
-        self.fire_cmd_trace_of_token(key, old_fqn, new_fqn, op_bit, None);
-    }
-
-    /// [`fire_cmd_trace`] restricted to one command token's own trace list.
+    /// Fire one command token's own trace list.
     /// C walks `cmdPtr->tracePtr`, so a trace registered on a *later* token
     /// bound at the same name — a replacement, or a same-named command in a
     /// namespace that took the retained one's spelling — never fires for the
-    /// token being deleted. `dying` is `None` when the caller has no token to
-    /// discriminate by, and then the whole name fires (rename, and hidden
-    /// commands, which carry no generation).
+    /// token being deleted. `dying` is `None` only when an internal caller has
+    /// no bound token to discriminate by.
     ///
     /// `key` addresses the trace list and gates re-entry; `old_fqn` only names
     /// the command in the callback's first word. They differ for a rename,
@@ -4290,7 +4672,7 @@ impl Interp {
             .borrow()
             .firing_cmd_traces
             .iter()
-            .any(|firing| firing == key)
+            .any(|firing| firing.0 == key && firing.1 == dying)
         {
             return;
         }
@@ -4343,7 +4725,7 @@ impl Interp {
         self.traces
             .borrow_mut()
             .firing_cmd_traces
-            .push(key.to_vec());
+            .push((key.to_vec(), dying));
         for (id, cmd) in entries {
             if self.cmd_trace_untraced(id) {
                 continue;
@@ -4422,7 +4804,7 @@ impl Interp {
     /// `<prefix> {cmd args} enter`. Returns `Some(code)` if a callback completed
     /// non-OK — the command is then aborted with that code and the callback's
     /// result (C's `TclEvalObjvInternal`: `traceCode != TCL_OK ⇒ return`).
-    fn fire_exec_enter(&mut self, fqn: &[u8], cmd_word: &[u8]) -> Option<Code> {
+    fn fire_exec_enter(&mut self, fqn: &[u8], token: Option<u64>, cmd_word: &[u8]) -> Option<Code> {
         use crate::cmd_trace::ops;
         // C fires `enter` newest-first (the trace list is prepended; the loop
         // walks it head→tail). Our Vec pushes newest-last, so iterate reversed.
@@ -4432,7 +4814,7 @@ impl Interp {
             .cmd_traces
             .iter()
             .rev()
-            .filter(|t| t.name == fqn && (t.ops & ops::ENTER) != 0)
+            .filter(|t| t.name == fqn && t.token == token && (t.ops & ops::ENTER) != 0)
             .map(|t| t.id)
             .collect();
         if ids.is_empty() {
@@ -4484,7 +4866,13 @@ impl Interp {
     /// Fire `leave` execution traces on `fqn` (reverse creation order), invoking
     /// each as `<prefix> {cmd args} <code> <result> leave`. A leave-trace non-OK
     /// code overrides the command's result/code (C's `TEOV_RunLeaveTraces`).
-    fn fire_exec_leave(&mut self, fqn: &[u8], cmd_word: &[u8], code: Code) -> Code {
+    fn fire_exec_leave(
+        &mut self,
+        fqn: &[u8],
+        token: Option<u64>,
+        cmd_word: &[u8],
+        code: Code,
+    ) -> Code {
         use crate::cmd_trace::ops;
         // C fires `leave` oldest-first (reverse-scan of the prepended list). Our
         // Vec pushes newest-last, so iterate forward.
@@ -4493,7 +4881,7 @@ impl Interp {
             .borrow()
             .cmd_traces
             .iter()
-            .filter(|t| t.name == fqn && (t.ops & ops::LEAVE) != 0)
+            .filter(|t| t.name == fqn && t.token == token && (t.ops & ops::LEAVE) != 0)
             .map(|t| t.id)
             .collect();
         if ids.is_empty() {
@@ -4582,15 +4970,15 @@ impl Interp {
     /// would stop answering through the vacating name, and the
     /// `firing_cmd_traces` record standing in for `CMD_TRACE_ACTIVE` would stop
     /// suppressing the command's own remaining callbacks.
-    fn relocate_rename_state(&self, old_fqn: &[u8], new_fqn: &[u8]) {
+    fn relocate_rename_state(&self, old_fqn: &[u8], new_fqn: &[u8], generation: u64) {
         let mut traces = self.traces.borrow_mut();
         for (_, destination) in &mut traces.rename_windows {
             if destination == old_fqn {
                 *destination = new_fqn.to_vec();
             }
         }
-        for firing in &mut traces.firing_cmd_traces {
-            if firing == old_fqn {
+        for (firing, token) in &mut traces.firing_cmd_traces {
+            if firing == old_fqn && *token == Some(generation) {
                 *firing = new_fqn.to_vec();
             }
         }
@@ -4599,35 +4987,20 @@ impl Interp {
     /// Move every command/execution trace on `old_fqn` to `new_fqn` (the trace
     /// follows a renamed command, as C keeps the trace list on the moving
     /// `Command`).
-    fn move_cmd_traces(&mut self, old_fqn: &[u8], new_fqn: &[u8]) {
-        self.relocate_rename_state(old_fqn, new_fqn);
-        // C moves the `Command` itself, so its trace list travels with the
-        // token. Re-stamp to whatever token now stands at the destination, so
-        // a later deletion there still tells this list from a replacement's.
-        let token = self.resolve_cmd_token(new_fqn);
+    fn move_cmd_traces(&mut self, old_fqn: &[u8], new_fqn: &[u8], generation: u64) {
+        self.relocate_rename_state(old_fqn, new_fqn, generation);
+        // C moves one `Command` and its trace list. A visible and hidden token
+        // may legally share display spelling, so move only this generation.
         let mut traces = self.traces.borrow_mut();
         let mut moved = false;
         for t in traces.cmd_traces.iter_mut() {
-            if t.name == old_fqn {
+            if t.name == old_fqn && t.token == Some(generation) {
                 t.name = new_fqn.to_vec();
-                t.token = token;
                 moved = true;
             }
         }
         drop(traces);
         if moved {
-            self.invalidate_guard_domain(GuardDomain::CommandTrace);
-        }
-    }
-
-    /// Drop every command/execution trace on `fqn` (the command is gone).
-    fn remove_cmd_traces(&mut self, fqn: &[u8]) {
-        let mut traces = self.traces.borrow_mut();
-        let old_len = traces.cmd_traces.len();
-        traces.cmd_traces.retain(|t| t.name != fqn);
-        let removed = traces.cmd_traces.len() != old_len;
-        drop(traces);
-        if removed {
             self.invalidate_guard_domain(GuardDomain::CommandTrace);
         }
     }
@@ -4725,6 +5098,18 @@ impl Interp {
             .ensure_namespace(self.current_ns.get(), name)
     }
 
+    /// Create an OO command's default instance namespace under the exact
+    /// namespace token that will receive the command. This differs from public
+    /// `namespace eval` creation only during a synchronous delete callback,
+    /// where the command and its owned namespace must both join the dying
+    /// generation.
+    pub(crate) fn ensure_command_owned_namespace(&mut self, name: &[u8]) -> NsId {
+        self.invalidate_command_environment();
+        self.namespaces
+            .borrow_mut()
+            .ensure_command_owned_namespace(self.current_ns.get(), name)
+    }
+
     /// Resolve (creating if needed) a namespace by name, anchored at the
     /// **global** namespace regardless of the current one — C's
     /// `TclGetNamespaceForQualName(..., TCL_GLOBAL_ONLY |
@@ -4744,6 +5129,11 @@ impl Interp {
             return;
         }
         let teardown_ids = self.namespaces.borrow().descendant_ids(ns);
+        // TclOO state follows the exact namespace token. This must happen only
+        // once deletion is no longer deferred: an active old token can coexist
+        // with fresh objects at the same Tcl-facing name. Descendants receive
+        // the same check when recursion reaches their own token.
+        self.oo_namespace_deleted(ns);
         self.delete_namespace_token(ns);
         self.sweep_dying_namespace(ns, &teardown_ids);
         self.namespaces
@@ -4773,6 +5163,7 @@ impl Interp {
         if self.defer_namespace_teardown(ns) {
             return;
         }
+        self.oo_namespace_deleted(ns);
         self.delete_namespace_token(ns);
     }
 
@@ -4782,14 +5173,13 @@ impl Interp {
     /// even when the namespace itself is retained.
     fn retire_namespace_owned_ensembles(&mut self, ns: NsId) {
         let ids = std::collections::HashSet::from([ns]);
-        let mut deleted_origins: std::collections::HashSet<Vec<u8>> =
-            std::collections::HashSet::new();
+        let mut deleted_origins = std::collections::HashSet::<u64>::new();
         let mut ensemble_victims = self.namespaces.borrow().ensembles_for(&ids);
         let hidden_tokens: Vec<(Vec<u8>, Rc<crate::ensemble::EnsembleToken>)> = self
             .hidden
             .borrow()
             .iter()
-            .filter_map(|(name, command)| match command {
+            .filter_map(|(name, binding)| match &binding.command {
                 Command::Ensemble(token) if ids.contains(&token.config().ns) => {
                     let mut fqn = b"::".to_vec();
                     fqn.extend_from_slice(name);
@@ -4800,13 +5190,15 @@ impl Interp {
             .collect();
         ensemble_victims.extend(hidden_tokens);
         let mut deleted_tokens = Vec::with_capacity(ensemble_victims.len());
-        for (fqn, token) in ensemble_victims {
+        for (_fqn, token) in ensemble_victims {
             if deleted_tokens.iter().any(|seen| Rc::ptr_eq(seen, &token)) {
                 continue;
             }
-            deleted_origins.insert(fqn.clone());
-            if let Some(live_fqn) = self.retire_ensemble_identity(&fqn, &token) {
-                deleted_origins.insert(live_fqn);
+            if let Some((_, generation)) = self.ensemble_identity_location(&token) {
+                deleted_origins.insert(generation);
+            }
+            if let Some((_, generation)) = self.retire_ensemble_identity(&token) {
+                deleted_origins.insert(generation);
             }
             deleted_tokens.push(token);
         }
@@ -4865,7 +5257,6 @@ impl Interp {
                 if self.namespaces.borrow().command_generation(ns, &tail) != Some(generation) {
                     continue;
                 }
-                let fqn = self.namespaces.borrow().command_fqn_at(ns, &tail);
                 self.on_bound_command_replaced(ns, &tail);
                 if self.namespaces.borrow().command_generation(ns, &tail) != Some(generation) {
                     // The callback deleted this token, or redefined the name:
@@ -4874,12 +5265,17 @@ impl Interp {
                     retired_any = true;
                     continue;
                 }
-                let ensemble_tokens = match self.namespaces.borrow().command_in(ns, &tail) {
-                    Some(Command::Ensemble(token)) => vec![token],
+                let command = self.namespaces.borrow().command_in(ns, &tail);
+                let ensemble_tokens = match &command {
+                    Some(Command::Ensemble(token)) => vec![Rc::clone(token)],
                     _ => Vec::new(),
                 };
+                let oo_owner = command.as_ref().and_then(Command::oo_object);
                 self.namespaces.borrow_mut().remove_in(ns, &tail);
-                self.remove_imports_for_deleted_origins([fqn], &ensemble_tokens);
+                self.remove_imports_for_deleted_origins([generation], &ensemble_tokens);
+                if let Some(owner) = oo_owner {
+                    self.oo_command_renamed(owner, None);
+                }
                 retired_any = true;
             }
             if !retired_any {
@@ -4914,7 +5310,7 @@ impl Interp {
                 .collect()
         };
         let mut traced = std::collections::HashSet::<(NsId, Vec<u8>)>::new();
-        let mut origins = std::collections::HashSet::<Vec<u8>>::new();
+        let mut origins = std::collections::HashSet::<u64>::new();
         let mut tokens = Vec::<Rc<crate::ensemble::EnsembleToken>>::new();
 
         loop {
@@ -4926,8 +5322,8 @@ impl Interp {
             let id_set: std::collections::HashSet<NsId> = ids.iter().copied().collect();
 
             let mut ensemble_victims = self.namespaces.borrow().ensembles_for(&id_set);
-            ensemble_victims.extend(self.hidden.borrow().iter().filter_map(|(name, command)| {
-                let Command::Ensemble(token) = command else {
+            ensemble_victims.extend(self.hidden.borrow().iter().filter_map(|(name, binding)| {
+                let Command::Ensemble(token) = &binding.command else {
                     return None;
                 };
                 if !id_set.contains(&token.config().ns)
@@ -4940,14 +5336,16 @@ impl Interp {
                 Some((fqn, Rc::clone(token)))
             }));
             let mut found_new_token = false;
-            for (fqn, token) in ensemble_victims {
+            for (_fqn, token) in ensemble_victims {
                 if tokens.iter().any(|seen| Rc::ptr_eq(seen, &token)) {
                     continue;
                 }
                 found_new_token = true;
-                origins.insert(fqn.clone());
-                if let Some(live_fqn) = self.retire_ensemble_identity(&fqn, &token) {
-                    origins.insert(live_fqn);
+                if let Some((_, generation)) = self.ensemble_identity_location(&token) {
+                    origins.insert(generation);
+                }
+                if let Some((_, generation)) = self.retire_ensemble_identity(&token) {
+                    origins.insert(generation);
                 }
                 tokens.push(token);
             }
@@ -4969,8 +5367,14 @@ impl Interp {
                     ids.push(id);
                 }
             }
-            origins.extend(self.namespaces.borrow().command_fqns_in_ids(&ids));
-            self.remove_imports_for_deleted_origins(origins.iter().cloned(), &tokens);
+            origins.extend(
+                self.namespaces
+                    .borrow()
+                    .command_locations_in_ids(&ids)
+                    .into_iter()
+                    .map(|(_, generation)| generation),
+            );
+            self.remove_imports_for_deleted_origins(origins.iter().copied(), &tokens);
 
             let remaining = self.namespaces.borrow().command_slots_in_ids(&ids);
             if !found_new_token
@@ -4988,11 +5392,18 @@ impl Interp {
                 ids.push(id);
             }
         }
-        origins.extend(self.namespaces.borrow().command_fqns_in_ids(&ids));
-        self.remove_imports_for_deleted_origins(origins.iter().cloned(), &tokens);
+        origins.extend(
+            self.namespaces
+                .borrow()
+                .command_locations_in_ids(&ids)
+                .into_iter()
+                .map(|(_, generation)| generation),
+        );
+        self.remove_imports_for_deleted_origins(origins.iter().copied(), &tokens);
+        let cleared = self.namespaces.borrow().command_locations_in_ids(&ids);
         self.namespaces.borrow_mut().clear_namespace_ids(&ids);
-        for fqn in origins {
-            self.remove_cmd_traces(&fqn);
+        for (fqn, generation) in cleared {
+            self.remove_cmd_traces_of_token(&fqn, Some(generation));
         }
     }
 
@@ -5243,17 +5654,13 @@ impl Interp {
                 // `info commands ::oo::*` on an 8.4 surface advertises names
                 // that then fail to dispatch. The TclOO roots the engine
                 // installs on the registry's behalf are gated alongside
-                // builtins; every script-created object stays invariant.
-                let gated = match ns.resolve(id, name) {
-                    Some(Command::Builtin(_)) => true,
-                    Some(Command::OoObject(fqn)) => {
-                        self.0.registry_object_roots.borrow().contains(&fqn)
-                    }
-                    _ => false,
-                };
-                let mut full_name = prefix.clone();
-                full_name.extend_from_slice(name);
-                (!gated || self.builtin_command_visible_for_surface(&full_name))
+                // builtins; every script-created object stays invariant. Use
+                // the exact generation too, so a renamed builtin is gated by
+                // the same stable registry identity as dispatch.
+                let command = ns.command_in(id, name)?;
+                let mut fqn = prefix.clone();
+                fqn.extend_from_slice(name);
+                self.command_visible_for_surface_at(&command, &fqn, ns.command_generation(id, name))
                     .then(|| name.to_vec())
             })
             .collect()
@@ -5278,17 +5685,22 @@ impl Interp {
 
     /// The proc definition bound to `name` (for `info body`/`args`/`default`).
     pub(crate) fn proc_def(&self, name: &[u8]) -> Option<Rc<ProcDef>> {
-        let ns = self.namespaces.borrow();
-        let mut cmd = ns.resolve(self.current_ns.get(), name)?;
+        let mut cmd = self
+            .namespaces
+            .borrow()
+            .resolve(self.current_ns.get(), name)?;
         // Follow `namespace import` redirects to the underlying proc, so
         // `info args`/`body`/`default` work on an imported proc (info-1.7/2.4).
         for _ in 0..64 {
             match cmd {
                 Command::Proc(def) => return Some(def),
                 Command::Imported {
-                    source, ensemble, ..
+                    source,
+                    source_generation,
+                    ensemble,
+                    ..
                 } if ensemble.as_ref().is_none_or(|token| token.is_deleted()) => {
-                    cmd = ns.resolve(GLOBAL, &source)?;
+                    cmd = self.resolve_import_source(&source, source_generation)?;
                 }
                 _ => return None,
             }
@@ -5388,6 +5800,24 @@ impl Interp {
         obj_bytes(self.result.get())
     }
 
+    /// Run an implicit callback while preserving the caller's result and
+    /// carried completion options. The callback may inspect and replace the
+    /// live result internally; its final value is discarded when `f` returns.
+    pub(crate) fn with_preserved_result<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
+        let saved = self.result.get();
+        // SAFETY: the interpreter owns `saved`; hold an independent reference
+        // while callback evaluation replaces the result slot.
+        unsafe { obj::incr_ref_count(saved) };
+        let saved_options = self.take_return_options();
+        let output = f(self);
+        // SAFETY: discard the callback's owned result and transfer the saved
+        // reference back into the interpreter result slot.
+        unsafe { obj::decr_ref_count(self.result.get()) };
+        self.result.set(saved);
+        self.restore_return_options(saved_options);
+        output
+    }
+
     /// The current result **object** — a borrowed pointer (the interp keeps its
     /// reference; the caller must not release it without first taking its own
     /// `+1`). Backs `Commands::dispatch`'s completion capture in `state_traits.rs`.
@@ -5395,16 +5825,17 @@ impl Interp {
         self.result.get()
     }
 
-    /// Intern a command's fully-qualified name to a stable, dense raw
-    /// `CommandId`, minting one on first sight. Backs `Namespaces::find_command`.
-    fn intern_cmd(&self, fqn: &[u8]) -> u32 {
+    /// Intern an exact command token to a stable, dense raw `CommandId`, minting
+    /// one on first sight. Backs `Namespaces::find_command`.
+    fn intern_cmd(&self, fqn: &[u8], generation: u64) -> u32 {
         let mut a = self.cmd_arena.borrow_mut();
-        if let Some(&id) = a.ids.get(fqn) {
+        let key = (fqn.to_vec(), generation);
+        if let Some(&id) = a.ids.get(&key) {
             return id;
         }
-        let id = u32::try_from(a.fqns.len()).expect("command count fits u32");
-        a.fqns.push(fqn.to_vec());
-        a.ids.insert(fqn.to_vec(), id);
+        let id = u32::try_from(a.commands.len()).expect("command count fits u32");
+        a.commands.push(key.clone());
+        a.ids.insert(key, id);
         id
     }
 
@@ -5413,14 +5844,26 @@ impl Interp {
     /// `CommandId`. `None` if it resolves to no command. The `Namespaces::find_command`
     /// engine (`state_traits.rs`), keeping the namespace-table access here.
     pub(crate) fn find_command_id(&self, cxt: NsId, name: &[u8]) -> Option<u32> {
-        let fqn = self.namespaces.borrow().resolve_fqn(cxt, name)?;
-        Some(self.intern_cmd(&fqn))
+        let (fqn, generation) = {
+            let namespaces = self.namespaces.borrow();
+            (
+                namespaces.resolve_fqn(cxt, name)?,
+                namespaces.resolve_generation(cxt, name)?,
+            )
+        };
+        Some(self.intern_cmd(&fqn, generation))
     }
 
-    /// The FQN an interned raw `CommandId` was minted from, or `None` for a
-    /// fabricated/out-of-range id. Backs `Commands::dispatch_id`'s reverse step.
+    /// The exact `(FQN, generation)` an interned raw `CommandId` names.
+    pub(crate) fn command_identity(&self, id: u32) -> Option<(Vec<u8>, u64)> {
+        self.cmd_arena.borrow().commands.get(id as usize).cloned()
+    }
+
+    /// The FQN projection of an interned raw `CommandId`.
     pub(crate) fn command_fqn(&self, id: u32) -> Option<Vec<u8>> {
-        self.cmd_arena.borrow().fqns.get(id as usize).cloned()
+        let (_, generation) = self.command_identity(id)?;
+        self.raw_command_location_by_generation(generation)
+            .map(|(fqn, _)| fqn)
     }
 
     /// The command an interned command was ultimately imported from — C's
@@ -5430,24 +5873,35 @@ impl Interp {
     /// `Namespaces::command_origin`. Bounded against a cycle a retargeting bug
     /// could leave behind; a well-formed chain is acyclic.
     pub(crate) fn imported_source_id(&self, id: u32) -> Option<u32> {
-        let mut fqn = self.command_fqn(id)?;
+        let (_, mut generation) = self.command_identity(id)?;
+        let (mut fqn, mut command) = self.raw_command_location_by_generation(generation)?;
         let mut hops = 0;
-        loop {
-            let next = match self.namespaces.borrow().resolve(GLOBAL, &fqn) {
-                Some(Command::Imported {
-                    source, ensemble, ..
-                }) => ensemble
-                    .filter(|token| !token.is_deleted())
-                    .map_or(source, |token| token.name()),
-                _ => break,
-            };
-            fqn = next;
+        while let Command::Imported {
+            source,
+            source_generation,
+            ensemble,
+            ..
+        } = command
+        {
+            let source = ensemble
+                .filter(|token| !token.is_deleted())
+                .map_or(source, |token| token.name());
+            if let Some(next) = self.raw_command_by_generation(source_generation) {
+                fqn = source;
+                generation = source_generation;
+                command = next;
+            } else {
+                let namespaces = self.namespaces.borrow();
+                fqn = namespaces.resolve_fqn(GLOBAL, &source)?;
+                generation = namespaces.resolve_generation(GLOBAL, &source)?;
+                command = namespaces.resolve(GLOBAL, &source)?;
+            }
             hops += 1;
             if hops >= 64 {
                 break;
             }
         }
-        (hops > 0).then(|| self.intern_cmd(&fqn))
+        (hops > 0).then(|| self.intern_cmd(&fqn, generation))
     }
 
     /// Immediate source binding and optional real-ensemble identity for a new
@@ -5456,17 +5910,19 @@ impl Interp {
     /// importers before `namespace origin` walks any farther toward the root.
     /// Only a *direct* ensemble source contributes an ensemble token; an
     /// imported ensemble is reached through its intermediate command binding.
-    pub(crate) fn import_metadata_at(
+    pub(crate) fn import_metadata_in(
         &self,
-        name: &[u8],
-    ) -> Option<(Vec<u8>, Option<Rc<crate::ensemble::EnsembleToken>>)> {
+        source_ns: NsId,
+        simple: &[u8],
+    ) -> Option<(Vec<u8>, u64, Option<Rc<crate::ensemble::EnsembleToken>>)> {
         let namespaces = self.namespaces.borrow();
-        let fqn = namespaces.resolve_fqn(self.current_ns.get(), name)?;
-        let ensemble = match namespaces.resolve(GLOBAL, &fqn)? {
+        let fqn = namespaces.command_fqn_at(source_ns, simple);
+        let source_generation = namespaces.command_generation(source_ns, simple)?;
+        let ensemble = match namespaces.command_in(source_ns, simple)? {
             Command::Ensemble(token) => Some(token),
             _ => None,
         };
-        Some((fqn, ensemble))
+        Some((fqn, source_generation, ensemble))
     }
 
     /// The fully-qualified name of namespace `ns` (`"::"` for the root). Backs
@@ -6944,6 +7400,51 @@ impl Interp {
     /// (auto-load / `package` / friendly errors — the pure-Tcl `unknown` proc),
     /// matching C's `TclEvalObjvInternal`.
     pub(crate) fn dispatch(&mut self, argv: &[*mut TclObj]) -> Code {
+        self.dispatch_prebound(argv, None)
+    }
+
+    /// Invoke the exact command token named by a shared-runtime `CommandId`.
+    /// IDs retain a generation as well as an FQN, so a recreated same-named
+    /// namespace command cannot capture a previously resolved handle.
+    pub(crate) fn dispatch_command_id(&mut self, id: u32, argv: &[*mut TclObj]) -> Option<Code> {
+        let (_, generation) = self.command_identity(id)?;
+        let (fqn, command) = match self.command_by_generation(generation) {
+            CommandGenerationLookup::Found { fqn, command } => (fqn, command),
+            CommandGenerationLookup::Missing | CommandGenerationLookup::Unavailable => {
+                return None;
+            }
+        };
+        let mut full = Vec::with_capacity(argv.len() + 1);
+        full.push(new_string(&fqn));
+        full.extend_from_slice(argv);
+        for &word in &full {
+            // SAFETY: the head is fresh and every remaining word is borrowed
+            // live from the caller for this dispatch.
+            unsafe { obj::incr_ref_count(word) };
+        }
+        let code = self.dispatch_prebound(
+            &full,
+            Some((
+                fqn,
+                CommandBinding {
+                    generation,
+                    command,
+                },
+            )),
+        );
+        release_all(&full);
+        Some(code)
+    }
+
+    /// The central dispatch boundary, optionally with a command binding whose
+    /// table is not visible to normal namespace lookup (`interp invokehidden`).
+    /// Pre-resolved bindings still pass through command counting and execution
+    /// traces; their stored generation selects the exact trace sidecar.
+    fn dispatch_prebound(
+        &mut self,
+        argv: &[*mut TclObj],
+        prebound: Option<(Vec<u8>, CommandBinding)>,
+    ) -> Code {
         // TclEvalObjvInternal resets the interpreter result before execution
         // traces and command dispatch. This is the central entry used by parsed
         // commands, canonical-list eval, aliases/ensembles, callbacks and the
@@ -6959,16 +7460,23 @@ impl Interp {
         // `dispatch_traced`.
         let traced = !self.traces.borrow().cmd_traces.is_empty();
         if !traced {
-            return self.dispatch_inner(argv);
+            return match prebound {
+                Some((_, binding)) => self.invoke(binding.command, argv),
+                None => self.dispatch_inner(argv),
+            };
         }
-        self.dispatch_traced(argv)
+        self.dispatch_traced(argv, prebound)
     }
 
     /// Slow path: the command may carry execution (enter/leave/step) traces, or
     /// a step trace is active. Mirrors C's `TclEvalObjvInternal` order: interp
     /// (step) enter traces fire before per-command enter; per-command leave
     /// fires before interp (step) leave.
-    fn dispatch_traced(&mut self, argv: &[*mut TclObj]) -> Code {
+    fn dispatch_traced(
+        &mut self,
+        argv: &[*mut TclObj],
+        prebound: Option<(Vec<u8>, CommandBinding)>,
+    ) -> Code {
         use crate::cmd_trace::ops;
         let name = obj_bytes(argv[0]);
         // Inside a rename's callbacks the vacating name still resolves, but the
@@ -6977,14 +7485,25 @@ impl Interp {
         // `Command` from either hash entry. Only the *key* is canonicalised:
         // the callback's own words stay the spelling the caller invoked
         // (`cmd_word` below), which is what tclsh passes.
-        let fqn = self
-            .resolve_cmd_fqn(&name)
-            .map(|fqn| self.renamed_cmd_key(&fqn).unwrap_or(fqn));
+        let (fqn, token, prebound_command) = match prebound {
+            Some((fqn, binding)) => (Some(fqn), Some(binding.generation), Some(binding.command)),
+            None => {
+                let fqn = self
+                    .resolve_cmd_fqn(&name)
+                    .map(|fqn| self.renamed_cmd_key(&fqn).unwrap_or(fqn));
+                let token = fqn.as_deref().and_then(|fqn| self.resolve_cmd_token(fqn));
+                (fqn, token, None)
+            }
+        };
         let (has_enter, has_leave, has_step) = match &fqn {
             Some(f) => {
                 let t = self.traces.borrow();
                 let (mut he, mut hl, mut hs) = (false, false, false);
-                for tr in t.cmd_traces.iter().filter(|tr| tr.name == *f) {
+                for tr in t
+                    .cmd_traces
+                    .iter()
+                    .filter(|tr| tr.name == *f && tr.token == token)
+                {
                     he |= (tr.ops & ops::ENTER) != 0;
                     hl |= (tr.ops & ops::LEAVE) != 0;
                     hs |= (tr.ops & ops::STEP_ANY) != 0;
@@ -7001,7 +7520,10 @@ impl Interp {
             !t.step_active.is_empty() && t.exec_firing == 0
         };
         if !has_enter && !has_leave && !has_step && !stepping {
-            return self.dispatch_inner(argv);
+            return match prebound_command {
+                Some(command) => self.invoke(command, argv),
+                None => self.dispatch_inner(argv),
+            };
         }
         // The `{cmd arg ...}` word: argv rendered as a single list element (C's
         // `TraceExecutionProc` builds it via per-arg `DStringAppendElement`).
@@ -7020,24 +7542,27 @@ impl Interp {
         }
         // (B) per-command enter; a non-OK enter aborts with the callback result.
         if has_enter {
-            if let Some(c) = self.fire_exec_enter(fqn.as_deref().unwrap(), &cmd_word) {
+            if let Some(c) = self.fire_exec_enter(fqn.as_deref().unwrap(), token, &cmd_word) {
                 return c;
             }
         }
         // (C) install this command's step traces (deduped against recursion).
         let installed = if has_step {
-            self.install_step_traces(fqn.as_deref().unwrap())
+            self.install_step_traces(fqn.as_deref().unwrap(), token)
         } else {
             0
         };
-        let mut code = self.dispatch_inner(argv);
+        let mut code = match prebound_command {
+            Some(command) => self.invoke(command, argv),
+            None => self.dispatch_inner(argv),
+        };
         // (D) remove the step traces installed above (they are the last pushed).
         if installed > 0 {
             self.remove_installed_step_traces(installed);
         }
         // (E) per-command leave (before interp/step leave), then (F) leavestep.
         if has_leave {
-            code = self.fire_exec_leave(fqn.as_deref().unwrap(), &cmd_word, code);
+            code = self.fire_exec_leave(fqn.as_deref().unwrap(), token, &cmd_word, code);
         }
         if stepping {
             if let Some(c) = self.fire_step(&cmd_word, ops::LEAVESTEP, Some(code)) {
@@ -7050,17 +7575,17 @@ impl Interp {
     /// Push a `StepActive` for each step trace on `fqn` not already live (dedup
     /// by owner+prefix handles recursion: only the outermost installs). Returns
     /// how many were pushed (the last `n` of `step_active`, popped on exit).
-    fn install_step_traces(&mut self, fqn: &[u8]) -> usize {
+    fn install_step_traces(&mut self, fqn: &[u8], token: Option<u64>) -> usize {
         use crate::cmd_trace::{ops, StepActive};
         let to_install: Vec<(u8, Vec<u8>)> = {
             let t = self.traces.borrow();
             t.cmd_traces
                 .iter()
-                .filter(|c| c.name == fqn && (c.ops & ops::STEP_ANY) != 0)
+                .filter(|c| c.name == fqn && c.token == token && (c.ops & ops::STEP_ANY) != 0)
                 .filter(|c| {
                     !t.step_active
                         .iter()
-                        .any(|s| s.owner == fqn && s.command == c.command)
+                        .any(|s| s.owner == fqn && s.token == token && s.command == c.command)
                 })
                 .map(|c| (c.ops & ops::STEP_ANY, c.command.clone()))
                 .collect()
@@ -7070,6 +7595,7 @@ impl Interp {
         for (ops_bits, command) in to_install {
             tt.step_active.push(StepActive {
                 owner: fqn.to_vec(),
+                token,
                 ops: ops_bits,
                 command,
             });
@@ -7234,17 +7760,17 @@ impl Interp {
             Command::Builtin(f) => f(self, argv),
             Command::Alias { target, prefix, .. } => self.dispatch_alias(&target, &prefix, argv),
             Command::Imported {
-                source, ensemble, ..
+                source,
+                source_generation,
+                ensemble,
+                ..
             } => {
                 if let Some(token) = ensemble {
                     if !token.is_deleted() {
                         return self.dispatch_ensemble(&token, argv);
                     }
                 }
-                // Gated resolution: a source the emulated release does not carry
-                // is a miss, so an imported spelling cannot smuggle a hidden
-                // builtin past the surface check.
-                match self.resolve_dispatchable(GLOBAL, &source) {
+                match self.resolve_import_source(&source, source_generation) {
                     // Transparent redirect: forward argv unchanged to the source.
                     Some(cmd) => self.invoke(cmd, argv),
                     None => self.invalid_command(&source),
@@ -7253,7 +7779,9 @@ impl Interp {
             Command::Ensemble(token) => self.dispatch_ensemble(&token, argv),
             Command::Proc(def) => self.call_proc(&def, argv),
             Command::ChildInterp(name) => self.dispatch_child(&name, argv),
-            Command::OoObject(fqn) => self.oo_dispatch(&fqn, argv),
+            Command::OoObject(id) => self.oo_dispatch(id, argv),
+            Command::OoMy(id) => crate::cmd_oo::my_cmd(self, id, argv),
+            Command::OoMyClass(id) => crate::cmd_oo::myclass_cmd(self, id, argv),
             Command::ParentAlias { target, prefix, .. } => {
                 self.dispatch_parent_alias(&target, &prefix, argv)
             }
@@ -7263,23 +7791,12 @@ impl Interp {
     /// Register `cmd` under the (possibly qualified) name `name` — for the OO
     /// object/class commands.
     pub(crate) fn ns_register(&mut self, name: &[u8], cmd: Command) {
-        // The TclOO root marking is an identity, not a reservation on the
-        // *name*: it says "the engine installed this entry on the registry's
-        // behalf, so date it by the registry". Registering over that name
-        // replaces the identity with a script-created one, which is
-        // release-invariant like any proc, so the marking must not outlive the
-        // entry it described — otherwise the availability gate hides the new
-        // command forever.
-        //
-        // This lives in the single registration funnel rather than at the
-        // individual creation verbs so that every path is covered: `create`,
-        // `new`, `oo::copy`, `rename` onto the name, and any funnel added
-        // later. (The VM is immune for the same structural reason — its clear
-        // lives in `register_command`.) Safe against the engine's own installs
-        // because each declares its root *after* registering it.
-        self.forget_registry_object_root(name);
-        self.namespaces.borrow_mut().register(name, cmd);
-        self.invalidate_command_environment();
+        let ns = self
+            .namespaces
+            .borrow_mut()
+            .command_home_ns(self.current_ns.get(), name);
+        let tail = tcl_syntax::naming::written_command_tail(name).to_vec();
+        self.bind_command_replacement(ns, &tail, cmd);
     }
 
     /// The fully-qualified name a (relative or absolute) command/object name
@@ -7343,9 +7860,8 @@ impl Interp {
             .borrow()
             .resolve(self.current_ns.get(), name)?;
         Some(match cmd {
-            // A coroutine resume command and the per-object `my`/`myclass`
-            // commands all register as builtins but report their own cmdType
-            // (C's per-command registrations).
+            // A coroutine resume command registers as a builtin but reports
+            // its own cmdType (C's per-command registration).
             Command::Builtin(_) => {
                 let fqn = self
                     .namespaces
@@ -7353,8 +7869,7 @@ impl Interp {
                     .resolve_fqn(self.current_ns.get(), name);
                 match fqn {
                     Some(fqn) if self.coros.borrow().contains_key(&fqn) => b"coroutine",
-                    Some(fqn) => self.oo_private_cmd_kind(&fqn).unwrap_or(b"native"),
-                    None => b"native",
+                    _ => b"native",
                 }
             }
             Command::Proc(_) => b"proc",
@@ -7362,6 +7877,8 @@ impl Interp {
             Command::Imported { .. } => b"import",
             Command::Ensemble(_) => b"ensemble",
             Command::OoObject(_) => b"object",
+            Command::OoMy(_) => b"privateObject",
+            Command::OoMyClass(_) => b"privateClass",
             Command::ChildInterp(_) => b"interp",
         })
     }
@@ -7793,7 +8310,7 @@ impl Interp {
         // `interp invokehidden` would reach it past the surface check.
         let resolved = self.resolve_dispatchable(GLOBAL, name);
         match resolved {
-            Some(cmd) => {
+            Some(_) => {
                 // C's order, and it is observable: `Tcl_HideCommand` resolves
                 // the source before it rejects a non-global one, and rejects a
                 // non-global one before it refuses an occupied token
@@ -7812,21 +8329,21 @@ impl Interp {
                 }
                 self.invalidate_interpreter_policy();
                 let old_fqn = self.namespaces.borrow().resolve_fqn(GLOBAL, name);
-                self.namespaces.borrow_mut().take(GLOBAL, name);
+                let Some(binding) = self.namespaces.borrow_mut().take(GLOBAL, name) else {
+                    return CommandVisibilityOutcome::Missing;
+                };
                 let mut hidden_fqn = b"::".to_vec();
                 hidden_fqn.extend_from_slice(hidden_name);
                 if let Some(old_fqn) = &old_fqn {
-                    self.move_cmd_traces(old_fqn, &hidden_fqn);
+                    self.move_cmd_traces(old_fqn, &hidden_fqn, binding.generation);
+                    self.retarget_import_sources(binding.generation, &hidden_fqn);
                 }
-                if let Command::Ensemble(token) = &cmd {
-                    if let Some(old_fqn) = old_fqn {
-                        token.rename(hidden_fqn.clone());
-                        self.retarget_import_sources(&old_fqn, &hidden_fqn);
-                    } else {
-                        token.rename(hidden_fqn);
-                    }
+                if let Command::Ensemble(token) = &binding.command {
+                    token.rename(hidden_fqn);
                 }
-                self.hidden.borrow_mut().insert(hidden_name.to_vec(), cmd);
+                self.hidden
+                    .borrow_mut()
+                    .insert(hidden_name.to_vec(), binding);
                 self.invalidate_command_environment();
                 CommandVisibilityOutcome::Moved
             }
@@ -7853,24 +8370,26 @@ impl Interp {
         // Invalidate before removing from the hidden table. A missing entry may
         // over-invalidate, which is preferable to a re-entrant visibility gap.
         self.invalidate_interpreter_policy();
-        let cmd = self.hidden.borrow_mut().remove(hidden_name);
-        match cmd {
-            Some(cmd) => {
+        let binding = self.hidden.borrow_mut().remove(hidden_name);
+        match binding {
+            Some(binding) => {
                 let mut old_hidden_fqn = b"::".to_vec();
                 old_hidden_fqn.extend_from_slice(hidden_name);
-                let old_fqn = match &cmd {
-                    Command::Ensemble(token) => Some(token.name()),
+                let generation = binding.generation;
+                let ensemble = match &binding.command {
+                    Command::Ensemble(token) => Some(Rc::clone(token)),
                     _ => None,
                 };
-                self.namespaces.borrow_mut().register(name, cmd);
+                self.namespaces.borrow_mut().restore(name, binding);
                 let new_fqn = self
                     .namespaces
                     .borrow()
                     .resolve_fqn(GLOBAL, name)
                     .unwrap_or_else(|| self.fqn_for(name));
-                self.move_cmd_traces(&old_hidden_fqn, &new_fqn);
-                if let Some(old_fqn) = old_fqn {
-                    self.retarget_import_sources(&old_fqn, &new_fqn);
+                self.move_cmd_traces(&old_hidden_fqn, &new_fqn, generation);
+                self.retarget_import_sources(generation, &new_fqn);
+                if let Some(token) = ensemble {
+                    token.rename(new_fqn);
                 }
                 self.invalidate_command_environment();
                 CommandVisibilityOutcome::Moved
@@ -7943,9 +8462,13 @@ impl Interp {
 
     /// `interp invokehidden name ?arg ...?` — invoke a hidden command.
     pub(crate) fn invoke_hidden(&mut self, name: &[u8], argv: &[*mut TclObj]) -> Code {
-        let cmd = self.hidden.borrow().get(name).cloned();
-        match cmd {
-            Some(cmd) => self.invoke(cmd, argv),
+        let binding = self.hidden.borrow().get(name).cloned();
+        match binding {
+            Some(binding) => {
+                let mut fqn = b"::".to_vec();
+                fqn.extend_from_slice(name);
+                self.dispatch_prebound(argv, Some((fqn, binding)))
+            }
             None => {
                 let mut m = b"invalid hidden command name \"".to_vec();
                 m.extend_from_slice(name);
@@ -7960,47 +8483,77 @@ impl Interp {
         self.hidden.borrow().keys().cloned().collect()
     }
 
-    /// Move every import's by-name source shadow across a source rename. Hidden
+    /// Move every import retaining one exact source command generation. Hidden
     /// imports carry the same metadata as visible ones and must move too.
-    fn retarget_import_sources(&mut self, old_fqn: &[u8], new_fqn: &[u8]) {
+    fn retarget_import_sources(&mut self, source_generation: u64, new_fqn: &[u8]) {
         self.namespaces
             .borrow_mut()
-            .retarget_imports(old_fqn, new_fqn);
-        for command in self.hidden.borrow_mut().values_mut() {
-            if let Command::Imported { source, .. } = command {
-                if source.as_slice() == old_fqn {
+            .retarget_imports(source_generation, new_fqn);
+        for binding in self.hidden.borrow_mut().values_mut() {
+            if let Command::Imported {
+                source,
+                source_generation: candidate,
+                ..
+            } = &mut binding.command
+            {
+                if *candidate == source_generation {
                     *source = new_fqn.to_vec();
                 }
             }
         }
     }
 
-    /// Retarget imports at an occupied source binding to a newly-created
-    /// ensemble token. This covers visible and hidden imports, and deliberately
-    /// does not mutate the retired token.
+    /// Bind surviving by-name replacement redirects to a replacement's fresh
+    /// generation. An import whose old generation still exists elsewhere was
+    /// moved by a callback and remains attached to that exact token.
+    fn reattach_missing_import_sources(&mut self, source_fqn: &[u8], new_generation: u64) {
+        let mut live_generations = self.namespaces.borrow().command_generations();
+        live_generations.extend(
+            self.hidden
+                .borrow()
+                .values()
+                .map(|binding| binding.generation),
+        );
+        self.namespaces.borrow_mut().reattach_missing_imports(
+            source_fqn,
+            new_generation,
+            &live_generations,
+        );
+        for binding in self.hidden.borrow_mut().values_mut() {
+            let Command::Imported {
+                source,
+                source_generation,
+                ..
+            } = &mut binding.command
+            else {
+                continue;
+            };
+            if source == source_fqn && !live_generations.contains(source_generation) {
+                *source_generation = new_generation;
+            }
+        }
+    }
+
+    /// Retarget imports of one exact source generation to a newly-created
+    /// ensemble token, across visible and hidden import bindings.
     fn retarget_imports_to_ensemble(
         &mut self,
-        source_fqn: &[u8],
-        old: Option<&Rc<crate::ensemble::EnsembleToken>>,
+        source_generation: u64,
         new: &Rc<crate::ensemble::EnsembleToken>,
     ) {
         self.namespaces
             .borrow_mut()
-            .retarget_imports_to_ensemble(source_fqn, old, new);
-        for command in self.hidden.borrow_mut().values_mut() {
+            .retarget_imports_to_ensemble(source_generation, new);
+        for binding in self.hidden.borrow_mut().values_mut() {
             let Command::Imported {
-                source, ensemble, ..
-            } = command
+                source_generation: candidate,
+                ensemble,
+                ..
+            } = &mut binding.command
             else {
                 continue;
             };
-            let retains_old = old.is_some_and(|old| {
-                ensemble
-                    .as_ref()
-                    .is_some_and(|token| Rc::ptr_eq(token, old))
-            });
-            if source.as_slice() == source_fqn || retains_old {
-                *source = source_fqn.to_vec();
+            if *candidate == source_generation {
                 *ensemble = Some(Rc::clone(new));
             }
         }
@@ -8009,7 +8562,25 @@ impl Interp {
     /// Remove one imported command by stable identity wherever a delete-trace
     /// callback may have renamed or hidden it. A callback replacement/re-import
     /// has a new identity and is deliberately left alone.
-    fn remove_import_identity(&mut self, identity: &Rc<ImportToken>) -> Option<Vec<u8>> {
+    fn import_identity_location(&self, identity: &Rc<ImportToken>) -> Option<(Vec<u8>, u64)> {
+        if let Some(location) = self.namespaces.borrow().import_identity_location(identity) {
+            return Some(location);
+        }
+        self.hidden.borrow().iter().find_map(|(name, binding)| {
+            matches!(
+                &binding.command,
+                Command::Imported { identity: current, .. }
+                    if Rc::ptr_eq(current, identity)
+            )
+            .then(|| {
+                let mut fqn = b"::".to_vec();
+                fqn.extend_from_slice(name);
+                (fqn, binding.generation)
+            })
+        })
+    }
+
+    fn remove_import_identity(&mut self, identity: &Rc<ImportToken>) -> Option<(Vec<u8>, u64)> {
         if let Some(fqn) = self
             .namespaces
             .borrow_mut()
@@ -8017,18 +8588,42 @@ impl Interp {
         {
             return Some(fqn);
         }
-        let hidden_name = self.hidden.borrow().iter().find_map(|(name, command)| {
+        let hidden_name = self.hidden.borrow().iter().find_map(|(name, binding)| {
             matches!(
-                command,
+                &binding.command,
                 Command::Imported { identity: current, .. }
                     if Rc::ptr_eq(current, identity)
             )
             .then(|| name.clone())
         })?;
-        self.hidden.borrow_mut().remove(&hidden_name);
+        let binding = self.hidden.borrow_mut().remove(&hidden_name)?;
         let mut fqn = b"::".to_vec();
         fqn.extend_from_slice(&hidden_name);
-        Some(fqn)
+        Some((fqn, binding.generation))
+    }
+
+    fn ensemble_identity_location(
+        &self,
+        identity: &Rc<crate::ensemble::EnsembleToken>,
+    ) -> Option<(Vec<u8>, u64)> {
+        if let Some(location) = self
+            .namespaces
+            .borrow()
+            .ensemble_identity_location(identity)
+        {
+            return Some(location);
+        }
+        self.hidden.borrow().iter().find_map(|(name, binding)| {
+            matches!(
+                &binding.command,
+                Command::Ensemble(current) if Rc::ptr_eq(current, identity)
+            )
+            .then(|| {
+                let mut fqn = b"::".to_vec();
+                fqn.extend_from_slice(name);
+                (fqn, binding.generation)
+            })
+        })
     }
 
     /// Remove one ensemble by stable token identity after running the delete
@@ -8037,31 +8632,30 @@ impl Interp {
     /// any trace sidecar moved with it is dropped without firing twice.
     fn retire_ensemble_identity(
         &mut self,
-        trace_fqn: &[u8],
         identity: &Rc<crate::ensemble::EnsembleToken>,
-    ) -> Option<Vec<u8>> {
-        self.on_command_replaced(trace_fqn);
+    ) -> Option<(Vec<u8>, u64)> {
+        if let Some((trace_fqn, generation)) = self.ensemble_identity_location(identity) {
+            self.fire_delete_traces_of_token(&trace_fqn, Some(generation));
+        }
         let removed_fqn = self
             .namespaces
             .borrow_mut()
             .remove_ensemble_identity(identity)
             .or_else(|| {
-                let hidden_name = self.hidden.borrow().iter().find_map(|(name, command)| {
+                let hidden_name = self.hidden.borrow().iter().find_map(|(name, binding)| {
                     matches!(
-                        command,
+                        &binding.command,
                         Command::Ensemble(current) if Rc::ptr_eq(current, identity)
                     )
                     .then(|| name.clone())
                 })?;
-                self.hidden.borrow_mut().remove(&hidden_name);
+                let binding = self.hidden.borrow_mut().remove(&hidden_name)?;
                 let mut fqn = b"::".to_vec();
                 fqn.extend_from_slice(&hidden_name);
-                Some(fqn)
+                Some((fqn, binding.generation))
             });
-        if let Some(live_fqn) = removed_fqn.as_deref() {
-            if live_fqn != trace_fqn {
-                self.remove_cmd_traces(live_fqn);
-            }
+        if let Some((live_fqn, generation)) = removed_fqn.as_ref() {
+            self.remove_cmd_traces_of_token(live_fqn, Some(*generation));
         }
         identity.mark_deleted();
         removed_fqn
@@ -8076,10 +8670,10 @@ impl Interp {
     /// source name cannot resurrect aliases deleted here.
     fn remove_imports_for_deleted_origins(
         &mut self,
-        origins: impl IntoIterator<Item = Vec<u8>>,
+        origins: impl IntoIterator<Item = u64>,
         tokens: &[Rc<crate::ensemble::EnsembleToken>],
     ) {
-        let mut origins: std::collections::HashSet<Vec<u8>> = origins.into_iter().collect();
+        let mut origins: std::collections::HashSet<u64> = origins.into_iter().collect();
         loop {
             let visible = self
                 .namespaces
@@ -8089,19 +8683,20 @@ impl Interp {
                 .hidden
                 .borrow()
                 .iter()
-                .filter_map(|(name, command)| {
+                .filter_map(|(name, binding)| {
                     let Command::Imported {
-                        source,
+                        source_generation,
                         ensemble,
                         identity,
-                    } = command
+                        ..
+                    } = &binding.command
                     else {
                         return None;
                     };
                     let retains_token = ensemble.as_ref().is_some_and(|imported| {
                         tokens.iter().any(|victim| Rc::ptr_eq(imported, victim))
                     });
-                    if !origins.contains(source) && !retains_token {
+                    if !origins.contains(source_generation) && !retains_token {
                         return None;
                     }
                     let mut fqn = b"::".to_vec();
@@ -8111,23 +8706,29 @@ impl Interp {
                 .collect();
 
             let mut removed_any = false;
-            for (fqn, identity) in visible {
-                self.on_command_replaced(&fqn);
-                if let Some(removed_fqn) = self.remove_import_identity(&identity) {
-                    if removed_fqn != fqn {
-                        self.remove_cmd_traces(&removed_fqn);
-                    }
-                    origins.insert(removed_fqn);
+            for (_, identity) in visible {
+                let Some((fqn, generation)) = self.import_identity_location(&identity) else {
+                    continue;
+                };
+                self.fire_delete_traces_of_token(&fqn, Some(generation));
+                if let Some((removed_fqn, removed_generation)) =
+                    self.remove_import_identity(&identity)
+                {
+                    self.remove_cmd_traces_of_token(&removed_fqn, Some(removed_generation));
+                    origins.insert(removed_generation);
                     removed_any = true;
                 }
             }
-            for (fqn, identity) in hidden {
-                self.on_command_replaced(&fqn);
-                if let Some(removed_fqn) = self.remove_import_identity(&identity) {
-                    if removed_fqn != fqn {
-                        self.remove_cmd_traces(&removed_fqn);
-                    }
-                    origins.insert(removed_fqn);
+            for (_, identity) in hidden {
+                let Some((fqn, generation)) = self.import_identity_location(&identity) else {
+                    continue;
+                };
+                self.fire_delete_traces_of_token(&fqn, Some(generation));
+                if let Some((removed_fqn, removed_generation)) =
+                    self.remove_import_identity(&identity)
+                {
+                    self.remove_cmd_traces_of_token(&removed_fqn, Some(removed_generation));
+                    origins.insert(removed_generation);
                     removed_any = true;
                 }
             }
@@ -11085,6 +11686,46 @@ mod tests {
         leak_free(|i| {
             i.set_runtime_version(TclVersion::V9_0);
             assert_eq!(ok(i, b"lassign {a b} x y; list $x $y"), b"a b");
+        });
+    }
+
+    /// An import keeps the final builtin's registry identity when that source
+    /// moves into the hidden table. Repinning the runtime surface must gate the
+    /// visible import, while an explicit `invokehidden` remains the privileged
+    /// path that deliberately bypasses ordinary command visibility.
+    #[test]
+    fn an_imported_hidden_builtin_keeps_its_release_gate() {
+        use tcl_dialect::TclVersion;
+
+        leak_free(|i| {
+            i.set_runtime_version(TclVersion::V9_0);
+            assert_eq!(
+                i.eval_str(
+                    b"namespace export lpop
+                      namespace eval n {namespace import ::lpop}
+                      set l {a b c}
+                      interp hide {} lpop hp
+                      n::lpop l",
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"c");
+
+            i.set_runtime_version(TclVersion::V8_6);
+            assert_eq!(i.eval_str(b"n::lpop l"), Code::Error);
+            assert_eq!(i.result_bytes(), b"invalid command name \"::hp\"");
+            assert_eq!(ok(i, b"set l"), b"a b");
+
+            assert_eq!(i.eval_str(b"interp invokehidden {} hp l"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"b");
+
+            i.set_runtime_version(TclVersion::V9_0);
+            assert_eq!(i.eval_str(b"interp expose {} hp lz"), Code::Ok);
+            i.set_runtime_version(TclVersion::V8_6);
+            assert_eq!(i.eval_str(b"lz l"), Code::Error);
+            assert_eq!(i.result_bytes(), b"invalid command name \"lz\"");
+            assert_eq!(ok(i, b"info commands lz"), b"");
+            i.set_runtime_version(TclVersion::V9_0);
         });
     }
 

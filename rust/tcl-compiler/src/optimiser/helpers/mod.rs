@@ -28,6 +28,7 @@
 //!   `manager`'s final output filter).
 //! - [`spans`] — span extension to a valid rewrite target.
 //! - [`tokens`] — token / source-range lookups.
+//! - [`var_refs`] — `$var` and bare-name variable-reference scans.
 
 pub mod expr_simplify;
 pub mod literals;
@@ -35,3 +36,4 @@ pub mod naming;
 pub mod select;
 pub mod spans;
 pub mod tokens;
+pub mod var_refs;

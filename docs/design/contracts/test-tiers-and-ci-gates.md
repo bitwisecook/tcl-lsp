@@ -9,7 +9,7 @@ behind it.
 | Tier | Runs | What |
 |---|---|---|
 | **smoke** — `make smoke`, `make smoke-p P=<crate>` | locally after every compile; inside `make prep-pr` | the fail-closed smoke-named function/module and effective Cargo-target subset owned by `scripts/dev/smoke-targets.tsv`, one sanity check per crate, seconds warm. Reuses the dev-profile default-features build (never `--all-features`), so it never forces a recompile. |
-| **deep** — CI jobs `rust-tests-shard` and `rust-tests-doctest` plus their stable `rust-tests` aggregate, `rust-tests-heavy`, `runtime-rust-tests`, `lsp-e2e`, `test-ext`, `test-ext-web`, `cargo-deny`, `python`, `spectcl-compat`, `web-frontends` | every PR and every push to `rust` | the full workspace suite (native `lsp_e2e` included), the VM-sim heavies, the standalone `runtime/rust` unit suite, the VS Code extension on desktop and in a browser host, supply-chain audit, Python lint/typecheck of `rust/bigip-report-gen/python`, and an `npm ci` of the two npm roots that are not `editors/vscode`. Skips only what demonstrably did not change (below). |
+| **deep** — CI jobs `rust-tests-shard` and `rust-tests-doctest` plus their stable `rust-tests` aggregate, `rust-tests-heavy`, `runtime-rust-tests`, `lsp-e2e`, `test-ext`, `test-ext-web`, `cargo-deny`, `python`, `spectcl-compat`, `web-frontends` | every PR and every push to `rust` | the full workspace suite (native `lsp_e2e` included), the VM-sim heavies, the standalone `runtime/rust` unit suite, the VS Code extension on desktop and in a browser host, supply-chain audit, Python lint/typecheck plus native-engine build and binding tests for `rust/bigip-report-gen/python`, and an `npm ci` of the two npm roots that are not `editors/vscode`. Skips only what demonstrably did not change (below). |
 | **exhaustive** — `make test-exhaustive`, `make fuzz`, `make tcltest-sweep[-check]` | only when a human invokes it by name | every `#[ignore]`d corpus sweep over `tmp/tcl*` and tcllib, differential-fuzz gates, privileged bpf/kernel tests, fuzz campaigns. **Never** wired into `prep-pr`, `test`, `check-all`, or CI. |
 
 The native `lsp-e2e` surface is produced once as a nextest 0.9.143 archive,
@@ -35,6 +35,19 @@ Validate that no-op path in Actions with a change outside both committed
 closures: the archive producer and all three partition jobs must succeed
 without building, uploading, downloading, or running the archive, and the
 required aggregate must still succeed after checking every upstream result.
+
+The native VS Code suite remains one unpartitioned extension-host run for
+local `npm test`. In CI, three isolated `test-ext-partition` producers run the
+106 single-root test files as whole-file assignments from
+`editors/vscode/test-partitions.json`; the 14-test multi-folder host remains a
+separate mandatory producer. Each producer uploads its file inventory,
+per-file duration, discovered identities, completed identities, and outcome
+counts. The stable `test-ext` aggregate fails unless the producers succeed and
+their metadata proves exact-once coverage of all 977 single-root identities
+(976 passed plus the one deliberately pending manual edit-storm test) and all
+14 passing multi-folder identities. The checked-in assignment records its
+hosted timing evidence and is balanced by measured duration rather than file
+or test count.
 
 The root workspace suite is five binary-aware `rust-tests-shard` matrix
 consumers. Every leg retains the complete `--workspace --all-features`
@@ -197,6 +210,13 @@ CI skips only what demonstrably did not change. The rules live in
 - **Docs-only** changes skip the cargo test steps; `python`, `test-ext`, and
   `test-ext-web` run only when their input paths changed (`test-ext-web` on
   `ext_changed` or `lsp_wasm_changed`, since it consumes both).
+- The `python` job's input surface includes every tracked Python/stub file and
+  the native f5report engine's locked local Cargo dependency closure. The
+  classifier and package manifest come from the PR base and fail closed;
+  `make check-python-ci-paths` re-derives the closure from the engine lockfile.
+  The restored venv is keyed and stamped with the content of that same native
+  source closure, so a transitive Rust edit both schedules the job and forces
+  maturin to rebuild the extension.
 - The root `rust-tests-shard` matrix produces five binary-aware legs when the
   Rust suite is required, while the concurrent hosted
   `rust-tests-doctest` job runs `cargo test --workspace --all-features --doc
@@ -321,6 +341,9 @@ identity** (tree/SHA, never a label or commit message), and bounded in time.
   binary and testcase coverage proof.
 - `scripts/dev/verify-nextest-partitions.py` — disjoint/completeness and
   transfer-integrity proof for the three-way archived LSP suite.
+- `editors/vscode/test-partitions.json` and
+  `scripts/dev/verify-vscode-test-{partitions,results}.mjs` — whole-file
+  desktop extension assignment and exact producer-metadata proof.
 
 ## Discoverability
 

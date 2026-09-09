@@ -1460,8 +1460,8 @@ pub fn find_redundancies_for_function(
 /// The owner is [`crate::sccp::SccpResult::executable_blocks`] — the
 /// optimistic executable-block set SCCP accumulates while it folds constant
 /// branches (`sccp.rs:199`). The deletion side already reads exactly that
-/// set: `optimiser/elimination.rs:392` turns it into `unreachable_blocks`
-/// for the O107 deletion, and O112's constant-condition deletions
+/// set: `optimiser/elimination.rs`'s `unreachable_blocks` turns it into the
+/// O107 deletion, and O112's constant-condition deletions
 /// (`optimiser/structure_elimination.rs`) are the structured-IR view of the
 /// same constant facts. `crate::loops::build_loop_forest` takes it as a
 /// parameter for the same reason.

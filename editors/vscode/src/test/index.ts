@@ -18,8 +18,11 @@
 
 import * as fs from "fs";
 import * as path from "path";
+import * as assert from "assert";
+import * as vscode from "vscode";
 import Mocha from "mocha";
 import { glob } from "glob";
+import { LanguageClient, State } from "vscode-languageclient/node";
 import { beginTestDeadline, scaledTimeout } from "./signal";
 import { createHeartbeatWriter, MOCHA_TEST_TIMEOUT_BASE_MS } from "./runnerWatchdog";
 import { probeServer } from "./serverProbe";
@@ -38,6 +41,7 @@ export async function run(): Promise<void> {
   // (a hang). Only the latter may be swallowed as success.
   const resultMarker = path.resolve(__dirname, "../../", ".vscode-test", "mocha-result.json");
   const heartbeatMarker = path.resolve(__dirname, "../../", ".vscode-test", "mocha-heartbeat.json");
+  const extensionDevelopmentPath = path.resolve(__dirname, "../../");
   const mocha = new Mocha({
     ui: "tdd",
     color: true,
@@ -49,6 +53,28 @@ export async function run(): Promise<void> {
     // no-progress window is itself derived from this same constant, so the
     // two cannot drift out of the relationship it depends on.
     timeout: scaledTimeout(MOCHA_TEST_TIMEOUT_BASE_MS),
+  });
+
+  // Every partition gets its own extension host and language server. These
+  // root hooks therefore belong to the runner, not serverHealth.test.ts,
+  // whose named tests intentionally execute in only one partition.
+  mocha.suite.beforeAll(async function () {
+    this.timeout(scaledTimeout(60_000));
+    const ext = vscode.extensions.getExtension("bitwisecook.tcl-lsp");
+    assert.ok(ext, "tcl-lsp extension not found");
+    await ext.activate();
+    assert.ok(ext.isActive, "Extension failed to activate – server may have crashed on startup");
+  });
+  mocha.suite.afterAll(async function () {
+    this.timeout(scaledTimeout(30_000));
+    const ext = vscode.extensions.getExtension("bitwisecook.tcl-lsp");
+    assert.ok(ext, "tcl-lsp extension not found");
+    const client = (ext.exports as { getClient(): LanguageClient }).getClient();
+    assert.strictEqual(
+      client.state,
+      State.Running,
+      `Server should still be Running at end of tests, got state ${client.state}`,
+    );
   });
 
   // The follow-up diagnostics in `signal.ts` are load-scaled at the moment
@@ -100,11 +126,64 @@ export async function run(): Promise<void> {
 
   // The multiFolder/ subdirectory has its own runner (runMultiFolderTest)
   // because those tests need the .code-workspace fixture.  Skip them here.
-  const files = await glob("**/*.test.js", {
+  const canonicalFiles = await glob("**/*.test.js", {
     cwd: testsRoot,
     ignore: ["multiFolder/**"],
   });
+  canonicalFiles.sort();
+  const partitionSpec = process.env.TCL_LSP_TEST_PARTITION;
+  let files = canonicalFiles;
+  let partition: { index: number; count: number } | undefined;
+  if (partitionSpec) {
+    const match = /^(\d+)\/(\d+)$/.exec(partitionSpec);
+    if (!match || Number(match[1]) < 1 || Number(match[1]) > Number(match[2])) {
+      throw new Error(`invalid TCL_LSP_TEST_PARTITION: ${partitionSpec}`);
+    }
+    const index = Number(match[1]);
+    const count = Number(match[2]);
+    const manifestPath = path.resolve(extensionDevelopmentPath, "test-partitions.json");
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as {
+      version: number;
+      canonical_glob: string;
+      exclude: string[];
+      partitions: Record<string, string[]>;
+    };
+    if (
+      manifest.version !== 1 ||
+      manifest.canonical_glob !== "**/*.test.js" ||
+      JSON.stringify(manifest.exclude) !== JSON.stringify(["multiFolder/**"])
+    ) {
+      throw new Error("unsupported VS Code test partition manifest");
+    }
+    const assigned = manifest.partitions[String(index)];
+    if (!assigned || Object.keys(manifest.partitions).length !== count) {
+      throw new Error(`partition manifest does not define ${partitionSpec}`);
+    }
+    const canonical = new Set(canonicalFiles);
+    const seen = new Set<string>();
+    for (const names of Object.values(manifest.partitions)) {
+      for (const name of names) {
+        if (seen.has(name) || !canonical.has(name)) {
+          throw new Error(`invalid or duplicate partition test file: ${name}`);
+        }
+        seen.add(name);
+      }
+    }
+    if (seen.size !== canonical.size) {
+      throw new Error("VS Code test partition manifest is incomplete");
+    }
+    files = [...assigned].sort();
+    partition = { index, count };
+  }
   files.sort();
+  let testsStarted = 0;
+  let testsCompleted = 0;
+  let testsPassed = 0;
+  let testsPending = 0;
+  const fileDurationsMs: Record<string, number> = {};
+  const testStartTimes = new Map<Mocha.Test, number>();
+  const testIdentities: string[] = [];
+  const discoveredTestIdentities: string[] = [];
   for (const f of files) {
     mocha.addFile(path.resolve(testsRoot, f));
   }
@@ -132,7 +211,22 @@ export async function run(): Promise<void> {
       heartbeatWriter.stop();
       restoreFixtureSettings();
       fs.mkdirSync(path.dirname(resultMarker), { recursive: true });
-      fs.writeFileSync(resultMarker, JSON.stringify({ failures }) + "\n", "utf8");
+      fs.writeFileSync(
+        resultMarker,
+        JSON.stringify({
+          failures,
+          partition,
+          files,
+          discoveredTestIdentities,
+          testIdentities,
+          fileDurationsMs,
+          testsStarted,
+          testsCompleted,
+          testsPassed,
+          testsPending,
+        }) + "\n",
+        "utf8",
+      );
       if (failures > 0) {
         reject(new Error(`${failures} test(s) failed.`));
       } else {
@@ -140,8 +234,30 @@ export async function run(): Promise<void> {
       }
     });
 
-    runner.on("test", (test: Mocha.Test) => heartbeatWriter.onTestStart(test.fullTitle()));
-    runner.on("test end", (test: Mocha.Test) => heartbeatWriter.onTestEnd(test.fullTitle()));
+    runner.suite.eachTest((test: Mocha.Test) => {
+      const file = test.file ? path.relative(testsRoot, test.file).split(path.sep).join("/") : "";
+      discoveredTestIdentities.push(`${file}:${test.fullTitle()}`);
+    });
+
+    runner.on("test", (test: Mocha.Test) => {
+      testsStarted++;
+      testStartTimes.set(test, Date.now());
+      heartbeatWriter.onTestStart(test.fullTitle());
+    });
+    runner.on("pass", () => {
+      testsPassed++;
+    });
+    runner.on("pending", () => {
+      testsPending++;
+    });
+    runner.on("test end", (test: Mocha.Test) => {
+      testsCompleted++;
+      const file = test.file ? path.relative(testsRoot, test.file).split(path.sep).join("/") : "";
+      testIdentities.push(`${file}:${test.fullTitle()}`);
+      fileDurationsMs[file] =
+        (fileDurationsMs[file] ?? 0) + (Date.now() - (testStartTimes.get(test) ?? Date.now()));
+      heartbeatWriter.onTestEnd(test.fullTitle());
+    });
     // Log failure details so they are visible even when the VS Code test
     // host terminates before mocha prints its summary.
     runner.on("fail", (test: Mocha.Test, err: Error) => {

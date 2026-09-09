@@ -309,21 +309,21 @@ impl TaintLattice {
         }
     }
 
-    /// Strip the shape-dependent mitigation colours (`T102_SAFE`:
-    /// `PATH_PREFIXED` / `NON_DASH_PREFIXED` / `IP_ADDRESS` / `PORT` /
-    /// `FQDN`) — used when a value passes through a command with no
-    /// registry classification (not a recognised source, sanitiser,
-    /// transform, or passthrough), so its effect on the value's string
-    /// shape is unknown. A "cannot start with `-`"-style proof cannot be
-    /// assumed to survive an arbitrary unclassified transformation (e.g.
-    /// `string range`, `lindex [split ...]`) even though the underlying
-    /// taint itself must. Commands specifically known to preserve shape
-    /// should get a registry classification instead of relying on this
-    /// (conservative, over-approximating) default.
+    /// Drop every proof about the value, keeping only that it is tainted —
+    /// used when it passes through a command with no registry classification
+    /// (not a recognised source, sanitiser, transform, or passthrough).
+    ///
+    /// Every colour but `TAINTED` is a claim about the value's contents, and
+    /// an unclassified command can invalidate any of them: `string range` can
+    /// cut the leading `/` a `PATH_PREFIXED` proof rests on, and a `string
+    /// map` that inserts a newline destroys `CRLF_FREE` just as surely. The
+    /// taint itself must survive; the proofs must not. A command that really
+    /// does preserve a proof earns a registry classification, whose
+    /// `taint_transform` colour is re-applied on top of this.
     #[must_use]
     pub fn shape_unproven(self) -> Self {
         Self {
-            colours: self.colours & !TaintColour::T102_SAFE,
+            colours: self.colours & TaintColour::TAINTED,
         }
     }
 }
@@ -858,20 +858,16 @@ fn compiler_colour(c: TaintColour) -> tcl_registry::TaintColour {
 /// The colour a command stamps on a tainted value it returns — its
 /// `taint_transform` (e.g. `uri::encode` ⇒ `URL_ENCODED`,
 /// `file normalize` ⇒ `PATH_NORMALISED`).  Subcommand transforms take
-/// precedence over the bare-command form.
+/// precedence over the bare-command form, and a declaration carrying a
+/// `taint_transform_when` condition (`string map`, whose sanitising effect is
+/// a property of the mapping it was given) colours only the calls that satisfy
+/// it.
 fn transform_colour(
     registry: &CommandRegistry,
     command: &str,
     args: &[&str],
 ) -> Option<TaintColour> {
-    let spec = registry.get(command)?;
-    if let Some(sub_name) = args.first()
-        && let Some(sub) = spec.resolve_subcommand(sub_name)
-        && let Some(colour) = sub.taint_transform
-    {
-        return Some(reg_colour(colour));
-    }
-    spec.taint_transform.map(reg_colour)
+    tcl_registry::taint::taint_transform_for_call(registry, command, args).map(reg_colour)
 }
 
 /// Human-readable label for a double-encode colour, for the T106
@@ -2608,21 +2604,28 @@ fn emit_double_encode_warnings<S: std::hash::BuildHasher>(
     }
 }
 
-/// Return `true` when a tainted value `lat` is mitigated for the given
-/// iRules sink code (the IRULE3001/3002/3003/3004 branches).
+/// Return `true` when a tainted value `lat` carries a colour that mitigates
+/// the given output-sink code.
+///
+/// T101 shares IRULE3002 / IRULE3003's mask because the three are one hazard
+/// under three names: what an attacker injects into `puts`, a header, or a log
+/// line is a CR/LF that forges a record boundary, so a value proven CR/LF-free
+/// cannot commit it.
 ///
 /// For IRULE3002 in the name-position (arg-index 1 of
 /// `HTTP::header`/`HTTP::cookie` `insert`/`replace`), the
 /// `HEADER_TOKEN_SAFE` colour is an additional mitigation. That extra
 /// check is handled at the call site because it needs the per-use arg
 /// index; the function signature here is deliberately kept narrow.
-fn irules_sink_suppressed(code: DiagCode, lat: TaintLattice) -> bool {
+fn sink_colour_mitigated(code: DiagCode, lat: TaintLattice) -> bool {
     if !lat.is_tainted() {
         return false;
     }
     match code {
         DiagCode::Irule3001 => lat.colours.intersects(TaintColour::HTML_ESCAPED),
-        DiagCode::Irule3002 | DiagCode::Irule3003 => lat.colours.intersects(TaintColour::CRLF_SAFE),
+        DiagCode::T101 | DiagCode::Irule3002 | DiagCode::Irule3003 => {
+            lat.colours.intersects(TaintColour::CRLF_SAFE)
+        }
         DiagCode::Irule3004 => lat.colours.intersects(TaintColour::REDIRECT_SAFE),
         _ => false,
     }
@@ -4915,6 +4918,44 @@ const fn binop_coerces(op: crate::expr_ast::BinOp) -> bool {
     )
 }
 
+/// Whether `text` is one whole variable reference and nothing else — the one
+/// [`ExprNode::Raw`] shape whose operator structure is fully known.
+///
+/// Decided by reconstruction rather than by re-parsing: `names` is what the
+/// grammar-aware scan already found in `text`, so if the single name it found
+/// spells the whole of `text` back, there is nothing else in there. Anything
+/// the scan and the source disagree about — a release-dependent `${…}` close,
+/// trailing text, a second reference, an operator — fails to reconstruct and
+/// keeps the conservative reading.
+///
+/// An array element (`$a(k)`, `${a(k)}`) reconstructs too. The scan reports
+/// the array's name without the index, so the index is matched as a trailing
+/// `(…)` group; it is still one reference to one element, and an index that
+/// substitutes anything of its own contributes a second name and fails the
+/// single-name test.
+fn holds_one_whole_var_ref(text: &str, names: &HashSet<String>) -> bool {
+    if names.len() != 1 {
+        return false;
+    }
+    let Some(name) = names.iter().next() else {
+        return false;
+    };
+    let whole_or_element =
+        |tail: &str| tail.is_empty() || (tail.starts_with('(') && tail.ends_with(')'));
+    let Some(rest) = text.strip_prefix('$') else {
+        return false;
+    };
+    let bare = rest
+        .strip_prefix(name.as_str())
+        .is_some_and(whole_or_element);
+    let braced = rest
+        .strip_prefix('{')
+        .and_then(|inner| inner.strip_suffix('}'))
+        .and_then(|inner| inner.strip_prefix(name.as_str()))
+        .is_some_and(whole_or_element);
+    bare || braced
+}
+
 /// Collect every `Var` occurrence of `expr` that sits in a position where
 /// Tcl attempts numeric or boolean coercion of the operand.
 ///
@@ -4939,10 +4980,20 @@ const fn binop_coerces(op: crate::expr_ast::BinOp) -> bool {
 ///   operand at all, so this walk does not descend into it. If `cmd` is
 ///   itself a T100/T101/… sink, that nested statement's own sink
 ///   classification already covers it.
-/// - `Raw` (unparsed fallback text): position-blind but conservative —
-///   every variable found by [`ExprNode::vars`] is flagged (`rel_span:
-///   None`) regardless of `in_context`, since the parser gave up and the
-///   operator structure inside is unknown; erring towards a false
+/// - `Raw` holding one whole variable reference (`$c` / `${c}`, per
+///   [`holds_one_whole_var_ref`]): an operand, not unparsed source. It carries
+///   no operator of its own, so — exactly like `Var`, which is what it denotes
+///   — its coercion status is whatever its parent gives it, and it is flagged
+///   only `in_context`. A flattened `switch` dispatch puts its subject in
+///   this shape (`cfg_lower::switch_subject_operand`), under the `StrEq` that
+///   compares it with an arm pattern; `switch` matches as a string in every
+///   mode it has — `-exact`, `-glob` and `-regexp` all compare text, and Tcl
+///   gives it no numeric-coercing mode — so the `StrEq` context is the whole
+///   answer for an arm.
+/// - `Raw` (any other unparsed fallback text): position-blind but
+///   conservative — every variable found by [`ExprNode::vars`] is flagged
+///   (`rel_span: None`) regardless of `in_context`, since the parser gave up
+///   and a coercing operator may be hiding inside; erring towards a false
 ///   positive here is safer than silently dropping coverage.
 fn collect_coercion_operands(
     expr: &ExprNode,
@@ -4997,7 +5048,11 @@ fn collect_coercion_operands(
             }
         }
         ExprNode::Raw { text } => {
-            for name in (ExprNode::Raw { text: text.clone() }).vars_with_grammar(grammar) {
+            let names = (ExprNode::Raw { text: text.clone() }).vars_with_grammar(grammar);
+            if !in_context && holds_one_whole_var_ref(text, &names) {
+                return;
+            }
+            for name in names {
                 out.push(CoercionOperand {
                     name,
                     rel_span: None,
@@ -5200,7 +5255,7 @@ fn emit_branch_condition_nested_command_warnings<S: std::hash::BuildHasher>(
 /// Deduplicates on variable name so the same variable appearing multiple
 /// times in `uses` only produces one warning. For iRules sinks
 /// (`IRULE3001` / `IRULE3002` / `IRULE3003` / `IRULE3004`), applies the
-/// per-code mitigation masks via [`irules_sink_suppressed`] plus the
+/// per-code mitigation masks via [`sink_colour_mitigated`] plus the
 /// name-position `HEADER_TOKEN_SAFE` carve-out for IRULE3002.
 /// Context for a classified sink call, bundled so
 /// [`emit_sink_warnings`] stays under the 7-argument clippy limit
@@ -5472,6 +5527,104 @@ fn var_consumed_by_sanitiser(call: &SinkCall<'_>, name: &str) -> bool {
     seen
 }
 
+/// The colours the wrappers around `name` stamp on what actually reaches the
+/// sink, when every occurrence of `name` in the sink's arguments sits inside a
+/// top-level command substitution that declares a `taint_transform`.
+///
+/// `log local0. "u=[URI::encode $u]"` and `set e [URI::encode $u]; log local0.
+/// "u=$e"` run the same command over the same value and must reach the same
+/// verdict. The via-variable spelling gets there through [`word_taint_at`],
+/// which stamps the transform colour on the value it assigns; a sink argument
+/// is assigned to nothing, so the same fact is recovered here from the call.
+/// Wrapping in place is the shape every taint quick fix in
+/// `tcl_lsp_core::code_actions` writes, so its colour has to be visible here
+/// for the fix it offers to clear the finding it offers it for.
+///
+/// `None` when any occurrence of `name` reaches the sink unwrapped — the
+/// variable's own value arrives, so its own lattice is the answer.
+///
+/// `Some` means every occurrence is consumed by a wrapper, so what arrives is
+/// the wrappers' result and the variable's own proofs say nothing about it.
+/// The colours are the intersection across those wrappers, the same rule the
+/// lattice uses to join control flow: the value is a concatenation of every
+/// part, so a colour survives only where each part proves it. A wrapper that
+/// declares no transform, or one this pass cannot parse, therefore yields
+/// `Some(empty)` — the value is still tainted and now proves nothing, which is
+/// what lets a re-introducing wrapper (`string map {"|" "\n"}` over a
+/// CR/LF-free value) reach its sink.
+fn var_wrapper_colours(call: &SinkCall<'_>, name: &str) -> Option<TaintColour> {
+    let (registry, args, braced_var) = (call.registry, call.args, call.braced_var);
+    let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+    let mut colours = TaintColour::all();
+    let mut wrapped = false;
+    for arg in args {
+        if !arg_var_names(arg, braced_var).contains(name) {
+            continue;
+        }
+        let (residual, subs) = split_top_level_cmd_subs(arg);
+        // A bare reference outside any substitution reaches the sink as-is.
+        if arg_var_names(&residual, braced_var).contains(name) {
+            return None;
+        }
+        for sub in subs {
+            if !arg_var_names(sub, braced_var).contains(name) {
+                continue;
+            }
+            wrapped = true;
+            let colour = parse_command_substitution_with_config(sub, config)
+                .and_then(|(cmd, sub_args)| {
+                    let refs: Vec<&str> = sub_args.iter().map(String::as_str).collect();
+                    transform_colour(registry, &cmd, &refs)
+                })
+                .unwrap_or_else(TaintColour::empty);
+            colours &= colour;
+        }
+    }
+    wrapped.then_some(colours)
+}
+
+/// The message a classified sink emits for one tainted use.
+///
+/// Kept apart from [`emit_sink_warnings`] so that function reads as one
+/// sequence of mitigation filters rather than trailing off into wording.
+fn sink_message(code: DiagCode, name: &str, sink_label: &str) -> String {
+    match code {
+        DiagCode::T100 => format!(
+            "Tainted variable ${name} flows into {sink_label}; \
+             possible code injection"
+        ),
+        DiagCode::T101 => format!(
+            "Tainted variable ${name} flows into {sink_label}; \
+             output may contain injected content"
+        ),
+        DiagCode::Irule3001 => format!(
+            "Tainted variable ${name} in HTTP response body ({sink_label}); \
+             risk of XSS or content injection"
+        ),
+        DiagCode::Irule3002 => format!(
+            "Tainted variable ${name} in HTTP header/cookie value ({sink_label}); \
+             risk of header injection"
+        ),
+        DiagCode::Irule3003 => format!(
+            "Tainted variable ${name} in log output ({sink_label}); \
+             risk of log injection or log forging"
+        ),
+        DiagCode::Irule3004 => format!(
+            "Tainted variable ${name} in redirect URL ({sink_label}); \
+             risk of open redirect"
+        ),
+        DiagCode::T104 => format!(
+            "Tainted variable ${name} in network address argument of {sink_label}; \
+             risk of SSRF (server-side request forgery)"
+        ),
+        DiagCode::T105 => format!(
+            "Tainted variable ${name} in {sink_label} script argument; \
+             risk of cross-interpreter code injection"
+        ),
+        _ => format!("Tainted variable ${name} flows into {sink_label}"),
+    }
+}
+
 fn emit_sink_warnings<S: std::hash::BuildHasher>(
     env: &TaintScan<'_, S>,
     span: Span,
@@ -5507,8 +5660,14 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
         if var_consumed_by_sanitiser(call, name) {
             continue;
         }
-        // Per-code mitigation suppression (IRULE3001–3004).
-        if irules_sink_suppressed(code, t) {
+        // What reaches the sink is the wrapper's result, not the variable, so
+        // the mitigations below judge the wrapper's proofs rather than the
+        // variable's — the same lattice the via-variable spelling would have
+        // handed them.
+        let t =
+            var_wrapper_colours(call, name).map_or(t, |colours| t.shape_unproven().with(colours));
+        // Per-code mitigation suppression (T101, IRULE3001–3004).
+        if sink_colour_mitigated(code, t) {
             continue;
         }
         // Registry-declared sink-safe colour (e.g. `exec` ← SHELL_ATOM): a
@@ -5559,41 +5718,7 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
         if code == DiagCode::T105 && t.colours.intersects(TaintColour::LIST_CANONICAL) {
             continue;
         }
-        let message = match code {
-            DiagCode::T100 => format!(
-                "Tainted variable ${name} flows into {sink_label}; \
-                 possible code injection"
-            ),
-            DiagCode::T101 => format!(
-                "Tainted variable ${name} flows into {sink_label}; \
-                 output may contain injected content"
-            ),
-            DiagCode::Irule3001 => format!(
-                "Tainted variable ${name} in HTTP response body ({sink_label}); \
-                 risk of XSS or content injection"
-            ),
-            DiagCode::Irule3002 => format!(
-                "Tainted variable ${name} in HTTP header/cookie value ({sink_label}); \
-                 risk of header injection"
-            ),
-            DiagCode::Irule3003 => format!(
-                "Tainted variable ${name} in log output ({sink_label}); \
-                 risk of log injection or log forging"
-            ),
-            DiagCode::Irule3004 => format!(
-                "Tainted variable ${name} in redirect URL ({sink_label}); \
-                 risk of open redirect"
-            ),
-            DiagCode::T104 => format!(
-                "Tainted variable ${name} in network address argument of {sink_label}; \
-                 risk of SSRF (server-side request forgery)"
-            ),
-            DiagCode::T105 => format!(
-                "Tainted variable ${name} in {sink_label} script argument; \
-                 risk of cross-interpreter code injection"
-            ),
-            _ => format!("Tainted variable ${name} flows into {sink_label}"),
-        };
+        let message = sink_message(code, name, sink_label);
         warnings.push(TaintWarning {
             span: sink_arg_span(call, name, span),
             variable: name.to_owned(),
@@ -7484,11 +7609,11 @@ mod tests {
         // with PATH_PREFIXED from their `taint_hints` — `HTTP::path`
         // carries PATH_PREFIXED on the getter form.)
         let lat = TaintLattice::tainted().with(TaintColour::PATH_PREFIXED);
-        assert!(irules_sink_suppressed(DiagCode::Irule3004, lat));
+        assert!(sink_colour_mitigated(DiagCode::Irule3004, lat));
         let lat = TaintLattice::tainted().with(TaintColour::PATH_NORMALISED);
-        assert!(irules_sink_suppressed(DiagCode::Irule3004, lat));
+        assert!(sink_colour_mitigated(DiagCode::Irule3004, lat));
         // Plain tainted should not suppress.
-        assert!(!irules_sink_suppressed(
+        assert!(!sink_colour_mitigated(
             DiagCode::Irule3004,
             TaintLattice::tainted()
         ));
@@ -7808,27 +7933,27 @@ mod tests {
     }
 
     #[test]
-    fn irules_sink_suppressed_html_escaped_only_mitigates_3001() {
+    fn sink_colour_mitigated_html_escaped_only_mitigates_3001() {
         let tainted_html = TaintLattice::tainted().with(TaintColour::HTML_ESCAPED);
         // IRULE3001 (HTTP response body) — HTML_ESCAPED directly mitigates.
-        assert!(irules_sink_suppressed(DiagCode::Irule3001, tainted_html));
+        assert!(sink_colour_mitigated(DiagCode::Irule3001, tainted_html));
         // IRULE3002/3003 (header / log) — HTML_ESCAPED does NOT prove
         // CRLF-injection safety (the escape rewrites `<`/`>`/`&` but
         // leaves raw CR/LF untouched). The CRLF-safe mask excludes
         // `HTML_ESCAPED`.
-        assert!(!irules_sink_suppressed(DiagCode::Irule3002, tainted_html));
-        assert!(!irules_sink_suppressed(DiagCode::Irule3003, tainted_html));
+        assert!(!sink_colour_mitigated(DiagCode::Irule3002, tainted_html));
+        assert!(!sink_colour_mitigated(DiagCode::Irule3003, tainted_html));
         // IRULE3004 (redirect) — also not mitigated by HTML_ESCAPED.
-        assert!(!irules_sink_suppressed(DiagCode::Irule3004, tainted_html));
+        assert!(!sink_colour_mitigated(DiagCode::Irule3004, tainted_html));
 
         // `CRLF_FREE` does suppress IRULE3002/3003 (the one mitigation
         // accepted in the value position).
         let tainted_crlf_free = TaintLattice::tainted().with(TaintColour::CRLF_FREE);
-        assert!(irules_sink_suppressed(
+        assert!(sink_colour_mitigated(
             DiagCode::Irule3002,
             tainted_crlf_free
         ));
-        assert!(irules_sink_suppressed(
+        assert!(sink_colour_mitigated(
             DiagCode::Irule3003,
             tainted_crlf_free
         ));
@@ -8550,6 +8675,134 @@ mod tests {
             warnings.iter().all(|w| w.code != DiagCode::T100),
             "eq is a pure string compare, expected no T100, got {warnings:?}",
         );
+    }
+
+    /// FP fix / TN: a `switch` on a tainted value raises no T100 in any of
+    /// its matching modes.
+    ///
+    /// An exact `switch` is flattened into a chain of `StrEq` branch
+    /// terminators whose subject operand is an `ExprNode::Raw` holding the
+    /// normalised variable reference
+    /// (`cfg_builder::cfg_lower::switch_subject_operand`), so an arm's
+    /// coercion context is the one that `StrEq` gives its operands: none.
+    ///
+    /// Every mode is covered because none of them is an exception. `switch`
+    /// compares as a string throughout — `-exact`, `-glob` and `-regexp` all
+    /// match text, and Tcl gives `switch` no numeric mode (`-integer` is
+    /// `lsearch`'s) — so there is no arm spelling the message would fit.
+    ///
+    /// tclsh 8.6.18 and 9.0.4 both print `other` for `set c 0x10; switch -- $c
+    /// {16 {puts hex} default {puts other}}` — the subject is compared as the
+    /// string `0x10`, never coerced to 16.
+    #[test]
+    fn t100_silent_for_switch_arms_on_a_tainted_subject() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        for mode in ["--", "-exact --", "-glob --", "-regexp --"] {
+            let source = format!(
+                "proc f {{}} {{\n  set cmd [gets stdin]\n  switch {mode} $cmd {{\n    \
+                 status {{ puts ok }}\n    version {{ puts 1 }}\n    \
+                 default {{ puts none }}\n  }}\n}}\n"
+            );
+            let cu = CompilationUnit::build_for(&source, &registry, false)
+                .with_interprocedural(&registry, None);
+            let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+            assert!(
+                warnings.iter().all(|w| w.code != DiagCode::T100),
+                "`switch {mode}` matches as a string, expected no T100, got {warnings:?}",
+            );
+        }
+    }
+
+    /// The same silence for an array element as a `switch` subject.
+    ///
+    /// `$a(k)` normalises to a `${a(k)}` subject, whose reconstruction has to
+    /// match the array name the expr scan reports plus the index it does not.
+    /// It is one reference to one element, so the arm's `StrEq` context is the
+    /// whole answer here too.
+    #[test]
+    fn t100_silent_for_a_switch_on_a_tainted_array_element() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let source = "proc f {} {\n  array set a [list k [gets stdin]]\n  \
+                      switch -- $a(k) {\n    status { puts ok }\n    \
+                      default { puts none }\n  }\n}\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            warnings.iter().all(|w| w.code != DiagCode::T100),
+            "an array-element switch subject matches as a string too, got {warnings:?}",
+        );
+    }
+
+    /// TP guard for the test above: the `Raw` arm's whole-variable narrowing
+    /// must not reach a `Raw` that really is unparsed expression source with a
+    /// coercing operator inside it.
+    #[test]
+    fn t100_still_fires_for_a_tainted_operand_in_an_unparsed_expr() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let source = "proc f {} {\n  set x [gets stdin]\n  expr {$x + 1}\n}\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            warnings.iter().any(|w| w.code == DiagCode::T100),
+            "expected T100 for a numeric-coercing operand, got {warnings:?}",
+        );
+    }
+
+    /// The T101 mitigation chain end to end: the CR/LF-stripping `string map`
+    /// its KCS page prescribes — and its quick fix writes — clears the
+    /// diagnostic, in both the wrap-a-variable and wrap-in-place spellings,
+    /// and no other mapping does.
+    ///
+    /// tclsh 8.6.18 and 9.0.4 both give `string map {"\n" "" "\r" ""}
+    /// "a\nb\rc"` a length of 3 (`abc`), so the mapping really does delete
+    /// both characters — the element `"\n"` is list-parsed with its backslash
+    /// honoured, giving the newline itself as the key rather than a
+    /// two-character sequence. Dropping the `"\r"` pair leaves length 4 on
+    /// both, which is the half-pair case below.
+    #[test]
+    fn t101_cleared_only_by_a_mapping_that_deletes_crlf() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default();
+        let crlf = r#"{"\n" "" "\r" ""}"#;
+        let cases: &[(&str, bool)] = &[
+            ("puts $x", true),
+            (&format!("puts [string map {crlf} $x]"), false),
+            (&format!("set s [string map {crlf} $x]\n  puts $s"), false),
+            ("puts [string map {a b} $x]", true),
+            // Only half the pair: an LF is deleted but a CR still survives.
+            (r#"puts [string map {"\n" ""} $x]"#, true),
+            // The mapping is dynamic and the *subject* is the braced word, so
+            // the rewriting is exactly what cannot be seen. tclsh 8.6.18 and
+            // 9.0.4: `set m [list X "a\nb"]; string map $m {"\n" "" "\r" ""
+            // X}` yields a string containing a newline.
+            (&format!("puts [string map $x {crlf}]"), true),
+            // A later `string map` puts a newline back, so the earlier proof
+            // no longer describes what reaches `puts` — in either spelling.
+            (
+                &format!("set s [string map {crlf} $x]\n  puts [string map {{\"|\" \"\\n\"}} $s]"),
+                true,
+            ),
+            (
+                &format!(
+                    "set s [string map {crlf} $x]\n  \
+                     set t [string map {{\"|\" \"\\n\"}} $s]\n  puts $t"
+                ),
+                true,
+            ),
+        ];
+        for &(tail, expected) in cases {
+            let source = format!("proc f {{}} {{\n  set x [gets stdin]\n  {tail}\n}}\n");
+            let cu = CompilationUnit::build_for(&source, &registry, false)
+                .with_interprocedural(&registry, None);
+            let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+            let got = warnings.iter().any(|w| w.code == DiagCode::T101);
+            assert_eq!(got, expected, "for {tail:?}, got {warnings:?}");
+        }
     }
 
     /// FP fix — TN: a tainted variable that only appears inside a nested
