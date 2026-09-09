@@ -85,5 +85,10 @@ probes = [
 [dev-dependencies]
 temp-env = "0.3"
 
+[[test]]
+name = "x509_only"
+path = "tests/x509_only.rs"
+required-features = ["x509"]
+
 [lints]
 workspace = true

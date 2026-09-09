@@ -305,6 +305,7 @@ pub(crate) fn special(
 
 /// Attach an implementation caveat to a registration, so the catalogue and
 /// `--help-builtins` say what the builtin actually does.
+#[cfg(feature = "probes")]
 pub(crate) fn with_note(
     entry: (&'static str, BuiltinSpec),
     note: &'static str,
@@ -317,7 +318,10 @@ pub(crate) fn with_note(
 fn build_registry() -> HashMap<&'static str, BuiltinSpec> {
     let mut m = HashMap::new();
     for (name, spec) in registrations() {
-        m.insert(name, spec);
+        assert!(
+            m.insert(name, spec).is_none(),
+            "duplicate builtin registration: {name}"
+        );
     }
     m
 }
@@ -374,6 +378,8 @@ fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
     r.extend(extras::registrations());
     r.extend(f5profile::registrations());
     r.extend(files::registrations());
+    #[cfg(any(feature = "x509", feature = "probes"))]
+    r.extend(crate::probes::x509_registrations());
     #[cfg(feature = "probes")]
     r.extend(crate::probes::registrations());
     r.extend(crate::special::registrations());

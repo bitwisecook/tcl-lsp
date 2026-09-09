@@ -42,6 +42,7 @@
 
 mod apm;
 mod certs;
+mod clock;
 mod crypt;
 pub mod enrich;
 mod forensics;

@@ -76,7 +76,7 @@ sharing `CARGO_HOME` is fine are in
 
 | Target | Purpose |
 |---|---|
-| `make rust-check` | Rust PR gate: fmt + clippy + xtask drift gates (mirrors CI `pr-gate`) |
+| `make rust-check` | Rust PR gate: fmt + Clippy/test for the workspace/default graph and the report-WASM `tcl-bigip-query` x509-only graph, plus xtask drift gates (mirrors CI `pr-gate`) |
 | `make prep-pr` | pre-push gate: format + codegen + lint/typecheck + smoke |
 | `make check-all` | lint + typecheck across TypeScript, Rust, Python |
 | `make smoke`, `make smoke-p P=<crate>` | the smoke tier |

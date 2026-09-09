@@ -17,19 +17,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! File-loading builtins: `json_load` / `jsonl_load` / `csv_load` /
-//! `f5log_load` / `cert_load`.
+//! `f5log_load`, plus the no-x509 fallback for `cert_load`.
 //!
 //! Each reads a file path argument and returns the parsed value, reusing
 //! the parsers in [`crate::inputs`] so a query can mix CLI-loaded
 //! side-inputs and in-query loads from the same code path.
 //!
 //! Notes:
-//! - All five honour `~` tilde expansion and report `file not found:` /
+//! - The file loaders honour `~` tilde expansion and report `file not found:` /
 //!   `cannot read` / format-specific parse errors with the exact
 //!   wording.
-//! - `cert_load` is **unsupported**: it reads the file and validates its
-//!   shape, then raises a clear error for the X.509 parse rather than
-//!   returning a half-shaped dict.
+//! - Without either certificate feature, `cert_load` is an explicit fallback:
+//!   it reads the file and validates its shape, then raises a clear unsupported
+//!   error rather than returning a half-shaped dict. The x509 feature replaces
+//!   that one registration with the real parser.
 
 use crate::builtins::{BuiltinSpec, as_str, plain, type_name};
 use crate::errors::QueryError;
@@ -37,13 +38,22 @@ use crate::inputs::{parse_csv, parse_f5log, parse_jsonl};
 use crate::value::Value;
 
 pub(super) fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
-    vec![
+    let registrations = vec![
         plain("json_load", "value", 1, Some(1), false, bi_json_load),
         plain("jsonl_load", "value", 1, Some(1), false, bi_jsonl_load),
         plain("csv_load", "value", 1, Some(2), false, bi_csv_load),
         plain("f5log_load", "value", 1, Some(1), false, bi_f5log_load),
-        plain("cert_load", "value", 1, Some(2), false, bi_cert_load),
-    ]
+    ];
+    #[cfg(not(any(feature = "x509", feature = "probes")))]
+    {
+        let mut registrations = registrations;
+        registrations.push(plain("cert_load", "value", 1, Some(2), false, bi_cert_load));
+        registrations
+    }
+    #[cfg(any(feature = "x509", feature = "probes"))]
+    {
+        registrations
+    }
 }
 
 /// Tilde (`~` / `~user`) expansion of the path head, for the `~` / `~/...`
@@ -155,6 +165,7 @@ fn bi_f5log_load(args: &[Value]) -> Result<Value, QueryError> {
 
 /// `cert_load` — unsupported. Reads the file and validates the argument
 /// shapes, then raises a clear error for the X.509 parse.
+#[cfg(not(any(feature = "x509", feature = "probes")))]
 fn bi_cert_load(args: &[Value]) -> Result<Value, QueryError> {
     let p = as_str(&args[0], "cert_load", 1)?;
     let expanded = expanduser(&p);
