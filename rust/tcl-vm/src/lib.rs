@@ -28,7 +28,7 @@
 //! The foundation — `set`/`puts`/`incr`/`expr`, arithmetic,
 //! comparisons, and jumps over a flat global scope. Control flow / procs / catch
 //! and the rest of the Family-B impls build on this skeleton. See
-//! `docs/design/common-runtime-emitter-architecture.md`.
+//! `docs/design/runtime/family-b-routing.md` §1.
 
 pub mod debug;
 pub mod embed;

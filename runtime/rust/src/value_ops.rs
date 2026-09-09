@@ -207,6 +207,31 @@ impl ValueOps for Interp {
         })
     }
 
+    fn dict_pairs(
+        &mut self,
+        v: &*mut TclObj,
+    ) -> Result<Vec<(*mut TclObj, *mut TclObj)>, ValueError> {
+        crate::dict::dict_pairs(*v).map_err(|e| ValueError::BadList(e.message()))
+    }
+
+    fn dict_hash_bucket_count(&mut self, v: &*mut TclObj) -> Result<Option<usize>, ValueError> {
+        crate::dict::dict_hash_bucket_count(*v)
+            .map(Some)
+            .map_err(|e| ValueError::BadList(e.message()))
+    }
+
+    fn new_dict(&mut self, pairs: Vec<(*mut TclObj, *mut TclObj)>) -> *mut TclObj {
+        crate::dict::new_dict_obj(&pairs)
+    }
+
+    fn new_dict_with_hash_bucket_count(
+        &mut self,
+        pairs: Vec<(*mut TclObj, *mut TclObj)>,
+        bucket_count: usize,
+    ) -> *mut TclObj {
+        crate::dict::new_dict_obj_with_hash_bucket_count(&pairs, Some(bucket_count))
+    }
+
     /// Byte-exact, and simpler than `as_str`'s Unicode round trip — this is why
     /// `append` (which never needs character semantics) routes through the
     /// shared core without any of `bytes_to_str`/`str_to_bytes`'s trade-offs.

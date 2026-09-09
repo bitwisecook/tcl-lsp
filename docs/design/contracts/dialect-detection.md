@@ -225,7 +225,7 @@ same dialect.
 `tcl-apl` is the APL (iApp presentation language) editor id — an iApp
 sublanguage, so it analyses as `f5-iapps` rather than falling through to the
 default. `tk` is not a catalog profile (it is a library pin, see
-[dialect-profile-model.md](../dialect-profile-model.md) §7.2) but it parses to
+[dialect-profile-model.md](../registry/dialect-profile-model.md) §7.2) but it parses to
 a `DialectSet` bit, which the table's own debug assertion accepts.
 
 ## File extension mapping

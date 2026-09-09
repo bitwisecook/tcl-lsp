@@ -32,9 +32,9 @@ entry point, or gate moves without this contract being updated.
 <!-- owner-resolution-manifest -->
 | Surface | Owner source paths | Public entry points | Dialect/release axis | Drift gate |
 | --- | --- | --- | --- | --- |
-| names / namespaces | `rust/tcl-syntax/src/naming.rs`; `rust/tcl-cmd-core/src/namespace.rs` | `qualifier_segments`; `command_resolution_candidates`; `qualifiers`; `tail`; `exists`; `exists_bytes`; `parent`; `parent_bytes`; `children`; `children_bytes`; `which_request`; `which_command`; `which_command_bytes`; `which_variable`; `variable_fqn`; `variable_fqn_bytes`; `import_pattern`; `origin`; `origin_bytes`; `TclStringHashOrder` | invariant, except `which_variable`'s alternate (global) candidate, which 9.0 drops; absolute-marker contract from #1493 | `xtask-resolution-drift` |
+| names / namespaces | `rust/tcl-syntax/src/naming.rs`; `rust/tcl-cmd-core/src/namespace.rs` | `qualifier_segments`; `command_resolution_candidates`; `qualifiers`; `tail`; `exists`; `exists_bytes`; `parent`; `parent_bytes`; `children`; `children_bytes`; `which_request`; `which_command`; `which_command_bytes`; `which_variable`; `variable_fqn`; `variable_fqn_bytes`; `import_pattern`; `origin`; `origin_bytes`; `TclStringHashOrder`; `TclStringHashOrder::statistics` | invariant, except `which_variable`'s alternate (global) candidate, which 9.0 drops; absolute-marker contract from #1493 | `xtask-resolution-drift` |
 | lists | `rust/tcl-syntax/src/list.rs` | `find_element`; `split_list`; `list_element`; `join_list`; `append_list_element`; `junk_fragment` | invariant | none |
-| dicts | `rust/tcl-syntax/src/list.rs`; `rust/tcl-syntax/src/value.rs`; `rust/tcl-cmd-core/src/dict.rs` | `find_element`; `split_list`; `canonical_dict_slots`; `ValueOps::dict_pairs`; `worded_parse_error` | invariant | none |
+| dicts | `rust/tcl-syntax/src/list.rs`; `rust/tcl-syntax/src/value.rs`; `rust/tcl-cmd-core/src/dict.rs` | `find_element`; `split_list`; `canonical_dict_slots`; `ValueOps::dict_pairs`; `ValueOps::dict_hash_bucket_count`; `ValueOps::new_dict_with_hash_bucket_count`; `worded_parse_error`; `dict::info` | invariant | none |
 | glob matching | `rust/tcl-syntax/src/glob.rs` | `string_match`; `string_match_bytes`; `string_case_match` | invariant | none |
 | switch body grammar | `rust/tcl-syntax/src/switch_body.rs` | `tokenise_switch_body`; `parse_braced_pairs` | invariant | none |
 | word values (brace / list axes, braced-word recognition) | `rust/tcl-syntax/src/word_rules.rs` | `WordValueRules`; `collapse_braced_word`; `split_list`; `split_list_tolerant`; `split_word_names`; `whole_braced_word` | `LexerGrammar::brace_backslash_newline` and `list_parse` per dialect, carried together because a word-shaped list asks both; brace *balance* is release-invariant, so `whole_braced_word` takes no rules | none |
@@ -49,6 +49,8 @@ entry point, or gate moves without this contract being updated.
 | trace argument decoding | `rust/tcl-cmd-core/src/trace.rs` | `TraceKind`; `resolve_option`; `resolve_type`; `parse_ops`; `parse_legacy_variable_ops`; `legacy_ops_letters`; `callback_op_word` | option surface per release (the 8.x-only `variable`/`vdelete`/`vinfo` forms) | none |
 | sort numeric parsing | `rust/tcl-cmd-core/src/sort.rs` | `parse_wide`; `parse_real` | `NumberSyntax` per release | none |
 | command errors | `rust/tcl-cmd-core/src/error.rs` | `CmdError`; `wrong_args`; `bad_choice` | invariant | none |
+| channel output configuration / encoding | `rust/tcl-platform/src/lib.rs`; `rust/tcl-cmd-core/src/channel.rs`; `rust/tcl-registry/src/commands/tcl/fconfigure_.rs` | `SystemEncoding`; `Host::system_encoding`; `ChannelConfig`; `StandardChannelConfigs`; `OpenAccess`; `resolve_open_access_mode`; `ChannelDirection`; `ChannelEncoding`; `EncodingProfile`; `OutputTranslation`; `resolve_fconfigure_option`; `config_list`; `config_value`; `set_config_value`; `encode_output`; `encode_output_bytes`; `EncodedOutput`; `EILSEQ_ERROR_CODE` | system encoding per host locale and interpreter tree; option availability per dialect profile; open-access validation and profile/binary defaults per Tcl release; mutable direction-specific state per channel | none |
+| Tcl completion options / structured error stacks | `rust/tcl-runtime-api/src/completion_options.rs`; `rust/tcl-runtime-api/src/error_stack.rs` | `completion_options::plan`; `completion_options::ErrorOptions`; `completion_options::OptionValue`; `error_stack::ErrorStack`; `error_stack::validate_error_stack`; `error_stack::ErrorStackValueError` | standard option overlay follows completion code/level; TIP 348 `-errorstack` is available from Tcl 8.6; shifted contexts use the concrete runtime's frame count | none |
 | expression grammar / evaluation | `rust/tcl-syntax/src/expr/parser.rs`; `rust/tcl-syntax/src/expr/eval.rs`; `rust/tcl-registry/src/expr_surface.rs` | `parse_expr`; `eval`; `RuntimeExprSurface` | `RuntimeExprSurface` per release | none |
 | expr math functions and the `rand` generator | `rust/tcl-syntax/src/expr/mathfunc.rs`; `rust/tcl-syntax/src/expr/rand.rs` | `NumValue`; `dispatch`; `dispatch_with_backend_int_width`; `try_dispatch_with_backend_int_width`; `IntWidth`; `MathFuncError`; `MathFuncSince`; `spec`; `all`; `added_in`; `seed_from_wide`; `next_draw`; `seed_and_draw` | `MathFuncSince` per release for the function surface and `IntWidth` for `int()`'s width; the Park-Miller generator is release-invariant | none |
 | command / word segmentation | `rust/tcl-lexer/src/script.rs`; `rust/tcl-compiler/src/segmenter.rs`; `rust/tcl-compiler/src/parsing/syntax/build.rs`; `rust/tcl-compiler/src/parsing/syntax/segment.rs` | `group_commands`; `CommandSpan`; `WordSpan`; `WordKind`; `SegmentedCommand`; `segment_commands` | `LexerConfig` per document dialect | `xtask-segmentation-drift` |
@@ -58,7 +60,7 @@ entry point, or gate moves without this contract being updated.
 | iRules execution boundaries and placement | `rust/tcl-syntax/src/event_handler.rs`; `rust/tcl-registry/src/events.rs`; `rust/tcl-registry/src/registry.rs`; `rust/tcl-irules/src/when_block.rs`; `rust/tcl-irules/src/executable.rs` | `event_handlers`; `event_handlers_with_head_predicate`; `script_commands`; `top_level_when_handlers_with_registry_and_head_resolver`; `IrulesDeclarationArguments`; `IrulesExecutionContext`; `IrulesCommandPlacement`; `IrulesTopLevelDeclaration`; `IrulesTopLevelEffect`; `CommandRegistry::irules_command_placement`; `CommandRegistry::irules_event_declaration`; `CommandRegistry::irules_top_level_declaration`; `CommandRegistry::irules_top_level_declaration_shape`; `CommandRegistry::irules_top_level_effect`; `when_blocks`; `irules_executable_commands` | caller-supplied `LexerConfig`; offset-keyed resolved command identity; exact single-braced declaration body; declaration-only top level; known-event roots; call-reachable procedure bodies; stateful priority (`0..=1000`, default 500) | `xtask-gen-ai-diagnostics` |
 | text similarity | `rust/tcl-compiler/src/text.rs` | `edit_distance`; `rank_suggestions`; `rank_containment_suggestions` | invariant | none |
 | per-command knowledge | `rust/tcl-registry/src/spec.rs`; `rust/tcl-registry/src/hooks.rs`; `rust/tcl-registry/src/registry.rs` | `CommandSpec`; `SubCommand`; `CommandRegistry` | per release/dialect | `xtask-command-backing` |
-| dialect / release facts | `rust/tcl-dialect/src/profile.rs`; `rust/tcl-dialect/src/grammar.rs`; `rust/tcl-dialect/src/version.rs`; `rust/tcl-dialect/data/reference-toolchains.tsv` | `DialectProfile`; `LexerGrammar`; `TclVersion`; `TclVersion::patchlevel`; `TclVersion::reference_source_tag`; `find` | the resolved dialect/release axis plus exact pinned reference patchlevel/source tag | `xtask-editor-extensions` |
+| dialect / release facts | `rust/tcl-dialect/src/profile.rs`; `rust/tcl-dialect/src/grammar.rs`; `rust/tcl-dialect/src/version.rs`; `rust/tcl-dialect/data/reference-toolchains.tsv` | `DialectProfile`; `LexerGrammar`; `TclVersion`; `TclVersion::patchlevel`; `TclVersion::reference_source_tag`; `TclVersion::has_error_stack`; `find` | the resolved dialect/release axis plus exact pinned reference patchlevel/source tag | `xtask-editor-extensions` |
 | C Tcl conformance oracles | `rust/tcl-test-support/src/lib.rs` | `reference_patchlevel`; `reference_source_tag`; `locate_tclsh`; `available_tclshs`; `run_script`; `locate_source_tree`; `Tclsh`; `TclSourceTree`; `ScriptOutcome` | exact interpreter/source agreement and provenance for the selected release line | none |
 | interpreter platform bootstrap | `rust/tcl-platform/src/lib.rs` | `bootstrap::Values`; `bootstrap::Snapshot`; `bootstrap::snapshot`; `bootstrap::entries`; `bootstrap::HOST_ARRAYS`; `bootstrap::HOST_PATH_GLOBALS`; `bootstrap::safe_scrub_keys`; `bootstrap::SHARED_LIBRARY_EXTENSION` | key, selected-host snapshot, rebootstrap-clear, safe-scrub, and canonical Unix shared-library suffix invariant; runtime identity supplied per engine | none |
 | shared plain types | `rust/tcl-core-types/src/diag_code.rs` | `DiagCode` | invariant | `xtask-diag-tables` |
@@ -116,6 +118,21 @@ entry point, or gate moves without this contract being updated.
   each engine's `make_safe` consumes the derived scrub iterator. A fresh
   tree-walk `Interp`, its normal children, and bytecode-VM children all install
   the surface before any `init.tcl` work.
+
+### `tcl-runtime-api` — completion metadata
+
+- `completion_options::plan` owns the standard Tcl return-options overlay.
+  Engines supply their concrete values and live error metadata; the owner
+  preserves carried custom and explicit return options, replaces `-code` and
+  `-level` with their settled values, and release-gates only the synthesis of
+  TIP 348 `-errorstack`. A carried option named `-errorstack` remains an
+  ordinary custom pair on Tcl 8.4/8.5 and must not be deleted or validated as
+  TIP 348 metadata there.
+- `error_stack::ErrorStack` owns TIP 348's flat tag/value shape, lazy reset,
+  explicit-stack adoption, and procedure-boundary `CALL` rule. The native VM
+  and portable runtime render their own value types but do not reproduce that
+  lifecycle. `TclVersion::has_error_stack` is the release fact: Tcl 8.6 and
+  later expose it; older and vendor profiles inherit their selected runtime.
 
 ### `tcl-syntax` — the parse grammars and value seam
 
@@ -468,6 +485,21 @@ entry point, or gate moves without this contract being updated.
 
 ### `tcl-cmd-core` — portable command logic
 
+- `channel` owns output-facing channel configuration and encoding. The host
+  supplies one typed `SystemEncoding`; `ChannelConfig` derives Tcl 8/Tcl 9
+  profile defaults, retains each channel's input/output translation and common
+  encoding, and `StandardChannelConfigs` owns the predefined handle defaults.
+  The command registry resolves the dialect-filtered `fconfigure` option into
+  a typed operation; `config_list`, `config_value`, and `set_config_value` own
+  its runtime-neutral state policy. `OpenAccess` and
+  `resolve_open_access_mode` normalise both simple and Tcl-list access modes so
+  handle permissions, creation flags, direction, and binary configuration
+  cannot diverge between adapters. `encode_output` and `encode_output_bytes`
+  return raw bytes together with a possible conversion error, preserving Tcl's
+  successfully converted prefix before `POSIX EILSEQ`. Runtime channel tables
+  own handles, sharing topology, and mutable instances of this state, but do
+  not reimplement access modes, encoders, binary mode, locale interpretation,
+  translation, option availability, or conversion-profile policy.
 - `namespace` — the pure `::` byte-ops `tail` / `qualifiers`
   (`last_sep_run`: colon runs are one separator) plus the
   `Namespaces`-generic cores. Runtime name resolution routes through
@@ -691,7 +723,7 @@ entry point, or gate moves without this contract being updated.
   It walks the canonical syntax tree and constructs no interpreter, so the
   document is never evaluated — not even a `check`'s `predicate`, which it
   retains verbatim. `DECLARATIONS` is the machine-readable statement of the
-  vocabulary the loader implements; `docs/design/sslictcl-vocabulary.md` is
+  vocabulary the loader implements; `docs/design/f5/sslictcl-vocabulary.md` is
   its prose, and a unit test holds the two together.
 - `evaluate_policy` owns **finding identity**: a policy finding is
   `(check id, endpoint)`, which is why the `grade` id is reserved and why
@@ -1057,5 +1089,5 @@ helper without reading the rationale:
 - [design docs index](../README.md)
 - [project-layout.md](project-layout.md) — the crate boundaries these
   ownership rules sit inside.
-- [family-b-routing.md](../family-b-routing.md) — the runtime seam this
+- [family-b-routing.md](../runtime/family-b-routing.md) — the runtime seam this
   crate layering serves.

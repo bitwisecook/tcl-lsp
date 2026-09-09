@@ -93,6 +93,26 @@ impl CmdError {
     pub fn bad_choice(what: &str, got: &str, choices: &str) -> Self {
         Self::new(format!("bad {what} \"{got}\": must be {choices}"))
     }
+
+    /// A Tcl list syntax failure, preserving the list owner's message and
+    /// structured error code.
+    #[must_use]
+    pub fn list(error: tcl_syntax::list::ListError, source: &str) -> Self {
+        Self::with_error_code(error.full_message(source), error.error_code())
+    }
+
+    /// A failed `Tcl_GetIndexFromObj`-style lookup.
+    #[must_use]
+    pub fn lookup_index(message: impl Into<String>, what: &str, word: &str) -> Self {
+        let code = tcl_syntax::list::join_list(["TCL", "LOOKUP", "INDEX", what, word]);
+        Self::with_error_code(message, code)
+    }
+
+    /// A command argument whose shape is invalid after Tcl list parsing.
+    #[must_use]
+    pub fn argument_format(message: impl Into<String>) -> Self {
+        Self::with_error_code(message, "TCL ARGUMENT FORMAT")
+    }
 }
 
 impl core::fmt::Display for CmdError {
@@ -144,6 +164,24 @@ mod tests {
         assert_eq!(
             coded.into_parts(),
             ("constant".to_string(), Some("TCL UNSET CONST".to_string()))
+        );
+        assert_eq!(
+            CmdError::list(tcl_syntax::list::ListError::UnmatchedBrace, "{bad").into_parts(),
+            (
+                "unmatched open brace in list".to_string(),
+                Some("TCL VALUE LIST BRACE".to_string())
+            )
+        );
+        assert_eq!(
+            CmdError::lookup_index("bad option", "option", "two words").into_parts(),
+            (
+                "bad option".to_string(),
+                Some("TCL LOOKUP INDEX option {two words}".to_string())
+            )
+        );
+        assert_eq!(
+            CmdError::argument_format("bad shape").error_code(),
+            Some("TCL ARGUMENT FORMAT")
         );
     }
 }

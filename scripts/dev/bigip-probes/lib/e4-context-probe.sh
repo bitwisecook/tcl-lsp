@@ -1,6 +1,6 @@
 #!/bin/bash
 # Four-context parity probe. Its results and the contract it implements are
-# in docs/design/bigip-irule-parser-measurements.md (§4a, §4b).
+# in docs/design/f5/bigip-irule-parser-measurements.md (§4a, §4b).
 #
 # Runs ON the appliance. Expects these files in /var/tmp (see gen-context-parity.py):
 #   ctx_irule.conf  ctx_cli.conf  ctx_iapp.conf  ctx_iapp_svc.conf  ctx_host.tcl

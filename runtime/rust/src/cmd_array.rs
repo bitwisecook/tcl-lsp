@@ -23,6 +23,8 @@
 //! Implemented: `set`/`get`/`names`/`exists`/`size`/`unset`. (`statistics`,
 //! `nextelement`/`startsearch` searches, `-exact`/`-regexp` name modes follow.)
 
+use tcl_registry::{ArgRole, InvocationWord, InvocationWords};
+
 use crate::interp::{new_string, obj_bytes, Code, Interp};
 use crate::obj::TclObj;
 
@@ -32,33 +34,11 @@ pub fn install(interp: &mut Interp) {
 }
 
 /// This build's `array` subcommands, in the order the unknown-subcommand
-/// message lists them, each with the `argv` index its array name sits at —
-/// `array default <sub> <name>` names its array one word later than the rest.
-///
-/// One table, two consumers: the message below and [`array_name_index`], which
-/// is what makes the variable's `array` traces fire for every subcommand. A
-/// subcommand added to the message without a row here would silently stop
-/// being trace-visible.
-const SUBCOMMANDS: &[(&[u8], usize)] = &[
-    (b"default", 3),
-    (b"exists", 2),
-    (b"for", 2),
-    (b"get", 2),
-    (b"names", 2),
-    (b"set", 2),
-    (b"size", 2),
-    (b"unset", 2),
+/// message lists them. Their argument shapes and variable roles live in the
+/// registry rather than a second runtime table.
+const SUBCOMMANDS: &[&[u8]] = &[
+    b"default", b"exists", b"for", b"get", b"names", b"set", b"size", b"unset",
 ];
-
-/// The `argv` index of `sub`'s array name, or `None` when `sub` is not a
-/// subcommand of this build — C resolves the subcommand index *before* calling
-/// `LocateArray`, so an unknown subcommand fires no trace.
-fn array_name_index(sub: &[u8]) -> Option<usize> {
-    SUBCOMMANDS
-        .iter()
-        .find(|(name, _)| *name == sub)
-        .map(|(_, index)| *index)
-}
 
 /// The subcommand names alone, for the shared ensemble scan and its miss
 /// sentence — `array` is a `TclMakeEnsemble` command, so both belong to
@@ -68,12 +48,56 @@ fn array_name_index(sub: &[u8]) -> Option<usize> {
 /// must not reach `for`, and `array d` must not be made ambiguous by
 /// `default`.
 fn subcommand_names(interp: &Interp) -> &'static [&'static [u8]] {
-    let table: Vec<&'static [u8]> = SUBCOMMANDS.iter().map(|(name, _)| *name).collect();
-    crate::environment::release_subcommands(
-        interp.runtime_version().dialect_profile_name(),
-        "array",
-        &table,
-    )
+    crate::environment::release_subcommands(interp.dialect_profile().name, "array", SUBCOMMANDS)
+}
+
+/// Resolve the selected member's sole array operand through the active
+/// dialect's registry facts. The returned index addresses this command's
+/// complete `argv`, preserving the caller's original Tcl object for trace
+/// lookup and callback spelling.
+fn array_trace_target_index(interp: &Interp, argv: &[*mut TclObj], sub: &[u8]) -> Option<usize> {
+    let canonical = core::str::from_utf8(sub).ok()?;
+    let words: Vec<InvocationWord<'_>> = std::iter::once(InvocationWord::Literal(canonical))
+        .chain(argv[2..].iter().map(|_| InvocationWord::Dynamic))
+        .collect();
+    let profile = interp.dialect_profile();
+    let resolved = crate::environment::store_for_profile(profile)
+        .resolve_structured_invocation(
+            InvocationWords::structured(InvocationWord::Literal("array"), &words),
+            Some(crate::environment::surface_point(profile)),
+        )
+        .resolved()?;
+    if resolved.subcommand.resolved()?.canonical_name != canonical {
+        return None;
+    }
+    resolved
+        .facts()
+        .sole_argument_index_for_roles(words.len(), &[ArgRole::VarRead, ArgRole::VarWrite])
+        .and_then(|index| index.checked_add(1))
+}
+
+fn array_for_variables(interp: &mut Interp, argv: &[*mut TclObj]) -> Result<[Vec<u8>; 2], Code> {
+    let varlist = obj_bytes(argv[2]);
+    let variables = crate::parse::split_list(&varlist)
+        .map_err(|error| interp.report_list_error(&varlist, error))?;
+    variables.try_into().map_err(|_| {
+        interp.error_with_code(b"must have two variable names", b"TCL SYNTAX array for")
+    })
+}
+
+fn array_default_option(interp: &mut Interp, argv: &[*mut TclObj]) -> Result<&'static [u8], Code> {
+    // TIP 508's own option table (`tclVar.c`), resolved with
+    // `Tcl_GetIndexFromObj(…, "option", 0)` in C table order.
+    const OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
+        tcl_cmd_core::prefix::OptionTable::abbreviating(
+            "option",
+            &[b"get", b"set", b"exists", b"unset"],
+        );
+    let option = obj_bytes(argv[2]);
+    OPTIONS
+        .index_of_cmd(&option)
+        .map(|index| OPTIONS.names()[index])
+        .map_err(|error| interp.report_cmd_error(error))
 }
 
 fn unknown_subcommand(interp: &mut Interp, sub: &[u8]) -> Code {
@@ -87,8 +111,8 @@ fn unknown_subcommand(interp: &mut Interp, sub: &[u8]) -> Code {
 }
 
 fn array_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() < 3 {
-        return interp.wrong_args(b"array subcommand arrayName ?arg ...?");
+    if argv.len() < 2 {
+        return interp.wrong_args(b"array subcommand ?arg ...?");
     }
     let word = obj_bytes(argv[1]);
     // Resolve the subcommand first — exact match, else a unique prefix — so
@@ -99,15 +123,28 @@ fn array_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Some(index) => names[index],
         None => return unknown_subcommand(interp, &word),
     };
-    // C's `LocateArray` (tclVar.c:330-350) sits at the top of every `array`
-    // subcommand and fires the variable's `array` traces before the subcommand
-    // reads anything — `array names`, `array get`, `array set`, `array exists`
-    // and the rest each fire exactly one `<name> {} array` callback, while an
-    // ordinary `$arr(k)` read or `set arr(k)` write fires none. This is that
-    // one site (issue #1569), not a per-subcommand branch: the array command
-    // owns the hook, so the only per-subcommand fact it needs is where the
-    // array name is.
-    if let Some(name_obj) = array_name_index(sub).and_then(|i| argv.get(i)) {
+    let trace_target_index = array_trace_target_index(interp, argv, sub);
+    let mut for_variables = None;
+    let mut default_option = None;
+    if let Some(index) = trace_target_index {
+        // Every member validates its outer arity before `LocateArray`. Two
+        // content checks also precede it in C: `array for` validates its
+        // two-variable list and `array default` resolves its inner option.
+        // The selected default option's narrower arity is intentionally later.
+        match sub {
+            b"for" => match array_for_variables(interp, argv) {
+                Ok(variables) => for_variables = Some(variables),
+                Err(code) => return code,
+            },
+            b"default" => match array_default_option(interp, argv) {
+                Ok(option) => default_option = Some(option),
+                Err(code) => return code,
+            },
+            _ => {}
+        }
+        let Some(name_obj) = argv.get(index) else {
+            return interp.set_error(b"array subcommand has incomplete registry metadata");
+        };
         if let Some(code) = interp.fire_array_trace(&obj_bytes(*name_obj)) {
             return code;
         }
@@ -122,22 +159,15 @@ fn array_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 interp.set_result(v);
                 Code::Ok
             }
-            Err(e) => {
-                let (message, error_code) = e.into_parts();
-                match error_code {
-                    Some(code) => interp.error_with_code(message.as_bytes(), code.as_bytes()),
-                    None => interp.set_error(message.as_bytes()),
-                }
-            }
+            Err(e) => interp.report_cmd_error(e),
         };
     }
     // Per-runtime: `set` (per-element write traces), `default` (TIP 508), `for`
     // (Family-B iteration), and the unknown-subcommand message.
-    let name = obj_bytes(argv[2]);
     match sub {
-        b"set" => array_set(interp, argv, &name),
-        b"for" => array_for(interp, argv),
-        b"default" => array_default(interp, argv),
+        b"set" => array_set(interp, argv),
+        b"for" => array_for(interp, argv, for_variables),
+        b"default" => array_default(interp, argv, default_option),
         // Unreachable: every `SUBCOMMANDS` name is handled above or by the
         // shared core.
         other => unknown_subcommand(interp, other),
@@ -146,23 +176,21 @@ fn array_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 /// `array default set|get|exists|unset arrayName ?value?` (TIP 508) — the array's
 /// default value for reads of missing elements.
-fn array_default(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+fn array_default(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    prepared_option: Option<&'static [u8]>,
+) -> Code {
     // argv: array default <subcmd> arrayName ?value?
-    if argv.len() < 4 {
-        return interp.wrong_args(b"array default subcommand arrayName ?value?");
+    if !(4..=5).contains(&argv.len()) {
+        return interp.wrong_args(b"array default option arrayName ?value?");
     }
-    // TIP 508's own option table (`tclVar.c`), resolved with
-    // `Tcl_GetIndexFromObj(…, "option", 0)` in C *table* order — not
-    // alphabetical — so `e`/`ex` abbreviate `exists` and the empty word is
-    // `ambiguous option ""`.
-    const DEFAULT_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
-        tcl_cmd_core::prefix::OptionTable::abbreviating(
-            "option",
-            &[b"get", b"set", b"exists", b"unset"],
-        );
-    let sub = match DEFAULT_OPTIONS.index_of(&obj_bytes(argv[2])) {
-        Ok(i) => DEFAULT_OPTIONS.names()[i],
-        Err(m) => return interp.set_error(&m),
+    let sub = match prepared_option {
+        Some(option) => option,
+        None => match array_default_option(interp, argv) {
+            Ok(option) => option,
+            Err(code) => return code,
+        },
     };
     let name = obj_bytes(argv[3]);
     match sub {
@@ -234,16 +262,8 @@ fn array_default(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result_bytes(b"");
             Code::Ok
         }
-        // Unreachable: `DEFAULT_OPTIONS` has exactly the four arms above.
-        other => {
-            let mut m = b"bad option \"".to_vec();
-            m.extend_from_slice(other);
-            m.extend_from_slice(b"\": must be ");
-            m.extend_from_slice(&tcl_cmd_core::prefix::choice_list_bytes(
-                DEFAULT_OPTIONS.names(),
-            ));
-            interp.set_error(&m)
-        }
+        // Unreachable: `array_default_option` returns exactly these four.
+        _ => unreachable!("closed array default option table"),
     }
 }
 
@@ -252,20 +272,21 @@ fn array_default(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// / `ArrayForLoopCallback`). A structural change to the array (an element added
 /// or removed) during iteration is an error, matching the invalidated hash
 /// search; changing an existing element's value is fine.
-fn array_for(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+fn array_for(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    prepared_variables: Option<[Vec<u8>; 2]>,
+) -> Code {
     if argv.len() != 5 {
         return interp.wrong_args(b"array for {key value} arrayName script");
     }
-    let varlist = obj_bytes(argv[2]);
-    let vars = match crate::parse::split_list(&varlist) {
-        Ok(v) => v,
-        Err(e) => return interp.set_error(e.message()),
+    let [kvar, vvar] = match prepared_variables {
+        Some(variables) => variables,
+        None => match array_for_variables(interp, argv) {
+            Ok(variables) => variables,
+            Err(code) => return code,
+        },
     };
-    if vars.len() != 2 {
-        return interp.error_with_code(b"must have two variable names", b"TCL SYNTAX array for");
-    }
-    let kvar = vars[0].clone();
-    let vvar = vars[1].clone();
     let name = obj_bytes(argv[3]);
     if !interp.var_is_array(&name) {
         return not_array(interp, &name);
@@ -333,14 +354,15 @@ fn not_array(interp: &mut Interp, name: &[u8]) -> Code {
 }
 
 /// `array set arrayName {key value …}` — store each pair as an element.
-fn array_set(interp: &mut Interp, argv: &[*mut TclObj], name: &[u8]) -> Code {
+fn array_set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 4 {
         return interp.wrong_args(b"array set arrayName list");
     }
+    let name = obj_bytes(argv[2]);
     // An array-element name (`foo(bar)`) can't be the target of `array set`.
-    if crate::frame::split_array_ref(name).1.is_some() {
+    if crate::frame::split_array_ref(&name).1.is_some() {
         let mut m = b"can't set \"".to_vec();
-        m.extend_from_slice(name);
+        m.extend_from_slice(&name);
         m.extend_from_slice(b"\": variable isn't array");
         return interp.set_error(&m);
     }
@@ -348,24 +370,27 @@ fn array_set(interp: &mut Interp, argv: &[*mut TclObj], name: &[u8]) -> Code {
     // value keeps its `Tcl_Obj` identity through the array — C shares objs by
     // reference, and TIP 280 keys a literal's source location on that identity
     // (so a `-body {…}` stored via `array set` still evaluates as `type source`).
+    let list = obj_bytes(argv[3]);
     let kvs = match crate::list::list_elements(argv[3]) {
         Ok(v) => v,
-        Err(e) => return interp.set_error(e.message()),
+        Err(e) => return interp.report_list_error(&list, e),
     };
     if kvs.len() % 2 != 0 {
-        return interp.set_error(b"list must have an even number of elements");
+        return interp.report_cmd_error(tcl_cmd_core::CmdError::argument_format(
+            "list must have an even number of elements",
+        ));
     }
     // `array set a {}` still materialises an empty array (and a scalar `a`
     // errors `variable isn't array`), so ensure the array up front — the loop
     // below never runs for an empty value list.
-    if let Err(e) = interp.ensure_array(name) {
-        return crate::builtins::var_error(interp, name, e);
+    if let Err(e) = interp.ensure_array(&name) {
+        return crate::builtins::var_error(interp, &name, e);
     }
     for pair in kvs.chunks_exact(2) {
         // `var_set_elem` retains the live value obj (no fresh allocation).
         let key = obj_bytes(pair[0]);
-        if let Err(e) = interp.var_set_elem(name, &key, pair[1]) {
-            return crate::builtins::var_error(interp, name, e);
+        if let Err(e) = interp.var_set_elem(&name, &key, pair[1]) {
+            return crate::builtins::var_error(interp, &name, e);
         }
     }
     interp.set_result_bytes(b"");

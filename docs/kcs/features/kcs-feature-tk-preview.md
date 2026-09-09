@@ -86,7 +86,7 @@ rather than silently substituted with made-up widgets.
 
 ## Further reading
 
-- [Static Tk UI model](../../design/tk-static-ui-model.md)
+- [Static Tk UI model](../../design/analysis/tk-static-ui-model.md)
 - Official [Tk command index](https://www.tcl-lang.org/man/tcl8.6/TkCmd/contents.htm)
 - Official [`bind` manual](https://www.tcl-lang.org/man/tcl8.6/TkCmd/bind.htm)
 - Official [`wm` manual](https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm)

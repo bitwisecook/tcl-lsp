@@ -44,4 +44,4 @@ of each hop.
 
 The contract behind the registry — value-spec protocol, source ranges, and
 how compound value types work — lives in
-[`docs/design/bigip-registry-architecture.md`](../../design/bigip-registry-architecture.md).
+[`docs/design/f5/bigip-registry-architecture.md`](../../design/f5/bigip-registry-architecture.md).

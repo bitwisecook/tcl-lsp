@@ -79,11 +79,11 @@ The diff compares the *node* (an IR statement, a CFG block, a bytecode instructi
 
 ## Example
 
-![bytecode disassembly panel](../screenshots/10-compiler-explorer.png)
-![control flow graph (pre-optimisation)](../screenshots/11-compiler-cfg.png)
-![CFG after SSA optimisation](../screenshots/12-compiler-ssa.png)
-![optimiser pass output](../screenshots/13-compiler-optimiser.png)
-![iRule-specific IR view](../screenshots/14-compiler-irule.png)
+![bytecode disassembly panel](../../screenshots/10-compiler-explorer.png)
+![control flow graph (pre-optimisation)](../../screenshots/11-compiler-cfg.png)
+![CFG after SSA optimisation](../../screenshots/12-compiler-ssa.png)
+![optimiser pass output](../../screenshots/13-compiler-optimiser.png)
+![iRule-specific IR view](../../screenshots/14-compiler-irule.png)
 
 ## Discoverability
 

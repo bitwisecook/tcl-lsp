@@ -28,7 +28,7 @@
 //! `Value`. It deliberately contains no implementations; a runtime such as the
 //! bytecode VM (`tcl-vm`) satisfies it over its own value/storage model.
 //!
-//! See `docs/design/common-runtime-emitter-architecture.md` §4 (Family B).
+//! See `docs/design/runtime/family-b-routing.md` §1.
 
 // The value-less vocabulary (the completion `Code`, the generic `Completion<V>`,
 // and the opaque arena handles) lives in the dependency-free `tcl-core-types`
@@ -40,6 +40,12 @@
 pub use tcl_core_types::{
     Code, CommandId, Completion, FrameId, GLOBAL_FRAME, NsId, ROOT_NS, VarId,
 };
+
+/// Standard Tcl return-option construction policy.
+pub mod completion_options;
+
+/// Shared TIP 348 structured error-stack state and validation.
+pub mod error_stack;
 
 /// An owned, byte-preserving script completion for host and embedding
 /// boundaries.

@@ -453,9 +453,9 @@ pub enum Command {
         /// Show the worked-example cookbook and exit.
         #[arg(long = "help-examples")]
         help_examples: bool,
-        /// Show the comprehensive manual (grammar + builtins + examples) and
-        /// exit. Not yet available: the builtins prose catalogue is not
-        /// implemented.
+        /// Show the comprehensive manual and exit: the DSL grammar
+        /// reference, the builtin catalogue (registry metadata — category,
+        /// arity, dispatch flags), and the worked-example cookbook.
         #[arg(long = "help-manual")]
         help_manual: bool,
         /// List the registered renderer plugins and exit.

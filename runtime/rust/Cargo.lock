@@ -252,6 +252,7 @@ dependencies = [
  "tcl-registry",
  "tcl-runtime-api",
  "tcl-syntax",
+ "tcl-test-support",
 ]
 
 [[package]]
@@ -270,6 +271,13 @@ dependencies = [
  "libm",
  "tcl-dialect",
  "tcl-lexer",
+]
+
+[[package]]
+name = "tcl-test-support"
+version = "0.1.0"
+dependencies = [
+ "tcl-dialect",
 ]
 
 [[package]]

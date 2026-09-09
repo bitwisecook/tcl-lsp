@@ -25,7 +25,7 @@
 # Family-B contract. Stays `forbid(unsafe)` and compiler-optional (the
 # `CompileService` injection point keeps it off `tcl-compiler`).
 #
-# See `docs/design/common-runtime-emitter-architecture.md`.
+# See `docs/design/runtime/family-b-routing.md` §1.
 [package]
 name = "tcl-vm"
 publish.workspace = true

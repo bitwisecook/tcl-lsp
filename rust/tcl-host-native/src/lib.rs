@@ -41,6 +41,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use tcl_platform::{
     Capabilities, Clock, Env, ExecOutput, Filesystem, Host, HostError, Metadata, Process, StdIo,
+    SystemEncoding,
 };
 
 /// The native, std-backed host. Holds its capability objects so the `Host`
@@ -111,6 +112,14 @@ impl Host for NativeHost {
         &self.env
     }
 
+    fn system_encoding(&self) -> SystemEncoding {
+        let locale = ["LC_ALL", "LC_CTYPE", "LANG"]
+            .into_iter()
+            .filter_map(|key| self.env.get(key))
+            .find(|value| !value.is_empty());
+        locale_system_encoding(locale.as_deref())
+    }
+
     fn filesystem(&self) -> Option<&dyn Filesystem> {
         self.allow_filesystem.then_some(&self.fs as &dyn Filesystem)
     }
@@ -118,6 +127,28 @@ impl Host for NativeHost {
     fn process(&self) -> Option<&dyn Process> {
         self.allow_process.then_some(&self.process as &dyn Process)
     }
+}
+
+/// Resolve the locale spellings needed by the runtimes' current encoding
+/// surface.  Tcl's Unix bootstrap treats the process `C`/`POSIX` locale as
+/// ISO-8859-1; UTF-8 locales retain UTF-8.  Other code pages remain outside
+/// the runtimes' deliberately small encoding catalogue and conservatively use
+/// UTF-8 rather than inventing a lossy mapping.
+fn locale_system_encoding(locale: Option<&str>) -> SystemEncoding {
+    let Some(locale) = locale else {
+        return SystemEncoding::Iso88591;
+    };
+    let folded = locale.to_ascii_lowercase();
+    if folded == "c" || folded == "posix" {
+        return SystemEncoding::Iso88591;
+    }
+    if folded.contains("utf-8") || folded.contains("utf8") {
+        return SystemEncoding::Utf8;
+    }
+    if folded.contains("iso8859-1") || folded.contains("iso-8859-1") {
+        return SystemEncoding::Iso88591;
+    }
+    SystemEncoding::Utf8
 }
 
 /// Map a `std::io::Error` onto the host-neutral [`HostError`].
@@ -493,6 +524,28 @@ impl Process for NativeProcess {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn system_encoding_follows_tcl_unix_locale_defaults() {
+        assert_eq!(locale_system_encoding(None), SystemEncoding::Iso88591);
+        assert_eq!(locale_system_encoding(Some("C")), SystemEncoding::Iso88591);
+        assert_eq!(
+            locale_system_encoding(Some("POSIX")),
+            SystemEncoding::Iso88591
+        );
+        assert_eq!(
+            locale_system_encoding(Some("C.UTF-8")),
+            SystemEncoding::Utf8
+        );
+        assert_eq!(
+            locale_system_encoding(Some("en_GB.utf8")),
+            SystemEncoding::Utf8
+        );
+        assert_eq!(
+            locale_system_encoding(Some("en_US.ISO-8859-1")),
+            SystemEncoding::Iso88591
+        );
+    }
 
     #[cfg(unix)]
     #[test]

@@ -28,9 +28,7 @@
 //! - the **WASM runtime** over `*mut TclObj` (24-byte C-ABI object; amortised
 //!   in-place string growth via `try_append_bytes_in_place`).
 //!
-//! Two deliberate contract decisions (see
-//! `docs/design/common-runtime-emitter-architecture.md` §4d and the red-team
-//! findings):
+//! Two deliberate contract decisions:
 //!
 //! 1. **Char-correct strings.** [`ValueOps::as_str`] yields a UTF-8 `Rc<str>`.
 //!    Tcl 8 character operations use UTF-16-style code units while Tcl 9 uses
@@ -363,6 +361,15 @@ pub trait ValueOps {
             .collect())
     }
 
+    /// Retained bucket-array size for a native dict representation.
+    ///
+    /// Tcl hash tables grow but do not shrink, and `dict info` exposes that
+    /// history. String/list-only value models return `None`; runtimes with a
+    /// native dict rep override this after validating/shimmering `v`.
+    fn dict_hash_bucket_count(&mut self, _v: &Self::Value) -> Result<Option<usize>, ValueError> {
+        Ok(None)
+    }
+
     /// Build a dict value from canonical key/value pairs. The default interleaves
     /// them into a list value (a dict *is* an even-length list); an impl with a
     /// native dict rep may override.
@@ -373,6 +380,19 @@ pub trait ValueOps {
             items.push(v);
         }
         self.new_list(items)
+    }
+
+    /// Build a native dict starting with a copied table's bucket-array size.
+    ///
+    /// The default has no typed hash-table representation and ignores the
+    /// hint. Native dict owners override it for copy-then-transform commands
+    /// such as `dict remove`, whose growth remains observable through `info`.
+    fn new_dict_with_hash_bucket_count(
+        &mut self,
+        pairs: Vec<(Self::Value, Self::Value)>,
+        _bucket_count: usize,
+    ) -> Self::Value {
+        self.new_dict(pairs)
     }
 
     // -- bytes (byte-exact; the value-representation seam for append/binary) --

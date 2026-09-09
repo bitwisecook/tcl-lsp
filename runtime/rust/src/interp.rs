@@ -42,6 +42,7 @@ use std::rc::{Rc, Weak};
 
 use tcl_core_types::RecursionLimit;
 use tcl_runtime_api::codegen_abi::NATIVE_PROC_STATUS_DECLINED;
+use tcl_runtime_api::error_stack::{validate_error_stack, ErrorStack};
 use tcl_runtime_api::guard::{
     GuardDomain, GuardDomains, GuardError, GuardIdentity, GuardManager, GuardToken,
 };
@@ -97,6 +98,17 @@ impl Code {
             4 => Code::Continue,
             other => Code::Other(other),
         }
+    }
+}
+
+fn shared_code(code: Code) -> tcl_runtime_api::Code {
+    match code {
+        Code::Ok => tcl_runtime_api::Code::Ok,
+        Code::Error => tcl_runtime_api::Code::Error,
+        Code::Return => tcl_runtime_api::Code::Return,
+        Code::Break => tcl_runtime_api::Code::Break,
+        Code::Continue => tcl_runtime_api::Code::Continue,
+        Code::Other(value) => tcl_runtime_api::Code::Other(value),
     }
 }
 
@@ -452,7 +464,9 @@ pub(crate) struct CoroContext {
     script_stack: Vec<Vec<u8>>,
     return_code: Code,
     return_level: usize,
+    return_options: Vec<(Vec<u8>, Vec<u8>)>,
     exc: ExceptionState,
+    error_stack: ErrorStack<Vec<u8>>,
     error_line: u32,
     arg_lines: Vec<u32>,
     eval_depth: u32,
@@ -472,7 +486,9 @@ impl CoroContext {
             script_stack: Vec::new(),
             return_code: Code::Ok,
             return_level: 1,
+            return_options: Vec::new(),
             exc: ExceptionState::default(),
+            error_stack: ErrorStack::default(),
             error_line: 1,
             arg_lines: Vec::new(),
             eval_depth: 0,
@@ -801,6 +817,10 @@ pub struct InterpState {
     /// complete with once `-level` boundaries are unwound.
     return_code: Cell<Code>,
     return_level: Cell<usize>,
+    /// Non-control pairs carried by the current `return` completion. Byte
+    /// storage is sufficient at this portable boundary and preserves arbitrary
+    /// pre-TIP/custom option spellings for `catch`, `try`, and host adapters.
+    return_options: RefCell<Vec<(Vec<u8>, Vec<u8>)>>,
     /// Variable-trace registry (`trace add|remove|info variable`).
     pub(crate) traces: RefCell<crate::cmd_trace::TraceTable>,
     /// The error stack-trace accumulator (PC-4).
@@ -940,15 +960,12 @@ pub struct InterpState {
     /// error unwinds — `INNER <ctx>` for the innermost command, `CALL <info
     /// level 0>` per proc frame, `UP <delta>` per `uplevel` boundary. Rendered to
     /// a Tcl list on demand.
-    error_stack: RefCell<Vec<Vec<u8>>>,
-    /// C's `iPtr->resetErrorStack`: set when the result is reset (a new error
-    /// episode is starting), so the next command logged clears the stack and
-    /// records its inner context. Starts `true`.
-    reset_error_stack: Cell<bool>,
+    error_stack: RefCell<ErrorStack<Vec<u8>>>,
     /// The `try` exception-chaining link (TIP 329 `-during`): when a `try`
     /// handler or `finally` script throws, the options dict of the *prior*
     /// exception it superseded is stashed here so the next error-options build
-    /// ([`build_options`](crate::cmd_error)) splices it in as `-during`. Holds an
+    /// ([`completion_options`](crate::cmd_error::completion_options)) splices it
+    /// in as `-during`. Holds an
     /// owning reference (released when overwritten, cleared, or the interp drops).
     /// Cleared when an error is published/caught ([`publish_error`](Self::publish_error)),
     /// since the chain is then consumed.
@@ -1243,6 +1260,7 @@ impl Interp {
     /// no process-host values are ever installed, even transiently.
     pub fn with_host(host: Rc<dyn tcl_platform::Host>) -> Interp {
         let result = obj::new_obj();
+        let system_encoding = host.system_encoding();
         // SAFETY: `result` is freshly created; the interp takes the owning ref.
         unsafe { obj::incr_ref_count(result) };
         let mut guards = GuardManager::default();
@@ -1263,9 +1281,13 @@ impl Interp {
                 DEFAULT_RUNTIME_VERSION,
             )),
             script_stack: RefCell::new(Vec::new()),
-            channels: RefCell::new(crate::cmd_chan::ChannelTable::default()),
+            channels: RefCell::new(crate::cmd_chan::ChannelTable::new(
+                DEFAULT_RUNTIME_VERSION,
+                system_encoding,
+            )),
             return_code: Cell::new(Code::Ok),
             return_level: Cell::new(1),
+            return_options: RefCell::new(Vec::new()),
             traces: RefCell::new(crate::cmd_trace::TraceTable::default()),
             exc: RefCell::new(ExceptionState::default()),
             error_line: Cell::new(1),
@@ -1294,8 +1316,7 @@ impl Interp {
             ensemble_rewrite: RefCell::new(None),
             #[cfg(have_tommath)]
             rand_seed: Cell::new(None),
-            error_stack: RefCell::new(Vec::new()),
-            reset_error_stack: Cell::new(true),
+            error_stack: RefCell::new(ErrorStack::default()),
             during: Cell::new(None),
             result: Cell::new(result),
             cmd_arena: RefCell::new(CmdArena::default()),
@@ -1346,7 +1367,11 @@ impl Interp {
     /// a restricted one). Interior-mutable since the interp is shared via `Rc`.
     pub fn set_host(&self, host: Rc<dyn tcl_platform::Host>) {
         self.invalidate_interpreter_policy();
+        let system_encoding = host.system_encoding();
         *self.0.host.borrow_mut() = host;
+        self.channels
+            .borrow()
+            .reset_process_state_if_owner(self.runtime_version(), system_encoding);
         let mut interp = self.clone();
         interp.rebootstrap_host_globals();
         if interp.is_safe.get() {
@@ -1410,6 +1435,9 @@ impl Interp {
             .dialect_point
             .set(Some(crate::environment::surface_point(profile)));
         self.0.runtime_version.set(version);
+        self.channels
+            .borrow()
+            .reset_standard_channels_if_owner(version);
         self.namespaces.borrow_mut().ns_var_global_fallback =
             version.namespace_var_global_fallback();
         self.write_release_globals();
@@ -1424,6 +1452,18 @@ impl Interp {
     #[must_use]
     pub fn runtime_version(&self) -> tcl_dialect::TclVersion {
         self.0.runtime_version.get()
+    }
+
+    /// The mutable `encoding system` value shared by this interpreter tree.
+    #[must_use]
+    pub(crate) fn system_encoding(&self) -> tcl_platform::SystemEncoding {
+        self.channels.borrow().system_encoding()
+    }
+
+    /// Replace the system encoding used to initialise subsequently opened
+    /// channels. Existing channel handles retain their own configuration.
+    pub(crate) fn set_system_encoding(&self, encoding: tcl_platform::SystemEncoding) {
+        self.channels.borrow().set_system_encoding(encoding);
     }
 
     /// The dialect profile this interpreter validates its command surface
@@ -2747,6 +2787,16 @@ impl Interp {
     pub(crate) fn set_return_state(&mut self, level: usize, code: Code) {
         self.return_level.set(level);
         self.return_code.set(code);
+    }
+
+    /// Replace the arbitrary option pairs carried by the current `return`.
+    pub(crate) fn set_return_options(&self, options: Vec<(Vec<u8>, Vec<u8>)>) {
+        *self.return_options.borrow_mut() = options;
+    }
+
+    /// Snapshot the current `return`'s non-control option pairs.
+    pub(crate) fn pending_return_options(&self) -> Vec<(Vec<u8>, Vec<u8>)> {
+        self.return_options.borrow().clone()
     }
 
     /// The pending `return` `-code`/`-level` (the options a body that completed
@@ -5163,6 +5213,25 @@ impl Interp {
         Code::Error
     }
 
+    /// Publish a portable command-layer error through this runtime's result
+    /// and exception-state ABI without losing a structured error code.
+    pub(crate) fn report_cmd_error(&mut self, error: tcl_cmd_core::CmdError) -> Code {
+        let (message, code) = error.into_parts();
+        match code {
+            Some(code) => self.error_with_code(message.as_bytes(), code.as_bytes()),
+            None => self.set_error(message.as_bytes()),
+        }
+    }
+
+    /// Publish a list parse failure using the shared list owner's message and
+    /// structured code.
+    pub(crate) fn report_list_error(&mut self, source: &[u8], error: parse::ListError) -> Code {
+        self.error_with_code(
+            &parse::list_error_message(source, error),
+            error.error_code(),
+        )
+    }
+
     /// The `interp bgerror` handler command prefix (empty ⇒ default).
     pub(crate) fn bgerror_handler(&self) -> Vec<u8> {
         self.bgerror.borrow().clone()
@@ -5233,6 +5302,7 @@ impl Interp {
         std::mem::swap(&mut *self.script_stack.borrow_mut(), &mut ctx.script_stack);
         std::mem::swap(&mut *self.arg_lines.borrow_mut(), &mut ctx.arg_lines);
         std::mem::swap(&mut *self.exc.borrow_mut(), &mut ctx.exc);
+        std::mem::swap(&mut *self.error_stack.borrow_mut(), &mut ctx.error_stack);
         self.oo.borrow_mut().swap_exec(&mut ctx.oo);
         let ns = self.current_ns.replace(ctx.current_ns);
         ctx.current_ns = ns;
@@ -5242,6 +5312,10 @@ impl Interp {
         ctx.return_code = rc;
         let rl = self.return_level.replace(ctx.return_level);
         ctx.return_level = rl;
+        std::mem::swap(
+            &mut *self.return_options.borrow_mut(),
+            &mut ctx.return_options,
+        );
         let ed = self.eval_depth.replace(ctx.eval_depth);
         ctx.eval_depth = ed;
         let el = self.error_line.replace(ctx.error_line);
@@ -5378,10 +5452,9 @@ impl Interp {
             code_explicit: errorcode.is_some(),
             already_logged,
         };
-        if let Some(es) = errorstack {
-            if let Ok(parts) = crate::parse::split_list(es) {
-                *self.error_stack.borrow_mut() = parts;
-                self.reset_error_stack.set(false);
+        if let Some(es) = errorstack.filter(|_| self.runtime_version().has_error_stack()) {
+            if let Ok(parts) = validate_error_stack(crate::parse::split_list(es)) {
+                let _ = self.error_stack.borrow_mut().adopt(parts);
             }
         }
     }
@@ -5786,31 +5859,30 @@ impl Interp {
     /// entries are added separately at proc-frame boundaries
     /// ([`error_stack_push_call`](Self::error_stack_push_call)).
     pub(crate) fn error_stack_log(&self, command: &[u8]) {
-        if self.reset_error_stack.get() {
-            self.reset_error_stack.set(false);
-            let mut es = self.error_stack.borrow_mut();
-            es.clear();
-            es.push(b"INNER".to_vec());
-            es.push(command.to_vec());
+        if !self.runtime_version().has_error_stack() {
+            return;
         }
+        let mut es = self.error_stack.borrow_mut();
+        let _ = es.begin_inner(b"INNER".to_vec(), command.to_vec());
         let (top, active) = {
             let f = self.frames.borrow();
             (f.top_level(), f.current_level())
         };
         if top > active {
-            let mut es = self.error_stack.borrow_mut();
-            es.push(b"UP".to_vec());
-            es.push((top - active).to_string().into_bytes());
+            let _ = es.push_pair(b"UP".to_vec(), (top - active).to_string().into_bytes());
         }
     }
 
     /// Append a TIP 348 `CALL <info level 0>` entry — the invocation words of a
     /// proc/lambda/method frame that an error is unwinding out of. The words are
     /// joined into a single Tcl-list element (so `g 1212` renders as `{g 1212}`).
-    pub(crate) fn error_stack_push_call(&self, words: &[Vec<u8>]) {
-        if self.reset_error_stack.get() {
-            // No inner context recorded yet (the error started at this boundary);
-            // nothing to chain a CALL onto until a command is logged.
+    pub(crate) fn error_stack_push_call(
+        &self,
+        body_code: Code,
+        settled_code: Code,
+        words: &[Vec<u8>],
+    ) {
+        if !self.runtime_version().has_error_stack() {
             return;
         }
         let mut value = Vec::new();
@@ -5820,9 +5892,12 @@ impl Interp {
             }
             crate::list::append_list_element(&mut value, w, i == 0);
         }
-        let mut es = self.error_stack.borrow_mut();
-        es.push(b"CALL".to_vec());
-        es.push(value);
+        let _ = self.error_stack.borrow_mut().push_proc_call(
+            shared_code(body_code),
+            shared_code(settled_code),
+            b"CALL".to_vec(),
+            value,
+        );
     }
 
     /// Render the TIP 348 error stack as a Tcl list (`info errorstack` / the
@@ -5830,7 +5905,7 @@ impl Interp {
     pub(crate) fn error_stack_value(&self) -> Vec<u8> {
         let es = self.error_stack.borrow();
         let mut buf = Vec::new();
-        for (i, e) in es.iter().enumerate() {
+        for (i, e) in es.entries().iter().enumerate() {
             if i > 0 {
                 buf.push(b' ');
             }
@@ -5839,12 +5914,17 @@ impl Interp {
         buf
     }
 
+    /// The innermost error command's 1-based source line.
+    pub(crate) fn error_line(&self) -> u32 {
+        self.error_line.get()
+    }
+
     /// Mark the start of a new error episode (C's `iPtr->resetErrorStack = 1`,
     /// set by `Tcl_ResetResult`): the *next* logged command rebuilds the stack.
     /// The current contents are kept until then (so `info errorstack` after a
     /// `catch` still reports the last error).
     pub(crate) fn mark_error_stack_reset(&self) {
-        self.reset_error_stack.set(true);
+        self.error_stack.borrow_mut().mark_reset();
     }
 
     /// Publish the accumulated trace to the `::errorInfo`/`::errorCode` globals
@@ -5895,7 +5975,8 @@ impl Interp {
         }
     }
 
-    /// The pending `-during` chain link (borrowed), for `build_options` to splice
+    /// The pending `-during` chain link (borrowed), for
+    /// [`completion_options`](crate::cmd_error::completion_options) to splice
     /// into an error's options dict. `None` when no chaining is active.
     pub(crate) fn during_opts(&self) -> Option<*mut TclObj> {
         let d = self.during.take();
@@ -6531,6 +6612,18 @@ impl Interp {
     /// (auto-load / `package` / friendly errors — the pure-Tcl `unknown` proc),
     /// matching C's `TclEvalObjvInternal`.
     pub(crate) fn dispatch(&mut self, argv: &[*mut TclObj]) -> Code {
+        // TclEvalObjvInternal resets the interpreter result before execution
+        // traces and command dispatch. This is the central entry used by parsed
+        // commands, canonical-list eval, aliases/ensembles, callbacks and the
+        // native ABI. `argv` owns/borrows its objects independently, so dropping
+        // the prior result here cannot invalidate an argument.
+        self.set_result_bytes(b"");
+        // A parsed/direct command starts a new completion. Execution-trace
+        // callbacks run under SaveInterpState semantics and must not erase the
+        // option pairs returned by the command whose leave trace they observe.
+        if self.traces.borrow().exec_firing == 0 {
+            self.return_options.borrow_mut().clear();
+        }
         self.cmd_count.set(self.cmd_count.get() + 1);
         // Fast path: nothing is registered, so nothing can fire. Being inside a
         // trace callback is *not* a reason to skip: C's
@@ -7267,6 +7360,10 @@ impl Interp {
         // The whole profile is inherited, not just the release, so a child's
         // command-surface availability gate agrees too (issue #1463).
         child.set_dialect_profile(self.dialect_profile());
+        child
+            .channels
+            .borrow_mut()
+            .share_process_state_from(&self.channels.borrow());
         // `Interp::new` already gave the child its own predefined globals
         // (`tcl_platform`, `env`, argv, …). The full `init.tcl`
         // (package/auto-load) remains deferred.
@@ -8378,7 +8475,7 @@ impl Interp {
                 self.make_proc_error(meta.err);
                 // TIP 348: record this proc/lambda/method frame as a `CALL` entry.
                 if let Some(words) = call_words {
-                    self.error_stack_push_call(&words);
+                    self.error_stack_push_call(code, settled, &words);
                 }
             } else {
                 // `return -code error`: no procedure frame, but the *caller* still
@@ -8719,17 +8816,8 @@ impl Interp {
                     Ok(prefix) if !prefix.is_empty() => EnsembleUnknown::Prefix(prefix),
                     Ok(_) => EnsembleUnknown::Reparse,
                     Err(e) => {
-                        let error_code: &[u8] = match e {
-                            crate::parse::ListError::UnmatchedBrace => b"TCL VALUE LIST BRACE",
-                            crate::parse::ListError::UnmatchedQuote => b"TCL VALUE LIST QUOTE",
-                            crate::parse::ListError::BraceFollowedByJunk
-                            | crate::parse::ListError::QuoteFollowedByJunk => {
-                                b"TCL VALUE LIST JUNK"
-                            }
-                            crate::parse::ListError::NotUtf8 => b"TCL VALUE LIST",
-                        };
                         let message = crate::parse::list_error_message(&res, e);
-                        let code = self.error_with_code(&message, error_code);
+                        let code = self.error_with_code(&message, e.error_code());
                         self.append_error_info_context(
                             b"while parsing result of ensemble unknown subcommand handler",
                         );
@@ -9509,6 +9597,10 @@ mod tests {
 
     fn guarded_builtin(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
         interp.set_result_bytes(b"");
+        Code::Ok
+    }
+
+    fn resultless_builtin(_interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
         Code::Ok
     }
 
@@ -10407,6 +10499,22 @@ mod tests {
         leak_free(|i| {
             assert_eq!(i.eval_str(b"set a 1; set b 2\nset c $a$b"), Code::Ok);
             assert_eq!(i.result_bytes(), b"12");
+        });
+    }
+
+    #[test]
+    fn direct_dispatch_resets_the_prior_result_at_the_central_boundary() {
+        leak_free(|i| {
+            i.register_builtin(b"resultless", resultless_builtin);
+            assert_eq!(i.eval_str(b"set stale prior"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"prior");
+
+            let command = new_string(b"resultless");
+            // `dispatch` borrows argv whose owners retain each object.
+            unsafe { obj::incr_ref_count(command) };
+            assert_eq!(i.dispatch(&[command]), Code::Ok);
+            assert_eq!(i.result_bytes(), b"");
+            unsafe { obj::decr_ref_count(command) };
         });
     }
 

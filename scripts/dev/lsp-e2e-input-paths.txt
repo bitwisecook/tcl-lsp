@@ -1,0 +1,20 @@
+# Non-package inputs to `cargo nextest archive -p tcl-lsp-server
+# --all-features` and its archived LSP suite. Package sources belong in
+# lsp-e2e-package-paths.txt. The two fixture rows are cross-package
+# include_str! inputs in the e2e harness.
+.cargo/config.toml
+.config/nextest.toml
+.github/workflows/ci.yml
+Cargo.lock
+Cargo.toml
+rust-toolchain.toml
+scripts/dev/changed-paths.sh
+scripts/dev/lsp-e2e-path.sh
+scripts/dev/lsp-e2e-input-paths.txt
+scripts/dev/lsp-e2e-package-paths.txt
+scripts/dev/test-lsp-e2e-partitions.sh
+scripts/dev/test-lsp-e2e-paths.sh
+scripts/dev/verify-nextest-partitions.py
+editors/vscode/testFixture/variableContexts.tcl
+samples/sslictcl/example.sslictcl
+specs

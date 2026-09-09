@@ -211,7 +211,7 @@ Statement::AssignValue { name: "y", value: "${x}", .. }
 
 - [syntax-tree.md](syntax-tree.md) — the canonical red-green CST the segmenter
   builds and derives `SegmentedCommand`s from
-- [Examples 1–2 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-1-set-x-42)
-- [Data structure reference](../../../docs/design/example-script-walkthroughs.md#data-structure-reference)
+- [Examples 1–2 in walkthroughs](../../../docs/design/compiler/example-walkthroughs.md#example-1-set-x-42)
+- [Data structure reference](../../../docs/design/compiler/example-walkthroughs.md#data-structure-reference)
 - [error-recovery.md](error-recovery.md)
 - [compiler-pipeline-overview.md](compiler-pipeline-overview.md)

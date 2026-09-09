@@ -18,7 +18,7 @@
 
 //! The studio's models, with no UI anywhere near them.
 //!
-//! `docs/design/spec-packs.md`'s "Phase 2: the studio becomes the DSL's IDE"
+//! `docs/design/registry/spec-packs.md`'s "Phase 2: the studio becomes the DSL's IDE"
 //! asks for exactly three things in this layer, and this module is all three:
 //!
 //! - **[`Builtins`]** — the immutable registry the wasm ships. Reference

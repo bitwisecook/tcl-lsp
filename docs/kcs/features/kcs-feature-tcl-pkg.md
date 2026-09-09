@@ -116,4 +116,4 @@ myapp
 - [KCS feature index](README.md)
 - [tcl venv](kcs-feature-tcl-venv.md) — virtual environments
 - [tcl verb CLI](kcs-feature-tcl-verb-cli.md) — the unified CLI
-- [Design: tclpkg architecture](../../design/tclpkg-architecture.md)
+- [Design: tclpkg architecture](../../design/tclpkg/architecture.md)

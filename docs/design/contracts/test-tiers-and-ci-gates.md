@@ -9,7 +9,7 @@ behind it.
 | Tier | Runs | What |
 |---|---|---|
 | **smoke** — `make smoke`, `make smoke-p P=<crate>` | locally after every compile; inside `make prep-pr` | the fail-closed smoke-named function/module and effective Cargo-target subset owned by `scripts/dev/smoke-targets.tsv`, one sanity check per crate, seconds warm. Reuses the dev-profile default-features build (never `--all-features`), so it never forces a recompile. |
-| **deep** — CI jobs `rust-tests`, `rust-tests-heavy`, `runtime-rust-tests`, `lsp-e2e`, `test-ext`, `test-ext-web`, `cargo-deny`, `python`, `spectcl-compat`, `web-frontends` | every PR and every push to `rust` | the full workspace suite (native `lsp_e2e` included), the VM-sim heavies, the standalone `runtime/rust` unit suite, the VS Code extension on desktop and in a browser host, supply-chain audit, Python lint/typecheck of `rust/bigip-report-gen/python`, and an `npm ci` of the two npm roots that are not `editors/vscode`. Skips only what demonstrably did not change (below). |
+| **deep** — CI jobs `rust-tests-shard` and `rust-tests-doctest` plus their stable `rust-tests` aggregate, `rust-tests-heavy`, `runtime-rust-tests`, `lsp-e2e`, `test-ext`, `test-ext-web`, `cargo-deny`, `python`, `spectcl-compat`, `web-frontends` | every PR and every push to `rust` | the full workspace suite (native `lsp_e2e` included), the VM-sim heavies, the standalone `runtime/rust` unit suite, the VS Code extension on desktop and in a browser host, supply-chain audit, Python lint/typecheck of `rust/bigip-report-gen/python`, and an `npm ci` of the two npm roots that are not `editors/vscode`. Skips only what demonstrably did not change (below). |
 | **exhaustive** — `make test-exhaustive`, `make fuzz`, `make tcltest-sweep[-check]` | only when a human invokes it by name | every `#[ignore]`d corpus sweep over `tmp/tcl*` and tcllib, differential-fuzz gates, privileged bpf/kernel tests, fuzz campaigns. **Never** wired into `prep-pr`, `test`, `check-all`, or CI. |
 
 The native `lsp-e2e` surface is produced once as a nextest 0.9.143 archive,
@@ -22,6 +22,39 @@ pass. The producer verifies that the three selected listings are a disjoint,
 complete union before uploading artifacts;
 `scripts/dev/verify-nextest-partitions.py` also validates transferred digests
 and metadata.
+
+The archive and partitions run only when `lsp_e2e_changed` is true. Its
+fail-closed classifier covers `tcl-lsp-server`'s locked local Cargo dependency
+closure with all features, the archive configuration, the workflow and
+classifier inputs, embedded SpecTcl packs, and cross-package E2E fixtures. It reads the
+classifier and manifests from the PR base commit. An incomplete changed-file
+list, malformed closure, or absent base-copy runs the whole archive lane. The
+required aggregate job always reports a status; when the closure is unaffected,
+only its archive, partition, and proof-transfer steps are skipped.
+Validate that no-op path in Actions with a change outside both committed
+closures: the archive producer and all three partition jobs must succeed
+without building, uploading, downloading, or running the archive, and the
+required aggregate must still succeed after checking every upstream result.
+
+The root workspace suite is five direct `rust-tests-shard` matrix consumers,
+with hash partitions `1/5` through `5/5`; the stable `rust-tests` aggregate
+checks that `channel`, every required shard, and the concurrent
+`rust-tests-doctest` job succeeded (or that the shard matrix was skipped only
+under the exact no-op rules), and proves the uploaded listings are a disjoint,
+complete five-way selection. Shard 1 is the only Tank-capable leg and uses
+Tank only when the trusted runner decision selects it; shards 2–5 and doctests
+always run on hosted capacity. The shard matrix is job-skipped when
+`rust_tests_changed` is false or when a tag is already green; the aggregate
+accepts `skipped` only in those exact channel-declared cases and always fails
+if `channel` or doctests fail. The doctest job has the same job-level
+unchanged/exact-green skip as the shard matrix, while its test command remains
+step-gated for docs-only and already-green merge revisions.
+
+This shape follows exact-head run 34283151340: its four old shard legs took
+9m28, 10m25, 11m12, and 12m14, with hosted compilation taking 3m24–3m56 and
+nextest 4m41–5m42. Shard 1 finished nextest at about 22:08:20, then spent a
+further 1m43 building doctests. A fifth direct hash partition reduces the
+nextest tail and the concurrent doctest job removes that avoidable serial tail.
 
 ## Decision rules / contracts
 
@@ -156,9 +189,17 @@ CI skips only what demonstrably did not change. The rules live in
 - **Docs-only** changes skip the cargo test steps; `python`, `test-ext`, and
   `test-ext-web` run only when their input paths changed (`test-ext-web` on
   `ext_changed` or `lsp_wasm_changed`, since it consumes both).
-- The root `rust-tests` job keeps its required status for every change, but
-  step-skips Rust setup, sccache, nextest, the Tcl oracle, and doctests when
-  `rust_tests_changed` is false. The committed package closure in
+- The root `rust-tests-shard` matrix produces five direct hash-partitioned
+  legs when the Rust suite is required, while the concurrent hosted
+  `rust-tests-doctest` job runs `cargo test --workspace --all-features --doc
+  --no-fail-fast` exactly once. The stable `rust-tests` aggregate keeps the
+  required status context, executes no tests, and fails closed over every
+  shard plus doctests. The matrix job is skipped when `rust_tests_changed` is
+  false or a tag is already green; the aggregate accepts that skip only for
+  those exact channel cases. On an already-green non-tag merge push, the
+  matrix still allocates, but only shard 1 runs the cache-warming `--no-run`
+  path and shards 2–5 skip expensive setup and reporting; the doctest command
+  is also step-skipped. The committed package closure in
   `scripts/dev/rust-tests-package-paths.txt` and external-input closure in
   `scripts/dev/rust-tests-input-paths.txt` define that decision; `make
   check-rust-tests-paths` checks the manifests against locked Cargo metadata
@@ -169,10 +210,10 @@ CI skips only what demonstrably did not change. The rules live in
   because no sccache executable exists when setup is skipped. This audited
   closure overrides the broad docs-only shape check: an executable or
   test-consumed input under `docs/` or `.claude/` still runs the suite.
-  Validate an unaffected-path change in Actions by checking that the required
-  `rust-tests` job succeeds after checkout while its setup and test steps are
-  absent; a skipped job is not equivalent because it does not report the
-  required successful check.
+  Validate an unaffected-path change in Actions by checking that the
+  `rust-tests-shard` job is intentionally skipped and the `rust-tests`
+  aggregate succeeds after confirming the channel succeeded. A normal test
+  run or a non-green tag must not use this skipped path.
 - `runtime-rust-tests` runs the standalone `runtime/rust` unit suite
   (`make runtime-rust-test`) only when `runtime_rust_changed` is true — that
   crate plus the path-dependency closure its own lockfile resolves. It is its
@@ -185,23 +226,31 @@ CI skips only what demonstrably did not change. The rules live in
   (`make check-runtime-rust-paths`, part of `xtask-check`), so it cannot
   silently narrow. It is an additional semantic gate, not a replacement for
   the real link.
+- `lsp-e2e` runs its archive producer, three partition consumers, and
+  transferred-proof verification only when `lsp_e2e_changed` is true. Its
+  committed closure is `scripts/dev/lsp-e2e-{package,input}-paths.txt`, and
+  `scripts/dev/test-lsp-e2e-paths.sh` re-derives the local package set with
+  `cargo metadata --locked --all-features`. The `lsp-e2e` aggregate itself is
+  never skipped, preserving the required status context and explicit producer
+  and consumer result check.
 - `cargo-deny` never skips: new advisories arrive against unchanged trees.
 - Every skip fails safe: API/schema/network error, changed tree, stale result,
   or ambiguous PR association → run everything. `cargo-deny` is unconditional
   because its advisory database can change without a source-tree change.
 
-Trusted pull requests prefer the self-hosted `tank` runner for `rust-tests`.
-The `channel` job queries every nonterminal workflow state and routes to hosted
-capacity when another active `rust-tests` job already targets `tank`. The API
-snapshot is advisory: simultaneous channel jobs can both observe an idle lane,
-so the non-cancelling `rust-tests-tank` concurrency group remains the final
-one-physical-host safety guard. API errors, malformed data, and incomplete
-pagination fail safely to hosted capacity. Fork, Dependabot, and runner-policy
-pull requests independently force hosted placement. A manual dispatch remains
-an explicit `tank` or `hosted` override. Placement never changes the test
-filter, skips coverage, or carries forward a result.
+Trusted pull requests may place only shard 1 of `rust-tests-shard` on the
+self-hosted `tank` runner. The `channel` job queries every nonterminal workflow
+state and routes to hosted capacity when another active shard-1 job already
+targets `tank`; shards 2–5 are always hosted. The API snapshot is advisory:
+simultaneous channel jobs can both observe an idle lane, so the non-cancelling
+`rust-tests-tank` concurrency group remains the final one-physical-host safety
+guard. API errors, malformed data, and incomplete pagination fail safely to
+hosted capacity. Fork, Dependabot, and runner-policy pull requests
+independently force hosted placement. A manual dispatch remains an explicit
+`tank` or `hosted` override. Placement never changes the test filter, skips
+coverage, or carries forward a result.
 
-The Tank job uses canonical `/home/runner/.cargo` and `/home/runner/.rustup`
+The Tank-capable shard uses canonical `/home/runner/.cargo` and `/home/runner/.rustup`
 homes because each registration's default homes are rooted under its own
 checkout directory. These homes are shared mutable state: cancellation can
 interrupt Cargo or rustup writes, and any untrusted build script that reached
@@ -251,6 +300,9 @@ identity** (tree/SHA, never a label or commit message), and bounded in time.
 - `rust/xtask/src/smoke_targets.rs` — fail-closed smoke inventory validation
   and exact Cargo fallback execution.
 - `.github/workflows/ci.yml` — the `channel` and `pr-gate` jobs.
+- `scripts/dev/lsp-e2e-path.sh` — the fail-closed archive/partition classifier.
+- `scripts/dev/verify-nextest-partitions.py` — configurable disjoint/completeness
+  proof for the five-way root suite and three-way archived LSP suite.
 
 ## Discoverability
 

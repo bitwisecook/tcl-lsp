@@ -352,7 +352,7 @@ pub(crate) fn advance_try(vm: &mut Vm, state: TryState, c: Completion<Value>) ->
     match phase {
         TryPhase::Body => advance_after_body(vm, &plan, c),
         TryPhase::Handler { body_opts } => advance_after_handler(vm, &plan, &body_opts, c),
-        TryPhase::Finally { outcome } => advance_after_finally(outcome, c),
+        TryPhase::Finally { outcome } => advance_after_finally(vm, outcome, c),
     }
 }
 
@@ -372,7 +372,7 @@ fn advance_after_body(vm: &mut Vm, plan: &Rc<TryPlan>, body_comp: Completion<Val
     };
     // The body's options dict (bound to a handler's optionsVar and reused as the
     // `-during` chain link if a handler/finally throws over the body's exception).
-    let body_opts = completion_options(&body_comp);
+    let body_opts = vm.completion_options_snapshot(&body_comp);
     let matched = plan.handlers.iter().position(|h| {
         if h.is_trap {
             body_comp.code == Code::Error && errorcode_prefix_match(&h.pattern, &errorcode)
@@ -421,7 +421,7 @@ fn advance_after_body(vm: &mut Vm, plan: &Rc<TryPlan>, body_comp: Completion<Val
         // A failed var bind also chains to the body (C's `handlerFailed`).
         Err(mut e) => {
             if e.code == Code::Error {
-                e.options = add_during(&completion_options(&e), &body_opts);
+                e.options = add_during(&vm.completion_options_snapshot(&e), &body_opts);
             }
             finish_body_or_handler(vm, plan, e)
         }
@@ -439,7 +439,7 @@ fn advance_after_handler(
 ) -> TryOutcome {
     let mut outcome = handler_comp;
     if outcome.code == Code::Error {
-        outcome.options = add_during(&completion_options(&outcome), body_opts);
+        outcome.options = add_during(&vm.completion_options_snapshot(&outcome), body_opts);
     }
     finish_body_or_handler(vm, plan, outcome)
 }
@@ -450,11 +450,17 @@ fn advance_after_handler(
 fn finish_body_or_handler(
     vm: &mut Vm,
     plan: &Rc<TryPlan>,
-    outcome: Completion<Value>,
+    mut outcome: Completion<Value>,
 ) -> TryOutcome {
+    if outcome.code == Code::Error {
+        outcome.options = vm.completion_options_snapshot(&outcome);
+    }
     let Some(fin) = plan.finally.clone() else {
         return TryOutcome::Deliver(outcome);
     };
+    if outcome.code == Code::Error {
+        let _ = vm.take_error_info();
+    }
     // Compiled lazily here rather than in `cmd_try` up front: a `finally`
     // never runs before this point, matching the old synchronous ordering (a
     // body/handler compile error is reported before `finally`'s own grammar
@@ -464,11 +470,11 @@ fn finish_body_or_handler(
         // A `finally` parse error is `finally`'s own exception overriding the
         // prior outcome, same as a runtime error in `finally` would (chains
         // `-during` to what `finally` superseded).
-        Err(e) => return advance_after_finally(outcome, err(e.message)),
+        Err(e) => return advance_after_finally(vm, outcome, err(e.message)),
     };
     let Some(script) = prepared.prefix else {
         let completion = prepared.fatal_tail.map_or_else(|| ok(Value::empty()), err);
-        return advance_after_finally(outcome, completion);
+        return advance_after_finally(vm, outcome, completion);
     };
     TryOutcome::Push(TryReq {
         script,
@@ -482,14 +488,19 @@ fn finish_body_or_handler(
 
 /// `finally` just completed as `fc`: only its own non-`Ok` completion
 /// overrides — chaining `-during` to the prior outcome's options if it threw.
-fn advance_after_finally(outcome: Completion<Value>, fc: Completion<Value>) -> TryOutcome {
+fn advance_after_finally(
+    vm: &mut Vm,
+    outcome: Completion<Value>,
+    fc: Completion<Value>,
+) -> TryOutcome {
     if fc.code == Code::Ok {
+        vm.restore_completion_error_state(&outcome);
         return TryOutcome::Deliver(outcome);
     }
     let mut fc = fc;
     if fc.code == Code::Error {
         let prior_opts = completion_options(&outcome);
-        fc.options = add_during(&completion_options(&fc), &prior_opts);
+        fc.options = add_during(&vm.completion_options_snapshot(&fc), &prior_opts);
     }
     TryOutcome::Deliver(fc)
 }

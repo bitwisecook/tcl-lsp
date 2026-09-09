@@ -19,7 +19,7 @@ all-editors, MCP, analyser
 
 ## Example
 
-![symbol picker showing proc outline](../screenshots/17-document-symbols.png)
+![symbol picker showing proc outline](../../screenshots/17-document-symbols.png)
 
 ## What appears in the outline
 

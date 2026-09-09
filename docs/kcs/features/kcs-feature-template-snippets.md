@@ -57,7 +57,7 @@ all-editors
 
 - `24-template-snippets` — template picker showing available snippets
 
-![template picker showing available snippets](../screenshots/24-template-snippets.png)
+![template picker showing available snippets](../../screenshots/24-template-snippets.png)
 
 ## Discoverability
 

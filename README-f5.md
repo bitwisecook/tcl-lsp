@@ -265,7 +265,7 @@ Verb notes:
 
 - [KCS: feature — `f5 query` plugins](docs/kcs/features/kcs-feature-f5-query-renderers.md)
   — built-in plugin catalogue and CLI flag reference.
-- [Design — `f5 query` plugin contract](docs/design/f5-query-renderer-contract.md)
+- [Design — `f5 query` plugin contract](docs/design/f5/f5-query-renderer-contract.md)
   — formal contracts, registration lifecycle, error mapping.
 
 In VS Code, run the command palette entry **Tcl: Generate BIG-IP

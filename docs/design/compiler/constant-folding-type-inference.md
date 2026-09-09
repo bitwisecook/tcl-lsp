@@ -108,8 +108,8 @@ the type lattice records `SHIMMERED(from_type, to_type)`.  This triggers:
 
 ## Related docs
 
-- [Examples 3–4 in walkthroughs](../example-script-walkthroughs.md#example-3-expr-2--3)
-- [Example 6 — constant condition](../example-script-walkthroughs.md#example-6-if-1----else----constant-condition)
+- [Examples 3–4 in walkthroughs](example-walkthroughs.md#example-3-expr-2--3)
+- [Example 6 — constant condition](example-walkthroughs.md#example-6-if-1----else----constant-condition)
 - [GLOSSARY.md — SCCP, Lattice, Shimmer](../../GLOSSARY.md#sccp)
 - [sccp-core-analyses.md](sccp-core-analyses.md)
 - [optimisation-passes.md](optimisation-passes.md)

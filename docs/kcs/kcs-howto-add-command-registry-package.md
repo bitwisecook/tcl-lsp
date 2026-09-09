@@ -54,7 +54,7 @@ sqlite3`, so it belongs under `stdlib/`.
 **The EDA vendor libraries are not Rust modules.** `sdc_base` and the five
 vendor packs are bundled `SpecTcl` loadables — `specs/*.tclspec`, shipped
 beside the server executable and read by the pack loader
-([spec-packs.md](../design/spec-packs.md)). Adding or editing an EDA command
+([spec-packs.md](../design/registry/spec-packs.md)). Adding or editing an EDA command
 means editing the `.tclspec` file: the syntax is
 [kcs-howto-write-a-tclspec-pack.md](kcs-howto-write-a-tclspec-pack.md),
 `mcp__tcl-lsp__spectcl_check` validates a pack, and

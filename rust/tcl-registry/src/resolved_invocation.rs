@@ -716,6 +716,47 @@ impl InvocationFacts {
     pub const fn world_state_effects(&self) -> &EffectFootprint {
         &self.effects
     }
+
+    /// Return the sole invocation argument carrying one of `roles` when the
+    /// resolved command or subcommand accepts the supplied outer arity.
+    ///
+    /// `argument_count` and the returned index both count words after the
+    /// command head, including a subcommand word when one was resolved. This
+    /// keeps runtime consumers on the registry's argument-offset and
+    /// resolver-first role contract instead of maintaining command-local
+    /// operand tables. Multiple requested roles on the same argument still
+    /// identify one operand; matching roles on different arguments are
+    /// ambiguous. An incomplete dynamic role resolution, invalid arity, or
+    /// missing or ambiguous role returns `None`.
+    #[must_use]
+    pub fn sole_argument_index_for_roles(
+        &self,
+        argument_count: usize,
+        roles: &[ArgRole],
+    ) -> Option<usize> {
+        let effective_count = argument_count.checked_sub(self.argument_offset)?;
+        let effective_count = u16::try_from(effective_count).ok()?;
+        if !self.arity.accepts(effective_count) || !self.arg_roles_complete {
+            return None;
+        }
+
+        let mut sole = None;
+        for &(index, role) in &self.arg_roles {
+            if !roles.contains(&role) {
+                continue;
+            }
+            let index = self.argument_offset + usize::from(index);
+            if index >= argument_count {
+                return None;
+            }
+            match sole {
+                None => sole = Some(index),
+                Some(previous) if previous == index => {}
+                Some(_) => return None,
+            }
+        }
+        sole
+    }
 }
 
 impl<'r, 'w> ResolvedInvocation<'r, 'w> {
@@ -1780,6 +1821,74 @@ mod tests {
 
         assert_eq!(facts.arg_roles, vec![(1, ArgRole::VarRead)]);
         assert!(facts.arg_roles_complete);
+    }
+
+    #[test]
+    fn sole_argument_role_index_uses_resolved_array_shape_and_dialect() {
+        let registry = CommandRegistry::build_default();
+        let variable_roles = [ArgRole::VarRead, ArgRole::VarWrite];
+
+        let exists = registry
+            .resolve_invocation(
+                "array",
+                &["exists", "items"],
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+            )
+            .expect("array exists resolves")
+            .facts();
+        assert_eq!(
+            exists.sole_argument_index_for_roles(2, &variable_roles),
+            Some(1)
+        );
+
+        let default = registry
+            .resolve_invocation(
+                "array",
+                &["def", "get", "items"],
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+            )
+            .expect("Tcl 9 array default prefix resolves")
+            .facts();
+        assert_eq!(default.subcommand.canonical_name(), Some("default"));
+        assert_eq!(
+            default.sole_argument_index_for_roles(3, &variable_roles),
+            Some(2)
+        );
+        assert_eq!(
+            default.sole_argument_index_for_roles(5, &variable_roles),
+            None,
+            "the member's outer arity is part of target resolution"
+        );
+
+        let legacy = registry
+            .resolve_invocation(
+                "array",
+                &["default", "get", "items"],
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
+            .expect("the array command itself resolves")
+            .facts();
+        assert_eq!(legacy.subcommand.canonical_name(), None);
+        assert_eq!(
+            legacy.sole_argument_index_for_roles(3, &variable_roles),
+            None,
+            "a Tcl 9-only member has no target under Tcl 8.6"
+        );
+
+        let dict_with = registry
+            .resolve_invocation(
+                "dict",
+                &["with", "items", ""],
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+            )
+            .expect("dict with resolves")
+            .facts();
+        assert!(dict_with.arg_roles_complete);
+        assert_eq!(
+            dict_with.sole_argument_index_for_roles(3, &variable_roles),
+            Some(1),
+            "one multi-role argument is still the sole matching operand"
+        );
     }
 
     #[test]

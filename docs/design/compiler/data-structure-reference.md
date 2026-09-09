@@ -160,7 +160,7 @@ carries type inference, and `liveness_dead_stores()`
 
 ## Related docs
 
-- [Data structure reference in walkthroughs](../example-script-walkthroughs.md#data-structure-reference)
+- [Data structure reference in walkthroughs](example-walkthroughs.md#data-structure-reference)
 - [GLOSSARY.md](../../GLOSSARY.md)
 - [compiler-pipeline-overview.md](compiler-pipeline-overview.md)
 - [compilation-unit-contracts.md](compilation-unit-contracts.md)

@@ -271,5 +271,5 @@ for the full list of layers and where to put each kind of setting.
 - [How do I turn a diagnostic, optimisation, or shimmer off?](kcs-howto-suppress-diagnostics.md)
 - [How do I turn off all diagnostics for certain files?](kcs-howto-exclude-files-from-diagnostics.md)
 - [Per-code catalogue](codes/README.md)
-- [iRulesLX remote methods](../design/iruleslx-remote-methods.md)
+- [iRulesLX remote methods](../design/f5/iruleslx-remote-methods.md)
 - [Glossary](../GLOSSARY.md)

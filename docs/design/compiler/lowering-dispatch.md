@@ -192,7 +192,7 @@ optimisation limitation, not a correctness bug.
 
 ## Related docs
 
-- [Example 22 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-22-lowering-dispatch--arg_roles-and-command-classification)
+- [Example 22 in walkthroughs](../../../docs/design/compiler/example-walkthroughs.md#example-22-lowering-dispatch--arg_roles-and-command-classification)
 - [GLOSSARY.md — IR](../../GLOSSARY.md#ir)
 - [lowering-contracts.md](lowering-contracts.md)
 - [compiler-pipeline-overview.md](compiler-pipeline-overview.md)

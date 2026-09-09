@@ -1,7 +1,7 @@
 # Compiler Glossary
 
 Terms used throughout the Tcl LSP compiler documentation, ordered by
-pipeline phase.  See also the [example walkthroughs](design/example-script-walkthroughs.md)
+pipeline phase.  See also the [example walkthroughs](design/compiler/example-walkthroughs.md)
 for worked examples of each concept.
 
 ---
@@ -111,7 +111,7 @@ KCS tag: `lexing`.
 ## Phase 2 — Segmentation and error recovery
 
 No new terms — this phase produces `SegmentedCommand` objects and *ghost*
-byte injections (see [Example 20](design/example-script-walkthroughs.md#example-20-error-recovery--unclosed-bracket)).
+byte injections (see [Example 20](design/compiler/example-walkthroughs.md#example-20-error-recovery--unclosed-bracket)).
 There is no distinct token type for an injected delimiter: `segment_with_recovery()`
 (`rust/tcl-compiler/src/segmenter.rs`) accumulates a `ghosts: BTreeMap<u32, u8>`
 mapping a source offset to the byte inserted there, and re-lexes through
@@ -311,7 +311,7 @@ must stay inside its declaring parent's window — checked by
 `Lifecycle::intersect` — which the registry sweep enforces as a hard gate
 for every compiled-in spec. See `Lifecycle` in `tcl_registry::lifecycle`.
 
-See also: [SpecTcl pack design](design/spec-packs.md#version-ranges-introduced-deprecated-retired),
+See also: [SpecTcl pack design](design/registry/spec-packs.md#version-ranges-introduced-deprecated-retired),
 [W135](kcs/codes/kcs-diagnostic-w135-command-needs-newer-package.md),
 [W139](kcs/codes/kcs-diagnostic-w139-retired-at-resolved-version.md),
 [W144](kcs/codes/kcs-diagnostic-w144-deprecated-at-resolved-version.md).
@@ -783,7 +783,7 @@ analyser, taint / side-effect passes, and hover provider consult instead
 of hardcoding name lists. Dialect-aware — iRules provides the `static::`
 namespace and BIG-IP `tcl_platform` keys but not `env` / `argv`.
 
-See also: [Special-variable registry](design/special-variable-registry.md).
+See also: [Special-variable registry](design/registry/special-variable-registry.md).
 
 ### Rendered-value properties
 
@@ -810,7 +810,7 @@ makes the site unprovable, the sound abstention. Drives the
 constant-`$cmd` dispatch settlement: navigation anchors at the dispatch
 head, while rename rewrites the defining literals.
 
-See also: [Name resolution](design/name-resolution.md).
+See also: [Name resolution](design/analysis/name-resolution.md).
 
 ---
 
@@ -823,7 +823,7 @@ path is a fresh domain). Evaluation bodies home under the synthetic
 `@interp@<path>` namespace, unrepresentable in real Tcl, so a parent
 namespace of the same name can never collide.
 
-See also: [Name resolution](design/name-resolution.md).
+See also: [Name resolution](design/analysis/name-resolution.md).
 
 ---
 
@@ -1448,7 +1448,7 @@ shim's own header, `tclshim.h`; its `Tcl_Obj` values cross the interface as
 typed values, not text. Shimmed extensions are *trusted native code*: loaded
 only by host configuration, never by a spec pack.
 
-See also: [The C Tcl extension shim](design/c-extension-shim.md).
+See also: [The C Tcl extension shim](design/runtime/c-extension-shim.md).
 
 ### salsa
 

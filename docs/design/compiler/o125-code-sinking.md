@@ -368,4 +368,4 @@ deletion.
 - [downstream-pass-contracts.md](downstream-pass-contracts.md)
 - [diagnostics-integration.md](diagnostics-integration.md)
 - [pass-fact-ownership-matrix.md](pass-fact-ownership-matrix.md)
-- [compiler architecture overview](../compiler-architecture.md)
+- [compiler architecture overview](architecture.md)

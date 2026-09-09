@@ -1667,11 +1667,20 @@ fn set_inline_cmd_subst_expand() {
 
 /// `encoding` — matches the tree-walking runtime (`runtime/rust`): UTF-8
 /// internal model, so `convertto`/`convertfrom` pass data
-/// through, `system` is `utf-8`, `names` lists the supported set, `dirs` is
-/// ignored. (Real codepage conversion is unimplemented on both sides.)
+/// through, `system` retains the mutable channel default, `names` lists the
+/// supported set, and `dirs` is ignored. (Additional codepages remain
+/// unimplemented on both sides.)
 #[test]
 fn encoding_command() {
     assert_eq!(run("encoding system").1, "utf-8");
+    assert_eq!(
+        run("list [encoding system] [encoding system iso8859-1] [encoding system]").1,
+        "utf-8 {} iso8859-1"
+    );
+    assert_eq!(
+        run("encoding system ascii; encoding system {}; encoding system").1,
+        "iso8859-1"
+    );
     assert_eq!(run("encoding names").1, "utf-8 unicode ascii iso8859-1");
     assert_eq!(run("encoding convertto utf-8 abc").1, "abc");
     assert_eq!(run("encoding convertfrom utf-8 hello").1, "hello");

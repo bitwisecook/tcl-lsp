@@ -66,7 +66,7 @@ use crate::value::Value;
 ///
 /// `config` is the VM's own grammar ([`Vm::lexer_config`]): the substituted
 /// text is a script, so where a `]` stops is a release/dialect question
-/// (`docs/design/dialect-profile-model.md` §2.5), not the default grammar's.
+/// (`docs/design/registry/dialect-profile-model.md` §2.5), not the default grammar's.
 ///
 /// The error is the owner's, not a flat `missing close-bracket`. A substituted
 /// `[…]` is a *script*, so C recurses into it at the bracket and reports what

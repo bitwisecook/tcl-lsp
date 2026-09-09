@@ -24,7 +24,7 @@
 //! defines `::quux::`), and a trailing run in a *namespace* name is dropped
 //! (`namespace eval c::: {}` creates `::c`). The VM's old hand-rolled
 //! `rsplit("::")`/`strip_prefix("::")` sites diverged on every one of these
-//! (documented drift — `docs/design/family-b-routing.md`); resolution now
+//! (documented drift — `docs/design/runtime/family-b-routing.md`); resolution now
 //! routes through the canonical splits (`tcl_syntax::naming`,
 //! `tcl_cmd_core::namespace`). Every expectation below is pinned against
 //! tclsh8.6 (`// tclsh8.6:` comments).

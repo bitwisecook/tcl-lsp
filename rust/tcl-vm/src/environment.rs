@@ -49,7 +49,7 @@
 //! (`DialectProfile::projected_from_point`) carries
 //! `vm_runtime_version = V9_0`, so a Jim unit is *compiled* under Jim's
 //! grammar and *executed* as Tcl 9. That is the intended boundary today.
-//! The eventual, recorded in `docs/design/dialect-profile-model.md` §2.5,
+//! The eventual, recorded in `docs/design/registry/dialect-profile-model.md` §2.5,
 //! is a pin that is a `tcl_dialect::DialectPoint` rather than a
 //! `TclVersion`, at which point this module resolves it the same way and
 //! nothing upstream changes: every consumer here already derives from the
@@ -96,6 +96,15 @@ pub(crate) fn profile_for_dialect(name: &str) -> &'static DialectProfile {
 /// on the pin and consults it on every command resolution.
 pub(crate) fn store_for_profile(profile: &'static DialectProfile) -> &'static CommandRegistry {
     tcl_registry::model::static_context_for_profile(profile).commands()
+}
+
+/// The shared, dialect-agnostic command store used while the VM installs its
+/// builtin implementations. Availability is applied later from each VM's
+/// pinned [`command_surface_profile`](crate::Vm::command_surface_profile), so
+/// registration needs the universal specs and must not rebuild a private
+/// [`CommandRegistry`] for every interpreter.
+pub(crate) fn universal_store() -> &'static CommandRegistry {
+    store_for_profile(profile_for_dialect(""))
 }
 
 /// The point the builtin command-surface gate answers at for `profile` —

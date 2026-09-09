@@ -83,7 +83,7 @@ there.
 
 ## Example
 
-![completion list triggered on partial command](../screenshots/03-completions.png)
+![completion list triggered on partial command](../../screenshots/03-completions.png)
 
 ## Discoverability
 

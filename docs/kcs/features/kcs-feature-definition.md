@@ -37,7 +37,7 @@ Resolves proc calls, variable references, namespace-qualified names, and BIG-IP 
 
 ## Example
 
-![peek definition inline](../screenshots/15-definition.png)
+![peek definition inline](../../screenshots/15-definition.png)
 
 ## Discoverability
 

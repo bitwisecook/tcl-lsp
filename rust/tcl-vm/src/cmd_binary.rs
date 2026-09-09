@@ -248,7 +248,7 @@ fn binary_format(rest: &[Value]) -> Completion<Value> {
     let refs: Vec<&[u8]> = arg_bytes.iter().map(Vec::as_slice).collect();
     match tcl_cmd_core::binary::format(&fmt_bytes, &refs) {
         Ok(out) => ok(bytes_to_value(&out)),
-        Err(e) => err(e.message().to_string()),
+        Err(e) => crate::command::completion_from_cmd_error(e),
     }
 }
 
@@ -261,7 +261,7 @@ fn binary_scan(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     // The unpack grammar is shared; the variable assignment stays here.
     let values = match tcl_cmd_core::binary::scan(&data, &fmt) {
         Ok(v) => v,
-        Err(e) => return err(e.message().to_string()),
+        Err(e) => return crate::command::completion_from_cmd_error(e),
     };
     for (k, val) in values.iter().enumerate() {
         let Some(var) = vars.get(k) else {

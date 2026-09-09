@@ -44,7 +44,7 @@ A document resolves to one `DialectProfile`: `tcl8.4`–`tcl9.1`, `tk`,
 `sslictcl`, or an EDA shell (`synopsys-`, `cadence-`, `xilinx-`,
 `intel-quartus-`, `mentor-`, `microchip-libero-eda-tcl`). Besides its surface
 layers and packages, a profile carries two deliberately separate base
-versions ([dialect-profile-model.md](../dialect-profile-model.md) §2.1):
+versions ([dialect-profile-model.md](../registry/dialect-profile-model.md) §2.1):
 
 | Field | Decides |
 |---|---|
@@ -183,7 +183,7 @@ and only an explicitly stricter dialect policy can request IRULE1004.
 
 ## Related docs
 
-- [Command infrastructure — Availability](../example-script-walkthroughs.md#availability)
-- [Command infrastructure — Events](../example-script-walkthroughs.md#events-irules-only)
+- [Command infrastructure — Availability](example-walkthroughs.md#availability)
+- [Command infrastructure — Events](example-walkthroughs.md#events-irules-only)
 - [command-registry.md](command-registry.md)
 - [connection-scope.md](connection-scope.md)

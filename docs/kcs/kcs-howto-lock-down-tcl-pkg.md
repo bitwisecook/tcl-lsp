@@ -20,7 +20,7 @@ running unless I approve them. How do I deploy that?
 - The package manager already separates *what runs* from *who allows it*: every
   external command runs in a sandbox, and policy is merged from three layers —
   **system** (operator), **user**, then **project**. Only the system layer can
-  *lock* settings. See [`tclpkg-security.md`](../design/tclpkg-security.md) for
+  *lock* settings. See [`tclpkg/security.md`](../design/tclpkg/security.md) for
   the full design.
 
 ## Answer

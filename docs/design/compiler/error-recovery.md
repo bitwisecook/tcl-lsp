@@ -245,7 +245,7 @@ re-lex and by the recovery fuzz campaign.
 
 ## Related docs
 
-- [Example 20 in walkthroughs](../example-script-walkthroughs.md#example-20-error-recovery--unclosed-bracket)
+- [Example 20 in walkthroughs](example-walkthroughs.md#example-20-error-recovery--unclosed-bracket)
 - [syntax-tree.md](syntax-tree.md) — the red-green CST the recovered parse
   feeds.
 - [GLOSSARY.md](../../GLOSSARY.md)

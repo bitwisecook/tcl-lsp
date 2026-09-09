@@ -60,6 +60,8 @@
 use std::collections::HashMap;
 use std::hash::{BuildHasherDefault, Hasher};
 
+use tcl_cmd_core::namespace::TclStringHashOrder;
+
 use crate::obj::{self, TclObj, TclObjType};
 
 /// Deterministic FNV-1a hasher (no `RandomState` — reproducible across runs).
@@ -89,6 +91,7 @@ type Index = HashMap<Vec<u8>, usize, BuildHasherDefault<Fnv>>;
 struct TclDict {
     entries: Vec<(*mut TclObj, *mut TclObj)>,
     index: Index,
+    hash_order: TclStringHashOrder,
 }
 
 impl TclDict {
@@ -145,7 +148,18 @@ extern "C" fn dict_dup(src: *mut TclObj, dup: *mut TclObj) {
             obj::incr_ref_count(*v);
         }
         let index = s.index.clone();
-        let boxed = Box::new(TclDict { entries, index });
+        // Tcl's DupDictInternalRep creates a fresh Tcl_HashTable and reinserts
+        // the live entries. Capacity history belongs to the particular table,
+        // not to a COW duplicate.
+        let mut hash_order = TclStringHashOrder::default();
+        for (key, _) in &entries {
+            hash_order.insert(&obj::bytes_of(*key));
+        }
+        let boxed = Box::new(TclDict {
+            entries,
+            index,
+            hash_order,
+        });
         obj::change_type(dup, &TCL_DICT_TYPE, Box::into_raw(boxed) as usize as u64);
     }
 }
@@ -180,6 +194,7 @@ fn ensure_dict(obj: *mut TclObj) -> Result<(), DictError> {
     let pairs = scan_dict_pairs(&bytes)?;
     let mut entries: Vec<(*mut TclObj, *mut TclObj)> = Vec::with_capacity(pairs.len());
     let mut index = Index::default();
+    let mut hash_order = TclStringHashOrder::default();
     for (k, v) in pairs {
         let ko = obj::new_string_bytes(&k);
         let vo = obj::new_string_bytes(&v);
@@ -197,11 +212,16 @@ fn ensure_dict(obj: *mut TclObj) -> Result<(), DictError> {
             }
             entries[pos].1 = vo;
         } else {
+            hash_order.insert(&k);
             index.insert(k, entries.len());
             entries.push((ko, vo));
         }
     }
-    let boxed = Box::new(TclDict { entries, index });
+    let boxed = Box::new(TclDict {
+        entries,
+        index,
+        hash_order,
+    });
     obj::change_type(obj, &TCL_DICT_TYPE, Box::into_raw(boxed) as usize as u64);
     Ok(())
 }
@@ -228,6 +248,35 @@ pub enum DictError {
     UnmatchedQuote,
     /// Input bytes were not valid UTF-8 (violates the internal-rep invariant).
     NotUtf8,
+}
+
+impl DictError {
+    /// Canonical public message bytes for this dictionary conversion failure.
+    #[must_use]
+    pub fn message_bytes(&self) -> Vec<u8> {
+        match self {
+            Self::MissingValue | Self::NotUtf8 => b"missing value to go with key".to_vec(),
+            Self::BraceJunk(fragment) | Self::QuoteJunk(fragment) => {
+                let kind = if matches!(self, Self::BraceJunk(_)) {
+                    b"dict element in braces followed by \"".as_slice()
+                } else {
+                    b"dict element in quotes followed by \"".as_slice()
+                };
+                let mut message = kind.to_vec();
+                message.extend_from_slice(fragment);
+                message.extend_from_slice(b"\" instead of space");
+                message
+            }
+            Self::UnmatchedBrace => b"unmatched open brace in dict".to_vec(),
+            Self::UnmatchedQuote => b"unmatched open quote in dict".to_vec(),
+        }
+    }
+
+    /// Canonical public message for this dictionary conversion failure.
+    #[must_use]
+    pub fn message(&self) -> String {
+        String::from_utf8_lossy(&self.message_bytes()).into_owned()
+    }
 }
 
 /// The dict-worded form of a list-grammar failure. `SetDictFromAny` walks the
@@ -286,8 +335,20 @@ fn scan_dict_pairs(bytes: &[u8]) -> Result<BytePairs, DictError> {
 /// `Tcl_NewDictObj` from key/value object pairs (keys + values retained). A
 /// later duplicate key overwrites the earlier value, keeping the first key obj.
 pub fn new_dict_obj(pairs: &[(*mut TclObj, *mut TclObj)]) -> *mut TclObj {
+    new_dict_obj_with_hash_bucket_count(pairs, None)
+}
+
+/// `Tcl_NewDictObj` with a copied table's initial bucket-array size.
+pub fn new_dict_obj_with_hash_bucket_count(
+    pairs: &[(*mut TclObj, *mut TclObj)],
+    bucket_count: Option<usize>,
+) -> *mut TclObj {
     let mut entries: Vec<(*mut TclObj, *mut TclObj)> = Vec::with_capacity(pairs.len());
     let mut index = Index::default();
+    let mut hash_order = TclStringHashOrder::default();
+    if let Some(bucket_count) = bucket_count {
+        hash_order.retain_bucket_count(bucket_count);
+    }
     for &(k, v) in pairs {
         let key = obj::bytes_of(k);
         if let Some(&pos) = index.get(&key) {
@@ -303,11 +364,16 @@ pub fn new_dict_obj(pairs: &[(*mut TclObj, *mut TclObj)]) -> *mut TclObj {
                 obj::incr_ref_count(k);
                 obj::incr_ref_count(v);
             }
+            hash_order.insert(&key);
             index.insert(key, entries.len());
             entries.push((k, v));
         }
     }
-    let boxed = Box::new(TclDict { entries, index });
+    let boxed = Box::new(TclDict {
+        entries,
+        index,
+        hash_order,
+    });
     obj::alloc_typed(&TCL_DICT_TYPE, Box::into_raw(boxed) as usize as u64)
 }
 
@@ -340,6 +406,7 @@ pub fn dict_set(
         } else {
             obj::incr_ref_count(key_obj);
             obj::incr_ref_count(value);
+            d.hash_order.insert(&key);
             d.index.insert(key, d.entries.len());
             d.entries.push((key_obj, value));
         }
@@ -369,6 +436,7 @@ pub fn dict_unset(obj: *mut TclObj, key: &[u8]) -> Result<bool, DictError> {
                 obj::decr_ref_count(v);
                 d.entries.remove(pos); // O(n) order-preserving shift
                 d.index.remove(key);
+                d.hash_order.remove(key);
                 // Entries after `pos` shifted down by one — fix their indices.
                 for idx in d.index.values_mut() {
                     if *idx > pos {
@@ -410,6 +478,13 @@ pub fn dict_pairs(obj: *mut TclObj) -> Result<Vec<(*mut TclObj, *mut TclObj)>, D
     ensure_dict(obj)?;
     // SAFETY: dict rep guaranteed.
     Ok(unsafe { dict_ref(obj) }.entries.clone())
+}
+
+/// Retained bucket-array size of the native dictionary hash table.
+pub fn dict_hash_bucket_count(obj: *mut TclObj) -> Result<usize, DictError> {
+    ensure_dict(obj)?;
+    // SAFETY: dict rep guaranteed.
+    Ok(unsafe { dict_ref(obj) }.hash_order.bucket_count())
 }
 
 #[cfg(test)]

@@ -53,7 +53,7 @@ rather than left half-applied. A file sourced under several namespaces
 is one physical declaration with several runtime names; renaming it
 updates every namespace's call sites together. For the full contract,
 see
-[name resolution](../../design/name-resolution.md).
+[name resolution](../../design/analysis/name-resolution.md).
 
 Rename follows the **command table**, not the spelling. A proc whose name
 an `interp alias` has taken over is dead under that name, so renaming it
@@ -194,7 +194,7 @@ cannot see.
 
 ## Screenshots
 
-![rename dialog inline](../screenshots/18-rename.png)
+![rename dialog inline](../../screenshots/18-rename.png)
 
 ## Related
 

@@ -145,7 +145,7 @@ impl RuntimeExprSurface {
     /// — **or** by the profile's F5-family core [`ExprGrammar`] word table:
     /// the word-form operators are an `f5-tcl` *trunk* fact, measured valid in
     /// tmsh and iApp `expr` too, not iRules-only
-    /// (`docs/design/bigip-irule-parser-measurements.md` §4a), so any
+    /// (`docs/design/f5/bigip-irule-parser-measurements.md` §4a), so any
     /// F5Tcl-cored profile accepts them by reading the family table directly
     /// rather than duplicating rows (ledger C12/B6). This contains no
     /// spelling-specific logic: every fact comes from the syntax descriptor or
@@ -315,7 +315,7 @@ mod tests {
 
     /// The word-form operators are an `f5-tcl` **trunk** fact — measured
     /// valid in tmsh and iApp `expr` too, not iRules-only
-    /// (`docs/design/bigip-irule-parser-measurements.md` §4a). The surface
+    /// (`docs/design/f5/bigip-irule-parser-measurements.md` §4a). The surface
     /// reads the acceptance off the family's `ExprGrammar` word table, so
     /// every F5Tcl-cored profile admits them while plain Tcl stays
     /// byte-identical.

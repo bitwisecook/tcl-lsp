@@ -9,7 +9,7 @@ the pipeline.  The bytecode layout is designed to match tclsh 9.0 exactly,
 including condition-at-bottom loops, fall-through branch ordering, and the
 `nop` / empty-string conventions.
 
-Source: Examples 5–11 in [walkthroughs](../example-script-walkthroughs.md)
+Source: Examples 5–11 in [walkthroughs](example-walkthroughs.md)
 
 ### `if` / `elseif` / `else`
 
@@ -192,7 +192,7 @@ two Tcl commands with this `-` fallthrough form.
 
 ## Related docs
 
-- [Examples 5–11 in walkthroughs](../example-script-walkthroughs.md#example-5-if-x--set-y-10-)
+- [Examples 5–11 in walkthroughs](example-walkthroughs.md#example-5-if-x--set-y-10-)
 - [cfg-construction.md](cfg-construction.md)
 - [ssa-construction.md](ssa-construction.md)
 - [codegen-internals.md](codegen-internals.md)

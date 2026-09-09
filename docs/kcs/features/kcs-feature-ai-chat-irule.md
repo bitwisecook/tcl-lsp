@@ -47,12 +47,12 @@ The chat participant uses the LSP server for diagnostics, symbols, and optimisat
 
 ## Example
 
-![@irule /create generating an iRule](../screenshots/26-ai-create.png)
-![@irule /explain breaking down an iRule](../screenshots/27-ai-explain.png)
-![@irule /diagram generating a Mermaid flowchart](../screenshots/28-ai-diagram.png)
-![@irule /validate running LSP diagnostics](../screenshots/29-ai-validate.png)
-![@irule /review security review](../screenshots/30-ai-review.png)
-![@irule /help showing feature guide](../screenshots/31-ai-help.png)
+![@irule /create generating an iRule](../../screenshots/26-ai-create.png)
+![@irule /explain breaking down an iRule](../../screenshots/27-ai-explain.png)
+![@irule /diagram generating a Mermaid flowchart](../../screenshots/28-ai-diagram.png)
+![@irule /validate running LSP diagnostics](../../screenshots/29-ai-validate.png)
+![@irule /review security review](../../screenshots/30-ai-review.png)
+![@irule /help showing feature guide](../../screenshots/31-ai-help.png)
 
 ## Discoverability
 

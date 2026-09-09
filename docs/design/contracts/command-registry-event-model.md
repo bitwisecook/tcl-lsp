@@ -15,7 +15,7 @@ Specs are organised as per-dialect packs under
 `sdc_base`, `upf`, and the EDA vendor libraries are **not** among them: they
 ship as bundled `.tclspec` loadables under `specs/`, loaded by `tcl-spectcl` and
 layered into the per-profile registry at workspace scope
-([spec-packs.md](../spec-packs.md), [eda-library-packages.md](../eda-library-packages.md)).
+([spec-packs.md](../registry/spec-packs.md), [eda-library-packages.md](../registry/eda-library-packages.md)).
 The contracts below apply to a loaded pack's specs exactly as they do to a
 compiled-in one — the loader builds the same `CommandSpec`.
 

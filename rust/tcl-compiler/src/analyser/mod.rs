@@ -41,7 +41,7 @@ pub mod bounds_checks;
 pub mod class_hierarchy;
 /// EXPERIMENT — object→class binding lattice + dispatch resolver.
 /// Not wired into shipping diagnostics; measured by the `mro_eval`
-/// harness.  See `docs/design/name-resolution.md` §5.6.
+/// harness.  See `docs/design/analysis/name-resolution.md` §5.6.
 pub mod class_lattice;
 pub mod commands;
 pub mod confusables_table;

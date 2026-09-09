@@ -2384,3 +2384,150 @@ fn dict_inline_return_body_falls_back_cleanly() {
         "7|\n",
     );
 }
+
+/// TIP 348 metadata is accumulated once at the shared command-unwind seam and
+/// exposed identically by catch and `info errorstack`.
+#[test]
+fn catch_reports_structured_error_stack() {
+    out_eq(
+        "catch {error boom} m o\n\
+         puts [list $m [dict get $o -errorstack] [info errorstack]]\n\
+         proc f {x} {g $x$x}\n\
+         proc g {x} {error G:$x}\n\
+         catch {f 12} m o\n\
+         puts [list $m [dict get $o -errorstack] [info errorstack]]\n",
+        "boom {INNER {error boom}} {INNER {error boom}}\n\
+         G:1212 {INNER {error G:1212} CALL {g 1212} CALL {f 12}} {INNER {error G:1212} CALL {g 1212} CALL {f 12}}\n",
+    );
+}
+
+/// A specialised catch body still logs the failing command, not the enclosing
+/// catch instruction. Its `errorInfo` must be byte-identical to the dynamic
+/// body that reaches the generic evaluator.
+#[test]
+fn inline_and_generic_catch_bodies_report_the_same_errorinfo() {
+    out_eq(
+        "proc inline {} {catch {error boom} m o; dict get $o -errorinfo}\n\
+         proc generic {} {set body {error boom}; catch $body m o; dict get $o -errorinfo}\n\
+         set inlineInfo [inline]\n\
+         set genericInfo [generic]\n\
+         puts [list [expr {$inlineInfo eq $genericInfo}] \
+                    [string match {*while executing*\\\"error boom\\\"*} $inlineInfo]]\n",
+        "1 1\n",
+    );
+}
+
+/// Proc-like adapters carry the exact invocation words into the one procedure
+/// boundary that emits TIP 348 `CALL` entries.
+#[test]
+fn lambda_and_method_error_stacks_preserve_invocation_identity() {
+    out_eq(
+        "catch {apply {{} {error APPLY}}} m o\n\
+         puts [lindex [dict get $o -errorstack] end]\n\
+         oo::class create C {method fail {arg} {error METHOD}}\n\
+         C create named\n\
+         catch {named fail value} m o\n\
+         puts [lindex [dict get $o -errorstack] end]\n\
+         catch {::named fail rooted} m o\n\
+         puts [lindex [dict get $o -errorstack] end]\n",
+        "apply {{} {error APPLY}}\nnamed fail value\n::named fail rooted\n",
+    );
+}
+
+/// An explicit errorInfo starts a real line-one error episode even though the
+/// command itself is already logged.
+#[test]
+fn explicit_return_errorinfo_reports_line_one() {
+    out_eq(
+        "catch {return -level 0 -code error -errorinfo EXPLICIT boom} m o\n\
+         puts [list [dict get $o -errorline] [dict get $o -errorinfo]]\n",
+        "1 EXPLICIT\n",
+    );
+}
+
+/// Tcl retains the prior TIP 348 stack when an explicit `-errorinfo` suppresses
+/// logging a new inner command during a lazily reset error episode.
+#[test]
+fn explicit_return_errorinfo_retains_the_prior_error_stack() {
+    out_eq(
+        "catch {error first} m o\n\
+         set prior [dict get $o -errorstack]\n\
+         catch {return -level 0 -code error -errorinfo I second} m o\n\
+         puts [list [expr {$prior ne {}}] \
+                    [expr {[dict get $o -errorstack] eq $prior}] \
+                    [expr {[info errorstack] eq $prior}]]\n",
+        "1 1 1\n",
+    );
+}
+
+#[test]
+fn error_stack_call_preserves_qualified_invocation() {
+    out_eq(
+        "namespace eval n {proc p {x} {error E:$x}}\n\
+         catch {::n::p z} m o\n\
+         puts [dict get $o -errorstack]\n",
+        "INNER {error E:z} CALL {::n::p z}\n",
+    );
+}
+
+/// Trace callback failures retain the callback's stack; a control completion
+/// converted to an error begins a distinct trace episode.
+#[test]
+fn variable_trace_errors_retain_error_stack() {
+    out_eq(
+        "proc boom {n1 n2 op} {error TRACE}\n\
+         trace add variable x write boom\n\
+         catch {set x 1} m o\n\
+         puts [list $m [dict get $o -errorstack]]\n\
+         trace remove variable x write boom\n\
+         unset -nocomplain x\n\
+         proc storeStk {n1 n2 op} {return -code break}\n\
+         trace add variable x write storeStk\n\
+         catch {set x 1} m o\n\
+         puts [list $m [dict get $o -errorstack]]\n",
+        "{can't set \"x\": TRACE} {INNER {error TRACE} CALL {boom x {} write}}\n\
+         {can't set \"x\": } {INNER storeStk}\n",
+    );
+}
+
+/// A valid explicit stack survives both immediate and pending return options.
+#[test]
+fn explicit_return_error_stack_is_preserved() {
+    out_eq(
+        "catch {return -level 0 -code error -errorstack {INNER custom} explicit} m o\n\
+         puts [list $m [dict get $o -errorstack] [info errorstack]]\n\
+         catch {return -code error -errorstack {CALL a CALL b} pending} m o\n\
+         puts [list $m [dict get $o -code] [dict get $o -level] \
+                    [dict get $o -errorstack] [info errorstack]]\n",
+        "explicit {INNER custom} {INNER custom}\n\
+         pending 1 1 {CALL a CALL b} {CALL a CALL b}\n",
+    );
+}
+
+#[test]
+fn explicit_return_error_stack_obeys_proc_boundaries() {
+    out_eq(
+        "proc direct {} {return -code error -errorstack {} boom}\n\
+         catch {direct} m o\n\
+         puts [dict get $o -errorstack]\n\
+         proc inner {} {return -code error -errorstack {INNER custom} boom}\n\
+         proc outer {} {inner}\n\
+         catch {outer} m o\n\
+         puts [dict get $o -errorstack]\n\
+         proc metadata {} {return -code error -errorcode CUSTOM -errorinfo EXPLICIT boom}\n\
+         catch {metadata} m o\n\
+         puts [list [dict get $o -errorcode] \
+                    [string match {EXPLICIT*} [dict get $o -errorinfo]]]\n",
+        "\nINNER custom CALL outer\nCUSTOM 1\n",
+    );
+}
+
+/// `try` consumes the same rich completion snapshot as catch.
+#[test]
+fn try_handler_receives_error_metadata() {
+    out_eq(
+        "set t try\n\
+         puts [$t {error boom} on error {m o} {list [dict exists $o -errorinfo] [dict get $o -errorstack]}]\n",
+        "1 {INNER {error boom}}\n",
+    );
+}

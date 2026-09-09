@@ -31,7 +31,7 @@
 //! command logic — `tcl-cmd-core`'s helpers — can name a completion code
 //! without transitively pulling in `tcl-bytecode` (which `tcl-runtime-api` needs
 //! for `CompileService`). See
-//! `docs/design/common-runtime-emitter-architecture.md` (§6).
+//! `docs/design/rust/current-architecture.md` (the crate graph).
 
 #![no_std]
 

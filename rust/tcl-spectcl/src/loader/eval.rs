@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The **evaluation loader** — executable registration
-//! (`docs/design/spec-packs.md` § *The format: a Tcl program, evaluated by
+//! (`docs/design/registry/spec-packs.md` § *The format: a Tcl program, evaluated by
 //! our own toolchain*), and the *only* way a `.tclspec` source becomes a
 //! [`Pack`].
 //!

@@ -39,7 +39,7 @@ fn adapt(interp: &mut Interp, result: Result<*mut TclObj, tcl_cmd_core::CmdError
             interp.set_result(v);
             Code::Ok
         }
-        Err(e) => interp.set_error(e.message().as_bytes()),
+        Err(e) => interp.report_cmd_error(e),
     }
 }
 
@@ -171,7 +171,7 @@ pub(crate) fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // stringified).
     let result = match tcl_cmd_core::var::lappend_value(interp, cur, values) {
         Ok(v) => v,
-        Err(e) => return interp.set_error(e.message().as_bytes()),
+        Err(e) => return interp.report_cmd_error(e),
     };
 
     // Always store back: rebinds the variable (a refcount-neutral re-set when
@@ -289,7 +289,7 @@ fn lassign(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 // -- error helpers ---------------------------------------------------------
 
 fn bad_list(interp: &mut Interp, e: crate::parse::ListError) -> Code {
-    interp.set_error(e.message())
+    interp.error_with_code(e.message(), e.error_code())
 }
 
 // -- lrepeat / linsert / lreplace / lsearch / lsort ------------------------

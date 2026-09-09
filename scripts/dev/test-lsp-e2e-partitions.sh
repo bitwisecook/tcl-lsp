@@ -83,6 +83,15 @@ do
     case "$archive$partition" in *"$required"*) ;; *) echo "lsp-e2e no-op contract is missing $required" >&2; exit 1 ;; esac
 done
 
+case "$archive$partition$aggregate" in
+    *'lsp_e2e_changed == '\''true'\'''*'lsp_e2e_changed != '\''true'\'''*) ;;
+    *) echo "lsp-e2e archive, consumers, or proof transfer lost path-closure gating" >&2; exit 1 ;;
+esac
+if printf '%s\n' "$archive$partition$aggregate" | grep -Fq "needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green"; then
+    echo "lsp-e2e has an expensive normal-path step that bypasses lsp_e2e_changed" >&2
+    exit 1
+fi
+
 case "$workflow" in *'NEXTEST_BIN_EXE_tcl-lsp-server'*) ;; *) echo "workflow/docs do not name the runtime server path" >&2; exit 1 ;; esac
 case "$(cat "$REPO_ROOT/rust/tcl-lsp-server/tests/e2e/common/mod.rs")" in
     *'NEXTEST_BIN_EXE_tcl-lsp-server'*'CARGO_BIN_EXE_tcl-lsp-server'*) ;;

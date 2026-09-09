@@ -1168,7 +1168,7 @@ computed; got {b:?}"
             "tcl8.4 has no `{{*}}` expansion",
         );
         // F5 reclassification (measurements §1/§3 row 6,
-        // `docs/design/bigip-irule-parser-measurements.md`): on the F5
+        // `docs/design/f5/bigip-irule-parser-measurements.md`): on the F5
         // fork the implicit word break wins over everything — `{*}` is
         // the literal `*` word plus the *separate* unexpanded word
         // (measured `list {*}{a b}` → `* {a b}` on TMM), never the old

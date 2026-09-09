@@ -7,7 +7,7 @@ lives here.
 
 For engine internals (architecture, evaluator, edit-plan
 dispatch, projection layer, parser AST shape) see
-[`docs/design/f5-query-engine-internals.md`](../../design/f5-query-engine-internals.md).
+[`docs/design/f5/f5-query-engine-internals.md`](../../design/f5/f5-query-engine-internals.md).
 
 ## Documents
 

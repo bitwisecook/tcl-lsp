@@ -315,6 +315,22 @@ const VECTORS: &[Vector] = &[
         want_86: "1",
         want_90: "1",
     },
+    Vector {
+        name: "dict info follows the registry's 8.5 surface",
+        script: "puts [string match {*entries in table*} [dict info {}]]\n",
+        want_84: "invalid command name \"dict\"",
+        want_85: "1",
+        want_86: "1",
+        want_90: "1",
+    },
+    Vector {
+        name: "qualified dict info follows its registry-owned 8.5 surface",
+        script: "puts [string match {*entries in table*} [::tcl::dict::info {}]]\n",
+        want_84: "invalid command name \"::tcl::dict::info\"",
+        want_85: "1",
+        want_86: "1",
+        want_90: "1",
+    },
     // The vector above uses `dict get`, whose argument is a runtime value, so
     // it never reaches the constant folder. An **all-literal** `dict create` in
     // a value position *is* folded in codegen — and a fold is a rewrite that

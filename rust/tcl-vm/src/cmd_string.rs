@@ -68,7 +68,7 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("::tcl::string::trimright", |vm, a| {
         string_op(vm, "trimright", a)
     });
-    let registry = tcl_registry::CommandRegistry::build_default();
+    let registry = crate::environment::universal_store();
     let spec = registry.get("string").expect("core string spec");
     vm.register_spec_builtin(spec, cmd_string);
 }
@@ -171,7 +171,7 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if let Some(result) = tcl_cmd_core::string::dispatch_canon(vm, canon, rest) {
         return match result {
             Ok(v) => ok(v),
-            Err(e) => err(e.into_message()),
+            Err(e) => crate::command::completion_from_cmd_error(e),
         };
     }
     match canon {

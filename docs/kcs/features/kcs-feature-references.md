@@ -257,7 +257,7 @@ that reason.
 
 - `16-references` — find all references panel
 
-![find all references panel](../screenshots/16-references.png)
+![find all references panel](../../screenshots/16-references.png)
 
 ## Discoverability
 

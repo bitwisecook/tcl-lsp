@@ -119,7 +119,7 @@ pub fn declarations(source: &str, dialect: &'static DialectProfile) -> Vec<Block
     let registry = crate::registry_for_dialect_profile(dialect);
     // The profile in hand already carries the document's grammar; resolving
     // its name a second time is the drift the ingress settlement forbids
-    // (`docs/design/dialect-profile-model.md` §2.5).
+    // (`docs/design/registry/dialect-profile-model.md` §2.5).
     let config = LexerConfig::from_grammar(dialect.grammar);
     collect(source, source, 0, 0, registry, &config)
 }

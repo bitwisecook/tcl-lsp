@@ -79,7 +79,7 @@ mount at startup. The WASI rung has no executable path either: its copy is a
 directory mounted into the guest and named by `TCL_LSP_SPEC_PACK_DIR`. Three
 rungs, three ways of reaching a file, one set of packs — see
 [`lsp-runtime-and-transports.md`](../design/rust/lsp-runtime-and-transports.md)
-Part 6 and [`spec-packs.md`](../design/spec-packs.md).
+Part 6 and [`spec-packs.md`](../design/registry/spec-packs.md).
 
 (Sizes measured on an x86-64 Linux build; other triples differ by a few MiB.)
 
@@ -121,7 +121,12 @@ The real release artefacts are built by CI: the tag-triggered
 `build-server-matrix` job starts after the tag channel is classified and
 compiles the Darwin and Windows binaries on native
 runners, the x86_64/aarch64 GNU/Linux binaries in architecture-matched UBI 8
-containers, and RISC-V with Ubuntu 22.04's packaged cross toolchain. The matrix
+containers, and RISC-V with Ubuntu 22.04's packaged cross toolchain. Its
+platform and program axes build `tcl-lsp-server`, `tcl-mcp`, `tcl`, and
+`f5-query` independently and concurrently, preserving each program's Cargo
+feature graph. A branch workflow dispatch can enable the read-only
+`native_release_build_proof` input to exercise those builds without creating
+or publishing a release. The matrix
 uploads only short-lived workflow artefacts; the
 `linux-release-portability` fan-in waits for the release gate and enforces
 those Linux ABI floors before
