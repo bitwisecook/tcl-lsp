@@ -36,19 +36,22 @@ use tcl_dialect::{PackagePrefer, model::SurfaceQuery};
 use tcl_bytecode::{FunctionAsm, ModuleAsm, ProcedureProvenance};
 use tcl_core_types::RecursionLimit;
 use tcl_platform::Host;
+use tcl_runtime_api::completion_options::ControlOptionPolicy;
 use tcl_runtime_api::error_stack::{ErrorStack, validate_error_stack};
 use tcl_runtime_api::guard::{
     GuardDomain, GuardDomains, GuardError, GuardIdentity, GuardManager, GuardToken,
 };
 use tcl_runtime_api::{
-    ArrayTarget, Code, CommandId, Commands, CompileService, Completion, FrameId, FrameLinkOrigin,
-    Frames, Introspect, Namespaces, NsId, ProcInfo, ProcParam, ProcedureCompileTarget,
-    ProcedureDispatch, Procs, ROOT_NS, ScriptCompileTarget, Traces, VarId, VarStore, VarUnsetError,
+    ArrayElementRead, ArrayInvalidation, ArrayReadFailure, ArrayReadMiss, ArrayTarget, Code,
+    CommandId, Commands, CompileService, Completion, FrameId, FrameLinkOrigin, Frames, Introspect,
+    Namespaces, NsId, ProcInfo, ProcParam, ProcedureCompileTarget, ProcedureDispatch, Procs,
+    ROOT_NS, ScriptCompileTarget, Traces, VarId, VarStore, VarUnsetError,
 };
 use tcl_syntax::expr::{eval, parse_expr};
 
 use crate::command::{
     BuiltinFn, Command, EnsembleDef, ProcDef, err_with_code, lookup_error, register_builtins,
+    settle_control_options,
 };
 use crate::compiled::{CompiledUnit, CompilerProvenance};
 use crate::error::TclError;
@@ -1520,6 +1523,15 @@ enum TraceGroup {
 enum Step {
     Live(u64),
     Taken(String, bool),
+}
+
+/// One variable-trace access, kept together across cell selection and firing.
+#[derive(Clone, Copy)]
+struct VarTraceInvocation<'a> {
+    name: &'a str,
+    op: &'a str,
+    reported: (&'a str, &'a str),
+    element_access: bool,
 }
 
 /// One `trace add command|execution` registration: the op set
@@ -4416,6 +4428,8 @@ impl Vm {
     /// `invoke_command` re-entry has — tclsh reports `cannot yield: C stack
     /// busy`), but a cross-interp alias call now *can*, because the target's
     /// interpreter is reached by switching state rather than by suspending.
+    /// The alias wrapper begins a fresh option scope and forwards only options
+    /// produced by the target completion.
     pub(crate) fn invoke_alias_words(
         &mut self,
         target_interp: InterpId,
@@ -4433,21 +4447,22 @@ impl Vm {
             {
                 let completion = self.invoke_command(&head.to_str(), tail);
                 self.pop_ns();
-                return completion;
+                return settle_control_options(completion, ControlOptionPolicy::FRESH_FORWARDED);
             }
             let script = crate::exec::alias_invoke_script(argv);
             let evaled = self.eval_source(&script);
             self.pop_ns();
-            return match evaled {
+            let completion = match evaled {
                 Ok(c) => c,
                 Err(e) => err(e.message),
             };
+            return settle_control_options(completion, ControlOptionPolicy::FRESH_FORWARDED);
         }
         if !self.interp_alive(target_interp) {
             return err("could not find interpreter");
         }
         let script = crate::exec::alias_invoke_script(argv);
-        self.in_interp(target_interp, |vm| {
+        let completion = self.in_interp(target_interp, |vm| {
             vm.push_ns(String::new());
             if let Some((head, tail)) = argv.split_first()
                 && vm.lookup_command(&head.to_str()).is_none()
@@ -4462,7 +4477,8 @@ impl Vm {
                 Ok(c) => c,
                 Err(e) => err(e.message),
             }
-        })
+        });
+        settle_control_options(completion, ControlOptionPolicy::FRESH_FORWARDED)
     }
 
     /// `interp delete path …` — destroy interpreter `id`: unhook it from its
@@ -7692,13 +7708,68 @@ impl Vm {
         name: &str,
         key: &str,
     ) -> Result<Option<Value>, Completion<Value>> {
-        let full = format!("{name}({key})");
-        let cell = self.trace_cell(&full).and_then(|cell| cell.id);
-        self.fire_var_traces(&full, "read")?;
-        Ok(cell.map_or_else(
-            || self.get_array_elem(name, key),
-            |id| self.read_resolved_cell(id),
-        ))
+        self.read_elem_traced_from(name, key, self.current_level())
+            .1
+    }
+
+    /// Frame-addressed, already-split element read. The boolean records whether
+    /// the live source spelling named an array before callbacks; `array get`
+    /// uses that to distinguish `READ` from `LOOKUP` metadata when it swallows
+    /// a miss after an operation-trace alias retarget.
+    fn read_elem_traced_from(
+        &mut self,
+        name: &str,
+        key: &str,
+        start: usize,
+    ) -> (bool, Result<Option<Value>, Completion<Value>>) {
+        let (live_was_array, cell) =
+            self.resolve_var_from(name, start)
+                .map_or((false, None), |resolved| {
+                    if resolved.elem.is_some() {
+                        return (false, None);
+                    }
+                    let Some(array) = resolved.id else {
+                        return (false, None);
+                    };
+                    let (is_array, id) =
+                        match self.var_arena.get(array).map(crate::vars::VarCell::state) {
+                            Some(Local::Array(elements)) => (
+                                true,
+                                elements
+                                    .get(key)
+                                    .copied()
+                                    .and_then(|id| self.var_arena.resolve(id)),
+                            ),
+                            Some(Local::Scalar(_) | Local::Undefined | Local::Link(_)) | None => {
+                                (false, None)
+                            }
+                        };
+                    (
+                        is_array,
+                        Some(VarTraceCell {
+                            id,
+                            array: Some(array),
+                            elem: Some(key.to_owned()),
+                        }),
+                    )
+                });
+        let selected = cell.as_ref().and_then(|cell| cell.id);
+        if let Some(id) = selected {
+            self.var_arena.retain_operation(id);
+        }
+        let trace = self.fire_elem_traces_from_cell(name, key, "read", cell);
+        let value = if trace.is_ok() {
+            selected.map_or_else(
+                || self.get_array_elem_from(start, name, key),
+                |id| self.read_resolved_cell(id),
+            )
+        } else {
+            None
+        };
+        if let Some(id) = selected {
+            self.var_arena.release_operation(id);
+        }
+        (live_was_array, trace.map(|()| value))
     }
 
     /// `info exists` form of a traced lookup. Trace errors are deliberately
@@ -7909,21 +7980,63 @@ impl Vm {
             || (name.to_string(), String::new()),
             |(b, k)| (b.to_string(), k.to_string()),
         );
+        self.fire_var_traces_from_parts(
+            VarTraceInvocation {
+                name,
+                op,
+                reported: (reported_name1.unwrap_or(&base), &elem),
+                element_access: elem_ref(name).is_some(),
+            },
+            taken,
+            located,
+        )
+    }
+
+    /// Two-part array-element form of [`Self::fire_var_traces_from_cell`].
+    /// Carrying `base` and `key` separately avoids reparsing a display spelling
+    /// when the legal base name itself contains an opening parenthesis.
+    fn fire_elem_traces_from_cell(
+        &mut self,
+        base: &str,
+        key: &str,
+        op: &str,
+        located: Option<VarTraceCell>,
+    ) -> Result<(), Completion<Value>> {
+        let display = format!("{base}({key})");
+        self.fire_var_traces_from_parts(
+            VarTraceInvocation {
+                name: &display,
+                op,
+                reported: (base, key),
+                element_access: true,
+            },
+            None,
+            located,
+        )
+    }
+
+    fn fire_var_traces_from_parts(
+        &mut self,
+        invocation: VarTraceInvocation<'_>,
+        taken: Option<TakenVarTraces>,
+        located: Option<VarTraceCell>,
+    ) -> Result<(), Completion<Value>> {
         // C's `VAR_TRACE_ACTIVE` belongs to the reached `Var`: the whole array
         // and every element are separate cells. A callback may therefore enter
         // a different element, while a recursive access to this exact cell is
         // suppressed regardless of operation. Issue #1574.
         let Some(cell) = located.or_else(|| {
-            taken
-                .as_ref()
-                .map_or_else(|| self.trace_cell(name), |taken| Some(taken.cell.clone()))
+            taken.as_ref().map_or_else(
+                || self.trace_cell(invocation.name),
+                |taken| Some(taken.cell.clone()),
+            )
         }) else {
             return Ok(());
         };
         // Unset moves the trace list to a dummy `Var` and clears its active
         // bit, so unsetting the cell from its own write callback still fires
         // that taken list. Other recursive operations on the cell stay gated.
-        let taken_unset = op == "unset" && taken.is_some();
+        let taken_unset = invocation.op == "unset" && taken.is_some();
         if cell.id.is_some_and(|id| self.active_traces.contains(&id)) && !taken_unset {
             return Ok(());
         }
@@ -7933,14 +8046,7 @@ impl Vm {
         if let Some(id) = cell.id {
             self.active_traces.push(id);
         }
-        let r = self.fire_var_traces_inner(
-            name,
-            op,
-            (reported_name1.unwrap_or(&base), &elem),
-            &cell,
-            array_active,
-            taken,
-        );
+        let r = self.fire_var_traces_inner(invocation, &cell, array_active, taken);
         if let Some(id) = cell.id {
             let popped = self.active_traces.pop();
             debug_assert_eq!(popped, Some(id));
@@ -7953,7 +8059,7 @@ impl Vm {
     /// alias to an array element; the release policy owns that distinction.
     fn variable_trace_groups(
         &self,
-        name: &str,
+        element_access: bool,
         elem: &str,
         cell: &VarTraceCell,
         array_active: bool,
@@ -7963,7 +8069,7 @@ impl Vm {
         let mut groups = Vec::with_capacity(2);
         let mut name2 = elem.to_string();
         let include_array = taken.as_ref().is_none_or(|taken| taken.include_array);
-        if elem_ref(name).is_some() {
+        if element_access {
             if include_array
                 && !array_active
                 && let Some(array) = cell.array_id()
@@ -7998,20 +8104,24 @@ impl Vm {
     /// marked active by the caller.
     fn fire_var_traces_inner(
         &mut self,
-        name: &str,
-        op: &str,
-        reported: (&str, &str),
+        invocation: VarTraceInvocation<'_>,
         cell: &VarTraceCell,
         array_active: bool,
         taken: Option<TakenVarTraces>,
     ) -> Result<(), Completion<Value>> {
-        let (name1, elem) = reported;
+        let VarTraceInvocation {
+            name,
+            op,
+            reported: (name1, elem),
+            element_access,
+        } = invocation;
         // For an element access C walks the containing array's trace list
         // first and the element's own list second (`TclCallVarTraces`,
         // tclTrace.c 9.0.4: the `arrayPtr` loop at :2581 precedes the
         // `varPtr` loop at :2623) — regardless of which was registered first.
         // Issue #1440.
-        let (groups, name2) = self.variable_trace_groups(name, elem, cell, array_active, taken, op);
+        let (groups, name2) =
+            self.variable_trace_groups(element_access, elem, cell, array_active, taken, op);
         for group in groups {
             // Walk newest-first (the Vec is oldest-first), by identity: a
             // callback's `trace remove` unlinks its record from the live list
@@ -11119,6 +11229,57 @@ impl VarStore for Vm {
             self.array_unset_elem_reporting_at(id, target.name(), key, None)
         } else {
             self.unset_array_elem_from(target.frame().0, target.name(), key)
+        }
+    }
+
+    fn array_read_elem_at(&mut self, target: &ArrayTarget, key: &str) -> ArrayElementRead<Value> {
+        let (live_was_array, read) =
+            self.read_elem_traced_from(target.name(), key, target.frame().0);
+        let invalidation = VarStore::array_keys_at(self, target).is_none().then(|| {
+            match target
+                .cell_id()
+                .and_then(|id| self.var_arena.get(id))
+                .map(crate::vars::VarCell::state)
+            {
+                Some(Local::Scalar(_) | Local::Link(_)) => ArrayInvalidation::Retyped,
+                Some(Local::Undefined | Local::Array(_)) | None => ArrayInvalidation::Unset,
+            }
+        });
+        match read {
+            Err(failure) if invalidation.is_some() => {
+                let info = self
+                    .error_info_value()
+                    .map(|value| value.as_bytes().to_vec())
+                    .or_else(|| Some(failure.result.to_str().as_bytes().to_vec()));
+                ArrayElementRead::TraceError(ArrayReadFailure::new(
+                    failure.result.to_str().to_string(),
+                    b"TCL READ VARNAME".to_vec(),
+                    info,
+                    Some(i64::from(self.error_line())),
+                ))
+            }
+            Err(failure) => {
+                let info = self
+                    .take_error_info()
+                    .unwrap_or_else(|| failure.result.to_str().to_string());
+                let line = i64::from(self.error_line());
+                self.publish_error(&info, &Value::string("TCL READ VARNAME"));
+                ArrayElementRead::Missing(ArrayReadMiss::trace_error(Some(info.into_bytes()), line))
+            }
+            Ok(_) if let Some(invalidation) = invalidation => {
+                ArrayElementRead::ArrayInvalidated(invalidation)
+            }
+            Ok(Some(value)) => ArrayElementRead::Value(value),
+            Ok(None) => {
+                let miss = if live_was_array {
+                    ArrayReadMiss::missing()
+                } else {
+                    let code =
+                        tcl_syntax::list::join_list(["TCL", "LOOKUP", "VARNAME", target.name()]);
+                    ArrayReadMiss::lookup(code.into_bytes())
+                };
+                ArrayElementRead::Missing(miss)
+            }
         }
     }
 }

@@ -27,8 +27,8 @@
 //! `Commands::dispatch_id` invokes (the resolve-then-invoke pairing).
 
 use tcl_runtime_api::{
-    CommandId, Commands, Completion, FrameId, Frames, Introspect, Namespaces, NsId, ProcInfo,
-    ProcParam, Procs, Traces, VarStore, VarUnsetError,
+    ArrayElementRead, ArrayTarget, CommandId, Commands, Completion, FrameId, Frames, Introspect,
+    Namespaces, NsId, ProcInfo, ProcParam, Procs, Traces, VarStore, VarUnsetError,
 };
 
 use crate::frame::Link;
@@ -129,6 +129,38 @@ impl VarStore for Interp {
                 .map(|k| String::from_utf8_lossy(k).into_owned())
                 .collect()
         })
+    }
+
+    fn array_target(&self, frame: FrameId, name: &str) -> ArrayTarget {
+        crate::vars::array_target_at(
+            &self.frames.borrow(),
+            &self.namespaces(),
+            name.as_bytes(),
+            frame.0,
+        )
+        .map_or_else(
+            || ArrayTarget::named(frame, name),
+            |target| ArrayTarget::cell(frame, name, target.id()),
+        )
+    }
+
+    fn array_keys_at(&self, target: &ArrayTarget) -> Option<Vec<String>> {
+        if target.cell_id().is_none() {
+            return self.array_keys(target.frame(), target.name());
+        }
+        self.array_keys_at_target(target).map(|keys| {
+            keys.into_iter()
+                .map(|key| String::from_utf8_lossy(&key).into_owned())
+                .collect()
+        })
+    }
+
+    fn array_read_elem_at(
+        &mut self,
+        target: &ArrayTarget,
+        key: &str,
+    ) -> ArrayElementRead<*mut TclObj> {
+        self.array_read_elem_at_target(target, key.as_bytes())
     }
 }
 

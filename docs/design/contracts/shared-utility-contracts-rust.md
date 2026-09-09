@@ -48,9 +48,10 @@ entry point, or gate moves without this contract being updated.
 | option words / subcommands | `rust/tcl-cmd-core/src/prefix.rs`; `rust/tcl-cmd-core/src/ensemble.rs`; `rust/tcl-registry/src/hover.rs`; `rust/tcl-registry/src/spec.rs` | `OptionTable`; `OptionSpec`; `SubCommand`; `first_positional_index`; `ensemble::EnsembleToken`; `ensemble::InvocationLayout`; `ensemble::invocation_layout`; `ensemble::UNKNOWN_DELETED_MESSAGE`; `ensemble::UNKNOWN_DELETED_ERROR_CODE`; `ensemble::CREATE_OPTIONS`; `ensemble::CONFIG_OPTIONS`; `ensemble::SUBCOMMANDS`; `ensemble::resolve_subcommand`; `ensemble::subcommand_choices`; `ensemble::unknown_subcommand_message`; `ensemble::validate_map_targets` | option surface per release/dialect; ensemble token lifecycle and invocation layout invariant | `xtask-option-registry-drift` |
 | trace argument decoding | `rust/tcl-cmd-core/src/trace.rs` | `TraceKind`; `resolve_option`; `resolve_type`; `parse_ops`; `parse_legacy_variable_ops`; `legacy_ops_letters`; `callback_op_word` | option surface per release (the 8.x-only `variable`/`vdelete`/`vinfo` forms) | none |
 | sort numeric parsing | `rust/tcl-cmd-core/src/sort.rs` | `parse_wide`; `parse_real` | `NumberSyntax` per release | none |
-| command errors | `rust/tcl-cmd-core/src/error.rs` | `CmdError`; `wrong_args`; `bad_choice` | invariant | none |
+| command errors | `rust/tcl-cmd-core/src/error.rs` | `CmdError`; `wrong_args`; `bad_choice`; `with_error_details` | invariant | none |
 | channel output configuration / encoding | `rust/tcl-platform/src/lib.rs`; `rust/tcl-cmd-core/src/channel.rs`; `rust/tcl-registry/src/commands/tcl/fconfigure_.rs` | `SystemEncoding`; `Host::system_encoding`; `ChannelConfig`; `StandardChannelConfigs`; `OpenAccess`; `resolve_open_access_mode`; `ChannelDirection`; `ChannelEncoding`; `EncodingProfile`; `OutputTranslation`; `resolve_fconfigure_option`; `config_list`; `config_value`; `set_config_value`; `encode_output`; `encode_output_bytes`; `EncodedOutput`; `EILSEQ_ERROR_CODE` | system encoding per host locale and interpreter tree; option availability per dialect profile; open-access validation and profile/binary defaults per Tcl release; mutable direction-specific state per channel | none |
-| Tcl completion options / structured error stacks | `rust/tcl-runtime-api/src/completion_options.rs`; `rust/tcl-runtime-api/src/error_stack.rs` | `completion_options::plan`; `completion_options::ErrorOptions`; `completion_options::OptionValue`; `error_stack::ErrorStack`; `error_stack::validate_error_stack`; `error_stack::ErrorStackValueError` | standard option overlay follows completion code/level; TIP 348 `-errorstack` is available from Tcl 8.6; shifted contexts use the concrete runtime's frame count | none |
+| Tcl completion options / structured error stacks | `rust/tcl-runtime-api/src/completion_options.rs`; `rust/tcl-runtime-api/src/error_stack.rs` | `completion_options::plan`; `completion_options::retained_array_read_options`; `completion_options::ControlOptionPolicy`; `completion_options::ErrorOptions`; `completion_options::OptionValue`; `error_stack::ErrorStack`; `error_stack::validate_error_stack`; `error_stack::ErrorStackValueError` | standard option overlay follows completion code/level; control commands independently select inherited/fresh body options and forwarded/settled success options; TIP 348 `-errorstack` is available from Tcl 8.6; shifted contexts use the concrete runtime's frame count | none |
+| trace-aware array enumeration | `rust/tcl-runtime-api/src/lib.rs`; `rust/tcl-cmd-core/src/array.rs`; `rust/tcl-syntax/src/value.rs` | `ArrayTarget`; `ArrayElementRead`; `ArrayReadMiss`; `ArrayReadFailure`; `ArrayInvalidation`; `VarStore::array_target`; `VarStore::array_read_elem_at`; `ValueOps::pin_value`; `ValueOps::unpin_value`; `array::dispatch_at` | Tcl variable-cell identity and array-before-element trace ordering; linked-element recovery/reporting follows the selected release | none |
 | expression grammar / evaluation | `rust/tcl-syntax/src/expr/parser.rs`; `rust/tcl-syntax/src/expr/eval.rs`; `rust/tcl-registry/src/expr_surface.rs` | `parse_expr`; `eval`; `RuntimeExprSurface` | `RuntimeExprSurface` per release | none |
 | expr math functions and the `rand` generator | `rust/tcl-syntax/src/expr/mathfunc.rs`; `rust/tcl-syntax/src/expr/rand.rs` | `NumValue`; `dispatch`; `dispatch_with_backend_int_width`; `try_dispatch_with_backend_int_width`; `IntWidth`; `MathFuncError`; `MathFuncSince`; `spec`; `all`; `added_in`; `seed_from_wide`; `next_draw`; `seed_and_draw` | `MathFuncSince` per release for the function surface and `IntWidth` for `int()`'s width; the Park-Miller generator is release-invariant | none |
 | command / word segmentation | `rust/tcl-lexer/src/script.rs`; `rust/tcl-compiler/src/segmenter.rs`; `rust/tcl-compiler/src/parsing/syntax/build.rs`; `rust/tcl-compiler/src/parsing/syntax/segment.rs` | `group_commands`; `CommandSpan`; `WordSpan`; `WordKind`; `SegmentedCommand`; `segment_commands` | `LexerConfig` per document dialect | `xtask-segmentation-drift` |
@@ -128,11 +129,46 @@ entry point, or gate moves without this contract being updated.
   TIP 348 `-errorstack`. A carried option named `-errorstack` remains an
   ordinary custom pair on Tcl 8.4/8.5 and must not be deleted or validated as
   TIP 348 metadata there.
+- `completion_options::retained_array_read_options` owns the carried metadata
+  for a candidate read that `array get` skips. Both runtime adapters materialise
+  the typed `ArrayReadMiss` into their value model and pass the pairs through
+  `plan`; neither assembles a private return-options dictionary.
+- `completion_options::ControlOptionPolicy` owns control-command boundaries as
+  two independent axes: whether a nested body activation begins with inherited
+  or fresh options, and whether the successful owner forwards that body's
+  options or settles an ordinary option set. Both runtime engines consume this
+  vocabulary; bytecode carries the activation scope as instruction metadata
+  instead of recognising command names in the executor. Alias trampolines use
+  the same fresh/forwarded policy, including when they cross interpreters, so
+  target-produced options cross the wrapper but caller options do not leak in.
 - `error_stack::ErrorStack` owns TIP 348's flat tag/value shape, lazy reset,
   explicit-stack adoption, and procedure-boundary `CALL` rule. The native VM
   and portable runtime render their own value types but do not reproduce that
   lifecycle. `TclVersion::has_error_stack` is the release fact: Tcl 8.6 and
   later expose it; older and vendor profiles inherit their selected runtime.
+
+### `tcl-runtime-api` + `tcl-cmd-core` — trace-aware array enumeration
+
+- `ArrayTarget` is the variable cell located before an array-operation trace.
+  `array::dispatch_at` snapshots candidate keys from that cell, then asks
+  `VarStore::array_read_elem_at` to perform each live, trace-aware read. This is
+  the one boundary at which a runtime may combine its stable cell identity,
+  frame/namespace lookup, alias movement, and trace engine.
+- The runtime fires the containing-array and element read traces in Tcl order,
+  resolving the element group only after the containing-array callbacks have
+  completed. It then reports `Value`, `Missing(ArrayReadMiss)`,
+  `TraceError(ArrayReadFailure)`, or `ArrayInvalidated`. A callback error wins
+  when that callback also invalidated the base; otherwise the shared command
+  owner skips a missing candidate and chronologically merges miss metadata.
+- `ArrayElementRead` returns its `Value` variant transiently owned across the
+  runtime boundary.
+  Pointer-backed runtimes call `ValueOps::pin_value` before releasing the
+  selected cell; the shared owner calls `unpin_value` after `new_list` has
+  retained every element, and on every earlier hard-error exit. Owning value
+  models implement those hooks as no-ops.
+- The cell/ordering rules apply across the runtime releases. The callback name
+  recovered through a scalar-looking alias to an array element does not:
+  engines continue to gate that spelling through their selected Tcl release.
 
 ### `tcl-syntax` — the parse grammars and value seam
 

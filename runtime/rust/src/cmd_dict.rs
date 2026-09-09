@@ -803,6 +803,8 @@ fn dict_path_unset(dict: *mut TclObj, keys: &[*mut TclObj]) -> Result<(), PathEr
 /// `dict for {keyVar valueVar} dictValue body` — iterate in insertion order,
 /// evaluating `body` in the current scope with the loop vars set.
 fn for_(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    use tcl_runtime_api::completion_options::ControlOptionPolicy;
+
     if argv.len() != 5 {
         return interp.wrong_args(b"dict for {keyVarName valueVarName} dictionary script");
     }
@@ -820,7 +822,10 @@ fn for_(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Err(e) => return bad_dict(interp, e),
     };
 
+    let policy = ControlOptionPolicy::FRESH_SETTLED;
+    interp.begin_control_options(policy);
     for (k, v) in pairs {
+        interp.begin_control_options(policy);
         if interp.var_set(&kvar, k).is_err() {
             return cant_set(interp, &kvar);
         }
@@ -840,6 +845,7 @@ fn for_(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
     }
     interp.set_result_bytes(b"");
+    interp.settle_control_options(policy, Code::Ok);
     Code::Ok
 }
 
@@ -847,6 +853,8 @@ fn for_(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// iteration's body result becomes the new value for that key; returns the
 /// transformed dict. `continue` drops the key, `break` stops.
 fn map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    use tcl_runtime_api::completion_options::ControlOptionPolicy;
+
     if argv.len() != 5 {
         return interp.wrong_args(b"dict map {keyVarName valueVarName} dictionary script");
     }
@@ -863,7 +871,10 @@ fn map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     let acc = dict::new_dict_obj(&[]);
     unsafe { obj::incr_ref_count(acc) };
+    let policy = ControlOptionPolicy::FRESH_FORWARDED;
+    interp.begin_control_options(policy);
     for (k, v) in pairs {
+        interp.begin_control_options(policy);
         if interp.var_set(&vars[0], k).is_err() || interp.var_set(&vars[1], v).is_err() {
             unsafe { obj::decr_ref_count(acc) };
             return cant_set(interp, &vars[0]);
@@ -889,6 +900,7 @@ fn map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     interp.set_result(acc);
     unsafe { obj::decr_ref_count(acc) };
+    interp.settle_control_options(policy, Code::Ok);
     Code::Ok
 }
 

@@ -26,9 +26,10 @@
 //! no-ops for now (the codegen already records export/import metadata).
 
 use tcl_dialect::model::SurfaceQuery;
+use tcl_runtime_api::completion_options::ControlOptionPolicy;
 use tcl_runtime_api::{Code, Completion};
 
-use crate::command::{command_lookup_error, err_with_code, lookup_error};
+use crate::command::{command_lookup_error, err_with_code, lookup_error, settle_control_options};
 use crate::interp::{Vm, canonical_cmd_key, err, ok};
 use crate::value::Value;
 use tcl_dialect::model::surface_admits;
@@ -90,11 +91,12 @@ fn eval_in_ns(
     vm.leave_ns_script();
     vm.pop_ns();
     vm.pop_call_frame();
-    match result {
-        Ok(c) if c.code == Code::Return => ok(c.result),
+    let completion = match result {
+        Ok(c) if c.code == Code::Return => Completion::new(Code::Ok, c.result, c.options),
         Ok(c) => c,
         Err(e) => err(e.message),
-    }
+    };
+    settle_control_options(completion, ControlOptionPolicy::FRESH_FORWARDED)
 }
 
 pub(crate) fn register(vm: &mut Vm) {

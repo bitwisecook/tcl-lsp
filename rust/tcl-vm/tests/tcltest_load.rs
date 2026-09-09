@@ -334,6 +334,27 @@ fn upstream_set_stem_emits_a_parseable_summary_after_real_startup() {
     );
 }
 
+/// Tcl 9.0.4's canonical array-read trace mutation cases run verbatim through
+/// the real startup and `tcltest` package. They exercise key snapshotting,
+/// element removal, and whole-array destruction during `array get`.
+#[test]
+fn upstream_array_get_read_trace_definitions_pass_after_real_startup() {
+    let Some((ok, error, output)) = run_upstream_definitions(
+        "trace.test",
+        "test trace-1.11 {",
+        "# Basic write-tracing",
+        "tcltest-array-get-read-traces",
+    ) else {
+        eprintln!("skipping: no Tcl 9.0.4 source tree available");
+        return;
+    };
+    assert!(ok, "focused upstream trace.test failed: {error}\n{output}");
+    assert!(
+        output.contains("Total\t4\tPassed\t4\tSkipped\t0\tFailed\t0"),
+        "missing parseable upstream trace-1.11/1.14 summary: {output:?}"
+    );
+}
+
 /// The four upstream `dict info` definitions are executed verbatim through
 /// Tcl 9.0.4's real `tcltest` package. They cover a successful result, both
 /// arity errors, and malformed-dictionary validation without restating the
