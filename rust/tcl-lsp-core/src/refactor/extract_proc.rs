@@ -223,7 +223,7 @@ fn plan_extraction(
     // the wrong release's rule produces a proc built for a variable that
     // does not exist (issue #1605).
     let style = super::braced_var_style(analysis);
-    let walk = FrameWalk::new(source, analysis);
+    let walk = super::FrameWalk::new(source, analysis);
     let roles = classify_variables(source, selected, registry, &walk, style)?;
 
     // The selection's own byte range, snapped to the commands it covers.
@@ -253,7 +253,7 @@ fn plan_extraction(
             // for the text scan to find, and missing it would turn the
             // selection's write into a proc local and lose the caller's value.
             nested_tail.clear();
-            nested_same_frame_commands(source, &command, &walk, 0, &mut nested_tail);
+            walk.nested_same_frame_commands(source, &command, &mut nested_tail);
             for inner in &nested_tail {
                 used_after.extend(role_named_variables(inner, registry));
             }
@@ -324,7 +324,7 @@ fn plan_extraction(
 /// this one assigned.
 fn observing_regions(
     source: &str,
-    walk: &FrameWalk,
+    walk: &super::FrameWalk,
     block_start: u32,
     block_end: u32,
 ) -> Vec<(u32, u32)> {
@@ -360,23 +360,20 @@ fn observing_regions(
 /// a variable frame of its own.
 fn containing_region(
     source: &str,
-    walk: &FrameWalk,
+    walk: &super::FrameWalk,
     search: (u32, u32),
     offset: u32,
 ) -> Option<((u32, u32), bool)> {
     let text = source.get(search.0 as usize..search.1 as usize)?;
-    for command in segment_commands_with_offset_and_config(text, search.0, walk.config) {
+    for command in walk.segment(text, search.0) {
         if command.name().is_empty() {
             continue;
         }
-        if let Some(region) = region_containing(
-            &crate::references::frame_shifted_dispatch_regions(source, walk.dialect, &command),
-            offset,
-        ) {
+        if let Some(region) = region_containing(&walk.frame_shifted_regions(source, &command), offset)
+        {
             return Some((region, true));
         }
-        if let Some(region) = region_containing(&same_frame_regions(source, &command, walk), offset)
-        {
+        if let Some(region) = region_containing(&walk.same_frame_regions(source, &command), offset) {
             return Some((region, false));
         }
     }
@@ -406,186 +403,6 @@ struct VariableRoles {
     /// the end of the assigning command, or the start of a loop body for the
     /// name that loop binds.
     written: BTreeMap<String, u32>,
-}
-
-/// The document facts a same-frame statement walk needs, built once per
-/// extraction.
-///
-/// `nesting` is deliberately the **document's own** registry rather than the
-/// caller's: which nested words are same-frame scripts is a question
-/// [`crate::references::nested_dispatch_regions`] answers from the dialect
-/// profile's registry (a `switch` clause list reaches its arm bodies only
-/// through that registry's `CaseListSpec`), whereas the argument roles this
-/// module classifies stay the caller's to decide.
-struct FrameWalk {
-    dialect: &'static tcl_dialect::DialectProfile,
-    nesting: &'static CommandRegistry,
-    identities: tcl_compiler::realm::CommandBindingRealm,
-    config: LexerConfig,
-    expr_surface: tcl_registry::expr_surface::RuntimeExprSurface,
-}
-
-impl FrameWalk {
-    fn new(source: &str, analysis: &AnalysisResult) -> Self {
-        let dialect = crate::profile_for_dialect(&analysis.dialect);
-        let nesting = crate::registry_for_dialect_profile(dialect);
-        Self {
-            dialect,
-            nesting,
-            identities: tcl_compiler::realm::document_realm_bindings(source, dialect, nesting),
-            config: LexerConfig::from_grammar(dialect.grammar),
-            expr_surface: tcl_registry::expr_surface::RuntimeExprSurface::for_profile(dialect),
-        }
-    }
-}
-
-/// The regions of `command` that run in `command`'s own variable frame.
-///
-/// [`crate::references::nested_dispatch_regions`] owns the script ones. It
-/// cannot see inside a *braced* expression argument, which the script lexer
-/// treats as one opaque word and `expr` substitutes itself, so `if {[set x 1]}
-/// …` would hide a write to the caller's `x`.  Those spans come from
-/// [`tcl_syntax::expr::substitution::command_substitution_spans`], the
-/// expression owner's own script bridge, gated on the dialect's runtime
-/// expression surface: an expression the release would reject at run time
-/// substitutes nothing.
-fn same_frame_regions(
-    source: &str,
-    command: &SegmentedCommand,
-    walk: &FrameWalk,
-) -> Vec<(usize, usize)> {
-    let mut regions = crate::references::nested_dispatch_regions_with_identities(
-        source,
-        walk.dialect,
-        walk.nesting,
-        &walk.identities,
-        command,
-    );
-    let head = command.name();
-    let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
-    for index in walk
-        .nesting
-        .arg_indices_for_role(head, &args, ArgRole::Expr)
-    {
-        let Some(token) = command.argv.get(index + 1) else {
-            continue;
-        };
-        // An unbraced or quoted expression word is substituted by the script
-        // lexer before `expr` ever parses it, so its `[…]` are already among
-        // the dispatch regions above; only a braced one needs the expression
-        // parser to find them.
-        if source.as_bytes().get(token.span.start() as usize) != Some(&b'{')
-            || token.content_offset != 1
-        {
-            continue;
-        }
-        let start = token.span.start() as usize + token.content_offset as usize;
-        let end = token.span.end() as usize;
-        let Some(expression) = source.get(start..end) else {
-            continue;
-        };
-        for span in tcl_syntax::expr::substitution::command_substitution_spans(
-            expression,
-            walk.dialect,
-            walk.config,
-            |parsed| walk.expr_surface.validate(parsed).is_ok(),
-        ) {
-            // The span carries the `[` and `]`; the script inside them is what
-            // runs.
-            let (Some(inner_start), Some(inner_end)) = (
-                start.checked_add(span.start() as usize + 1),
-                start
-                    .checked_add(span.end() as usize)
-                    .and_then(|e| e.checked_sub(1)),
-            ) else {
-                continue;
-            };
-            if inner_start < inner_end {
-                regions.push((inner_start, inner_end));
-            }
-        }
-    }
-    regions
-}
-
-/// Every command nested inside `command` that still runs in `command`'s own
-/// variable frame, appended to `out` innermost-first.
-///
-/// The nesting itself is [`crate::references::nested_dispatch_regions`]'s
-/// answer — the same walker Find-References and the caller-frame scan use for
-/// "which nested scripts run in this frame": an [`ArgRole::Body`] argument
-/// with a `Plain` body kind (`if`, `while`, `foreach`, `try`, `catch`, …), a
-/// `switch`-style clause list flattened through the registry's own
-/// `CaseListSpec`, and every `[…]` command substitution.  A `Structural`
-/// body — `proc`, `namespace eval`, `uplevel`, `oo::define` — and `apply`'s
-/// lambda are deliberately *not* descended: a `set` inside one writes that
-/// frame's variable, not the selection's, so classifying it here would put a
-/// stranger's name in the generated parameter list or, worse, an `upvar`
-/// against a variable the moved code never touches.
-fn nested_same_frame_commands(
-    source: &str,
-    command: &SegmentedCommand,
-    walk: &FrameWalk,
-    depth: u32,
-    out: &mut Vec<SegmentedCommand>,
-) {
-    if crate::references::MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
-        return;
-    }
-    for (start, end) in same_frame_regions(source, command, walk) {
-        let Some(text) = source.get(start..end) else {
-            continue;
-        };
-        for nested in segment_commands_with_offset_and_config(
-            text,
-            u32::try_from(start).unwrap_or(0),
-            walk.config,
-        ) {
-            if nested.name().is_empty() {
-                continue;
-            }
-            nested_same_frame_commands(source, &nested, walk, depth + 1, out);
-            out.push(nested);
-        }
-    }
-}
-
-/// Every region inside `command` that runs in a variable frame of its own,
-/// appended to `out`.
-///
-/// The frame-opening bodies are [`crate::references::frame_shifted_dispatch_regions`]'s
-/// answer — the exact complement of the same-frame set
-/// [`nested_same_frame_commands`] walks — asked of `command` and of every
-/// same-frame command beneath it, so a `proc` nested in an `if` branch is
-/// found as readily as one at the selection's top level.
-fn frame_shifted_regions_within(
-    source: &str,
-    command: &SegmentedCommand,
-    walk: &FrameWalk,
-    out: &mut Vec<(u32, u32)>,
-) {
-    let mut push = |regions: Vec<(usize, usize)>| {
-        for (start, end) in regions {
-            let (Ok(start), Ok(end)) = (u32::try_from(start), u32::try_from(end)) else {
-                continue;
-            };
-            out.push((start, end));
-        }
-    };
-    push(crate::references::frame_shifted_dispatch_regions(
-        source,
-        walk.dialect,
-        command,
-    ));
-    let mut nested = Vec::new();
-    nested_same_frame_commands(source, command, walk, 0, &mut nested);
-    for inner in &nested {
-        push(crate::references::frame_shifted_dispatch_regions(
-            source,
-            walk.dialect,
-            inner,
-        ));
-    }
 }
 
 /// `start..end` with every range in `holes` cut out of it.
@@ -634,7 +451,7 @@ fn classify_variables(
     source: &str,
     selected: &[&SegmentedCommand],
     registry: &CommandRegistry,
-    walk: &FrameWalk,
+    walk: &super::FrameWalk,
     style: BracedVarStyle,
 ) -> Result<VariableRoles, String> {
     let mut roles = VariableRoles {
@@ -651,7 +468,7 @@ fn classify_variables(
         // a variable it does not have.
         let (start, end) = command_span_offsets(source, command);
         frames.clear();
-        frame_shifted_regions_within(source, command, walk, &mut frames);
+        walk.frame_shifted_regions_within(source, command, &mut frames);
         for (from, to) in same_frame_slices(start, end, &frames) {
             let text = source.get(from as usize..to as usize).unwrap_or("");
             for (name, at, _) in super::variable_reference_spans(text, style) {
@@ -665,7 +482,7 @@ fn classify_variables(
         }
         classify_command(source, command, registry, &mut roles)?;
         nested.clear();
-        nested_same_frame_commands(source, command, walk, 0, &mut nested);
+        walk.nested_same_frame_commands(source, command, &mut nested);
         for inner in &nested {
             classify_command(source, inner, registry, &mut roles)?;
         }
