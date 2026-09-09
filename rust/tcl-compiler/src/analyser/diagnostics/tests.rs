@@ -143,6 +143,51 @@ fn w200_binary_modifier_is_dialect_gated() {
     assert!(!has_code("binary format cu1 $x\n", "tcl8.6", "W200"));
     // No modifier — never flagged.
     assert!(!has_code("binary format c1 $x\n", "tcl8.4", "W200"));
+    // `s` is the short-integer specifier, not a signedness modifier: TIP 275
+    // added only `u`. `ss` is two short fields on every release (verified on
+    // tclsh 8.4.20, 8.5.19, 8.6.18 and 9.0.4), so it must stay clean even
+    // under an 8.4 target, while a genuine `u` still fires.
+    assert!(!has_code("binary format ss 1 2\n", "tcl8.4", "W200"));
+    assert!(!has_code("binary scan $x ss a b\n", "tcl8.4", "W200"));
+    assert!(has_code("binary format su 1\n", "tcl8.4", "W200"));
+}
+
+#[test]
+fn w202_binary_field_letters_are_dialect_gated() {
+    // `t n m r R q Q` are `bad field specifier` on tclsh 8.4.20 and accepted
+    // from 8.5.19 on, for both `format` and `scan`.
+    for letter in ["t", "n", "m", "r", "R", "q", "Q"] {
+        assert!(
+            has_code(&format!("binary format {letter} 1\n"), "tcl8.4", "W202"),
+            "{letter} should be gated on 8.4",
+        );
+        assert!(
+            !has_code(&format!("binary format {letter} 1\n"), "tcl8.5", "W202"),
+            "{letter} should be clean on 8.5",
+        );
+    }
+    assert!(has_code("binary scan $d q v\n", "tcl8.4", "W202"));
+    // Letters that exist on every release are never gated.
+    for letter in [
+        "a", "A", "b", "B", "h", "H", "c", "s", "S", "i", "I", "w", "W", "f", "d",
+    ] {
+        assert!(
+            !has_code(&format!("binary format {letter} 1\n"), "tcl8.4", "W202"),
+            "{letter} exists on 8.4 and must stay clean",
+        );
+    }
+    // One diagnostic per format string even with several gated letters, and
+    // the two codes stay independent: a gated letter is not a W200, a gated
+    // suffix is not a W202.
+    assert_eq!(
+        count_code_in("binary format qrm 1 2 3\n", "W202", "tcl8.4"),
+        1
+    );
+    assert!(!has_code("binary format q 1\n", "tcl8.4", "W200"));
+    assert!(!has_code("binary format cu 1\n", "tcl8.4", "W202"));
+    // A gated letter carrying a gated suffix earns both, once each.
+    assert_eq!(count_code_in("binary format qu 1\n", "W200", "tcl8.4"), 1);
+    assert_eq!(count_code_in("binary format qu 1\n", "W202", "tcl8.4"), 1);
 }
 
 #[test]

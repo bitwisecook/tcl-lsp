@@ -154,7 +154,6 @@ pub fn libtommath_dir() -> Option<PathBuf> {
     let root = workspace_root();
     [
         root.join("tmp/tcl9.0.4/libtommath"),
-        root.join("tmp/tcl9.0.3-src/libtommath"),
         root.join("tmp/tcl8.6.18/libtommath"),
     ]
     .into_iter()

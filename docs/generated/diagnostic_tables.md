@@ -66,8 +66,9 @@
 | W150 | warning | Not available across the project's declared version-target range — the item resolves at the primary target but is missing from one or more declared targets (range targeting). | ✓ |
 | W151 | warning | Numeral changes meaning or validity across the project's declared version-target range — e.g. a leading-zero literal is octal under Tcl 8.x targets and decimal under 9.0. | ✓ |
 | W152 | warning | A registry-declared option relation is unmet — an option or argument the call supplied requires a companion option or argument it did not (`-command` without `-channel`), or the invocation supplies none of a required set. | ✓ |
-| W200 | warning | Signed/unsigned modifier on a `binary format`/`binary scan` specifier requires a newer Tcl release. | ✓ |
+| W200 | warning | Unsigned (`u`) suffix on a `binary format`/`binary scan` field requires a newer Tcl release. | ✓ |
 | W201 | warning | Manual path concatenation — use `file join` instead. | ✓ |
+| W202 | warning | `binary format`/`binary scan` field letter requires a newer Tcl release — `t`, `n`, `m`, `r`, `R`, `q` and `Q` arrive in Tcl 8.5. | ✓ |
 | W230 | warning | Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp. | ✓ |
 | W231 | warning | Constant list index out of range — lset raises a runtime error. | ✓ |
 | W232 | warning | Constant string index out of range — string index/range/replace/insert silently return empty or no-op. | ✓ |
