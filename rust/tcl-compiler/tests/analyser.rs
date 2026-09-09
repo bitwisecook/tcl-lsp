@@ -3387,12 +3387,12 @@ mod tcloo_classes {
 
     #[test]
     fn self_method_body_is_walked_for_internal_diagnostics() {
-        // TP — issue #923 idx 120 Part 1 bonus: before the fix, a
-        // wrong-arity call inside a `self method`/`private method` body
-        // drew no diagnostic at all (the body was never walked, only the
-        // literal keywords "method"/"classmethod"/"constructor"/
-        // "destructor" were recognised, "self"/"private" fell through
-        // untouched). `string length` takes exactly one argument.
+        // TP: a wrong-arity call inside a `self method`/`private method`
+        // body must draw a diagnostic — the body itself must be walked,
+        // not just the literal keywords
+        // "method"/"classmethod"/"constructor"/"destructor", with
+        // "self"/"private" falling through untouched. `string length`
+        // takes exactly one argument.
         let src = "oo::class create Widget {\n    self method make {n} {\n        string length a b c d\n        return \"made $n\"\n    }\n}\n";
         assert_eq!(
             count(src, D, "E003"),
@@ -3568,8 +3568,8 @@ mod tcloo_classes {
     }
 }
 
-// oo::Helpers::link — ClassDef::linked_members population (issue #923
-// idx 113). Consumer-side (definition/hover resolution) is covered in
+// oo::Helpers::link — ClassDef::linked_members population.
+// Consumer-side (definition/hover resolution) is covered in
 // tcl-lsp-core; this module is about `collect_oo_links` itself.
 mod oo_link {
     use super::*;
@@ -3722,7 +3722,7 @@ mod oo_link {
     }
 }
 
-// The `oo::Helpers` family is method-context-scoped (issue #1026).
+// The `oo::Helpers` family is method-context-scoped.
 //
 // tclsh 9.0.4, at the top level:
 //     link foo          -> invalid command name "link"
@@ -3963,7 +3963,7 @@ mod oo_helpers_scoping {
         assert!(!innermost_scope_is_oo_method_frame(&result.global_scope, 0));
     }
 
-    /// The per-class `initialise` scoping that issue #923 idx 36 added must
+    /// The per-class `initialise` scoping must
     /// survive being marked "not a method frame": two sibling classes'
     /// same-named class variables stay independent.
     #[test]
@@ -4239,7 +4239,7 @@ mod canonicalisation_matrix {
     }
 }
 
-// Issue #806 — report::defstyle scoped command environment.
+// report::defstyle scoped command environment.
 //
 // The style script exposes the report configuration methods (`top`, `data`,
 // `columns`, …) as commands available only inside the body.  The registry-
@@ -4265,7 +4265,7 @@ mod report_scoped_commands {
 
     #[test]
     fn tn_valid_body_no_w123() {
-        // The exact shape from the issue screenshot: line codes + operations.
+        // A representative shape: line codes + operations.
         let src = "::report::defstyle simpletable {} {\n\
                    \x20 top set [split \"x\"]\n\
                    \x20 data set [split \"y\"]\n\
@@ -4452,8 +4452,7 @@ mod report_scoped_commands {
     }
 }
 
-// Class factories and dynamically-installed members — issue #923 audit
-// cluster C3 (idx 43/44/53/55/96/97).
+// Class factories and dynamically-installed members.
 //
 // C-Tcl ground truth for every case below comes from tclsh 9.0.4 and
 // tclsh 8.6.16, which agree on all of them:

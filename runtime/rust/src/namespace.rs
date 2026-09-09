@@ -65,7 +65,7 @@ pub enum RenameOutcome {
     /// this also catches a same-slot "self-rename" like `rename foo foo`,
     /// which tclsh 9.0.4 refuses too, since the source is still occupying
     /// that slot at check time); both `old` and the occupant at `new` are
-    /// left untouched (issue #1412 item 1).
+    /// left untouched.
     TargetExists,
 }
 
@@ -589,7 +589,7 @@ impl Namespaces {
     /// (C creates them even when the rename is later refused). A trailing
     /// separator run names the empty-string `{}` command in the full qualifier
     /// chain (`rename foo x::` binds `::x::`, `rename bar ::` the global `{}` —
-    /// tclsh 8.6/9.0-pinned, #934), matching `command_home_ns` / `home_of`.
+    /// tclsh 8.6/9.0-pinned), matching `command_home_ns` / `home_of`.
     fn destination_of(&mut self, current: NsId, new: &[u8]) -> Option<(NsId, Vec<u8>)> {
         let absolute = new.starts_with(b"::");
         let segments = split_qualifier(new);
@@ -784,7 +784,7 @@ impl Namespaces {
         // A written name ending in a separator run names the empty-string
         // `{}` command inside its FULL qualifier chain — every segment is a
         // namespace part, none is the tail (`proc x:: {} {}` defines
-        // `::x::`, tclsh 8.6/9.0-pinned, #934) — mirroring `home_of`'s
+        // `::x::`, tclsh 8.6/9.0-pinned) — mirroring `home_of`'s
         // resolution split so definition and dispatch agree.
         let ns_parts: &[&[u8]] = if ends_with_separator(name) || name.is_empty() {
             &segments[..]
@@ -1540,7 +1540,7 @@ impl Namespaces {
         // A name ending in a separator run — or consisting only of colons, or
         // empty — names the empty-string `{}` command in the qualified
         // namespace; `qualifier_segments` drops that empty tail, so restore
-        // it (#934: with `proc {} {} {}` defined, `::` and `:::` both
+        // it (with `proc {} {} {}` defined, `::` and `:::` both
         // dispatch it, tclsh 8.6/9.0-pinned).
         let (simple, ns_parts): (&[u8], &[&[u8]]) = if ends_with_separator(name) || name.is_empty()
         {

@@ -825,7 +825,7 @@ fn render_dialect_surface(
 
 /// Every language the manifest contributes must also have an `onLanguage:`
 /// activation event, and nothing else may — or opening a file of that language
-/// activates nothing (16 of 19 were named, hand-written: issue #1625).
+/// activates nothing.
 fn verify_every_language_activates(root: &std::path::Path, langs: &[Language]) -> Result<()> {
     let manifest: Value = serde_json::from_str(&fs::read_to_string(root.join(VSCODE_PACKAGE))?)
         .context("parsing VS Code package.json")?;
@@ -874,8 +874,8 @@ fn verify_every_language_activates(root: &std::path::Path, langs: &[Language]) -
 ///
 /// The inverse of the drift check, and the half it cannot do: a surface that
 /// quietly drops out of [`DIALECT_SURFACES`] goes back to being
-/// hand-maintained and nothing ever notices — exactly the state issue #1625
-/// found Zed's secondary configs and Sublime's `iRule` / `Expect` syntaxes in.
+/// hand-maintained and nothing ever notices — the state Zed's secondary
+/// configs and Sublime's `iRule` / `Expect` syntaxes were once found in.
 fn verify_every_per_dialect_surface_is_generated(root: &std::path::Path) -> Result<()> {
     let generated: Vec<&str> = DIALECT_SURFACES.iter().map(|(rel, _, _)| *rel).collect();
 
@@ -906,8 +906,8 @@ type Render = Box<dyn Fn(&str, &[Language]) -> Result<String>>;
 ///
 /// Extracted from [`run`] so a test can assert on the *set* of targets. The
 /// drift gate cannot: deleting a target leaves its committed file matching
-/// itself, so the projection silently reverts to hand-maintained — which is
-/// exactly the state issue #1625 found six surfaces in.
+/// itself, so the projection silently reverts to hand-maintained without
+/// any check noticing.
 fn render_targets() -> Vec<(&'static str, Render)> {
     let mut renders: Vec<(&str, Render)> = vec![
         (VSCODE_PACKAGE, Box::new(render_vscode_package)),
@@ -1009,8 +1009,8 @@ pub fn run(check: bool) -> Result<ExitCode> {
 mod tests {
     use super::*;
 
-    /// Each of these takes the **committed** surface, breaks it the way it was
-    /// found broken in issue #1625, and asserts the render repairs it.
+    /// Each of these takes the **committed** surface, breaks it in a
+    /// realistic way, and asserts the render repairs it.
     ///
     /// That is deliberately not what `--check` proves. `--check` compares a
     /// render against the file it owns, so deleting the render leaves the

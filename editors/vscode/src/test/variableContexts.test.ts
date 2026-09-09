@@ -182,11 +182,11 @@ suite("Variable Completion: command contexts", () => {
   // $``) after the marker line so the cursor lands right after a fresh
   // ``$`` inside the surrounding proc body.
   //
-  // These ten probes used to each insert their own probe text and
-  // independently poll ``completionItemsAt`` on a fresh 10s budget before
-  // reverting — ten such polls stacked on top of Electron startup produced
-  // the intermittent cumulative timeout under constrained containers
-  // (issue #1059), even though any single probe settles in well under a
+  // Each probe inserting its own probe text and
+  // independently polling ``completionItemsAt`` on a fresh 10s budget before
+  // reverting — ten such polls stacked on top of Electron startup — would
+  // produce an intermittent cumulative timeout under constrained containers,
+  // even though any single probe settles in well under a
   // second once the server has caught up. Every probe marker sits in its
   // own, syntactically independent proc (see
   // ``testFixture/variableContexts.tcl``), so all ten insertions can

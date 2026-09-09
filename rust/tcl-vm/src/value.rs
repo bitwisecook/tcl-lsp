@@ -551,12 +551,12 @@ mod tests {
     /// Deliberately NOT 50,000+: constructing (and, at the end of this
     /// test, dropping) a `Value::list` chain nested that deep is its own,
     /// unrelated native-stack risk — `Value` has no custom `Drop` impl, so
-    /// the compiler-generated recursive drop glue walks the same chain
-    /// `to_str` used to (empirically, SIGABRT between depth 3500 and 4000
+    /// the compiler-generated recursive drop glue walks the same chain a
+    /// naive `to_str` would (empirically, SIGABRT between depth 3500 and 4000
     /// on a 2 MiB thread for construction+drop alone, independent of
     /// `to_str` or any other operation). That is a separate, genuinely
-    /// unbounded-depth concern in `Value`'s representation itself — out of
-    /// scope for this fix.
+    /// unbounded-depth concern in `Value`'s representation itself, and this
+    /// test does not cover it.
     #[test]
     fn deeply_nested_list_to_str_survives() {
         const DEPTH: usize = 2_000;

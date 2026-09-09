@@ -38,7 +38,7 @@ import {
   waitForProviderResult,
 } from "./helper";
 
-// Properties of the wait discipline itself (issue #1274).
+// Properties of the wait discipline itself.
 //
 // The suite's other tests assert what the server does; these assert what
 // happens when it *doesn't*. A stalled wait must fail at its bound with a
@@ -140,11 +140,11 @@ suite("Wait discipline (issue #1274)", () => {
   });
 
   test("waitForDiagnostics rejects on timeout rather than resolving with a partial set", async () => {
-    // The defect this replaces: on timeout it used to resolve with
-    // `getDiagnostics(uri)`. The fixture below really does publish
-    // diagnostics, so a lenient timeout would return a *non-empty*, entirely
-    // plausible set — and a negative assertion over it ("no diagnostic of kind
-    // ZZZ999") would pass without the awaited analysis ever having happened.
+    // A lenient timeout must not resolve with `getDiagnostics(uri)`: the
+    // fixture below really does publish diagnostics, so doing that would
+    // return a *non-empty*, entirely plausible set — and a negative
+    // assertion over it ("no diagnostic of kind ZZZ999") would pass without
+    // the awaited analysis ever having happened.
     await activate(docUri);
     const base = 1_000;
     const started = Date.now();
@@ -303,11 +303,11 @@ suite("Wait discipline (issue #1274)", () => {
     );
   });
 
-  // Attributability of a stalled document (issue #1294).
+  // Attributability of a stalled document.
   //
   // A timeout says the answer never came; on its own it cannot tell a wedged
-  // server apart from one document's queue being stuck, which is what left
-  // #1294's four consecutive `didOpen`-drain timeouts unexplainable. These pin
+  // server apart from one document's queue being stuck, which can leave
+  // consecutive `didOpen`-drain timeouts unexplainable. These pin
   // both halves: that the classification is right for every combination of
   // outcomes, and that the plumbing carries the verdict into the message
   // without ever being able to displace the failure it explains.
@@ -333,8 +333,8 @@ suite("Wait discipline (issue #1274)", () => {
       }),
       /DOCUMENT PIPELINE WEDGED/,
     );
-    // Another document answers, this one still does not — #1294's hypothesis,
-    // and the distinction the report could not previously make.
+    // Another document answers, this one still does not — the distinction a
+    // plain timeout cannot make.
     assert.match(
       classifyLiveness({
         transport: outcome(true),
@@ -355,9 +355,9 @@ suite("Wait discipline (issue #1274)", () => {
     // A transport probe that did not answer while a *document* hover did is
     // self-contradictory evidence, not the most general fault: the hover's
     // reply travelled the whole client → server → client path, which is the
-    // only thing "SERVER WEDGED" claims is broken. Issue #1600's occurrence
-    // read this way and skipped 212 tests on it; a byte-identical re-run then
-    // passed 899/899.
+    // only thing "SERVER WEDGED" claims is broken. A run reading the
+    // evidence this way skipped 212 tests on it; a byte-identical re-run
+    // then passed 899/899.
     for (const contradicted of [
       { transport: outcome(false), otherDocument: outcome(true), retry: outcome(true) },
       { transport: outcome(false), otherDocument: outcome(true), retry: outcome(false) },
@@ -373,7 +373,7 @@ suite("Wait discipline (issue #1274)", () => {
     }
   });
 
-  // Issue #1294: once the server answers nothing, every later test can only
+  // Once the server answers nothing, every later test can only
   // re-pay its wait budget to learn the same thing. The latch is what lets the
   // runner skip them, so it must arm on exactly the terminal verdict and no
   // other.
@@ -416,7 +416,7 @@ suite("Wait discipline (issue #1274)", () => {
     resetServerTransportWedged();
   });
 
-  // Issue #1600: three unanswered probes say "nothing answered"; they do not
+  // Three unanswered probes say "nothing answered"; they do not
   // say whether the server was spinning, parked, or had stopped reading stdin,
   // and a wedge that cannot be told apart from those is only ever re-runnable.
   // This pins the capture that closes that gap.

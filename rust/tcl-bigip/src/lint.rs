@@ -44,8 +44,7 @@ pub const SEVERITIES: [&str; 3] = ["error", "warning", "info"];
 /// report's `"category"` field) and [`run_lint`]'s `category` filter argument
 /// (the CLI `--category config|irule` spelling) both use this internally, but
 /// the wire spelling itself — the JSON string value, the CLI `value_parser` list
-/// — stays `"config"`/`"irule"` via [`LintCategory::as_str`]/`FromStr`, unchanged
-/// from before this enum existed.
+/// — stays `"config"`/`"irule"` via [`LintCategory::as_str`]/`FromStr`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LintCategory {
     /// The BIG-IP model / config-structure rules.
