@@ -200,7 +200,7 @@ The refactoring supports two source patterns:
 
 IP/CIDR detection parses each value as an IPv4 or IPv6 address, and a `addr/prefix` word as a CIDR range whose prefix width is checked against the address family, so both families are recognised. `suggest_datagroup_extractions` returns pattern type, variable name, inferred type, CIDR presence, body shape, confidence, and a pre-computed static result for each candidate.
 
-The data-group name defaults to `<variable>_whitelist` for a membership test and `<variable>_map` for a value mapping. The MCP tools and the CLI accept an explicit name; the editor code action uses the default.
+The data-group name defaults to `<variable>_whitelist` when the source is an if/elseif chain and `<variable>_map` when it is a `switch`, whatever the arm bodies do. The MCP tools accept an explicit name; the editor code action uses the default.
 
 ## Failure modes
 
