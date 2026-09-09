@@ -4,14 +4,20 @@
 Usage: gen.py <variant> <N> [--no-read] [--no-init] [--proc]
 Writes the script to stdout.
 """
+
 import sys
+
 
 def flat_if(n):
     # merge phi operands: (prev phi, concrete def)  -> linear chain
     return "\n".join("if {$c%d} { set x %d }" % (i, i) for i in range(n))
 
+
 def flat_if_else(n):
-    return "\n".join("if {$c%d} { set x %d } else { set x -%d }" % (i, i, i) for i in range(n))
+    return "\n".join(
+        "if {$c%d} { set x %d } else { set x -%d }" % (i, i, i) for i in range(n)
+    )
+
 
 def nested_if(n):
     # each stage: outer merge phi = phi(prev, inner merge phi) -> 2 phi operands
@@ -20,11 +26,16 @@ def nested_if(n):
         out.append("if {$c%d} {\n    if {$d%d} { set x %d }\n}" % (i, i, i))
     return "\n".join(out)
 
+
 def nested_if3(n):
     out = []
     for i in range(n):
-        out.append("if {$c%d} {\n    if {$d%d} {\n        if {$e%d} { set x %d }\n    }\n}" % (i, i, i, i))
+        out.append(
+            "if {$c%d} {\n    if {$d%d} {\n        if {$e%d} { set x %d }\n    }\n}"
+            % (i, i, i, i)
+        )
     return "\n".join(out)
+
 
 def switch_empty(n, arms=3):
     # arms-1 empty arms each carry the *previous* version on a distinct pred edge
@@ -36,16 +47,20 @@ def switch_empty(n, arms=3):
         out.append("switch -- $v%d {\n%s\n}" % (i, "\n".join(body)))
     return "\n".join(out)
 
+
 def switch_empty5(n):
     return switch_empty(n, arms=5)
+
 
 def if_empty_else(n):
     # if {c} {} else {}  -- neither arm writes; merge phi = phi(prev, prev) on 2 preds
     return "\n".join("if {$c%d} { incr q } else { incr r }" % (i,) for i in range(n))
 
+
 def foreach_nested_if(n):
     inner = nested_if(n)
     return "foreach it $items {\n%s\n}" % inner
+
 
 def foreach_flat_if(n):
     inner = flat_if(n)
@@ -54,21 +69,32 @@ def foreach_flat_if(n):
 
 def quartus_chain(n):
     """Right-leaning else-chain, Quartus nf_pma shape:
-       if A { if B { set x } } else { if A2 { if B { set x } } else { ... } }"""
+    if A { if B { set x } } else { if A2 { if B { set x } } else { ... } }"""
+
     def rec(i):
         if i >= n:
             return "if {$e%d} { set x %d }" % (n - 1, n - 1)
-        return ("if {$c%d} {\n    if {$d%d} { set x %d }\n} else {\n%s\n}"
-                % (i, i, i, "\n".join("    " + l for l in rec(i + 1).splitlines())))
+        return "if {$c%d} {\n    if {$d%d} { set x %d }\n} else {\n%s\n}" % (
+            i,
+            i,
+            i,
+            "\n".join("    " + l for l in rec(i + 1).splitlines()),
+        )
+
     return rec(0)
+
 
 def quartus_seq(n):
     """Sequence of small Quartus-shaped decision trees, each conditionally
-       writing the SAME variable -- the multiplicative case."""
+    writing the SAME variable -- the multiplicative case."""
     out = []
     for i in range(n):
-        out.append("if {$c%d} {\n    if {$d%d} { set x %d }\n} else {\n    if {$e%d} { set x -%d }\n}" % (i, i, i, i, i))
+        out.append(
+            "if {$c%d} {\n    if {$d%d} { set x %d }\n} else {\n    if {$e%d} { set x -%d }\n}"
+            % (i, i, i, i, i)
+        )
     return "\n".join(out)
+
 
 VARIANTS = {
     "quartus_chain": quartus_chain,
@@ -83,6 +109,7 @@ VARIANTS = {
     "foreach_nested_if": foreach_nested_if,
     "foreach_flat_if": foreach_flat_if,
 }
+
 
 def main():
     variant = sys.argv[1]
@@ -128,5 +155,6 @@ def main():
     else:
         print(preamble)
         print(core)
+
 
 main()

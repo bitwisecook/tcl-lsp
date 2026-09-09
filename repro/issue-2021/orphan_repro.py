@@ -40,6 +40,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 WORKSPACE_SCAN_SIGNAL = "[timing] workspace_folders_scan"
@@ -220,7 +221,9 @@ class Server:
             # workDoneProgress/create: null is the conforming answer.
             result = None
         try:
-            self._send({"jsonrpc": "2.0", "id": msg["id"], "result": result}, timeout=5.0)
+            self._send(
+                {"jsonrpc": "2.0", "id": msg["id"], "result": result}, timeout=5.0
+            )
         except (OSError, TimeoutError, ValueError):
             pass
 
@@ -252,7 +255,9 @@ class Server:
         with self._lock:
             rid = self._next_id
             self._next_id += 1
-        self._send({"jsonrpc": "2.0", "id": rid, "method": method, "params": params or {}})
+        self._send(
+            {"jsonrpc": "2.0", "id": rid, "method": method, "params": params or {}}
+        )
         return rid
 
     def wait_response(self, rid: int, timeout: float):
@@ -385,7 +390,11 @@ def run_session(args) -> dict:
 
     # Open a real, moderately large document so the diagnostics worker and
     # semantic-token convergence have work.
-    doc = Path(args.document).resolve() if getattr(args, "document", "") else pick_document(workspace)
+    doc = (
+        Path(args.document).resolve()
+        if getattr(args, "document", "")
+        else pick_document(workspace)
+    )
     text = doc.read_text(encoding="utf-8", errors="replace")
     uri = doc.as_uri()
     print(f"didOpen: {doc}  ({len(text.splitlines())} lines, {len(text)} bytes)")
@@ -397,7 +406,10 @@ def run_session(args) -> dict:
 
     # A couple of edits (full-document sync, matching the server's default
     # TextDocumentSyncKind) so the debounced diagnostics worker keeps churning.
-    for version, suffix in ((2, "\nset __repro_a 1\n"), (3, "\nset __repro_b [expr {1+")):
+    for version, suffix in (
+        (2, "\nset __repro_a 1\n"),
+        (3, "\nset __repro_b [expr {1+"),
+    ):
         time.sleep(0.15)
         srv.notify(
             "textDocument/didChange",
@@ -406,7 +418,9 @@ def run_session(args) -> dict:
                 "contentChanges": [{"text": text + suffix}],
             },
         )
-    sem_rid = srv.request("textDocument/semanticTokens/full", {"textDocument": {"uri": uri}})
+    sem_rid = srv.request(
+        "textDocument/semanticTokens/full", {"textDocument": {"uri": uri}}
+    )
     result["semantic_tokens_request_id"] = sem_rid
 
     # --- wait until the teardown point -----------------------------------
@@ -416,20 +430,26 @@ def run_session(args) -> dict:
             time.sleep(0.05)
         scan_line = srv.wait_scan(timeout=0.0)
         result["scan_seen_at_teardown"] = scan_line is not None
-        print(f"teardown at midscan (+{time.monotonic() - t_initialized:.2f}s after initialized); "
-              f"scan line seen already: {scan_line is not None}")
+        print(
+            f"teardown at midscan (+{time.monotonic() - t_initialized:.2f}s after initialized); "
+            f"scan line seen already: {scan_line is not None}"
+        )
     else:
         scan_line = srv.wait_scan(timeout=args.scan_timeout)
         if scan_line is None:
-            print(f"WARNING: no {WORKSPACE_SCAN_SIGNAL!r} within {args.scan_timeout}s; "
-                  "proceeding anyway")
+            print(
+                f"WARNING: no {WORKSPACE_SCAN_SIGNAL!r} within {args.scan_timeout}s; "
+                "proceeding anyway"
+            )
             result["scan_seen_at_teardown"] = False
         else:
             print(f"scan line: {scan_line.strip()}")
             result["scan_seen_at_teardown"] = True
             result["scan_line"] = scan_line.strip()
         time.sleep(3.0)
-        print(f"teardown at settled (+{time.monotonic() - t_initialized:.2f}s after initialized)")
+        print(
+            f"teardown at settled (+{time.monotonic() - t_initialized:.2f}s after initialized)"
+        )
 
     sem_resp = srv.wait_response(sem_rid, timeout=0.0)
     result["semantic_tokens_answered"] = sem_resp is not None
@@ -455,8 +475,10 @@ def run_session(args) -> dict:
         srv._answer_requests = False
     if sc == "exit-stdout-open":
         srv.close_stdin()
-        print("closed stdin; KEEPING stdout read end open (draining, not "
-              "replying) -> no EPIPE")
+        print(
+            "closed stdin; KEEPING stdout read end open (draining, not "
+            "replying) -> no EPIPE"
+        )
     else:
         srv.close_stdin()
         srv.close_stdout_read_end()
@@ -465,7 +487,9 @@ def run_session(args) -> dict:
 
     # --- observe ----------------------------------------------------------
     print()
-    print(f"{'t(s)':>5} {'alive':>5} {'state':>5} {'cpu%':>7} {'rss(MiB)':>9} {'thr':>4}")
+    print(
+        f"{'t(s)':>5} {'alive':>5} {'state':>5} {'cpu%':>7} {'rss(MiB)':>9} {'thr':>4}"
+    )
     samples = []
     prev = proc_state(srv.pid)
     prev_t = time.monotonic()
@@ -477,8 +501,10 @@ def run_session(args) -> dict:
         st = proc_state(srv.pid)
         if st is None or st[0] == "Z":
             exited_at = now - t_teardown
-            print(f"{now - t_teardown:5.1f} {'no':>5} {(st[0] if st else '-'):>5} "
-                  f"{'-':>7} {'-':>9} {'-':>4}")
+            print(
+                f"{now - t_teardown:5.1f} {'no':>5} {(st[0] if st else '-'):>5} "
+                f"{'-':>7} {'-':>9} {'-':>4}"
+            )
             break
         dt = now - prev_t
         if prev is not None:
@@ -487,9 +513,13 @@ def run_session(args) -> dict:
             cpu = 0.0
         rss = proc_rss_kib(srv.pid)
         thr = proc_threads(srv.pid)
-        samples.append({"t": now - t_teardown, "cpu": cpu, "rss_kib": rss, "threads": thr})
-        print(f"{now - t_teardown:5.1f} {'yes':>5} {st[0]:>5} {cpu:7.1f} "
-              f"{(rss or 0) / 1024:9.1f} {thr if thr is not None else '-':>4}")
+        samples.append(
+            {"t": now - t_teardown, "cpu": cpu, "rss_kib": rss, "threads": thr}
+        )
+        print(
+            f"{now - t_teardown:5.1f} {'yes':>5} {st[0]:>5} {cpu:7.1f} "
+            f"{(rss or 0) / 1024:9.1f} {thr if thr is not None else '-':>4}"
+        )
         prev, prev_t = st, now
 
     result["samples"] = samples
@@ -508,8 +538,10 @@ def run_session(args) -> dict:
         avg = sum(cpus) / len(cpus) if cpus else 0.0
         rss = samples[-1]["rss_kib"] if samples else 0
         thr = samples[-1]["threads"] if samples else 0
-        verdict = (f"ORPHAN alive after {args.observe} s "
-                   f"(cpu avg {avg:.1f}%, rss {(rss or 0) / 1024:.1f} MiB, threads {thr})")
+        verdict = (
+            f"ORPHAN alive after {args.observe} s "
+            f"(cpu avg {avg:.1f}%, rss {(rss or 0) / 1024:.1f} MiB, threads {thr})"
+        )
         result["verdict"] = "ORPHAN"
         result["cpu_avg"] = avg
         result["rss_mib"] = (rss or 0) / 1024
@@ -523,12 +555,22 @@ def run_session(args) -> dict:
         print(f"capturing gdb stacks -> {gdb_path}")
         try:
             out = subprocess.run(
-                ["gdb", "-p", str(srv.pid), "-batch",
-                 "-ex", "set pagination off",
-                 "-ex", "thread apply all bt 25"],
-                capture_output=True, timeout=180,
+                [
+                    "gdb",
+                    "-p",
+                    str(srv.pid),
+                    "-batch",
+                    "-ex",
+                    "set pagination off",
+                    "-ex",
+                    "thread apply all bt 25",
+                ],
+                capture_output=True,
+                timeout=180,
             )
-            gdb_path.write_bytes(out.stdout + b"\n===== gdb stderr =====\n" + out.stderr)
+            gdb_path.write_bytes(
+                out.stdout + b"\n===== gdb stderr =====\n" + out.stderr
+            )
             result["gdb"] = str(gdb_path)
         except (OSError, subprocess.TimeoutExpired) as exc:
             print(f"gdb failed: {exc}")
@@ -557,20 +599,32 @@ def run_session(args) -> dict:
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--binary", default=str(REPO_ROOT / "target/release/tcl-lsp-server"))
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ap.add_argument(
+        "--binary", default=str(REPO_ROOT / "target/release/tcl-lsp-server")
+    )
     ap.add_argument("--workspace", default=str(REPO_ROOT / "tmp/tcllib-2.0"))
     ap.add_argument("--scenario", choices=SCENARIOS, required=True)
     ap.add_argument("--at", choices=TIMINGS, default="settled")
     ap.add_argument("--observe", type=int, default=45)
     ap.add_argument("--scan-timeout", type=float, default=300.0)
-    ap.add_argument("--keep", action="store_true",
-                    help="leave a surviving server alive for inspection")
+    ap.add_argument(
+        "--keep",
+        action="store_true",
+        help="leave a surviving server alive for inspection",
+    )
     ap.add_argument("--outdir", default=str(Path(__file__).resolve().parent))
     ap.add_argument("--tag", default="", help="extra suffix for output filenames")
-    ap.add_argument("--document", default="", help="file to open instead of the auto-picked largest .tcl")
-    ap.add_argument("--json", default="", help="append the run result as JSON to this file")
+    ap.add_argument(
+        "--document",
+        default="",
+        help="file to open instead of the auto-picked largest .tcl",
+    )
+    ap.add_argument(
+        "--json", default="", help="append the run result as JSON to this file"
+    )
     args = ap.parse_args()
 
     res = run_session(args)
