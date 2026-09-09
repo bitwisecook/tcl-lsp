@@ -364,9 +364,10 @@ def _verify_listing(
 
     for binary_id, (_, assigned) in manifest.assignments.items():
         target = targets[binary_id]
-        if target.kind in {"lib", "bin"} or assigned == shard:
-            if binary_id not in seen_binary_ids:
-                raise VerificationError(f"{path}: assigned suite missing: {binary_id}")
+        if (
+            target.kind in {"lib", "bin"} or assigned == shard
+        ) and binary_id not in seen_binary_ids:
+            raise VerificationError(f"{path}: assigned suite missing: {binary_id}")
     if testcase_count == 0:
         raise VerificationError(f"{path}: listing contains no testcases")
     if declared_count != testcase_count:
