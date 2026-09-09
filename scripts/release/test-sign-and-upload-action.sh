@@ -43,10 +43,14 @@ while IFS= read -r glob; do
     globs+=("$glob")
 done < <(sed -n 's/^[[:space:]]*artefact-glob:[[:space:]]*"\(.*\)"[[:space:]]*$/\1/p' "$WORKFLOW")
 
+# Count the input rows, not every mention: anchoring to the start of the line
+# keeps prose about the input from inflating the total into a false mismatch,
+# while still counting a row whose value the parse above cannot read.
+#
 # `grep -c` exits non-zero on zero matches, which under `set -e` would abort
 # here with no diagnostic at all — the vacuity check below is the message worth
 # printing in that case.
-declared=$(grep -c 'artefact-glob:' "$WORKFLOW" || true)
+declared=$(grep -cE '^[[:space:]]*artefact-glob:' "$WORKFLOW" || true)
 if [[ ${#globs[@]} -eq 0 ]]; then
     echo "no artefact globs found in the workflow; resolver check is vacuous" >&2
     exit 1
