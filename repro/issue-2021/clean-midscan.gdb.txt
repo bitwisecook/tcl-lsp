@@ -1,0 +1,202 @@
+[New LWP 11196]
+[New LWP 11184]
+[New LWP 11183]
+[New LWP 11182]
+[New LWP 11181]
+[New LWP 11180]
+[New LWP 11179]
+[New LWP 11178]
+[New LWP 11177]
+[New LWP 11176]
+[New LWP 11175]
+[New LWP 11174]
+[New LWP 11173]
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+syscall () at ../sysdeps/unix/sysv/linux/x86_64/syscall.S:38
+
+Thread 14 (Thread 0x7fe1303ff6c0 (LWP 11173) "tokio-rt-worker"):
+#0  syscall () at ../sysdeps/unix/sysv/linux/x86_64/syscall.S:38
+#1  0x000055817419e2d6 in <tokio::runtime::scheduler::multi_thread::worker::Context>::park_internal ()
+#2  0x00005581741a2527 in tokio::runtime::scheduler::multi_thread::worker::run ()
+#3  0x0000558174192968 in tokio::runtime::task::raw::poll::<tokio::runtime::blocking::task::BlockingTask<<tokio::runtime::scheduler::multi_thread::worker::Launch>::launch::{closure#0}>, tokio::runtime::blocking::schedule::BlockingSchedule> ()
+#4  0x0000558174191886 in std::sys::backtrace::__rust_begin_short_backtrace::<<tokio::runtime::blocking::pool::Spawner>::spawn_thread::{closure#0}, ()> ()
+#5  0x000055817419430c in <std::thread::lifecycle::spawn_unchecked<<tokio::runtime::blocking::pool::Spawner>::spawn_thread::{closure#0}, ()>::{closure#1} as core::ops::function::FnOnce<()>>::call_once::{shim:vtable#0} ()
+#6  0x000055817292edb4 in <std::sys::thread::unix::Thread>::new::thread_start ()
+#7  0x00007fe13049caa4 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#8  0x00007fe130529c6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 13 (Thread 0x7fe12c3fe6c0 (LWP 11174) "tokio-rt-worker"):
+#0  syscall () at ../sysdeps/unix/sysv/linux/x86_64/syscall.S:38
+#1  0x000055817419d506 in <tokio::runtime::park::Inner>::park ()
+#2  0x00005581741950a3 in <tokio::runtime::time::Driver>::park_internal ()
+#3  0x000055817419e40e in <tokio::runtime::scheduler::multi_thread::worker::Context>::park_internal ()
+#4  0x00005581741a2527 in tokio::runtime::scheduler::multi_thread::worker::run ()
+#5  0x0000558174192968 in tokio::runtime::task::raw::poll::<tokio::runtime::blocking::task::BlockingTask<<tokio::runtime::scheduler::multi_thread::worker::Launch>::launch::{closure#0}>, tokio::runtime::blocking::schedule::BlockingSchedule> ()
+#6  0x0000558174191886 in std::sys::backtrace::__rust_begin_short_backtrace::<<tokio::runtime::blocking::pool::Spawner>::spawn_thread::{closure#0}, ()> ()
+#7  0x000055817419430c in <std::thread::lifecycle::spawn_unchecked<<tokio::runtime::blocking::pool::Spawner>::spawn_thread::{closure#0}, ()>::{closure#1} as core::ops::function::FnOnce<()>>::call_once::{shim:vtable#0} ()
+#8  0x000055817292edb4 in <std::sys::thread::unix::Thread>::new::thread_start ()
+#9  0x00007fe13049caa4 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#10 0x00007fe130529c6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 12 (Thread 0x7fe1283fd6c0 (LWP 11175) "tokio-rt-worker"):
+#0  syscall () at ../sysdeps/unix/sysv/linux/x86_64/syscall.S:38
+#1  0x000055817419e2d6 in <tokio::runtime::scheduler::multi_thread::worker::Context>::park_internal ()
+#2  0x00005581741a2527 in tokio::runtime::scheduler::multi_thread::worker::run ()
+#3  0x0000558174192968 in tokio::runtime::task::raw::poll::<tokio::runtime::blocking::task::BlockingTask<<tokio::runtime::scheduler::multi_thread::worker::Launch>::launch::{closure#0}>, tokio::runtime::blocking::schedule::BlockingSchedule> ()
+#4  0x0000558174191886 in std::sys::backtrace::__rust_begin_short_backtrace::<<tokio::runtime::blocking::pool::Spawner>::spawn_thread::{closure#0}, ()> ()
+#5  0x000055817419430c in <std::thread::lifecycle::spawn_unchecked<<tokio::runtime::blocking::pool::Spawner>::spawn_thread::{closure#0}, ()>::{closure#1} as core::ops::function::FnOnce<()>>::call_once::{shim:vtable#0} ()
+#6  0x000055817292edb4 in <std::sys::thread::unix::Thread>::new::thread_start ()
+#7  0x00007fe13049caa4 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#8  0x00007fe130529c6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 11 (Thread 0x7fe117fff6c0 (LWP 11176) "tokio-rt-worker"):
+#0  syscall () at ../sysdeps/unix/sysv/linux/x86_64/syscall.S:38
+#1  0x000055817419e2d6 in <tokio::runtime::scheduler::multi_thread::worker::Context>::park_internal ()
+#2  0x00005581741a2527 in tokio::runtime::scheduler::multi_thread::worker::run ()
+#3  0x0000558174192968 in tokio::runtime::task::raw::poll::<tokio::runtime::blocking::task::BlockingTask<<tokio::runtime::scheduler::multi_thread::worker::Launch>::launch::{closure#0}>, tokio::runtime::blocking::schedule::BlockingSchedule> ()
+#4  0x0000558174191886 in std::sys::backtrace::__rust_begin_short_backtrace::<<tokio::runtime::blocking::pool::Spawner>::spawn_thread::{closure#0}, ()> ()
+#5  0x000055817419430c in <std::thread::lifecycle::spawn_unchecked<<tokio::runtime::blocking::pool::Spawner>::spawn_thread::{closure#0}, ()>::{closure#1} as core::ops::function::FnOnce<()>>::call_once::{shim:vtable#0} ()
+#6  0x000055817292edb4 in <std::sys::thread::unix::Thread>::new::thread_start ()
+#7  0x00007fe13049caa4 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#8  0x00007fe130529c6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 10 (Thread 0x7fe10bfff6c0 (LWP 11177) "tokio-rt-worker"):
+#0  syscall () at ../sysdeps/unix/sysv/linux/x86_64/syscall.S:38
+#1  0x000055817290f9db in <std::sys::sync::condvar::futex::Condvar>::wait_optional_timeout ()
+#2  0x000055817419179c in std::sys::backtrace::__rust_begin_short_backtrace::<<tokio::runtime::blocking::pool::Spawner>::spawn_thread::{closure#0}, ()> ()
+#3  0x000055817419430c in <std::thread::lifecycle::spawn_unchecked<<tokio::runtime::blocking::pool::Spawner>::spawn_thread::{closure#0}, ()>::{closure#1} as core::ops::function::FnOnce<()>>::call_once::{shim:vtable#0} ()
+#4  0x000055817292edb4 in <std::sys::thread::unix::Thread>::new::thread_start ()
+#5  0x00007fe13049caa4 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#6  0x00007fe130529c6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 9 (Thread 0x7fe0fffff6c0 (LWP 11178) "tokio-rt-worker"):
+#0  0x00005581727f0d01 in <core::fmt::Formatter>::pad ()
+#1  0x00005581727f1d8a in core::fmt::write ()
+#2  0x00005581727ebfe4 in alloc::fmt::format::format_inner ()
+#3  0x000055817319bfdb in <tcl_dialect::model::authored_surface::SpecSurface>::covers ()
+#4  0x00005581731aa3be in tcl_dialect::model::authored_surface::surface_admits ()
+#5  0x0000558173c253fa in <tcl_registry::registry::CommandRegistry>::spec_visible ()
+#6  0x0000558173c2684d in <tcl_registry::registry::CommandRegistry>::get_for_surface ()
+#7  0x0000558173c3172d in <tcl_registry::registry::CommandRegistry>::resolve_structured_invocation ()
+#8  0x0000558172cedebb in <tcl_compiler::analyser::state::Analyser>::emit_dispatch_site_diagnostics ()
+#9  0x0000558172cce974 in <tcl_compiler::analyser::state::Analyser>::process_command ()
+#10 0x0000558172cc8982 in <tcl_compiler::analyser::state::Analyser>::analyse_body ()
+#11 0x0000558172cd07e7 in <tcl_compiler::analyser::state::Analyser>::process_command ()
+#12 0x0000558172cc8982 in <tcl_compiler::analyser::state::Analyser>::analyse_body ()
+#13 0x0000558172e11854 in <tcl_compiler::analyser::state::Analyser>::handle_proc_command ()
+#14 0x0000558172ccf037 in <tcl_compiler::analyser::state::Analyser>::process_command ()
+#15 0x0000558172d9c628 in <tcl_compiler::analyser::state::Analyser>::walk_commands_top_level ()
+#16 0x0000558172da4f11 in <tcl_compiler::analyser::state::Analyser>::analyse ()
+#17 0x00005581738b2eae in tokio::runtime::task::raw::poll::<tokio::runtime::blocking::task::BlockingTask<<tcl_lsp_server::Backend>::analyse_and_merge_scanned_files::{closure#0}::{closure#0}::{closure#0}>, tokio::runtime::blocking::schedule::BlockingSchedule> ()
+#18 0x0000558174191886 in std::sys::backtrace::__rust_begin_short_backtrace::<<tokio::runtime::blocking::pool::Spawner>::spawn_thread::{closure#0}, ()> ()
+#19 0x000055817419430c in <std::thread::lifecycle::spawn_unchecked<<tokio::runtime::blocking::pool::Spawner>::spawn_thread::{closure#0}, ()>::{closure#1} as core::ops::function::FnOnce<()>>::call_once::{shim:vtable#0} ()
+#20 0x000055817292edb4 in <std::sys::thread::unix::Thread>::new::thread_start ()
+#21 0x00007fe13049caa4 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#22 0x00007fe130529c6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 8 (Thread 0x7fe0f3fff6c0 (LWP 11179) "tokio-rt-worker"):
+#0  syscall () at ../sysdeps/unix/sysv/linux/x86_64/syscall.S:38
+#1  0x000055817290f9db in <std::sys::sync::condvar::futex::Condvar>::wait_optional_timeout ()
+#2  0x000055817419179c in std::sys::backtrace::__rust_begin_short_backtrace::<<tokio::runtime::blocking::pool::Spawner>::spawn_thread::{closure#0}, ()> ()
+#3  0x000055817419430c in <std::thread::lifecycle::spawn_unchecked<<tokio::runtime::blocking::pool::Spawner>::spawn_thread::{closure#0}, ()>::{closure#1} as core::ops::function::FnOnce<()>>::call_once::{shim:vtable#0} ()
+#4  0x000055817292edb4 in <std::sys::thread::unix::Thread>::new::thread_start ()
+#5  0x00007fe13049caa4 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#6  0x00007fe130529c6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 7 (Thread 0x7fe0e7fff6c0 (LWP 11180) "tokio-rt-worker"):
+#0  syscall () at ../sysdeps/unix/sysv/linux/x86_64/syscall.S:38
+#1  0x000055817290f9db in <std::sys::sync::condvar::futex::Condvar>::wait_optional_timeout ()
+#2  0x000055817419179c in std::sys::backtrace::__rust_begin_short_backtrace::<<tokio::runtime::blocking::pool::Spawner>::spawn_thread::{closure#0}, ()> ()
+#3  0x000055817419430c in <std::thread::lifecycle::spawn_unchecked<<tokio::runtime::blocking::pool::Spawner>::spawn_thread::{closure#0}, ()>::{closure#1} as core::ops::function::FnOnce<()>>::call_once::{shim:vtable#0} ()
+#4  0x000055817292edb4 in <std::sys::thread::unix::Thread>::new::thread_start ()
+#5  0x00007fe13049caa4 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#6  0x00007fe130529c6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 6 (Thread 0x7fe0dbfff6c0 (LWP 11181) "tokio-rt-worker"):
+#0  0x0000558172feb048 in tcl_compiler::taint::local_instance_classes_with_initial ()
+#1  0x0000558172fbcd9f in tcl_compiler::ssa::enrich_instance_option_defs_with_initial ()
+#2  0x0000558172f50e3b in tcl_compiler::interprocedural::direct_instance_option_writes ()
+#3  0x0000558172dbe0ae in <tcl_compiler::compilation_unit::CompilationUnit>::build_with ()
+#4  0x0000558172d6080a in <tcl_compiler::analyser::state::Analyser>::emit_cfg_ssa_diagnostics ()
+#5  0x0000558172d92560 in <tcl_compiler::analyser::state::Analyser>::run_diagnostic_emitters ()
+#6  0x0000558172da4f54 in <tcl_compiler::analyser::state::Analyser>::analyse ()
+#7  0x00005581738b2eae in tokio::runtime::task::raw::poll::<tokio::runtime::blocking::task::BlockingTask<<tcl_lsp_server::Backend>::analyse_and_merge_scanned_files::{closure#0}::{closure#0}::{closure#0}>, tokio::runtime::blocking::schedule::BlockingSchedule> ()
+#8  0x0000558174191886 in std::sys::backtrace::__rust_begin_short_backtrace::<<tokio::runtime::blocking::pool::Spawner>::spawn_thread::{closure#0}, ()> ()
+#9  0x000055817419430c in <std::thread::lifecycle::spawn_unchecked<<tokio::runtime::blocking::pool::Spawner>::spawn_thread::{closure#0}, ()>::{closure#1} as core::ops::function::FnOnce<()>>::call_once::{shim:vtable#0} ()
+#10 0x000055817292edb4 in <std::sys::thread::unix::Thread>::new::thread_start ()
+#11 0x00007fe13049caa4 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#12 0x00007fe130529c6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 5 (Thread 0x7fe0cffff6c0 (LWP 11182) "tokio-rt-worker"):
+#0  syscall () at ../sysdeps/unix/sysv/linux/x86_64/syscall.S:38
+#1  0x000055817290f9db in <std::sys::sync::condvar::futex::Condvar>::wait_optional_timeout ()
+#2  0x000055817419179c in std::sys::backtrace::__rust_begin_short_backtrace::<<tokio::runtime::blocking::pool::Spawner>::spawn_thread::{closure#0}, ()> ()
+#3  0x000055817419430c in <std::thread::lifecycle::spawn_unchecked<<tokio::runtime::blocking::pool::Spawner>::spawn_thread::{closure#0}, ()>::{closure#1} as core::ops::function::FnOnce<()>>::call_once::{shim:vtable#0} ()
+#4  0x000055817292edb4 in <std::sys::thread::unix::Thread>::new::thread_start ()
+#5  0x00007fe13049caa4 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#6  0x00007fe130529c6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 4 (Thread 0x7fe0c3fff6c0 (LWP 11183) "tokio-rt-worker"):
+#0  __memcmp_evex_movbe () at ../sysdeps/x86_64/multiarch/memcmp-evex-movbe.S:132
+#1  0x00005581731a21ab in tcl_dialect::version::satisfies_internal ()
+#2  0x000055817319c02c in <tcl_dialect::model::authored_surface::SpecSurface>::covers ()
+#3  0x00005581731aa3be in tcl_dialect::model::authored_surface::surface_admits ()
+#4  0x0000558173c428c2 in <tcl_registry::spec::CommandSpec>::subcommand_table ()
+#5  0x0000558173c31793 in <tcl_registry::registry::CommandRegistry>::resolve_structured_invocation ()
+#6  0x0000558173c30d4a in <tcl_registry::registry::CommandRegistry>::command_binding_transitions ()
+#7  0x0000558172fcd453 in tcl_compiler::alias::command_table_transitions ()
+#8  0x0000558172fe60cb in tcl_compiler::taint::transfer_instance_lifecycle ()
+#9  0x0000558172fe7026 in tcl_compiler::taint::transfer_instance_statement ()
+#10 0x0000558172fec1f3 in tcl_compiler::taint::local_instance_classes_with_initial ()
+#11 0x0000558172fea4cd in tcl_compiler::taint::instance_classes_for_function ()
+#12 0x0000558172a95b73 in <tcl_compiler::compilation_unit::FunctionUnit>::build_full::<&alloc::string::String> ()
+#13 0x0000558172a96df5 in <tcl_compiler::compilation_unit::FunctionUnit>::build_with_param_constants_and_classes::<&alloc::string::String> ()
+#14 0x0000558172dc2fec in <tcl_compiler::compilation_unit::CompilationUnit>::build_with ()
+#15 0x0000558172d6080a in <tcl_compiler::analyser::state::Analyser>::emit_cfg_ssa_diagnostics ()
+#16 0x0000558172d92560 in <tcl_compiler::analyser::state::Analyser>::run_diagnostic_emitters ()
+#17 0x0000558172da4f54 in <tcl_compiler::analyser::state::Analyser>::analyse ()
+#18 0x00005581738b2eae in tokio::runtime::task::raw::poll::<tokio::runtime::blocking::task::BlockingTask<<tcl_lsp_server::Backend>::analyse_and_merge_scanned_files::{closure#0}::{closure#0}::{closure#0}>, tokio::runtime::blocking::schedule::BlockingSchedule> ()
+#19 0x0000558174191886 in std::sys::backtrace::__rust_begin_short_backtrace::<<tokio::runtime::blocking::pool::Spawner>::spawn_thread::{closure#0}, ()> ()
+#20 0x000055817419430c in <std::thread::lifecycle::spawn_unchecked<<tokio::runtime::blocking::pool::Spawner>::spawn_thread::{closure#0}, ()>::{closure#1} as core::ops::function::FnOnce<()>>::call_once::{shim:vtable#0} ()
+#21 0x000055817292edb4 in <std::sys::thread::unix::Thread>::new::thread_start ()
+#22 0x00007fe13049caa4 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#23 0x00007fe130529c6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 3 (Thread 0x7fe0affff6c0 (LWP 11184) "tokio-rt-worker"):
+#0  syscall () at ../sysdeps/unix/sysv/linux/x86_64/syscall.S:38
+#1  0x000055817290f9db in <std::sys::sync::condvar::futex::Condvar>::wait_optional_timeout ()
+#2  0x000055817419179c in std::sys::backtrace::__rust_begin_short_backtrace::<<tokio::runtime::blocking::pool::Spawner>::spawn_thread::{closure#0}, ()> ()
+#3  0x000055817419430c in <std::thread::lifecycle::spawn_unchecked<<tokio::runtime::blocking::pool::Spawner>::spawn_thread::{closure#0}, ()>::{closure#1} as core::ops::function::FnOnce<()>>::call_once::{shim:vtable#0} ()
+#4  0x000055817292edb4 in <std::sys::thread::unix::Thread>::new::thread_start ()
+#5  0x00007fe13049caa4 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#6  0x00007fe130529c6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 2 (Thread 0x7fe0abffe6c0 (LWP 11196) "tokio-rt-worker"):
+#0  0x00005581732f2e8a in <tcl_lexer::lexer::Lexer as core::iter::traits::iterator::Iterator>::next ()
+#1  0x00005581732e550a in <tcl_lexer::lexer::Lexer>::tokenise_all ()
+#2  0x0000558172cc6533 in <tcl_compiler::analyser::utils::CommentLineWalker>::visit ()
+#3  0x0000558172cc72c6 in <tcl_compiler::analyser::utils::CommentLineWalker>::visit ()
+#4  0x0000558173074c5a in tcl_compiler::analyser::utils::script_comment_facts ()
+#5  0x000055817307a640 in tcl_compiler::analyser::utils::parse_noqa_line_suppressions_for_dialect ()
+#6  0x0000558172da3be5 in <tcl_compiler::analyser::state::Analyser>::analyse ()
+#7  0x00005581738b2eae in tokio::runtime::task::raw::poll::<tokio::runtime::blocking::task::BlockingTask<<tcl_lsp_server::Backend>::analyse_and_merge_scanned_files::{closure#0}::{closure#0}::{closure#0}>, tokio::runtime::blocking::schedule::BlockingSchedule> ()
+#8  0x0000558174191886 in std::sys::backtrace::__rust_begin_short_backtrace::<<tokio::runtime::blocking::pool::Spawner>::spawn_thread::{closure#0}, ()> ()
+#9  0x000055817419430c in <std::thread::lifecycle::spawn_unchecked<<tokio::runtime::blocking::pool::Spawner>::spawn_thread::{closure#0}, ()>::{closure#1} as core::ops::function::FnOnce<()>>::call_once::{shim:vtable#0} ()
+#10 0x000055817292edb4 in <std::sys::thread::unix::Thread>::new::thread_start ()
+#11 0x00007fe13049caa4 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#12 0x00007fe130529c6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Thread 1 (Thread 0x7fe13072ae40 (LWP 11171) "tcl-lsp-server"):
+#0  syscall () at ../sysdeps/unix/sysv/linux/x86_64/syscall.S:38
+#1  0x000055817419d506 in <tokio::runtime::park::Inner>::park ()
+#2  0x0000558173ad2ff0 in tcl_lsp_server::main ()
+#3  0x00005581738919e3 in std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()> ()
+#4  0x00005581739b73b9 in std::rt::lang_start::<()>::{closure#0} ()
+#5  0x0000558172924b3b in std::rt::lang_start_internal ()
+#6  0x0000558173b8ab75 in main ()
+[Inferior 1 (process 11171) detached]
+
+===== gdb stderr =====
+
+warning: 38	../sysdeps/unix/sysv/linux/x86_64/syscall.S: No such file or directory
