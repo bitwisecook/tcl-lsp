@@ -74,16 +74,24 @@ const WORKER_STACK_SIZE: usize = 64 * 1024 * 1024;
 
 #[cfg(not(target_family = "wasm"))]
 fn main() {
-    tokio::runtime::Builder::new_multi_thread()
+    let code = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .thread_stack_size(WORKER_STACK_SIZE)
         .build()
         .expect("failed to build the Tokio runtime")
         .block_on(serve());
+    // Never return through `Runtime::drop` (issue #2021). Dropping the runtime
+    // first cancels every spawned task and then *blocks on every running
+    // `spawn_blocking` closure* — a scan or analysis that is still going when
+    // the client leaves has nobody to deliver to, yet used to keep the
+    // process alive at full CPU until it finished. The session is over, the
+    // pump has drained (`serve` awaits it), so exit now with the code the LSP
+    // `exit` notification prescribes.
+    std::process::exit(code);
 }
 
 #[cfg(not(target_family = "wasm"))]
-async fn serve() {
+async fn serve() -> i32 {
     // Exit watchdog (issue #2021): `Server::serve` below only returns once
     // every in-flight handler future has completed, however the session
     // ended, and nothing cancels a still-running `initialized` scan or an
@@ -97,11 +105,10 @@ async fn serve() {
     // `stdout_drained.await`, `main` returning) always wins when it finishes
     // first, so this is purely insurance for when it does not.
     let exit_signal = ExitSignal::new();
-    // The handle is intentionally not awaited or aborted: dropping it leaves
-    // the task running detached (Tokio's `JoinHandle`, unlike `futures`',
-    // never aborts on drop), which is exactly right here — the watchdog must
-    // keep waiting for its signal for the rest of the process's life.
+    // An OS thread, detached: it must outlive the runtime, and it keeps
+    // waiting for its signal for the rest of the process's life.
     let _watchdog = exit_signal.spawn();
+    let exit_code_signal = exit_signal.clone();
     let stdin = EofSignalingReader::new(tokio::io::stdin(), exit_signal.clone());
     // INVARIANT (no wedged sessions): the transport's write half must never be
     // the reason its read half stops. `tower-lsp-server` 0.23 joins
@@ -164,6 +171,7 @@ async fn serve() {
     // finish. Awaiting it here is what stops a burst of diagnostics sitting in
     // the queue from being lost to `main` returning out from under it.
     let _ = stdout_drained.await;
+    exit_code_signal.exit_code()
 }
 
 /// Stands in for the real `main` on wasm, where there is no stdio to serve

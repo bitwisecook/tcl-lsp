@@ -44,16 +44,21 @@
 //! `stdin`, and [`ExitSignal::observe_request`] plugged into the transport's
 //! `map_request` chain — and [`ExitSignal::spawn`] starts the backstop task
 //! that turns either signal into a bounded-grace [`std::process::exit`].
-//! The **normal exit path always wins when it finishes first**: `serve`
-//! returning, `stdout_drained.await`, and `main` returning happen exactly as
-//! before, this task merely also being spawned changes nothing about them.
-//! The watchdog only matters when that path does not finish inside the grace
-//! period, which is precisely the case it exists to catch.
+//! The backstop is an OS thread, not a Tokio task, and `main` exits the
+//! process explicitly once `serve` returns rather than letting `Runtime::drop`
+//! run. Both follow from the third case above: a runtime tear-down cancels
+//! every spawned task (a Tokio-task watchdog would die at exactly the moment
+//! it was needed) and then blocks on the running blocking closures, which is
+//! how a session that ended cleanly after a large scan still sat at 100 % of
+//! one core for as long as the analysis it no longer had a client for took.
+//! The **normal exit path still wins when it finishes first**: `serve`
+//! returning and `stdout_drained.await` happen exactly as before, and the
+//! explicit exit that follows lands well inside the grace period.
 
 use std::io;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Condvar, Mutex};
 use std::task::{Context, Poll};
 use std::time::Duration;
 
@@ -81,21 +86,23 @@ fn grace_period() -> Duration {
 const DEFAULT_EXIT_GRACE: Duration = Duration::from_millis(3_000);
 
 /// Shared state fed by [`EofSignalingReader`] and [`ExitSignal::observe_request`],
-/// and read back by the watchdog task [`ExitSignal::spawn`] starts.
+/// and read back by the watchdog thread [`ExitSignal::spawn`] starts.
 ///
 /// Cheaply `Clone`: every field is an `Arc`, so every clone observes the same
 /// underlying signal.
 #[derive(Debug, Clone)]
 pub struct ExitSignal {
-    /// Fires once the session is over, however that was learned.
-    session_over: Arc<tokio::sync::Notify>,
+    /// Set once the session is over, however that was learned; the condvar
+    /// wakes the watchdog thread. A plain `std` pair rather than a Tokio
+    /// primitive because the waiter is an OS thread that must outlive the
+    /// runtime.
+    session_over: Arc<(Mutex<bool>, Condvar)>,
     /// Whether `shutdown` was seen before the session ended — the LSP spec's
     /// distinction between a clean `exit` (code 0) and an unclean one
     /// (code 1).
     shutdown_seen: Arc<AtomicBool>,
-    /// Guards `session_over` against firing its permit more than once; a
-    /// second EOF poll or a stray repeated `exit` notification must not
-    /// queue up extra wakes the single watchdog waiter never consumes.
+    /// Whether `session_over` has been raised; a second EOF poll or a stray
+    /// repeated `exit` notification is a no-op.
     fired: Arc<AtomicBool>,
 }
 
@@ -110,7 +117,7 @@ impl ExitSignal {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            session_over: Arc::new(tokio::sync::Notify::new()),
+            session_over: Arc::new((Mutex::new(false), Condvar::new())),
             shutdown_seen: Arc::new(AtomicBool::new(false)),
             fired: Arc::new(AtomicBool::new(false)),
         }
@@ -120,16 +127,24 @@ impl ExitSignal {
     /// notification, whichever is observed first — and arm the watchdog's
     /// grace timer.
     ///
-    /// `Notify::notify_one` (not `notify_waiters`) is what makes the ordering
-    /// between this call and [`Self::spawn`]'s `.notified().await` not
-    /// matter: a `notify_one` that lands before anyone is waiting is
-    /// remembered as a permit and consumed by the next `.notified().await`,
-    /// so a session that ends before the watchdog task is even polled for
-    /// the first time still wakes it promptly.
+    /// The flag is set under the mutex the watchdog waits on, so a session
+    /// that ends before the thread reaches its wait is still seen: the wait
+    /// checks the flag before parking.
     pub fn record_session_over(&self) {
         if !self.fired.swap(true, Ordering::AcqRel) {
-            self.session_over.notify_one();
+            let (flag, condvar) = &*self.session_over;
+            *flag
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = true;
+            condvar.notify_all();
         }
+    }
+
+    /// The process exit code the LSP `exit` notification prescribes: `0` if
+    /// `shutdown` was received first, `1` otherwise.
+    #[must_use]
+    pub fn exit_code(&self) -> i32 {
+        i32::from(!self.shutdown_seen.load(Ordering::Acquire))
     }
 
     /// Record that a `shutdown` request was seen, so a later `exit`/EOF
@@ -152,25 +167,37 @@ impl ExitSignal {
         request
     }
 
-    /// Start the backstop task: wait for the session to end, sleep out the
-    /// grace period, then hard-exit.
+    /// Start the backstop thread: wait for the session to end, sleep out the
+    /// grace period, then hard-exit with [`Self::exit_code`].
     ///
-    /// Exit code follows the LSP spec's `exit` notification: `0` if
-    /// `shutdown` was received first, `1` otherwise. This never runs at all
-    /// on the path that matters most — `serve` returning, `stdout_drained`
-    /// draining, and `main` returning on its own — because that unwinds the
-    /// runtime (dropping this detached task, mid-sleep, without consequence)
-    /// well before the grace period would elapse in practice. It exists
-    /// purely for when that path does not finish in time.
+    /// An OS thread rather than a Tokio task so that it survives the
+    /// runtime's own shutdown: `Runtime::drop` cancels every spawned task and
+    /// then blocks on running `spawn_blocking` closures, so a task-based
+    /// watchdog would be dropped at precisely the moment the process needed
+    /// it. The thread is detached (the handle is returned only so a caller
+    /// can name it); it never finishes on the normal path, because `main`
+    /// exits the process first.
     #[must_use]
-    pub fn spawn(&self) -> tokio::task::JoinHandle<()> {
+    pub fn spawn(&self) -> std::thread::JoinHandle<()> {
         let signal = self.clone();
-        tokio::spawn(async move {
-            signal.session_over.notified().await;
-            tokio::time::sleep(grace_period()).await;
-            let code = i32::from(!signal.shutdown_seen.load(Ordering::Acquire));
-            std::process::exit(code);
-        })
+        let grace = grace_period();
+        std::thread::Builder::new()
+            .name("tcl-lsp-exit-watchdog".to_owned())
+            .spawn(move || {
+                let (flag, condvar) = &*signal.session_over;
+                let mut over = flag
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                while !*over {
+                    over = condvar
+                        .wait(over)
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                }
+                drop(over);
+                std::thread::sleep(grace);
+                std::process::exit(signal.exit_code());
+            })
+            .expect("spawning the exit watchdog thread")
     }
 }
 
@@ -216,8 +243,6 @@ impl<R: AsyncRead + Unpin> AsyncRead for EofSignalingReader<R> {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use tokio::io::AsyncReadExt as _;
 
     use super::*;
@@ -249,8 +274,8 @@ mod tests {
     }
 
     /// A second EOF read (a caller that keeps polling past end-of-stream, as
-    /// `tower-lsp-server`'s framed reader may) must not queue a second
-    /// permit the single watchdog waiter never consumes.
+    /// `tower-lsp-server`'s framed reader may) is a no-op: the session-over
+    /// flag is raised once and stays raised.
     #[tokio::test]
     async fn repeated_eof_reads_signal_only_once() {
         let signal = ExitSignal::new();
@@ -262,15 +287,29 @@ mod tests {
             assert_eq!(n, 0);
         }
 
-        // One permit was recorded; draining it once must not leave a second
-        // one behind for a waiter that arrives later.
-        signal.session_over.notified().await;
-        let woke_again =
-            tokio::time::timeout(Duration::from_millis(50), signal.session_over.notified()).await;
+        assert!(signal.fired.load(Ordering::Acquire));
+        let (flag, _) = &*signal.session_over;
         assert!(
-            woke_again.is_err(),
-            "three EOF reads must leave exactly one permit, not three"
+            *flag.lock().unwrap(),
+            "the flag the watchdog waits on is set"
         );
+    }
+
+    /// The watchdog thread parks until the session ends and then wakes: a
+    /// flag raised *before* the thread reaches its wait is still seen, and
+    /// the exit code follows whether `shutdown` was recorded.
+    #[test]
+    fn a_session_over_raised_before_the_wait_is_still_seen() {
+        let signal = ExitSignal::new();
+        signal.record_session_over();
+        let (flag, condvar) = &*signal.session_over;
+        let mut over = flag.lock().unwrap();
+        while !*over {
+            over = condvar.wait(over).unwrap();
+        }
+        assert_eq!(signal.exit_code(), 1, "no shutdown seen");
+        signal.record_shutdown();
+        assert_eq!(signal.exit_code(), 0);
     }
 
     /// [`ExitSignal::observe_request`] is the `map_request` half of the
@@ -300,7 +339,6 @@ mod tests {
             signal.fired.load(Ordering::Acquire),
             "exit must end the session"
         );
-        signal.session_over.notified().await;
     }
 
     /// `exit` with no prior `shutdown` still ends the session — the watchdog
