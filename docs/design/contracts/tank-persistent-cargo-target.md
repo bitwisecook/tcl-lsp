@@ -33,8 +33,8 @@ the descriptor in the command process. Compiler-cache daemons and other
 descendants may outlive Cargo without retaining the target lock into the next
 CI step.
 
-The runner job concurrency group remains `tank`, with `queue: max` and
-`cancel-in-progress: false`. Cargo commands hold the target's advisory
+The runner job concurrency group remains `rust-tests-tank`, with `queue: max`
+and `cancel-in-progress: false`. Cargo commands hold the target's advisory
 `flock`; the bounded janitor examines only old, correctly marked direct
 children of the dedicated root. It scans every direct child, but removes at
 most `TCL_LSP_TANK_JANITOR_LIMIT` eligible targets per run. This avoids

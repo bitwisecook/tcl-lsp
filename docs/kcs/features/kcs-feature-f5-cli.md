@@ -5,25 +5,32 @@
 
 ## Summary
 
-`f5` is a stdlib-only CLI for working with BIG-IP configurations.  It
-ships ~20 verbs covering the operator workflow: pull a config from a
-device, analyse and lint it, transform it (rename, redact, split,
-emit `tmsh`, convert to AS3), share it safely (redaction is
-reversible via a sidecar map file), and push edits back.
+`f5` is the native CLI for working with BIG-IP configurations: pull a
+config from a device, analyse and lint it, transform it (rename, redact,
+split, emit `tmsh`, convert to AS3), share it safely, and push edits back.
 
 ## Applies to
 
-`f5` CLI (the native `f5-query` binary, `rust/f5-cli`)
+tcl-lsp CLI
 
 ## Question
 
 I have a BIG-IP — what can I do with `f5`?
 
+## Example
+
+```sh
+f5 stats bigip.conf
+f5 explain virtual /Common/vs_app bigip.conf
+f5 grep --cidr 10.0.0.0/8 bigip.conf
+f5 validate bigip.conf --format sarif > findings.sarif
+```
+
 ## How to use
 
-The CLI groups verbs by lifecycle phase.
+The verbs group by what you are doing.
 
-### 1.  Acquire
+### Acquire
 
 | Verb | Purpose |
 | --- | --- |
@@ -31,10 +38,10 @@ The CLI groups verbs by lifecycle phase.
 | `f5 extract` (alias `ucs2scf`) | Unpack a local UCS file to SCF text. |
 
 ```sh
-# REST (default), credentials via env / XDG / prompt
+# REST, credentials via env / XDG / prompt
 F5_HOST=bigip01 F5_USER=admin f5 fetch --transport rest
 
-# SSH with explicit creds
+# SSH with an explicit host and user
 f5 fetch --transport ssh --host bigip01 --user admin
 
 # Convert a UCS that was scp'd off a device
@@ -42,31 +49,22 @@ f5 extract device.ucs > device.scf
 ```
 
 `fetch` defaults to caching under `$XDG_CACHE_HOME/f5/<host>/<UTC-timestamp>/`
-with a `latest` symlink alongside.  `--output -` streams the SCF to
-stdout.  `--format ucs|both` keeps the UCS bytes too.
+with a `latest` symlink alongside.  `--output -` streams the SCF to stdout.
+`--format ucs|both` keeps the UCS bytes too.
 
-### 2.  Analyse
+### Analyse
 
 | Verb | Purpose |
 | --- | --- |
 | `f5 stats` (alias `summary`) | Counts per object kind, partition breakdown, top-references, orphan count. |
 | `f5 graph` (alias `deps`) | Emit the reference graph as DOT / JSON / Mermaid (with `--seed PATH` for subgraphs). |
 | `f5 explain {virtual\|pool\|auto} <name>` | Resolve the profile chain, iRule chain, persistence, SNAT, and pool members for one object. |
-| `f5 diff old.scf new.scf` | Object-aware diff (ignores property ordering and iRule whitespace). Accepts SCF or `tmsh create` / `tmsh modify` scripts (as emitted by `f5 tmsh` or pasted from a real BIG-IP shell) on either side. |
-
-Every config-producing verb (`extract`, `pull`, `grep`, `split`, `merge`,
-`rename`, `redact`, `unredact`) accepts a shared `--format scf|tmsh`
-flag.  `scf` (default) preserves the historical bigip.conf-style
-output; `tmsh` re-renders the same objects as a `tmsh create` /
-`tmsh modify` script in dependency order, suitable for pasting into a
-BIG-IP shell.  Extractive verbs emit `tmsh create`; in-place rewriters
-(`rename`, `redact`, `unredact`) emit `tmsh modify`.  Both forms are
-accepted as input by `f5 diff`, so a round-trip is lossless for the
-fields modelled by `BigipConfig`.
+| `f5 diff old.scf new.scf` | Object-aware diff (ignores property ordering and iRule whitespace). Accepts SCF or `tmsh create` / `tmsh modify` scripts on either side. |
 | `f5 grep` | Find every object related to a name, regex, or CIDR. |
 | `f5 query` (alias `q`) | jq-flavoured DSL for filtering and projecting object properties; see [`kcs-feature-bigip-query.md`](kcs-feature-bigip-query.md). |
-| `f5 cleanup` | Generate `tmsh delete` commands for objects no virtual references. |
+| `f5 cleanup` | Generate `tmsh delete` commands for objects no virtual server references. |
 | `f5 validate` (alias `lint`) | Best-practice / structural checks (orphan monitors, empty pools, deprecated iRule commands, unknown events, …). |
+| `f5 explain-flow` | Trace each flow in a PCAP through the config. |
 
 ```sh
 f5 stats bigip.conf
@@ -78,9 +76,18 @@ f5 validate bigip.conf --format sarif > findings.sarif
 
 `f5 validate` exits 0 on no findings or info-only, 1 on warning, 2 on
 error.  Multi-file inputs are merged before rules run, so cross-file
-references don't trigger false-positive orphan findings.
+references do not trigger false-positive orphan findings.
 
-### 3.  Transform
+Every config-producing verb accepts a shared `--format scf|tmsh|tmsh-delta`
+flag.  `scf` (default) emits bigip.conf-style output; `tmsh` re-renders the
+same objects as a `tmsh create` / `tmsh modify` script in dependency order,
+suitable for pasting into a BIG-IP shell; `tmsh-delta` emits only the changed
+objects.  Add `--transaction` to wrap a tmsh script in a `cli transaction`.
+Extractive verbs emit `tmsh create`; in-place rewriters (`rename`, `redact`,
+`unredact`) emit `tmsh modify`.  Both forms are accepted as input by
+`f5 diff`, so a round-trip is lossless for the fields modelled.
+
+### Transform
 
 | Verb | Purpose |
 | --- | --- |
@@ -143,7 +150,7 @@ the schema for fleet-specific layouts via `--schema OVERLAY.toml`
 (repeatable); `--list-schemas` prints the active registry.  L4 payload
 bytes are *not* touched.
 
-### 4.  Round-trip
+### Round-trip
 
 | Verb | Purpose |
 | --- | --- |
@@ -151,6 +158,11 @@ bytes are *not* touched.
 | `f5 push` | PUT (replace) or `--create` POST one object via iControl REST. |
 | `f5 irule extract` | Write each rule body to its own `.tcl` file for editing. |
 | `f5 irule trace EVENT` | Static event-flow trace from a starting event. |
+
+The rest of the `irule` group covers `event-order`, `event-info`, `lint`,
+`format`, `minify`, and `context`.  `registry-dump` emits the F5 command
+registry and the event / profile / object graphs as JSON, and
+`enrich-pcapng` / `enrich-wireshark` build capture aids from a config.
 
 ```sh
 f5 pull pool /Common/p1 --host bigip01 --user admin > p1.scf
@@ -179,8 +191,8 @@ to a device:
    ```
 
    `f5 fetch --host lab` resolves to the alias.
-4. Interactive prompt (`getpass` for passwords); pass `--no-prompt` to
-   make missing creds fail instead of prompt.
+4. Interactive prompt on the terminal; pass `--no-prompt` to make missing
+   credentials fail instead.
 
 ### Shell completion
 

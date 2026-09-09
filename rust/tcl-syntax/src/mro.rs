@@ -55,6 +55,8 @@
 //! ``TclOOGetCallContext()`` in ``generic/tclOOCall.c``.
 
 use std::collections::{HashMap, HashSet};
+use std::fmt::Display;
+use std::hash::Hash;
 
 /// MRO computation error — currently surfaces only when a pure
 /// superclass cycle (no mixin edge) is detected.  Mixin cycles
@@ -95,11 +97,11 @@ impl std::error::Error for MroError {}
 /// `building_mixins` corresponds to Tcl's ``BUILDING_MIXINS``:
 /// when set, only mixin-path classes are added; when clear,
 /// only non-mixin-path classes are added.
-struct DfsCtx<'a> {
-    mixins_map: &'a HashMap<String, Vec<String>>,
-    supers_map: &'a HashMap<String, Vec<String>>,
-    result: &'a mut Vec<String>,
-    visiting: &'a mut HashSet<String>,
+struct DfsCtx<'a, K> {
+    mixins_map: &'a HashMap<K, Vec<K>>,
+    supers_map: &'a HashMap<K, Vec<K>>,
+    result: &'a mut Vec<K>,
+    visiting: &'a mut HashSet<K>,
     building_mixins: bool,
     /// Remaining node-visit budget. TclOO's late-placement (remove-and-repush
     /// on re-visit) is order-significant, so a shared sub-DAG is legitimately
@@ -124,7 +126,10 @@ const MAX_MRO_VISITS: usize = 200_000;
 
 /// `is_mixin_path` corresponds to Tcl's ``TRAVERSED_MIXIN``:
 /// `true` when the class was reached via a mixin edge.
-fn tcloo_dfs(cls: &str, ctx: &mut DfsCtx<'_>, is_mixin_path: bool, depth: usize) {
+fn tcloo_dfs<K>(cls: &K, ctx: &mut DfsCtx<'_, K>, is_mixin_path: bool, depth: usize)
+where
+    K: Clone + Eq + Hash,
+{
     // Bound the walk: an over-deep chain would overflow the stack and stacked
     // diamonds would explode the visit count. Abort gracefully.
     if depth > MAX_MRO_DEPTH || ctx.budget == 0 {
@@ -137,12 +142,12 @@ fn tcloo_dfs(cls: &str, ctx: &mut DfsCtx<'_>, is_mixin_path: bool, depth: usize)
         // Cycles through mixins are valid in TclOO; just skip.
         return;
     }
-    ctx.visiting.insert(cls.to_string());
+    ctx.visiting.insert(cls.clone());
 
     // 1. Process class-level mixins (enter mixin path).
     if let Some(mixins) = ctx.mixins_map.get(cls) {
-        for mixin in mixins.clone() {
-            tcloo_dfs(&mixin, ctx, true, depth + 1);
+        for mixin in mixins {
+            tcloo_dfs(mixin, ctx, true, depth + 1);
         }
     }
 
@@ -153,13 +158,13 @@ fn tcloo_dfs(cls: &str, ctx: &mut DfsCtx<'_>, is_mixin_path: bool, depth: usize)
         if let Some(pos) = ctx.result.iter().position(|c| c == cls) {
             ctx.result.remove(pos);
         }
-        ctx.result.push(cls.to_string());
+        ctx.result.push(cls.clone());
     }
 
     // 3. Process superclasses (inherit mixin-path status).
     if let Some(supers) = ctx.supers_map.get(cls) {
-        for parent in supers.clone() {
-            tcloo_dfs(&parent, ctx, is_mixin_path, depth + 1);
+        for parent in supers {
+            tcloo_dfs(parent, ctx, is_mixin_path, depth + 1);
         }
     }
 
@@ -175,21 +180,27 @@ fn tcloo_dfs(cls: &str, ctx: &mut DfsCtx<'_>, is_mixin_path: bool, depth: usize)
 /// `start` — is not `start`'s error: reporting it would abandon `start`'s
 /// whole MRO (including acyclic parents) and mis-fire W308 on genuinely
 /// inherited methods (issue 155).
-fn has_super_cycle(start: &str, supers_map: &HashMap<String, Vec<String>>) -> bool {
+fn has_super_cycle<K>(start: &K, supers_map: &HashMap<K, Vec<K>>) -> bool
+where
+    K: Clone + Eq + Hash,
+{
     // Two sets, not one: `on_path` is the current DFS stack (a back-edge to it
     // is a real cycle) and `explored` memoises nodes fully proven acyclic (so a
     // shared sub-DAG is visited once, not once per reaching path — the previous
     // single path-scoped set was Θ(2^k) on k stacked diamonds).
     // A depth over `MAX_MRO_DEPTH` is treated as a cycle rather than overflowing
     // the stack on a pathological linear chain.
-    fn recurse(
-        cls: &str,
-        start: &str,
-        supers_map: &HashMap<String, Vec<String>>,
-        on_path: &mut HashSet<String>,
-        explored: &mut HashSet<String>,
+    fn recurse<K>(
+        cls: &K,
+        start: &K,
+        supers_map: &HashMap<K, Vec<K>>,
+        on_path: &mut HashSet<K>,
+        explored: &mut HashSet<K>,
         depth: usize,
-    ) -> bool {
+    ) -> bool
+    where
+        K: Clone + Eq + Hash,
+    {
         if depth > MAX_MRO_DEPTH {
             return true;
         }
@@ -207,7 +218,7 @@ fn has_super_cycle(start: &str, supers_map: &HashMap<String, Vec<String>>) -> bo
         if explored.contains(cls) {
             return false; // already proven to not reach `start` from here
         }
-        on_path.insert(cls.to_string());
+        on_path.insert(cls.clone());
         if let Some(parents) = supers_map.get(cls) {
             for parent in parents {
                 if recurse(parent, start, supers_map, on_path, explored, depth + 1) {
@@ -216,7 +227,7 @@ fn has_super_cycle(start: &str, supers_map: &HashMap<String, Vec<String>>) -> bo
             }
         }
         on_path.remove(cls);
-        explored.insert(cls.to_string());
+        explored.insert(cls.clone());
         false
     }
     let mut on_path = HashSet::new();
@@ -240,18 +251,23 @@ fn has_super_cycle(start: &str, supers_map: &HashMap<String, Vec<String>>) -> bo
 /// mixin edge) is detected.  Cycles through mixins are not
 /// errors — they're valid in TclOO and the DFS terminates
 /// silently at the revisit point.
-pub fn tcloo_linearise(
-    class_name: &str,
-    superclasses_map: &HashMap<String, Vec<String>>,
-    mixins_map: &HashMap<String, Vec<String>>,
-) -> Result<Vec<String>, MroError> {
-    if has_super_cycle(class_name, superclasses_map) {
+pub fn tcloo_linearise<K, Q>(
+    class_name: &Q,
+    superclasses_map: &HashMap<K, Vec<K>>,
+    mixins_map: &HashMap<K, Vec<K>>,
+) -> Result<Vec<K>, MroError>
+where
+    K: Clone + Display + Eq + Hash,
+    Q: ?Sized + Display + ToOwned<Owned = K>,
+{
+    let class_name = class_name.to_owned();
+    if has_super_cycle(&class_name, superclasses_map) {
         return Err(MroError {
             message: format!("cycle detected in superclass hierarchy for {class_name}"),
         });
     }
 
-    let mut result: Vec<String> = Vec::new();
+    let mut result: Vec<K> = Vec::new();
     let mut budget = MAX_MRO_VISITS;
 
     // Pass 1: BUILDING_MIXINS — only collect mixin-path classes.
@@ -265,7 +281,7 @@ pub fn tcloo_linearise(
         budget,
         aborted: false,
     };
-    tcloo_dfs(class_name, &mut ctx, false, 0);
+    tcloo_dfs(&class_name, &mut ctx, false, 0);
     if ctx.aborted {
         return Err(MroError {
             message: format!("class hierarchy for {class_name} is too complex to linearise"),
@@ -285,7 +301,7 @@ pub fn tcloo_linearise(
         budget,
         aborted: false,
     };
-    tcloo_dfs(class_name, &mut ctx, false, 0);
+    tcloo_dfs(&class_name, &mut ctx, false, 0);
     if ctx.aborted {
         return Err(MroError {
             message: format!("class hierarchy for {class_name} is too complex to linearise"),
@@ -301,11 +317,14 @@ pub fn tcloo_linearise(
 /// name to its linearised MRO and `errors` is a list of error
 /// messages for classes whose hierarchy is inconsistent.
 #[must_use]
-pub fn build_mro_map(
-    superclasses_map: &HashMap<String, Vec<String>>,
-    mixins_map: &HashMap<String, Vec<String>>,
-) -> (HashMap<String, Vec<String>>, Vec<String>) {
-    let mut mro_map: HashMap<String, Vec<String>> = HashMap::new();
+pub fn build_mro_map<K>(
+    superclasses_map: &HashMap<K, Vec<K>>,
+    mixins_map: &HashMap<K, Vec<K>>,
+) -> (HashMap<K, Vec<K>>, Vec<String>)
+where
+    K: Clone + Display + Eq + Hash,
+{
+    let mut mro_map: HashMap<K, Vec<K>> = HashMap::new();
     let mut errors: Vec<String> = Vec::new();
     for cls in superclasses_map.keys() {
         if mro_map.contains_key(cls) {

@@ -71,7 +71,7 @@ assume it *may not* be, or may be evaluated in a frame that binds the name,
 so it skips `Quoted` uses.  Filtering at either end breaks the other:
 dropping the use resurrects `W211 set but never used` on `set a(k) 1; puts
 {$a(k)}`, and recording the name as a self-initialising def deletes the
-feeding store outright (issues #1142, #1237).
+feeding store outright.
 
 ### The three kinds of braced word
 
@@ -109,7 +109,7 @@ the names they read so a variable used only in an arm is not reported unused.
 
 That recovery walk (`switch_reads` → `free_reads_in_script` →
 `reads_in_script` → `reads_in_stmt`) carries the **same `ClassifiedUses`
-pair** the lowered path produces, rather than a bare name set (issue #1266).
+pair** the lowered path produces, rather than a bare name set.
 Collapsing to names alone made every brace-quoted data word inside an arm a
 substituted read, so `switch -glob $z { a* { puts {$b} } }` drew a false
 W210 that the identical body outside an arm did not.
@@ -117,7 +117,7 @@ W210 that the identical body outside an arm did not.
 The classification has to be *threaded*, not dropped: omitting the name
 instead would take its liveness use with it and resurrect a false
 `W220 assignment never read` on `set x 1; switch -glob $z { a* { foreach n
-{$x} {} } }` — the guard rail issues #1237 and #1260 established.  The
+{$x} {} } }`.  The
 braced loop value word (`ForeachIterator::list_braced`) is the only extra
 input the walk needs beyond what `uses_of_classified` already answers,
 because a `Statement::Foreach` inside an opaque arm is walked here rather
@@ -201,9 +201,9 @@ The CFG builder names these blocks `entry_1`, `if_end_2`, `if_then_3`,
 lowered into the final `if_next`.  Chains:
 
 - `("cond", 0)`: def = `Parameter` in `entry_1` (read before set), uses = [`Terminator` in `entry_1`]
-- `("a", 1)`: def = `Statement` in `if_then_3`, uses = [`PhiIncoming` → `a`#3, filed at `if_then_3`]
-- `("a", 2)`: def = `Statement` in `if_next_4`, uses = [`PhiIncoming` → `a`#3, filed at `if_next_4`]
-- `("a", 3)`: def = `Phi` in `if_end_2`, uses = [`Operand` in `if_end_2`]
+- `("a", 1)`: def = `Phi` in `if_end_2` (phis are numbered before the rename walk), uses = [`Operand` in `if_end_2`]
+- `("a", 2)`: def = `Statement` in `if_then_3`, uses = [`PhiIncoming` → `a`#1, filed at `if_then_3`]
+- `("a", 3)`: def = `Statement` in `if_next_4`, uses = [`PhiIncoming` → `a`#1, filed at `if_next_4`]
 - `("b", 1)`: def = `Statement` in `if_end_2`, uses = [] → **DEAD**
 
 The `a` phi exists because the trailing `set b $a` reads `a` in a block that

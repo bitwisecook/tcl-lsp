@@ -9,7 +9,7 @@ Feature catalogue and full-text search across every tcl-lsp feature, served by t
 
 ## Applies to
 
-VS Code Copilot Chat, tcl-lsp CLI, MCP, Claude skill
+Copilot Chat, tcl-lsp CLI, MCP, Claude skill
 
 ## Question
 
@@ -41,18 +41,17 @@ Use the `/ai-help` skill.
 ## Example
 
 ```
-$ tcl help "taint"
-
-=== LSP + AI Features ===
-
-  Diagnostics
-    Errors, warnings, security, taint tracking, and style checks shown as you type.
-
-  iRule Review
-    Security-focused analysis: security warnings, taint findings, and thread-safety concerns.
+$ tcl help --limit 1 "fakecmp"
+1 match for 'fakecmp':
+- FakeCMP Tools [MCP Tools]
+  Deterministic TMM hash lookup and multi-TMM test distribution planner for iRule testing without hardware.
+  file: kcs-feature-fakecmp-tools.md
 ```
 
-The help tool queries the KCS feature database with full-text search, groups results by category, and returns summaries with pointers to the relevant KCS feature pages.
+Each hit names the feature, the category it is grouped under, its summary, and
+the KCS page to read.  Run `tcl help` with no query to list every feature
+grouped by category, `--limit N` to cap the matches, and `--dialect NAME` to
+filter to one dialect.
 
 ## Related
 

@@ -92,8 +92,8 @@ trace variable v w handler
 
 reports:
 
-> 'trace variable' is not available in every version satisfying
-> requirement `8.5-9.1`: removed in Tcl 9.0.
+> Subcommand 'variable' on 'trace' is not available in every version
+> satisfying requirement `8.5-9.1`: removed in Tcl 9.0.
 
 `trace variable` still works at the low end of the range, so the message
 says "not available in every version", not "was removed". Only a range

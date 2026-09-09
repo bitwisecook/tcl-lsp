@@ -21,23 +21,35 @@ Why does the analyser report that `matchclass` is deprecated?
 
 ## Symptoms
 
-- A squiggle appears on the `matchclass` command, with the message "deprecated matchclass".
+- The `matchclass` token is struck through and carries a yellow squiggle, with
+  the message "'matchclass' is deprecated since BIG-IP v10. Use
+  'class match <item> <operator> <class>' instead."
 
 ## Example that triggers it
 
 ```tcl
-matchclass $data $class
+when HTTP_REQUEST {
+  set data [HTTP::host]
+  matchclass $data ::hosts
+}
 ```
 
 The analyser reports **`IRULE2001`** on the `matchclass` token.
 
 ## Fix
 
-Use the modern `class match` command:
+Use `class match`:
 
 ```tcl
-class match -- $data equals $class
+when HTTP_REQUEST {
+  set data [HTTP::host]
+  class match -- $data equals ::hosts
+}
 ```
+
+The editor offers **Replace with 'class match'** as a review-required code
+action: the rewrite supplies the `equals` operator that the two-word
+`matchclass` form left implicit, so check the result before accepting it.
 
 ## How to suppress
 

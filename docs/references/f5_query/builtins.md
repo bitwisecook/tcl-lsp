@@ -10,8 +10,9 @@ plain and stream builtins are registered across
 and its submodules, special-form builtins (`select`, `map`, the `paths` /
 `getpath` family, …) in `src/special.rs`, and the network-probe builtins
 in `src/probes.rs`. When a builtin's signature, arity, or behaviour
-changes there, update this file by hand to match — there is no generator
-and no CI check keeping the two in sync.
+changes there, update this file by hand to match — there is no generator;
+`cargo xtask f5-query-builtins-doc --check` (in `make xtask-check`) gates the
+set of names against the registry, but the prose is maintained by hand.
 
 This is the **canonical per-function reference** for every builtin the
 `f5 query` DSL exposes.  For grammar, value-model, edit-pipeline, and
@@ -20,9 +21,9 @@ for the user-facing feature overview and worked-example KCS notes start
 from
 [`../../kcs/features/kcs-feature-bigip-query.md`](../../kcs/features/kcs-feature-bigip-query.md).
 
-The same per-function reference is available offline through the
-verb's own help action — ``f5 query --help-builtins NAME`` prints
-exactly the same content for one builtin.
+Offline, ``f5 query --help-builtins NAME`` prints what the registry itself
+knows about one builtin — category, arity, dispatch flags, and any
+implementation caveat — not the prose on this page.
 
 ## Categories
 
@@ -5736,6 +5737,15 @@ Raises when the object did not come from a file-backed UCS, when
 the stanza has no ``cache-path``, or when no matching member is in
 the archive.
 
+**Not reachable from the DSL yet.**  Like :func:`x509_from_config`,
+this needs a ``sys file ssl-cert`` / ``cm cert`` object, and the query
+projection covers the ``ltm``, ``gtm`` and ``security`` kinds only —
+there is no ``.sys`` / ``.cm`` container to pipe from, and an
+``--input-json`` stanza arrives as a plain object, which this builtin
+rejects.  The UCS reader hook itself is wired and unit-tested in the
+f5 CLI; the examples below are the shape a query will take once those
+kinds are projected.
+
 Related: ``x509_from_config`` (stanza metadata only), ``x509_eq``,
 ``cert_load``, ``tls_handshake``.
 
@@ -5786,7 +5796,8 @@ grep("nohup|curl .*\\| *sh", "home/*/.bashrc") # login-hook persistence
 
 ### `url_get`
 
-HTTP GET request.  Requires --enable-probes.
+HTTP GET request — **not implemented**; no request is made.  Requires
+--enable-probes.
 
 **Signatures**
 
@@ -5799,8 +5810,10 @@ wired up (deterministic golden-testing constraints); every call
 returns ``{status: null, headers: {}, body: "", body_json: null,
 peer_cert: null, error: "live HTTP probe is not yet implemented …"}``
 regardless of *url* or reachability.  The ``ureq`` dependency is in
-place for when this lands.  The deterministic probe surface
-(``x509_parse``, ``x509_eq``, ``dns``) is unaffected.
+place for when this lands, and ``f5 query --help-builtins url_get``
+says the same thing.  The deterministic probe surface
+(``x509_parse``, ``x509_eq``, ``dns``) and the live ``tls_handshake``
+/ ``dns`` / ``ping`` probes are unaffected.
 
 Optional second argument is a dict of request headers (accepted but,
 per the above, not yet sent anywhere).
@@ -5817,7 +5830,8 @@ url_get("https://api.example/v1", {"Authorization": "Bearer X"})
 
 ### `url_head`
 
-HTTP HEAD request.  Requires --enable-probes.
+HTTP HEAD request — **not implemented**; no request is made.  Requires
+--enable-probes.
 
 **Signatures**
 
@@ -5844,7 +5858,8 @@ url_head("https://api.example/v1", {"Authorization": "Bearer X"})
 
 ### `url_options`
 
-HTTP OPTIONS request.  Requires --enable-probes.
+HTTP OPTIONS request — **not implemented**; no request is made.  Requires
+--enable-probes.
 
 **Signatures**
 
@@ -5871,7 +5886,8 @@ url_options("https://api.example/v1", {"Authorization": "Bearer X"})
 
 ### `url_post`
 
-HTTP POST request.  Requires --enable-probes.
+HTTP POST request — **not implemented**; no request is made.  Requires
+--enable-probes.
 
 **Signatures**
 
@@ -6082,9 +6098,13 @@ Related: ``x509_parse``, ``x509_from_config``.
 **Examples**
 
 ```
-x509_eq(x509_parse(.body), x509_from_config($cert))
-.sys.file.ssl-cert[] | select(x509_eq(x509_from_config(.), $peer))
+x509_eq(tls_handshake("example.com", 443).peer_cert,
+        cert_load("./example.crt"))     # a PEM copied off the device
+x509_eq(x509_parse($peer_pem), x509_from_config($cert))
 ```
+
+(``$cert`` is a cert stanza bound with ``--input-json``; the ``.sys`` /
+``.cm`` containers are not projected — see :func:`x509_from_config`.)
 
 ### `x509_from_config`
 
@@ -6102,8 +6122,14 @@ returns a dict in the same shape :func:`x509_parse` produces:
 ``fingerprint_sha256`` / ``sans`` / ``key_alg`` / ``key_size``
 / ``version`` / etc.
 
-Supported config objects (anywhere a cert appears in the
-parsed model):
+**The ``sys`` and ``cm`` containers are not projected.**  The query
+surface covers the ``ltm``, ``gtm`` and ``security`` kinds only, so
+``.sys["file-ssl-cert"]`` / ``.cm.cert`` navigate into an empty
+container and a client-ssl profile's ``cert`` PathRef does not
+dereference.  Today the stanza has to arrive as an external input
+(``--input-json``); unlike :func:`ucs_cert` this builtin reads plain
+objects, so that form works.  The projections below are the ones it
+understands once such an object reaches it:
 
 - ``sys file ssl-cert`` — cert / chain / bundle store, the
   target of every client-ssl / server-ssl ``cert-key-chain``
@@ -6139,9 +6165,11 @@ Related: ``x509_parse`` (parse a PEM string),
 **Examples**
 
 ```
-.sys.file.ssl-cert["/Common/example.crt"] | x509_from_config(.)
-.cm.cert["/Common/dtca.crt"] | x509_from_config(.)
-x509_eq(.sys.file.ssl-cert["/Common/example.crt"] | x509_from_config(.), x509_parse(url_get("https://example.com/cert.pem").body))
+$cert | x509_from_config(.)                       # $cert bound with --input-json
+x509_eq(x509_from_config($cert),
+        cert_load("./example.crt"))               # a PEM copied off the device
+x509_eq(x509_from_config($cert),
+        tls_handshake("example.com", 443).peer_cert)
 ```
 
 ### `x509_parse`
@@ -6344,6 +6372,11 @@ required:
 Tilde expansion is honoured.  Raises :class:`BuiltinError` for
 missing files, unreadable formats, or wrong passwords.  No
 network access — purely local file IO.
+
+*path* is read on the machine running ``f5 query``, not on the
+BIG-IP, so a device path such as
+``/config/ssl/ssl.crt/example.crt`` raises ``cert_load: file not
+found`` unless that file has been copied off the appliance first.
 
 Related: ``x509_parse`` (parse an in-memory PEM string),
 ``tls_handshake`` (peer cert pre-parsed in ``peer_cert``).

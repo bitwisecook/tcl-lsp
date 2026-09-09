@@ -24,6 +24,7 @@
 use tcl_bytecode::ErrorStackContext;
 use tcl_registry::hooks::{InlineCodegenHookId, LoweringHookId};
 use tcl_registry::{CommandRegistry, Traits, TryClauseKind, TryCompletionSelector};
+use tcl_runtime_api::completion_options::ControlOptionPolicy;
 
 use crate::cfg::Function as CfgFunction;
 use crate::expr_ast::{BinOp, ExprNode};
@@ -426,12 +427,13 @@ impl CodegenCtx<'_> {
 
         // Load the dict value, then begin the iterator under a catch range.
         self.emit_value(dict_text, true);
-        self.emit(
+        let begin_idx = self.emit(
             Op::BEGIN_CATCH4,
             vec![Operand::Imm(
                 i32::try_from(self.catch_depth).expect("catch_depth fits in i32"),
             )],
         );
+        self.mark_completion_option_scope(begin_idx, ControlOptionPolicy::FRESH_SETTLED);
         self.catch_depth += 1;
         let dict_first_idx = self.emit(Op::DICT_FIRST, vec![Operand::Imm(0)]);
         // Tag the loop-control jumps `dict_for` so the layout pass keeps them
@@ -446,7 +448,9 @@ impl CodegenCtx<'_> {
 
         // Loop body: bind key/value, run the body, advance.
         self.place_label(&loop_lbl);
-        self.emit_comment(Op::STORE_SCALAR1, vec![Operand::Imm(k_slot)], &vnames[0]);
+        let iteration_idx =
+            self.emit_comment(Op::STORE_SCALAR1, vec![Operand::Imm(k_slot)], &vnames[0]);
+        self.mark_completion_option_scope(iteration_idx, ControlOptionPolicy::FRESH_SETTLED);
         self.emit(Op::POP, vec![]);
         self.emit_comment(Op::STORE_SCALAR1, vec![Operand::Imm(v_slot)], &vnames[1]);
         self.emit(Op::POP, vec![]);
@@ -480,7 +484,8 @@ impl CodegenCtx<'_> {
 
         // Normal exit: drop the leftover key/value from the final dictNext.
         self.place_label(&end_lbl);
-        self.emit(Op::POP, vec![]);
+        let settle_idx = self.emit(Op::POP, vec![]);
+        self.mark_completion_option_scope(settle_idx, ControlOptionPolicy::FRESH_SETTLED);
         self.emit(Op::POP, vec![]);
         // `dict for` yields the empty string.
         self.push_lit("");
@@ -536,12 +541,13 @@ impl CodegenCtx<'_> {
         self.emit(Op::POP, vec![]);
 
         self.emit_value(dict_text, true);
-        self.emit(
+        let begin_idx = self.emit(
             Op::BEGIN_CATCH4,
             vec![Operand::Imm(
                 i32::try_from(self.catch_depth).expect("catch_depth fits in i32"),
             )],
         );
+        self.mark_completion_option_scope(begin_idx, ControlOptionPolicy::FRESH_FORWARDED);
         self.catch_depth += 1;
         let dict_first_idx = self.emit(Op::DICT_FIRST, vec![Operand::Imm(0)]);
         self.emit_comment(
@@ -551,7 +557,9 @@ impl CodegenCtx<'_> {
         );
 
         self.place_label(&loop_lbl);
-        self.emit_comment(Op::STORE_SCALAR1, vec![Operand::Imm(k_slot)], &vnames[0]);
+        let iteration_idx =
+            self.emit_comment(Op::STORE_SCALAR1, vec![Operand::Imm(k_slot)], &vnames[0]);
+        self.mark_completion_option_scope(iteration_idx, ControlOptionPolicy::FRESH_FORWARDED);
         self.emit(Op::POP, vec![]);
         self.emit_comment(Op::STORE_SCALAR1, vec![Operand::Imm(v_slot)], &vnames[1]);
         self.emit(Op::POP, vec![]);

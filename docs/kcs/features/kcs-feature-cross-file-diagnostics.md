@@ -12,15 +12,24 @@ already has.
 
 ## Applies to
 
-all-editors, MCP, diagnostic, warning, multi-file, workspace, source, arity
+all-editors, MCP, diagnostic, warning
 
 ## How to use
 
 Nothing to enable — this is on by default and needs no configuration.
 
-For example, if `deflib.tcl` defines a three-argument proc, a call in another
-open project file is resolved to that definition and checked as though both
-were in the same file:
+- Open a project with more than one `.tcl` file. Calls to a proc defined in a
+  sibling file are recognised, and a call with the wrong number of arguments
+  is reported (`E002` too few, `E003` too many), exactly as it would be if the
+  proc were in the same file.
+- A file that does `source other.tcl`, where `other.tcl` does
+  `package require Tk`, may use Tk commands without a `package require` of its
+  own.
+- `tclLsp.features.crossFileResolution` is a *broader*, deliberately lossier
+  match (any command whose bare name exists anywhere in the workspace). It is
+  off by default and is not needed for the behaviour above.
+
+## Example
 
 ```tcl
 # deflib.tcl
@@ -29,18 +38,6 @@ proc libtest {left middle right} { return $left }
 # caller.tcl
 libtest 1 2 ;# E002: Too few arguments for 'libtest'
 ```
-
-- Open a project with more than one `.tcl` file. Calls to a proc defined in
-  a sibling file are recognised, and a call with the wrong number of
-  arguments is reported as an error (`E002` too few / `E003` too many),
-  exactly as it would be if the proc were in the same file.
-- A file that does `source other.tcl`, where `other.tcl` does
-  `package require Tk`, may use Tk commands without a `package require` of
-  its own.
-- `tclLsp.features.crossFileResolution` remains available for a *broader*,
-  deliberately lossier match (any command whose bare name exists anywhere in
-  the workspace). It is still off by default and is not needed for the
-  behaviour above.
 
 ## Operational context
 
@@ -69,20 +66,15 @@ unknowable, and a wrong warning on working code is worse than a missing one.
 ## Failure modes
 
 - A cross-file call is reported as an unknown command while
-  go-to-definition resolves it — the two have drifted onto different
-  lookups (issue #1331).
+  go-to-definition resolves it — the two have drifted onto different lookups.
 - A Tk command is reported as needing `package require Tk` in a file that
-  `source`s a file already requiring it (issue #1332).
+  `source`s a file already requiring it.
 - An arity error fires on a proc with an `args` tail, a defaulted
   parameter, or a computed parameter list — the envelope is being read from
   the raw formal count rather than the real arity.
 - Diagnostics go quiet across a whole file: check whether something in it
   triggered a deliberate abstention (see above) rather than assuming a
   regression.
-
-## Test anchors
-
-- `editors/vscode/src/test/crossFileDiagnostics.test.ts`
 
 ## Discoverability
 

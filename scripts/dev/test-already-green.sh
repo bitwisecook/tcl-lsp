@@ -59,7 +59,9 @@ case "$(cat "$WORKFLOW")" in
         ;;
 esac
 
-require_text "the helper invocation" 'bash scripts/dev/already-green.sh'
+require_text "the pull-request exclusion" 'if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then'
+require_text "the forced pull-request result" "echo 'already_green=false' >> \"\$GITHUB_OUTPUT\""
+require_text "the helper invocation outside pull requests" 'bash scripts/dev/already-green.sh'
 require_helper_text "the 24-hour freshness bound" "date -u -d '24 hours ago'"
 require_helper_text "two-parent merge-head consistency" 'git rev-parse -q --verify HEAD^2'
 require_helper_text "squash-to-PR resolution" 'commits/$GITHUB_SHA/pulls'

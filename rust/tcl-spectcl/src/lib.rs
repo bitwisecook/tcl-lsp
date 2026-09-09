@@ -19,7 +19,7 @@
 //! `SpecTcl` — runtime spec packs, from a `.tclspec` file on disk to a
 //! [`CommandSpec`](tcl_registry::spec::CommandSpec) in a live registry.
 //!
-//! The design is `docs/design/spec-packs.md`; the frozen DSL syntax is
+//! The design is `docs/design/registry/spec-packs.md`; the frozen DSL syntax is
 //! `docs/design/spec-dsl-examples/README.md`. This crate is the runtime half
 //! of it, in four layers that stack but do not depend upwards:
 //!
@@ -62,7 +62,7 @@
 //! `.tcl.stubs` sidecars use. A pack is parsed per edit **of the pack**, never
 //! per edit of the code that uses it, which is what makes a loaded pack cost
 //! exactly what a compiled-in spec costs at query time
-//! (`docs/design/spec-packs.md`, "Performance: the format does not decide
+//! (`docs/design/registry/spec-packs.md`, "Performance: the format does not decide
 //! it").
 
 pub mod bundled;
@@ -108,7 +108,7 @@ pub use upgrade::{
 pub const PACK_EXTENSION: &str = "tclspec";
 
 /// The **`SpecTcl` vocabulary version** — bumped when the meaning of a DSL
-/// word changes, never when one is added (`docs/design/spec-packs.md`,
+/// word changes, never when one is added (`docs/design/registry/spec-packs.md`,
 /// "Compatibility policy").
 ///
 /// Part of the compiled-cache key, so a vocabulary bump invalidates every

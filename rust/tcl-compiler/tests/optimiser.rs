@@ -1991,3 +1991,75 @@ fn production_gvn_entries_read_the_sccp_executable_fact_issue_1385() {
         "O105-PRE must not fire inside SCCP-dead code"
     );
 }
+
+// O107 inside a command-resolution-guarded `TclOO` method body.
+//
+// A method runs in the receiver's namespace, which is chosen at run time and
+// can shadow any relative command name, so one unqualified head anywhere in
+// the body excludes the method from deep analysis
+// (`ir_helpers::requires_runtime_command_namespace`). Such a unit carries an
+// empty SCCP executable-block set — no facts, rather than the fact that every
+// block is dead — and O107 is the report that would otherwise read that
+// absence as proof and delete the whole body.
+//
+// Structural rather than Tcl-observable: the assertion is that the optimiser
+// leaves the source alone, which is trivially semantics-preserving. Deleting
+// the body is what is not — `[Greeter new] whoami` answers `::Greeter`
+// intact and the empty string once emptied.
+
+/// A one-method class whose method body is `body`.
+fn method_body(body: &str) -> String {
+    format!("oo::class create Greeter {{\n    method whoami {{}} {{ {body} }}\n}}\n")
+}
+
+#[test]
+fn tcloo_method_body_survives_the_command_resolution_guard() {
+    // Every `self` spelling that carries a value: the defining class, a bare
+    // `[self]` (equivalent to `self object`), and the instance namespace.
+    for body in [
+        "return [self class]",
+        "return [self]",
+        "return [self namespace]",
+    ] {
+        let src = method_body(body);
+        assert!(
+            !opt_fires(&src, TCL, "O107"),
+            "{body}: a live method body must not be reported unreachable"
+        );
+        assert_eq!(
+            optimised(&src, TCL),
+            src,
+            "{body}: the method body must survive the optimiser intact"
+        );
+    }
+}
+
+#[test]
+fn a_guarded_method_body_keeps_every_relative_head() {
+    // The guard is about command resolution, not `TclOO` introspection: an
+    // ordinary builtin, a `my` dispatch, and a `set` whose value is a nested
+    // call each name a command relatively, so each method is guarded.
+    for body in ["puts hello", "my helper", "set x [string length abc]"] {
+        let src = method_body(body);
+        assert!(
+            !opt_fires(&src, TCL, "O107"),
+            "{body}: a guarded body must not be reported unreachable"
+        );
+        assert_eq!(optimised(&src, TCL), src, "{body}: body must survive");
+    }
+}
+
+#[test]
+fn o107_still_fires_on_genuinely_unreachable_method_code() {
+    // Control: O107 is suppressed only where the lattice is absent. Every head
+    // here is `::`-qualified, so the method gets deep analysis and the `if {0}`
+    // body is provably dead. tclsh: `[Greeter new] whoami` prints `live` with
+    // or without the rewrite.
+    let src = "oo::class create Greeter {\n    method whoami {} {\n        ::if {0} { ::puts never }\n        ::puts live\n    }\n}\n";
+    let out = optimised(src, TCL);
+    assert!(
+        !out.contains("puts never"),
+        "dead branch must still be eliminated: {out}"
+    );
+    assert!(out.contains("::puts live"), "live code must survive: {out}");
+}

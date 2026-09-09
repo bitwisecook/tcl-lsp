@@ -20,7 +20,7 @@
 //! `$w tag configure …`) — the receiver-typed sibling of `validity.rs`'s
 //! ordinary registry-command checks and `var_command.rs`'s `TclOO`
 //! `$obj method` checks (issue #927;
-//! `docs/design/tk-widget-instance-typing.md`).
+//! `docs/design/analysis/tk-widget-instance-typing.md`).
 //!
 //! Two-phase, mirroring [`super::var_command`]'s cross-function post-pass
 //! (not `tk_checks.rs`'s in-file buffering): a candidate is *recorded*
@@ -40,7 +40,7 @@
 //!
 //! `AnalysisResult::instance_classes` is whole-file and name-keyed, exactly
 //! the "any var named x is treated as one everywhere" shape
-//! `docs/design/tcloo-object-typing.md` calls unsound for diagnostics — with
+//! `docs/design/analysis/tcloo-object-typing.md` calls unsound for diagnostics — with
 //! one difference that makes it safe to use here: `Analyser::bind_registry_instance_class`
 //! (`commands.rs`) is collision-aware, so a name bound to two *different*
 //! classes anywhere in the file is dropped from the map entirely rather than
@@ -62,7 +62,7 @@ use super::validity::arity_verdict;
 /// `subcommands` — each widget's own `-option` table is what would drive
 /// their *value* completion/arity, which no widget spec declares today.
 /// Treating them as unconditionally known (not arity-checked) is the
-/// conservative choice: `docs/design/tk-widget-instance-typing.md` chose
+/// conservative choice: `docs/design/analysis/tk-widget-instance-typing.md` chose
 /// silence over guessing at the pair/single-option arity shape.
 fn is_universal_widget_subcommand(word: &str) -> bool {
     !word.is_empty() && ("configure".starts_with(word) || "cget".starts_with(word))

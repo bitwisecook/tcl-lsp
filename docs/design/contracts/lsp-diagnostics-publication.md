@@ -159,6 +159,6 @@ resembles lossy decoding.
 
 ## Discoverability
 
-- [KCS index](../../../docs/design/README.md)
-- [compiler diagnostics integration](../../../docs/design/compiler/diagnostics-integration.md)
-- [async tiering contracts](../../../docs/design/compiler/async-diagnostics-tiering.md)
+- [Design doc index](../README.md)
+- [compiler diagnostics integration](../compiler/diagnostics-integration.md)
+- [async tiering contracts](../compiler/async-diagnostics-tiering.md)

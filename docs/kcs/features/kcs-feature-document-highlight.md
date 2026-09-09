@@ -35,14 +35,16 @@ Toggle with `tclLsp.features.linkedEditingRange`.
 ## Example
 
 ```tcl
-proc factorial {n} {              ;# Write highlight (definition)
+proc factorial {n} {
     if {$n <= 1} { return 1 }
     return [expr {$n * [factorial [expr {$n - 1}]]}]
-}                                  ;# ↑ linked editing: rename syncs
-                                   ;#   both "factorial" sites
+}
 ```
 
-Placing the cursor on `$n` highlights the parameter definition and all three read sites with different intensities.
+Placing the cursor on `$n` marks the parameter `n` as a **Write** and its
+three read sites as **Read**, so the definition stands out from the uses.
+Placing it on `factorial` marks the declaration and the recursive call as
+**Text**, and links them for editing — typing a new name changes both.
 
 ## Related
 

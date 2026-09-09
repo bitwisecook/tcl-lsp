@@ -50,8 +50,8 @@ set a [expr {sin(1.0)}]
 #            ^ hover here
 ```
 
-Both spellings now read the same, because both come from the same command
-registry entry: the bare `sin(…)` inside an expression, and the
+Both spellings read the same, because both come from one command registry
+entry: the bare `sin(…)` inside an expression, and the
 `::tcl::mathfunc::sin` command spelling.
 
 Your own override wins, exactly as it does when the code runs. A `proc` in a
@@ -148,11 +148,11 @@ caller-frame variable at all — it names one fixed global cell, which hover,
 Go to Definition, and Find References answer directly from the `upvar` word.
 
 Two limits are deliberate. A callee reached through `my`, `next`, or an
-object dispatch is a method the call never names statically, so its literal
-targets are not resolved yet and hover stays silent for them. And a `$`-led
-read that nothing binds shows **nothing at all** rather than falling back to a
-command or method of the same name: Tcl keeps variable names and command names
-in separate tables, so `$dataset` can never mean a method called `dataset`.
+object dispatch is a method the call never names statically, so hover stays
+silent for its literal targets. And a `$`-led read that nothing binds shows
+**nothing at all** rather than falling back to a command or method of the same
+name: Tcl keeps variable names and command names in separate tables, so
+`$dataset` can never mean a method called `dataset`.
 
 ## Failure modes
 
@@ -161,11 +161,9 @@ in separate tables, so `$dataset` can never mean a method called `dataset`.
 - A command reached only at run time (built by `eval`, or dispatched through a
   variable) has no declaration to point at, so hover shows nothing.
 
-## Screenshots
+## Example
 
-- `02-hover-proc` — hover showing proc signature and documentation
-
-![hover showing proc signature and documentation](../screenshots/02-hover-proc.png)
+![hover showing proc signature and documentation](../../screenshots/02-hover-proc.png)
 
 ## Discoverability
 

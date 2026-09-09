@@ -130,7 +130,7 @@ fn arg_u32(args: &Value, key: &str) -> u32 {
 
 /// The registry every dialect-taking tool answers from — the shared
 /// per-dialect cache, **plus the shipped `.tclspec` loadables**, because the
-/// EDA vendor libraries live in those now (`docs/design/spec-packs.md`) and an
+/// EDA vendor libraries live in those now (`docs/design/registry/spec-packs.md`) and an
 /// MCP client asking about `synth_design` would otherwise be told it does not
 /// exist.
 fn registry(dialect: &str) -> std::sync::Arc<CommandRegistry> {

@@ -30,8 +30,8 @@ registry relation type, checked generically.
 
 ## Symptoms
 
-- A warning appears over the two conflicting option words.
-- The message says that the options cannot be used together.
+- A yellow squiggle over the conflicting option words, with a message like
+  "Options -encoding, -nopkg cannot be used together for 'source'".
 
 ## Example that triggers it
 
@@ -84,6 +84,7 @@ Add `# noqa: W147` on the line **above** the offending command.
 
 - [KCS codes index](README.md)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)
+- [command walk](../../GLOSSARY.md#command-walk)
 - [W152 — option relation unmet](kcs-diagnostic-w152-option-relation-unmet.md)
   — the "this one needs that one" half of the same relation model.
 - Related codes: `E002` (too few arguments), `E003` (too many arguments),

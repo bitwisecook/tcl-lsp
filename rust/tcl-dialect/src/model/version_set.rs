@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The axis-typed version-set algebra of design doc
-//! `docs/design/dialect-and-package-registry-redesign.md` §4.1 (review
+//! `docs/design/registry/dialect-and-package-registry-redesign.md` §4.1 (review
 //! finding B3), plus the per-item [`ItemHistory`].
 //!
 //! Two version types, deliberately: [`ItemHistory`] answers "when was

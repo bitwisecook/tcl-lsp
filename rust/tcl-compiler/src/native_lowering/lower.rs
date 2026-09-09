@@ -182,7 +182,7 @@ struct Lowerer<'a> {
     dialect: Option<&'static DialectProfile>,
     /// The document's lexer grammar, resolved once with `dialect` and
     /// threaded into every re-read of source text this pass makes
-    /// (`docs/design/dialect-profile-model.md` §2.5).
+    /// (`docs/design/registry/dialect-profile-model.md` §2.5).
     lexer_config: tcl_lexer::LexerConfig,
     representation: bool,
     mathfunc_native: bool,

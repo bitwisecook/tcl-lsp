@@ -85,9 +85,8 @@ Three conditions bound it, and each abstains rather than guessing:
   this one is written out", and it is applied at the consumer's callback slot,
   inside the built prefix, and again at each `WRAPS_COMMAND_PREFIX` hop:
   `after idle [namespace code {*}[list my tick]]` gives `namespace code` two
-  arguments and errors rather than dispatching anything. The compiler's own
-  prefix scan has gated on this since #978; the navigation scan gained the same
-  gate in #1704.
+  arguments and errors rather than dispatching anything. The compiler's prefix
+  scan and the navigation scan both apply it.
 - **One unambiguous same-scope constant**, for a prefix stored in a variable
   first (`set cb [list [self] tick]; bind .w <Button-1> $cb`). Every write to
   the name is a candidate: more than one write, a dynamic write, a scope alias
@@ -188,8 +187,7 @@ meant — and `ClassHierarchy::mixin_map` carries the owner-resolved mixin edges
 that name the roots.  `WorkspaceIndex`'s `ClassEdges` is the cross-file twin,
 and both dispatch folds
 (`tcl_lsp_core::oo_dispatch::method_dispatch_provider` in-document,
-`WorkspaceIndex::dispatch_chain` across files) read the flag the same way
-(issue #1705).
+`WorkspaceIndex::dispatch_chain` across files) read the flag the same way.
 
 The two dispatch kinds can consequently land on **different classes** for one
 receiver, and consumers must ask separately: with the `MChild` shape above,
@@ -218,6 +216,22 @@ Class name resolution during `oo::define` body evaluation resolves relative
 names in the namespace where `oo::define` was invoked (`cmd_oo.rs::
 resolve_class`, mirroring C's `GetClassInOuterContext` — the one-hop
 call-site rule), not the `::oo::define` evaluation namespace.
+
+### Runtime object identity
+
+`tcl_core_types::OoId` is the shared, authoritative interpreter-local identity
+of an object or class. The native runtime carries class, superclass,
+mixin, method-provider, and active-call relationships with this token. The
+standalone migration is tracked by #1764 and must consume the same owner when
+it lands. A command-table slot and fully-qualified name are mutable
+projections: rename, hide, expose, and deferred namespace deletion must never
+recover OO identity by comparing or reparsing their display strings.
+
+Native command mutation keeps the exact `OoId` attached to the command
+generation through ordinary rename, replacement, and deletion. Callback-
+bearing lifecycle phases re-resolve that command generation before unlinking,
+so a moved old object is still destroyed while a newer replacement at the same
+spelling survives.
 
 ## Test conformance
 

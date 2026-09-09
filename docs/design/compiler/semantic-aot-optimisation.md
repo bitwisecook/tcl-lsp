@@ -1,10 +1,11 @@
 # Semantic AOT optimisation contract
 
-> **Status:** implementation contract with two deliberately bounded WASM
-> consumers: a live-guarded boxed `string length` intrinsic and the sealed
-> constant-operand `add` demonstration. Every semantic AOT pass remains
-> independently disableable and off by default. The rest of this document is
-> the soundness contract for widening those first slices.
+> **Status:** implementation contract with three opt-in WASM consumers: a
+> live-guarded boxed `string length` intrinsic, the sealed constant-operand
+> `add` demonstration, and the native tier
+> ([wasm-codegen.md](wasm-codegen.md#the-native-tier)). Every semantic AOT
+> pass is independently disableable and off by default. The rest of this
+> document is the soundness contract for widening those slices.
 
 ## Purpose
 
@@ -28,11 +29,11 @@ transitions.
 
 ## Current bounded implementation
 
-The implementation now exercises both guarded runtime specialisation and
-sealed native lowering, but neither is a general Tcl AOT mode.
+None of the three slices is a general Tcl AOT mode.
 
 | Slice | Explicit controls | What is selected | Current limit and fallback |
 |---|---|---|---|
+| Native tier | `NativeLowering`, `RepresentationInference`, `TraceBarrierElision`, `CellDemotion` (`WasmCompileOptions::native_tier()`) | Every function the native lowering accepts, projected from executable IR into the native lowered IR and emitted natively — see [wasm-codegen.md](wasm-codegen.md#the-native-tier). | A function containing an instruction the lowering does not project (`foreach`/`lmap` cursor loops, `switch` pattern matches, `catch`/`try` handlers) stays on the general structured path with a typed `FunctionDecline`. |
 | Guarded boxed intrinsic | `GuardedIntrinsic` | One executable-IR prebuilt-argv invocation resolved by the registry as `IntrinsicId::StringLength`. The common mixed-region plan retains the registry intrinsic identity, every dispatch-dependency domain, exact completion identity, and the original argv slow path. | The WASM emitter evaluates/builds argv once, asks the live Rust runtime to prepare and re-check a per-interpreter guard token, and invokes the boxed runtime intrinsic only on success. Rename/rebinding, execution traces, unsupported live policy, intrinsic refusal, and guard invalidation use `tcl_invoke_argv` with the same argv. Other intrinsics retain typed declines. |
 | Sealed native i64 add | `DirectProc`, `MaterialisableSlot`, `FrameElision`, `NativeInteger`, and `SemanticOperationSpecialisation`, plus `for_sealed_program()` | The exact four-statement demonstration: one two-required-parameter procedure, two covered constant `set` actuals, and one registry-resolved channel-write boundary containing the direct call. Common proofs cover the procedure binding and body operations, caller/formal SSA identities, integer types and exact ranges, frame privacy, top-level statement coverage, and the boxed output boundary. WASM emits an exported `(i64, i64) -> i64` function using `i64.add`; only the result is boxed as a Tcl wide integer at the output boundary. | Selection requires overflow-impossible exact i64 operands, no extra top-level statement, no relevant mutation or trace, non-standalone packaging, and sealed-program policy. Any missing premise declines before emission to the existing generic/general path. This slice has no mid-function deoptimisation, checked-overflow branch, general materialisation protocol, default arguments, `args`, namespace-relative procedure dispatch, or TclOO support. |
 
@@ -117,7 +118,7 @@ The current control surface is `SemanticOptimisationPassId`:
 | `NativeLowering` | lower a function through the native lowered IR (`native_lowering`) and let a backend emit it; a function the lowering declines stays on the general path with a typed reason |
 | `RepresentationInference` | keep values in the representation lattice (`NativeInt`/`NativeDouble`/`NativeBool`) between operations; disabled, every value is boxed and every operation dynamic with a runtime slow edge |
 | `TraceBarrierElision` | let a value stay in a native shadow across cell accesses the module's variable-trace ledger proves unobserved; disabled, every cell access keeps its barrier and every read goes to the runtime |
-| `CellDemotion` | demote a proven-local procedure variable from a named cell to an indexed slot (decision recorded; slot emission is P5) |
+| `CellDemotion` | demote a proven-local procedure variable from a named cell to an indexed slot (decision recorded; slot emission not yet implemented) |
 
 `WasmCompileOptions::native_tier()` is the aggregate profile that enables the
 four native-tier controls together; it is shorthand for the explicit set and
@@ -478,9 +479,9 @@ Explorer detector reports unread SSA stores, O109 decides source deletability,
 and slot allocation computes name-level interference. They may share lower
 level primitives, but each must retain its distinct conservative contract.
 
-## Implemented first tier and widening order
+## The sealed native-add tier
 
-The first native procedure tier implements this deliberately narrow subset:
+The sealed native procedure tier implements this deliberately narrow subset:
 
 1. one ordinary procedure with required scalar parameters only;
 2. exact live procedure, `expr`, `return`, `set`, and output-boundary operation
@@ -497,13 +498,9 @@ by itself prove that top-level `d` and `e` may disappear, that `add` need not be
 registered, that its frame is unobservable, or that Tcl integer addition cannot
 produce a bignum. Those are separate obligations above.
 
-The common plan now proves those separate obligations for the exact sealed
+The common plan proves those separate obligations for the exact sealed
 demonstration only. A proof miss declines before native emission; there is no
-guarded or deoptimising native activation in this tier. Widening should proceed
-through checked boxed overflow fallback, non-constant machine-range operands,
-general materialisation edges, default parameters and `args`, mixed
-numeric/string values, namespace-relative procedures, safe/child interpreters,
-and finally TclOO dispatch.
+guarded or deoptimising native activation in this tier.
 
 ## Verification matrix
 

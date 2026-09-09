@@ -17,27 +17,34 @@ Why does the analyser report that a command is unsafe in iRules?
 
 ## Why
 
-The command allows context escalation or namespace escape, breaking iRules isolation. It can access or modify state outside the iRule sandbox.
+The command reaches outside the iRule's own stack frame, so it can read and rewrite state the rule does not own. TMM runs every rule in one interpreter, so that reach crosses rules.
 
 ## Symptoms
 
-- A squiggle appears on the unsafe command, with the message "unsafe iRules command".
+- A red squiggle appears on the command, with the message "'uplevel' is unsafe
+  in iRules and may allow context escalation".
 
 ## Example that triggers it
 
 ```tcl
-global ns
+when HTTP_REQUEST { uplevel 1 {set x 1} }
 ```
 
-The analyser reports **`IRULE2003`** because `global` escapes the iRules namespace.
+The analyser reports **`IRULE2003`** on `uplevel`, which runs its script in a
+caller's frame.
 
 ## Fix
 
-Use `static::` for shared state or per-connection storage:
+Run the script in the event's own frame, and keep shared state in `static::`:
 
 ```tcl
-set static::ns "value"
+when RULE_INIT { set static::ns "value" }
+when HTTP_REQUEST { set x 1 }
 ```
+
+`global` and `::`-qualified names are a different problem — they pin the
+virtual server to one TMM and are reported as
+[`IRULE6001`](kcs-diagnostic-irule6001-global-variable-cmp-pinning.md).
 
 ## How to suppress
 

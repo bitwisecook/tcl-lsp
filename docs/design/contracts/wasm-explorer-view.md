@@ -164,7 +164,7 @@ list — that duplication is what the view exists to prevent, and
 
 The same catalogue, with nothing enabled, is in `meta.semanticOptimisations`,
 so a panel can be drawn before the first compile lands — the rule
-`meta.dialects` already follows (issue #1183).
+`meta.dialects` already follows.
 
 **Every pass is off by default.** `nativeLowering.enabled: false` on an
 untouched Explorer means the passes were never asked for, not that they found
@@ -303,10 +303,10 @@ must not infer that no mutable world state exists.
 
 Producer and consumer ship in the same binary but are versioned by hand, and
 a published GUI can outlive the payload it was built against (GitHub Pages
-serves a cached `explorer-core.js`).  Two rules keep a mismatch survivable —
-both were learned from issues #1182 / #1183, where a module header that had
-lost its `types` array made `renderWasmModuleHeader` throw, blanked the WASM
-tab, and left the compile spinner throbbing forever:
+serves a cached `explorer-core.js`).  The failure a mismatch causes without
+guards is total: one missing list — a module header with no `types` array —
+makes `renderWasmModuleHeader` throw, blanks the WASM tab, and leaves the
+compile spinner running forever.  Two rules keep it survivable:
 
 1. **Renderers treat every list as optional.**  Read `entry.foo || []`, never
    `entry.foo.length`.  A field the producer has not caught up with must

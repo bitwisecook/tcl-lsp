@@ -17,29 +17,34 @@ Why does the analyser report that a command is not valid in this event context?
 
 ## Why
 
-The command has no effect or raises an error when called in the wrong event context. Each iRules command is only meaningful inside the events that support it.
+A command only works in events that give it the data and the connection state it needs. Called elsewhere it returns nothing useful, or raises an error.
 
 ## Symptoms
 
-- A squiggle appears under the command, with the message "command not valid in this event".
+- A yellow squiggle appears under the command. The message names the event and
+  the reason: "'HTTP::respond' may not work in RULE_INIT: transport is none,
+  needs tcp; requires profile FASTHTTP or HTTP." A command with a closed set of
+  legal events reads "'…' cannot be used in RULE_INIT. Available in: …"
+  instead.
 
 ## Example that triggers it
 
 ```tcl
-when HTTP_REQUEST {
-  RULE_INIT
+when RULE_INIT {
+  HTTP::respond 200
 }
 ```
 
-The analyser reports **`IRULE1001`** because `RULE_INIT` is not a command that can be called inside `HTTP_REQUEST`.
+The analyser reports **`IRULE1001`** on `HTTP::respond`: `RULE_INIT` runs once
+at rule load, with no connection and no HTTP profile.
 
 ## Fix
 
-Move the command to the appropriate event:
+Move the command to an event that carries the connection it needs:
 
 ```tcl
-when RULE_INIT {
-  # initialisation logic here
+when HTTP_REQUEST {
+  HTTP::respond 200
 }
 ```
 

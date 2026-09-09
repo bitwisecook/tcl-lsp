@@ -321,32 +321,28 @@ at `i + 1` is a decision, and requires all of:
 6. **At least one branch body uses the variable**
    (`any_decision_body_uses_var`).
 7. **No later use** — no statement after the decision in the same script
-   reads the variable (`statement_uses_var`). A read spelled as a bare name
-   counts: `Statement::Call` carries the `reads` and `defs` the lowerer
-   resolved from the registry's `ArgRole::VarRead` / `VarWrite` positions, so
-   `info exists b` and the read-before-write of `append b x` are uses, as is
-   the name word of an `incr`. An argument holding a nested command
-   substitution is not decomposed into statements, so `bareword_occurrences`
-   (`optimiser/helpers/var_refs.rs`) covers its words and makes `puts [set b]`
-   a use as well. Sinking past any of these would leave the variable undefined
-   on the branch the decision does not take.
+   reads the variable (`statement_uses_var`).  A `Statement::Barrier` or
+   `Statement::UpFrame` there counts as a use: its retained words may reach
+   the variable through `eval`, `uplevel`, or an alias.  So does a read
+   spelled as a bare name: `Statement::Call` carries the `reads` and `defs`
+   the lowerer resolved from the registry's `ArgRole::VarRead` / `VarWrite`
+   positions, which makes `info exists b` and the read-before-write of
+   `append b x` uses, as is the name word of an `incr`.  An argument holding a
+   nested command substitution is not decomposed into statements, so
+   `bareword_occurrences` (`optimiser/helpers/var_refs.rs`) covers its words
+   and makes `puts [set b]` a use as well.  Sinking past any of these leaves
+   the variable undefined on the branch the decision does not take.
 8. **The value's read-set survives the move**
    (`sink_rhs_clobbered_by_decision`) — no branch body at any nesting
    redefines a variable the RHS reads, and no `if` condition contains a
    command substitution (nor a `switch` subject a `[`) that could write one.
 
-### Barriers
+"Uses every variable" is the right answer for condition 7, which blocks, and
+the wrong one for condition 6, which enables.  A branch whose first using
+statement is a barrier or an up-frame is therefore declined as a sink target
+rather than anchored there: anchoring would move the definition past a
+by-name read the enclosing scan cannot see.
 
-A `Statement::Barrier` (a dynamic `eval` body, a computed head) or a
-`Statement::UpFrame` can observe any variable, so `statement_uses_var` answers
-`true` for both, matching `propagation`'s `has_intervening_barrier`.  That is
-the blocking answer condition 7 needs: a barrier after the decision keeps the
-definition where it is.
-
-The same answer must not *enable* a sink, so a branch whose first using
-statement is a barrier or an up-frame is declined as a target rather than
-anchored there — anchoring would move the definition past a by-name read the
-textual scan cannot see.
 
 ## Grouped edits
 
@@ -405,13 +401,9 @@ prepend can never land without its deletion:
 - `rust/tcl-compiler/src/optimiser/helpers/select.rs` — the group
   all-or-nothing behaviour of overlap selection
 
-## Related KCS notes
+## Related docs
 
-- [kcs-downstream-pass-contracts.md](../../../docs/design/compiler/downstream-pass-contracts.md)
-- [kcs-diagnostics-integration.md](../../../docs/design/compiler/diagnostics-integration.md)
-- [kcs-pass-fact-ownership-matrix.md](../../../docs/design/compiler/pass-fact-ownership-matrix.md)
-
-## See also
-
-- [compiler KCS index](README.md)
-- [compiler architecture overview](../../../docs/design/compiler-architecture.md)
+- [downstream-pass-contracts.md](downstream-pass-contracts.md)
+- [diagnostics-integration.md](diagnostics-integration.md)
+- [pass-fact-ownership-matrix.md](pass-fact-ownership-matrix.md)
+- [compiler architecture overview](architecture.md)

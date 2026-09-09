@@ -17,7 +17,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Verify that three nextest listings are a disjoint, complete partition.
+"""Verify that nextest listings are a disjoint, complete partition.
 
 The listing format deliberately contains tests which are present in the
 binary but excluded by the active profile, ignored-test mode, or a partition.
@@ -37,14 +37,17 @@ from typing import Any
 
 TestId = tuple[str, str]
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
-PARTITION_COUNT = 3
-PARTITIONS = tuple(
-    f"hash:{index}/{PARTITION_COUNT}" for index in range(1, PARTITION_COUNT + 1)
-)
-LISTING_NAMES = {
-    "all.json",
-    *(f"{index}-{PARTITION_COUNT}.json" for index in range(1, PARTITION_COUNT + 1)),
-}
+DEFAULT_PARTITION_COUNT = 3
+
+
+def _partitions(count: int) -> tuple[str, ...]:
+    if count < 1:
+        raise ValueError(f"partition count must be positive, got {count}")
+    return tuple(f"hash:{index}/{count}" for index in range(1, count + 1))
+
+
+def _listing_names(count: int) -> set[str]:
+    return {"all.json", *(f"{index}-{count}.json" for index in range(1, count + 1))}
 
 
 def _load(path: Path) -> Any:
@@ -110,12 +113,13 @@ def _authoritative_selected(path: Path) -> set[TestId]:
 
 
 def _verify_partition_sets(
-    all_tests: set[TestId], partitions: list[tuple[str, set[TestId]]]
+    all_tests: set[TestId], partitions: list[tuple[str, set[TestId]]], count: int
 ) -> None:
     names = [name for name, _ in partitions]
-    if tuple(names) != PARTITIONS:
+    expected = _partitions(count)
+    if tuple(names) != expected:
         raise ValueError(
-            f"expected exactly the partitions {', '.join(PARTITIONS)}; got {', '.join(names)}"
+            f"expected exactly the partitions {', '.join(expected)}; got {', '.join(names)}"
         )
     union: set[TestId] = set()
     for name, selected in partitions:
@@ -137,22 +141,27 @@ def _verify_partition_sets(
         raise ValueError("\n".join(details))
 
 
-def verify(all_path: Path, *partition_paths: Path) -> None:
+def verify(
+    all_path: Path,
+    *partition_paths: Path,
+    partition_count: int = DEFAULT_PARTITION_COUNT,
+) -> None:
     all_tests = _authoritative_selected(all_path)
-    if len(partition_paths) != PARTITION_COUNT:
+    if len(partition_paths) != partition_count:
         raise ValueError(
-            f"expected exactly {PARTITION_COUNT} partition listings, got {len(partition_paths)}"
+            f"expected exactly {partition_count} partition listings, got {len(partition_paths)}"
         )
     selected = [_selected(path) for path in partition_paths]
     _verify_partition_sets(
         all_tests,
         [
-            (f"hash:{index}/{PARTITION_COUNT}", tests)
+            (f"hash:{index}/{partition_count}", tests)
             for index, tests in enumerate(selected, 1)
         ],
+        partition_count,
     )
     counts = " ".join(
-        f"{index}/{PARTITION_COUNT}={len(tests)}"
+        f"{index}/{partition_count}={len(tests)}"
         for index, tests in enumerate(selected, 1)
     )
     print(f"nextest partition proof: all={len(all_tests)} {counts}")
@@ -228,24 +237,36 @@ def _require_listing_digest(
     _require_digest(listing, digest, f"listing {key}")
 
 
-def _require_exact_listing_keys(metadata: dict[str, Any], path: Path) -> None:
+def _require_exact_listing_keys(
+    metadata: dict[str, Any], path: Path, partition_count: int
+) -> None:
     listings = metadata.get("listings")
     if not isinstance(listings, dict):
         raise TypeError(f"{path}: metadata has no listings object")
     actual = set(listings)
-    if actual != LISTING_NAMES:
-        missing = sorted(LISTING_NAMES - actual)
-        extra = sorted(actual - LISTING_NAMES)
+    expected = _listing_names(partition_count)
+    if actual != expected:
+        missing = sorted(expected - actual)
+        extra = sorted(actual - expected)
         raise ValueError(
-            f"{path}: producer listings must be exactly {sorted(LISTING_NAMES)} "
+            f"{path}: producer listings must be exactly {sorted(expected)} "
             f"(missing={missing}, extra={extra})"
         )
 
 
 def _matching_metadata(
-    producer: dict[str, Any], consumer: dict[str, Any], path: Path, partition: str
+    producer: dict[str, Any],
+    consumer: dict[str, Any],
+    path: Path,
+    partition: str,
+    partition_count: int,
 ) -> None:
     _require_common(consumer, path)
+    for key in ("partition_count", "shard_count"):
+        if consumer.get(key) != partition_count:
+            raise ValueError(
+                f"{path}: {key} does not match partition count {partition_count}"
+            )
     for key in (
         "workspace_sha",
         "nextest_version",
@@ -263,7 +284,11 @@ def _matching_metadata(
         raise ValueError(f"{path}: consumer did not verify the downloaded archive")
 
 
-def verify_results(proof_dir: Path, *partition_dirs: Path) -> None:
+def verify_results(
+    proof_dir: Path,
+    *partition_dirs: Path,
+    partition_count: int = DEFAULT_PARTITION_COUNT,
+) -> None:
     """Verify the transferred proof and consumer result artifacts."""
     producer_meta_path = proof_dir / "producer-metadata.json"
     producer = _metadata(producer_meta_path)
@@ -274,12 +299,17 @@ def verify_results(proof_dir: Path, *partition_dirs: Path) -> None:
         or producer.get("result") != "success"
     ):
         raise ValueError(f"{producer_meta_path}: invalid producer metadata")
-    if len(partition_dirs) != PARTITION_COUNT:
+    for key in ("partition_count", "shard_count"):
+        if producer.get(key) != partition_count:
+            raise ValueError(
+                f"{producer_meta_path}: {key} does not match partition count {partition_count}"
+            )
+    if len(partition_dirs) != partition_count:
         raise ValueError(
-            f"expected exactly {PARTITION_COUNT} consumer result directories, "
+            f"expected exactly {partition_count} consumer result directories, "
             f"got {len(partition_dirs)}"
         )
-    _require_exact_listing_keys(producer, producer_meta_path)
+    _require_exact_listing_keys(producer, producer_meta_path, partition_count)
 
     archive_digest = _read_archive_digest(proof_dir / "archive.sha256")
     if archive_digest != producer["archive_sha256"]:
@@ -301,13 +331,13 @@ def verify_results(proof_dir: Path, *partition_dirs: Path) -> None:
 
     all_path = proof_dir / "all.json"
     producer_listing_paths = [
-        proof_dir / f"{index}-{PARTITION_COUNT}.json"
-        for index in range(1, PARTITION_COUNT + 1)
+        proof_dir / f"{index}-{partition_count}.json"
+        for index in range(1, partition_count + 1)
     ]
     listing_items = [
         (all_path, "all.json"),
         *[
-            (path, f"{index}-3.json")
+            (path, f"{index}-{partition_count}.json")
             for index, path in enumerate(producer_listing_paths, 1)
         ],
     ]
@@ -318,8 +348,10 @@ def verify_results(proof_dir: Path, *partition_dirs: Path) -> None:
     for index, directory in enumerate(partition_dirs, 1):
         metadata_path = directory / "result-metadata.json"
         metadata = _metadata(metadata_path)
-        partition = f"hash:{index}/{PARTITION_COUNT}"
-        _matching_metadata(producer, metadata, metadata_path, partition)
+        partition = f"hash:{index}/{partition_count}"
+        _matching_metadata(
+            producer, metadata, metadata_path, partition, partition_count
+        )
         listing = directory / "selected.json"
         consumer_data.append((partition, metadata, metadata_path, listing))
     for _, metadata, metadata_path, listing in consumer_data:
@@ -333,18 +365,26 @@ def verify_results(proof_dir: Path, *partition_dirs: Path) -> None:
     consumer_selected = [_selected(listing) for _, _, _, listing in consumer_data]
     _verify_partition_sets(
         all_tests,
-        [(partition, tests) for partition, tests in zip(PARTITIONS, producer_selected)],
+        [
+            (partition, tests)
+            for partition, tests in zip(_partitions(partition_count), producer_selected)
+        ],
+        partition_count,
     )
     _verify_partition_sets(
         all_tests,
-        [(partition, tests) for partition, tests in zip(PARTITIONS, consumer_selected)],
+        [
+            (partition, tests)
+            for partition, tests in zip(_partitions(partition_count), consumer_selected)
+        ],
+        partition_count,
     )
     if consumer_selected != producer_selected:
         raise ValueError(
             "consumer selected listings differ from producer partition listings"
         )
     counts = " ".join(
-        f"{index}/{PARTITION_COUNT}={len(tests)}"
+        f"{index}/{partition_count}={len(tests)}"
         for index, tests in enumerate(consumer_selected, 1)
     )
     print(f"transferred nextest proof: all={len(all_tests)} {counts}")
@@ -443,6 +483,7 @@ def self_test() -> None:
                     ("hash:1/3", set()),
                     ("hash:3/3", set()),
                 ],
+                3,
             )
         except ValueError as exc:
             assert "exactly the partitions" in str(exc)
@@ -463,6 +504,14 @@ def self_test() -> None:
             assert "authoritative listing selects no tests" in str(exc)
         else:
             raise AssertionError("empty authoritative selection passed verification")
+        verify(
+            Path("all"),
+            Path("first"),
+            Path("second"),
+            Path("empty"),
+            Path("empty"),
+            partition_count=4,
+        )
     finally:
         globals()["_load"] = original_load
     print(
@@ -506,6 +555,8 @@ def self_test() -> None:
             "package": "tcl-lsp-server",
             "filter": "default",
             "archive_sha256": archive_sha,
+            "partition_count": 3,
+            "shard_count": 3,
         }
         producer_metadata = dict(common)
         producer_metadata.update(
@@ -522,7 +573,9 @@ def self_test() -> None:
             json.dumps(producer_metadata), encoding="utf-8"
         )
         for directory, partition, fixture in zip(
-            partition_dirs, PARTITIONS, (first_fixture, second_fixture, third_fixture)
+            partition_dirs,
+            _partitions(DEFAULT_PARTITION_COUNT),
+            (first_fixture, second_fixture, third_fixture),
         ):
             listing = directory / "selected.json"
             listing.write_text(json.dumps(fixture), encoding="utf-8")
@@ -541,6 +594,20 @@ def self_test() -> None:
             )
         assert not (proof_dir / "lsp-e2e.tar.zst").exists()
         verify_results(proof_dir, *partition_dirs)
+        producer_metadata["partition_count"] = 4
+        (proof_dir / "producer-metadata.json").write_text(
+            json.dumps(producer_metadata), encoding="utf-8"
+        )
+        try:
+            verify_results(proof_dir, *partition_dirs)
+        except ValueError as exc:
+            assert "partition_count does not match" in str(exc)
+        else:
+            raise AssertionError("mismatched partition metadata passed verification")
+        producer_metadata["partition_count"] = 3
+        (proof_dir / "producer-metadata.json").write_text(
+            json.dumps(producer_metadata), encoding="utf-8"
+        )
         try:
             verify_results(proof_dir, *partition_dirs[:2])
         except ValueError as exc:
@@ -567,29 +634,41 @@ def main(argv: list[str]) -> int:
     if argv == ["--self-test"]:
         self_test()
         return 0
+    partition_count = DEFAULT_PARTITION_COUNT
+    if argv and argv[0] == "--partition-count":
+        try:
+            partition_count = int(argv[1])
+        except (IndexError, ValueError):
+            print("partition count must be an integer", file=sys.stderr)
+            return 2
+        if partition_count < 1:
+            print("partition count must be positive", file=sys.stderr)
+            return 2
+        argv = argv[2:]
     if argv and argv[0] == "--verify-results":
-        if len(argv) != PARTITION_COUNT + 2:
+        if len(argv) != partition_count + 2:
             print(
-                f"usage: {sys.argv[0]} --verify-results "
-                "PROOF_DIR FIRST_DIR SECOND_DIR THIRD_DIR",
+                f"usage: {sys.argv[0]} [--partition-count N] --verify-results PROOF_DIR DIR...",
                 file=sys.stderr,
             )
             return 2
         try:
-            verify_results(*(Path(arg) for arg in argv[1:]))
+            verify_results(
+                *(Path(arg) for arg in argv[1:]), partition_count=partition_count
+            )
         except (TypeError, ValueError) as exc:
             print(exc, file=sys.stderr)
             return 1
         return 0
-    if len(argv) != PARTITION_COUNT + 1:
+    if len(argv) != partition_count + 1:
         print(
-            f"usage: {sys.argv[0]} ALL.json 1-3.json 2-3.json 3-3.json",
+            f"usage: {sys.argv[0]} [--partition-count N] ALL.json 1-N.json ... N-N.json",
             file=sys.stderr,
         )
         print(f"       {sys.argv[0]} --self-test", file=sys.stderr)
         return 2
     try:
-        verify(*(Path(arg) for arg in argv))
+        verify(*(Path(arg) for arg in argv), partition_count=partition_count)
     except (TypeError, ValueError) as exc:
         print(exc, file=sys.stderr)
         return 1

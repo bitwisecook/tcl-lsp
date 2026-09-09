@@ -21,7 +21,7 @@ A command name built from a variable or command substitution cannot be staticall
 
 ## Symptoms
 
-- A yellow squiggle appears under the command invocation, with the message "non-literal command name".
+- A yellow squiggle appears under the command word, with the message *"Non-literal command name — cannot statically analyze"*.
 
 ## Example that triggers it
 
@@ -44,17 +44,15 @@ Use a literal command name or a validated dispatch table instead.
 
 ## When it does not fire
 
-The warning is an abstention, not a verdict, so it stays silent whenever the analyser can actually resolve the dispatch. In particular, a variable the object-type lattice proves holds a TclOO object does not warn — including a handle returned by a method and captured into a variable:
+The warning is an abstention, not a verdict, so it stays silent whenever the analyser can resolve the dispatch. A variable the object-type lattice proves holds a TclOO object does not warn:
 
 ```tcl
-oo::class create A { method make {} { return [B new] } }
 oo::class create B { method greet {} { return "hi" } }
-set a [A new]
-set b [$a make]
+set b [B new]
 $b greet   ;# no W307 — `b` is provably a ::B, so the method is validated instead
 ```
 
-An unknown method on such a handle reports `W308`, matching what hover and go-to-definition say about the same receiver.
+An unknown method on such a handle reports `W308`, matching what hover and go-to-definition say about the same receiver. A handle the analyser cannot type — one returned by a method, for example — still warns.
 
 ## How to suppress
 

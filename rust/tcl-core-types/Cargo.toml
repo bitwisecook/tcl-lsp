@@ -26,8 +26,7 @@
 # `CompileService::compile -> ModuleAsm`. This crate depends on **nothing**, so
 # it stays `wasm32`-clean and is a true leaf.
 #
-# See `docs/design/common-runtime-emitter-architecture.md` (§6, the dependency
-# diamond).
+# See `docs/design/rust/current-architecture.md` (the crate graph).
 [package]
 name = "tcl-core-types"
 publish.workspace = true

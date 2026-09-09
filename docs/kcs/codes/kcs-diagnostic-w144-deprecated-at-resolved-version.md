@@ -52,7 +52,9 @@ floor. When no floor can be resolved, nothing is reported.
 ## Symptoms
 
 - A yellow squiggle under a command, subcommand, `-option`, or literal
-  argument value, with a message naming its package or Tcl core version.
+  argument value, with a message like "Subcommand 'slaves' on 'interp' is
+  deprecated as of Tcl 8.6; tcl9.0 targets Tcl 9.0."
+- The range is struck through, the editor's rendering for a deprecated item.
 
 ## Example that triggers it
 

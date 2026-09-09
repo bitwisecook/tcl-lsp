@@ -30,7 +30,9 @@ not flagged.
 
 ## Symptoms
 
-- A yellow squiggle appears under the substituted variable, with the message "variable substitution where name expected".
+- A yellow squiggle appears under the substituted variable, with a message
+  naming the command and the substitution: `'set' expects a variable name, got
+  substitution ($varname). Did you mean 'varname'?`
 
 ## Example that triggers it
 

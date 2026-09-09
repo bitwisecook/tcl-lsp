@@ -36,7 +36,8 @@ says so. Serve the directory to get the full editor.
    written in: Tcl core first, then the libraries that layer on it (the
    standard library, Tcllib, Tk, …), then the vendor and authoring surfaces.
    Only the packs the dialect actually reaches are listed, and the count line
-   above says what you are looking at: `187 Tcl 9.0 commands in 4 packs`. A
+   above says what you are looking at — for example `Tcl 9.0 commands in 4
+   packs`, with the number of each. A
    pack you are building yourself is the first section, not a separate panel.
 2. **Open a pack and choose a command** to load its live specification into
    the form, or press **New command** to start from scratch. Each command
@@ -48,7 +49,7 @@ says so. Serve the directory to get the full editor.
    where it lives in the repository, which is the directory a rendered `.rs`
    file goes into. Typing in the filter box narrows the browser to the packs
    with a match — each header reads `12 of 96`, and the count line becomes
-   `12 of 187 Tcl 9.0 commands, in 3 packs`. If you already know the name,
+   `12 of … Tcl 9.0 commands, in 3 packs`. If you already know the name,
    type it into the same box and press **Load** (or Enter); the box also
    offers the matching names as you type. An ambiguous or unknown name is
    reported rather than guessed at, since loading the wrong command silently
@@ -75,64 +76,6 @@ says so. Serve the directory to get the full editor.
    the set, or **Stage every file** to collect them in **Files & issue**.
 6. **Files & issue** downloads the staged files and opens a pre-filled
    GitHub issue so you can propose the pack.
-
-### Several commands at once
-
-Every command you open gets a tab in a strip above the workbench tabs, up to
-twelve, so comparing two specifications or copying an option table from a
-shipped command into your own is a click rather than a trip back through
-the browser. A tab is a place to stand, not a copy: every edit goes straight
-into the pack document, so there is nothing to save before you switch and
-nothing to lose by closing. A dot on a tab marks a command you have edited
-since opening it. Come back to a tab and the form is as you left it — the
-same groups open, scrolled to the same place — and clicking the tab you are
-already on from another pane returns you to the editor.
-
-| Key or gesture | Does |
-|---|---|
-| Click, or `Enter` on a focused tab | Opens that command |
-| `←` `→` `Home` `End` | Move along the strip without opening anything |
-| ✕, middle-click, or `Delete` on a focused tab | Closes that tab — these always work |
-| `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous tab, where the browser lets a page have the key |
-| `Ctrl+W` or `Cmd+W` | Closes the tab you are on, likewise |
-
-Closing a tab brings its neighbour forward; closing the last leaves the form
-on an empty draft. Opening a thirteenth command closes the tab you have used
-least recently among those you have not edited — never the one you are on —
-and the status line says which. If every other tab has been edited, the
-least recently used of those goes instead. Either way the command is still
-in the pack, one click away in the browser.
-
-Tabs and history agree. Switching to a tab counts as opening that command,
-so ◀ ▶ and the browser's Back step through tabs like anything else you
-opened, and a link someone sends you opens its command as a tab. Closing a
-tab is not a move, so Back does not revisit it. Open tabs are part of live
-save: reload, and the strip comes back with the same tab in front.
-
-**New command** starts a draft that belongs to no tab until you press **Add
-to pack**; the strip shows nothing selected until then, so it is plain the
-edits are going into a fresh draft and not into an open command.
-
-### Finding a command from anywhere
-
-Press `/` when you are not typing in a box to search three places at once:
-the pack you are building, the shipped packs of the selected dialect, and
-the Reference vocabulary — the picker catalogues and their values, such as
-a trait or an argument role. Type to narrow, `↑` `↓` to move, `Enter` to
-open, `Esc` to close.
-
-Every result says where it came from — `pack mylib`, `shipped · Tcl 9.0`
-with the pack's chip, or `Reference` — and marks the part of the name or
-summary that matched, and the line above the list says what was searched
-and how much of each answered: `3 matches — 1 in pack mylib, 1 in the
-shipped Tcl 9.0 packs, 1 in the Reference vocabulary`. So "no match" is no
-match in all three, and you can place a hit before you open it. Results are
-ordered by how well the name matches — an exact name first, then a name
-starting with what you typed, then one containing it, then a match in the
-summary only — with your own pack ahead of shipped commands and those ahead
-of Reference entries. At most sixty are shown, and the count says if there
-were more. Specification fields are not in this search: the **?** buttons,
-the **Docs** panel, and the Reference tab already cover those.
 
 ### Several commands at once
 
@@ -239,11 +182,6 @@ second row would move the form underneath it — and keeps the tab you are on
 in view. On a phone the names are cut shorter, so more than one tab is in
 reach without dragging the strip, and on a touch screen each tab and its ✕
 are 44px targets.
-
-The **Docs** panel is a one-line strip at the bottom of the screen, folded
-until you tap it. Open, it takes half the screen, and the control you are
-editing is scrolled up from under it. The **?** buttons stay the quicker
-route there.
 
 The **Docs** panel is a one-line strip at the bottom of the screen, folded
 until you tap it. Open, it takes half the screen, and the control you are
@@ -422,7 +360,7 @@ a link, copies the issue body for you to paste.
 ### The Pack DSL tab
 
 Beside the form and the **Export** tab, the **Pack DSL** tab holds the
-[SpecTcl pack](../../design/spec-packs.md)'s `.tclspec` source directly —
+[SpecTcl pack](../../design/registry/spec-packs.md)'s `.tclspec` source directly —
 the studio's one authoritative document for a pack you are building.
 Edit a field in the form and the DSL text updates; edit the text and the
 form, the pack's section of the browser, and the collision report all
@@ -446,10 +384,10 @@ JetBrains its sample is materialised as a real `test.tcl` under
 `.tcl-lsp/.spec-studio/`, which the language server would otherwise resolve as
 generic Tcl however the selector is set — so a pack whose commands only exist
 in, say, `f5-irules` would show no highlighting, completion or hover in the one
-buffer you are testing it with. Changing the selector now pins that document to
+buffer you are testing it with. Changing the selector pins that document to
 the chosen dialect through `tcl-lsp.setDocumentDialectOverride`, and closing the
 studio releases it. Only the sample is pinned: every other buffer you have open
-keeps the dialect it resolved on its own (issue #1931).
+keeps the dialect it resolved on its own.
 
 The status line under the editor says what is running. If the language
 server cannot start — an old browser, WebAssembly turned off, the page
@@ -459,7 +397,7 @@ silently missing.
 
 ### Tk input, callback, geometry, and method metadata
 
-The studio preserves seven Tk-relevant registry facts added in SpecTcl 1.2:
+The studio preserves seven Tk-relevant registry facts from SpecTcl 1.2:
 
 - For a value-taking option, **external input link** sets
   `OptionArg.taints_var_write`. Use it only when the named variable can receive
@@ -695,7 +633,7 @@ reasoning that produced it.
   how the schema, draft model, and renderers fit together.
 - [Dialect command stubs](../../design/contracts/dialect-stubs.md) — the stub
   language the studio emits.
-- [SpecTcl pack design](../../design/spec-packs.md) — the `.tclspec`
+- [SpecTcl pack design](../../design/registry/spec-packs.md) — the `.tclspec`
   authoring format the studio's Pack DSL tab reads and writes.
 - [How to write a SpecTcl pack](../kcs-howto-write-a-tclspec-pack.md) —
   write one by hand today.

@@ -18,7 +18,7 @@
 
 //! Contract tests binding the `DialectProfile` catalog (tcl-dialect) to the
 //! registry's spec data — the two sides of the availability axis
-//! (`docs/design/dialect-profile-model.md` §5/§9).
+//! (`docs/design/registry/dialect-profile-model.md` §5/§9).
 //!
 //! iRules availability is fully explicit in the spec data: the profile is a
 //! bare `IRULES` mask and every command carries an explicit surface (universal

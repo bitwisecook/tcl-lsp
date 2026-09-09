@@ -17,8 +17,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The registry on the new core/environment model (P1-E of the redesign,
-//! `docs/design/dialect-and-package-registry-redesign.md` §4 and
-//! `docs/design/dialect-and-package-registry-centralisation.md` §1).
+//! `docs/design/registry/dialect-and-package-registry-redesign.md` §4 and
+//! `docs/design/registry/dialect-and-package-registry-centralisation.md` §1).
 //!
 //! The submodules are layered exactly as the design's availability
 //! chapter draws them:

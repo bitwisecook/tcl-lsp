@@ -36,8 +36,6 @@ lappend auto_path $libdir  ;# also fine
 set env(TZ) UTC            ;# no warning — the write mutates the process environment
 ```
 
-Before this feature, `set auto_path ../` reported `Assignment to 'auto_path' is never read [W220]`.
-
 ### Hover documentation
 
 Hovering `$tcl_platform(os)` in a Tcl file shows a summary plus the platform keys available in that Tcl version. In an iRules file the same hover reports the BIG-IP keys (`tmmVersion`, …) and warns that a plain `$tcl_platform` access demotes the virtual server from CMP — use `static::tcl_platform`.

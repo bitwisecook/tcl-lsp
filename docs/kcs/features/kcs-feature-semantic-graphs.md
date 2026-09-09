@@ -29,7 +29,8 @@ Three tools cover semantic graph extraction, each returning structured JSON:
 
 ```
 tcl callgraph my_irule.tcl --json
-tcl symbols my_irule.tcl --json
+tcl symbolgraph my_irule.tcl --json
+tcl dataflow my_irule.tcl --json
 ```
 
 ### MCP
@@ -46,20 +47,24 @@ The `/irule-diagram` and `/irule-dataflow` skills wrap graph extraction with AI 
 
 ## Example
 
-A three-proc iRule produces a `call_graph` result like:
+An iRule with two procs called from `HTTP_REQUEST` produces a `call_graph`
+result like:
 
 ```json
 {
   "nodes": [
-    {"name": "::select_pool", "params": ["uri"], "pure": true},
-    {"name": "::log_action", "params": ["msg"], "pure": false}
+    {"name": "::log_action", "params": ["msg"], "line": 3, "pure": false, "effects": "NONE"},
+    {"name": "::select_pool", "params": ["uri"], "line": 0, "pure": true, "effects": "NONE"},
+    {"name": "::when::HTTP_REQUEST", "params": [], "line": 6, "pure": false, "effects": "HTTP_STATE"}
   ],
   "edges": [
-    {"caller": "<top-level>", "callee": "::select_pool"},
-    {"caller": "<top-level>", "callee": "::log_action"}
+    {"caller": "::when::HTTP_REQUEST", "callee": "::log_action",
+     "call_sites": [{"line": 8, "character": 4}]},
+    {"caller": "::when::HTTP_REQUEST", "callee": "::select_pool",
+     "call_sites": [{"line": 7, "character": 11}]}
   ],
-  "roots": ["<top-level>"],
-  "leaf_procs": ["::select_pool", "::log_action"]
+  "roots": ["::when::HTTP_REQUEST"],
+  "leaf_procs": ["::log_action", "::select_pool"]
 }
 ```
 

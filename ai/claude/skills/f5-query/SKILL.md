@@ -11,8 +11,9 @@ the file(s) they name.
 
 ## Workflow
 
-1. **Input.** `.conf` and `.scf` load directly; `.ucs` needs
-   `f5 ucs-extract` first. No file named → ask.
+1. **Input.** `.conf`, `.scf`, and `.ucs` all load directly (a UCS is
+   decrypted in memory; `f5 extract` converts one to SCF when the user wants
+   the text). No file named → ask.
 2. **Translate** from the recipes below; grammar in
    `docs/references/f5_query/dsl.md` (`f5 query --help-dsl`), every builtin
    in `docs/references/f5_query/builtins.md` (`f5 query --help-builtins
@@ -37,13 +38,12 @@ one loaded source (below); reads and writes both route to it.
 | Divergence from jq | f5 query |
 |---|---|
 | function args | `,` separated, not `;` |
-| stream concat `,` | absent — use `[ ... ]` lists or `;` statements |
-| `test()` | `match()` is boolean; capture groups via `sub` / `gsub` |
+| stream concat `,` | supported, including inside `[ ... ]`; a comma in a function argument or object entry stays a structural separator, so parenthesise a comma value there |
+| regex | `match()` and `test()` are both boolean; capture groups via `sub` / `gsub` |
 | truthiness | empty string / list / stream / PathRef and numeric 0 are also falsey |
 | object literals | `{name, dest: .destination}` (bareword key = `key: .key`; stream fields broadcast one row per item) |
 | `expr as $x \| body` | supported — streams iterate, plain lists bind whole |
-| string interpolation | not in v1 — concat with `+` (scalars auto-coerce) |
-| `,` inside `[...]` | not in v1 — parse error names the comma |
+| string interpolation | `"\(…)"` is not interpolated — concat with `+` (scalars auto-coerce) |
 
 ## Multi-config queries
 
@@ -60,9 +60,15 @@ route back; it refuses when two sources define the same `(kind, full-path)`.
 | list virtuals from ltm.conf with gtm.conf loaded | `$ltm.ltm.virtual[].name` |
 | every LTM pool a GTM pool references | `--merge .gtm.pool[] \| refs(.)` |
 | rename a pool in tier1 only | `$tier1.ltm.pool["/Common/old"].name = "/Common/new"` |
-| every object across both tiers | `--merge .ltm[][].name` |
+| every virtual and pool across both tiers | `--merge .ltm.virtual[]."full-path", .ltm.pool[]."full-path"` |
 
 ## Network probes and cert audit
+
+The engine projects objects for the `ltm`, `gtm` and `security` modules
+only; `net`, `sys`, `cm` and `apm` parse but expose no kinds, so
+`.sys["file-ssl-cert"][]` and `.cm.cert[]` raise `no entry`. Until they are
+projected, feed a cert in from a builtin instead — `cert_load(path)`,
+`x509_parse(pem)`, `ucs_cert(...)`, or a live `tls_handshake` / `url_get`.
 
 Live checks need `--enable-probes`. Every cert-emitting builtin returns the
 same dict (`subject`, `issuer`, `serial`, `fingerprint_sha256`, `sans`,
@@ -102,7 +108,7 @@ retry unverified so the audit still gets body and peer cert, and report
 | any iRule referencing the missing pool /Common/X | `any(.ltm.rule[].refs.pools[] \| (. == "/Common/X"))` |
 | each pool's member count | `.ltm.pool[] \| .name + ": " + count(.members)` |
 | persistence profiles inheriting from cookie | `.ltm.persistence[] \| select(."defaults-from" == "/Common/cookie") \| .name` |
-| data-groups whose body contains 'foo' | `.ltm["data-group"][] \| select(contains(.records, "foo")) \| .name` |
+| data-groups whose body contains 'foo' | `.ltm["data-group"][] \| select(any(.records[] \| contains(., "foo"))) \| .name` |
 | every kind of object | `[.[]] \| count` |
 | unreferenced pools | use `f5 cleanup` |
 
@@ -125,7 +131,8 @@ source format and reads strict UTF-8), `--write`, `--in-place`,
 
 1. `map(body)` is many-to-many and flattens like the pipe;
    `map(select(...) | .field)` is the filter+transform idiom.
-2. No `,` inside `[ ... ]` — one pipeline expression per bracket.
+2. A comma inside a function argument list or an object entry separates
+   arguments, not streams — parenthesise a comma expression there.
 3. `--in-place --format tmsh` is refused; use `--write` for tmsh.
 4. Field-edit strings are SCF-encoded on write; newlines and braces raise an
    `EditError`.
@@ -134,10 +141,10 @@ source format and reads strict UTF-8), `--write`, `--in-place`,
 
 ## Defer to
 
-`f5 cleanup` (orphans, reverse-topological), `f5 lint` (BIG-IP rule
-findings), `f5 grep` (transitive reference graph), `f5 diff`
-(round-trip-aware whole-config diff), `f5 trace` / `f5 explain` (ad-hoc Tcl
-analysis).
+`f5 cleanup` (orphans, reverse-topological), `f5 irule lint` (iRule-only
+lint rules), `f5 grep` (transitive reference graph), `f5 diff`
+(round-trip-aware whole-config diff), `f5 irule trace` (static event-flow
+trace), `f5 explain` (the resolved plan for one virtual or pool).
 
 ## Etiquette
 

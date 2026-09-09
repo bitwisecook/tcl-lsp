@@ -243,9 +243,6 @@ pub struct TraceTable {
     /// records registrations a callback *removed* rather than ones it is
     /// running.
     pub firing_exec_traces: Vec<u64>,
-    /// Variable cells whose trace callbacks are currently running. Other
-    /// variables remain traceable from within a callback.
-    pub active_var_scopes: Vec<VarTraceScope>,
     /// Non-zero while an **execution** trace callback (`enter`/`leave`/
     /// `enterstep`/`leavestep`) is running — C's `INTERP_TRACE_IN_PROGRESS`,
     /// which `TraceExecutionProc` sets around exactly those callbacks

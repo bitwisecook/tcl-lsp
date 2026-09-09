@@ -49,7 +49,7 @@
 //! (`DialectProfile::projected_from_point`) carries
 //! `vm_runtime_version = V9_0`, so a Jim unit is *compiled* under Jim's
 //! grammar and *executed* as Tcl 9. That is the intended boundary today.
-//! The eventual, recorded in `docs/design/dialect-profile-model.md` §2.5,
+//! The eventual, recorded in `docs/design/registry/dialect-profile-model.md` §2.5,
 //! is a pin that is a `tcl_dialect::DialectPoint` rather than a
 //! `TclVersion`, at which point this module resolves it the same way and
 //! nothing upstream changes: every consumer here already derives from the

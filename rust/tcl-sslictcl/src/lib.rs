@@ -29,7 +29,7 @@
 //!    deterministic document that loads to an equal model.
 //!
 //! [`vocabulary::DECLARATIONS`] states the whole vocabulary as data, and
-//! `docs/design/sslictcl-vocabulary.md` is its prose reference.
+//! `docs/design/f5/sslictcl-vocabulary.md` is its prose reference.
 
 pub mod certificate;
 pub mod chain;

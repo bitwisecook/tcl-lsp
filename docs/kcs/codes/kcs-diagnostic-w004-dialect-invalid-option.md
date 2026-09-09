@@ -26,7 +26,7 @@ Some command options were added in later Tcl versions. When the active dialect i
 ## Example that triggers it
 
 ```tcl
-# dialect: tcl8.4
+# tcl-dialect: tcl8.4
 lsort -stride 2 $l
 ```
 

@@ -139,7 +139,7 @@ pub struct LexerConfig {
     /// iRules dialects.
     pub expand_syntax: bool,
     /// When true, the F5 implicit word break (the R-rules of
-    /// `docs/design/bigip-irule-parser-measurements.md` §1, §3): a word
+    /// `docs/design/f5/bigip-irule-parser-measurements.md` §1, §3): a word
     /// that **started** with `{` or `"` ends at its matching close
     /// delimiter, and any following character that is not whitespace or
     /// a command terminator begins a new word — a zero-width ghost SEP
@@ -151,7 +151,7 @@ pub struct LexerConfig {
     /// iApp implementations (§4a) — carried under its historical name.
     pub irules_brace_separator: bool,
     /// The F5 brace-line continuation axis (the N-rules of
-    /// `docs/design/bigip-irule-parser-measurements.md` §2): under
+    /// `docs/design/f5/bigip-irule-parser-measurements.md` §2): under
     /// [`BraceLineContinuation::Continues`], a newline whose next line's
     /// first non-whitespace character is `{` does not terminate the
     /// command — it lexes as a SEP instead of an EOL, unconditionally
@@ -316,7 +316,7 @@ impl LexerConfig {
     /// * `expand_syntax` — true for Tcl 8.5+ runtimes and dialects that
     ///   embed one (Expect, the EDA flavours, `bpf`, `spectcl`). False for
     ///   Tcl 8.4 and for **every** F5 dialect: measurement
-    ///   (`docs/design/bigip-irule-parser-measurements.md` §4a) showed
+    ///   (`docs/design/f5/bigip-irule-parser-measurements.md` §4a) showed
     ///   `f5-tmsh` and `f5-iapps` are 8.4.6 forks like `f5-irules`, not the
     ///   8.5 embeds the pre-#1631 catalogue assumed, and on all three
     ///   `{*}$l` lexes as a literal `*` plus the unexpanded word.

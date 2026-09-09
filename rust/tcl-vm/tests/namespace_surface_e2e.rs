@@ -1407,6 +1407,135 @@ fn import_delete_retires_the_exact_generation_after_trace_relocation() {
 }
 
 #[test]
+fn source_deletion_refollows_generation_after_import_callbacks() {
+    // The imported binding's delete callback can rename the real source while
+    // its import tree is retiring. Final source unlink resolves that original
+    // generation again, so the moved command cannot survive. Exact Tcl 9.0.4
+    // oracle result.
+    assert_eq!(
+        run("set log {}
+             proc cb {old new op} {
+                 lappend ::log [list $old $new $op]
+                 rename ::S::p ::S::q
+             }
+             namespace eval S {proc p {} {return OLD}; namespace export p}
+             namespace eval N {
+                 namespace import ::S::p
+                 trace add command p delete ::cb
+             }
+             rename ::S::p {}
+             list [info commands ::S::p] [info commands ::S::q] \
+                  [catch {::S::q} m] $m [info commands ::N::p] $log"),
+        "{} {} 1 {invalid command name \"::S::q\"} {} {{::N::p {} delete}}"
+    );
+}
+
+#[test]
+fn import_tree_refollows_parent_generation_after_child_callbacks() {
+    // A transitive child's delete trace can relocate its parent import. The
+    // depth-first retirement owner re-resolves the parent's generation after
+    // returning from that child before unlinking it. Exact Tcl 9.0.4 oracle.
+    assert_eq!(
+        run("set log {}
+             proc cb {old new op} {
+                 lappend ::log [list $old $new $op]
+                 rename ::N::p ::N::q
+             }
+             namespace eval S {proc p {} {return OLD}; namespace export p}
+             namespace eval N {namespace import ::S::p; namespace export p}
+             namespace eval M {
+                 namespace import ::N::p
+                 trace add command p delete ::cb
+             }
+             rename ::S::p {}
+             list [info commands ::N::q] [catch {::N::q} m] $m $log"),
+        "{} 1 {invalid command name \"::N::q\"} {{::M::p {} delete}}"
+    );
+}
+
+#[test]
+fn real_delete_retires_the_exact_generation_after_trace_relocation() {
+    // A delete callback can rename the command token being deleted. C follows
+    // that token's updated hash entry and removes the destination, while a
+    // same-spelled replacement would remain a distinct generation. Exact Tcl
+    // 9.0.4 oracle results for retained-visible and live-hidden locations.
+    assert_eq!(
+        run("set log {}
+             proc cb {old new op} {
+                 lappend ::log [list $old $new $op]
+                 uplevel 1 {rename q r}
+             }
+             namespace eval N {
+                 proc q {} {return OLD}
+                 trace add command q delete ::cb
+                 proc hold {} {
+                     namespace delete ::N
+                     rename q {}
+                     list [info commands q] [info commands r] \
+                          [catch {r} m] $m $::log
+                 }
+             }
+             ::N::hold"),
+        "{} {} 1 {invalid command name \"r\"} {{::N::q {} delete}}"
+    );
+    assert_eq!(
+        run("set log {}
+             proc cb {old new op} {
+                 lappend ::log [list $old $new $op]
+                 interp hide {} x held
+             }
+             proc x {} {return OLD}
+             trace add command x delete cb
+             rename x {}
+             list [info commands x] [interp hidden {}] \
+                  [catch {interp invokehidden {} held} m] $m $log"),
+        "{} {} 1 {invalid hidden command name \"held\"} {{::x {} delete}}"
+    );
+}
+
+#[test]
+fn import_cascade_retires_the_relocated_generation_once() {
+    // Source deletion owns the complete import tree. An imported token moved
+    // by its delete callback still dies at the new location, and its trace
+    // fires only once. Exact Tcl 9.0.4 oracle results for retained-visible and
+    // hidden-to-visible relocation.
+    assert_eq!(
+        run("set log {}
+             proc cb {old new op} {
+                 lappend ::log [list $old $new $op]
+                 uplevel 1 {rename p r}
+             }
+             namespace eval S {proc p {} {return old}; namespace export p}
+             namespace eval N {
+                 namespace import ::S::p
+                 trace add command p delete ::cb
+                 proc hold {} {
+                     namespace delete ::N
+                     rename ::S::p {}
+                     list [info commands p] [info commands r] \
+                          [catch {r} m] $m $::log
+                 }
+             }
+             ::N::hold"),
+        "{} {} 1 {invalid command name \"r\"} {{::N::p {} delete}}"
+    );
+    assert_eq!(
+        run("set log {}
+             proc cb {old new op} {
+                 lappend ::log [list $old $new $op]
+                 interp expose {} held q
+             }
+             namespace eval S {proc p {} {return old}; namespace export p}
+             namespace import ::S::p
+             trace add command p delete cb
+             interp hide {} p held
+             rename ::S::p {}
+             list [info commands q] [interp hidden {}] [catch {q} m] $m $log"),
+        "{} {} 1 {invalid command name \"q\"} {{::held {} delete}}"
+    );
+}
+
+#[test]
 fn interp_hide_and_expose_failures_keep_typed_tcl_identities() {
     // Exercise the current interpreter, a named child, and the child's own
     // command entry point. Names with spaces also prove that lookup codes are
@@ -2530,6 +2659,22 @@ fn a_retained_token_takes_relative_definitions_only() {
 }
 
 #[test]
+fn an_absolute_proc_definition_targets_the_live_recreation() {
+    assert_eq!(
+        run(r"namespace eval N {
+                 proc p {} {
+                     namespace delete ::N
+                     namespace eval ::N {}
+                     proc ::N::fresh {} {return [namespace current]}
+                     list [::N::fresh] [info commands fresh]
+                 }
+             }
+             ::N::p"),
+        "::N {}"
+    );
+}
+
+#[test]
 fn a_retained_token_keeps_its_children() {
     // The child stays reachable relatively and by no absolute name at all. The
     // absolute name is built at run time on purpose: a literal would measure
@@ -2625,6 +2770,31 @@ fn retained_and_recreated_namespace_variable_traces_are_isolated() {
              namespace delete ::N
              list $inside $after $events"),
         "{0 old new} {1 new {{old 1 ::N::v {} unset}} {{unset {::rec new}}}} {{old 1 ::N::v {} unset} {new 0 ::N::v {} unset}}"
+    );
+}
+
+#[test]
+fn a_suspended_coroutine_releases_its_retained_namespace_on_completion() {
+    // A parked coroutine owns its exact namespace activation. Deletion
+    // unpublishes that token without tearing its command table down; ordinary
+    // completion later pops the parked frame and performs deferred teardown.
+    // Exact Tcl 9.0.4 oracle result (identical on 8.6.16).
+    assert_eq!(
+        run(r"set log {}
+             proc rec {old new op} {lappend ::log [list $old $op]}
+             namespace eval N {
+                 proc q {} {return Q}
+                 trace add command q delete ::rec
+                 coroutine ::co apply {{} {
+                     yield ready
+                     list [q] [namespace exists ::N] [namespace current]
+                 } ::N}
+             }
+             namespace delete ::N
+             set before [list [namespace exists ::N] [llength $::log]]
+             set resumed [co]
+             list $before $resumed $log"),
+        "{0 0} {Q 0 ::N} {{::N::q delete}}"
     );
 }
 
@@ -2908,6 +3078,26 @@ fn a_relative_namespace_eval_enters_the_retained_child() {
 }
 
 #[test]
+fn retained_teardown_does_not_unlink_a_recreated_namespace_path_target() {
+    // The old ::N token returns only after ::U has linked its path to the new
+    // ::N token. Final teardown must unlink by token, not by the shared display
+    // spelling. Exact Tcl 9.0.4 result.
+    assert_eq!(
+        run(r"namespace eval N {
+                 proc p {} {
+                     namespace delete ::N
+                     namespace eval ::N {proc mark {} {return NEW}}
+                     namespace eval ::U {namespace path ::N}
+                     list [namespace eval ::U {namespace path}] [namespace eval ::U {mark}]
+                 }
+             }
+             set during [::N::p]
+             list $during [namespace eval ::U {namespace path}] [namespace eval ::U {mark}]"),
+        "{::N NEW} ::N NEW"
+    );
+}
+
+#[test]
 fn a_retained_token_keeps_its_namespace_path() {
     // `commandPathArray` hangs off the `Namespace`, and its entries point at
     // namespaces that are still live, so a retained token keeps resolving
@@ -2937,6 +3127,68 @@ fn a_retained_token_keeps_its_namespace_path() {
              }
              ::N::p"),
         "::L LC {CX {}}"
+    );
+}
+
+#[test]
+fn a_live_path_keeps_an_exact_retained_target_token() {
+    // A suspended coroutine retains ::B after its public namespace spelling is
+    // deleted. ::U's path entry is the old namespace token, not a name to
+    // resolve again. Exact Tcl 9.0.4 oracle.
+    assert_eq!(
+        run(r"namespace eval B {
+                 proc b {} {return B}
+                 coroutine ::cb apply {{} {yield ready; return done} ::B}
+             }
+             namespace eval U {namespace path ::B}
+             namespace delete ::B
+             namespace eval ::U {list [namespace path] [catch {b} m] $m}"),
+        "::B 0 B"
+    );
+}
+
+#[test]
+fn a_retained_path_reaches_its_retained_child_target() {
+    // Both the path owner and its relative target are retained by the active
+    // procedure frame. Resolution walks their arena edge instead of reparsing
+    // the now-unpublished display name. Exact Tcl 9.0.4 oracle.
+    assert_eq!(
+        run(r"namespace eval N {
+                 namespace eval P {proc q {} {return OLD}}
+                 namespace path P
+                 proc hold {} {
+                     namespace delete ::N
+                     list [namespace path] [q]
+                 }
+             }
+             ::N::hold"),
+        "::N::P OLD"
+    );
+}
+
+#[test]
+fn finalising_a_path_target_unlinks_live_and_retained_owners() {
+    // ::A and ::B are retained independently. Finishing ::B removes that exact
+    // target from ::A's retained path table; finishing ::A must therefore see
+    // no path and no callable `b`. Exact Tcl 9.0.4 oracle.
+    assert_eq!(
+        run(r"namespace eval B {
+                 proc b {} {return B}
+                 coroutine ::cb apply {{} {yield ready; return done} ::B}
+             }
+             namespace eval A {
+                 namespace path ::B
+                 coroutine ::ca apply {{} {
+                     yield ready
+                     list [namespace path] [catch {b} m] $m
+                 } ::A}
+             }
+             namespace delete ::A
+             namespace delete ::B
+             set bdone [cb]
+             set answer [ca]
+             list $bdone $answer"),
+        r#"done {{} 1 {invalid command name "b"}}"#
     );
 }
 
@@ -2972,5 +3224,159 @@ fn a_retained_token_loses_its_unknown_handler_and_keeps_its_exports() {
              }
              ::N::p"),
         "e* {}"
+    );
+}
+
+#[test]
+fn relative_qualified_rename_projects_the_resolved_procedure_slot() {
+    // Tcl 9.0.4: `b::y` is resolved relative to the current `::a` token. The
+    // relocated proc's execution namespace and public name both come from that
+    // destination slot, never from the raw rename word.
+    assert_eq!(
+        run(r"namespace eval a {
+                 namespace eval b {}
+                 proc p {} {namespace current}
+                 rename p b::y
+                 list [info commands b::y] [info commands ::a::b::y] [b::y]
+             }"),
+        "::a::b::y ::a::b::y ::a::b"
+    );
+}
+
+#[test]
+fn retained_command_rename_mutates_the_exact_token_table() {
+    // Exact Tcl 9.0.4 oracle. The active frame continues to mutate its dying
+    // namespace's command table; the rename and final delete traces identify
+    // that token even after its public namespace name has gone.
+    assert_eq!(
+        run("set log {}
+             proc rec {old new op} {lappend ::log [list $old $new $op]}
+             namespace eval N {
+                 proc q {} {return old}
+                 trace add command q {rename delete} rec
+                 proc p {} {
+                     namespace delete ::N
+                     rename q r
+                     list [r] [info commands q] [info commands r] $::log
+                 }
+             }
+             list [::N::p] $log"),
+        "{old {} r {{::N::q ::N::r rename}}} {{::N::q ::N::r rename} {::N::r {} delete}}"
+    );
+}
+
+#[test]
+fn retained_command_replacement_retires_the_old_token() {
+    // Exact Tcl 9.0.4 oracle. A definition attempted after namespace deletion
+    // runs the old binding's lifecycle but cannot publish a fresh command in
+    // the dying table.
+    assert_eq!(
+        run("set log {}
+             proc rec {old new op} {lappend ::log [list $old $new $op]}
+             namespace eval N {
+                 proc q {} {return old}
+                 trace add command q delete rec
+                 proc p {} {
+                     namespace delete ::N
+                     proc q {} {return new}
+                     list [info commands q] [catch {q} m] $m $::log
+                 }
+             }
+             ::N::p"),
+        "{} 1 {invalid command name \"q\"} {{::N::q {} delete}}"
+    );
+}
+
+#[test]
+fn retained_import_query_and_forget_use_the_token_table() {
+    assert_eq!(
+        run("namespace eval S {proc p {} {}; namespace export p}
+             namespace eval N {
+                 namespace import ::S::p
+                 proc hold {} {
+                     namespace delete ::N
+                     set before [namespace import]
+                     namespace forget p
+                     list $before [namespace import] [info commands p]
+                 }
+             }
+             ::N::hold"),
+        "p {} {}"
+    );
+}
+
+#[test]
+fn retained_namespace_rejects_new_import_publication_without_panicking() {
+    assert_eq!(
+        run(
+            "namespace eval S {proc p {} {return imported}; namespace export p}
+             namespace eval N {
+                 proc hold {} {
+                     namespace delete ::N
+                     set c [catch {namespace import ::S::p} m]
+                     list $c $m [info commands p] [catch {p} pm] $pm
+                 }
+             }
+             ::N::hold"
+        ),
+        "0 {} {} 1 {invalid command name \"p\"}"
+    );
+}
+
+#[test]
+fn retained_import_graph_retargets_with_its_source_token() {
+    assert_eq!(
+        run(
+            "namespace eval S {proc p {} {return old}; namespace export p}
+             namespace eval N {
+                 namespace import ::S::p
+                 proc hold {} {
+                     namespace delete ::N
+                     rename ::S::p ::S::q
+                     list [namespace origin p] [p]
+                 }
+             }
+             ::N::hold"
+        ),
+        "::S::q old"
+    );
+}
+
+#[test]
+fn retained_import_graph_retires_with_its_source_token() {
+    assert_eq!(
+        run(
+            "namespace eval S {proc p {} {return old}; namespace export p}
+             namespace eval N {
+                 namespace import ::S::p
+                 proc hold {} {
+                     namespace delete ::N
+                     rename ::S::p {}
+                     list [info commands p] [catch {p} m] $m
+                 }
+             }
+             ::N::hold"
+        ),
+        "{} 1 {invalid command name \"p\"}"
+    );
+}
+
+#[test]
+fn namespace_upvar_keeps_the_resolved_retained_namespace_token() {
+    // Exact Tcl 9.0.4 oracle. These two namespace paths render to the same
+    // colon-run text, so flattening and reparsing the first token selects the
+    // wrong live namespace.
+    assert_eq!(
+        run("namespace eval a: {
+                 namespace eval b {variable v LEFT}
+                 proc hold {} {
+                     namespace delete ::a:
+                     namespace upvar b v x
+                     set x
+                 }
+             }
+             namespace eval a {namespace eval :b {variable v RIGHT}}
+             namespace eval a: {hold}"),
+        "LEFT"
     );
 }

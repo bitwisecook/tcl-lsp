@@ -16,9 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The **pack-evaluation host** — design E's execution model (`SpecTcl` 2.0,
-//! `docs/design/spectcl-design-e-deep-dive.md` §1) running a whole pack file
-//! as a sandboxed Tcl program.
+//! The **pack-evaluation host** — the `SpecTcl` 2.0 execution model
+//! (`docs/design/registry/spec-packs.md` § *The format: a Tcl program, evaluated by
+//! our own toolchain*) running a whole pack file as a sandboxed Tcl program.
 //!
 //! This module is the second consumer of the sandbox this crate already runs
 //! hook bodies in, with two deliberate differences:

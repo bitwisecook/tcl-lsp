@@ -36,7 +36,7 @@ pub const fn spec() -> CommandSpec {
         // Not a server-side-only command. Measured on the appliance, the
         // rule compiler accepts `IP::server_addr` in every one of the
         // eight probed events except `RULE_INIT`, client-side events
-        // included (`docs/design/bigip-irule-parser-measurements.md` §8 —
+        // included (`docs/design/f5/bigip-irule-parser-measurements.md` §8 —
         // the same row shape as `LB::server` and `table`). The hover text
         // says why: before the serverside connection exists the command
         // returns `0` rather than failing, so only the absence of traffic

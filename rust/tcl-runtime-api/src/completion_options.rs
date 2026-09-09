@@ -16,7 +16,81 @@
 
 use tcl_dialect::TclVersion;
 
-use crate::Code;
+use crate::{ArrayReadMiss, Code};
+
+/// Whether a control-command activation inherits the surrounding completion's
+/// carried options or begins with a fresh option set.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActivationOptionScope {
+    /// The body is compiled transparently into the surrounding completion.
+    Inherited,
+    /// The body is a distinct Tcl command activation with fresh options.
+    Fresh,
+}
+
+impl ActivationOptionScope {
+    /// Whether this activation starts without surrounding carried options.
+    #[must_use]
+    pub const fn begins_fresh(self) -> bool {
+        matches!(self, Self::Fresh)
+    }
+}
+
+/// How a successful control command settles the options produced by its body.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SuccessOptionSettlement {
+    /// Forward the options produced by the selected or final body activation.
+    Forward,
+    /// Produce an ordinary successful completion with no carried options.
+    Settle,
+}
+
+/// Completion-option policy for a Tcl control-command activation.
+///
+/// Result flow and option flow are deliberately separate. For example,
+/// `lmap` manufactures a list result but forwards the final iteration's
+/// options, while `foreach` manufactures both its result and successful
+/// options. Keeping the two option axes here gives bytecode and tree-walking
+/// runtimes one vocabulary for those boundaries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ControlOptionPolicy {
+    /// The option scope in which a nested body starts.
+    pub activation: ActivationOptionScope,
+    /// The successful command's final option settlement.
+    pub success: SuccessOptionSettlement,
+}
+
+impl ControlOptionPolicy {
+    /// A body compiled transparently in the surrounding completion.
+    pub const TRANSPARENT: Self = Self {
+        activation: ActivationOptionScope::Inherited,
+        success: SuccessOptionSettlement::Forward,
+    };
+
+    /// A fresh body activation whose produced options become the command's.
+    pub const FRESH_FORWARDED: Self = Self {
+        activation: ActivationOptionScope::Fresh,
+        success: SuccessOptionSettlement::Forward,
+    };
+
+    /// A fresh activation whose successful completion is settled by its owner.
+    pub const FRESH_SETTLED: Self = Self {
+        activation: ActivationOptionScope::Fresh,
+        success: SuccessOptionSettlement::Settle,
+    };
+
+    /// Whether the nested body must start without surrounding carried options.
+    #[must_use]
+    pub const fn begins_fresh(self) -> bool {
+        self.activation.begins_fresh()
+    }
+
+    /// Whether an ordinary successful owner completion discards body options.
+    #[must_use]
+    pub const fn settles_success(self) -> bool {
+        matches!(self.success, SuccessOptionSettlement::Settle)
+    }
+}
 
 /// A planned option value which an engine materialises in its Tcl value model.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,6 +118,29 @@ pub struct ErrorOptions<V> {
 
 /// One carried return-option pair.
 pub type CarriedOption<V> = (Vec<u8>, V);
+
+/// Materialise the standard option pairs left by a failed `array get`
+/// candidate read on the surrounding successful completion.
+///
+/// This is deliberately a completion-options operation rather than adapter
+/// policy: native and standalone runtimes supply only their value constructor,
+/// then feed these carried pairs back through [`plan`].
+pub fn retained_array_read_options<V>(
+    miss: &ArrayReadMiss,
+    mut materialise: impl FnMut(&[u8]) -> V,
+) -> Vec<CarriedOption<V>> {
+    let mut options = vec![(b"-errorcode".to_vec(), materialise(&miss.code))];
+    if let Some(info) = &miss.info {
+        options.push((b"-errorinfo".to_vec(), materialise(info)));
+    }
+    if let Some(line) = miss.line {
+        options.push((
+            b"-errorline".to_vec(),
+            materialise(line.to_string().as_bytes()),
+        ));
+    }
+    options
+}
 
 /// Plan the complete return-options dictionary for one completion.
 ///
@@ -113,6 +210,16 @@ mod tests {
     }
 
     #[test]
+    fn control_option_policy_keeps_activation_and_settlement_independent() {
+        assert!(!ControlOptionPolicy::TRANSPARENT.begins_fresh());
+        assert!(!ControlOptionPolicy::TRANSPARENT.settles_success());
+        assert!(ControlOptionPolicy::FRESH_FORWARDED.begins_fresh());
+        assert!(!ControlOptionPolicy::FRESH_FORWARDED.settles_success());
+        assert!(ControlOptionPolicy::FRESH_SETTLED.begins_fresh());
+        assert!(ControlOptionPolicy::FRESH_SETTLED.settles_success());
+    }
+
+    #[test]
     fn errors_receive_standard_metadata_and_keep_custom_options() {
         let carried = vec![(b"-foo".to_vec(), "bar")];
         let error = ErrorOptions {
@@ -152,5 +259,26 @@ mod tests {
         let modern = plan(TclVersion::V9_0, Code::Error, 1, &carried, Some(&error));
         assert!(keys(&modern).contains(&b"-errorstack".as_slice()));
         assert!(keys(&modern).contains(&b"-errorinfo".as_slice()));
+    }
+
+    #[test]
+    fn swallowed_array_reads_carry_only_the_metadata_the_read_created() {
+        assert_eq!(
+            retained_array_read_options(&ArrayReadMiss::missing(), |bytes| {
+                String::from_utf8_lossy(bytes).into_owned()
+            }),
+            [(b"-errorcode".to_vec(), "TCL READ VARNAME".into())]
+        );
+        assert_eq!(
+            retained_array_read_options(
+                &ArrayReadMiss::trace_error(Some(b"boom trace".to_vec()), 3),
+                |bytes| String::from_utf8_lossy(bytes).into_owned(),
+            ),
+            [
+                (b"-errorcode".to_vec(), "TCL READ VARNAME".into()),
+                (b"-errorinfo".to_vec(), "boom trace".into()),
+                (b"-errorline".to_vec(), "3".into()),
+            ]
+        );
     }
 }

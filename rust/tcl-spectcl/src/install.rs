@@ -18,7 +18,7 @@
 
 //! Getting a loaded pack into a live registry — at **workspace scope**.
 //!
-//! This is the one rule in `docs/design/spec-packs.md` that decides whether
+//! This is the one rule in `docs/design/registry/spec-packs.md` that decides whether
 //! packs are fast or slow, and it is a rule about *where*, not *how*:
 //!
 //! > packs layer into the cached registry at workspace scope, **not** the

@@ -46,21 +46,19 @@ respect the ordering — a level may only ever be *widened*:
 3. **Empty** — no cross-frame effect; the call site is left alone.
 
 The abstention direction is fixed: a shape the analysis cannot read must land
-at level 2, never silently at level 3. Three shapes used to fall through and
-are now covered:
+at level 2, never silently at level 3. Three shapes need explicit handling:
 
-- `upvar 1 x $dst` — a dynamic **local** side (issue #1165). The caller-side
+- `upvar 1 x $dst` — a dynamic **local** side. The caller-side
   name is still exactly `x`, so it lands at level 1 in the keyless
   `uplevel_literal_writes` bucket (a `$param` source resolves through
   `uplevel_param_writes`; anything else widens to level 2).
-- `uplevel #0 …` in a called procedure (issue #1198). A literal or
+- `uplevel #0 …` in a called procedure. A literal or
   `[list set g …]`-constructed script contributes level-1 global names; a
   dynamic script (`uplevel #0 $body`) sets `opaque_global_frame`, which is
   transitive over the direct-call closure and becomes a barrier at every
   call site — including calls embedded in command substitutions and in
-  `if`/`while`/frozen-loop conditions. This is what fixed the documented
-  O102 miscompile (`proc setter {} {uplevel #0 {set x 99}}; set x 5; setter;
-  puts $x` must print 99, not 5).
+  `if`/`while`/frozen-loop conditions — so `proc setter {} {uplevel #0 {set
+  x 99}}; set x 5; setter; puts $x` prints 99, not a forwarded 5.
 - a dynamic write target inside a readable script body (`uplevel 1 {set $n
   1}`, `uplevel #0 {set $n 1}`): `ssa::defs_of` drops such a target
   entirely, so both body scans widen explicitly
@@ -74,9 +72,9 @@ method-dispatch evidence is incomplete
 (`upvar_info::module_method_dispatch_evidence_is_incomplete`: any method body
 that can reach its caller's frame, or any redefined method), the method-body
 CFGs are built with synthetic level-2 entries for every registry command
-carrying `TCLOO_SELF_DISPATCH` / `TCLOO_NEXT_CHAIN` (issue #1177). The same
-evidence rule gates the optimiser's method-body constant propagation (issue
-#1097), so the two consumers cannot drift. `self` (`TCLOO_INTROSPECTION`)
+carrying `TCLOO_SELF_DISPATCH` / `TCLOO_NEXT_CHAIN`. The same evidence rule
+gates the optimiser's method-body constant propagation, so the two consumers
+cannot drift. `self` (`TCLOO_INTROSPECTION`)
 dispatches nothing and is excluded.
 
 ## Conservative limits (all widen, none miscompile)
@@ -89,10 +87,11 @@ dispatches nothing and is excluded.
   calling implementation's frame entirely (tclsh 9.0.4: it lands in the
   frame of whoever invoked the whole method). Widening the dispatch site is
   sound for the calling body but does not model the one-frame-out effect;
-  per-chain precision needs the MRO work of issue #1164.
+  per-chain precision needs the method resolution order, which the CFG
+  builder does not compute.
 - **Cross-file callees.** `detect_upvar_procs` and
   `detect_global_write_procs` are single-`Module`; a callee defined in
-  another file contributes nothing (issue #1139's idx-59 residual).
+  another file contributes nothing.
 - **Absolute non-global levels** (`uplevel #2`) widen the calling function
   through the caller-frame opaque path rather than being mapped to a
   specific frame.
@@ -110,6 +109,6 @@ dispatches nothing and is excluded.
   blindness and "a callee may observe this store" facts for O109/O126.
 - The LSP navigation half lives in `rust/tcl-lsp-core/src/caller_frame.rs`
   (per-parameter and literal caller-frame bindings on
-  `ProcDef::caller_frame_params` / `caller_frame_literals`, issue #1139) —
+  `ProcDef::caller_frame_params` / `caller_frame_literals`) —
   same frame table, independent computation from source text in the
   analyser (`analyser/param_traits.rs`).

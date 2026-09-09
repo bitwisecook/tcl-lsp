@@ -9,8 +9,7 @@ all-editors, tcl-lsp-cli
 
 ## Question
 
-Why does my `tclpkg.tcl` package manifest no longer show "Unknown command"
-warnings, and what is checked instead?
+What does the editor check inside a `tclpkg.tcl` package manifest?
 
 ## Answer
 
@@ -19,8 +18,8 @@ manager. Its directives (`package`, `version`, `require`, `entry`, …) are
 not ordinary Tcl commands, and two of them (`package`, `entry`) share a
 name with a real Tcl or Tk command.
 
-The language server and `tcl diag` now recognise the manifest by its file
-name and analyse it against the manifest's own command set:
+The language server and `tcl diag` recognise the manifest by its file name
+and analyse it against the manifest's own command set:
 
 - Each directive resolves to its manifest meaning — `entry main.tcl` is
   the entry-point declaration, never the Tk `entry` widget, so no
@@ -41,9 +40,6 @@ require json 1.0.0
 entry   main.tcl
 ```
 
-Before this change every line above showed a warning; now the file is
-clean, and only genuine mistakes are flagged.
-
-The directive set lives in the command registry
-(`rust/tcl-registry/src/scoped.rs`, `TCLPKG_MANIFEST_ENV`), mirroring the
-`tcl pkg` manifest parser.
+Every line above is clean; only genuine mistakes are flagged. The directive
+set lives in the command registry and mirrors the `tcl pkg` manifest
+parser.

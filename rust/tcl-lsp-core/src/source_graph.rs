@@ -439,7 +439,7 @@ type UriSet = rustc_hash::FxHashSet<String>;
 /// The **load order the workspace proves** — the single relation both
 /// wildcard-import tiers rank cross-document events with (issue #1104 item 3,
 /// #1116 item 6, #1279; design in
-/// `docs/design/import-order-source-graph.md` §6).
+/// `docs/design/analysis/import-order-source-graph.md` §6).
 ///
 /// # Why an order exists at all
 ///
