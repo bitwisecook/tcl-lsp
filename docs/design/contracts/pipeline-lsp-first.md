@@ -28,5 +28,5 @@ bytecode text formatting. So:
 
 ## Cross-links
 
-- Architecture: [`../compiler-architecture.md`](../compiler-architecture.md).
+- Architecture: [`../compiler/architecture.md`](../compiler/architecture.md).
 - Fuzz-finding workflow (early-pipeline fix priority): the `fuzz-findings` skill.

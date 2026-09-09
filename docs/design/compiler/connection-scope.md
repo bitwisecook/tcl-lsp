@@ -73,6 +73,6 @@ one `::when::*` procedure exists). Three consumers read it:
 
 ## Related docs
 
-- [Example 24 in walkthroughs](../example-script-walkthroughs.md#example-24-connection-scope--cross-event-variable-flow-irules)
+- [Example 24 in walkthroughs](example-walkthroughs.md#example-24-connection-scope--cross-event-variable-flow-irules)
 - [compiler-pipeline-overview.md](compiler-pipeline-overview.md)
 - [side-effects-system.md](side-effects-system.md)

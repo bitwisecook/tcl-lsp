@@ -368,7 +368,7 @@ accident, always in the same shape: strip two characters, call
 
 - [shimmer-reference-behaviour.md](shimmer-reference-behaviour.md) — how the
   number↔string boundary is observed.
-- [../dialect-profile-model.md](../dialect-profile-model.md) — the dialect
+- [../registry/dialect-profile-model.md](../registry/dialect-profile-model.md) — the dialect
   profile that carries `NumberSyntax`, and how one is resolved and threaded.
 - [runtime-variable-frame-model.md](runtime-variable-frame-model.md) and
   [parser-and-aot-interpret-boundary.md](parser-and-aot-interpret-boundary.md)

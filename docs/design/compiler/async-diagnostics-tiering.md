@@ -59,4 +59,4 @@ fast-tier diagnostic is never contradicted.
 
 - [diagnostics-calculation.md](diagnostics-calculation.md)
 - [diagnostics-integration.md](diagnostics-integration.md)
-- [compiler architecture overview](../compiler-architecture.md)
+- [compiler architecture overview](architecture.md)

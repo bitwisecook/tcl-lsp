@@ -269,7 +269,7 @@ packages requiring it also loads.  Owned by
 ### `[iruleslx.plugins]` / `[iruleslx.rules]`
 
 The iRulesLX plugin ↔ workspace association, keyed by plugin name.  Owned by
-[iruleslx-remote-methods.md](../iruleslx-remote-methods.md).
+[iruleslx-remote-methods.md](../f5/iruleslx-remote-methods.md).
 
 ## Example
 

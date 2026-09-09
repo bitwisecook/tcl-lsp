@@ -87,5 +87,5 @@ still sees the original command.
 
 - [Command registry design doc](../design/compiler/command-registry.md#known-limitations)
   — the descriptor, the positioned/unpositioned split, and the per-consumer table.
-- [Name resolution](../design/name-resolution.md)
+- [Name resolution](../design/analysis/name-resolution.md)
   — the import/alias/rename link graph and its follow-versus-rewrite policy.

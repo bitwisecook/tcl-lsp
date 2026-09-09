@@ -914,7 +914,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 
 /// `text`'s instance command dispatches through the same subcommand table
 /// as its own constructor spec (see
-/// `docs/design/tk-widget-instance-typing.md`).
+/// `docs/design/analysis/tk-widget-instance-typing.md`).
 static TEXT_CLASS: ObjectClassSpec = ObjectClassSpec {
     class_name: "text",
     instance_methods: &SUBCOMMANDS,

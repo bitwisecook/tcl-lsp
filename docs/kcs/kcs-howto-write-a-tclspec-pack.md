@@ -120,6 +120,6 @@ notice or shipped-command collision.
 
 - [How to create a command spec without knowing Rust](kcs-howto-create-command-specs-without-rust.md)
 - [How to annotate commands with stubs](kcs-howto-annotate-commands-with-stubs.md)
-- [SpecTcl pack design](../design/spec-packs.md)
+- [SpecTcl pack design](../design/registry/spec-packs.md)
 - [The frozen SpecTcl syntax](../design/spec-dsl-examples/README.md)
 - [KCS index](README.md)

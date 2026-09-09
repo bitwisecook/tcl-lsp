@@ -723,7 +723,7 @@ entry point, or gate moves without this contract being updated.
   It walks the canonical syntax tree and constructs no interpreter, so the
   document is never evaluated — not even a `check`'s `predicate`, which it
   retains verbatim. `DECLARATIONS` is the machine-readable statement of the
-  vocabulary the loader implements; `docs/design/sslictcl-vocabulary.md` is
+  vocabulary the loader implements; `docs/design/f5/sslictcl-vocabulary.md` is
   its prose, and a unit test holds the two together.
 - `evaluate_policy` owns **finding identity**: a policy finding is
   `(check id, endpoint)`, which is why the `grade` id is reserved and why
@@ -1089,5 +1089,5 @@ helper without reading the rationale:
 - [design docs index](../README.md)
 - [project-layout.md](project-layout.md) — the crate boundaries these
   ownership rules sit inside.
-- [family-b-routing.md](../family-b-routing.md) — the runtime seam this
+- [family-b-routing.md](../runtime/family-b-routing.md) — the runtime seam this
   crate layering serves.

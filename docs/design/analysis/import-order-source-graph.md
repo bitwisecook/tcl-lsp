@@ -2,7 +2,7 @@
 
 The load order shared by the whole wildcard-import gating family (#1104 item
 3, #1116 items 3 and 6, and the cross-file half of every rule in
-[`contracts/command-resolution.md`](contracts/command-resolution.md)'s import
+[`contracts/command-resolution.md`](../contracts/command-resolution.md)'s import
 section).
 
 `tcl_lsp_core::source_graph::RunOrder` is the relation §6 describes.

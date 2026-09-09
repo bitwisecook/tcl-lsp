@@ -4627,7 +4627,7 @@ Vec::new()));
     /// The second half follows the **family fact**, not the iRules name:
     /// the word-form operators are an `f5-tcl` trunk fact, measured valid
     /// in tmsh and iApp `expr` too
-    /// (`docs/design/bigip-irule-parser-measurements.md` §4a), so any
+    /// (`docs/design/f5/bigip-irule-parser-measurements.md` §4a), so any
     /// F5Tcl-cored profile passes the word-operator gate.
     fn w003_gates(&self) -> Option<(tcl_dialect::TclVersion, bool)> {
         let profile = self.profile;

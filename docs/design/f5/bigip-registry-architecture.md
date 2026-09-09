@@ -3,7 +3,7 @@
 This is the technical contract for the BIG-IP object registry — the single
 source of truth `f5` uses for every TMSH object kind, every property, every
 value type. The user-facing companion is
-[`docs/kcs/features/kcs-feature-bigip-registry.md`](../kcs/features/kcs-feature-bigip-registry.md).
+[`docs/kcs/features/kcs-feature-bigip-registry.md`](../../kcs/features/kcs-feature-bigip-registry.md).
 
 ## Overview
 

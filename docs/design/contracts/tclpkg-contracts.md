@@ -3,8 +3,8 @@
 The project-local package manager, `rust/tcl-pkg`, driven by the `tcl pkg` and
 `tcl venv` CLI verbs. This document is the contract layer: the invariants each
 subsystem guarantees and where they are implemented. The architecture narrative
-lives in [`../tclpkg-architecture.md`](../tclpkg-architecture.md) and the threat
-model in [`../tclpkg-security.md`](../tclpkg-security.md); the user-facing
+lives in [`../tclpkg/architecture.md`](../tclpkg/architecture.md) and the threat
+model in [`../tclpkg/security.md`](../tclpkg/security.md); the user-facing
 guide is
 [`kcs-howto-manage-tcl-packages.md`](../../kcs/kcs-howto-manage-tcl-packages.md).
 

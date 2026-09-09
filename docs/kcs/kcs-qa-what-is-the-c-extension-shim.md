@@ -26,9 +26,9 @@ turning into text, and error messages such as `wrong # args` and
 
 Use it when you already have working C code for a Tcl command and want that
 exact behaviour available to the project's bytecode virtual machine (the
-`tclvm` engine in [spec-packs.md](../design/spec-packs.md#what-exists-today))
+`tclvm` engine in [spec-packs.md](../design/registry/spec-packs.md#what-exists-today))
 without rewriting it. Do not reach for it to add
-behaviour to a [SpecTcl](../design/spec-packs.md) pack: a pack's hooks are
+behaviour to a [SpecTcl](../design/registry/spec-packs.md) pack: a pack's hooks are
 small Tcl bodies that run in a sandbox with a budget, and a native hook in a
 shipped pack is a `-native` reference to Rust code the server already
 contains. The shim is neither. It is trusted native code, loaded only by the
@@ -42,11 +42,11 @@ API, the integer, double, boolean, and index conversions, and the result and
 error-code API. Channels, the event loop, threads, `Tcl_Eval`, and binary
 compatibility with a real `libtcl` are out of scope. The full subset, the
 value-marshalling rules, and the trust model are in the
-[design doc](../design/c-extension-shim.md).
+[design doc](../design/runtime/c-extension-shim.md).
 
 ## Related
 
 - [KCS index](README.md)
 - [Glossary](../GLOSSARY.md)
-- [The C Tcl extension shim (design)](../design/c-extension-shim.md)
-- [SpecTcl packs (design)](../design/spec-packs.md)
+- [The C Tcl extension shim (design)](../design/runtime/c-extension-shim.md)
+- [SpecTcl packs (design)](../design/registry/spec-packs.md)

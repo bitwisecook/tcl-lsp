@@ -6816,7 +6816,7 @@ pub struct Backend {
     /// `tclLsp.specPacks` — extra `.tclspec` files or directories to load as
     /// `SpecTcl` packs, on top of the ones discovery finds by convention.
     spec_pack_paths: Mutex<Vec<String>>,
-    /// The workspace's loaded `SpecTcl` packs (`docs/design/spec-packs.md`).
+    /// The workspace's loaded `SpecTcl` packs (`docs/design/registry/spec-packs.md`).
     ///
     /// Workspace scope, deliberately: the set is loaded at `initialized` and
     /// reloaded when a pack file changes, **never** per document and never per
@@ -18327,7 +18327,7 @@ impl Backend {
     ///
     /// With packs loaded the entry is keyed by `(profile, pack-set content
     /// hash)` instead, which is the whole of what "workspace scope" means in
-    /// `docs/design/spec-packs.md`: one registry per pack *content*, shared by
+    /// `docs/design/registry/spec-packs.md`: one registry per pack *content*, shared by
     /// every document, rebuilt when the pack changes and never per edit of the
     /// code that uses it.  With no packs — the overwhelmingly common case —
     /// this is byte for byte the lookup it always was.

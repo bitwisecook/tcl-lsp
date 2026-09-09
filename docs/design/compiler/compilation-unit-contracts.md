@@ -63,4 +63,4 @@ build.
 ## See also
 
 - [cfg-ssa-fact-model.md](cfg-ssa-fact-model.md)
-- [compiler architecture overview](../compiler-architecture.md)
+- [compiler architecture overview](architecture.md)

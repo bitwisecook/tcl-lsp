@@ -620,7 +620,7 @@ fn build_request_setup(event_name: &str, conditions: &[&Value]) -> Vec<String> {
     // matches_glob "/api/*"` must yield "/api/*" rather than falling
     // through to the bare-value fallback below. The F5 trunk does also
     // carry a bare `matches` (`BinOp::Matches`, measured present in
-    // `docs/design/bigip-irule-parser-measurements.md` §4a), but it is
+    // `docs/design/f5/bigip-irule-parser-measurements.md` §4a), but it is
     // deliberately **not** in this alternation: it carries no pattern to
     // synthesise an example from, and a bare `matches` branch would also
     // shadow the two longer spellings in the regex alternation below.

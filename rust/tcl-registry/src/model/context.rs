@@ -1204,7 +1204,7 @@ fn compute_authoring_scope(context: &ResolvedContext) -> AuthoringScope {
             // anchor — derived, not per family.
             //
             // `f5-tcl`: measurements §4a (F5 reclassification,
-            // `docs/design/bigip-irule-parser-measurements.md`) — the
+            // `docs/design/f5/bigip-irule-parser-measurements.md`) — the
             // trunk-riding environments (`f5-iapps`, `f5-tmsh`) embed the
             // fork of Tcl at 8.4.6, and every 8.4/8.5 discriminator behaves
             // as 8.4.

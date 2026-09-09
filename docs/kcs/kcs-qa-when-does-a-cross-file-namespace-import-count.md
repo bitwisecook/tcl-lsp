@@ -119,4 +119,4 @@ means importing into a package's own namespace.
 
 For the relation itself, its proofs, and its measured effect on real
 code, see the
-[import-order design note](../design/import-order-source-graph.md).
+[import-order design note](../design/analysis/import-order-source-graph.md).

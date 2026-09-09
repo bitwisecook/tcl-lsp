@@ -8,7 +8,7 @@ concrete syntax tree and rejects command substitution, variable substitution,
 and `{*}` argument expansion instead of guessing at them.
 
 The machine-readable form of this table is
-[`tcl_sslictcl::vocabulary::DECLARATIONS`](../../rust/tcl-sslictcl/src/vocabulary.rs).
+[`tcl_sslictcl::vocabulary::DECLARATIONS`](../../../rust/tcl-sslictcl/src/vocabulary.rs).
 A unit test synthesises a fully-declared instance of every declaration and
 asserts the loader knows exactly the words the table declares — and no others —
 so the two cannot drift.
@@ -18,7 +18,7 @@ so the two cannot drift.
 SslicTcl is an **environment** over Tcl 9.0 (package surface `sslictcl`), not a
 new grammar family — the same shape as SpecTcl, and for the same reason. The
 [redesign's classification
-table](dialect-and-package-registry-redesign.md#2-the-classification-rule)
+table](../registry/dialect-and-package-registry-redesign.md#2-the-classification-rule)
 records the ruling. Concretely:
 
 - the lexical grammar is `GRAMMAR_TCL9X` verbatim;
@@ -324,9 +324,9 @@ declared member (`hostname a b c` → `E003`) is still an arity error.
 
 ## See also
 
-- [How do I author a `.sslictcl` TLS declaration in my editor?](../kcs/kcs-howto-author-a-sslictcl-declaration.md)
+- [How do I author a `.sslictcl` TLS declaration in my editor?](../../kcs/kcs-howto-author-a-sslictcl-declaration.md)
 - `samples/sslictcl/example.sslictcl` — a document exercising every
   declaration and member, plus an unknown word in each open block.
-- [contracts/sslictcl-source-data.md](contracts/sslictcl-source-data.md) — the
+- [contracts/sslictcl-source-data.md](../contracts/sslictcl-source-data.md) — the
   embedded trust-store and TLS source-data bundle, its provenance schema, and
   its offline drift gate.

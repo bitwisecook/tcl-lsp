@@ -28,7 +28,7 @@
 //! `Value`. It deliberately contains no implementations; a runtime such as the
 //! bytecode VM (`tcl-vm`) satisfies it over its own value/storage model.
 //!
-//! See `docs/design/common-runtime-emitter-architecture.md` §4 (Family B).
+//! See `docs/design/runtime/family-b-routing.md` §1.
 
 // The value-less vocabulary (the completion `Code`, the generic `Completion<V>`,
 // and the opaque arena handles) lives in the dependency-free `tcl-core-types`

@@ -1803,7 +1803,7 @@ impl Vm {
     /// path lexes the document under, so every re-read of script text on the
     /// interpreted side (`subst`, a compiled word, a `[…]` body) reads it
     /// under that one grammar rather than assembling a few axes over the
-    /// default (`docs/design/dialect-profile-model.md` §2.5). Picking axes
+    /// default (`docs/design/registry/dialect-profile-model.md` §2.5). Picking axes
     /// one at a time is how a Jim VM kept C's `$(…)` reading and an iRules
     /// VM kept C's `}{`.
     #[must_use]

@@ -164,7 +164,7 @@ influence, with the field that causes or suppresses it.
   — the architecture and consumer contracts behind all of this.
 - [The Spec Studio](../../kcs/features/kcs-feature-spec-studio.md) — edit
   every field here in a form, with this manual's text behind **?** buttons.
-- [SpecTcl pack design](../../design/spec-packs.md) — the loadable
+- [SpecTcl pack design](../../design/registry/spec-packs.md) — the loadable
   command-pack architecture, discovery tiers, and crash containment.
 - [How to write a SpecTcl pack](../../kcs/kcs-howto-write-a-tclspec-pack.md)
   — the quickstart: the minimal shape, the three discovery tiers, and how

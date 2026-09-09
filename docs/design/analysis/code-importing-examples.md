@@ -3,7 +3,7 @@
 The upstream documentation, TIPs, and real-world examples behind every Tcl
 code importing / loading pattern the cross-file analysis has to reason about.
 Read it when adding or checking an import mechanism; the analysis contract
-itself is [contracts/command-resolution.md](contracts/command-resolution.md)
+itself is [contracts/command-resolution.md](../contracts/command-resolution.md)
 and [import-order-source-graph.md](import-order-source-graph.md).
 
 ## `package require` — Standard Package Loading

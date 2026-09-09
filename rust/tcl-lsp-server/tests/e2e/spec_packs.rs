@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `SpecTcl` spec packs, end to end (`docs/design/spec-packs.md`).
+//! `SpecTcl` spec packs, end to end (`docs/design/registry/spec-packs.md`).
 //!
 //! The claim under test is the whole point of the feature: **a user with a
 //! private Tcl library drops a `.tclspec` in their workspace and their own
@@ -708,7 +708,7 @@ fn without_the_pack_the_same_call_site_does_not_fold() {
 }
 
 /// The **bundled** tier, end to end: the EDA vendor libraries are `.tclspec`
-/// loadables now, not compiled-in Rust (`docs/design/spec-packs.md`), so this
+/// loadables now, not compiled-in Rust (`docs/design/registry/spec-packs.md`), so this
 /// is the proof that a shipped pack reaches the analyser in the real server
 /// process — a Vivado command has to be discovered on disk, parsed, merged,
 /// installed, and its overlay key published to the analyser before

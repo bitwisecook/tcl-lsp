@@ -5,7 +5,7 @@ Rust hook host, and a shim that lets a **C Tcl extension** run behind the same
 surface. This document is that shim: crate `rust/tcl-cshim`, its C header
 `include/tclshim.h`, and the rules that keep it a shim rather than a second
 interface. It is part of the spec-pack DSL design
-([spec-packs.md](spec-packs.md) § "Covering the hooks").
+([spec-packs.md](../registry/spec-packs.md) § "Covering the hooks").
 
 ```text
   C extension            compiled against include/tclshim.h
@@ -293,4 +293,4 @@ loaded against a stub table, so an extension is recompiled against
 - `rust/tcl-engine-api/src/lib.rs` — `Engine::remove_command`.
 - `rust/tcl-engine-tclvm/src/lib.rs` — the error mapping and
   `remove_command`.
-- KCS: [What is the C extension shim and when should I use it?](../kcs/kcs-qa-what-is-the-c-extension-shim.md).
+- KCS: [What is the C extension shim and when should I use it?](../../kcs/kcs-qa-what-is-the-c-extension-shim.md).

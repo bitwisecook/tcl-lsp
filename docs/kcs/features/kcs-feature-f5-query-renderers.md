@@ -122,5 +122,5 @@ t2_c04_vip:443        |                  v#########^
 
 - [KCS: how-to — reproduce an HTTP monitor with `f5`](../kcs-howto-reproduce-http-monitor-with-query.md)
 - [KCS: how-to — compose query streams](../kcs-howto-compose-query-streams.md)
-- [Design — `f5 query` renderer contract](../../design/f5-query-renderer-contract.md)
+- [Design — `f5 query` renderer contract](../../design/f5/f5-query-renderer-contract.md)
 - [KCS feature index](README.md)

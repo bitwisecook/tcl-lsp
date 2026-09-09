@@ -7,7 +7,7 @@ quantitative counterpart to the `tcloo_dispatch_pattern_fixture` golden test:
 run before/after an object-typing change to prove a resolution-rate delta.
 
 Harness: `rust/tcl-lsp-core/examples/tcloo_dispatch.rs`. Design context:
-`docs/design/tcloo-object-typing.md`.
+`docs/design/analysis/tcloo-object-typing.md`.
 
 ```sh
 cargo build --release -p tcl-lsp-core --example tcloo_dispatch

@@ -68,5 +68,5 @@ being flagged unknown and hover shows your documentation.
 - [The Command Spec Studio](features/kcs-feature-spec-studio.md)
 - [How to annotate commands with stubs](kcs-howto-annotate-commands-with-stubs.md)
 - [The command registry design doc](../design/compiler/command-registry.md)
-- [SpecTcl pack design](../design/spec-packs.md)
+- [SpecTcl pack design](../design/registry/spec-packs.md)
 - [KCS index](README.md)

@@ -1,7 +1,7 @@
 # BIG-IP parser probes
 
 The iRules, drivers, controls and raw transcripts behind
-[`docs/design/bigip-irule-parser-measurements.md`](../../../docs/design/bigip-irule-parser-measurements.md).
+[`docs/design/f5/bigip-irule-parser-measurements.md`](../../../docs/design/f5/bigip-irule-parser-measurements.md).
 
 Everything here is appliance-specific and disposable. Nothing is a build
 input; nothing runs in CI.

@@ -482,7 +482,7 @@ pub struct AnalyserConfig {
     /// An input, not an ambient read, so a pack edit invalidates exactly the
     /// analyses that depend on it. It is not optional configuration: the EDA
     /// vendor libraries ship as bundled loadables
-    /// (`docs/design/spec-packs.md`), so this number is what decides whether
+    /// (`docs/design/registry/spec-packs.md`), so this number is what decides whether
     /// `synth_design` is a known command.
     #[returns(copy)]
     pub spec_pack_key: u64,

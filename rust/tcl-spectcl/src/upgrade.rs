@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The 1.x → 2.0 **source rewriter** behind `tcl spec upgrade`
-//! (`docs/design/dialect-and-package-registry-centralisation.md` §6).
+//! (`docs/design/registry/dialect-and-package-registry-centralisation.md` §6).
 //!
 //! Three facts fix its shape, and all three are structural rather than
 //! stylistic:

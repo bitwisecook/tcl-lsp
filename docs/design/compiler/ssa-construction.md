@@ -498,7 +498,7 @@ unaffected and never touches the `{$n}` word.
 
 ## Related docs
 
-- [Examples 5–9 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-5-if-x--set-y-10-)
+- [Examples 5–9 in walkthroughs](../../../docs/design/compiler/example-walkthroughs.md#example-5-if-x--set-y-10-)
 - [GLOSSARY.md — SSA, Phi node, Dominator](../../GLOSSARY.md#ssa)
 - [cfg-ssa-fact-model.md](cfg-ssa-fact-model.md)
 - [cfg-construction.md](cfg-construction.md)

@@ -19,7 +19,7 @@
 //! Crash containment: what is recorded when a hook takes the boundary down,
 //! and what the user is offered.
 //!
-//! `docs/design/spec-packs.md`: "a spec must never be able to take the LSP
+//! `docs/design/registry/spec-packs.md`: "a spec must never be able to take the LSP
 //! down". A panic inside a hook is converted to abstention, the hook is
 //! quarantined for the session, and a structured record is written — pack name
 //! and content hash, command and hook family, the `SpecTcl` vocabulary and

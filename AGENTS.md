@@ -11,7 +11,7 @@ branch, merge, or tag from it.
 
 Orientation: the crate map and dependency direction in
 [project-layout.md](docs/design/contracts/project-layout.md); the compiler
-pipeline in [compiler-architecture.md](docs/design/compiler-architecture.md);
+pipeline in [compiler/architecture.md](docs/design/compiler/architecture.md);
 what good Rust looks like here in
 [engineering-guide.md](docs/design/rust/engineering-guide.md); terms in
 [GLOSSARY.md](docs/GLOSSARY.md); every document indexed from
@@ -100,7 +100,8 @@ sites and are not debt.
 - Commands live in the registry's per-dialect spec packs — except the EDA
   vendor libraries, which ship as bundled `SpecTcl` loadables in
   `specs/*.tclspec` and reach a registry only through `tcl_spectcl::bundled`
-  ([spec-packs.md](docs/design/spec-packs.md)). Edit the `.tclspec`, not Rust.
+  ([spec-packs.md](docs/design/registry/spec-packs.md)). Edit the
+  `.tclspec`, not Rust.
 - Add a command's `CommandSpec` and its WASM runtime backing in the same
   change (see *WASM command parity*).
 - Argument roles resolve `arg_role_resolver` → `arg_roles` →
@@ -123,8 +124,8 @@ sites and are not debt.
 - A SpecTcl 2.0 pack is evaluated, not walked: write canonical form unless
   repetition is the problem, run `tcl spec export` / `spectcl_expand` and
   read the expansion before shipping, prefer `-available` rows to
-  `available?` ([spec-packs.md](docs/design/spec-packs.md) § *Authoring
-  rules for SpecTcl 2.0*).
+  `available?` ([spec-packs.md](docs/design/registry/spec-packs.md)
+  § *Authoring rules for SpecTcl 2.0*).
 
 ### Shared semantic owners
 

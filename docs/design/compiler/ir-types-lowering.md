@@ -104,7 +104,7 @@ The AST lives inside `Statement::AssignExpr`'s and `Statement::ExprEval`'s
 
 ## Related docs
 
-- [Examples 1–4 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-1-set-x-42)
+- [Examples 1–4 in walkthroughs](../../../docs/design/compiler/example-walkthroughs.md#example-1-set-x-42)
 - [Data structure reference — IR types](data-structure-reference.md#stage-3--ir-types-irrs)
 - [lowering-dispatch.md](lowering-dispatch.md)
 - [lowering-contracts.md](lowering-contracts.md)

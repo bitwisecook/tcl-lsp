@@ -20,7 +20,7 @@
 //!
 //! The EDA vendor libraries are **not** here: `sdc_base` and the five vendor
 //! packs ship as bundled `.tclspec` loadables under `specs/`, loaded by
-//! `tcl-spectcl` (`docs/design/spec-packs.md`, "the EDA vendor libraries ship
+//! `tcl-spectcl` (`docs/design/registry/spec-packs.md`, "the EDA vendor libraries ship
 //! as bundled `.tclspec` loadables … so the loader path is exercised in
 //! production from day one").
 
@@ -56,7 +56,7 @@ use crate::CommandSpec;
 /// The EDA vendor libraries are deliberately absent. They ship as bundled
 /// `.tclspec` loadables under `specs/` and reach a registry through
 /// `tcl_spectcl::bundled`, so their provenance is the pack *file*, which the
-/// loader reports — see [`spec-packs.md`](../../../../docs/design/spec-packs.md).
+/// loader reports — see [`spec-packs.md`](../../../../docs/design/registry/spec-packs.md).
 #[derive(Debug, Clone, Copy)]
 pub struct SpecPack {
     /// The module directory name, and the id every surface keys on.

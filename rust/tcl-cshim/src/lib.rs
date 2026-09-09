@@ -17,8 +17,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `tcl-cshim` — the **C Tcl extension shim**: the third leg of the Tcl
-//! extension interface in `docs/design/spec-packs.md`, designed in
-//! `docs/design/c-extension-shim.md`.
+//! extension interface in `docs/design/registry/spec-packs.md`, designed in
+//! `docs/design/runtime/c-extension-shim.md`.
 //!
 //! A command written against the C Tcl API — registered with
 //! `Tcl_CreateObjCommand`, reading `objv`, answering with `Tcl_SetObjResult`

@@ -28,9 +28,7 @@
 //! - the **WASM runtime** over `*mut TclObj` (24-byte C-ABI object; amortised
 //!   in-place string growth via `try_append_bytes_in_place`).
 //!
-//! Two deliberate contract decisions (see
-//! `docs/design/common-runtime-emitter-architecture.md` §4d and the red-team
-//! findings):
+//! Two deliberate contract decisions:
 //!
 //! 1. **Char-correct strings.** [`ValueOps::as_str`] yields a UTF-8 `Rc<str>`.
 //!    Tcl 8 character operations use UTF-16-style code units while Tcl 9 uses

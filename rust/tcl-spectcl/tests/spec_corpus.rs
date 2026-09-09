@@ -20,7 +20,7 @@
 //! ships, loaded, installed, analysed, and run through the sandboxed hook
 //! host, plus the hostile pack that proves containment.
 //!
-//! `docs/design/spec-packs.md` states the guarantees this file turns into a
+//! `docs/design/registry/spec-packs.md` states the guarantees this file turns into a
 //! gate. Per pack:
 //!
 //! 1. **Load** through the real loader ([`tcl_spectcl::pack::load`]) with

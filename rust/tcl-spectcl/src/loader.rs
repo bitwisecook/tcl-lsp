@@ -52,7 +52,7 @@
 //! `tcl-spec-studio/tests/spectcl_ports.rs` meaningful.
 //!
 //! The frozen syntax is `docs/design/spec-dsl-examples/README.md`; the
-//! architecture around it is `docs/design/spec-packs.md`.
+//! architecture around it is `docs/design/registry/spec-packs.md`.
 //!
 //! ## What the loader does, and does not, do
 //!
@@ -696,7 +696,7 @@ pub enum HookSource {
         /// ([`HookInputs::shape_only`]): a hook that declares only shape
         /// inputs is answered from the shape-keyed cache at native speed, and
         /// one that declares nothing (the default) is fully legal, always
-        /// correct, and uncacheable — `docs/design/spec-packs.md`'s
+        /// correct, and uncacheable — `docs/design/registry/spec-packs.md`'s
         /// "granularity is not restricted; consequences are documented".
         inputs: HookInputs,
     },

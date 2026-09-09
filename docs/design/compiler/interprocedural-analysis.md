@@ -181,6 +181,6 @@ prefix-building shape lands in both at once (issue #978).
 
 ## Related docs
 
-- [Example 23 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-23-interprocedural-analysis--summary-construction)
+- [Example 23 in walkthroughs](../../../docs/design/compiler/example-walkthroughs.md#example-23-interprocedural-analysis--summary-construction)
 - [GLOSSARY.md — ICIP](../../GLOSSARY.md#icip)
 - [compiler-pipeline-overview.md](compiler-pipeline-overview.md)

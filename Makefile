@@ -125,7 +125,7 @@ SERVER_TARGET_MAP := \
 	aarch64-pc-windows-msvc:win32-arm64
 SERVER_TARGETS_ALL := $(foreach p,$(SERVER_TARGET_MAP),$(firstword $(subst :, ,$(p))))
 
-# The bundled SpecTcl loadables (`docs/design/spec-packs.md`): the EDA vendor
+# The bundled SpecTcl loadables (`docs/design/registry/spec-packs.md`): the EDA vendor
 # libraries are `.tclspec` packs, not compiled-in Rust, so a shipped server is
 # incomplete without them. `tcl_spectcl::discovery::bundled_dir` looks for a
 # `specs/` directory *beside the executable*, so every place that stages a

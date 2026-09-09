@@ -247,7 +247,7 @@ The back-edge creates a cycle that the SSA builder handles with phi nodes.
 
 ## Related docs
 
-- [Examples 5–10 in walkthroughs](../example-script-walkthroughs.md#example-5-if-x--set-y-10-)
+- [Examples 5–10 in walkthroughs](example-walkthroughs.md#example-5-if-x--set-y-10-)
 - [GLOSSARY.md — Basic block, CFG](../../GLOSSARY.md#basic-block)
 - [cfg-ssa-fact-model.md](cfg-ssa-fact-model.md)
 - [compiler-pipeline-overview.md](compiler-pipeline-overview.md)
