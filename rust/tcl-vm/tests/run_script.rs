@@ -217,8 +217,7 @@ fn list_operand_error_wording() {
     // operand *quoted*: a bare `abc` never reaches the operand check in C either
     // (`ParseExpr` rejects it as `invalid bareword` first — `tclCompExpr.c:766`),
     // whereas a quoted string is a legal operand whose coercion is what fails
-    // (expr-old-5.13/5.14). This used to be routed through `mathop` to dodge the
-    // VM's old `exprStk` fallback, which handed a bare `abc + 1` back as text.
+    // (expr-old-5.13/5.14).
     let (ok, result, _) = run("catch {expr {\"abc\" + 1}} m\nset m");
     assert!(ok, "script should complete: {result}");
     assert_eq!(
@@ -305,8 +304,8 @@ fn namespace_path_resolves_commands() {
 
 /// A loop whose body redefines `break`/`continue` runs through the runtime
 /// builtin (which dispatches them) instead of the inline JUMP fast-path, so the
-/// redefinition is honoured rather than looping forever. Regression for
-/// proc-7.3 (Bug 729692) — this previously hung.
+/// redefinition is honoured; the inline fast-path would ignore the
+/// redefinition and loop forever. Matches tclsh's proc-7.3 (Bug 729692).
 #[test]
 fn loop_body_redefining_continue_is_honoured() {
     let (ok, result, _) = run(concat!(
@@ -435,7 +434,7 @@ fn concat_keeps_backslash_escaped_trailing_space() {
 
 /// `TclParseBackslash` recognises only raw `\<LF>` as a continuation. A source
 /// channel may normalise CRLF first, but bytes passed directly to the compiler
-/// and VM retain raw CR/CRLF exactly like `Tcl_EvalObjEx` (issue #1579).
+/// and VM retain raw CR/CRLF exactly like `Tcl_EvalObjEx`.
 #[test]
 fn raw_backslash_cr_is_data_not_a_line_continuation() {
     for (source, expected) in [
@@ -701,10 +700,9 @@ fn extra_chars_after_close_quote_is_catchable() {
 }
 
 /// `subst` decodes one backslash escape at a time and handles the multi-byte
-/// forms: a `\` before a multi-byte UTF-8 character (previously a fixed
-/// two-byte slice split the char boundary and panicked), `\xHH` hex, and the
-/// `\<newline><whitespace>` line continuation. Regression for the subst.rs
-/// panic that aborted subst.test.
+/// forms: a `\` before a multi-byte UTF-8 character (a fixed two-byte slice
+/// would split the char boundary and panic), `\xHH` hex, and the
+/// `\<newline><whitespace>` line continuation.
 #[test]
 fn subst_backslash_escapes_handle_multibyte_and_hex() {
     assert_eq!(run("subst {\\é}").1, "é");
@@ -721,8 +719,8 @@ fn subst_backslash_escapes_handle_multibyte_and_hex() {
 /// `info level` runs through the shared Family-B core
 /// (`tcl_cmd_core::info::level`, over the `Introspect` role trait): the current
 /// depth with no argument, and the correct coercion error for a non-integer
-/// argument (the VM previously diverged from the runtime / real Tcl with a
-/// "bad level" message — routing through the shared core unifies the behaviour).
+/// argument: a local "bad level" message here would diverge from the runtime
+/// and from real Tcl.
 #[test]
 fn info_level_shared_core() {
     assert_eq!(run("info level").1, "0"); // global scope: depth 0
@@ -1725,8 +1723,8 @@ fn interp_eval_current() {
 /// Regression tests for inline `set x [cmd]` command-substitution edge cases.
 #[test]
 fn inline_cmd_subst_review_fixes() {
-    // `string is` generic fallback must keep the `is` subcommand (it used to be
-    // dropped, yielding `string list …`).
+    // `string is` generic fallback must keep the `is` subcommand — dropping it
+    // would yield `string list …`.
     assert_eq!(run("set x [string is list {a b c}]; puts $x").2, "1\n");
     assert_eq!(run("set x [string is wideinteger 99]; puts $x").2, "1\n");
     // `-strict` char-class: STR_CLASS can't honour it (empty is a member), so it

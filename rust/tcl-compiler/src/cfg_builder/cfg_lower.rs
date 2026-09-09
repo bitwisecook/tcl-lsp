@@ -397,8 +397,8 @@ impl CfgBuilder<'_> {
         // (back-edge) instead of looping to the header, and the header is demoted
         // to a synthetic always-true entry guard (span `None`, so the optimiser's
         // constant-branch source rewriter never folds the loop's source
-        // condition). SCCP then prunes the zero-iteration header→end edge, and the
-        // FP-RBS-16 dead-edge phi filter ignores the version-0 operand it carried,
+        // condition). SCCP then prunes the zero-iteration header→end edge, and
+        // the dead-edge phi filter ignores the version-0 operand it carried,
         // so a body-assigned variable read after the loop is no longer a false
         // read-before-set. `break`/`continue` stay real edges (partial-def exits
         // remain sound); `loop_nodes` + the init exit versions are unchanged, so
@@ -577,9 +577,9 @@ impl CfgBuilder<'_> {
             foreach_groups: Some(group_sizes),
         };
 
-        // Analysis builds rotate a provably-non-empty foreach (FP-RBS-17) so the
+        // Analysis builds rotate a provably-non-empty foreach so the
         // 0-iteration skip is a *separate*, statically-true entry-guard edge
-        // (SCCP prunes it; the FP-RBS-16 dead-edge phi filter then ignores the
+        // (SCCP prunes it; the dead-edge phi filter then ignores the
         // version-0 operand it carried). The var-def + body run at least once
         // before the back-edge re-check, so a body-assigned variable (or a loop
         // variable) read after the loop is no longer a false read-before-set,

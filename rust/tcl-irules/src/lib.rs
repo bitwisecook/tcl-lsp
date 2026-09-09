@@ -159,9 +159,9 @@ const STRIP: &[char] = &['{', '}', '"', '\'', '[', ']', '(', ')', ','];
 /// command doesn't accept). `word` should already be lowercased by the
 /// caller (`class match`'s operator words are case-insensitive there).
 ///
-/// Enum-referenced against `tcl_syntax::expr::ast::BinOp` (issue #983/#986's
-/// unification) rather than a raw string list: a rename of one of these
-/// variants is now a compile error here, not a silent drift.
+/// Enum-referenced against `tcl_syntax::expr::ast::BinOp` rather than a raw
+/// string list: a rename of one of these variants is a compile error here,
+/// not a silent drift.
 fn is_class_operator(word: &str) -> bool {
     use tcl_syntax::expr::ast::BinOp;
     [

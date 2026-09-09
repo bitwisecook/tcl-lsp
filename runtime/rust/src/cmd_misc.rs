@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Small host/misc commands needed to bootstrap the real library (M2).
+//! Small host/misc commands needed to bootstrap the real library.
 //!
 //! `encoding` keeps UTF-8 as the internal string representation while its
 //! mutable `system` value seeds new channel conversions. `dirs` is a no-op

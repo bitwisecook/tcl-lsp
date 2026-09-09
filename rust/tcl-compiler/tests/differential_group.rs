@@ -14,7 +14,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Differential harness: the shared boundary owner vs the production
-//! segmenter (issue #1786, step 2).
+//! segmenter.
 //!
 //! `tcl_lexer::script::group_commands` is the new single owner of Tcl
 //! command and word boundaries.  Before any consumer switches over, it has
@@ -54,8 +54,8 @@
 //! *post-pass*: an `else` / `elseif` command one single newline after an
 //! `if` is folded back into that `if` (measurements N5 — the lookahead is
 //! performed by `if` itself, not by the lexical grammar).  It is a
-//! command-level rule the compiler owns and, per the #1786 staging, keeps
-//! owning; putting it in the lexer would make the compiler apply it twice
+//! command-level rule the compiler owns and keeps owning; putting it in
+//! the lexer would make the compiler apply it twice
 //! once `build.rs` consumes the owner.  So the harness replays that exact
 //! post-pass on the owner's side for the `f5-irules` config, using the
 //! segmenter's own predicate (`word_piece` texts + `single_newline_gap`).
@@ -68,10 +68,11 @@
 //! almost none of the Tcl in the corpus: measured over `samples/`, the Tcl
 //! 9.0.4 library and tcllib 2.0 — 965 files — top-level grouping yields
 //! **zero** `{*}` markers, even though `{*}` is written in many of them.
-//! That is exactly the boundary #1786 next changes in `runtime/rust`, so
-//! the corpus walk also descends [`NEST_DEPTH`] levels of `{…}` bodies and
-//! `[…]` command substitutions ([`walk_region`]), driving *both* sides over
-//! the identical inner text under the identical [`LexerConfig`].
+//! That is exactly the boundary the owner will next take over in
+//! `runtime/rust`, so the corpus walk also descends [`NEST_DEPTH`] levels of
+//! `{…}` bodies and `[…]` command substitutions ([`walk_region`]), driving
+//! *both* sides over the identical inner text under the identical
+//! [`LexerConfig`].
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -88,9 +89,7 @@ fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..")
 }
 
-// ---------------------------------------------------------------------
-// The owner side
-// ---------------------------------------------------------------------
+// The owner side.
 
 /// A flattened, comparable view of one command's boundaries.  Both sides
 /// are reduced to this so a mismatch names a field, not a struct dump.
@@ -271,9 +270,7 @@ fn merge_f5_if_else(
     out
 }
 
-// ---------------------------------------------------------------------
-// The segmenter side
-// ---------------------------------------------------------------------
+// The segmenter side.
 
 /// Reduce the production segmenter's output to the same view.
 ///
@@ -315,9 +312,7 @@ fn seg_word(src: &str, cmd: &SegmentedCommand, i: usize) -> WordView {
     }
 }
 
-// ---------------------------------------------------------------------
-// The comparison
-// ---------------------------------------------------------------------
+// The comparison.
 
 /// Compare both sides over `src` under `config`.
 ///
@@ -444,7 +439,7 @@ const EDGE_CASES: &[&str] = &[
     "puts \"\\\n\"",
     "puts \"$x\\\n\"",
     "set y \"a\\\nb\"",
-    // #1786: `{*}` welded to a close-brace — the measured divergence.
+    // `{*}` welded to a close-brace — the measured divergence.
     "{a}{*}$b",
     "{a}{*}b",
     "set x {a}{*}$y",
@@ -531,7 +526,7 @@ fn expand_after_close_brace_takes_the_segmenter_boundary() {
         assert_eq!(flags, expected, "{src:?}");
     }
 
-    // Its sibling: `extra characters after close-quote` (#1828). `{*}` after
+    // Its sibling: `extra characters after close-quote`. `{*}` after
     // a closed quote is ordinary content, so `foo "q"{*}$z` is one welded
     // quoted word — the row the brace loop above reads as `false, false`.
     for (src, expected) in [
@@ -551,9 +546,7 @@ fn expand_after_close_brace_takes_the_segmenter_boundary() {
     }
 }
 
-// ---------------------------------------------------------------------
-// Corpus walk
-// ---------------------------------------------------------------------
+// Corpus walk.
 
 /// How many levels of `{…}` / `[…]` the corpus walk descends below the
 /// top level.

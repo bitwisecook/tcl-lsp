@@ -20661,7 +20661,7 @@ impl Backend {
     async fn scan_workspace_folders(&self) {
         // Held for the whole scan so `ensure_autoload_indexed` can wait out
         // an in-flight scan instead of racing it — see the field doc on
-        // `workspace_scan_gate` (issue #1003).
+        // `workspace_scan_gate`.
         let _scan_guard = self.workspace_scan_gate.lock().await;
         let scan_started = crate::rt::Instant::now();
         let folders = self.workspace_folder_urls().await;
@@ -20691,7 +20691,7 @@ impl Backend {
         let default_dialect = self.session_dialect().await;
         let (resolver, files) = self.build_package_db_and_candidates(roots).await;
 
-        // Drop the library files the autoload tier (M8) merged under the
+        // Drop the library files the autoload tier merged under the
         // *previous* package database before this scan's own batches add their
         // fresh entries below — a stale entry must not survive a rescan, and
         // (rare, but possible) a workspace file that used to be reached only via
@@ -20728,21 +20728,20 @@ impl Backend {
         // Publish the package database for the diagnostics worker now every
         // batch's auto-path contribution has folded in.
         *self.package_resolver.write().await = resolver;
-        // Re-home sourced documents under their source-site namespaces (M9).
+        // Re-home sourced documents under their source-site namespaces.
         self.refresh_source_rehoming().await;
-        // Warm the deep salsa tier for documents already open (#844 Gap 3,
-        // narrowed by #1151) so their first hover / semantic-tokens /
-        // diagnostics request is a cache hit; unopened files stay at the
+        // Warm the deep salsa tier for documents already open so their first
+        // hover / semantic-tokens / diagnostics request is a cache hit;
+        // unopened files stay at the
         // lightweight tier (`workspace_index` + the salsa `SourceFile` inputs
         // just batched in, which answer `file_decls` / `item_sigs` on demand)
         // until a request actually needs their deep analysis.
         self.spawn_workspace_warm();
         // Publish the workspace's class-factory oracle *before* the readiness
-        // signal (issue #1276). A document opened after the scan must be
-        // analysed with it on its very first pass, or its outline and
-        // navigation come back empty for every class a cross-file metaclass
-        // manufactures — the exact symptom the issue reports — until some
-        // later edit happens to re-run the diagnostics worker.
+        // signal. A document opened after the scan must be analysed with it on
+        // its very first pass, or its outline and navigation come back empty
+        // for every class a cross-file metaclass manufactures until some later
+        // edit happens to re-run the diagnostics worker.
         let scan_handles = EvidenceHandles {
             db: Arc::clone(&self.db),
             db_files: Arc::clone(&self.db_files),
@@ -20756,11 +20755,11 @@ impl Backend {
         };
         let factory_sync = sync_workspace_class_factories(&scan_handles, None).await;
         // …then re-index the unopened documents that oracle can change
-        // (issue #1304). Must follow the publish: the classes a cross-file
+        // Must follow the publish: the classes a cross-file
         // metaclass manufactures only exist in an analysis that carried the
         // oracle, and the scan's own pass could not have.
         reindex_unopened_factory_consumers(&scan_handles, &factory_sync.affected_names).await;
-        // The subclass-provided-method view (issue #1367), published once the
+        // The subclass-provided-method view, published once the
         // scan's index is complete so the first document opened is analysed
         // with the workspace's subclass evidence already in place.  No peers
         // to wake: nothing has published diagnostics yet.
@@ -20772,7 +20771,7 @@ impl Backend {
         // just been (re)built from disk — a client (or a test) that needs to
         // know the autoload / cross-file workspace state is current rather
         // than racing this scan should wait on this line instead of an
-        // unrelated per-document signal (issue #1003).
+        // unrelated per-document signal.
         let elapsed_ms = scan_started.elapsed().as_secs_f64() * 1000.0;
         self.client
             .log_message(
@@ -20790,14 +20789,13 @@ impl Backend {
     ///
     /// Cheap directory-metadata work, so it stays a single blocking call; the
     /// expensive per-file parse-and-analyse is stage 2
-    /// ([`Self::analyse_and_merge_scanned_files`]), parallelised (#1151 — this
-    /// walk used to also run every file's `Analyser::analyse` here, serially,
-    /// one root cause of the 38.7s/883-file startup cost).
+    /// ([`Self::analyse_and_merge_scanned_files`]), parallelised.  Running
+    /// every file's `Analyser::analyse` here instead would serialise the whole
+    /// startup scan behind one thread.
     ///
     /// Both halves read through the [`vfs::SourceStore`], so a host that
     /// supplies bytes rather than a filesystem gets the same database and the
-    /// same candidate set. A failure folds to an empty pair, exactly as the
-    /// individual `.ok()`s did before the store existed.
+    /// same candidate set. A failure folds to an empty pair.
     async fn build_package_db_and_candidates(
         &self,
         roots: Vec<PathBuf>,
@@ -20850,7 +20848,7 @@ impl Backend {
         .unwrap_or_else(|_| (PackageResolver::new(), Vec::new()))
     }
 
-    /// Stage 2 of [`Self::scan_workspace_folders`] (#1151): read + analyse
+    /// Stage 2 of [`Self::scan_workspace_folders`]: read + analyse
     /// `files` across a bounded worker pool (the `spawn_workspace_warm`
     /// semaphore pattern — acquire a permit before spawning, so at most
     /// `WORKSPACE_ANALYSIS_MAX_CONCURRENCY` files are being read+analysed at
@@ -20899,7 +20897,7 @@ impl Backend {
                     // Analysis form, matching `read_document` / `scan_disk_file`.
                     // Shared decoder, for the same reason `scan_disk_file`
                     // uses it: an ill-formed byte must not silently remove the
-                    // file from the workspace index (issue #1326).
+                    // file from the workspace index.
                     let (raw, _) = store.read_source(&path).ok()?;
                     let text = tcl_lexer::normalise_lone_cr(&raw).into_owned();
                     let dialect = folder_dialect_for(&uri, &folder_dialects)
@@ -20907,7 +20905,7 @@ impl Backend {
                     // Same reason as `scan_disk_file`: this analysis becomes
                     // the file's index entry, and `package_requires` is
                     // harvested from it, so a `source` descendant inherits
-                    // whatever the edges imply here (issue #1813 review).
+                    // whatever the edges imply here.
                     let mut analyser = resource.as_ref().clone().apply(Analyser::new());
                     let analysis = analyser.analyse(&text, &dialect);
                     Some((uri, text, dialect, analysis))
@@ -20968,8 +20966,7 @@ impl Backend {
     }
 
     /// Kick off a detached, concurrency-bounded parallel **warm** of the salsa
-    /// per-file analysis for every currently **open** document (#844 Gap 3,
-    /// narrowed by #1151).
+    /// per-file analysis for every currently **open** document.
     ///
     /// Deep state (`file_analysis_incremental` and everything built on it —
     /// `compilation_unit`) is an
@@ -20978,12 +20975,12 @@ impl Backend {
     /// fed by the scan's own analyser pass, plus the light `file_decls` /
     /// `item_sigs` / `file_token_facts` tier salsa computes on demand from the
     /// `SourceFile`
-    /// inputs the disk-publication transaction sets). Warming the deep tier for every
-    /// workspace file — the pre-#1151 behaviour — analysed the whole project a
-    /// *second* time through salsa on top of the scan's own analyser walk, and
-    /// materialised `file_analysis` for files nobody has open (measured: 786 MB
-    /// RSS after a tcllib scan). This warm now only primes the files already
-    /// open when it runs, so the first hover / semantic-tokens / diagnostics
+    /// inputs the disk-publication transaction sets). Warming the deep tier for
+    /// every workspace file would analyse the whole project a *second* time
+    /// through salsa on top of the scan's own analyser walk, and materialise
+    /// `file_analysis` for files nobody has open — hundreds of megabytes of RSS
+    /// on a large tree. This warm primes only the files already open when it
+    /// runs, so the first hover / semantic-tokens / diagnostics
     /// request on an already-open tab (e.g. several restored editor tabs right
     /// after `initialized`, or a big multi-root reload) is a cache hit instead
     /// of a cold `file_analysis_incremental` walk; an unopened file pays its
@@ -21008,11 +21005,11 @@ impl Backend {
     ///
     /// Each open document warms under its own [`Self::resolved_db_config`] —
     /// the config the diagnostics / hover / completion path would actually
-    /// resolve for it — rather than the former full `files × configs` cross
-    /// product: that product existed only to cover `project_class_index` /
+    /// resolve for it — rather than a full `files × configs` cross product.
+    /// Such a product would only be needed to cover `project_class_index` /
     /// `project_proc_var_index` applying one config to *every* project file,
-    /// which no longer matters here because this warm no longer touches
-    /// unopened files at all and those two indexes are now config-free (#1163).
+    /// and this warm touches no unopened files while those two indexes are
+    /// config-free.
     fn spawn_workspace_warm(&self) {
         let db = Arc::clone(&self.db);
         let db_files = Arc::clone(&self.db_files);
@@ -21114,10 +21111,10 @@ impl Backend {
     /// caller colours the viewport with the enriched tier (`pending` is `None`);
     /// on a cold/large one the budget wins and the caller serves the cheap
     /// segmenter+registry-only tier immediately (`cached_cu`/`cached_analysis`
-    /// both `None`) rather than blocking the viewport on a whole-file analysis
-    /// (issue #829). The reads are taken as `JoinHandle`s so the ones the budget
+    /// both `None`) rather than blocking the viewport on a whole-file
+    /// analysis. The reads are taken as `JoinHandle`s so the ones the budget
     /// drops are **not** lost: on timeout they ride out to the detached
-    /// convergence continuation (#844 Gap 4) via `pending`, which keeps awaiting
+    /// convergence continuation via `pending`, which keeps awaiting
     /// the enriched unit/analysis and pushes a coalesced
     /// `workspace/semanticTokens/refresh` once the enriched viewport genuinely
     /// differs from the coarse tier served — the range analogue of
@@ -21209,7 +21206,7 @@ impl Backend {
         }
     }
 
-    /// Detach the #844 Gap 4 convergence continuation for a range request served
+    /// Detach the convergence continuation for a range request served
     /// the coarse tier: await the enriched CU / analysis (reusing any that landed
     /// within the budget via its slot, never re-awaiting a spent handle),
     /// recompute the viewport-filtered range, and fire a coalesced
@@ -21217,7 +21214,7 @@ impl Backend {
     /// `served` stream. The range stream is never in `last_semantic_tokens`, so
     /// the diff is against the exact `served` bytes rather than the token cache.
     ///
-    /// `guard` is the caller's per-URI claim (#1147); it is held for the
+    /// `guard` is the caller's per-URI claim; it is held for the
     /// continuation's whole life so a later request for the same document skips
     /// detaching a redundant second one.
     fn spawn_range_convergence(
@@ -21262,7 +21259,7 @@ impl Backend {
             // setter can cancel either read after its sibling finishes; treating
             // that partial tier as enriched can compare equal to coarse tokens
             // and strand the viewport. Schedule a coalesced client re-pull so
-            // cancellation is retryable rather than merely observable (#1854).
+            // cancellation is retryable rather than merely observable.
             let cancelled = cu.is_none() || analysis.is_none();
             let (refreshed, outcome) = if cancelled {
                 refresh_ctx.request_refresh_coalesced(SemanticTokensRefreshReason::Convergence);

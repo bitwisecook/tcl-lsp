@@ -18,7 +18,7 @@
 
 //! Reference-client + harsh-editing differential tests for semantic tokens.
 //!
-//! Issue #333 is an eglot painter bug, but proving that requires proving the
+//! An eglot painter bug is client-side, but proving that requires proving the
 //! *server* never drifts: a correct client, driven through brutal editing,
 //! must always be able to reconstruct exactly the tokens a cold reopen would
 //! produce. If it can, any staleness a user sees in eglot is eglot's fault,

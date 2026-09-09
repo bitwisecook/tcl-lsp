@@ -318,7 +318,7 @@ pub const fn spec() -> CommandSpec {
         }),
         // `HTTP::cookie insert|replace` with tainted data →
         // header injection (IRULE3002).
-        // (`credential_arg` + `sensitive_headers` now live on the
+        // (`credential_arg` and `sensitive_headers` live on the
         // `insert` / `replace` SubCommand specs above.)
         taint_output_sink: Some("IRULE3002"),
         taint_output_sink_subcommands: &["insert", "replace"],

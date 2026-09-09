@@ -1892,7 +1892,7 @@ fn test_issue_898_semantic_token_corrections() {
     }
 }
 
-/// Issue #898 §11 — `defaultLibrary` on a built-in reached through a namespace
+/// §11 — `defaultLibrary` on a built-in reached through a namespace
 /// prefix, or through a `namespace import`ed bare alias.
 #[test]
 fn test_issue_898_default_library_modifier() {
@@ -2134,13 +2134,14 @@ fn test_expect_incomplete_clause_does_not_fabricate_a_body() {
     );
 }
 
-/// Issue #1138 idx 100: Tk's `library/tk.tcl:289` builds its `upvar` with
+/// Tk's `library/tk.tcl:289` builds its `upvar` with
 /// `list` — `uplevel #0 [list upvar #0 ::tk::Priv.$disp ::tk::Priv]` — and
 /// declares the same cell as a plain `variable ::tk::Priv` on the next line.
 /// A 3-way comparison on tclsh 9.0.4 / 8.6.16 (direct `upvar`, braced
 /// `uplevel {upvar …}`, `uplevel [list upvar …]`) shows the three are
-/// functionally identical, yet only the `[list …]` form — the one Tk uses —
-/// was painted as a namespace word instead of a variable declaration.
+/// functionally identical, so the `[list …]` form — the one Tk uses — must
+/// be recognised as a variable declaration too, not painted as a namespace
+/// word.
 #[test]
 fn test_list_built_upvar_declares_its_local_like_the_literal_spelling() {
     let mut lsp = Lsp::tcl();
@@ -2187,7 +2188,7 @@ fn test_list_built_upvar_declares_its_local_like_the_literal_spelling() {
     );
 }
 
-/// Issue #1185: a command head's grammar follows its **effective command
+/// A command head's grammar follows its **effective command
 /// identity**, not its spelling — end-to-end through the packaged server.
 ///
 /// tclsh-proof, byte-identical on 9.0.4 and 8.6.16: `interp alias {} myformat

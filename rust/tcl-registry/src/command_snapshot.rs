@@ -105,11 +105,9 @@ const TRAIT_FLAGS: &[(&str, Traits)] = &[
 
 // `CommandSpec.surface` serialisation derives from
 // `dialect_names_for_rows` — the same canonical-name table `parse`
-// inverts — rather than a parallel hand-list. A hand-list here missed
-// `tcl9.1`/`bpf` once (a `TCL90_PLUS` spec dropped its 9.1
-// membership and a BPF-only spec serialised `[]`, indistinguishable from
-// "available nowhere") and the `TMSH`/`BIGIP` bits a second time, so new
-// primitive bits can never be forgotten again.
+// inverts — rather than a parallel hand-list, so a spec's dialect bits
+// (e.g. `tcl9.1` on `TCL90_PLUS`, or the `TMSH`/`BIGIP` bits) cannot be
+// missed by a hand-list falling out of sync with the primitive bits.
 
 /// Serialise an [`Arity`] as `{"min", "max"}` (`max` null = unbounded).
 fn arity_json(arity: Arity) -> Json {
@@ -140,9 +138,9 @@ fn surface_json(surface: Option<&'static [SpecSurface]>) -> Json {
 
 /// Whether the subcommand is available under `profile` (own gate wins;
 /// else inherit the parent `CommandSpec.surface`; else available) — the
-/// same §5.1 intersects membership every other availability consumer uses
-/// (the old `contains` rule hid a vendor profile's embedded-core
-/// subcommands from the dump).
+/// same §5.1 intersects membership every other availability consumer uses,
+/// which keeps a vendor profile's embedded-core subcommands visible in the
+/// dump (a plain `contains` check would hide them).
 fn sub_available(
     profile: &DialectProfile,
     sub: &SubCommand,
@@ -462,8 +460,7 @@ mod tests {
 
     #[test]
     fn tcl90_plus_includes_tcl91() {
-        // A TCL90_PLUS spec must serialise BOTH tcl9.0 and
-        // tcl9.1 — 9.1 was silently dropped.
+        // A TCL90_PLUS spec must serialise both tcl9.0 and tcl9.1.
         let n = names(SpecSurface::TCL90_PLUS);
         assert!(n.contains(&"tcl9.0".to_owned()), "{n:?}");
         assert!(n.contains(&"tcl9.1".to_owned()), "{n:?}");
@@ -471,8 +468,8 @@ mod tests {
 
     #[test]
     fn bpf_only_spec_is_not_empty() {
-        // A BPF-only spec serialised `[]` (looks like
-        // "available nowhere"); it must render `["bpf"]`.
+        // A BPF-only spec must render `["bpf"]`, not `[]` (which would
+        // look like "available nowhere").
         assert_eq!(names(SpecSurface::BPF), vec!["bpf".to_owned()]);
     }
 }

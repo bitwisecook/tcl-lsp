@@ -126,11 +126,12 @@ pub(crate) fn find_expr_shimmers(
                     collect_expr_shimmers(&mut ctx, expr, 0);
                 }
                 // An `[expr …]` written inside another command's word, such as
-                // `puts [expr {$d % 2}]`. The lowerer turns a *statement* `expr` into the
-                // node above but leaves a nested one as opaque argument text,
+                // `puts [expr {$d % 2}]`. The lowerer turns a *statement* `expr`
+                // into the node above but leaves a nested one as opaque
+                // argument text,
                 // so it is lifted and parsed here (see [`crate::word_subst`]).
                 // Its operands resolve through the statement's own `uses`,
-                // which `ssa::scan_nested_substitution_words` now populates
+                // which `ssa::scan_nested_substitution_words` populates
                 // for a nested command's in-frame braced words.
                 //
                 // Both statement kinds that carry substitutable words are
@@ -868,11 +869,10 @@ mod tests {
         assert!(w.is_empty(), "unexpected expr shimmers: {w:?}");
     }
 
-    /// The same expression must not report differently
-    /// depending only on where it sits: `expr {$u0 * $dx}` was walked,
-    /// `return [expr {$u0 * $dx}]` was not. The return value is an
-    /// `ExprNode` the lowerer already parsed onto the terminator, so the
-    /// walker simply had to read it.
+    /// The same expression must not report differently depending only on
+    /// where it sits — as a statement, or inside a `return`. The return value
+    /// is an `ExprNode` the lowerer already parsed onto the terminator, so the
+    /// walker reads it there.
     #[test]
     fn expr_shimmer_fires_in_a_return_expression() {
         let src = "proc f {x} {\n set d [expr {sqrt($x)}]\n return [expr {$d % 2}]\n}";
