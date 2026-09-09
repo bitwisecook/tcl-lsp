@@ -100,6 +100,122 @@ fn symbol_name_list(result: &Value) -> Vec<Option<String>> {
 // -- TestBigipDocumentOutline --------------------------------------------
 // Issue #534 — every outline symbol carries a non-empty name.
 
+/// A configuration with two rules in different partitions, so a test can tell
+/// "found the right one" from "found the first one".
+const TWO_RULES_CONF: &str = "\
+ltm pool /Common/p1 {
+    members {
+        1.2.3.4:80 { }
+    }
+}
+ltm rule /Common/first {
+    when HTTP_REQUEST {
+        pool /Common/p1
+    }
+}
+ltm rule /Tenant-A/second {
+    when HTTP_RESPONSE {
+        log local0. \"done\"
+    }
+}
+";
+
+#[test]
+fn list_rules_returns_every_embedded_rule() {
+    let mut lsp = Lsp::bigip();
+    let uri = bigip_uri();
+    lsp.open_document(&uri, TWO_RULES_CONF);
+    lsp.await_diagnostics_version(&uri, Some(1), Duration::from_secs(30));
+
+    let result = lsp.execute_command("tcl-lsp.listRules", serde_json::json!([uri]));
+    let rules = result.as_array().expect("rule array");
+    let paths: Vec<&str> = rules
+        .iter()
+        .filter_map(|r| r["fullPath"].as_str())
+        .collect();
+    assert_eq!(paths, ["/Common/first", "/Tenant-A/second"], "{result}");
+
+    // The client opens a scratch buffer from `body` and writes it back with
+    // the offsets, so both have to describe the same span.
+    for rule in rules {
+        let start =
+            usize::try_from(rule["bodyStartOffset"].as_u64().expect("start")).expect("offset fits");
+        let end =
+            usize::try_from(rule["bodyEndOffset"].as_u64().expect("end")).expect("offset fits");
+        assert_eq!(
+            &TWO_RULES_CONF[start..end],
+            rule["body"].as_str().expect("body"),
+            "body and offsets disagree: {rule}"
+        );
+        assert_eq!(rule["uri"], serde_json::Value::from(uri.clone()));
+    }
+}
+
+#[test]
+fn list_rules_is_an_empty_list_when_the_config_has_none() {
+    // Empty is not the same answer as null: the clients say "no rules here"
+    // for one and warn about an unreadable document for the other.
+    let mut lsp = Lsp::bigip();
+    let uri = bigip_uri();
+    lsp.open_document(&uri, "ltm pool /Common/p1 {\n    members { }\n}\n");
+    lsp.await_diagnostics_version(&uri, Some(1), Duration::from_secs(30));
+
+    let result = lsp.execute_command("tcl-lsp.listRules", serde_json::json!([uri]));
+    assert_eq!(result, serde_json::json!([]), "{result}");
+}
+
+#[test]
+fn extract_rule_finds_the_rule_containing_the_offset() {
+    let mut lsp = Lsp::bigip();
+    let uri = bigip_uri();
+    lsp.open_document(&uri, TWO_RULES_CONF);
+    lsp.await_diagnostics_version(&uri, Some(1), Duration::from_secs(30));
+
+    // An offset inside the second rule's body, not the first.
+    let offset = TWO_RULES_CONF.find("HTTP_RESPONSE").expect("fixture");
+    let result = lsp.execute_command("tcl-lsp.extractRule", serde_json::json!([uri, offset]));
+    assert_eq!(
+        result["fullPath"],
+        serde_json::Value::from("/Tenant-A/second"),
+        "{result}"
+    );
+    assert_eq!(
+        result["name"],
+        serde_json::Value::from("second"),
+        "{result}"
+    );
+
+    // An offset outside every rule is null, which the client renders as
+    // "cursor is not inside an ltm rule or gtm rule block".
+    let outside = TWO_RULES_CONF.find("ltm pool").expect("fixture");
+    let miss = lsp.execute_command("tcl-lsp.extractRule", serde_json::json!([uri, outside]));
+    assert!(miss.is_null(), "{miss}");
+}
+
+#[test]
+fn write_rule_back_refuses_a_span_the_document_cannot_honour() {
+    // Writing a body into the wrong range corrupts the configuration, so an
+    // impossible span is refused rather than clamped. The client branches on
+    // this boolean to warn instead of reporting a successful save.
+    let mut lsp = Lsp::bigip();
+    let uri = bigip_uri();
+    lsp.open_document(&uri, TWO_RULES_CONF);
+    lsp.await_diagnostics_version(&uri, Some(1), Duration::from_secs(30));
+
+    let past_end = TWO_RULES_CONF.len() + 100;
+    let result = lsp.execute_command(
+        "tcl-lsp.writeRuleBack",
+        serde_json::json!([uri, past_end, past_end + 10, "body"]),
+    );
+    assert_eq!(result, serde_json::json!(false), "{result}");
+
+    let inverted = lsp.execute_command(
+        "tcl-lsp.writeRuleBack",
+        serde_json::json!([uri, 50, 10, "body"]),
+    );
+    assert_eq!(inverted, serde_json::json!(false), "{inverted}");
+}
+
 #[test]
 fn outline_symbols_all_have_non_empty_names() {
     let mut lsp = Lsp::bigip();

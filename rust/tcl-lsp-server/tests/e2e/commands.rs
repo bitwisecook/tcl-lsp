@@ -710,6 +710,9 @@ const CORE_COMMANDS: &[&str] = &[
     "tcl-lsp.diagramData",
     "tcl-lsp.tkPreview",
     "tcl-lsp.xcTranslate",
+    "tcl-lsp.listRules",
+    "tcl-lsp.extractRule",
+    "tcl-lsp.writeRuleBack",
 ];
 
 #[test]

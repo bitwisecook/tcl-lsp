@@ -16423,6 +16423,158 @@ impl Backend {
         ))
     }
 
+    /// One `ltm rule` / `gtm rule` stanza, as the editors model it.
+    ///
+    /// The offsets are byte offsets into the configuration document, which is
+    /// what the clients send straight back on a write.
+    fn rule_info(rule: &tcl_bigip::rule_extract::EmbeddedRule, uri: &str) -> serde_json::Value {
+        serde_json::json!({
+            "name": rule.name,
+            "fullPath": rule.full_path,
+            "body": rule.body,
+            "bodyStartOffset": rule.body_start_offset,
+            "bodyEndOffset": rule.body_end_offset,
+            "uri": uri,
+            "blockStartLine": rule.range.start.line,
+        })
+    }
+
+    /// Handle `tcl-lsp.listRules`: every iRule embedded in a BIG-IP
+    /// configuration document.
+    ///
+    /// Arguments are `[uri]`. A document with no `ltm rule` or `gtm rule`
+    /// stanza yields an empty list rather than null: the clients tell those
+    /// apart, showing "no rules in this file" for the first and a warning for
+    /// a document they could not read.
+    async fn list_rules_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let Some(uri_str) = args.first().and_then(serde_json::Value::as_str) else {
+            return Ok(None);
+        };
+        let Ok(uri) = Uri::from_str(uri_str) else {
+            return Ok(None);
+        };
+        let Some(doc) = self.read_local_document(&uri).await else {
+            return Ok(None);
+        };
+        let rules = tcl_bigip::rule_extract::find_embedded_rules(&doc.text);
+        let uri_owned = uri_str.to_owned();
+        Ok(Some(serde_json::Value::Array(
+            rules
+                .iter()
+                .map(|r| Self::rule_info(r, &uri_owned))
+                .collect(),
+        )))
+    }
+
+    /// Handle `tcl-lsp.extractRule`: the iRule containing a byte offset.
+    ///
+    /// Arguments are `[uri, offset]`. Null when the offset is outside every
+    /// rule stanza, which is what the clients render as "cursor is not inside
+    /// an ltm rule or gtm rule block".
+    async fn extract_rule_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let Some(uri_str) = args.first().and_then(serde_json::Value::as_str) else {
+            return Ok(None);
+        };
+        let Ok(uri) = Uri::from_str(uri_str) else {
+            return Ok(None);
+        };
+        let Some(offset) = args.get(1).and_then(serde_json::Value::as_u64) else {
+            return Ok(None);
+        };
+        let Some(doc) = self.read_local_document(&uri).await else {
+            return Ok(None);
+        };
+        let offset = usize::try_from(offset).unwrap_or(usize::MAX);
+        Ok(
+            tcl_bigip::rule_extract::find_rule_at_offset(&doc.text, offset)
+                .map(|rule| Self::rule_info(&rule, uri_str)),
+        )
+    }
+
+    /// Handle `tcl-lsp.writeRuleBack`: put an edited rule body back into its
+    /// configuration document.
+    ///
+    /// Arguments are `[uri, bodyStart, bodyEnd, newBody]`. The client edits
+    /// the rule in a scratch buffer and holds the offsets it was given, so
+    /// the span is theirs rather than re-derived here; the reply is the
+    /// boolean they branch on.
+    ///
+    /// The edit is applied through `workspace/applyEdit` rather than returned,
+    /// because the caller is a save handler with nothing to apply an edit to:
+    /// the document being changed is the configuration file, not the scratch
+    /// buffer that was saved.
+    async fn write_rule_back_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let Some(uri_str) = args.first().and_then(serde_json::Value::as_str) else {
+            return Ok(Some(serde_json::json!(false)));
+        };
+        let Ok(uri) = Uri::from_str(uri_str) else {
+            return Ok(Some(serde_json::json!(false)));
+        };
+        let (Some(start), Some(end), Some(body)) = (
+            args.get(1).and_then(serde_json::Value::as_u64),
+            args.get(2).and_then(serde_json::Value::as_u64),
+            args.get(3).and_then(serde_json::Value::as_str),
+        ) else {
+            return Ok(Some(serde_json::json!(false)));
+        };
+        let Some(doc) = self.read_local_document(&uri).await else {
+            return Ok(Some(serde_json::json!(false)));
+        };
+
+        let (start, end) = (
+            usize::try_from(start).unwrap_or(usize::MAX),
+            usize::try_from(end).unwrap_or(usize::MAX),
+        );
+        // A span the document cannot honour is refused rather than clamped:
+        // writing a rule body into the wrong range corrupts the file, and the
+        // client's warning is the honest outcome.
+        if start > end
+            || end > doc.text.len()
+            || !doc.text.is_char_boundary(start)
+            || !doc.text.is_char_boundary(end)
+        {
+            return Ok(Some(serde_json::json!(false)));
+        }
+
+        // The client counts bytes; LSP ranges count UTF-16 code units, so the
+        // span is converted rather than passed through.
+        let index = tcl_lexer::LineIndex::new_lsp(&doc.text);
+        let to_position = |offset: usize| {
+            let p = index.position_at_utf16(u32::try_from(offset).unwrap_or(u32::MAX), &doc.text);
+            Position {
+                line: p.line,
+                character: p.character.get(),
+            }
+        };
+        let edit = TextEdit {
+            range: Range {
+                start: to_position(start),
+                end: to_position(end),
+            },
+            new_text: body.to_owned(),
+        };
+        let mut changes = HashMap::new();
+        changes.insert(uri, vec![edit]);
+        let applied = self
+            .client
+            .apply_edit(WorkspaceEdit {
+                changes: Some(changes),
+                ..WorkspaceEdit::default()
+            })
+            .await
+            .is_ok_and(|response| response.applied);
+        Ok(Some(serde_json::json!(applied)))
+    }
+
     /// Handle `tcl-lsp.xcTranslate`: statically translate an iRule to F5
     /// Distributed Cloud constructs and report the result.
     ///
@@ -24423,6 +24575,9 @@ impl LanguageServer for Backend {
             "tcl-lsp.listIruleEvents" => Ok(Some(Self::list_irule_events_command())),
             "tcl-lsp.diagramData" => Ok(self.diagram_data_command(&params.arguments).await),
             "tcl-lsp.xcTranslate" => Ok(self.xc_translate_command(&params.arguments).await),
+            "tcl-lsp.listRules" => self.list_rules_command(&params.arguments).await,
+            "tcl-lsp.extractRule" => self.extract_rule_command(&params.arguments).await,
+            "tcl-lsp.writeRuleBack" => self.write_rule_back_command(&params.arguments).await,
             "tcl-lsp.getEffectiveConfig" => {
                 self.get_effective_config_command(&params.arguments).await
             }
@@ -29289,6 +29444,9 @@ fn build_server_capabilities(
                 "tcl-lsp.listIruleEvents".to_owned(),
                 "tcl-lsp.diagramData".to_owned(),
                 "tcl-lsp.xcTranslate".to_owned(),
+                "tcl-lsp.listRules".to_owned(),
+                "tcl-lsp.extractRule".to_owned(),
+                "tcl-lsp.writeRuleBack".to_owned(),
                 "tcl-lsp.getEffectiveConfig".to_owned(),
                 "tcl-lsp.fixAllSafeIssues".to_owned(),
                 "tcl-lsp.listSubcommands".to_owned(),
