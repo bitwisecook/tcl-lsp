@@ -5,8 +5,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 # Offline contract test for the shared release attestation action (issue
-# #1685). It exercises representative release shapes and guards the action pin,
-# subject binding, SBOM inputs, and least-privilege workflow permissions.
+# #1685). It exercises every release glob the workflow actually passes the
+# action, and guards the action pin, subject binding, SBOM inputs, and
+# least-privilege workflow permissions.
 
 set -euo pipefail
 
@@ -17,14 +18,12 @@ ACTION=$REPO_ROOT/.github/actions/sign-and-upload/action.yml
 WORKFLOW=$REPO_ROOT/.github/workflows/ci.yml
 fixture=$(mktemp -d)
 trap 'rm -rf "$fixture"' EXIT
-mkdir -p "$fixture/build"
 
-zip=$fixture/build/tcl-lsp-claude-skills-2.2.0.zip
-vsix=$fixture/build/tcl-lsp-vscode-2.2.0-universal.vsix
-sublime=$fixture/build/LSP-Tcl.sublime-package
-: > "$zip"
-: > "$vsix"
-: > "$sublime"
+# The version a wildcard stands in for. Release names are version-stamped, so
+# any token that a `*` can match will do; two are needed because the
+# multiple-match case has to produce a second file for the same glob.
+VERSION=2.2.0
+OTHER_VERSION=2.2.1
 
 assert_resolves() {
     local pattern=$1 expected=$2 actual
@@ -35,17 +34,65 @@ assert_resolves() {
     fi
 }
 
-# Representative glob shapes from the shared action's real callers.
-assert_resolves "$fixture/build/tcl-lsp-claude-skills-*.zip" "$zip"
-assert_resolves "$fixture/build/tcl-lsp-vscode-*-universal.vsix" "$vsix"
-assert_resolves "$fixture/build/LSP-Tcl*.sublime-package" "$sublime"
+# Every glob the workflow hands the action, read from the workflow rather than
+# copied here: a glob this test never sees is a glob nothing checks until a
+# release runs. The parse is quoted-scalar only, so it is compared against the
+# raw occurrence count below rather than trusted to have found them all.
+globs=()
+while IFS= read -r glob; do
+    globs+=("$glob")
+done < <(sed -n 's/^[[:space:]]*artefact-glob:[[:space:]]*"\(.*\)"[[:space:]]*$/\1/p' "$WORKFLOW")
+
+# Count the input rows, not every mention: anchoring to the start of the line
+# keeps prose about the input from inflating the total into a false mismatch,
+# while still counting a row whose value the parse above cannot read.
+#
+# `grep -c` exits non-zero on zero matches, which under `set -e` would abort
+# here with no diagnostic at all — the vacuity check below is the message worth
+# printing in that case.
+declared=$(grep -cE '^[[:space:]]*artefact-glob:' "$WORKFLOW" || true)
+if [[ ${#globs[@]} -eq 0 ]]; then
+    echo "no artefact globs found in the workflow; resolver check is vacuous" >&2
+    exit 1
+fi
+if [[ ${#globs[@]} -ne $declared ]]; then
+    echo "parsed ${#globs[@]} artefact globs but the workflow declares $declared;" >&2
+    echo "one is written in a form this test cannot read, so it goes unchecked" >&2
+    exit 1
+fi
+
+# Materialise one file per glob first, then resolve each against the full set.
+# Resolving against every file at once is what makes two globs that can match
+# the same artefact fail here rather than at release time.
+for glob in "${globs[@]}"; do
+    concrete=${glob//\*/$VERSION}
+    mkdir -p "$(dirname "$fixture/$concrete")"
+    : > "$fixture/$concrete"
+done
+for glob in "${globs[@]}"; do
+    assert_resolves "$fixture/$glob" "$fixture/${glob//\*/$VERSION}"
+done
 
 if $RESOLVER "$fixture/build/missing-*.zip" >/dev/null 2>&1; then
     echo "resolver accepted a zero-match release glob" >&2
     exit 1
 fi
-: > "$fixture/build/tcl-lsp-claude-skills-2.2.1.zip"
-if $RESOLVER "$fixture/build/tcl-lsp-claude-skills-*.zip" >/dev/null 2>&1; then
+
+# A second file for a real wildcard glob, so the ambiguity the resolver must
+# reject is one an actual caller could hit.
+wildcard_glob=
+for glob in "${globs[@]}"; do
+    if [[ $glob == *"*"* ]]; then
+        wildcard_glob=$glob
+        break
+    fi
+done
+if [[ -z $wildcard_glob ]]; then
+    echo "no wildcard glob in the workflow; the multiple-match case is vacuous" >&2
+    exit 1
+fi
+: > "$fixture/${wildcard_glob//\*/$OTHER_VERSION}"
+if $RESOLVER "$fixture/$wildcard_glob" >/dev/null 2>&1; then
     echo "resolver silently selected one of multiple release artefacts" >&2
     exit 1
 fi

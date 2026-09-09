@@ -210,6 +210,10 @@ pub fn spec() -> CommandSpec {
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         byte_array_effect: ByteArrayEffect::Coerces,
         traits: Traits::TAINT_SINK | Traits::IS_UNESCAPE | Traits::PERFORMS_SUBSTITUTION,
+        // Which of the three substitutions a call actually runs is decided by
+        // the switches above, so the trait alone would tell a consumer only
+        // that *some* substitution happens.
+        substitution_resolver: Some(crate::substitution::subst_substitutions),
         // Exactly one trailing `string` is mandatory; 0 or more recognised
         // switch words may precede it with no fixed ceiling (a switch may
         // legally repeat — `subst -nocommands -nocommands $s` is valid,

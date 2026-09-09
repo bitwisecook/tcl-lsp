@@ -88,6 +88,7 @@ pub use context::{
 };
 pub use declaration::{
     DeclaredArgument, DeclaredCommand, DeclaredSurface, DocumentCommandSurface, role_for_word,
+    role_for_word_checked,
 };
 pub use ingress::{
     DocumentEnvironment, context_for_profile, environments, irules_context,

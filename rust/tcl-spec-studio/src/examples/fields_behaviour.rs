@@ -178,6 +178,24 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
         },
     ),
     (
+        "substitution_resolver",
+        Example {
+            code: "subst {hello $name}\nsubst -novariables {hello $name}",
+            focuses: &[
+                focus(
+                    0,
+                    "$name",
+                    "the resolver reports variables on, so this reads the variable",
+                ),
+                focus(
+                    1,
+                    "$name",
+                    "-novariables turns that kind off, so this is literal text",
+                ),
+            ],
+        },
+    ),
+    (
         "callback_taint_inputs",
         Example {
             code: "entry .password -validatecommand {set proposed %P; eval $proposed}\nbind .password <Key> {set typed %A; eval $typed}",

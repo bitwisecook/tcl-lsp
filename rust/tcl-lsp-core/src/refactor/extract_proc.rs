@@ -429,20 +429,21 @@ fn literal_word_holes(
     out: &mut Vec<(u32, u32)>,
 ) {
     let head = command.name();
-    let Some(spec) = registry.get(head) else {
-        return;
-    };
-    // `subst {hello $name}` substitutes `$name` out of a braced word, so a
-    // command carrying the registry's own substitution trait has no inert
-    // words at all.  The trait is the whole test, exactly as the compiler's
-    // dynamic-name barrier reads it — this module names no command.
-    if spec
-        .traits
-        .contains(tcl_registry::Traits::PERFORMS_SUBSTITUTION)
-    {
+    if registry.get(head).is_none() {
         return;
     }
     let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
+    // `subst {hello $name}` substitutes `$name` straight out of a braced word,
+    // so a substituting command's arguments are not the inert text a braced
+    // word usually is.  Which of the three substitutions this *call* runs is
+    // the registry's answer, not a switch spelling matched here: with
+    // `-novariables` the `$name` really is literal, and cutting it is right.
+    if registry
+        .substitutions_performed(head, &args)
+        .is_some_and(|kinds| kinds.variables)
+    {
+        return;
+    }
     let evaluated: Vec<usize> = registry.arg_indices_for_role(head, &args, ArgRole::Expr);
     let mut scripts = walk.same_frame_regions(source, command);
     scripts.extend(walk.frame_shifted_regions(source, command));
@@ -1155,6 +1156,59 @@ mod tests {
     }
 
     // -- TP: caller-frame writes survive via upvar -------------------------
+    /// The same command with its variable substitution switched off reads
+    /// nothing: `-novariables` leaves `$name` as four literal characters, so
+    /// asking the caller for `name` would invent a parameter. Which kinds a
+    /// call runs is the registry's per-call answer, not a switch spelling
+    /// matched in this module.
+    ///
+    /// Oracle (tclsh 9.0.4): original and extraction both print the literal
+    /// `hello $name`.
+    #[test]
+    fn tp_a_substituting_call_can_switch_its_variable_reads_off() {
+        let src = "set name world\nset msg [subst -novariables {hello $name}]\nputs $msg\n";
+        let result = outcome(src, "set msg [subst -novariables {hello $name}]").unwrap();
+        assert!(
+            result.contains("proc extracted_proc {msgName} {"),
+            "a disabled substitution reads nothing: {result}"
+        );
+        assert!(!result.contains("$name msg"), "{result}");
+    }
+
+    /// A `[…]` inside that argument runs even when variable substitution is
+    /// off — the manpage's "nested inside a command still runs" — and its
+    /// contents are ordinary script, so the read is the caller's after all.
+    #[test]
+    fn tp_a_substituted_bracket_reads_the_caller_even_with_variables_off() {
+        let src = "set name world\nset msg [subst -novariables {hello [string toupper $name]}]\nputs $msg\n";
+        let result = outcome(
+            src,
+            "set msg [subst -novariables {hello [string toupper $name]}]",
+        )
+        .unwrap();
+        assert!(
+            result.contains("proc extracted_proc {name msgName} {"),
+            "the bracket still runs: {result}"
+        );
+    }
+
+    /// That bracket is script in the caller's own frame, so a write it makes
+    /// has to leave by name like any other. The script lexer sees one braced
+    /// word here, so only the substitution grammar reaches inside it.
+    ///
+    /// Oracle (tclsh 9.0.4): original and extraction both print `1`; a proc
+    /// local instead leaves the caller's `total` at `0`.
+    #[test]
+    fn tp_a_substituted_bracket_writes_through_to_the_caller() {
+        let src = "set total 0\nset msg [subst {x[incr total]}]\nputs $total\n";
+        let result = outcome(src, "set msg [subst {x[incr total]}]").unwrap();
+        assert!(
+            result.contains("upvar 1 $totalName total"),
+            "the substituted bracket writes the caller's variable: {result}"
+        );
+        assert!(result.contains("extracted_proc total\n"), "{result}");
+    }
+
     /// A command that performs Tcl substitution reads through its own braced
     /// argument, so that word is not the inert literal a braced word usually
     /// is: `subst {hello $name}` substitutes `$name`.

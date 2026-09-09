@@ -4069,6 +4069,34 @@ impl CommandRegistry {
         })
     }
 
+    /// Which substitutions `name` performs over its own argument text for a
+    /// call with `args`, or `None` when it performs none at all.
+    ///
+    /// [`Traits::PERFORMS_SUBSTITUTION`] says *that* a command substitutes;
+    /// this answers *which kinds* for the call in hand, so a consumer asking
+    /// "does this argument read a variable?" never has to match option
+    /// spellings itself. A command carrying the trait without a
+    /// [`CommandSpec::substitution_resolver`] performs every kind on every
+    /// call, and an unreadable call answers every kind too — assuming a
+    /// substitution does not happen is the answer that loses a real read.
+    #[must_use]
+    pub fn substitutions_performed(
+        &self,
+        name: &str,
+        args: &[&str],
+    ) -> Option<crate::substitution::SubstitutionKinds> {
+        let spec = self.get(name)?;
+        if !spec.traits.contains(Traits::PERFORMS_SUBSTITUTION) {
+            return None;
+        }
+        Some(
+            spec.substitution_resolver
+                .map_or(crate::substitution::SubstitutionKinds::ALL, |resolve| {
+                    resolve(args)
+                }),
+        )
+    }
+
     /// Every command name that is frame-sensitive ([`Self::is_frame_sensitive`]),
     /// for consumers that scan text for any member of the set (the
     /// inline-proc code action's body check) rather than querying one
@@ -11682,6 +11710,29 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// The query answers per call, and only for a command that substitutes at
+    /// all — so a consumer never has to read a switch spelling itself.
+    #[test]
+    fn substitutions_performed_answers_per_call_and_only_for_substituting_commands() {
+        let registry = crate::model::ingress::static_context_for("tcl9.0").commands();
+        assert_eq!(
+            registry.substitutions_performed("set", &["x", "1"]),
+            None,
+            "a command that substitutes nothing has no answer to give"
+        );
+        let all = registry
+            .substitutions_performed("subst", &["hello $name"])
+            .expect("subst substitutes");
+        assert!(all.variables && all.commands && all.backslashes);
+        let off = registry
+            .substitutions_performed("subst", &["-novariables", "hello $name"])
+            .expect("subst substitutes");
+        assert!(
+            !off.variables && off.commands,
+            "only the named kind is disabled"
+        );
     }
 
     #[test]

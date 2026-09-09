@@ -439,7 +439,9 @@ const OWNED: &[OwnedPattern] = &[
     // declaration set only to hand it to `DocumentCommandSurface`, the one
     // thing any of them queries. A stub's argument roles have to reach
     // lowering and the call-graph scan for a declaration to mean anything
-    // there, and the borrowed set is how it travels.
+    // there, and the borrowed set is how it travels; the call-site scan
+    // (`unit_scope.rs`) carries it for the same reason, and `tcl-cli`'s
+    // `diag.rs` builds one per document to hand that scan.
     // `optimiser/branch_folding.rs` is on the list for a test fixture that
     // hand-builds a `CompilationUnit` and so has to name the field's type.
     OwnedPattern {
@@ -451,7 +453,9 @@ const OWNED: &[OwnedPattern] = &[
             "rust/tcl-compiler/src/interprocedural.rs",
             "rust/tcl-compiler/src/lowering/",
             "rust/tcl-compiler/src/optimiser/branch_folding.rs",
+            "rust/tcl-compiler/src/unit_scope.rs",
             "rust/tcl-lsp-db/src/",
+            "rust/tcl-cli/src/commands/diag.rs",
         ],
     },
 ];

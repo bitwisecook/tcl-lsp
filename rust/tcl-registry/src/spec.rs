@@ -1400,6 +1400,14 @@ pub struct CommandSpec {
     /// Static option values carry timing directly on [`crate::hover::OptionArg`].
     pub script_timing_resolver: Option<ScriptTimingResolver>,
 
+    /// Which substitutions this call performs over its own argument text, for
+    /// a [`Traits::PERFORMS_SUBSTITUTION`] command whose switches change the
+    /// answer (`subst -novariables`).
+    ///
+    /// `None` means the trait alone describes the command: every kind runs on
+    /// every call. See [`crate::substitution`].
+    pub substitution_resolver: Option<crate::substitution::SubstitutionResolver>,
+
     /// External callback substitutions for deferred executable arguments,
     /// keyed by their argument index. Option values carry the same fact on
     /// [`crate::hover::OptionArg`]; this table covers positional callback
@@ -2292,6 +2300,7 @@ impl CommandSpec {
         command_prefixes: &[],
         command_prefix_resolver: None,
         script_timing_resolver: None,
+        substitution_resolver: None,
         callback_taint_inputs: &[],
         return_type: None,
         return_type_hook: None,
