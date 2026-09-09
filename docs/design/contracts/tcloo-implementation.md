@@ -221,9 +221,9 @@ call-site rule), not the `::oo::define` evaluation namespace.
 ### Runtime object identity
 
 `tcl_core_types::OoId` is the shared, authoritative interpreter-local identity
-of an object or class. Both runtimes carry class, superclass, mixin,
-method-provider, and
-active-call relationships carry that identity; a fully-qualified command name
+of an object or class. Both runtimes carry that identity through class,
+superclass, mixin, method-provider, and active-call relationships; a
+fully-qualified command name
 is only a Tcl-facing display projection. The command-table variant carries the
 same identity so rename, import resolution, and dispatch never recover an
 object by spelling.
@@ -246,13 +246,15 @@ classification also carry `OoId`; the root's original registry spelling is
 retained only as its dialect-availability key. `OoId` has no universal missing
 or default value because allocation policy belongs to each runtime.
 
-Native command mutation keeps the exact `OoId` attached to the command
-generation through ordinary rename, replacement, and deletion. Callback-
-bearing lifecycle phases re-resolve that command generation before unlinking,
-so a moved old object is still destroyed while a newer replacement at the same
-spelling survives. The standalone implementation lives in
-`runtime/rust/src/cmd_oo.rs`; its namespace-generation lifecycle is owned by
-`runtime/rust/src/interp.rs` and `runtime/rust/src/namespace.rs`.
+Command mutation keeps the exact `OoId` and command generation together across
+visible, retained-generation, and hidden tables, including rename, hide,
+expose, replacement, and deletion. Trace sidecars carry the same generation.
+Callback-bearing lifecycle phases re-resolve that generation before unlinking,
+and discard only its sidecars, so a moved old object is still destroyed while a
+newer replacement at the same spelling and its traces survive. The standalone
+implementation lives in `runtime/rust/src/cmd_oo.rs`; its namespace-generation
+lifecycle is owned by `runtime/rust/src/interp.rs` and
+`runtime/rust/src/namespace.rs`.
 
 ## Test conformance
 

@@ -7622,6 +7622,106 @@ mod tests {
         });
     }
 
+    /// TclOO teardown removes the old command token's trace list, not traces a
+    /// delete callback attaches to a same-named replacement (Tcl 9.0.4).
+    #[test]
+    fn object_retirement_preserves_visible_replacement_traces() {
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    br#"set log {}
+                        oo::class create C {
+                            destructor {lappend ::log [list d [self object]]}
+                        }
+                        C create x
+                        proc cb {old new op} {
+                            lappend ::log [list t $old $new $op]
+                            proc x {} {return P}
+                            trace add command x delete cbnew
+                        }
+                        proc cbnew {old new op} {
+                            lappend ::log [list r $old $new $op]
+                        }
+                        trace add command x delete cb
+                        x destroy
+                        set before [list [x] [trace info command x] $log]
+                        rename x {}
+                        list $before $log"#,
+                ),
+                br#"{P {{delete cbnew}} {{d ::x} {t ::x {} delete}}} {{d ::x} {t ::x {} delete} {r ::x {} delete}}"#,
+            );
+        });
+    }
+
+    /// A hidden token keeps its generation, so its delete trace does not own a
+    /// visible replacement and trace at the same display spelling.
+    #[test]
+    fn object_retirement_preserves_hidden_name_replacement_traces() {
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    br#"set log {}
+                        oo::class create C {
+                            destructor {lappend ::log [list d [self object]]}
+                        }
+                        C create x
+                        proc cb {old new op} {
+                            lappend ::log [list t $old $new $op]
+                            proc held {} {return H}
+                            trace add command held delete cbnew
+                        }
+                        proc cbnew {old new op} {
+                            lappend ::log [list r $old $new $op]
+                        }
+                        trace add command x delete cb
+                        interp hide {} x held
+                        interp invokehidden {} held destroy
+                        set before [list [held] [trace info command held] $log \
+                                         [interp hidden {}]]
+                        rename held {}
+                        list $before $log"#,
+                ),
+                br#"{H {{delete cbnew}} {{d ::x} {t ::held {} delete}} {}} {{d ::x} {t ::held {} delete} {r ::held {} delete}}"#,
+            );
+        });
+    }
+
+    /// Renaming an object's private dispatcher does not turn its mutable name
+    /// into ownership: a callback replacement at that name remains independent.
+    #[test]
+    fn object_retirement_preserves_private_dispatcher_replacement_traces() {
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    br#"set log {}
+                        oo::class create C {
+                            destructor {lappend ::log [list d [self object]]}
+                        }
+                        C create x
+                        set ns [info object namespace x]
+                        rename ${ns}::my myx
+                        proc cb {old new op} {
+                            lappend ::log [list t $old $new $op]
+                            proc myx {} {return M}
+                            trace add command myx delete cbnew
+                        }
+                        proc cbnew {old new op} {
+                            lappend ::log [list r $old $new $op]
+                        }
+                        trace add command myx delete cb
+                        x destroy
+                        set before [list [myx] [trace info command myx] $log]
+                        rename myx {}
+                        list $before $log"#,
+                ),
+                br#"{M {{delete cbnew}} {{d ::x} {t ::myx {} delete}}} {{d ::x} {t ::myx {} delete} {r ::myx {} delete}}"#,
+            );
+        });
+    }
+
     /// Installing an ordinary command over an object command retires that
     /// exact TclOO owner—including destructors and class descendant cascades—
     /// while leaving the newly-installed command intact.

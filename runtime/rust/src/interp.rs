@@ -49,7 +49,7 @@ use tcl_runtime_api::guard::{
 
 use crate::builtins;
 use crate::frame::{FrameStack, Link, VarError};
-use crate::namespace::{Namespaces, NsId, RenameOutcome, GLOBAL};
+use crate::namespace::{CommandBinding, Namespaces, NsId, RenameOutcome, GLOBAL};
 use crate::obj::{self, TclObj};
 use crate::parse::{self, WordBody, WordPart};
 
@@ -738,15 +738,14 @@ pub struct ProcDef {
 }
 
 /// Whether a command trace hangs off the token being deleted. Generations are
-/// minted in binding order across the whole interpreter, so anything at or
-/// below the dying token's generation is part of its list, and a trace on a
-/// later token bound at the same name is not. `None` on either side means the
-/// binding carried no identity (a hidden command, or a caller with no token to
-/// discriminate by) and the whole name is taken.
+/// interpreter-unique and travel with the token through rename, hide, and
+/// expose, so equality is the complete ownership test. `None` remains only as
+/// a conservative fallback for an unbound internal caller.
 fn cmd_trace_owned_by(token: Option<u64>, dying: Option<u64>) -> bool {
     match (token, dying) {
-        (Some(token), Some(dying)) => token <= dying,
-        _ => true,
+        (Some(token), Some(dying)) => token == dying,
+        (None, None) => true,
+        _ => false,
     }
 }
 
@@ -895,7 +894,7 @@ pub struct InterpState {
     /// Hidden commands (`interp hide`): removed from the command table but
     /// invocable via `interp invokehidden`. A safe interp hides the dangerous
     /// commands here.
-    hidden: RefCell<std::collections::BTreeMap<Vec<u8>, Command>>,
+    hidden: RefCell<std::collections::BTreeMap<Vec<u8>, CommandBinding>>,
     /// While this interp runs as a child (`$parent eval`/`$child eval`), a `Weak`
     /// handle to its parent — for cross-interp aliases that delegate to a parent
     /// command. `Weak` (not `Rc`) so the parent→child ownership has no cycle;
@@ -2030,7 +2029,7 @@ impl Interp {
         // (tclsh-pinned; see `Namespaces::retarget_imports`). All of it happens
         // here, before the callbacks, because C had moved its one `Command`
         // before it fired them.
-        self.move_cmd_traces(&old_fqn, &new_fqn);
+        self.move_cmd_traces(&old_fqn, &new_fqn, publication.generation);
         self.retarget_import_sources(&old_fqn, &new_fqn);
         crate::cmd_coro::on_command_renamed(self, &old_fqn, &new_fqn);
         if let Some(object) = oo_object {
@@ -2040,7 +2039,13 @@ impl Interp {
             .borrow_mut()
             .rename_windows
             .push((old_fqn.clone(), new_fqn.clone()));
-        self.fire_cmd_trace(&new_fqn, &old_fqn, &new_fqn, crate::cmd_trace::ops::RENAME);
+        self.fire_cmd_trace_of_token(
+            &new_fqn,
+            &old_fqn,
+            &new_fqn,
+            crate::cmd_trace::ops::RENAME,
+            Some(publication.generation),
+        );
         self.traces.borrow_mut().rename_windows.pop();
         // C's `Tcl_DeleteHashEntry(oldHPtr)` at the tail of `TclRenameCommand`:
         // a plain table removal, firing no `delete` trace, after which the
@@ -2081,7 +2086,13 @@ impl Interp {
         let old_fqn = self.resolve_cmd_fqn(old);
         if let Some(of) = &old_fqn {
             if !self.traces.borrow().cmd_traces.is_empty() {
-                self.fire_cmd_trace(of, of, b"", crate::cmd_trace::ops::DELETE);
+                self.fire_cmd_trace_of_token(
+                    of,
+                    of,
+                    b"",
+                    crate::cmd_trace::ops::DELETE,
+                    dying_token,
+                );
             }
         }
         let existed = old_fqn.is_some();
@@ -2145,9 +2156,9 @@ impl Interp {
             self.remove_cmd_traces_of_token(&of, dying_token);
             let tokens: Vec<_> = ensemble_token.into_iter().collect();
             let mut origins = vec![of.clone()];
-            if let Some(removed_fqn) = removed_import_fqn {
+            if let Some((removed_fqn, removed_generation)) = removed_import_fqn {
                 if removed_fqn != of {
-                    self.remove_cmd_traces(&removed_fqn);
+                    self.remove_cmd_traces_of_token(&removed_fqn, Some(removed_generation));
                     origins.push(removed_fqn);
                 }
             }
@@ -2313,7 +2324,7 @@ impl Interp {
         // unknown callback observes UNKNOWN_DELETED), while imports of the
         // occupied source binding are explicitly reattached to the new token.
         if let Some(old_token) = old_token.as_ref() {
-            self.retire_ensemble_identity(&fqn, old_token);
+            self.retire_ensemble_identity(old_token);
         } else {
             self.on_command_replaced(&fqn);
         }
@@ -2466,45 +2477,82 @@ impl Interp {
             return;
         }
 
-        let mut traced = self.namespaces.borrow().oo_command_locations(owner);
-        traced.extend(
-            self.hidden
+        let mut generations: std::collections::BTreeSet<u64> = self
+            .namespaces
+            .borrow()
+            .oo_command_locations(owner)
+            .into_iter()
+            .map(|(_, generation)| generation)
+            .collect();
+        generations.extend(self.hidden.borrow().values().filter_map(|binding| {
+            binding
+                .command
+                .oo_binding()
+                .is_some_and(|(id, _)| id == owner)
+                .then_some(binding.generation)
+        }));
+
+        // Each delete callback may move a later owner command. Resolve that
+        // command's generation immediately before its turn instead of walking
+        // a stale location snapshot.
+        for generation in generations {
+            let mut locations: Vec<Vec<u8>> = self
+                .namespaces
                 .borrow()
-                .iter()
-                .filter(|(_, command)| command.oo_binding().is_some_and(|(id, _)| id == owner))
-                .map(|(name, _)| {
-                    let mut fqn = b"::".to_vec();
-                    fqn.extend_from_slice(name);
-                    (fqn, None)
-                }),
-        );
-        for (fqn, generation) in &traced {
-            self.fire_delete_traces_of_token(fqn, *generation);
+                .oo_command_locations(owner)
+                .into_iter()
+                .filter_map(|(fqn, candidate)| (candidate == generation).then_some(fqn))
+                .collect();
+            locations.extend(
+                self.hidden
+                    .borrow()
+                    .iter()
+                    .filter(|(_, binding)| {
+                        binding.generation == generation
+                            && binding
+                                .command
+                                .oo_binding()
+                                .is_some_and(|(id, _)| id == owner)
+                    })
+                    .map(|(name, _)| {
+                        let mut fqn = b"::".to_vec();
+                        fqn.extend_from_slice(name);
+                        fqn
+                    }),
+            );
+            for fqn in locations {
+                self.fire_delete_traces_of_token(&fqn, Some(generation));
+            }
         }
 
-        let mut removed: std::collections::BTreeSet<Vec<u8>> = self
+        let mut removed: Vec<(Vec<u8>, u64)> = self
             .namespaces
             .borrow_mut()
-            .remove_oo_command_identity(owner)
-            .into_iter()
-            .collect();
+            .remove_oo_command_identity(owner);
         let hidden_names: Vec<Vec<u8>> = self
             .hidden
             .borrow()
             .iter()
-            .filter(|(_, command)| command.oo_binding().is_some_and(|(id, _)| id == owner))
+            .filter(|(_, binding)| {
+                binding
+                    .command
+                    .oo_binding()
+                    .is_some_and(|(id, _)| id == owner)
+            })
             .map(|(name, _)| name.clone())
             .collect();
         for name in hidden_names {
-            self.hidden.borrow_mut().remove(&name);
-            let mut fqn = b"::".to_vec();
-            fqn.extend_from_slice(&name);
-            removed.insert(fqn);
+            if let Some(binding) = self.hidden.borrow_mut().remove(&name) {
+                let mut fqn = b"::".to_vec();
+                fqn.extend_from_slice(&name);
+                removed.push((fqn, binding.generation));
+            }
         }
-        removed.extend(traced.into_iter().map(|(fqn, _)| fqn));
-        self.remove_imports_for_deleted_origins(removed.iter().cloned(), &[]);
-        for fqn in removed {
-            self.remove_cmd_traces(&fqn);
+        let origins: std::collections::BTreeSet<Vec<u8>> =
+            removed.iter().map(|(fqn, _)| fqn.clone()).collect();
+        self.remove_imports_for_deleted_origins(origins, &[]);
+        for (fqn, generation) in removed {
+            self.remove_cmd_traces_of_token(&fqn, Some(generation));
         }
         self.forget_registry_object_root(owner);
         self.0.retiring_oo_commands.borrow_mut().remove(&owner);
@@ -4399,17 +4447,12 @@ impl Interp {
     /// commands"). Re-entrant firing on *this* command is suppressed (C's
     /// per-`Command` `CMD_TRACE_ACTIVE`/`CMD_DYING`); the interp result is
     /// preserved across the callbacks.
-    fn fire_cmd_trace(&mut self, key: &[u8], old_fqn: &[u8], new_fqn: &[u8], op_bit: u8) {
-        self.fire_cmd_trace_of_token(key, old_fqn, new_fqn, op_bit, None);
-    }
-
-    /// [`fire_cmd_trace`] restricted to one command token's own trace list.
+    /// Fire one command token's own trace list.
     /// C walks `cmdPtr->tracePtr`, so a trace registered on a *later* token
     /// bound at the same name — a replacement, or a same-named command in a
     /// namespace that took the retained one's spelling — never fires for the
-    /// token being deleted. `dying` is `None` when the caller has no token to
-    /// discriminate by, and then the whole name fires (rename, and hidden
-    /// commands, which carry no generation).
+    /// token being deleted. `dying` is `None` only when an internal caller has
+    /// no bound token to discriminate by.
     ///
     /// `key` addresses the trace list and gates re-entry; `old_fqn` only names
     /// the command in the callback's first word. They differ for a rename,
@@ -4429,7 +4472,7 @@ impl Interp {
             .borrow()
             .firing_cmd_traces
             .iter()
-            .any(|firing| firing == key)
+            .any(|firing| firing.0 == key && firing.1 == dying)
         {
             return;
         }
@@ -4482,7 +4525,7 @@ impl Interp {
         self.traces
             .borrow_mut()
             .firing_cmd_traces
-            .push(key.to_vec());
+            .push((key.to_vec(), dying));
         for (id, cmd) in entries {
             if self.cmd_trace_untraced(id) {
                 continue;
@@ -4561,7 +4604,7 @@ impl Interp {
     /// `<prefix> {cmd args} enter`. Returns `Some(code)` if a callback completed
     /// non-OK — the command is then aborted with that code and the callback's
     /// result (C's `TclEvalObjvInternal`: `traceCode != TCL_OK ⇒ return`).
-    fn fire_exec_enter(&mut self, fqn: &[u8], cmd_word: &[u8]) -> Option<Code> {
+    fn fire_exec_enter(&mut self, fqn: &[u8], token: Option<u64>, cmd_word: &[u8]) -> Option<Code> {
         use crate::cmd_trace::ops;
         // C fires `enter` newest-first (the trace list is prepended; the loop
         // walks it head→tail). Our Vec pushes newest-last, so iterate reversed.
@@ -4571,7 +4614,7 @@ impl Interp {
             .cmd_traces
             .iter()
             .rev()
-            .filter(|t| t.name == fqn && (t.ops & ops::ENTER) != 0)
+            .filter(|t| t.name == fqn && t.token == token && (t.ops & ops::ENTER) != 0)
             .map(|t| t.id)
             .collect();
         if ids.is_empty() {
@@ -4623,7 +4666,13 @@ impl Interp {
     /// Fire `leave` execution traces on `fqn` (reverse creation order), invoking
     /// each as `<prefix> {cmd args} <code> <result> leave`. A leave-trace non-OK
     /// code overrides the command's result/code (C's `TEOV_RunLeaveTraces`).
-    fn fire_exec_leave(&mut self, fqn: &[u8], cmd_word: &[u8], code: Code) -> Code {
+    fn fire_exec_leave(
+        &mut self,
+        fqn: &[u8],
+        token: Option<u64>,
+        cmd_word: &[u8],
+        code: Code,
+    ) -> Code {
         use crate::cmd_trace::ops;
         // C fires `leave` oldest-first (reverse-scan of the prepended list). Our
         // Vec pushes newest-last, so iterate forward.
@@ -4632,7 +4681,7 @@ impl Interp {
             .borrow()
             .cmd_traces
             .iter()
-            .filter(|t| t.name == fqn && (t.ops & ops::LEAVE) != 0)
+            .filter(|t| t.name == fqn && t.token == token && (t.ops & ops::LEAVE) != 0)
             .map(|t| t.id)
             .collect();
         if ids.is_empty() {
@@ -4721,15 +4770,15 @@ impl Interp {
     /// would stop answering through the vacating name, and the
     /// `firing_cmd_traces` record standing in for `CMD_TRACE_ACTIVE` would stop
     /// suppressing the command's own remaining callbacks.
-    fn relocate_rename_state(&self, old_fqn: &[u8], new_fqn: &[u8]) {
+    fn relocate_rename_state(&self, old_fqn: &[u8], new_fqn: &[u8], generation: u64) {
         let mut traces = self.traces.borrow_mut();
         for (_, destination) in &mut traces.rename_windows {
             if destination == old_fqn {
                 *destination = new_fqn.to_vec();
             }
         }
-        for firing in &mut traces.firing_cmd_traces {
-            if firing == old_fqn {
+        for (firing, token) in &mut traces.firing_cmd_traces {
+            if firing == old_fqn && *token == Some(generation) {
                 *firing = new_fqn.to_vec();
             }
         }
@@ -4738,35 +4787,20 @@ impl Interp {
     /// Move every command/execution trace on `old_fqn` to `new_fqn` (the trace
     /// follows a renamed command, as C keeps the trace list on the moving
     /// `Command`).
-    fn move_cmd_traces(&mut self, old_fqn: &[u8], new_fqn: &[u8]) {
-        self.relocate_rename_state(old_fqn, new_fqn);
-        // C moves the `Command` itself, so its trace list travels with the
-        // token. Re-stamp to whatever token now stands at the destination, so
-        // a later deletion there still tells this list from a replacement's.
-        let token = self.resolve_cmd_token(new_fqn);
+    fn move_cmd_traces(&mut self, old_fqn: &[u8], new_fqn: &[u8], generation: u64) {
+        self.relocate_rename_state(old_fqn, new_fqn, generation);
+        // C moves one `Command` and its trace list. A visible and hidden token
+        // may legally share display spelling, so move only this generation.
         let mut traces = self.traces.borrow_mut();
         let mut moved = false;
         for t in traces.cmd_traces.iter_mut() {
-            if t.name == old_fqn {
+            if t.name == old_fqn && t.token == Some(generation) {
                 t.name = new_fqn.to_vec();
-                t.token = token;
                 moved = true;
             }
         }
         drop(traces);
         if moved {
-            self.invalidate_guard_domain(GuardDomain::CommandTrace);
-        }
-    }
-
-    /// Drop every command/execution trace on `fqn` (the command is gone).
-    fn remove_cmd_traces(&mut self, fqn: &[u8]) {
-        let mut traces = self.traces.borrow_mut();
-        let old_len = traces.cmd_traces.len();
-        traces.cmd_traces.retain(|t| t.name != fqn);
-        let removed = traces.cmd_traces.len() != old_len;
-        drop(traces);
-        if removed {
             self.invalidate_guard_domain(GuardDomain::CommandTrace);
         }
     }
@@ -4946,7 +4980,7 @@ impl Interp {
             .hidden
             .borrow()
             .iter()
-            .filter_map(|(name, command)| match command {
+            .filter_map(|(name, binding)| match &binding.command {
                 Command::Ensemble(token) if ids.contains(&token.config().ns) => {
                     let mut fqn = b"::".to_vec();
                     fqn.extend_from_slice(name);
@@ -4962,7 +4996,7 @@ impl Interp {
                 continue;
             }
             deleted_origins.insert(fqn.clone());
-            if let Some(live_fqn) = self.retire_ensemble_identity(&fqn, &token) {
+            if let Some((live_fqn, _)) = self.retire_ensemble_identity(&token) {
                 deleted_origins.insert(live_fqn);
             }
             deleted_tokens.push(token);
@@ -5088,8 +5122,8 @@ impl Interp {
             let id_set: std::collections::HashSet<NsId> = ids.iter().copied().collect();
 
             let mut ensemble_victims = self.namespaces.borrow().ensembles_for(&id_set);
-            ensemble_victims.extend(self.hidden.borrow().iter().filter_map(|(name, command)| {
-                let Command::Ensemble(token) = command else {
+            ensemble_victims.extend(self.hidden.borrow().iter().filter_map(|(name, binding)| {
+                let Command::Ensemble(token) = &binding.command else {
                     return None;
                 };
                 if !id_set.contains(&token.config().ns)
@@ -5108,7 +5142,7 @@ impl Interp {
                 }
                 found_new_token = true;
                 origins.insert(fqn.clone());
-                if let Some(live_fqn) = self.retire_ensemble_identity(&fqn, &token) {
+                if let Some((live_fqn, _)) = self.retire_ensemble_identity(&token) {
                     origins.insert(live_fqn);
                 }
                 tokens.push(token);
@@ -5152,9 +5186,10 @@ impl Interp {
         }
         origins.extend(self.namespaces.borrow().command_fqns_in_ids(&ids));
         self.remove_imports_for_deleted_origins(origins.iter().cloned(), &tokens);
+        let cleared = self.namespaces.borrow().command_locations_in_ids(&ids);
         self.namespaces.borrow_mut().clear_namespace_ids(&ids);
-        for fqn in origins {
-            self.remove_cmd_traces(&fqn);
+        for (fqn, generation) in cleared {
+            self.remove_cmd_traces_of_token(&fqn, Some(generation));
         }
     }
 
@@ -7165,11 +7200,16 @@ impl Interp {
         let fqn = self
             .resolve_cmd_fqn(&name)
             .map(|fqn| self.renamed_cmd_key(&fqn).unwrap_or(fqn));
+        let token = fqn.as_deref().and_then(|fqn| self.resolve_cmd_token(fqn));
         let (has_enter, has_leave, has_step) = match &fqn {
             Some(f) => {
                 let t = self.traces.borrow();
                 let (mut he, mut hl, mut hs) = (false, false, false);
-                for tr in t.cmd_traces.iter().filter(|tr| tr.name == *f) {
+                for tr in t
+                    .cmd_traces
+                    .iter()
+                    .filter(|tr| tr.name == *f && tr.token == token)
+                {
                     he |= (tr.ops & ops::ENTER) != 0;
                     hl |= (tr.ops & ops::LEAVE) != 0;
                     hs |= (tr.ops & ops::STEP_ANY) != 0;
@@ -7205,13 +7245,13 @@ impl Interp {
         }
         // (B) per-command enter; a non-OK enter aborts with the callback result.
         if has_enter {
-            if let Some(c) = self.fire_exec_enter(fqn.as_deref().unwrap(), &cmd_word) {
+            if let Some(c) = self.fire_exec_enter(fqn.as_deref().unwrap(), token, &cmd_word) {
                 return c;
             }
         }
         // (C) install this command's step traces (deduped against recursion).
         let installed = if has_step {
-            self.install_step_traces(fqn.as_deref().unwrap())
+            self.install_step_traces(fqn.as_deref().unwrap(), token)
         } else {
             0
         };
@@ -7222,7 +7262,7 @@ impl Interp {
         }
         // (E) per-command leave (before interp/step leave), then (F) leavestep.
         if has_leave {
-            code = self.fire_exec_leave(fqn.as_deref().unwrap(), &cmd_word, code);
+            code = self.fire_exec_leave(fqn.as_deref().unwrap(), token, &cmd_word, code);
         }
         if stepping {
             if let Some(c) = self.fire_step(&cmd_word, ops::LEAVESTEP, Some(code)) {
@@ -7235,17 +7275,17 @@ impl Interp {
     /// Push a `StepActive` for each step trace on `fqn` not already live (dedup
     /// by owner+prefix handles recursion: only the outermost installs). Returns
     /// how many were pushed (the last `n` of `step_active`, popped on exit).
-    fn install_step_traces(&mut self, fqn: &[u8]) -> usize {
+    fn install_step_traces(&mut self, fqn: &[u8], token: Option<u64>) -> usize {
         use crate::cmd_trace::{ops, StepActive};
         let to_install: Vec<(u8, Vec<u8>)> = {
             let t = self.traces.borrow();
             t.cmd_traces
                 .iter()
-                .filter(|c| c.name == fqn && (c.ops & ops::STEP_ANY) != 0)
+                .filter(|c| c.name == fqn && c.token == token && (c.ops & ops::STEP_ANY) != 0)
                 .filter(|c| {
                     !t.step_active
                         .iter()
-                        .any(|s| s.owner == fqn && s.command == c.command)
+                        .any(|s| s.owner == fqn && s.token == token && s.command == c.command)
                 })
                 .map(|c| (c.ops & ops::STEP_ANY, c.command.clone()))
                 .collect()
@@ -7255,6 +7295,7 @@ impl Interp {
         for (ops_bits, command) in to_install {
             tt.step_active.push(StepActive {
                 owner: fqn.to_vec(),
+                token,
                 ops: ops_bits,
                 command,
             });
@@ -7970,7 +8011,7 @@ impl Interp {
         // `interp invokehidden` would reach it past the surface check.
         let resolved = self.resolve_dispatchable(GLOBAL, name);
         match resolved {
-            Some(cmd) => {
+            Some(_) => {
                 // C's order, and it is observable: `Tcl_HideCommand` resolves
                 // the source before it rejects a non-global one, and rejects a
                 // non-global one before it refuses an occupied token
@@ -7989,13 +8030,15 @@ impl Interp {
                 }
                 self.invalidate_interpreter_policy();
                 let old_fqn = self.namespaces.borrow().resolve_fqn(GLOBAL, name);
-                self.namespaces.borrow_mut().take(GLOBAL, name);
+                let Some(binding) = self.namespaces.borrow_mut().take(GLOBAL, name) else {
+                    return CommandVisibilityOutcome::Missing;
+                };
                 let mut hidden_fqn = b"::".to_vec();
                 hidden_fqn.extend_from_slice(hidden_name);
                 if let Some(old_fqn) = &old_fqn {
-                    self.move_cmd_traces(old_fqn, &hidden_fqn);
+                    self.move_cmd_traces(old_fqn, &hidden_fqn, binding.generation);
                 }
-                if let Command::Ensemble(token) = &cmd {
+                if let Command::Ensemble(token) = &binding.command {
                     if let Some(old_fqn) = old_fqn {
                         token.rename(hidden_fqn.clone());
                         self.retarget_import_sources(&old_fqn, &hidden_fqn);
@@ -8003,7 +8046,9 @@ impl Interp {
                         token.rename(hidden_fqn);
                     }
                 }
-                self.hidden.borrow_mut().insert(hidden_name.to_vec(), cmd);
+                self.hidden
+                    .borrow_mut()
+                    .insert(hidden_name.to_vec(), binding);
                 self.invalidate_command_environment();
                 CommandVisibilityOutcome::Moved
             }
@@ -8030,22 +8075,23 @@ impl Interp {
         // Invalidate before removing from the hidden table. A missing entry may
         // over-invalidate, which is preferable to a re-entrant visibility gap.
         self.invalidate_interpreter_policy();
-        let cmd = self.hidden.borrow_mut().remove(hidden_name);
-        match cmd {
-            Some(cmd) => {
+        let binding = self.hidden.borrow_mut().remove(hidden_name);
+        match binding {
+            Some(binding) => {
                 let mut old_hidden_fqn = b"::".to_vec();
                 old_hidden_fqn.extend_from_slice(hidden_name);
-                let old_fqn = match &cmd {
+                let old_fqn = match &binding.command {
                     Command::Ensemble(token) => Some(token.name()),
                     _ => None,
                 };
-                self.namespaces.borrow_mut().register(name, cmd);
+                let generation = binding.generation;
+                self.namespaces.borrow_mut().restore(name, binding);
                 let new_fqn = self
                     .namespaces
                     .borrow()
                     .resolve_fqn(GLOBAL, name)
                     .unwrap_or_else(|| self.fqn_for(name));
-                self.move_cmd_traces(&old_hidden_fqn, &new_fqn);
+                self.move_cmd_traces(&old_hidden_fqn, &new_fqn, generation);
                 if let Some(old_fqn) = old_fqn {
                     self.retarget_import_sources(&old_fqn, &new_fqn);
                 }
@@ -8120,7 +8166,11 @@ impl Interp {
 
     /// `interp invokehidden name ?arg ...?` — invoke a hidden command.
     pub(crate) fn invoke_hidden(&mut self, name: &[u8], argv: &[*mut TclObj]) -> Code {
-        let cmd = self.hidden.borrow().get(name).cloned();
+        let cmd = self
+            .hidden
+            .borrow()
+            .get(name)
+            .map(|binding| binding.command.clone());
         match cmd {
             Some(cmd) => self.invoke(cmd, argv),
             None => {
@@ -8143,8 +8193,8 @@ impl Interp {
         self.namespaces
             .borrow_mut()
             .retarget_imports(old_fqn, new_fqn);
-        for command in self.hidden.borrow_mut().values_mut() {
-            if let Command::Imported { source, .. } = command {
+        for binding in self.hidden.borrow_mut().values_mut() {
+            if let Command::Imported { source, .. } = &mut binding.command {
                 if source.as_slice() == old_fqn {
                     *source = new_fqn.to_vec();
                 }
@@ -8164,10 +8214,10 @@ impl Interp {
         self.namespaces
             .borrow_mut()
             .retarget_imports_to_ensemble(source_fqn, old, new);
-        for command in self.hidden.borrow_mut().values_mut() {
+        for binding in self.hidden.borrow_mut().values_mut() {
             let Command::Imported {
                 source, ensemble, ..
-            } = command
+            } = &mut binding.command
             else {
                 continue;
             };
@@ -8186,7 +8236,25 @@ impl Interp {
     /// Remove one imported command by stable identity wherever a delete-trace
     /// callback may have renamed or hidden it. A callback replacement/re-import
     /// has a new identity and is deliberately left alone.
-    fn remove_import_identity(&mut self, identity: &Rc<ImportToken>) -> Option<Vec<u8>> {
+    fn import_identity_location(&self, identity: &Rc<ImportToken>) -> Option<(Vec<u8>, u64)> {
+        if let Some(location) = self.namespaces.borrow().import_identity_location(identity) {
+            return Some(location);
+        }
+        self.hidden.borrow().iter().find_map(|(name, binding)| {
+            matches!(
+                &binding.command,
+                Command::Imported { identity: current, .. }
+                    if Rc::ptr_eq(current, identity)
+            )
+            .then(|| {
+                let mut fqn = b"::".to_vec();
+                fqn.extend_from_slice(name);
+                (fqn, binding.generation)
+            })
+        })
+    }
+
+    fn remove_import_identity(&mut self, identity: &Rc<ImportToken>) -> Option<(Vec<u8>, u64)> {
         if let Some(fqn) = self
             .namespaces
             .borrow_mut()
@@ -8194,18 +8262,42 @@ impl Interp {
         {
             return Some(fqn);
         }
-        let hidden_name = self.hidden.borrow().iter().find_map(|(name, command)| {
+        let hidden_name = self.hidden.borrow().iter().find_map(|(name, binding)| {
             matches!(
-                command,
+                &binding.command,
                 Command::Imported { identity: current, .. }
                     if Rc::ptr_eq(current, identity)
             )
             .then(|| name.clone())
         })?;
-        self.hidden.borrow_mut().remove(&hidden_name);
+        let binding = self.hidden.borrow_mut().remove(&hidden_name)?;
         let mut fqn = b"::".to_vec();
         fqn.extend_from_slice(&hidden_name);
-        Some(fqn)
+        Some((fqn, binding.generation))
+    }
+
+    fn ensemble_identity_location(
+        &self,
+        identity: &Rc<crate::ensemble::EnsembleToken>,
+    ) -> Option<(Vec<u8>, u64)> {
+        if let Some(location) = self
+            .namespaces
+            .borrow()
+            .ensemble_identity_location(identity)
+        {
+            return Some(location);
+        }
+        self.hidden.borrow().iter().find_map(|(name, binding)| {
+            matches!(
+                &binding.command,
+                Command::Ensemble(current) if Rc::ptr_eq(current, identity)
+            )
+            .then(|| {
+                let mut fqn = b"::".to_vec();
+                fqn.extend_from_slice(name);
+                (fqn, binding.generation)
+            })
+        })
     }
 
     /// Remove one ensemble by stable token identity after running the delete
@@ -8214,31 +8306,30 @@ impl Interp {
     /// any trace sidecar moved with it is dropped without firing twice.
     fn retire_ensemble_identity(
         &mut self,
-        trace_fqn: &[u8],
         identity: &Rc<crate::ensemble::EnsembleToken>,
-    ) -> Option<Vec<u8>> {
-        self.on_command_replaced(trace_fqn);
+    ) -> Option<(Vec<u8>, u64)> {
+        if let Some((trace_fqn, generation)) = self.ensemble_identity_location(identity) {
+            self.fire_delete_traces_of_token(&trace_fqn, Some(generation));
+        }
         let removed_fqn = self
             .namespaces
             .borrow_mut()
             .remove_ensemble_identity(identity)
             .or_else(|| {
-                let hidden_name = self.hidden.borrow().iter().find_map(|(name, command)| {
+                let hidden_name = self.hidden.borrow().iter().find_map(|(name, binding)| {
                     matches!(
-                        command,
+                        &binding.command,
                         Command::Ensemble(current) if Rc::ptr_eq(current, identity)
                     )
                     .then(|| name.clone())
                 })?;
-                self.hidden.borrow_mut().remove(&hidden_name);
+                let binding = self.hidden.borrow_mut().remove(&hidden_name)?;
                 let mut fqn = b"::".to_vec();
                 fqn.extend_from_slice(&hidden_name);
-                Some(fqn)
+                Some((fqn, binding.generation))
             });
-        if let Some(live_fqn) = removed_fqn.as_deref() {
-            if live_fqn != trace_fqn {
-                self.remove_cmd_traces(live_fqn);
-            }
+        if let Some((live_fqn, generation)) = removed_fqn.as_ref() {
+            self.remove_cmd_traces_of_token(live_fqn, Some(*generation));
         }
         identity.mark_deleted();
         removed_fqn
@@ -8266,12 +8357,12 @@ impl Interp {
                 .hidden
                 .borrow()
                 .iter()
-                .filter_map(|(name, command)| {
+                .filter_map(|(name, binding)| {
                     let Command::Imported {
                         source,
                         ensemble,
                         identity,
-                    } = command
+                    } = &binding.command
                     else {
                         return None;
                     };
@@ -8288,22 +8379,28 @@ impl Interp {
                 .collect();
 
             let mut removed_any = false;
-            for (fqn, identity) in visible {
-                self.on_command_replaced(&fqn);
-                if let Some(removed_fqn) = self.remove_import_identity(&identity) {
-                    if removed_fqn != fqn {
-                        self.remove_cmd_traces(&removed_fqn);
-                    }
+            for (_, identity) in visible {
+                let Some((fqn, generation)) = self.import_identity_location(&identity) else {
+                    continue;
+                };
+                self.fire_delete_traces_of_token(&fqn, Some(generation));
+                if let Some((removed_fqn, removed_generation)) =
+                    self.remove_import_identity(&identity)
+                {
+                    self.remove_cmd_traces_of_token(&removed_fqn, Some(removed_generation));
                     origins.insert(removed_fqn);
                     removed_any = true;
                 }
             }
-            for (fqn, identity) in hidden {
-                self.on_command_replaced(&fqn);
-                if let Some(removed_fqn) = self.remove_import_identity(&identity) {
-                    if removed_fqn != fqn {
-                        self.remove_cmd_traces(&removed_fqn);
-                    }
+            for (_, identity) in hidden {
+                let Some((fqn, generation)) = self.import_identity_location(&identity) else {
+                    continue;
+                };
+                self.fire_delete_traces_of_token(&fqn, Some(generation));
+                if let Some((removed_fqn, removed_generation)) =
+                    self.remove_import_identity(&identity)
+                {
+                    self.remove_cmd_traces_of_token(&removed_fqn, Some(removed_generation));
                     origins.insert(removed_fqn);
                     removed_any = true;
                 }
