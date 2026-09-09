@@ -2173,10 +2173,9 @@ fn project_apm_policy_agent(o: &BigipApmPolicyAgent) -> IndexMap<String, Value> 
         .s("name", &o.name)
         .s("full-path", &o.full_path)
         .s("type", &o.agent_type)
-        .v(
-            "customization-group",
-            path_ref(&o.customization_group, "apm policy customization-source"),
-        )
+        // `customization-group` names an `apm policy customization-group`,
+        // which has no typed model to navigate into — keep the path as text.
+        .s("customization-group", &o.customization_group)
         .s("auth", &o.auth)
         .s("server", &o.server)
         .s("max-logon-attempt", &o.max_logon_attempt)

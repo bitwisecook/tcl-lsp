@@ -375,6 +375,37 @@ fn apm_policy_items_walk_in_order_with_their_agents() {
     );
 }
 
+#[test]
+fn apm_policy_agents_carry_their_header_subtype() {
+    // The subtype is the stanza header's third word, and the family is open:
+    // `aaa-localdb` is outside the strict header inventory and must still
+    // project, or an APM audit silently loses agents.
+    raw_eq(
+        APM,
+        "apm.conf",
+        r#".apm["policy-agent"][] | tsv(.name, .type)"#,
+        "employee_login_logon_page_ag\tlogon-page\n\
+         employee_login_localdb_auth_ag\taaa-localdb",
+    );
+    // `policy-item.agents[]` derefs into them.
+    raw_eq(
+        APM,
+        "apm.conf",
+        r#".apm["policy-item"][] | select(count(.agents) > 0)
+           | .agents[] as $agent | tsv(.name, $agent.type)"#,
+        "employee_login_logon_page\tlogon-page\n\
+         employee_login_localdb_auth\taaa-localdb",
+    );
+    // `customization-group` names a kind with no typed model, so it stays a
+    // path string rather than an unresolvable ref.
+    raw_eq(
+        APM,
+        "apm.conf",
+        r#".apm["policy-agent"]["/Common/employee_login_logon_page_ag"]."customization-group""#,
+        "/Common/employee_login_logon_page_ag",
+    );
+}
+
 // ltm snat-translation
 
 #[test]
