@@ -76,13 +76,12 @@ Adds dead-code elimination, code motion, and recursion transforms:
 - Dead stores removed (`set stale 1` before `set stale 2`)
 - Unreachable `if {0} { ... }` blocks removed
 - Unused variable assignments removed
-- Tail-recursive procs rewritten to `tailcall` (O121). **O122**'s loop
-  conversion accepts this shape too — `collect_tail_sites` parses an unbraced
-  `return [self …]` substitution and `emit_loop_conversion`'s parameter
-  reassignment preserves the recursive result — so the sample stops at
-  `tailcall` because *overlap selection* prefers the per-site rewrite over the
-  whole-proc one, not because O122 declined it. Both are faithful;
-  `tail_call_loop_conversion_o122` pins exactly this body and says so
+- Fully tail-recursive procs rewritten to an iterative `while {1}` loop
+  (O122), the recursive call becoming a `lassign` that reassigns the
+  parameters. *Overlap selection* prefers this whole-proc rewrite over the
+  per-site O121 `tailcall` covering the same range, which is why the sample
+  shows a loop and not `tailcall`; `tail_call_loop_conversion_o122` pins this
+  body
 - Loop-invariant code hoisted
 - Single-use variables inlined
 

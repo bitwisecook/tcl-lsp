@@ -4722,6 +4722,7 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
                         tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
                     ),
                     external_call_sites: None,
+                    declared_commands: None,
                 },
                 &mut |req: &crate::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
                     // Key + build mirror the db's `function_lattice` query,
@@ -4845,6 +4846,7 @@ fn memoized_compilation_unit_shift_correctness() {
                     tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
                 ),
                 external_call_sites: None,
+                declared_commands: None,
             },
             // Position-independent key: the body is normalised to offset 0
             // before the callback sees it, so a shifted-but-unedited proc
@@ -7379,23 +7381,21 @@ fn analyse_w308_emitted_for_unknown_method_on_known_class_constructor() {
     );
 }
 
-// Issue #1010 (site 4) — `emit_cmd_command_diagnostics`'s constructor
-// recognition (`[Cls new] method`) typed the result as `Object(Cls)`
-// even when `Cls` was renamed or deleted away with no later
-// re-establishment, producing a misleading "unknown method" W308 that
-// implies `Cls` exists. Confirmed against tclsh 8.6.14 that the
-// constructor call itself fails "invalid command name" first — fixed so
-// the dispatch instead falls back to the conservative "non-literal,
-// cannot statically analyze" (W307), with W123 on `Cls` itself as the
-// real, primary diagnostic.
+// `emit_cmd_command_diagnostics` must not type `[Cls new] method` as
+// `Object(Cls)` when `Cls` is renamed or deleted with no later
+// re-establishment. In C Tcl 8.6.14 the constructor call itself fails with
+// "invalid command name", so an "unknown method" W308 would wrongly imply
+// `Cls` exists. The dispatch falls back to the conservative "non-literal,
+// cannot statically analyse" (W307), leaving W123 on `Cls` as the primary
+// diagnostic.
 //
-// `harvest_constructor_object_types` (the `set x [Cls new]` variable-
-// assignment sibling of this same check) is fixed the same way. The
-// deeper, independent source in `type_infer.rs`'s `constructor_object_type`
-// — which types `x` as `Object(Cls)` for that shape via the SSA type
-// lattice — is gated in `aggregate_object_types`, where both sources are
-// unioned and the analyser's own deletion facts are in scope (issue #1013;
-// see the `w308_*_issue_1013_*` cases below).
+// `harvest_constructor_object_types` (the `set x [Cls new]`
+// variable-assignment sibling of this check) behaves the same way. The
+// independent source in `type_infer.rs`'s `constructor_object_type`, which
+// types `x` as `Object(Cls)` for that shape via the SSA type lattice, is
+// gated in `aggregate_object_types`, where both sources are unioned and the
+// analyser's own deletion facts are in scope (see the
+// `w308_*_issue_1013_*` cases below).
 
 #[test]
 fn w308_tp_issue_1010_deleted_class_constructor_falls_back_to_w307() {
@@ -9585,6 +9585,11 @@ fn analyse_w123_emits_did_you_mean_suggestion() {
 fn analyse_w123_suppressed_for_inline_stub_declared_command() {
     // ``my_cmd`` is declared via inline stub — W123 must
     // not fire even though it isn't in the registry.
+    //
+    // Its declared ``body`` word *is* analysed as a script, exactly as a
+    // registry body command's is (``while 0 foo`` reports the same thing), so
+    // the bare ``foo`` inside it draws its own W123. That is the declaration
+    // working, not leaking: the assertion is about the stubbed head.
     let src = "\
 # tcl-lsp: stubs-begin
 # tcl-lsp: stub my_cmd {arg1:var body:body}
@@ -9594,7 +9599,9 @@ my_cmd $x foo
     let mut a = Analyser::new();
     let r = a.analyse(src, "tcl");
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        !r.diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W123 && d.message.contains("my_cmd")),
         "W123 must not fire for stub-declared commands; got {:?}",
         r.diagnostics,
     );

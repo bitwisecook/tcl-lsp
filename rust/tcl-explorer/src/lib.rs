@@ -224,14 +224,31 @@ pub fn run_pipeline(source: &str, dialect: &str) -> ExplorerResult {
     let semantic_context = Some(tcl_registry::model::semantic::SemanticContext::for_profile(
         profile,
     ));
-    let unit = CompilationUnit::build_for_profile(source, registry, false, profile)
-        .with_interprocedural(registry, Some(profile))
-        .with_memory_ssa(registry, semantic_context)
-        // The ordinary compiler path builds world SSA only when interactive
-        // GVN can consume it. Explorer is an explicit inspection surface, so
-        // it asks for the complete source-faithful sidecar and displays typed
-        // declines rather than silently presenting an empty graph.
-        .with_deep_semantic_analysis(registry, semantic_context);
+    // The document's own `# tcl-lsp: stub` declarations, so the views show the
+    // IR the diagnostics path actually built: a stub-declared `script:body`
+    // word lowers to a barrier carrying a script, a `var` word to a def. The
+    // explorer holds source text, not a path, so the sidecar half of the
+    // surface is out of reach here.
+    let declared =
+        tcl_compiler::analyser::utils::document_declared_surface(source, None, profile.name);
+    let unit = CompilationUnit::build_with_options(
+        source,
+        tcl_compiler::compilation_unit::UnitBuildOptions {
+            registry,
+            defer_top_level: false,
+            config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+            dialect: Some(profile),
+            external_call_sites: None,
+            declared_commands: Some(&declared),
+        },
+    )
+    .with_interprocedural(registry, Some(profile))
+    .with_memory_ssa(registry, semantic_context)
+    // The ordinary compiler path builds world SSA only when interactive
+    // GVN can consume it. Explorer is an explicit inspection surface, so
+    // it asks for the complete source-faithful sidecar and displays typed
+    // declines rather than silently presenting an empty graph.
+    .with_deep_semantic_analysis(registry, semantic_context);
 
     ExplorerResult {
         source: source.to_owned(),

@@ -25,6 +25,7 @@
 //! - [`literals`] — literal parsing + Tcl-source rendering.
 //! - [`select`] — overlap-aware optimisation selection (the
 //!   `manager`'s final output filter).
+//! - [`var_refs`] — `$var` and bare-name variable-reference scans.
 
 pub mod expr_simplify;
 pub mod literals;
@@ -32,3 +33,4 @@ pub mod naming;
 pub mod select;
 pub mod spans;
 pub mod tokens;
+pub mod var_refs;
