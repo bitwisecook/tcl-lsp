@@ -2527,7 +2527,7 @@ impl Analyser {
         // hover/definition (which resolve independently off the
         // cursor token) but missed by references/rename — silently
         // producing an incomplete rename that breaks the program at
-        // the missed call site (differential-audit finding idx 61).
+        // the missed call site.
         // Dispatched through the ordinary `process_command` path
         // (not a hand-rolled invocation record) so it gets full
         // treatment: arity checking, W123, nested diagnostics —
@@ -3655,8 +3655,8 @@ impl Analyser {
         // member keywords (`property`, `constructor`) and the defined name
         // (`Greeter`) all draw W123 as unknown commands, even though W002
         // already reported the dialect-gated definer once, and a lambda body
-        // reached this way is walked by nothing at all (issue-923 audit
-        // finding idx 0).  The generic collector descends none of these
+        // reached this way is walked by nothing at all.  The generic
+        // collector descends none of these
         // bodies — a definer's by `definition_handler_owns_body`, a lambda's
         // because `apply`'s script argument is `ArgRole::LambdaLiteral`, which
         // `descend_command` deliberately does not resolve — so no body is ever
@@ -6080,8 +6080,8 @@ mod tests {
     fn process_interp_alias_records_target() {
         let mut a = Analyser::new();
         // The handler reads the registry's one command-table transition
-        // vocabulary (ledger C8), so a bare harness has to carry a registry
-        // the way a real walk does.
+        // vocabulary, so a bare harness has to carry a registry the way a
+        // real walk does.
         a.registry = Some(std::sync::Arc::clone(
             tcl_registry::model::ingress::static_context_for("tcl").commands(),
         ));

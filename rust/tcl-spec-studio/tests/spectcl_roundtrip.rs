@@ -815,7 +815,7 @@ fn statement_words(source: &str, _command: &str) -> BTreeSet<String> {
 }
 
 /// A second-level subcommand that carries its own option table is written as a
-/// **block**, and the block survives the round trip (issue #1610).
+/// **block**, and the block survives the round trip.
 ///
 /// `namespace ensemble create` and `configure` are the case the field exists
 /// for: two different C option tables (`ensembleCreateOptions` /
@@ -899,8 +899,7 @@ fn a_sub_subcommands_own_option_table_survives_the_round_trip() {
 /// no block at all says "this operation declares nothing, use the
 /// subcommand's". If the DSL could only spell the second, the round trip would
 /// quietly turn `namespace ensemble exists`'s empty table back into an
-/// inheriting one and re-offer it the parent's union (issue #1610, Codex
-/// review).
+/// inheriting one and re-offer it the parent's union.
 #[test]
 fn an_empty_sub_subcommand_option_block_means_empty_not_inherit() {
     let shipped = load_command("namespace", "tcl").expect("tcl has `namespace`");

@@ -96,8 +96,8 @@ pub mod vfs;
 pub mod workspace_index;
 pub mod workspace_symbols;
 
-/// Resolve a document's dialect *name* to its environment — **the** LSP
-/// dialect ingress (centralisation ledger rows F2/F3, P1-F wave 2).
+/// Resolve a document's dialect *name* to its environment — **the** single
+/// LSP dialect ingress point.
 ///
 /// Every dialect string this crate accepts — `analysis.dialect`, a Salsa
 /// `dialect` input, a settings value, an editor language id already mapped

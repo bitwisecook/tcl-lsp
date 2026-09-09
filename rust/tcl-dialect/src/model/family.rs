@@ -514,8 +514,8 @@ const GRAMMAR_F5_TCL: LexerGrammar = LexerGrammar {
 /// grammar.
 const GRAMMAR_IRULES: LexerGrammar = GRAMMAR_F5_TCL;
 
-/// Jim through 0.80, read out of the upstream sources at each tag (the
-/// clone the P6 lane worked from; every claim below cites `jim.c` at
+/// Jim through 0.80, read out of the upstream sources at each tag
+/// (every claim below cites `jim.c` at
 /// `0.84` unless a per-release note says otherwise):
 ///
 /// - `expand_syntax`: **true**. Jim implements `{*}` — "A new addition to
@@ -1096,7 +1096,7 @@ mod tests {
         );
         assert_eq!(scriptd.mathfunc("sqrt"), CapabilityAnswer::Yes);
 
-        // Jim's canonical column is measured from `auto.def` as of P6 —
+        // Jim's canonical column is measured from `auto.def`,
         // and it is release-keyed, because 0.82 flipped the default.
         let jim = CoreProfileId::new(Release::JIM_0_84, BuildProfileId::Canonical).resolve();
         assert_eq!(jim.mathfunc("sqrt"), CapabilityAnswer::Yes);
@@ -1169,7 +1169,7 @@ mod tests {
         assert!(!offshoot.expand_syntax);
     }
 
-    /// P6: Jim's lexer grammar is measured, not the permissive stand-in,
+    /// Jim's lexer grammar is measured, not the permissive stand-in,
     /// and the nine `jim0.76`–`jim0.84` profiles collapse into one value
     /// plus one struct update.
     #[test]
