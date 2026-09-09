@@ -70,6 +70,7 @@ import threading
 import time
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote
 
 #: Default budget for one write to the server's stdin (see `_send`). Not the
 #: same knob as a request's response timeout (`send_request(timeout=...)`
@@ -149,6 +150,18 @@ LSP_SEVERITY = {1: "ERROR", 2: "WARNING", 3: "INFO", 4: "HINT"}
 # *per-document* diagnostics-publish timing line: it fires once per open
 # document and says nothing about workspace-scan completion.
 WORKSPACE_SCAN_SIGNAL = "[timing] workspace_folders_scan"
+
+# Ceilings for the workspace-scan wait, by the build profile of the server
+# binary. The wait returns as soon as the scan signals, so a ceiling costs
+# nothing when the scan completes — it only bounds how long a wedged or
+# never-started scan is tolerated before the caller is told. An unoptimised
+# build analyses the workspace several times more slowly than a release one,
+# far enough apart that one ceiling cannot serve both: sized for release it
+# fails a healthy debug scan, sized for debug it makes a wedged release server
+# look merely slow. A binary from neither profile gets the larger ceiling,
+# since waiting too long beats reporting a scan that was still running.
+SCAN_TIMEOUT_RELEASE_S = 30.0
+SCAN_TIMEOUT_DEBUG_S = 180.0
 
 COMPLETION_KIND = {
     1: "Text",
@@ -509,6 +522,32 @@ class LspClient:
         with self._lock:
             return [n for n in self._notifications if n.get("method") == method]
 
+    def wait_for_diagnostics(self, uri: str, timeout: float = 10.0) -> dict | None:
+        """Wait for the diagnostics the server publishes for *uri*.
+
+        The workspace scan publishes for other documents too, so waiting for
+        *any* `publishDiagnostics` can return while this document's own
+        publish is still in flight — only one carrying this `uri` answers
+        the question the caller asked. Returns the newest matching params
+        (the server republishes as workspace state settles, and the latest
+        supersedes rather than adds to the earlier ones), or None when the
+        server published nothing for *uri* within *timeout*.
+        """
+        deadline = time.monotonic() + timeout
+        while True:
+            with self._lock:
+                matching = [
+                    n["params"]
+                    for n in self._notifications
+                    if n.get("method") == "textDocument/publishDiagnostics"
+                    and n.get("params", {}).get("uri") == uri
+                ]
+            if matching:
+                return matching[-1]
+            if time.monotonic() >= deadline:
+                return None
+            time.sleep(0.05)
+
     def _stderr_loop(self) -> None:
         """Background thread: capture server stderr lines."""
         assert self.process and self.process.stderr
@@ -555,7 +594,7 @@ class LspClient:
                 messages.append(params.get("message", ""))
         return messages
 
-    def wait_for_workspace_scan(self, timeout: float = 30.0) -> str:
+    def wait_for_workspace_scan(self, timeout: float = SCAN_TIMEOUT_DEBUG_S) -> str:
         """Block until the server's initial background workspace scan completes.
 
         Cross-file navigation (`textDocument/definition`,
@@ -598,8 +637,10 @@ class LspClient:
             f"Timed out after {timeout}s waiting for the server's workspace "
             f"scan to complete — no {WORKSPACE_SCAN_SIGNAL!r} window/logMessage "
             "was seen. Cross-file navigation/diagnostics results read here "
-            "would be racy. If this is a legitimately large workspace, pass "
-            "a higher --scan-timeout; otherwise check that "
+            "would be racy. The scan covers the whole workspace root, so "
+            "scoping --server-dir to the directory holding the files under "
+            "test is usually faster than raising --scan-timeout; otherwise "
+            "check that "
             "the server actually reached `scan_workspace_folders` (see "
             "rust/tcl-lsp-server/src/lib.rs) — e.g. it never got past "
             "`initialized` because a server-to-client request went "
@@ -631,6 +672,19 @@ class LspClient:
 
 
 # LSP lifecycle helpers
+
+
+def default_scan_timeout(server_bin: str) -> float:
+    """Pick the workspace-scan ceiling for the server binary at *server_bin*.
+
+    Cargo names the directory holding the binary after the profile
+    (`target/release/`, `target/debug/`), which is the only profile signal a
+    client has. Only that directory counts: an ancestor named `release` is
+    someone's build root, not a statement about this binary.
+    """
+    if Path(server_bin).parent.name.lower() == "release":
+        return SCAN_TIMEOUT_RELEASE_S
+    return SCAN_TIMEOUT_DEBUG_S
 
 
 def find_native_server(override: str | None = None) -> str:
@@ -683,6 +737,17 @@ def initialize(client: LspClient) -> dict:
     return result
 
 
+def document_uri(path: str) -> str:
+    """The `file:` URI for *path*, spelled as the server spells it.
+
+    The server percent-encodes the URIs it stores and republishes, so a
+    client that concatenates the raw path instead never matches its own
+    document's publish — the reserved characters, a space or non-ASCII byte
+    among them, differ on the two sides.
+    """
+    return Path(path).as_uri()
+
+
 def open_document(client: LspClient, file_path: str) -> tuple[str, str]:
     """Read a file, send textDocument/didOpen, return (uri, content)."""
     abs_path = os.path.abspath(file_path)
@@ -690,7 +755,7 @@ def open_document(client: LspClient, file_path: str) -> tuple[str, str]:
         raise FileNotFoundError(f"File not found: {abs_path}")
     with open(abs_path) as f:
         content = f.read()
-    uri = f"file://{abs_path}"
+    uri = document_uri(abs_path)
     client.send_notification(
         "textDocument/didOpen",
         {
@@ -893,7 +958,7 @@ def print_locations(locations: list[dict] | None, label: str) -> None:
         uri = loc.get("uri", "")
         # Shorten the URI for display
         if uri.startswith("file://"):
-            path = uri[7:]
+            path = unquote(uri[7:])
             # Show just the filename
             short = os.path.basename(path)
         else:
@@ -1145,13 +1210,12 @@ def cmd_semantic_tokens(client: LspClient, uri: str, content: str) -> None:
 
 
 def cmd_diagnostics(client: LspClient, uri: str) -> None:
-    """Collect and display pushed diagnostics."""
-    notifs = client.collect_notifications("textDocument/publishDiagnostics")
-    matching = [n["params"] for n in notifs if n.get("params", {}).get("uri") == uri]
-    if not matching:
-        # Try with all notifications (some servers may not match URI exactly)
-        matching = [n["params"] for n in notifs]
-    print_diagnostics(matching)
+    """Display the diagnostics the server pushed for this document."""
+    params = client.wait_for_diagnostics(uri)
+    if params is None:
+        print(f"=== Diagnostics ===\n  (no publishDiagnostics for {uri})")
+        return
+    print_diagnostics([params])
 
 
 def cmd_format(client: LspClient, uri: str, content: str) -> None:
@@ -1391,7 +1455,7 @@ def cmd_context(client: LspClient, uri: str, content: str) -> None:
 
     Mirrors the context enrichment from the VS Code extension's contextPack.ts.
     """
-    file_path = uri.replace("file://", "")
+    file_path = unquote(uri.replace("file://", ""))
     basename = os.path.basename(file_path)
     line_count = len(content.split("\n"))
 
@@ -1406,12 +1470,8 @@ def cmd_context(client: LspClient, uri: str, content: str) -> None:
 
     # Diagnostics
     print()
-    notifs = client.collect_notifications("textDocument/publishDiagnostics")
-    matching = [n["params"] for n in notifs if n.get("params", {}).get("uri") == uri]
-    if not matching:
-        matching = [n["params"] for n in notifs]
-
-    all_diags = [d for params in matching for d in params.get("diagnostics", [])]
+    params = client.wait_for_diagnostics(uri)
+    all_diags = params.get("diagnostics", []) if params else []
 
     # Filter to actionable (error + warning)
     actionable = [d for d in all_diags if d.get("severity", 0) <= 2]
@@ -1715,7 +1775,7 @@ def main() -> None:
         epilog="""\
 examples:
   %(prog)s semantic-tokens samples/for_screenshots/03-completions.tcl
-  %(prog)s --server-dir editors/vscode/testFixture diagnostics editors/vscode/testFixture/diagnostics.tcl
+  %(prog)s diagnostics editors/vscode/testFixture/diagnostics.tcl
   %(prog)s hover editors/vscode/testFixture/procs.tcl 1 6
   %(prog)s all samples/for_screenshots/03-completions.tcl
 """,
@@ -1731,16 +1791,16 @@ examples:
     parser.add_argument(
         "--scan-timeout",
         type=float,
-        default=30.0,
+        default=None,
         help=(
             "Seconds to wait for the background workspace scan to complete "
             "before cross-file subcommands (definition, references, "
-            "diagnostics, code-actions, context, all) proceed. The default "
-            "keeps roughly 2x headroom over a worst-case scan — a workspace "
-            "at WORKSPACE_SCAN_FILE_CAP in a debug build under CPU "
-            "contention — and matches the Rust e2e harness's DEFAULT_TIMEOUT. "
-            "Raise it for a larger workspace or a slower machine. "
-            "Default: 30.0"
+            "diagnostics, code-actions, context, all) proceed. This is a "
+            "ceiling, not a delay: the wait ends as soon as the scan does. "
+            f"Defaults to {SCAN_TIMEOUT_RELEASE_S:g}s against a release "
+            f"binary and {SCAN_TIMEOUT_DEBUG_S:g}s against a debug one, "
+            "which analyses the workspace several times more slowly. Scope "
+            "--server-dir to shrink the scan itself."
         ),
     )
     parser.add_argument(
@@ -1878,6 +1938,12 @@ examples:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
+    scan_timeout = (
+        args.scan_timeout
+        if args.scan_timeout is not None
+        else default_scan_timeout(launch_cmd[0])
+    )
+
     # rootUri only needs a directory; the binary doesn't need a bundle.
     server_dir = args.server_dir or str(Path.cwd())
 
@@ -1938,7 +2004,7 @@ examples:
             # request issued below) already sees the fully-populated
             # workspace_index / package_resolver instead of racing the scan.
             if args.command in CROSS_FILE_COMMANDS:
-                client.wait_for_workspace_scan(timeout=args.scan_timeout)
+                client.wait_for_workspace_scan(timeout=scan_timeout)
 
             # `--also-open FILE` (repeatable): open every companion file
             # *before* the main one, in the order given, after the scan wait
