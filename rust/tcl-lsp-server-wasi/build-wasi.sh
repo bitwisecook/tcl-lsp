@@ -44,6 +44,9 @@ mkdir -p "$dist"
 # worse than native's. Match the native budget. Mirrored as `STACK_SIZE` in
 # src/main.rs; keep the two in step.
 STACK_SIZE=$((64 * 1024 * 1024))
+build_start=$SECONDS
+lto_mode="${CARGO_PROFILE_RELEASE_LTO:-true}"
+echo "    release LTO: ${lto_mode}"
 
 echo "==> cargo build --target wasm32-wasip1 --release (stack ${STACK_SIZE} bytes)"
 (
@@ -53,9 +56,11 @@ echo "==> cargo build --target wasm32-wasip1 --release (stack ${STACK_SIZE} byte
     # what keeps the output path below correct when the caller has exported a
     # CARGO_TARGET_DIR for the main workspace (scripts/dev/agent-build-env.sh).
     CARGO_TARGET_DIR="$here/target" \
+    CARGO_PROFILE_RELEASE_LTO="$lto_mode" \
     RUSTFLAGS="${RUSTFLAGS:-} -C link-arg=-zstack-size=${STACK_SIZE}" \
         cargo build --target wasm32-wasip1 --release
 )
+echo "    cargo build elapsed: $((SECONDS - build_start))s"
 built="$here/target/wasm32-wasip1/release/tcl-lsp-server-wasi.wasm"
 out="$dist/tcl-lsp-server-wasi.wasm"
 
@@ -67,7 +72,9 @@ out="$dist/tcl-lsp-server-wasi.wasm"
 # module — so none of that applies.
 if command -v wasm-opt >/dev/null 2>&1; then
     echo "==> wasm-opt -Os"
+    opt_start=$SECONDS
     wasm-opt -Os "$built" -o "$out"
+    echo "    wasm-opt elapsed: $((SECONDS - opt_start))s"
 else
     echo "    note: wasm-opt not found — shipping the unoptimised link"
     cp "$built" "$out"
@@ -78,3 +85,4 @@ ls -lh "$dist"
 raw=$(wc -c <"$out")
 gz=$(gzip -9 -c "$out" | wc -c)
 printf '    wasm %s bytes raw, %s bytes gzipped\n' "$raw" "$gz"
+echo "    total build elapsed: $((SECONDS - build_start))s"

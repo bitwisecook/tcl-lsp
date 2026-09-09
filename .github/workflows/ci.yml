@@ -1793,6 +1793,10 @@ jobs:
 
       - name: Build and exercise the WASI LSP server
         if: env.RUN_LSP_WASI == 'true'
+        env:
+          # Functional PR coverage may use thin LTO. A tag can execute this
+          # same functional step, but must produce the fat-LTO release module.
+          CARGO_PROFILE_RELEASE_LTO: ${{ startsWith(github.ref, 'refs/tags/v') && 'true' || 'thin' }}
         run: make lsp-server-wasi-test
 
       # The link only, for a tag whose test surface step-skipped as already
@@ -1800,6 +1804,10 @@ jobs:
       # ran, so this is the else-branch, not a second build.
       - name: Build the WASI LSP server (release artefact)
         if: env.RELEASE_WASI == 'true' && env.RUN_LSP_WASI != 'true'
+        env:
+          # Keep the shipped module on the canonical fat-LTO profile even if a
+          # runner has exported a different Cargo profile override.
+          CARGO_PROFILE_RELEASE_LTO: true
         run: make lsp-server-wasi
 
       # Same handoff shape as `build-server-matrix`'s `server-bins-*`: a plain,
