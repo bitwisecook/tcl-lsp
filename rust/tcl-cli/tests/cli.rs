@@ -596,6 +596,58 @@ fn diag_reads_a_cr_terminated_sslictcl_document_the_way_the_editor_does() {
     );
 }
 
+/// `tcl diag` runs the source-text pass the editor publishes, so a style
+/// finding is not something you have to open an editor to see.
+///
+/// W111 / W112 / W115 / W118 come from the same `source_style` orchestrator the
+/// server's style lift calls, and the byte-backed W107 / W109 ride with them.
+#[test]
+fn diag_reports_the_source_style_findings_the_editor_publishes() {
+    let messages = diag_messages(&["diag", "--json", "--source", "set x 1   \nset y $x\n"]);
+    assert!(
+        messages.iter().any(|m| m.starts_with("W112")),
+        "trailing whitespace must be reported: {messages:?}"
+    );
+
+    let long = format!("set x \"{}\"\nputs $x\n", "a".repeat(200));
+    let long_messages = diag_messages(&["diag", "--json", "--source", &long]);
+    assert!(
+        long_messages.iter().any(|m| m.starts_with("W111")),
+        "an over-long line must be reported: {long_messages:?}"
+    );
+}
+
+/// A top-of-file `# tcl-lsp: disable=…` silences a code for every pass, not
+/// only the analyser's own.
+///
+/// The analyser folds the directive into its internal disabled set, so its
+/// codes obeyed it already; the source-text and compiler-check passes are
+/// filtered by the caller, which is where the directive has to reach them.
+#[test]
+fn diag_honours_a_file_directive_across_every_pass() {
+    let source = "# tcl-lsp: disable=W112\nset x 1   \nputs $x\n";
+    let messages = diag_messages(&["diag", "--json", "--source", source]);
+    assert!(
+        !messages.iter().any(|m| m.starts_with("W112")),
+        "a file-level directive must silence the style pass too: {messages:?}"
+    );
+
+    let without = diag_messages(&["diag", "--json", "--source", "set x 1   \nputs $x\n"]);
+    assert!(
+        without.iter().any(|m| m.starts_with("W112")),
+        "without the directive the same document reports it: {without:?}"
+    );
+}
+
+/// The rows a lone-CR document and its `\n` twin must agree on: everything
+/// except `W118`, the one lint whose subject *is* the line terminators.
+fn without_line_ending_lint(rows: &[(String, u64)]) -> Vec<(String, u64)> {
+    rows.iter()
+        .filter(|(code, _)| code != "W118")
+        .cloned()
+        .collect()
+}
+
 /// Issue #1799 — every code on the `tcl diag` path, not only `SSLIC1xxx`,
 /// must read the analysis form of a lone-CR document.
 ///
@@ -620,13 +672,28 @@ fn diag_reads_a_cr_terminated_tcl_document_the_way_the_editor_does() {
         "the `\\n` form is the reference reading: {lf_rows:?}"
     );
     assert_eq!(
-        cr_rows, lf_rows,
+        without_line_ending_lint(&cr_rows),
+        without_line_ending_lint(&lf_rows),
         "a lone-CR document must read identically to the `\\n` one"
     );
-    // The two specific ways the raw form diverged, named so a regression is
-    // legible rather than just "the vectors differ".
+    // The terminators themselves are the one legitimate difference: the CR form
+    // is not the expected `\n`, so it earns the W118 its twin cannot.
     assert!(
-        cr_rows.iter().all(|(_, line)| *line > 1),
+        cr_rows.iter().any(|(code, _)| code == "W118"),
+        "the CR form's terminators must be reported: {cr_rows:?}"
+    );
+    assert!(
+        !lf_rows.iter().any(|(code, _)| code == "W118"),
+        "the `\\n` form's terminators are the expected ones: {lf_rows:?}"
+    );
+    // The two specific ways the raw form diverged, named so a regression is
+    // legible rather than just "the vectors differ". W118 is exempt: it is a
+    // whole-file verdict anchored at the top of the document, not a finding
+    // about the line it sits on.
+    assert!(
+        without_line_ending_lint(&cr_rows)
+            .iter()
+            .all(|(_, line)| *line > 1),
         "no finding may collapse onto line 1: {cr_rows:?}"
     );
     assert!(
@@ -651,7 +718,8 @@ fn diag_detects_the_dialect_of_a_cr_terminated_document() {
     let cr_rows = tcl_diag_rows("dialect-cr", &cr);
 
     assert_eq!(
-        cr_rows, lf_rows,
+        without_line_ending_lint(&cr_rows),
+        without_line_ending_lint(&lf_rows),
         "the dialect a lone-CR document resolves to must match its `\\n` twin"
     );
     assert!(
