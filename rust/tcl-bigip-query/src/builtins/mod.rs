@@ -305,6 +305,11 @@ pub(crate) fn special(
 
 /// Attach an implementation caveat to a registration, so the catalogue and
 /// `--help-builtins` say what the builtin actually does.
+///
+/// Only the probe builtins carry a caveat, so this follows `probes` — a
+/// build without them has nothing to annotate, and an ungated helper would
+/// be dead code there.
+#[cfg(any(feature = "x509", feature = "probes"))]
 pub(crate) fn with_note(
     entry: (&'static str, BuiltinSpec),
     note: &'static str,

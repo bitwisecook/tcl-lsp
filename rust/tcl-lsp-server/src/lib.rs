@@ -16369,6 +16369,721 @@ impl Backend {
         ))
     }
 
+    /// One `ltm rule` / `gtm rule` stanza, as the editors model it.
+    ///
+    /// The offsets are byte offsets into the configuration document, which is
+    /// what the clients send straight back on a write.
+    fn rule_info(rule: &tcl_bigip::rule_extract::EmbeddedRule, uri: &str) -> serde_json::Value {
+        serde_json::json!({
+            "name": rule.name,
+            "fullPath": rule.full_path,
+            "body": rule.body,
+            "bodyStartOffset": rule.body_start_offset,
+            "bodyEndOffset": rule.body_end_offset,
+            "uri": uri,
+            "blockStartLine": rule.range.start.line,
+        })
+    }
+
+    /// Handle `tcl-lsp.listRules`: every iRule embedded in a BIG-IP
+    /// configuration document.
+    ///
+    /// Arguments are `[uri]`. A document with no `ltm rule` or `gtm rule`
+    /// stanza yields an empty list rather than null: the clients tell those
+    /// apart, showing "no rules in this file" for the first and a warning for
+    /// a document they could not read.
+    async fn list_rules_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let Some(uri_str) = args.first().and_then(serde_json::Value::as_str) else {
+            return Ok(None);
+        };
+        let Ok(uri) = Uri::from_str(uri_str) else {
+            return Ok(None);
+        };
+        let Some(doc) = self.read_local_document(&uri).await else {
+            return Ok(None);
+        };
+        let rules = tcl_bigip::rule_extract::find_embedded_rules(&doc.text);
+        let uri_owned = uri_str.to_owned();
+        Ok(Some(serde_json::Value::Array(
+            rules
+                .iter()
+                .map(|r| Self::rule_info(r, &uri_owned))
+                .collect(),
+        )))
+    }
+
+    /// Handle `tcl-lsp.extractRule`: the iRule containing a byte offset.
+    ///
+    /// Arguments are `[uri, offset]`. Null when the offset is outside every
+    /// rule stanza, which is what the clients render as "cursor is not inside
+    /// an ltm rule or gtm rule block".
+    async fn extract_rule_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let Some(uri_str) = args.first().and_then(serde_json::Value::as_str) else {
+            return Ok(None);
+        };
+        let Ok(uri) = Uri::from_str(uri_str) else {
+            return Ok(None);
+        };
+        let Some(offset) = args.get(1).and_then(serde_json::Value::as_u64) else {
+            return Ok(None);
+        };
+        let Some(doc) = self.read_local_document(&uri).await else {
+            return Ok(None);
+        };
+        let offset = usize::try_from(offset).unwrap_or(usize::MAX);
+        Ok(
+            tcl_bigip::rule_extract::find_rule_at_offset(&doc.text, offset)
+                .map(|rule| Self::rule_info(&rule, uri_str)),
+        )
+    }
+
+    /// Handle `tcl-lsp.writeRuleBack`: put an edited rule body back into its
+    /// configuration document.
+    ///
+    /// Arguments are `[uri, bodyStart, bodyEnd, newBody]`. The client edits
+    /// the rule in a scratch buffer and holds the offsets it was given, so
+    /// the span is theirs rather than re-derived here; the reply is the
+    /// boolean they branch on.
+    ///
+    /// The edit is applied through `workspace/applyEdit` rather than returned,
+    /// because the caller is a save handler with nothing to apply an edit to:
+    /// the document being changed is the configuration file, not the scratch
+    /// buffer that was saved.
+    async fn write_rule_back_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let Some(uri_str) = args.first().and_then(serde_json::Value::as_str) else {
+            return Ok(Some(serde_json::json!(false)));
+        };
+        let Ok(uri) = Uri::from_str(uri_str) else {
+            return Ok(Some(serde_json::json!(false)));
+        };
+        let (Some(start), Some(end), Some(body)) = (
+            args.get(1).and_then(serde_json::Value::as_u64),
+            args.get(2).and_then(serde_json::Value::as_u64),
+            args.get(3).and_then(serde_json::Value::as_str),
+        ) else {
+            return Ok(Some(serde_json::json!(false)));
+        };
+        let Some(doc) = self.read_local_document(&uri).await else {
+            return Ok(Some(serde_json::json!(false)));
+        };
+
+        let (start, end) = (
+            usize::try_from(start).unwrap_or(usize::MAX),
+            usize::try_from(end).unwrap_or(usize::MAX),
+        );
+        // A span the document cannot honour is refused rather than clamped:
+        // writing a rule body into the wrong range corrupts the file, and the
+        // client's warning is the honest outcome.
+        if start > end
+            || end > doc.text.len()
+            || !doc.text.is_char_boundary(start)
+            || !doc.text.is_char_boundary(end)
+        {
+            return Ok(Some(serde_json::json!(false)));
+        }
+
+        // The client counts bytes; LSP ranges count UTF-16 code units, so the
+        // span is converted rather than passed through.
+        let index = tcl_lexer::LineIndex::new_lsp(&doc.text);
+        let to_position = |offset: usize| {
+            let p = index.position_at_utf16(u32::try_from(offset).unwrap_or(u32::MAX), &doc.text);
+            Position {
+                line: p.line,
+                character: p.character.get(),
+            }
+        };
+        let edit = TextEdit {
+            range: Range {
+                start: to_position(start),
+                end: to_position(end),
+            },
+            new_text: body.to_owned(),
+        };
+        let mut changes = HashMap::new();
+        changes.insert(uri, vec![edit]);
+        let applied = self
+            .client
+            .apply_edit(WorkspaceEdit {
+                changes: Some(changes),
+                ..WorkspaceEdit::default()
+            })
+            .await
+            .is_ok_and(|response| response.applied);
+        Ok(Some(serde_json::json!(applied)))
+    }
+
+    /// Handle `tcl-lsp.extractLinkedObjects`: the BIG-IP object at the cursor
+    /// and everything it references, out to a depth.
+    ///
+    /// Arguments are `[uri, offset, maxDepth, maxNodes, extraOffsets?]`, where
+    /// `extraOffsets` is a list of `[uri, offset]` pairs for a multi-cursor
+    /// selection. The walk starts at every root the offsets land on, so the
+    /// result answers "these objects and what they depend on" rather than
+    /// being run once per cursor.
+    ///
+    /// Breadth-first, so a node is reported at its shortest distance from a
+    /// root. `maxNodes` stops the walk rather than truncating the answer
+    /// afterwards, which keeps the edges consistent with the nodes: an edge is
+    /// only emitted when both of its ends are in the result.
+    ///
+    async fn extract_linked_objects_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let Some(primary_uri) = args.first().and_then(serde_json::Value::as_str) else {
+            return Ok(None);
+        };
+        let Some(primary_offset) = args.get(1).and_then(serde_json::Value::as_u64) else {
+            return Ok(None);
+        };
+        let max_depth = args
+            .get(2)
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(5)
+            .min(64);
+        let max_nodes = usize::try_from(
+            args.get(3)
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or(400),
+        )
+        .unwrap_or(400)
+        .max(1);
+
+        // Every (uri, offset) the client asked about: the primary cursor plus
+        // any additional ones.
+        let mut cursors: Vec<(String, usize)> = vec![(
+            primary_uri.to_owned(),
+            usize::try_from(primary_offset).unwrap_or(usize::MAX),
+        )];
+        if let Some(extra) = args.get(4).and_then(serde_json::Value::as_array) {
+            for pair in extra {
+                let (Some(u), Some(o)) = (
+                    pair.get(0).and_then(serde_json::Value::as_str),
+                    pair.get(1).and_then(serde_json::Value::as_u64),
+                ) else {
+                    continue;
+                };
+                cursors.push((u.to_owned(), usize::try_from(o).unwrap_or(usize::MAX)));
+            }
+        }
+
+        // Read each distinct document once.
+        let mut sources: Vec<(String, String)> = Vec::new();
+        for (uri_str, _) in &cursors {
+            if sources.iter().any(|(u, _)| u == uri_str) {
+                continue;
+            }
+            let Ok(uri) = Uri::from_str(uri_str) else {
+                continue;
+            };
+            if let Some(doc) = self.read_local_document(&uri).await {
+                sources.push((uri_str.clone(), doc.text.to_string()));
+            }
+        }
+        if sources.is_empty() {
+            return Ok(None);
+        }
+
+        // Parsing and the graph walk are pure CPU over the whole config, so
+        // they run off the LSP event loop.
+        let value = crate::rt::spawn_blocking(move || {
+            Self::linked_objects_payload(&sources, &cursors, max_depth, max_nodes)
+        })
+        .await
+        .unwrap_or(None);
+        Ok(value)
+    }
+
+    /// One object as the clients model it, at the depth it was reached.
+    ///
+    /// `sourceOrigin` is always null: the clients read the field, but the
+    /// graph does not track how a stanza reached the file, and inventing a
+    /// value would be worse than saying nothing.
+    fn linked_object_node(node: &tcl_bigip::graph::ObjectNode, depth: u64) -> serde_json::Value {
+        serde_json::json!({
+            "id": node.node_id,
+            "uri": node.uri,
+            "module": node.module,
+            "objectType": node.object_type,
+            "identifier": node.identifier,
+            "kind": node.kind,
+            "header": node.header,
+            "depth": depth,
+            "sourceOrigin": serde_json::Value::Null,
+            "range": {
+                "start": { "line": node.range.start.line, "character": node.range.start.character },
+                "end": { "line": node.range.end.line, "character": node.range.end.character },
+            },
+        })
+    }
+
+    /// Breadth-first from every root, out to `max_depth` hops and at most
+    /// `max_nodes` objects.
+    ///
+    /// Returns the nodes in the order they were reached and the depth each was
+    /// first reached at. Stopping the walk on `max_nodes`, rather than
+    /// truncating afterwards, is what lets the caller emit only edges whose
+    /// both ends are present.
+    fn walk_linked_objects<'a>(
+        root_ids: &[&'a str],
+        outgoing: &HashMap<&'a str, Vec<&'a tcl_bigip::graph::ObjectEdge>>,
+        by_id: &HashMap<&'a str, &'a tcl_bigip::graph::ObjectNode>,
+        max_depth: u64,
+        max_nodes: usize,
+    ) -> (Vec<&'a str>, HashMap<&'a str, u64>) {
+        use std::collections::VecDeque;
+
+        let mut depth_of: HashMap<&str, u64> = HashMap::new();
+        let mut order: Vec<&str> = Vec::new();
+        let mut queue: VecDeque<(&str, u64)> = VecDeque::new();
+        for id in root_ids {
+            if depth_of.contains_key(id) {
+                continue;
+            }
+            depth_of.insert(id, 0);
+            order.push(id);
+            queue.push_back((id, 0));
+        }
+        while let Some((id, depth)) = queue.pop_front() {
+            if depth >= max_depth || order.len() >= max_nodes {
+                continue;
+            }
+            for edge in outgoing.get(id).into_iter().flatten() {
+                let target = edge.target_id.as_str();
+                if depth_of.contains_key(target) || !by_id.contains_key(target) {
+                    continue;
+                }
+                if order.len() >= max_nodes {
+                    break;
+                }
+                depth_of.insert(target, depth + 1);
+                order.push(target);
+                queue.push_back((target, depth + 1));
+            }
+        }
+        (order, depth_of)
+    }
+
+    /// The graph walk behind `tcl-lsp.extractLinkedObjects`.
+    fn linked_objects_payload(
+        sources: &[(String, String)],
+        cursors: &[(String, usize)],
+        max_depth: u64,
+        max_nodes: usize,
+    ) -> Option<serde_json::Value> {
+        let ctx = tcl_bigip::graph::GraphContext::new();
+        let parsed: Vec<(String, tcl_bigip::parser::driver::BigipConfig)> = sources
+            .iter()
+            .map(|(uri, text)| {
+                (
+                    uri.clone(),
+                    tcl_bigip::parser::driver::parse_bigip_conf(text, "Common"),
+                )
+            })
+            .collect();
+        let configs: Vec<(String, &tcl_bigip::parser::driver::BigipConfig)> =
+            parsed.iter().map(|(u, c)| (u.clone(), c)).collect();
+        let graph = tcl_bigip::graph::build_bigip_object_graph(sources, &configs, &ctx);
+
+        let nodes: Vec<&tcl_bigip::graph::ObjectNode> = graph
+            .nodes_by_uri
+            .iter()
+            .flat_map(|(_uri, ns)| ns.iter())
+            .collect();
+
+        // The stanza a cursor sits in. The innermost match wins, so a cursor
+        // inside a nested block still names the object that contains it.
+        let root_ids: Vec<&str> = cursors
+            .iter()
+            .filter_map(|(uri, offset)| {
+                nodes
+                    .iter()
+                    .filter(|n| {
+                        &n.uri == uri && *offset >= n.header_start_offset && *offset < n.end_offset
+                    })
+                    .min_by_key(|n| n.end_offset - n.header_start_offset)
+                    .map(|n| n.node_id.as_str())
+            })
+            .collect();
+        let first_root = *root_ids.first()?;
+
+        let mut outgoing: HashMap<&str, Vec<&tcl_bigip::graph::ObjectEdge>> = HashMap::new();
+        for edge in &graph.edges {
+            outgoing
+                .entry(edge.source_id.as_str())
+                .or_default()
+                .push(edge);
+        }
+        let by_id: HashMap<&str, &tcl_bigip::graph::ObjectNode> =
+            nodes.iter().map(|n| (n.node_id.as_str(), *n)).collect();
+
+        let (order, depth_of) =
+            Self::walk_linked_objects(&root_ids, &outgoing, &by_id, max_depth, max_nodes);
+
+        let node_values: Vec<serde_json::Value> = order
+            .iter()
+            .filter_map(|id| {
+                by_id
+                    .get(id)
+                    .map(|n| Self::linked_object_node(n, depth_of.get(id).copied().unwrap_or(0)))
+            })
+            .collect();
+
+        // Only edges whose both ends survived the walk, so the client never
+        // draws an arrow to a node it was not given.
+        let edge_values: Vec<serde_json::Value> = graph
+            .edges
+            .iter()
+            .filter(|e| {
+                depth_of.contains_key(e.source_id.as_str())
+                    && depth_of.contains_key(e.target_id.as_str())
+            })
+            .map(|e| {
+                serde_json::json!({
+                    "source": e.source_id,
+                    "target": e.target_id,
+                    "viaProperty": e.via_property,
+                    "viaKind": e.via_kind,
+                })
+            })
+            .collect();
+
+        let root = by_id.get(first_root)?;
+        let roots: Vec<serde_json::Value> = root_ids
+            .iter()
+            .filter_map(|id| by_id.get(id))
+            .map(|n| {
+                serde_json::json!({
+                    "id": n.node_id,
+                    "uri": n.uri,
+                    "header": n.header,
+                })
+            })
+            .collect();
+
+        Some(serde_json::json!({
+            "root": root.node_id,
+            "rootUri": root.uri,
+            "rootHeader": root.header,
+            "roots": roots,
+            "maxDepth": max_depth,
+            "maxNodes": max_nodes,
+            "nodes": node_values,
+            "edges": edge_values,
+        }))
+    }
+
+    /// Handle `tcl-lsp.bigipCleanup`: the objects no virtual server or wide-IP
+    /// reaches, and a tmsh script that deletes them.
+    ///
+    /// Arguments are `[uris, keepPaths?]`. `keepPaths` spares objects by
+    /// full path even when nothing references them. Both editor hosts send a
+    /// third argument, always `false`, which neither gives a meaning; it is
+    /// accepted and ignored rather than guessed at.
+    ///
+    /// The candidates come back in delete order — a referenced object after
+    /// the thing referencing it — so the script runs top to bottom without
+    /// tripping over tmsh's own dependency checks.
+    async fn bigip_cleanup_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let Some(uris) = args.first().and_then(serde_json::Value::as_array) else {
+            return Ok(None);
+        };
+        let keep_paths: HashSet<String> = args
+            .get(1)
+            .and_then(serde_json::Value::as_array)
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(str::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let mut sources: Vec<(String, String)> = Vec::new();
+        for value in uris {
+            let Some(uri_str) = value.as_str() else {
+                continue;
+            };
+            let Ok(uri) = Uri::from_str(uri_str) else {
+                continue;
+            };
+            if let Some(doc) = self.read_local_document(&uri).await {
+                sources.push((uri_str.to_owned(), doc.text.to_string()));
+            }
+        }
+        if sources.is_empty() {
+            return Ok(None);
+        }
+
+        let value = crate::rt::spawn_blocking(move || {
+            let ctx = tcl_bigip::graph::GraphContext::new();
+            let parsed: Vec<(String, tcl_bigip::parser::driver::BigipConfig)> = sources
+                .iter()
+                .map(|(uri, text)| {
+                    (
+                        uri.clone(),
+                        tcl_bigip::parser::driver::parse_bigip_conf(text, "Common"),
+                    )
+                })
+                .collect();
+            let configs: Vec<(String, &tcl_bigip::parser::driver::BigipConfig)> =
+                parsed.iter().map(|(u, c)| (u.clone(), c)).collect();
+            let graph = tcl_bigip::graph::build_bigip_object_graph(&sources, &configs, &ctx);
+
+            let mut uri_list: Vec<String> = sources.iter().map(|(u, _)| u.clone()).collect();
+            uri_list.sort();
+            let report = tcl_bigip::cleanup::compute_cleanup(&graph, &uri_list, &keep_paths, &[]);
+            // The crate already renders this report in the shape the clients
+            // read, so it is parsed rather than rebuilt field by field.
+            serde_json::from_str::<serde_json::Value>(&tcl_bigip::cleanup::report_to_json(&report))
+                .ok()
+        })
+        .await
+        .unwrap_or(None);
+        Ok(value)
+    }
+
+    /// Does `source` still report `code`?
+    ///
+    /// The oracle the reducer tests each candidate against. It runs the plain
+    /// analyser rather than the server's configured pipeline: a reproducer is
+    /// for a bug report, so it has to stand on its own in a fresh checkout,
+    /// not depend on the reporter's disabled-code set or spec packs.
+    fn reproduces_diagnostic(source: &str, dialect: &str, code: &str) -> bool {
+        tcl_compiler::analyser::Analyser::new()
+            .analyse(source, dialect)
+            .diagnostics
+            .iter()
+            .any(|d| d.code.to_string() == code)
+    }
+
+    /// Shrink `source` to the fewest lines that still report `code`.
+    ///
+    /// Delta debugging over lines, halving the granularity each pass: try
+    /// removing each chunk, keep every removal the oracle still accepts, and
+    /// when a pass at one granularity stops helping, halve the chunk and go
+    /// again. That reaches a one-minimal result in far fewer analyser runs
+    /// than removing one line at a time, which matters because each run is a
+    /// full analysis.
+    fn reduce_to_minimal(source: &str, dialect: &str, code: &str) -> Vec<String> {
+        let mut lines: Vec<String> = source.lines().map(str::to_owned).collect();
+        let mut chunk = lines.len().max(1);
+        // A budget, so a pathological document cannot hold the blocking pool.
+        let mut budget = 400_usize;
+
+        while chunk >= 1 {
+            let mut index = 0;
+            while index < lines.len() {
+                if budget == 0 {
+                    return lines;
+                }
+                let end = (index + chunk).min(lines.len());
+                let mut candidate = lines.clone();
+                candidate.drain(index..end);
+                budget -= 1;
+                if !candidate.is_empty()
+                    && Self::reproduces_diagnostic(&candidate.join("\n"), dialect, code)
+                {
+                    lines = candidate;
+                } else {
+                    index = end;
+                }
+            }
+            if chunk == 1 {
+                break;
+            }
+            chunk /= 2;
+        }
+        lines
+    }
+
+    /// Handle `tcl-lsp.minimizeDiagnostic`: the smallest document that still
+    /// reports a diagnostic.
+    ///
+    /// Arguments are `[uri, code]`. Null when the document does not report
+    /// that code at all, which is what the clients render as "could not build
+    /// a minimal repro".
+    ///
+    /// `renamed` is always false. Shrinking is line-based; renaming
+    /// identifiers would make a smaller reproducer but a less recognisable
+    /// one, and the field exists so a future pass can say it did that.
+    async fn minimize_diagnostic_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let Some(uri_str) = args.first().and_then(serde_json::Value::as_str) else {
+            return Ok(None);
+        };
+        let Ok(uri) = Uri::from_str(uri_str) else {
+            return Ok(None);
+        };
+        let Some(code) = args.get(1).and_then(serde_json::Value::as_str) else {
+            return Ok(None);
+        };
+        let Some(doc) = self.read_local_document(&uri).await else {
+            return Ok(None);
+        };
+
+        let text = doc.text.to_string();
+        let dialect = doc.dialect.clone();
+        let code = code.to_owned();
+        let value = crate::rt::spawn_blocking(move || {
+            // Nothing to minimise if the document does not report it. Saying
+            // so beats returning the whole document as its own "reproducer".
+            if !Self::reproduces_diagnostic(&text, &dialect, &code) {
+                return None;
+            }
+            let original_lines = text.lines().count();
+            let reduced = Self::reduce_to_minimal(&text, &dialect, &code);
+            let source = format!("{}\n", reduced.join("\n"));
+            Some(serde_json::json!({
+                "code": code,
+                "source": source,
+                "originalLines": original_lines,
+                "reducedLines": reduced.len(),
+                "renamed": false,
+                "reproduces": Self::reproduces_diagnostic(&source, &dialect, &code),
+            }))
+        })
+        .await
+        .unwrap_or(None);
+        Ok(value)
+    }
+
+    /// Handle `tcl-lsp.renamePartition`: rename a BIG-IP partition and every
+    /// path that names it.
+    ///
+    /// Arguments are `[uri, currentName, newName]`, bare partition names
+    /// rather than paths. The reply is `{success, edit?, error?}`: the client
+    /// applies the edit itself, so it can undo the rename as one step.
+    ///
+    /// The rewrite is the query engine's `rename_partition`, which owns the
+    /// cascade — the `auth partition` stanza and every `/<old>/` prefix
+    /// through the whole file. Doing it here with a search and replace would
+    /// be a second implementation of that cascade, and the wrong one.
+    ///
+    /// The result is re-parsed before it is offered. A rename that produced a
+    /// file the parser no longer reads is refused rather than handed to the
+    /// editor, because the client applies it without review.
+    async fn rename_partition_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let (Some(uri_str), Some(current), Some(new_name)) = (
+            args.first().and_then(serde_json::Value::as_str),
+            args.get(1).and_then(serde_json::Value::as_str),
+            args.get(2).and_then(serde_json::Value::as_str),
+        ) else {
+            return Ok(Some(
+                serde_json::json!({ "success": false, "error": "expected [uri, currentName, newName]" }),
+            ));
+        };
+        let Ok(uri) = Uri::from_str(uri_str) else {
+            return Ok(Some(
+                serde_json::json!({ "success": false, "error": "unreadable document URI" }),
+            ));
+        };
+        let Some(doc) = self.read_local_document(&uri).await else {
+            return Ok(Some(
+                serde_json::json!({ "success": false, "error": "document is not open" }),
+            ));
+        };
+
+        let text = doc.text.to_string();
+        let uri_owned = uri_str.to_owned();
+        let (current, new_name) = (current.to_owned(), new_name.to_owned());
+        let outcome = crate::rt::spawn_blocking(move || {
+            Self::rename_partition_outcome(&uri_owned, &text, &current, &new_name)
+        })
+        .await
+        .unwrap_or_else(|_| Err("the rename did not complete".to_owned()));
+
+        Ok(Some(match outcome {
+            Ok(new_source) => {
+                let index = tcl_lexer::LineIndex::new_lsp(&doc.text);
+                let last = index.position_at_utf16(
+                    u32::try_from(doc.text.len()).unwrap_or(u32::MAX),
+                    &doc.text,
+                );
+                let edit = TextEdit {
+                    range: Range {
+                        start: Position {
+                            line: 0,
+                            character: 0,
+                        },
+                        end: Position {
+                            line: last.line,
+                            character: last.character.get(),
+                        },
+                    },
+                    new_text: new_source,
+                };
+                let mut changes = HashMap::new();
+                changes.insert(uri, vec![edit]);
+                let workspace_edit = WorkspaceEdit {
+                    changes: Some(changes),
+                    ..WorkspaceEdit::default()
+                };
+                serde_json::json!({
+                    "success": true,
+                    "edit": serde_json::to_value(workspace_edit).unwrap_or(serde_json::Value::Null),
+                })
+            }
+            Err(message) => serde_json::json!({ "success": false, "error": message }),
+        }))
+    }
+
+    /// Run the partition rename and return the rewritten source.
+    ///
+    /// The name rules are the engine's: it refuses an empty name, a path
+    /// rather than a bare name, and `/Common` in either direction. Repeating
+    /// those checks here would be a second rulebook to keep in step, so the
+    /// engine's error is passed through as the message the client shows.
+    fn rename_partition_outcome(
+        uri: &str,
+        source: &str,
+        current: &str,
+        new_name: &str,
+    ) -> Result<String, String> {
+        // The engine quotes its own arguments; the names still must not carry
+        // a quote that would end the string early.
+        if current.contains('"') || new_name.contains('"') {
+            return Err("partition names must not contain quotes".to_owned());
+        }
+        let query = format!(r#"rename_partition("{current}", "{new_name}")"#);
+        let sources = vec![(uri.to_owned(), source.to_owned())];
+        let options = tcl_bigip_query::runner::QueryOptions::default();
+
+        let result = tcl_bigip_query::runner::run_query(&query, &sources, &options)
+            .map_err(|e| e.to_string())?;
+        let Some((_, applied)) = result.edits_per_file.into_iter().next() else {
+            return Err(format!("no partition named '{current}' in this file"));
+        };
+        if applied.new_source == source {
+            return Err(format!("no partition named '{current}' in this file"));
+        }
+
+        // A rewrite the parser can no longer read is a corrupt file, and the
+        // client applies this edit without review.
+        let reparsed = tcl_bigip::parser::driver::parse_bigip_conf(&applied.new_source, "Common");
+        let original = tcl_bigip::parser::driver::parse_bigip_conf(source, "Common");
+        if reparsed.objects.len() != original.objects.len() {
+            return Err("the rename changed how the file parses and was not applied".to_owned());
+        }
+        Ok(applied.new_source)
+    }
+
     /// Handle `tcl-lsp.xcTranslate`: statically translate an iRule to F5
     /// Distributed Cloud constructs and report the result.
     ///
@@ -24343,6 +25058,17 @@ impl LanguageServer for Backend {
             "tcl-lsp.listIruleEvents" => Ok(Some(Self::list_irule_events_command())),
             "tcl-lsp.diagramData" => Ok(self.diagram_data_command(&params.arguments).await),
             "tcl-lsp.xcTranslate" => Ok(self.xc_translate_command(&params.arguments).await),
+            "tcl-lsp.listRules" => self.list_rules_command(&params.arguments).await,
+            "tcl-lsp.extractRule" => self.extract_rule_command(&params.arguments).await,
+            "tcl-lsp.writeRuleBack" => self.write_rule_back_command(&params.arguments).await,
+            "tcl-lsp.extractLinkedObjects" => {
+                self.extract_linked_objects_command(&params.arguments).await
+            }
+            "tcl-lsp.bigipCleanup" => self.bigip_cleanup_command(&params.arguments).await,
+            "tcl-lsp.minimizeDiagnostic" => {
+                self.minimize_diagnostic_command(&params.arguments).await
+            }
+            "tcl-lsp.renamePartition" => self.rename_partition_command(&params.arguments).await,
             "tcl-lsp.getEffectiveConfig" => {
                 self.get_effective_config_command(&params.arguments).await
             }
@@ -29194,6 +29920,13 @@ fn build_server_capabilities(
                 "tcl-lsp.listIruleEvents".to_owned(),
                 "tcl-lsp.diagramData".to_owned(),
                 "tcl-lsp.xcTranslate".to_owned(),
+                "tcl-lsp.listRules".to_owned(),
+                "tcl-lsp.extractRule".to_owned(),
+                "tcl-lsp.writeRuleBack".to_owned(),
+                "tcl-lsp.extractLinkedObjects".to_owned(),
+                "tcl-lsp.bigipCleanup".to_owned(),
+                "tcl-lsp.minimizeDiagnostic".to_owned(),
+                "tcl-lsp.renamePartition".to_owned(),
                 "tcl-lsp.getEffectiveConfig".to_owned(),
                 "tcl-lsp.fixAllSafeIssues".to_owned(),
                 "tcl-lsp.listSubcommands".to_owned(),

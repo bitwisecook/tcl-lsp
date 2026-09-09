@@ -42,6 +42,9 @@ tcl-registry = { path = "../tcl-registry" }
 tcl-spectcl = { path = "../tcl-spectcl" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-bigip = { path = "../tcl-bigip" }
+# Without `probes`: those builtins pull a socket and TLS stack the server has
+# no use for and the wasm hosts cannot link. The rename rewrite is offline.
+tcl-bigip-query = { path = "../tcl-bigip-query", default-features = false }
 f5-xc = { path = "../f5-xc" }
 tcl-lsp-core = { path = "../tcl-lsp-core" }
 tcl-lsp-db = { path = "../tcl-lsp-db" }
