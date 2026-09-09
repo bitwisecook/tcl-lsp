@@ -413,7 +413,7 @@ Separates *when* a script runs from `body_kind`, which says only which frame it 
 
 *nested OptionArg field* — User-controlled callback substitutions that must be treated as taint sources.
 
-Lists only callback substitutions whose bytes are externally controlled. For Tk validation, `%P`, `%s`, and `%S` carry editable text; for key bindings, `%A` and `%K` carry the typed character or keysym. Do not declare widget paths, indices, validation actions, or reasons (`%W`, `%i`, `%d`, `%V`) here: those are framework metadata, not taint sources. The callback must be deferred; dynamic script construction remains intentionally unanalyzed. In SpecTcl, write an option's `-callback-taint-inputs {%P %S}` or the positional `callback_taint_inputs {{INDEX {%A %K}}}` table.
+Lists only callback substitutions whose bytes are externally controlled. For Tk validation, `%P`, `%s`, and `%S` carry editable text; for key bindings, `%A` and `%K` carry the typed character or keysym. Do not declare widget paths, indices, validation actions, or reasons (`%W`, `%i`, `%d`, `%V`) here: those are framework metadata, not taint sources. The callback must be deferred; dynamic script construction remains intentionally unanalysed. In SpecTcl, write an option's `-callback-taint-inputs {%P %S}` or the positional `callback_taint_inputs {{INDEX {%A %K}}}` table.
 
 ## Behaviour
 
@@ -613,7 +613,7 @@ How attacker-influenced data flows through the command: whether it is a source (
 
 *command and subcommand* — User-controlled substitutions injected into deferred positional callback arguments.
 
-Lists only callback substitutions whose bytes are externally controlled. For Tk validation, `%P`, `%s`, and `%S` carry editable text; for key bindings, `%A` and `%K` carry the typed character or keysym. Do not declare widget paths, indices, validation actions, or reasons (`%W`, `%i`, `%d`, `%V`) here: those are framework metadata, not taint sources. The callback must be deferred; dynamic script construction remains intentionally unanalyzed. In SpecTcl, write an option's `-callback-taint-inputs {%P %S}` or the positional `callback_taint_inputs {{INDEX {%A %K}}}` table.
+Lists only callback substitutions whose bytes are externally controlled. For Tk validation, `%P`, `%s`, and `%S` carry editable text; for key bindings, `%A` and `%K` carry the typed character or keysym. Do not declare widget paths, indices, validation actions, or reasons (`%W`, `%i`, `%d`, `%V`) here: those are framework metadata, not taint sources. The callback must be deferred; dynamic script construction remains intentionally unanalysed. In SpecTcl, write an option's `-callback-taint-inputs {%P %S}` or the positional `callback_taint_inputs {{INDEX {%A %K}}}` table.
 
 ### `taint_output_sink` — Output-sink code
 
