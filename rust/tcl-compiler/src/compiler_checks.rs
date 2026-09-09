@@ -624,16 +624,6 @@ mod tests {
         r
     }
 
-    /// Regression: `function_nontaint_checks` (called per unit from the
-    /// `analysable_body_function_units` loop, which already reaches `TclOO`
-    /// method bodies) folds in `shimmer_family_checks` itself — a second,
-    /// separate loop explicitly re-walking methods/body-units for shimmer
-    /// would double-emit every S100/S101/S102/S110 inside one. Exactly this
-    /// double-count was introduced transiently when two independent fixes
-    /// (this shimmer-coverage widening and #872's taint-coverage widening)
-    /// were rebased together: #872 widened the base loop from
-    /// `analysable_functions` to `analysable_body_function_units`, which
-    /// made the shimmer-only top-up loop redundant.
     /// A proof-gated O105 is advisory only: hint severity with no
     /// auto-apply payload.  The dispatch-stability site proof licenses the
     /// diagnostic under its declared entry contract; an editor code action

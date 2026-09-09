@@ -18,14 +18,14 @@
 
 //! Per-command lowering specialisations, one file per command.
 //!
-//! Each submodule exposes a `try_lower_<name>` entry point that takes
-//! a [`LoweringCommand`](crate::lowering_hooks::LoweringCommand) and
-//! returns a [`Statement`](crate::ir::Statement). The shared
-//! dispatcher in [`crate::lowering_hooks::try_lower_hook`] routes
-//! command names to the matching submodule.
-//!
-//! Split out from the `crate::lowering_hooks` module so each
-//! command's logic lives in its own file.
+//! Each submodule exposes one `try_lower_<name>` entry point per command
+//! it covers, taking a
+//! [`LoweringCommand`](crate::lowering_hooks::LoweringCommand) and
+//! producing a [`Statement`](crate::ir::Statement) — directly for a
+//! command that always lowers, or wrapped in `Option` for one that may
+//! decline. The shared dispatcher in
+//! [`crate::lowering_hooks::try_lower_hook`] routes command names to the
+//! matching submodule.
 
 pub mod control;
 pub mod incr;

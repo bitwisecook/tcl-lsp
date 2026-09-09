@@ -22,10 +22,11 @@
 //! A *place* (an lvalue) is what a variable reference denotes: a scalar, a
 //! specific array element, a whole array, a dict path, an OO instance
 //! variable, an upvar alias edge, or — when it cannot be pinned down
-//! statically — the top value [`PlaceKind::Unknown`].  Today variable identity
-//! in the dataflow consumers is a bare `(name, version)` SSA string that folds
-//! `a(k)` / `a(j)` / `$a` together and makes dynamic names opaque; this module
-//! replaces that with a structured place plus two relations:
+//! statically — the top value [`PlaceKind::Unknown`].  A structured place
+//! draws the distinctions a bare `(name, version)` SSA string cannot: it keeps
+//! `a(k)`, `a(j)` and `$a` apart instead of folding them together, and records
+//! how a dynamic name was formed instead of leaving it opaque.  Two relations
+//! ride on it:
 //!
 //! * [`overlap`] — *does a read of `q` observe a write of `p`?*  The whole
 //!   point: `a(foo)` does not clobber `a(bar)`, but the whole array overlaps

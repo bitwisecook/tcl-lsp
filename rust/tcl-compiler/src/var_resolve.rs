@@ -25,7 +25,7 @@
 //! `global` / `variable` / `upvar` declarations in effect, active traces),
 //! produce a canonical [`Place`].
 //!
-//! Reuses the existing resolution substrate — [`split_array_name`] /
+//! Builds on the shared resolution substrate — [`split_array_name`] /
 //! [`normalise_qualified_name`] ([`crate::naming`]) and the variable-reference
 //! scanner ([`crate::var_refs`]) — rather than re-deriving it.  Anything that
 //! cannot be pinned down statically (dynamic variable name, computed array
@@ -303,9 +303,10 @@ mod tests {
 
     #[test]
     fn resolved_array_elements_feed_the_overlap_precision() {
-        // The end-to-end point of stages 1+2: distinct literal elements of the
-        // same array resolve to non-overlapping places (the W220 FP fix),
-        // while a dynamic index conservatively overlaps any sibling.
+        // Distinct literal elements of the same array resolve to
+        // non-overlapping places, so a store to one is not a dead store
+        // (W220) against the other; a dynamic index conservatively overlaps
+        // any sibling.
         let r = registry();
         let ak = resolve_place("a(k)", &ctx(), false, &r);
         let aj = resolve_place("a(j)", &ctx(), false, &r);

@@ -649,8 +649,7 @@ pub fn run_lint(
 
     // The config-category rules, then the irule-category rules, in the fixed
     // registration order. An unparseable `category` (neither "config" nor
-    // "irule") matches neither — same as before this enum, when it compared
-    // the raw string against both literals and matched neither.
+    // "irule") matches neither.
     let parsed_category = category.map(str::parse::<LintCategory>);
     let run_config = matches!(parsed_category, None | Some(Ok(LintCategory::Config)));
     let run_irule = matches!(parsed_category, None | Some(Ok(LintCategory::Irule)));

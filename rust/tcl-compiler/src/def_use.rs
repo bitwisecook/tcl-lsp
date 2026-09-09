@@ -96,7 +96,7 @@ pub struct UseSite {
     /// Whether the name is carried only by a brace-quoted word this statement
     /// does not substitute ([`UseClass::Quoted`]). The use is real for
     /// liveness — the text may be evaluated later — but is not a read *here*,
-    /// so read-before-set must not claim it (issues #1142, #1237).
+    /// so read-before-set must not claim it.
     pub class: UseClass,
 }
 
@@ -347,7 +347,7 @@ fn terminator_read_vars(
                         .into_iter()
                         // A `${…}` read's content is a literal name — `${$n}`
                         // reads the variable called `$n` — so its `$` must
-                        // survive canonicalisation (issue #1078).
+                        // survive canonicalisation.
                         .map(|(n, braced)| {
                             (
                                 crate::naming::element_var_name_braced(&n, braced).to_string(),

@@ -20,8 +20,8 @@
 //! tasks.
 //!
 //! Each subcommand is kept byte-compatible with the `scripts/` tool it
-//! replaces so the Makefile / CI can switch over incrementally; the legacy
-//! script stays as the fallback for one release cycle, then retires.
+//! replaces so the Makefile / CI can switch over incrementally, with the
+//! legacy script available as a fallback.
 //!
 //! Run a task with `cargo xtask <command>` (the workspace `.cargo/config.toml`
 //! aliases `xtask` to `run --package xtask --`).
@@ -37,15 +37,15 @@
 //! - `audit-option-dialects` — probe `OptionSpec` dialect gates against real
 //!   tclsh 8.4/8.5/8.6/9.0 (`--check` instead cross-checks the audit's probe
 //!   table against the registry's declared options — the audit↔registry drift
-//!   gate, issue #1396).
+//!   gate).
 //! - `callback-inventory` — generate or verify the registry-backed executable
-//!   and callback surface inventory (issue #1706).
+//!   and callback surface inventory.
 //! - `diag-tables` — generate the `docs/generated/` code tables from the
 //!   `DiagCode` catalogue (`--check` to verify instead of write).
 //! - `f5-query-builtins-doc` — verify `docs/references/f5_query/builtins.md`
-//!   documents exactly the builtins `tcl-bigip-query` registers (issue #1404).
+//!   documents exactly the builtins `tcl-bigip-query` registers.
 //! - `bigip-data-schema` — verify the hand-maintained BIG-IP object-spec data
-//!   is internally consistent (issue #1404).
+//!   is internally consistent.
 //! - `gen-editor-catalogs` — generate the VS Code iRules-event catalog JSON
 //!   from the registry (`--check` to verify instead of write).
 //! - `number-drift` — flag hand-rolled Tcl radix-prefix recognition outside
@@ -56,7 +56,7 @@
 //! - `segmentation-drift` — flag a hand-rolled Tcl command-terminator scan
 //!   or a private `Sep`/`Eol` word-start state machine outside the command /
 //!   word boundary owners, and verify the owner/scanner corpus differential
-//!   is still wired (issue #1786).
+//!   is still wired.
 //! - `smoke-targets` — validate or execute the exact Cargo fallback for the
 //!   convention-named smoke tier.
 
@@ -153,7 +153,7 @@ enum Command {
     AuditOptionDialects {
         /// Run the audit↔registry drift guard instead of probing tclsh: every
         /// audited option must be declared by the registry's `OptionSpec`
-        /// tables. Exits non-zero on a disagreement (issue #1396).
+        /// tables. Exits non-zero on a disagreement.
         #[arg(long)]
         check: bool,
     },
@@ -176,7 +176,7 @@ enum Command {
     },
 
     /// Verify `docs/references/f5_query/builtins.md` documents exactly the
-    /// builtins `tcl-bigip-query` registers — no more, no fewer (issue #1404).
+    /// builtins `tcl-bigip-query` registers — no more, no fewer.
     #[command(name = "f5-query-builtins-doc")]
     F5QueryBuiltinsDoc {
         /// Accepted for symmetry with the other gates (the lint always
@@ -187,8 +187,7 @@ enum Command {
     },
 
     /// Verify the hand-maintained BIG-IP object-spec data
-    /// (`rust/tcl-registry/src/bigip/data/`) is internally consistent
-    /// (issue #1404).
+    /// (`rust/tcl-registry/src/bigip/data/`) is internally consistent.
     #[command(name = "bigip-data-schema")]
     BigipDataSchema {
         /// Accepted for symmetry with the other gates (the lint always
@@ -207,7 +206,7 @@ enum Command {
     },
 
     /// Verify every non-internal, non-reserved `DiagCode` has at least one
-    /// real construction site under `rust/tcl-compiler/src` (issue #1317).
+    /// real construction site under `rust/tcl-compiler/src`.
     #[command(name = "diag-emission-check")]
     DiagEmissionCheck,
 
@@ -349,10 +348,10 @@ enum Command {
         check: bool,
     },
 
-    /// Flag any code use of the dialect/registry APIs retired in P1-G
+    /// Flag any code use of the retired dialect/registry APIs
     /// (`DialectProfile::by_name` and kin, the string-keyed registry
-    /// doors, external `ProfileQueries`) — the zero-reference gate of the
-    /// centralisation ledger.
+    /// doors, external `ProfileQueries`) — the zero-reference gate for
+    /// centralised resolution.
     #[command(name = "retired-api-gate")]
     RetiredApiGate {
         /// Accepted for symmetry with the other gates (the lint always
@@ -436,7 +435,7 @@ enum Command {
 
     /// Dump every firing of one or more diagnostic/optimisation codes across
     /// a corpus, dialect-aware, grouped by message shape — the false-positive
-    /// audit harness (issue #1316; `docs/design/compiler/fp-sweep.md`).
+    /// audit harness (`docs/design/compiler/fp-sweep.md`).
     FpSweep {
         /// Diagnostic/optimisation code to sweep (repeatable, e.g. `--code
         /// W111 --code W112`).

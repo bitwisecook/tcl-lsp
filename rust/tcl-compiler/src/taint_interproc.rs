@@ -1356,21 +1356,17 @@ mod tests {
 
     #[test]
     fn self_recursive_proc_taint_summary_converges() {
-        // Regression: a directly self-recursive proc — `fib` calling itself
-        // inside `[expr {[fib …]}]` — under-converged the interproc taint
-        // fixpoint because the self-call edge is not extracted into
-        // `direct_calls` (it is buried in a braced `expr`), so the worklist
-        // never re-queued `fib` after its own summary changed. The debug-only
-        // convergence guard then panicked, and the LSP diagnostic worker
-        // caught the panic and published nothing — so the recursive-definition
-        // and linked-editing e2e tests timed out waiting for diagnostics.
-        // The worklist now re-queues a proc on its own change, so the fixpoint
-        // settles and the guard holds.
+        // A directly self-recursive proc — `fib` calling itself inside
+        // `[expr {[fib …]}]` — has no self-call edge in `direct_calls` (it is
+        // buried in a braced `expr`). A worklist that does not re-queue a proc
+        // on its own summary change therefore under-converges the interproc
+        // taint fixpoint, the debug-only convergence guard panics, and the LSP
+        // diagnostic worker publishes nothing. Re-queueing on a proc's own
+        // change is what lets the fixpoint settle and the guard hold.
         let reg = CommandRegistry::build_default();
         let src = "proc fib {n} {\n    if {$n < 2} { return $n }\n    return [expr {[fib [expr {$n - 1}]] + [fib [expr {$n - 2}]]}]\n}\nputs \"fib(10) = [fib 10]\"\n";
         let cu = CompilationUnit::build_for(src, &reg, false).with_interprocedural(&reg, None);
-        // Exercises `converge_summaries_with` and its debug fixpoint guard —
-        // this panicked before the fix.
+        // Exercises `converge_summaries_with` and its debug fixpoint guard.
         let _ = solve_interprocedural_taints(&cu, &reg, None);
         // The full taint pass over the same source must also complete cleanly.
         let _ = warnings(src);

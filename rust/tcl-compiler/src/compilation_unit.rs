@@ -3402,11 +3402,9 @@ mod tests {
             );
         }
 
-        /// TN control: the same shape at the *top level* (no namespace) was
-        /// already sound before the fix (a bare recursive call already
-        /// resolved to the right, un-namespaced qualified name), and must
-        /// stay sound after it — the fix must not regress the case it
-        /// didn't need to change.
+        /// TN control: the same shape at the *top level* (no namespace),
+        /// where a bare recursive call resolves to the right un-namespaced
+        /// qualified name on its own, must stay sound.
         #[test]
         fn top_level_recursive_proc_parity_check_is_not_constant_folded() {
             let reg = registry();

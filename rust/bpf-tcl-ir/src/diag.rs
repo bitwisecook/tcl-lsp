@@ -37,7 +37,7 @@ pub enum BpfDiag {
     UndefinedVar,
     /// A malformed integer literal.
     BadInt,
-    /// An unbounded loop (no literal bound) — reserved for the loops milestone.
+    /// An unbounded loop (no literal bound): loops are not yet supported.
     UnboundedLoop,
     /// An unknown event name in a `when` block.
     BadEvent,

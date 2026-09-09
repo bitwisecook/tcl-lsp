@@ -4512,10 +4512,10 @@ mod class_factories {
 
     #[test]
     fn user_metaclass_creates_real_classes() {
-        // TP — idx 96/97: a class whose own superclass chain reaches
-        // `oo::class` is a class factory, so its `create` calls introduce
-        // real classes.  Before this they never entered `all_classes` at
-        // all: no outline entry, no references, no `next` resolution.
+        // TP: a class whose own superclass chain reaches `oo::class` is a
+        // class factory, so its `create` calls must introduce real
+        // classes — entering `all_classes` with an outline entry,
+        // references, and `next` resolution.
         let r = analysis(MEGAWIDGET, "tcl9.0");
         for name in ["::SimpleWidget", "::FocusableWidget", "::IconList"] {
             assert!(
@@ -4733,7 +4733,7 @@ mod class_factories {
 
     #[test]
     fn a_relative_superclass_prefers_its_own_namespace_over_a_decoy() {
-        // TN (cross-link guard, the #1063 precedent) — a same-tailed class
+        // TN (cross-link guard) — a same-tailed class
         // in an unrelated namespace must not be picked when the declaring
         // namespace has its own.  Here `::other::Meta` is a plain class and
         // `::n::Meta` is the real metaclass; picking the decoy would leave
@@ -5206,9 +5206,9 @@ mod class_factories {
 
     #[test]
     fn a_metaclass_without_unknown_dispatch_abstains() {
-        // TN — regression guard: the ordinary metaclass shape must
-        // keep answering `false`, so nothing that used to need `create`
-        // silently starts binding bare words.
+        // TN: the ordinary metaclass shape must keep answering `false` —
+        // without the constructor idiom, a bare word must not silently
+        // bind to an instance.
         let src = concat!(
             "oo::class create Meta {\n",
             "    superclass oo::class\n",
@@ -5225,7 +5225,7 @@ mod class_factories {
         // The fact is a property of the metaclass's body and carries no
         // token, so it must cross a document boundary unchanged — otherwise
         // the Tk shape would resolve only in the file that declares the
-        // metaclass (issues #1303 and #1276).
+        // metaclass.
         let elsewhere =
             tcl_lexer::Token::new(tcl_lexer::TokenType::Esc, tcl_lexer::Span::new(0, 1));
         assert!(
@@ -5238,7 +5238,7 @@ mod class_factories {
 
     #[test]
     fn oo_define_over_a_literal_foreach_list_extends_every_named_class() {
-        // TP — idx 55: the ticklecharts `etsb.tcl` monkey-patch.  Each
+        // TP: the ticklecharts `etsb.tcl` monkey-patch.  Each
         // literal element names a real class, so each gets the injected
         // method; nothing lands under a synthetic `@dynclass@` key.
         let src = concat!(
@@ -5337,7 +5337,7 @@ mod class_factories {
 
     #[test]
     fn disjoint_dynamic_command_table_names_preserve_provenance() {
-        // TP/FP control (#1306): the alias target words retain the fixed
+        // TP/FP control: the alias target words retain the fixed
         // `::define::` fragment, so neither the earlier nor later mutation
         // can denote NSNormalize, string, or regsub. This is the command-table
         // shape used by tcllib's dialect factory.
@@ -5443,8 +5443,8 @@ mod class_factories {
         // Nothing is read *out* of the loop: the body writes only its own
         // iteration variable and an unrelated local, so NSPACE's provenance
         // survives. This is tcllib clay's `foreach command [info commands
-        // ::oo::define::*] {…}`, which used to abstain the whole walk merely
-        // by standing between `set NSPACE …` and the creation.
+        // ::oo::define::*] {…}`, which must not abstain the whole walk
+        // merely by standing between `set NSPACE …` and the creation.
         let src = COMPUTED_METACLASS.replace(
             "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
             concat!(
@@ -5918,7 +5918,7 @@ mod class_factories {
         // that proves it is still a computed name — so a creation call naming
         // it looks like a call to a *recorded class*. Its verdict is no more
         // final than an unknown head's: the post-pass join is what gives that
-        // stub its factory (#1653), and only then can this call be classified.
+        // stub its factory, and only then can this call be classified.
         //
         // tclsh 8.6.16 / 9.0.4 run it: `::T::D::class` has method `extra`,
         // `info object class ::T::W` is `::T::D::class`, and `[[::T::W new] go]`
@@ -5982,10 +5982,10 @@ mod class_factories {
 
     #[test]
     fn a_readable_body_that_runs_now_but_is_untyped_still_abstains() {
-        // TP — the readable twin of the #1652 guard. These commands
-        // carry no typed control-arm semantics, so the arm they contribute was
-        // *ignored*: the walk claimed the creation below on the strength of
-        // having no descriptor, not on any reading of the body.
+        // TP — the readable twin of the guard above. These commands carry
+        // no typed control-arm semantics, so the walk must not claim the
+        // creation below merely on the strength of having no descriptor —
+        // it must actually read the body.
         //
         // Every one of them runs its script as part of this call, and tclsh
         // 8.6.16 / 9.0.4 agree the statement after it is not reached — the

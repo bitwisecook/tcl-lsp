@@ -16,20 +16,19 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Issue #946 (M16.2 completion) — cross-interpreter alias re-entry parity.
+//! Cross-interpreter alias re-entry parity.
 //!
-//! These vectors exercise the surfaces the M16.2 text previously documented as
-//! divergences and the issue re-scoped as P1 faults to fix:
+//! These vectors exercise two hazards a naive implementation would hit:
 //!
-//! * **fault 1** — a parent-target alias reached across a *native* re-entry
+//! * a parent-target alias reached across a *native* re-entry
 //!   (a resumed coroutine, an `lsort -command` comparator, a trace callback, an
-//!   `after`/`vwait` event callback) used to error
+//!   `after`/`vwait` event callback) must not error
 //!   `cannot invoke parent-interp alias: C stack busy`.  C Tcl runs it; so does
-//!   the VM now (the engine reaches an interpreter by swapping its arena-held
+//!   the VM (the engine reaches an interpreter by swapping its arena-held
 //!   state rather than by suspending an un-re-enterable Rust stack).
-//! * **fault 2** — a parent alias target that *re-enters the child that
-//!   invoked it* used to get `could not find interpreter`.  A suspended /
-//!   executing interpreter stays addressable in the arena, so re-entry now
+//! * a parent alias target that *re-enters the child that
+//!   invoked it* must not get `could not find interpreter`.  A suspended /
+//!   executing interpreter stays addressable in the arena, so re-entry
 //!   follows C Tcl.
 //!
 //! Every vector is a complete script whose stdout is compared against the

@@ -2194,9 +2194,9 @@ mod tests {
         // is a genuine Tcl number (tclsh: `expr {"0x1a" == 26}` -> 1, a
         // numeric compare), so treating it as "provably non-numeric" would
         // silently turn a numeric comparison into a string comparison.
-        // Before the fix, `is_numeric_string_in_every_release("0x1a")` was false, so
-        // `node_provably_non_numeric` wrongly returned true for this
-        // literal and the eq/ne promotion fired.
+        // `is_numeric_string_in_every_release("0x1a")` must therefore be
+        // true, or `node_provably_non_numeric` returns true for this literal
+        // and the eq/ne promotion fires.
         let (out, changed) = try_eq_ne_string_compare_simplify_expr("\"0x1a\" == $y", None);
         assert!(
             !changed,
