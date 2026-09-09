@@ -1975,6 +1975,42 @@ mod tests {
         assert!(ops.contains(&Op::IRULE_CONTAINS), "{ops:?}");
     }
 
+    /// Public codegen consumers may supply a profile-projected registry
+    /// without separately setting the optional module dialect. Nested source
+    /// must still follow that registry's grammar rather than ambient Tcl.
+    #[test]
+    fn inline_cmd_subst_expansion_uses_the_profiled_registry_grammar() {
+        let f5_registry = tcl_registry::model::ingress::static_context_for_profile(
+            tcl_dialect::DialectProfile::irules(),
+        )
+        .commands();
+        let mut f5 = CodegenCtx::new(true, &["head"], f5_registry);
+        assert!(f5.dialect.is_none());
+        f5.emit_inline_cmd_subst("[{*}$head ordinary]");
+        let f5_ops: Vec<Op> = f5
+            .instructions
+            .iter()
+            .map(|instruction| instruction.op)
+            .collect();
+        assert!(!f5_ops.contains(&Op::EXPAND_STKTOP), "{f5_ops:?}");
+        assert!(!f5_ops.contains(&Op::INVOKE_EXPANDED), "{f5_ops:?}");
+
+        let modern_profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile();
+        let modern_registry =
+            tcl_registry::model::ingress::static_context_for_profile(modern_profile).commands();
+        let mut modern = CodegenCtx::new(true, &["head"], modern_registry);
+        assert!(modern.dialect.is_none());
+        modern.emit_inline_cmd_subst("[{*}$head ordinary]");
+        let modern_ops: Vec<Op> = modern
+            .instructions
+            .iter()
+            .map(|instruction| instruction.op)
+            .collect();
+        assert!(modern_ops.contains(&Op::EXPAND_STKTOP), "{modern_ops:?}");
+        assert!(modern_ops.contains(&Op::INVOKE_EXPANDED), "{modern_ops:?}");
+    }
+
     /// The same site's release axis: an operator the target release lacks is
     /// not specialised at all, so the VM raises the interpreter's own
     /// diagnostic instead of executing an opcode 8.4 has no grammar for.

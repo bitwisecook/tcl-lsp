@@ -376,16 +376,15 @@ impl<'r> CodegenCtx<'r> {
     /// rather than the default grammar.
     #[must_use]
     pub fn lexer_config(&self) -> tcl_lexer::LexerConfig {
-        tcl_lexer::LexerConfig::for_profile(self.registry.profile())
+        tcl_lexer::LexerConfig::for_profile(self.dialect.or_else(|| self.registry.profile()))
     }
 
     /// Whether nested source reparsed by codegen recognises TIP 157 argument
-    /// expansion. A named compile follows its resolved grammar; a dialect-less
-    /// compile retains the ambient, permissive Tcl grammar.
+    /// expansion. This delegates to the compile's central re-lex configuration
+    /// so module-profile and profile-projected-registry consumers agree.
     #[must_use]
     pub(crate) fn recognises_expand_syntax(&self) -> bool {
-        self.dialect
-            .is_none_or(|profile| profile.grammar.expand_syntax)
+        self.lexer_config().expand_syntax
     }
 
     /// Set the rooted constructed command-resolution namespace for direct
