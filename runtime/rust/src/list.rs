@@ -264,12 +264,11 @@ pub(crate) fn trim_concat_element_bytes(s: &[u8]) -> &[u8] {
 /// so the rendered list cannot be misread as starting a comment
 /// (`TCL_DONT_QUOTE_HASH` inverted). Shared with `dict` (key/value quoting).
 ///
-/// This runtime used to carry its own port of the same four `CONVERT_*` modes
-/// (issue #1439). The two agreed on every one of ~13k probed inputs, but they
-/// were separate code with disjoint parity tables and no drift gate — and two
-/// of the runtime port's flag settings on the trailing-`\` and `\<newline>`
-/// arms already differed from C (harmless only because `require_escape`
-/// dominates them). One implementation, one parity table.
+/// A separate runtime port of the same four `CONVERT_*` modes would risk
+/// exactly this kind of drift: disjoint parity tables with no drift gate
+/// between them, and no guarantee that a flag setting on the trailing-`\`
+/// and `\<newline>` arms stays aligned with C. One implementation, one
+/// parity table.
 pub(crate) fn append_list_element(buf: &mut Vec<u8>, elem: &[u8], quote_hash: bool) {
     tcl_syntax::list::append_list_element(buf, elem, quote_hash);
 }

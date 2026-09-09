@@ -8043,11 +8043,11 @@ mod class_factories {
 
     #[test]
     fn a_second_link_metaclass_publishes_a_factory_once_the_first_is_indexed() {
-        // TP, the analyser half of #1296. Round 1's index (`MetaA` alone,
+        // TP: Round 1's index (`MetaA` alone,
         // provable with no index at all) is exactly what lets the file holding
         // `MetaA create MetaB` publish `MetaB` — so the host's next round has
         // something new to merge. Without the index the same file publishes
-        // nothing, which is the FN the ticket is about.
+        // nothing, which is the false negative this fixpoint closes.
         let round1 = factories_of(CHAIN_META_A);
         assert_eq!(round1.keys().collect::<Vec<_>>(), ["::MC::MetaA"]);
 
@@ -8123,7 +8123,7 @@ mod class_factories {
         );
     }
 
-    /// The index a two-round publish produces for the ticket's chain:
+    /// The index a two-round publish produces for this chain:
     /// `MetaA` proved with no oracle, `MetaB` proved with `MetaA` published.
     fn chained_index() -> std::sync::Arc<tcl_compiler::analyser::ClassFactoryIndex> {
         let first = factories_of(CHAIN_META_A);
@@ -8134,9 +8134,10 @@ mod class_factories {
         std::sync::Arc::new(index)
     }
 
-    // Issue #1305 — a `rename`d metaclass command manufactures nothing.
+    // A `rename`d metaclass command manufactures nothing, unless the rename
+    // is in effect and actually called through.
 
-    /// TP — the ticket's own oracle: `oo::class create ::R::M`, `rename ::R::M
+    /// TP: `oo::class create ::R::M`, `rename ::R::M
     /// ::R::Mk`, then `::R::Mk create ::R::W { method go {} {…} }` records
     /// `::R::W` with `go`, exactly as calling the metaclass under its
     /// original name would.
@@ -8212,7 +8213,7 @@ mod class_factories {
     }
 }
 
-// Constant command-substitution `set` RHS folding — issue #1132.
+// Constant command-substitution `set` RHS folding.
 //
 // The analyser's constant lattice folds `set VAR [cmd …]` through the
 // registry `const_fold` / frame-fact engine (`crate::const_subst`), so the
@@ -8244,7 +8245,7 @@ mod const_cmd_subst_set_rhs {
 
     #[test]
     fn a_constant_namespace_qualifiers_rhs_folds_and_resolves_the_head() {
-        // TP — the probe shape from issue #1132: zero OO involvement, a
+        // TP — the probe shape: zero OO involvement, a
         // plain proc, a constant `[namespace qualifiers …]` RHS.
         let src = concat!(
             "namespace eval tc { proc setdef {a b} { return 1 } }\n",

@@ -422,7 +422,7 @@ fn epilogue_reads_without_catch() {
     assert_eq!(&*c.result.to_str(), "0 {-code 0 -level 0}");
 }
 
-// The epilogue reads must not leak between ranges (PR #1419 review)
+// The epilogue reads must not leak between ranges.
 
 /// A *successful* 3-arg `catch` that follows an erroring one reports its own OK
 /// completion, not the earlier error's. Both paths of the compiled epilogue

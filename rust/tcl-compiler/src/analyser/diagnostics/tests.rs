@@ -8737,7 +8737,7 @@ fn tn_e001_cmd_head_with_method_word_stays_silent() {
 
 #[test]
 fn fn_e001_cmd_head_factory_with_method_word_no_w307() {
-    // The invariant from issue #1143 on the cmd-head shape: the lattice
+    // The invariant on the cmd-head shape: the lattice
     // resolves `[make]`'s class, so `[make] bark` must be validated (and
     // stay silent), never draw the W307 abstention warning.
     let src = "oo::class create Dog { method bark {} { return woof } }\n\
@@ -8897,8 +8897,7 @@ fn tp_e001_bare_dispatch_on_method_return_captured_handle() {
 
 #[test]
 fn tn_w307_expanded_runtime_command_list_stays_abstaining() {
-    // The REFUTED SpiceGenTcl shape from issue #1143 (idx 14), kept as the
-    // TN that must stay abstaining: `{*}$element` expands a *runtime-built*
+    // The SpiceGenTcl shape that must stay abstaining: `{*}$element` expands a *runtime-built*
     // list into the callee inside a method body (SpiceGenTcl's
     // `buildTopNetlist`).  No W307/W308/E001, and no false resolution.
     let src = "oo::class create Netlist { method add {e} { return $e } }\n\
@@ -9318,8 +9317,7 @@ fn w123_tp_bareword_call_to_a_mathfunc_shaped_name_is_still_unresolved() {
 
 #[test]
 fn w123_fp_original_issue_968_repro_is_silent() {
-    // The exact shape reported in issue #968: built-in `expr` math
-    // functions must resolve with no diagnostic at all.
+    // Built-in `expr` math functions must resolve with no diagnostic at all.
     let src = "set x [expr {sin(1.0) + max(1, 2, 3)}]\nputs $x\n";
     let mut a = Analyser::new();
     let r = a.analyse(src, "tcl8.6");
@@ -9520,8 +9518,7 @@ fn analyse_static_rename_does_not_set_has_dynamic_providers() {
 #[test]
 fn analyse_dynamic_but_resolvable_rename_does_not_set_has_dynamic_providers() {
     // `$x` is dynamic-*looking* but `x` is a known constant (`set x
-    // set`) — issue #923 idx 3's constant-folding fix now resolves this
-    // exactly like the fully-static
+    // set`) — constant folding resolves this exactly like the fully-static
     // `analyse_static_rename_does_not_set_has_dynamic_providers` case,
     // instead of falling back to the conservative
     // `has_dynamic_providers` flag.
@@ -10017,7 +10014,7 @@ fn w210_phi_undef_use_after_unset_return() {
 
 #[test]
 fn w210_loop_body_accumulator_read_after_loop_silent() {
-    // FP-RBS-19: the reporter's exact pattern — a `lappend` accumulator
+    // FP-RBS-19: the reported pattern — a `lappend` accumulator
     // built inside a dynamic `foreach`, returned after the loop. The body
     // defines `r` on every iteration, so a read after the loop is defined
     // whenever the loop ran. Matching C Tcl (which errors only when `$items` is
@@ -11517,11 +11514,10 @@ fn w304_does_not_cross_proc_param_shadow() {
 //
 // A `try` `on`/`trap` handler body may be a bare `-` to share the *next*
 // handler's body (the same fallthrough mechanism `switch` uses for pattern
-// bodies). The lowerer used to treat every handler body as a script, so the
-// solo `-` compiled to a zero-argument call of the `-` command and tripped a
-// spurious E002 ("Too few arguments for '-'"). These tests assert both sides:
-// the fallthrough `-` raises no E002, and a genuine zero-arg `-` command is
-// still flagged.
+// bodies). Treating every handler body as a script compiles the solo `-` to a
+// zero-argument call of the `-` command and trips a spurious E002 ("Too few
+// arguments for '-'"). These tests assert both sides: the fallthrough `-`
+// raises no E002, and a genuine zero-arg `-` command is still flagged.
 
 fn count_code(src: &str, code: &str) -> usize {
     count_code_in(src, code, "tcl8.6")
@@ -11615,7 +11611,7 @@ fn issue_703_genuine_read_before_set_still_fires_in_shared_body() {
 
 #[test]
 fn issue_703_backslash_escaped_dash_no_false_w210() {
-    // Codex review on #706: a backslash-escaped `\-` handler body evaluates to
+    // A backslash-escaped `\-` handler body evaluates to
     // `-` and is a fallthrough, so the shared target body must not be flagged
     // W210 for reading the fallthrough handler's var (same as the bare `-`).
     let src =
@@ -11683,9 +11679,8 @@ fn tcltest_test_body_is_walked_when_imported() {
 fn append_and_lappend_define_their_target_variable() {
     // `append`/`lappend` create their first argument if absent, so the target
     // is a variable definition (it must surface in `symbols`/completion/hover).
-    // Regression: previously only `set` /
-    // `variable` / `global` / `incr` defined vars, so an `append`/`lappend`
-    // target was dropped from the symbol table.
+    // An `append` / `lappend` target defines a variable too — a symbol table
+    // fed only by `set` / `variable` / `global` / `incr` drops it.
     let mut a = crate::analyser::Analyser::new();
     let r = a.analyse("lappend safe 1\nappend out hi\n", "tcl8.6");
     assert!(
@@ -11723,7 +11718,7 @@ fn nested_catch_result_var_is_defined() {
 fn catch_body_package_require_is_conditional() {
     // `catch { package require Foo }` is a guarded optional-dependency probe, so
     // the package requirement recorded from inside the catch body must be marked
-    // conditional (not promoted to an unconditional fact). Codex review P2.
+    // conditional (not promoted to an unconditional fact).
     let mut a = crate::analyser::Analyser::new();
     let r = a.analyse("catch { package require Foo 1.2 }\n", "tcl8.6");
     let foo = r
@@ -11753,7 +11748,7 @@ fn catch_body_package_require_is_conditional() {
 #[test]
 fn tcltest_import_is_namespace_scoped() {
     // A `namespace import ::tcltest::*` made *inside* a namespace must not
-    // resolve a bare `test` call in a sibling/parent namespace. Codex review P2.
+    // resolve a bare `test` call in a sibling/parent namespace.
     let inside_ns_top_level_call = "package require tcltest\n\
         namespace eval ns { namespace import -force ::tcltest::* }\n\
         test t {d} { expr $x+1 } {}\n";
@@ -12253,10 +12248,9 @@ mod w114_unwrap_fix {
     }
 
     /// TIP 461's `lt`/`le`/`gt`/`ge` share the exact same numeric-
-    /// normalisation risk as `eq`/`ne` (issue #983/#986: this guard used to
-    /// be a hand-typed 4-entry list that only named `eq`/`ne`/`in`/`ni`,
-    /// missing these four entirely — a live safety gap in an *automatic*
-    /// code fix, not just a cosmetic one).
+    /// normalisation risk as `eq`/`ne`.  A hand-typed guard naming only
+    /// `eq`/`ne`/`in`/`ni` misses these four entirely — a live safety gap in
+    /// an *automatic* code fix, not just a cosmetic one.
     #[test]
     fn tip461_string_ordering_context_gets_no_fix() {
         let d = w114_for("set s 007\nif {[expr {$s}] lt \"010\"} {}\n");
@@ -12272,7 +12266,7 @@ mod w114_unwrap_fix {
     }
 }
 
-// -- issue #934: colon-named definitions --------------------------------
+// Colon-named definitions.
 
 /// The count of W314 diagnostics `src` draws under the plain `tcl` dialect.
 fn w314_count(src: &str) -> usize {
@@ -12376,20 +12370,18 @@ fn colon_named_proc_resolves_from_bare_calls_not_written_runs() {
     );
 }
 
-// -- M7: command names carried in variables / dispatch tables ------------
+// Command names carried in variables / dispatch tables.
 
-// Issue #1009 — the constant-`$cmd` dispatch settlement's `known` /
-// `user_defined` closures resolved through a proc/class/alias/rename
-// target that was renamed or deleted away, with no later
-// re-establishment, exactly like the pre-#973 bug in `scope.rs`. Fixed
-// by reusing `fact_live_for_call` (widened to `pub(super)` so this
-// sibling pass can call it) with the dispatch site's own offset as the
-// call site. Confirmed this never caused a W123 false negative (the
-// pass runs after W123 already fired), but did poison the
-// `resolved_qualified_name` these invocations carry for hover /
-// go-to-definition / find-references / rename-tracking. All cases
-// confirmed against tclsh 8.6.14 (deletion semantics are identical
-// whether a command is invoked literally or via a variable).
+// The constant-`$cmd` dispatch settlement's `known` / `user_defined`
+// closures must not resolve through a proc/class/alias/rename target that was
+// renamed or deleted away with no later re-establishment: they reuse
+// `fact_live_for_call` (`pub(super)` so this sibling pass can call it) with
+// the dispatch site's own offset as the call site. Resolving a dead target
+// poisons the `resolved_qualified_name` these invocations carry for hover /
+// go-to-definition / find-references / rename-tracking (it cannot cause a
+// W123 false negative — the pass runs after W123 has fired). All cases
+// confirmed against tclsh 8.6.14 (deletion semantics are identical whether a
+// command is invoked literally or via a variable).
 
 fn const_dispatch_target(src: &str) -> Option<(String, Option<String>)> {
     let mut a = Analyser::new();
@@ -12544,7 +12536,7 @@ fn const_cmd_head_abstains_on_unknown_or_dynamic_values_m7() {
 fn const_cmd_head_resolves_through_a_pure_copy_chain_m7() {
     // `set x target; set cmd $x; $cmd` dispatches ::target — the copy
     // chain preserves provenance, so the *ultimate* literal (`target` in
-    // `set x target`) is the writable reference (issue #945 fault 1:
+    // `set x target`) is the writable reference (
     // renaming must rewrite that literal, keeping the dispatch alive).
     let mut a = Analyser::new();
     let src = "proc target {} {}\nset x target\nset cmd $x\n$cmd\n";
@@ -12655,7 +12647,7 @@ fn catch_and_try_body_writes_abstain_never_last_write_945() {
     // non-literal defining statement and **abstains**: no indirect
     // reference at all, and in particular never the old lexical map's
     // answer (the body's `set cmd risky` presented as the unconditional
-    // value, issue #945 fault 2).  Sound abstention is the contract:
+    // value).  Sound abstention is the contract:
     // no false single-target definition, no destructive rename edit.
     let mut a = Analyser::new();
     let src = "proc safe {} {}\nproc risky {} {}\nset cmd safe\n\
@@ -12856,7 +12848,7 @@ fn dispatch_table_tp_issue_1010_deleted_proc_draws_no_reference() {
     let mut a = Analyser::new();
     let r = a.analyse(src, "tcl");
     // `rename do_add {}` itself intentionally draws its own self-reference
-    // to the OLD argument's token (issue #923 idx 39 — go-to-definition on
+    // to the OLD argument's token (go-to-definition on
     // that exact written word must still resolve, and real Tcl requires
     // `do_add` to exist at that point). That reference is not what this
     // test guards against; only a *dispatch-table*-synthesized reference
@@ -12912,7 +12904,7 @@ fn dict_set_table_value_becomes_a_reference_when_consumed_m7() {
     );
 }
 
-// -- M9: source-site namespace propagation (seeded analysis) --------------
+// Source-site namespace propagation (seeded analysis).
 
 #[test]
 fn seeded_analysis_homes_relative_defs_under_the_source_namespace_m9() {
@@ -13297,9 +13289,9 @@ fn unknown_dialect_strings_stay_permissive() {
 fn w001_subcommand_checks_use_the_profile_mask() {
     // Subcommand-level: an 8.4-core ensemble's valid subcommands must not
     // draw the W001/W002 subcommand diagnostics under the vendor mask.
-    // (F5 reclassification, measurements §4/§4a: the iApps host is the
-    // 8.4.6 fork, so the old `dict keys` row — an 8.5 claim — moved to
-    // `string`, which the fork's 8.4 core really has.)
+    // (F5 reclassification, measurements §4/§4a: the iApps host is the 8.4.6
+    // fork, so this probes `string`, which the fork's 8.4 core really has,
+    // rather than an 8.5-only command.)
     let codes = codes_for_dialect("string tolower ABC", "f5-iapps");
     assert!(
         !codes.iter().any(|c| c == "W001" || c == "W002"),
@@ -13339,7 +13331,7 @@ fn tmsh_first_class_resolves_its_surface_and_gates_later_core() {
             "f5-tmsh: {ok:?} is 8.4 core, got {codes:?}"
         );
     }
-    // Reverse-regression, now measurement-backed (measurements §4: all
+    // Reverse case, measurement-backed (measurements §4: all
     // sixteen 8.4/8.5 discriminators behave as 8.4 in tmsh — `dict`,
     // `lassign`, `apply` included): 8.5+ core is unknown on the fork.
     for gated in [
@@ -13382,9 +13374,8 @@ fn bpf_precise_mask_keeps_90_core_and_drops_8x_relics() {
             "bpf: {ok:?} is real on the 9.0 base, got {codes:?}"
         );
     }
-    // TP (reverse-regression, budgeted): 8.x-only relics removed at the
-    // 9.0 boundary are correctly unknown now — the interim ALL_TCL|BPF
-    // mask wrongly admitted them.
+    // TP (reverse case): 8.x-only relics removed at the 9.0 boundary are
+    // unknown here — an ALL_TCL|BPF mask would wrongly admit them.
     for relic in ["tcltest::bytestring x", "case $x in a {puts hi}"] {
         let codes = codes_for_dialect(relic, "bpf");
         assert!(
@@ -13444,14 +13435,13 @@ fn w003_bpf_accepts_both_tips_on_its_tcl_9_runtime() {
     assert!(w003_hits("if {$x lt $y} { puts hi }", "bpf").is_empty());
 }
 
-/// Issue #985: the 9 iRules word operators (`contains`, `and`, …) used to
-/// evaluate with zero warning outside the iRules dialect — the lexer's word-
-/// operator recognition, the parser, and the runtime evaluator
-/// (`tcl_expr_eval.rs`'s `apply_irules_string_op`) all treat them as valid
-/// regardless of dialect, so `if {$x contains "foo"}` silently ran (and
-/// silently misbehaved, since core Tcl has no such operator) in every
-/// non-iRules dialect. W003 now flags every one of them, the same family
-/// that already flags TIP 201 (`in`/`ni`) and TIP 461 (`lt`/`le`/`gt`/`ge`).
+/// The 9 iRules word operators (`contains`, `and`, …) evaluate outside the
+/// iRules dialect — the lexer's word-operator recognition, the parser, and the
+/// runtime evaluator (`tcl_expr_eval.rs`'s `apply_irules_string_op`) all treat
+/// them as valid regardless of dialect, so `if {$x contains "foo"}` runs (and
+/// misbehaves, since core Tcl has no such operator) in every non-iRules
+/// dialect. W003 flags every one of them, the same family that flags TIP 201
+/// (`in`/`ni`) and TIP 461 (`lt`/`le`/`gt`/`ge`).
 #[test]
 fn w003_fires_on_irules_word_operators_outside_irules() {
     for (src, op) in [
@@ -13512,9 +13502,8 @@ fn w003_fires_on_irules_word_operator_in_unbraced_multiword_expr() {
 }
 
 // Option-gating semantics (dialect-profile-model.md §5.2):
-// intersects membership + version ceiling, replacing the old `contains`
-// rule that silently dropped inherited vendor options and never gated a
-// version-ceiling leak.
+// intersects membership + version ceiling.  A plain `contains` rule silently
+// drops inherited vendor options and never gates a version-ceiling leak.
 
 #[test]
 fn w004_version_gated_options_follow_the_profile_ceiling() {
@@ -13528,16 +13517,16 @@ fn w004_version_gated_options_follow_the_profile_ceiling() {
         has_code("switch -nocase a {a {} default {}}", "f5-irules", "W004"),
         "switch -nocase must draw W004 under f5-irules (8.4 base)"
     );
-    // FP-fix: it is clean at/above 8.5 — the composed vendor profiles
-    // included (the old contains rule could never satisfy a composed mask).
+    // FP guard: it is clean at/above 8.5 — the composed vendor profiles
+    // included (a plain contains rule could never satisfy a composed mask).
     for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "expect"] {
         assert!(
             !has_code("switch -nocase a {a {} default {}}", dialect, "W004"),
             "{dialect}: switch -nocase is real 8.5+ core"
         );
     }
-    // F5 reclassification (measurements §4/§4a): f5-iapps left this list —
-    // its host is the 8.4.6 fork, so the 8.5+ option now correctly flags
+    // F5 reclassification (measurements §4/§4a): f5-iapps is not in this list
+    // — its host is the 8.4.6 fork, so the 8.5+ option correctly flags
     // there, exactly as it does under f5-irules.
     assert!(
         has_code("switch -nocase a {a {} default {}}", "f5-iapps", "W004"),
@@ -13597,7 +13586,7 @@ fn w123_codes(src: &str) -> Vec<String> {
 
 #[test]
 fn w123_tp_rename_of_a_nonexistent_command_is_flagged() {
-    // TP — issue #923 idx 5. `rename OLD NEW` requires `OLD` to exist:
+    // TP. `rename OLD NEW` requires `OLD` to exist:
     // tclsh 9.0.4 and 8.6.16 both abort with `can't rename
     // "definitelyNotDefinedAnywhere": command doesn't exist` (exit 1). `OLD`
     // is recorded as an ordinary command reference, so W123 reports the
@@ -13638,7 +13627,7 @@ fn w123_fp_issue_973_proc_call_before_rename_resolves() {
 
 #[test]
 fn w123_tp_issue_973_proc_deleted_via_rename_no_reestablishment() {
-    // The exact shape from issue #973's repro.
+    // The repro shape.
     let src = "\
 namespace eval ::a {
     proc helper {} { return 1 }
@@ -13868,17 +13857,16 @@ fn w123_fp_issue_1006_rename_target_deletion_inside_never_triggered_body_resolve
     assert_eq!(w123_codes(src), Vec::<String>::new());
 }
 
-// `fact_live_for_call`'s body-call escape hatch, Codex PR #1014 review
-// comment #2 (`unresolved.rs:260`): a call *inside* a proc/class body
-// carries no execution-order meaning from its own textual position — it
-// was wrongly treated as automatically after every top-level deletion, so
-// a body call whose enclosing definition demonstrably ran before a later
-// deletion still drew a spurious W123. Confirmed against tclsh 8.6.14
+// `fact_live_for_call`'s body-call escape hatch: a call *inside* a
+// proc/class body carries no execution-order meaning from its own textual
+// position.  Treating it as automatically after every top-level deletion
+// draws a spurious W123 on a body call whose enclosing definition
+// demonstrably ran before that deletion. Confirmed against tclsh 8.6.14
 // throughout.
 
 #[test]
 fn w123_fp_issue_1009_codex_review_body_call_before_later_deletion_resolves() {
-    // FP guard (the confirmed regression): `caller`'s own top-level
+    // FP guard: `caller`'s own top-level
     // invocation runs before `rename helper {}`, so the `helper` call
     // inside its body must still resolve — confirmed against tclsh 8.6.14
     // (the script prints "ok" and exits 0).
@@ -13961,17 +13949,17 @@ fn w123_tp_issue_1015_mutual_recursion_cycle_never_entered_still_flags() {
 
 #[test]
 fn w123_tp_a_dead_body_edge_does_not_lower_a_later_top_level_offset() {
-    // TP guard (Codex review of PR #1045, adversarial soundness review):
+    // TP guard (adversarial soundness case):
     // `a` runs before the rename, but its only call to `b` sits inside `if
     // {0} { … }` and never executes. `b`'s real first invocation is the
     // top-level one *after* the rename, so `b`'s `helper` call fails.
     //
-    // The unrestricted fixpoint let the dead `a` -> `b` edge lower `b`'s
-    // offset to `a`'s, which read as "reached before the deletion" and
-    // withdrew the warning. A body edge may no longer undercut a callee's
-    // own top-level offset.
+    // An unrestricted fixpoint lets the dead `a` -> `b` edge lower `b`'s
+    // offset to `a`'s, which reads as "reached before the deletion" and
+    // withdraws the warning. A body edge may not undercut a callee's own
+    // top-level offset.
     //
-    // Oracle (tclsh8.6, `review-probes-sound/r1.tcl`): exits 1 with
+    // Oracle (tclsh8.6): exits 1 with
     // `invalid command name "helper"` from `b`, invoked at line 6.
     let src = "proc helper {} { return hi }\nproc b {} { helper }\nproc a {} { if {0} { b } }\na\nrename helper {}\nb\n";
     assert_eq!(w123_codes(src), vec!["W123".to_string()]);
@@ -13981,10 +13969,10 @@ fn w123_tp_a_dead_body_edge_does_not_lower_a_later_top_level_offset() {
 fn w123_tp_an_empty_enclosing_body_leaves_the_later_top_level_offset() {
     // The paired FP guard for the test above: same shape with `a`'s body
     // empty, so there is no `a` -> `b` edge to drop in the first place.
-    // Both must warn, or the fix would be indistinguishable from "the edge
-    // never mattered".
+    // Both must warn, or the edge restriction would be indistinguishable from
+    // "the edge never mattered".
     //
-    // Oracle (tclsh8.6, `review-probes-sound/r2.tcl`): exits 1, same error.
+    // Oracle (tclsh8.6): exits 1, same error.
     let src = "proc helper {} { return hi }\nproc b {} { helper }\nproc a {} { }\na\nrename helper {}\nb\n";
     assert_eq!(w123_codes(src), vec!["W123".to_string()]);
 }
@@ -13993,9 +13981,8 @@ fn w123_tp_an_empty_enclosing_body_leaves_the_later_top_level_offset() {
 fn w123_fp_a_live_body_edge_still_reaches_a_callee_with_no_top_level_call() {
     // FP guard for the restriction: `b` has no top-level call site of its
     // own, so the `a` -> `b` edge is the only evidence there is and must
-    // still resolve. This is issue #1015's shape, and the restriction is
-    // written to leave it alone — without it, every #1015 chain would
-    // regress to a false positive.
+    // still resolve.  The restriction above is written to leave this chained
+    // shape alone — otherwise every such chain becomes a false positive.
     let src = "proc helper {} { return hi }\nproc b {} { helper }\nproc a {} { b }\na\nrename helper {}\n";
     assert_eq!(w123_codes(src), Vec::<String>::new());
 }
@@ -14010,11 +13997,10 @@ fn w123_fp_issue_1015_mutual_recursion_cycle_entered_at_top_level_resolves() {
     assert_eq!(w123_codes(src), Vec::<String>::new());
 }
 
-/// FP — issue #1070. A lambda's own parameters are bound by `apply`, so
-/// reading one in the body is never a read-before-set.  The bare-statement
-/// spelling used to draw `W210` on every parameter because the enclosing
-/// frame's SSA read-scan walked the whole lambda literal as if the body ran
-/// in the caller's frame.
+/// FP. A lambda's own parameters are bound by `apply`, so reading one in the
+/// body is never a read-before-set.  A read-scan that walked the whole lambda
+/// literal as if the body ran in the enclosing frame would draw `W210` on
+/// every parameter.
 ///
 /// Parameter binding is `proc` semantics — defaults and `args` included.
 /// tclsh 9.0.4 / 8.6.14, identical:
@@ -14110,9 +14096,9 @@ fn dynamic_apply_lambda_word_is_still_a_caller_frame_read() {
 /// and return the `(code, text-under-span)` pairs for the dispatch codes,
 /// asserting the two paths agree.
 ///
-/// The agreement check is the point: issue #1330's user-visible symptom only
-/// appeared on the per-item path, which is the one the LSP serves from, so a
-/// whole-file-only assertion would have missed it entirely.
+/// The agreement check is the point: a dispatch symptom can appear only on
+/// the per-item path, which is the one the LSP serves from, so a
+/// whole-file-only assertion would miss it entirely.
 fn dispatch_diags_both_paths(src: &str) -> Vec<(String, String, Span)> {
     let collect = |r: &crate::analyser::types::AnalysisResult| -> Vec<(String, String, Span)> {
         r.diagnostics

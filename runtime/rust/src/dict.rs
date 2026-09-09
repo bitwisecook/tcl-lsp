@@ -584,7 +584,7 @@ mod tests {
         });
     }
 
-    /// Issue #1608 — this runtime's native dict rep is the one binding of the
+    /// This runtime's native dict rep is the one binding of the
     /// canonicalisation rule that is *not* a call to the shared owner
     /// [`tcl_syntax::value::canonical_dict_slots`]: it keeps a live key index
     /// across mutation, so it canonicalises incrementally (one

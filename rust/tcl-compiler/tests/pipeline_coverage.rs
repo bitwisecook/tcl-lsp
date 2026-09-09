@@ -31,7 +31,7 @@
 //!     the `expr_has_command` node kinds (ternary / unary / call), and the
 //!     `collect_defs_from_script` `While` / `For` / `Try` / `Switch` recursion
 //!     arms. The `pub(crate)` `condition_command_out_vars` →
-//!     `cmd_substitution_out_vars` → `catch_body_out_vars` chain is reached
+//!     `cmd_substitution_out_vars` → `script_text_out_vars` chain is reached
 //!     end-to-end through the analyser's W210 read-before-set *suppression* for a
 //!     variable an `if`/`while` *condition* command-substitution writes.
 //!   * `src/compilation_unit.rs` — the `CompilationUnit::build_for` pipeline.
@@ -371,7 +371,7 @@ mod defs_from_expr_out_vars {
     #[test]
     fn catch_body_nested_gets_writer() {
         // The catch body holds a nested command writer (`gets`); its out-var is
-        // recovered through `catch_body_out_vars`. tclsh: `catch {gets $ch ln2}`
+        // recovered through `script_text_out_vars`. tclsh: `catch {gets $ch ln2}`
         // sets `ln2`.
         assert_eq!(defs("[catch {gets $ch ln2}]"), vec!["ln2".to_string()]);
     }

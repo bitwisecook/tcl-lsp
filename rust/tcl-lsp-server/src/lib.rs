@@ -2469,8 +2469,8 @@ fn refresh_if_coalesced(
 /// which cancels and re-issues the editor's in-flight token request forever.
 /// Recording the stream already asked about means a *repeat* ask for the same
 /// bytes is dropped: the client has been told, and telling it again cannot
-/// change the answer.  Any real change — an edit, a cross-file class landing — produces
-/// different enriched bytes and re-arms the ask.
+/// change the answer.  Any real change — an edit, a cross-file class landing
+/// — produces different enriched bytes and re-arms the ask.
 ///
 /// Entries are dropped with the token cache on close / rename, so this is
 /// bounded by the open-document set.

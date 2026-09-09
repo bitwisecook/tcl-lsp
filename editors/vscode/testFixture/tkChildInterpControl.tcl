@@ -1,5 +1,5 @@
 # tcl-dialect: tcl8.6
-# TRUE-POSITIVE controls for tkChildInterp.tcl (issue #923 audit idx 91):
+# TRUE-POSITIVE controls for tkChildInterp.tcl:
 # the per-interpreter keying narrows the Tk checks, it does not disable
 # them.
 #

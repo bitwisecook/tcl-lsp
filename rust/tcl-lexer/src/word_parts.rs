@@ -1115,8 +1115,8 @@ mod tests {
         assert_eq!(parts(b"[a\\]b]", nine()), vec![WordPart::Command(b"a\\]b")]);
     }
 
-    /// A literal run decodes under the emulated release's escape grammar
-    /// (issue #1479): TIP 388 capped `\x` at two hex digits from 8.6 and added
+    /// A literal run decodes under the emulated release's escape grammar:
+    /// TIP 388 capped `\x` at two hex digits from 8.6 and added
     /// `\U`, so `\x4142` is `B` under 8.5 and `A42` from 8.6.
     #[test]
     fn literal_runs_decode_under_the_releases_escape_grammar() {
@@ -1166,8 +1166,8 @@ mod tests {
             decompose(b"x${y}", SubstFlags::compiled_word(), nine()),
             WordBody::Parts(vec![text(b"x"), scalar(b"y")])
         );
-        // …and the escapes of that literal run are still decoded, which is
-        // the whole of issue #1646: `string length "x\$y"` is 3, not 4.
+        // …and the escapes of that literal run are still decoded:
+        // `string length "x\$y"` is 3, not 4.
         assert_eq!(
             decompose(b"x\\$y", SubstFlags::compiled_word(), nine()),
             WordBody::Parts(vec![text(b"x$y")])
@@ -1233,7 +1233,7 @@ mod tests {
         assert_eq!(scan_var_ref(b"a$", 1, cfg), Ok(None));
     }
 
-    /// Regression coverage for issue #996: the index parse recurses once per
+    /// The index parse recurses once per
     /// `$name(index)` level, reachable from ordinary `subst` with no special
     /// syntax. The same construct overflowed a 256 KiB native stack between
     /// depth 100-150. Past `MAX_INDEX_DEPTH` the index is kept as literal

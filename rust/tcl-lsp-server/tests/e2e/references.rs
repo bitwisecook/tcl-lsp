@@ -174,12 +174,12 @@ fn find_proc_call_in_nested_braced_body() {
     assert!(start_lines(&lsp.references(&uri, 0, 6, true)).contains(&2));
 }
 
-/// idx=61 (differential-audit main wave, critical severity): `if {$cond}
+/// `if {$cond}
 /// mymod::foo` — an unbraced (bareword) if-body — is a legitimate,
 /// statically-known zero-arg call, exactly like a braced `{ mymod::foo }`
-/// body. `dispatch_body_arguments` previously only ever recursed a *braced*
-/// body into `command_invocations`, so this call site was invisible to
-/// `references` while `definition`/`hover` still resolved it fine (they
+/// body. `dispatch_body_arguments` must recurse an unbraced body into
+/// `command_invocations` too, or this call site is invisible to
+/// `references` while `definition`/`hover` still resolve it fine (they
 /// walk independently off the cursor token).
 #[test]
 fn find_unbraced_if_body_bareword_call_site() {
@@ -194,10 +194,10 @@ fn find_unbraced_if_body_bareword_call_site() {
     );
 }
 
-/// Same root cause, the finding's other confirmed shape: `uplevel 1
+/// The same hazard: `uplevel 1
 /// mymod::qux` (unbraced). `handle_uplevel_command` only special-cases a
 /// braced body and otherwise falls through to the same generic
-/// `ArgRole::Body` dispatch this fix covers.
+/// `ArgRole::Body` dispatch.
 #[test]
 fn find_unbraced_uplevel_body_bareword_call_site() {
     let mut lsp = Lsp::tcl();
@@ -227,11 +227,11 @@ fn qualified_calls_do_not_cross_namespace() {
     assert!(!lines.contains(&9), "{lines:?}");
 }
 
-// -- Issue #923: fully-qualified / relative names in namespaces nested
-// two or more levels deep. Regression coverage over the full JSON-RPC
-// protocol (not just the tcl-lsp-core unit-test harness) for a bug where a
-// bareword call from inside a namespace nested 2+ levels deep was resolved
-// as if it were at the top level and never matched its own proc.
+// Fully-qualified / relative names in namespaces nested
+// two or more levels deep, over the full JSON-RPC protocol (not just the
+// tcl-lsp-core unit-test harness): a bareword call from inside a namespace
+// nested 2+ levels deep must resolve to its own proc, not one at the top
+// level.
 
 #[test]
 fn find_qualified_proc_call_in_two_level_nested_namespace() {
@@ -410,21 +410,22 @@ fn references_object_variable_unify_across_methods() {
     );
 }
 
-/// idx 32 (differential-audit main audit wave, high severity): a `TclOO`
+/// A `TclOO`
 /// class body with TWO separate `variable` statements (the real corpus
 /// shape — `georgtree_tclopt`'s `::tclopt::Mpfit` declares `variable funct
-/// m ftol ...` then, separately, `variable Pars`). The analyser's
-/// per-statement handler assigned `class_def.variables = sub_args.to_vec()`
-/// instead of accumulating, so the second statement silently discarded
-/// every name the first one declared — only the names in the LAST
-/// `variable` statement stayed resolvable, even though tclsh9.0 proves
-/// both statements' names are simultaneously live instance variables.
+/// m ftol ...` then, separately, `variable Pars`) needs its per-statement
+/// handler to accumulate names across statements rather than assign
+/// `class_def.variables = sub_args.to_vec()` per statement — that would
+/// let the second statement silently discard every name the first one
+/// declared, leaving only the names in the LAST `variable` statement
+/// resolvable, even though tclsh 9.0 proves both statements' names are
+/// simultaneously live instance variables.
 #[test]
 fn references_reach_instance_variable_declared_in_a_non_last_variable_statement() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    // line 1: variable funct (the FIRST, previously-discarded statement);
-    // line 2: variable Pars (the LAST, previously-surviving statement);
+    // line 1: variable funct (from the first `variable` statement);
+    // line 2: variable Pars (from the second `variable` statement);
     // line 3: `$funct`/`$Pars` both used in `run`.
     let src = "oo::class create Mpfit {\n    variable funct\n    variable Pars\n    method run {} { return [list $Pars $funct] }\n}\n";
     lsp.open_ready(&uri, src);
@@ -497,15 +498,15 @@ fn references_do_not_cross_between_unrelated_proc_and_mathfunc_override() {
     );
 }
 
-/// idx 68 (differential-audit main audit wave, high severity, pix corpus):
-/// reduces the real `isEqual`/`tolComp` shape from nico-robert/pix's
+/// Reduces the real `isEqual`/`tolComp` shape from nico-robert/pix's
 /// `test/data_b64.test` — a proc aliases a top-level cell via `global`, and a
 /// caller overrides it via a plain `set ::name` before invoking the proc.
 /// tclsh proves `tolComp` (via `global`) and `::tolComp` (the caller's
-/// `set`) are the identical storage cell; previously, Find-References from
-/// either side reached only its own half, so Rename (which shares the same
-/// helper) would silently decouple the two, leaving the caller's override
-/// unreachable and `isEqual` falling back to its hardcoded default.
+/// `set`) are the identical storage cell, so Find-References from
+/// either side must reach both halves — otherwise Rename (which shares the
+/// same helper) would silently decouple the two, leaving the caller's
+/// override unreachable and `isEqual` falling back to its hardcoded
+/// default.
 #[test]
 fn references_unify_a_procs_global_alias_with_the_callers_canonical_set() {
     let mut lsp = Lsp::tcl();

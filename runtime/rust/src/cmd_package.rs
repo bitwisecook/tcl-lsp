@@ -102,7 +102,7 @@ pub fn install(interp: &mut Interp) {
 /// so `n` resolves to `names` while `v` and `pr` are ambiguous, and the empty
 /// word — a prefix of every entry — is `ambiguous option ""`.
 ///
-/// As with `interp` (#1412 item 3), the table names only what this runtime
+/// As with `interp`, the table names only what this runtime
 /// dispatches: C also carries `files` (9.0), `forget`, and `prefer`, which
 /// need a package loader and a preference latch this runtime has none of.
 /// tclsh 9.0.4, for contrast:
@@ -505,10 +505,11 @@ mod tests {
         i.result_bytes()
     }
 
-    /// Issue #1607: `package`'s subcommand word is a `Tcl_GetIndexFromObj(…,
-    /// "option", 0)` table (`pkgOptions[]`, `tclPkg.c`), not an ensemble —
-    /// this said `unknown or ambiguous subcommand "x"`, which is the ensemble
-    /// wording, and matched exactly so nothing abbreviated. The list still
+    /// `package`'s subcommand word is a `Tcl_GetIndexFromObj(…,
+    /// "option", 0)` table (`pkgOptions[]`, `tclPkg.c`), not an ensemble, so
+    /// the miss sentence is `bad option`/`ambiguous option`, never an
+    /// ensemble's `unknown or ambiguous subcommand` wording, and words
+    /// abbreviate by unique prefix. The list still
     /// names only what this runtime dispatches (`files`, `forget`, and
     /// `prefer` need a loader and a preference latch it has none of).
     ///
