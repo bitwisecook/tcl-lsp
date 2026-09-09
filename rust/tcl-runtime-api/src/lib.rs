@@ -38,8 +38,11 @@
 // these role traits without pulling in `tcl-bytecode`. Re-exported here so
 // existing `tcl_runtime_api::{Code, Completion, NsId, …}` consumers are unaffected.
 pub use tcl_core_types::{
-    Code, CommandId, Completion, FrameId, GLOBAL_FRAME, NsId, ROOT_NS, VarId,
+    Code, CommandId, CommandSlot, Completion, FrameId, GLOBAL_FRAME, NsId, OoId, ROOT_NS, VarId,
 };
+
+/// Shared structured identities and one-way static display projections.
+pub mod command_identity;
 
 /// Standard Tcl return-option construction policy.
 pub mod completion_options;

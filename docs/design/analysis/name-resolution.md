@@ -98,9 +98,17 @@ relative dispatch**, which is precisely what W314's wording says.
 
 ### The constructed-key discipline
 
-Internal identities are flat strings — `"::" + simple`, or
-`"{ns_key}::{simple}"` (analyser and LSP keys are **rooted**, the VM's
-command table is **unrooted**). Two rules keep them sound:
+Written names and display names remain strings, but a runtime command-table
+identity is `tcl_core_types::CommandSlot<S>`: a stable `NsId` plus a simple
+name. This is necessary because `a:` / `p` and `a` / `:p` are distinct live
+slots that both render as `::a:::p`. The native VM and the structural WASM
+runtime resolve written names at ingress, retain the structured slot through
+rename/import/trace/deletion, and render an FQN only at Tcl-facing boundaries.
+
+Static analyser and LSP compatibility keys are **rooted** flat strings derived
+from an authoritative `StaticCommandSlot`; VM legacy indexes that cannot yet
+store the slot use private injective storage keys selected by their
+`CommandSlot`. Two rules govern construction and rendering:
 
 1. **Canonicalise written words once, at intake.**
    `naming::canonical_written_command` for commands and variables
@@ -108,22 +116,16 @@ command table is **unrooted**). Two rules keep them sound:
    `normalise_qualified_name` / `qualifier_segments` for namespace names
    (where a trailing run drops). Applied to the call word, to `namespace
    path` entries, and to definition names (`qualify`, `Vm::qualify_name`).
-2. **Never re-parse a constructed key.** A key may legitimately contain a
-   lone-colon segment (`":::"` is the proc named `:`), so joins concatenate
-   with exactly one `::`, and splits use the construction-inverse helpers
-   `naming::key_tail`, `key_holder_and_tail`, `key_segments`, and the VM's
-   `key_holder_and_tail_unrooted`. An `rsplit("::")`, a colon trim, or a
-   re-`normalise` of a joined key collapses `proc :` into the `{}` key and
-   produces an empty `documentSymbol` name.
-
-For **all-colon keys** the flat encoding is ambiguous, and the helpers
-resolve it by the construction grammar: a rooted key is `"::"` (2 chars)
-plus 3 per `:`-named level plus 1 or 0 for a `:` or empty simple name, so
-length ≡ 0 (mod 3) ⇒ simple `:`, ≡ 2 ⇒ simple `""`. Unrooted keys shift by
-the missing root. Mixed-content keys are unambiguous up to a documented
-preference for the non-empty simple name (`"::a:::"` reads as `:` in `::a`).
-Applying `rsplit("::")` to a *written word* is correct; only constructed
-keys are off limits.
+2. **Never use a rendered FQN as table identity.** A display may legitimately
+   contain a lone-colon segment (`":::"` is the proc named `:`), so joins
+   concatenate with exactly one `::` for presentation. Runtime consumers carry
+   `CommandSlot`; static consumers carry `StaticCommandSlot`. Construction-
+   inverse helpers such as `naming::key_tail`, `key_holder_and_tail`, and
+   `key_segments` apply only where the input is known source spelling or an
+   injective compatibility encoding. An `rsplit("::")`, a colon trim, or a
+   re-`normalise` of a display is how `proc :` used to collapse into the `{}`
+   name. Display FQNs are output-only and are never parsed back into semantic
+   identity.
 
 ### The 9.0 `namespace code` intrep round-trip
 

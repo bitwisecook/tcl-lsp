@@ -30,7 +30,7 @@ use tcl_runtime_api::completion_options::ControlOptionPolicy;
 use tcl_runtime_api::{Code, Completion};
 
 use crate::command::{command_lookup_error, err_with_code, lookup_error, settle_control_options};
-use crate::interp::{Vm, canonical_cmd_key, err, ok};
+use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 use tcl_dialect::model::surface_admits;
 
@@ -41,13 +41,8 @@ use tcl_dialect::model::surface_admits;
 /// and `uplevel`/`upvar` from a proc called within reach it (and its namespace
 /// variables). `call_argv` is the invoking command (e.g. `namespace eval ::ns
 /// {…}`) for `info level N`.
-fn eval_in_ns(
-    vm: &mut Vm,
-    written: &str,
-    target: String,
-    body: &str,
-    call_argv: Vec<Value>,
-) -> Completion<Value> {
+fn eval_in_ns(vm: &mut Vm, written: &str, body: &str, call_argv: Vec<Value>) -> Completion<Value> {
+    let target = vm.namespace_display_for_written(written);
     // A token in its *synchronous* delete window is no longer found by
     // `TclGetNamespaceForQualName`, so `NamespaceEvalCmd` tries to create it —
     // and `Tcl_CreateNamespace` still sees the child entry, which
@@ -55,7 +50,7 @@ fn eval_in_ns(
     // and 8.6.16 both raise `already exists` there. A token whose deletion was
     // *deferred* has already lost that entry, so the same script builds a fresh
     // namespace instead.
-    if vm.namespace_is_dying(&target) {
+    if vm.namespace_is_dying_written(written) {
         return err(format!(
             "can't create namespace \"{}\": already exists",
             display_ns(&target)
@@ -68,23 +63,14 @@ fn eval_in_ns(
     // visible: from a retained `::N`, `namespace eval C` runs the retained
     // `::N::C` and leaves both names absent, while `namespace eval ::N::C`
     // builds fresh `::N` and `::N::C` that have none of its commands.
-    let retained_target = (!written.starts_with("::"))
-        .then(|| vm.retained_token_named(&target))
-        .flatten();
+    let retained_target = vm.retained_namespace_token_for_written(written);
     if let Some(id) = retained_target {
         vm.push_ns_eval_frame(&target, call_argv);
         vm.push_ns_token(target, id);
     } else {
-        // `canon_ns` has already resolved the written namespace word into the
-        // VM's constructed key. Re-canonicalising that key as source text
-        // would collapse a literal `:` child (`outer:::`) back into `outer`.
-        if written.starts_with("::") {
-            vm.declare_namespace_key_from_root(&target);
-        } else {
-            vm.declare_namespace_key(&target);
-        }
+        let id = vm.activate_namespace_written(written);
         vm.push_ns_eval_frame(&target, call_argv);
-        vm.push_ns(target);
+        vm.push_ns_token(target, id);
     }
     vm.enter_ns_script();
     let result = vm.eval_source(body);
@@ -115,12 +101,6 @@ fn display_ns(canonical: &str) -> String {
     } else {
         format!("::{canonical}")
     }
-}
-
-/// Canonicalise a possibly-absolute namespace reference (drop leading `::`),
-/// relative names are resolved against the current namespace.
-fn canon_ns(vm: &Vm, name: &str) -> String {
-    vm.qualify_namespace_name(name)
 }
 
 #[allow(clippy::too_many_lines)] // One subcommand-dispatch match; splitting obscures it.
@@ -181,8 +161,11 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // `info commands`; this lifecycle-aware predicate distinguishes the
         // namespace-existence query.
         "exists" => {
-            let canonical = canon_ns(vm, &first(rest));
-            ok(Value::bool(vm.namespace_exists(&canonical)))
+            let written = first(rest);
+            let exists = vm
+                .namespace_token_for_written(&written)
+                .is_some_and(|id| tcl_runtime_api::Namespaces::namespace_is_live(vm, id));
+            ok(Value::bool(exists))
         }
         "parent" => {
             let name = rest.first().map(|v| v.to_str().to_string());
@@ -266,8 +249,7 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // after deleting any that preceded it (matching tclsh).
         "delete" => {
             for n in rest {
-                let canon = canon_ns(vm, &n.to_str());
-                if !vm.delete_namespace(&canon) {
+                if !vm.delete_namespace_written(&n.to_str()) {
                     return err(format!(
                         "unknown namespace \"{}\" in namespace delete command",
                         n.to_str()
@@ -295,14 +277,13 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 // C resolves every entry with `TclGetNamespaceFromObj` *before*
                 // installing the path (`NamespacePathCmd`), so an unresolvable
                 // entry errors and leaves the old path in place.
-                let mut path: Vec<String> = Vec::with_capacity(elems.len());
+                let mut path = Vec::with_capacity(elems.len());
                 for e in elems.iter() {
                     let written = e.to_str().to_string();
-                    let canonical = canon_ns(vm, &written);
-                    if !vm.namespace_exists(&canonical) {
+                    let Some(namespace) = vm.namespace_token_for_written(&written) else {
                         return err(ns_not_found(vm, &written));
-                    }
-                    path.push(canonical);
+                    };
+                    path.push(namespace);
                 }
                 vm.ns_path_set(path);
                 ok(Value::empty())
@@ -378,24 +359,14 @@ fn ns_upvar(
     }
 
     let namespace_word = rest[0].to_str();
-    let namespace = canon_ns(vm, &namespace_word);
-    if !vm.namespace_exists(&namespace) {
+    let Some(namespace) = vm.namespace_token_for_written(&namespace_word) else {
         return err(format!("namespace \"{namespace_word}\" not found"));
-    }
+    };
 
     for pair in rest[1..].as_chunks::<2>().0 {
         let other = pair[0].to_str();
         let local = pair[1].to_str();
-        let target = if other.starts_with("::") || namespace.is_empty() {
-            canonical_cmd_key(&other).into_owned()
-        } else {
-            canonical_cmd_key(&format!("::{namespace}::{other}")).into_owned()
-        };
-
-        // The namespace word has already resolved `target` to an internal key.
-        // Use the key-form owner so namespace identity is not parsed twice and
-        // every `upvar`-family consumer shares alias validation and storage.
-        if let Err(error) = vm.link_upvar_key(0, &target, &local) {
+        if let Err(error) = vm.link_namespace_upvar(namespace, &other, &local) {
             return crate::command::upvar_link_error(error, &other, &local);
         }
     }
@@ -624,6 +595,7 @@ fn ns_ensemble_create(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"namespace ensemble create ?option value ...?\"");
     }
     let ns = vm.current_ns().to_string();
+    let ns_id = tcl_runtime_api::Namespaces::current(vm);
     let mut command: Option<String> = None;
     let mut opts = EnsembleOptions {
         map: Vec::new(),
@@ -654,7 +626,7 @@ fn ns_ensemble_create(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         None => ns.clone(),
     };
     let def = EnsembleDef {
-        namespace: ns,
+        namespace: ns_id,
         map: opts.map,
         subcommands: opts.subcommands,
         prefixes: opts.prefixes,
@@ -715,13 +687,13 @@ fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         let mut pairs: Vec<Value> = Vec::new();
         for option in ConfigOption::all() {
             pairs.push(Value::string(option.name()));
-            pairs.push(ensemble_option_value(&def, option));
+            pairs.push(ensemble_option_value(vm, &def, option));
         }
         return ok(Value::list(pairs));
     }
     if let [only] = rest {
         return match ConfigOption::resolve(only.to_str().as_bytes()) {
-            Ok(option) => ok(ensemble_option_value(&def, option)),
+            Ok(option) => ok(ensemble_option_value(vm, &def, option)),
             Err(message) => err(String::from_utf8_lossy(&message).into_owned()),
         };
     }
@@ -747,7 +719,7 @@ fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         }
     }
     token.configure(crate::command::EnsembleDef {
-        namespace: def.namespace.clone(),
+        namespace: def.namespace,
         map: opts.map,
         subcommands: opts.subcommands,
         prefixes: opts.prefixes,
@@ -759,12 +731,15 @@ fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 /// One `namespace ensemble configure` option's value.
 fn ensemble_option_value(
+    vm: &Vm,
     def: &crate::command::EnsembleDef,
     option: tcl_cmd_core::ensemble::ConfigOption,
 ) -> Value {
     use tcl_cmd_core::ensemble::ConfigOption;
     match option {
-        ConfigOption::Namespace => Value::string(display_ns(&def.namespace)),
+        ConfigOption::Namespace => {
+            Value::string(tcl_runtime_api::Namespaces::name(vm, def.namespace))
+        }
         ConfigOption::Prefixes => Value::bool(def.prefixes),
         ConfigOption::Parameters => Value::list(
             def.parameters
@@ -816,11 +791,10 @@ fn ns_inscope(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"namespace inscope namespace arg ?arg ...?\"");
     };
     let written = ns.to_str().to_string();
-    let target = canon_ns(vm, &written);
     let body = inscope_script(vm, script, extra);
     let mut call_argv = vec![Value::string("namespace"), Value::string("inscope")];
     call_argv.extend(rest.iter().cloned());
-    eval_in_ns(vm, &written, target, &body, call_argv)
+    eval_in_ns(vm, &written, &body, call_argv)
 }
 
 /// The script `namespace inscope ns script ?arg ...?` evaluates:
@@ -871,7 +845,6 @@ fn ns_eval(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"namespace eval name arg ?arg ...?\"");
     }
     let written = ns.to_str().to_string();
-    let child = canon_ns(vm, &written);
     // Multiple body args are concatenated with spaces, as a script.
     let body = body_parts
         .iter()
@@ -880,5 +853,5 @@ fn ns_eval(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         .join(" ");
     let mut call_argv = vec![Value::string("namespace"), Value::string("eval")];
     call_argv.extend(rest.iter().cloned());
-    eval_in_ns(vm, &written, child, &body, call_argv)
+    eval_in_ns(vm, &written, &body, call_argv)
 }

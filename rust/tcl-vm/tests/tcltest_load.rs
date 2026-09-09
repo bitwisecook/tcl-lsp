@@ -453,3 +453,26 @@ fn upstream_invalid_error_stack_preserves_shifted_context() {
         "missing parseable upstream result-6.4/6.5 summary: {output:?}"
     );
 }
+
+/// Tcl's own active-frame namespace deletion block exercises immediate and
+/// deferred command/variable teardown, including re-entrant delete traces.
+#[test]
+fn upstream_namespace_active_deletion_definitions_pass_after_real_startup() {
+    let Some((ok, error, output)) = run_upstream_definitions(
+        "namespace.test",
+        "test namespace-7.1 {",
+        "test namespace-7.7 {",
+        "tcltest-namespace-active-delete",
+    ) else {
+        eprintln!("skipping: no Tcl 9.0.4 source tree available");
+        return;
+    };
+    assert!(
+        ok,
+        "focused upstream namespace.test failed: {error}\n{output}"
+    );
+    assert!(
+        output.contains("Total\t6\tPassed\t6\tSkipped\t0\tFailed\t0"),
+        "missing parseable upstream namespace-7.1..7.6 summary: {output:?}"
+    );
+}

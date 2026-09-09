@@ -217,6 +217,22 @@ names in the namespace where `oo::define` was invoked (`cmd_oo.rs::
 resolve_class`, mirroring C's `GetClassInOuterContext` — the one-hop
 call-site rule), not the `::oo::define` evaluation namespace.
 
+### Runtime object identity
+
+`tcl_core_types::OoId` is the shared, authoritative interpreter-local identity
+of an object or class. The native runtime carries class, superclass,
+mixin, method-provider, and active-call relationships with this token. The
+standalone migration is tracked by #1764 and must consume the same owner when
+it lands. A command-table slot and fully-qualified name are mutable
+projections: rename, hide, expose, and deferred namespace deletion must never
+recover OO identity by comparing or reparsing their display strings.
+
+Native command mutation keeps the exact `OoId` attached to the command
+generation through ordinary rename, replacement, and deletion. Callback-
+bearing lifecycle phases re-resolve that command generation before unlinking,
+so a moved old object is still destroyed while a newer replacement at the same
+spelling survives.
+
 ## Test conformance
 
 The behavioural suites live in `rust/tcl-vm/tests/cmd_oo_e2e.rs` (tclsh-pinned
