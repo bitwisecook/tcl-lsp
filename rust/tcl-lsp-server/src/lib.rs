@@ -44588,12 +44588,11 @@ proc p {} {
             .expect("the later reader must not panic");
     }
 
-    /// #1849: a live index publisher waiting for an existing index reader must
-    /// leave the document map available to that reader. The former
-    /// alternating-contention fallback retained exclusive document admission
-    /// while awaiting the index writer; an earlier reader that next needed the
-    /// document map then formed a permanent cycle and left `didOpen` at Salsa
-    /// readiness forever.
+    /// A live index publisher waiting for an existing index reader must leave
+    /// the document map available to that reader. Retaining exclusive document
+    /// admission while awaiting the index writer lets an earlier reader that
+    /// next needs the document map form a permanent cycle, leaving `didOpen`
+    /// at Salsa readiness for ever.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn open_index_publish_does_not_wedge_an_index_reader_needing_documents_1849() {
         let backend = Arc::new(test_backend());
@@ -46882,7 +46881,7 @@ proc p {} {
         .expect("the closed source read must begin");
 
         // The first read has not copied its bytes yet. Replace both source and
-        // index through the slot-reuse ABA sequence from review: remove this
+        // index through the slot-reuse ABA sequence: remove this
         // URI, give its slot to another URI, then re-add it in a fresh slot.
         // Let the read return the new bytes to the request that still owns the
         // old hit. Revision revalidation must retry that snapshot.
@@ -47271,7 +47270,7 @@ proc p {} {
         );
     }
 
-    /// Fresh review of #1854: a cold `didOpen` index seed must not own either
+    /// A cold `didOpen` index seed must not own either
     /// the live-publication gate or a Salsa snapshot. Otherwise a newer edit
     /// cannot publish until obsolete whole-file analysis finishes. Hold the
     /// exact seed future pending, deliver a real `didChange`, and prove the
@@ -47384,8 +47383,8 @@ proc p {} {
         );
     }
 
-    /// A diagnostics run publishes a standalone analysis before the next M9
-    /// reconciliation. It must not do that while a navigation request is
+    /// A diagnostics run publishes a standalone analysis before the next
+    /// source-site reconciliation. It must not do that while a navigation request is
     /// consuming the freshly re-homed index snapshot: otherwise the query can
     /// map the declaration through `::x` and then gather calls from the
     /// standalone `::helper` view, yielding an empty reference set.
@@ -47492,7 +47491,7 @@ proc p {} {
         );
     }
 
-    /// M9 stage 9.2: a statically-foldable computed source path
+    /// A statically-foldable computed source path
     /// (`[file join [file dirname [info script]] b.tcl]`) resolves like a
     /// literal; an unfoldable one abstains.
     #[tokio::test]
@@ -47559,7 +47558,7 @@ proc p {} {
         assert!(backend.autoloaded_library_uris.lock().await.is_empty());
     }
 
-    /// Build the three-file #923 workspace: `::mymod::helper`, an unrelated
+    /// Build the three-file namespace-path workspace: `::mymod::helper`, an unrelated
     /// `::other::helper`, and an `app.tcl` that reaches `::mymod::helper` via
     /// `namespace path`.  Returns the backend and the three URIs.
     async fn register_namespace_path_workspace() -> (Backend, Uri, Uri, Uri) {
@@ -47590,7 +47589,7 @@ proc p {} {
 
     #[tokio::test]
     async fn cross_document_references_resolve_namespace_path_collision() {
-        // The confirmed #923 trigger: references on `::mymod::helper`'s
+        // References on `::mymod::helper`'s
         // declaration must include the bare `helper` call in app.tcl (reached
         // via `namespace path`), even though `::other` defines the same simple
         // name and the call's file-local guess settles to `::app::helper`.
@@ -47710,7 +47709,7 @@ proc p {} {
 
     #[tokio::test]
     async fn code_lens_resolve_wires_show_references_command() {
-        // Regression for #724: the proc reference-count lens must resolve to a
+        // The proc reference-count lens must resolve to a
         // *clickable* `tcl-lsp.showReferences` command carrying the URI,
         // anchor position, and reference locations — not a bare, inert title.
         let backend = test_backend();
@@ -47785,14 +47784,12 @@ proc p {} {
 
     #[tokio::test]
     async fn code_lens_resolve_wires_show_references_command_for_method() {
-        // FN→TP regression for issue #956: the *exact* reported repro — a
-        // TclOO class whose body declares `variable` and `constructor`
-        // before the `method`, with the method body reading the instance
-        // variable and the external dispatch nested in `puts [...]`. The
-        // method lens must resolve to a *clickable* `tcl-lsp.showReferences`
-        // command, not an inert bare title (the `#724` defect recurring for
-        // methods specifically — the count was already correct; only the
-        // command was empty).
+        // FN→TP: a TclOO class whose body declares `variable` and
+        // `constructor` before the `method`, with the method body reading the
+        // instance variable and the external dispatch nested in `puts [...]`.
+        // The method lens must resolve to a *clickable*
+        // `tcl-lsp.showReferences` command, not an inert bare title — the
+        // count can be right while the command is empty.
         let backend = test_backend();
         let uri = Uri::from_str("file:///bar956.tcl").unwrap();
         let src = "oo::class create Bar {\n   variable _options\n    constructor {args} {\n         set _options $args\n    }\n\n    method get {key} {\n        return [dict get $_options $key]\n    }\n\n}\nset b [Bar new]\nputs [$b get foo]\n";
@@ -47835,11 +47832,10 @@ proc p {} {
     async fn code_lens_resolve_disambiguates_method_and_classmethod_of_the_same_name() {
         // `method make` and `classmethod make` on the same class are two
         // distinct, independently-dispatched members (TclOO allows both:
-        // one on the instance, one on the class object) — Codex review on
-        // #971 (P2) caught that `member_ref_count`/`method_references_for_class`
-        // received only the bare name and combined `$obj make` with
-        // `Factory make` for *both* lenses. Each lens must count and
-        // resolve to *only* its own dispatch shape.
+        // one on the instance, one on the class object). Handing
+        // `member_ref_count` / `method_references_for_class` only the bare name
+        // combines `$obj make` with `Factory make` for *both* lenses; each lens
+        // must count and resolve to *only* its own dispatch shape.
         let backend = test_backend();
         let uri = Uri::from_str("file:///dual_make.tcl").unwrap();
         let src = "oo::class create Factory {\n    method make {} { return 1 }\n    classmethod make {} { return [Factory new] }\n}\nset f [Factory new]\n$f make\nFactory make\n";
@@ -47939,7 +47935,7 @@ proc p {} {
 
     #[tokio::test]
     async fn no_code_lens_ever_carries_an_inert_empty_command() {
-        // Broad regression guard for the #724 / #956 defect class: every
+        // Broad guard for the inert-lens defect class: every
         // lens this server can emit for a rich TclOO document — proc,
         // class, method, classmethod, across inheritance — must resolve to
         // a real, non-empty command id.  A future lens kind that forgets to
@@ -48139,7 +48135,7 @@ proc p {} {
     /// A rename triggered from a **consumer** document — the command's
     /// definition lives only in a sibling — resolves through the workspace
     /// oracle and rewrites the sibling declaration plus every call site,
-    /// including the consumer's own (M8's rename leg).
+    /// including the consumer's own.
     #[tokio::test]
     async fn rename_from_a_consumer_document_rewrites_the_defining_sibling() {
         let backend = test_backend();
@@ -48359,7 +48355,7 @@ proc p {} {
         // cursor on `method make`'s declaration must rewrite only the
         // method's own declaration and its `$f make` dispatch — never the
         // unrelated `classmethod make`'s declaration or its `Factory make`
-        // dispatch (Codex review on #971, P2).
+        // dispatch.
         let backend = test_backend();
         let uri = Uri::from_str("file:///dual_make_rename.tcl").unwrap();
         let src = "oo::class create Factory {\n    method make {} { return 1 }\n    classmethod make {} { return [Factory new] }\n}\nset f [Factory new]\n$f make\nFactory make\n";
@@ -48423,8 +48419,7 @@ proc p {} {
     #[tokio::test]
     async fn cross_file_method_references_span_override_family() {
         // References on `Animal::speak` reach the override declaration and the
-        // `$d speak` call site in the sibling dog.tcl — previously TclOO methods
-        // had no cross-file reference support at all.
+        // `$d speak` call site in the sibling dog.tcl.
         let (backend, animal, dog) = register_method_family_workspace().await;
         let refs = backend
             .cross_file_method_references(
@@ -48618,13 +48613,13 @@ proc p {} {
 
     #[tokio::test]
     async fn cross_file_consumer_bare_dispatch_is_namespace_scoped() {
-        // Issue #981, the consumer-document variant. Two classes named
-        // `Factory`, in `::a` and `::b`, each declaring `make`; a consumer
-        // document dispatches `Factory make` inside `namespace eval ::b`.
-        // Real Tcl resolves that bare word to `::b::Factory` (tclsh 8.6.14
-        // and 9.0.4 both answer `b-made`), so it must count for `::b`'s
-        // classmethod and *not* `::a`'s — a name-set match counted it for
-        // both, and rename then rewrote an unrelated class's call site.
+        // The consumer-document variant. Two classes named `Factory`, in
+        // `::a` and `::b`, each declaring `make`; a consumer document
+        // dispatches `Factory make` inside `namespace eval ::b`. Real Tcl
+        // resolves that bare word to `::b::Factory` (tclsh 8.6.14 and 9.0.4
+        // both answer `b-made`), so it must count for `::b`'s classmethod and
+        // *not* `::a`'s — a name-set match counts it for both, and rename then
+        // rewrites an unrelated class's call site.
         let backend = test_backend();
         let a = Uri::from_str("file:///a.tcl").unwrap();
         let b = Uri::from_str("file:///b.tcl").unwrap();
@@ -48937,7 +48932,7 @@ proc p {} {
 
     #[tokio::test]
     async fn cross_file_definition_selects_the_dispatch_entry_945() {
-        // Issue #945 fault 6: with `Animal::speak` overridden by
+        // With `Animal::speak` overridden by
         // `Dog::speak` in another file, a `Dog` receiver's definition
         // request identifies the runtime entry (`Dog::speak`) only —
         // never the whole override family (tclsh 9.0.4: `info object
@@ -48974,7 +48969,7 @@ proc p {} {
 
     #[tokio::test]
     async fn cross_file_definition_refuses_an_unexported_method_945() {
-        // Issue #945 fault 4: `Vault::_secret` is default-unexported
+        // `Vault::_secret` is default-unexported
         // (tclsh 9.0.4: `unknown method "_secret"`), so a consumer file's
         // external `$v _secret` resolves to nothing — cross-file
         // navigation must not resolve what C rejects.
@@ -49148,7 +49143,7 @@ proc p {} {
         );
     }
 
-    /// Issue #829: for an *indexed* document (a real `didOpen`-style session,
+    /// For an *indexed* document (a real `didOpen`-style session,
     /// via `db_set_source`), `semantic_tokens_full` must always serve one of
     /// the two well-defined tiers `semantic_tokens_core_data` can produce —
     /// the enriched result (when the race in `SEMANTIC_TOKENS_FAST_PATH_BUDGET`
@@ -49270,8 +49265,7 @@ proc p {} {
         );
     }
 
-    /// PR #1179 review: the converge → refresh → re-request cycle must
-    /// terminate.
+    /// The converge → refresh → re-request cycle must terminate.
     ///
     /// A request that overruns the fast-path budget serves the coarse tier and
     /// caches *that*, so the continuation's enriched stream differs and asks
@@ -49394,7 +49388,7 @@ proc p {} {
     /// A coalesced fire names every reason that rode along, never just the one
     /// that happened to schedule it.
     ///
-    /// The whole point of the attribution (issue #1951) is that an observer can
+    /// The whole point of the attribution is that an observer can
     /// tell its own refresh from another subsystem's. If a convergence ask
     /// riding along on a pack-reload-owned fire were reported as `pack-reload`
     /// alone, a test counting convergence refreshes would miss a real one — the
@@ -49579,7 +49573,7 @@ proc p {} {
         );
     }
 
-    /// #1147: only the first of several concurrent convergence attempts on one
+    /// Only the first of several concurrent convergence attempts on one
     /// URI may detach a continuation, and the claim is released once it
     /// finishes, so the next request converges normally. Other URIs are
     /// independent.
@@ -49613,7 +49607,7 @@ proc p {} {
         );
     }
 
-    /// PR #1179 review (Codex P2): a claim reports whether anything was
+    /// A claim reports whether anything was
     /// coalesced onto it, and `refresh_if_coalesced` turns that into a refresh
     /// exactly when the claim holder itself decided against one.
     ///
@@ -49702,7 +49696,7 @@ proc p {} {
         drop(later);
     }
 
-    /// #1147: the claim is a guard, not a flag, so a continuation that is
+    /// The claim is a guard, not a flag, so a continuation that is
     /// aborted mid-flight (or panics) still releases its URI — a stuck marker
     /// would silence convergence for that document for the session.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -49845,10 +49839,10 @@ proc p {} {
         );
     }
 
-    /// Issue #1156: `workspace/symbol` is answered from the workspace index,
-    /// so a file the folder scan indexed but the editor never opened is
-    /// searchable.  The previous handler walked the open-document map, which
-    /// made every symbol in an unopened file invisible to Ctrl+T.
+    /// `workspace/symbol` is answered from the workspace index, so a file the
+    /// folder scan indexed but the editor never opened is searchable.  Walking
+    /// the open-document map instead would make every symbol in an unopened
+    /// file invisible to Ctrl+T.
     #[tokio::test]
     async fn workspace_symbol_finds_a_symbol_in_an_unopened_indexed_file() {
         let backend = test_backend();
@@ -49894,7 +49888,7 @@ proc p {} {
         std::fs::remove_dir_all(&root).ok();
     }
 
-    /// Issue #1156: the answer is capped, so an empty or one-character query
+    /// The answer is capped, so an empty or one-character query
     /// against a large workspace cannot turn a per-keystroke request into an
     /// unbounded response.
     #[tokio::test]
@@ -49988,7 +49982,7 @@ proc p {} {
 
     #[tokio::test]
     async fn diagnostics_exclude_name_glob_clears_the_report() {
-        // `tclLsp.diagnostics.exclude` (#1556): a name pattern empties the
+        // `tclLsp.diagnostics.exclude`: a name pattern empties the
         // matching document's report, leaves a non-matching sibling alone,
         // and a re-apply without the key restores the diagnostics (the
         // global list is reset unconditionally on every apply).
@@ -50313,7 +50307,7 @@ proc p {} {
                 .procs()
                 .all(|p| p.uri != old.as_str()),
         );
-        // #1146: and out of the salsa db, so the renamed file's procedures are
+        // …and out of the salsa db, so the renamed file's procedures are
         // not counted twice in cross-file resolution (and the old URI's memo
         // chain is not retained for the process's life).
         assert!(
@@ -50420,11 +50414,11 @@ proc p {} {
         }
     }
 
-    /// Issue #1298: `retire_renamed_uri` is the *sole* cleanup for a
-    /// renamed-away path, and it dropped seven per-URI maps but not the M9
-    /// `rehomed_source_seeds` record — which every other retirement path
-    /// (`did_close`, the watched-file DELETED branch, the folder drop, the
-    /// batch reindex, the workspace scan) does drop.
+    /// `retire_renamed_uri` is the *sole* cleanup for a renamed-away path, so
+    /// it must drop the `rehomed_source_seeds` record along with every other
+    /// per-URI map — which every other retirement path (`did_close`, the
+    /// watched-file DELETED branch, the folder drop, the batch reindex, the
+    /// workspace scan) does.
     ///
     /// The rename arrives on its own here, with **no** `didChangeWatchedFiles`
     /// alongside it: that racing watch event is what masks the leak under VS
@@ -50507,7 +50501,7 @@ proc p {} {
         );
     }
 
-    /// Issue #1298, the consequence in its purest form: when the renamed pair
+    /// The consequence in its purest form: when the renamed pair
     /// takes the workspace's last `source` edge with it,
     /// `refresh_source_rehoming_locked`'s early return
     /// (`!has_source_edges() && seeds.is_empty()`) must be reachable again.
@@ -50555,7 +50549,7 @@ proc p {} {
         assert!(backend.rehomed_source_seeds.lock().await.is_empty());
     }
 
-    /// Issue #1298, FP/TN guard: retiring a path that was never source-rehomed
+    /// FP/TN guard: retiring a path that was never source-rehomed
     /// must disturb nobody — an unrelated document's seed record is still
     /// relevant and must survive the rename.
     #[tokio::test]
@@ -50589,10 +50583,10 @@ proc p {} {
         );
     }
 
-    /// Issue #1298, second half: `retire_renamed_uri` also skipped
+    /// Second half: `retire_renamed_uri` must also clear
     /// `autoloaded_library_uris`, whose entries are otherwise drained only by a
-    /// full package-database rebuild — so a renamed library file kept claiming
-    /// to be merged into the index long after its index entry was gone.
+    /// full package-database rebuild — a renamed library file would keep
+    /// claiming to be merged into the index long after its index entry is gone.
     #[tokio::test]
     async fn did_rename_forgets_the_autoloaded_library_record_1298() {
         let backend = test_backend();
@@ -50635,7 +50629,7 @@ proc p {} {
         );
     }
 
-    /// Issue #1298 / #1300 together: both retirement paths clear the *same*
+    /// Both retirement paths clear the *same*
     /// group of per-URI caches, because both go through
     /// [`Backend::forget_uri_states`].  Asserting the whole group on the rename
     /// path is what stops the two drifting apart again.

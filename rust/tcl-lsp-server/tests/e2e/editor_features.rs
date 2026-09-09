@@ -157,11 +157,10 @@ fn test_unresolved_call_scoped_to_namespace() {
 }
 
 /// Resolve the method / member lens anchored on `line` (0-based) and return
-/// the resolved `command`.  Since issue #956, member lenses resolve lazily
+/// the resolved `command`.  Member lenses resolve lazily
 /// the same way proc/class lenses do (range + `data`, no `command` until
-/// `codeLens/resolve` — see `tcl-lsp-server`'s `code_lens` handler and the
-/// `#724` "reference is not active" defect it fixed for proc/class lenses),
-/// so a raw, unresolved listing has no `command` for a caller to read
+/// `codeLens/resolve` — see `tcl-lsp-server`'s `code_lens` handler), so a
+/// raw, unresolved listing has no `command` for a caller to read
 /// directly; this always resolves first.
 fn resolve_member_lens_on_line(lsp: &mut Lsp, ls: &[Value], line: i64) -> Value {
     let lens = ls
@@ -174,9 +173,9 @@ fn resolve_member_lens_on_line(lsp: &mut Lsp, ls: &[Value], line: i64) -> Value 
 
 #[test]
 fn test_method_lens_counts_external_obj_dispatch_issue_864() {
-    // Regression for issue #864: the lens above `method get` must count the
+    // The lens above `method get` must count the
     // external `$b get foo` dispatch (`set b [Bar new]`), reading
-    // "1 reference" rather than the "0 references" the old heuristic showed.
+    // "1 reference" rather than "0 references".
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(

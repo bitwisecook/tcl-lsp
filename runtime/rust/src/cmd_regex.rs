@@ -28,11 +28,11 @@
 //! result-variable writes (with the const-variable check and refcount
 //! discipline) and the result protocol.
 //!
-//! The engine was previously the C Henry-Spencer engine linked in by `build.rs`
-//! (and stubbed out on wasm32, where the C FFI cannot link); it is now the
-//! safe-Rust `tcl-regex` crate, which works on every target and is validated
-//! against tclsh 9.0 (`reg.test`). The same engine is re-exported to C via the
-//! C-ABI shim in [`crate::regex_capi`].
+//! The engine is the safe-Rust `tcl-regex` crate, which works on every
+//! target — unlike a linked-in C engine, which would need stubbing out on
+//! wasm32 where the C FFI cannot link — and is validated against tclsh 9.0
+//! (`reg.test`). The same engine is re-exported to C via the C-ABI shim in
+//! [`crate::regex_capi`].
 
 use crate::interp::{drop_fresh, obj_bytes, Code, Interp};
 use crate::obj::{new_string_bytes, new_wide_int_obj, TclObj};

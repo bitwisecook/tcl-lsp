@@ -6255,8 +6255,8 @@ mod class_factories {
 
     #[test]
     fn deeply_nested_untyped_bodies_do_not_blow_the_static_walk_stack() {
-        // The same native-stack safety net for the *untyped* body relaxation
-        // (#1672). `untyped_body_provably_blocks` re-enters the statement walk,
+        // The same native-stack safety net for the *untyped* body relaxation.
+        // `untyped_body_provably_blocks` re-enters the statement walk,
         // which can re-enter it: `eval {eval {eval {…}}}` drives that recursion
         // by nesting alone, so it carries the same `MAX_UNKNOWN_BODY_DEPTH`
         // bound. Past the cap it abstains, the direction it takes for anything
@@ -6284,18 +6284,17 @@ mod class_factories {
 
     #[test]
     fn deeply_nested_collection_loops_do_not_blow_the_static_walk_stack() {
-        // Native-stack safety net (#996's family) for the relaxation above:
-        // the fall-through walk re-enters itself once per control body it
-        // descends into, and before #1571 a loop returned immediately so that
-        // recursion could never be driven by loop nesting. It can now, so the
-        // walk carries the same `MAX_UNKNOWN_BODY_DEPTH` bound every other
-        // recursive walk in the analyser has. Past the cap it abstains — the
+        // Native-stack safety net for the relaxation above: the fall-through
+        // walk re-enters itself once per control body it descends into,
+        // including loop bodies, so it carries the same
+        // `MAX_UNKNOWN_BODY_DEPTH` bound every other recursive walk in the
+        // analyser has. Past the cap it abstains — the
         // direction it already takes for anything it cannot read — so this
         // asserts termination and a well-formed result, not a resolution.
         //
         // 40 is many times this walk's cap (8) and comfortably below the
         // braced-body descent's own limit (`MAX_BODY_DEPTH`, derived from a
-        // stack budget in `depth_guard` — see issue #1654), so a failure
+        // stack budget in `depth_guard`), so a failure
         // here is this walk's recursion and not the generic one's.
         let nest: String = (0..40)
             .map(|i| format!("    foreach v{i} {{a b}} {{\n"))
@@ -6320,7 +6319,7 @@ mod class_factories {
         // Exact tcllib 2.0 corpus oracle. Developer/bootstrap environments
         // fetch this source under tmp; a source-only distribution may omit it.
         //
-        // Corpus-gated (issue #1571): a checkout without the corpus must not
+        // Corpus-gated: a checkout without the corpus must not
         // read as a silent pass — announce the skip on stderr, matching the
         // convention `tcl-lsp-db/tests/compiler_check_corpus.rs` already uses
         // for the same tcllib-2.0 corpus ("skip: {path} not present"), so
@@ -6415,8 +6414,8 @@ mod class_factories {
         // stub whose `metaclass` was never written, so it holds
         // `ClassDef::default()`'s `"oo::class"`. That default is not an
         // observation: joining it against the proved `::T::Mother` must not
-        // read as two walks disagreeing, which used to abstain the record
-        // down to `factory: None` with no superclasses.
+        // read as two walks disagreeing — treating it that way would
+        // abstain the record down to `factory: None` with no superclasses.
         let src =
             format!("{COMPUTED_METACLASS}::oo::define ::T::D::class {{ method m {{}} {{}} }}\n");
         let result = analysis(&src, "tcl9.0");
@@ -6453,7 +6452,7 @@ mod class_factories {
 
     #[test]
     fn a_define_stub_replaces_a_member_the_creation_body_also_declared() {
-        // #1653 — the two records the join unions are ordered whenever one
+        // The two records the join unions are ordered whenever one
         // of them is an `oo::define`: the class has to exist before it can
         // be extended, so the stub ran second and its `method m` replaces.
         // tclsh 8.6.16 on the same shape answers `{a b} …` for
@@ -6484,7 +6483,7 @@ mod class_factories {
 
     #[test]
     fn two_creations_naming_one_class_under_different_metaclasses_abstain() {
-        // FP guard for #1653 at the source level: the gate added there must
+        // FP guard at the source level: the gate added there must
         // stay a statement about *unobserved* metaclasses only. Both of
         // these creations read a head word, and they disagree, so the
         // record must still abstain — no factory, inheritance unknown —
@@ -6523,7 +6522,7 @@ mod class_factories {
 
     #[test]
     fn a_define_stub_that_wins_the_join_still_sheds_its_stub_provenance() {
-        // The mirror of the case above (#1653): the stub declares the
+        // The mirror of the case above: the stub declares the
         // superclass and the creation body does not, so the *stub* is the
         // more complete observation and wins the join. It is still not a
         // cross-file extension record — this file creates the class — and
@@ -7090,7 +7089,7 @@ mod class_factories {
 
     #[test]
     fn a_renamed_namespace_normaliser_abstains() {
-        // TN/rename guard (#1306) — registry-derived command-table trust, not
+        // TN/rename guard — registry-derived command-table trust, not
         // textual resemblance, controls the helper call. Once its binding is
         // moved, the evaluator must not run the old body under the new name.
         let src = COMPUTED_METACLASS.replace(
@@ -7124,7 +7123,7 @@ mod class_factories {
 
     #[test]
     fn an_aliased_namespace_normaliser_abstains() {
-        // TN/alias guard (#1306) — an alias can replace the helper's result
+        // TN/alias guard — an alias can replace the helper's result
         // relation, so registry/user-proc provenance must decline it.
         let src = COMPUTED_METACLASS
             .replace(
@@ -7164,7 +7163,7 @@ mod class_factories {
 
     #[test]
     fn an_unknown_namespace_normaliser_abstains() {
-        // TN/unknown guard (#1306) — dependency on the literal argument alone
+        // TN/unknown guard — dependency on the literal argument alone
         // is not an identity proof; an unresolved helper may return anything.
         let src = concat!(
             "namespace eval ::T {}\n",

@@ -182,8 +182,6 @@ impl Place {
     }
 }
 
-// Constructors
-
 /// A scalar place.
 #[must_use]
 pub fn scalar(name: impl Into<String>, ns: impl Into<String>, observed: bool) -> Place {
@@ -277,8 +275,6 @@ pub fn unknown_top() -> Place {
         ..Place::bare(PlaceKind::Unknown)
     }
 }
-
-// Relations
 
 /// Could indices/keys *a* and *b* denote the same slot?  Over-approximates:
 /// `ANY` or `DYNAMIC` overlaps anything; two literals overlap iff equal text.
@@ -418,8 +414,6 @@ mod tests {
         scalar(name, LOCAL_NS, false)
     }
 
-    // core scalar / array overlap
-
     #[test]
     fn scalar_overlap_basics() {
         assert!(overlap(&local_scalar("x"), &local_scalar("x")));
@@ -475,14 +469,13 @@ mod tests {
         assert!(!overlap(&s, &ak));
     }
 
-    // 8E refinement: dynamic *index* ≠ dynamic *alias*
+    // Dynamic *index* versus dynamic *alias*.
 
     #[test]
     fn dynamic_alias_does_not_observe_differently_named_local() {
         // `upvar 1 $x date` makes `date` a dynamic-aliased array; a write to a
         // differently-named local `date2(ERA)` is NOT observed by reads of
-        // `date(...)`.  This is the gregorian.tcl precision case from the
-        // phase8 design doc.
+        // `date(...)`.  This is the `gregorian.tcl` precision case.
         let mut date2 = array_elem("date2", Index::literal("ERA"), LOCAL_NS, false);
         let mut date_dyn = array_elem(
             "date",
@@ -509,8 +502,6 @@ mod tests {
         assert!(overlap(&date_dyn, &unknown_top()));
     }
 
-    // upvar aliases
-
     #[test]
     fn upvar_aliases_compare_by_owner() {
         // Same caller target ⇒ must-alias even with different local names.
@@ -525,8 +516,6 @@ mod tests {
         assert!(overlap(&dyn_alias, &c));
         assert!(overlap(&dyn_alias, &local_scalar("z")));
     }
-
-    // instance vars + dict paths
 
     #[test]
     fn instance_vars_compare_by_owner_and_name() {
@@ -595,8 +584,6 @@ mod tests {
             }
         }
     }
-
-    // helpers
 
     #[test]
     fn base_drops_index_and_keys() {

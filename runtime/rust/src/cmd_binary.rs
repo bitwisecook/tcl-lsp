@@ -282,7 +282,7 @@ fn binary_scan(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         };
         let name = obj_bytes(var);
         // `arr(a)` writes the array *element*, not a literal scalar named
-        // `arr(a)` (issue #1577) — the same `split_array_ref` +
+        // `arr(a)` — the same `split_array_ref` +
         // `var_set`/`var_set_elem` routing `set` uses, so this doesn't
         // hand-roll a second name parser.
         let (base, elem) = crate::frame::split_array_ref(&name);
@@ -328,11 +328,12 @@ mod tests {
         i.result_bytes()
     }
 
-    /// Issue #1607: `binary` is a `TclMakeEnsemble` command, while
+    /// `binary` is a `TclMakeEnsemble` command, while
     /// `binary encode`/`binary decode` are ensembles with **`-prefixes` off**
     /// — nothing abbreviates there and the miss is worded `unknown
-    /// subcommand`, never `unknown or ambiguous`. All three matched exactly
-    /// and spelled their sentences by hand.
+    /// subcommand`, never `unknown or ambiguous`. All three read their scan
+    /// and miss sentence from `tcl_cmd_core::ensemble` rather than matching
+    /// exactly and spelling the sentence by hand.
     ///
     /// tclsh 8.6.16 / 9.0.4:
     ///   binary e hex a       -> 61

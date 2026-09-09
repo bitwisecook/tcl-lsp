@@ -35,11 +35,11 @@ use super::types::AnalysisResult;
 /// [`Analyser::record_instance_creation`] by the post-graft replay.
 pub(super) type PendingInstanceCreation = (String, Vec<String>, String, u32);
 
-/// One `$cmd`-head dispatch site (M7), pending settlement against the
+/// One `$cmd`-head dispatch site, pending settlement against the
 /// compiler's flow-sensitive value model once the CFG/SSA
-/// `CompilationUnit` is built (issue #945 faults 1–2: the value and its
-/// writable provenance come from the SSA use-version's reaching
-/// constant definitions, never from a lexical last-write-wins map).
+/// `CompilationUnit` is built: the value and its writable provenance come
+/// from the SSA use-version's reaching constant definitions, never from a
+/// lexical last-write-wins map.
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct ConstDispatchSite {
     /// The dispatching variable's name (no leading `$`).
@@ -51,14 +51,14 @@ pub(super) struct ConstDispatchSite {
     /// The head word carries `{*}` expansion (`{*}$cmd args…`): the
     /// value is a **command prefix** — its first list element names the
     /// command, and the writable provenance narrows to that element's
-    /// sub-span within the defining literal (issue #945 fault 1's
-    /// list-prefix requirement).  Without expansion the whole value is
+    /// sub-span within the defining literal.  Without expansion the whole
+    /// value is
     /// the command name.
     pub head_expanded: bool,
 }
 
-/// One `$class`-headed `TclOO` instance-creation site (issue #923 idx
-/// 121), pending settlement against the compiler's flow-sensitive value
+/// One `$class`-headed `TclOO` instance-creation site, pending settlement
+/// against the compiler's flow-sensitive value
 /// model once the CFG/SSA `CompilationUnit` is built — the same
 /// settle-late discipline [`ConstDispatchSite`] uses, since `class_var`'s
 /// value can't be proven constant until SSA reaching-definitions exist.
@@ -85,7 +85,7 @@ pub(super) struct PendingInstanceClassSite {
 }
 
 /// One `<ensemble> <subcommand> …` call site the shell pass could not
-/// resolve yet (issue #923 idx 85), held until every deferred proc/method
+/// resolve yet, held until every deferred proc/method
 /// body has been walked.
 ///
 /// The whole-file DFS walks a proc body at its *definition* point, so a
@@ -115,7 +115,7 @@ pub(super) struct PendingEnsembleSubcommand {
     pub argc: Option<usize>,
 }
 
-/// One W315 candidate from an `oo::objdefine` walk (issue #1170), held
+/// One W315 candidate from an `oo::objdefine` walk, held
 /// until the whole document is walked so
 /// [`Analyser::flush_objdefine_abort_diagnostics`] can consult
 /// document-wide facts before deciding it is real.
@@ -132,7 +132,7 @@ pub(super) struct ObjdefineAbortCandidate {
     pub prior_state_conditional: bool,
 }
 
-/// The recorded state of one child interpreter (issue #945 faults 7–8):
+/// The recorded state of one child interpreter:
 /// safe flag plus the explicit hide / expose deltas layered over the
 /// registry's [`tcl_registry::Traits::SAFE_INTERP_HIDDEN`] base set.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -147,7 +147,7 @@ pub(super) struct InterpState {
     /// those in the ordinary command table, entirely independent of the
     /// separate hidden-command table, so a hidden built-in's name becomes
     /// callable the moment the child defines its own command by that name
-    /// (tclsh 9.0.4-verified; issue #945 fault 7 follow-up).
+    /// (tclsh 9.0.4-verified).
     pub exposed: HashSet<String>,
     /// A hide / expose operation on this interpreter used a dynamic
     /// command operand — its visible command set is unknowable, so the
@@ -212,18 +212,18 @@ pub enum DispatchReceiver {
     /// evidence comes from the SSA type lattice / constructor harvest only.
     Variable,
     /// `objcmd method` — a bareword *named* instance command bound by
-    /// `CLASS create NAME` (issue #1312).  Its class comes from
+    /// `CLASS create NAME`.  Its class comes from
     /// `AnalysisResult::instance_classes` gated on
     /// `AnalysisResult::created_instance_commands` — the same contract the
     /// LSP's `receiver_instance_class` uses for hover/definition/completion.
     InstanceCommand,
     /// `my method` — a bareword head the registry declares a **self-dispatch
     /// keyword** (`CommandRegistry::method_dispatch_keyword` answering
-    /// `SelfDispatch`, issue #1050).  The receiver is the object whose
+    /// `SelfDispatch`).  The receiver is the object whose
     /// method body encloses the call, so the class comes from
     /// `Analyser::enclosing_class_at_offset` with no name resolution at all
     /// — and, uniquely among the three, the dispatch bypasses export
-    /// filtering, so it can reach unexported members (issue #1329).
+    /// filtering, so it can reach unexported members.
     SelfDispatch,
 }
 
@@ -292,7 +292,7 @@ impl VarCommandSite {
     /// and every W308 raised inside a proc or method body on the incremental
     /// path was reported — and its "did you mean" quick-fix anchored — at
     /// the *fragment's* offsets, landing on unrelated text elsewhere in the
-    /// file (issue #1330).
+    /// file.
     pub(crate) fn rebase(&mut self, delta: u32) {
         self.cmd_span = shift_span(self.cmd_span, delta);
         self.method_span = self.method_span.map(|sp| shift_span(sp, delta));
@@ -321,7 +321,7 @@ pub struct CmdCommandSite {
     /// of its *content*, so anchoring a diagnostic on it underlines
     /// `[Dog new` rather than `[Dog new]`, and on a head written across a
     /// line continuation it underlines a region that ends mid-word on the
-    /// next line (issue #1330).  Only the end moves — every consumer that
+    /// next line.  Only the end moves — every consumer that
     /// keys off `cmd_span.start()` (enclosing class, child-interp
     /// containment, head return type) is unaffected.
     pub cmd_span: Span,
@@ -462,7 +462,7 @@ pub struct Analyser {
     /// [`Self::lookup_dominating_const_string`] consults it so identity
     /// resolution (`source`/`rename` targets via
     /// [`Self::resolve_dynamic_word`]) abstains rather than pick a
-    /// branch-dependent value (Codex review, PR #1020). Kept as a side set
+    /// branch-dependent value. Kept as a side set
     /// so the many other `const_strings` readers (regex vars, expansion
     /// counts, …) keep their existing last-write-wins behaviour untouched.
     pub nondominating_consts: HashMap<Vec<usize>, HashSet<String>>,
@@ -501,7 +501,7 @@ pub struct Analyser {
     /// its own `TkMainInfo` with its own widget-path `nameTable` and its own
     /// `.` root (Tk 9.0.4 `generic/tkWindow.c`, `TkCreateMainWindow`), so the
     /// same widget path in two domains is two unrelated windows — merging
-    /// them produced a false TK1001 and a missed TK1002 (issue #1141).
+    /// them produced a false TK1001 and a missed TK1002.
     /// Cleared by [`Self::flush_tk_geometry_diagnostics`].
     pub(super) tk_domains: std::collections::BTreeMap<String, super::tk_checks::TkDomainState>,
     /// Version-aware diagnostics (W135 / W136): command/option uses gated behind
@@ -553,7 +553,7 @@ pub struct Analyser {
     /// its loader brings in behind the analyser's back — the binary
     /// extension whose `Init` calls `Tcl_PkgRequire` / `Tk_InitStubs`, where
     /// no Tcl source anywhere states the dependency, so it can only be
-    /// declared (issue #1813). Applied to the walk's own
+    /// declared. Applied to the walk's own
     /// `package require`s by [`Self::expand_implied_package_requires`].
     /// Empty — the default — leaves every answer as before.
     pub package_provides: Vec<(String, Vec<String>)>,
@@ -561,7 +561,7 @@ pub struct Analyser {
     /// source —
     /// the same `(package, packages it also loads)` edges
     /// [`Self::package_provides`] carries for the whole workspace, declared
-    /// for one file (issue #1813). Re-scanned at every walk ingress, so it is
+    /// for one file. Re-scanned at every walk ingress, so it is
     /// a pure function of the source and cannot go stale.
     pub(super) directive_provides: Vec<(String, Vec<String>)>,
     /// The resolved range-mode context: the walk generation's
@@ -679,19 +679,18 @@ pub struct Analyser {
     /// `resolved_qualified_name`. A top-level (not inside any proc/class
     /// body) call contributes its own offset; a call inside definition
     /// `E`'s body contributes `E`'s own reachable offset, transitively
-    /// through the whole call graph (issue #1015).
+    /// through the whole call graph.
     ///
     /// Populated once by [`Self::finalise_invocation_resolutions`] from the
     /// already-settled `command_invocations`, and consulted by
     /// [`Self::fact_live_for_call`] when the call site under test is itself
     /// nested inside a body: a proven invocation of the *enclosing*
     /// definition that ran before a later unconditional deletion means that
-    /// invocation's own nested calls already resolved (issue #1009 Codex
-    /// review: `proc helper {}`, `proc caller {} { helper }`, `caller`,
-    /// `rename helper {}` resolves in real Tcl — confirmed against tclsh
-    /// 8.6.14 — because `caller`'s own top-level invocation runs before the
-    /// rename; issue #1015 extends that through an arbitrary chain of
-    /// enclosing definitions).
+    /// invocation's own nested calls already resolved (`proc helper {}`,
+    /// `proc caller {} { helper }`, `caller`, `rename helper {}` resolves in
+    /// real Tcl — confirmed against tclsh 8.6.14 — because `caller`'s own
+    /// top-level invocation runs before the rename; the same holds through an
+    /// arbitrary chain of enclosing definitions).
     ///
     /// A name with no entry is one this file never reaches — including
     /// every member of a mutual-recursion cycle no top-level call enters.
@@ -703,7 +702,7 @@ pub struct Analyser {
     /// deletion diagnostic on its body is withdrawn for *all* of its
     /// invocations rather than just the early ones.
     ///
-    /// Oracle (tclsh8.6, `review-probes-sound/r3.tcl`): `proc a {} {
+    /// Oracle (tclsh8.6): `proc a {} {
     /// helper }`, `a`, `rename helper {}`, `a` — the second `a` really does
     /// fail with `invalid command name "helper"`, and no W123 is reported.
     ///
@@ -727,7 +726,7 @@ pub struct Analyser {
     pub(super) namespace_paths: HashMap<String, Vec<String>>,
     /// Variable-as-command call sites; resolved post-walk by W307.
     pub var_command_sites: Vec<VarCommandSite>,
-    /// `$cmd`-head dispatch sites (M7): every simple-`$var` command head,
+    /// `$cmd`-head dispatch sites: every simple-`$var` command head,
     /// pending settlement against the compiler's flow-sensitive value
     /// model (`value_provenance::const_contributors`) in the CFG/SSA
     /// diagnostic phase, where the `CompilationUnit` exists.  A site whose
@@ -740,11 +739,11 @@ pub struct Analyser {
     /// phantom invocation, no W123 delta).
     pub(super) pending_const_dispatches: Vec<ConstDispatchSite>,
     /// `TclOO` instance-creation sites whose class head is a `$var`
-    /// reference (issue #923 idx 121), pending settlement alongside
+    /// reference, pending settlement alongside
     /// [`Self::pending_const_dispatches`] once the CFG/SSA
     /// `CompilationUnit` exists.
     pub(super) pending_instance_class_sites: Vec<PendingInstanceClassSite>,
-    /// M9: the namespace key a seeded analysis wraps the whole file in (set
+    /// The namespace key a seeded analysis wraps the whole file in (set
     /// by [`Analyser::analyse_with_source_namespace`]); the scope chain it
     /// creates becomes the top-level walk's base path.
     pub(super) seed_namespace_key: Option<String>,
@@ -755,7 +754,7 @@ pub struct Analyser {
     /// configure …`) whose head the ordinary registry-command resolution
     /// could not resolve; resolved post-walk by
     /// [`super::diagnostics::widget_command::Analyser::flush_widget_dispatch_diagnostics`]
-    /// once `instance_classes` is complete (issue #927).
+    /// once `instance_classes` is complete.
     pub widget_dispatch_sites: Vec<super::diagnostics::widget_command::WidgetDispatchSite>,
     /// Command-substitution-as-command call sites; same dispatch
     /// as [`Self::var_command_sites`] but for ``[cmd] args``
@@ -776,7 +775,7 @@ pub struct Analyser {
     /// `<ensemble> <subcommand> …` call sites the **shell pass** met before
     /// the ensemble that maps them was known, replayed against the finished
     /// map by [`Self::flush_pending_ensemble_subcommand_invocations`]
-    /// (issue #923 idx 85). Only the shell pass fills this: the whole-file
+    ///. Only the shell pass fills this: the whole-file
     /// DFS and the isolated body pass both resolve at walk time against a
     /// map that already holds everything their own walk order could see.
     pub(super) pending_ensemble_subcommands: Vec<PendingEnsembleSubcommand>,
@@ -784,8 +783,7 @@ pub struct Analyser {
     /// subcommand-to-target maps, keyed by the ensemble's own qualified
     /// command name (`-command NAME`, or the enclosing namespace's own
     /// qualified name when `-command` is absent — Tcl's default). Consulted
-    /// by the W129 safe-interpreter gate (issue #1001 follow-up, tracked
-    /// separately from #979's interprocedural call-site concern) so a
+    /// by the W129 safe-interpreter gate so a
     /// hidden command reached only through an ensemble redirect (`myens sub
     /// ...` → target) is still flagged, mirroring a literal call to the
     /// target.
@@ -793,7 +791,7 @@ pub struct Analyser {
     /// Vars where ``oo::objdefine`` was applied — the per-instance
     /// method table may extend the class definition.
     pub objdefined_vars: HashSet<String>,
-    /// Per-object member-state binding index (issue #1170): `(receiver key,
+    /// Per-object member-state binding index: `(receiver key,
     /// innermost proc/method frame extent)` → position in
     /// `result.object_member_state[key]`.  The frame extent is the walk-time
     /// spelling of the binding identity consumers re-derive from
@@ -807,7 +805,7 @@ pub struct Analyser {
     /// resolve statically — an unknown object may be any object, so the
     /// per-object W315 abstains file-wide.
     pub(super) objdefine_unresolved_receiver: bool,
-    /// The **interpreter-domain map** (issue #945 faults 7–8): every
+    /// The **interpreter-domain map**: every
     /// child interpreter this document creates with a literal path,
     /// keyed by the whitespace-normalised path list, carrying its safe
     /// state and per-interpreter hide/expose deltas.  Flow-insensitive
@@ -818,8 +816,8 @@ pub struct Analyser {
     /// existence is then unknowable and the W140 unknown-interpreter
     /// diagnostic abstains file-wide.
     pub(super) dynamic_interp_ops: bool,
-    /// Per-interpreter **deletion epochs** (issue #945 fault 8's temporal
-    /// identity): `interp delete` bumps the path's epoch, so a later
+    /// Per-interpreter **deletion epochs** (temporal identity): `interp
+    /// delete` bumps the path's epoch, so a later
     /// re-creation of the same path is a *fresh* domain — its evaluation
     /// bodies home under a new `@interp@<path>#<epoch>` identity and never
     /// merge with the deleted interpreter's definitions (as in C, where
@@ -832,7 +830,7 @@ pub struct Analyser {
     /// [`key`](InterpFrame::key).  The frame also carries the body's
     /// [`domain`](InterpFrame::domain) identity, which is what analyser
     /// state modelling *per-interpreter runtime state* keys itself by
-    /// (issue #1141).
+    ///.
     pub(super) interp_path_stack: Vec<InterpFrame>,
     /// Safe-interpreter evaluation contexts currently on the walk stack:
     /// non-empty while walking an `interp eval` body whose target
@@ -842,10 +840,10 @@ pub struct Analyser {
     /// `interp hide`-den), and is not re-exposed, draws W129 and has no
     /// analysed effect (C raises `invalid command name` before any
     /// side-effect happens — so no source / package / definition edges
-    /// may be built from it either; issue #945 fault 7).
+    /// may be built from it either).
     pub(super) safe_interp_stack: Vec<SafeInterpCtx>,
-    /// The scope-chain-aware **interpreter value-flow map** (issue #923
-    /// idx 9): `set VAR [interp create ...]` binds `VAR`, in the scope it
+    /// The scope-chain-aware **interpreter value-flow map**:
+    /// `set VAR [interp create ...]` binds `VAR`, in the scope it
     /// was written, to the `interpreters` domain key recorded for that
     /// call — a literal path's qualified key, or a synthetic
     /// per-call-site key when the call captured no literal path. Mirrors
@@ -854,8 +852,8 @@ pub struct Analyser {
     /// diagnostic; here it would corrupt real go-to-definition targets),
     /// so two unrelated procs binding the same variable name to
     /// different interpreters never collide. Consulted by
-    /// [`Self::resolve_dynamic_interp_path`] from the call sites that
-    /// used to require the interpreter path to be a source literal.
+    /// [`Self::resolve_dynamic_interp_path`] from the call sites that would
+    /// otherwise require the interpreter path to be a source literal.
     pub(super) interp_var_bindings: HashMap<Vec<usize>, HashMap<String, String>>,
     /// Guard against double W123 emission across
     /// ``analyse_commands`` / ``analyse_irule_event``.
@@ -875,7 +873,7 @@ pub struct Analyser {
     /// reload has replaced underneath it. Cloning it is an `Arc` bump.
     pub registry: Option<std::sync::Arc<tcl_registry::CommandRegistry>>,
     /// Lazily-built whole-module command-mutation trust oracle for the
-    /// constant command-substitution fold (issue #1132). The analyser's own
+    /// constant command-substitution fold. The analyser's own
     /// `renamed_commands` is flow-sensitive — populated only up to the
     /// current point of the walk — which is NOT a sound trust source for
     /// folding (a `rename` buried in a proc body later in the file can fire
@@ -924,7 +922,7 @@ pub struct Analyser {
     /// and a built-in-shadowing `proc`.  Rebuilt alongside
     /// [`Self::registry`] at the top of every entry point so a per-proc
     /// param-trait scan resolves a body's heads against the *document's*
-    /// bindings rather than their written spellings (issue #1275).  Empty
+    /// bindings rather than their written spellings.  Empty
     /// outside an active analysis run, and for the overwhelmingly common
     /// document that binds nothing.
     pub head_identities: crate::realm::CommandBindingRealm,
@@ -949,7 +947,7 @@ pub struct Analyser {
     /// size × nesting depth)` overall — a genuine, severe (though
     /// non-crashing) `DoS`: deeply-nested or merely large documents could
     /// take many seconds even where the recursion depth itself stayed
-    /// safely under the analyser's caps (issue #996). Use
+    /// safely under the analyser's caps. Use
     /// [`Self::source_map`] instead of `SourceMap::new(&self.source)` —
     /// cloning a [`tcl_lexer::LineIndex`] is one allocation plus a copy of
     /// its line-start offsets (`O(line count)`), not a document rescan.
@@ -1033,7 +1031,7 @@ pub struct Analyser {
     pub workspace_classes: std::collections::HashSet<String>,
     /// The qualified names of workspace classes whose **own command**
     /// constructs an instance from a bare unrecognised word and yields its
-    /// name — Tk's `::tk::IconList .il` (issue #1303).
+    /// name — Tk's `::tk::IconList .il`.
     ///
     /// A strict subset of [`Self::workspace_classes`], carried separately
     /// because the proof lives on the class's *metaclass*, which a pure
@@ -1047,7 +1045,7 @@ pub struct Analyser {
     /// The per-file walk cannot tell `::tk::Megawidget create IconList
     /// FocusableWidget {…}` from `interp create` without knowing that
     /// `::tk::Megawidget` is a metaclass, so with no index it abstains and
-    /// records nothing (issue #1276).  Each entry is the factory description
+    /// records nothing.  Each entry is the factory description
     /// the metaclass's *own* document derived
     /// ([`super::types::ClassDef::factory`]), so the consuming walk classifies
     /// the call from a proved fact rather than its shape.  `None` — the
@@ -1056,7 +1054,7 @@ pub struct Analyser {
     pub workspace_class_factories: Option<std::sync::Arc<super::types::ClassFactoryIndex>>,
     /// Instance methods dispatchable on some workspace **descendant** of
     /// each class, keyed by ancestor qualified name — the cross-file half of
-    /// the template-method abstention (issue #1367).  A base class calling
+    /// the template-method abstention.  A base class calling
     /// `my Render` where `Render` is written only by a subclass in another
     /// document is the same deliberate pattern as the single-file shape the
     /// local hierarchy proves; without this view the workspace still drew
@@ -1137,10 +1135,9 @@ pub struct Analyser {
     /// root, so without this capture such a cell reached `all_variables` but
     /// never the shell's scope tree — and the scope tree is what
     /// `attach_qualified_var_references`, `replay_body_global_reads`, and
-    /// every LSP navigation provider read.  The result was the issue #923
-    /// audit idx 98 residual: the whole-file walk answered hover /
-    /// definition / references for the cell and the live server's
-    /// incremental walk answered nothing.  `None` on the whole-file
+    /// every LSP navigation provider read.  Without the capture the
+    /// whole-file walk answers hover / definition / references for the cell
+    /// while the live server's incremental walk answers nothing.  `None` on the whole-file
     /// `analyse` path, where the body walk writes the real global scope
     /// directly.
     pub(super) capture_global_defs: Option<Vec<(String, tcl_lexer::Token, tcl_lexer::Span)>>,
@@ -1213,7 +1210,7 @@ pub struct Analyser {
     /// plus every grafted body's (already rebased to absolute offsets),
     /// merged so the replay can run in one global source-order pass.
     pub(super) deferred_instance_replays: Vec<(u32, bool, String, Vec<String>, String)>,
-    /// Bareword `objcmd method` dispatch sites (issue #1312) captured while
+    /// Bareword `objcmd method` dispatch sites captured while
     /// `pending_instances` is active — a `CLASS create NAME` creation earlier
     /// in the same deferred pass has not resolved `instance_classes` yet (it
     /// resolves only post-graft, in [`Self::replay_deferred_instances`]), so
@@ -1261,7 +1258,7 @@ pub struct Analyser {
     pub(super) irules_event_bodies: Option<Vec<(String, Vec<String>)>>,
     /// Creation calls the walk could not classify because their head was not
     /// yet known to be a class factory — replayed once the parameterised-class
-    /// observation join has settled (issue #1660).
+    /// observation join has settled.
     ///
     /// A metaclass whose identity is proved only by that post-pass does not
     /// exist while the walk runs, so `Meta create ::T::W { … }` in the same
@@ -1341,7 +1338,7 @@ impl Analyser {
     /// [`Self::lexer_config`] for the **whole-file** segmentation at the top of
     /// [`Self::analyse`] — the one place that stands where a Tcl runtime's
     /// `source` stands, and therefore the only place that may skip a leading
-    /// byte-order mark (issue #1218).  Whether it does is the dialect's
+    /// byte-order mark.  Whether it does is the dialect's
     /// business: Tcl 9's `source` strips a leading U+FEFF, Tcl 8.x's does not
     /// and genuinely fails on such a file.
     pub(super) fn file_lexer_config(&self) -> tcl_lexer::LexerConfig {
@@ -1408,7 +1405,7 @@ impl Analyser {
     /// carrying zero-width spaces (`U+200B`, the usual residue of a
     /// copy-paste from a web page) hit exactly that and aborted `fp-sweep`
     /// outright, while the LSP lost **every** diagnostic for the file and
-    /// showed it as clean (issue #1325).
+    /// showed it as clean.
     ///
     /// [`crate::analyser::utils::contiguous_prefix`] fixes that producer, but
     /// spans reach these slices from the lexer, the segmenter, the CST, and
@@ -1443,7 +1440,7 @@ impl Analyser {
     /// else contradicts the spans the document was lexed with: at 9.x the
     /// lexer makes `${a{b}c}` one `Var` naming `a{b}c`, while a hard-coded
     /// first-`}` scan reads `a{b` and reports on a variable the source never
-    /// mentions (issue #1604).
+    /// mentions.
     #[must_use]
     pub fn braced_var(&self) -> tcl_dialect::BracedVarStyle {
         self.profile.grammar.braced_var
@@ -1465,7 +1462,7 @@ impl Analyser {
     /// `Closed` is the composite case, `Unterminated` the pure one. The
     /// first-`}` split this replaces split `${a{b}c}::setdef` after `a{b`,
     /// naming a variable the source never mentions and handing the rest to
-    /// the suffix fold (issue #1604). The three call sites — the const
+    /// the suffix fold. The three call sites — the const
     /// dispatch record, the W307 head reading, and `resolve_dynamic_word` —
     /// share it so they cannot disagree about which bytes name the variable.
     #[must_use]
@@ -1668,8 +1665,8 @@ impl Analyser {
     /// the environment and this walk's registry generation, derive the
     /// interop [`Self::profile`], and return whether this environment
     /// ships `Tk` **ambient** ([`Self::tk_ambient`] — the fact
-    /// `availability_for_name`'s `TK`-bit union used to carry, now a
-    /// placement query on the walk's own context).
+    /// carried as a placement query on the walk's own context, not as an
+    /// `availability_for_name` `TK`-bit union).
     pub(super) fn resolve_walk_environment(&mut self, dialect: &str) -> bool {
         let environment = crate::environment_ingress::resolve_environment(dialect);
         self.profile = environment.analyser_profile();
@@ -1848,7 +1845,7 @@ impl Analyser {
     }
 
     /// The workspace classes whose command bare-word-constructs — see
-    /// [`Self::workspace_bare_word_classes`] (issue #1303).
+    /// [`Self::workspace_bare_word_classes`].
     #[must_use]
     pub fn with_workspace_bare_word_classes(
         mut self,
@@ -1871,7 +1868,7 @@ impl Analyser {
     /// Supply the workspace's **class factory** index — the user-defined
     /// `TclOO` metaclasses declared in other documents — so a
     /// `::tk::Megawidget create IconList …` call whose metaclass lives in
-    /// another file is classified instead of abstained on (issue #1276).
+    /// another file is classified instead of abstained on.
     ///
     /// See [`Self::workspace_class_factories`]. The normal single-file
     /// analysis leaves this `None`, which keeps the abstention intact.
@@ -1887,7 +1884,7 @@ impl Analyser {
     /// Supply the workspace's **subclass-provided method** view — the
     /// instance methods dispatchable on some descendant of each class, with
     /// the descendants written in other documents — so the template-method
-    /// abstention (issue #1367) holds across the workspace boundary.
+    /// abstention holds across the workspace boundary.
     ///
     /// See [`Self::workspace_subclass_methods`]. The normal single-file
     /// analysis leaves this `None`, which keeps W308 firing on the per-file
@@ -1944,7 +1941,7 @@ impl Analyser {
     /// As [`Self::analyse`], but the whole file is walked **inside**
     /// `source_namespace` (a constructed `::`-rooted key) — the static
     /// equivalent of C Tcl evaluating a `source`d file in the caller's
-    /// current namespace (M9).  Relative definitions home under the seed
+    /// current namespace.  Relative definitions home under the seed
     /// (`proc helper` → `<seed>::helper`), absolute ones are unaffected, and
     /// bare call sites gain the seeded namespace as their first resolution
     /// candidate — exactly the `namespace eval <seed> { <file> }` semantics,
@@ -1975,10 +1972,10 @@ impl Analyser {
         self.source = source.to_string();
         let tk_ambient = self.resolve_walk_environment(dialect);
         // Tell pack hooks which dialect they are running under, for the
-        // length of this walk. A hook's `ctx.dialect` used to be derived from
-        // the call's `TclVersion`, which can only spell a release — so an
-        // iRules document reported `tcl9.0` and no hook could tell a dialect
-        // from a version. The guard restores the previous value on the way
+        // length of this walk. Deriving a hook's `ctx.dialect` from the call's
+        // `TclVersion` instead can only spell a release — an iRules document
+        // would report `tcl9.0` and no hook could tell a dialect from a
+        // version. The guard restores the previous value on the way
         // out, since one worker analyses documents of different dialects in
         // turn.
         let _dialect_scope = tcl_registry::pack_hooks::DialectScope::enter(Some(self.profile.name));
@@ -2097,7 +2094,7 @@ impl Analyser {
         // ``recover_missing_open_brace`` (for switch with a forgotten
         // body brace), ``detect_stolen_close_brace`` (E103), and the
         // generic E200 partial-command emitter.
-        // M9: a seeded analysis (`analyse_with_source_namespace`) walks the
+        // A seeded analysis (`analyse_with_source_namespace`) walks the
         // whole file inside the source-site namespace, exactly as if wrapped
         // in `namespace eval <ns> { ... }` — relative definitions re-home,
         // absolute ones stay put, and call-site candidates gain the seeded
@@ -2138,7 +2135,7 @@ impl Analyser {
         // diagnostic-emission tail — the unresolved/arity/variable/CFG-SSA
         // emitters are the dominant cost and produce no structural facts.
         // Record the classes a proc manufactures under a computed name whose
-        // value a literal call-site argument proves (issue #1306).  A
+        // value a literal call-site argument proves.  A
         // *structural* fact, so it runs on the item-tree path too — that is
         // the path the workspace class-factory index is computed from, and a
         // metaclass missing there is invisible to every other document.
@@ -2818,7 +2815,7 @@ impl Analyser {
     /// and if that definition is invoked — the same conditionality
     /// [`AnalysisResult::offset_is_inside_any_definition_body`] already
     /// governs for a nested `proc` shadow — and the consumer of this table
-    /// revokes an import alias on it (issue #1103), which would drop a
+    /// revokes an import alias on it, which would drop a
     /// genuinely-live command. Removal events abstain toward keeping the
     /// alias, so the conditional ones are simply not published.
     ///
@@ -2834,7 +2831,7 @@ impl Analyser {
     }
 
     /// Record the packages a declared edge says the document's own `package
-    /// require`s also load (issue #1813).
+    /// require`s also load.
     ///
     /// A binary extension whose `Init` calls `Tcl_PkgRequire` — or links Tk
     /// through `Tk_InitStubs` — makes a package available with nothing in any
@@ -2974,7 +2971,7 @@ impl Analyser {
         );
         // Replay the `<ensemble> <subcommand>` call sites the shell pass met
         // before the deferred body that declares the ensemble was walked
-        // (issue #923 idx 85) — before `finalise_invocation_resolutions`, so
+        // — before `finalise_invocation_resolutions`, so
         // the replayed invocations go through exactly the same settlement
         // the walk-time ones do. A no-op on every other entry point.
         self.flush_pending_ensemble_subcommand_invocations();
@@ -3117,7 +3114,7 @@ impl Analyser {
     /// public entry point (``analyse`` / ``analyse_chunked`` /
     /// ``analyse_commands``).
     /// The whole-module command-mutation trust oracle for constant
-    /// command-substitution folding (issue #1132), built lazily on first
+    /// command-substitution folding, built lazily on first
     /// demand and cached for the rest of this run — see the
     /// [`Self::command_trust`] field doc for why the flow-sensitive
     /// `renamed_commands` map cannot serve here. Returns `None` when no
@@ -3535,7 +3532,7 @@ mod tests {
 
     #[test]
     fn apply_with_namespace_element_records_a_namespace_override() {
-        // TP — issue #923 idx 116 Part 1 (the core mechanism): a literal
+        // TP (the core mechanism): a literal
         // `apply {{params} body ns}` must record a namespace_overrides
         // entry spanning the body, so `tcl-lsp-core`'s command-resolution
         // lookups can pin bareword calls inside the body to `ns` — the
@@ -3647,7 +3644,7 @@ mod tests {
 
     #[test]
     fn analyse_records_instance_class_through_a_var_headed_create() {
-        // TP — issue #923 idx 121: tcllib's `httpd/httpd.tcl` flows the
+        // TP: tcllib's `httpd/httpd.tcl` flows the
         // constructor's class name through a single, unconditional `set`
         // one line earlier (`set class ::Derived; set obj [$class create
         // NAME]`) rather than writing the class as a literal bareword.
@@ -5409,7 +5406,7 @@ mod tests {
         assert_eq!(text, "catch", "W302 should span only the catch keyword");
     }
 
-    // -- W302 quick-fix insertion anchor (issue #1190)
+    // -- W302 quick-fix insertion anchor
     //
     // The diagnostic anchors at the `catch` keyword, so the fix must carry
     // its **own** span: the point past the *body's* closing delimiter.  Each
@@ -5539,7 +5536,7 @@ mod tests {
     fn w302_fixes_are_never_bulk_applicable() {
         // Capturing the result writes a new variable in the caller's frame,
         // which a program already using that name observes — so the fix is
-        // hardening, not a semantics-preserving rewrite (issue #1195).
+        // hardening, not a semantics-preserving rewrite.
         let mut a = Analyser::new();
         let r = a.analyse("catch {error oops}\n", "tcl9.0");
         let w302 = r

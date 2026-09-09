@@ -508,13 +508,12 @@ fn fn_guard_rename_still_applies_across_tracked_consumer_documents() {
     );
 }
 
-// FP guard (issue #1099): the consumer **never constructs** the class — it is
+// FP guard: the consumer **never constructs** the class — it is
 // handed the instance through a global another file filled in — so it invokes
-// no family constructor and sat in no index table.  Both the edit collector
-// and the gate were bounded by that set, so the declaration moved while
-// `$::handle speak` kept naming a member that no longer exists.  The rename
-// leg now covers every indexed document, so the gate sees the untracked
-// receiver and refuses.
+// no family constructor and sits in no index table.  The edit collector
+// and the gate must cover every indexed document, not just ones that
+// construct the class, or the declaration moves while `$::handle speak`
+// keeps naming a member that no longer exists.
 //
 // tclsh-proof (8.6.14, the interpreter available in this container), sourcing
 // all three files in order:
@@ -686,7 +685,7 @@ fn fn_guard_namespace_variable_rename_ignores_a_computed_alias_of_another_cell()
     );
 }
 
-// -- Issue #1114: the namespace rename tier -----------------------------
+// The namespace rename tier.
 //
 // Renaming a namespace rewrites every *written* spelling of it — the
 // `namespace eval` blocks that open it, the qualified names beneath it, the
@@ -811,13 +810,13 @@ fn fp_namespace_rename_refuses_a_collision_with_an_existing_namespace() {
     );
 }
 
-// -- idx 79: the gate must hold from EVERY trigger position -------------
+// The gate must hold from EVERY trigger position.
 //
-// The declaration-anchored refusal above was the only direction covered, and
-// it is the one position a real editor's "rename symbol" gesture is *least*
-// likely to be used from.  Triggering the identical rename from the untracked
-// call site the gate exists for, or from the `export` bareword, returned a
-// live WorkspaceEdit rewriting only the declaration and the export word.
+// The declaration is the one position a real editor's "rename symbol"
+// gesture is *least* likely to be used from. Triggering the identical
+// rename from the untracked call site the gate exists for, or from the
+// `export` bareword, must refuse too — not return a live WorkspaceEdit
+// rewriting only the declaration and the export word.
 //
 // Applying that edit and running the file (tclsh 9.0.4 and 8.6.16, byte
 // identical, rc=1):
@@ -1023,8 +1022,7 @@ fn a_variable_renames_again_after_the_first_rename_was_undone() {
 /// "`::b` is already declared in this workspace" is a claim the editor cannot
 /// check. The workspace the gate reads spans every scanned folder, not the
 /// files the user has in mind, so a refusal that names no document leaves
-/// disbelief as the only available response — which is exactly where issue
-/// #1935's report, and the investigation into it, both stopped.
+/// disbelief as the only available response.
 #[test]
 fn a_refused_rename_names_the_document_it_collided_with() {
     let mut lsp = Lsp::tcl();

@@ -27,9 +27,10 @@
 //!
 //! 1. the conversion at the nested site is never reported; and
 //! 2. worse, it never reaches the commit state, so *every later read of that
-//!    variable* is judged against a stale representation. `set x [llength $l]`
-//!    then `puts [lindex $x 0]` then `incr x` reported nothing at all, where
-//!    the same code with `lindex $x 0` on its own line reports both halves.
+//!    variable* is judged against a stale representation. Unlifted,
+//!    `set x [llength $l]` then `puts [lindex $x 0]` then `incr x` reports
+//!    nothing at all, where the same code with `lindex $x 0` on its own line
+//!    reports both halves.
 //!
 //! Builds on [`crate::word_expr`], which owns splitting one word into its
 //! substitution components; this module is the statement-level view of that —
@@ -399,9 +400,8 @@ mod tests {
     /// own words is what sees it; the argument text `"[lindex $x 0]"` starts
     /// with a quote, so no `[`-prefix test over that text ever could.
     ///
-    /// Asserted on the commands and the inner call's own arguments: the outer
-    /// `list`'s argument *text* is the compatibility spelling, which this
-    /// change does not touch.
+    /// Asserted on the commands and the inner call's own arguments; the outer
+    /// `list`'s argument *text* keeps the raw spelling.
     #[test]
     fn substitution_inside_a_quoted_nested_word_is_lifted() {
         let calls = lift_calls("puts [list \"[lindex $x 0]\"]");

@@ -202,24 +202,24 @@ pub(super) fn per_loop_body_types(
     out
 }
 
-/// Symbols ever written through array-element syntax (`arr(key)`) anywhere
-/// in the function.
+/// The *base* symbols of every array-element write (`arr(key)`) in the
+/// function — `arr`, not the per-element symbols.
 ///
-/// [`crate::naming::normalise_var_name`] strips the `(key)` suffix before
-/// SSA interning, so every element of an array collapses onto ONE `Symbol`
-/// / version chain — `arr(a)` and `arr(b)` are independent runtime slots
-/// that never actually shimmer against each other, but once conflated onto
-/// one symbol, two elements individually holding stable-but-different
-/// types look exactly like a genuine same-slot oscillation. Excluding any
-/// symbol proven to be an array base avoids reporting a thunk across
-/// unrelated elements; reuses the same array-reference recognition
-/// [`crate::codegen::values::split_array_ref`] already provides for
-/// codegen, rather than re-deriving the `(...)` pattern here.
+/// A literal-key element interns as its own symbol (`arr(k)`), but every
+/// element write also refreshes the array base as a synthetic may-def
+/// ([`crate::ssa::SsaStatement::may_defs`]), so the base's version chain
+/// mixes elements that are independent runtime slots and never shimmer
+/// against each other. Two elements individually holding
+/// stable-but-different types look on the base exactly like a genuine
+/// same-slot oscillation. Excluding the base keeps a thunk report to
+/// per-element evidence; the array reference is recognised with
+/// [`crate::codegen::values::split_array_ref`], the same helper codegen
+/// uses, rather than re-deriving the `(...)` pattern here.
 ///
-/// `pub(super)` so the sibling use-site (S100/S101) and phi-merge (S101) passes
-/// share the *same* exclusion: every element of an array collapses onto one
-/// symbol for all three passes, so any one of them can conflate two
-/// stable-but-different elements into a spurious shimmer (FP-SH-13).
+/// `pub(super)` so the sibling use-site (S100/S101) and phi-merge (S101)
+/// passes share the *same* exclusion: the conflated base reaches all three,
+/// so any one of them could otherwise turn two stable-but-different elements
+/// into a spurious shimmer (FP-SH-13).
 pub(super) fn array_element_symbols(cfg: &CfgFunction, ssa: &SsaFunction) -> HashSet<Symbol> {
     let mut out = HashSet::new();
     for block in cfg.blocks.values() {
