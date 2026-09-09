@@ -21,7 +21,8 @@ Why does the analyser flag a `DNS::return` that is not followed by `return`?
 
 ## Symptoms
 
-- A squiggle appears under the `DNS::return` call, with the message "DNS::return without return".
+- A yellow squiggle appears under the `DNS::return`, with the message
+  "'DNS::return' must be followed by 'return' to stop iRule processing."
 
 ## Example that triggers it
 
@@ -36,7 +37,8 @@ The analyser reports **`IRULE5004`** because `DNS::return` is not followed by a 
 
 ## Fix
 
-Add `return` after `DNS::return`:
+Add `return` after `DNS::return` — the editor offers **Add 'return' after
+DNS::return** as a code action:
 
 ```tcl
 when DNS_REQUEST { DNS::return "1.2.3.4"; return }

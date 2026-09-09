@@ -155,6 +155,19 @@ fn classify_verify_kind(msg: &str) -> String {
     .to_owned()
 }
 
+/// Build the probe's `rustls` client config, naming its crypto provider.
+///
+/// Both providers are linked in — `rustls`'s own default features select
+/// `aws-lc-rs` and `ureq` pulls `ring` — so rustls cannot infer one from the
+/// feature set, and the plain [`rustls::ClientConfig::builder`] panics with
+/// "Could not automatically determine the process-level `CryptoProvider`".
+///
+/// The provider is therefore passed to *this* config rather than installed as
+/// the process default: a library that calls `install_default` would decide
+/// for the whole process, so an embedder wanting `ring` or its own provider
+/// gets `AlreadyInstalled`, and every other rustls user in the process —
+/// `ureq` included — silently switches to ours. `aws-lc-rs` is what this
+/// crate's own `rustls` dependency asks for, and the choice stops here.
 fn client_config(ca_bundle: Option<&str>) -> Result<rustls::ClientConfig, rustls::Error> {
     let mut roots = rustls::RootCertStore::empty();
     if let Some(path) = ca_bundle {
@@ -170,14 +183,55 @@ fn client_config(ca_bundle: Option<&str>) -> Result<rustls::ClientConfig, rustls
             let _ = roots.add(cert);
         }
     }
-    Ok(rustls::ClientConfig::builder()
-        .with_root_certificates(roots)
-        .with_no_client_auth())
+    Ok(rustls::ClientConfig::builder_with_provider(Arc::new(
+        rustls::crypto::aws_lc_rs::default_provider(),
+    ))
+    .with_safe_default_protocol_versions()?
+    .with_root_certificates(roots)
+    .with_no_client_auth())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::classify_verify_kind;
+    use std::net::TcpListener;
+    use std::thread;
+
+    use super::{classify_verify_kind, client_config, handshake};
+
+    /// `ClientConfig::builder()` panics here ("Could not automatically
+    /// determine the process-level `CryptoProvider`") because two providers
+    /// are linked in — which is what every `tls_handshake` consumer hit in a
+    /// debug build. Naming the provider per config fixes it without touching
+    /// the process default, so building twice must work with no global
+    /// installed and no `AlreadyInstalled` in between.
+    #[test]
+    fn a_client_config_builds_repeatedly_without_a_process_default() {
+        assert!(client_config(None).is_ok(), "first build");
+        assert!(client_config(None).is_ok(), "second build");
+        assert!(
+            rustls::crypto::CryptoProvider::get_default().is_none(),
+            "the probe must not install a process-wide default"
+        );
+    }
+
+    /// The shared entry point, over a listener that accepts and hangs up: the
+    /// handshake cannot succeed, but it must *fail*, not panic — which is what
+    /// `tls_handshake` did before the provider was installed here. Local-only
+    /// and deterministic; no certificate or network is involved.
+    #[test]
+    fn a_handshake_against_a_closing_listener_reports_an_error_rather_than_panicking() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind a loopback listener");
+        let port = i64::from(listener.local_addr().expect("local addr").port());
+        let accepted = thread::spawn(move || drop(listener.accept()));
+
+        let result = handshake("127.0.0.1", port, "localhost", None);
+        accepted.join().expect("listener thread");
+
+        assert!(
+            result.is_err(),
+            "a peer that hangs up mid-handshake is a connection error, got {result:?}"
+        );
+    }
 
     #[test]
     fn classify_verify_kind_buckets_rustls_messages() {

@@ -191,7 +191,7 @@ fn expansion_marker_recorded() {
 
 // -- N5: the F5 `if` else/elseif lookahead across a single newline --
 //
-// `docs/design/bigip-irule-parser-measurements.md` §2 N5 (measured on TMM in
+// `docs/design/f5/bigip-irule-parser-measurements.md` §2 N5 (measured on TMM in
 // a cli script reproducing the parser): `else` / `elseif` are a *separate*
 // lookahead performed by `if` itself — picked up across a single newline,
 // but NOT across a blank line, where they fall back to being an unknown

@@ -106,9 +106,10 @@ const DIAGNOSTIC_KCS_TAGS: &[&str] = &[
     "codegen",
 ];
 
-/// Compiler pass that owns the emission of the diagnostic. Keep this table
-/// keyed by code rather than accepting any globally-valid pass tag: a page
-/// must describe the pass that actually produces its diagnostic.
+/// Compiler pass that owns the emission of the diagnostic. Every diagnostic
+/// page needs an entry here. Keep this table keyed by code rather than
+/// accepting any globally-valid pass tag: a page must describe the pass that
+/// actually produces its diagnostic.
 const EXPECTED_DIAGNOSTIC_STAGES: &[(&str, &str)] = &[
     ("E001", "command-walk"),
     ("E002", "command-walk"),
@@ -266,11 +267,6 @@ const EXPECTED_DIAGNOSTIC_STAGES: &[(&str, &str)] = &[
     ("W314", "command-walk"),
     ("W315", "command-walk"),
 ];
-
-/// Reserved diagnostic pages that document a registry code not emitted by
-/// the current compiler. They are deliberately not assigned a fictional
-/// compiler-pass owner; all active diagnostic pages must have an entry above.
-const DIAGNOSTICS_WITHOUT_EMISSION: &[&str] = &["W130", "W131", "W132", "W133", "W134"];
 
 /// Run the docs link/index check.
 pub fn run() -> Result<ExitCode> {
@@ -682,8 +678,7 @@ fn check_diagnostic_kcs_tags(root: &Path, docs: &Path) -> Result<Vec<String>> {
         let expected = EXPECTED_DIAGNOSTIC_STAGES
             .iter()
             .find_map(|(known, stage)| (*known == code).then_some(*stage));
-        let is_unemitted = DIAGNOSTICS_WITHOUT_EMISSION.contains(&code.as_str());
-        if expected.is_none() && !is_unemitted {
+        if expected.is_none() {
             problems.push(format!(
                 "diagnostic {code} has no expected stage mapping in {rel}"
             ));

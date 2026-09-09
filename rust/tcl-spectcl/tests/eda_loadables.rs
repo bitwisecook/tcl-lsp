@@ -20,7 +20,7 @@
 //!
 //! `sdc_base` and the five vendor libraries used to be ~350 Rust modules under
 //! `tcl-registry/src/commands/`. They are `.tclspec` files under `specs/` now
-//! (`docs/design/spec-packs.md`: "the EDA vendor libraries ship as bundled
+//! (`docs/design/registry/spec-packs.md`: "the EDA vendor libraries ship as bundled
 //! `.tclspec` loadables … so the loader path is exercised in production from
 //! day one rather than reserved for private packs"), so *every* fact an EDA
 //! dialect knows arrives through discovery → parse → merge → install.

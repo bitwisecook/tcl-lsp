@@ -21,7 +21,9 @@ HTTP state is committed once `respond` or `redirect` is called. Any further head
 
 ## Symptoms
 
-- A squiggle appears on the HTTP command that follows the respond or redirect call, with the message "HTTP command after respond/redirect".
+- A yellow squiggle appears on the HTTP command that follows the response, with
+  the message "'HTTP::header' used after response is committed. HTTP context is
+  invalid after HTTP::respond/HTTP::redirect."
 
 ## Example that triggers it
 

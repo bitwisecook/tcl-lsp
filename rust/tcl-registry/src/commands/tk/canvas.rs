@@ -560,7 +560,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 
 /// `canvas`'s instance command dispatches through the same subcommand
 /// table as its own constructor spec (see
-/// `docs/design/tk-widget-instance-typing.md`).
+/// `docs/design/analysis/tk-widget-instance-typing.md`).
 static CANVAS_CLASS: ObjectClassSpec = ObjectClassSpec {
     class_name: "canvas",
     instance_methods: &SUBCOMMANDS,

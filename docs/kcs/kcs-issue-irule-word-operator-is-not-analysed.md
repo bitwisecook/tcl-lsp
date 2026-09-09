@@ -58,13 +58,16 @@ when HTTP_REQUEST {
 $ tcl opt probe.irule
 when HTTP_REQUEST {
     set x "abcdef"
-    if {1} { HTTP::respond 200 }
+    HTTP::respond 200
 }
+
+# -------------
 # optimised: 1 rewrite(s)
-# O101  Fold constant expression
+# O112  Eliminate constant if (condition is always true)
 
 $ tcl diag probe.irule
-probe.irule:3:8: info    I230     Condition '$x contains "cd"' is always true; …
+probe.irule:2:5: info    IRULE4004 `set x ...` runs on every request — consider hoisting to a once-per-connection event.
+probe.irule:3:8: info    I230     Condition '$x contains "cd"' is always true; the alternate branch is unreachable
 ```
 
 Both behave identically with and without an explicit `--dialect f5-irules`,

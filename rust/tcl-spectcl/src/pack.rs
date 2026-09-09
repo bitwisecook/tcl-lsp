@@ -18,7 +18,7 @@
 
 //! A pack is a **logical unit, not a file**.
 //!
-//! `docs/design/spec-packs.md` is explicit about it: authors group however
+//! `docs/design/registry/spec-packs.md` is explicit about it: authors group however
 //! they like — one big `.tclspec`, one per namespace, one per command — and
 //! every file whose `speclib` names the same pack merges into one pack model
 //! at load. This module is that merge, and the precedence rules around it:

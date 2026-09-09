@@ -6,16 +6,12 @@ behind every "`$obj method …` resolves to class `C`" answer the LSP gives:
 semantic tokens, go-to-definition, find-references, rename safety, the
 W307 / W308 diagnostics, and the optimiser's devirtualisation.
 
-Issue #994 is the unification this doc records the shape of; the staged
-landing is C5a (this carrier, no consumer), C5b (the dispatch consumers —
-**landed**, see §4), C5c (the cross-document index facts of #1099).
-Cost measurement for C5a: `experiments/object_lattice/RESULTS.md`.
+Cost measurement: `experiments/object_lattice/RESULTS.md`.
 
 ## §0 — Four maps, four different keys
 
-Before the unification there were **four** independently-produced answers to
-"what class does this name hold?", and they could disagree on the same
-document:
+Four independently-produced answers to "what class does this name hold?"
+exist, and read separately they can disagree on the same document:
 
 | map | produced by | key | scope | consumers |
 |---|---|---|---|---|
@@ -24,11 +20,10 @@ document:
 | `object_collection_classes` | the SSA type lattice's container element-typing | bare name | union across the file | collection dispatch (`[dict get $pins $k] m`) |
 | `AnalysisResult::instance_command_bindings` | the analyser's `CLASS create NAME` sites | **namespace-qualified** command name | per creation site | the #981 namespace-scoped object-command path |
 
-The failure mode this shape produces is structural, not incidental: tokens
-read the lattice, navigation reads `instance_classes`, so the same
+Tokens read the lattice and navigation reads `instance_classes`, so the same
 `$obj method` could be coloured as a resolved dispatch and simultaneously
-have no definition to jump to. Every precision fix had to be made — and
-kept in sync — in up to four places.
+have no definition to jump to; the carrier exists so every precision fix is
+made once.
 
 `instance_command_bindings` is deliberately **not** folded into the
 lattice: it is keyed by qualified command name precisely because the
@@ -48,7 +43,7 @@ per-item incremental path reach.
 | `by_scope` | `(owner_qualified_name, name)` | the same bindings, attributed to the unit the binding edge binds in |
 | `owner_spans` | sorted by `(start, end)` | `(span, unit, class?)` per proc / method, for `owner_at(offset)` |
 | `collections` | bare name | `object_collection_classes` verbatim |
-| `returns_object` | proc qualified name | the factory-return class (previously computed inside the fixpoint and discarded) |
+| `returns_object` | proc qualified name | the factory-return class |
 | `global_object_cells` | `::`-qualified name | the `::`-qualified subset of `any_scope` |
 
 ### Owner attribution
@@ -93,9 +88,9 @@ proc b {} { set x 0; set y $x }
 ```
 
 resolving `b`'s `set y $x` against the union would find `a`'s `x` and record
-`(::b, y) → ::Pin` — a **false singleton** in the map C5b's rename edits and
-the "provably a different class" refusal gate treat as authoritative. That is
-the R2 wrong-rewrite hazard `by_scope` exists to prevent, so the fixpoint
+`(::b, y) → ::Pin` — a **false singleton** in the map rename edits and the
+"provably a different class" refusal gate treat as authoritative. That is
+the wrong-rewrite hazard `by_scope` exists to prevent, so the fixpoint
 resolves each edge's source through `by_scope` itself:
 
 | edge | source | resolved in |
@@ -163,24 +158,20 @@ untracked-receiver refusal.
 
 ### The empty-seed fast path
 
-The propagation's original early-out tested the **callee-side** maps
-(returns / proc params / ctor params), which are non-empty for any file that
-merely defines a proc — so every ordinary non-OO file paid a full statement
-walk to discover it had nothing to propagate. The fast path skips the walk
-when no edge can fire, which needs **three** conditions, not one:
+The propagation skips its statement walk when no edge can fire, which needs
+**three** conditions, not one:
 
 - no seeded handle (kills every `out`-driven edge), **and**
 - no procedure returns an object (kills the proc-return edge), **and**
 - no argument could be a bracketed registry constructor (kills
   `arg_classes`' direct-constructor branch, which reads no seed at all).
 
-Dropping the second or third condition is a real regression, not a
-theoretical one: `proc make {} { return [Pin new] }; set c [make]`,
-`take [listbox .l]`, `Wrap new [listbox .l]`, and `take [struct::graph]`
-each bind from an empty seed set. `object_handle_classes_full_walk` keeps
-the pre-fast-path walk available so the unit test can pin the equality, and
-`experiments/object_lattice/RESULTS.md` measures what the gate saves
-(109 of 154 corpus files skip the walk; 55 % of their lattice time).
+`proc make {} { return [Pin new] }; set c [make]`, `take [listbox .l]`,
+`Wrap new [listbox .l]`, and `take [struct::graph]` each bind from an empty
+seed set, so dropping the second or third condition is a regression.
+`object_handle_classes_full_walk` keeps the unconditional walk available so
+the unit test can pin the equality; `experiments/object_lattice/RESULTS.md`
+measures what the gate saves.
 
 ## §3 — What the lattice deliberately does not do
 
@@ -193,20 +184,19 @@ the pre-fast-path walk available so the unit test can pin the equality, and
 - It does not bind the `= | := | as | deserialize` operator words a
   `struct::graph = $serial` deserialise form puts in the name slot. That
   abstention holds in **both** maps: a bogus `=` handle would suppress a
-  real W123 / W307 and, once C5b's consumers read `by_scope`, would
-  mis-resolve a command literally named `=`.
+  real W123 / W307 and would mis-resolve a command literally named `=`.
 - It does not make the fixpoint cleverer. On 66,827 lines of real TclOO the
   four propagation edges fired 3 times against 86 harvest seeds; the value
   is in the carrier being shared, not in the propagation.
 
-## §4 — The C5b consumers (landed)
+## §4 — Consumers
 
-The consumer half of #994.  Every dispatch consumer now reads the lattice
-through **one** accessor pair in `tcl-lsp-core/src/definition.rs`:
+Every dispatch consumer reads the lattice through **one** accessor pair in
+`tcl-lsp-core/src/definition.rs`:
 
 - `receiver_instance_class_at(analysis, receiver, is_dollar, offset)` —
-  `instance_classes` first (behaviour-preserving), then, for a `$var`
-  receiver only, `lattice_singleton_class`: the **singleton** class
+  `instance_classes` first, then, for a `$var` receiver only,
+  `lattice_singleton_class`: the **singleton** class
   `by_scope` binds the name to in the scope containing `offset`.  A
   multi-class binding abstains — every caller edits or navigates, so a
   guess is a wrong edit, not a missed one.
@@ -248,6 +238,6 @@ pins the "tokens and navigation can never disagree with W307" invariant
   unit the lattice rides on and its incremental cache expectations.
 - [`interprocedural-analysis.md`](interprocedural-analysis.md) — the
   `ObjectTypeMap` consumer of `object_handle_classes`.
-- `experiments/object_lattice/RESULTS.md` — C5a's cost gate (M1).
+- `experiments/object_lattice/RESULTS.md` — the carrier's cost gate.
 - `experiments/mro_eval/RESULTS.md` — why the cross-file class index, not
   the intraprocedural lattice, is where dispatch resolution comes from.

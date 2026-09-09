@@ -23,7 +23,7 @@ Call the `inline_variable` tool with `source`, `line`, and `character`.
 
 ### Claude Code
 
-Use the `refactor` CLI command — it lists inline-variable when the cursor is on an eligible `set`.
+The `/tcl-refactor` skill calls the `refactor` tool, which lists inline-variable when the cursor is on an eligible `set`.
 
 ## Before / After
 

@@ -63,7 +63,7 @@ In:
   The ensemble list is a deliberate **subset** of tclsh's: it drops
   `cancel`, `share` and `transfer` because this runtime does not
   implement them, on the view that advertising a subcommand that then
-  fails with the wrong error is the worse lie (issue #1412 item 3).
+  fails with the wrong error is the worse lie.
   8.6's `slaves` is likewise never advertised, matching 9.0.4's
   `optionsNoSlaves[]` output; the spelling still dispatches.
 
@@ -118,8 +118,8 @@ locks.
 
 A child created by `create_child` inherits three things from its creator
 and nothing else: the runtime dialect version (a child is another
-interpreter of the *same* Tcl build, not a different release — issue
-#1328), the predefined startup globals (`tcl_platform` and friends, for
+interpreter of the *same* Tcl build, not a different release), the
+predefined startup globals (`tcl_platform` and friends, for
 a non-safe child), and the `-frame` debug flag when the creator's
 `env(TCL_INTERP_DEBUG_FRAME)` is set (C's `Tcl_CreateChild`). Variable
 *resolution* runs against the child's own global namespace; the rule is
@@ -419,15 +419,16 @@ architectures:
   re-entry (coroutine resume, `lsort -command`, trace/event callbacks), and a
   parent alias target may re-enter the child that called it, a sibling, or a
   grandchild, because every interpreter's state stays live in its arena slot
-  whether or not it is "current" ([issue #946](https://github.com/bitwisecook/tcl-lsp/issues/946)).
+  whether or not it is "current".
   An `InterpSlot` tracks liveness (`dying`) and an in-flight-evaluation count
   (`active`), so `interp delete` on a currently-executing interpreter defers
   teardown until the last nested call unwinds (C's
   `Tcl_Preserve`/`Tcl_Release`), and deleting a target sweeps cross-interp
   aliases that pointed at it out of their source interpreters. `create
   ?-safe?`/`eval`/`delete`/`exists`/`children`/`issafe`/`marktrusted`/`hide`/
-  `expose`/`hidden`/`invokehidden`/`recursionlimit`/`limit` are implemented;
-  `-safe` hides the host-reaching commands into a per-interp hidden table;
+  `expose`/`hidden`/`invokehidden`/`recursionlimit`/`limit`/`bgerror`/`debug`
+  are implemented; `-safe` hides the host-reaching commands into a per-interp
+  hidden table;
   `share`/`transfer` are accepted so top-level channel wiring does not abort
   a test file. Remaining gaps: the Safe Base (`safe.tcl` access-path
-  virtualisation), `target`, and `debug` beyond the `-frame` switch.
+  virtualisation) and `target`.

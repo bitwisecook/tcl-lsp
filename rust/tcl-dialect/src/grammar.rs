@@ -208,7 +208,7 @@ impl ArrayIndexSyntax {
 }
 
 /// The brace-line continuation axis — the F5 N-rules
-/// (`docs/design/bigip-irule-parser-measurements.md` §2), a second
+/// (`docs/design/f5/bigip-irule-parser-measurements.md` §2), a second
 /// divergence independent of the implicit word break and likewise an
 /// `f5-tcl` trunk fact (measurements §4a).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -279,7 +279,7 @@ pub struct LexerGrammar {
     /// 8.5+; false for Tcl 8.4 and iRules.
     pub expand_syntax: bool,
     /// When true, the word break implied by a close delimiter — the F5
-    /// R-rules (`docs/design/bigip-irule-parser-measurements.md` §1, §3):
+    /// R-rules (`docs/design/f5/bigip-irule-parser-measurements.md` §1, §3):
     /// a word that *started* with `{` or `"` ends at its matching close
     /// delimiter, and any character other than whitespace or a command
     /// terminator immediately after it begins a **new word** (a

@@ -13,6 +13,9 @@ under `rust/tcl-compiler/src/optimiser/`, with GVN in `src/gvn.rs`.
   implement expression and structural rewrites.
 - `elimination.rs` owns dead-code, dead-store, and scope-aware elimination;
   optimiser-authoritative O109 findings also feed Explorer dead-store views.
+  `structure_elimination.rs` removes constant-condition compound statements
+  (O112); `method_barrier.rs` decides which TclOO methods propagation must
+  leave alone.
 - `code_sinking.rs`, `tail_call.rs`, `unused_procs.rs`, `chain_fold.rs`, and
   `end_offset.rs` implement their named specialised rewrites.
 - `gvn.rs` handles value-numbering and CSE candidates. A Tcl command call is
@@ -86,8 +89,8 @@ authorisation.
 
 ## Remaining shared-utility debt
 
-The audit found the following bounded duplication. These are consolidation
-targets, not permission to broaden a proof while moving code:
+These are consolidation targets, not permission to broaden a proof while
+moving code:
 
 - `common_aot_plan` has a local function iterator although
   `CompilationUnit::functions` already supplies deterministic traversal.

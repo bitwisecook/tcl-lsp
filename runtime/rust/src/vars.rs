@@ -19,7 +19,7 @@
 //! The variable resolver (T1.5) — the variable parallel of the command resolver.
 //!
 //! One classification + one link walk, modelled on `tclVar.c:TclLookupSimpleVar`
-//! (`tmp/tcl9.0.3`) and `namespace-tree.md` §5.3. Given a name and the current
+//! (`tmp/tcl9.0.4`) and `namespace-tree.md` §5.3. Given a name and the current
 //! `(frame, namespace)` context, decide which table holds it and follow any
 //! `global`/`variable`/`upvar` links to the concrete cell:
 //!
@@ -42,7 +42,7 @@
 //! [`make_upvar`]). The coordinator borrows both the frame stack and the
 //! namespace tree (the two var-table owners) from the interp.
 
-use tcl_runtime_api::FrameLinkOrigin;
+use tcl_runtime_api::{FrameLinkOrigin, VarId};
 use tcl_syntax::naming::is_qualified;
 
 use crate::frame::{FrameStack, Link, Var, VarError, VarHome, VarTable};
@@ -69,6 +69,27 @@ enum Resolved {
     /// A qualified name whose namespace does not exist. Writes raise
     /// `parent namespace doesn't exist`; reads/unsets treat it as not-found.
     NoNamespace,
+}
+
+/// One resolved standalone variable binding selected by stable identity.
+///
+/// The table slot is deliberately not the identity: compiled slots survive an
+/// ordinary `unset`, while a later recreation receives a new identity. During
+/// an operation on this exact binding Tcl retains the `Var` cell, however, so
+/// an unset-and-recreate inside one callback refills the retained identity.
+/// `array get` holds this record across callbacks and compares `id` before
+/// observing the table again.
+#[derive(Clone, Debug)]
+pub(crate) struct ArrayCellTarget {
+    home: VarHome,
+    name: Vec<u8>,
+    id: VarId,
+}
+
+impl ArrayCellTarget {
+    pub(crate) const fn id(&self) -> VarId {
+        self.id
+    }
 }
 
 /// The var home where the current context's *local* (unqualified, non-`::`)
@@ -251,6 +272,118 @@ fn resolve_at(frames: &FrameStack, ns: &Namespaces, name: &[u8], level: usize) -
         Resolved::Place(p) => Resolved::Place(follow_links(frames, ns, p)),
         other => other,
     }
+}
+
+/// Resolve an array-command spelling to the concrete variable binding it
+/// currently reaches. The binding may be undefined or scalar; callers retain
+/// it so a callback cannot steer the operation onto a replacement.
+pub(crate) fn array_target_at(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    name: &[u8],
+    level: usize,
+) -> Option<ArrayCellTarget> {
+    let Resolved::Place(place) = resolve_at(frames, ns, name, level) else {
+        return None;
+    };
+    if place.elem.is_some() {
+        return None;
+    }
+    let id = table(frames, ns, place.home)?.binding_id(&place.name)?;
+    Some(ArrayCellTarget {
+        home: place.home,
+        name: place.name,
+        id,
+    })
+}
+
+/// Enumerate an exact binding only while it is still the array selected when
+/// an operation began.
+pub(crate) fn array_names_at_target(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    target: &ArrayCellTarget,
+) -> Option<Vec<Vec<u8>>> {
+    let table = table(frames, ns, target.home)?;
+    if table.binding_id(&target.name) != Some(target.id) {
+        return None;
+    }
+    table
+        .array_names(&target.name)
+        .map(|keys| keys.into_iter().map(<[u8]>::to_vec).collect())
+}
+
+pub(crate) fn array_target_is_set(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    target: &ArrayCellTarget,
+) -> bool {
+    let Some(table) = table(frames, ns, target.home) else {
+        return false;
+    };
+    table.binding_id(&target.name) == Some(target.id) && table.is_set(&target.name)
+}
+
+pub(crate) fn retain_array_target(
+    frames: &mut FrameStack,
+    ns: &mut Namespaces,
+    target: &ArrayCellTarget,
+) -> bool {
+    table_mut(frames, ns, target.home).retain_binding(&target.name, target.id)
+}
+
+pub(crate) fn release_array_target(
+    frames: &mut FrameStack,
+    ns: &mut Namespaces,
+    target: &ArrayCellTarget,
+) {
+    table_mut(frames, ns, target.home).release_binding(&target.name, target.id);
+}
+
+/// Stable identities of the live array and element reached by a spelling just
+/// before its read traces fire.
+pub(crate) fn array_element_target_at(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    name: &[u8],
+    key: &[u8],
+    level: usize,
+) -> Option<(ArrayCellTarget, VarId)> {
+    let target = array_target_at(frames, ns, name, level)?;
+    let element = table(frames, ns, target.home)?.element_id(&target.name, key)?;
+    Some((target, element))
+}
+
+pub(crate) fn retain_array_element_target(
+    frames: &mut FrameStack,
+    ns: &mut Namespaces,
+    target: &ArrayCellTarget,
+    key: &[u8],
+    element: VarId,
+) -> bool {
+    table_mut(frames, ns, target.home).retain_element(&target.name, key, element)
+}
+
+pub(crate) fn release_array_element_target(
+    frames: &mut FrameStack,
+    ns: &mut Namespaces,
+    target: &ArrayCellTarget,
+    key: &[u8],
+    element: VarId,
+) {
+    table_mut(frames, ns, target.home).release_element(&target.name, key, element);
+}
+
+/// Read the exact element selected before a callback, returning `None` after
+/// either the array or the element was unset and recreated under the same name.
+pub(crate) fn get_element_at_target(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    target: &ArrayCellTarget,
+    key: &[u8],
+    element: VarId,
+) -> Option<*mut TclObj> {
+    table(frames, ns, target.home)?.load_elem_with_ids(&target.name, target.id, key, element)
 }
 
 /// The identity a variable trace on `name` belongs to, following

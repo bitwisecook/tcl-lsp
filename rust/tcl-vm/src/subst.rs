@@ -66,7 +66,7 @@ use crate::value::Value;
 ///
 /// `config` is the VM's own grammar ([`Vm::lexer_config`]): the substituted
 /// text is a script, so where a `]` stops is a release/dialect question
-/// (`docs/design/dialect-profile-model.md` §2.5), not the default grammar's.
+/// (`docs/design/registry/dialect-profile-model.md` §2.5), not the default grammar's.
 ///
 /// The error is the owner's, not a flat `missing close-bracket`. A substituted
 /// `[…]` is a *script*, so C recurses into it at the bracket and reports what
@@ -534,8 +534,8 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
     // the right one — a blanket decode here fixes the first vector by breaking
     // the second. The fix belongs in the compiler's literal emission for a
     // word nested in a bracket word (`rust/tcl-compiler`), not in the word
-    // decomposer; see `docs/design/lanes/wasm-native-lowering.md`
-    // § `r10-word-parts`.
+    // decomposer; see `docs/design/contracts/shared-utility-contracts-rust.md`
+    // § `tcl-compiler` — nested command-substitution words.
     if !word.contains("${") && !word.contains('[') {
         return Ok(Value::string(word));
     }

@@ -5,7 +5,7 @@
 
 ## Summary
 
-Validate Tcl code against a real tclsh interpreter if available on the system.
+Check the open document with a real `tclsh`: a completeness check for Tcl, a stubbed evaluation for iRules.
 
 ## Applies to
 
@@ -19,16 +19,36 @@ VS Code
 
 ## How to use
 
-- **VS Code**: Run `Tcl: Run Runtime Validation` from the command palette. Requires a `tclsh` binary on your PATH. The command runs the code through tclsh and reports any runtime errors.
+- **VS Code**: Run `Tcl: Run Runtime Validation` from the command palette.
+  It needs a `tclsh` on your PATH. The result arrives as a notification —
+  `Runtime validation passed (…)`, or `Runtime validation failed (…)` with
+  the interpreter's own message.
+- **On save**: turn on `tclLsp.runtimeValidation.enabled` to run the same
+  check after every save. Failures then go to the status bar.
+
+## Settings
+
+- `tclLsp.runtimeValidation.tclshPath` — interpreter to run. Default `tclsh`.
+- `tclLsp.runtimeValidation.timeoutMs` — give up after this long. Default 5000.
+- `tclLsp.runtimeValidation.adapter` — `auto`, `tcl-syntax`, or `irules-stub`.
+- `tclLsp.runtimeValidation.enabled` — also validate on save. Default off.
 
 ## Operational context
 
-Runtime validation complements static analysis by executing the code in a real Tcl interpreter. This catches issues that static analysis cannot detect, such as runtime type errors or missing packages.
+There are two adapters. On `auto`, the dialect picks one.
+
+- **Tcl syntax adapter** — reads the file and runs `info complete`. It never
+  evaluates your code, so a script with side effects is safe to check. It
+  catches unbalanced braces, brackets, and quotes, and nothing else.
+- **iRules stub adapter** — chosen for the iRules dialect. It stubs `when` and
+  `unknown`, then evaluates the script at the global level, so a malformed
+  `when` header or an unparsable event body is reported.
 
 ## Failure modes
 
-- tclsh not found on PATH.
-- Script has side effects when executed.
+- `tclsh` is not on PATH, or the script outruns `timeoutMs`.
+- The iRules adapter evaluates the script, so anything written outside a
+  `when` body really runs.
 
 ## Test anchors
 
@@ -36,28 +56,22 @@ Runtime validation complements static analysis by executing the code in a real T
 
 ## Example
 
-Running **Tcl: Run Runtime Validation** on this script:
+Running **Tcl: Run Runtime Validation** on this iRule:
 
 ```tcl
-package require Tcl 8.6
-set items {one two three}
-foreach item $itmes {
-    puts $item
+when HTTP_REQUEST priority high {
+    pool web
 }
 ```
 
-The VS Code output channel shows the tclsh error:
+VS Code shows:
 
 ```
-can't read "itmes": no such variable
-    while executing
-"foreach item $itmes { ... }"
+Runtime validation failed (iRules stub adapter): Invalid priority 'high' for event 'HTTP_REQUEST'
 ```
 
-The static analyser flags this as
-[W210](../codes/kcs-diagnostic-w210-variable-read-before-set.md)
-(variable read before set), but runtime validation independently
-confirms the failure by executing the script against a real `tclsh`.
+A `priority` must be an integer, and the stub `when` says so before the rule
+ever reaches a BIG-IP.
 
 ## Discoverability
 

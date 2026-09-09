@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! **Document- and workspace-declared commands** — gap ruling R1
-//! (`docs/design/dialect-and-package-registry-centralisation.md` §4).
+//! (`docs/design/registry/dialect-and-package-registry-centralisation.md` §4).
 //!
 //! A `# tcl-lsp: stub NAME {ARGS}` block in the analysed buffer, and a
 //! workspace `<environment>.tcl.stubs` sidecar, both say the same kind of

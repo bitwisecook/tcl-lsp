@@ -52,7 +52,7 @@
 //! `tcl-spec-studio/tests/spectcl_ports.rs` meaningful.
 //!
 //! The frozen syntax is `docs/design/spec-dsl-examples/README.md`; the
-//! architecture around it is `docs/design/spec-packs.md`.
+//! architecture around it is `docs/design/registry/spec-packs.md`.
 //!
 //! ## What the loader does, and does not, do
 //!
@@ -696,7 +696,7 @@ pub enum HookSource {
         /// ([`HookInputs::shape_only`]): a hook that declares only shape
         /// inputs is answered from the shape-keyed cache at native speed, and
         /// one that declares nothing (the default) is fully legal, always
-        /// correct, and uncacheable — `docs/design/spec-packs.md`'s
+        /// correct, and uncacheable — `docs/design/registry/spec-packs.md`'s
         /// "granularity is not restricted; consequences are documented".
         inputs: HookInputs,
     },
@@ -9010,5 +9010,54 @@ mod tests {
                 pack.notices
             );
         }
+    }
+
+    /// [`ArgRows::seal`] is the one projection from the authored row form to
+    /// the parallel slices the registry stores, so a row with every column
+    /// set must land in every one of the six vectors. A column added to
+    /// [`ArgRow`] and not projected fails here rather than vanishing.
+    #[test]
+    fn projection_carries_every_row_column() {
+        let values = leak_slice(vec![ArgValue {
+            value: "alnum",
+            ..ArgValue::DEFAULT
+        }]);
+        let rows = ArgRows {
+            rows: vec![ArgRow {
+                index: 3,
+                role: Some(ArgRole::Body),
+                type_hint: Some(ArgTypeHint {
+                    expected: Some(TclType::Int),
+                    shimmers: true,
+                    transparent_from: &[],
+                }),
+                values,
+                closed: true,
+                presentation: Some(ArgPresentation::InlineScript),
+                appends: Some(AppendedArity::Exactly(2)),
+            }],
+        };
+
+        let sealed = rows.seal();
+
+        assert_eq!(sealed.roles, vec![(3, ArgRole::Body)]);
+        assert_eq!(
+            sealed.types,
+            vec![(
+                3,
+                ArgTypeHint {
+                    expected: Some(TclType::Int),
+                    shimmers: true,
+                    transparent_from: &[],
+                }
+            )]
+        );
+        assert_eq!(sealed.values, vec![(3, values)]);
+        assert_eq!(sealed.closed, vec![3]);
+        assert_eq!(
+            sealed.presentation,
+            vec![(3, ArgPresentation::InlineScript)]
+        );
+        assert_eq!(sealed.prefixes, vec![(3, AppendedArity::Exactly(2))]);
     }
 }

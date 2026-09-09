@@ -30,8 +30,10 @@
 
 use tcl_cmd_core::switch::{self as core_switch, Selection};
 use tcl_runtime_api::Completion;
+use tcl_runtime_api::completion_options::ControlOptionPolicy;
 
 use crate::cmd_regexp::CrateEngine;
+use crate::command::settle_control_options;
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
@@ -94,7 +96,7 @@ fn cmd_switch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Err(e) => return crate::command::completion_from_cmd_error(e),
     };
     let Selection::Matched { index, writes } = sel else {
-        return ok(Value::empty());
+        return settle_control_options(ok(Value::empty()), ControlOptionPolicy::FRESH_FORWARDED);
     };
     // TIP #75 `-matchvar`/`-indexvar` writes happen before the body runs.
     for (name, val) in writes {
@@ -109,8 +111,9 @@ fn cmd_switch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         b += 1;
     }
     let body = pairs[b].1.to_str().to_string();
-    match vm.eval_source(&body) {
+    let completion = match vm.eval_source(&body) {
         Ok(c) => c,
         Err(e) => err(e.message),
-    }
+    };
+    settle_control_options(completion, ControlOptionPolicy::FRESH_FORWARDED)
 }

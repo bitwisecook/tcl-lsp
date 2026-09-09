@@ -19,7 +19,7 @@
 //! The compiled-pack cache — the **one door** production code loads a
 //! `.tclspec` through ([`evaluate_pack_cached`]).
 //!
-//! `docs/design/spec-packs.md`: on first load a pack's compiled form is
+//! `docs/design/registry/spec-packs.md`: on first load a pack's compiled form is
 //! written to `$XDG_CACHE_HOME/tcl-lsp/spectcl/` (and the platform
 //! equivalents) keyed by an **xxhash-class** digest of the pack source *plus
 //! the `SpecTcl` vocabulary version, the loader build and the provenance
@@ -52,7 +52,7 @@
 //! - **On disk**: the **segmented statement tree** the evaluation loader
 //!   parses on its way in, which is what makes the *next process* cheap. It is
 //!   the only part of loading that a new process can be spared, and
-//!   `docs/design/spec-packs.md` measures it at 4.28 ms for a 2,000-line pack.
+//!   `docs/design/registry/spec-packs.md` measures it at 4.28 ms for a 2,000-line pack.
 //!
 //! The in-memory tier is unbounded and never evicted, which is the right
 //! trade here rather than an oversight: a `Pack` is built out of `&'static`

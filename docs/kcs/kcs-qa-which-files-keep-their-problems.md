@@ -33,7 +33,7 @@ Two boundaries follow from that:
   badge** — as you would expect.
 
 If a file's problems do disappear after you close its tab, that is a
-fault: collect the **Tcl LSP** output channel log and open an issue.
+fault: collect the **Tcl Language Server** output channel log and open an issue.
 
 ## Related
 

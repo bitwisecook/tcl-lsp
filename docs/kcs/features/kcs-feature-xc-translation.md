@@ -71,7 +71,9 @@ writes `$FILE.tf` and `$FILE.xc.json`.
 
 The translator walks the lowered IR of each event handler and maps
 commands to XC routes, service policy rules, origin pool references,
-header actions, and WAF exclusion rules. Generated Terraform carries
+header actions, and WAF exclusion rules, then renders that model two
+ways: Terraform HCL for the `volterra` provider, and ves.io JSON-API
+objects. Generated Terraform carries
 `TODO` comments where XC needs a value the iRule cannot supply, such as
 origin server addresses and load-balancer domains. Constructs with no XC
 equivalent are reported as items, never silently dropped, and the same
@@ -87,6 +89,9 @@ analysis drives the XC100-301 diagnostics shown inline on iRule files.
   Limiting, or Bot Defence.
 - **The generated Terraform does not apply as-is.** Every `TODO` in the
   output marks a value you must supply before `terraform apply`.
+- **XC rejects the emitted configuration.** The translator renders what
+  the iRule says; it does not validate against a live tenant, so an
+  object that clashes with existing XC configuration fails on apply.
 
 ## Example
 
@@ -137,6 +142,10 @@ resource "volterra_http_loadbalancer" "translated-lb" {
 The JSON API document carries the same route and origin pool under
 `http_loadbalancer` and `origin_pools`, and the run reports
 `Coverage: 100.0% — 2 translatable, 0 partial, 0 untranslatable, 0 advisory`.
+
+A pattern with no direct equivalent — a `HTTP::header insert` that
+mutates response headers, say — is counted as untranslatable and listed
+with the command that produced it.
 
 ## Related
 

@@ -11,8 +11,11 @@ expressions fall back to `ExprNode::Raw` and cannot be statically analysed
 (diagnostic W100).
 
 Source: `rust/tcl-syntax/src/expr/parser.rs` (Pratt parser),
-`rust/tcl-syntax/src/expr/ast.rs` (AST), `rust/tcl-lexer/src/expr_lexer.rs`
-(`irules_ops()` — iRules word-operator lexing)
+`rust/tcl-syntax/src/expr/ast.rs` (AST), `rust/tcl-syntax/src/expr/operators.rs`
+(the operator catalogue — each `BinOp`/`UnaryOp` spec carries its `surface`
+and grammar version), `rust/tcl-lexer/src/expr_lexer.rs` (the expression
+tokeniser; a word operator is an operator token only when the profile's
+`LexerGrammar::has_word_operator` admits it)
 
 ### Braced vs unbraced expressions
 
@@ -36,11 +39,13 @@ binding powers bind tighter:
 |----------|---------|----------|-------|
 | `\|\|`, `or` | 4 | 5 | Logical OR |
 | `&&`, `and` | 6 | 7 | Logical AND |
-| `==`, `!=`, `eq`, `ne` | 14 | 15 | Equality |
-| `<`, `>`, `<=`, `>=` | 16 | 17 | Comparison |
+| `\|` / `^` / `&` | 8 / 10 / 12 | 9 / 11 / 13 | Bitwise |
+| `==`, `!=`, `eq`, `ne` (and the iRules string operators) | 14 | 15 | Equality |
+| `<`, `>`, `<=`, `>=`, `in`, `ni`, `lt`, `le`, `gt`, `ge` | 16 | 17 | Relational, list membership |
+| `<<`, `>>` | 18 | 19 | Shift |
 | `+`, `-` | 20 | 21 | Additive |
 | `*`, `/`, `%` | 22 | 23 | Multiplicative |
-| `**` | 25 | 24 | Exponentiation (right-associative) |
+| `**` | 23 | 23 | Exponentiation (right-associative: equal binding powers) |
 
 ### Worked example — `expr {$a + $b * 2}`
 
@@ -62,12 +67,13 @@ Pratt parsing:
 | `starts_with` | prefix eq | (14, 15) |
 | `ends_with` | suffix eq | (14, 15) |
 | `contains` | substring eq | (14, 15) |
+| `equals` | string eq | (14, 15) |
 | `matches` | string eq (semantics unpinned) | (14, 15) |
 | `matches_glob` | glob match | (14, 15) |
 | `matches_regex` | regexp | (14, 15) |
 
 The bare `matches` is measured *present* only
-(`docs/design/bigip-irule-parser-measurements.md` §4a `e_matches`:
+(`docs/design/f5/bigip-irule-parser-measurements.md` §4a `e_matches`:
 `expr {"abc" matches "abc"}` answers `1` in all three F5 contexts and
 fails on both host builds). That probe is a single-operator,
 exact-equality expression, so it pins neither the operator's binding
@@ -77,14 +83,15 @@ one reading the measured cell exercises — and the compiler deliberately
 declines to constant-fold it. §12 of the measurements carries the
 discriminating re-probe.
 
-These are registered in `binary_bp()` (`rust/tcl-syntax/src/expr/parser.rs`)
-alongside the standard operators, and recognised as operator tokens by
-`irules_ops()` in `rust/tcl-lexer/src/expr_lexer.rs`.
+Each is a `BinOp` whose spec in `rust/tcl-syntax/src/expr/operators.rs`
+carries `surface: Some(SpecSurface::IRULES)`, has a binding power in
+`binary_bp()`, and is lexed as an operator only when the profile's grammar
+admits the word (`LexerGrammar::has_word_operator`).
 
 ### Who supplies the dialect
 
-`parse_expr(source, dialect)` takes the dialect because `irules_ops()` is
-gated on it: with `None` (or a non-iRules dialect) `contains` is an ordinary
+`parse_expr(source, dialect)` takes the dialect because the word operators
+are gated on it: with `None` (or a non-iRules dialect) `contains` is an ordinary
 bareword, the parse fails, and the result is `ExprNode::Raw`. That fallback is
 silent — the expression still compiles, it simply stops being analysable — so a
 caller that forgets the dialect loses constant folding, type inference, and
@@ -101,30 +108,31 @@ The dialect therefore has to be threaded from the document all the way down:
 | `expr` / `return [expr …]` / `set x [expr …]` | `LoweringCommand::dialect` in the lowering hooks |
 | Constant folding | `FoldPolicy::from_registry`, which reads the registry's stamped dialect profile |
 
-Two failure modes have been paid for once already (issue #1048): building a
-unit with `CompilationUnit::build_for` (or `build_for_with_config`, which
-fixes only the *lexer* config) while holding a real dialect, and handing the
-pipeline a registry with no profile stamped on it — `registry_for_dialect`
-stamps it, a hand-assembled `build_default` + `load_dialect` does not, and
-`FoldPolicy::from_registry` reads such a registry as plain Tcl.
+Two failure modes: building a unit with `CompilationUnit::build_for` (or
+`build_for_with_config`, which fixes only the *lexer* config) while holding a
+real dialect, and handing the pipeline a registry with no profile stamped on
+it — `registry_for_dialect` stamps it, a hand-assembled `build_default` +
+`load_surface` does not, and `FoldPolicy::from_registry` reads such a registry
+as plain Tcl.
 
 ## Decision rule
 
 - To add a new operator, add its binding power entry to `binary_bp()`, map its
   text to the new `BinOp`/`UnaryOp` variant in `binop_from_text()` /
-  `unaryop_from_text()` (all in `rust/tcl-syntax/src/expr/parser.rs`), and add
-  the variant itself in `rust/tcl-syntax/src/expr/ast.rs`. A new word-like
-  spelling (not already a recognised operator symbol) also needs registering
-  in `irules_ops()` in `rust/tcl-lexer/src/expr_lexer.rs`, or the lexer won't
-  tokenise it as an operator at all. Skipping any of these steps fails
-  silently — the parser falls back to `ExprNode::Raw`, compiling fine but
-  disabling structured analysis for expressions using the new operator.
+  `unaryop_from_text()` (all in `rust/tcl-syntax/src/expr/parser.rs`), add the
+  variant in `rust/tcl-syntax/src/expr/ast.rs`, and give it a spec (surface,
+  grammar version) in `rust/tcl-syntax/src/expr/operators.rs`. A word-like
+  spelling is tokenised as an operator only where the profile's grammar admits
+  it. Skipping any of these steps fails silently — the parser falls back to
+  `ExprNode::Raw`, compiling fine but disabling structured analysis for
+  expressions using the new operator.
 - If the expression is unbraced, no AST is produced — downstream passes must
   handle `ExprNode::Raw` gracefully (skip constant folding, skip type inference).
-- Right-associative operators use `left_bp > right_bp` (e.g. `**` uses 25, 24).
+- A left-associative operator has `right_bp = left_bp + 1`; a
+  right-associative one (`**`) uses equal binding powers (23, 23).
 
 ## Related docs
 
-- [Example 21 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-21-expression-parsing--braced-vs-unbraced)
+- [Example 21 in walkthroughs](example-walkthroughs.md#example-21-expression-parsing--braced-vs-unbraced)
 - [GLOSSARY.md — AST](../../GLOSSARY.md#ast)
-- [kcs-compiler-pipeline-overview.md](../../../docs/design/compiler/compiler-pipeline-overview.md)
+- [compiler-pipeline-overview.md](compiler-pipeline-overview.md)

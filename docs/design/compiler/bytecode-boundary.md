@@ -28,6 +28,6 @@ If a rule in codegen would improve diagnostics or quick-fix quality, model it as
 
 ## Related files
 
-- `compiler/codegen/`
+- `rust/tcl-compiler/src/codegen/`
 - `rust/tcl-compiler/src/lowering/`
 - `rust/tcl-compiler/src/compilation_unit.rs`

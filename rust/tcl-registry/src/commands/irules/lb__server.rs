@@ -167,7 +167,7 @@ pub const fn spec() -> CommandSpec {
         }),
         // Measured on the appliance: accepted in all seven traffic
         // events probed and refused only in `RULE_INIT`
-        // (`docs/design/bigip-irule-parser-measurements.md` §8) — the
+        // (`docs/design/f5/bigip-irule-parser-measurements.md` §8) — the
         // same row shape as `table`, and modelled the same way, as a
         // plain flow requirement rather than a side or profile one. The
         // hover example reads `LB::server pool` in `CLIENT_ACCEPTED`,

@@ -18,7 +18,7 @@
 
 //! Hermetic conformance vectors for the two measured `f5-tcl` trunk axes —
 //! the implicit word break (R-rules) and the brace-line continuation
-//! (N-rules) — from `docs/design/bigip-irule-parser-measurements.md`
+//! (N-rules) — from `docs/design/f5/bigip-irule-parser-measurements.md`
 //! (§1, §2, §3, §4a; live-measured on BIG-IP 21.1.0.1 with same-host
 //! stock controls).
 //!

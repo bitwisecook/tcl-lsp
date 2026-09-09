@@ -39,6 +39,7 @@ engine as a **library** (PyO3), while this crate is the same generator
 | `decrypt_secrets(scf, master_key)` | decrypt `$M$…` secrets with the base64 `f5mku -K` key. |
 | `generate_report(sources_json, cert_files_json, files_json, title, generated_at, embed_console, architecture_manifest, report_id)` | ordered `[[uri, scf], …]` + extras → standalone HTML report. |
 | `build_architecture(devices_json, manifest)` | re-run architecture/topology detection for the builder's GUI editor → `architecture` JSON. |
+| `manual(topic)` | the full `f5-query` manual text, for the report's reference panel. |
 | `engine_version()` | the report engine version string. |
 
 The page (styles + upload controller) is the shared builder front-end
@@ -48,7 +49,7 @@ generator wasm behind it.
 ## Building
 
 Requires the `wasm32-unknown-unknown` target, `wasm-bindgen-cli` (matching the
-pinned `wasm-bindgen` crate version), `wasm-opt` (binaryen) and `python3`:
+pinned `wasm-bindgen` crate version), and `python3`:
 
 ```bash
 bash build-wasm.sh          # → dist/index.html (WASM + glue inlined, one file)
@@ -59,11 +60,11 @@ just open it from disk. `target/` and `dist/` are build outputs (gitignored);
 CI (the `github-pages` workflow) builds and publishes it to
 `/bigip-report-generator/`.
 
-> Note: `build-wasm.sh` deliberately skips `wasm-opt`. On modern rustc layouts
-> binaryen rebinds the `__wbindgen_externrefs` export onto the fixed-size
-> funcref table, which makes `Table.grow` fail at runtime and the page never
-> initialises; the raw wasm-bindgen output is correct and, gzipped, within ~1%
-> of the optimised size.
+> `wasm-opt` is deliberately not run: on modern rustc layouts binaryen rebinds
+> the `__wbindgen_externrefs` export onto the fixed-size funcref table, which
+> makes `Table.grow` fail at runtime and the page never initialises. The raw
+> wasm-bindgen output is correct and, gzipped, within ~1% of the optimised
+> size.
 
 This crate is **excluded from the Cargo workspace** (like `bigip-query-wasm`):
 wasm-bindgen's generated glue needs `unsafe`, which the workspace

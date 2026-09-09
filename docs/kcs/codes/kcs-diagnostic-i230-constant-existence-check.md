@@ -27,10 +27,9 @@ between calls":
 ```tcl
 proc authorize {} {
     if {[info exists handle]} {
-        # re-use the existing handle
-    } else {
-        set handle [ILX::init Access-Plugin Access-Extension]
+        return $handle
     }
+    return [ILX::init Access-Plugin Access-Extension]
 }
 ```
 
@@ -39,6 +38,9 @@ survive from one invocation to the next. So `handle` is never set when the
 check runs, `[info exists handle]` is always false, and the re-use branch is
 dead. Re-entrancy does not change this: a new call (from APM, an ILX callback,
 or anywhere) is a new frame with empty locals.
+
+The fold needs a body that never writes the name: a `set handle …` anywhere
+in the procedure is enough for the analyser to abstain.
 
 The analyser folds the check to its constant value and reports **`I230`** on the
 condition. The optimiser can then drop the dead branch
@@ -51,13 +53,12 @@ the same literal for a parameter, the analyser seeds that parameter as a
 compile-time constant for the callee's own analysis. If your proc is
 genuinely recursive (or mutually recursive) and a parameter varies with each
 call — a counter, a depth, an accumulator — that variation is real evidence
-against treating it as constant. A false `I230` here (issue #969: `if {$count
-& 1}` reported "always false" inside a recursive proc) means the analyser
+against treating it as constant. A false `I230` here means the analyser
 failed to see one of the varying call sites — most often because it was
 inside a `namespace eval` block and reached via a bare recursive self-call,
 because it was embedded inside a `catch { … }` / `uplevel { … }` body, or
-because it was dispatched through a variable (`set cmd helper; $cmd dev` —
-issue #976). Report a reproducer if you see this: the fix is always to make
+because it was dispatched through a variable (`set cmd helper; $cmd dev`).
+Report a reproducer if you see this: the fix is always to make
 the call-site scan see the call, never to special-case the parameter. For
 the full rule, see
 [when a parameter is treated as a constant](../kcs-qa-when-is-a-proc-parameter-treated-as-a-constant.md).
@@ -89,8 +90,7 @@ The same reasoning applies to a proc reached in a way the scan cannot
 enumerate at all — through a command name it cannot read (`set cmd [gets
 stdin]; $cmd dev`), or through a `namespace import`.
 
-Two shapes that used to lose evidence now keep it, so a fold you saw
-before may correctly have gone away:
+Two shapes that do keep their evidence, and so can still produce a fold:
 
 - A body pinned to a namespace by `apply {params body ns}`. Its bare
   command words resolve in that namespace, so `apply {{x} { helper $x }
@@ -134,10 +134,10 @@ local:
 proc authorize {} {
     global handle              ;# or:  variable handle
     if {[info exists handle]} {
-        # re-use the existing handle
-    } else {
-        set handle [ILX::init Access-Plugin Access-Extension]
+        return $handle
     }
+    set handle [ILX::init Access-Plugin Access-Extension]
+    return $handle
 }
 ```
 

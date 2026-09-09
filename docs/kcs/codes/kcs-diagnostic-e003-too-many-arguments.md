@@ -19,7 +19,10 @@ Why do I see a red squiggle saying a command was called with too many arguments?
 
 Passing more arguments than a command accepts will raise a runtime error. The extra words are never silently ignored, so the script will fail.
 
-This check is not limited to builtin commands: it also applies to same-file `proc` calls, `interp alias` targets (shifted by any prepended arguments), `rename`d commands (which keep the original's arity — and, if the old name is later re-declared as a fresh `proc`, the *new* declaration's own arity, not the original's), TclOO methods and `forward`s (including `forward NAME my TARGET ?ARG…?`, the idiom for forwarding to a sibling or inherited method), and reachable TclOO manufacturer calls (`ClassName new ?args?` / `ClassName create name ?args?`, checked against the nearest explicit `constructor` in the class's inheritance chain). `createWithNamespace` has a registry-declared layout but is unexported in C Tcl, so an ordinary class-command call is rejected rather than arity-checked as construction. The check also covers `next`/`nextto` calls inside a method body (checked against the resolved next-in-MRO method or `nextto`'s named target — see the [E002 page](kcs-diagnostic-e002-too-few-arguments.md#tcloo-next--nextto-context)), a Tk/ttk widget's own instance command when the receiver traces back to its creating constructor (see the [E002 page](kcs-diagnostic-e002-too-few-arguments.md#tk-widget-instance-dispatch-context); `configure`/`cget` are never arity-checked), and direct calls to an inline `apply {{params} body} ?args?` lambda.
+`E003` covers the same call shapes as its too-few sibling — same-file `proc`s,
+`interp alias`, `rename`, TclOO methods, `forward`s, constructors,
+`next`/`nextto`, Tk widget instance commands, and `apply` lambdas. The
+[E002 page](kcs-diagnostic-e002-too-few-arguments.md#why) lists them.
 
 ## Symptoms
 
@@ -67,11 +70,10 @@ lsort -command oneArg {3 1 2}   ;# lsort appends 2 → E003 on `oneArg`
 Fix by widening the callback's parameter list (here to `{a b}`) or giving it a
 variadic tail (`{args}`) so it absorbs every appended argument.
 
-**This check also works across files by default** when the call site's exact
-C Tcl resolution candidate names the proc. `crossFileResolution` is only
-needed for its broader, deliberately lossy bare-name workspace inference; see
-the [E002 page](kcs-diagnostic-e002-too-few-arguments.md#command-prefix-callback-context).
-Every other E003 case on this page fires unconditionally.
+**This check works across files by default** when the call site's exact C Tcl
+resolution candidate names the proc; see the
+[E002 page](kcs-diagnostic-e002-too-few-arguments.md#command-prefix-callback-context).
+Every other E003 case fires unconditionally.
 
 ## A computed parameter list is not checked
 
@@ -86,10 +88,8 @@ puts [p 1 2]        ;# p got 1 2 — two parameters, decided at run time
 
 Which names such a proc declares, and how many, is a run-time fact, so the
 arity checker **abstains** for it: no `E002`, `E003`, or `E005` on any call to
-`p`. The same applies to `proc q $params {…}`. (Before this abstention the
-unresolved word was read as a single literal parameter, and `p 1 2` drew a
-false `E003`.) A *literal* list — braced, bareword, or a quoted word with no
-substitution in it — is checked as usual.
+`p`. The same applies to `proc q $params {…}`. A *literal* list — braced,
+bareword, or a quoted word with no substitution in it — is checked as usual.
 
 ## Fix
 

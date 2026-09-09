@@ -12,21 +12,25 @@ up to the binaries, and is enforced by cargo's own dependency graph.
 
 | Crate | Role |
 |-------|------|
-| `tcl-core-types`, `tcl-platform` | Leaf value types + platform helpers.  Depend on nothing project-local. |
+| `tcl-core-types`, `tcl-platform`, `tcl-dialect`, `tcl-version`, `tcl-userdirs` | Graph leaves — value types, platform helpers, the dialect vocabulary (`DialectSet`, `TclVersion`, `DialectProfile`), the version every binary reports, and the per-user cache / config / state directories.  Depend on nothing project-local. |
 | `tcl-lexer`, `tcl-syntax` | Tcl lexer + lossless concrete syntax tree (red-green). |
 | `tcl-compiler` | Tcl pipeline — IR, lowering, CFG, SSA, passes, optimiser, codegen, WASM emitter, compiler-internal analyses (taint, var-escape, interprocedural). |
 | `tcl-registry` | Command / dialect registry (per-command specs, arity, subcommands, arg-roles) + canonical dialect detection. |
-| `tcl-bytecode`, `tcl-runtime-api`, `tcl-cmd-core`, `tcl-vm`, `tcl-vm-cli` | Bytecode model, runtime API, per-command runtime, the bytecode VM, and its CLI. |
+| `tcl-bytecode`, `tcl-runtime-api`, `tcl-cmd-core`, `tcl-vm`, `tcl-vm-cli` | Bytecode model, runtime API, per-command runtime, the bytecode VM, and its `tclvm` CLI. |
+| `tcl-engine-api`, `tcl-engine-tclvm`, `tcl-cshim` | The engine-neutral Tcl extension interface, the `tcl-vm` engine behind it, and the C Tcl extension shim over it. |
+| `tcl-spectcl`, `tcl-spec-hooks`, `tcl-spec-studio` | SpecTcl runtime pack support (`.tclspec` loader, pack discovery, compiled-pack cache, registry insertion), the sandboxed hook host, and the spec-studio field schema / draft model / renderers behind the web UI. |
 | `tcl-regex` | Tcl regex engine port. |
-| `tcl-bigip`, `tcl-bigip-io`, `tcl-bigip-query` | F5 BIG-IP object model + config parser, config I/O, and the `f5 query` DSL engine. |
-| `tcl-irules`, `f5-xc` | iRules metadata + analysis, and the iRules → F5 Distributed Cloud translator. |
+| `tcl-bigip`, `tcl-bigip-io`, `tcl-bigip-query`, `tcl-f5mku`, `bigip-report-gen` | F5 BIG-IP object model + config parser, config I/O, the `f5 query` DSL engine, the `f5mku` SecureVault envelope, and the standalone HTML estate report generator. |
+| `tcl-irules`, `f5-xc`, `tcl-diagram` | iRules metadata + analysis, the iRules → F5 Distributed Cloud translator, and the LSP-independent structural / control-flow diagram extractor. |
 | `tcl-lsp-core`, `tcl-lsp-db` | Pure LSP feature providers (folding, symbols, diagnostics projection, …) + the LSP-side doc/registry DB. |
-| `tcl-lsp-server` | Native LSP server binary (`tcl-lsp-server`), on tower-lsp. |
+| `tcl-lsp-server` | Native LSP server binary (`tcl-lsp-server`), on `tower-lsp-server` 0.23. |
 | `tcl-cli`, `tcl-cli-support` | The unified `tcl` CLI binary + shared CLI plumbing. |
 | `f5-cli` | The `f5-query` CLI binary (F5 BIG-IP tooling). |
 | `tcl-mcp` | Native MCP server binary (`tcl-mcp`) — the tool surface Claude skills / Codex call. |
-| `tcl-explorer`, `tcl-explorer-wasm` | Compiler-explorer verbs + the Rust→WASM core for the embedded web GUI (`tcl explore --serve`). |
+| `tcl-explorer` | Compiler-explorer verbs behind `tcl explore` (and the embedded web GUI's `tcl explore --serve`). |
 | `tcl-pkg`, `tcl-debugger`, `tcl-fuzz`, `tcl-irule-test`, `tcl-sandbox`, `tcl-host-native` | Tcl package manager, interactive debugger, differential fuzzer, iRule-test framework, sandbox, and native host bridge. |
+| `tcl-sslictcl` | SslicTcl — declarative offline TLS configuration, certificate, trust, and assessment model. |
+| `tcl-test-support` | Shared tclsh discovery and source-tree location for the conformance suites. |
 | `bpf-tcl`, `bpf-tcl-ir`, `bpf-tcl-codegen` | Experimental Tcl→BPF backend. |
 | `xtask` | Build / codegen / check-gate runner (`cargo xtask …`) — editor-settings and catalog generation, DiagCode-table drift checks, docs index-link validation. |
 
@@ -40,7 +44,7 @@ Outside the Cargo workspace:
 |------|------|
 | `editors/` | Editor integrations — VS Code (TypeScript), Zed (Rust cdylib), JetBrains (Kotlin), plus Neovim / Emacs / Helix / Sublime configs. |
 | `runtime/rust/` | Rust-compiled WASM runtime (crate `tcl-runtime`) the compiler's WASM codegen targets. |
-| `rust/tcl-lsp-server/tests/*_e2e.rs` | Native LSP end-to-end suite (driven by `cargo test`, no Python). |
+| `rust/*-wasm`, `rust/tcl-lsp-server-wasi`, `rust/zed-query-check`, `rust/bigip-report-gen/{python,wasm}` | Crates named in `[workspace] exclude` — the wasm32 cdylib facades (`tcl-explorer-wasm`, `tcl-spec-studio-wasm`, `tcl-lsp-server-wasm`, `tcl-vm-wasm`, `bigip-query-wasm`), the WASI LSP transport, the tree-sitter grammar gate, and the PyO3 / WASM report builds.  Their generated glue needs `unsafe`, which the workspace `unsafe_code = "forbid"` lint bans; each has its own `make` target. |
 | `samples/` | Sample Tcl, iRules, and BIG-IP configs. |
 | `docs/` | Design docs, KCS notes, references, perf reports. |
 | `scripts/` | Build, release, capture, and dev automation (shell). |
@@ -51,9 +55,9 @@ The crate boundaries are the single source of truth, enforced by cargo's
 dependency graph (a crate can only use what it declares in
 `Cargo.toml`).  Summary of the intended direction:
 
-1. **`tcl-core-types` / `tcl-platform` are graph leaves.**  No
-   dependency on any higher project crate — every other crate may depend
-   on them without cycles.
+1. **`tcl-core-types`, `tcl-platform`, `tcl-dialect`, `tcl-version` and
+   `tcl-userdirs` are graph leaves.**  No dependency on any higher project
+   crate — every other crate may depend on them without cycles.
 2. **The compiler stack stays below the analyser-and-up stack.**
    `tcl-lexer`, `tcl-syntax`, `tcl-compiler`, and `tcl-registry` do not
    depend on `tcl-lsp-core`, `tcl-lsp-server`, or the CLI/MCP crates.
@@ -63,7 +67,7 @@ dependency graph (a crate can only use what it declares in
    codegen or the optimiser.
 4. **LSP feature logic lives in `tcl-lsp-core`; transport lives in
    `tcl-lsp-server`.**  Feature providers are pure and reusable; the
-   server crate owns the tower-lsp wiring and the `ServerCapabilities`
+   server crate owns the `tower-lsp-server` wiring and the `ServerCapabilities`
    advertised during `initialize`.
 
    One crate reaches *up* into `tcl-lsp-core` deliberately: `tcl-spectcl`,
@@ -133,9 +137,10 @@ dependency graph (a crate can only use what it declares in
 - `rust/tcl-lsp-server/tests/e2e/commands.rs` — the workspace
   `executeCommand` handlers, including the registry-backed ones, driven
   end-to-end against the packaged server.
-- `rust/tcl-lsp-server/tests/*_smoke.rs` — per-feature smoke suites
-  (completion, definition, hover, folding, inlay hints, signature help,
-  document symbols, diagnostics delivery).
+- `rust/tcl-lsp-server/tests/smoke.rs` and its `smoke/` module tree — the
+  per-feature smoke suites (completion, definition, hover, folding, inlay
+  hints, signature help, document symbols, diagnostics delivery), sharing
+  one test binary the way `e2e.rs` does.
 
 ## Discoverability
 

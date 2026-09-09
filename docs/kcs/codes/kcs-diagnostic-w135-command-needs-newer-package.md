@@ -21,20 +21,25 @@ Some commands only exist from a given version of their package onward (for examp
 
 ## Symptoms
 
-- A yellow squiggle under the command, subcommand, or argument value, with a message like "`ttk::button` requires Tk 8.5 but `package require` guarantees only 8.4", or "Argument value 'read' on 'close' requires Tcl 8.6 but tcl8.5 targets Tcl 8.5".
+- A yellow squiggle under the command, subcommand, or argument value, with a
+  message like "'ttk::button' requires Tk 8.5 but `package require` guarantees
+  only 8.4."
 
 ## Example that triggers it
 
 ```tcl
+# tcl-dialect: tk
 package require Tk 8.4
 ttk::button .b -text Hi
 ```
 
-The analyser reports **`W135`** on the `ttk::button` call: `ttk::` widgets need Tk 8.5.
+The analyser reports **`W135`** on the `ttk::button` call, with "'ttk::button'
+requires Tk 8.5 but `package require` guarantees only 8.4."
 
 ## Fix
 
 ```tcl
+# tcl-dialect: tk
 package require Tk 8.5
 ttk::button .b -text Hi
 ```
@@ -46,8 +51,9 @@ Raise the `package require` to at least the version the command needs. A `packag
 Only a `package require` that definitely runs sets the version floor. One inside a branch that may not be taken — an `if` body, a `catch` script, a `try` body, or a `try` `on`/`trap` handler — is recorded as *guarded* and is ignored when comparing versions, because at runtime the package may never have been loaded on the path that reaches the command:
 
 ```tcl
-catch {package require Tk 8.6}
-ttk::button .b -text Hi     ;# still W135 — the require may not have run
+package require Tk 8.4
+catch {package require Tk 8.5}
+ttk::button .b -text Hi     ;# still W135 — the floor is still 8.4
 ```
 
 A `try`'s `finally` script is the one exception: it always runs, whatever the body and the handlers did, so a `package require` there *does* raise the floor. Move the require out of the guard (or add an unguarded one) if you mean it to count.
