@@ -1510,8 +1510,7 @@ impl Analyser {
         let param_names: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
         // One environment for all four scans, so the traits, the caller-frame
         // params, and the caller-frame literals can never be derived from
-        // different views of the proc *or* of the document's command bindings
-        //.
+        // different views of the proc *or* of the document's command bindings.
         let env = super::param_traits::TraitScanEnv {
             surface: tcl_registry::model::DocumentCommandSurface::new(
                 registry,
@@ -1612,8 +1611,7 @@ impl Analyser {
     /// Whether `name` (a bare or fully-qualified command name already known
     /// to be in `registry.command_names()`) resolves to a `CommandSpec` gated
     /// behind a `required_package` / `tcllib_package` (`CommandSpec::
-    /// owning_package`) that this profile does **not** ship ambiently
-    ///.
+    /// owning_package`) that this profile does **not** ship ambiently.
     ///
     /// Data-driven, not a hardcoded package-name list: the answer comes
     /// straight from the resolved spec's package attribution and the
@@ -1678,12 +1676,12 @@ impl Analyser {
     /// class is created at all — byte-identical on tclsh 9.0.4 and 8.6.14:
     ///
     /// ```tcl
-    /// oo::class create ::E1 { deletemethod ghost ; method ghost {} {} }
-    /// ;# -> method ghost does not exist              [info object isa class ::E1] -> 0
-    /// oo::class create ::E2 { self { method cm {} {} } ; deletemethod cm }
-    /// ;# -> method cm does not exist                 (cross-side: `cm` is class-side)
-    /// oo::class create ::E3 { method a {} {} ; method b {} {} ; renamemethod a b }
-    /// ;# -> method called b already exists
+    /// oo::class create ::E1 { deletemethod ghost ; method ghost {} {} };
+    /// # -> method ghost does not exist              [info object isa class ::E1] -> 0
+    /// oo::class create ::E2 { self { method cm {} {} } ; deletemethod cm };
+    /// # -> method cm does not exist                 (cross-side: `cm` is class-side)
+    /// oo::class create ::E3 { method a {} {} ; method b {} {} ; renamemethod a b };
+    /// # -> method called b already exists
     /// ```
     ///
     /// unlike a cross-side `export` / `unexport`, which is a **silent no-op**
@@ -1865,8 +1863,8 @@ impl Analyser {
 
         // A **computed** parameter-list word (`proc p [makeargs] {…}`,
         // `proc q $params {…}`) builds the formals from a run-time value, so
-        // nothing about them is knowable: the proc's params are unmodelled
-        //.  Reading the unresolved word as a one-parameter
+        // nothing about them is knowable: the proc's params are unmodelled.
+        // Reading the unresolved word as a one-parameter
         // literal registered a `VarDef` literally named `"[makeargs]"` and
         // made the call-site arity checker demand exactly one argument, which
         // tclsh 9.0.4 / 8.6.16 contradict (`proc makeargs {} {return {a b}}`;
@@ -2849,8 +2847,8 @@ impl Analyser {
                 super::types::Scope::new(super::types::ScopeKind::Namespace, scope_name);
             child.body_span = body_span;
             // The written `NAME` word, so the outline can point its
-            // `selectionRange` at the name rather than the whole body
-            //.  Recorded even for a dynamic `$ns` target: the
+            // `selectionRange` at the name rather than the whole body.
+            // Recorded even for a dynamic `$ns` target: the
             // word is still where the user would want the cursor.
             child.name_span = arg_tokens.get(1).map(|t| t.span);
             let Some(parent) = super::scope::scope_at_mut(&mut self.result.global_scope, &path)
@@ -3077,8 +3075,7 @@ impl Analyser {
             // interpreter share one domain name (their definitions
             // accumulate, as in C); the name carries the path's deletion
             // *epoch*, so a deleted-and-recreated interpreter is a fresh
-            // domain that never merges with its predecessor's definitions
-            //.
+            // domain that never merges with its predecessor's definitions.
             let mut child =
                 super::types::Scope::new(super::types::ScopeKind::Namespace, domain.clone());
             child.body_span = Some(body_tok.span);
@@ -3837,8 +3834,8 @@ impl Analyser {
     /// ([`Self::list_word_elements`]'s per-element `is_dynamic_word`), but a
     /// value that is itself one whole dynamic `[...]` substitution is not a
     /// list at all — naively word-splitting
-    /// `[dict merge [namespace ensemble configure tk -map] {systray
-    /// ::tk::systray}]` would misread fragments of the *expression*
+    /// `[dict merge [namespace ensemble configure tk -map] {systray:
+    /// :tk::systray}]` would misread fragments of the *expression*
     /// (`"tk"`, `"configure"`, …) as bogus subcommand/target pairs, which is
     /// worse than abstaining. Falls back to
     /// [`Self::dict_merge_literal_tail`] for the one dynamic shape real code
@@ -3962,8 +3959,8 @@ impl Analyser {
     /// above, serving navigation rather than the safe-interpreter gate.
     ///
     /// The navigation entry is tagged
-    /// [`EnsembleSubcommandProvenance::Map`](crate::signature_scan::types::EnsembleSubcommandProvenance::Map)
-    ///: a `-map` key is an arbitrary name, so a consumer that
+    /// [`EnsembleSubcommandProvenance::Map`](crate::signature_scan::types::EnsembleSubcommandProvenance::Map):
+    /// a `-map` key is an arbitrary name, so a consumer that
     /// *rewrites* the subcommand word — rename — must leave it alone, unlike
     /// the `-subcommands` sibling below whose entry is the target's own tail.
     ///
@@ -4003,8 +4000,8 @@ impl Analyser {
     /// synthetic, interp-domain-rooted) home namespace by real Tcl's own
     /// rule (tclsh 8.6.14-verified: `-map {go source}` inside `namespace
     /// eval myns {…}` really dispatches `go` to `::myns::source`, not the
-    /// global builtin, and raises its own unrelated `invalid command name
-    /// ::myns::source` in every interpreter, safe or not, when no such proc
+    /// global builtin, and raises its own unrelated `invalid command name:
+    /// :myns::source` in every interpreter, safe or not, when no such proc
     /// exists) — using the qualified form here would make the check depend
     /// on the interp-domain namespace model lining up with the registry's
     /// flat, unqualified command-name keying, which it structurally can't.
@@ -4076,8 +4073,8 @@ impl Analyser {
     /// one-directional-only gap, same shape).
     ///
     /// Tagged
-    /// [`EnsembleSubcommandProvenance::Subcommands`](crate::signature_scan::types::EnsembleSubcommandProvenance::Subcommands)
-    ///: here the subcommand word *is* the target's tail — the
+    /// [`EnsembleSubcommandProvenance::Subcommands`](crate::signature_scan::types::EnsembleSubcommandProvenance::Subcommands):
+    /// here the subcommand word *is* the target's tail — the
     /// ensemble derives `<ns>::<name>` from it — so renaming the target must
     /// rewrite the entry and the dispatch word with it.
     fn record_ensemble_subcommands(
@@ -4738,8 +4735,7 @@ impl Analyser {
         // `dispatch_body_arguments` applies — `Traits::BRANCH_SELECTED_BODY`,
         // carried by exactly `if` and `try`.  `try` reaches its bodies
         // through this hook instead of that walk, so without asking here a
-        // `package require` inside a `try` was recorded unconditional
-        //.
+        // `package require` inside a `try` was recorded unconditional.
         let branch_selected = traits.contains(tcl_registry::Traits::BRANCH_SELECTED_BODY);
         // Main try body at args[0].
         if let Some(body_tok) = arg_tokens.first().copied() {
@@ -5463,8 +5459,7 @@ impl Analyser {
         }
         if new.is_empty() {
             // `rename OLD {}` destroys the command object — unlike `rename OLD
-            // NEW`, which hands it over and leaves every import edge alive
-            //.
+            // NEW`, which hands it over and leaves every import edge alive.
             self.result
                 .destroyed_commands
                 .insert(old.clone(), deletion_offset);
@@ -6099,8 +6094,7 @@ impl Analyser {
     /// that *does* override it declares its own shape in the override's
     /// parameter list, and that override is read rather than guessed: Tk's
     /// `self method create {name superclasses body}` puts the body at
-    /// argument 3, not 2, and splices a superclass the caller never wrote
-    ///.
+    /// argument 3, not 2, and splices a superclass the caller never wrote.
     fn class_factory_of(&self, qualified: &str, class: &ClassDef) -> Option<ClassFactory> {
         let meta = self.user_metaclass_of_class(qualified, class)?;
         let overrides = class
@@ -6714,8 +6708,8 @@ impl Analyser {
     ///
     /// Replayed in document order, so a chain settles in one pass: a class
     /// this replay records is in the index before the next call is retried,
-    /// which is what lets `Meta create ::A::sub` and then `::A::sub create
-    /// ::A::leaf` both land when `Meta` itself was only proved post-pass.
+    /// which is what lets `Meta create ::A::sub` and then `::A::sub create:
+    /// :A::leaf` both land when `Meta` itself was only proved post-pass.
     ///
     /// Each call goes back through the *same* handler the walk used, so a
     /// replayed creation is recorded by one code path with the walk's own
@@ -7625,8 +7619,7 @@ impl Analyser {
         ControlArms { arms, complete }
     }
 
-    /// The [`ArgRole::LambdaLiteral`] half of [`Self::control_arms_for_segment`]
-    ///.
+    /// The [`ArgRole::LambdaLiteral`] half of [`Self::control_arms_for_segment`].
     ///
     /// A lambda argument carries a script that runs *now* — `apply $lambda`
     /// can raise before control ever reaches the next statement — but it is
@@ -8907,8 +8900,7 @@ impl Analyser {
 
     /// The [`ClassFactory`] the command `cmd_name` names, when that command
     /// is a user-defined `TclOO` metaclass — this file's own, else one the
-    /// **workspace factory index** proves is written in another document
-    ///.
+    /// **workspace factory index** proves is written in another document.
     ///
     /// The cross-document tier is what closes the audit's multi-file half:
     /// `::tk::Megawidget create IconList FocusableWidget {…}` in a file that
@@ -9228,8 +9220,8 @@ impl Analyser {
         //
         // The factory description is read off the metaclass's own recorded
         // `ClassDef` — this file's, or, when the metaclass is written in
-        // another document, the workspace factory index the host supplied
-        //.  Either way it is a fact *proved where the metaclass
+        // another document, the workspace factory index the host supplied.
+        // Either way it is a fact *proved where the metaclass
         // was written*, never one inferred from this call's shape: with no
         // such record `X create Name Supers Body` stays indistinguishable
         // from `interp create` and the walk abstains, as before.
@@ -9244,8 +9236,8 @@ impl Analyser {
             // object-value paths instead.
             //
             // …and a third case, which is not a verdict at all: the head may
-            // name a metaclass this document proves only *after* the walk
-            //. Keep it for the post-pass.
+            // name a metaclass this document proves only *after* the walk.
+            // Keep it for the post-pass.
             self.defer_class_creation(cmd_name, args, arg_tokens, scope_path, cmd_tok);
             return false;
         };
@@ -9956,10 +9948,9 @@ impl Analyser {
             // the loop: every *later* word is never exported at all. The
             // earlier ones stay — C commits each pattern as it goes.
             // Oracle (tclsh 8.6.16 / 9.0.4): `namespace export one ::bad
-            // three` leaves exactly `one` exported, and `namespace export
-            // ::bad ok` leaves nothing. Recording past the bad word let a
-            // wildcard-import bareword resolve where real Tcl would not
-            //.
+            // three` leaves exactly `one` exported, and `namespace export:
+            // :bad ok` leaves nothing. Recording past the bad word let a
+            // wildcard-import bareword resolve where real Tcl would not.
             if tcl_syntax::naming::is_qualified(pattern.as_bytes()) {
                 break;
             }
@@ -11703,8 +11694,8 @@ mod tests {
         // against `-clear` once, so a *second* `-clear` is an ordinary export
         // pattern. Oracle (tclsh 8.6.14 / 9.0.4): `namespace export -clear
         // -clear p` leaves exactly `-clear p` exported, and a command really
-        // named `-clear` is then importable through `namespace import
-        // ::src::*`. Consuming every matching word instead records two
+        // named `-clear` is then importable through `namespace import:
+        // :src::*`. Consuming every matching word instead records two
         // tombstones and silently drops the `-clear` export.
         let mut a = Analyser::new();
         a.registry = Some(std::sync::Arc::clone(
@@ -11762,8 +11753,8 @@ mod tests {
 
     #[test]
     fn handle_namespace_import_consumes_only_one_force_flag() {
-        // Symmetric to the export case: `namespace import -force -force
-        // ::src::*` reads the second `-force` as an import *pattern* (and
+        // Symmetric to the export case: `namespace import -force -force:
+        // :src::*` reads the second `-force` as an import *pattern* (and
         // aborts with `no namespace specified in import pattern "-force"`,
         // tclsh 8.6.14/9.0.4). Only the first is skipped as a flag, so the
         // second is recorded as the pattern word it is — one whose empty
@@ -13681,8 +13672,8 @@ mod tests {
 
     #[test]
     fn ensemble_dispatch_call_sites_carry_their_mapping_provenance() {
-        // The dispatch word's own invocation record carries the provenance
-        //, because only the recording site knows *this span* is
+        // The dispatch word's own invocation record carries the provenance,
+        // because only the recording site knows *this span* is
         // a subcommand word: a `-map {Show ::app::widget::Show}` whose key
         // happens to equal the target's tail is textually indistinguishable
         // from an ordinary bare call to the target, so a consumer that
@@ -14934,8 +14925,8 @@ mod tests {
 
     #[test]
     fn handle_source_command_resolves_a_same_file_constant_variable() {
-        // The audit's own "reduced to the simplest possible case" control
-        //: a straight-line `set`, zero branches, zero
+        // The audit's own "reduced to the simplest possible case" control:
+        // a straight-line `set`, zero branches, zero
         // external input, immediately followed by `source $var` — the real
         // corpus's `set p "e.tcl"; source $p` shape, resolved through the
         // same constant-string lattice already proven for `rename`'s
@@ -16298,8 +16289,8 @@ mod tests {
         // The source declares a `# tcl-lsp: stub my_eval
         // {script:body}` directive, then defines a proc that
         // invokes `my_eval $body`.  The body arg's role flows
-        // from the stub overlay → `param_traits["body"]
-        // .contains(Body)`.
+        // from the stub overlay → `param_traits["body"].
+        // contains(Body)`.
         let source = "\
 # tcl-lsp: stubs-begin\n\
 # tcl-lsp: stub my_eval {script:body}\n\

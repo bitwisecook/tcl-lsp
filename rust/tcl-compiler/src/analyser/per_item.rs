@@ -313,8 +313,7 @@ impl Analyser {
         // `pack`/`grid` conflict spanning a proc body would never flush).
         // Only the *ambient-placement* half of Tk activation is decidable
         // here; the `package require Tk` half is a whole-file fact
-        // established by the walk, and is checked after the body pass below
-        //.
+        // established by the walk, and is checked after the body pass below.
         //
         // Evaluated one gate at a time (rather than as one `||` chain) so the
         // telemetry can name which fired — these are checked in cheapest-first
@@ -1432,8 +1431,8 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
         // walks the class-level `initialise` frame inline and never defers —
         // so the isolated scope is a method frame too (`Scope::oo_method_frame`).
         scope.oo_method_frame = true;
-        // And the instance-side defining-class fact travels with the body
-        //, so `[self class]` folds identically here and on
+        // And the instance-side defining-class fact travels with the body,
+        // so `[self class]` folds identically here and on
         // the whole-file walk.
         scope.oo_defining_class.clone_from(&db.oo_defining_class);
     }
@@ -2040,8 +2039,7 @@ fn rebase_fragment_pending(frag: &mut BodyFragment, d: u32) {
     // full list of spans it carries.  Spelling the fields out here is what
     // let `method_span` go un-rebased on two of these three lists, so W308
     // inside any proc or method body reported — and anchored its quick-fix
-    // on — the *fragment's* offsets once the per-item path was in use
-    //.
+    // on — the *fragment's* offsets once the per-item path was in use.
     for s in &mut frag.var_sites {
         s.rebase(d);
     }

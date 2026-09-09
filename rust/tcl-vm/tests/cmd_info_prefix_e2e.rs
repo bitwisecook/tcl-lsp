@@ -23,8 +23,8 @@
 //! `info tclversion` == 9.0 / `info patchlevel` == 9.0.4, so tclsh9.0 is the
 //! primary oracle; where the two C versions agree the comment says "both".
 //!
-//! Former divergences from C Tcl on valid input (`*_bug` tests) now assert the
-//! correct tclsh behaviour and pass, guarding the fix against regression.
+//! Tests named `*_bug` assert the correct tclsh behaviour on inputs where a
+//! divergence from C Tcl would otherwise show.
 //! Features the VM genuinely stubs (accepted no-op / "unknown subcommand"
 //! where tclsh does real work) are marked `// UNIMPLEMENTED:` and asserted
 //! against the VM's actual (documented) behaviour, not tclsh's.

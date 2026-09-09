@@ -190,8 +190,8 @@ impl Analyser {
     pub(super) fn analyse_body(&mut self, body_text: &str, body_tok: Token, scope_path: &[usize]) {
         if body_tok.kind != TokenType::Str {
             // A script argument *built* with `list` rather than written as a
-            // literal `{…}` block is not dynamic — `uplevel #0 [list upvar #0
-            // ::tk::Priv.$disp ::tk::Priv]` (Tk's own `library/tk.tcl`)
+            // literal `{…}` block is not dynamic — `uplevel #0 [list upvar #0:
+            // :tk::Priv.$disp ::tk::Priv]` (Tk's own `library/tk.tcl`)
             // evaluates exactly one deterministic command. Walk it, so its
             // declarations and reads stop being invisible.
             // Everything else keeps the opaque-barrier behaviour.
@@ -524,8 +524,8 @@ impl Analyser {
         false
     }
 
-    /// Resolve a call through a tracked `namespace ensemble create|configure
-    /// ... -map {sub target ...}` redirect: `cmd_name` isn't itself a hidden
+    /// Resolve a call through a tracked `namespace ensemble create|configure.
+    /// .. -map {sub target ...}` redirect: `cmd_name` isn't itself a hidden
     /// registry name — it's
     /// the ensemble's own command name (`myens`) — but if it resolves to a
     /// tracked ensemble (`self.ensemble_command_maps`, populated by
@@ -833,8 +833,7 @@ impl Analyser {
         // semantic-token aggregation (`FileTokenFacts`, built in
         // structure-only mode for cost reasons) needs `instance_classes` /
         // `created_instance_commands` so a `CLASS create NAME` bareword
-        // dispatch resolves its class without paying for a full analysis
-        //.
+        // dispatch resolves its class without paying for a full analysis.
         let creation_ns = self.command_resolution_namespace(scope_path);
         self.record_instance_creation(cmd_name, args, &creation_ns, cmd_tok.span.start());
         // Structure-only mode (item-tree extraction) skips every diagnostic /
@@ -2067,8 +2066,8 @@ impl Analyser {
         // Current namespace for the imported-command fallback below: the
         // *command-resolution* namespace, since that is the one whose imports
         // an unqualified call actually consults — the lexical walk skips proc
-        // scopes and so missed a qualified-name proc's own namespace
-        //. Computed only when imports were recorded.
+        // scopes and so missed a qualified-name proc's own namespace.
+        // Computed only when imports were recorded.
         let cur_ns = if self.result.namespace_imports.is_empty() {
             String::new()
         } else {
@@ -2884,8 +2883,7 @@ impl Analyser {
     /// role query:
     ///
     /// * [`tcl_registry::ArgRole::NamespaceName`] words → `namespace_refs`, so
-    ///   a namespace name is a navigable symbol rather than an inert word
-    ///  ;
+    ///   a namespace name is a navigable symbol rather than an inert word;
     /// * computed [`tcl_registry::ArgRole::VarWrite`] /
     ///   [`tcl_registry::ArgRole::VarRead`] words → `dynamic_variable_names`,
     ///   with what the constant lattice proves about the value.
@@ -2907,8 +2905,8 @@ impl Analyser {
     ///
     /// A **relative** name roots against the call site's own
     /// command-resolution namespace, which is what Tcl does — pinned on
-    /// tclsh 9.0.4 and 8.6.16, byte-identically: inside `namespace eval
-    /// ::outer`, `namespace exists inner` answers `1` (it means
+    /// tclsh 9.0.4 and 8.6.16, byte-identically: inside `namespace eval:
+    /// :outer`, `namespace exists inner` answers `1` (it means
     /// `::outer::inner`) while the same words at global scope answer `0`.
     /// A proc body's current namespace is its *defining* namespace, which is
     /// exactly what [`Self::command_resolution_namespace`] reports.
@@ -3100,8 +3098,7 @@ impl Analyser {
 
     /// Record the existence-probed subcommand reference for
     /// `<ensemble> <sub>` — now if the ensemble's map is already known,
-    /// else queued for [`Self::flush_pending_ensemble_subcommand_invocations`]
-    ///.
+    /// else queued for [`Self::flush_pending_ensemble_subcommand_invocations`].
     ///
     /// The queue is filled **only** by the per-item shell pass. The
     /// whole-file DFS walks each proc/method body at its definition point,
@@ -4088,8 +4085,8 @@ impl Analyser {
     ///    by `Analyser::enclosing_class_at_offset`.  A dialect
     ///    that gains another such keyword — or loses `my` — propagates
     ///    through the registry, never through an edit here.
-    /// 2. A **named instance command** bound by `CLASS create NAME`
-    ///   , gated below.
+    /// 2. A **named instance command** bound by `CLASS create NAME`,
+    ///   gated below.
     ///
     /// `next` / `nextto` deliberately do **not** reach case 1: the registry
     /// classifies them [`MethodDispatchKind::NextChain`], and they re-invoke
@@ -4361,8 +4358,8 @@ impl Analyser {
                 // Unknown (external-package) class: a registry manufacturer
                 // with a uniform named-instance layout
                 // still binds a new command, so register the name to suppress
-                // the spurious W123 / W307 on later `NAME method` dispatch
-                //.  The class identity is unknown, so no
+                // the spurious W123 / W307 on later `NAME method` dispatch.
+                // The class identity is unknown, so no
                 // `instance_classes` entry (that would enable W308 method
                 // validation we can't perform).
                 self.result
@@ -4667,8 +4664,8 @@ impl Analyser {
     pub(super) fn class_command_constructs_with(&self, class_q: &str, word: &str) -> bool {
         let Some(grammar) = self.class_definer_grammar(class_q) else {
             // No local record at all — a *pure consumer* document, where the
-            // class's own file settled the question and published the answer
-            //. The published set is proved, so no grammar of
+            // class's own file settled the question and published the answer.
+            // The published set is proved, so no grammar of
             // our own is needed to read it; the manufacturer words are still
             // checked, from the family the workspace class is known under.
             return self.workspace_manufacturer_word(word)

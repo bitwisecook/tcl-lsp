@@ -637,8 +637,7 @@ impl Analyser {
 
     /// Record the per-name members a **literal** loop-installer declares,
     /// even though [`Self::member_declaration_is_opaque`] has already (and
-    /// correctly) marked the class's member set incomplete because of it
-    ///.
+    /// correctly) marked the class's member set incomplete because of it.
     ///
     /// `foreach m {alpha beta gamma} { method $m {args} {…} }` computes
     /// each member's *name* from the loop variable, which is why the
@@ -1164,8 +1163,8 @@ impl Analyser {
                 self.lexer_config(),
             );
             for cmd in &cmds {
-                // `link` is deliberately *not* a method-dispatch keyword
-                //: it *creates* per-object bareword commands
+                // `link` is deliberately *not* a method-dispatch keyword:
+                // it *creates* per-object bareword commands
                 // rather than dispatching one, so the barewords it installs
                 // are per-class data, not language keywords. That creation
                 // is itself a declared behavioural fact —
@@ -1231,8 +1230,8 @@ impl Analyser {
         };
         // Instance-side `TclOO` method of a statically-named class:
         // `[self class]` answers the defining class in this frame, so
-        // record the fact for the constant command-substitution fold
-        //. `oo_global_resolution` is exactly the
+        // record the fact for the constant command-substitution fold.
+        // `oo_global_resolution` is exactly the
         // `TclOO`-family gate (snit / itcl walkers pass `false`);
         // class-side members abstain (`self class` never answers the
         // written class there); a synthetic key (`::@objdefine@…`) is
@@ -2279,8 +2278,7 @@ fn collect_class_level_bodies(
 /// (block, a definition script evaluated against the class object / with
 /// private visibility).  Only the prefix form was ever walked, so every member
 /// declared in a block was invisible to the whole analysis — no `ClassDef`
-/// entry, hence no document-symbol node, no dispatch arity, and no body walk
-///.
+/// entry, hence no document-symbol node, no dispatch arity, and no body walk.
 ///
 /// Returns `Some(calls)` — each `(texts, argv)` being the block's inner command
 /// with the wrapper keyword (and its token) spliced back on at index 0 — for a
@@ -2294,12 +2292,12 @@ fn collect_class_level_bodies(
 /// oo::class create ::C {
 ///     self { method make {n} {return "made-$n"} ; method other {} {return other} }
 ///     method inst {} {return inst}
-/// }
-/// ::C make 7                  ;# -> made-7
+/// }:
+/// :C make 7                  ;# -> made-7
 /// info class methods ::C      ;# -> inst          (instance side untouched)
 /// info object methods ::C     ;# -> other make    (class-object side)
-/// oo::class create ::F { superclass ::C }
-/// ::F make 1                  ;# -> error: unknown method "make"  (not inherited)
+/// oo::class create ::F { superclass ::C }:
+/// :F make 1                  ;# -> error: unknown method "make"  (not inherited)
 /// ```
 ///
 /// and `export`/`unexport` inside the block act on the class-object side:
@@ -2951,8 +2949,8 @@ fn apply_oo_self(
     // fills the class object's own filter slot, which
     // intercepts dispatches on the *class command* (`::B cls`, and even `::B
     // new`) while leaving instances unfiltered — `info object filters ::B` ->
-    // `f`, `info class filters ::B` -> empty, on tclsh 9.0.4 and 8.6.14 alike
-    //. Handled before the declaration arms below so the wrapper's
+    // `f`, `info class filters ::B` -> empty, on tclsh 9.0.4 and 8.6.14 alike.
+    // Handled before the declaration arms below so the wrapper's
     // own side is the only table touched.
     //
     // `self unexport m` / `self { … unexport m … }` flip the class-object
@@ -2962,8 +2960,8 @@ fn apply_oo_self(
     //   oo::class create C { method m {} {…}
     //                        self { method m {} {…}; unexport m } }
     //   info object methods ::C   ;# -> (empty)     class-side `m` unexported
-    //   info class methods ::C    ;# -> m           instance side untouched
-    //   ::C m                     ;# -> unknown method "m"
+    //   info class methods ::C    ;# -> m           instance side untouched:
+    //   :C m                     ;# -> unknown method "m"
     //   [::C new] m               ;# -> inst-m      still dispatches
     //
     // and a `self unexport` naming a method that exists only on the *other*
@@ -3033,8 +3031,7 @@ fn declared_member_visibility(
 /// definition re-applies the name default anyway (tclsh 9.0.4-pinned), an
 /// export-only stub has no declaration to navigate to, and — pinned on 9.0.4 and
 /// 8.6.14 alike — naming a method that exists only on the *other* side really is
-/// a no-op in Tcl, so skipping it is the faithful answer, not an abstention
-///.
+/// a no-op in Tcl, so skipping it is the faithful answer, not an abstention.
 fn set_member_visibility(
     class_def: &mut ClassDef,
     names: &[String],
@@ -3191,8 +3188,7 @@ pub(super) fn apply_oo_subcommand_in(
     // own below: unwrapped, both act on the **instance** side only.
     // `oo::class create E2 { self { method onlyclass {} {…} } }` then
     // `oo::define E2 { unexport onlyclass }` leaves the class-object side's
-    // `onlyclass` exported and dispatchable on 9.0.4 and 8.6.14 alike
-    //.
+    // `onlyclass` exported and dispatchable on 9.0.4 and 8.6.14 alike.
     if let Some(m) = member {
         apply_sided_member_effects(
             m,
@@ -4485,8 +4481,8 @@ mod tests {
         //   oo::class create ::C {
         //       self { method make {n} {…} ; method other {} {…} }
         //       method inst {} {…}
-        //   }
-        //   ::C make 7               -> made-7
+        //   }:
+        //   :C make 7               -> made-7
         //   info object methods ::C  -> other make   (class-object side)
         //   info class methods ::C   -> inst         (instance side)
         //   oo::class create ::F {superclass ::C} ; ::F make 1
@@ -4542,8 +4538,8 @@ mod tests {
     #[test]
     fn self_block_scoped_unexport_flips_the_class_side() {
         // TP. Oracle: `oo::class create ::E { self { method
-        // hidden {} {…} ; unexport hidden } }` leaves `info object methods
-        // ::E` empty while `-all -private` still lists `hidden`, and
+        // hidden {} {…} ; unexport hidden } }` leaves `info object methods:
+        // :E` empty while `-all -private` still lists `hidden`, and
         // `::E hidden` errors "unknown method" — so the block's `unexport`
         // really does apply to the class-object side. The member is recorded
         // *and* now carries the visibility the block gave it.
@@ -4568,8 +4564,8 @@ mod tests {
         //                        self { method m {} {return class-m}
         //                               unexport m } }
         //   info object methods ::C  ->            (class side unexported)
-        //   info class methods ::C   -> m          (instance side untouched)
-        //   ::C m                    -> unknown method "m"
+        //   info class methods ::C   -> m          (instance side untouched):
+        //   :C m                    -> unknown method "m"
         //   [::C new] m              -> inst-m
         for src in [
             "oo::class create ::C {\n\
@@ -4609,8 +4605,8 @@ mod tests {
         // TN, the mirror direction. Oracle:
         //   oo::class create E2 { self { method onlyclass {} {…} } }
         //   oo::define E2 { unexport onlyclass }
-        //   info object methods ::E2 -> onlyclass   (still exported)
-        //   ::E2 onlyclass           -> oc          (still dispatches)
+        //   info object methods ::E2 -> onlyclass   (still exported):
+        //   :E2 onlyclass           -> oc          (still dispatches)
         // The unwrapped word acts on the instance side, where the name does
         // not exist — a silent no-op in real Tcl.
         let src = "oo::class create ::E2 {\n\
@@ -4776,8 +4772,8 @@ mod tests {
         //   oo::class create ::C1 {
         //       self { method gone {} {…} ; method kept {} {…} ; deletemethod gone }
         //   }
-        //   info object methods ::C1  ->  kept
-        //   ::C1 gone                 ->  unknown method "gone"
+        //   info object methods ::C1  ->  kept:
+        //   :C1 gone                 ->  unknown method "gone"
         // Retaining `gone` would show a stale document symbol and let
         // navigation resolve a name the interpreter does not have.
         let src = "oo::class create ::C {\n                   self {\n                   method gone {} { return g }\n                   method kept {} { return k }\n                   deletemethod gone\n                   }\n                   }";
@@ -4798,9 +4794,9 @@ mod tests {
         // 9.0.4 and 8.6.14:
         //   oo::class create ::R2 { self { method old {} {return CLSOLD}
         //                                  renamemethod old new } }
-        //   info object methods ::R2  -> new
-        //   ::R2 new                  -> CLSOLD   (shadowing the stock `new`!)
-        //   ::R2 old                  -> unknown method
+        //   info object methods ::R2  -> new:
+        //   :R2 new                  -> CLSOLD   (shadowing the stock `new`!):
+        //   :R2 old                  -> unknown method
         // The move stays on the wrapper's own side: the instance table is not
         // touched in either direction.
         let src = "oo::class create ::C {\n                   self {\n                   method old {} { return o }\n                   renamemethod old new\n                   }\n                   }";
@@ -4909,8 +4905,8 @@ mod tests {
         //   oo::class create ::C { method m {} {return 1} }
         //   oo::define ::C { self method m {} {return 2} }
         //   oo::define ::C { self deletemethod m }
-        //   oo::define ::C { self method m {} {return 3} }
-        //   ::C m        ->  3     (class side, redeclared after the delete)
+        //   oo::define ::C { self method m {} {return 3} }:
+        //   :C m        ->  3     (class side, redeclared after the delete)
         //   [::C new] m  ->  1     (instance side, never touched)
         // Retraction happens where the body is walked, so a later declaration
         // wins — it is not a whole-document erasure of the name.
@@ -4961,8 +4957,8 @@ mod tests {
         //   oo::class create ::I3 { method old {} {return o}; renamemethod old new }
         //   info class methods ::I3        ->  new
         //   [::I3 new] new                 ->  o        (the old body runs)
-        //   info class definition ::I3 new ->  {} { return o }
-        //   ::I3 old                       ->  unknown method
+        //   info class definition ::I3 new ->  {} { return o }:
+        //   :I3 old                       ->  unknown method
         // so `new` is a fully navigable member carrying `old`'s body: `old` goes,
         // `new` arrives with the *same* `MethodDef`, its name span moved onto
         // the `renamemethod` call's destination word (the only place the new
@@ -5013,11 +5009,11 @@ mod tests {
         // TP. A `self export` / `self unexport` has to leave a
         // record of its own or the flip never travels to another file's
         // class-command dispatch. Oracle, byte-identical on tclsh 9.0.4/8.6.14:
-        //   oo::class create ::X { self { method cm {} { return cm } } }
-        //   ::X cm                    ;# -> cm
-        //   oo::define X { self unexport cm }
-        //   ::X cm                    ;# -> unknown method "cm": must be create,
-        //                             ;#    destroy or new
+        //   oo::class create ::X { self { method cm {} { return cm } } }:
+        //   :X cm                    ;# -> cm
+        //   oo::define X { self unexport cm }:
+        //   :X cm                    ;# -> unknown method "cm": must be create,;
+        //                             #    destroy or new
         //   info object methods ::X   ;# -> (empty)
         //   info object methods ::X -all -private ;# -> … cm …  (still defined)
         let mut a = Analyser::new();
@@ -5133,9 +5129,9 @@ mod tests {
         //   [::A new] real           ;# logit fires, `self target` -> `::A real`
         //   oo::class create ::B { method inst {} {…}
         //       self { method cls {} {…} ; method logit {args} {…} ; filter logit } }
-        //   info object filters ::B  ;# -> logit      info class filters ::B  -> {}
-        //   ::B cls                  ;# logit fires, `self target` -> `::B cls`
-        //   ::B new                  ;# logit fires too — the constructor path
+        //   info object filters ::B  ;# -> logit      info class filters ::B  -> {}:
+        //   :B cls                  ;# logit fires, `self target` -> `::B cls`:
+        //   :B new                  ;# logit fires too — the constructor path
         //   [::B new] inst           ;# logit does NOT fire
         let mut a = Analyser::new();
         let r = a.analyse(
@@ -5181,8 +5177,8 @@ mod tests {
         // Issue #1119 item 3, closed by #1170. `oo::objdefine $o { unexport
         // m }` really works — oracle, 9.0.4 and 8.6.14 alike:
         //   oo::class create ::C { method m {} {…} } ; set o [::C new]
-        //   oo::objdefine $o { unexport m } ; $o m
-        //   ;# -> unknown method "m": must be destroy or n
+        //   oo::objdefine $o { unexport m } ; $o m;
+        //   # -> unknown method "m": must be destroy or n
         // The flip now lands in the receiver binding's `ObjectMemberState`
         // — the durable per-object home — while the class itself stays
         // untouched (the leak guard from #1119 still holds), and the
@@ -5228,8 +5224,8 @@ mod tests {
 
     #[test]
     fn per_object_cross_block_retraction_folds_and_stays_silent() {
-        // The cross-block hazard that kept W315 out of `oo::objdefine`
-        //: a second block retracting what the first declared
+        // The cross-block hazard that kept W315 out of `oo::objdefine`:
+        // a second block retracting what the first declared
         // is legal (tclsh 9.0.4 / 8.6.14 both accept it), so the seeded walk
         // must remove the member silently — no W315 — and the folded state
         // must drop it.

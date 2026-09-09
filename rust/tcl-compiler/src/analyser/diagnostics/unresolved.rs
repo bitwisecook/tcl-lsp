@@ -861,8 +861,8 @@ impl Analyser {
         // A bare name resolved relative to the call's *enclosing lexical
         // namespace* (not the global bare name checked above) may name a
         // registry command whose only registered spelling is qualified —
-        // e.g. `exists`/`get` called bare from inside `proc
-        // ::tcl::dict::getnull {...}` resolve to the real, separately
+        // e.g. `exists`/`get` called bare from inside `proc:
+        // :tcl::dict::getnull {...}` resolve to the real, separately
         // -callable `::tcl::dict::exists` / `::tcl::dict::get`, not the
         // ensemble-subcommand-only `dict exists` spec.
         // `resolution_candidates` already carries the correctly-qualified,
@@ -899,8 +899,8 @@ impl Analyser {
             return BindingKnowledge::Must(BindingTarget::document(name));
         }
         // A bare name matching the tail of a literal `namespace import`
-        // pattern resolves to the imported command (`namespace import
-        // ::acme::widgets::*` makes `render_box` callable unqualified).
+        // pattern resolves to the imported command (`namespace import:
+        // :acme::widgets::*` makes `render_box` callable unqualified).
         // Glob semantics via `tcl_syntax::glob::string_match`, so a
         // non-glob import suppresses exactly that name.
         if known

@@ -632,8 +632,8 @@ fn shape_exempt_from_w001(sig: &super::dispatch::SubcommandSig, first_arg: &str)
     }
     // A subcommand name never starts with `.`, so a `.`-prefixed first word
     // is a Tk window pathname, not an unknown subcommand.  This covers both
-    // the geometry-manager shortcut (`grid .w ?args?` for `grid configure
-    // .w …`, per grid.n / pack.n / place.n) and widget-creation commands
+    // the geometry-manager shortcut (`grid .w ?args?` for `grid configure.
+    // w …`, per grid.n / pack.n / place.n) and widget-creation commands
     // (`entry .e …`, `canvas .c …`), whose registry `subcommands` describe
     // the created widget's *instance* command rather than a first-word
     // subcommand of the creator.  Either way `.path` is never W001.
@@ -1404,8 +1404,8 @@ impl Analyser {
         if shape_exempt_from_w001(&sig, first_arg) {
             return;
         }
-        // Resolve the word through the shared registry abbreviation API
-        //: a unique prefix (`string le` ⇒ `length`) is legal and must
+        // Resolve the word through the shared registry abbreviation API:
+        // a unique prefix (`string le` ⇒ `length`) is legal and must
         // not trip W001; an ambiguous one (`string l`) is a guaranteed
         // runtime error with its own diagnostic (W145) rather than an
         // "unknown subcommand" guess.
@@ -1610,8 +1610,8 @@ impl Analyser {
     /// which populates [`AnalysisResult::ensemble_subcommand_targets`]) —
     /// the real `tk/library/systray.tcl` idiom:
     /// `namespace ensemble configure tk -map [dict merge [namespace
-    /// ensemble configure tk -map] {systray ::tk::systray sysnotify
-    /// ::tk::sysnotify::sysnotify}]`, which splices `systray`/`sysnotify`
+    /// ensemble configure tk -map] {systray ::tk::systray sysnotify:
+    /// :tk::sysnotify::sysnotify}]`, which splices `systray`/`sysnotify`
     /// onto the pre-existing, registry-builtin `tk` ensemble.
     ///
     /// Complements [`Self::dynamic_ensemble_subcommand_known`] (which needs
@@ -2281,8 +2281,8 @@ impl Analyser {
     /// [`UserResolutionFacts::resolves_to_user`] says the call resolves to a
     /// user definition rather than the builtin the candidate warns about —
     /// the identical resolution rule [`Self::flush_arity_diagnostics`] uses
-    /// to suppress a builtin-arity mismatch, so e.g. a namespace-scoped `proc
-    /// ::ns::dict {...}` correctly suppresses a `dict` call inside `::ns`,
+    /// to suppress a builtin-arity mismatch, so e.g. a namespace-scoped `proc:
+    /// :ns::dict {...}` correctly suppresses a `dict` call inside `::ns`,
     /// and an `interp alias {} dict {} …` / `rename myimpl dict` /
     /// `oo::class create dict {…}` established anywhere in the file
     /// (unconditionally for aliases/classes/ensembles/stubs; only when

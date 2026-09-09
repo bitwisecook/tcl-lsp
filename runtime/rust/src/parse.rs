@@ -456,14 +456,15 @@ fn build_word<'s>(
     // Text welded straight onto a close-brace (`{a}b`, `{a}$b`, `{a}[b]`,
     // `{}x`, `{a}{b}`, `{a}{*}$b`) is C's `extra characters after
     // close-brace`, raised while the *command* is parsed: measured on 8.6.16
-    // and 9.0.4, `list [side] {a}b` reports it without running `side`. Both
-    // Rust groupers used to accept the shape instead — and disagreed on what
-    // it meant (this crate welded `{a}` and `$b` into one `Bare` word; the
-    // compiler's segmenter split them) — so the boundary owner records the
-    // weld in `WordSpan::welded_after_close` and the eval-facing parser is
-    // the one that fails closed on it. Checked before anything else in the
-    // word, because C stops at the close-brace: the fragments after it are
-    // never parsed, so their own errors (and side effects) never surface.
+    // and 9.0.4, `list [side] {a}b` reports it without running `side`.
+    // Accepting the shape instead — as this crate welding `{a}` and `$b`
+    // into one `Bare` word, or the compiler's segmenter splitting them,
+    // would — risks the two Rust groupers disagreeing on what it means, so
+    // the boundary owner records the weld in `WordSpan::welded_after_close`
+    // and the eval-facing parser is the one that fails closed on it. Checked
+    // before anything else in the word, because C stops at the close-brace:
+    // the fragments after it are never parsed, so their own errors (and side
+    // effects) never surface.
     if word.welded_after_close {
         return Word {
             kind,

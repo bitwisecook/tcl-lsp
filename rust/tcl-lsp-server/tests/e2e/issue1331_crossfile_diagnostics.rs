@@ -371,8 +371,6 @@ fn a_cross_file_args_tailed_proc_abstains_from_arity() {
     );
 }
 
-// #1332
-
 /// **The reported bug, literal form.** `main.tcl` sources a file that requires
 /// Tk, so `winfo` is satisfied and must draw no W120.
 #[test]
@@ -450,7 +448,7 @@ fn a_computed_source_path_behaves_like_the_literal_and_keeps_w300() {
     );
 }
 
-/// **The chained form** (issue #775) — the directory reaches the `source`
+/// **The chained form** — the directory reaches the `source`
 /// through an intermediate constant, georgtree/SpiceGenTcl's own shape:
 ///
 /// ```tcl
@@ -485,7 +483,7 @@ fn a_chained_computed_source_path_behaves_like_the_direct_one() {
     );
 }
 
-/// **The cross-file form** (issue #1368) — OSVVM's shape: the parent assigns
+/// **The cross-file form** — OSVVM's shape: the parent assigns
 /// a namespace constant and sources the reader; the reader sources the Tk
 /// file *through the imported constant*, a value its own text never assigns.
 /// The reader's edge must resolve exactly as if the assignment were local.
@@ -593,8 +591,8 @@ fn an_unfollowable_source_abstains_rather_than_misfiring() {
     );
 }
 
-/// A sourced file's **procs** are equally visible — the second symptom the
-/// issue notes, closed by the same cross-file resolution as #1331.
+/// A sourced file's **procs** are equally visible — the second symptom,
+/// closed by the same cross-file resolution.
 #[test]
 fn a_sourced_files_procs_resolve_in_the_sourcing_file() {
     let mut lsp = Lsp::tcl();

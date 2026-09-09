@@ -774,8 +774,8 @@ pub struct Analyser {
     pub(super) ensemble_record_offsets: HashMap<String, u32>,
     /// `<ensemble> <subcommand> …` call sites the **shell pass** met before
     /// the ensemble that maps them was known, replayed against the finished
-    /// map by [`Self::flush_pending_ensemble_subcommand_invocations`]
-    ///. Only the shell pass fills this: the whole-file
+    /// map by [`Self::flush_pending_ensemble_subcommand_invocations`].
+    /// Only the shell pass fills this: the whole-file
     /// DFS and the isolated body pass both resolve at walk time against a
     /// map that already holds everything their own walk order could see.
     pub(super) pending_ensemble_subcommands: Vec<PendingEnsembleSubcommand>,
@@ -784,8 +784,8 @@ pub struct Analyser {
     /// command name (`-command NAME`, or the enclosing namespace's own
     /// qualified name when `-command` is absent — Tcl's default). Consulted
     /// by the W129 safe-interpreter gate so a
-    /// hidden command reached only through an ensemble redirect (`myens sub
-    /// ...` → target) is still flagged, mirroring a literal call to the
+    /// hidden command reached only through an ensemble redirect (`myens sub.
+    /// ..` → target) is still flagged, mirroring a literal call to the
     /// target.
     pub ensemble_command_maps: HashMap<String, HashMap<String, String>>,
     /// Vars where ``oo::objdefine`` was applied — the per-instance
@@ -829,8 +829,7 @@ pub struct Analyser {
     /// handlers qualify their literal path operands against the top frame's
     /// [`key`](InterpFrame::key).  The frame also carries the body's
     /// [`domain`](InterpFrame::domain) identity, which is what analyser
-    /// state modelling *per-interpreter runtime state* keys itself by
-    ///.
+    /// state modelling *per-interpreter runtime state* keys itself by.
     pub(super) interp_path_stack: Vec<InterpFrame>,
     /// Safe-interpreter evaluation contexts currently on the walk stack:
     /// non-empty while walking an `interp eval` body whose target

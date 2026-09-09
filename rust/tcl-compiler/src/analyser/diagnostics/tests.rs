@@ -7136,8 +7136,8 @@ fn info_exists_does_not_fold_upvar_defined_local_across_my_dispatch() {
 fn info_exists_does_not_fold_upvar_defined_local_across_next_dispatch() {
     // Abstention guard, `next`-chain shape.  `next` names no
     // target at all, so which implementation runs — and which frame its
-    // `upvar 1` lands in — needs MRO modelling this analysis does not do
-    //.  Oracle (tclsh 9.0.4): the chained implementation's
+    // `upvar 1` lands in — needs MRO modelling this analysis does not do.
+    // Oracle (tclsh 9.0.4): the chained implementation's
     // `upvar 1` actually SKIPS the calling implementation's frame and
     // lands in the frame of whoever invoked the whole method
     // (`in-sub:0`, `global:1` for a top-level `[Sub new] probe`) — so a
@@ -7271,8 +7271,8 @@ fn info_exists_frame_facts_survive_a_proc_method_qname_collision() {
     //                        method m {p} { list method [info exists p] $p $x } }
     //   namespace eval ::C {}
     //   proc ::C::m {q} { list proc [info exists q] $q [info exists x] }
-    //   [C new] m hello   ;# → method 1 hello 42
-    //   ::C::m world      ;# → proc 1 world 0
+    //   [C new] m hello   ;# → method 1 hello 42:
+    //   :C::m world      ;# → proc 1 world 0
     //
     // Both frames are wholly separate: the procedure sees none of the class's
     // instance state. Pre-fix the name probe gave the *method* the

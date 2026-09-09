@@ -369,7 +369,7 @@ fn array_shared_core() {
         run("array set a {x 1 y 2 z 3}; array unset a y; lsort [array names a]").1,
         "x z"
     );
-    // The fixed bug: `array unset a` (no pattern) removes the *whole* array.
+    // `array unset a` (no pattern) removes the *whole* array.
     assert_eq!(
         run("array set a {x 1 y 2 z 3}; array unset a; array exists a").1,
         "0"

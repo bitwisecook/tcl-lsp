@@ -140,8 +140,7 @@ impl Diagnostic {
 }
 
 /// One statically recorded `namespace ensemble` subcommand: the command it
-/// dispatches to, plus **how** the ensemble bound the two together
-///.
+/// dispatches to, plus **how** the ensemble bound the two together.
 ///
 /// The value half of
 /// [`AnalysisResult::ensemble_subcommand_targets`]'s inner map. Navigation
@@ -574,8 +573,8 @@ pub struct MethodDef {
     /// ``"forward"`` / ``"constructor"`` / ``"destructor"``.
     pub kind: String,
     /// `true` only for a `classmethod`-kind entry declared via `TclOO`'s
-    /// `self` wrapper (`self method NAME …`) directly on this class
-    ///. Unlike `ooutil`'s `classmethod` keyword —
+    /// `self` wrapper (`self method NAME …`) directly on this class.
+    /// Unlike `ooutil`'s `classmethod` keyword —
     /// confirmed against tclsh 9.0.4/8.6 to propagate to a subclass's own
     /// bound command via its `Delegate`-mixin machinery, which walks
     /// `info class superclass` — a plain `self method` is visible ONLY on
@@ -748,8 +747,7 @@ pub struct PropertyDef {
 /// same word under `self` acts on the class-object side, and neither reaches
 /// across.  Naming the side explicitly is what stops a class-side `unexport m`
 /// from also un-exporting an identically-named instance method,
-/// and what lets a cross-document retraction record which table it removes from
-///.
+/// and what lets a cross-document retraction record which table it removes from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MemberSide {
     /// [`ClassDef::methods`] — what instances of the class dispatch.
@@ -806,8 +804,7 @@ impl MemberSide {
 }
 
 /// A reason one `TclOO` definition body **cannot run at all** — real Tcl
-/// aborts the whole `oo::class create` / `oo::define` and creates no class
-///.
+/// aborts the whole `oo::class create` / `oo::define` and creates no class.
 ///
 /// Recorded by the member walker where the retracting word is applied (the one
 /// site that knows the side's table state at that point in the body) and
@@ -822,17 +819,17 @@ pub enum DefinitionAbortKind {
     /// declared, or declared only on the other side.
     ///
     /// ```tcl
-    /// oo::class create ::E1 { deletemethod ghost ; method ghost {} {} }
-    /// ;# -> method ghost does not exist        (and ::E1 is never created)
-    /// oo::class create ::E2 { self { method cm {} {} } ; deletemethod cm }
-    /// ;# -> method cm does not exist
+    /// oo::class create ::E1 { deletemethod ghost ; method ghost {} {} };
+    /// # -> method ghost does not exist        (and ::E1 is never created)
+    /// oo::class create ::E2 { self { method cm {} {} } ; deletemethod cm };
+    /// # -> method cm does not exist
     /// ```
     MissingMember,
     /// `renamemethod a b` where `b` is already a member of the same side.
     ///
     /// ```tcl
-    /// oo::class create ::E3 { method a {} {} ; method b {} {} ; renamemethod a b }
-    /// ;# -> method called b already exists
+    /// oo::class create ::E3 { method a {} {} ; method b {} {} ; renamemethod a b };
+    /// # -> method called b already exists
     /// ```
     ///
     /// Side-scoped like everything else: `method a` + `self method b` +
@@ -841,8 +838,8 @@ pub enum DefinitionAbortKind {
     /// `renamemethod a a` — the source and destination are the same name.
     ///
     /// ```tcl
-    /// oo::class create ::A4 { method a {} {} ; renamemethod a a }
-    /// ;# -> cannot rename method to itself
+    /// oo::class create ::A4 { method a {} {} ; renamemethod a a };
+    /// # -> cannot rename method to itself
     /// ```
     RenameToItself,
 }
@@ -937,11 +934,11 @@ impl RenamedMember {
     /// (no class is created in either case):
     ///
     /// ```tcl
-    /// oo::class create ::A1 { method old {} {…} ; renamemethod old old }
-    /// ;# -> cannot rename method to itself
+    /// oo::class create ::A1 { method old {} {…} ; renamemethod old old };
+    /// # -> cannot rename method to itself
     /// oo::class create ::B1 { method old {} {…} ; method sib {} {…}
-    ///                         renamemethod old sib }
-    /// ;# -> method called sib already exists
+    ///                         renamemethod old sib };
+    /// # -> method called sib already exists
     /// ```
     #[must_use]
     pub fn abort_if_renamed_to(&self, candidate: &str) -> Option<DefinitionAbortKind> {
@@ -1020,8 +1017,7 @@ impl DefinitionAbort {
 /// The template is call-site independent, which is the whole point: it is
 /// derived once, where the metaclass is written, and then resolved against
 /// each `Meta create …` call — including one in a different file, which is
-/// the only way the per-file walk can classify such a call at all
-///.
+/// the only way the per-file walk can classify such a call at all.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FactoryWord {
     /// A word the manufacturer writes literally in its own body
@@ -1330,9 +1326,9 @@ pub struct ClassDef {
     /// oo::class create ::B { method inst {} {…}
     ///                        self { method cls {} {…} ; method logit {args} {…} ; filter logit } }
     /// info object filters ::B   ;# -> logit
-    /// info class filters ::B    ;# -> (empty)      instances are unfiltered
-    /// ::B cls                   ;# -> logit fires, `self target` is `::B cls`
-    /// ::B new                   ;# -> logit fires, `self target` is `::oo::class new`
+    /// info class filters ::B    ;# -> (empty)      instances are unfiltered:
+    /// :B cls                   ;# -> logit fires, `self target` is `::B cls`:
+    /// :B new                   ;# -> logit fires, `self target` is `::oo::class new`
     /// [::B new] inst            ;# -> logit does NOT fire
     /// ```
     pub class_filters: Vec<String>,
@@ -2281,8 +2277,8 @@ pub struct AnalysisResult {
     /// A **rename** is deliberately absent, which is why this is not
     /// [`super::state::Analyser::deleted_commands`] (whose "`OLD` is no
     /// longer callable under that name" meaning covers both forms, because
-    /// that is what its W123 / arity consumers ask). `rename ::src::p
-    /// ::src::pp` keeps `::dst::p` working and merely moves the origin
+    /// that is what its W123 / arity consumers ask). `rename ::src::p:
+    /// :src::pp` keeps `::dst::p` working and merely moves the origin
     /// (`namespace origin ::dst::p` → `::src::pp`) — the same
     /// rename-captures-object-identity rule
     /// [`super::indirection`] already models.
@@ -2327,8 +2323,7 @@ pub struct AnalysisResult {
     /// Words naming a **namespace**, in source order — see [`NamespaceRef`].
     /// Both the declaring `namespace eval` name tokens (`declares: true`) and
     /// every other spelling of the same namespace, so go-to-definition /
-    /// hover / find-references treat a namespace as a first-class symbol
-    ///.
+    /// hover / find-references treat a namespace as a first-class symbol.
     pub namespace_refs: Vec<NamespaceRef>,
     /// Variable-name argument words computed at run time, in source order —
     /// see [`DynamicVariableNameSite`].  The per-site provenance a
@@ -2557,8 +2552,7 @@ impl AnalysisResult {
     /// Every **class factory** this document declares, keyed by qualified
     /// name — the slice a host merges into the workspace factory index it
     /// feeds back through
-    /// [`Analyser::with_workspace_class_factories`](super::Analyser::with_workspace_class_factories)
-    ///.
+    /// [`Analyser::with_workspace_class_factories`](super::Analyser::with_workspace_class_factories).
     ///
     /// A document that declares no user metaclass — nearly all of them —
     /// contributes an empty map, so the merged index stays empty and every

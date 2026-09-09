@@ -1542,8 +1542,8 @@ impl Analyser {
     /// then `::foo` — even though there is no enclosing `namespace eval`.
     /// A lexical walk (one that skips proc scopes) answers `::` there and
     /// mis-homes everything the body creates or looks up: procs, classes,
-    /// ensembles, `namespace import`/`export` targets, and aliases
-    ///.  Every analyser site that needs "the namespace
+    /// ensembles, `namespace import`/`export` targets, and aliases.
+    /// Every analyser site that needs "the namespace
     /// current at this point" uses this one rule.
     #[must_use]
     pub(super) fn command_resolution_namespace(&self, scope_path: &[usize]) -> String {
@@ -2006,8 +2006,8 @@ impl Analyser {
         // ordinary, `$`-reachable one (`ns::client_addr`). Firing W215 on the
         // *name* here would flag the reconstruction, not a real defect —
         // skip that half of the check whenever the source word itself (not
-        // the reconstructed text) contains an unresolved substitution
-        //. The array-element `)` check below is unaffected: a
+        // the reconstructed text) contains an unresolved substitution.
+        // The array-element `)` check below is unaffected: a
         // dynamic index round-trips verbatim (no re-bracing), so it carries
         // no such artefact.
         let name_is_static = braced
@@ -2272,8 +2272,7 @@ fn collect_script_command_reads(
         }
     }
     // The substituted command's own `VarRead`-role name words — `puts [set
-    // m]` and `puts [info exists m]` read `m`, which nothing else here sees
-    //.
+    // m]` and `puts [info exists m]` read `m`, which nothing else here sees.
     collect_name_role_reads(cmd, registry, out);
     let cmd_name = cmd.texts.first().map_or("", String::as_str);
     let post: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
@@ -2571,8 +2570,8 @@ mod tests {
 
     #[test]
     fn relative_qualified_call_falls_back_to_global_when_local_absent() {
-        // tclsh8.6: `inner::p` inside `outer` dispatches ::inner::p when
-        // ::outer::inner::p does not exist.
+        // tclsh8.6: `inner::p` inside `outer` dispatches ::inner::p when:
+        // :outer::inner::p does not exist.
         let src = "namespace eval ::inner {}\nproc ::inner::p {} {}\nnamespace eval outer { proc caller {} { inner::p } }\n";
         assert_eq!(resolved_for(src, "inner::p").as_deref(), Some("::inner::p"));
     }
@@ -2668,8 +2667,8 @@ mod tests {
     // `${k}` when rendering the word's display text (so an adjacent literal
     // suffix can't run into it), and that reconstruction — not the source,
     // not the runtime name — was what the reachability check inspected.
-    // Confirmed against tclsh 8.6.14: `set k client_addr; set
-    // ::ns::$k hello` writes the perfectly ordinary, `$`-reachable variable
+    // Confirmed against tclsh 8.6.14: `set k client_addr; set:
+    // :ns::$k hello` writes the perfectly ordinary, `$`-reachable variable
     // `::ns::client_addr`; nothing about it is unreachable.
 
     #[test]
@@ -3187,8 +3186,8 @@ mod tests {
 
     #[test]
     fn qualified_name_for_var_decl_finds_var_in_matching_top_level_namespace() {
-        // TP — the reverse of `lookup_var_in_namespace_finds_var_in_matching_top_level_namespace`
-        //: given the declaration's own span, recover the
+        // TP — the reverse of `lookup_var_in_namespace_finds_var_in_matching_top_level_namespace`:
+        // given the declaration's own span, recover the
         // qualified name an alias elsewhere would name it by.
         let mut root = Scope::new(ScopeKind::Global, "::");
         let mut ns_a = Scope::new(ScopeKind::Namespace, "::A");
@@ -3358,8 +3357,8 @@ mod tests {
     fn qualified_name_for_var_decl_does_not_double_prefix_a_literal_qualified_name() {
         // TP: `handle_set_command`/`define_var` never
         // re-qualify a name they're given (`normalise_var_name` only strips
-        // a `$`/`${…}` wrapper and an array index), so a literal `set
-        // ::tolComp val` stores `VarDef::name == "::tolComp"` verbatim, not
+        // a `$`/`${…}` wrapper and an array index), so a literal `set:
+        // :tolComp val` stores `VarDef::name == "::tolComp"` verbatim, not
         // the bare tail `"tolComp"`. Prefixing that with `ns` again would
         // produce `"::::tolComp"`, matching no alias's `link_target`.
         let mut root = Scope::new(ScopeKind::Global, "::");
@@ -3389,8 +3388,8 @@ mod tests {
 
     #[test]
     fn lookup_var_by_qualified_name_finds_a_literal_qualified_top_level_set() {
-        // TP — the corpus repro shape: a plain `set
-        // ::tolComp val` at global scope stores its key verbatim
+        // TP — the corpus repro shape: a plain `set:
+        // :tolComp val` at global scope stores its key verbatim
         // (`"::tolComp"`), which the bare-tail lookup alone (`base_name ==
         // "tolComp"`) can never match; the literal-name fallback must.
         let mut root = Scope::new(ScopeKind::Global, "::");

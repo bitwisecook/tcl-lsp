@@ -729,9 +729,9 @@ fn info_level_shared_core() {
     assert_eq!(result, "expected integer but got \"foo\"");
 }
 
-/// `info exists` runs through the shared core (`VarStore::exists`). Routing it
-/// surfaced and fixed a VM bug: the current-frame existence check was scalar-only
-/// (`var_exists`), so arrays like `::env` / `a` reported as not existing.
+/// `info exists` runs through the shared core (`VarStore::exists`). A
+/// current-frame existence check that is scalar-only
+/// (`var_exists`) would report arrays like `::env` / `a` as not existing.
 #[test]
 fn info_exists_shared_core() {
     assert_eq!(run("info exists nope").1, "0");
@@ -743,25 +743,25 @@ fn info_exists_shared_core() {
 }
 
 /// `namespace tail`/`qualifiers` run through the shared pure core
-/// (`tcl_cmd_core::namespace`). Routing fixed the VM's `::`-run handling: a run
-/// of 3+ colons is one separator (C semantics), where the VM's old `rsplit("::")`
-/// yielded a stray `:`.
+/// (`tcl_cmd_core::namespace`). A run
+/// of 3+ colons is one separator (C semantics); `rsplit("::")` alone
+/// would yield a stray `:`.
 #[test]
 fn namespace_tail_qualifiers_colon_runs() {
     assert_eq!(run("namespace tail ::a::b::c").1, "c");
     assert_eq!(run("namespace qualifiers ::a::b::c").1, "::a::b");
-    assert_eq!(run("namespace tail foo:::").1, ""); // was ":" before the fix
+    assert_eq!(run("namespace tail foo:::").1, ""); // not a stray `:`
     assert_eq!(run("namespace qualifiers foo:::").1, "foo");
 }
 
 /// `info complete` runs through the shared core (`tcl_cmd_core::info::complete`,
-/// C's `Tcl_CommandComplete`). Routing fixed the VM, whose old counter tracked
-/// brackets even inside `{braces}` (where `[` is literal): `{[}` is complete.
+/// C's `Tcl_CommandComplete`). A counter that tracks
+/// brackets even inside `{braces}` (where `[` is literal) would call `{[}` incomplete.
 #[test]
 fn info_complete_shared_core() {
     assert_eq!(run("info complete {set x 1}").1, "1");
     assert_eq!(run("info complete {set x [}").1, "0"); // unclosed bracket
-    assert_eq!(run("info complete {{[}}").1, "1"); // `{[}` — was "0" before the fix
+    assert_eq!(run("info complete {{[}}").1, "1"); // `{[}` — brackets inside braces are literal
 }
 
 /// `namespace current`/`which` route through the shared `Namespaces` cores

@@ -18,10 +18,9 @@
 
 //! Byte-for-byte runner for the small, primitive-oriented Tcl 9 smoke corpus.
 //!
-//! The corpus used to have only a Python driver. Keep this test in the
-//! standalone runtime workspace so the same interpreter path as the
-//! `run_script` example owns and executes the contract without another
-//! language-specific harness.
+//! This test lives in the standalone runtime workspace so the same
+//! interpreter path as the `run_script` example owns and executes the
+//! contract without another language-specific harness.
 
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};

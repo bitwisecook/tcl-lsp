@@ -309,8 +309,8 @@ fn classmethod_detail() {
 
 #[test]
 fn self_block_form_members_appear_in_the_outline() {
-    // Issue #1081 — TP, end to end. `self { method … }` declares exactly what
-    // `self method …` does; only the prefix spelling used to reach the outline.
+    // TP, end to end. `self { method … }` declares exactly what
+    // `self method …` does; both spellings must reach the outline.
     // Oracle (tclsh 9.0.4 / 8.6.16, identical):
     //   oo::class create ::C { self { method make {n} {…} } ; method tick {} {…} }
     //   ::C make 7               -> made-7
@@ -354,7 +354,7 @@ fn self_block_form_members_appear_in_the_outline() {
 
 #[test]
 fn self_block_deleted_member_is_absent_from_the_outline() {
-    // Issue #1095 review — TN, end to end. A member the block deletes must not
+    // TN, end to end. A member the block deletes must not
     // reach the outline. Oracle (tclsh 9.0.4 / 8.6.16, identical):
     //   oo::class create ::C1 {
     //       self { method gone {} {…} ; method kept {} {…} ; deletemethod gone }

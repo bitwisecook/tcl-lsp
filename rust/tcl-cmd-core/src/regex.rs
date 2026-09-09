@@ -28,8 +28,8 @@
 //! real Tcl 9 Henry-Spencer ARE engine (so it is byte-for-byte tclsh), while the
 //! bytecode VM drives the Rust `regex` crate (approximate — it does not
 //! implement full ARE syntax such as `\m`/`\M`/`[[:<:]]`). This module is
-//! everything *except* the engine: written once, run by both, so both runtimes share one option set
-//! and the same char-offset semantics.
+//! everything *except* the engine: written once, run by both, so both runtimes
+//! share one option set and the same char-offset semantics.
 //!
 //! All offsets here are **character** (codepoint) offsets, matching Tcl's index
 //! model; [`decode_utf8`] maps the subject to codepoints plus a char→byte table

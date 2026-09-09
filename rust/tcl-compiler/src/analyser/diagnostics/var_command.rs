@@ -200,8 +200,8 @@ impl Analyser {
                         } else {
                             // The head may reach a live class through a
                             // `rename` or `interp alias` — `rename Dog Cat`
-                            // then `set d [Cat new]` types `d` as `::Dog`
-                            //. Resolved to the *canonical*
+                            // then `set d [Cat new]` types `d` as `::Dog`.
+                            // Resolved to the *canonical*
                             // name so the `ClassDef` / method lookup keys.
                             class_qn =
                                 self.class_reachable_by_indirection(&head, off)
@@ -573,8 +573,8 @@ impl Analyser {
     ///
     /// `TclOO`'s per-object command dispatcher requires a method name
     /// before it even attempts method resolution: `set o [C new]; $o`
-    /// fails at run time with `wrong # args: should be "o method ?arg
-    /// ...?"` regardless of whether the class declares an `unknown`
+    /// fails at run time with `wrong # args: should be "o method ?arg.
+    /// ..?"` regardless of whether the class declares an `unknown`
     /// handler, since the argument-count check runs before any method
     /// lookup — `unknown` is itself only reachable as the *result* of a
     /// failed lookup, and there is no name here to look up (confirmed
@@ -623,14 +623,13 @@ impl Analyser {
 
     /// **E001** (`TclOO` form) for a command-substitution head: a bare
     /// `[Dog new]` — or `[make]` where the lattice proves `make` an
-    /// object-returning factory — invoked with no method word at all
-    ///.
+    /// object-returning factory — invoked with no method word at all.
     ///
     /// Same failure and same gates as
     /// [`Self::e001_for_bare_object_dispatch`]: `TclOO`'s per-object
     /// dispatcher rejects a zero-word invocation before any method lookup
-    /// (tclsh 9.0.4: `wrong # args: should be "::oo::Obj… method ?arg
-    /// ...?"`, `-errorcode {TCL WRONGARGS}`), so an `unknown` handler
+    /// (tclsh 9.0.4: `wrong # args: should be "::oo::Obj… method ?arg.
+    /// ..?"`, `-errorcode {TCL WRONGARGS}`), so an `unknown` handler
     /// cannot save it.  Fires only when the produced class is locally
     /// known **and** a genuine `TclOO` metaclass — snit / itcl dispatchers
     /// and external classes abstain, exactly as on the `$var` path.  The
@@ -722,8 +721,7 @@ impl Analyser {
             };
             // `forward m my other` re-dispatches on the same instance. The
             // self-dispatch keyword comes from the registry (which resolves
-            // the `::`-qualified spelling itself), not a name literal
-            //.
+            // the `::`-qualified spelling itself), not a name literal.
             if self.registry.as_deref().is_some_and(|r| {
                 r.method_dispatch_keyword(target)
                     == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
@@ -942,8 +940,7 @@ impl Analyser {
 
     /// Whether the class `name` is still live at `call_off` — the
     /// by-written-name wrapper around [`Self::class_live_for_call`], for the
-    /// type-lattice class names [`Self::aggregate_object_types`] collects
-    ///.
+    /// type-lattice class names [`Self::aggregate_object_types`] collects.
     ///
     /// Gating at the dispatch offset rather than at file end is what keeps
     /// a class *used before a later deletion* diagnosable: the dispatch runs
@@ -1874,8 +1871,8 @@ impl Analyser {
     /// (the class isn't a built-in command), so the constructor pattern is
     /// recognised against the analyser's own class set, including a class
     /// reached through `rename` / `interp alias` indirection
-    /// and excluding one renamed or deleted away with no re-establishment
-    ///.  A user factory proc the object-type lattice proved
+    /// and excluding one renamed or deleted away with no re-establishment.
+    /// A user factory proc the object-type lattice proved
     /// object-returning (`ObjectHandleFacts::returns_object`) types the head
     /// from the same fact the navigation consumers read — keeping
     /// `[make] bark` off the W307 path and giving the bare `[make]` case its

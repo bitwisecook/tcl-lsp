@@ -21,16 +21,17 @@
 //! Text `.sublime-syntax` port — from `tcl-registry`, the same way
 //! [`crate::gen_zed_queries`] already does for Zed's tree-sitter queries.
 //!
-//! ## Why this exists (issue #862)
+//! ## Why this exists
 //!
-//! Before this generator, the three grammars each hand-maintained their own
-//! copy of the `keyword.control` / `keyword.other` / `support.function`
-//! command-name alternations. They had already drifted from each other and
-//! from the registry: `lmap` was miscategorised as a plain builtin (it binds
+//! Hand-maintaining three separate copies of the
+//! `keyword.control` / `keyword.other` / `support.function`
+//! command-name alternations lets them drift from each other and
+//! from the registry: `lmap` binds
 //! a loop variable like `foreach`, so the registry carries it with the
-//! `LANGUAGE_KEYWORD` trait) in all three files, and a PR fixing it by hand in
-//! one of the three left the other two silently unfixed until review caught
-//! it. This generator makes `tcl-registry` the single source of truth for
+//! `LANGUAGE_KEYWORD` trait, but a hand-written list can miscategorise it as
+//! a plain builtin, and a fix applied to one of the three files can leave the
+//! other two silently unfixed. This generator makes `tcl-registry` the single
+//! source of truth for
 //! *which* ambient core-Tcl commands are keywords vs. plain builtins, so a
 //! future addition/removal in the registry can never leave any grammar
 //! behind — only the `--check` gate fails, the same day.
@@ -46,7 +47,7 @@
 //! configuration changes. The variable body comes from
 //! [`tcl_syntax::naming::textmate_variable_name_body`]. Thus the static
 //! fallback grammars remain one cross-editor projection instead of three
-//! hand-rolled lexical parsers (issue #1469).
+//! hand-rolled lexical parsers.
 //!
 //! Comments, strings, operators, punctuation, the `proc`/`method`
 //! name-capture rule, and the `regexp`/`regsub` pattern highlighting remain
@@ -69,8 +70,8 @@
 //! namespaced) would bulk-highlight F5-only commands even in plain `.tcl`
 //! files that will never see them. So the registry projection here is scoped
 //! to [`SpecSurface::ALL_TCL`] (core Tcl 8.4-9.1 + Tk) only — the same
-//! ambient ground the old hand lists actually covered — and the one
-//! iRules-only word the old lists carried (`when`) is kept as a small static
+//! ambient ground the three hand-maintained lists actually covered — and the one
+//! iRules-only word those lists carried (`when`) is kept as a small static
 //! addition alongside the non-command clause words below, rather than
 //! justifying the full dialect union for one word.
 //!

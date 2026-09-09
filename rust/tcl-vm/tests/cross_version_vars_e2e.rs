@@ -717,9 +717,9 @@ fn compiled_braced_var_close_rule_follows_the_emulated_release() {
                 "{label} at {version:?} must use the 8.x first-close rule"
             );
         }
-        // 9.x: nested braces balance, so the whole `a{b}c` is the name. Before
-        // the fix this emitted the literal text `$a{b}c` — no substitution at
-        // all — because the segmenter had discarded the braced spelling.
+        // 9.x: nested braces balance, so the whole `a{b}c` is the name. If the
+        // segmenter discarded the braced spelling, this would emit the
+        // literal text `$a{b}c` — no substitution at all.
         for version in [TclVersion::V9_0, TclVersion::V9_1] {
             assert_eq!(
                 vm_output(script, version),
