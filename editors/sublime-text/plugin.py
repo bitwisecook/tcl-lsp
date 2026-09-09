@@ -239,10 +239,9 @@ def _download_verified(url, expected_sha256, destination):
     # type: (str, str, str) -> None
     digest = hashlib.sha256()
     request = urllib.request.Request(url, headers={"User-Agent": _user_agent()})
-    with (
-        urllib.request.urlopen(request, timeout=120) as response,
-        open(destination, "wb") as handle,
-    ):
+    with urllib.request.urlopen(request, timeout=120) as response, open(
+        destination, "wb"
+    ) as handle:
         while True:
             chunk = response.read(256 * 1024)
             if not chunk:
