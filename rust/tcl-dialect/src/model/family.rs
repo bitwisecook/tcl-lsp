@@ -18,7 +18,7 @@
 
 //! The core-profile layer of the registry redesign: language *family* ×
 //! *release* × *build profile* (design doc
-//! `docs/design/dialect-and-package-registry-redesign.md` §0 layer 1 and
+//! `docs/design/registry/dialect-and-package-registry-redesign.md` §0 layer 1 and
 //! §3.1, review finding B1).
 //!
 //! A [`Family`] is a genuine core-language variant justified by an
@@ -55,7 +55,7 @@ pub enum Family {
     Tcl,
     /// F5's shared Tcl fork — the **trunk** of the two-level F5 tree
     /// (owner rulings 2026-08-26, measured in
-    /// `docs/design/bigip-irule-parser-measurements.md` §4a/§4b): a fork
+    /// `docs/design/f5/bigip-irule-parser-measurements.md` §4a/§4b): a fork
     /// of Tcl at patchlevel 8.4.6 ([`Family::F5_FORK_POINT`]) that
     /// evolved independently, with a ladder keyed by TMOS release. Every
     /// BIG-IP-hosted Tcl context — TMM iRules, tmsh cli scripts, iApp
@@ -495,7 +495,7 @@ const GRAMMAR_TCL9X: LexerGrammar = LexerGrammar {
 /// The `f5-tcl` **trunk** grammar: everything unoverridden answers from
 /// the fork point (`tcl@8.4.6` — the `..GRAMMAR_TCL84` update *is* the
 /// [`Family::ancestry`] edge, stated as const derivation), plus the two
-/// measured fork axes (`docs/design/bigip-irule-parser-measurements.md`
+/// measured fork axes (`docs/design/f5/bigip-irule-parser-measurements.md`
 /// §1–§3, §4a): the implicit word break (R-rules) and the brace-line
 /// continuation (N-rules). `expand_syntax` stays false from the 8.4 base,
 /// which together with the separator makes `{*}` **inert** — a literal
@@ -693,7 +693,7 @@ pub enum BuildProfileId {
     JimMinimal,
     /// The 32-bit `scriptd` build of the F5 trunk hosting iApp
     /// implementations: measured `tcl_platform(wordSize) == 4` against
-    /// TMM's 8 (`docs/design/bigip-irule-parser-measurements.md` §4/§4a)
+    /// TMM's 8 (`docs/design/f5/bigip-irule-parser-measurements.md` §4/§4a)
     /// — the same fork grammar and surface, a different word size. The
     /// build axis earning its place again (review B1).
     F5Scriptd32,
@@ -730,7 +730,7 @@ pub struct CapabilitySet {
     /// (`tcl_platform(wordSize) == 8`). Measured to vary within one F5
     /// release: TMM reports 8, the iApp `scriptd` host reports **4** — a
     /// 32-bit build of the same trunk
-    /// (`docs/design/bigip-irule-parser-measurements.md` §4).
+    /// (`docs/design/f5/bigip-irule-parser-measurements.md` §4).
     pub word_size_64: CapabilityAnswer,
 }
 
@@ -1114,7 +1114,7 @@ mod tests {
     /// The two-level F5 tree (§0.2/§2, owner rulings 2026-08-26): grammar
     /// resolution walks the fork edges, so an axis the offshoot does not
     /// override answers from the trunk, and the trunk from `tcl@8.4.6`
-    /// (`docs/design/bigip-irule-parser-measurements.md` §1–§4a).
+    /// (`docs/design/f5/bigip-irule-parser-measurements.md` §1–§4a).
     #[test]
     fn f5_grammar_resolution_walks_the_fork_edges() {
         assert_eq!(Family::Tcl.ancestry(), None, "Tcl is the only root");

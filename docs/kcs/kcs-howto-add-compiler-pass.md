@@ -48,8 +48,8 @@ existing one?
    - At least one diagnostics integration test that runs the full
      pipeline and checks that your finding appears at the right line
      and column.
-   - Fixture scripts under `tests/fixtures/` for any complex
-     scenario you cannot express inline.
+   - Fixture scripts under the owning crate's `tests/fixtures/` for any
+     complex scenario you cannot express inline.
 6. **Update documentation.**
    - Write a design doc for the pass under
      [`docs/design/compiler/`](../design/compiler/README.md) if one

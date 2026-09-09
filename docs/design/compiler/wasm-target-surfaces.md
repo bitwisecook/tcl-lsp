@@ -1,8 +1,12 @@
 # WASM target surfaces: WASI vs the browser
 
-> **Status:** audit + design. Establishes what the two WASM deployment
-> surfaces can actually support today, so that AOT direct-emission work
-> targets the surface where it earns its keep. No compiler codegen changed.
+> **Status:** audit + design. What the two WASM deployment surfaces of
+> `runtime/rust` support, so that AOT direct-emission work targets the
+> surface where it earns its keep. The other browser artefacts in the
+> workspace — `tcl-vm-wasm` (the bytecode VM as a self-contained
+> `wasm32-unknown-unknown` module with no host imports, `make tcl-vm-wasm`),
+> `tcl-explorer-wasm`, and `tcl-lsp-server-wasm` — do not embed
+> `runtime/rust` and are outside this document.
 
 There are two distinct WASM deployment surfaces for `runtime/rust`, and they
 are not the same target with different flags — they have different host
@@ -20,26 +24,22 @@ contracts entirely:
 The two are covered by one [`Host`](../../../rust/tcl-platform/src/lib.rs)
 trait and two concrete implementations in
 [`runtime/rust/src/host_wasm.rs`](../../../runtime/rust/src/host_wasm.rs):
-`WasiHost` and `BrowserHost`. This document audits what each host actually
-does today, measures the module `runtime/rust` produces, and proposes the
-smallest host-import surface a real browser embedding would need.
+`WasiHost` and `BrowserHost`. This document audits what each host does,
+measures the module `runtime/rust` produces, and proposes the smallest
+host-import surface a real browser embedding would need.
 
-## 1. Does `runtime/rust` build for `wasm32-unknown-unknown` today?
+## 1. Does `runtime/rust` build for `wasm32-unknown-unknown`?
 
-**Yes.** This was tried, not assumed:
+**Yes.**
 
 ```
 $ rustup target add wasm32-unknown-unknown wasm32-wasip1
 $ cd runtime/rust
 $ cargo build --target wasm32-unknown-unknown --features wasm_stdlib
-   Compiling tcl-runtime v0.1.0 (…/runtime/rust)
-warning: tcl-runtime@0.1.0: libtommath source not found; bignum backend disabled
-    Finished `dev` profile [unoptimized] target(s) in 3.97s
 ```
 
-No errors, one warning (see the numeric-tower caveat below), and it produces
-a real `tcl_runtime.wasm` cdylib with **zero WASI imports** — confirmed by
-disassembling the module (`wasm-dis`) and grepping for `(import `: none.
+It produces a real `tcl_runtime.wasm` cdylib with **zero WASI imports** —
+disassemble the module (`wasm-dis`) and grep for `(import `: none.
 Compare the `wasm32-wasip1` build of the same crate, which imports fifteen
 `wasi_snapshot_preview1` functions (`environ_get`, `clock_time_get`,
 `fd_write`, `path_open`, `poll_oneoff`, `random_get`, …) pulled in by Rust's
@@ -56,56 +56,23 @@ target-gated in
 What blocks a *useful* browser deployment is not the build — it is that
 almost every capability `BrowserHost` reports is a stub. See §2.
 
-### The numeric tower: initially untested, now confirmed to link
+### The numeric tower links on both targets
 
 `runtime/rust/build.rs` cross-compiles libtommath (the bignum backend behind
-`expr`/`::tcl::mathfunc::*`) as C, and it does this **unconditionally through
-a `--target=wasm32-wasi` sysroot** — it does not distinguish
-`wasm32-unknown-unknown` from `wasm32-wasip1` for the C compile step (see
-`build.rs`'s `is_wasm` branch, which always passes
-`"--target=wasm32-wasi"` + the wasi-sdk sysroot regardless of the *Rust*
-target actually being built). This session's environment initially had
-neither the `tmp/tcl9.0.4/libtommath` source tree nor `/opt/wasi-sdk`
-installed, so `build.rs` took its documented graceful-degradation path: no
-bignum backend, `have_tommath` unset, `expr`/arithmetic compiled out.
+`expr`/`::tcl::mathfunc::*`) as C, **unconditionally through a
+`--target=wasm32-wasi` sysroot** — its `is_wasm` branch always passes
+`"--target=wasm32-wasi"` plus the wasi-sdk sysroot, whichever *Rust* wasm
+target is being built. That object code links cleanly into
+`wasm32-unknown-unknown`: the export list gains `calloc`/`malloc`/`realloc`/
+`free` on both wasm targets (wasi-sdk's sysroot libc allocator, which
+libtommath calls), and the `#[cfg(have_tommath)]` arms of
+`tcl_codegen_expr_add` and `expr_bool_impl` are the code that ships.
 
-Both have since been installed (wasi-sdk 25.0 at `/opt/wasi-sdk-25.0`,
-clang 19.1.5-wasi-sdk; Tcl 9.0.4 source, including 154 libtommath `.c`
-files, at `tmp/tcl9.0.4/`). After `touch`ing `build.rs` to force it to
-re-run and rebuilding both targets (`--release`, `--features wasm_stdlib`,
-the WASI build with `TCL_TOMMATH_DIR`/`WASI_SDK_PATH` set and the same
-`--global-base=2097152` flag `wasm_real_link.rs` uses), **the
-`libtommath source not found` warning is gone from all four build logs**
-(debug and release, both targets) and the answer to the open question above
-is confirmed: **the WASI-sysroot object code links cleanly into
-`wasm32-unknown-unknown`.** Direct evidence — the disassembled export list
-gained `calloc`/`malloc`/`realloc`/`free` on **both** wasm targets (wasi-sdk's
-sysroot libc allocator, needed because libtommath calls it, exported because
-wasm-ld's default `--export-dynamic`-adjacent behaviour for undefined C
-symbols surfaces them), and the numeric-tower cfg arms
-(`tcl_codegen_expr_add`'s `#[cfg(have_tommath)]` variant,
-`expr_bool_impl`'s `#[cfg(have_tommath)]` variant) are now the code that
-ships. §4 below reports the with-tower sizes; there is no remaining
-lower-bound caveat on the numeric tower.
-
-**A genuine remaining caveat, unrelated to the tower**: between the first
-(tower-less) measurement and this one, another agent working concurrently in
-this shared worktree landed source changes to
-`runtime/rust/src/codegen_abi.rs` and
-`rust/tcl-runtime-api/src/codegen_abi.rs` — two new exported functions,
-`tcl_codegen_var_get_element` and `tcl_codegen_word_concat` (confirmed via
-`git diff` and by their appearance in the disassembled export list, which
-grew from 48 to 54 entries on `unknown-unknown` and 48 to 50 on `wasip1` —
-more than the tower alone accounts for). This is expected and disclosed
-per AGENTS.md's parallel-worktree warning, not this document's own
-compiler/runtime changes (none were made — doc only, as instructed). The
-size deltas in §4 therefore reflect **the numeric tower plus a small amount
-of unrelated, concurrently-landed AOT compiler-ABI work**, not the tower in
-isolation. The two effects cannot be cleanly separated in this environment
-without deleting the fetched `tmp/tcl9.0.4/libtommath` tree (which would
-itself perturb other agents relying on it), so this document reports the
-combined, honestly-labelled "current tree, tower on" numbers as today's
-authoritative figures rather than a synthetic isolated delta.
+Without `TCL_TOMMATH_DIR` (`tmp/tcl9.0.4/libtommath`) and `WASI_SDK_PATH`,
+`build.rs` takes its graceful-degradation path — `libtommath source not
+found; bignum backend disabled`, `have_tommath` unset, `expr`/arithmetic
+compiled out — so a size or behaviour measurement must confirm the warning
+is absent.
 
 ## 2. Command family capability matrix
 
@@ -133,7 +100,7 @@ feature; its `Clock` is the same stub as the browser's.
 ### Reading the matrix
 
 - **Fine on both today**: `encoding`, `exit`, `expr`/`::tcl::mathfunc::*`
-  (the numeric tower links on both wasm targets — confirmed in §1), and
+  (the numeric tower links on both wasm targets, §1), and
   arithmetic-free scripting (`proc`, `set`, `string`, `list`, control
   flow) — anything that never touches a `Host` capability.
 - **WASI-only today, but only because of *seeding*, not the target**:
@@ -170,7 +137,7 @@ contains a single `#[cfg]` attribute, a WASI import, or any I/O call:
   references `std::fs`, WASI, or any target-specific API — it already
   builds and passes its own unit tests as an ordinary native crate module
   (`#[cfg(test)] mod tests` runs natively), and it is included in the
-  `wasm32-unknown-unknown` build in this session (module-gated only on
+  `wasm32-unknown-unknown` build (module-gated only on
   `#[cfg(any(feature = "wasm_stdlib", test))]` in `lib.rs`, with no
   `target_os` restriction).
 - `embedded_stdlib.rs`'s only non-trivial operation is `include_bytes!`
@@ -268,15 +235,10 @@ place for `exec`/`socket`/`load` — nothing in this proposal changes that.
 Measured by building `runtime/rust` exactly as
 [`wasm_real_link.rs`](../../../rust/tcl-compiler/tests/wasm_real_link.rs)
 does (same crate, same `--global-base=2097152` linker flag for the WASI
-build), with the `wasm_stdlib` feature on, **with the numeric tower linked**
+build), with the `wasm_stdlib` feature on and the numeric tower linked
 (`TCL_TOMMATH_DIR=tmp/tcl9.0.4/libtommath`, `WASI_SDK_PATH=/opt/wasi-sdk`;
-confirmed via the absent `libtommath source not found` warning and the new
-`calloc`/`malloc`/`realloc`/`free` exports — see §1). Per §1's disclosed
-caveat, these figures also include a small amount of unrelated,
-concurrently-landed AOT compiler-ABI code from another agent's work in this
-shared worktree (`tcl_codegen_var_get_element`, `tcl_codegen_word_concat`)
-— they are today's real, current-tree numbers, not a synthetic
-tower-only delta.
+confirmed via the absent `libtommath source not found` warning and the
+`calloc`/`malloc`/`realloc`/`free` exports — see §1).
 
 | Build | Raw size | `wasm-opt -Oz` | gzip -9 (raw) | gzip -9 (opt) |
 |---|---:|---:|---:|---:|
@@ -285,66 +247,46 @@ tower-only delta.
 | `wasm32-wasip1`, debug | 13.63 MB (13,628,945 B) | not measured (debug) | — | — |
 | `wasm32-wasip1`, release | 7.45 MB (7,446,457 B) | 6.00 MB (5,994,025 B) | 1.95 MB (1,953,239 B) | 1.97 MB (1,965,922 B) |
 
-For reference, the tower-less figures from the first measurement pass
-(before wasi-sdk/`tmp/tcl9.0.4` were installed) were: `unknown-unknown`
-release 6.96 MB raw / 5.62 MB opt / 1.80 MB gzip-raw / 1.82 MB gzip-opt;
-`wasip1` release 7.26 MB raw / 5.85 MB opt / 1.88 MB gzip-raw / 1.89 MB
-gzip-opt. The tower (plus the small amount of concurrent unrelated code,
-per §1) adds roughly 180–190 KB raw to each release build — a modest
-absolute cost, well under 3% of the total, because libtommath is a small,
-allocation-light C library once the parts Tcl doesn't use (RNG, primality
-testing) are excluded (`build.rs` already skips `*rand*`/`*prime*`/
-`bn_deprecated`).
+The tower costs roughly 180–190 KB raw per release build — under 3% of the
+total, because libtommath is a small, allocation-light C library once the
+parts Tcl doesn't use (RNG, primality testing) are excluded (`build.rs`
+skips `*rand*`/`*prime*`/`bn_deprecated`).
 
-**Both structural findings from the tower-less pass still hold, restated
-with the current numbers:**
-
-`wasm-opt -Oz` (`/usr/local/bin/wasm-opt`, binaryen v123) still cuts raw
-size by ~19–20%, and still **very slightly increases the gzip'd size** in
-both builds — unopt→opt gzip goes 1,860,974→1,884,649 for the browser build
-(+1.3%) and 1,953,239→1,965,922 for WASI (+0.6%). The tower doesn't change
-this: `-Oz`'s size-optimised code shape is still less repetitive than
-`rustc`'s own output and so still compresses marginally worse, even with
-~300 more functions now in the module. For a browser deployment served
-compressed (the normal case), `wasm-opt -Oz` remains close to a wash on
-transfer size; its value is faster parse/instantiate, not smaller payload.
+`wasm-opt -Oz` (binaryen v123) cuts raw size by ~19–20% and **very slightly
+increases the gzip'd size** in both builds — unopt→opt gzip goes
+1,860,974→1,884,649 for the browser build (+1.3%) and 1,953,239→1,965,922
+for WASI (+0.6%): `-Oz`'s size-optimised code shape is less repetitive than
+`rustc`'s own output and compresses marginally worse. For a browser
+deployment served compressed (the normal case), `wasm-opt -Oz` is close to
+a wash on transfer size; its value is faster parse/instantiate, not smaller
+payload.
 
 Structural breakdown (`wasm-opt --metrics`, release, `wasm_stdlib` on, tower
 linked):
 
 | | `unknown-unknown` | `wasip1` |
 |---|---:|---:|
-| functions | 2,554 (was 2,255 tower-less, +13%) | 2,844 (was 2,573, +11%) |
+| functions | 2,554 | 2,844 |
 | imports | 0 | 15 (`wasi_snapshot_preview1`) |
-| exports | 54 (was 48) | 50 (was 48) |
-| data-segment bytes | 3,254,544 (~3.25 MB, was 3,245,956) | 3,454,192 (~3.45 MB, was 3,434,624) |
+| exports | 54 | 50 |
+| data-segment bytes | 3,254,544 (~3.25 MB) | 3,454,192 (~3.45 MB) |
 
-The tower is almost entirely **code**, not data — data-segment bytes grew
-by under 9 KB on the browser build while function count grew by ~300
-(+13%). That shifts the data share of the module *down* slightly rather
-than up: static data is now **~45.6%** of the `unknown-unknown` release
-module (3,254,544 / 7,145,368) and **~46.4%** of `wasip1`
-(3,454,192 / 7,446,457) — both a touch lower than the tower-less pass's
-~46.6% and ~47.3% respectively, because the denominator (total size) grew
-faster than the data segment did. The qualitative finding from the first
-pass is unchanged: **static data is still roughly half the module**, it is
-still dominated by the same string tables (regex/Unicode tables, format
-strings, `tcl-registry` documentation text — a fresh `strings -n 15` re-run
-on the tower-linked binary finds essentially the same ~193 KB of
-unmistakably F5 iRules/BigIP command-documentation text, e.g. `"This
-command is valid only for following MQTT message types:"`, unchanged from
-the tower-less pass's ~190 KB), and it is still a real, modest (under 3% of
-the release binary), tower-independent size-reduction opportunity — not the
-dominant cost, and not something the numeric tower either creates or fixes.
+The tower is almost entirely **code**, not data. Static data is **~45.6%**
+of the `unknown-unknown` release module (3,254,544 / 7,145,368) and
+**~46.4%** of `wasip1` (3,454,192 / 7,446,457): roughly half the module,
+dominated by string tables — regex/Unicode tables, format strings, and
+`tcl-registry` documentation text (`strings -n 15` finds ~193 KB of
+unmistakably F5 iRules/BigIP command documentation, e.g. `"This command is
+valid only for following MQTT message types:"`). That text is a real,
+modest (under 3% of the release binary), tower-independent size-reduction
+opportunity — not the dominant cost.
 
-The `wasm_stdlib` feature's dead-code-elimination finding is unaffected by
-the tower (it is a wiring question, not a numeric-code question — see
-"Wiring gap, not a WASI dependency" in §2): `embedded_stdlib::seed` is
-still called nowhere on the `wasm32-unknown-unknown` target, so the feature
-still costs the browser build next to nothing today. Once §2's wiring fix
-lands for `BrowserHost`, the ~250 KB `embedded_stdlib.rs`'s module doc
-describes will actually be paid on this target too, independent of whether
-the numeric tower is linked.
+The `wasm_stdlib` feature costs the browser build next to nothing today
+because `embedded_stdlib::seed` is called nowhere on the
+`wasm32-unknown-unknown` target (a wiring question, not a numeric-code one —
+see "Wiring gap, not a WASI dependency" in §2). Once §2's wiring fix lands
+for `BrowserHost`, the ~250 KB `embedded_stdlib.rs`'s module doc describes
+is paid on this target too.
 
 ## 5. Recommendation: what does AOT direct emission actually buy the browser?
 
@@ -384,10 +326,8 @@ the first place). Concretely:
   tight, is trimming what `tcl-registry`/`tcl-cmd-core` link in for a
   browser artefact that will never see an iRules script — orthogonal to the
   AOT compiler question, and unaffected by whether the tower is present.
-- **Steady-state speed** is still the weakest case — not because the tower
-  is absent (it now links; §1) but because this audit still has **no
-  throughput measurement**, and linking the tower only removes one reason
-  such a measurement would have been unrepresentative. The eval-fallback
+- **Steady-state speed** is the weakest case, because this audit has **no
+  throughput measurement**. The eval-fallback
   tier's per-call overhead is a `tcl_eval_code` FFI call plus a fresh
   lex/parse of a short boxed string; for most single-command Tcl leaves,
   that overhead competes with the cost of the command's own work (list/dict
@@ -397,33 +337,22 @@ the first place). Concretely:
   generic-invoke plan already reuses the runtime's ordinary dispatcher
   (namespaces, aliases, `unknown`) rather than a naive tree-walk, so the
   ceiling on a *speed*-motivated case for more direct emission is narrower
-  than the startup-time case below. **What has changed since the first
-  pass**: a real speed comparison (direct-emit vs eval-fallback, both now
-  running genuine arithmetic) is newly possible in this environment and was
-  not run in this session — it is the natural follow-up before anyone
-  makes a speed claim for this surface, not a blocked question anymore.
+  than the startup-time case. A direct-emit-vs-eval-fallback throughput
+  comparison with the tower linked is the natural follow-up before anyone
+  makes a speed claim for this surface.
 
-**Recommendation, reaffirmed with the tower-linked numbers**: prioritise
-AOT direct-emission work for the browser surface on **startup latency**,
-not module size or throughput. The tower being present strengthens rather
-than changes this conclusion — it closes the "maybe the numbers would look
-different with real arithmetic" hedge from the first pass, and the answer
-is that the *shape* of the module (roughly half static data, dominated by
-tables direct emission cannot touch) is essentially unchanged. Concretely:
-(1) finish the `MemFs`-seeding wiring for `BrowserHost` (§2/§3) so the
-interpreter can even complete its own bootstrap in a browser embedding —
-this is a prerequisite for *any* browser deployment, AOT or interpreted,
-and — per the "Wiring gap, not a WASI dependency" analysis — is a small,
-mechanical, same-day fix, not a research question; (2) treat "shrink the
-eval-fallback data segment via direct command emission" as the AOT lever
-that matters for the browser, since it is what shortens the critical path
-between "module instantiated" and "first script output visible"; and (3)
-before making any *speed* claim for this surface, run an actual
-direct-emit-vs-eval-fallback throughput comparison with the tower linked
-(now possible, not run here) rather than inferring one from module-size
-structure — this audit's numbers support the startup-time and size
-conclusions directly, but speed remains an open measurement, not a closed
-question either way.
+**Recommendation**: prioritise AOT direct-emission work for the browser
+surface on **startup latency**, not module size or throughput — the shape of
+the module (roughly half static data, dominated by tables direct emission
+cannot touch) settles the size question. Concretely: (1) finish the
+`MemFs`-seeding wiring for `BrowserHost` (§2/§3) so the interpreter can
+complete its own bootstrap in a browser embedding — a prerequisite for *any*
+browser deployment, AOT or interpreted, and a small, mechanical fix; (2)
+treat "shrink the eval-fallback data segment via direct command emission"
+as the AOT lever that matters for the browser, since it shortens the
+critical path between "module instantiated" and "first script output
+visible"; and (3) before making any *speed* claim, run the throughput
+comparison rather than inferring one from module-size structure.
 
 ## Related
 

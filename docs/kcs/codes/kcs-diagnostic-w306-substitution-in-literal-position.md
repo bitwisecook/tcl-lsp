@@ -21,7 +21,7 @@ A regexp pattern or class name undergoes unintended variable or command substitu
 
 ## Symptoms
 
-- A yellow squiggle appears under the argument, with the message "substitution in literal-expected argument position".
+- A yellow squiggle appears under the argument, with a message like *"Literal expected in regexp pattern — found '$'. Use braces '{...}' instead of quotes."*
 
 ## Example that triggers it
 

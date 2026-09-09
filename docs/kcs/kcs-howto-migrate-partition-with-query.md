@@ -15,7 +15,7 @@ How do I migrate every object from one partition into another — including the 
 
 - A `bigip.conf` / SCF that contains the partition you want to move.
 - The destination partition name (must match `[A-Za-z0-9_.-]+`).
-- A clear idea of whether you want the **whole partition** to move (everything in `/Common/`) or only **specific kinds** (just the pools, just the virtuals).
+- A clear idea of whether you want the **whole partition** to move or only **specific kinds** (just the pools, just the virtuals).
 
 ## Answer
 
@@ -29,7 +29,9 @@ Use `rename_partition(old, new)` when the partition itself is moving:
 f5 query 'rename_partition("Tenant_A", "Tenant_B")' bigip.conf
 ```
 
-This applies a token-bounded prefix rewrite across the entire source: every `/Common/<name>` reference — including the structural prefix on destination addresses (`destination /Common/10.10.0.5:443`), pool-member identifiers (`/Common/n1:80`), and iRule body literals (`pool /Common/web_pool`) — moves to `/Tenant_A/<name>`.  The bare `auth partition Common` stanza header is renamed too.  Route domains and ports are preserved through the move.
+This applies a token-bounded prefix rewrite across the entire source: every `/Tenant_A/<name>` reference — including the structural prefix on destination addresses (`destination /Tenant_A/10.10.0.5:443`), pool-member identifiers (`/Tenant_A/n1:80`), and iRule body literals (`pool /Tenant_A/web_pool`) — moves to `/Tenant_B/<name>`.  The `auth partition Tenant_A` stanza header is renamed too.  Route domains and ports are preserved through the move.
+
+`/Common` is the one partition it will not move: every tenant references it one-way, so renaming it would break those references.  The verb refuses and points you at the per-kind route below.
 
 The default is a dry-run unified diff; pass `--in-place` to overwrite the file or `--write` to print the rewritten config to stdout.
 

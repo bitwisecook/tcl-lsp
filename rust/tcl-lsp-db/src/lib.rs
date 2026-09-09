@@ -483,7 +483,7 @@ pub struct AnalyserConfig {
     /// An input, not an ambient read, so a pack edit invalidates exactly the
     /// analyses that depend on it. It is not optional configuration: the EDA
     /// vendor libraries ship as bundled loadables
-    /// (`docs/design/spec-packs.md`), so this number is what decides whether
+    /// (`docs/design/registry/spec-packs.md`), so this number is what decides whether
     /// `synth_design` is a known command.
     #[returns(copy)]
     pub spec_pack_key: u64,
@@ -7662,8 +7662,8 @@ mod tests {
         // `for_dialect("tcl8.4")`, whose `expand_syntax` differs, so the
         // truncated three-field key interned two entries. Both consumers now
         // lex under the document's own environment, so `tcl8.4` shares one
-        // build like every other environment — the sharing measurement in
-        // `docs/design/lanes/c1-executable-ir-rekey.md` §4 (15/20 → 20/20).
+        // build like every other environment (the sharing measurement went
+        // 15/20 → 20/20).
         let file84 = SourceFile::new(&db, src.to_owned(), "tcl8.4".to_owned(), None);
         let _ = file_analysis_incremental(&db, file84, cfg);
         let _ = compiler_check_diagnostics(&db, file84, cfg);

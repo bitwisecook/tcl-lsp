@@ -4,24 +4,19 @@
 interactive report from the committed sample UCS fixtures and publishes it to
 GitHub Pages — a stable URL that always reflects the latest code.
 
-It lives here (not under `.github/workflows/`) because installing a workflow
-needs credentials carrying the GitHub `workflow` scope, which automated pushes
-have not always had. **This copy is canonical**; `.github/workflows/github-pages.yml`
-is installed from it and the two are kept byte-identical.
+It lives here rather than under `.github/workflows/` because installing a
+workflow needs credentials carrying the GitHub `workflow` scope, which an
+automated push may not have. **This copy is canonical**;
+`.github/workflows/github-pages.yml` is installed from it and the two are kept
+byte-identical.
 
-> **Already installed in this repo.** Both workflows are live under
-> `.github/workflows/`. Edit the canonical copy here, then reinstall with
-> `cargo xtask workflow-sync` — never hand-edit only one side. `make
-> xtask-workflow-sync` (part of `make check-all`) fails the build if they
-> diverge.
->
-> Do not blind-`cp` a canonical file over an installed one you have not
-> compared first. Fixes have landed directly in `.github/workflows/` before —
-> reinstalling over them silently reverted the release-version stamping and
-> would have dropped a whole app from the Pages deploy. The sync gate exists
-> because that happened twice.
+Both workflows are already live under `.github/workflows/`. Edit the canonical
+copy here, then reinstall with `cargo xtask workflow-sync` — never hand-edit
+only one side, and never `cp` a canonical file over an installed one you have
+not diffed first. `make xtask-workflow-sync` (part of `make check-all`) fails
+the build if they diverge.
 
-## One-time setup (new repo)
+## Setting it up in a new repo
 
 1. **Add the workflow** — copy it into place and commit (from a clone with
    workflow permission):
@@ -50,11 +45,11 @@ The report is then served at `https://<owner>.github.io/<repo>/`.
   `/spec-studio/`, with a root landing page linking all four. Adding another app
   means extending this workflow — a second Pages workflow would clobber it
   (they share the `pages` concurrency group / `github-pages` environment, so the
-  most recent run wins). The old manual-only `pages.yml` it superseded is gone.
+  most recent run wins).
 - **Environment branch policy.** The `github-pages` environment may restrict
-  deployments to the default branch. Once this branch is merged to `rust`, the
-  push trigger deploys automatically; to deploy from a feature branch first,
-  allow it under Settings → Environments → github-pages.
+  deployments to the default branch. The push trigger deploys from `rust`
+  automatically; to deploy from a feature branch, allow it under Settings →
+  Environments → github-pages.
 - **No wasm toolchain needed.** The Mermaid library and the wasm query engine
   are vendored in the repo, so CI only builds the PyO3 extension (Rust + Python
   + maturin). The extension targets the CPython stable ABI (`abi3`, 3.9 floor),

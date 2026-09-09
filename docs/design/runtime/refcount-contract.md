@@ -115,6 +115,18 @@ The obj-lifecycle and result slice of `tcl.h`, exported for extensions
 The import table an emitted WASM module links against. It evaluates against a
 **current interp** installed by the bootstrap, not an interp argument.
 
+The table below covers the eval / value / variable core. The slot family
+(`tcl_codegen_slot_*`), the guard and activation families
+(`tcl_codegen_guard_*`, `tcl_codegen_activation_*`), the typed-value
+constructors and accessors (`tcl_value_new_bool` / `_double` / `_wide_int` and
+their `tcl_value_get_*` readers), `tcl_codegen_word_concat`,
+`tcl_codegen_var_get_element`, `tcl_codegen_var_traced`,
+`tcl_codegen_slot_traced`, `tcl_codegen_return_state`,
+`tcl_codegen_log_command`, `tcl_codegen_proc_define_native`,
+`tcl_codegen_native_proc_dispatches`, and `tcl_intrinsic_invoke_argv` are
+exported but have no row yet — a gap in this document, not permission to invent
+a convention at the call site.
+
 | Function | Args | Return | Storage | Notes |
 |---|---|---|---|---|
 | `tcl_runtime_set_current_interp(interp)` | raw pointer, not retained | `void` | module-level current-interp cell | Null clears it. Every other export here no-ops or reports failure when it is null. |
@@ -179,9 +191,12 @@ remove.
 Closing it means a check that walks the runtime's exports (they are
 enumerable from `runtime/rust/src/capi.rs`, `codegen_abi.rs`, `regex_capi.rs`,
 and `c_alloc.rs`), diffs them against the rows above, and fails on either
-direction. The same shape would serve
-[`c-api-ownership-contract.md`](c-api-ownership-contract.md), which has the
-identical gap.
+direction. That shape already exists for the C-API half:
+`scripts/check_c_api_ownership.py` (`make check-c-api-ownership`) enforces the
+rows in [`c-api-ownership-contract.md`](c-api-ownership-contract.md) against
+`capi.rs`'s `Tcl_*` / `mp_*` exports. Extending it to this document's rows —
+which also cover `codegen_abi.rs`, `regex_capi.rs`, and `c_alloc.rs` — is what
+remains.
 
 ## Cross-references
 

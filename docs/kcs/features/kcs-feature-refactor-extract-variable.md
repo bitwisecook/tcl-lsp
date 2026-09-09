@@ -19,11 +19,11 @@ Select an expression in your code and trigger code actions (Ctrl+. in VS Code, `
 
 ### MCP
 
-Call the `extract_variable` tool with `source`, `start_line`, `start_char`, `end_line`, `end_char`, and optionally `var_name`.
+Call the `extract_variable` tool with `source`, `start_line`, `start_character`, `end_line`, `end_character`, and optionally `var_name` (default `result`).
 
 ### Claude Code
 
-Use the `refactor` CLI command — it lists extract-variable when a selection is available.
+The `/tcl-refactor` skill calls the `refactor` tool, which lists extract-variable when a selection is available.
 
 ## Before / After
 

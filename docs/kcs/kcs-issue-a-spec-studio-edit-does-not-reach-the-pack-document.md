@@ -58,6 +58,6 @@ report cannot account for.
 
 - [How do I write a SpecTcl pack?](kcs-howto-write-a-tclspec-pack.md)
 - [How do I create command specs without Rust?](kcs-howto-create-command-specs-without-rust.md)
-- [SpecTcl pack design](../design/spec-packs.md)
+- [SpecTcl pack design](../design/registry/spec-packs.md)
 - [KCS index](README.md)
 - [Glossary](../GLOSSARY.md)

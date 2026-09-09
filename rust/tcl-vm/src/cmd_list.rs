@@ -23,6 +23,7 @@ use std::rc::Rc;
 use tcl_cmd_core::list as list_core;
 use tcl_runtime_api::Completion;
 
+use crate::command::completion_from_cmd_error;
 use crate::interp::{Vm, err, err_wrong_args, ok};
 use crate::value::Value;
 
@@ -30,7 +31,7 @@ use crate::value::Value;
 fn adapt(result: Result<Value, tcl_cmd_core::CmdError>) -> Completion<Value> {
     match result {
         Ok(v) => ok(v),
-        Err(e) => err(e.into_message()),
+        Err(e) => completion_from_cmd_error(e),
     }
 }
 
@@ -188,7 +189,7 @@ fn cmd_ledit(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     let result = match list_core::lreplace(vm, &cur, from, to, rest) {
         Ok(v) => v,
-        Err(e) => return err(e.into_message()),
+        Err(e) => return completion_from_cmd_error(e),
     };
     match vm.store_var_result(&n, result) {
         Ok(stored) => ok(stored),

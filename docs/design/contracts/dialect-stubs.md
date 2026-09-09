@@ -77,10 +77,10 @@ Wrap in `?...?` to mark as optional: `?-filter?`, `?count:value?`.
 ### Flags
 
 The trailing flag set is parsed into the analyser-side `StubFlags` bitflags
-(`analyser/types.rs`). It is recorded and never read: no consumer has ever
-asked a stub for a flag, so gap ruling R1's ingestion deliberately does not
-carry the set onto the declaration — principle P-C, a fact comes back with the
-consumer that needs it. The recognised words are:
+(`analyser/types.rs`). It is recorded and never read: no consumer asks a
+stub for a flag, so ingestion deliberately does not carry the set onto the
+declaration — a fact comes back with the consumer that needs it. The
+recognised words are:
 
 | Flag | Meaning |
 |---|---|
@@ -117,7 +117,7 @@ name, parsed argument list, the span of the declaring comment line, a
 `AnalysisResult` and keep their spans so diagnostics can point at the
 declaration.
 
-## Stubs are declarations (gap ruling R1)
+## Stubs are declarations
 
 A stub is a **per-document** declaration, so it must not pollute the
 `CommandRegistry` that every document in a workspace shares — mutating the
@@ -133,7 +133,7 @@ parallel one:
   `VersionAxisId::document()` axis, and whose predicate is `None`.
 - The declaration carries its **provenance**: `Provenance::Document` for an
   inline block, `Provenance::WorkspaceUntrusted` for a `.tcl.stubs` sidecar —
-  §6.4's two lowest trust classes.
+  the two lowest trust classes.
 - `build_declared_surface` collects them into the document's
   `DeclaredSurface`, rebuilt on each `analyse()` call and held on the
   (single-threaded) analyser.
@@ -149,7 +149,7 @@ Two properties are load-bearing:
   is canonicalised to `ArgRole` through `role_for_word` once, so every
   subsequent query is typed and no consumer re-parses a role word.
 - **A declaration widens, never narrows.** `DocumentCommandSurface`'s role
-  lookup unions the catalogue's answer with the document's, which is §6.4's
+  lookup unions the catalogue's answer with the document's — the
   untrusted-tier rule read literally: a declaration may improve assistance and
   can never weaken a shipped analysis fact.
 

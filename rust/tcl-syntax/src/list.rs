@@ -20,7 +20,7 @@
 //! canonical pair shared by the compiler's const-folder, the LSP, and the
 //! runtime's list value type + `{*}` expansion.
 //!
-//! Re-derived from reference Tcl 9.0 `tmp/tcl9.0.3/generic/tclUtil.c`:
+//! Re-derived from reference Tcl 9.0 `tmp/tcl9.0.4/generic/tclUtil.c`:
 //! `Tcl_SplitList`/`TclFindElement`/`FindElement` for the split (including the
 //! `literal` zero-copy flag and `TclCopyAndCollapse`), and
 //! `Tcl_ScanElement`/`Tcl_ConvertElement` (`ConvertFlags`) for the join.
@@ -83,6 +83,18 @@ impl ListError {
             ListError::UnmatchedQuote => "unmatched open quote in list",
             ListError::BraceFollowedByJunk => "list element in braces followed by",
             ListError::QuoteFollowedByJunk => "list element in quotes followed by",
+        }
+    }
+
+    /// Tcl's structured `-errorcode` for this list syntax failure.
+    #[must_use]
+    pub fn error_code(self) -> &'static str {
+        match self {
+            ListError::UnmatchedBrace => "TCL VALUE LIST BRACE",
+            ListError::UnmatchedQuote => "TCL VALUE LIST QUOTE",
+            ListError::BraceFollowedByJunk | ListError::QuoteFollowedByJunk => {
+                "TCL VALUE LIST JUNK"
+            }
         }
     }
 
@@ -904,6 +916,26 @@ mod tests {
         assert_eq!(split_list("\"unmatched"), Err(ListError::UnmatchedQuote));
         assert_eq!(split_list("{a}b"), Err(ListError::BraceFollowedByJunk));
         assert_eq!(split_list("\"a\"b"), Err(ListError::QuoteFollowedByJunk));
+    }
+
+    #[test]
+    fn list_errors_own_their_structured_codes() {
+        assert_eq!(
+            ListError::UnmatchedBrace.error_code(),
+            "TCL VALUE LIST BRACE"
+        );
+        assert_eq!(
+            ListError::UnmatchedQuote.error_code(),
+            "TCL VALUE LIST QUOTE"
+        );
+        assert_eq!(
+            ListError::BraceFollowedByJunk.error_code(),
+            "TCL VALUE LIST JUNK"
+        );
+        assert_eq!(
+            ListError::QuoteFollowedByJunk.error_code(),
+            "TCL VALUE LIST JUNK"
+        );
     }
 
     #[test]

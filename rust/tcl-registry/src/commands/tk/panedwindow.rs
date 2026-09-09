@@ -302,7 +302,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 
 /// `panedwindow`'s instance command dispatches through the same subcommand
 /// table as its own constructor spec (see
-/// `docs/design/tk-widget-instance-typing.md`).
+/// `docs/design/analysis/tk-widget-instance-typing.md`).
 static PANEDWINDOW_CLASS: ObjectClassSpec = ObjectClassSpec {
     class_name: "panedwindow",
     instance_methods: &SUBCOMMANDS,

@@ -15,14 +15,13 @@ all-editors
 
 | Context | How |
 |---------|-----|
-| VS Code | `Tcl: Insert Tcl Template Snippet` |
-| Zed | Built-in snippets via completion |
-| Sublime Text | Bundled snippets via tab completion |
+| VS Code | `Tcl: Insert Tcl Template Snippet`, or type the prefix |
+| Any LSP editor | Type the prefix and accept the completion |
 
 ## How to use
 
 - **VS Code**: Run `Tcl: Insert Tcl Template Snippet` and pick from the list.
-- **Other editors**: Type the snippet prefix (e.g. `tcl-proc`, `irule-http-request`) and use tab completion.
+- **Any LSP editor**: Type the snippet prefix (`tcl-proc`, `irule-http-request`, …); the language server offers the template as a completion item.
 
 ## Snippet list
 
@@ -58,7 +57,7 @@ all-editors
 
 - `24-template-snippets` — template picker showing available snippets
 
-![template picker showing available snippets](../screenshots/24-template-snippets.png)
+![template picker showing available snippets](../../screenshots/24-template-snippets.png)
 
 ## Discoverability
 

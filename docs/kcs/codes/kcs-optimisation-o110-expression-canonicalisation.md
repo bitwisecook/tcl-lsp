@@ -22,18 +22,24 @@ Normalising equivalent expressions reveals redundancies and enables further fold
 ## Before
 
 ```tcl
-expr {$x * 1}
+set area [expr {$side ** 2}]
 ```
 
 ## After
 
 ```tcl
-expr {$x}
+set area [expr {$side * $side}]
 ```
+
+O110 rewrites the right-hand side of a `set name [expr {…}]` and an `if` /
+`while` condition. When the reducible operation is the *whole* branch
+condition, the same rewrite is reported as
+[O113](kcs-optimisation-o113-strength-reduction.md) instead — that cascade
+tries strength reduction first.
 
 ## Safety conditions
 
-- Skipped when the rewrite would change the result type (e.g. integer vs. floating-point).
+- Skipped when the rewrite would change the result type (e.g. integer vs. floating-point). `$x * 1`, `$x + 0`, and `$x * 0` therefore need an operand proved to be a number.
 - Skipped when the original expression has observable side effects that the simplified form would drop.
 - Skipped when an operand could be `NaN` and the rewrite depends on it not
   being. With a `NaN` operand Tcl makes `!=` true and every other comparison

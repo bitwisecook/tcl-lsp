@@ -21,7 +21,7 @@
 //! A shipped spec's `const_fold` / `arg_role_resolver` / … is a Rust function
 //! pointer.  A **pack**-declared one is a Tcl body running on a sandboxed VM,
 //! which the registry must not know about — the hook host owns that
-//! (`docs/design/spec-packs.md`, "Two layers, deliberately").  This module is
+//! (`docs/design/registry/spec-packs.md`, "Two layers, deliberately").  This module is
 //! the seam between them, and it holds exactly three things:
 //!
 //! - **Slots and thunks.** A pack hook is allocated a [`HookSlot`] and the

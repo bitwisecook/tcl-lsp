@@ -22,13 +22,11 @@ the same change. The rows are checked against the `Op` enum in
 - `[ ]` — **not in** the `Op` enum; it has to be added to `tcl-bytecode` first,
   matching the C Tcl mnemonic and operands.
 
-The coverage was last rebuilt from source (not incremented) against Tcl 9.0.4:
-`tclInstructionTable[]` ordering, operand widths, and per-instruction semantics
-were audited instruction-by-instruction; the `opcode_family_partition_total`
-test (`rust/tcl-bytecode/src/lib.rs`) keeps every enum variant routed to
-exactly one mnemonic family and size class, and
-`rust/tcl-vm/tests/opcode_c_parity.rs` + `opcode_catch_parity.rs` pin the
-C-semantics contracts.
+The rows follow Tcl 9.0.4's `tclInstructionTable[]` ordering and operand
+widths. The `opcode_family_partition_total` test
+(`rust/tcl-bytecode/src/lib.rs`) keeps every enum variant routed to exactly one
+mnemonic family and size class, and `rust/tcl-vm/tests/opcode_c_parity.rs` +
+`opcode_catch_parity.rs` pin the C-semantics contracts.
 
 ## Instructions (C Tcl 9.0 `InstructionDesc` order)
 
@@ -131,7 +129,7 @@ C-semantics contracts.
 - [x] `invokeExpanded`
 - [x] `listIndexImm`
 - [x] `listRangeImm`
-- [x] `startCommand` (note 7)
+- [x] `startCommand` (note 5)
 - [x] `listIn`
 - [x] `listNotIn`
 - [x] `pushReturnOpts` (note 1)
@@ -180,12 +178,12 @@ C-semantics contracts.
 - [x] `infoLevelNumber`
 - [x] `infoLevelArgs`
 - [x] `resolveCmd`
-- [x] `tclooSelf` (note 5)
+- [x] `tclooSelf` (note 4)
 - [x] `tclooClass`
 - [x] `tclooNamespace`
 - [x] `tclooIsObject`
-- [x] `arrayExistsStk` (note 8)
-- [x] `arrayExistsImm` (note 8)
+- [x] `arrayExistsStk` (note 6)
+- [x] `arrayExistsImm` (note 6)
 - [x] `arrayMakeStk`
 - [x] `arrayMakeImm`
 - [x] `invokeReplace`
@@ -194,18 +192,18 @@ C-semantics contracts.
 - [x] `foreach_start`
 - [x] `foreach_step`
 - [x] `foreach_end`
-- [x] `lmap_collect` (note 9)
+- [x] `lmap_collect` (note 7)
 - [x] `strtrim`
 - [x] `strtrimLeft`
 - [x] `strtrimRight`
 - [x] `concatStk`
-- [x] `strcaseUpper` (note 10)
-- [x] `strcaseLower` (note 10)
-- [x] `strcaseTitle` (note 10)
+- [x] `strcaseUpper` (note 8)
+- [x] `strcaseLower` (note 8)
+- [x] `strcaseTitle` (note 8)
 - [x] `strreplace`
 - [x] `originCmd`
-- [x] `tclooNext` (note 5)
-- [x] `tclooNextClass` (note 5)
+- [x] `tclooNext` (note 4)
+- [x] `tclooNextClass` (note 4)
 - [x] `yieldToInvoke`
 - [x] `numericType`
 - [x] `tryCvtToBoolean`
@@ -214,7 +212,7 @@ C-semantics contracts.
 - [x] `lappendListArray`
 - [x] `lappendListArrayStk`
 - [x] `lappendListStk`
-- [x] `clockRead` (note 11)
+- [x] `clockRead` (note 9)
 - [x] `dictGetDef`
 - [x] `strlt`
 - [x] `strgt`
@@ -241,14 +239,14 @@ deliberate divergences; everything else matches C per the parity suites.
    `pushResult`/`pushReturnCode`/`pushReturnOpts` read the absorbed
    completion (result / numeric code / full options dict, with
    `errorInfo`/`errorCode` published exactly as `finish_catch` does).
-2. **`returnImm`/`syntax` carry C's `(code, level)` operands** — both the stack
-   order and the immediates are now C-exact. `INST_RETURN_IMM` reads
+2. **`returnImm`/`syntax` carry C's `(code, level)` operands**, stack order and
+   immediates both C-exact. `INST_RETURN_IMM` reads
    `OBJ_AT_TOS` as the options dict and `OBJ_UNDER_TOS` as the result
    (`CompileReturnInternal` pushes the options *last*), which is what our
    codegen emits and our arm pops; C's `returnStk` is the **opposite** order —
    result on top, options under — and ours matches that too.
 
-   The arm now implements `TclProcessReturn` (`tclResult.c:777-785`): `level
+   The arm implements `TclProcessReturn` (`tclResult.c:777-785`): `level
    != 0` raises `TCL_RETURN` carrying `-code`/`-level` for the proc-boundary
    countdown, and `level == 0` makes the completion *be* `code`, so `(0, 0)`
    falls through to the next instruction with the result on the stack rather
@@ -266,67 +264,49 @@ deliberate divergences; everything else matches C per the parity suites.
    instruction outright — equivalent under the corrected semantics, since
    `(0, 0)` just leaves the result on the stack.
 
-   Two peephole passes are keyed on the plain-return pair and were re-keyed
-   from `(0, 0)` to `(0, 1)` in the same change (`fold_tail_return_to_done`,
-   `strip_unused_start_cmd`) — otherwise they silently stop firing and *that*
-   changes the emitted bytes. An earlier revision of this note claimed the
-   stack order differed, that realigning would break the byte-for-byte
-   comparison, and that `-code return` should emit `(2, 1)`; all three were
-   wrong — `TclMergeReturnOptions` (`tclResult.c:969-974`) rewrites `-code
-   return` to `-code ok -level L+1`, so `TCL_RETURN` never reaches the operand.
+   Two peephole passes (`fold_tail_return_to_done`, `strip_unused_start_cmd`)
+   are keyed on the plain-return pair `(0, 1)`; re-key them with the pair or
+   they silently stop firing, which changes the emitted bytes.
 
-   Still divergent, and *not* part of this realignment: the runtime `return`
-   **command** (`cmd_return`) omits that same `-code return` → `-code ok
-   -level L+1` normalisation. A plain proc-body `return -code …` compiles to a
-   generic invoke rather than `returnImm`, so `proc p {} {return -code return}`
-   escapes as `TCL_RETURN` instead of returning from `p`'s caller.
+   Still divergent: the runtime `return` **command** (`cmd_return`) omits
+   `TclMergeReturnOptions`' `-code return` → `-code ok -level L+1`
+   normalisation (`tclResult.c:969-974`). A plain proc-body `return -code …`
+   compiles to a generic invoke rather than `returnImm`, so
+   `proc p {} {return -code return}` escapes as `TCL_RETURN` instead of
+   returning from `p`'s caller.
 3. **`dictRecombineImm`/`dictRecombineStk` ignore the key path** — the
    compiled `dict with` writeback handles a top-level dict variable only, not
    a nested `dict with d k {…}` path (pre-existing in the `Imm` form; the
    `Stk` form mirrors it so the two cannot drift).
-4. *(retired — `lindexMulti`/`listIndex` now implement `TclLindexList`/
-   `TclLindexFlat` via the runtime `lindex` core.)*
-5. **TclOO context test** is "an OO frame is on the VM's call stack" (the
+4. **TclOO context test** is "an OO frame is on the VM's call stack" (the
    `next`/`self` commands' existing rule), slightly looser than C's
    `FRAME_IS_METHOD` — a plain proc *called from* a method still counts.
    Opcode and command surfaces agree with each other.
-6. *(retired — an unparsable runtime expression now raises C's syntax error.
-   `Vm::eval_expr` diagnoses the failure through
-   `tcl_syntax::expr::ExprSyntaxError`, which reproduces `ParseExpr`'s messages,
-   its `_@_` insert mark, the 25-byte elision window, the
-   `TCL PARSE EXPR <detail>` code and the `(parsing expression "…")` `errorInfo`
-   frame — `tclCompExpr.c:1397-1471`, pinned against C's `parseExpr-21.*` suite.
-   The old fallback had no bearing on the shimmer contract: that document
-   describes intrep conversion churn and never relied on an expression
-   evaluating to its own text, so the cross-reference here was unfounded. Two
-   lowerings that did rely on it were corrected alongside — a `switch` subject
-   and a `[…]` expression operand are words, and no longer pass through
-   `exprStk`.)*
-7. **`startCommand`** is inert (its length/cmd-count operands are carried for
+5. **`startCommand`** is inert (its length/cmd-count operands are carried for
    disassembly parity; the VM needs no interp-epoch recheck).
-8. **`arrayExistsImm`/`arrayExistsStk` skip C's `TclCheckArrayTraces`** — the
+6. **`arrayExistsImm`/`arrayExistsStk` skip C's `TclCheckArrayTraces`** — the
    VM records `array` trace ops but fires only read/write/unset traces
    anywhere, so the opcodes stay consistent with the VM's `array exists`.
-9. **`lmap_collect`** keeps the accumulator in the VM's loop state
+7. **`lmap_collect`** keeps the accumulator in the VM's loop state
    (`ForeachState.accum`) where C uses a compiler temp local; observable
    behaviour matches.
-10. **Case-mapping ops** use Unicode *simple* (per-char) mappings like C's
+8. **Case-mapping ops** use Unicode *simple* (per-char) mappings like C's
     `Tcl_UniCharToUpper` (`ß` stays `ß`), including C's byte-length guard and
     the Georgian Mtavruli titlecase exception; known residual: `İ` (U+0130)
     stays `İ` where C's table lowercases to `i` (Rust exposes no 1:1 simple
     mapping for it).
-11. **`clockRead 0` (clicks) returns microseconds** — the same
+9. **`clockRead 0` (clicks) returns microseconds** — the same
     `host.clock().now_micros()` backend the VM's `clock clicks` uses, so
     opcode and command agree (C uses `TclpGetWideClicks`).
 
 - The `Op` enum also carries opcodes that are **not** C Tcl instructions and
-  are intentionally outside this checklist: the `irule*` dialect operators
-  (all nine now executed — they are emitted for iRules expressions), and five
-  extras (`land`/`lor`/`lnot`/`strreverse`/`strrepeat`) — all five are
-  executed VM conveniences. `land`/`lor` are never emitted by codegen
+  are intentionally outside this checklist: the ten `irule*` dialect operators
+  (emitted for iRules expressions) and five extras
+  (`land`/`lor`/`lnot`/`strreverse`/`strrepeat`). All fifteen are executed.
+  `land`/`lor` are never emitted by codegen
   (`&&`/`||` compile to short-circuit jump sequences instead), but the VM's
-  dispatch `match` is exhaustive over the whole `Op` enum (issue #1411's
-  gate — see `rust/tcl-vm/tests/opcode_dispatch_coverage.rs`), so they carry
+  dispatch `match` is exhaustive over the whole `Op` enum
+  (`rust/tcl-vm/tests/opcode_dispatch_coverage.rs`), so they carry
   real eager-boolean dispatch arms rather than being dead.
 - Variable opcodes come in `Scalar1/Scalar4/ScalarStk/Array1/Array4/ArrayStk/Stk`
   families — every family member C Tcl emits is covered.

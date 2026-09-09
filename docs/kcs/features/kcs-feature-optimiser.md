@@ -34,10 +34,10 @@ The optimiser analyses compiled IR to find patterns that can be rewritten for be
 
 ### O105 — Constant var-ref propagation and string interpolation
 
-O105 propagates SCCP-resolved constant values into `$var` references in command arguments and string interpolations. When a variable is assigned a constant value (`set x 42`) and subsequently used (`puts $x`), O105 replaces `$x` with the literal `42`. This works in both bare-word positions and inside double-quoted strings.
+O105 propagates values that [constant propagation](../../GLOSSARY.md#sccp) has resolved into `$var` references in command arguments and string interpolations. When a variable is assigned a constant value (`set x 42`) and subsequently used (`puts $x`), O105 replaces `$x` with the literal `42`. This works in both bare-word positions and inside double-quoted strings.
 
 **Safety constraints:**
-- String interpolation propagation is restricted to constants defined in the **same basic block** with no intervening `IRCall` or `IRBarrier` (which could mutate the variable via `upvar` or exception side-effects).
+- String interpolation propagation is restricted to constants defined in the **same [basic block](../../GLOSSARY.md#basic-block)**, with no intervening call or barrier that could mutate the variable through `upvar` or an exception side effect.
 - Values containing unsafe characters (metacharacters that could change interpretation in the target context) are not propagated.
 - O105 also covers global value numbering and common-subexpression
   elimination (redundant computation elimination).
@@ -55,7 +55,7 @@ O126 removes `set` statements for variables that are never read anywhere in the 
 
 - `22-optimiser` — optimiser suggestions in the editor
 
-![optimiser suggestions in the editor](../screenshots/22-optimiser.png)
+![optimiser suggestions in the editor](../../screenshots/22-optimiser.png)
 
 ## Discoverability
 

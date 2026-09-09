@@ -21,7 +21,9 @@ Trailing whitespace adds no value, clutters diffs, and can cause problems with b
 
 ## Symptoms
 
-- A yellow squiggle appears at the end of the line, with the message "trailing whitespace".
+- A hint underline over the trailing spaces, with the message "Trailing
+  whitespace".
+- A **Remove trailing whitespace** quick fix on the diagnostic.
 
 ## Example that triggers it
 
@@ -37,7 +39,7 @@ The analyser reports **`W112`** on the trailing spaces after `42`.
 set x 42
 ```
 
-Remove the trailing whitespace. Most editors can be configured to strip it automatically on save.
+Apply the quick fix, or configure your editor to strip trailing whitespace on save. A trailing carriage return is stripped before the check runs, so CRLF endings are not flagged.
 
 ## How to suppress
 

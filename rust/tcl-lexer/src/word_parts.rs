@@ -79,9 +79,10 @@
 //!
 //! ## Adoption by `tcl-compiler::segmenter`
 //!
-//! Not done here, deliberately — see
-//! `docs/design/lanes/wasm-native-lowering.md` § `r10-word-parts`. The API is
-//! shaped so it can be: [`decompose`] takes the word's *content* span plus a
+//! Not done here, deliberately — the owner row is *word substitution
+//! components* in `docs/design/contracts/shared-utility-contracts-rust.md`.
+//! The API is shaped so it can be: [`decompose`] takes the word's *content*
+//! span plus a
 //! [`LexerConfig`] and returns parts whose byte extents are recoverable from
 //! the borrows, which is what `WordExpr`/`WordPart` need to keep their public
 //! shape (`CommandTokens::from_segmented` maps part-for-part). The segmenter

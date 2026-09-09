@@ -71,6 +71,6 @@ fn cmd_clock(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let offset = move |ts: i64| host.clock().local_offset_secs(ts);
     match core_clock::dispatch(vm, args, &now, &offset) {
         Ok(v) => ok(v),
-        Err(e) => err(e.into_message()),
+        Err(e) => crate::command::completion_from_cmd_error(e),
     }
 }

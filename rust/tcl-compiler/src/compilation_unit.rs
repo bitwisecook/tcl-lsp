@@ -382,7 +382,7 @@ pub struct ModuleTraceFacts<'a> {
 /// the lexer config its text is re-read under. Carried as one value so the
 /// pair cannot be split — a registry holding one document's profile beside
 /// a config holding another's is exactly the two-grammar drift the ingress
-/// settlement forbids (`docs/design/dialect-profile-model.md` §2.5).
+/// settlement forbids (`docs/design/registry/dialect-profile-model.md` §2.5).
 #[derive(Clone, Copy)]
 pub struct UnitDialect<'a> {
     /// The document's command registry.

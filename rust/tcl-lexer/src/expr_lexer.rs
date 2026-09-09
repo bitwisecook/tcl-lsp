@@ -291,7 +291,7 @@ struct Inner<'s> {
     /// the canonical name). Gates the word-form operators
     /// (`starts_with`, `and`, …), which are an `f5-tcl` **trunk** fact —
     /// measured valid in tmsh and iApp `expr` too, not iRules-only
-    /// (`docs/design/bigip-irule-parser-measurements.md` §4a) — so the
+    /// (`docs/design/f5/bigip-irule-parser-measurements.md` §4a) — so the
     /// acceptance reads `tcl_dialect`'s `ExprGrammar` word table directly
     /// instead of a lexer-local iRules list.
     f5_word_grammar: Option<&'static tcl_dialect::model::ExprGrammar>,
@@ -861,7 +861,7 @@ mod tests {
 
     /// The F5 word-form operators are an `f5-tcl` **trunk** fact — measured
     /// valid in tmsh and iApp `expr` too, not iRules-only
-    /// (`docs/design/bigip-irule-parser-measurements.md` §4a) — so every
+    /// (`docs/design/f5/bigip-irule-parser-measurements.md` §4a) — so every
     /// F5Tcl-cored profile lexes them as one `Operator` token, derived from
     /// the family's `ExprGrammar` word table.
     #[test]

@@ -93,4 +93,4 @@ The venv pins a specific tclsh and isolates packages from the system.
 
 - [tcl pkg feature page](features/kcs-feature-tcl-pkg.md)
 - [tcl venv feature page](features/kcs-feature-tcl-venv.md)
-- [Design: tclpkg architecture](../design/tclpkg-architecture.md)
+- [Design: tclpkg architecture](../design/tclpkg/architecture.md)

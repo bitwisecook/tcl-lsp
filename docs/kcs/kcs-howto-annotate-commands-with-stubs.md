@@ -22,9 +22,7 @@ inference treat its arguments correctly?
 - You have write access to the file that calls the command, or to a
   workspace-wide stubs file.
 
-## Before you start
-
-Stubs are the quick, legacy fallback: no subcommands, no arity checking,
+Stubs are the quick fallback: no subcommands, no arity checking,
 just enough for the analyser to stop calling a command unknown. For the
 full treatment — hover, options, subcommands, version gates — write a
 [SpecTcl pack](kcs-howto-write-a-tclspec-pack.md) instead. A pack's `arg
@@ -57,10 +55,11 @@ proc main {} {
 }
 ```
 
-After this, `tcl callgraph` reports `::main → ::on_row`, and the `script`
-argument is analysed as a Tcl script rather than an opaque string — the
-commands inside it resolve, and a call to one of your own procs from inside
-it keeps that proc off the dead-code list.
+After this, `db_eval` stops being reported as an unknown command and its
+`script` argument is analysed as a Tcl script rather than an opaque string:
+the commands inside it resolve, and `tcl callgraph` reports the edge
+`::main → ::on_row`, so a proc called only from inside the script is not
+dead code.
 
 ### Sidecar stubs file (whole workspace)
 
@@ -161,14 +160,16 @@ an operator when you leave it out.
 
 ## How to tell it worked
 
-- Run `tcl callgraph <file>` and check that the callback procs declared in
-  the stubbed command's body argument appear as outgoing edges from the
+- Run `tcl diag <file>` and confirm the `W123 Unknown command` hint on the
+  stubbed command is gone.
+- Run `tcl callgraph <file>` and check that the procs called from inside the
+  stubbed command's `body` argument appear as outgoing edges from the
   caller.
 - Run `tcl diag <file>` and check that a variable the stub declares `var` no
   longer draws `W210 Variable '…' is read before it is set` where the
   command writes it.
-- Open the file in your editor and confirm that the stubbed command no
-  longer raises the "unresolved command" hint.
+- Open the file in your editor and confirm the stubbed command no longer
+  raises the "unresolved command" hint.
 - For a sidecar, confirm the filename matches the dialect the file is
   analysed under — a mismatch is the most common reason a sidecar appears to
   be ignored.

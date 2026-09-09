@@ -455,6 +455,16 @@ impl TclVersion {
         !matches!(self, Self::V8_4)
     }
 
+    /// Whether this release exposes TIP 348 structured error stacks.
+    ///
+    /// Tcl 8.6 introduced both `info errorstack` and the `-errorstack` return
+    /// option. Keeping the release boundary here lets every runtime and
+    /// completion adapter consume the same dialect fact.
+    #[must_use]
+    pub fn has_error_stack(self) -> bool {
+        matches!(self, Self::V8_6 | Self::V9_0 | Self::V9_1)
+    }
+
     /// Does this release **definitely** satisfy any of `requirements` — the
     /// answer `package vsatisfies [package provide Tcl] REQ ?REQ …?` gives on
     /// every build of the release line?
@@ -1393,5 +1403,14 @@ mod tests {
             TclVersion::V9_0.string_character_model(),
             StringCharacterModel::UnicodeScalars
         );
+    }
+
+    #[test]
+    fn structured_error_stacks_begin_at_tcl_eight_six() {
+        assert!(!TclVersion::V8_4.has_error_stack());
+        assert!(!TclVersion::V8_5.has_error_stack());
+        assert!(TclVersion::V8_6.has_error_stack());
+        assert!(TclVersion::V9_0.has_error_stack());
+        assert!(TclVersion::V9_1.has_error_stack());
     }
 }

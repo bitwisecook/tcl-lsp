@@ -24,7 +24,7 @@ Some Tcl dialects (e.g. iRules) deliberately restrict the set of available comma
 - A yellow squiggle appears under the command name (or, for a version-gated
   subcommand such as `package files`, under `command subcommand` together),
   with a message like "'exec' is disabled in the active dialect profile
-  (available in: tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, f5-iapps, …)". The
+  (available in: Tcl 8.4, Tcl 8.5, Tcl 8.6, Tcl 9.0, Tcl 9.1)". The
   "available in" list is read straight from the command's registry entry, so
   it names every dialect the command actually works in — a quick way to tell
   whether switching the file's dialect would fix it.

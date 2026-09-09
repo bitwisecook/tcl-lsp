@@ -17,31 +17,40 @@ Why does the analyser flag a `log` call inside a per-request event with no guard
 
 ## Why
 
-Logging on every request generates millions of log lines, overwhelming syslog and slowing the BIG-IP.
+A `log` in a per-request event runs once per request. At production traffic that floods syslog and costs TMM time on every connection.
 
 ## Symptoms
 
-- A hint squiggle appears under the `log` call, with the message "ungated log in high-frequency event".
+- A hint appears under the `log` call, with the message "'log' in HTTP_REQUEST
+  fires on every request. Set a debug flag in CLIENT_ACCEPTED (e.g. set debug 0)
+  and gate with if {$debug} {...}."
 
 ## Example that triggers it
 
 ```tcl
 when HTTP_REQUEST {
-  log local0. "req: [HTTP::uri]"
+  log local0. "req: [HTTP::uri -normalized]"
 }
 ```
 
-The analyser reports **`IRULE5001`** because the log runs unconditionally on every request.
+The analyser reports **`IRULE5001`** on the `log`. The check is positional: it
+fires for any `log` in an event the registry marks high-frequency.
 
 ## Fix
 
-Gate the log with a debug flag:
+Gate the log behind a debug flag so it costs nothing in production:
 
 ```tcl
+when CLIENT_ACCEPTED { set debug 0 }
 when HTTP_REQUEST {
-  if {$static::debug} { log local0. "req: [HTTP::uri]" }
+  # noqa: IRULE5001
+  if {$debug} { log local0. "req: [HTTP::uri -normalized]" }
 }
 ```
+
+The gate is the real fix, but it does not clear the diagnostic — the analyser
+does not track which condition a `log` sits under. Suppress the line once you
+have gated it, or remove the `log`.
 
 ## How to suppress
 

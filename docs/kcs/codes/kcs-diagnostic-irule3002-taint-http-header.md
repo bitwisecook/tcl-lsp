@@ -9,7 +9,7 @@ all-editors, diagnostic, taint
 
 ## Profiles
 
-irule
+default, dialect:irule
 
 ## Question
 
@@ -21,13 +21,17 @@ Injecting CRLF or other control characters into headers enables header injection
 
 ## Symptoms
 
-- A yellow squiggle appears under the header command, with the message "tainted data in HTTP header value".
+- A yellow squiggle appears under the tainted argument, with the message
+  "Tainted variable $val in HTTP header/cookie value (HTTP::header replace); risk
+  of header injection".
 
 ## Example that triggers it
 
 ```tcl
-set val [HTTP::header value X-Custom]
-HTTP::header replace X-Reply $val
+when HTTP_RESPONSE {
+  set val [HTTP::header value X-Custom]
+  HTTP::header replace X-Reply $val
+}
 ```
 
 The analyser reports **`IRULE3002`** because `val` carries tainted data into a response header.
@@ -35,12 +39,16 @@ The analyser reports **`IRULE3002`** because `val` carries tainted data into a r
 ## Fix
 
 ```tcl
-set val [HTTP::header value X-Custom]
-set safe_val [string map {"\r" "" "\n" ""} $val]
-HTTP::header replace X-Reply $safe_val
+when HTTP_RESPONSE {
+  set val [HTTP::header value X-Custom]
+  set safe [URI::encode $val]
+  HTTP::header replace X-Reply $safe
+}
 ```
 
-Validate the value or strip control characters before setting the header.
+`URI::encode` marks its result free of carriage returns and newlines, which
+clears the finding. Hand-rolled stripping with `string map` does not: the
+analyser cannot tell which characters it removed.
 
 ## How to suppress
 

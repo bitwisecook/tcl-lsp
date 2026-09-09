@@ -243,9 +243,6 @@ pub struct TraceTable {
     /// records registrations a callback *removed* rather than ones it is
     /// running.
     pub firing_exec_traces: Vec<u64>,
-    /// Variable cells whose trace callbacks are currently running. Other
-    /// variables remain traceable from within a callback.
-    pub active_var_scopes: Vec<VarTraceScope>,
     /// Non-zero while an **execution** trace callback (`enter`/`leave`/
     /// `enterstep`/`leavestep`) is running — C's `INTERP_TRACE_IN_PROGRESS`,
     /// which `TraceExecutionProc` sets around exactly those callbacks
@@ -387,7 +384,7 @@ fn trace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let word = obj_bytes(argv[1]);
     let option = match core_trace::resolve_option(&String::from_utf8_lossy(&word), &options) {
         Ok(option) => option,
-        Err(e) => return interp.set_error(e.message().as_bytes()),
+        Err(e) => return interp.report_cmd_error(e),
     };
     match option.as_bytes() {
         // `trace add`/`remove` then dispatch on the type word (objv[2]).
@@ -409,7 +406,7 @@ fn trace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 Ok(core_trace::TraceKind::Execution) => {
                     cmd_trace_add_remove(interp, argv, is_add, ops::EXEC_ANY)
                 }
-                Err(e) => interp.set_error(e.message().as_bytes()),
+                Err(e) => interp.report_cmd_error(e),
             }
         }
         b"info" => {
@@ -421,7 +418,7 @@ fn trace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 Ok(core_trace::TraceKind::Variable) => trace_var_info(interp, argv),
                 Ok(core_trace::TraceKind::Command) => cmd_trace_info(interp, argv, ops::CMD_ANY),
                 Ok(core_trace::TraceKind::Execution) => cmd_trace_info(interp, argv, ops::EXEC_ANY),
-                Err(e) => interp.set_error(e.message().as_bytes()),
+                Err(e) => interp.report_cmd_error(e),
             }
         }
         // The deprecated 8.x forms; C rewrites them into `trace add|remove
@@ -613,7 +610,7 @@ fn cmd_trace_info(interp: &mut Interp, argv: &[*mut TclObj], category: u8) -> Co
 fn parse_ops(interp: &mut Interp, spec: &[u8]) -> Result<Vec<Vec<u8>>, Code> {
     match core_trace::parse_ops(spec, core_trace::TraceKind::Variable) {
         Ok(ops) => Ok(ops.iter().map(|o| o.as_bytes().to_vec()).collect()),
-        Err(e) => Err(interp.set_error(e.message().as_bytes())),
+        Err(e) => Err(interp.report_cmd_error(e)),
     }
 }
 
@@ -797,7 +794,7 @@ fn legacy_var_add_remove(interp: &mut Interp, argv: &[*mut TclObj], is_add: bool
     }
     let ops = match core_trace::parse_legacy_variable_ops(&obj_bytes(argv[3])) {
         Ok(ops) => ops.iter().map(|o| o.as_bytes().to_vec()).collect(),
-        Err(e) => return interp.set_error(e.message().as_bytes()),
+        Err(e) => return interp.report_cmd_error(e),
     };
     var_trace_apply(
         interp,

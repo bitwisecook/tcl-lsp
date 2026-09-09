@@ -4,7 +4,7 @@
 > carry*, so that stack traces, `info frame` / `info level`, exceptions,
 > `eval` / `uplevel` / `source` / `package`, and **AOT ↔ interpreter interop**
 > all work. Grounded in the C Tcl 9 truth
-> (`tmp/tcl9.0.3/generic/{tclProc,tclBasic,tclCmdMZ,tclResult,tclNamesp}.c`,
+> (`tmp/tcl9.0.4/generic/{tclProc,tclBasic,tclCmdMZ,tclResult,tclNamesp}.c`,
 > `tclInt.h`). Section numbers are cited from `runtime/rust/src/interp.rs`,
 > `cmd_proc.rs`, and `cmd_error.rs`, so keep them stable.
 
@@ -312,7 +312,10 @@ by `proc`, `apply`, and every TclOO method:
    `too many nested evaluations (infinite loop?)` rather than a stack overflow.
 3. push the frame (`push` for a normal call, `push_same_level` when the caller
    is redirecting the level) and record the invocation `words` for
-   `info level N`.
+   `info level N`. Those exact words are also TIP 348's procedure-boundary
+   `CALL`: `apply` supplies the public lambda invocation and TclOO supplies the
+   object command, method, and arguments, never an internal implementation
+   proc name.
 4. switch `current_ns` to the proc's defining namespace, pre-link any declared
    instance variables (the TclOO case), then bind positionals left to right —
    supplied argument, else default — with a trailing `args` soaking up the rest.
@@ -387,10 +390,10 @@ info — this is what the conservative principle buys.
 
 ## 7. The elision pass
 
-This pass does not exist yet; the bookkeeping is emitted unconditionally today.
-When it lands, it is the one place information may be dropped: per the
-conservative principle, an optimisation stage may **drop frame/source
-bookkeeping it can prove unobservable**. A compiled proc may elide:
+**Not built:** the bookkeeping is emitted unconditionally. This pass is the one
+place information may ever be dropped — per the conservative principle, an
+optimisation stage may **drop frame/source bookkeeping it can prove
+unobservable**. A compiled proc could then elide:
 
 - the `CmdFrame` push / per-command line updates **iff** no reachable code can
   observe them: no `error`/`catch` that inspects options, no `info frame`/`info
@@ -499,7 +502,9 @@ bottom-up as an error unwinds, from the same unwinding sites that build
 `reset_error_stack` (C's `iPtr->resetErrorStack`, set by `Tcl_ResetResult`)
 marks the start of a new episode: the *next* logged command rebuilds the stack,
 and the previous contents survive until then, so `info errorstack` after a
-`catch` still reports the error that was caught.
+`catch` still reports the error that was caught. An explicitly seeded error
+that suppresses a new inner log (for example, `return -level 0 -code error
+-errorinfo ...`) exposes that same retained stack in its completion options.
 
 `info errorstack ?interp?` accepts the interpreter argument but only reports the
 current interpreter.

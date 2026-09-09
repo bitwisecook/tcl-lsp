@@ -45,7 +45,7 @@ covering `set x 1` in a 7-byte document reports `off 0-7`. Slices are therefore
 
 | View | What it shows | Why it helps |
 |---|---|---|
-| `slices` | Every IR statement's range as offsets **and `[line:col]`**, plus the literal `repr(source[start:end])` the range covers | A one-byte range overshoot reads as an extra delimiter in the slice (`'return {}}'` vs `'return {}'`). This is how issue #527 was found. |
+| `slices` | Every IR statement's range as offsets **and `[line:col]`**, plus the literal `repr(source[start:end])` the range covers | A one-byte range overshoot reads as an extra delimiter in the slice (`'return {}}'` vs `'return {}'`). |
 | `tokens` | The CST's **leaf** nodes: kind, absolute offsets, and the source slice each covers | A mis-placed `endOffset` shows up directly. |
 | `cst` | The parse tree as an indented tree with offsets and tags | Brace-matching and delimiter questions. |
 | `lowlevel` | `tokens` + `cst` + `slices` back to back | One-shot low-level overview for a quick triage. |
@@ -63,10 +63,12 @@ no renderer for it; it exists only in the `--json` contract.
 Any other `<view>` is forwarded to `tcl explore --show <view> --text --no-colour`.
 The full catalogue (`VIEW_META` in `rust/tcl-explorer/src/views.rs`):
 
-`cst`, `segments`, `structuralIndex`, `sourceMap`, `ir`, `cfg`, `ssa`, `loops`,
-`types`, `intervals`, `bounds`, `dataflow`, `interproc`, `rendered`, `opt`,
-`optimiserPasses`, `gvn`, `shimmer`, `taint`, `irules`, `eventOrder`, `callouts`,
-`asm`, `asmOpt`, `wasm`, `wasmOpt`.
+`cst`, `segments`, `structuralIndex`, `sourceMap`, `ir`, `cfg`, `ssa`,
+`dominators`, `sccp`, `liveness`, `semantic`, `worldSsa`, `loops`, `types`,
+`intervals`, `bounds`, `dataflow`, `interproc`, `unitScope`, `rendered`, `opt`,
+`optimiserPasses`, `gvn`, `shimmer`, `taint`, `taintFacts`, `irules`,
+`connectionScope`, `eventOrder`, `callouts`, `asm`, `asmOpt`, `wasm`,
+`wasmOpt`, `semanticOptimisations`.
 
 `interproc` additionally reports each procedure's **param constants** — the
 caller-uniform-literal SCCP seed it was analysed under. That line is the first
@@ -76,9 +78,10 @@ not have: its presence names the literal every visible caller passed, and its
 `eval $script`) withdrew the seed. See
 `docs/design/compiler/interprocedural-call-site-seeding.md`.
 
-Four of those have **no text renderer** and are reachable only via `--json`:
-`cst` (rendered locally instead), `segments`, `asmOpt`, `wasmOpt`. Asking for one
-prints `compiler explorer: no matching views`.
+Five of those have **no text renderer** and are reachable only via `--json`:
+`cst` (rendered locally instead), `segments`, `asmOpt`, `wasmOpt`, and
+`semanticOptimisations`. Asking for one prints
+`compiler explorer: no matching views`.
 
 > [!WARNING]
 > `--show` matches view names by **substring**, not exact name. `--show all` does
@@ -92,7 +95,7 @@ There is no `--opt` lens. The optimised paths are their own views (`opt`,
 ## Examples
 
 ```bash
-# Issue #527 reproducer — the slice exposes the overshoot instantly
+# A closing-delimiter check — the slice exposes an overshoot instantly
 python .claude/skills/compiler-explorer/explore.py slices --source 'if {1} {return {}}'
 #   IRIf       off 0-18  [1:1-1:19]  slice='if {1} {return {}}'
 #   IRReturn   off 8-17  [1:9-1:18]  slice='return {}'      <- correct

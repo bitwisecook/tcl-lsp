@@ -17,24 +17,18 @@ The analyser says my file "is not valid UTF-8" and mentions U+FFFD — what does
 
 ## Why
 
-Tcl source files are read as UTF-8. When some of the bytes in a file are not
-valid UTF-8, the toolchain cannot recover what they were meant to say, so it
-substitutes the Unicode replacement character `U+FFFD` (�) for each ill-formed
-sequence and carries on. That keeps the file analysable, but it means **the
-text being analysed is not the file on disk**: content differs, and every
-position after the first substitution is derived from characters that were
-never there. Any other diagnostic in the affected region may point at the
-wrong place.
+Tcl source files are read as UTF-8. Ill-formed bytes cannot be recovered, so
+the toolchain substitutes `U+FFFD` (�) for each one and carries on. **The text
+being analysed is then not the file on disk**, and any other diagnostic in the
+affected region may point at the wrong place.
 
 It also matters at run time. **Tcl 9 refuses to read such a file at all** —
 `source` fails with `invalid or incomplete multibyte or wide character`. Tcl
-8.6 passes the bad bytes through instead, so the same file behaves differently
-on the two interpreters. Whatever the file was supposed to contain, it is not
-what either interpreter will see.
+8.6 passes the bad bytes through, so the same file behaves differently on the
+two interpreters.
 
-The most common causes are a file saved in a legacy 8-bit encoding
-(ISO-8859-1, Windows-1252) but named as UTF-8, a truncated download or copy,
-and text spliced together at a byte offset that fell in the middle of a
+The usual causes are a legacy 8-bit file (ISO-8859-1, Windows-1252) named as
+UTF-8, a truncated download, and text spliced at a byte offset inside a
 character.
 
 ## Symptoms
@@ -53,7 +47,7 @@ A file saved as ISO-8859-1 rather than UTF-8, so `é` is the single byte
 `0xE9` instead of the two bytes `0xC3 0xA9`:
 
 ```tcl
-# saved as ISO-8859-1 — the byte after "caf" is 0xE9
+# saved as ISO-8859-1: the byte after "caf" is 0xE9
 set drink "café"
 puts $drink
 ```
@@ -61,9 +55,11 @@ puts $drink
 The analyser reports **`W107`** once, at the first replacement character:
 
 ```
-W107  1:18  Source is not valid UTF-8: truncated multi-byte sequence at byte
-            offset 47 (1 ill-formed sequence in total, each replaced with
-            U+FFFD). ...
+drink.tcl:2:15: warning W107 Source is not valid UTF-8: truncated multi-byte
+sequence at byte offset 66 (1 ill-formed sequence in total, each replaced with
+U+FFFD). The analysed text is not the file on disk, so positions and content in
+this file may differ from what you see. Tcl 9 refuses to read such a file at
+all.
 ```
 
 ## Fix
@@ -89,31 +85,26 @@ there is nothing in the file to repair.
 
 The check reports the **first** ill-formed sequence and names its class:
 truncated multi-byte sequence, overlong encoding, lone surrogate (CESU-8 /
-WTF-8), out-of-range lead byte, or stray continuation byte. It counts all of
-them, but reports once — a mis-decoded file has one problem, not one per byte.
-Its range comes from the decoder's recorded insertion offset and is converted
-to the editor's UTF-16 column, so an astral character or an earlier literal
-`U+FFFD` cannot move the squiggle onto the wrong character.
+WTF-8), out-of-range lead byte, or stray continuation byte. It counts them all
+but reports once — a mis-decoded file has one problem, not one per byte.
 
 It cannot detect a legacy 8-bit file whose high bytes happen to *form* valid
-UTF-8 sequences; that file is indistinguishable from a UTF-8 file containing
-different characters, and the analyser abstains rather than guess.
+UTF-8 sequences; such a file is indistinguishable from a UTF-8 file containing
+different characters, so the analyser abstains.
 
-There is one difference between reading a file and editing it. When the
-toolchain reads the file itself (`tcl diag`, or an editor opening an unchanged
-file) it has matching bytes, so it names the exact offset and class. When an
-unsaved editor buffer no longer matches the file on disk, the original bytes
-are not available. The analyser then stays silent rather than guess from a
-`U+FFFD` character, because that character can be legitimate Tcl text.
+It needs the original bytes. `tcl diag`, and an editor opening an unchanged
+file, have them. Once an unsaved buffer no longer matches the file on disk the
+check stays silent, because a `U+FFFD` in the buffer can be legitimate text.
 
 ## How to suppress
 
-Set `tclLsp.diagnostics.W107` to `false`, or add
-`# tcl-lsp: disable=W107` at the top of the file. Inline `# noqa` will not
-help — the finding is about the file, not a line.
+Set `tclLsp.diagnostics.W107` to `false`, or add `# tcl-lsp: disable=W107` at
+the top of the file. Inline `# noqa` does not help — the finding is about the
+file, not a line. See
+[how to turn a diagnostic off](../kcs-howto-suppress-diagnostics.md).
 
-Suppressing it is rarely the right answer: the diagnostic is telling you that
-every *other* diagnostic in the file may be pointing at the wrong place.
+Suppressing it is rarely right: it is telling you every *other* diagnostic in
+the file may be pointing at the wrong place.
 
 ## Related
 

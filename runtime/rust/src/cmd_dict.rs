@@ -89,10 +89,14 @@ fn dict_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 // parser only through here, so without the re-wording every
                 // one of them reported the list noun (issue #1573).
                 Err(e) => {
-                    let msg = dict_worded(e.message());
+                    let (message, portable_code) = e.into_parts();
+                    let msg = dict_worded(&message);
                     match dict_parse_error_code(&msg) {
                         Some(code) => interp.error_with_code(msg.as_bytes(), code),
-                        None => interp.set_error(msg.as_bytes()),
+                        None => match portable_code {
+                            Some(code) => interp.error_with_code(msg.as_bytes(), code.as_bytes()),
+                            None => interp.set_error(msg.as_bytes()),
+                        },
                     }
                 }
             };
@@ -799,6 +803,8 @@ fn dict_path_unset(dict: *mut TclObj, keys: &[*mut TclObj]) -> Result<(), PathEr
 /// `dict for {keyVar valueVar} dictValue body` — iterate in insertion order,
 /// evaluating `body` in the current scope with the loop vars set.
 fn for_(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    use tcl_runtime_api::completion_options::ControlOptionPolicy;
+
     if argv.len() != 5 {
         return interp.wrong_args(b"dict for {keyVarName valueVarName} dictionary script");
     }
@@ -816,7 +822,10 @@ fn for_(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Err(e) => return bad_dict(interp, e),
     };
 
+    let policy = ControlOptionPolicy::FRESH_SETTLED;
+    interp.begin_control_options(policy);
     for (k, v) in pairs {
+        interp.begin_control_options(policy);
         if interp.var_set(&kvar, k).is_err() {
             return cant_set(interp, &kvar);
         }
@@ -836,6 +845,7 @@ fn for_(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
     }
     interp.set_result_bytes(b"");
+    interp.settle_control_options(policy, Code::Ok);
     Code::Ok
 }
 
@@ -843,6 +853,8 @@ fn for_(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// iteration's body result becomes the new value for that key; returns the
 /// transformed dict. `continue` drops the key, `break` stops.
 fn map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    use tcl_runtime_api::completion_options::ControlOptionPolicy;
+
     if argv.len() != 5 {
         return interp.wrong_args(b"dict map {keyVarName valueVarName} dictionary script");
     }
@@ -859,7 +871,10 @@ fn map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     let acc = dict::new_dict_obj(&[]);
     unsafe { obj::incr_ref_count(acc) };
+    let policy = ControlOptionPolicy::FRESH_FORWARDED;
+    interp.begin_control_options(policy);
     for (k, v) in pairs {
+        interp.begin_control_options(policy);
         if interp.var_set(&vars[0], k).is_err() || interp.var_set(&vars[1], v).is_err() {
             unsafe { obj::decr_ref_count(acc) };
             return cant_set(interp, &vars[0]);
@@ -885,6 +900,7 @@ fn map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     interp.set_result(acc);
     unsafe { obj::decr_ref_count(acc) };
+    interp.settle_control_options(policy, Code::Ok);
     Code::Ok
 }
 

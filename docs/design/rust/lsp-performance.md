@@ -24,12 +24,14 @@ dependency. Two consequences matter for latency:
   `spawn_blocking` worker and catches `salsa::Cancelled`, so a superseded
   request unwinds instead of finishing work nobody wants.
 
-`lift_compiler_diagnostics` builds **one** `CompilationUnit` and runs both
-`run_all_checks` and `optimiser::optimise_unit` over it; the unit itself is a
-tracked query (`compilation_unit`, keyed on an interned lexer config) so the
-analyser tail and the compiler/optimiser checks share a single build per edit
-whenever their lexer configs coincide — every dialect but `tcl8.4` and
-`f5-irules`.
+The `compiler_check_diagnostics` query produces both halves — the compiler
+checks and the optimiser's `O1xx` rewrites — from **one** `CompilationUnit`;
+the unit itself is a tracked query (`compilation_unit`, keyed on an interned
+lexer config) so the analyser tail and the compiler/optimiser checks share a
+single build per edit whenever their lexer configs coincide — every dialect but
+`tcl8.4` and `f5-irules`. The server's `lift_compiler_diagnostics` only filters
+that result (optimiser master switch, per-code disables, suppressions) and lifts
+it into LSP diagnostics.
 
 ## Diagnostics never block the message loop
 
@@ -217,8 +219,8 @@ that remains underneath them.
 | incremental-path fallback distribution | `cargo run --release -p tcl-compiler --example per_item_fallbacks` (`ROOT=` picks the corpus) |
 | document-snapshot sharing | `cargo test -p tcl-lsp-server --lib -- concurrent_snapshots` and `cargo test -p tcl-lexer --lib line_index` |
 | interactive latency (edit + trivial request) | drive the built server over JSON-RPC via the `lsp-client` skill |
-| end-to-end LSP suite | `make test-rust` (runs `rust/tcl-lsp-server/tests/*_e2e.rs`) |
+| end-to-end LSP suite | `make test-rust` (runs the native-server e2e suites under `rust/tcl-lsp-server/tests/`) |
 
 Large documents used for measurement:
 `tmp/tcllib-2.0/modules/practcl/practcl.tcl` (8,463 lines),
-`tmp/tcl9.0.3/library/http/http.tcl`, `tmp/tcllib-2.0/modules/tepam/`.
+`tmp/tcl9.0.4/library/http/http.tcl`, `tmp/tcllib-2.0/modules/tepam/`.

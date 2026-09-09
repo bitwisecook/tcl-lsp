@@ -59,7 +59,7 @@ per-dialect spec packs, never as name-matching in a consumer (see
 
    The `if` modelling is the same shape: the always-evaluated condition is an
    `ArgRole::Expr` argument and is never depth-bumped, only the
-   branch-selected bodies are (issue #1065).
+   branch-selected bodies are.
    The background `signature_scan` pre-pass answers the same question more
    coarsely — it walks only `if` / `catch` / `try` bodies and marks *every*
    recursed body conditional, `finally` included. It is a shallow index for
@@ -114,12 +114,12 @@ per-dialect spec packs, never as name-matching in a consumer (see
 
     | Requirement | Means | from providers 1.5 + 2.3 |
     |---|---|---|
-    | *(none)* | anything | 2.3 — highest, **not** first discovered (#1090) |
+    | *(none)* | anything | 2.3 — highest, **not** first discovered |
     | `1.2` | `[1.2, 2)` — up to but excluding the next major | 1.5 |
     | `2.0` | `[2.0, 3)` | 2.3 |
     | `2.0-` | `[2.0, ∞)` | 2.3 |
     | `2.0-2.2` | `[2.0, 2.2)` — half-open | nothing |
-    | `-exact 2.0` | the degenerate range `2.0-2.0` | nothing (#1090) |
+    | `-exact 2.0` | the degenerate range `2.0-2.0` | nothing |
 
     Two further rules the port implements:
 
@@ -136,7 +136,7 @@ per-dialect spec packs, never as name-matching in a consumer (see
     Two further rules, both documented at
     `PackageResolver::resolve_require`:
 
-    - **`package prefer` state is tracked per document** (#1126). `package
+    - **`package prefer` state is tracked per document.** `package
       prefer latest` raises the interpreter's selection mode, and
       `package_resolver::package_prefer_at(analysis, at)` reports the mode in
       force at a given `package require`, ordered by
@@ -170,9 +170,9 @@ per-dialect spec packs, never as name-matching in a consumer (see
 14. `transitive_available_packages(requires, read_fn)` returns the closure of
     packages the given requires pull in — following each `ifneeded` script's
     own `package require`s — which is how a wrapper package that internally
-    `package require Tk` makes `Tk` available (#723).
+    `package require Tk` makes `Tk` available.
 
-### Declared package provides (#1813)
+### Declared package provides
 
 15. A **binary** extension can load another package with nothing in any Tcl
     source to say so: its C `Init` calls `Tcl_PkgRequire`, or it links Tk
@@ -259,9 +259,8 @@ per-dialect spec packs, never as name-matching in a consumer (see
 
     The edges are one of the `"scope": "resource"` analyser inputs, and they
     all travel together in `ResourceAnalyserInputs` — `packages.provides`,
-    `bigipVersion` and `targets`. Each was, at some point, wired to only a
-    subset of the construction sites, so the bundle exists to make the *next*
-    one a single edit rather than an audit: resolve with
+    `bigipVersion` and `targets`. Adding a fourth is one edit rather than an
+    audit of every construction site: resolve with
     `Backend::resource_analyser_inputs` (a folder override wins field by
     field, else the global) or `ResourceAnalyserInputs::from_db_config` where
     a resolved salsa handle is already in hand, and hand it over with
@@ -294,14 +293,14 @@ per-dialect spec packs, never as name-matching in a consumer (see
 25. The analyser's single-file W120 knows only the requires in the current
     document. Two workspace-level refinements are layered on top, both in the
     server's `refine_w120_diagnostics`:
-    - **#723 transitive resolution** — a required package is resolved through
-      the workspace `pkgIndex.tcl` database; a W120 for a package that the
+    - **Transitive resolution** — a required package is resolved through the
+      workspace `pkgIndex.tcl` database; a W120 for a package that the
       requires transitively provide is dropped. If any required package is
       *unknowable* (neither the registry nor the database knows it), it may
       load anything, so every W120 is conservatively dropped.
-    - **#804 cross-file inheritance** — see below.
+    - **Cross-file inheritance** — see below.
 
-### Cross-file `package require` inheritance (W120, #804)
+### Cross-file `package require` inheritance (W120)
 
 26. A file need not carry its own `package require` for a command whose package
     was required by an **entry** file that `source`s it.
@@ -418,7 +417,7 @@ per-dialect spec packs, never as name-matching in a consumer (see
 ## Cross-reference: tclpkg
 
 For project-local package management (manifests, lockfiles, CAS, virtual
-environments), see [tclpkg architecture](../tclpkg-architecture.md) and
+environments), see [tclpkg architecture](../tclpkg/architecture.md) and
 the [how-to guide](../../kcs/kcs-howto-manage-tcl-packages.md).
 
 ## Discoverability
@@ -428,4 +427,4 @@ the [how-to guide](../../kcs/kcs-howto-manage-tcl-packages.md).
 - [Command registry and event model](command-registry-event-model.md)
 - [LSP feature providers](lsp-feature-providers.md)
 - [LSP diagnostics publication](lsp-diagnostics-publication.md)
-- [tclpkg architecture](../tclpkg-architecture.md)
+- [tclpkg architecture](../tclpkg/architecture.md)

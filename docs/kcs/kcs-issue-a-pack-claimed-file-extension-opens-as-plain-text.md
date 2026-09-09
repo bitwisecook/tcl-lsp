@@ -19,8 +19,8 @@ I get the editor to treat it as Tcl?
   says **Plain Text** rather than Tcl or iRule.
 - No diagnostics, completion, or hover appear in that file, while `.tcl`
   files in the same project are fine.
-- `tcl spec check` reports the pack loaded, and the commands it declares are
-  recognised in a `.tcl` file — so the pack itself is being read.
+- `mcp__tcl-lsp__spectcl_check` reports the pack loaded, and the commands it
+  declares are recognised in a `.tcl` file — so the pack itself is being read.
 
 ## Answer
 
@@ -87,6 +87,6 @@ built-in extension.
 
 - [How do I write a SpecTcl pack?](kcs-howto-write-a-tclspec-pack.md)
 - [Dialect selection](features/kcs-feature-dialect-selection.md)
-- [SpecTcl pack design](../design/spec-packs.md)
+- [SpecTcl pack design](../design/registry/spec-packs.md)
 - [KCS index](README.md)
 - [Glossary](../GLOSSARY.md)

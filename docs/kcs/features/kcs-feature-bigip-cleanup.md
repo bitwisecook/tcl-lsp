@@ -5,7 +5,7 @@
 
 ## Summary
 
-`f5` CLI tool with a `cleanup` verb that scans a BIG-IP configuration for objects unreferenced by any virtual server and emits a `tmsh delete` script in deletion-safe order.
+`f5` CLI verb that scans a BIG-IP configuration for objects unreferenced by any virtual server and emits a `tmsh delete` script in deletion-safe order.
 
 ## Applies to
 
@@ -30,10 +30,10 @@ The cleanup feature parses one or more `bigip.conf` / SCF files, treats every `l
 
 ### `f5` CLI
 
-`f5` is the BIG-IP-side CLI tool, separate from the `tcl` and `irule` CLIs.  It carries `cleanup` (this verb) plus [`grep`](kcs-feature-bigip-grep.md) (find every object related to a name or regex) and `completion` (print a shell completion script), and runs as a normal subcommand:
+`cleanup` is one verb of the [`f5`](kcs-feature-f5-cli.md) BIG-IP CLI:
 
 ```
-f5 cleanup samples/bigip/bigip.conf
+f5 cleanup bigip.conf
 f5 cleanup --json bigip.conf
 f5 cleanup --keep /Common/important_pool bigip.conf
 f5 cleanup --no-keep-common bigip.conf
@@ -41,7 +41,7 @@ f5 cleanup --no-keep-common bigip.conf
 
 #### Shell completion
 
-The `f5 completion <shell>` verb prints a ready-to-install completion script for **bash**, **fish**, or **zsh**:
+`f5 completion <shell>` prints a ready-to-install completion script for **bash**, **fish**, or **zsh**:
 
 ```
 # bash (per-user)
@@ -59,11 +59,9 @@ f5 completion zsh > "${ZDOTDIR:-$HOME}/.zsh/completions/_f5"
 #   fpath=("${ZDOTDIR:-$HOME}/.zsh/completions" $fpath)
 ```
 
-Pass `--hint` to also print the install instructions for the chosen shell to stderr (e.g. `f5 completion bash --hint`).  Completion covers verb names, every flag, and `*.conf` / `*.scf` positional paths.
-
 ### Claude skill
 
-Run `/bigip-cleanup` (the `bigip-cleanup` skill).  The skill runs `f5 cleanup` under the hood and presents the candidates grouped by kind, plus the ready-to-run script.
+Run `/bigip-cleanup`.  The skill runs `f5 cleanup` and presents the candidates grouped by kind, plus the ready-to-run script.
 
 ## Options
 

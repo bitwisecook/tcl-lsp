@@ -13,7 +13,7 @@ Three related passes detect and transform self-recursive patterns:
 | O122 | Convert fully tail-recursive proc to iterative `while` loop | Source rewrite |
 | O123 | Detect non-tail recursion eligible for accumulator introduction | Hint only |
 
-O122 subsumes O121 — when a proc is fully tail-recursive (all self-calls are in tail position), O122 fires with higher priority and O121 is suppressed by the non-overlapping selection mechanism. When only some self-calls are in tail position, O121 fires for the tail calls and O123 may fire for non-tail calls.
+O122 subsumes O121 — when a proc is fully tail-recursive (all self-calls are in tail position) and the loop conversion can be built, O122 fires with higher priority and O121 is suppressed by the non-overlapping selection mechanism. When only some self-calls are in tail position, O121 fires for the tail calls and O123 may fire for non-tail calls.
 
 ## When each code fires
 
@@ -21,7 +21,7 @@ O122 subsumes O121 — when a proc is fully tail-recursive (all self-calls are i
 
 2. **O121 fires when** — for each self-call in tail position. `optimise_tail_calls` emits an O121 candidate at every tail-position self-call; these may later be suppressed when a higher-priority O122 covers the same range. The rewrite wraps the tail call with `tailcall`.
 
-3. **O122 fires when** — every self-call in the proc is in tail position. The entire proc body is rewritten to an iterative `while {1}` loop with parameter reassignment in place of each recursive call.
+3. **O122 fires when** — every self-call in the proc is in tail position, the proc has at least one parameter, every tail site passes exactly one argument per parameter as the pass reads it, and — for a proc with more than one parameter — the dialect has `lassign` (Tcl 8.5+). The entire proc body is rewritten to an iterative `while {1}` loop with parameter reassignment in place of each recursive call. A `return [f …]` site whose arguments contain a nested `[…]` substitution is not read as one argument per parameter, so such a proc gets O121 only (see the GCD example).
 
 4. **O123 fires when** — exactly one non-tail self-call appears embedded in a return value (e.g. inside an `expr` or nested command substitution). This is a hint-only diagnostic; no source rewrite is produced. The hint indicates the recursion could be made tail-recursive by introducing an accumulator parameter. Doubly-recursive patterns (two or more self-calls in the same expression) are excluded.
 
@@ -31,7 +31,7 @@ O122 subsumes O121 — when a proc is fully tail-recursive (all self-calls are i
 
 ## Examples
 
-### GCD — tail-recursive `if`/`else` (O122)
+### GCD — `return [gcd …]` with a nested substitution (O121)
 
 **Before:**
 ```tcl
@@ -44,41 +44,37 @@ proc gcd {a b} {
 }
 ```
 
-**After (O122 rewrite):**
+**After (O121 rewrite):**
 ```tcl
 proc gcd {a b} {
-    while {1} {
-        if {$b == 0} {
-            return $a
-        } else {
-            lassign [list $b [expr {$a % $b}]] a b
-
-        }
+    if {$b == 0} {
+        return $a
+    } else {
+        tailcall gcd $b [expr {$a % $b}]
     }
 }
 ```
 
-### Factorial with accumulator — tail-recursive (O122)
+### Two-parameter tail recursion — plain arguments (O122)
 
 **Before:**
 ```tcl
-proc fact {n acc} {
-    if {$n <= 1} {
-        return $acc
+proc g {a b} {
+    if {$b == 0} {
+        return $a
     }
-    return [fact [expr {$n - 1}] [expr {$n * $acc}]]
+    return [g $b $a]
 }
 ```
 
 **After (O122 rewrite):**
 ```tcl
-proc fact {n acc} {
+proc g {a b} {
     while {1} {
-        if {$n <= 1} {
-            return $acc
+        if {$b == 0} {
+            return $a
         }
-        lassign [list [expr {$n - 1}] [expr {$n * $acc}]] n acc
-        continue
+        lassign [list $b $a] a b
     }
 }
 ```
@@ -101,7 +97,6 @@ proc loop {xs} {
         set x [lindex $xs 0]
         puts $x
         set xs [lrange $xs 1 end]
-        continue
     }
 }
 ```
@@ -154,6 +149,5 @@ Neither O121 nor O122 fires because neither call is in tail position. O123 does 
 
 ## See also
 
-- [compiler KCS index](README.md)
-- [pass/fact ownership matrix](../../../docs/design/compiler/pass-fact-ownership-matrix.md)
-- [downstream pass contracts](../../../docs/design/compiler/downstream-pass-contracts.md)
+- [pass/fact ownership matrix](pass-fact-ownership-matrix.md)
+- [downstream pass contracts](downstream-pass-contracts.md)

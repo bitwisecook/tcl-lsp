@@ -172,6 +172,39 @@ pub struct ExecOutput {
     pub stderr: Vec<u8>,
 }
 
+/// The small, host-owned system-encoding vocabulary currently implemented by
+/// the Rust runtimes.
+///
+/// Tcl initialises standard and newly-opened channels from the platform's
+/// locale-dependent system encoding.  Keeping that fact on [`Host`] prevents
+/// command adapters from each interpreting `LC_ALL`/`LC_CTYPE`/`LANG` and lets
+/// browser/WASI hosts choose their deterministic UTF-8 default explicitly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SystemEncoding {
+    /// UTF-8 (`utf-8` in Tcl's encoding catalogue).
+    Utf8,
+    /// ISO-8859-1 (`iso8859-1`), Tcl's byte-for-byte Tcl 9 binary-channel
+    /// encoding and the Unix `C`/`POSIX` locale default.
+    Iso88591,
+    /// Seven-bit ASCII.
+    Ascii,
+    /// Native-endian UTF-16 (`unicode` in Tcl's encoding catalogue).
+    Unicode,
+}
+
+impl SystemEncoding {
+    /// Canonical Tcl encoding name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Utf8 => "utf-8",
+            Self::Iso88591 => "iso8859-1",
+            Self::Ascii => "ascii",
+            Self::Unicode => "unicode",
+        }
+    }
+}
+
 /// Whole-file and directory access. Streaming channels (the per-fd table,
 /// buffering, encoding) layer on top separately; this is the stateless
 /// surface the path/`glob`/`file` commands need.
@@ -323,6 +356,12 @@ pub trait Host {
     fn stdio(&self) -> &dyn StdIo;
     /// Environment + working directory (always present).
     fn env(&self) -> &dyn Env;
+
+    /// Locale/platform encoding used for standard and newly-opened channels.
+    /// Restricted hosts have no process locale and therefore keep UTF-8.
+    fn system_encoding(&self) -> SystemEncoding {
+        SystemEncoding::Utf8
+    }
 
     /// The filesystem, or `None` on a host without one (e.g. a no-VFS browser).
     fn filesystem(&self) -> Option<&dyn Filesystem> {

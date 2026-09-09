@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The full `ExprGrammar` contract of design doc
-//! `docs/design/dialect-and-package-registry-redesign.md` §3.1, as data —
+//! `docs/design/registry/dialect-and-package-registry-redesign.md` §3.1, as data —
 //! no function pointers.
 //!
 //! The word-operators/comments/numbers triple is not enough for a non-Tcl
@@ -288,7 +288,7 @@ const TCL_WORDS_90: &[WordOperator] = &[
 /// `matches`/`matches_glob`/`matches_regex` — the set the expr lexer's
 /// `irules_ops` recognises). Measured **byte-identical in tmsh and iApp
 /// contexts, not iRules-only**
-/// (`docs/design/bigip-irule-parser-measurements.md` §4a: `expr {"abc"
+/// (`docs/design/f5/bigip-irule-parser-measurements.md` §4a: `expr {"abc"
 /// starts_with "a"}` and `expr {1 and 1}` answer `1` in all three F5
 /// contexts), so the ten carry the trunk's own release as their
 /// provenance. `not` is unary and therefore absent from the precedence

@@ -311,8 +311,22 @@ impl<'t, T: AsRef<[u8]>> OptionTable<'t, T> {
     /// # Errors
     /// The C-shaped message for an unmatched or ambiguous word.
     pub fn index_of_str(&self, word: &str) -> Result<usize, CmdError> {
-        self.index_of(word.as_bytes())
-            .map_err(|m| CmdError::new(String::from_utf8_lossy(&m).into_owned()))
+        self.index_of_cmd(word.as_bytes())
+    }
+
+    /// [`Self::index_of`] for byte-word [`CmdError`] consumers.
+    ///
+    /// # Errors
+    /// The C-shaped message and `TCL LOOKUP INDEX …` identity for an unmatched
+    /// or ambiguous word.
+    pub fn index_of_cmd(&self, word: &[u8]) -> Result<usize, CmdError> {
+        self.index_of(word).map_err(|message| {
+            CmdError::lookup_index(
+                String::from_utf8_lossy(&message).into_owned(),
+                self.what,
+                &String::from_utf8_lossy(word),
+            )
+        })
     }
 }
 
@@ -526,6 +540,7 @@ mod tests {
             e.message(),
             "bad operation \"w\": must be array, read, unset, or write"
         );
+        assert_eq!(e.error_code(), Some("TCL LOOKUP INDEX operation w"));
     }
 
     #[test]

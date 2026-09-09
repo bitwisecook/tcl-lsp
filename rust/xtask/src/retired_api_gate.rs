@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `retired-api-gate` — the zero-reference gate for the P1-G retirements
-//! (`docs/design/dialect-and-package-registry-centralisation.md` §3), plus
+//! (`docs/design/registry/dialect-and-package-registry-centralisation.md` §3), plus
 //! the P1a ledger-C4 retirement (the `head_identity` binding table, now
 //! the realm command-binding state in `tcl_compiler::realm`).
 //!
@@ -529,7 +529,7 @@ pub fn run(_check: bool) -> ExitCode {
              through `tcl_registry::model::ingress` (the one dialect-name seam) or \
              `ResolvedContext`'s queries instead, or mark a reviewed exception with \
              `// {RETIRED_WAIVER} <reason>` and a ledger entry \
-             (docs/design/dialect-and-package-registry-centralisation.md §3):\n{report}"
+             (docs/design/registry/dialect-and-package-registry-centralisation.md §3):\n{report}"
         );
     }
     if owned_hits > 0 {
@@ -540,7 +540,7 @@ pub fn run(_check: bool) -> ExitCode {
              Ask the owner instead, or mark a reviewed exception with \
              `// {OWNED_WAIVER} <reason>` **and** a row in the centralisation \
              ledger's §3 table \
-             (docs/design/dialect-and-package-registry-centralisation.md §3):\n\
+             (docs/design/registry/dialect-and-package-registry-centralisation.md §3):\n\
              {owned_report}"
         );
     }

@@ -21,17 +21,21 @@ Tcl converts the value's internal type each time the code runs, which wastes CPU
 
 ## Symptoms
 
-- A blue information underline appears under the variable use, with the message "value shimmers between types".
+- An informational underline appears under the variable use, with a message
+  naming both types: "variable 'v' has numeric intrep but 'lindex' expects list
+  (argument 1)".
 
 ## Example that triggers it
 
 ```tcl
-set x "42"
-expr {$x + 1}
-string length $x
+set v 5
+expr {$v + 1}
+lindex $v 0
 ```
 
-The analyser reports **`S100`** because `x` is used as both an integer and a string.
+The analyser reports **`S100`** on the `lindex`: the `expr` committed a numeric
+internal representation, and reading `v` as a list converts it again on every
+run. Related information points at the line that committed the type.
 
 ## When it does not fire
 
@@ -58,18 +62,8 @@ a command — `[list …]`, `[dict create …]`, an object constructor, or
 read as a type it is **not** a valid instance of (`incr` on `hello`, which fails
 at runtime).
 
-It also fires on the **second** conversion of a literal: the first read commits
-the type, and a later read as a different type converts again on every run:
-
-```tcl
-set v 5
-expr {$v + 1}   ;# first read — commits the numeric type, free
-lindex $v 0     ;# second read — numeric converted to list: S100 fires here
-```
-
-The message names the type the value actually held ("has numeric intrep but
-`lindex` expects list"), and the related information points at the line that
-first committed it.
+This is why the example above needs two reads. The first read of a literal
+commits the type for free; only the second, as a different type, is a shimmer.
 
 ### A variable filled by a destructuring command
 
@@ -114,10 +108,15 @@ the caller's variables.
 Use separate variables for numeric and string use:
 
 ```tcl
-set x "42"
-set x_num [expr {$x + 0}]
-expr {$x_num + 1}; string length $x
+set v 5
+set n [expr {$v + 1}]
+set l [list $v]
+puts [lindex $l 0]
+puts $n
 ```
+
+Give each internal type its own variable, so neither read has to convert the
+other's value.
 
 ## How to suppress
 

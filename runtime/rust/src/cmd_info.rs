@@ -377,7 +377,7 @@ fn info_level(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result(v);
             Code::Ok
         }
-        Err(e) => interp.set_error(e.message().as_bytes()),
+        Err(e) => interp.report_cmd_error(e),
     }
 }
 
@@ -472,7 +472,7 @@ fn info_body(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result(v);
             Code::Ok
         }
-        Err(e) => interp.set_error(e.message().as_bytes()),
+        Err(e) => interp.report_cmd_error(e),
     }
 }
 
@@ -485,7 +485,7 @@ fn info_args(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result(v);
             Code::Ok
         }
-        Err(e) => interp.set_error(e.message().as_bytes()),
+        Err(e) => interp.report_cmd_error(e),
     }
 }
 
@@ -500,7 +500,7 @@ fn info_default(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // variable error verbatim (`can't set "a": variable is array`).
     let (val, has) = match tcl_cmd_core::info::default(interp, &argv[2], &argv[3]) {
         Ok(pair) => pair,
-        Err(e) => return interp.set_error(e.message().as_bytes()),
+        Err(e) => return interp.report_cmd_error(e),
     };
     if let Err(e) = interp.var_set(&var, val) {
         crate::interp::drop_fresh(val);

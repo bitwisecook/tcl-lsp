@@ -388,7 +388,7 @@ pub enum Op {
     IRULE_MATCHES_REGEX,
     /// `iruleMatches` — the F5 trunk's bare `matches` word operator. Its
     /// presence is measured
-    /// (`docs/design/bigip-irule-parser-measurements.md` §4a `e_matches`);
+    /// (`docs/design/f5/bigip-irule-parser-measurements.md` §4a `e_matches`);
     /// its discriminating semantics are §12's outstanding re-probe, so
     /// the VM answers it as a string equality — the reading the measured
     /// cell exercises — and the compiler declines to constant-fold it.
@@ -1124,6 +1124,19 @@ pub enum Operand {
     Label(String),
 }
 
+/// Runtime ingredients for a TIP 348 `INNER` context that cannot be
+/// reconstructed from source text after lowering.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ErrorStackContext {
+    /// Build `{head <runtime-result>}` for TIP 348 while using the failing
+    /// command itself, rather than its containing lowered instruction, for
+    /// `errorInfo`.
+    CommandResult {
+        head: String,
+        error_info_command: String,
+    },
+}
+
 // Instruction
 
 /// Whether an instruction begins an executable source command.
@@ -1185,6 +1198,8 @@ pub struct Instruction {
     pub source_line: u32,
     /// Original command text for `errorInfo`.
     pub source_cmd_text: String,
+    /// Runtime-only recipe for structured error-stack logging.
+    pub error_stack_context: Option<ErrorStackContext>,
     /// Canonical unrooted constructed namespace in which
     /// [`Self::source_cmd_text`] resolves when this instruction is an
     /// executable command boundary. Empty denotes the global namespace.
@@ -1201,6 +1216,10 @@ pub struct Instruction {
     /// and its own opcode continuation; an outer source command's `START_CMD`
     /// carries [`SourceCommandBoundary::Start`].
     pub source_command_boundary: SourceCommandBoundary,
+    /// Completion-option scope entered before this instruction executes.
+    /// Structured control commands use this out-of-band semantic marker where
+    /// their Tcl bytecode has no result-options opcode of its own.
+    pub completion_option_scope: Option<tcl_runtime_api::completion_options::ActivationOptionScope>,
     /// Byte span of the source construct this instruction was lowered
     /// from, when known. `None` for synthetic instructions with no
     /// direct source (loop-result pushes, fallthrough jumps, padding
@@ -1260,8 +1279,10 @@ impl Instruction {
             no_fold: false,
             source_line: 0,
             source_cmd_text: String::new(),
+            error_stack_context: None,
             source_command_namespace: String::new(),
             source_command_boundary: SourceCommandBoundary::None,
+            completion_option_scope: None,
             source_span: None,
             foreach_vars: None,
             foreach_collect: false,

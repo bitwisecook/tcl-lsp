@@ -648,6 +648,8 @@ fn lmap(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// and the body-frame command name — exactly as C factors them through one
 /// `EachloopCmd`.
 fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
+    use tcl_runtime_api::completion_options::ControlOptionPolicy;
+
     let name: &[u8] = if collect { b"lmap" } else { b"foreach" };
     // [cmd] + N×(varlist, list) pairs + body ⇒ an even arg count ≥ 4.
     if argv.len() < 4 || argv.len() % 2 != 0 {
@@ -686,8 +688,18 @@ fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
 
     // Collected body results (bytes; rematerialised into the result list at the
     // end). Only populated for `lmap`.
+    let policy = if collect {
+        ControlOptionPolicy::FRESH_FORWARDED
+    } else {
+        ControlOptionPolicy::FRESH_SETTLED
+    };
+    // Even a zero-iteration each-loop is a fresh command completion. Every
+    // iteration body is a fresh activation too; `lmap` forwards the final
+    // body's options, while `foreach` settles its own empty result/options.
+    interp.begin_control_options(policy);
     let mut collected: Vec<Vec<u8>> = Vec::new();
     for it in 0..iterations {
+        interp.begin_control_options(policy);
         for (vars, vals) in &groups {
             for (k, var) in vars.iter().enumerate() {
                 let val = vals.get(it * vars.len() + k).cloned().unwrap_or_default();
@@ -739,6 +751,7 @@ fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
     } else {
         interp.set_result_bytes(b"");
     }
+    interp.settle_control_options(policy, Code::Ok);
     Code::Ok
 }
 
