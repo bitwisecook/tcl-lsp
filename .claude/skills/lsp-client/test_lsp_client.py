@@ -80,6 +80,17 @@ def test_no_python_backend_option():
     assert "{python,rust}" not in run_cli("--help").stdout
 
 
+def test_workspace_root_is_absolute(tmp_path, monkeypatch):
+    """A relative rootUri names a URI authority, not a directory."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "fixture").mkdir()
+
+    client = LspClient("fixture", launch_cmd=["/nonexistent/tcl-lsp-server"])
+
+    assert client.server_dir == str(tmp_path / "fixture")
+    assert Path(client.server_dir).as_uri().startswith("file:///")
+
+
 def test_launch_cmd_is_required():
     """LspClient spawns what it is given, with no implicit fallback server."""
     launch_cmd = inspect.signature(LspClient.__init__).parameters["launch_cmd"]

@@ -242,9 +242,12 @@ class LspClient:
     """Manages a language server subprocess and JSON-RPC communication."""
 
     def __init__(self, server_dir: str, launch_cmd: list[str]) -> None:
-        self.server_dir = server_dir
+        #: Workspace root, resolved absolute because it becomes ``rootUri``:
+        #: a relative path there names a URI authority rather than a
+        #: directory, so the server would scan somewhere else entirely.
+        self.server_dir = str(Path(server_dir).resolve())
         #: argv used to spawn the server — the native ``tcl-lsp-server``
-        #: binary.  ``server_dir`` is only the workspace root (``rootUri``).
+        #: binary.
         self._launch_cmd = list(launch_cmd)
         self.process: subprocess.Popen | None = None
         self._request_id = 0
@@ -659,7 +662,7 @@ def initialize(client: LspClient) -> dict:
         "initialize",
         {
             "processId": os.getpid(),
-            "rootUri": f"file://{client.server_dir}",
+            "rootUri": Path(client.server_dir).as_uri(),
             "capabilities": {
                 "textDocument": {
                     "semanticTokens": {
