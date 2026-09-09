@@ -790,6 +790,33 @@ fn deleting_a_suspended_coroutine_fires_local_unset_traces() {
 }
 
 #[test]
+fn retained_namespace_teardown_retires_its_suspended_coroutine() {
+    // Exact Tcl 9.0.4 oracle. The parked frame and its namespace-owned resume
+    // command retain one another; namespace deferral breaks that lifecycle
+    // cycle and runs the local unset trace before the last owner returns.
+    assert_eq!(
+        result(
+            "set log {}
+             proc rec {n1 n2 op} {lappend ::log [list $n1 $n2 $op]}
+             namespace eval N {
+                 proc coBody {} {
+                     set x value
+                     trace add variable x unset ::rec
+                     yield parked
+                 }
+                 proc hold {} {
+                     coroutine c coBody
+                     namespace delete ::N
+                 }
+             }
+             ::N::hold
+             set log"
+        ),
+        "{x {} unset}"
+    );
+}
+
+#[test]
 fn initial_command_resolves_in_the_creation_namespace() {
     // tclsh 9.0.4 (coroutine-4.4): the coroutine's initial command is resolved
     // in the namespace where `coroutine` was called, so the namespace-local `a`

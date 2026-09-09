@@ -774,6 +774,10 @@ impl CommandSidecarKey {
 pub(crate) struct CommandRenameTransaction {
     old_key: String,
     new_key: String,
+    /// Retained namespace record that owns the source table entry, if any.
+    /// The entry stays in that record through validation and is materialised
+    /// only once the rename can no longer be rejected.
+    source_retained_root: Option<NsId>,
     source_generation: u64,
     source_import_binding: Option<ImportBinding>,
     source_builtin_identity: Option<String>,
@@ -2917,16 +2921,23 @@ impl Vm {
         }
     }
 
-    /// Resolve a Tcl-written command name to the exact namespace-table slot
-    /// where a new binding belongs. The returned display key is deliberately
-    /// separate: two legal slots can have the same rendering (#1778).
-    fn command_slot_for_written_name(&mut self, written: &str) -> (String, CommandSlot) {
-        let qualified = tcl_syntax::naming::is_qualified(written.as_bytes());
-        let display = if qualified {
-            canonical_cmd_key(written).into_owned()
+    /// Render one already-resolved command slot for Tcl-facing output. This is
+    /// the only native projection from namespace-token identity back to a
+    /// command name; publication must never reuse the written ingress spelling.
+    fn command_slot_display(&self, slot: &CommandSlot) -> String {
+        let namespace = self.ns_name(slot.namespace);
+        if namespace.is_empty() {
+            slot.simple.clone()
         } else {
-            self.qualify_name(written)
-        };
+            format!("{namespace}::{simple}", simple = slot.simple)
+        }
+    }
+
+    /// Resolve a Tcl-written command name to the exact namespace-table slot
+    /// where a new binding belongs. Display names are projected from the slot
+    /// only after resolution, so `b::y` inside `::a` publishes `::a::b::y`.
+    fn command_slot_for_written_name(&mut self, written: &str) -> CommandSlot {
+        let qualified = tcl_syntax::naming::is_qualified(written.as_bytes());
         let simple =
             String::from_utf8_lossy(tcl_syntax::naming::written_command_tail(written.as_bytes()))
                 .into_owned();
@@ -2936,14 +2947,15 @@ impl Vm {
         } else {
             self.ns_id_stack.last().copied().unwrap_or(ROOT_NS)
         };
-        (display, CommandSlot { namespace, simple })
+        CommandSlot { namespace, simple }
     }
 
     /// Reserve the destination hash-table slot used by `rename`. This occurs
     /// before alias-loop validation just like C's `Tcl_CreateHashEntry`, but
     /// returns the private injective key rather than the ambiguous display.
     pub(crate) fn note_rename_destination(&mut self, written: &str) -> String {
-        let (display, slot) = self.command_slot_for_written_name(written);
+        let slot = self.command_slot_for_written_name(written);
+        let display = self.command_slot_display(&slot);
         let key = self.storage_key_for_command_slot(slot, &display);
         self.note_command_bound(&key, false);
         key
@@ -2988,13 +3000,103 @@ impl Vm {
 
     fn command_token_identity(&self, key: &CommandSidecarKey) -> Option<CommandTokenIdentity> {
         let generation = match key {
-            CommandSidecarKey::Visible(name) => self.command_identity.generations.get(name),
+            CommandSidecarKey::Visible(name) => self.visible_command_generation(name),
             CommandSidecarKey::Hidden(name) => self.hidden_command_generations.get(name),
         }?;
         Some(CommandTokenIdentity {
             key: key.clone(),
             generation: *generation,
         })
+    }
+
+    /// Retained record selected by an exact visible command slot. The private
+    /// key is only an index into [`CommandIdentityState`]; namespace ownership
+    /// always comes from its structured slot.
+    fn retained_root_for_visible_key(&self, key: &str) -> Option<NsId> {
+        let namespace = self.command_slot(key)?.namespace;
+        self.ns_deferral.owners.get(&namespace).copied()
+    }
+
+    fn visible_command_at_key(&self, key: &str) -> Option<&Command> {
+        self.retained_root_for_visible_key(key)
+            .and_then(|root| self.ns_deferral.retained.get(&root))
+            .and_then(|record| record.commands.get(key))
+            .or_else(|| self.commands.get(key))
+    }
+
+    fn visible_command_generation(&self, key: &str) -> Option<&u64> {
+        self.retained_root_for_visible_key(key)
+            .and_then(|root| self.ns_deferral.retained.get(&root))
+            .and_then(|record| record.generations.get(key))
+            .or_else(|| self.command_identity.generations.get(key))
+    }
+
+    fn visible_import_binding(&self, key: &str) -> Option<&ImportBinding> {
+        self.retained_root_for_visible_key(key)
+            .and_then(|root| self.ns_deferral.retained.get(&root))
+            .and_then(|record| record.imported.get(key))
+            .or_else(|| self.imported_commands.get(key))
+    }
+
+    fn set_visible_command_generation(&mut self, key: &str, generation: u64) {
+        if let Some(root) = self.retained_root_for_visible_key(key)
+            && let Some(record) = self.ns_deferral.retained.get_mut(&root)
+            && record.commands.contains_key(key)
+        {
+            record.generations.insert(key.to_owned(), generation);
+        } else {
+            self.command_identity
+                .generations
+                .insert(key.to_owned(), generation);
+        }
+    }
+
+    fn set_visible_import_binding(&mut self, key: &str, binding: ImportBinding) {
+        if let Some(root) = self.retained_root_for_visible_key(key)
+            && let Some(record) = self.ns_deferral.retained.get_mut(&root)
+            && record.commands.contains_key(key)
+        {
+            record.imported.insert(key.to_owned(), binding);
+        } else {
+            self.imported_commands.insert(key.to_owned(), binding);
+        }
+    }
+
+    fn set_visible_builtin_identity(&mut self, key: &str, identity: String) {
+        if let Some(root) = self.retained_root_for_visible_key(key)
+            && let Some(record) = self.ns_deferral.retained.get_mut(&root)
+            && record.commands.contains_key(key)
+        {
+            record.builtin_identities.insert(key.to_owned(), identity);
+        } else {
+            self.builtin_identities.insert(key.to_owned(), identity);
+        }
+    }
+
+    /// Move one retained command binding into the ordinary mutation table for
+    /// the duration of a validated lifecycle operation. The same private key
+    /// cannot identify a live recreation: its structured slot contains the
+    /// retained namespace token, not the recreation's token.
+    fn materialise_retained_binding(&mut self, key: &str) -> Option<NsId> {
+        let root = self.retained_root_for_visible_key(key)?;
+        let record = self.ns_deferral.retained.get_mut(&root)?;
+        let command = record.commands.remove(key)?;
+        let generation = record.generations.remove(key);
+        let imported = record.imported.remove(key);
+        let identity = record.builtin_identities.remove(key);
+        self.commands.insert(key.to_owned(), command);
+        if let Some(generation) = generation {
+            self.command_identity
+                .generations
+                .insert(key.to_owned(), generation);
+        }
+        if let Some(binding) = imported {
+            self.imported_commands.insert(key.to_owned(), binding);
+        }
+        if let Some(identity) = identity {
+            self.builtin_identities.insert(key.to_owned(), identity);
+        }
+        Some(root)
     }
 
     pub(crate) fn register_command(&mut self, name: &str, cmd: Command) -> String {
@@ -3011,20 +3113,22 @@ impl Vm {
         // delete trace.  This also detaches any in-flight sidecar handle, so
         // overwriting a binding cannot let it follow the replacement.
         let slot = self.command_slot_for_registration(name, &cmd);
-        self.register_command_in_slot(name, slot, cmd)
+        self.register_command_in_slot(slot, cmd)
     }
 
     /// Register a command whose name came from Tcl/embedder ingress. Keeping
     /// this seam distinct from already-constructed engine keys prevents a
     /// rendered colon-edge FQN from being inverted into the wrong table.
     pub(crate) fn register_written_command(&mut self, written: &str, cmd: Command) -> String {
-        let (display, slot) = self.command_slot_for_written_name(written);
-        self.register_command_in_slot(&display, slot, cmd)
+        let slot = self.command_slot_for_written_name(written);
+        self.register_command_in_slot(slot, cmd)
     }
 
-    fn register_command_in_slot(&mut self, name: &str, slot: CommandSlot, cmd: Command) -> String {
-        let storage_key = self.storage_key_for_command_slot(slot, name);
+    fn register_command_in_slot(&mut self, slot: CommandSlot, cmd: Command) -> String {
+        let display = self.command_slot_display(&slot);
+        let storage_key = self.storage_key_for_command_slot(slot, &display);
         let name = storage_key.as_str();
+        let replacing_retained = self.materialise_retained_binding(name).is_some();
         let replacing_command = self.commands.contains_key(name);
         // Invalidate before delete callbacks can re-enter an already-running
         // frame while the old binding is still installed. A second publication
@@ -3038,23 +3142,26 @@ impl Vm {
             .flatten();
         let replacing_real_command =
             replacing_command && !self.imported_commands.contains_key(name);
-        let replaced_ensemble = replacing_real_command
-            .then(|| match self.commands.get(name) {
-                Some(Command::Ensemble(token)) => Some(Rc::clone(token)),
-                _ => None,
-            })
+        let replaced_command = replacing_command
+            .then(|| self.commands.get(name).cloned())
             .flatten();
         if replacing_command {
-            if let Some(token) = &replaced_ensemble {
-                token.mark_deleted();
-                self.untrack_namespace_ensemble(token);
-            }
-            let was_coroutine = crate::cmd_coro::is_coroutine(self, name);
             self.detach_active_sidecars(&CommandSidecarKey::visible(name));
-            if was_coroutine {
-                crate::cmd_coro::on_command_deleted(self, name);
-            }
             self.on_command_removed(name);
+            if let (Some(token), Some(command)) = (&replaced_token, &replaced_command)
+                && self
+                    .command_token_identity(&CommandSidecarKey::visible(name))
+                    .as_ref()
+                    == Some(token)
+            {
+                if replacing_retained && replacing_real_command {
+                    self.retire_real_command(token, command);
+                } else if replacing_retained {
+                    self.retire_downstream_imports(token);
+                } else if replacing_real_command {
+                    self.retire_replaced_real_command(token, command);
+                }
+            }
         }
         // Overwriting a cross-interp alias drops its target-death backref (the
         // alias-create path re-adds one for the new alias afterwards). Gated
@@ -3082,19 +3189,31 @@ impl Vm {
         self.command_identity
             .generations
             .insert(name.to_owned(), installed_generation);
-        if let Some(replaced_token) = replaced_token {
+        let installed_token = CommandTokenIdentity {
+            key: CommandSidecarKey::visible(name),
+            generation: installed_generation,
+        };
+        if let Some(replaced_token) = replaced_token
+            && !replacing_retained
+        {
             let installed = self
                 .commands
                 .get(name)
                 .expect("the command was just installed")
                 .clone();
-            let installed_token = CommandTokenIdentity {
-                key: CommandSidecarKey::visible(name),
-                generation: installed_generation,
-            };
             self.replace_import_implementations(&replaced_token, &installed_token, &installed);
         }
         self.absorb_retained_binding(name);
+        if replacing_retained {
+            self.materialise_retained_binding(name);
+            if self
+                .command_token_identity(&CommandSidecarKey::visible(name))
+                .as_ref()
+                == Some(&installed_token)
+            {
+                self.retire_command_lifecycle_key(&CommandSidecarKey::visible(name));
+            }
+        }
         // Publish the fully-installed table state. Delete callbacks and import
         // retargeting are re-entrant and may have populated resolution caches or
         // acknowledged the pre-install deopt epoch. A retained binding has been
@@ -3178,11 +3297,7 @@ impl Vm {
             if !imported && let Some(token) = token {
                 self.retire_real_command(&token, &command);
             }
-            let was_coroutine = crate::cmd_coro::is_coroutine(self, name);
             self.detach_active_sidecars(&CommandSidecarKey::visible(name));
-            if was_coroutine {
-                crate::cmd_coro::on_command_deleted(self, name);
-            }
             self.bump_cmd_epoch();
             self.imported_commands.remove(name);
             self.builtin_identities.remove(name);
@@ -3230,15 +3345,19 @@ impl Vm {
                 self.resolve_command_fqn(self.current_ns(), name)?,
             ))
             .into_name();
-        let command = self.commands.get(&old_key)?;
+        let command = self.visible_command_at_key(&old_key)?;
         if !self.builtin_command_visible_for_surface(&old_key, command) {
             return None;
         }
-        let source_import_binding = self.imported_commands.get(&old_key).cloned();
+        let source_retained_root = self.retained_root_for_visible_key(&old_key).filter(|root| {
+            self.ns_deferral
+                .retained
+                .get(root)
+                .is_some_and(|record| record.commands.contains_key(&old_key))
+        });
+        let source_import_binding = self.visible_import_binding(&old_key).cloned();
         let source_generation = *self
-            .command_identity
-            .generations
-            .get(&old_key)
+            .visible_command_generation(&old_key)
             .expect("every registered command has a token generation");
         let source_builtin_identity = self.builtin_identity_for_key(&old_key);
         let source_registry_object_root = self.registry_object_roots.get(&old_key).cloned();
@@ -3251,6 +3370,7 @@ impl Vm {
             CommandRenameTransaction {
                 old_key,
                 new_key: String::new(),
+                source_retained_root,
                 source_generation,
                 source_import_binding,
                 source_builtin_identity,
@@ -3267,6 +3387,9 @@ impl Vm {
         new_key: &str,
         command: Command,
     ) {
+        if transaction.source_retained_root.is_some() {
+            self.materialise_retained_binding(&transaction.old_key);
+        }
         let slot = self
             .command_slot(new_key)
             .cloned()
@@ -3285,7 +3408,7 @@ impl Vm {
         // already completed every rejection path, so this is now allowed to
         // fire destination delete traces and invalidate command/trace guard
         // state.
-        let new_key = self.register_command_in_slot(&display, slot, command.clone());
+        let new_key = self.register_command_in_slot(slot, command.clone());
         new_key.clone_into(&mut transaction.new_key);
         if let Command::Object(object) = &command {
             crate::cmd_oo::oo_command_renamed(self, *object, new_key.clone(), display.clone());
@@ -3296,9 +3419,7 @@ impl Vm {
         // vacating name reports the *destination's* `namespace current` — and
         // resolves `variable` there — for the callbacks' duration.
         self.rebind_rename_source(&transaction.old_key.clone(), command.clone());
-        self.command_identity
-            .generations
-            .insert(new_key.clone(), transaction.source_generation);
+        self.set_visible_command_generation(&new_key, transaction.source_generation);
         if transaction.source_import_binding.is_none()
             && let Command::Ensemble(token) = command
         {
@@ -3354,6 +3475,9 @@ impl Vm {
         &mut self,
         transaction: &CommandRenameTransaction,
     ) -> bool {
+        if transaction.source_retained_root.is_some() {
+            self.materialise_retained_binding(&transaction.old_key);
+        }
         let key = CommandSidecarKey::visible(&transaction.old_key);
         if transaction.source_import_binding.is_some() {
             // The import deleteProc owns both its own trace-before-unlink
@@ -3386,10 +3510,6 @@ impl Vm {
             // is the stronger form, and its vector still holds.
             return true;
         }
-        if let Command::Object(object) = &command {
-            crate::cmd_oo::oo_command_deleted(self, *object);
-            return true;
-        }
         self.retire_real_command(&source_token, &command);
         self.take_command_unchecked_key(&transaction.old_key);
         true
@@ -3415,11 +3535,7 @@ impl Vm {
         if !imported && let Some(token) = token {
             self.retire_real_command(&token, &command);
         }
-        let was_coroutine = crate::cmd_coro::is_coroutine(self, &key);
         self.detach_active_sidecars(&CommandSidecarKey::visible(&key));
-        if was_coroutine {
-            crate::cmd_coro::on_command_deleted(self, &key);
-        }
         Some(command)
     }
 
@@ -3501,11 +3617,7 @@ impl Vm {
         if !imported && let Some(token) = token {
             self.retire_real_command(&token, &command);
         }
-        let was_coroutine = crate::cmd_coro::is_coroutine(self, key);
         self.detach_active_sidecars(&CommandSidecarKey::visible(key));
-        if was_coroutine {
-            crate::cmd_coro::on_command_deleted(self, key);
-        }
         Some(command)
     }
 
@@ -4372,12 +4484,19 @@ impl Vm {
             Command::CrossAlias { target, .. } => Some(*target),
             _ => None,
         };
+        let object = match &command {
+            Command::Object(object) => Some(*object),
+            _ => None,
+        };
         if import_origin.is_none()
             && let Command::Ensemble(ensemble) = &command
         {
             ensemble.rename(display_namespace(token));
         }
         self.hidden_commands.insert(token.to_owned(), command);
+        if let Some(object) = object {
+            crate::cmd_oo::oo_command_hidden(self, object, token.to_owned());
+        }
         if let Some(generation) = source_generation {
             self.hidden_command_generations
                 .insert(token.to_owned(), generation);
@@ -4446,7 +4565,19 @@ impl Vm {
             Command::CrossAlias { target, .. } => Some(*target),
             _ => None,
         };
-        let destination = self.register_command_in_slot(&destination_display, destination_slot, c);
+        let object = match &c {
+            Command::Object(object) => Some(*object),
+            _ => None,
+        };
+        let destination = self.register_command_in_slot(destination_slot, c);
+        if let Some(object) = object {
+            crate::cmd_oo::oo_command_exposed(
+                self,
+                object,
+                destination.clone(),
+                destination_display.clone(),
+            );
+        }
         if let Some(generation) = source_generation {
             self.command_identity
                 .generations
@@ -5928,29 +6059,6 @@ impl Vm {
         }
     }
 
-    /// Canonicalise a written namespace name relative to the current
-    /// namespace. Unlike a command name, a trailing separator run does not
-    /// preserve an empty tail (`c:::` names namespace `c`), while a literal
-    /// empty relative word remains an invalid child name outside the global
-    /// namespace. Canonicalise the written suffix before joining it to the
-    /// already-constructed current namespace key so a namespace literally
-    /// named `:` is not collapsed into its parent.
-    pub(crate) fn qualify_namespace_name(&self, name: &str) -> String {
-        if name.is_empty() {
-            return self.qualify_name(name);
-        }
-        if name.starts_with("::") {
-            return canonical_ns_name(name).into_owned();
-        }
-        let suffix = canonical_ns_name(name);
-        let cur = self.current_ns();
-        if cur.is_empty() {
-            suffix.into_owned()
-        } else {
-            format!("{cur}::{suffix}")
-        }
-    }
-
     /// Whether namespace `ns` (canonical, unrooted; `""` is the always-present
     /// global namespace) currently exists.
     pub(crate) fn namespace_exists(&self, ns: &str) -> bool {
@@ -6226,16 +6334,20 @@ impl Vm {
     /// reproduce.
     pub(crate) fn imported_command_tails(&self) -> Vec<String> {
         let ns = self.ns_id_stack.last().copied().unwrap_or(ROOT_NS);
-        let mut names: Vec<String> = self
-            .imported_commands
-            .keys()
-            .filter_map(|key| {
-                self.command_slot(key)
-                    .filter(|slot| slot.namespace == ns)
-                    .map(|slot| slot.simple.clone())
-            })
-            .collect();
+        let mut names: Vec<String> = Vec::new();
+        for key in self.imported_commands.keys().chain(
+            self.retained_record_of(ns)
+                .into_iter()
+                .flat_map(|record| record.imported.keys()),
+        ) {
+            if let Some(slot) = self.command_slot(key)
+                && slot.namespace == ns
+            {
+                names.push(slot.simple.clone());
+            }
+        }
         names.sort();
+        names.dedup();
         names
     }
 
@@ -6296,13 +6408,33 @@ impl Vm {
         let src_ns_id = self
             .namespace_token_at_path(&source_path, source_rooted)
             .unwrap_or(ROOT_NS);
-        let exports = self.ns_exports.get(&src_ns_id).cloned().unwrap_or_default();
+        let exports = self
+            .retained_record_of(src_ns_id)
+            .and_then(|record| record.exports.get(&src_ns_id))
+            .or_else(|| self.ns_exports.get(&src_ns_id))
+            .cloned()
+            .unwrap_or_default();
         // Candidate commands: those in the source namespace whose tail matches
         // the import glob and an export pattern.
         let mut to_import: Vec<(String, Command, Option<String>, CommandTokenIdentity)> =
             Vec::new();
-        for (cmd_name, cmd) in &self.commands {
-            let Some(slot) = self.command_slot(cmd_name) else {
+        let candidates: Vec<(String, Command)> = self
+            .commands
+            .iter()
+            .filter(|(key, _)| {
+                self.command_slot(key)
+                    .is_some_and(|slot| slot.namespace == src_ns_id)
+            })
+            .map(|(key, command)| (key.clone(), command.clone()))
+            .chain(
+                self.retained_record_of(src_ns_id)
+                    .into_iter()
+                    .flat_map(|record| record.commands.iter())
+                    .map(|(key, command)| (key.clone(), command.clone())),
+            )
+            .collect();
+        for (cmd_name, cmd) in candidates {
+            let Some(slot) = self.command_slot(&cmd_name) else {
                 continue;
             };
             if slot.namespace != src_ns_id || slot.simple.is_empty() {
@@ -6317,21 +6449,22 @@ impl Vm {
                 // Skipping a hidden source avoids manufacturing a local clone
                 // at 8.4 and keeps import chains' provenance meaningful.
                 && self.builtin_command_visible_for_surface(
-                    self.command_display_key(cmd_name),
-                    cmd,
+                    self.command_display_key(&cmd_name),
+                    &cmd,
                 )
             {
                 let builtin_identity = matches!(cmd, Command::Builtin(_) | Command::Native(_))
                     .then(|| {
-                        self.builtin_identities
-                            .get(cmd_name)
+                        self.retained_record_of(src_ns_id)
+                            .and_then(|record| record.builtin_identities.get(&cmd_name))
+                            .or_else(|| self.builtin_identities.get(&cmd_name))
                             .cloned()
                             .unwrap_or_else(|| cmd_name.clone())
                     });
                 let source_token = self
-                    .command_token_identity(&CommandSidecarKey::visible(cmd_name))
+                    .command_token_identity(&CommandSidecarKey::visible(&cmd_name))
                     .expect("every registered command has a token generation");
-                to_import.push((tail.clone(), cmd.clone(), builtin_identity, source_token));
+                to_import.push((tail.clone(), cmd, builtin_identity, source_token));
             }
         }
         let mut imported = Vec::new();
@@ -6349,7 +6482,7 @@ impl Vm {
                 && !allow_overwrite
             {
                 let same_source = existing_key.as_ref().is_some_and(|key| {
-                    self.imported_commands.get(key).is_some_and(|binding| {
+                    self.visible_import_binding(key).is_some_and(|binding| {
                         binding.generation == overwritten.generation
                             && binding.origin == source_token
                     })
@@ -6373,14 +6506,25 @@ impl Vm {
                     command: alias_display,
                 });
             }
-            let alias = self.register_command_in_slot(&alias_display, destination, cmd);
+            let destination_is_retained = self.dead_namespaces.contains(&destination.namespace);
+            let alias = self.register_command_in_slot(destination, cmd);
+            if destination_is_retained {
+                // Tcl accepts `namespace import` while the current namespace
+                // token is retained, but the dying namespace cannot acquire a
+                // new ImportRef. Drop the unstamped dispatcher clone without
+                // retiring the source implementation it shares.
+                self.materialise_retained_binding(&alias);
+                self.take_command_unchecked_key(&alias);
+                imported.push(tail);
+                continue;
+            }
             // `register_command` cleared any stale provenance; now stamp this key
             // as an import so `namespace forget` can target it.
             let binding = self
                 .fresh_import_binding(&CommandSidecarKey::visible(alias.as_str()), source_token);
-            self.imported_commands.insert(alias.clone(), binding);
+            self.set_visible_import_binding(&alias, binding);
             if let Some(identity) = builtin_identity {
-                self.builtin_identities.insert(alias, identity);
+                self.set_visible_builtin_identity(&alias, identity);
             }
             imported.push(tail);
         }
@@ -6400,7 +6544,7 @@ impl Vm {
         let mut visited = HashSet::new();
         while visited.insert(current.clone()) {
             let next = match &current.key {
-                CommandSidecarKey::Visible(name) => self.imported_commands.get(name),
+                CommandSidecarKey::Visible(name) => self.visible_import_binding(name),
                 CommandSidecarKey::Hidden(name) => self.hidden_imported_commands.get(name),
             };
             let Some(binding) = next.filter(|binding| binding.generation == current.generation)
@@ -6438,9 +6582,17 @@ impl Vm {
         // A valid chain cannot contain more edges than there are imported
         // bindings. Keep malformed/cyclic provenance finite as a defensive
         // invariant at this internal boundary.
-        for _ in 0..self.imported_commands.len() + self.hidden_imported_commands.len() {
+        let retained_imports = self
+            .ns_deferral
+            .retained
+            .values()
+            .map(|record| record.imported.len())
+            .sum::<usize>();
+        for _ in
+            0..self.imported_commands.len() + self.hidden_imported_commands.len() + retained_imports
+        {
             let next = match &current.key {
-                CommandSidecarKey::Visible(visible) => self.imported_commands.get(visible),
+                CommandSidecarKey::Visible(visible) => self.visible_import_binding(visible),
                 CommandSidecarKey::Hidden(hidden) => self.hidden_imported_commands.get(hidden),
             };
             let Some(next) = next.filter(|binding| binding.generation == current.generation) else {
@@ -6486,6 +6638,22 @@ impl Vm {
                     }),
             )
             .collect();
+        for record in self.ns_deferral.retained.values() {
+            direct.extend(
+                record
+                    .imported
+                    .iter()
+                    .filter(|(_, binding)| binding.origin == *source)
+                    .filter_map(|(name, binding)| {
+                        let key = CommandSidecarKey::visible(name);
+                        self.command_token_identity(&key)
+                            .map(|token| ImportRetirementNode {
+                                token,
+                                binding: binding.clone(),
+                            })
+                    }),
+            );
+        }
         direct.sort_by_key(|node| std::cmp::Reverse(node.binding.generation));
         direct
     }
@@ -6522,6 +6690,23 @@ impl Vm {
                                 binding: binding.clone(),
                             })
                     })
+            })
+            .or_else(|| {
+                self.ns_deferral.retained.values().find_map(|record| {
+                    record
+                        .imported
+                        .iter()
+                        .find(|(_, binding)| binding.generation == generation)
+                        .and_then(|(name, binding)| {
+                            let key = CommandSidecarKey::visible(name);
+                            self.command_token_identity(&key)
+                                .filter(|token| token.generation == generation)
+                                .map(|token| ImportRetirementNode {
+                                    token,
+                                    binding: binding.clone(),
+                                })
+                        })
+                })
             })
     }
 
@@ -6563,14 +6748,41 @@ impl Vm {
                 binding.origin.clone_from(installed);
             }
         }
+        for record in self.ns_deferral.retained.values_mut() {
+            for binding in record.imported.values_mut() {
+                if binding.origin == *replaced {
+                    binding.origin.clone_from(installed);
+                }
+            }
+        }
         for key in bindings {
             match key {
                 CommandSidecarKey::Visible(name) => {
-                    self.commands.insert(name.clone(), command.clone());
-                    if let Some(identity) = &builtin_identity {
-                        self.builtin_identities.insert(name, identity.clone());
+                    let retained_root = self.retained_root_for_visible_key(&name).filter(|root| {
+                        self.ns_deferral
+                            .retained
+                            .get(root)
+                            .is_some_and(|record| record.commands.contains_key(&name))
+                    });
+                    if let Some(root) = retained_root {
+                        let record = self
+                            .ns_deferral
+                            .retained
+                            .get_mut(&root)
+                            .expect("retained command owner exists");
+                        record.commands.insert(name.clone(), command.clone());
+                        if let Some(identity) = &builtin_identity {
+                            record.builtin_identities.insert(name, identity.clone());
+                        } else {
+                            record.builtin_identities.remove(&name);
+                        }
                     } else {
-                        self.builtin_identities.remove(&name);
+                        self.commands.insert(name.clone(), command.clone());
+                        if let Some(identity) = &builtin_identity {
+                            self.builtin_identities.insert(name, identity.clone());
+                        } else {
+                            self.builtin_identities.remove(&name);
+                        }
                     }
                 }
                 CommandSidecarKey::Hidden(name) => {
@@ -6591,7 +6803,7 @@ impl Vm {
     /// token; deleting an alias alone must not mark the ensemble dead.
     fn retire_import_binding(&mut self, key: &CommandSidecarKey) {
         let Some(binding) = (match key {
-            CommandSidecarKey::Visible(name) => self.imported_commands.get(name),
+            CommandSidecarKey::Visible(name) => self.visible_import_binding(name),
             CommandSidecarKey::Hidden(name) => self.hidden_imported_commands.get(name),
         })
         .cloned() else {
@@ -6602,6 +6814,9 @@ impl Vm {
             return;
         };
         let node = ImportRetirementNode { token, binding };
+        if let CommandSidecarKey::Visible(name) = key {
+            self.materialise_retained_binding(name);
+        }
         self.retire_import_tree_snapshot(&node);
     }
 
@@ -6611,13 +6826,14 @@ impl Vm {
     /// the callback.
     fn retire_import_tree_snapshot(&mut self, node: &ImportRetirementNode) {
         let key = &node.token.key;
+        if let CommandSidecarKey::Visible(name) = key {
+            self.materialise_retained_binding(name);
+        }
         let still_expected = self.command_token_identity(key).as_ref() == Some(&node.token)
             && match key {
-                CommandSidecarKey::Visible(name) => self.imported_commands.get(name),
+                CommandSidecarKey::Visible(name) => self.visible_import_binding(name),
                 CommandSidecarKey::Hidden(name) => self.hidden_imported_commands.get(name),
             } == Some(&node.binding);
-        let was_coroutine = still_expected
-            && matches!(key, CommandSidecarKey::Visible(name) if crate::cmd_coro::is_coroutine(self, name));
         if still_expected {
             self.on_command_removed_for(key);
         }
@@ -6637,7 +6853,7 @@ impl Vm {
 
         let still_same_import = self.command_token_identity(live_key).as_ref() == Some(&live.token)
             && match live_key {
-                CommandSidecarKey::Visible(name) => self.imported_commands.get(name),
+                CommandSidecarKey::Visible(name) => self.visible_import_binding(name),
                 CommandSidecarKey::Hidden(name) => self.hidden_imported_commands.get(name),
             } == Some(&live.binding);
         if !still_same_import {
@@ -6674,20 +6890,50 @@ impl Vm {
         }
         self.bump_cmd_epoch();
         self.drop_alias_backref_key(live_key);
-        if was_coroutine {
-            crate::cmd_coro::on_command_deleted(self, live_key.name());
-        }
     }
 
     /// Complete the true deletion of a real command identity. Imported aliases
     /// disappear with the source, whereas an atomic same-name replacement uses
     /// [`Self::replace_import_implementations`] and keeps them alive.
     fn retire_real_command(&mut self, source: &CommandTokenIdentity, command: &Command) {
+        self.retire_command_implementation(source, command, false);
+        self.retire_downstream_imports(source);
+    }
+
+    /// Release implementation-owned state for an atomic same-name
+    /// replacement while keeping the command token available for the new
+    /// implementation and retargeting its imports below.
+    fn retire_replaced_real_command(&mut self, source: &CommandTokenIdentity, command: &Command) {
+        self.retire_command_implementation(source, command, true);
+    }
+
+    /// Single owner for implementation state attached to a real command
+    /// token. Every true deletion and atomic replacement reaches this seam, so
+    /// coroutine continuations and TclOO records cannot survive a less common
+    /// namespace/embedder/hidden-table path.
+    fn retire_command_implementation(
+        &mut self,
+        source: &CommandTokenIdentity,
+        command: &Command,
+        replacing: bool,
+    ) {
+        crate::cmd_coro::on_command_deleted(self, &source.key);
+        // TclOO state belongs to the command token, so every true command
+        // retirement — explicit deletion, namespace teardown, interpreter
+        // cleanup, or embedder removal — reaches the same destructor owner.
+        // `oo_destroy` is idempotent and its raw table unlink re-enters here
+        // only after marking the object destroyed.
+        if let Command::Object(object) = command {
+            if replacing {
+                crate::cmd_oo::oo_command_replaced(self, *object);
+            } else {
+                crate::cmd_oo::oo_command_deleted(self, *object);
+            }
+        }
         if let Command::Ensemble(token) = command {
             self.untrack_namespace_ensemble(token);
             token.mark_deleted();
         }
-        self.retire_downstream_imports(source);
     }
 
     /// Delete every import token that directly or transitively references
@@ -6715,16 +6961,23 @@ impl Vm {
                 binding.origin.key.clone_from(new_key);
             }
         }
+        for record in self.ns_deferral.retained.values_mut() {
+            for binding in record.imported.values_mut() {
+                if binding.origin.key == *old_key {
+                    binding.origin.key.clone_from(new_key);
+                }
+            }
+        }
     }
 
     /// Restore a renamed imported command's binding identity and origin edge.
     fn restore_import_binding(&mut self, key: &str, binding: ImportBinding) {
-        self.imported_commands.insert(key.to_owned(), binding);
+        self.set_visible_import_binding(key, binding);
     }
 
     /// Restore a renamed builtin's stable registry identity.
     pub(crate) fn restore_builtin_identity(&mut self, key: &str, identity: String) {
-        self.builtin_identities.insert(key.to_owned(), identity);
+        self.set_visible_builtin_identity(key, identity);
     }
 
     /// Record `key` as an engine-installed `TclOO` root object command, so the
@@ -6751,6 +7004,22 @@ impl Vm {
     /// Returns `Err` for an unknown namespace in a qualified pattern.
     pub(crate) fn forget_imports(&mut self, pattern: &str) -> Result<(), String> {
         let cur = self.current_ns_id();
+        let mut current_imports: Vec<String> = self
+            .imported_commands
+            .keys()
+            .chain(
+                self.retained_record_of(cur)
+                    .into_iter()
+                    .flat_map(|record| record.imported.keys()),
+            )
+            .filter(|key| {
+                self.command_slot(key)
+                    .is_some_and(|slot| slot.namespace == cur)
+            })
+            .cloned()
+            .collect();
+        current_imports.sort();
+        current_imports.dedup();
         let victims: Vec<String> = if tcl_syntax::naming::is_qualified(pattern.as_bytes()) {
             // Qualified pattern: source namespace + simple pattern on the
             // origin. Splitting at the last separator *run* keeps colon-run
@@ -6772,35 +7041,29 @@ impl Vm {
                     "unknown namespace in namespace forget pattern \"{pattern}\""
                 ));
             };
-            self.imported_commands
+            current_imports
                 .iter()
-                .filter(|(key, _)| {
-                    self.command_slot(key)
-                        .is_some_and(|slot| slot.namespace == cur)
-                        && {
-                            // C's TclGetOriginalCommand follows an import chain;
-                            // qualified forget matches that ultimate source, not
-                            // merely the immediately imported alias.
-                            let origin = self
-                                .ultimate_import_origin(&CommandSidecarKey::visible(key.as_str()));
-                            matches!(origin, CommandSidecarKey::Visible(ref origin_key)
+                .filter(|key| {
+                    // C's TclGetOriginalCommand follows an import chain;
+                    // qualified forget matches that ultimate source, not
+                    // merely the immediately imported alias.
+                    let origin =
+                        self.ultimate_import_origin(&CommandSidecarKey::visible(key.as_str()));
+                    matches!(origin, CommandSidecarKey::Visible(ref origin_key)
                             if self.command_slot(origin_key).is_some_and(|slot|
                                 slot.namespace == src_ns
                                     && tcl_syntax::glob::string_match(simple, &slot.simple)))
-                        }
                 })
-                .map(|(key, _)| key.clone())
+                .cloned()
                 .collect()
         } else {
             // Simple pattern: imported commands in the current namespace whose
             // own name matches.
-            self.imported_commands
-                .keys()
+            current_imports
+                .iter()
                 .filter(|key| {
-                    self.command_slot(key).is_some_and(|slot| {
-                        slot.namespace == cur
-                            && tcl_syntax::glob::string_match(pattern, &slot.simple)
-                    })
+                    self.command_slot(key)
+                        .is_some_and(|slot| tcl_syntax::glob::string_match(pattern, &slot.simple))
                 })
                 .cloned()
                 .collect()
@@ -7204,6 +7467,25 @@ impl Vm {
         }
         self.dead_namespaces.insert(id);
         self.ns_deferral.retained.insert(id, record);
+        // A suspended coroutine whose command is owned by this token forms a
+        // lifecycle cycle: its parked frame retains the namespace, while the
+        // namespace owns the command that releases that frame. Tcl breaks the
+        // cycle while deferring the namespace. Route those commands through
+        // the same real-command lifecycle as every other deletion so parked
+        // unset traces and nested implementation state are not skipped.
+        let coroutine_keys: Vec<String> = self
+            .ns_deferral
+            .retained
+            .get(&id)
+            .into_iter()
+            .flat_map(|record| record.commands.keys())
+            .filter(|key| crate::cmd_coro::is_coroutine(self, key))
+            .cloned()
+            .collect();
+        for key in coroutine_keys {
+            self.materialise_retained_binding(&key);
+            self.retire_command_lifecycle_key(&CommandSidecarKey::visible(key));
+        }
         self.bump_cmd_epoch();
         true
     }
@@ -9098,10 +9380,11 @@ impl Vm {
         self.swap_flow(parked);
         while self.frames.len() > 1 {
             self.pop_call_frame();
-            // These frames are being discarded, not popped: C frees a deleted
-            // coroutine's stack without `Tcl_PopCallFrame`, so a namespace they
-            // retained is abandoned rather than torn down (coroutine-4.3).
-            self.pop_ns_token();
+            // Releasing the parked call frame also releases the exact namespace
+            // token it retained. This can complete a deferred namespace
+            // teardown; dropping only the display stack strand left that token
+            // and every command it owned indefinitely.
+            self.pop_ns();
         }
         self.swap_flow(parked);
     }
@@ -9520,6 +9803,27 @@ impl Vm {
         self.install_upvar_link(target, owner_is_proc, local)
     }
 
+    /// Link from an already-resolved namespace token. `namespace upvar` first
+    /// resolves its namespace operand through the namespace arena; keeping the
+    /// token here prevents a retained namespace from being re-selected by its
+    /// now-reusable display spelling.
+    pub(crate) fn link_namespace_upvar(
+        &mut self,
+        namespace: NsId,
+        other: &str,
+        local: &str,
+    ) -> Result<(), UpvarLinkError> {
+        let (base, element) =
+            elem_ref(other).map_or((other, None), |(base, key)| (base, Some(key)));
+        let Some(binding) = self.namespace_var_binding_from_token(namespace, base) else {
+            return Err(UpvarLinkError::TargetNamespace);
+        };
+        let Some(target) = self.ensure_target_var_at_binding(&binding, element) else {
+            return Err(UpvarLinkError::TargetNamespace);
+        };
+        self.install_upvar_link(target, false, local)
+    }
+
     fn install_upvar_link(
         &mut self,
         target: VarId,
@@ -9722,6 +10026,50 @@ impl Vm {
         })
     }
 
+    fn namespace_child_token(&self, parent: NsId, simple: &str) -> Option<NsId> {
+        self.retained_record_of(parent)
+            .and_then(|record| {
+                record.subtree.values().find_map(|candidate| {
+                    (self.ns_parents.get(candidate.0 as usize).copied().flatten() == Some(parent)
+                        && self
+                            .ns_arena
+                            .get(candidate.0 as usize)
+                            .and_then(|path| path.last())
+                            .is_some_and(|tail| tail == simple))
+                    .then_some(*candidate)
+                })
+            })
+            .or_else(|| self.ns_children.get(&(parent, simple.to_owned())).copied())
+    }
+
+    fn namespace_var_binding_from_token(&self, namespace: NsId, name: &str) -> Option<VarBinding> {
+        if !tcl_syntax::naming::is_qualified(name.as_bytes()) {
+            return Some(VarBinding {
+                owner: VarTableOwner::Namespace(namespace),
+                name: name.to_owned(),
+            });
+        }
+        let simple =
+            String::from_utf8_lossy(tcl_syntax::naming::written_command_tail(name.as_bytes()))
+                .into_owned();
+        let mut qualifiers = tcl_syntax::naming::qualifier_segments_owned(name);
+        if !simple.is_empty() {
+            qualifiers.pop();
+        }
+        let mut owner = if name.starts_with("::") {
+            ROOT_NS
+        } else {
+            namespace
+        };
+        for segment in qualifiers {
+            owner = self.namespace_child_token(owner, &segment)?;
+        }
+        Some(VarBinding {
+            owner: VarTableOwner::Namespace(owner),
+            name: simple,
+        })
+    }
+
     fn bound_var_id(&self, binding: &VarBinding) -> Option<VarId> {
         let id = *self.var_table(binding.owner)?.get(&binding.name)?;
         self.var_arena.resolve(id)
@@ -9792,8 +10140,19 @@ impl Vm {
     /// cell, just as Tcl's `MakeUpvar` does.
     fn ensure_target_var_from(&mut self, name: &str, start: usize) -> Option<VarId> {
         let (base, elem) = elem_ref(name).map_or((name, None), |(base, key)| (base, Some(key)));
-        let (_, base_id) = self.ensure_base_var_from(base, start)?;
-        let Some(key) = elem else {
+        let (binding, _) = self.ensure_base_var_from(base, start)?;
+        self.ensure_target_var_at_binding(&binding, elem)
+    }
+
+    fn ensure_target_var_at_binding(
+        &mut self,
+        binding: &VarBinding,
+        element: Option<&str>,
+    ) -> Option<VarId> {
+        let base_id = self
+            .bound_var_id(binding)
+            .or_else(|| self.bind_new_var(binding, VarState::Undefined))?;
+        let Some(key) = element else {
             return Some(base_id);
         };
         match self.var_arena.get(base_id).map(crate::vars::VarCell::state) {
@@ -12024,7 +12383,7 @@ impl Namespaces for Vm {
         // visible import whose chain ends at an equally-named hidden token
         // would compare equal while genuinely being an import. The presence of
         // a provenance record is the VM's exact spelling of C's predicate.
-        if !self.imported_commands.contains_key(&key) {
+        if self.visible_import_binding(&key).is_none() {
             return None;
         }
         let origin = self.ultimate_import_origin(&CommandSidecarKey::visible(key));

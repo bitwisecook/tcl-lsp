@@ -30,7 +30,7 @@ use tcl_runtime_api::completion_options::ControlOptionPolicy;
 use tcl_runtime_api::{Code, Completion};
 
 use crate::command::{command_lookup_error, err_with_code, lookup_error, settle_control_options};
-use crate::interp::{Vm, canonical_cmd_key, err, ok};
+use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 use tcl_dialect::model::surface_admits;
 
@@ -101,12 +101,6 @@ fn display_ns(canonical: &str) -> String {
     } else {
         format!("::{canonical}")
     }
-}
-
-/// Canonicalise a possibly-absolute namespace reference (drop leading `::`),
-/// relative names are resolved against the current namespace.
-fn canon_ns(vm: &Vm, name: &str) -> String {
-    vm.qualify_namespace_name(name)
 }
 
 #[allow(clippy::too_many_lines)] // One subcommand-dispatch match; splitting obscures it.
@@ -365,24 +359,14 @@ fn ns_upvar(
     }
 
     let namespace_word = rest[0].to_str();
-    let namespace = canon_ns(vm, &namespace_word);
-    if !vm.namespace_exists(&namespace) {
+    let Some(namespace) = vm.namespace_token_for_written(&namespace_word) else {
         return err(format!("namespace \"{namespace_word}\" not found"));
-    }
+    };
 
     for pair in rest[1..].as_chunks::<2>().0 {
         let other = pair[0].to_str();
         let local = pair[1].to_str();
-        let target = if other.starts_with("::") || namespace.is_empty() {
-            canonical_cmd_key(&other).into_owned()
-        } else {
-            canonical_cmd_key(&format!("::{namespace}::{other}")).into_owned()
-        };
-
-        // The namespace word has already resolved `target` to an internal key.
-        // Use the key-form owner so namespace identity is not parsed twice and
-        // every `upvar`-family consumer shares alias validation and storage.
-        if let Err(error) = vm.link_upvar_key(0, &target, &local) {
+        if let Err(error) = vm.link_namespace_upvar(namespace, &other, &local) {
             return crate::command::upvar_link_error(error, &other, &local);
         }
     }

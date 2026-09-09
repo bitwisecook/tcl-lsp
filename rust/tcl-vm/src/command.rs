@@ -540,28 +540,20 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let is_coro = crate::cmd_coro::is_coroutine(vm, &old_key);
     if new_name.is_empty() {
         let trace_handled = vm.delete_prepared_renamed_command(&rename);
-        if is_coro {
-            crate::cmd_coro::on_command_deleted(vm, &old_key);
-        }
         // `rename x {}` is a delete: fire the command's `delete` traces
         // (`callback ::old {} delete`, tclsh-pinned) and drop its traces.
         if !trace_handled {
             vm.on_command_removed(&old_key);
         }
     } else {
-        // An unqualified target binds in the current namespace; a qualified one
-        // is used as given, normalised to the key form (separator runs
-        // collapse, the root drops — `rename p a:::q` creates `::a::q`,
-        // tclsh8.6-verified; the raw name used to register a `a:::q` key).
-        let display_key = if tcl_syntax::naming::is_qualified(new_name.as_bytes()) {
-            crate::interp::canonical_cmd_key(&new_name).into_owned()
-        } else {
-            vm.qualify_name(&new_name)
-        };
         // Reserve the exact `(namespace token, simple name)` destination.
         // Its Tcl display can collide with another legal command (#1778), so
         // every lifecycle map below uses this private injective key.
         let key = vm.note_rename_destination(&new_name);
+        // Procedure provenance keeps a display projection for compatibility,
+        // but it must come from the resolved destination slot. The written
+        // `b::y` inside `::a` names `::a::b::y`, not a raw `b::y` key.
+        let display_key = vm.command_display_key(&key).to_owned();
         if is_coro {
             crate::cmd_coro::on_command_renamed(vm, &old_key, &key);
         }

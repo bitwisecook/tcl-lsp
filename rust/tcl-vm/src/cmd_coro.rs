@@ -157,8 +157,8 @@ pub(crate) fn is_coroutine(vm: &Vm, fqn: &str) -> bool {
 /// blocks run, matching C Tcl. The command itself is removed by the caller; an
 /// `apply` coroutine's bound lambda proc is removed here (its lifetime is the
 /// coroutine's).
-pub(crate) fn on_command_deleted(vm: &mut Vm, fqn: &str) {
-    let Some(mut state) = vm.coro.live.remove(&CommandSidecarKey::visible(fqn)) else {
+pub(crate) fn on_command_deleted(vm: &mut Vm, key: &CommandSidecarKey) {
+    let Some(mut state) = vm.coro.live.remove(key) else {
         return;
     };
     // A suspended coroutine's locals are about to disappear with its frozen

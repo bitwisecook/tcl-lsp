@@ -55,7 +55,7 @@ use tcl_registry::commands::tcl::{
 use tcl_runtime_api::{Code, Completion};
 
 use crate::command::{Command, Param, ProcDef, parse_params};
-use crate::interp::{Vm, err, ok};
+use crate::interp::{CommandSidecarKey, Vm, err, ok};
 use crate::value::Value;
 
 /// Stable identity of a `TclOO` object command. Names are mutable projections:
@@ -183,7 +183,7 @@ pub(crate) struct OoState {
     names: BTreeMap<OoId, String>,
     /// Private command-table key, also one-way from the stable token. It is
     /// opaque and is never rendered or parsed as a Tcl name.
-    command_keys: BTreeMap<OoId, String>,
+    command_keys: BTreeMap<OoId, CommandSidecarKey>,
     object_root: Option<OoId>,
     class_root: Option<OoId>,
     configurable_root: Option<OoId>,
@@ -840,7 +840,9 @@ fn bootstrap(vm: &mut Vm) {
             },
         );
         let command_key = vm.register_command(root, Command::Object(root_id));
-        vm.oo.command_keys.insert(root_id, command_key);
+        vm.oo
+            .command_keys
+            .insert(root_id, CommandSidecarKey::visible(command_key));
         // Engine-installed, not script-created: the registry dates these
         // (TCL86_PLUS) and the availability gate must honour that.
         vm.declare_registry_object_root(root);
@@ -882,7 +884,9 @@ fn bootstrap(vm: &mut Vm) {
     );
     vm.declare_namespace("oo::configurable");
     let command_key = vm.register_command("oo::configurable", Command::Object(configurable_root));
-    vm.oo.command_keys.insert(configurable_root, command_key);
+    vm.oo
+        .command_keys
+        .insert(configurable_root, CommandSidecarKey::visible(command_key));
     // TIP 558 is Tcl 9.0: real tclsh 8.6.16 has no `oo::configurable`.
     vm.declare_registry_object_root("oo::configurable");
 }
@@ -1050,7 +1054,9 @@ fn oo_new(
     // metaclass (its MRO includes `::oo::class`); v1 handles the direct
     // `oo::class create` case in `def_body`'s class creation, not here.
     let command_key = vm.register_written_command(obj_key, Command::Object(object_id));
-    vm.oo.command_keys.insert(object_id, command_key);
+    vm.oo
+        .command_keys
+        .insert(object_id, CommandSidecarKey::visible(command_key));
 
     // Constructor chain: classes in the linearisation with a constructor,
     // most-derived first.
@@ -1836,7 +1842,7 @@ fn oo_destroy(vm: &mut Vm, obj_key: OoId) -> Completion<Value> {
 /// Remove an object's command and records (no destructor run).
 fn teardown(vm: &mut Vm, obj_key: OoId) {
     if let Some(command_key) = vm.oo.command_keys.remove(&obj_key) {
-        vm.remove_command_exact(&command_key);
+        vm.retire_command_lifecycle_key(&command_key);
     }
     vm.oo.objects.remove(&obj_key);
     vm.oo.classes.remove(&obj_key);
@@ -1846,14 +1852,44 @@ fn teardown(vm: &mut Vm, obj_key: OoId) {
 /// Move the mutable command-name projection attached to one stable `TclOO`
 /// token. All class/object/provider relationships remain on [`OoId`].
 pub(crate) fn oo_command_renamed(vm: &mut Vm, object: OoId, new_key: String, new_display: String) {
-    vm.oo.command_keys.insert(object, new_key);
+    vm.oo
+        .command_keys
+        .insert(object, CommandSidecarKey::visible(new_key));
     vm.oo.names.insert(object, new_display);
 }
 
-/// Run the `TclOO` delete lifecycle after a `rename object {}` command trace.
-/// The ordinary command mutation owner removes the table entry through
+/// Relocate the command-table sidecar without changing TclOO's public object
+/// name. Hiding is not a Tcl command rename: `self object` continues to report
+/// the visible name the object had before it became hidden.
+pub(crate) fn oo_command_hidden(vm: &mut Vm, object: OoId, token: String) {
+    vm.oo
+        .command_keys
+        .insert(object, CommandSidecarKey::hidden(token));
+}
+
+pub(crate) fn oo_command_exposed(vm: &mut Vm, object: OoId, new_key: String, new_display: String) {
+    vm.oo
+        .command_keys
+        .insert(object, CommandSidecarKey::visible(new_key));
+    vm.oo.names.insert(object, new_display);
+}
+
+/// Run the TclOO delete lifecycle after the command mutation owner's delete
+/// trace. The ordinary command mutation owner removes the table entry through
 /// [`Vm::remove_command_exact`]; [`teardown`] reaches that same exact-key seam.
 pub(crate) fn oo_command_deleted(vm: &mut Vm, object: OoId) {
+    vm.oo.command_keys.remove(&object);
+    let _ = oo_destroy(vm, object);
+}
+
+/// Run the TclOO lifecycle for a command implementation being replaced in
+/// place. Tcl keeps the command-table token for the new implementation, while
+/// the old object/class is destroyed (including descendants and destructors).
+/// Detaching only this root key makes [`teardown`] leave that table entry to
+/// the registration owner; cascaded objects retain their keys and are deleted
+/// normally.
+pub(crate) fn oo_command_replaced(vm: &mut Vm, object: OoId) {
+    vm.oo.command_keys.remove(&object);
     let _ = oo_destroy(vm, object);
 }
 
@@ -2702,7 +2738,9 @@ pub(crate) fn make_class(
     );
     vm.activate_namespace_written(class_key);
     let command_key = vm.register_written_command(class_key, Command::Object(class_id));
-    vm.oo.command_keys.insert(class_id, command_key);
+    vm.oo
+        .command_keys
+        .insert(class_id, CommandSidecarKey::visible(command_key));
     if let Some(body) = body {
         let level = vm.current_level();
         vm.oo.def_stack.push((DefTarget::Class(class_id), level));
