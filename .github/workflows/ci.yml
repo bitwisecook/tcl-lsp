@@ -410,50 +410,17 @@ jobs:
           echo "runner=$runner" >> "$GITHUB_OUTPUT"
           echo "broad Rust runner: $runner"
 
-  # Fast PR gate.  Runs on every PR and every push.  Covers the Rust fast
-  # checks through the central `make rust-check` contract: root and standalone
-  # crate formatting/Clippy plus generated-file drift gates. The test surface
-  # runs
-  # concurrently in `rust-tests-shard` (with its `rust-tests` aggregate),
-  # `rust-tests-heavy`, `lsp-e2e`, `cargo-deny`, `test-ext` and `python` — all
-  # on every PR and push. See AGENTS.md for the
-  # local gates (`make check-all`, plus the heavier suites) agents must run
-  # before pushing / opening a PR.
-  pr-gate:
-    # Rust-side fast gate (fmt / clippy / generated-file drift).  For
-    # pre-release (odd-minor 2.x) tags the gate WORK is skipped at the step
-    # level (below), but the job still runs and reports success.  This is
-    # deliberate: skipping the whole job would transitively skip create-release
-    # and every build/publish job (GitHub's success() propagates a skipped
-    # ancestor through the needs graph).  Those tags are cut from `rust` and
-    # gated by the cargo jobs instead.  Runs in full for PRs, rust pushes,
-    # stable tags.
-    # `pr-gate` is already a required status on `rust`. Run even when a needed
-    # job failed, then fail explicitly below: Actions otherwise skips a job
-    # whose dependency failed, and a skipped required check does not propagate
-    # the SpecTcl or front-end failure as a red `pr-gate` verdict.
-    #
-    # `web-frontends` rides the same route for the same reason: it is not
-    # itself a required status, so on its own it would go red without
-    # blocking anything — which is precisely the merge this whole job exists
-    # to stop. It is Node-only and finishes in well under a minute, so it
-    # costs the gate nothing to wait for.
-    if: ${{ always() }}
-    needs: [channel, spectcl-compat, web-frontends]
+  # Fast PR gate. Runs on every PR and every push. The Rust work is an
+  # independent worker after `channel`, so it overlaps SpecTcl and front-end
+  # prerequisites instead of waiting behind them. The stable `pr-gate` status
+  # below remains the required aggregate context.
+  rust-check:
+    # There is deliberately no job-level path or tag skip here. The worker
+    # must report a real result for every graph shape; only its unchanged,
+    # pre-release, and already-green work is step-gated below.
+    needs: [channel]
     runs-on: ubuntu-26.04
     steps:
-      - name: Propagate prerequisite gate failures
-        env:
-          CHANNEL_RESULT: ${{ needs.channel.result }}
-          SPECTCL_COMPAT_RESULT: ${{ needs.spectcl-compat.result }}
-          WEB_FRONTENDS_RESULT: ${{ needs.web-frontends.result }}
-        run: |
-          if [ "$CHANNEL_RESULT" != success ] || [ "$SPECTCL_COMPAT_RESULT" != success ] \
-            || [ "$WEB_FRONTENDS_RESULT" != success ]; then
-            echo "channel=$CHANNEL_RESULT spectcl-compat=$SPECTCL_COMPAT_RESULT web-frontends=$WEB_FRONTENDS_RESULT" >&2
-            exit 1
-          fi
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
@@ -468,13 +435,33 @@ jobs:
           components: clippy, rustfmt
 
       - name: Run fast CI gate (format + Clippy + generated-file drift)
-        # Skipped for pre-release (rust-line) tags and for tags whose SHA is
-        # already green; job still succeeds so the release graph stays
-        # unbroken.  Deliberately NOT skipped on already-green merge pushes:
-        # this job's clippy cache is the base-branch fallback every PR run
-        # restores from, so pushes to rust keep it warm.
+        # Preserve the prior step-level semantics exactly: pre-release tags
+        # and already-green tags report success without repeating this work.
+        # Already-green merge pushes still run to warm the base-branch cache.
         if: needs.channel.outputs.prerelease != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
         run: make rust-check
+
+  # `pr-gate` is the required status on `rust`. It must run even when a needed
+  # job failed: Actions otherwise skips a dependent job, and a skipped required
+  # check would not propagate the SpecTcl or front-end failure. Keep all four
+  # results explicit so the aggregate can never become a vacuous success.
+  pr-gate:
+    if: ${{ always() }}
+    needs: [channel, rust-check, spectcl-compat, web-frontends]
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Propagate prerequisite gate failures
+        env:
+          CHANNEL_RESULT: ${{ needs.channel.result }}
+          RUST_CHECK_RESULT: ${{ needs.rust-check.result }}
+          SPECTCL_COMPAT_RESULT: ${{ needs.spectcl-compat.result }}
+          WEB_FRONTENDS_RESULT: ${{ needs.web-frontends.result }}
+        run: |
+          if [ "$CHANNEL_RESULT" != success ] || [ "$RUST_CHECK_RESULT" != success ] \
+            || [ "$SPECTCL_COMPAT_RESULT" != success ] || [ "$WEB_FRONTENDS_RESULT" != success ]; then
+            echo "channel=$CHANNEL_RESULT rust-check=$RUST_CHECK_RESULT spectcl-compat=$SPECTCL_COMPAT_RESULT web-frontends=$WEB_FRONTENDS_RESULT" >&2
+            exit 1
+          fi
 
   # Apple clang deliberately omits the WebAssembly backend. Exercise the
   # complete standalone-crate gate on a stock macOS runner whenever its owned
@@ -3294,8 +3281,8 @@ jobs:
 
   # ---------------------------------------------------------------------
   # build-claude-skills packages the Claude Code skills bundle, then attests
-  # and uploads it. The skills drive the native MCP server, so nothing here
-  # builds or ships the retired AI zipapp any more.
+  # and uploads it. The skills drive the native MCP server, so the bundle
+  # carries no interpreter payload.
   # ---------------------------------------------------------------------
   build-claude-skills:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -3573,7 +3560,7 @@ jobs:
   publish-checksums:
     # Decoupled from the peripheral build jobs: this step downloads and sums
     # *whatever* is attached to the release, so a peripheral build that fails
-    # (e.g. a zipapp profile, an editor package) must not block it — and must
+    # (e.g. the Zed or Claude-skills package) must not block it — and must
     # not block the Marketplace publish that depends on it.  It runs once all
     # builds have settled (success or failure — `!cancelled()` lets the `if`
     # evaluate despite a failed/​skipped need) but only requires the CORE to have
@@ -3656,10 +3643,8 @@ jobs:
   # AGENTS.md invariant, a publish secret may live in CI only when it is
   # stored this way: reachable solely by a job that targets the protected
   # Environment, which PAUSES for manual approval and can never run on a
-  # non-tag ref.  (The keyless OIDC -> Azure Entra path was rolled back
-  # after it proved unreliable against the VS Code Marketplace; the PAT is
-  # the supported mechanism, matching the stable channel from `rust`.)  Hardening
-  # choices preserved from the keyless design:
+  # non-tag ref.  The PAT is the mechanism the VS Code Marketplace supports,
+  # matching the stable channel from `rust`.  Hardening choices:
   #   * VSCE_PAT is scoped to the publish step's `env:` only, so the
   #     freshly-fetched npm code in `npm ci` never runs with the token in
   #     its environment.

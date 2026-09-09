@@ -1108,6 +1108,34 @@ impl Analyser {
         cmd_tok: Token,
         scope_path: &[usize],
     ) {
+        // IRULE5001's debug gate spans everything below: the hook handlers
+        // that own their own body walk (`switch`, `foreach`, `for`, `catch`,
+        // `try`) and the generic `ArgRole::Body` recursion (`if`, `while`)
+        // alike. Bracketing the whole dispatch is what makes nested bodies
+        // inherit the gate.
+        let gated = self.irules_debug_gate_opens(cmd_name, args);
+        if gated {
+            self.irules_debug_gate_depth += 1;
+        }
+        self.dispatch_command_handlers_inner(
+            cmd_name, args, arg_tokens, arg_single, cmd_tok, scope_path,
+        );
+        if gated {
+            self.irules_debug_gate_depth -= 1;
+        }
+    }
+
+    /// The dispatch itself — see [`Self::dispatch_command_handlers`], which
+    /// wraps this in IRULE5001's debug-gate bracket.
+    fn dispatch_command_handlers_inner(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        cmd_tok: Token,
+        scope_path: &[usize],
+    ) {
         if self.dispatch_analyser_hook(cmd_name, args, arg_tokens, arg_single, cmd_tok, scope_path)
         {
             return;
@@ -1730,7 +1758,7 @@ impl Analyser {
         self.emit_w104_append_list(cmd_name, args, arg_tokens, arg_expand_in, cmd_tok);
         self.emit_w106_unbraced_switch_body(cmd_name, args, arg_tokens);
         self.emit_w311_encoding_mismatch(cmd_name, args, arg_tokens);
-        self.emit_w200_binary_format_modifiers(cmd_name, args, arg_tokens);
+        self.emit_binary_field_version_gates(cmd_name, cmd_tok, args, arg_tokens, arg_single);
         self.emit_w121_invalid_subnet_mask(args, arg_tokens);
         self.emit_w108_non_ascii(arg_tokens);
         self.emit_w148_numeral_release(args, arg_tokens);

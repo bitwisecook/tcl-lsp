@@ -21,7 +21,7 @@ what good Rust looks like here in
 ## Gates before every push
 
 ```
-make rust-check     # fmt + clippy + xtask drift gates; mirrors CI's pr-gate
+make rust-check     # fmt + clippy + xtask drift gates; mirrors CI's rust-check worker
 make prep-pr        # format + codegen + lint/typecheck + smoke tier
 ```
 

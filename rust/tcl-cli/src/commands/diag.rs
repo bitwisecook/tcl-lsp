@@ -203,6 +203,32 @@ fn document_proc_names(
     .collect()
 }
 
+/// Append the `SslicTcl` loader's own `SSLIC1xxx` findings, the same
+/// projection the server publishes.
+///
+/// It reads the same normalised `source` and maps through the same
+/// `line_index` as every other code here — the loader used to normalise for
+/// itself (#1794), which was correct but left every other code on the raw
+/// form.
+fn push_sslictcl_rows(
+    rows: &mut Vec<Row>,
+    source: &str,
+    line_index: &LineIndex,
+    disabled: &HashSet<String>,
+    suppressed_lines: &std::collections::HashMap<i32, HashSet<String>>,
+) {
+    for d in tcl_lsp_core::sslictcl_diagnostics::diagnostics(source, disabled, suppressed_lines) {
+        let pos = line_index.position_at_utf16(d.span.start(), source);
+        rows.push(Row {
+            line: pos.line + 1,
+            column: pos.character.get() + 1,
+            severity: d.severity,
+            code: d.code.to_string(),
+            message: d.message,
+        });
+    }
+}
+
 /// Collect every diagnostic the editor surfaces for one document: the analyser's
 /// syntactic / semantic checks, the compiler-checks pass (shimmer `S1xx`, taint
 /// `T1xx` / `W2xx`, iRules data-flow), and the source-text pass (`W111` line
@@ -342,12 +368,13 @@ fn collect_rows(
     }
 
     if sslictcl {
-        rows.extend(sslictcl_rows(
+        push_sslictcl_rows(
+            &mut rows,
             source,
             &line_index,
             disabled,
             &result.suppressed_lines,
-        ));
+        );
     }
 
     rows.extend(style_rows(
@@ -361,33 +388,6 @@ fn collect_rows(
         (a.line, a.column, a.code.as_str()).cmp(&(b.line, b.column, b.code.as_str()))
     });
     rows
-}
-
-/// The `SslicTcl` loader's own `SSLIC1xxx` findings, the same projection the
-/// server publishes.
-///
-/// Reads the normalised `source` and maps through the same `line_index` as
-/// every other code here, so a `.sslictcl` document's loader findings and its
-/// analyser findings agree about where they are.
-fn sslictcl_rows(
-    source: &str,
-    line_index: &LineIndex,
-    disabled: &HashSet<String>,
-    suppressed: &std::collections::HashMap<i32, HashSet<String>>,
-) -> Vec<Row> {
-    tcl_lsp_core::sslictcl_diagnostics::diagnostics(source, disabled, suppressed)
-        .into_iter()
-        .map(|d| {
-            let pos = line_index.position_at_utf16(d.span.start(), source);
-            Row {
-                line: pos.line + 1,
-                column: pos.character.get() + 1,
-                severity: d.severity,
-                code: d.code.to_string(),
-                message: d.message,
-            }
-        })
-        .collect()
 }
 
 /// The only findings a document whose bytes are not UTF-8 text may carry: the

@@ -67,9 +67,17 @@ them. Splicing the written word into the body changes the value the body sees.
 | A parameter used in an `expr` operand is bound to a non-number | `expr {abc * 2}` reads `abc` as a function name, not as the string. |
 | A parameter used more than once is bound to a run-time value | `f [next]` with the body reading the parameter twice would call `next` twice. |
 
+Each of those questions is asked of the body's whole statement tree, not just
+its outermost command. A one-command body can still carry a script — `if {…}
+{set total 0}`, `foreach n … {…}`, `catch {…}` — and a write, a loop binding,
+or a frame-sensitive command inside one of those bodies moves into the caller's
+frame exactly as a top-level one would. The same goes for expression operands:
+`puts [expr {$n eq "abc"}]` holds its operand one level down.
+
 The frame-sensitive command list is the command registry's own, so a command
 gains this protection by being described in the registry — not by being added
-to a list inside the refactoring.
+to a list inside the refactoring. A loop's own binding is the registry's
+`LoopVarList` role rather than a write, and is refused for the same reason.
 
 ## Operational context
 

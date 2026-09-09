@@ -125,7 +125,6 @@ pub fn build_runtime(scratch: &Path) -> Result<PathBuf, String> {
         .into_iter()
         .chain([
             root.join("tmp/tcl9.0.4/libtommath"),
-            root.join("tmp/tcl9.0.3-src/libtommath"),
             root.join("tmp/tcl8.6.18/libtommath"),
         ])
         .find(|path| path.join("tommath.h").is_file())

@@ -771,8 +771,15 @@ impl Analyser {
     }
 
     /// **IRULE5001.** Ungated `log` in a high-frequency event.
+    ///
+    /// "Ungated" is the load-bearing word. The message tells the author to
+    /// put the call behind a debug flag, so a `log` that already sits behind
+    /// one is not reported — a check that survives its own recommended fix
+    /// teaches the reader to ignore it. [`Self::irules_debug_gate_opens`]
+    /// decides what counts as a gate and `irules_debug_gate_depth` carries
+    /// that decision down into every nested body.
     fn emit_irule5001_ungated_log(&mut self, cmd_name: &str, cmd_tok: Token, event: Option<&str>) {
-        if cmd_name != "log" {
+        if cmd_name != "log" || self.irules_debug_gate_depth > 0 {
             return;
         }
         let Some(event) = event else { return };
@@ -791,6 +798,97 @@ impl Analyser {
                 ),
                 Severity::Hint,
             ));
+    }
+
+    /// Whether this command's bodies run only when a debug flag says so —
+    /// the gate IRULE5001 tells the author to add.
+    ///
+    /// Registry-driven. The command must select its bodies by a decision
+    /// rather than by iteration — [`Traits::CONTROL_FLOW`] without
+    /// [`Traits::HAS_LOOP_BODY`], which leaves `if`, `switch`, and `try` —
+    /// and one of the words it evaluates rather than executes must read a
+    /// debug flag: a `static::` variable, or a name assigned by an event that
+    /// runs less often than once per request (`set debug 0` in `RULE_INIT`,
+    /// the pair the message prescribes).
+    ///
+    /// A loop is excluded because its selector is a sequence, not a
+    /// decision: `foreach ip $static::allowlist` iterates a `static::` list
+    /// without saying anything about debugging, and treating it as a gate
+    /// would silence the hint for every `log` in the body.
+    ///
+    /// Every arm of a gating command counts, `else` included. A `log`
+    /// reached only through a decision made on a debug flag is gated
+    /// whichever way that decision went, and over-suppressing is the safe
+    /// direction for a hint whose whole complaint is a missing gate.
+    pub(super) fn irules_debug_gate_opens(&mut self, cmd_name: &str, args: &[String]) -> bool {
+        // Cheap gates first: only an iRules event body can hold the `log`
+        // this suppresses, and a command that selects a body from a
+        // selector has at least those two words.
+        if args.len() < 2 || self.current_event.is_none() || !self.profile.is_irules() {
+            return false;
+        }
+        let Some(selectors) = self.irules_branch_selector_words(cmd_name, args) else {
+            return false;
+        };
+        if selectors.iter().any(|word| mentions_static_variable(word)) {
+            return true;
+        }
+        let flags = self.irules_debug_flag_names();
+        flags
+            .iter()
+            .any(|flag| selectors.iter().any(|word| var_referenced_in(flag, word)))
+    }
+
+    /// The words a branch-selecting command evaluates to choose *which* of
+    /// its bodies run — the arguments it neither executes as a script nor
+    /// takes as a variable name to write. `None` when the command iterates
+    /// its body rather than selecting it, or does not select a body at all.
+    ///
+    /// Dropping the [`ArgRole::VarWrite`] words is what keeps a command whose
+    /// body always runs from opening a gate. `catch` is the case: its body is
+    /// unconditional and its only other arguments are the result and options
+    /// variables, so `catch { log local0. hi } static::err` names a
+    /// `static::` variable without any decision reading one. Together with
+    /// the loop exclusion this leaves `if`, `switch`, and `case` — every one
+    /// of them a command all of whose bodies are selected — so a gate never
+    /// spans a body that runs regardless.
+    fn irules_branch_selector_words(&self, cmd_name: &str, args: &[String]) -> Option<Vec<String>> {
+        let registry = self.registry.as_deref()?;
+        let words: Vec<&str> = args.iter().map(String::as_str).collect();
+        let traits = registry.invocation_traits(
+            cmd_name,
+            &words,
+            Some(self.analysis_context().context().authoring_query()),
+        );
+        if !traits.contains(Traits::CONTROL_FLOW) || traits.contains(Traits::HAS_LOOP_BODY) {
+            return None;
+        }
+        let bodies = registry.arg_indices_for_role(cmd_name, &words, ArgRole::Body);
+        let written = registry.arg_indices_for_role(cmd_name, &words, ArgRole::VarWrite);
+        Some(
+            words
+                .iter()
+                .enumerate()
+                .filter(|(index, _)| !bodies.contains(index) && !written.contains(index))
+                .map(|(_, word)| (*word).to_owned())
+                .collect(),
+        )
+    }
+
+    /// Every variable name assigned by an event that runs less often than
+    /// once per request — the debug flags a hot-event `log` can be gated on.
+    /// Built once per source and memoised beside
+    /// [`Self::irules_event_bodies`], which supplies its input.
+    fn irules_debug_flag_names(&mut self) -> &[String] {
+        if self.irules_debug_flags.is_none() {
+            let config = self.lexer_config();
+            let bodies = self.irules_event_bodies().to_vec();
+            let flags = self.registry.clone().map_or_else(Vec::new, |registry| {
+                collect_debug_flag_names(&registry, &bodies, config)
+            });
+            self.irules_debug_flags = Some(flags);
+        }
+        self.irules_debug_flags.as_deref().unwrap_or_default()
     }
 
     /// **IRULE4001.** Write to a `static::` variable outside `RULE_INIT`.
@@ -1011,6 +1109,150 @@ fn collect_event_bodies(
         }
     }
     out
+}
+
+/// How deep the debug-flag scan descends into a setup event's nested bodies.
+/// Such an event assigns its flag at or near the top level, so the cap costs
+/// nothing real and keeps a pathological file from turning a hint into a
+/// walk.
+const MAX_DEBUG_FLAG_SCAN_DEPTH: u32 = 4;
+
+/// Whether `word` reads a `static::` variable.
+///
+/// A substring test rather than a parse, deliberately: the namespace
+/// qualifier is unambiguous inside an expression word, it catches
+/// `$static::debug`, `${static::debug}` and `[info exists static::debug]`
+/// alike, and the only cost of a false positive is a silenced hint.
+fn mentions_static_variable(word: &str) -> bool {
+    word.contains("static::")
+}
+
+/// Every variable name assigned inside an event body that runs **less often
+/// than once per request** — `RULE_INIT` at load, `CLIENT_ACCEPTED` once per
+/// connection. Those are the two the message names, and the registry's
+/// multiplicity axis is what distinguishes them from per-request state: a
+/// variable the request path sets itself is not an out-of-band debug switch,
+/// so gating on one is not gating at all.
+fn collect_debug_flag_names(
+    registry: &CommandRegistry,
+    bodies: &[(String, Vec<String>)],
+    config: tcl_lexer::LexerConfig,
+) -> Vec<String> {
+    let events = event_registry();
+    let mut names = std::collections::BTreeSet::new();
+    for (event, texts) in bodies {
+        if !matches!(
+            events.event_multiplicity(event),
+            "init" | "once_per_connection"
+        ) {
+            continue;
+        }
+        for text in texts {
+            collect_written_variable_names(registry, text, config, 0, &mut names);
+        }
+    }
+    names.into_iter().collect()
+}
+
+/// Recursive half of [`collect_debug_flag_names`]: every `VarWrite`-role
+/// argument of every command in `script`, then the same over any word the
+/// registry says the command executes as a script.
+fn collect_written_variable_names(
+    registry: &CommandRegistry,
+    script: &str,
+    config: tcl_lexer::LexerConfig,
+    depth: u32,
+    names: &mut std::collections::BTreeSet<String>,
+) {
+    if depth >= MAX_DEBUG_FLAG_SCAN_DEPTH {
+        return;
+    }
+    let map = tcl_lexer::SourceMap::new(script);
+    for command in tcl_syntax::event_handler::script_commands(script, config) {
+        let Some(head) = command.words.first().and_then(|word| word.first()) else {
+            continue;
+        };
+        let cmd_name = tcl_syntax::naming::canonical_written_command(map.token_text(*head));
+        let args: Vec<String> = command.words[1..]
+            .iter()
+            .map(|word| map.token_text(word[0]).to_owned())
+            .collect();
+        for index in var_write_indices(registry, &cmd_name, &args) {
+            if command.words[1..]
+                .get(index)
+                .is_some_and(|word| literal_variable_name_word(word))
+                && let Some(name) = args.get(index)
+            {
+                names.insert(name.clone());
+            }
+        }
+        let words: Vec<&str> = args.iter().map(String::as_str).collect();
+        let clause_list = case_list_clause_index(registry, &cmd_name, &words);
+        for index in registry.arg_indices_for_role(&cmd_name, &words, ArgRole::Body) {
+            let Some(body) = args.get(index) else {
+                continue;
+            };
+            if clause_list == Some(index) {
+                for arm in case_list_arm_scripts(registry, &cmd_name, &words, body) {
+                    collect_written_variable_names(registry, &arm, config, depth + 1, names);
+                }
+            } else {
+                collect_written_variable_names(registry, body, config, depth + 1, names);
+            }
+        }
+    }
+}
+
+/// The index of a clause-list word — `switch`'s and `case`'s single braced
+/// `{pat body …}` argument — among a command's arguments, if it has one.
+fn case_list_clause_index(
+    registry: &CommandRegistry,
+    cmd_name: &str,
+    words: &[&str],
+) -> Option<usize> {
+    let dialect = registry
+        .profile()
+        .map(tcl_dialect::DialectProfile::surface_query);
+    registry
+        .case_invocation(cmd_name, words, dialect)
+        .and_then(|(_, invocation)| invocation.clause_list_index)
+}
+
+/// The arm scripts inside a clause-list word.
+///
+/// A clause list carries the `ArgRole::Body` role, but it is not itself a
+/// script: `{high {set debug 1} default {set debug 0}}` is a pattern/body
+/// sequence, and reading it as one script makes each *pattern* a command head
+/// and hides every assignment in an arm. The clause layout belongs to the
+/// registry's case-list descriptor, so ask it rather than splitting here.
+fn case_list_arm_scripts(
+    registry: &CommandRegistry,
+    cmd_name: &str,
+    words: &[&str],
+    clause_list: &str,
+) -> Vec<String> {
+    let dialect = registry
+        .profile()
+        .map(tcl_dialect::DialectProfile::surface_query);
+    let Some((case, _)) = registry.case_invocation(cmd_name, words, dialect) else {
+        return Vec::new();
+    };
+    let shape = tcl_syntax::case_list::CaseListShape {
+        clause_flags: case.clause_flags,
+        clause_value_flags: case.clause_value_flags,
+    };
+    tcl_syntax::case_list::split_case_list(clause_list, &shape)
+        .iter()
+        .filter_map(|clause| clause.body)
+        .filter_map(|body| clause_list.get(body.content_range()).map(str::to_owned))
+        .collect()
+}
+
+/// Whether a word is a literal variable name rather than one built at run
+/// time (`set $prefix.flag 1`). Only a literal name can be matched against a
+/// later `$flag` read, so only a literal one is a usable debug flag.
+fn literal_variable_name_word(word: &[Token]) -> bool {
+    matches!(word, [token] if token.kind == TokenType::Esc)
 }
 
 /// Is `$var_name` referenced in *body*?  Matches
@@ -1317,6 +1559,163 @@ mod tests {
     #[test]
     fn irule5001_fires_for_log_in_hot_event() {
         assert!(has("when HTTP_REQUEST { log local0. hi }", "IRULE5001"));
+    }
+
+    #[test]
+    fn irule5001_quiet_for_log_gated_on_static_flag() {
+        // The fix the message prescribes has to clear the diagnostic; a
+        // check that survives its own advice teaches the reader to ignore it.
+        assert!(!has(
+            "when HTTP_REQUEST { if {$static::debug} { log local0. hi } }",
+            "IRULE5001"
+        ));
+    }
+
+    #[test]
+    fn irule5001_quiet_for_log_gated_on_braced_static_flag() {
+        assert!(!has(
+            "when HTTP_REQUEST { if {${static::debug}} { log local0. hi } }",
+            "IRULE5001"
+        ));
+    }
+
+    #[test]
+    fn irule5001_quiet_for_log_gated_on_static_existence_check() {
+        assert!(!has(
+            "when HTTP_REQUEST { if {[info exists static::debug]} { log local0. hi } }",
+            "IRULE5001"
+        ));
+    }
+
+    #[test]
+    fn irule5001_quiet_in_nested_body_under_a_static_gate() {
+        // Nested bodies inherit the gate: the `log` is still reached only
+        // when the flag is set.
+        assert!(!has(
+            "when HTTP_REQUEST { if {$static::debug} { \
+             if {[HTTP::uri] eq \"/a\"} { log local0. hi } } }",
+            "IRULE5001"
+        ));
+    }
+
+    #[test]
+    fn irule5001_quiet_in_else_arm_of_a_static_gate() {
+        // Whichever way a decision made on a debug flag goes, the `log` is
+        // gated on that flag; over-suppressing is the safe direction here.
+        assert!(!has(
+            "when HTTP_REQUEST { if {$static::quiet} { set x 1 } else { log local0. hi } }",
+            "IRULE5001"
+        ));
+    }
+
+    #[test]
+    fn irule5001_quiet_for_log_gated_on_a_switch_arm() {
+        assert!(!has(
+            "when HTTP_REQUEST { switch $static::level { high { log local0. hi } } }",
+            "IRULE5001"
+        ));
+    }
+
+    #[test]
+    fn irule5001_quiet_for_flag_set_in_rule_init() {
+        // The message prescribes `set debug 0` in a setup event plus
+        // `if {$debug}`; that pair has to work too.
+        assert!(!has(
+            "when RULE_INIT { set debug 0 }\n\
+             when HTTP_REQUEST { if {$debug} { log local0. hi } }",
+            "IRULE5001"
+        ));
+    }
+
+    #[test]
+    fn irule5001_quiet_for_flag_set_in_a_later_setup_event() {
+        // Handler order in the file must not decide the diagnostic.
+        assert!(!has(
+            "when HTTP_REQUEST { if {$debug} { log local0. hi } }\n\
+             when CLIENT_ACCEPTED { set debug 0 }",
+            "IRULE5001"
+        ));
+    }
+
+    #[test]
+    fn irule5001_still_fires_under_a_condition_that_reads_no_flag() {
+        // An ordinary conditional is not a debug gate.
+        assert!(has(
+            "when HTTP_REQUEST { if {[HTTP::uri] eq \"/a\"} { log local0. hi } }",
+            "IRULE5001"
+        ));
+    }
+
+    #[test]
+    fn irule5001_still_fires_after_a_sibling_gate_closes() {
+        // The gate depth must unwind: a bare `log` following a gated one is
+        // still ungated.
+        assert!(has(
+            "when HTTP_REQUEST { if {$static::debug} { log local0. gated }\n\
+             log local0. bare }",
+            "IRULE5001"
+        ));
+    }
+
+    #[test]
+    fn irule5001_still_fires_in_a_loop_over_a_static_list() {
+        // A loop selects its body by iteration, not by a decision. The
+        // `log` still runs once per request per element.
+        assert!(has(
+            "when HTTP_REQUEST { foreach ip $static::allowlist { log local0. $ip } }",
+            "IRULE5001"
+        ));
+    }
+
+    #[test]
+    fn irule5001_still_fires_in_a_while_loop_on_a_static_flag() {
+        assert!(has(
+            "when HTTP_REQUEST { while {$static::debug} { log local0. hi } }",
+            "IRULE5001"
+        ));
+    }
+
+    #[test]
+    fn irule5001_quiet_for_log_gated_inside_a_loop() {
+        // The gate still reaches a body nested under a loop — the loop
+        // itself is not the gate, the `if` inside it is.
+        assert!(!has(
+            "when HTTP_REQUEST { foreach ip $static::allowlist { \
+             if {$static::debug} { log local0. $ip } } }",
+            "IRULE5001"
+        ));
+    }
+
+    #[test]
+    fn irule5001_quiet_for_flag_set_in_a_switch_arm_of_a_setup_event() {
+        // A clause list is a pattern/body sequence, not a script: read as one
+        // script its patterns become command heads and the arm assignments
+        // vanish, leaving the gated `log` reported.
+        assert!(!has(
+            "when CLIENT_ACCEPTED { switch $mode { \
+             loud { set debug 1 } default { set debug 0 } } }\n\
+             when HTTP_REQUEST { if {$debug} { log local0. hi } }",
+            "IRULE5001"
+        ));
+    }
+
+    #[test]
+    fn irule5001_still_fires_for_catch_naming_a_static_result_variable() {
+        // `catch`'s body always runs, so it can never be a gate. Its other
+        // arguments are variable names it writes, not a decision reading one.
+        assert!(has(
+            "when HTTP_REQUEST { catch { log local0. hi } static::err }",
+            "IRULE5001"
+        ));
+    }
+
+    #[test]
+    fn irule5001_gate_does_not_leak_into_a_later_event() {
+        assert!(has(
+            "when CLIENT_ACCEPTED { if {$static::debug} { log local0. gated } }\n\
+             when HTTP_REQUEST { log local0. bare }",
+            "IRULE5001"
+        ));
     }
 
     #[test]
