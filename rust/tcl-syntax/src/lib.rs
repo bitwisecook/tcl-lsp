@@ -38,7 +38,7 @@
 //! - [`mod@format`] — the `format` conversion-specifier grammar.
 //! - [`glob`] — `Tcl_StringCaseMatch` (`string match`).
 //! - [`list`] — `Tcl_SplitList` / `Tcl_Merge`.
-//! - [`mro`] — TclOO method resolution order.
+//! - [`mro`] — `TclOO` method resolution order.
 //! - [`naming`] — variable/command name normalisation.
 //! - [`number`] — the `TclParseNumber` numeric-literal grammar.
 //! - [`number_tower`] — the integer operator semantics of `tclExecute.c`,
