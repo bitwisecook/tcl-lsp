@@ -325,6 +325,29 @@ pub fn format_grammar() -> String {
 mod tests {
     use super::format_grammar;
 
+    /// `--help-dsl`'s MODULES section names every kind an operator can
+    /// navigate to. The set lives in `projection::KINDS`; this holds the prose
+    /// to it, so a kind added there cannot ship undocumented.
+    #[test]
+    fn modules_section_documents_every_projected_kind() {
+        let grammar = format_grammar();
+        let modules = grammar
+            .split_once("\nMODULES\n")
+            .expect("the grammar has a MODULES section")
+            .1
+            .split_once("\nASSIGNMENT\n")
+            .expect("MODULES is followed by ASSIGNMENT")
+            .0;
+        let missing: Vec<String> = crate::projection::documented_kind_labels()
+            .filter(|(_, label)| !modules.contains(&format!("``{label}``")))
+            .map(|(kind, label)| format!("{kind} (as ``{label}``)"))
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "--help-dsl's MODULES section does not name these projected kinds: {missing:?}"
+        );
+    }
+
     #[test]
     fn grammar_is_non_empty_with_expected_header() {
         let g = format_grammar();

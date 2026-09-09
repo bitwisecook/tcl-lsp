@@ -56,6 +56,8 @@ mod probes;
 mod projection;
 #[path = "integration/regex_str.rs"]
 mod regex_str;
+#[path = "integration/registry_refs.rs"]
+mod registry_refs;
 #[path = "integration/renderers.rs"]
 mod renderers;
 #[path = "integration/time.rs"]
