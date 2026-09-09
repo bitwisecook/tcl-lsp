@@ -2092,11 +2092,14 @@ impl Analyser {
         // do NOT recurse into it (and do not fire W123/W002 on its contents).
         // Analyse iRules under the f5-irules dialect, where `when` is a real
         // body-owning command.
-        let mut body_indices = registry.arg_indices_for_role(
-            cmd_name,
-            &body_args,
-            tcl_registry::arg_role::ArgRole::Body,
-        );
+        // Asked of the document's surface, not the bare catalogue: a
+        // `# tcl-lsp: stub db_eval {sql script:body}` states the same fact a
+        // spec's `arg_roles` row does, so its script word is walked like one.
+        let mut body_indices = tcl_registry::model::DocumentCommandSurface::new(
+            registry,
+            self.declared_commands.as_ref(),
+        )
+        .arg_indices_for_role(cmd_name, &body_args, tcl_registry::arg_role::ArgRole::Body);
         // The registry command name that actually owns the body role — usually
         // `cmd_name`, but the qualified target when an import fallback resolved
         // it.  Used to read the scoped-body environment from the same spec.

@@ -433,11 +433,24 @@ const OWNED: &[OwnedPattern] = &[
     // ruling R1's one door. The per-document declaration set is assembled in
     // the analyser and read through `DocumentCommandSurface`; a consumer
     // holding the raw set would be rebuilding the overlay R1 retired.
+    //
+    // The compiler files below are *carriers*, not consumers: the unit build
+    // options and the lowering / interprocedural contexts hold the
+    // declaration set only to hand it to `DocumentCommandSurface`, the one
+    // thing any of them queries. A stub's argument roles have to reach
+    // lowering and the call-graph scan for a declaration to mean anything
+    // there, and the borrowed set is how it travels.
+    // `optimiser/branch_folding.rs` is on the list for a test fixture that
+    // hand-builds a `CompilationUnit` and so has to name the field's type.
     OwnedPattern {
         needle: "DeclaredSurface",
         owners: &[
             "rust/tcl-registry/src/",
             "rust/tcl-compiler/src/analyser/",
+            "rust/tcl-compiler/src/compilation_unit.rs",
+            "rust/tcl-compiler/src/interprocedural.rs",
+            "rust/tcl-compiler/src/lowering/",
+            "rust/tcl-compiler/src/optimiser/branch_folding.rs",
             "rust/tcl-lsp-db/src/",
         ],
     },

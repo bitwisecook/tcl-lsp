@@ -185,6 +185,17 @@ pub struct UnitBuildOptions<'a> {
     /// asserting it enumerated the project, so the merged evidence is the
     /// whole picture.
     pub external_call_sites: Option<&'a crate::unit_scope::CallSiteEvidence>,
+    /// The document's own command declarations — its inline `# tcl-lsp:
+    /// stub` block and the nearest `<dialect>.tcl.stubs` sidecar, ingested
+    /// by
+    /// [`analyser::utils::document_declared_surface`](crate::analyser::utils::document_declared_surface).
+    ///
+    /// A stub is a per-document declaration, so it never enters the shared
+    /// `registry`; it rides here instead and is unioned with the catalogue's
+    /// answer through [`tcl_registry::model::DocumentCommandSurface`], the
+    /// one door onto a document's command surface. `None` is a document that
+    /// declares nothing.
+    pub declared_commands: Option<&'a tcl_registry::model::DeclaredSurface>,
 }
 
 /// Callback type for [`CompilationUnit::with_interprocedural_memoized`].
@@ -975,6 +986,12 @@ pub struct CompilationUnit {
     /// Surfaced by the compiler explorer's **Unit Scope** view; see
     /// [`crate::unit_scope`].
     pub caller_scope: UnitCallerScope,
+    /// The document's own command declarations
+    /// ([`UnitBuildOptions::declared_commands`]), owned so every pass that
+    /// runs *after* the build — [`Self::with_interprocedural`] above all —
+    /// asks the same surface the lowering did. Empty for a document that
+    /// declares nothing.
+    pub declared_commands: tcl_registry::model::DeclaredSurface,
 }
 
 /// The unit-scope facts a build resolved, kept on the finished
@@ -1055,20 +1072,15 @@ fn lower_and_build_cfg(
     PreparedCfgContext,
 ) {
     let registry = options.registry;
+    // One lowerer shape for both paths, so the document's own declarations
+    // (`UnitBuildOptions::declared_commands`) reach the memoised body-cache
+    // build and the plain one identically.
+    let lowerer = crate::lowering::Lowerer::with_config(registry, options.config)
+        .with_dialect(options.dialect)
+        .with_declared_commands(options.declared_commands);
     let mut ir_module = match body_cache {
-        Some(bc) => crate::lowering::lower_to_ir_with_body_cache(
-            source,
-            registry,
-            options.config,
-            options.dialect,
-            bc,
-        ),
-        None => crate::lowering::lower_to_ir_with_dialect(
-            source,
-            registry,
-            options.config,
-            options.dialect,
-        ),
+        Some(bc) => crate::lowering::lower_to_ir_with(lowerer.with_body_cache(bc), source),
+        None => crate::lowering::lower_to_ir_with(lowerer, source),
     };
     // Specialise Option-shape factories before any other
     // module-level passes so the synthesised child procs
@@ -1419,6 +1431,7 @@ impl CompilationUnit {
                 config,
                 dialect: None,
                 external_call_sites: None,
+                declared_commands: None,
             },
             None,
             None,
@@ -1460,6 +1473,7 @@ impl CompilationUnit {
                 config: tcl_lexer::LexerConfig::from_grammar(effective_dialect.grammar),
                 dialect: Some(effective_dialect),
                 external_call_sites: None,
+                declared_commands: None,
             },
             None,
             None,
@@ -1493,6 +1507,7 @@ impl CompilationUnit {
                 // `build_for_profile_retains_the_tk_set_only_bit`.
                 dialect: Some(profile),
                 external_call_sites: None,
+                declared_commands: None,
             },
             None,
             None,
@@ -1660,6 +1675,7 @@ impl CompilationUnit {
                 param_constants_by_proc: built.param_constants_by_proc,
                 proc_binding_trust,
             },
+            declared_commands: options.declared_commands.cloned().unwrap_or_default(),
         }
     }
 
@@ -1896,6 +1912,7 @@ impl CompilationUnit {
             dialect,
             crate::interprocedural::ObjectTypeMap(&object_types),
             &identities,
+            Some(&self.declared_commands),
             &self.cfg_module,
         );
 
@@ -1972,6 +1989,7 @@ impl CompilationUnit {
             dialect,
             crate::interprocedural::ObjectTypeMap(&object_types),
             &identities,
+            Some(&self.declared_commands),
             &self.cfg_module,
         );
 
@@ -3370,6 +3388,7 @@ mod tests {
                     config: tcl_lexer::LexerConfig::default(),
                     dialect: None,
                     external_call_sites: Some(&empty),
+                    declared_commands: None,
                 },
             )
         }
@@ -3799,6 +3818,7 @@ mod tests {
                         config: tcl_lexer::LexerConfig::default(),
                         dialect: None,
                         external_call_sites: Some(evidence),
+                        declared_commands: None,
                     },
                 )
             }

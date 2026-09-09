@@ -250,6 +250,16 @@ fn collect_rows(
     // (redesign §11.4 row E1: it used to be `LexerConfig::default()` on all
     // four hosts — agreeing, but wrong for every non-9.x dialect).
     let registry = registry_for_dialect(dialect.name);
+    let file_path = document.path.as_deref().map(|p| p.display().to_string());
+    // The document's own stub declarations, ingested exactly as the analyser
+    // does — the unit supplied through the `cu_override` seam must declare
+    // what the analyser's own unit would, or a stubbed command's argument
+    // roles would reach one of the two and not the other.
+    let declared = tcl_compiler::analyser::utils::document_declared_surface(
+        source,
+        file_path.as_deref(),
+        dialect.name,
+    );
     let analysis_cu = std::sync::Arc::new(CompilationUnit::build_with_options(
         source,
         UnitBuildOptions {
@@ -258,10 +268,10 @@ fn collect_rows(
             config: tcl_lexer::LexerConfig::for_profile(Some(dialect)),
             dialect: Some(dialect),
             external_call_sites,
+            declared_commands: Some(&declared),
         },
     ));
 
-    let file_path = document.path.as_deref().map(|p| p.display().to_string());
     let mut analyser = Analyser::new()
         .with_file_path(file_path)
         .with_pack_overlay(tcl_cli_support::spec_pack_key(dialect.name));

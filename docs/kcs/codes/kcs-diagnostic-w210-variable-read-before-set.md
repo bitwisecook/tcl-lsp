@@ -149,6 +149,23 @@ covers every command it knows: `set`, `incr`, `append`, `lappend`, `lset`,
 rest. `unset` is the exception — it removes a variable rather than creating
 one, so a read after it is still flagged.
 
+A command the registry does not know counts too, once you declare its shape.
+A `var`-role argument in a
+[stub](../kcs-howto-annotate-commands-with-stubs.md) names a variable the
+command writes, and the check reads that declaration exactly as it reads a
+registry one:
+
+```tcl
+# tcl-lsp: stubs-begin
+# tcl-lsp: stub fetch_row {table row:var}
+# tcl-lsp: stubs-end
+
+proc main {} {
+    fetch_row t out
+    puts $out              ;# not flagged — `fetch_row` writes `out`
+}
+```
+
 ## Computed variable names silence the check
 
 Tcl can compute a variable's *name* at run time:

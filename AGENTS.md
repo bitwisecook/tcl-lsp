@@ -109,7 +109,11 @@ sites and are not debt.
   (`dict for`, `namespace upvar`) are a base command plus a subcommand word,
   handled by registry `SubCommand` entries and by hook IDs in the analyser,
   lowering, and codegen — check the spec's hook IDs before hunting for a
-  missing branch.
+  missing branch. A document's own `# tcl-lsp: stub` declarations widen that
+  same query through `DocumentCommandSurface`, and travel to lowering and the
+  interprocedural scan on `UnitBuildOptions::declared_commands`
+  ([dialect-stubs.md](docs/design/contracts/dialect-stubs.md)) — so a role a
+  consumer reads from the registry it also reads from a stub.
 - Two drift gates in `make xtask-check` keep the spec surface honest:
   `cargo xtask audit-option-dialects --check` (every option the tclsh audit
   probes has an `OptionSpec`; a `KNOWN_UNSPECIFIED` waiver expires when its

@@ -58,7 +58,9 @@ proc main {} {
 ```
 
 After this, `tcl callgraph` reports `::main → ::on_row`, and the `script`
-argument is recognised as a Tcl script rather than an opaque string.
+argument is analysed as a Tcl script rather than an opaque string — the
+commands inside it resolve, and a call to one of your own procs from inside
+it keeps that proc off the dead-code list.
 
 ### Sidecar stubs file (whole workspace)
 
@@ -106,6 +108,20 @@ Argument roles (after the `:`):
 | `channel`  | Channel identifier                                     |
 | `value`    | Generic value (default when no role is specified)      |
 
+A declared role reaches the analysis through the same path a shipped command
+spec's does, so the two behave alike:
+
+- `body` — the word is analysed as a script. Its commands resolve (an unknown
+  one inside it draws its own hint), and the procedures it calls become
+  outgoing edges of the enclosing proc in the call graph.
+- `var` — the word names a variable the command writes, so it is defined from
+  that call onwards and reading it afterwards is not "read before it is set"
+  (`W210`).
+
+One exception: a body that would run somewhere other than the calling frame
+and namespace is analysed on its own terms, so it never contributes an edge
+to a same-named proc in the caller's namespace.
+
 An argument wrapped in `?...?` is optional. A role that is not in this table
 throws the whole declaration away, so check your spelling if a stub seems to
 have no effect.
@@ -148,6 +164,9 @@ an operator when you leave it out.
 - Run `tcl callgraph <file>` and check that the callback procs declared in
   the stubbed command's body argument appear as outgoing edges from the
   caller.
+- Run `tcl diag <file>` and check that a variable the stub declares `var` no
+  longer draws `W210 Variable '…' is read before it is set` where the
+  command writes it.
 - Open the file in your editor and confirm that the stubbed command no
   longer raises the "unresolved command" hint.
 - For a sidecar, confirm the filename matches the dialect the file is

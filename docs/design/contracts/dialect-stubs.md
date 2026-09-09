@@ -158,6 +158,38 @@ command-resolution for stubbed commands. Cache invalidation rides the ordinary
 inputs — the document's own text for an inline block, and lsp-db's
 `sidecar_stubs_epoch` salsa input for a sidecar — not a bespoke fingerprint.
 
+## Every role consumer reads the declared surface
+
+A declared role means what a `CommandSpec::arg_roles` row means, so the
+consumers of that row read the document's surface too, not the bare
+catalogue. `UnitBuildOptions::declared_commands` carries the surface into a
+build and `CompilationUnit::declared_commands` owns a copy, so a pass that
+runs after the build — `with_interprocedural` above all — asks what the
+lowering asked.
+
+- **Lowering** resolves a generic call's `Body` / `LambdaLiteral` /
+  `CommandPrefix` / `VarWrite` / `VarRead` positions through
+  `Lowerer::command_surface`. A declared `script:body` word makes the call a
+  `Statement::Barrier` that still carries its script; a declared `var` word
+  becomes a `Statement::Call` def, which is what keeps `W210` off a variable
+  the command writes.
+- **The interprocedural scan** resolves the same roles through
+  `ScanCtx::surface` and recurses into a barrier's `Body` words
+  (`scan_role_bodies`), so the procedures a declared body calls are edges of
+  the enclosing procedure. A body that runs in another frame or namespace
+  (`FRAME_REACH_TRAITS`, `DEFINES_PROCEDURE`, `DECLARES_NAMESPACE`, or an
+  absolutely-spelled name word) belongs to the body unit that owns it;
+  walking it here would invent an edge to a same-named proc in the caller's
+  namespace (issues #977 / #980).
+- **The analyser's generic body walk** (`dispatch_body_arguments`) asks the
+  same surface, so a declared body's own commands resolve.
+
+`tcl_compiler::analyser::utils::document_declared_surface` is the one
+ingestion path all of them use: the analyser for its own
+`declared_commands`, and every host that supplies a unit through the
+`cu_override` seam (`tcl diag`, `tcl_lsp_db`, `xtask fp_sweep`), so the unit
+it supplies declares exactly what the analyser's own unit would.
+
 ## Parsing
 
 `tcl_compiler::analyser::utils::scan_source_for_stubs(source)` is a line-based
@@ -180,7 +212,10 @@ draft declared.
 
 | File | Purpose |
 |---|---|
-| `rust/tcl-compiler/src/analyser/utils.rs` | `scan_source_for_stubs`, `scan_sidecar_stubs` |
+| `rust/tcl-compiler/src/analyser/utils.rs` | `scan_source_for_stubs`, `scan_sidecar_stubs`, `document_declared_surface` |
+| `rust/tcl-compiler/src/compilation_unit.rs` | `UnitBuildOptions::declared_commands`, `CompilationUnit::declared_commands` |
+| `rust/tcl-compiler/src/lowering/mod.rs` | `Lowerer::with_declared_commands`, `Lowerer::command_surface` |
+| `rust/tcl-compiler/src/interprocedural.rs` | `ScanCtx::surface`, `scan_role_bodies` |
 | `rust/tcl-compiler/src/analyser/types.rs` | `StubCommandDef`, `StubArgDef`, `StubExprDef`, `StubFlags` |
 | `rust/tcl-registry/src/model/declaration.rs` | `DeclaredCommand`, `DeclaredArgument`, `DeclaredSurface`, `DocumentCommandSurface`, `role_for_word` |
 | `rust/tcl-spec-studio/src/render_stub.rs` | stub rendering |

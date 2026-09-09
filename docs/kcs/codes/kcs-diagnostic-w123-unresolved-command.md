@@ -236,6 +236,12 @@ mypackage::knownCmd $arg
 
 Define the command, or use `package require` to load the package that provides it.
 
+For a command whose source the analyser cannot see — a shared library, a C
+extension, an EDA-vendor builtin — declare its shape with a
+[stub](../kcs-howto-annotate-commands-with-stubs.md) instead. A stub also
+declares which of its arguments are scripts, so `W123` then reports the
+commands inside those scripts on their own merits.
+
 ## How to suppress
 
 Add `# noqa: W123` on the line **above** the offending command.

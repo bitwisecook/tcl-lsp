@@ -1754,6 +1754,49 @@ mod concat_script_window_tests {
     }
 }
 
+/// Every stub declaration in force for one document: the nearest
+/// `<dialect>.tcl.stubs` sidecar, overridden by the document's own inline
+/// `# tcl-lsp: stubs-begin` block.
+///
+/// The one ingestion path. The analyser calls it to build its
+/// [`AnalysisResult::stub_commands`](super::types::AnalysisResult::stub_commands)
+/// and its [`DeclaredSurface`](tcl_registry::model::DeclaredSurface); every
+/// host that builds a [`CompilationUnit`](crate::compilation_unit::CompilationUnit)
+/// through the `cu_override` seam calls it (via
+/// [`document_declared_surface`]) so the unit it supplies declares exactly
+/// what the analyser's own unit would.
+#[must_use]
+pub fn document_stub_declarations(
+    source: &str,
+    file_path: Option<&str>,
+    dialect: &str,
+) -> (
+    Vec<super::types::StubCommandDef>,
+    Vec<super::types::StubExprDef>,
+) {
+    let (inline_cmds, inline_exprs) = scan_source_for_stubs(source);
+    let (mut cmds, mut exprs) = scan_sidecar_stubs(file_path, dialect);
+    // The document-local declaration is nearest in scope and wins over a
+    // workspace sidecar with the same name — `DeclaredSurface::declare`
+    // keeps the last ingested one.
+    cmds.extend(inline_cmds);
+    exprs.extend(inline_exprs);
+    (cmds, exprs)
+}
+
+/// The document's [`DeclaredSurface`](tcl_registry::model::DeclaredSurface) —
+/// [`document_stub_declarations`] ingested through
+/// [`build_declared_surface`](super::types::build_declared_surface).
+#[must_use]
+pub fn document_declared_surface(
+    source: &str,
+    file_path: Option<&str>,
+    dialect: &str,
+) -> tcl_registry::model::DeclaredSurface {
+    let (cmds, _) = document_stub_declarations(source, file_path, dialect);
+    super::types::build_declared_surface(&cmds)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
