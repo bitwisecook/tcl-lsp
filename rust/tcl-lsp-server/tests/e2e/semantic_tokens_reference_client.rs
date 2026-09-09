@@ -425,6 +425,8 @@ struct Convergence {
     /// How many rounds settled with the enriched read cancelled or already
     /// equal to what was served (`refresh=false`).
     no_refresh_decisions: usize,
+    /// Every settled marker observed, in round order.
+    settled: Vec<String>,
 }
 
 /// What a single convergence round asks for: `full` or a fixed viewport.
@@ -506,6 +508,7 @@ fn converge_via_refresh(
         refresh_decisions: 0,
         refreshes: 0,
         no_refresh_decisions: 0,
+        settled: Vec::new(),
     };
     loop {
         let req_since = lsp.server_request_cursor();
@@ -542,6 +545,15 @@ fn converge_via_refresh(
             out.no_refresh_decisions += 1;
             continue;
         };
+        out.settled.push(settled.clone());
+        // A cancelled range read schedules a coalesced retry refresh and
+        // re-arms the coarse seam (#1854), so its marker carries
+        // `refresh=true`; it is still a retry round, not a convergence
+        // decision, and the round that follows makes the real one.
+        if matches!(tier, Tier::Range { .. }) && settled.contains("outcome=cancelled") {
+            out.no_refresh_decisions += 1;
+            continue;
+        }
         if settled.contains("refresh=true") || settled.contains("outcome=coalesced") {
             out.refresh_decisions += 1;
             // A coalesced request's holder schedules the refresh when it
@@ -1055,14 +1067,16 @@ fn large_file_semantic_tokens_refresh_delivers_enriched_result() {
     assert_eq!(
         converged.rounds,
         converged.no_refresh_decisions + 2,
-        "apart from cancelled retries: one coarse request, one enriched re-request"
+        "apart from cancelled retries: one coarse request, one enriched re-request; \
+         settled markers: {:?}",
+        converged.settled
     );
     assert_eq!(converged.refresh_decisions, 1);
     assert_eq!(converged.refreshes, 1);
     eprintln!(
         "large_file_semantic_tokens_refresh_delivers_enriched_result: converged in {} rounds \
-         ({} refreshes; {} rounds settled with a cancelled/equal enriched read)",
-        converged.rounds, converged.refreshes, converged.no_refresh_decisions,
+         ({} refreshes; {} rounds settled with a cancelled/equal enriched read; {:?})",
+        converged.rounds, converged.refreshes, converged.no_refresh_decisions, converged.settled,
     );
 }
 
@@ -1134,14 +1148,16 @@ fn large_file_range_semantic_tokens_converges_via_refresh() {
     assert_eq!(
         converged.rounds,
         converged.no_refresh_decisions + 2,
-        "apart from cancelled retries: one coarse request, one enriched re-request"
+        "apart from cancelled retries: one coarse request, one enriched re-request; \
+         settled markers: {:?}",
+        converged.settled
     );
     assert_eq!(converged.refresh_decisions, 1);
     assert_eq!(converged.refreshes, 1);
     eprintln!(
         "large_file_range_semantic_tokens_converges_via_refresh: converged in {} rounds \
-         ({} refreshes; {} rounds settled with a cancelled/equal enriched read)",
-        converged.rounds, converged.refreshes, converged.no_refresh_decisions,
+         ({} refreshes; {} rounds settled with a cancelled/equal enriched read; {:?})",
+        converged.rounds, converged.refreshes, converged.no_refresh_decisions, converged.settled,
     );
 }
 
