@@ -192,7 +192,7 @@ fn proc_no_comment_bleed() {
     assert!(!hover(&mut lsp, &uri, 5, 2).contains("internal comment"));
 }
 
-// -- Issue #1337: declaration-site proc hover ---------------------------
+// Declaration-site proc hover.
 
 /// Declaration hover must be independent of whether the proc is referenced
 /// elsewhere in the document.  Exercise the live server rather than the core
@@ -618,7 +618,7 @@ fn alias_hover_with_prepended_args() {
 
 #[test]
 fn imported_command_resolves_to_qualified_spec() {
-    // Peer of #776: a bare command imported into the global scope hovers as its
+    // A bare command imported into the global scope hovers as its
     // qualified spec — `test` after `namespace import ::tcltest::*`.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
@@ -633,7 +633,7 @@ fn imported_command_resolves_to_qualified_spec() {
     );
 }
 
-// Issue #806 — hover on a scoped report::defstyle command.
+// Hover on a scoped report::defstyle command.
 #[test]
 fn defstyle_scoped_command_hover() {
     let mut lsp = Lsp::tcl();
@@ -650,14 +650,9 @@ fn defstyle_scoped_command_hover() {
     assert!(c.contains("number of columns"), "columns hover: {c}");
 }
 
-/// idx 76 (differential-audit main audit wave, high severity, tomato
-/// corpus): the finding's own headline hypothesis — the LSP guessing the
-/// wrong class for the genuinely dynamic, `switch`-dispatched `[$obj
-/// GetType]` call — is REFUTED (the LSP correctly abstains there). Tracing
-/// it uncovered a distinct CONFIRMED gap on the exact same class: a
-/// definite, single-target `my methodName` call had no hover at all,
-/// unlike go-to-definition/find-references (already fixed by idx 52) or a
-/// `link`-exposed bareword sibling call (idx 113) — reproduces in the real
+/// A definite, single-target `my methodName` call must get hover, the
+/// same as go-to-definition/find-references and a `link`-exposed bareword
+/// sibling call — including when the class is declared via the real
 /// corpus's own two-block `oo::class create` + separate `oo::define`
 /// convention (all 9 of tomato's classes use it).
 #[test]
@@ -675,7 +670,7 @@ fn my_dispatch_hover_resolves_when_class_extended_via_separate_oo_define() {
     assert!(h.contains("geo::Plane::GetType"), "hover: {h}");
 }
 
-// -- Issue #1018: cross-document and autoload hover ----------------------
+// Cross-document and autoload hover.
 //
 // Go-to-definition, find-references, and the unknown-command diagnostic all
 // resolve a command whose `proc` lives in a sibling file. Hover was the one
@@ -834,11 +829,10 @@ fn hover_same_file_behaviour_is_unchanged_1018() {
     assert!(text.contains("greetPerson"), "same-file hover: {text:?}");
 }
 
-// -- expr math functions (issue #974 defect 1) ---------------------------
+// Expr math functions.
 
 /// A bare `sin(…)` inside `expr` renders the same registry documentation the
-/// namespace-qualified `::tcl::mathfunc::sin` spelling already did — before
-/// this it drew nothing at any column of the function word.
+/// namespace-qualified `::tcl::mathfunc::sin` spelling does.
 #[test]
 fn bare_mathfunc_call_in_expr_hovers_974() {
     let mut lsp = Lsp::tcl();

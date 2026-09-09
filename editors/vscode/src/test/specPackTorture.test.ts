@@ -341,7 +341,7 @@ suite("SpecTcl pack torture through the extension host", () => {
 
   // One barrier for the whole suite, in `suiteSetup` rather than per test.
   //
-  // The pattern is #1622's: a per-test wait cannot serve here because the
+  // A per-test wait cannot serve here because the
   // marker each wait keys on is emitted per *reload*, and the suite reuses one
   // consumer document throughout — re-activating an already-open, unedited
   // document starts no new analysis and so produces no new marker. Getting the
@@ -663,9 +663,9 @@ suite("SpecTcl pack torture through the extension host", () => {
   });
 
   test("a command whose brace is on the next line is named in the Problems panel (#1634)", async function () {
-    // #1634's headline, at the surface where it bit: the author's command
-    // silently vanished and nothing in the Problems panel mentioned its name,
-    // so there was no thread to pull.
+    // At the surface where it bites: the author's command
+    // silently vanishes and nothing in the Problems panel mentions its name,
+    // leaving no thread to pull.
     this.timeout(180_000);
 
     await writePack(
@@ -692,7 +692,7 @@ suite("SpecTcl pack torture through the extension host", () => {
       "the squiggle belongs on the `command` line the author wrote",
     );
     // One readable line — the orphaned block must not have its whole body
-    // quoted back into a message (the third defect in #1634).
+    // quoted back into a message.
     for (const diagnostic of diagnostics) {
       assert.ok(
         !diagnostic.message.includes("\n"),

@@ -1349,7 +1349,7 @@ fn switch_no_match_returns_empty() {
 /// `switch` options abbreviate like tclsh (`Tcl_GetIndexFromObj`, flags 0):
 /// `-gl`/`-e`/`-noc` resolve to their options in both the direct form (the
 /// compiler bails to the runtime for a non-exact option word) and the
-/// runtime-dispatch form. Probed tclsh 8.6.14 (S4.2).
+/// runtime-dispatch form. Probed tclsh 8.6.14.
 #[test]
 fn switch_option_abbreviation() {
     // tclsh: `switch -gl -- abc {a* {concat ia}}` → `ia`.

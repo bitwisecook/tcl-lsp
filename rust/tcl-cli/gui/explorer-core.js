@@ -63,10 +63,9 @@ function showError(msg, tb) {
 // ``pane`` the optional selector of the pane it owns.  A throwing step gets
 // its error reported *in its own pane* (so a tab shows why it is empty
 // instead of just being empty), the remaining steps still run, and the
-// caller always gets control back — before this existed, a `TypeError` in
-// the WASM renderer skipped every later step *and* the caller's
-// `spinner.style.display = 'none'`, so the throbber span forever
-// (issues #1182 / #1183).
+// caller always gets control back — without this, a `TypeError` in
+// the WASM renderer would skip every later step *and* the caller's
+// `spinner.style.display = 'none'`, so the throbber would spin forever.
 //
 // Returns the list of ``{name, error}`` failures (empty on success).
 function runRenderSteps(steps) {

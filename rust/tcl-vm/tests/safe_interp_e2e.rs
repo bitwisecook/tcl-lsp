@@ -389,8 +389,8 @@ const NOT_IMPLEMENTED: &[&str] = &[
 
 /// The hidden set under each pinned release is exactly the measured tclsh
 /// set, narrowed to the commands this VM implements — no name list in
-/// `make_safe`, which is now the registry's `Traits::SAFE_INTERP_HIDDEN`
-/// query (ledger row B2).
+/// `make_safe`, which is the registry's `Traits::SAFE_INTERP_HIDDEN`
+/// query.
 ///
 /// The narrowing is not a fudge: it is the mechanism. `unload` (8.5+) and
 /// `zipfs` (9.0+) are release-gated commands, so "hide what the trait names,

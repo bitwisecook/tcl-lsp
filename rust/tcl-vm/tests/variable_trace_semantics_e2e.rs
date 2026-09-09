@@ -329,7 +329,7 @@ const VECTORS: &[Vector] = &[
                proc-elem2: read write\n\
                proc-elem1: write",
     },
-    // Rows 3 + 4: the read a read-modify-write command performs treats a
+    // The read a read-modify-write command performs treats a
     // trace error as "no current value" rather than as a failure — `incr`
     // counts from 0, `lappend` discards the old value — and the swallowed
     // error stays logged in `::errorInfo` with its `(read trace on "x")`

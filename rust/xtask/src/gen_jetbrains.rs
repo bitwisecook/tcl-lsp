@@ -16,9 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Generate the `JetBrains` `DiagnosticCatalog.kt` from the `DiagCode` catalogue
-//! — the native successor to the Kotlin-catalog half of
-//! `scripts/codegen/editor_settings.py`.
+//! Generate the `JetBrains` `DiagnosticCatalog.kt` from the `DiagCode` catalogue.
 //!
 //! The file is a full-file projection of the user-configurable diagnostics +
 //! optimisations, each carrying a short checkbox `label`. `--check` verifies
@@ -604,8 +602,8 @@ mod tests {
             groups.len(),
             "one reflowing grid per diagnostics section"
         );
-        // A fixed column count is what made the page wider than any settings
-        // pane and pushed its right-hand columns out of reach.
+        // A fixed column count would widen the page beyond any settings pane
+        // and push its right-hand columns out of reach.
         assert!(
             !panel.contains("GridLayout("),
             "the settings page must not lay checkboxes out in a fixed number of columns"

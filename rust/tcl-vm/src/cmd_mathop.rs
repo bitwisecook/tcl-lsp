@@ -35,7 +35,7 @@ use tcl_syntax::expr::operators::{ALL_BIN_OPS, ALL_UNARY_OPS};
 /// Derived from the operator grammar in `tcl_syntax::expr::operators` —
 /// layer 1 already knows which operators exist and which have a command
 /// form at all — rather than from a hand-typed macro invocation that could
-/// silently drift from it (ledger row B3). This is the same derivation
+/// silently drift from it. This is the same derivation
 /// `runtime/rust/src/cmd_mathop.rs::mathop_names` performs.
 ///
 /// `BinOp`/`UnaryOp` share a spelling for `-`/`+` (`Sub`/`Neg`, `Add`/`Pos`) —

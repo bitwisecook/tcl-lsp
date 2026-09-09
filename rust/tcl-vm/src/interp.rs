@@ -1694,8 +1694,8 @@ impl Vm {
         tcl_syntax::number::set_runtime_syntax(self.runtime_version.number_syntax());
         self.write_release_globals();
         // `package provide Tcl` is a release fact, not an engine constant, and
-        // the pre-provided entries were written against the *previous* pin —
-        // re-derive them (ledger row B4). Guarded because the very first
+        // the pre-provided entries were written against the *previous* pin, so
+        // this re-derives them. Guarded because the very first
         // profile pin happens inside `register_builtins`, before the `package`
         // command itself is registered; that call site provides them directly.
         if self.commands.contains_key("package") {
@@ -1760,7 +1760,7 @@ impl Vm {
         if surface.is_fallback() {
             return true;
         }
-        // Both halves are per-environment generations now (ledger row B1): the
+        // Both halves are per-environment generations: the
         // store is the generation's, and the mask each side is checked under
         // is its environment's document authoring mask, which the ingress seam
         // pins equal to the profile point this read used.
@@ -2369,13 +2369,13 @@ impl Vm {
     /// double in `(0, 1)` (`expr rand()`).
     ///
     /// The step and the scaling are the shared owner's
-    /// (`tcl_syntax::expr::rand`), not a second transcription: this used to
-    /// divide by `IM` where C multiplies by `1.0/IM`, and because
-    /// `1.0/2147483647` is not exactly representable the two disagreed by one
-    /// ulp for a dense family of seeds — visible in the result string
-    /// (`srand(251)` printed `0.0019644186841158285` instead of C's
-    /// `0.001964418684115828`, and the 145th draw of `srand(1)`'s stream
-    /// already differed).
+    /// (`tcl_syntax::expr::rand`), not a second transcription: dividing by
+    /// `IM` where C multiplies by `1.0/IM` would diverge, because
+    /// `1.0/2147483647` is not exactly representable, so the two would
+    /// disagree by one ulp for a dense family of seeds — visible in the
+    /// result string (`srand(251)` printing `0.0019644186841158285` instead
+    /// of C's `0.001964418684115828`, and the 145th draw of `srand(1)`'s
+    /// stream already differing).
     pub(crate) fn rand_next(&mut self) -> f64 {
         tcl_syntax::expr::rand::next_draw(&mut self.rand_seed)
     }
@@ -4754,7 +4754,7 @@ impl Vm {
     fn make_safe(&mut self) {
         self.bump_cmd_epoch();
         // The hide list is the registry's `Traits::SAFE_INTERP_HIDDEN` query,
-        // not a name list this engine keeps (ledger row B2): C's own set is
+        // not a name list this engine keeps: C's own set is
         // the `CmdInfo` rows lacking `CMD_IS_SAFE` plus the whole-command rows
         // of `unsafeEnsembleCommands`, and that is what the trait records.
         //

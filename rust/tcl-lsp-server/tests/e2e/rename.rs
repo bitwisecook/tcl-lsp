@@ -553,21 +553,21 @@ fn rename_mathfunc_override_updates_call_site_and_skips_unrelated_proc() {
     );
 }
 
-/// idx 31 (differential-audit main audit wave, high severity): a proc
+/// A proc
 /// declared twice, verbatim, in the same document (plain Tcl's own "last
-/// redefinition wins" semantics, tclsh9.0/8.6-verified — the real corpus
+/// redefinition wins" semantics, tclsh 9.0/8.6-verified — the real corpus
 /// shape is `georgtree_tclopt`'s `tclopt.tcl` declaring
-/// `::tclopt::List2array` at two separate line ranges). Before this fix,
-/// `resolve_workspace_symbols` identified "the symbol at cursor" only via
-/// a scan of `all_procs` (keyed by qualified name, so a duplicate insert
-/// retains only the *winning* declaration's span) — a rename issued from
-/// the *shadowed* (non-winning) declaration's own name token silently
-/// dropped every cross-file caller from the edit set. Applying that
-/// incomplete edit is worse than a no-op: the shadowed declaration being
-/// renamed is a real, dead definition still lying around under the old
-/// name, so the un-rewritten caller silently starts running it instead —
-/// proven end-to-end in the finding's own repro (a program's real output
-/// changed with no error surfaced anywhere).
+/// `::tclopt::List2array` at two separate line ranges).
+/// `resolve_workspace_symbols` must identify "the symbol at cursor" without
+/// relying solely on a scan of `all_procs` (keyed by qualified name, so a
+/// duplicate insert retains only the *winning* declaration's span) — a
+/// rename issued from the *shadowed* (non-winning) declaration's own name
+/// token must not silently drop every cross-file caller from the edit set.
+/// Applying an incomplete edit like that is worse than a no-op: the
+/// shadowed declaration being renamed is a real, dead definition still
+/// lying around under the old name, so an un-rewritten caller would
+/// silently start running it instead, with a program's real output
+/// changing and no error surfaced anywhere.
 #[test]
 fn rename_from_shadowed_duplicate_proc_decl_reaches_cross_document_caller() {
     let mut lsp = Lsp::tcl();
@@ -593,16 +593,15 @@ fn rename_from_shadowed_duplicate_proc_decl_reaches_cross_document_caller() {
     assert_eq!(consumer_edits[0]["newText"], "ListToArray");
 }
 
-/// idx 39 (differential-audit main audit wave, high severity): `rename OLD
-/// NEW`'s own `OLD` word was omitted from the reference set find-references
-/// and rename both build from — go-to-definition/hover on that exact token
-/// resolved it correctly (an independent cursor-token walk), but rename
-/// silently left it unrewritten. The real corpus shape is a tcltest
-/// `-setup`/`-body`/`-cleanup` idiom (`proc gaussfunc {...} {...}` /
-/// `rename gaussfunc ""`) — applying the LSP's own incomplete rename
-/// `WorkspaceEdit` to that shape crashes a previously-passing test at runtime
-/// ("can't delete ...: command doesn't exist") with no diagnostic warning
-/// anywhere.
+/// `rename OLD
+/// NEW`'s own `OLD` word must not be omitted from the reference set
+/// find-references and rename both build from — go-to-definition/hover on
+/// that exact token resolves it correctly (an independent cursor-token
+/// walk), and rename must rewrite it too. The real corpus shape is a
+/// tcltest `-setup`/`-body`/`-cleanup` idiom (`proc gaussfunc {...} {...}`
+/// / `rename gaussfunc ""`) — an incomplete rename `WorkspaceEdit` for
+/// that shape crashes the test at runtime ("can't delete ...: command
+/// doesn't exist") with no diagnostic warning anywhere.
 #[test]
 fn rename_rewrites_the_renames_own_old_word_too() {
     let mut lsp = Lsp::tcl();
@@ -628,7 +627,7 @@ fn rename_rewrites_the_renames_own_old_word_too() {
     assert!(for_uri.iter().all(|e| e["newText"] == "newName"));
 }
 
-/// FP guard for issue #923 idx 21: find-references now attributes an alias's
+/// FP guard: find-references attributes an alias's
 /// call sites to the target proc, but **rename must not rewrite them**. A
 /// `[sayHi]` call names the *alias*, which keeps its own spelling when the
 /// target is renamed — tclsh 9.0.4/8.6.16 confirm `interp alias {} sayHi {}
@@ -662,7 +661,7 @@ fn rename_does_not_rewrite_call_sites_that_go_through_an_alias() {
     );
 }
 
-/// idx 89 (differential-audit): renaming the proc an `interp alias` has
+/// Renaming the proc an `interp alias` has
 /// displaced must rewrite **only** its own header.
 ///
 /// Oracle, byte-identical on tclsh 9.0.4 and 8.6.16. The document prints
@@ -718,7 +717,7 @@ fn rename_of_the_alias_target_rewrites_the_declaration_and_the_alias_word() {
     );
 }
 
-/// The idx 89 document, shared by the two tests above.
+/// The document, shared by the two tests above.
 const ALIAS_SHADOW_SRC: &str = concat!(
     "namespace eval ::ttk {}\n",
     "namespace eval ::tk {}\n",
@@ -728,7 +727,7 @@ const ALIAS_SHADOW_SRC: &str = concat!(
     "::ttk::spinbox .sb -from 0 -to 100\n",
 );
 
-/// idx 45 (differential-audit main audit wave): rename issued from the
+/// Rename issued from the
 /// declaration a later same-named `proc` displaced must still reach every
 /// call site — the displaced header declares the same command, so a partial
 /// edit would leave callers bound to a name that no longer exists.
@@ -756,14 +755,14 @@ fn rename_from_a_superseded_declaration_rewrites_every_site() {
     }
 }
 
-/// idx 56 (differential-audit main audit wave, high severity): a proc
+/// A proc
 /// installed directly into `::oo::Helpers` (the documented "`TclOO` Tricks"
 /// idiom — real corpus usage: nico-robert/ticklecharts installs `classvar`/
 /// `callback` this way) is bare-callable from every method body in the
 /// program via `TclOO`'s own fixed runtime namespace path. Renaming it
-/// previously produced a `WorkspaceEdit` that rewrote only the declaration,
+/// must not produce a `WorkspaceEdit` that rewrites only the declaration,
 /// leaving every bare call site pointed at the now-nonexistent old name —
-/// applying that edit verbatim crashes the very next invocation with
+/// applying that edit verbatim would crash the very next invocation with
 /// "invalid command name" at runtime, while the tool reported it as a
 /// complete, safe rename.
 #[test]
@@ -802,10 +801,10 @@ fn rename_rewrites_bare_calls_to_a_proc_installed_into_oo_helpers() {
     );
 }
 
-/// Issue #1298, end to end: `workspace/didRenameFiles` is the *sole* cleanup a
+/// `workspace/didRenameFiles` is the *sole* cleanup a
 /// renamed-away path gets — an editor that renames a file from its explorer
-/// sends it on its own, with no `didChangeWatchedFiles` alongside — and it is
-/// the one path that used to skip the M9 source-rehoming record.
+/// sends it on its own, with no `didChangeWatchedFiles` alongside — and it
+/// must not skip the M9 source-rehoming record.
 ///
 /// The behaviour that record exists to serve is asserted here rather than the
 /// record itself (the map is server-internal; `lib.rs`'s unit tests assert it

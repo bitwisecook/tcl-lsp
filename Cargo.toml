@@ -18,29 +18,22 @@
 
 # Workspace manifest for the Rust side of tcl-lsp.
 #
-# This is the first step of an incremental Python-to-Rust migration. See
-# `docs/rust-rewrite.md` for the chunking strategy and the
-# "binding layer owns Python compatibility" rule.
+# Selected crate layout:
 #
-# Layout:
-#
-#   rust/tcl-lexer/     Pure Rust lexer crate (no pyo3 dependency).
-#                       Uses borrowed `&str`, `thiserror`, iterators, enums.
-#                       Reusable by any downstream Rust consumer.
+#   rust/tcl-lexer/      Pure Rust lexer crate. Uses borrowed `&str`,
+#                        `thiserror`, iterators, enums. Reusable by any
+#                        downstream Rust consumer.
 #
 #   rust/tcl-lsp-core/   Pure Rust LSP feature providers (folding, symbols,
-#                        diagnostics projection). No pyo3 dependency.
-#                        The eventual native LSP server links against this.
+#                        diagnostics projection). The native LSP server
+#                        links against this.
 #
 #   rust/tcl-bigip/      Faithful port of the F5 BIG-IP object model + config
-#                        parser (dialects/f5/bigip). Value types, 169 model
-#                        structs, the parse_bigip_conf driver + dispatch, and
-#                        a canonical-JSON bridge the f5 command consumes via
-#                        PyO3. No pyo3 dependency itself.
+#                        parser (dialects/f5/bigip). Value types, 253 model
+#                        structs, and the `parse_bigip_conf` driver + dispatch.
 #
-#   rust/tcl-lsp-server/ Native LSP server binary built on tower-lsp.
+#   rust/tcl-lsp-server/ Native LSP server binary built on tower-lsp-server.
 #                        Links tcl-lsp-core / tcl-compiler / tcl-registry.
-#                        No pyo3 dependency.
 #
 # `editors/zed/` is a pre-existing standalone cdylib targeting wasm32-wasip2;
 # it is intentionally excluded from this workspace so it continues to build

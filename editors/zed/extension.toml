@@ -48,7 +48,7 @@ languages = ["Tcl", "iRules", "iApps", "APL", "TMSH", "Expect"]
 # language to `tcl-tmsh` would analyse config files as tmsh scripts. Splitting
 # it — a `BIG-IP` language on `.scf` plus a Tcl-grammar `tmsh` language on
 # `.tmsh` — is the real fix and needs the query generator to grow a target, so
-# the mapping stays as-is for now.
+# the mapping stays as-is.
 [language_servers.tcl-lsp.language_ids]
 "Tcl" = "tcl"
 "iRules" = "tcl-irule"

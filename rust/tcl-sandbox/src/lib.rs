@@ -770,7 +770,7 @@ mod tests {
     fn network_enforced_reports_false_on_baseline() {
         // The Outcome flag must reflect reality: the baseline never enforces
         // network denial, so a run that is *allowed* the network reports the
-        // denial as not enforced (rather than the old misleading `true`).
+        // denial as not enforced.
         let profile = Profile::new("t", tool("true"), "/").network(true);
         let outcome = run(&profile, &SandboxPolicy::default()).unwrap();
         assert!(!outcome.network_enforced);

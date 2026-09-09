@@ -113,7 +113,7 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // through the one ingress seam (`crate::environment`) and every
     // availability question below is answered under that environment's
     // document authoring mask — one resolution, not a `by_name` here and a
-    // mask read at each use (ledger row B1).
+    // mask read at each use.
     let profile =
         crate::environment::profile_for_dialect(vm.runtime_version().dialect_profile_name());
     let dialect = Some(crate::environment::surface_point(profile));

@@ -39,8 +39,9 @@
 //!   `set cmd renamed`).
 //!
 //! A resolved target any of whose contributors has *no* exact source
-//! span marks its indirect invocation `rename_safe: false`, so the
-//! set that leaves the variable still holding the old name.
+//! span marks its indirect invocation `rename_safe: false`, so the rename
+//! providers abstain for that symbol rather than emit an edit set that
+//! leaves the variable still holding the old name.
 
 use std::collections::HashMap;
 use std::collections::HashSet;

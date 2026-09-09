@@ -96,7 +96,7 @@ from dataclasses import dataclass
 # reconstruct it — the exact document text(s), the JSON-RPC messages sent
 # (a replay log), server stderr, and a plain-English description — to a
 # discoverable directory, and print a single `STRESS_FAILURE:` line naming
-# it. Both halves of the #829 stress suite use the identical marker string
+# it. Both halves of this stress suite use the identical marker string
 # so a person or an agent driving either one can `grep STRESS_FAILURE:` the
 # combined output and go straight to the bundle, rather than re-running an
 # inherently timing-dependent stress harness to reproduce what it saw.
@@ -443,7 +443,7 @@ class LspClient:
 
 def generate_big_tcl(n: int) -> str:
     """Same shape as the Rust suites' `generate_big_tcl` (n procs, ~10
-    lines each) — kept independent so all three legs of the #829 stress
+    lines each) — kept independent so all three legs of the stress
     suite (this script, the native lsp_e2e tests, and the direct-infra
     example) exercise comparable-weight fixtures without sharing code across
     language boundaries."""

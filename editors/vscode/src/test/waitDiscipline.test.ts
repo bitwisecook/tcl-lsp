@@ -178,7 +178,7 @@ suite("Wait discipline (issue #1274)", () => {
   });
 
   test("waitForProviderResult rejects loudly when the provider's answer never changes (issue #1295 shape)", async () => {
-    // The shape #1295 exists to catch: a feature-toggle "after" sample whose
+    // The shape this test exists to catch: a feature-toggle "after" sample whose
     // provider keeps answering with its pre-toggle result. Prove the failure
     // is loud (rejects, names what was awaited and what was last seen)
     // rather than silent (resolving with the stale value and letting the
@@ -384,7 +384,7 @@ suite("Wait discipline (issue #1274)", () => {
     // Recoverable verdicts must NOT latch: a stuck document queue, or a
     // request that was merely dropped, still leaves a suite that can run.
     //
-    // The last three are the #1600 shape — the document-free request did not
+    // The last three are the contradicted-evidence shape — the document-free request did not
     // answer in its short budget, but something else did. One answer anywhere
     // is a reply that crossed the transport, so the run must continue: the
     // latch skips every remaining test, and 212 skipped tests is far too

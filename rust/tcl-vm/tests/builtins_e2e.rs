@@ -1085,7 +1085,7 @@ fn regexp_shared_features() {
     // option. tclsh: `regexp -no a A x` errors identically; only tclsh's
     // compiled no-match-var fast path (`regexp -no a A`) abbreviates
     // `-nocase`, and the VM implements the runtime semantics everywhere
-    // (S4.2, TclCompileRegexpCmd).
+    // (`TclCompileRegexpCmd`).
     let (ok, msg, _) = run("regexp -no {a} A x");
     assert!(!ok);
     assert_eq!(
@@ -1265,7 +1265,7 @@ fn variable_traces() {
     );
     // The type word abbreviates (Tcl_GetIndexFromObj, flags 0): tclsh accepts
     // `trace add var …`, and the empty word prefixes all three types, so it
-    // is *ambiguous* — not bad (probed tclsh 8.6.14; S4.2).
+    // is *ambiguous* — not bad (probed tclsh 8.6.14).
     out_eq(
         "trace add var x write cb\nputs [trace info variable x]\n",
         "{write cb}\n",

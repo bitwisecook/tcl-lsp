@@ -1304,7 +1304,7 @@ fn lsort_option_abbreviation() {
     );
 }
 
-/// The same abbreviation rule for `lsearch` (S4.2): `-exa`/`-inl`/`-gl`
+/// The same abbreviation rule for `lsearch`: `-exa`/`-inl`/`-gl`
 /// resolve; `-in` and the empty word are ambiguous. The enumeration is
 /// tclsh9.0's table (which includes `-stride`).
 #[test]

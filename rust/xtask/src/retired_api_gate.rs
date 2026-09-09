@@ -16,9 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `retired-api-gate` — the zero-reference gate for the P1-G retirements
-//! (`docs/design/registry/dialect-and-package-registry-centralisation.md` §3), plus
-//! the P1a ledger-C4 retirement (the `head_identity` binding table, now
+//! `retired-api-gate` — the zero-reference gate for the retirements recorded
+//! in `docs/design/registry/dialect-and-package-registry-centralisation.md` §3, plus
+//! the `head_identity` binding table's retirement (now
 //! the realm command-binding state in `tcl_compiler::realm`).
 //!
 //! It also holds the `one-loader` retirements: the CST pack-loader front

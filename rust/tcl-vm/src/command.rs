@@ -334,7 +334,7 @@ fn cmd_source(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// Both the string and the field split come from
 /// [`tcl_dialect::build_info`] keyed by this VM's pinned release, so the
 /// answer tracks `--tcl-version` instead of a hardcoded `9.0.4`, and cannot
-/// disagree with `runtime/rust` (ledger row B4). The registry gates the
+/// disagree with `runtime/rust`. The registry gates the
 /// command itself to `TCL90_PLUS`, matching `tclsh8.6`, where
 /// `::tcl::build-info` is an invalid command name.
 fn cmd_build_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {

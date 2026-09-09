@@ -206,7 +206,7 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.declare_namespace("tcl::mathfunc");
     // Derived from `tcl_syntax::expr::mathfunc::all()` rather than a
     // hand-typed list, exactly as `runtime/rust/src/cmd_mathfunc.rs` does
-    // (ledger row B3). The hand-typed list this replaces had gone stale by
+    // A hand-typed list would risk going stale, as it did for
     // the whole TIP 745 (Tcl 9.1) C99 batch — 21 functions the shared
     // dispatch table already implemented but that were never registered as
     // commands, so `expr {cbrt(27)}` was an error under a 9.1 pin.

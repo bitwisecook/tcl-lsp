@@ -28,8 +28,8 @@
 //!   * **map-free** — a program section named for the program type
 //!     (`xdp` / `socket`), a `license` section (`"GPL"`), a `.symtab`/`.strtab`
 //!     with a section symbol and a global `STT_FUNC` program symbol, and a
-//!     `.shstrtab`. This is the six-section object the audited kernel-XDP slice
-//!     already loaded.
+//!     `.shstrtab`. This is the six-section object layout the kernel loads for
+//!     XDP programs.
 //!   * **with maps** (kernel targets only) — additionally a BTF-defined `.maps`
 //!     section, a `.BTF` section describing each map, a `.rel<prog>` relocation
 //!     section patching each pseudo map-fd `ld_imm64`, a `.maps` section symbol,

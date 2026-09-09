@@ -343,7 +343,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     // Diagnostic patterns
 
     var diagnosticsGenericVariablePatterns: String = ""  // newline-separated regexes
-    var diagnosticsExclude: String = ""  // newline-separated file globs (#1556)
+    var diagnosticsExclude: String = ""  // newline-separated file globs
 
     override fun getState(): TclLspSettings = this
 

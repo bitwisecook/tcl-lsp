@@ -16,8 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Oracle-pinned coverage for the r3-numeric-tower lane (#1428, #1382,
-//! #1432, #1581) on the `runtime/rust` engine.
+//! Oracle-pinned coverage for the numeric tower's `expr` semantics on the
+//! `runtime/rust` engine.
 //!
 //! Every row here goes through `expr`, which exists only when the numeric
 //! tower does: a build whose libtommath cross-compile was unavailable
@@ -75,7 +75,7 @@ fn expr_err(body: &str, message: &str, code: &str) {
     assert_eq!(error_code, code, "expr {{{body}}} errorCode");
 }
 
-// #1428 — `**`, `<<`, `>>`, `/` and `%` route their integer tier through
+// `**`, `<<`, `>>`, `/` and `%` route their integer tier through
 // `tcl_syntax::number_tower`, so `0 ** -1` is C's domain error (not a
 // division by zero) and the 2^28 exponent ceiling refuses instead of
 // allocating.
@@ -112,10 +112,9 @@ fn divide_by_zero_keeps_its_own_class() {
 }
 
 /// tclsh 8.6.16/9.0.4: an exponent at or past 2^28 is `exponent too large`
-/// (`-errorcode NONE`) — refused instantly, never computed. Before #1428 the
-/// runtime attempted the allocation (a multi-hundred-megabit result), so this
-/// test also guards the resource-exhaustion vector: it would time out, not
-/// merely fail.
+/// (`-errorcode NONE`) — refused instantly, never computed. Attempting the
+/// allocation instead (a multi-hundred-megabit result) is what this test
+/// also guards against: it would time out, not merely fail.
 #[test]
 fn the_exponent_ceiling_refuses_instead_of_allocating() {
     for body in ["2 ** 268435456", "3 ** 268435456", "(2**70) ** 268435456"] {
@@ -141,8 +140,8 @@ fn the_collapsing_bases_still_answer_at_any_exponent() {
 }
 
 /// Floor division and modulus (sign follows the divisor) across the wide and
-/// beyond-wide tiers — the rows the tower's conformance corpus pins, now
-/// reached by production `expr`.
+/// beyond-wide tiers — the rows the tower's conformance corpus pins, reached
+/// here through production `expr`.
 #[test]
 fn floor_division_and_modulus_match_the_oracle() {
     expr_is("-7 / 2", "-4");
@@ -194,8 +193,8 @@ fn a_float_left_operand_beats_a_negative_shift_count() {
     );
 }
 
-// #1382 — `entier`/`int`/`wide`/`round` on a float outside the wide range.
-// The shared arms now widen through the tower's bignum rung, so the runtime
+// `entier`/`int`/`wide`/`round` on a float outside the wide range.
+// The shared arms widen through the tower's bignum rung, so the runtime
 // answers what tclsh answers instead of raising `ARITH DOMAIN`.
 
 /// tclsh 8.6.16/9.0.4: TIP 237 makes `entier()` unbounded, so `entier(1e300)`
@@ -311,8 +310,8 @@ const E1E300: &str = "1000000000000000052504760255204420248704468581108159154915
 /// tclsh `expr {isqrt(1e300)}` (151 digits).
 const ISQRT_1E300: &str = "1000000000000000026252380127602209779758503108492371458359424883684651414333812736380124287612629691547944630047071980611862607399628869272326975124240";
 
-// #1432 — `rand`/`srand`. The generator (Park-Miller step, seed nudge, and C's
-// reciprocal-multiply scaling) is now `tcl_syntax::expr::rand`; only the seed
+// `rand`/`srand`. The generator (Park-Miller step, seed nudge, and C's
+// reciprocal-multiply scaling) is `tcl_syntax::expr::rand`; only the seed
 // storage and the nondeterministic first-seed policy stay per engine.
 
 /// `srand(251)` is the smallest seed in the dense family where C's
@@ -351,7 +350,7 @@ fn the_145th_draw_after_srand_1_matches_the_oracle() {
 /// (tclsh8.6.16: `expected integer but got "1.5"`, `-errorcode TCL VALUE
 /// INTEGER`; tclsh9.0.4 raises with an empty message because C passes a NULL
 /// interp there). Both engines use 8.6's wording so they agree with each
-/// other; 9.0's empty-message quirk is left to #1581.
+/// other; this test does not cover 9.0's empty-message quirk.
 #[test]
 fn srand_refuses_a_non_integer_operand() {
     expr_err(
@@ -366,7 +365,7 @@ fn srand_refuses_a_non_integer_operand() {
     );
 }
 
-// #1581 — the expr/mathfunc error taxonomy: IOVERFLOW / NaN codes, the
+// The expr/mathfunc error taxonomy: IOVERFLOW / NaN codes, the
 // boolean-context codes, and the release axis for `IllegalExprOperandType`.
 
 const IOVERFLOW: &str = "integer value too large to represent";
@@ -429,7 +428,7 @@ fn domain_errors_keep_their_own_class() {
 
 /// Boolean context: tclsh 8.6.16/9.0.4 stamp `TCL VALUE NUMBER` on
 /// `expected boolean value but got "…"` and `TCL VALUE DOUBLE NAN` on a NaN
-/// there. Both were `NONE` before #1581.
+/// there.
 #[test]
 fn boolean_context_errors_carry_their_codes() {
     for body in [
@@ -488,8 +487,8 @@ fn operand_type_errors_use_the_9_0_wording_and_code() {
     // bug, not a taxonomy one, and is left outside this lane.)
 }
 
-/// The same errors at Tcl 8.6: no value, no side, and no list branch — the
-/// release axis #1581 asks for. Measured on tclsh8.6.16.
+/// The same errors at Tcl 8.6: no value, no side, and no list branch.
+/// Measured on tclsh8.6.16.
 #[test]
 fn operand_type_errors_use_the_8_6_wording_at_8_6() {
     let mut interp = Interp::new();
@@ -531,12 +530,12 @@ fn operand_type_errors_use_the_8_6_wording_at_8_6() {
     }
 }
 
-// #1425 — boolean context: the shared `tcl_syntax::boolean` words, by unique
+// Boolean context: the shared `tcl_syntax::boolean` words, by unique
 // prefix, in every context the runtime evaluates.
 
 /// tclsh 8.6.16/9.0.4: every unique prefix of a boolean word is accepted in
-/// `expr`'s `?:`, in `if`, in `while`, and in `dict filter … script` — the
-/// issue's own repro (`set x tru; expr {$x ? "T" : "F"}` is `T`).
+/// `expr`'s `?:`, in `if`, in `while`, and in `dict filter … script` — for
+/// example, `set x tru; expr {$x ? "T" : "F"}` is `T`.
 #[test]
 fn boolean_prefixes_are_accepted_in_every_boolean_context() {
     let (code, result, _) = run("set x tru; expr {$x ? \"T\" : \"F\"}");
@@ -574,8 +573,8 @@ fn boolean_prefixes_are_accepted_in_every_boolean_context() {
 /// tclsh 8.6.16/9.0.4: `o` is shared by `on` and `off`, so it is refused —
 /// with the same message and `TCL VALUE NUMBER` in every boolean context —
 /// and a NaN is `TCL VALUE DOUBLE NAN`. A multi-element list is described as
-/// `a list` at 9.0 (8.6.16 quotes it, `"a b"`; that wording axis is #1581's,
-/// which `describe_bad_value` does not yet carry, so only the 9.0 row is
+/// `a list` at 9.0 (8.6.16 quotes it, `"a b"`; that wording axis is not
+/// something `describe_bad_value` carries yet, so only the 9.0 row is
 /// pinned).
 #[test]
 fn the_ambiguous_prefix_and_nan_are_refused_in_every_boolean_context() {

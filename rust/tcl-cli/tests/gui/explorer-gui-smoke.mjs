@@ -19,7 +19,7 @@
  * headless Chromium, and prints a JSON report on stdout. Everything else —
  * `index.html`, `explorer-core.js`, `worker.js` — is the shipped code.
  *
- * It asserts what issues #1182 / #1183 got wrong:
+ * It asserts the following:
  *   - the WASM tab actually renders a disassembly,
  *   - the compile spinner stops,
  *   - the dialect dropdown is populated before the first result,
