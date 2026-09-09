@@ -318,6 +318,32 @@ fn cm_cert_key_traffic_group_and_trust_domain_project() {
     );
 }
 
+// PathRefs from already-projected kinds into the newly covered ones
+
+#[test]
+fn ltm_profile_cert_and_key_deref_into_the_sys_filestore() {
+    // The chain a cert audit walks: profile -> `sys file ssl-cert` /
+    // `sys file ssl-key`, one hop from the LTM side.
+    raw_eq(
+        LAB_PLATFORM,
+        "lab_platform.conf",
+        r#".ltm.profile[] | select(.cert != "")
+           | tsv(.name, .cert.subject, .key."key-size")"#,
+        "app_clientssl\t\"CN=app.example.test,O=Example,C=AU\"\t2048",
+    );
+}
+
+#[test]
+fn ltm_virtual_vlans_deref_into_net_vlan() {
+    raw_eq(
+        LAB_LOCALHOST,
+        "lab_localhost.conf",
+        r".ltm.virtual[] | select(count(.vlans) > 0)
+           | .vlans[] as $vlan | tsv(.name, $vlan, $vlan.tag)",
+        "admin_vs\t/Common/internal\t200",
+    );
+}
+
 // apm
 
 #[test]
