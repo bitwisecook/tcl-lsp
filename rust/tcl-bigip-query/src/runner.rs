@@ -286,15 +286,12 @@ pub fn run_query(
             let mut ctx = EvalContext {
                 root,
                 named_roots,
-                merge_mode: false,
-                merge_roots: Vec::new(),
                 bindings: HashMap::new(),
                 edits: crate::edit_plan::EditPlan::new(),
                 probes_enabled: opts.enable_probes,
                 ca_bundle: opts.ca_bundle.clone(),
                 ucs_cert_reader: opts.ucs_cert_reader.clone(),
                 files_reader: opts.files_reader.clone(),
-                merge_graph: std::cell::RefCell::new(None),
             };
             accumulated_values.extend(evaluate_statement(stmt, &mut ctx)?);
 
@@ -522,8 +519,8 @@ fn detect_collisions(roots: &[Rc<crate::eval::Root>]) -> Result<(), QueryError> 
 /// Run *program* in `--merge` mode.
 ///
 /// Builds every root once, refuses colliding object identities, then runs the
-/// program a single time: each statement is evaluated once per root with
-/// `merge_mode = true` and every root bound as an active root, and the
+/// program a single time: each statement is evaluated once per root, over a
+/// [`MergedView`](crate::eval::MergedView) spanning every root, and the
 /// per-root values are concatenated. `.ltm.virtual[]` thus enumerates virtuals
 /// from every source; `refs` / `referenced_by` walk the merged graph; edits
 /// route back to their originating source via [`apply`]'s URI partitioning.
@@ -565,10 +562,12 @@ fn run_query_merged(
             .iter()
             .map(|(uri, src)| build_root(uri, src, opts))
             .collect();
+        // One namespace: every reference walk off any of these roots spans
+        // all of them.
+        crate::eval::MergedView::install(&step_roots);
         let named_roots = build_named_roots(&current_sources, side_roots, opts);
 
-        // Evaluate the statement once per root and concatenate, with
-        // `merge_mode = true` so graph builtins cross files. A shared
+        // Evaluate the statement once per root and concatenate. A shared
         // `EditPlan` collects every root's queued edits.
         let plan = eval_merge_statement(
             stmt,
@@ -614,9 +613,9 @@ fn run_query_merged(
     Ok(result)
 }
 
-/// Evaluate one merge statement once per root (`merge_mode = true`, every root
-/// bound active), pushing each root's values onto `accumulated_values` and
-/// returning the combined [`EditPlan`] of every root's queued edits.
+/// Evaluate one merge statement once per root, pushing each root's values onto
+/// `accumulated_values` and returning the combined [`EditPlan`] of every
+/// root's queued edits.
 fn eval_merge_statement(
     stmt: &Expr,
     step_roots: &[Rc<crate::eval::Root>],
@@ -637,15 +636,12 @@ fn eval_merge_statement(
         let mut ctx = EvalContext {
             root: Rc::clone(root),
             named_roots: named_for_step,
-            merge_mode: true,
-            merge_roots: step_roots.to_vec(),
             bindings: HashMap::new(),
             edits: crate::edit_plan::EditPlan::new(),
             probes_enabled: opts.enable_probes,
             ca_bundle: opts.ca_bundle.clone(),
             ucs_cert_reader: opts.ucs_cert_reader.clone(),
             files_reader: opts.files_reader.clone(),
-            merge_graph: std::cell::RefCell::new(None),
         };
         accumulated_values.extend(evaluate_statement(stmt, &mut ctx)?);
         if ctx.edits.has_edits() {

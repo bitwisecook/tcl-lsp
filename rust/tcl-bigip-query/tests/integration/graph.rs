@@ -32,9 +32,10 @@ use std::rc::Rc;
 
 use serde_json::Value as J;
 use tcl_bigip::parser::parse_bigip_conf;
-use tcl_bigip_query::eval::{EvalContext, Root, evaluate};
+use tcl_bigip_query::eval::{EvalContext, MergedView, Root, evaluate};
 use tcl_bigip_query::output::render;
 use tcl_bigip_query::parser::parse_query;
+use tcl_bigip_query::{QueryOptions, run_query};
 
 /// The same fixture the generator reads.
 const FIXTURE: &str = include_str!("../../../tcl-bigip/tests/fixtures/bigip.conf");
@@ -82,9 +83,9 @@ fn graph() {
     );
 }
 
-/// `references_to` must consult the *merged* graph under `--merge`, so a
-/// cross-file referrer resolves — not the single originating root, which would
-/// miss it (issue 195).
+/// `references_to` consults the merged graph under `--merge`, so a cross-file
+/// referrer resolves rather than being missed by the single originating root
+/// (issue 195).
 #[test]
 fn references_to_uses_merged_graph_in_merge_mode() {
     let conf_a = "ltm virtual /Common/vsA {\n    destination /Common/1.2.3.4:80\n    pool /Common/poolB\n}\n";
@@ -94,11 +95,10 @@ fn references_to_uses_merged_graph_in_merge_mode() {
     let root_a = Root::bigip("a.conf", conf_a.to_owned(), cfg_a);
     let root_b = Root::bigip("b.conf", conf_b.to_owned(), cfg_b);
 
-    // ctx.root is file B (the pool). Its single-root graph has no referrer for
-    // poolB; only the merged graph (with file A) does.
+    // ctx.root is file B (the pool). A graph over file B alone has no referrer
+    // for poolB; only one spanning file A does.
+    MergedView::install(&[Rc::clone(&root_a), Rc::clone(&root_b)]);
     let mut ctx = EvalContext::new(Rc::clone(&root_b));
-    ctx.merge_mode = true;
-    ctx.merge_roots = vec![root_a, root_b];
 
     let prog = parse_query("references_to(\"/Common/poolB\")").expect("query parses");
     let values = evaluate(&prog, &mut ctx).expect("evaluates");
@@ -106,5 +106,138 @@ fn references_to_uses_merged_graph_in_merge_mode() {
     assert!(
         out.contains("/Common/vsA"),
         "merged cross-file referrer must appear: {out}"
+    );
+}
+
+// Reference walks under `--merge`. Every walk off any root in the merged
+// namespace spans all of them, so a referrer, a rename safety check, and an
+// iRule's `.refs` all see objects defined in a sibling source.
+
+/// A virtual in one source pointing at a pool in another, in a partition that
+/// cannot see the pool's — a visibility violation that is only apparent when
+/// both sources are read as one namespace.
+const PV_REFERRER_CONF: &str = "\
+ltm virtual /Part1/v1 {
+    destination /Part1/10.0.0.1:80
+    pool /Part2/other_pool
+}
+";
+
+const PV_TARGET_CONF: &str = "\
+ltm pool /Part2/other_pool {
+    members {
+        /Part2/n1:80 {
+            address 10.0.1.1
+        }
+    }
+}
+";
+
+/// An iRule and the pool it names, split across two sources.
+const RULE_CONF: &str = "\
+ltm rule /Common/r1 {
+    when HTTP_REQUEST {
+        pool /Common/api_pool
+    }
+}
+";
+
+const RULE_POOL_CONF: &str = "\
+ltm pool /Common/api_pool {
+    members {
+        /Common/n1:80 {
+            address 10.0.1.1
+        }
+    }
+}
+";
+
+/// A pool in one source referenced by a virtual in another.
+const SHARED_POOL_REFERRER_CONF: &str = "\
+ltm virtual /Part1/v1 {
+    destination /Part1/10.0.0.1:80
+    pool /Common/shared_pool
+}
+";
+
+const SHARED_POOL_CONF: &str = "\
+ltm pool /Common/shared_pool {
+    members {
+        /Common/n1:80 {
+            address 10.0.1.1
+        }
+    }
+}
+";
+
+fn run_merged(query: &str, sources: &[(&str, &str)]) -> Result<String, String> {
+    let owned: Vec<(String, String)> = sources
+        .iter()
+        .map(|(u, s)| ((*u).to_owned(), (*s).to_owned()))
+        .collect();
+    let opts = QueryOptions {
+        merge: true,
+        ..QueryOptions::default()
+    };
+    let result = run_query(query, &owned, &opts).map_err(|e| e.to_string())?;
+    let values: Vec<tcl_bigip_query::Value> = result
+        .values_per_file
+        .iter()
+        .flat_map(|(_, vals)| vals.iter().cloned())
+        .collect();
+    render(&values, "json").map_err(|e| e.to_string())
+}
+
+/// `check_partition_visibility()` audits the merged namespace, so a referrer
+/// and its target in different sources are compared.
+#[test]
+fn partition_visibility_audit_spans_merged_sources() {
+    let out = run_merged(
+        "check_partition_visibility()",
+        &[
+            ("file:///pv-a.conf", PV_REFERRER_CONF),
+            ("file:///pv-b.conf", PV_TARGET_CONF),
+        ],
+    )
+    .expect("audit runs");
+    assert!(
+        out.contains("/Part1/v1 -> /Part2/other_pool"),
+        "cross-source violation reported: {out}"
+    );
+}
+
+/// `rename()` refuses a cross-partition move that would strand a referrer in a
+/// sibling source, the same as when both objects share one source.
+#[test]
+fn rename_partition_check_sees_referrers_in_sibling_sources() {
+    let err = run_merged(
+        r#"rename("/Common/shared_pool", "/Part2/shared_pool")"#,
+        &[
+            ("file:///a.conf", SHARED_POOL_REFERRER_CONF),
+            ("file:///b.conf", SHARED_POOL_CONF),
+        ],
+    )
+    .expect_err("the move strands /Part1/v1 and must be refused");
+    assert!(
+        err.contains("partition visibility") && err.contains("/Part1/v1"),
+        "the refusal names the stranded referrer: {err}"
+    );
+}
+
+/// An `ltm rule`'s synthesised `.refs` resolves objects defined in a sibling
+/// source.
+#[test]
+fn rule_refs_span_merged_sources() {
+    let out = run_merged(
+        ".ltm.rule[] | .refs.pools",
+        &[
+            ("file:///rule.conf", RULE_CONF),
+            ("file:///pool.conf", RULE_POOL_CONF),
+        ],
+    )
+    .expect("projection runs");
+    assert!(
+        out.contains("/Common/api_pool"),
+        "the pool named by the rule resolves across sources: {out}"
     );
 }
