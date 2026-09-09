@@ -143,8 +143,8 @@ impl PatternType {
     /// Every pattern language, in declaration order.
     pub const ALL: &'static [Self] = &[Self::Glob, Self::Regex];
 
-    /// Stable lowercase tag (`"glob"` / `"regex"`) — used by the audit
-    /// dumper so both sides normalise identically.
+    /// Stable lowercase tag (`"glob"` / `"regex"`), kept so external
+    /// consumers can normalise it identically to this crate.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {

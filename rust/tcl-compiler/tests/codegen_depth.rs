@@ -69,7 +69,7 @@ use tcl_compiler::ir::{Module as IrModule, Procedure, Statement};
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+// Helpers.
 
 fn registry() -> CommandRegistry {
     CommandRegistry::build_default()
@@ -133,7 +133,7 @@ fn ctx_ops(ctx: &CodegenCtx) -> Vec<Op> {
     ctx.instructions.iter().map(|i| i.op).collect()
 }
 
-// backend.rs — the `Backend` trait + `BytecodeBackend` (was 0%)
+// backend.rs — the `Backend` trait + `BytecodeBackend`.
 
 #[test]
 fn backend_lower_module_names_top_level() {
@@ -340,10 +340,11 @@ fn catch_body_const_div_zero_emits_syntax() {
 /// and fall through"), and `-code return` is rewritten to `-code ok -level L+1`,
 /// so `TCL_RETURN` never reaches the operand.
 ///
-/// The `break`/`continue`/non-standard rows previously encoded the code *as the
-/// level* (`(0, 3)`, `(0, 4)`), which the old compensating VM read back as the
-/// right completion by accident; under C semantics they are levels, so they
-/// would have unwound N proc frames instead of breaking a loop.
+/// The `break`/`continue`/non-standard rows must not encode the code *as the
+/// level* (`(0, 3)`, `(0, 4)`): under C semantics these values are levels, so
+/// that encoding would unwind N proc frames instead of breaking a loop — only
+/// right by accident if a VM happened to compensate by reading it back as the
+/// completion.
 #[test]
 fn catch_return_operands_match_c_merge_table() {
     for (body, want) in [

@@ -395,7 +395,7 @@ suite("TextMate grammar: definitions agree with the semantic-token types (#903)"
     assert.ok(scopes.includes("variable.parameter.tcl"), scopes.join(", "));
   });
 
-  // The guard from issue #637: a bareword `proc` used as a *value* must not
+  // A bareword `proc` used as a *value* must not
   // start a definition and swallow the following quote.
   test("a bareword 'proc' used as an argument does not start a definition", () => {
     const scopes = scopesForWord('dict set frame proc "x"', "proc");
@@ -406,8 +406,9 @@ suite("TextMate grammar: definitions agree with the semantic-token types (#903)"
     );
   });
 
-  // Issue #904. `throw` was a control keyword and `error` an ordinary library
-  // call, so the two halves of one construct came out in different colours.
+  // `catch`, `error`, and `throw` are one construct and must share the same
+  // colouring: treating `throw` as a control keyword and `error` as an
+  // ordinary library call would split the two halves into different colours.
   // Every Tcl grammar that *has* a function category agrees `error` is not one.
   test("catch, error and throw are all control keywords", () => {
     for (const [line, word] of [
@@ -443,11 +444,9 @@ suite("TextMate grammar: definitions agree with the semantic-token types (#903)"
   });
 });
 
-// Issue #903: `tcl-apl` and `tcl-bigip` were both contributed with
-// `tcl.tmLanguage.json` — the *Tcl* grammar, which contains no APL rule and no
-// BIG-IP rule. A `bigip.conf` was therefore painted with Tcl rules and then
-// replaced wholesale by a 34-type BIG-IP token stream once the server answered.
-// They now have their own grammars.
+// `tcl-apl` and `tcl-bigip` each have their own grammar, distinct from the
+// *Tcl* grammar (`tcl.tmLanguage.json`), which contains no APL rule and no
+// BIG-IP rule.
 //
 // The design rule these tests hold: the grammar may be *less specific* than the
 // semantic layer (it emits `entity.name.type.bigip` where the server can tell a
@@ -515,7 +514,7 @@ suite("TextMate grammars: BIG-IP config and APL (#903)", () => {
   // A `monitor` value is an EXPRESSION — `default` / `none` / `M1 and M2` /
   // `min N of { … }`. The simple `monitor <ref>` rule painted `min` as the
   // monitor object. The server types the whole expression, keywords and the
-  // count included, as `monitor` (#905 review).
+  // count included, as `monitor`.
   test("a monitor expression is not mistaken for a monitor reference", () => {
     const scopes = scopeMap(bigip, [
       "ltm pool /Common/p {",
@@ -620,7 +619,7 @@ suite("TextMate grammars: BIG-IP config and APL (#903)", () => {
   });
 });
 
-// Marked-up grammar fixtures (#903/#904).
+// Marked-up grammar fixtures.
 //
 // `src/test/grammarFixtures/*` are ordinary, valid source files in which each
 //

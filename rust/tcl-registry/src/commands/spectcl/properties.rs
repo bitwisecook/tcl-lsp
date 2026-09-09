@@ -78,7 +78,7 @@ const fn native(name: &'static str, summary: &'static str) -> Row {
 }
 
 const ROWS: &[Row] = &[
-    // --- identity / availability -----------------------------------------
+    // Identity and availability.
     (
         "traits",
         Arity::exact(1),
@@ -156,7 +156,7 @@ const ROWS: &[Row] = &[
         "deprecated_replacement_drop_in",
         "Whether the replacement is a drop-in rename.",
     ),
-    // --- documentation ----------------------------------------------------
+    // Documentation.
     one(
         "detail",
         "The subcommand's one-line description.",
@@ -167,7 +167,7 @@ const ROWS: &[Row] = &[
         "The subcommand's synopsis line.",
         "`SubCommand::synopsis` is a single string. The *repeatable* `synopsis` row is the one inside a `hover` block, where the field really is a list.",
     ),
-    // --- shape ------------------------------------------------------------
+    // Shape.
     boolean(
         "allow_unknown_subcommands",
         "Whether an unrecognised subcommand word is accepted.",
@@ -197,7 +197,7 @@ const ROWS: &[Row] = &[
         "arg_values_accept_prefix",
         "Whether a declared argument value resolves by unique prefix.",
     ),
-    // --- results and typing -----------------------------------------------
+    // Results and typing.
     one("return_type", "The command's result type.", ""),
     variant("var_write_typing", "How a written variable is typed."),
     variant("return_elements", "How the result's elements are typed."),
@@ -241,7 +241,7 @@ const ROWS: &[Row] = &[
         "Declare every role an argument-role resolver may emit.",
         "SpecTcl 2.1. A non-empty closed set of `ArgRole` names; required whenever `arg_role_resolver` is present, at command and subcommand scope.",
     ),
-    // --- bodies -----------------------------------------------------------
+    // Bodies.
     one(
         "body_kind",
         "Whether a body argument runs in the caller's frame.",
@@ -260,7 +260,7 @@ const ROWS: &[Row] = &[
         "creates_scope_alias",
         "Whether the call aliases a caller variable into this scope.",
     ),
-    // --- purity and effects ------------------------------------------------
+    // Purity and effects.
     boolean("pure", "Whether the subcommand is free of side effects."),
     boolean("mutator", "Whether the subcommand mutates its subject."),
     boolean(
@@ -286,7 +286,7 @@ const ROWS: &[Row] = &[
         "The `::tcl::…` name this rewrites to.",
         "",
     ),
-    // --- compiler-facing --------------------------------------------------
+    // Compiler-facing.
     variant(
         "semantic_operation",
         "The operation identity the command performs.",
@@ -303,21 +303,21 @@ const ROWS: &[Row] = &[
         "data_collection",
         "The shipped collect/release descriptor, by name.",
     ),
-    // --- patterns and formats ----------------------------------------------
+    // Patterns and formats.
     one("pattern_type", "`Glob` or `Regex`.", ""),
     one(
         "format_string_type",
         "`Sprintf`, `Clock`, `Binary`, or `Regsub`.",
         "",
     ),
-    // --- events ------------------------------------------------------------
+    // Events.
     one(
         "excluded_events",
         "Events the command may not be called from.",
         "",
     ),
     one("side_switch_target", "`Client` or `Server`.", ""),
-    // --- taint --------------------------------------------------------------
+    // Taint.
     one(
         "taint_output_sink",
         "The diagnostic code of the output sink.",
@@ -371,7 +371,7 @@ const ROWS: &[Row] = &[
         "Header names treated as sensitive.",
         "",
     ),
-    // --- translation --------------------------------------------------------
+    // Translation.
     (
         "xc_translatable",
         Arity::exact(1),

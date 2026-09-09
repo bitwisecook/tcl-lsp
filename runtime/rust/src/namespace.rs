@@ -287,7 +287,7 @@ pub struct Namespaces {
     /// C keeps a dying Namespace alive through its activation/token refs.
     dying_children: BTreeMap<(NsId, Vec<u8>), NsId>,
     dying: BTreeSet<NsId>,
-    /// M11: Tcl 8.x resolves an unqualified variable at **namespace scope**
+    /// Tcl 8.x resolves an unqualified variable at **namespace scope**
     /// to the global variable when the namespace has none but the global
     /// namespace does (reads and writes both); 9.0 removed the fallback
     /// (TIP 278, `TCL_NAMESPACE_ONLY`).  Defaults to the 9.0 behaviour

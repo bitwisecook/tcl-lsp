@@ -1249,7 +1249,7 @@ fn test_tcloo_body_variable_declares_every_name() {
 
 #[test]
 fn test_imported_tcltest_test_structure_recognised() {
-    // Issue #776: after `namespace import tcltest::*`, a bare `test` resolves to
+    // After `namespace import tcltest::*`, a bare `test` resolves to
     // the tcltest spec — its `-body`/`-result` are options and the body script
     // is recursed.
     let mut lsp = Lsp::tcl();
@@ -1283,11 +1283,11 @@ fn test_imported_tcltest_test_structure_recognised() {
 
 #[test]
 fn test_source_command_substitution_argument_is_tokenised() {
-    // Issue #775: a command substitution in `source`'s argument is highlighted
-    // as a command sequence (locks the rust-branch behaviour).
+    // A command substitution in `source`'s argument is highlighted
+    // as a command sequence.
     //
-    // The whole sequence, in order, not spot checks on two words: the point of
-    // the issue is that the argument reads as *code*, and that claim is only
+    // The whole sequence, in order, not spot checks on two words: the claim
+    // is that the argument reads as *code*, and that claim is only
     // as strong as the weakest word in it.  `join` in particular has to be the
     // subcommand keyword rather than the `join` list command that shares its
     // spelling — a lookup that goes through `file`'s ensemble, so getting it
@@ -1330,16 +1330,14 @@ fn test_source_command_substitution_argument_is_tokenised() {
 
 #[test]
 fn test_document_link_never_spans_more_than_one_semantic_token() {
-    // Issue #775, the second time.  Correct semantic tokens (the test above)
-    // are not enough to make the argument *look* highlighted: an editor paints
-    // a document-link range in one flat link colour plus an underline, so a
-    // link spanning `file join $currentDir esd_pulse_circuit.tcl` erases every
-    // token boundary inside it and the whole substitution reads as one word —
-    // exactly what the reporter's screenshots show, both times.
+    // Correct semantic tokens (the test above) are not enough to make the
+    // argument *look* highlighted: an editor paints a document-link range
+    // in one flat link colour plus an underline, so a link spanning `file
+    // join $currentDir esd_pulse_circuit.tcl` erases every token boundary
+    // inside it and the whole substitution reads as one word.
     //
-    // The token assertions above passed throughout that, which is why they did
-    // not hold the fix.  This is the property that actually failed: a link may
-    // cover at most one token, because covering two means hiding the boundary
+    // The token assertions above do not cover this: a link may cover at
+    // most one token, because covering two means hiding the boundary
     // between them.  Stated over links in general, so it also holds for
     // `package require` and for whatever gains a link next.
     let mut lsp = Lsp::tcl();
@@ -1389,7 +1387,7 @@ fn test_document_link_never_spans_more_than_one_semantic_token() {
 
 #[test]
 fn test_global_declares_every_name() {
-    // Peer of #774: `global a b c` declares every name as a variable.
+    // Like `variable`, `global a b c` declares every name as a variable.
     let mut lsp = Lsp::tcl();
     let lg = legend(&lsp);
     let src = "proc p {} {\n    global alpha beta gamma\n}\n";

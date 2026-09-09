@@ -19196,17 +19196,14 @@ impl Backend {
     /// which is also the instant `tcl-lsp.getEffectiveConfig` starts reporting
     /// them.  A client that (reasonably) treats that command as the settle
     /// signal and then types a character lands inside that window, and the
-    /// keystroke's `schedule_diagnostics` reused inputs resolved *before* the
-    /// apply: the optimiser was off in the reported config and still on in the
-    /// analysis, so O-codes the user had just disabled came back on that
-    /// publish and only cleared on the reschedule a moment later.
+    /// keystroke's `schedule_diagnostics` would reuse inputs resolved *before*
+    /// the apply: the optimiser off in the reported config and still on in the
+    /// analysis, so O-codes the user had just disabled come back on that
+    /// publish and clear only on the reschedule a moment later.
     ///
-    /// Issue #1651 is that window, seen from the `VS Code` suite: the
-    /// `optimiser.enabled` test failed exactly when its post-toggle edit landed
-    /// before the reschedule, which is why a slower local runner reproduced it
-    /// and CI (with a shorter pack walk) did not.  Widening the reschedule's
-    /// reach cannot fix it — the edit arrives *during* the window, so the only
-    /// thing that can be right is what the edit itself reads.
+    /// Widening the reschedule's reach cannot close that window — the edit
+    /// arrives *during* it, so the only thing that can be right is what the
+    /// edit itself reads.
     fn invalidate_diag_inputs(&self) {
         self.diag_inputs_epoch
             .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
@@ -19263,8 +19260,7 @@ impl Backend {
         // Discarding rather than stamping-conservatively matters because the
         // stamp is not the only consumer: the worker takes `latest_inputs` at
         // drain time and never re-checks it, so a mixed snapshot committed here
-        // is a mixed snapshot published. That is the #1651 window again, just
-        // narrower, which is exactly what this whole change exists to close.
+        // is a mixed snapshot published — the same window, just narrower.
         let mut resolved: Option<(DiagInputs, u64)> = None;
         for _ in 0..DIAG_INPUTS_RESOLVE_ATTEMPTS {
             let epoch = self.diag_inputs_epoch();
@@ -19285,10 +19281,11 @@ impl Backend {
                 break;
             }
             // Resolve the fresh inputs *before* marking the slot dirty. Marking
-            // dirty first and storing `latest_inputs` only after the `await` let
-            // a running worker drain the dirty flag with the *stale* inputs in
-            // that window, silently dropping a config change (e.g. squiggles the
-            // user just disabled would persist until the next keystroke).
+            // dirty first and storing `latest_inputs` only after the `await`
+            // would let a running worker drain the dirty flag with the *stale*
+            // inputs in that window, silently dropping a config change (e.g.
+            // squiggles the user just disabled persisting until the next
+            // keystroke).
             // Resolving first means `dirty` and `latest_inputs` are published
             // together, atomically, so the worker never observes one without the
             // other.
@@ -19350,7 +19347,7 @@ impl Backend {
                     FileSystemWatcher {
                         // Case-folded in the glob itself: watcher registrations
                         // carry no `ignoreCase` option and VS Code matches them
-                        // case-sensitively on Linux (issue #1215).
+                        // case-sensitively on Linux.
                         //
                         // This also covers `.tclspec` SpecTcl packs, which are
                         // in `TCL_SOURCE_EXTENSIONS` — a pack *is* one Tcl
@@ -19391,8 +19388,6 @@ impl Backend {
                 .await;
         }
     }
-
-    // -- SpecTcl spec packs ------------------------------------------------
 
     /// What [`tcl_spectcl::discover`] should look at for this workspace:
     /// every open folder, plus whatever `tclLsp.specPacks` names.
@@ -19790,8 +19785,8 @@ impl Backend {
         // is answered from the old one, and has nothing scheduled to ask
         // again. A client watching only its workspace folders cannot even see
         // an edit under an absolute `tclLsp.specPacks` root, which the server
-        // watches and it does not. One push after the fact settles both
-        // (issue #1626, review finding P1-2). Sent unconditionally: "nothing
+        // watches and it does not. One push after the fact settles both.
+        // Sent unconditionally: "nothing
         // changed" is exactly what a racing client needs to hear to stop
         // waiting.
         self.client
@@ -19805,15 +19800,14 @@ impl Backend {
     /// Bring the registrations and the index into line with the extensions
     /// the freshly-loaded packs claim.
     ///
-    /// A pack's `file_extension` row was only ever consulted by
+    /// A pack's `file_extension` row is consulted by
     /// `dialect_from_extension`, which decides the dialect of a document the
-    /// server is *already looking at*. Everything that decides which files the
-    /// server looks at on its own read the static `TCL_SOURCE_EXTENSIONS`
-    /// alone, so a pack claiming `.irulex` gave a correct answer for an open
+    /// server is *already looking at*. If everything that decides which files
+    /// the server looks at read the static `TCL_SOURCE_EXTENSIONS` alone, a
+    /// pack claiming `.irulex` would give a correct answer for an open
     /// `.irulex` file and nothing at all for a closed one: no workspace index
     /// entry, so no cross-file references, definitions or rename; and no
-    /// watcher, so an external edit never refreshed any of it (issue #1626,
-    /// review finding P1-3).
+    /// watcher, so no external edit would ever refresh any of it.
     ///
     /// Three things therefore have to follow the pack set:
     ///
@@ -19888,7 +19882,7 @@ impl Backend {
             register_options: serde_json::to_value(DidChangeWatchedFilesRegistrationOptions {
                 watchers: vec![FileSystemWatcher {
                     // Case-folded per character for the same reason the static
-                    // watcher is (issue #1215): watcher registrations carry no
+                    // watcher is: watcher registrations carry no
                     // `ignoreCase` option and a client matches them
                     // case-sensitively on Linux.
                     glob_pattern: GlobPattern::String(watch_glob),

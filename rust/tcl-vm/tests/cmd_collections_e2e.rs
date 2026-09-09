@@ -1277,7 +1277,7 @@ fn lsearch_error_paths() {
 /// `lsort` option words abbreviate like tclsh's `Tcl_GetIndexFromObj` (flags
 /// 0): an exact match wins, a unique prefix resolves, and a shared prefix —
 /// including the empty word, which prefixes everything — is an *ambiguous*
-/// option. The VM previously demanded exact names (S4.2; probed tclsh 8.6.14,
+/// option. Demanding exact names would be wrong (probed tclsh 8.6.14,
 /// flags + table order verified in the 9.0.4 source).
 #[test]
 fn lsort_option_abbreviation() {

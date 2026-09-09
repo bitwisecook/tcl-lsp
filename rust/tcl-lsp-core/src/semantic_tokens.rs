@@ -2132,10 +2132,9 @@ fn mark_regex_source_words(
 /// the *position* comes from the [`tcl_registry::ArgRole::FormatString`] /
 /// `ScanFormat` roles the specs and resolvers declare, and the *family* from
 /// `format_string_type`. No command name appears here, so the explicitly
-/// global spellings (`::format`, `::clock`, …) — which the previous
-/// `match head { "format" => … }` silently missed — resolve identically, and
-/// a same-named user proc or a dynamic head simply declares no family and is
-/// left alone (issue #1185).
+/// global spellings (`::format`, `::clock`, …) resolve identically, and a
+/// same-named user proc or a dynamic head simply declares no family and is
+/// left alone.
 ///
 /// The `Regsub` family marks only the word's *literal* fragments, matching
 /// how the regex pattern beside it is treated: a `$var` inside a replacement
@@ -2174,28 +2173,6 @@ fn insert_format_overrides(
     }
 }
 
-/// Known `-option` switches → `Decorator` (only real options declared in
-/// the registry, so `puts -foo` stays a string); subcommand word at arg
-/// index 1 → keyword carrying `defaultLibrary`.  Both consult the command's
-/// registry spec.
-///
-/// The recognised-option set is the [`OptionSpec`]-driven answer to
-/// issue #748 ("highlight words starting with `-` as options"): rather than
-/// treat every `-`-prefixed word as an option — which would mishighlight a
-/// bare minus, a negative number, or a `-$var` substitution — we highlight
-/// exactly the switches the command declares.  The set spans the command's
-/// flat [`CommandSpec::options`] *and* every [`CommandForm`]'s options (via
-/// [`CommandSpec::switch_names`]), plus — when arg 1 selects a known
-/// subcommand — that subcommand's own options (via
-/// [`SubCommand::switch_names`]).  That is what makes the issue's own
-/// example, `file delete -force filename`, light up: `-force` is declared on
-/// the `delete` subcommand, not on `file` itself.
-///
-/// Matching is against the literal word text, so `-$variable` /
-/// `-{$variable}` / `-[command]` — whose word text is not a declared option
-/// name — never match; only a literal `-force`-style word does.
-///
-/// [`OptionSpec`]: tcl_registry::OptionSpec
 /// Whether an option value's role is re-coloured by another semantic-token
 /// pass (`insert_role_overrides` for `Body`/`Expr`, `insert_var_decl_overrides`
 /// for `VarWrite`, `insert_format_overrides` for a conversion string).  Such
@@ -2246,6 +2223,27 @@ fn resolve_option_prefix<'a>(
     matched
 }
 
+/// Known `-option` switches → `Decorator` (only real options declared in
+/// the registry, so `puts -foo` stays a string); subcommand word at arg
+/// index 1 → keyword carrying `defaultLibrary`.  Both consult the command's
+/// registry spec.
+///
+/// The recognised-option set is [`OptionSpec`]-driven: rather than treat every
+/// `-`-prefixed word as an option — which would mishighlight a bare minus, a
+/// negative number, or a `-$var` substitution — exactly the switches the
+/// command declares are highlighted.  The set spans the command's flat
+/// [`CommandSpec::options`] *and* every [`CommandForm`]'s options (via
+/// [`CommandSpec::switch_names`]), plus — when arg 1 selects a known
+/// subcommand — that subcommand's own options (via
+/// [`SubCommand::switch_names`]).  That is what makes `file delete -force
+/// filename` light up: `-force` is declared on the `delete` subcommand, not on
+/// `file` itself.
+///
+/// Matching is against the literal word text, so `-$variable` /
+/// `-{$variable}` / `-[command]` — whose word text is not a declared option
+/// name — never match; only a literal `-force`-style word does.
+///
+/// [`OptionSpec`]: tcl_registry::OptionSpec
 fn insert_option_and_subcommand_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
@@ -2264,7 +2262,7 @@ fn insert_option_and_subcommand_overrides(
     let mut option_prefix_matching = spec.prefix_matching;
 
     // Value-taking options whose value is a *generic* value — those get the
-    // distinct `OptionValue` colour (the option/value split of issue #748).
+    // distinct `OptionValue` colour.
     // Options whose value carries an analysis role (a `-command` script, a
     // `-textvariable` name, …) are deliberately excluded here so their value
     // is claimed by the role/var-decl passes instead (`BodyScript`, `VarDecl`,
@@ -2313,7 +2311,7 @@ fn insert_option_and_subcommand_overrides(
 
         // Two-level ensembles (`info object <subcommand>`, `info class
         // <subcommand>`): the word after the first-level subcommand is itself a
-        // subcommand keyword, not a string (issue #798).  `is_sub_subcommand`
+        // subcommand keyword, not a string.  `is_sub_subcommand`
         // accepts a unique prefix (`info object cl` ⇒ `class`) the way Tcl's
         // ensemble dispatch does.  General over any registry-declared two-level
         // ensemble, not just `info`.
@@ -2369,8 +2367,8 @@ fn insert_option_and_subcommand_overrides(
 /// substitution head, or a multi-fragment word (`chartV$node`, `${prefix}cmd`).
 ///
 /// The command name of such a call is only known at runtime — an object handle
-/// dispatched through a variable (`$chart method …`, #748), a `[Class new]` /
-/// `[dict get …]` constructor-or-lookup result (#797), a computed command
+/// dispatched through a variable (`$chart method …`), a `[Class new]` /
+/// `[dict get …]` constructor-or-lookup result, a computed command
 /// name — so it must not be classified as a resolved command-head token, nor
 /// consulted against the registry's declared option tables.  A plain
 /// single-token bareword head (`puts`, a user proc) is *not* computed and stays
@@ -2393,8 +2391,8 @@ fn head_is_computed(seg: &tcl_compiler::segmenter::SegmentedCommand) -> bool {
 /// (possibly user-defined) command name and is left to the registry too, so
 /// `mycmd -foo` stays a string.  Only a computed head — where the real option
 /// set lives on a method / ensemble the registry does not model — is treated as
-/// the overwhelmingly-common `-switch value` shape.  This is the fallback half
-/// of issue #748: colour those pairs like any built-in's.
+/// the overwhelmingly-common `-switch value` shape: those pairs are coloured
+/// like any built-in's.
 ///
 /// A "clean option" is a single-token [`TokenType::Esc`] word for which
 /// [`is_generic_option_word`] holds — `-<letter>…`, excluding substitution
@@ -2515,7 +2513,7 @@ fn is_generic_option_word(text: &str) -> bool {
 /// [`tcl_compiler::object_types::object_handle_classes`].
 type ObjectClassMap = std::collections::HashMap<String, std::collections::HashSet<String>>;
 
-/// Bareword instance-command name → qualified class name (issue #1312),
+/// Bareword instance-command name → qualified class name,
 /// built from [`AnalysisResult::instance_classes`] gated on
 /// [`AnalysisResult::created_instance_commands`] — the same contract the
 /// LSP's `receiver_instance_class` uses.  Merged into [`ObjectClassMap`] by
@@ -2526,8 +2524,8 @@ pub type NamedInstanceMap = std::collections::HashMap<String, String>;
 /// The optional workspace-merged facts a semantic-tokens request can enrich
 /// its object-dispatch resolution with — [`ClassHierarchy`] (cross-file
 /// classes), [`VarNameArgRoles`] (cross-file proc parameter roles), and
-/// [`NamedInstanceMap`] (cross-file `CLASS create NAME` bindings, issue
-/// #1312).  Bundled into one `Copy` struct so the `range_*` full-arity entry
+/// [`NamedInstanceMap`] (cross-file `CLASS create NAME` bindings).
+/// Bundled into one `Copy` struct so the `range_*` full-arity entry
 /// point stays within budget instead of growing a ninth positional
 /// parameter.
 #[derive(Clone, Copy, Default)]
@@ -2537,7 +2535,7 @@ pub struct WorkspaceTokenFacts<'a> {
     /// The workspace-merged (or local) inferred proc parameter roles.
     pub proc_roles: Option<&'a VarNameArgRoles>,
     /// The workspace-merged (or local) `CLASS create NAME` bareword
-    /// instance-command index (issue #1312).
+    /// instance-command index.
     pub named_instances: Option<&'a NamedInstanceMap>,
     /// Local analysis, when available. Package-require floors are document
     /// facts used to resolve lifecycle-gated registry methods.
@@ -2556,8 +2554,7 @@ fn named_instances_from_analysis(analysis: &AnalysisResult) -> NamedInstanceMap 
         .collect()
 }
 
-/// Precise `$obj method …` highlighting via the registry's object-class model —
-/// the object-handle half of issue #748.
+/// Precise `$obj method …` highlighting via the registry's object-class model.
 ///
 /// When the command head is an object handle whose class is known — a `$var`
 /// bound by `set var [Class new]` (tracked by [`tcl_compiler::object_types`]),
@@ -2590,9 +2587,9 @@ fn insert_object_method_overrides(
     };
     // Candidate receiver classes implied by the head's shape: a `$var` object
     // handle, a direct `[Class new] …` constructor, a `[dict get $coll $k]`
-    // / `[lindex $coll $i]` retrieval from an object collection (issue #797),
+    // / `[lindex $coll $i]` retrieval from an object collection,
     // or a bareword instance-command name bound by a positional create call
-    // (`ttk::treeview .t` / a registry naming factory — issue #927; `object_classes`
+    // (`ttk::treeview .t` / a registry naming factory; `object_classes`
     // is name-keyed regardless of whether the name came from a `set` LHS or a
     // bareword factory, so the same map already carries these — see
     // `object_types::harvest_unit`'s `Statement::Call` arm).
@@ -2663,7 +2660,7 @@ fn insert_object_method_overrides(
 ///
 /// The *call site* of a method (`$obj add …`, `my Cleanup`, `[Class new] m …`)
 /// is the same entity as its declaration, so it takes the same type — a method
-/// is not a free procedure (#898 §2).  This is the one place a dispatched
+/// is not a free procedure.  This is the one place a dispatched
 /// method name is typed, so declaration and call site cannot drift apart.
 fn mark_method_word(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
@@ -2733,14 +2730,14 @@ fn insert_registry_method_options(
 /// The element classes of a collection-*retrieval* command head — a
 /// single-level `[dict get $coll $key]` or `[lindex $coll $idx]` — looked up in
 /// the object-collection map, or `None` when the head is not such a retrieval
-/// or the collection is not tracked.  Resolves the receiver of the issue-#797
+/// or the collection is not tracked.  Resolves the receiver of a
 /// `[dict get $Pins $pin] configure -node …` dispatch.
 ///
 /// Which calls retrieve an element, and from which argument, is registry data
 /// ([`tcl_registry::types::ReturnElements::ElementOf`], read through
 /// [`CommandRegistry::resolve_call`] exactly as the compiler's type inference
 /// reads it) — so `::lindex` and `::dict get` resolve like their bare
-/// spellings, and no command name is matched here (issue #1185).
+/// spellings, and no command name is matched here.
 fn collection_head_element_classes<'a>(
     head_text: &str,
     registry: &CommandRegistry,

@@ -11406,8 +11406,8 @@ mod tests {
 
     /// The hidden set under each pinned release is exactly the measured
     /// tclsh set, narrowed to the commands this runtime carries — `make_safe`
-    /// holds no name list any more, only the registry's
-    /// `Traits::SAFE_INTERP_HIDDEN` query (ledger row B2).
+    /// reads that set from the registry's `Traits::SAFE_INTERP_HIDDEN` query
+    /// rather than a hand-kept name list.
     ///
     /// The narrowing *is* the per-release mechanism, not a fudge: `unload`
     /// (8.5+) and `zipfs` (9.0+) are release-gated commands, so "hide what
@@ -11467,8 +11467,8 @@ mod tests {
 
     /// The core packages a bare interpreter pre-provides follow the pinned
     /// release, so `package require Tcl 8.5` fails under a 9.x pin exactly as
-    /// `tclsh9.0` fails it — it used to succeed here, because both engines
-    /// hardcoded `9.0.4`/`Tcl`+`tcl` regardless of the pin (ledger row B4).
+    /// `tclsh9.0` fails it, rather than succeeding the way it would if both
+    /// engines hardcoded `9.0.4`/`Tcl`+`tcl` regardless of the pin.
     ///
     /// Measured (`package provide <name>` in a fresh `tclsh`):
     /// 8.4.20 → `Tcl` = `8.4`, no `tcl`; 8.5.19 → `Tcl` = `8.5.19`;

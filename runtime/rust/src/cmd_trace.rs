@@ -341,7 +341,7 @@ fn visible_options(interp: &Interp) -> Vec<&'static str> {
     // The emulated release's name is a dialect *name*: one resolution
     // through the ingress seam yields both the generation whose store the
     // spec is read from and the document authoring mask the option table
-    // is gated on (ledger row B1).
+    // is gated on.
     let profile =
         crate::environment::profile_for_dialect(interp.runtime_version().dialect_profile_name());
     let dialect = Some(crate::environment::surface_point(profile));

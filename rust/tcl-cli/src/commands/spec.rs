@@ -170,13 +170,13 @@ fn run_export(args: &crate::cli::SpecExportArgs) -> anyhow::Result<u8> {
 /// renderer emits no pack-level rows and degrades opaque fields to TODO
 /// comments, so rendering a loaded pack would delete parts of it. Edits are
 /// content-range replacements located by the loader's own lexer and applied
-/// back-to-front, so author layout, comments, and delimiters survive (U8).
+/// back-to-front, so author layout, comments, and delimiters survive.
 ///
-/// The version word moves only when the body rewrite completed on that file
-/// (U1). A row whose tokens name environment *membership* rather than
-/// availability needs the P1 environment registry, so it is left
+/// The version word moves only when the body rewrite completed on that
+/// file. A row whose tokens name environment *membership* rather than
+/// availability needs the environment registry, so it is left
 /// byte-identical, marked with a `# TODO(spectcl 2.0):` comment, and the file
-/// reports as partially upgraded (U3).
+/// reports as partially upgraded.
 pub fn run_upgrade(args: &SpecUpgradeArgs) -> anyhow::Result<u8> {
     let options = UpgradeOptions {
         from: args.from.clone(),

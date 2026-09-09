@@ -1327,12 +1327,12 @@ mod tests {
 
     #[test]
     fn close_quote_backslash_newline_keeps_command_position() {
-        // The reviewer's reproducer on PR #1481: the line between the `[` and
+        // The line between the `[` and
         // the `#` is a lone backslash. The continuation substitutes to a
         // space, so the `#` is still at command position and the `]` it
-        // comments out is inert. Clearing command position there closed the
-        // substitution on that `]`, and O129 then anchored on the `"` opening
-        // the inner `"b"` and rewrote over valid source.
+        // comments out is inert. Clearing command position there would close
+        // the substitution on that `]`, so O129 would anchor on the `"`
+        // opening the inner `"b"` and rewrite over valid source.
         let src = "\"x[string length abc]a[\n\\\n# ] comment\nset y \"b\"\n]c\"";
         assert_eq!(close_quote_offset(src, 0), Some(src.len() - 1));
     }
