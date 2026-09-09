@@ -71,8 +71,7 @@ use tcl_registry::CommandRegistry;
 use super::helpers::expr_simplify::{NumericCtx, operand_types, try_unwrap_expr_in_expr};
 use super::helpers::literals::{is_safe_word, is_static_var_word};
 use super::helpers::spans::{
-    full_quoted_string_span, full_rewrite_span, quoted_word_rewrite_span,
-    statement_delete_rewrite_range,
+    full_quoted_string_span, full_rewrite_span, line_delete_span, quoted_word_rewrite_span,
 };
 use super::{Optimisation, PassContext};
 
@@ -832,7 +831,7 @@ fn build_forward_edits(
     let delete = Optimisation::new(
         DiagCode::O127,
         "Remove inlined assignment",
-        statement_delete_rewrite_range(source, def_span, None),
+        line_delete_span(source, def_span),
         "",
     );
     Some((inline, delete))

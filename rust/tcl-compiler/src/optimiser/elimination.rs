@@ -52,7 +52,7 @@ use crate::ir::Statement;
 use crate::sccp::{SccpResult, cfg_order};
 use crate::side_effects::classify_side_effects;
 
-use super::helpers::spans::{full_rewrite_span, statement_delete_rewrite_range};
+use super::helpers::spans::full_rewrite_span;
 use super::{Optimisation, PassContext};
 
 /// True when `text` (a Tcl word body) contains a command substitution
@@ -453,11 +453,7 @@ fn emit_unreachable(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
             ctx.report(Optimisation::new(
                 DiagCode::O107,
                 "Eliminate unreachable dead code",
-                statement_delete_rewrite_range(
-                    ctx.source,
-                    full_rewrite_span(ctx.source, span),
-                    None,
-                ),
+                full_rewrite_span(ctx.source, span),
                 "",
             ));
         }
@@ -748,7 +744,7 @@ fn emit_dse_entries(
         ctx.report(Optimisation::new(
             e.code,
             e.msg,
-            statement_delete_rewrite_range(ctx.source, full_rewrite_span(ctx.source, e.span), None),
+            full_rewrite_span(ctx.source, e.span),
             "",
         ));
         removed.insert(e.key);
@@ -940,7 +936,7 @@ fn emit_adce_reports(
         ctx.report(Optimisation::new(
             DiagCode::O108,
             "Eliminate transitively dead code",
-            statement_delete_rewrite_range(ctx.source, full_rewrite_span(ctx.source, span), None),
+            full_rewrite_span(ctx.source, span),
             "",
         ));
     }

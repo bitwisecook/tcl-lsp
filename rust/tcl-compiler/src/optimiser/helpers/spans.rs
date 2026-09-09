@@ -30,19 +30,18 @@
 //! to target the full word / statement extent; otherwise the
 //! rewrite leaves orphan closing delimiters in the output.
 //!
-//! A statement span also stops *before* the `;` or newline that ends the
-//! statement, so a pass that removes one needs a second extension to keep
-//! the surviving text closed up.
-//!
-//! This module owns both — the *multi-word* / statement-level extensions
-//! every optimiser pass shares. It is the only place that arithmetic lives:
-//! a pass-local copy is what lets two callers drift apart on the traps the
-//! convention hides (an empty `{}` whose span already covers its closer, a
-//! word whose last inner byte is itself a closer).
+//! This module owns the *multi-word* / statement-level extension
+//! helpers used by the optimiser passes. Centralising them here keeps
+//! the fix consistent across `propagation`, `tail_call`,
+//! `structure_elimination`, etc.
 //!
 //! Widening a **single** word to its own closing delimiter is not owned
 //! here: that is [`tcl_lexer::word_span_at`] (the token-free sibling of
-//! `tcl_lexer::word_span`), which the passes call directly.
+//! `tcl_lexer::word_span`), which the passes call directly. This module
+//! used to carry a `full_word_span` byte-counter of its own — a second
+//! implementation under the same name as the analyser's correct
+//! delegate, and one that recognised only `[…]` and `${…}` (issue
+//! #1423).
 
 use tcl_lexer::Span;
 
@@ -111,34 +110,64 @@ pub fn full_rewrite_span(source: &str, span: Span) -> Span {
     Span::new(span.start(), u32::try_from(end).unwrap_or(span.end()))
 }
 
+/// Extend a statement's span over the whole source line it occupies — back to
+/// the start of its indentation, and forward over its trailing newline — so
+/// removing the statement removes its line rather than leaving a blank one.
+///
+/// Pair it with [`full_rewrite_span`] when the span came from an IR statement:
+/// this only reaches past the line's edges, and a last word that is quoted,
+/// braced, or bracketed leaves its closer inside the line but outside the
+/// span.
+///
+/// Distinct from [`statement_delete_rewrite_range`], which takes the separator
+/// between two statements and is bounded by where the next one starts. This
+/// one is for a caller that knows the statement owns its line and does not
+/// track a successor.
+#[must_use]
+pub fn line_delete_span(source: &str, span: Span) -> Span {
+    let bytes = source.as_bytes();
+    let mut start = span.start() as usize;
+    let mut end = span.end() as usize;
+    if start > bytes.len() || end > bytes.len() {
+        return span;
+    }
+    while start > 0 && matches!(bytes.get(start - 1), Some(b' ' | b'\t')) {
+        start -= 1;
+    }
+    if end < bytes.len() && bytes[end] == b'\n' {
+        end += 1;
+    } else if end + 1 < bytes.len() && bytes[end] == b'\r' && bytes[end + 1] == b'\n' {
+        end += 2;
+    }
+    Span::new(
+        u32::try_from(start).unwrap_or(span.start()),
+        u32::try_from(end).unwrap_or(span.end()),
+    )
+}
+
 /// Compute the deletion range for a statement being removed, swallowing
 /// the trailing run of whitespace plus one statement separator (`\n` /
 /// `;`) so the surviving text closes up cleanly.
 ///
 /// `cmd_span` is the full command span (exclusive end); `next_start` is
-/// the byte offset of the next statement, or `None` when the caller does not
-/// track one, in which case the scan simply stops at the first byte that is
-/// neither whitespace nor the one separator it may take.
-///
-/// The extension is forward-only. Reaching backwards over the statement's
-/// own indentation as well would make the deletions of two statements that
-/// share a line overlap, and overlapping rewrites are arbitrated against each
-/// other, so one of the pair would be dropped.
+/// the byte offset of the next statement, or `None` at end-of-script (in
+/// which case the command span is returned unchanged).
 #[must_use]
 pub fn statement_delete_rewrite_range(
     source: &str,
     cmd_span: Span,
     next_start: Option<usize>,
 ) -> Span {
+    let Some(next) = next_start else {
+        return cmd_span;
+    };
     let end = cmd_span.end() as usize;
-    let next = next_start.unwrap_or(source.len());
     if next <= end || next > source.len() {
         return cmd_span;
     }
     let bytes = source.as_bytes();
-    let blank = |b: u8| matches!(b, b' ' | b'\t' | b'\r');
     let mut cursor = end;
-    while cursor < next && blank(bytes[cursor]) {
+    while cursor < next && matches!(bytes[cursor], b' ' | b'\t' | b'\r') {
         cursor += 1;
     }
     // segmentation-drift-ok: this does not find a boundary — both ends are
@@ -146,7 +175,7 @@ pub fn statement_delete_rewrite_range(
     // only decides whether the delete may swallow the terminator between them.
     if cursor < next && matches!(bytes[cursor], b'\n' | b';') {
         cursor += 1;
-        while cursor < next && blank(bytes[cursor]) {
+        while cursor < next && matches!(bytes[cursor], b' ' | b'\t' | b'\r') {
             cursor += 1;
         }
         if cursor > end
@@ -221,60 +250,26 @@ pub fn quoted_word_rewrite_span(source: &str, argv_span: Span, inside: &str) -> 
 
 #[cfg(test)]
 mod tests {
-    // Deletion ranges without a tracked next statement.
-
     #[test]
-    fn delete_range_takes_a_same_line_semicolon() {
-        let source = "set a 1; puts $b";
-        let span = Span::new(0, 7);
-        assert_eq!(
-            statement_delete_rewrite_range(source, span, None),
-            Span::new(0, 9),
-            "the `;` and the space after it belong to the removed statement",
-        );
-    }
-
-    #[test]
-    fn delete_range_takes_a_newline_and_the_next_indent() {
+    fn line_delete_span_takes_the_indent_and_the_newline() {
         let source = "proc f {} {\n  set a 1\n  puts $b\n}";
-        let span = Span::new(14, 21);
         assert_eq!(&source[14..21], "set a 1");
         assert_eq!(
-            statement_delete_rewrite_range(source, span, None),
-            Span::new(14, 24),
-            "removing the line must not leave a blank indented one",
+            line_delete_span(source, Span::new(14, 21)),
+            Span::new(12, 22),
+            "the statement's own indentation and its newline go with it",
         );
     }
 
     #[test]
-    fn delete_range_stops_at_a_blank_line() {
-        // Only one separator is taken, so a deliberate blank line survives.
-        let source = "set a 1\n\nputs $b";
-        assert_eq!(
-            statement_delete_rewrite_range(source, Span::new(0, 7), None),
-            Span::new(0, 8),
-        );
-    }
-
-    #[test]
-    fn adjacent_delete_ranges_do_not_overlap() {
-        // Two removals on one line: the second starts where the first ends, so
-        // overlap arbitration never has to drop one of them.
-        let source = "set a 1; set b 2; puts $c";
-        let first = statement_delete_rewrite_range(source, Span::new(0, 7), None);
-        let second = statement_delete_rewrite_range(source, Span::new(9, 16), None);
-        assert_eq!(first, Span::new(0, 9));
-        assert_eq!(second, Span::new(9, 18));
-        assert!(first.end() <= second.start(), "{first:?} vs {second:?}");
-    }
-
-    #[test]
-    fn delete_range_at_end_of_script_is_unchanged() {
+    fn line_delete_span_at_end_of_script_keeps_the_span() {
         let source = "set a 1";
-        assert_eq!(
-            statement_delete_rewrite_range(source, Span::new(0, 7), None),
-            Span::new(0, 7),
-        );
+        assert_eq!(line_delete_span(source, Span::new(0, 7)), Span::new(0, 7));
+    }
+
+    #[test]
+    fn line_delete_span_out_of_bounds_is_unchanged() {
+        assert_eq!(line_delete_span("hi", Span::new(0, 9)), Span::new(0, 9));
     }
 
     use super::*;
