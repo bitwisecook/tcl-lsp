@@ -43,8 +43,8 @@ local `npm test`. In CI, three isolated `test-ext-partition` producers run the
 separate mandatory producer. Each producer uploads its file inventory,
 per-file duration, discovered identities, completed identities, and outcome
 counts. The stable `test-ext` aggregate fails unless the producers succeed and
-their metadata proves exact-once coverage of all 976 single-root identities
-(975 passed plus the one deliberately pending manual edit-storm test) and all
+their metadata proves exact-once coverage of all 977 single-root identities
+(976 passed plus the one deliberately pending manual edit-storm test) and all
 14 passing multi-folder identities. The checked-in assignment records its
 hosted timing evidence and is balanced by measured duration rather than file
 or test count.
