@@ -60,6 +60,7 @@ use tcl_core_types::DiagCode;
 
 use super::helpers::expr_simplify::expr_has_command_subst;
 use super::helpers::spans::{full_rewrite_span, statement_delete_rewrite_range};
+use super::helpers::var_refs::bareword_occurrences;
 use super::{Optimisation, PassContext};
 
 /// Run the code-sinking pass.
@@ -661,6 +662,33 @@ fn any_decision_body_uses_var(
     }
 }
 
+/// Whether a `Call` statement uses `var`.
+///
+/// A use spelled as a bare name — `info exists b`, `append b x`,
+/// `puts [set b]` — is invisible to the `$`-reference scan. `reads` and `defs`
+/// carry the registry's `ArgRole::VarRead` / `VarWrite` positions the lowerer
+/// resolved for this command; an argument holding a nested command
+/// substitution is not decomposed into statements, so the bareword scan covers
+/// its words instead.
+fn call_uses_var(stmt: &Statement, var: &str, braced_var: tcl_dialect::BracedVarStyle) -> bool {
+    let Statement::Call {
+        args,
+        reads,
+        defs,
+        reads_own_defs,
+        ..
+    } = stmt
+    else {
+        return false;
+    };
+    args.iter().any(|a| text_references_var(a, var, braced_var))
+        || reads.iter().any(|r| r == var)
+        || (*reads_own_defs && defs.iter().any(|d| d == var))
+        || args
+            .iter()
+            .any(|a| a.contains('[') && bareword_occurrences(a, var) > 0)
+}
+
 fn script_uses_var(
     script: &Script,
     var: &str,
@@ -708,18 +736,21 @@ fn statement_uses_var(
         Statement::AssignExpr { expr, .. } | Statement::ExprEval { expr, .. } => {
             expr_references_var(expr, var)
         }
-        Statement::Incr { amount, .. } => amount
-            .as_deref()
-            .is_some_and(|a| text_references_var(a, var, braced_var)),
+        // `incr b` reads `b` before writing it, so the name word is a use in
+        // its own right, not only the `$`-references in the amount.
+        Statement::Incr { name, amount, .. } => {
+            name == var
+                || amount
+                    .as_deref()
+                    .is_some_and(|a| text_references_var(a, var, braced_var))
+        }
         Statement::Return { value, expr, .. } => {
             value
                 .as_deref()
                 .is_some_and(|v| text_references_var(v, var, braced_var))
                 || expr.as_ref().is_some_and(|e| expr_references_var(e, var))
         }
-        Statement::Call { args, .. } => {
-            args.iter().any(|a| text_references_var(a, var, braced_var))
-        }
+        Statement::Call { .. } => call_uses_var(stmt, var, braced_var),
         Statement::If {
             clauses, else_body, ..
         } => {

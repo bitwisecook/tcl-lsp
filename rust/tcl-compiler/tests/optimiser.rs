@@ -1565,6 +1565,17 @@ fn code_sinking_o125_negatives() {
         "set b $x\nif {$b} {\n    puts hello\n}", // var in condition
         "set b foo\nif {$a} {\n    puts $b\n}\nputs $b", // used after ($-form)
         "set b [clock seconds]\nif {$a} {\n    puts $b\n}", // cmd-sub RHS
+        // Used after by *name* rather than by substitution. `set b foo` must
+        // stay put: on the false path the sunk form leaves `b` undefined, so
+        // the later read errors where the original printed nothing. The
+        // registry's VarRead / VarWrite positions answer for a command the
+        // lowerer resolved, and the bareword scan covers a name inside a
+        // nested command substitution.
+        "set b foo\nif {$a} {\n    puts $b\n}\ninfo exists b", // VarRead position
+        "set b foo\nif {$a} {\n    puts $b\n}\nappend b tail", // read-before-write
+        "set b foo\nif {$a} {\n    puts $b\n}\nincr b",        // read-modify-write
+        "set b foo\nif {$a} {\n    puts $b\n}\nputs [set b]",  // nested substitution
+        "set b foo\nif {$a} {\n    puts $b\n}\nif {$c} {\n    puts [set b]\n}", // nested, in a body
     ];
     for src in neg {
         assert!(!opt_fires(src, TCL, "O125"), "O125 must not fire: {src}");
@@ -1574,7 +1585,6 @@ fn code_sinking_o125_negatives() {
     // PREPENDS `set b foo` into the branch while KEEPING the outer assignment,
     // so a tclsh run is unaffected) — omitted:
     //  - var not used in the branch at all (`puts hello`).
-    //  - var used after via a bare name (`incr b`) / set-read-form (`set b`).
     //  - numeric constant `set b 42` (handled by O100/O109, not O125).
     //  - cross-event shared var (excluded from sinking).
     //  - `if {0}` block (O112 drops the block AND all O125 parts).

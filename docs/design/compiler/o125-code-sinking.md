@@ -321,7 +321,15 @@ at `i + 1` is a decision, and requires all of:
 6. **At least one branch body uses the variable**
    (`any_decision_body_uses_var`).
 7. **No later use** — no statement after the decision in the same script
-   reads the variable (`statement_uses_var`).
+   reads the variable (`statement_uses_var`). A read spelled as a bare name
+   counts: `Statement::Call` carries the `reads` and `defs` the lowerer
+   resolved from the registry's `ArgRole::VarRead` / `VarWrite` positions, so
+   `info exists b` and the read-before-write of `append b x` are uses, as is
+   the name word of an `incr`. An argument holding a nested command
+   substitution is not decomposed into statements, so `bareword_occurrences`
+   (`optimiser/helpers/var_refs.rs`) covers its words and makes `puts [set b]`
+   a use as well. Sinking past any of these would leave the variable undefined
+   on the branch the decision does not take.
 8. **The value's read-set survives the move**
    (`sink_rhs_clobbered_by_decision`) — no branch body at any nesting
    redefines a variable the RHS reads, and no `if` condition contains a
