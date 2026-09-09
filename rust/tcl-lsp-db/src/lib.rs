@@ -225,6 +225,7 @@ use tcl_lsp_core::document_symbols::DocumentSymbol;
 use tcl_lsp_core::folding::FoldingRange;
 use tcl_lsp_core::semantic_tokens::{SemanticTokens, VarNameArgRoles};
 use tcl_registry::CommandRegistry;
+use tcl_registry::model::DeclaredSurface;
 
 /// Database trait exposing the durable (non-salsa) command registry to
 /// tracked queries.
@@ -2462,16 +2463,11 @@ pub fn proc_taint_solve<'db>(
     let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
     let registry = db.registry(&dialect);
     let external = file.external_call_sites(db).clone();
+    let declared = declared_command_surface(db, file);
     let (cu, lattice_keys) = build_unit_with_keys(
         db,
         file.text(db),
-        UnitBuildOptions {
-            registry,
-            defer_top_level: false,
-            config: cfg.to_config(db),
-            dialect: tcl_lsp_core::optional_profile_for_dialect(&dialect),
-            external_call_sites: external.as_deref(),
-        },
+        unit_build_options(db, file, cfg, registry, external.as_deref(), &declared),
     );
     let interproc = cu.interproc.as_ref();
 
@@ -2914,8 +2910,10 @@ pub fn function_optimisations<'db>(
         interproc: Some(ia),
         connection_scope: None,
         // A synthetic single-procedure unit: no source text of its own to
-        // scan for boundaries, and no cross-file view to inherit.
+        // scan for boundaries, no cross-file view to inherit, and no
+        // document of its own to carry stub declarations.
         caller_scope: tcl_compiler::compilation_unit::UnitCallerScope::default(),
+        declared_commands: tcl_registry::model::DeclaredSurface::new(),
     };
     Arc::new(tcl_compiler::optimiser::optimise_unit_raw(
         &cu,
@@ -3113,6 +3111,7 @@ fn top_level_only_unit(
         interproc: cu.interproc.clone(),
         connection_scope: None,
         caller_scope: cu.caller_scope.clone(),
+        declared_commands: cu.declared_commands.clone(),
     }
 }
 
@@ -3172,6 +3171,48 @@ fn lexer_cfg_key<'db>(db: &'db dyn TclDb, dialect: &str) -> LexerCfgKey<'db> {
     )
 }
 
+/// The [`UnitBuildOptions`] every [`CompilationUnit`] built for `file` under
+/// `cfg` shares — one place so the taint solve and the shared unit cannot
+/// drift on the dialect, the cross-file view, or the document's own
+/// declarations.
+fn unit_build_options<'a>(
+    db: &dyn TclDb,
+    file: SourceFile,
+    cfg: LexerCfgKey<'_>,
+    registry: &'a CommandRegistry,
+    external: Option<&'a CallSiteEvidence>,
+    declared: &'a DeclaredSurface,
+) -> UnitBuildOptions<'a> {
+    UnitBuildOptions {
+        registry,
+        defer_top_level: false,
+        config: cfg.to_config(db),
+        dialect: tcl_lsp_core::optional_profile_for_dialect(file.dialect(db)),
+        external_call_sites: external,
+        declared_commands: Some(declared),
+    }
+}
+
+/// The document's own command declarations — its inline `# tcl-lsp: stub`
+/// block and the nearest `<dialect>.tcl.stubs` sidecar, ingested through the
+/// analyser's one stub-ingestion path
+/// ([`tcl_compiler::analyser::utils::document_declared_surface`]).
+///
+/// Every unit built for this file declares the same thing, so a stubbed
+/// command's `body` / `var` argument roles reach lowering and the
+/// interprocedural scan exactly as a shipped `CommandSpec`'s do. Cache
+/// invalidation rides the ordinary inputs — the document's text and path for
+/// an inline block, [`SourceFile::sidecar_stubs_epoch`] for a sidecar.
+#[salsa::tracked(returns(clone))]
+pub fn declared_command_surface(db: &dyn TclDb, file: SourceFile) -> Arc<DeclaredSurface> {
+    let _sidecar_stubs_epoch = file.sidecar_stubs_epoch(db);
+    Arc::new(tcl_compiler::analyser::utils::document_declared_surface(
+        file.text(db),
+        file.path(db).as_deref(),
+        file.dialect(db),
+    ))
+}
+
 /// The shared, memoised [`CompilationUnit`] for a document under a given lexer
 /// config — built via `memoised_compilation_unit` (per-procedure lattices on
 /// the salsa-native [`function_lattice`] graph).  Tracked + keyed on
@@ -3192,16 +3233,11 @@ pub fn compilation_unit<'db>(
     let dialect = file.dialect(db).clone();
     let registry = db.registry(&dialect);
     let external = file.external_call_sites(db).clone();
+    let declared = declared_command_surface(db, file);
     Arc::new(memoised_compilation_unit(
         db,
         file.text(db),
-        UnitBuildOptions {
-            registry,
-            defer_top_level: false,
-            config: cfg.to_config(db),
-            dialect: tcl_lsp_core::optional_profile_for_dialect(&dialect),
-            external_call_sites: external.as_deref(),
-        },
+        unit_build_options(db, file, cfg, registry, external.as_deref(), &declared),
     ))
 }
 
@@ -3382,6 +3418,9 @@ pub fn compiler_check_diagnostics_uncached(
     external_call_sites: Option<&CallSiteEvidence>,
 ) -> CompilerDiagnostics {
     let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(dialect);
+    // No `SourceFile` here means no path, so only the document's own inline
+    // block is reachable; a sidecar-declared role can only widen the answer.
+    let declared = tcl_compiler::analyser::utils::document_declared_surface(text, None, dialect);
     let cu = CompilationUnit::build_with_options(
         text,
         UnitBuildOptions {
@@ -3392,6 +3431,7 @@ pub fn compiler_check_diagnostics_uncached(
             ),
             dialect: tcl_lsp_core::optional_profile_for_dialect(dialect),
             external_call_sites,
+            declared_commands: Some(&declared),
         },
     )
     .with_interprocedural(registry, dialect_opt);

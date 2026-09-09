@@ -3971,6 +3971,36 @@ fn shimmer_noqa_suppresses_s100() {
 }
 
 #[test]
+fn analyser_noqa_suppresses_an_analyser_code() {
+    // The analyser families (`E` / `W` / …) obey the same `# noqa` contract the
+    // shimmer and optimiser families do: the analyser records `suppressed_lines`
+    // without filtering by it, so `lift_analyser_diagnostics` applies it at
+    // publish time.
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "# noqa: W210\nputs $alpha\nputs $beta\n");
+    assert!(
+        diags.iter().all(|d| !message(d).contains("alpha")),
+        "'# noqa: W210' must silence the W210 on the line it precedes: {diags:?}"
+    );
+    assert!(
+        diags.iter().any(|d| message(d).contains("beta")),
+        "the unmarked read must still be reported: {diags:?}"
+    );
+}
+
+#[test]
+fn analyser_noqa_for_an_unrelated_code_does_not_suppress_w210() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let diags = lsp.open_ready(&uri, "# noqa: S100\nputs $alpha\n");
+    assert!(
+        has_code(&diags, "W210"),
+        "a noqa naming another code must leave W210 alone: {diags:?}"
+    );
+}
+
+#[test]
 fn shimmer_noqa_for_unrelated_code_does_not_suppress_s100() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");

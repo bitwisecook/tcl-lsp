@@ -158,7 +158,10 @@ Use braces: {{ \u{2026} }}"
             return;
         };
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let mut indices = registry.arg_indices_for_role(
+        // The document's surface, not the bare catalogue: a declared
+        // `cond:expr` word is an expression operand, so an unbraced one
+        // draws W100 exactly as a registry command's does.
+        let mut indices = self.command_surface(registry).arg_indices_for_role(
             cmd_name,
             &arg_strs,
             tcl_registry::arg_role::ArgRole::Expr,

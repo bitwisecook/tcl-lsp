@@ -810,6 +810,7 @@ pub fn optimise_raw_for_profile(
         dialect,
         crate::interprocedural::ObjectTypeMap(&object_types),
         &identities,
+        Some(&cu.declared_commands),
         &cu.cfg_module,
     );
     cu.interproc = Some(ia);

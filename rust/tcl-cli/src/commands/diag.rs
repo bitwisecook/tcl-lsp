@@ -28,7 +28,7 @@ use serde::Serialize;
 use tcl_cli_support::{
     InputDocument, OutputTarget, read_input_documents, registry_for_dialect, write_text_output,
 };
-use tcl_compiler::analyser::{Analyser, Severity};
+use tcl_compiler::analyser::{Analyser, Severity, line_suppressed};
 use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
 use tcl_compiler::compiler_checks::run_all_checks;
 use tcl_compiler::unit_scope::CallSiteEvidence;
@@ -125,6 +125,16 @@ fn format_line(
 ) -> String {
     let code = if code.is_empty() { "-" } else { code };
     format!("{file}:{line}:{column}: {severity:<7} {code:<8} {message}")
+}
+
+/// The `suppressed_lines` key for a 0-based source line.
+///
+/// The analyser keys that map with `i32` (line `-1` is the file-wide
+/// directive), so a `u32` line has to be narrowed. Saturating rather than
+/// panicking: a line number that far out cannot be a key in the map, so it
+/// simply never matches.
+fn line_of(line: u32) -> i32 {
+    i32::try_from(line).unwrap_or(i32::MAX)
 }
 
 /// One collected diagnostic, pre-resolved to a 1-based line / column.
@@ -250,6 +260,16 @@ fn collect_rows(
     // Falling back to `LexerConfig::default()` on all four hosts would make
     // them agree, but wrongly, for every non-9.x dialect.
     let registry = registry_for_dialect(dialect.name);
+    let file_path = document.path.as_deref().map(|p| p.display().to_string());
+    // The document's own stub declarations, ingested exactly as the analyser
+    // does — the unit supplied through the `cu_override` seam must declare
+    // what the analyser's own unit would, or a stubbed command's argument
+    // roles would reach one of the two and not the other.
+    let declared = tcl_compiler::analyser::utils::document_declared_surface(
+        source,
+        file_path.as_deref(),
+        dialect.name,
+    );
     let analysis_cu = std::sync::Arc::new(CompilationUnit::build_with_options(
         source,
         UnitBuildOptions {
@@ -258,10 +278,10 @@ fn collect_rows(
             config: tcl_lexer::LexerConfig::for_profile(Some(dialect)),
             dialect: Some(dialect),
             external_call_sites,
+            declared_commands: Some(&declared),
         },
     ));
 
-    let file_path = document.path.as_deref().map(|p| p.display().to_string());
     let mut analyser = Analyser::new()
         .with_file_path(file_path)
         .with_pack_overlay(tcl_cli_support::spec_pack_key(dialect.name));
@@ -282,6 +302,13 @@ fn collect_rows(
             continue;
         }
         let pos = line_index.position_at_utf16(d.span.start(), source);
+        // Inline `# noqa` / top-of-file `# tcl-lsp: disable=…` suppression: the
+        // analyser records `suppressed_lines` without filtering by it, so the
+        // surface rendering a finding applies the contract. `pos.line` is the
+        // 0-based line the map is keyed by (`Row` adds the 1 for display).
+        if line_suppressed(d.code.as_str(), line_of(pos.line), &result.suppressed_lines) {
+            continue;
+        }
         rows.push(Row {
             line: pos.line + 1,
             column: pos.character.get() + 1,
@@ -305,6 +332,11 @@ fn collect_rows(
             continue;
         }
         let pos = line_index.position_at_utf16(d.span.start(), source);
+        // Same suppression the server's `lift_compiler_diagnostics` applies to
+        // this family.
+        if line_suppressed(d.code.as_str(), line_of(pos.line), &result.suppressed_lines) {
+            continue;
+        }
         rows.push(Row {
             line: pos.line + 1,
             column: pos.character.get() + 1,

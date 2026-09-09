@@ -507,6 +507,15 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
     // checks pass below uses (redesign §11.4 row E1: all four hosts used to
     // agree on `LexerConfig::default()`, which was wrong for every non-9.x
     // dialect).
+    //
+    // The document's own stub declarations, ingested exactly as the analyser
+    // does, so both units below declare what the analyser's own unit would.
+    let doc_path = doc.input.path.as_ref().map(|p| p.display().to_string());
+    let declared = tcl_compiler::analyser::utils::document_declared_surface(
+        &doc.input.source,
+        doc_path.as_deref(),
+        dialect,
+    );
     let analysis_cu = Arc::new(CompilationUnit::build_with_options(
         &doc.input.source,
         UnitBuildOptions {
@@ -517,10 +526,10 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
             ),
             dialect: tcl_lsp_core::optional_profile_for_dialect(dialect),
             external_call_sites: None,
+            declared_commands: Some(&declared),
         },
     ));
-    let mut analyser =
-        Analyser::new().with_file_path(doc.input.path.as_ref().map(|p| p.display().to_string()));
+    let mut analyser = Analyser::new().with_file_path(doc_path.clone());
     analyser.set_cu_override(Arc::clone(&analysis_cu));
     let result = analyser.analyse(&doc.input.source, dialect);
     for d in &result.diagnostics {
@@ -539,6 +548,7 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
             ),
             dialect: tcl_lsp_core::optional_profile_for_dialect(dialect),
             external_call_sites: None,
+            declared_commands: Some(&declared),
         },
     )
     .with_interprocedural(registry, dialect_opt);

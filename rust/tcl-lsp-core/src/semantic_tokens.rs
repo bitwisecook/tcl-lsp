@@ -708,8 +708,12 @@ fn add_stub_var_roles(
             (tcl_registry::ArgRole::VarRead, &mut *out_read),
             (tcl_registry::ArgRole::CommandPrefix, &mut *out_command),
         ] {
+            // The highlight index is a name-keyed table of *declaration*
+            // positions, applied at a call site by position, so it asks for
+            // the layout with every optional slot present.
             let indices: Vec<u32> = command
-                .arg_indices_for_role(role)
+                .arg_indices_for_role(role, command.arguments.len())
+                .into_iter()
                 .filter_map(|index| u32::try_from(index).ok())
                 .collect();
             if !indices.is_empty() {

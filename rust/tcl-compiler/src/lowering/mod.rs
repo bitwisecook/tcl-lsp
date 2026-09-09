@@ -868,6 +868,12 @@ pub struct Lowerer<'r> {
     in_namespace_eval: bool,
     /// Command registry for arg-role queries.
     registry: &'r CommandRegistry,
+    /// The document's own command declarations (`# tcl-lsp: stub` blocks and
+    /// `<dialect>.tcl.stubs` sidecars), unioned with the catalogue's answer
+    /// through [`Self::command_surface`]. `None` for a document that
+    /// declares nothing, and for every non-document caller (tests, the
+    /// bytecode path).
+    declared_commands: Option<&'r tcl_registry::model::DeclaredSurface>,
     /// Per-script const-map stack. Each scope tracks
     /// proc-local variables assigned a brace-string literal so
     /// later `eval $var` / `uplevel 1 $var` calls can fold the
@@ -1056,6 +1062,7 @@ impl<'r> Lowerer<'r> {
             body_unit_count: 0,
             in_namespace_eval: false,
             registry,
+            declared_commands: None,
             const_map_stack: Vec::new(),
             command_binding_site_stack: Vec::new(),
             proc_depth: 0,
@@ -1072,6 +1079,27 @@ impl<'r> Lowerer<'r> {
             source: String::new(),
             word_space: WordSpace::new("", 0),
         }
+    }
+
+    /// Install the document's own command declarations (see
+    /// [`declared_commands`](Self::declared_commands)).
+    ///
+    /// A stub declares the same kind of fact a `CommandSpec` states, so it
+    /// reaches lowering through the same argument-role query the catalogue
+    /// does — [`Self::command_surface`] — rather than a parallel table.
+    #[must_use]
+    pub fn with_declared_commands(
+        mut self,
+        declared: Option<&'r tcl_registry::model::DeclaredSurface>,
+    ) -> Self {
+        self.declared_commands = declared;
+        self
+    }
+
+    /// The command surface this document lowers against: the catalogue plus
+    /// the document's own declarations.
+    pub(crate) fn command_surface(&self) -> tcl_registry::model::DocumentCommandSurface<'_> {
+        tcl_registry::model::DocumentCommandSurface::new(self.registry, self.declared_commands)
     }
 
     /// Set the document's analysis dialect (see [`Lowerer::dialect`]).
@@ -3154,11 +3182,16 @@ impl<'r> Lowerer<'r> {
         }
 
         let role_args_ref: Vec<&str> = role_args.iter().map(String::as_str).collect();
+        // The document's surface, not the bare catalogue: a `# tcl-lsp: stub`
+        // declaring `{sql script:body}` or `{table row:var}` states the same
+        // fact a `CommandSpec`'s `arg_roles` row does, so it reaches the
+        // generic call's executable words and variable definitions through
+        // the same query.
+        let surface = self.command_surface();
         let mut executable_indices =
-            self.registry
-                .arg_indices_for_role(&role_cmd, &role_args_ref, ArgRole::Body);
+            surface.arg_indices_for_role(&role_cmd, &role_args_ref, ArgRole::Body);
         for role in [ArgRole::LambdaLiteral, ArgRole::CommandPrefix] {
-            executable_indices.extend(self.registry.arg_indices_for_role(
+            executable_indices.extend(surface.arg_indices_for_role(
                 &role_cmd,
                 &role_args_ref,
                 role,
@@ -3176,12 +3209,10 @@ impl<'r> Lowerer<'r> {
             // manufacture generic Call defs for this layout.
             Vec::new()
         } else {
-            self.registry
-                .arg_indices_for_role(&role_cmd, &role_args_ref, ArgRole::VarWrite)
+            surface.arg_indices_for_role(&role_cmd, &role_args_ref, ArgRole::VarWrite)
         };
         let var_read_indices =
-            self.registry
-                .arg_indices_for_role(&role_cmd, &role_args_ref, ArgRole::VarRead);
+            surface.arg_indices_for_role(&role_cmd, &role_args_ref, ArgRole::VarRead);
         // Read-modify-write commands (`lset` / `lpop` / `ledit` — like
         // `incr` / `append` / `lappend`, which are hook-lowered) read the
         // current value of their target before rewriting it, so the prior
@@ -4403,6 +4434,18 @@ pub fn lower_to_ir_with_dialect(
         Lowerer::with_config(registry, config).with_dialect(dialect),
         source,
     )
+}
+
+/// Lower `source` with an already-configured [`Lowerer`].
+///
+/// The seam a host uses when it has more to install than the fixed-argument
+/// entry points above accept — the document's own
+/// [`with_declared_commands`](Lowerer::with_declared_commands) surface, above
+/// all. Every other `lower_to_ir_*` function is this one with a `Lowerer`
+/// built for it.
+#[must_use]
+pub fn lower_to_ir_with(lowerer: Lowerer<'_>, source: &str) -> Module {
+    lower_with(lowerer, source)
 }
 
 /// Like [`lower_to_ir`] but for the bytecode/VM compile path: constructs the

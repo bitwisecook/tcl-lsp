@@ -509,6 +509,7 @@ mod tests {
             interproc: None,
             connection_scope: None,
             caller_scope: crate::compilation_unit::UnitCallerScope::default(),
+            declared_commands: tcl_registry::model::DeclaredSurface::new(),
         }
     }
 

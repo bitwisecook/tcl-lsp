@@ -615,6 +615,7 @@ pub fn build_interprocedural_analysis(
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     object_types: ObjectTypeMap<'_>,
     identities: &crate::realm::CommandBindingRealm,
+    declared: Option<&tcl_registry::model::DeclaredSurface>,
 ) -> InterproceduralAnalysis {
     build_interprocedural_analysis_inner(
         ir_module,
@@ -622,6 +623,7 @@ pub fn build_interprocedural_analysis(
         dialect,
         object_types,
         identities,
+        declared,
         None,
     )
 }
@@ -636,6 +638,7 @@ pub(crate) fn build_interprocedural_analysis_with_cfg(
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     object_types: ObjectTypeMap<'_>,
     identities: &crate::realm::CommandBindingRealm,
+    declared: Option<&tcl_registry::model::DeclaredSurface>,
     cfg_module: &crate::cfg::CfgModule,
 ) -> InterproceduralAnalysis {
     build_interprocedural_analysis_inner(
@@ -644,6 +647,7 @@ pub(crate) fn build_interprocedural_analysis_with_cfg(
         dialect,
         object_types,
         identities,
+        declared,
         Some(cfg_module),
     )
 }
@@ -654,6 +658,7 @@ fn build_interprocedural_analysis_inner(
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     object_types: ObjectTypeMap<'_>,
     identities: &crate::realm::CommandBindingRealm,
+    declared: Option<&tcl_registry::model::DeclaredSurface>,
     cfg_module: Option<&crate::cfg::CfgModule>,
 ) -> InterproceduralAnalysis {
     let object_types = object_types.0;
@@ -666,6 +671,7 @@ fn build_interprocedural_analysis_inner(
         dialect,
         object_types,
         identities,
+        declared,
     );
     let transitive_calls = compute_all_transitive_calls(&known, &local);
     let pure = fixpoint_pure(&local);
@@ -691,6 +697,7 @@ fn build_interprocedural_analysis_inner(
         registry,
         dialect,
         identities,
+        declared,
         ProcFixpoints {
             pure: &pure,
             effect_reads: &effect_reads,
@@ -1059,6 +1066,7 @@ fn build_method_summaries(
     registry: &tcl_registry::CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     identities: &crate::realm::CommandBindingRealm,
+    declared: Option<&tcl_registry::model::DeclaredSurface>,
     procs: ProcFixpoints<'_>,
 ) -> HashMap<String, MethodSummary> {
     let ProcFixpoints {
@@ -1101,6 +1109,7 @@ fn build_method_summaries(
                     registry,
                     dialect,
                     identities,
+                    declared,
                 },
                 &mut facts,
                 &mut written_ivars,
@@ -1199,6 +1208,8 @@ struct MethodScan<'a> {
     registry: &'a tcl_registry::CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     identities: &'a crate::realm::CommandBindingRealm,
+    /// The document's own command declarations — see [`ProcScan::declared`].
+    declared: Option<&'a tcl_registry::model::DeclaredSurface>,
 }
 
 fn scan_method_body_facts(
@@ -1213,6 +1224,7 @@ fn scan_method_body_facts(
         registry,
         dialect,
         identities,
+        declared,
     } = scan;
     let params: HashSet<String> = body_def.params.iter().cloned().collect();
     if matches!(
@@ -1239,6 +1251,7 @@ fn scan_method_body_facts(
         // Method bodies are not call-graph nodes; no object-type map needed.
         object_types: ObjectTypeMap::none().0,
         identities,
+        declared,
     };
     scan_script(&body_def.body, ctx, facts, 0);
     // Fall-through exit is non-constant (O103); see `scan_proc`.
@@ -1405,6 +1418,7 @@ fn scan_all_procs(
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     object_types: &HashMap<String, HashSet<String>>,
     identities: &crate::realm::CommandBindingRealm,
+    declared: Option<&tcl_registry::model::DeclaredSurface>,
 ) -> HashMap<String, LocalFacts> {
     let mut local: HashMap<String, LocalFacts> = HashMap::with_capacity(known.len());
     for (qname, proc) in &ir_module.procedures {
@@ -1418,6 +1432,7 @@ fn scan_all_procs(
                 dialect,
                 object_types,
                 identities,
+                declared,
             }),
         );
     }
@@ -1435,6 +1450,9 @@ struct ProcScan<'a> {
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     object_types: &'a HashMap<String, HashSet<String>>,
     identities: &'a crate::realm::CommandBindingRealm,
+    /// The document's own command declarations (`# tcl-lsp: stub`), unioned
+    /// with the catalogue through [`ScanCtx::surface`].
+    declared: Option<&'a tcl_registry::model::DeclaredSurface>,
 }
 
 fn compute_all_transitive_calls(
@@ -1669,6 +1687,7 @@ fn scan_proc(scan: ProcScan<'_>) -> LocalFacts {
         dialect,
         object_types,
         identities,
+        declared,
     } = scan;
     let mut facts = LocalFacts {
         local_pure: true,
@@ -1683,6 +1702,7 @@ fn scan_proc(scan: ProcScan<'_>) -> LocalFacts {
         params: &params,
         object_types,
         identities,
+        declared,
     };
     scan_script(&proc.body, ctx, &mut facts, 0);
     // If the body can fall off the end, its implicit exit returns the
@@ -1721,6 +1741,21 @@ struct ScanCtx<'a> {
     /// re-segments body text at offset 0, so no document-absolute offset
     /// exists at the point of the query.  Empty for an IR-only caller.
     identities: &'a crate::realm::CommandBindingRealm,
+    /// The document's own command declarations (`# tcl-lsp: stub` blocks and
+    /// `<dialect>.tcl.stubs` sidecars). A stub states the same kind of fact a
+    /// `CommandSpec` does, so its argument roles reach this scan through the
+    /// same query the catalogue's do — [`ScanCtx::surface`] — rather than a
+    /// second table beside `registry`. `None` for a caller with no document
+    /// (the optimiser's own unit tests).
+    declared: Option<&'a tcl_registry::model::DeclaredSurface>,
+}
+
+impl<'a> ScanCtx<'a> {
+    /// The command surface this scan resolves argument roles against: the
+    /// catalogue generation plus the document's own declarations.
+    fn surface(&self) -> tcl_registry::model::DocumentCommandSurface<'a> {
+        tcl_registry::model::DocumentCommandSurface::new(self.registry, self.declared)
+    }
 }
 
 /// `depth` is the nesting level of `script` — see
@@ -2021,6 +2056,92 @@ fn scan_call_statement(
         }
     }
     scan_call_facts(command, args, ctx, facts);
+    scan_role_code_arguments(command, args, ctx, facts);
+}
+
+/// Recurse into the code-bearing arguments of a statement that carries them
+/// as opaque words, recording the calls they make as edges of the enclosing
+/// unit.
+///
+/// A command whose script or expression argument has no dedicated lowering —
+/// `time {…}`, and every declared `script:body` / `cond:expr` — reaches the
+/// IR as a plain `Statement::Call` or `Statement::Barrier` holding its own
+/// words. A barrier makes the call's *effects* opaque; neither shape makes
+/// the code unreadable, and the procedures that code calls are exactly as
+/// reachable as those in an `eval` body, which lowering splices inline and
+/// this scan already walks. A callback proc reached only this way is live
+/// code, not a call-graph leaf.
+///
+/// [`ArgRole::Body`] words are scanned as scripts and [`ArgRole::Expr`] words
+/// for the `[cmd …]` substitutions the expression engine re-evaluates, which
+/// is what [`scan_source_for_calls`] does for the same two roles.
+/// [`ArgRole::LambdaLiteral`] stays with that scanner alone: splitting a
+/// `{params body ?ns?}` list needs the word's token, and a statement carries
+/// only its text.
+///
+/// Code that does not run in the caller's frame *and* namespace is left
+/// alone. Lowering registers those as their own body units, which the
+/// call-site scan visits under the namespace they actually target; walking
+/// one here would instead invent an edge to a same-named proc in the
+/// caller's namespace (the rule issues #977 / #980 set for the call-site
+/// evidence scan).
+///
+/// Each word starts a fresh [`MAX_BRACKET_TEXT_DEPTH`] scan (depth 0), like
+/// the `[cmd …]` substitution scans beside it: that counter bounds recursion
+/// *within* re-segmented text, and is not the statement-tree depth the caller
+/// is carrying.
+fn scan_role_code_arguments(
+    command: &str,
+    args: &[String],
+    ctx: ScanCtx<'_>,
+    facts: &mut LocalFacts,
+) {
+    use tcl_registry::prelude::Traits;
+    let surface = ctx.surface();
+    let resolved: &str = ctx.identities.resolve_unpositioned(command).spec_name();
+    let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let traits = ctx.registry.invocation_traits(resolved, &arg_strs, None);
+    if traits.intersects(
+        tcl_registry::traits::FRAME_REACH_TRAITS
+            .union(Traits::DEFINES_PROCEDURE)
+            .union(Traits::DECLARES_NAMESPACE),
+    ) {
+        return;
+    }
+    // An absolutely-spelled name / namespace word says the same thing the
+    // traits above do for the commands that carry neither: the code resolves
+    // somewhere other than here.
+    if [
+        tcl_registry::ArgRole::NamespaceName,
+        tcl_registry::ArgRole::Name,
+    ]
+    .into_iter()
+    .flat_map(|role| surface.arg_indices_for_role(resolved, &arg_strs, role))
+    .filter_map(|index| args.get(index))
+    .any(|name| name.starts_with("::"))
+    {
+        return;
+    }
+    for index in surface.arg_indices_for_role(resolved, &arg_strs, tcl_registry::ArgRole::Body) {
+        if let Some(body_text) = args.get(index) {
+            scan_source_for_calls(body_text, ctx, facts, 0);
+        }
+    }
+    for index in surface.arg_indices_for_role(resolved, &arg_strs, tcl_registry::ArgRole::Expr) {
+        if let Some(expr_text) = args.get(index) {
+            scan_value_substitutions(strip_one_brace_layer(expr_text), ctx, facts, 0);
+        }
+    }
+}
+
+/// An expression operand's inner text: `expr {…}`'s brace quoting suppresses
+/// substitution at the word level, but the expression engine re-evaluates the
+/// contents, so a `[cmd …]` inside is a real call. An unbraced operand
+/// (`[q]`, `$x`) is already its own inner text.
+fn strip_one_brace_layer(word: &str) -> &str {
+    word.strip_prefix('{')
+        .and_then(|inner| inner.strip_suffix('}'))
+        .unwrap_or(word)
 }
 
 /// `depth` is `stmt`'s own nesting level — see
@@ -2042,8 +2163,10 @@ fn scan_statement(
             // registry-declared identities.  In particular, same-invocation
             // command prefixes such as `lsort -command cb` still make `cb`
             // reachable, while deferred registrations that conservatively
-            // lower to a barrier retain their callback edge too.
+            // lower to a barrier retain their callback edge too — and neither
+            // does it erase the script its `ArgRole::Body` words carry.
             scan_call_facts(command, args, ctx, facts);
+            scan_role_code_arguments(command, args, ctx, facts);
             facts.has_barrier = true;
             facts.local_pure = false;
             facts.effect_reads |= EffectRegion::UNKNOWN_STATE;
@@ -2390,11 +2513,11 @@ fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts,
         return;
     }
     let ScanCtx {
-        registry,
         dialect,
         identities,
         ..
     } = ctx;
+    let surface = ctx.surface();
     // Scan the call graph under the
     // document dialect so `{*}` (8.4 / iRules) and `}{` (iRules) tokenise
     // the same way the rest of the analyser/lowering now does.
@@ -2421,7 +2544,7 @@ fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts,
         // BODY).  The registry resolves the role using the same
         // logic as the top-level scanner.
         let arg_strs: Vec<&str> = texts.iter().map(String::as_str).collect();
-        let body_indices = registry.arg_indices_for_role(
+        let body_indices = surface.arg_indices_for_role(
             resolved,
             &arg_strs,
             tcl_registry::arg_role::ArgRole::Body,
@@ -2437,7 +2560,7 @@ fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts,
         // plain `Body` arg) would misread the parameter word as a call-graph
         // edge to a non-existent proc and never reach the real body's own
         // calls at all.
-        let lambda_indices = registry.arg_indices_for_role(
+        let lambda_indices = surface.arg_indices_for_role(
             resolved,
             &arg_strs,
             tcl_registry::arg_role::ArgRole::LambdaLiteral,
@@ -2485,18 +2608,14 @@ fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts,
         // call buried in `return [expr {[fib …]}]` is missed, leaving the call
         // graph incomplete (which under-converged the interproc taint fixpoint
         // and panicked the diagnostic worker on the debug guard).
-        let expr_indices = registry.arg_indices_for_role(
+        let expr_indices = surface.arg_indices_for_role(
             resolved,
             &arg_strs,
             tcl_registry::arg_role::ArgRole::Expr,
         );
         for idx in expr_indices {
             if let Some(arg) = texts.get(idx) {
-                let inner = arg
-                    .strip_prefix('{')
-                    .and_then(|s| s.strip_suffix('}'))
-                    .unwrap_or(arg);
-                scan_value_substitutions(inner, ctx, facts, depth + 1);
+                scan_value_substitutions(strip_one_brace_layer(arg), ctx, facts, depth + 1);
             }
         }
         // A `[cmd …]` substitution inside a *plain* value arg also executes in
@@ -2939,6 +3058,7 @@ mod tests {
             Some(dialect),
             ObjectTypeMap::none(),
             crate::realm::CommandBindingRealm::none(),
+            None,
         );
         let mut calls: Vec<String> = ia
             .procedures
@@ -3074,6 +3194,7 @@ mod tests {
             params: &params,
             object_types: ObjectTypeMap::none().0,
             identities: crate::realm::CommandBindingRealm::none(),
+            declared: None,
         };
 
         // A 3000-deep `ExprNode` tree (nested unary `!` over `$x`).
@@ -3268,6 +3389,7 @@ mod tests {
             None,
             ObjectTypeMap::none(),
             &identities,
+            None,
         )
     }
 
@@ -4056,6 +4178,7 @@ mod effect_propagation_tests {
                 Some(tcl_dialect::DialectProfile::irules()),
                 ObjectTypeMap::none(),
                 crate::realm::CommandBindingRealm::none(),
+                None,
             );
             let s = ia.procedures.get("::p").expect("proc ::p in IA");
             assert!(
@@ -4073,6 +4196,7 @@ mod effect_propagation_tests {
             Some(tcl_dialect::DialectProfile::irules()),
             ObjectTypeMap::none(),
             crate::realm::CommandBindingRealm::none(),
+            None,
         );
         let s = ia.procedures.get("::q").expect("proc ::q in IA");
         assert!(

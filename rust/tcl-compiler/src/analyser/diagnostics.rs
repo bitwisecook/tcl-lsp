@@ -391,6 +391,12 @@ impl Analyser {
                     config: self.file_lexer_config(),
                     dialect: dialect_opt,
                     external_call_sites: None,
+                    // The document's own stub declarations, so the CFG/SSA
+                    // tail lowers a stubbed command's `body` / `var` words
+                    // exactly as a registry spec's would — the `defs` a
+                    // `var`-role stub contributes are what keep W210 off a
+                    // variable the command writes.
+                    declared_commands: self.declared_commands.as_ref(),
                 },
             )
             .with_interprocedural(registry, dialect_opt);
@@ -496,6 +502,7 @@ impl Analyser {
                 Some(self.profile),
                 crate::interprocedural::ObjectTypeMap::none(),
                 &self.head_identities,
+                Some(&cu.declared_commands),
                 &cu.cfg_module,
             );
             crate::interprocedural::build_proc_index_from_summaries(&ia)

@@ -69,9 +69,7 @@ pub(super) fn bidi_control_diagnostics_with_suppressions(
             }
             let line = i32::try_from(line_index.position_at(diagnostic.span.start()).line)
                 .unwrap_or(i32::MAX);
-            !suppressed_lines
-                .get(&line)
-                .is_some_and(|codes| codes.contains("*") || codes.contains(code))
+            !super::utils::line_suppressed(code, line, suppressed_lines)
         })
         .collect()
 }

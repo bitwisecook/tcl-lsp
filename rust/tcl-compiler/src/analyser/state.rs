@@ -1312,6 +1312,21 @@ impl Analyser {
         self.ingress_grammar.unwrap_or(self.profile.grammar)
     }
 
+    /// The command surface this document analyses against: `registry` plus
+    /// the document's own `# tcl-lsp: stub` declarations.
+    ///
+    /// A stub states the same kind of fact a `CommandSpec` does, so every
+    /// role query in the walk goes through here rather than reaching for the
+    /// bare catalogue. The registry is passed in because a caller has already
+    /// resolved which one this document analyses under, and sometimes holds
+    /// it as a clone so a `&mut self` step can run beside it.
+    pub(super) fn command_surface<'a>(
+        &'a self,
+        registry: &'a tcl_registry::CommandRegistry,
+    ) -> tcl_registry::model::DocumentCommandSurface<'a> {
+        tcl_registry::model::DocumentCommandSurface::new(registry, self.declared_commands.as_ref())
+    }
+
     /// The body-lexing config for this document: [`Self::grammar`] — the
     /// ingress-resolved grammar, else the profile's — carrying the
     /// dialect-dependent tokenisation flags (`{*}` expansion, the iRules
@@ -2031,18 +2046,11 @@ impl Analyser {
         // overlay so analyser / compiler queries see the
         // user-declared stubs as first-class commands (without
         // mutating the global registry).
-        let (stub_cmds, stub_exprs) = super::utils::scan_source_for_stubs(source);
-        let (sidecar_cmds, sidecar_exprs) =
-            super::utils::scan_sidecar_stubs(self.file_path.as_deref(), dialect);
-        let mut overlay_cmds = sidecar_cmds;
-        // The document-local declaration is nearest in scope and wins over a
-        // workspace sidecar with the same name.
-        overlay_cmds.extend(stub_cmds.iter().cloned());
+        let (overlay_cmds, overlay_exprs) =
+            super::utils::document_stub_declarations(source, self.file_path.as_deref(), dialect);
         self.declared_commands = Some(super::types::build_declared_surface(&overlay_cmds));
         self.result.stub_commands = overlay_cmds;
-        let mut all_exprs = sidecar_exprs;
-        all_exprs.extend(stub_exprs);
-        self.result.stub_expr_defs = all_exprs;
+        self.result.stub_expr_defs = overlay_exprs;
 
         // Segment with re-segmentation recovery so an unclosed delimiter
         // mid-file doesn't drop later top-level declarations.
@@ -2532,16 +2540,11 @@ impl Analyser {
         // Stub-directive pre-scan + overlay, matching ``analyse`` so command
         // resolution (W123 / W307 / param-trait inference) sees the same stub
         // surface and ``analyse_commands`` stays byte-identical to ``analyse``.
-        let (stub_cmds, stub_exprs) = super::utils::scan_source_for_stubs(source);
-        let (sidecar_cmds, sidecar_exprs) =
-            super::utils::scan_sidecar_stubs(self.file_path.as_deref(), dialect);
-        let mut overlay_cmds = sidecar_cmds;
-        overlay_cmds.extend(stub_cmds.iter().cloned());
+        let (overlay_cmds, overlay_exprs) =
+            super::utils::document_stub_declarations(source, self.file_path.as_deref(), dialect);
         self.declared_commands = Some(super::types::build_declared_surface(&overlay_cmds));
         self.result.stub_commands = overlay_cmds;
-        let mut all_exprs = sidecar_exprs;
-        all_exprs.extend(stub_exprs);
-        self.result.stub_expr_defs = all_exprs;
+        self.result.stub_expr_defs = overlay_exprs;
 
         let file_env_pushed = self.seed_file_scope_env(source);
         self.analyse_commands_inner(commands);
