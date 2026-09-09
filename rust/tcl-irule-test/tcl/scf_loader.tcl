@@ -472,7 +472,7 @@ namespace eval ::scf {
     }
 
     proc _parse_snatpool {full_path body} {
-        # Stored in pools for simplicity
+        # Parses snatpool members but does not store them anywhere yet.
         set props [_parse_properties $body]
         set members [list]
         foreach {k v} $props {
@@ -600,11 +600,13 @@ namespace eval ::scf {
     # Apply a virtual server config to the test framework
     #
     # This is the key function: given a VS name from the SCF, it:
-    #   1. Determines the profile set
-    #   2. Registers all attached pools
-    #   3. Loads all attached iRules
-    #   4. Configures data groups referenced by the iRules
-    #   5. Sets up the orchestrator with the right profile combination
+    #   1. Resolves the profile set (inferring types from profile names where
+    #      needed) and configures the orchestrator with it
+    #   2. Configures the VIP address/port from the destination
+    #   3. Registers the VS's default pool, then every pool parsed from the
+    #      SCF, so an iRule can reference a pool outside the VS default
+    #   4. Registers every data group parsed from the SCF
+    #   5. Loads the VS's attached iRules
 
     proc apply_virtual {vs_name} {
         variable virtual_servers

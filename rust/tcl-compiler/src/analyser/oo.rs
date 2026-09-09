@@ -5012,8 +5012,8 @@ mod tests {
         //   oo::class create ::X { self { method cm {} { return cm } } }
         //   ::X cm                    ;# -> cm
         //   oo::define X { self unexport cm }
-        //   ::X cm                    ;# -> unknown method "cm": must be create,;
-        //                             #    destroy or new
+        //   ::X cm                    ;# -> unknown method "cm": must be create,
+        //                             ;#    destroy or new
         //   info object methods ::X   ;# -> (empty)
         //   info object methods ::X -all -private ;# -> … cm …  (still defined)
         let mut a = Analyser::new();
@@ -5177,8 +5177,8 @@ mod tests {
         // Issue #1119 item 3, closed by #1170. `oo::objdefine $o { unexport
         // m }` really works — oracle, 9.0.4 and 8.6.14 alike:
         //   oo::class create ::C { method m {} {…} } ; set o [::C new]
-        //   oo::objdefine $o { unexport m } ; $o m;
-        //   # -> unknown method "m": must be destroy or n
+        //   oo::objdefine $o { unexport m } ; $o m
+        //   ;# -> unknown method "m": must be destroy or n
         // The flip now lands in the receiver binding's `ObjectMemberState`
         // — the durable per-object home — while the class itself stays
         // untouched (the leak guard from #1119 still holds), and the

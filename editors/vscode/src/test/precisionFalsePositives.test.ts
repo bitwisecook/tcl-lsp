@@ -137,10 +137,10 @@ suite("Single bare-variable body (FP-STY-14)", () => {
   });
 });
 
-// FP-RBS control-flow family (PR #634) — imprecise control-flow modelling.
+// FP-RBS control-flow family — imprecise control-flow modelling.
 //
-// PR #634 fixed a family of false W210 (read-before-set) rooted in control-flow
-// modelling.  The fixture's silent cases are a `tailcall`-terminated branch
+// False W210 (read-before-set) rooted in control-flow
+// modelling must not fire.  The fixture's silent cases are a `tailcall`-terminated branch
 // (line 3), a non-empty-literal `foreach` (line 7), and a `while 1` whose only
 // exit is a `break` (line 11) — none may fire W210.  The empty-literal
 // `foreach` (line 15) never runs its body, so `$y` is genuinely unset and MUST

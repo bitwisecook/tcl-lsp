@@ -819,17 +819,17 @@ pub enum DefinitionAbortKind {
     /// declared, or declared only on the other side.
     ///
     /// ```tcl
-    /// oo::class create ::E1 { deletemethod ghost ; method ghost {} {} };
-    /// # -> method ghost does not exist        (and ::E1 is never created)
-    /// oo::class create ::E2 { self { method cm {} {} } ; deletemethod cm };
-    /// # -> method cm does not exist
+    /// oo::class create ::E1 { deletemethod ghost ; method ghost {} {} }
+    /// ;# -> method ghost does not exist        (and ::E1 is never created)
+    /// oo::class create ::E2 { self { method cm {} {} } ; deletemethod cm }
+    /// ;# -> method cm does not exist
     /// ```
     MissingMember,
     /// `renamemethod a b` where `b` is already a member of the same side.
     ///
     /// ```tcl
-    /// oo::class create ::E3 { method a {} {} ; method b {} {} ; renamemethod a b };
-    /// # -> method called b already exists
+    /// oo::class create ::E3 { method a {} {} ; method b {} {} ; renamemethod a b }
+    /// ;# -> method called b already exists
     /// ```
     ///
     /// Side-scoped like everything else: `method a` + `self method b` +
@@ -838,8 +838,8 @@ pub enum DefinitionAbortKind {
     /// `renamemethod a a` — the source and destination are the same name.
     ///
     /// ```tcl
-    /// oo::class create ::A4 { method a {} {} ; renamemethod a a };
-    /// # -> cannot rename method to itself
+    /// oo::class create ::A4 { method a {} {} ; renamemethod a a }
+    /// ;# -> cannot rename method to itself
     /// ```
     RenameToItself,
 }
@@ -934,11 +934,11 @@ impl RenamedMember {
     /// (no class is created in either case):
     ///
     /// ```tcl
-    /// oo::class create ::A1 { method old {} {…} ; renamemethod old old };
-    /// # -> cannot rename method to itself
+    /// oo::class create ::A1 { method old {} {…} ; renamemethod old old }
+    /// ;# -> cannot rename method to itself
     /// oo::class create ::B1 { method old {} {…} ; method sib {} {…}
-    ///                         renamemethod old sib };
-    /// # -> method called sib already exists
+    ///                         renamemethod old sib }
+    /// ;# -> method called sib already exists
     /// ```
     #[must_use]
     pub fn abort_if_renamed_to(&self, candidate: &str) -> Option<DefinitionAbortKind> {

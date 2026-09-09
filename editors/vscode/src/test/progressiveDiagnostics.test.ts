@@ -22,7 +22,7 @@ import * as fs from "fs";
 import { getDocUri, activate, waitForDiagnostics, scaledTimeout } from "./helper";
 import { MAX_TEST_TIMEOUT_BASE_MS } from "./runnerWatchdog";
 
-// Issue #844: diagnostics are progressive. On a large document the server
+// Diagnostics are progressive. On a large document the server
 // publishes a workspace-independent *fast tier* (the analyser's syntax /
 // structural / style diagnostics) as soon as the per-file walk lands — before
 // the compiler/optimiser + cross-file + refinement passes — then replaces it

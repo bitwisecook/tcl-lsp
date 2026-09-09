@@ -795,8 +795,8 @@ function readProcSample(pid: number): ProcSample | undefined {
 
 /**
  * What the server process and this extension host were *doing* while the probes
- * went unanswered — the capture issue #1600 asks for, so a wedge is
- * attributable on its first occurrence instead of only re-runnable.
+ * went unanswered, so a wedge is attributable on its first occurrence instead
+ * of only re-runnable.
  *
  * A verdict of "nothing answered" is a symptom with several very different
  * causes, and the three probes cannot separate them: a server spinning on a
@@ -904,10 +904,10 @@ async function eventLoopDilation(): Promise<number> {
  * server did not answer even a request that touches no document.
  *
  * That verdict is terminal, not transient. Every test after it pays its whole
- * wait budget to re-discover the same dead server: issue #1294's second
- * occurrence spent ~27 of its 32 minutes that way, 47 tests × ~34s, after the
- * first failure had already diagnosed the fault. The run learned nothing in
- * that time and reported it half an hour later than it could have.
+ * wait budget to re-discover the same dead server: one run spent ~27 of its
+ * 32 minutes that way, 47 tests × ~34s, after the first failure had already
+ * diagnosed the fault. The run learned nothing in that time and reported it
+ * half an hour later than it could have.
  *
  * Deliberately *only* the transport verdict. The other three
  * [`classifyLiveness`] outcomes are recoverable — a dropped request, or one
@@ -936,10 +936,10 @@ export function resetServerTransportWedged(): void {
  * on one unanswered request is a claim the evidence has to actually support: an
  * answer to *either* of the other two questions is a reply that travelled the
  * whole client → server → client path, which contradicts "the server answers
- * nothing" outright. Issue #1600's occurrence is exactly that shape — the
- * verdict fired at 687/899, and a byte-identical re-run passed 899/899 — so a
- * single slow document-free request must read as "slow", not as "dead", and
- * the run must be allowed to continue and report what it finds.
+ * nothing" outright. A run once hit exactly that shape — the verdict fired at
+ * 687/899, and a byte-identical re-run passed 899/899 — so a single slow
+ * document-free request must read as "slow", not as "dead", and the run must
+ * be allowed to continue and report what it finds.
  *
  * Latch-only: it never clears the flag, so a later probe that happens to get
  * an answer out of a dying server cannot un-diagnose an earlier wedge.
@@ -1047,10 +1047,10 @@ async function probeOutcome(
  * Separate "the server is wedged" from "this document's queue is wedged" after
  * a wait on *stalledUri* has already expired.
  *
- * This is the gap issue #1294 records. Four consecutive waits on one fixture's
- * ``didOpen`` drain expired with the machine measurably healthy, and the
- * evidence could say only that the request never came back — not whether the
- * server was answering *anything*. Three cheap questions separate the cases:
+ * This is a real gap: four consecutive waits on one fixture's ``didOpen``
+ * drain once expired with the machine measurably healthy, and the evidence
+ * could say only that the request never came back — not whether the server
+ * was answering *anything*. Three cheap questions separate the cases:
  *
  * 1. ``getEffectiveConfig`` with **no URI at all** — a request that touches
  *    neither the analyser nor any document's work queue, so it answers whenever
@@ -1063,8 +1063,8 @@ async function probeOutcome(
  *    permanently wedged queue from a request that was simply dropped.
  *
  * Alongside them, [`serverStateEvidence`] reads what the server process and
- * this extension host were actually *doing* — the capture issue #1600 asks for.
- * Three unanswered probes say "nothing answered"; they do not say whether the
+ * this extension host were actually *doing*. Three unanswered probes say
+ * "nothing answered"; they do not say whether the
  * server was spinning, parked, or had stopped reading stdin, and without that
  * a wedge is only ever re-runnable.
  *
@@ -1231,13 +1231,13 @@ export function documentClosed(docUri: vscode.Uri, opts?: { timeout?: number }):
  *
  * # Why the timeout rejects
  *
- * It used to resolve with ``getDiagnostics(uri)`` — whatever happened to be
- * published when the clock ran out.  A test that timed out therefore carried
- * on and asserted against a set the server had never finished producing.  For
- * a positive assertion that surfaces as a confusing content failure; for a
+ * Resolving with ``getDiagnostics(uri)`` on timeout — whatever happened to be
+ * published when the clock ran out — would let a timed-out test carry on and
+ * assert against a set the server had never finished producing.  For a
+ * positive assertion that surfaces as a confusing content failure; for a
  * *negative* one ("no diagnostic of kind X on line N") an unanalysed, empty
- * set satisfies it trivially and the test passes vacuously — the suite's
- * strongest tests are precisely the negative ones (issue #1274).
+ * set would satisfy it trivially and the test would pass vacuously — the
+ * suite's strongest tests are precisely the negative ones.
  *
  * Callers that genuinely want "settle, then look" and cannot name what they
  * are waiting for are asking a different question; those are the ones that

@@ -774,8 +774,8 @@ fn ensemble_option_value(
 
 /// `namespace qualifiers`/`tail`: run the first argument (lenient — defaults to
 /// empty) through a shared `tcl_cmd_core::namespace` text op, as a `Value`. The
-/// shared core handles `::`-runs the way C does (the VM's old `rsplit("::")`
-/// diverged for 3+ colons, e.g. `tail foo:::`).
+/// shared core handles `::`-runs the way C does (a plain `rsplit("::")`
+/// would diverge for 3+ colons, e.g. `tail foo:::`).
 fn ns_text_op(rest: &[Value], op: fn(&[u8]) -> &[u8]) -> Completion<Value> {
     let name = first(rest);
     ok(Value::string(

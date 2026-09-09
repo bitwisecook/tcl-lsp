@@ -1676,12 +1676,12 @@ impl Analyser {
     /// class is created at all — byte-identical on tclsh 9.0.4 and 8.6.14:
     ///
     /// ```tcl
-    /// oo::class create ::E1 { deletemethod ghost ; method ghost {} {} };
-    /// # -> method ghost does not exist              [info object isa class ::E1] -> 0
-    /// oo::class create ::E2 { self { method cm {} {} } ; deletemethod cm };
-    /// # -> method cm does not exist                 (cross-side: `cm` is class-side)
-    /// oo::class create ::E3 { method a {} {} ; method b {} {} ; renamemethod a b };
-    /// # -> method called b already exists
+    /// oo::class create ::E1 { deletemethod ghost ; method ghost {} {} }
+    /// ;# -> method ghost does not exist              [info object isa class ::E1] -> 0
+    /// oo::class create ::E2 { self { method cm {} {} } ; deletemethod cm }
+    /// ;# -> method cm does not exist                 (cross-side: `cm` is class-side)
+    /// oo::class create ::E3 { method a {} {} ; method b {} {} ; renamemethod a b }
+    /// ;# -> method called b already exists
     /// ```
     ///
     /// unlike a cross-side `export` / `unexport`, which is a **silent no-op**
@@ -16289,8 +16289,8 @@ mod tests {
         // The source declares a `# tcl-lsp: stub my_eval
         // {script:body}` directive, then defines a proc that
         // invokes `my_eval $body`.  The body arg's role flows
-        // from the stub overlay → `param_traits["body"].
-        // contains(Body)`.
+        // from the stub overlay → `param_traits["body"]
+        // .contains(Body)`.
         let source = "\
 # tcl-lsp: stubs-begin\n\
 # tcl-lsp: stub my_eval {script:body}\n\

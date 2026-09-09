@@ -632,8 +632,8 @@ fn shape_exempt_from_w001(sig: &super::dispatch::SubcommandSig, first_arg: &str)
     }
     // A subcommand name never starts with `.`, so a `.`-prefixed first word
     // is a Tk window pathname, not an unknown subcommand.  This covers both
-    // the geometry-manager shortcut (`grid .w ?args?` for `grid configure.
-    // w …`, per grid.n / pack.n / place.n) and widget-creation commands
+    // the geometry-manager shortcut (`grid .w ?args?` for `grid configure
+    // .w …`, per grid.n / pack.n / place.n) and widget-creation commands
     // (`entry .e …`, `canvas .c …`), whose registry `subcommands` describe
     // the created widget's *instance* command rather than a first-word
     // subcommand of the creator.  Either way `.path` is never W001.

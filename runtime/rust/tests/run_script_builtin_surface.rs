@@ -16,15 +16,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! **Issue #1589, second half** — `examples/run_script` must present the
+//! `examples/run_script` must present the
 //! engine's *full* builtin set, so a differential sheet written in plain Tcl
 //! runs through it unmodified.
 //!
-//! The gap #1589 reports is `if`/`catch` being unavailable through that
-//! harness: a verification run had to hand-write an `if`-free equivalent of
-//! its sheet, which silently narrows every campaign that assumes ordinary
-//! control flow — and `run_script` is the documented way to exercise this
-//! engine, named by the fuzzer's own taxonomy.
+//! Without that, `if`/`catch` would be unavailable through that
+//! harness: a verification run would have to hand-write an `if`-free
+//! equivalent of its sheet, silently narrowing every campaign that assumes
+//! ordinary control flow — and `run_script` is the documented way to
+//! exercise this engine, named by the fuzzer's own taxonomy.
 //!
 //! The fix is not a second registration list in the example. `Interp::new`
 //! *is* the full bootstrap (it runs `builtins::install`, which installs every
@@ -36,7 +36,8 @@
 //!
 //! Pinning the example's source text is deliberate. A behavioural test of the
 //! *library* cannot notice the example drifting back to a hand-rolled
-//! registration list — and that drift is exactly the reported bug.
+//! registration list — and that drift is exactly the hazard this guards
+//! against.
 
 use std::path::PathBuf;
 

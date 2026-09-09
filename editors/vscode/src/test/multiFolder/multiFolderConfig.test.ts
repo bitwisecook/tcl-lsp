@@ -464,8 +464,8 @@ suite("Multi-folder workspace configuration (#230)", () => {
 
   test("tcl-lsp.getEffectiveConfig reports the resolved per-folder dialect", async () => {
     // Sanity check the helper the suite setup uses -- if this regresses
-    // the rest of the suite will hit the 3-second-wait situation issue
-    // #407 reports, just by a different path.
+    // the rest of the suite will hit the same 3-second-wait situation,
+    // just by a different path.
     const folderA = vscode.workspace.workspaceFolders!.find((f) => f.name === "proj-a")!;
     const folderB = vscode.workspace.workspaceFolders!.find((f) => f.name === "proj-b")!;
 

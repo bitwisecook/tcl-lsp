@@ -6246,7 +6246,7 @@ impl Vm {
     /// normalised to canonical form first, and the ancestor walk uses the
     /// shared separator-run-aware split ([`tcl_cmd_core::namespace`]), so a
     /// colon-run name (`a:::b`) registers `a::b` under parent `a` — never a
-    /// bogus `a:` (the old `rsplit_once("::")` drift).
+    /// bogus `a:`, which a plain `rsplit_once("::")` would produce.
     /// [`Self::declare_namespace`] for an already-canonical **key** (a
     /// construction-inverse holder): no written-name canonicalisation, which
     /// would collapse a lone-colon segment, and the parent chain walks
@@ -6580,7 +6580,7 @@ impl Vm {
     ) -> Result<Vec<String>, NamespaceImportError> {
         // Split the glob tail off at the last separator *run* and canonicalise
         // the qualifier — `namespace import ::src:::im*` imports from `src`
-        // (tclsh8.6-verified; the old `rsplit_once("::")` left `src:` behind).
+        // (tclsh8.6-verified; a plain `rsplit_once("::")` would leave `src:` behind).
         let pb = pattern.as_bytes();
         let glob = str_slice(tcl_cmd_core::namespace::tail(pb)).to_string();
         let source = str_slice(tcl_cmd_core::namespace::qualifiers(pb));
@@ -7180,8 +7180,8 @@ impl Vm {
             // Qualified pattern: source namespace + simple pattern on the
             // origin. Splitting at the last separator *run* keeps colon-run
             // patterns working (`namespace forget ::src:::im*` forgets from
-            // `src`, tclsh8.6-verified; the old `rsplit_once("::")` produced
-            // `src:` — and panicked outright on `:::pat`).
+            // `src`, tclsh8.6-verified; a plain `rsplit_once("::")` would produce
+            // `src:` — and panic outright on `:::pat`).
             let pb = pattern.as_bytes();
             let simple = str_slice(tcl_cmd_core::namespace::tail(pb));
             let source = str_slice(tcl_cmd_core::namespace::qualifiers(pb));

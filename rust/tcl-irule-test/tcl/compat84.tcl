@@ -18,9 +18,9 @@
 
 # Only install if we're actually on 8.4
 if {[info tclversion] ne "8.4" && [package vcompare [info patchlevel] 8.5.0] >= 0} {
-    # Running on 8.5+: nothing to do, native commands exist.
-    # We'll save references for framework-internal use before
-    # tmm_shim hides them.
+    # Running on 8.5+: nothing to do here -- the native commands exist.
+    # tmm_shim.tcl saves callable references to them before hiding them
+    # from the iRule.
     return
 }
 

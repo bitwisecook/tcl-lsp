@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `cargo xtask fp-sweep` — the false-positive audit harness (issue #1316).
+//! `cargo xtask fp-sweep` — the false-positive audit harness.
 //!
 //! It implements the method documented in `docs/design/compiler/fp-sweep.md`:
 //! dump every firing of a code across the corpus, dialect-aware, grouped by
@@ -41,7 +41,7 @@
 //!   workflow `fp-sweep.md` describes.
 //!
 //! Corpus discovery accepts the normal Tcl-family extensions plus two
-//! corpus-only publication formats common in the #1181 iRules sources:
+//! corpus-only publication formats common in the pinned public iRules corpus:
 //!
 //! - a `.txt` file containing a top-level `when EVENT ... {` handler is swept
 //!   as one iRules document;
@@ -52,7 +52,7 @@
 //! The strong event-handler signal keeps arbitrary prose and console blocks
 //! out of the analyser. Normal source files are still decoded by
 //! [`tcl_cli_support::read_input_documents`], the same reader as `tcl diag` /
-//! `tcl opt`. The seven `.tmsh` files in the pinned public #1181 corpus are
+//! `tcl opt`. The seven `.tmsh` files in the pinned public corpus are
 //! BIG-IP configuration/data-group or iCall artefacts, not iRules (none has a
 //! `when EVENT` handler), so they remain outside this iRules diagnostic sweep.
 
@@ -554,7 +554,7 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
     // analyser producer in (1). No suppression / user-disabled set, since the
     // sweep wants every firing regardless of what a hypothetical editor config
     // would silence. Native documents carry the byte-level decode report and
-    // therefore produce encoding findings at full precision (issue #1326).
+    // therefore produce encoding findings at full precision.
     // Extracted RST blocks use a faithful empty report because their offsets no
     // longer refer to the containing file's byte stream.
     let no_disabled: std::collections::HashSet<String> = std::collections::HashSet::new();
