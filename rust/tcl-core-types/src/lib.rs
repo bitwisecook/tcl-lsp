@@ -22,10 +22,10 @@
 //! These are the value-less types every Tcl runtime agrees on regardless of its
 //! value representation or execution model: the completion [`Code`], the generic
 //! [`Completion`] container, and the opaque arena handles
-//! ([`NsId`]/[`FrameId`]/[`CommandId`]/[`CommandSlot`]/[`VarId`]). It also holds the editor
-//! vocabulary the analysis and LSP layers share — the diagnostic [`Severity`] —
-//! so the analyser, compiler-checks, CLI, and server name one type rather than
-//! each maintaining its own copy.
+//! ([`NsId`]/[`FrameId`]/[`CommandId`]/[`OoId`]/[`CommandSlot`]/[`VarId`]). It
+//! also holds the editor vocabulary the analysis and LSP layers share — the
+//! diagnostic [`Severity`] — so the analyser, compiler-checks, CLI, and server
+//! name one type rather than each maintaining its own copy.
 //!
 //! They live in their own leaf crate (depending on nothing) so that pure
 //! command logic — `tcl-cmd-core`'s helpers — can name a completion code
@@ -153,6 +153,22 @@ pub struct FrameId(pub usize);
 /// A command handle (arena id).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CommandId(pub u32);
+
+/// Stable interpreter-local identity of a `TclOO` object command.
+///
+/// Tcl command names are mutable display projections: rename changes the
+/// visible location, and deferred namespace deletion can leave an old object
+/// alive while a new one is published at the same spelling. Runtime OO tables
+/// therefore carry this opaque token through class, provider, and active-call
+/// relationships instead of recovering identity from command text.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct OoId(pub u64);
+
+impl core::fmt::Display for OoId {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
 /// The injective location of a command in a runtime command table.
 ///
@@ -299,6 +315,7 @@ mod tests {
         assert_eq!(NsId(3).0, 3);
         assert_eq!(FrameId(5).0, 5);
         assert_eq!(CommandId(7).0, 7);
+        assert_eq!(OoId(8).0, 8);
         assert_eq!(VarId(9).0, 9);
         // Copy + Eq.
         let n = NsId(1);
@@ -306,6 +323,7 @@ mod tests {
         assert_ne!(NsId(1), NsId(2));
         assert_ne!(FrameId(1), FrameId(2));
         assert_ne!(CommandId(1), CommandId(2));
+        assert_ne!(OoId(1), OoId(2));
         assert_ne!(VarId(1), VarId(2));
     }
 

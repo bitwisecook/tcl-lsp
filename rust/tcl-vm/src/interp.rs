@@ -3013,35 +3013,33 @@ impl Vm {
     /// command token after a re-entrant delete callback may have moved it.
     /// Generations are interpreter-unique and travel with rename/hide/expose.
     fn command_token_at_generation(&self, generation: u64) -> Option<CommandTokenIdentity> {
-        self.command_identity
+        let raw_key = self
+            .command_identity
             .generations
             .iter()
             .find_map(|(name, candidate)| {
-                (*candidate == generation).then(|| CommandTokenIdentity {
-                    key: CommandSidecarKey::visible(name),
-                    generation,
-                })
+                (*candidate == generation).then(|| CommandSidecarKey::visible(name))
             })
             .or_else(|| {
                 self.hidden_command_generations
                     .iter()
                     .find_map(|(name, candidate)| {
-                        (*candidate == generation).then(|| CommandTokenIdentity {
-                            key: CommandSidecarKey::hidden(name),
-                            generation,
-                        })
+                        (*candidate == generation).then(|| CommandSidecarKey::hidden(name))
                     })
             })
             .or_else(|| {
                 self.ns_deferral.retained.values().find_map(|record| {
                     record.generations.iter().find_map(|(name, candidate)| {
-                        (*candidate == generation).then(|| CommandTokenIdentity {
-                            key: CommandSidecarKey::visible(name),
-                            generation,
-                        })
+                        (*candidate == generation).then(|| CommandSidecarKey::visible(name))
                     })
                 })
-            })
+            })?;
+        // During a rename callback both Tcl hash entries refer to one command.
+        // The source is only a temporary alias; resolve it to the destination
+        // and reject it if a nested delete already removed that destination.
+        let key = self.renamed_command_key(raw_key);
+        (self.command_token_identity(&key)?.generation == generation)
+            .then_some(CommandTokenIdentity { key, generation })
     }
 
     fn command_at_sidecar_key(&self, key: &CommandSidecarKey) -> Option<&Command> {
@@ -3204,7 +3202,7 @@ impl Vm {
                     == Some(token)
             {
                 if replacing_retained && replacing_real_command {
-                    self.retire_real_command(token, command);
+                    let _ = self.retire_real_command(token, command);
                 } else if replacing_retained {
                     self.retire_downstream_imports(token);
                 } else if replacing_real_command {
@@ -3344,7 +3342,7 @@ impl Vm {
             self.note_command_unbound(name);
             self.command_identity.generations.remove(name);
             if !imported && let Some(token) = token {
-                self.retire_real_command(&token, &command);
+                let _ = self.retire_real_command(&token, &command);
             }
             self.detach_active_sidecars(&CommandSidecarKey::visible(name));
             self.bump_cmd_epoch();
@@ -3561,10 +3559,7 @@ impl Vm {
             .command_at_sidecar_key(&live_token.key)
             .cloned()
             .unwrap_or(command);
-        self.drop_relocated_command_sidecars(&live_token.key, live_token.generation);
-        self.retire_real_command(&live_token, &live_command);
-        self.take_command_sidecar_unchecked(&live_token.key);
-        self.drop_alias_backref_key(&live_token.key);
+        self.retire_registered_real_command(&live_token, &live_command);
         true
     }
 
@@ -3586,7 +3581,7 @@ impl Vm {
         let token = self.command_token_identity(&CommandSidecarKey::visible(&key));
         let command = self.take_command_unchecked_key(&key)?;
         if !imported && let Some(token) = token {
-            self.retire_real_command(&token, &command);
+            let _ = self.retire_real_command(&token, &command);
         }
         self.detach_active_sidecars(&CommandSidecarKey::visible(&key));
         Some(command)
@@ -3620,10 +3615,7 @@ impl Vm {
             .command_at_sidecar_key(&live_token.key)
             .cloned()
             .unwrap_or_else(|| command.clone());
-        self.drop_relocated_command_sidecars(&live_token.key, live_token.generation);
-        self.retire_real_command(&live_token, &live_command);
-        self.take_command_sidecar_unchecked(&live_token.key);
-        self.drop_alias_backref_key(&live_token.key);
+        self.retire_registered_real_command(&live_token, &live_command);
         Some(command)
     }
 
@@ -3676,7 +3668,7 @@ impl Vm {
         let token = self.command_token_identity(&CommandSidecarKey::visible(key));
         let command = self.take_command_unchecked_key(key)?;
         if !imported && let Some(token) = token {
-            self.retire_real_command(&token, &command);
+            let _ = self.retire_real_command(&token, &command);
         }
         self.detach_active_sidecars(&CommandSidecarKey::visible(key));
         Some(command)
@@ -6441,6 +6433,63 @@ impl Vm {
         }
     }
 
+    /// Snapshot exported source commands with the exact token identity their
+    /// eventual import edges must reference. A retained namespace contributes
+    /// its private table directly; no rendered name is inverted to find it.
+    fn import_candidates(
+        &self,
+        source: NsId,
+        glob: &str,
+        exports: &[String],
+    ) -> Vec<(String, Command, Option<String>, CommandTokenIdentity)> {
+        let candidates = self
+            .commands
+            .iter()
+            .filter(|(key, _)| {
+                self.command_slot(key)
+                    .is_some_and(|slot| slot.namespace == source)
+            })
+            .map(|(key, command)| (key.clone(), command.clone()))
+            .chain(
+                self.retained_record_of(source)
+                    .into_iter()
+                    .flat_map(|record| record.commands.iter())
+                    .map(|(key, command)| (key.clone(), command.clone())),
+            );
+        let mut selected = Vec::new();
+        for (command_key, command) in candidates {
+            let Some(slot) = self.command_slot(&command_key) else {
+                continue;
+            };
+            if slot.namespace != source
+                || slot.simple.is_empty()
+                || !tcl_syntax::glob::string_match(glob, &slot.simple)
+                || !exports
+                    .iter()
+                    .any(|pattern| tcl_syntax::glob::string_match(pattern, &slot.simple))
+                || !self.builtin_command_visible_for_surface(
+                    self.command_display_key(&command_key),
+                    &command,
+                )
+            {
+                continue;
+            }
+            let builtin_identity = matches!(command, Command::Builtin(_) | Command::Native(_))
+                .then(|| {
+                    self.retained_record_of(source)
+                        .and_then(|record| record.builtin_identities.get(&command_key))
+                        .or_else(|| self.builtin_identities.get(&command_key))
+                        .cloned()
+                        .unwrap_or_else(|| command_key.clone())
+                });
+            let source_token = self
+                .command_token_identity(&CommandSidecarKey::visible(&command_key))
+                .expect("every registered command has a token generation");
+            selected.push((slot.simple.clone(), command, builtin_identity, source_token));
+        }
+        selected
+    }
+
     /// `namespace import` for `pattern` (e.g. `::tcltest::*`): alias every
     /// exported command of the source namespace matching the glob into the
     /// current namespace under its tail name. Returns the imported tail names.
@@ -6472,57 +6521,7 @@ impl Vm {
             .unwrap_or_default();
         // Candidate commands: those in the source namespace whose tail matches
         // the import glob and an export pattern.
-        let mut to_import: Vec<(String, Command, Option<String>, CommandTokenIdentity)> =
-            Vec::new();
-        let candidates: Vec<(String, Command)> = self
-            .commands
-            .iter()
-            .filter(|(key, _)| {
-                self.command_slot(key)
-                    .is_some_and(|slot| slot.namespace == src_ns_id)
-            })
-            .map(|(key, command)| (key.clone(), command.clone()))
-            .chain(
-                self.retained_record_of(src_ns_id)
-                    .into_iter()
-                    .flat_map(|record| record.commands.iter())
-                    .map(|(key, command)| (key.clone(), command.clone())),
-            )
-            .collect();
-        for (cmd_name, cmd) in candidates {
-            let Some(slot) = self.command_slot(&cmd_name) else {
-                continue;
-            };
-            if slot.namespace != src_ns_id || slot.simple.is_empty() {
-                continue;
-            }
-            let tail = &slot.simple;
-            if tcl_syntax::glob::string_match(&glob, tail)
-                && exports
-                    .iter()
-                    .any(|p| tcl_syntax::glob::string_match(p, tail))
-                // C imports only a command visible in the current release.
-                // Skipping a hidden source avoids manufacturing a local clone
-                // at 8.4 and keeps import chains' provenance meaningful.
-                && self.builtin_command_visible_for_surface(
-                    self.command_display_key(&cmd_name),
-                    &cmd,
-                )
-            {
-                let builtin_identity = matches!(cmd, Command::Builtin(_) | Command::Native(_))
-                    .then(|| {
-                        self.retained_record_of(src_ns_id)
-                            .and_then(|record| record.builtin_identities.get(&cmd_name))
-                            .or_else(|| self.builtin_identities.get(&cmd_name))
-                            .cloned()
-                            .unwrap_or_else(|| cmd_name.clone())
-                    });
-                let source_token = self
-                    .command_token_identity(&CommandSidecarKey::visible(&cmd_name))
-                    .expect("every registered command has a token generation");
-                to_import.push((tail.clone(), cmd, builtin_identity, source_token));
-            }
-        }
+        let to_import = self.import_candidates(src_ns_id, &glob, &exports);
         let mut imported = Vec::new();
         for (tail, cmd, builtin_identity, source_token) in to_import {
             let alias_display = self.qualify_name(&tail);
@@ -6907,6 +6906,16 @@ impl Vm {
             self.retire_import_tree_snapshot(&child);
         }
 
+        // A child's delete trace can rename/hide/expose this parent token.
+        // The generation, not the location captured before recursion, is the
+        // stable identity across that callback-bearing phase.
+        let Some(live) = self.import_retirement_node_by_generation(node.binding.generation) else {
+            return;
+        };
+        let live_key = &live.token.key;
+        if let CommandSidecarKey::Visible(name) = live_key {
+            self.materialise_retained_binding(name);
+        }
         let still_same_import = self.command_token_identity(live_key).as_ref() == Some(&live.token)
             && self.import_binding_at_sidecar_key(live_key) == Some(&live.binding);
         if !still_same_import {
@@ -6929,9 +6938,35 @@ impl Vm {
     /// Complete the true deletion of a real command identity. Imported aliases
     /// disappear with the source, whereas an atomic same-name replacement uses
     /// [`Self::replace_import_implementations`] and keeps them alive.
-    fn retire_real_command(&mut self, source: &CommandTokenIdentity, command: &Command) {
+    fn retire_real_command(
+        &mut self,
+        source: &CommandTokenIdentity,
+        command: &Command,
+    ) -> Option<CommandTokenIdentity> {
         self.retire_command_implementation(source, command, false);
-        self.retire_downstream_imports(source);
+        // Coroutine local-unset traces and TclOO destructors are arbitrary Tcl
+        // callbacks. They can rename this exact token before import teardown,
+        // or replace/delete it. Follow the generation after that phase so the
+        // import graph is selected by identity rather than a stale location.
+        let live_source = self.command_token_at_generation(source.generation);
+        self.retire_downstream_imports(live_source.as_ref().unwrap_or(source));
+        // Imported-command delete traces are callbacks too and can relocate or
+        // replace their source. The caller must unlink only this final
+        // generation, wherever it now lives.
+        self.command_token_at_generation(source.generation)
+    }
+
+    /// Complete and unlink one real command generation that is still present
+    /// in a command table. Every callback-bearing lifecycle phase re-resolves
+    /// the generation; a newer replacement at any visited spelling survives.
+    fn retire_registered_real_command(&mut self, source: &CommandTokenIdentity, command: &Command) {
+        self.drop_relocated_command_sidecars(&source.key, source.generation);
+        let Some(final_token) = self.retire_real_command(source, command) else {
+            return;
+        };
+        self.drop_relocated_command_sidecars(&final_token.key, final_token.generation);
+        self.take_command_sidecar_unchecked(&final_token.key);
+        self.drop_alias_backref_key(&final_token.key);
     }
 
     /// Release implementation-owned state for an atomic same-name
@@ -6943,7 +6978,7 @@ impl Vm {
 
     /// Single owner for implementation state attached to a real command
     /// token. Every true deletion and atomic replacement reaches this seam, so
-    /// coroutine continuations and TclOO records cannot survive a less common
+    /// coroutine continuations and `TclOO` records cannot survive a less common
     /// namespace/embedder/hidden-table path.
     fn retire_command_implementation(
         &mut self,
@@ -12445,9 +12480,7 @@ impl Namespaces for Vm {
         // visible import whose chain ends at an equally-named hidden token
         // would compare equal while genuinely being an import. The presence of
         // a provenance record is the VM's exact spelling of C's predicate.
-        if self.visible_import_binding(&key).is_none() {
-            return None;
-        }
+        self.visible_import_binding(&key)?;
         let origin = self.ultimate_import_origin(&CommandSidecarKey::visible(key));
         let token = self.command_token_identity(&origin)?.generation;
         Some(CommandId(self.intern_cmd(token)))

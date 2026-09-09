@@ -28,7 +28,7 @@ use std::rc::Rc;
 use tcl_cmd_core::CmdError;
 use tcl_runtime_api::completion_options::{self as shared_options, ErrorOptions, OptionValue};
 use tcl_runtime_api::error_stack::{ErrorStackValueError, validate_error_stack};
-use tcl_runtime_api::{Code, Completion, NsId};
+use tcl_runtime_api::{Code, Completion, NsId, OoId};
 use tcl_syntax::formal_params::{has_trailing_args, parse_formal_parameters};
 
 use crate::error::TclError;
@@ -146,7 +146,7 @@ pub enum Command {
     /// Invoking it dispatches `method args…` against the object (`oo_dispatch`).
     /// Analogous to [`Command::ChildInterp`] — a command backed by a Vm-side
     /// table keyed by identity rather than the mutable command name.
-    Object(crate::cmd_oo::OoId),
+    Object(OoId),
 }
 
 /// A `namespace ensemble create`d command (`tclEnsemble.c`).

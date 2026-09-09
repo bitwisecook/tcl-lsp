@@ -790,6 +790,57 @@ fn deleting_a_suspended_coroutine_fires_local_unset_traces() {
 }
 
 #[test]
+fn coroutine_cleanup_preserves_a_callback_created_replacement() {
+    // Destroying the parked frame fires arbitrary variable-unset callbacks.
+    // A command installed by that callback is a newer generation and must not
+    // be removed by the outer coroutine deletion. Exact Tcl 9.0.4 oracle.
+    assert_eq!(
+        result(
+            "set log {}
+             proc u {n1 n2 op} {
+                 lappend ::log [list $n1 $n2 $op]
+                 proc co {} {return NEW}
+             }
+             proc body {} {
+                 set x 1
+                 trace add variable x unset u
+                 yield ready
+             }
+             coroutine co body
+             rename co {}
+             list [info commands co] [catch {co} m] $m $log"
+        ),
+        "co 0 NEW {{x {} unset}}"
+    );
+}
+
+#[test]
+fn coroutine_cleanup_retires_a_callback_renamed_generation() {
+    // Moving the dying command from its local-unset callback does not rescue
+    // it: final unlink follows the original generation to the destination.
+    // Exact Tcl 9.0.4 oracle.
+    assert_eq!(
+        result(
+            "set log {}
+             proc u {n1 n2 op} {
+                 lappend ::log [list $n1 $n2 $op]
+                 rename co moved
+             }
+             proc body {} {
+                 set x 1
+                 trace add variable x unset u
+                 yield ready
+             }
+             coroutine co body
+             rename co {}
+             list [info commands co] [info commands moved] \
+                  [catch {moved} m] $m $log"
+        ),
+        "{} {} 1 {invalid command name \"moved\"} {{x {} unset}}"
+    );
+}
+
+#[test]
 fn retained_namespace_teardown_retires_its_suspended_coroutine() {
     // Exact Tcl 9.0.4 oracle. The parked frame and its namespace-owned resume
     // command retain one another; namespace deferral breaks that lifecycle

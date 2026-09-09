@@ -1407,6 +1407,53 @@ fn import_delete_retires_the_exact_generation_after_trace_relocation() {
 }
 
 #[test]
+fn source_deletion_refollows_generation_after_import_callbacks() {
+    // The imported binding's delete callback can rename the real source while
+    // its import tree is retiring. Final source unlink resolves that original
+    // generation again, so the moved command cannot survive. Exact Tcl 9.0.4
+    // oracle result.
+    assert_eq!(
+        run("set log {}
+             proc cb {old new op} {
+                 lappend ::log [list $old $new $op]
+                 rename ::S::p ::S::q
+             }
+             namespace eval S {proc p {} {return OLD}; namespace export p}
+             namespace eval N {
+                 namespace import ::S::p
+                 trace add command p delete ::cb
+             }
+             rename ::S::p {}
+             list [info commands ::S::p] [info commands ::S::q] \
+                  [catch {::S::q} m] $m [info commands ::N::p] $log"),
+        "{} {} 1 {invalid command name \"::S::q\"} {} {{::N::p {} delete}}"
+    );
+}
+
+#[test]
+fn import_tree_refollows_parent_generation_after_child_callbacks() {
+    // A transitive child's delete trace can relocate its parent import. The
+    // depth-first retirement owner re-resolves the parent's generation after
+    // returning from that child before unlinking it. Exact Tcl 9.0.4 oracle.
+    assert_eq!(
+        run("set log {}
+             proc cb {old new op} {
+                 lappend ::log [list $old $new $op]
+                 rename ::N::p ::N::q
+             }
+             namespace eval S {proc p {} {return OLD}; namespace export p}
+             namespace eval N {namespace import ::S::p; namespace export p}
+             namespace eval M {
+                 namespace import ::N::p
+                 trace add command p delete ::cb
+             }
+             rename ::S::p {}
+             list [info commands ::N::q] [catch {::N::q} m] $m $log"),
+        "{} 1 {invalid command name \"::N::q\"} {{::M::p {} delete}}"
+    );
+}
+
+#[test]
 fn real_delete_retires_the_exact_generation_after_trace_relocation() {
     // A delete callback can rename the command token being deleted. C follows
     // that token's updated hash entry and removes the destination, while a

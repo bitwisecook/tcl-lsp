@@ -52,22 +52,11 @@ use tcl_registry::commands::tcl::{
     info_oo_subcommands, resolve_info_oo_properties_option, resolve_tcloo_property_kind,
     resolve_tcloo_property_option,
 };
-use tcl_runtime_api::{Code, Completion};
+use tcl_runtime_api::{Code, Completion, OoId};
 
 use crate::command::{Command, Param, ProcDef, parse_params};
 use crate::interp::{CommandSidecarKey, Vm, err, ok};
 use crate::value::Value;
-
-/// Stable identity of a `TclOO` object command. Names are mutable projections:
-/// Tcl command rename moves the command without changing this token.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct OoId(u64);
-
-impl std::fmt::Display for OoId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
-    }
-}
 
 /// A method (or constructor/destructor) body: a proc-like parameter list plus
 /// an exact-object-namespace compiled body, and whether it is exported for public
@@ -1858,7 +1847,7 @@ pub(crate) fn oo_command_renamed(vm: &mut Vm, object: OoId, new_key: String, new
     vm.oo.names.insert(object, new_display);
 }
 
-/// Relocate the command-table sidecar without changing TclOO's public object
+/// Relocate the command-table sidecar without changing `TclOO`'s public object
 /// name. Hiding is not a Tcl command rename: `self object` continues to report
 /// the visible name the object had before it became hidden.
 pub(crate) fn oo_command_hidden(vm: &mut Vm, object: OoId, token: String) {
@@ -1873,7 +1862,7 @@ pub(crate) fn oo_command_exposed(vm: &mut Vm, object: OoId, new_key: String) {
         .insert(object, CommandSidecarKey::visible(new_key));
 }
 
-/// Run the TclOO delete lifecycle after the command mutation owner's delete
+/// Run the `TclOO` delete lifecycle after the command mutation owner's delete
 /// trace. The ordinary command mutation owner removes the table entry through
 /// [`Vm::remove_command_exact`]; [`teardown`] reaches that same exact-key seam.
 pub(crate) fn oo_command_deleted(vm: &mut Vm, object: OoId) {
@@ -1881,7 +1870,7 @@ pub(crate) fn oo_command_deleted(vm: &mut Vm, object: OoId) {
     let _ = oo_destroy(vm, object);
 }
 
-/// Run the TclOO lifecycle for a command implementation being replaced in
+/// Run the `TclOO` lifecycle for a command implementation being replaced in
 /// place. Tcl keeps the command-table token for the new implementation, while
 /// the old object/class is destroyed (including descendants and destructors).
 /// Detaching only this root key makes [`teardown`] leave that table entry to
