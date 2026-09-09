@@ -3294,8 +3294,8 @@ jobs:
 
   # ---------------------------------------------------------------------
   # build-claude-skills packages the Claude Code skills bundle, then attests
-  # and uploads it. The skills drive the native MCP server, so nothing here
-  # builds or ships the retired AI zipapp any more.
+  # and uploads it. The skills drive the native MCP server, so the bundle
+  # carries no interpreter payload.
   # ---------------------------------------------------------------------
   build-claude-skills:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -3573,7 +3573,7 @@ jobs:
   publish-checksums:
     # Decoupled from the peripheral build jobs: this step downloads and sums
     # *whatever* is attached to the release, so a peripheral build that fails
-    # (e.g. a zipapp profile, an editor package) must not block it — and must
+    # (e.g. the Zed or Claude-skills package) must not block it — and must
     # not block the Marketplace publish that depends on it.  It runs once all
     # builds have settled (success or failure — `!cancelled()` lets the `if`
     # evaluate despite a failed/​skipped need) but only requires the CORE to have
@@ -3656,10 +3656,8 @@ jobs:
   # AGENTS.md invariant, a publish secret may live in CI only when it is
   # stored this way: reachable solely by a job that targets the protected
   # Environment, which PAUSES for manual approval and can never run on a
-  # non-tag ref.  (The keyless OIDC -> Azure Entra path was rolled back
-  # after it proved unreliable against the VS Code Marketplace; the PAT is
-  # the supported mechanism, matching the stable channel from `rust`.)  Hardening
-  # choices preserved from the keyless design:
+  # non-tag ref.  The PAT is the mechanism the VS Code Marketplace supports,
+  # matching the stable channel from `rust`.  Hardening choices:
   #   * VSCE_PAT is scoped to the publish step's `env:` only, so the
   #     freshly-fetched npm code in `npm ci` never runs with the token in
   #     its environment.
