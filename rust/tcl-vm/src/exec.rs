@@ -4099,7 +4099,9 @@ impl Vm {
                 };
                 match list_v.as_list() {
                     Ok(items) => f.stack.extend(items.iter().cloned()),
-                    Err(e) => return Tick::Return(err(e.message)),
+                    Err(e) => {
+                        return Tick::Return(crate::command::completion_from_tcl_error(e));
+                    }
                 }
             }
             // `expandDrop` abandons the innermost expansion: pop its marker and
@@ -4119,23 +4121,26 @@ impl Vm {
                 }
                 let words = f.stack.split_off(marker);
                 if words.is_empty() {
-                    return Tick::Return(command_lookup_error(""));
-                }
-                let entered = f.take_entered_command();
-                match self.dispatch_words_with_entered(f, &words, entered.as_ref()) {
-                    Ok(Some(call)) => return call,
-                    Ok(None) => {}
-                    Err(c) => {
-                        let cmd_text = instr.source_cmd_text.clone();
-                        let msg = c.result.to_str().to_string();
-                        let line = instr.source_line;
-                        self.log_command_info_with_context(
-                            &cmd_text,
-                            Value::list(words),
-                            &msg,
-                            line,
-                        );
+                    if let Err(c) = Self::deliver_sync(f, ok(Value::empty())) {
                         return Tick::Return(c);
+                    }
+                } else {
+                    let entered = f.take_entered_command();
+                    match self.dispatch_words_with_entered(f, &words, entered.as_ref()) {
+                        Ok(Some(call)) => return call,
+                        Ok(None) => {}
+                        Err(c) => {
+                            let cmd_text = instr.source_cmd_text.clone();
+                            let msg = c.result.to_str().to_string();
+                            let line = instr.source_line;
+                            self.log_command_info_with_context(
+                                &cmd_text,
+                                Value::list(words),
+                                &msg,
+                                line,
+                            );
+                            return Tick::Return(c);
+                        }
                     }
                 }
             }

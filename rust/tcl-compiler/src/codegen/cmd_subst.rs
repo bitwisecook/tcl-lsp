@@ -739,6 +739,34 @@ impl CodegenCtx<'_> {
         }
     }
 
+    /// Emit the ordered words of one `{*}` invocation.
+    ///
+    /// The command head and argument tail deliberately share this loop: Tcl's
+    /// expansion marker belongs to a *word position*, including position zero,
+    /// and every position must finish its substitutions before that value is
+    /// split as a list.  Callers supply words as `(text, braced, expanded)`;
+    /// [`Self::emit_cmd_word`] remains the single value-emission path for both
+    /// statement and command-substitution invocations.
+    pub(crate) fn emit_expanded_words<'w>(
+        &mut self,
+        words: impl IntoIterator<Item = (&'w str, bool, bool)>,
+        comment: &str,
+    ) {
+        self.emit_comment(Op::EXPAND_START, vec![], comment);
+        for (index, (word, braced, expanded)) in words.into_iter().enumerate() {
+            self.emit_cmd_word(word, braced);
+            if expanded {
+                self.emit(
+                    Op::EXPAND_STKTOP,
+                    vec![Operand::Imm(
+                        i32::try_from(index + 1).expect("word count fits in i32"),
+                    )],
+                );
+            }
+        }
+        self.emit_comment(Op::INVOKE_EXPANDED, vec![], comment);
+    }
+
     /// Inline compile `[list {*}$a {*}$b]` as `load a; load b; listConcat`.
     ///
     /// Only matches the exact two-argument form — `[list {*}$x]` (one
@@ -1173,7 +1201,7 @@ impl CodegenCtx<'_> {
         // A `{*}`-expanded command substitution in value position compiles to the
         // `expandStart … expandStkTop N; invokeExpanded` form (tclsh's), leaving
         // the result on the stack (no trailing `pop`, unlike the statement form).
-        if text.contains("{*}") {
+        if self.recognises_expand_syntax() && text.contains("{*}") {
             let parts = parse_cmd_parts_expand(text);
             if parts.iter().any(|(_, _, expand)| *expand) {
                 self.emit_expanded_cmd_subst(&parts);
@@ -1268,27 +1296,12 @@ impl CodegenCtx<'_> {
     /// trailing `pop`.
     pub(super) fn emit_expanded_cmd_subst(&mut self, parts: &[(String, bool, bool)]) {
         self.used_inline_cmd_subst = true;
-        self.emit_comment(Op::EXPAND_START, vec![], "(expanded)");
-        let mut word_count: u32 = 0;
-        for (part, braced, expand) in parts {
-            if *braced {
-                // A braced expanded word splits its *list* elements without
-                // substitution, so push it verbatim.
-                self.push_lit_verbatim(part);
-            } else {
-                self.emit_cmd_subst_arg(part, false);
-            }
-            word_count += 1;
-            if *expand {
-                self.emit(
-                    Op::EXPAND_STKTOP,
-                    vec![Operand::Imm(
-                        i32::try_from(word_count).expect("word count fits in i32"),
-                    )],
-                );
-            }
-        }
-        self.emit_comment(Op::INVOKE_EXPANDED, vec![], "");
+        self.emit_expanded_words(
+            parts
+                .iter()
+                .map(|(word, braced, expanded)| (word.as_str(), *braced, *expanded)),
+            "(expanded)",
+        );
     }
 
     // -- Private inline helpers for emit_inline_cmd_subst --
@@ -1960,6 +1973,42 @@ mod tests {
         ctx.emit_inline_cmd_subst("[expr {$x contains \"a\"}]");
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::IRULE_CONTAINS), "{ops:?}");
+    }
+
+    /// Public codegen consumers may supply a profile-projected registry
+    /// without separately setting the optional module dialect. Nested source
+    /// must still follow that registry's grammar rather than ambient Tcl.
+    #[test]
+    fn inline_cmd_subst_expansion_uses_the_profiled_registry_grammar() {
+        let f5_registry = tcl_registry::model::ingress::static_context_for_profile(
+            tcl_dialect::DialectProfile::irules(),
+        )
+        .commands();
+        let mut f5 = CodegenCtx::new(true, &["head"], f5_registry);
+        assert!(f5.dialect.is_none());
+        f5.emit_inline_cmd_subst("[{*}$head ordinary]");
+        let f5_ops: Vec<Op> = f5
+            .instructions
+            .iter()
+            .map(|instruction| instruction.op)
+            .collect();
+        assert!(!f5_ops.contains(&Op::EXPAND_STKTOP), "{f5_ops:?}");
+        assert!(!f5_ops.contains(&Op::INVOKE_EXPANDED), "{f5_ops:?}");
+
+        let modern_profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile();
+        let modern_registry =
+            tcl_registry::model::ingress::static_context_for_profile(modern_profile).commands();
+        let mut modern = CodegenCtx::new(true, &["head"], modern_registry);
+        assert!(modern.dialect.is_none());
+        modern.emit_inline_cmd_subst("[{*}$head ordinary]");
+        let modern_ops: Vec<Op> = modern
+            .instructions
+            .iter()
+            .map(|instruction| instruction.op)
+            .collect();
+        assert!(modern_ops.contains(&Op::EXPAND_STKTOP), "{modern_ops:?}");
+        assert!(modern_ops.contains(&Op::INVOKE_EXPANDED), "{modern_ops:?}");
     }
 
     /// The same site's release axis: an operator the target release lacks is

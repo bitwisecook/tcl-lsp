@@ -82,6 +82,7 @@
 2	tcl-vm::cross_version_expr_surface_e2e	test	tcl-vm	cross_version_expr_surface_e2e
 2	tcl-vm::cross_version_numerals_e2e	test	tcl-vm	cross_version_numerals_e2e
 2	tcl-vm::element_recovery_traces_e2e	test	tcl-vm	element_recovery_traces_e2e
+2	tcl-vm::expanded_invoke_e2e	test	tcl-vm	expanded_invoke_e2e
 2	tcl-vm::expr_surface_e2e	test	tcl-vm	expr_surface_e2e
 2	tcl-vm::namespace_colon_runs_e2e	test	tcl-vm	namespace_colon_runs_e2e
 2	tcl-vm::numeric_tower_e2e	test	tcl-vm	numeric_tower_e2e

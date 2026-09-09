@@ -734,13 +734,14 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
         )
         .expect("8.6 coroutine setup compiles");
     assert!(newer_setup.code.is_ok(), "{}", newer_setup.result.to_str());
-    // This source is lexically accepted on 8.5+ (its eventual runtime
-    // command error is immaterial); retaining its compiled module exercises
-    // the lexer-sensitive eval cache that 8.4 must discard and re-lex.
+    // This source is accepted and expanded on 8.5+; retaining its compiled
+    // module exercises the lexer-sensitive eval cache that 8.4 must discard
+    // and re-lex.
     let lexer_86 = vm
         .eval_source("{*}[list set ::profile_mutation_lexer 1]")
         .expect("8.5 lexer source compiles");
-    assert_eq!(lexer_86.code, Code::Error);
+    assert_eq!(lexer_86.code, Code::Ok);
+    assert_eq!(lexer_86.result.to_str().as_ref(), "1");
 
     assert!(vm.set_child_dialect_profile("child", v84));
     vm.set_dialect_profile(v84);
@@ -771,7 +772,7 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
         Code::Error
     );
     assert!(
-        vm.eval_source("{*}[list set ::profile_mutation_lexer 2]")
+        vm.eval_source("{*}[list set ::profile_mutation_lexer 1]")
             .is_err()
     );
 
