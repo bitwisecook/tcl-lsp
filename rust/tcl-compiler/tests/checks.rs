@@ -1998,11 +1998,35 @@ mod binary_field_letters {
         assert_eq!(count("binary format qu 1.0", "tcl8.4", "W202"), 1);
     }
 
+    // Site selection runs through the registry's `FormatType::Binary`
+    // metadata and the head's effective command identity, not the spelling:
+    // `::binary` is the builtin, and a `proc binary` that takes the name
+    // over is not.
+    #[test]
+    fn site_selection_follows_command_identity() {
+        assert_eq!(count("::binary format q 1.0", "tcl8.4", "W202"), 1);
+        assert_eq!(count("::binary format qu 1.0", "tcl8.4", "W200"), 1);
+        // A user-defined `binary` is not the builtin, so its arguments are
+        // not a binary template.
+        assert!(!fires(
+            "proc binary {a b} {}\nbinary format q 1.0",
+            "tcl8.4",
+            "W202",
+        ));
+    }
+
     // A dynamic template has no literal text to read. Without the guard the
     // scanner reads the *variable name*: `$fmt` carries `f`, `m` and `t`, so
     // the gated `m`/`t` fired on every `binary format $fmt ...` under 8.4.
+    // A compound word is dynamic too — `"a$fmt"` is several tokens whose
+    // representative is an ordinary `Esc`, so a kind-only check missed it.
     #[test]
     fn dynamic_template_is_not_checked() {
+        assert!(!fires("binary format \"a$fmt\" 1", "tcl8.4", "W202"));
+        assert!(!fires("binary format \"a${fmt}b\" 1", "tcl8.4", "W202"));
+        assert!(!fires("binary format \"q$x\" 1", "tcl8.4", "W202"));
+        assert!(!fires("binary format a[fn] 1", "tcl8.4", "W202"));
+        assert!(!fires("binary format \"a$au\" 1", "tcl8.4", "W200"));
         assert!(!fires("binary format $fmt 1", "tcl8.4", "W202"));
         assert!(!fires("binary scan $d $fmt v", "tcl8.4", "W202"));
         assert!(!fires("binary format [get_fmt] 1", "tcl8.4", "W202"));
