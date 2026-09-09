@@ -65,7 +65,9 @@ puts $total
 extracts to a proc that takes `total` by name, not one that takes it by value
 and drops the sum. A body that opens its own variable frame — a nested `proc`,
 `namespace eval`, `uplevel`, or an `apply` lambda — is deliberately not
-counted: what it writes is that frame's variable, not the selection's.
+counted, in either direction: what it writes and what it reads are that
+frame's variables, not the selection's, so a nested proc's parameter never
+becomes a parameter of the extracted one.
 
 ## Example
 
@@ -109,17 +111,22 @@ described in the registry rather than by being named inside the refactoring.
 ## Operational context
 
 Implemented in `rust/tcl-lsp-core/src/refactor/extract_proc.rs`. The selection
-is snapped to whole segmented commands; the "is this variable read after the
-selection?" question is asked over the innermost enclosing script region
-(a proc body, an `if` branch, a `foreach` body, or the file), found by
-descending registry-resolved `ArgRole::Body` arguments.
+is snapped to whole segmented commands; the "is this variable read again?"
+question is asked over the frame the selection runs in, which ends at the
+nearest body that opens a variable frame of its own (a proc body, a
+`namespace eval`, an `apply` lambda) or at the file. An `if` or `foreach` body
+is not such a boundary, so a selection made inside a loop is still classified
+against the code that owns the variable. Each enclosing same-frame body counts
+in full rather than only the part after the selection, because a loop runs
+again and reads on its next pass what the previous one assigned.
 
-Both the selection's own classification and that after-the-selection question
-walk the statement tree through `nested_dispatch_regions`, the shared
-same-frame walker Find All References and the caller-frame scan use. It is
+Both the selection's own classification and that read-again question walk the
+statement tree through `nested_dispatch_regions`, the shared same-frame walker
+Find All References and the caller-frame scan use, and find the frame
+boundaries through its complement, `frame_shifted_dispatch_regions`. It is
 registry-driven throughout: `Plain` body arguments, `switch`-style clause arms
 via the registry's own `CaseListSpec`, and `[…]` command substitutions are
-descended, while `Structural` bodies and `apply` lambdas are not.
+descended, while `Structural` bodies and `apply` lambdas end the walk.
 
 ## Failure modes
 

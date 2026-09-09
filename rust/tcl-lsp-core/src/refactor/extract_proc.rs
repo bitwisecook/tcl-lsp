@@ -233,31 +233,30 @@ fn plan_extraction(
         .get(block_start as usize..block_end as usize)
         .ok_or_else(|| "the selected range is unreadable".to_string())?;
 
-    // A written variable that is read again after the selection must keep
-    // reaching the caller's frame; one that is not becomes a proc local.
-    let tail = source
-        .get(block_end as usize..scope.end as usize)
-        .unwrap_or("");
-    // Segmented at its real offset so the same-frame walk below can address
-    // the tail's nested bodies in `source`'s own coordinates.
-    let tail_commands: Vec<SegmentedCommand> =
-        segment_commands_with_offset_and_config(tail, block_end, config)
-            .into_iter()
-            .filter(|command| !command.name().is_empty())
-            .collect();
-    let mut used_after: BTreeSet<String> = variable_references(tail, style);
+    // A written variable that is read again by the frame the selection runs
+    // in must keep reaching the caller; one that is not becomes a proc local.
+    let mut used_after: BTreeSet<String> = BTreeSet::new();
     let mut nested_tail = Vec::new();
-    for command in &tail_commands {
-        used_after.extend(role_named_variables(command, registry));
-        // A read after the selection decides `upvar` versus proc local, so a
-        // role-named read nested in a control-flow body has to count exactly
-        // as a top-level one does: `if {$ok} {incr total}` carries no
-        // `$total` for the text scan to find, and missing it would turn the
-        // selection's write into a proc local and lose the caller's value.
-        nested_tail.clear();
-        nested_same_frame_commands(source, command, &walk, 0, &mut nested_tail);
-        for inner in &nested_tail {
-            used_after.extend(role_named_variables(inner, registry));
+    for (start, end) in observing_regions(source, &walk, block_start, block_end) {
+        let text = source.get(start as usize..end as usize).unwrap_or_default();
+        used_after.extend(variable_references(text, style));
+        // Segmented at its real offset so the same-frame walk below can
+        // address nested bodies in `source`'s own coordinates.
+        for command in segment_commands_with_offset_and_config(text, start, config) {
+            if command.name().is_empty() {
+                continue;
+            }
+            used_after.extend(role_named_variables(&command, registry));
+            // A read decides `upvar` versus proc local, so a role-named read
+            // nested in a control-flow body has to count exactly as a
+            // top-level one does: `if {$ok} {incr total}` carries no `$total`
+            // for the text scan to find, and missing it would turn the
+            // selection's write into a proc local and lose the caller's value.
+            nested_tail.clear();
+            nested_same_frame_commands(source, &command, &walk, 0, &mut nested_tail);
+            for inner in &nested_tail {
+                used_after.extend(role_named_variables(inner, registry));
+            }
         }
     }
 
@@ -307,6 +306,91 @@ fn plan_extraction(
                 new_text: call,
             },
         ],
+    })
+}
+
+/// The byte ranges that can still observe what the selection writes.
+///
+/// A variable the selection assigns has to keep reaching the caller's frame
+/// whenever anything in that frame reads it again, so the question runs to the
+/// nearest boundary that opens a variable frame of its own — a `proc` body, a
+/// `namespace eval`, an `apply` lambda — or the end of the file.  An `if` or
+/// `foreach` body is *not* such a boundary: it shares the caller's variables,
+/// and stopping the scan at it classifies a selection made inside a loop as
+/// writing a proc local, dropping every value the loop accumulates.
+///
+/// Each enclosing same-frame body counts in full rather than only after the
+/// selection, because such a body can run again and read on its next pass what
+/// this one assigned.
+fn observing_regions(
+    source: &str,
+    walk: &FrameWalk,
+    block_start: u32,
+    block_end: u32,
+) -> Vec<(u32, u32)> {
+    let mut frame = (0, u32::try_from(source.len()).unwrap_or(u32::MAX));
+    let mut enclosing: Vec<(u32, u32)> = Vec::new();
+    let mut search = frame;
+    let mut depth = 0;
+    while !crate::references::MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
+        let Some((region, opens_frame)) = containing_region(source, walk, search, block_start)
+        else {
+            break;
+        };
+        // Every step has to narrow the window, or a region that reports itself
+        // would spin here.
+        if region.0 <= search.0 && region.1 >= search.1 {
+            break;
+        }
+        if opens_frame {
+            frame = region;
+            enclosing.clear();
+        } else {
+            enclosing.push(region);
+        }
+        search = region;
+        depth += 1;
+    }
+    let mut regions = vec![(block_end, frame.1)];
+    regions.extend(enclosing.into_iter().map(|(start, _)| (start, block_start)));
+    regions
+}
+
+/// The innermost region of `search` containing `offset`, and whether it opens
+/// a variable frame of its own.
+fn containing_region(
+    source: &str,
+    walk: &FrameWalk,
+    search: (u32, u32),
+    offset: u32,
+) -> Option<((u32, u32), bool)> {
+    let text = source.get(search.0 as usize..search.1 as usize)?;
+    for command in segment_commands_with_offset_and_config(text, search.0, walk.config) {
+        if command.name().is_empty() {
+            continue;
+        }
+        if let Some(region) = region_containing(
+            &crate::references::frame_shifted_dispatch_regions(source, walk.dialect, &command),
+            offset,
+        ) {
+            return Some((region, true));
+        }
+        if let Some(region) =
+            region_containing(&same_frame_regions(source, &command, walk), offset)
+        {
+            return Some((region, false));
+        }
+    }
+    None
+}
+
+/// The first of `regions` that contains `offset`.
+fn region_containing(regions: &[(usize, usize)], offset: u32) -> Option<(u32, u32)> {
+    regions.iter().copied().find_map(|(start, end)| {
+        let (Ok(start), Ok(end)) = (u32::try_from(start), u32::try_from(end)) else {
+            return None;
+        };
+        (offset >= start && offset < end).then_some((start, end))
     })
 }
 
@@ -467,6 +551,69 @@ fn nested_same_frame_commands(
     }
 }
 
+/// Every region inside `command` that runs in a variable frame of its own,
+/// appended to `out`.
+///
+/// The frame-opening bodies are [`crate::references::frame_shifted_dispatch_regions`]'s
+/// answer — the exact complement of the same-frame set
+/// [`nested_same_frame_commands`] walks — asked of `command` and of every
+/// same-frame command beneath it, so a `proc` nested in an `if` branch is
+/// found as readily as one at the selection's top level.
+fn frame_shifted_regions_within(
+    source: &str,
+    command: &SegmentedCommand,
+    walk: &FrameWalk,
+    out: &mut Vec<(u32, u32)>,
+) {
+    let mut push = |regions: Vec<(usize, usize)>| {
+        for (start, end) in regions {
+            let (Ok(start), Ok(end)) = (u32::try_from(start), u32::try_from(end)) else {
+                continue;
+            };
+            out.push((start, end));
+        }
+    };
+    push(crate::references::frame_shifted_dispatch_regions(
+        source,
+        walk.dialect,
+        command,
+    ));
+    let mut nested = Vec::new();
+    nested_same_frame_commands(source, command, walk, 0, &mut nested);
+    for inner in &nested {
+        push(crate::references::frame_shifted_dispatch_regions(
+            source,
+            walk.dialect,
+            inner,
+        ));
+    }
+}
+
+/// `start..end` with every range in `holes` cut out of it.
+fn same_frame_slices(start: u32, end: u32, holes: &[(u32, u32)]) -> Vec<(u32, u32)> {
+    let mut cuts: Vec<(u32, u32)> = holes
+        .iter()
+        .copied()
+        .filter(|(from, to)| *to > start && *from < end && from < to)
+        .collect();
+    cuts.sort_unstable();
+    let mut slices = Vec::new();
+    let mut cursor = start;
+    for (from, to) in cuts {
+        if from > cursor {
+            slices.push((cursor, from.min(end)));
+        }
+        cursor = cursor.max(to);
+        if cursor >= end {
+            break;
+        }
+    }
+    if cursor < end {
+        slices.push((cursor, end));
+    }
+    slices
+}
+
 /// Classify the selection's variable use from the registry's argument roles
 /// plus the `$name` references in its text.
 ///
@@ -496,18 +643,26 @@ fn classify_variables(
         written: BTreeMap::new(),
     };
     let mut nested = Vec::new();
+    let mut frames = Vec::new();
     for command in selected {
-        // One text scan per selected command already covers the `$name` reads
-        // of its whole subtree, nested bodies included.
+        // One text scan per selected command covers the `$name` reads of its
+        // whole subtree, minus the bodies that open a variable frame of their
+        // own: a `$name` in a nested proc body or an `apply` lambda names that
+        // frame's variable, so making it a parameter would ask the caller for
+        // a variable it does not have.
         let (start, end) = command_span_offsets(source, command);
-        let text = source.get(start as usize..end as usize).unwrap_or("");
-        for (name, at, _) in super::variable_reference_spans(text, style) {
-            let at = start.saturating_add(u32::try_from(at).unwrap_or(0));
-            roles
-                .read
-                .entry(name)
-                .and_modify(|first| *first = (*first).min(at))
-                .or_insert(at);
+        frames.clear();
+        frame_shifted_regions_within(source, command, walk, &mut frames);
+        for (from, to) in same_frame_slices(start, end, &frames) {
+            let text = source.get(from as usize..to as usize).unwrap_or("");
+            for (name, at, _) in super::variable_reference_spans(text, style) {
+                let at = from.saturating_add(u32::try_from(at).unwrap_or(0));
+                roles
+                    .read
+                    .entry(name)
+                    .and_modify(|first| *first = (*first).min(at))
+                    .or_insert(at);
+            }
         }
         classify_command(source, command, registry, &mut roles)?;
         nested.clear();
@@ -1163,6 +1318,62 @@ mod tests {
             "the expression's substitution writes the caller's variable: {result}"
         );
         assert!(result.contains("extracted_proc x\n"), "{result}");
+    }
+
+    /// A selection made *inside* a loop body still writes the caller's
+    /// variable: a control-flow body shares the frame it sits in, so the
+    /// "read after the selection?" question runs past the body's closing
+    /// brace to the frame that owns the variable.
+    ///
+    /// Oracle (tclsh 8.6.18 and 9.0.4 alike): original and extraction both
+    /// print `6`.  Classifying `total` as a proc local prints `0`.
+    #[test]
+    fn tp_a_write_inside_a_loop_body_reaches_the_caller() {
+        let src = "set total 0\nforeach n {1 2 3} {\n    incr total $n\n}\nputs $total\n";
+        let result = outcome(src, "incr total $n").unwrap();
+        assert!(
+            result.contains("proc extracted_proc {n totalName} {\n    upvar 1 $totalName total\n"),
+            "the loop body's write is the caller's write: {result}"
+        );
+        assert!(result.contains("extracted_proc $n total\n"), "{result}");
+    }
+
+    /// The enclosing body counts in full, not only the part after the
+    /// selection: a loop runs again, so a read *above* the selection reads
+    /// what the previous iteration assigned.
+    ///
+    /// Oracle: the original prints `0`, `1`, `3`; so does the extraction.
+    #[test]
+    fn tp_a_loop_carried_read_above_the_selection_keeps_the_upvar() {
+        let src = "set total 0\nforeach n {1 2 3} {\n    puts $total\n    incr total $n\n}\n";
+        let result = outcome(src, "incr total $n").unwrap();
+        assert!(
+            result.contains("upvar 1 $totalName total"),
+            "the next iteration reads what this one wrote: {result}"
+        );
+        assert!(result.contains("extracted_proc $n total\n"), "{result}");
+    }
+
+    /// A `$name` inside a body that opens its own variable frame names *that*
+    /// frame's variable, so it is neither a parameter of the extracted proc
+    /// nor an argument at the call site — the caller has no such variable to
+    /// pass.
+    ///
+    /// Oracle: the original defines `helper` and prints `done`; so does the
+    /// extraction.  Asking the caller for `$name` dies with
+    /// `can't read "name": no such variable`.
+    #[test]
+    fn tp_a_read_inside_a_nested_procs_body_is_not_a_parameter() {
+        let src = "proc helper {name} {\n    puts \"hello $name\"\n}\nputs done\n";
+        let result = outcome(src, "proc helper {name} {\n    puts \"hello $name\"\n}").unwrap();
+        assert!(
+            result.contains("proc extracted_proc {} {"),
+            "the nested proc's parameter is nobody else's: {result}"
+        );
+        assert!(
+            !result.contains("extracted_proc $name"),
+            "the caller has no `name` to pass: {result}"
+        );
     }
 
     /// A write nested in a control-flow body is still the caller's write.
