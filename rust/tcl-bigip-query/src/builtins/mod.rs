@@ -386,7 +386,7 @@ fn registrations() -> Vec<(&'static str, BuiltinSpec)> {
 #[must_use]
 pub(crate) fn type_name(v: &Value) -> &'static str {
     match v {
-        Value::Null => "null",
+        Value::Null | Value::Unresolved(_) => "null",
         Value::Bool(_) => "bool",
         Value::Int(_) => "int",
         Value::Float(_) => "float",
@@ -492,6 +492,7 @@ pub(crate) fn to_jsonable(v: &Value, depth: u32) -> Value {
     }
     match v {
         Value::Null | Value::Bool(_) | Value::Int(_) | Value::Float(_) | Value::Str(_) => v.clone(),
+        Value::Unresolved(_) => Value::Null,
         Value::PathRef(p) => Value::Str(p.full_path.clone()),
         Value::List(items) | Value::Stream(items) => Value::List(
             items
@@ -935,7 +936,7 @@ fn pathological_regex() -> &'static Regex {
 fn bi_length(args: &[Value]) -> Result<Value, QueryError> {
     let v = &args[0];
     let n: i64 = match v {
-        Value::Null => 0,
+        Value::Null | Value::Unresolved(_) => 0,
         Value::Str(s) => s.chars().count() as i64,
         Value::List(items) | Value::Stream(items) => items.len() as i64,
         Value::PathRef(p) => p.full_path.chars().count() as i64,

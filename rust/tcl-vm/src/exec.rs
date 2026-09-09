@@ -221,9 +221,9 @@ pub(crate) struct Frame {
     /// `return -code continue` into `TCL_CONTINUE`.
     try_ctx: Option<Box<crate::cmd_try::TryState>>,
     /// Execution-trace leave contexts this activation settles on completion
-    /// (M16.3): each traced dispatch that deferred its body to this frame.  A
-    /// `tailcall` transfers the issuing frame's contexts to its replacement,
-    /// hence a Vec.  Fired (and step scopes popped) as the frame unwinds.
+    /// (M16.3): each traced dispatch that deferred its body to this frame. A
+    /// try command transfers its context between phase frames, hence a Vec.
+    /// Fired (and step scopes popped) as the owning frame unwinds.
     exec_leave: Vec<ExecLeaveCtx>,
     /// A command name to delete once this activation completes, regardless of
     /// completion code — `apply`'s temporary lambda proc (issue #1311), torn
@@ -567,13 +567,19 @@ enum Tick {
     /// Run a `subst` on the explicit stack (yieldable) via a subst activation
     /// ([`Frame::new_subst`]); its `[…]` bodies run as child script frames and are
     /// folded back by subst rules. Drained from `Vm.pending.subst`.
-    PushSubst(SubstReq),
+    PushSubst {
+        req: SubstReq,
+        placeholder: crate::compiled::CompiledUnit,
+    },
     /// Run a `foreach`/`lmap` runtime-fallback loop on the explicit stack
     /// (yieldable) via an each-loop activation ([`Frame::new_each_loop`]); each
     /// iteration's body runs as a child script frame and is folded back by
     /// `each_loop`'s collect/continue/break rules. Drained from
     /// `Vm.pending.each_loop` (issue #1311).
-    PushEachLoop(EachLoopReq),
+    PushEachLoop {
+        req: EachLoopReq,
+        placeholder: crate::compiled::CompiledUnit,
+    },
     /// Run one phase (body/handler/`finally`) of a `try` on the explicit stack
     /// (yieldable) via a try-phase activation ([`Frame::new_try`]); its
     /// completion decides the next phase via `cmd_try::advance_try`. Drained
@@ -624,6 +630,17 @@ pub(crate) enum YieldReq {
 enum DriveMode {
     Plain,
     CoroDriver,
+}
+
+/// The common result of consuming one [`Tick`]. Activation-bearing ticks have
+/// already installed their frame when `Resume` is returned; every other shape
+/// stays explicit so both the ordinary drive and a nested tailcall use the same
+/// exhaustive protocol.
+enum TickAction {
+    Resume,
+    Complete(Completion<Value>),
+    Tailcall(Vec<Value>),
+    Suspend(YieldReq),
 }
 
 /// How a [`Vm::drive`](Vm) invocation ended: the activation stack emptied
@@ -1363,20 +1380,104 @@ impl Vm {
         self.drive(acts, DriveMode::CoroDriver)
     }
 
-    /// Enter an already-validated procedure body. The frame carries the body's
-    /// complete compilation provenance rather than the VM's current values.
-    fn push_proc_frame(&mut self, acts: &mut Vec<Frame>, proc: &Rc<ProcDef>) {
-        let mut frame = Frame::new(proc.body.clone(), true);
+    fn push_frame(&mut self, acts: &mut Vec<Frame>, mut frame: Frame) {
         if let Some(ctx) = self.pending_exec_leave.take() {
             frame.exec_leave.push(ctx);
         }
         acts.push(frame);
     }
 
-    // Keep the complete Tick dispatcher together: each arm performs the same
-    // pending-trace transfer and activation-stack settlement protocol, and
-    // splitting individual arms would duplicate that state-machine boundary.
-    #[allow(clippy::too_many_lines)]
+    fn settle_pending_exec_leave(&mut self, completion: Completion<Value>) -> Completion<Value> {
+        match self.pending_exec_leave.take() {
+            Some(ctx) => self
+                .finish_exec_leave(&ctx, &completion)
+                .unwrap_or(completion),
+            None => completion,
+        }
+    }
+
+    fn settle_exec_leaves(
+        &mut self,
+        contexts: &mut Vec<ExecLeaveCtx>,
+        mut completion: Completion<Value>,
+    ) -> Completion<Value> {
+        for ctx in contexts.drain(..).rev() {
+            if let Some(replacement) = self.finish_exec_leave(&ctx, &completion) {
+                completion = replacement;
+            }
+        }
+        completion
+    }
+
+    /// Consume every tick shape at the single activation-install boundary.
+    /// Both the ordinary trampoline and a command dispatched by `tailcall` use
+    /// this path, so a deferred builtin cannot silently look synchronous in one
+    /// of them. Each pushed frame takes the trace context for the command that
+    /// created it, and each placeholder unit was stamped when the tick was
+    /// issued rather than reconstructed here from later VM state.
+    fn install_tick(&mut self, acts: &mut Vec<Frame>, tick: Tick) -> TickAction {
+        match tick {
+            Tick::Continue => TickAction::Resume,
+            Tick::Return(completion) => TickAction::Complete(completion),
+            Tick::Call {
+                proc,
+                invoked,
+                argv,
+            } => match self.enter_proc(&proc, &invoked, &argv) {
+                Ok(()) => {
+                    self.push_frame(acts, Frame::new(proc.body.clone(), true));
+                    TickAction::Resume
+                }
+                Err(completion) => TickAction::Complete(self.settle_pending_exec_leave(completion)),
+            },
+            Tick::PushScript {
+                script,
+                label,
+                cleanup_proc,
+                namespace,
+            } => {
+                let mut frame = Frame::new_script(script, label);
+                frame.cleanup_proc = cleanup_proc;
+                if let ScriptNamespace::CommandBoundary(namespace) = namespace {
+                    match self.enter_replay_namespace(namespace) {
+                        Ok(previous) => frame.replay_namespace_restore = previous,
+                        Err(message) => {
+                            if let Some(name) = frame.cleanup_proc.take() {
+                                self.take_command_unchecked(&name);
+                            }
+                            return TickAction::Complete(
+                                self.settle_pending_exec_leave(err(message)),
+                            );
+                        }
+                    }
+                }
+                self.push_frame(acts, frame);
+                TickAction::Resume
+            }
+            Tick::PushCatch(req) => {
+                self.push_frame(acts, Frame::new_catch(req));
+                TickAction::Resume
+            }
+            Tick::PushSubst { req, placeholder } => {
+                self.push_frame(acts, Frame::new_subst(req, placeholder));
+                TickAction::Resume
+            }
+            Tick::PushEachLoop { req, placeholder } => {
+                self.push_frame(acts, Frame::new_each_loop(req, placeholder));
+                TickAction::Resume
+            }
+            Tick::PushTry {
+                req,
+                initial_options,
+            } => {
+                self.push_frame(acts, Frame::new_try(req, initial_options));
+                TickAction::Resume
+            }
+            Tick::Tailcall(words) => TickAction::Tailcall(words),
+            Tick::Suspend(req) => TickAction::Suspend(req),
+        }
+    }
+
     fn drive_loop(&mut self, acts: &mut Vec<Frame>, mode: DriveMode) -> RunExit {
         loop {
             // Enforce `interp limit $i time` for unbounded bytecode loops: the
@@ -1402,98 +1503,19 @@ impl Vm {
                 Ok(true) => continue,
                 Err(exit) => return exit,
             }
-            match tick {
-                Tick::Continue => {}
-                Tick::Call {
-                    proc,
-                    invoked,
-                    argv,
-                } => match self.enter_proc(&proc, &invoked, &argv) {
-                    Ok(()) => self.push_proc_frame(acts, &proc),
-                    Err(c) => {
-                        // A traced dispatch that failed at proc entry (arity)
-                        // still settles its leave with the error.
-                        let c = match self.pending_exec_leave.take() {
-                            Some(ctx) => self.finish_exec_leave(&ctx, &c).unwrap_or(c),
-                            None => c,
-                        };
-                        if let Some(done) = self.unwind(acts, c) {
-                            return RunExit::Done(done);
-                        }
-                    }
-                },
-                Tick::PushScript {
-                    script,
-                    label,
-                    cleanup_proc,
-                    namespace,
-                } => {
-                    let mut fr = Frame::new_script(script, label);
-                    fr.cleanup_proc = cleanup_proc;
-                    if let ScriptNamespace::CommandBoundary(namespace) = namespace {
-                        match self.enter_replay_namespace(namespace) {
-                            Ok(previous) => fr.replay_namespace_restore = previous,
-                            Err(message) => {
-                                if let Some(done) = self.settle_completion(acts, err(message)) {
-                                    return RunExit::Done(done);
-                                }
-                                continue;
-                            }
-                        }
-                    }
-                    if let Some(ctx) = self.pending_exec_leave.take() {
-                        fr.exec_leave.push(ctx);
-                    }
-                    acts.push(fr);
-                }
-                Tick::PushCatch(req) => {
-                    let mut fr = Frame::new_catch(req);
-                    if let Some(ctx) = self.pending_exec_leave.take() {
-                        fr.exec_leave.push(ctx);
-                    }
-                    acts.push(fr);
-                }
-                Tick::PushSubst(req) => {
-                    let namespace = self.current_ns().to_owned();
-                    let placeholder =
-                        self.compiled_unit(Rc::new(FunctionAsm::default()), namespace);
-                    let mut fr = Frame::new_subst(req, placeholder);
-                    if let Some(ctx) = self.pending_exec_leave.take() {
-                        fr.exec_leave.push(ctx);
-                    }
-                    acts.push(fr);
-                }
-                Tick::PushEachLoop(req) => {
-                    let namespace = self.current_ns().to_owned();
-                    let placeholder =
-                        self.compiled_unit(Rc::new(FunctionAsm::default()), namespace);
-                    let mut fr = Frame::new_each_loop(req, placeholder);
-                    if let Some(ctx) = self.pending_exec_leave.take() {
-                        fr.exec_leave.push(ctx);
-                    }
-                    acts.push(fr);
-                }
-                Tick::PushTry {
-                    req,
-                    initial_options,
-                } => {
-                    let mut fr = Frame::new_try(req, initial_options);
-                    if let Some(ctx) = self.pending_exec_leave.take() {
-                        fr.exec_leave.push(ctx);
-                    }
-                    acts.push(fr);
-                }
-                Tick::Return(c) => {
-                    if let Some(done) = self.settle_completion(acts, c) {
+            match self.install_tick(acts, tick) {
+                TickAction::Resume => {}
+                TickAction::Complete(completion) => {
+                    if let Some(done) = self.settle_completion(acts, completion) {
                         return RunExit::Done(done);
                     }
                 }
-                Tick::Tailcall(words) => {
-                    if let Some(done) = self.run_tailcall(acts, &words) {
-                        return RunExit::Done(done);
+                TickAction::Tailcall(words) => {
+                    if let Some(exit) = self.run_tailcall(acts, &words, mode) {
+                        return exit;
                     }
                 }
-                Tick::Suspend(req) => {
+                TickAction::Suspend(req) => {
                     if let Some(exit) = self.handle_suspend(acts, mode, req) {
                         return exit;
                     }
@@ -1873,11 +1895,7 @@ impl Vm {
             // proc-boundary and apply-cleanup ordering.
             let defer_exec_leave = act.catch.is_some() || act.try_ctx.is_some();
             if !defer_exec_leave && !act.exec_leave.is_empty() {
-                for ctx in act.exec_leave.drain(..).rev() {
-                    if let Some(replacement) = self.finish_exec_leave(&ctx, &c) {
-                        c = replacement;
-                    }
-                }
+                c = self.settle_exec_leaves(&mut act.exec_leave, c);
             }
             // `apply`'s temporary lambda proc is torn down here, once its script
             // activation completes — on every completion code, mirroring the old
@@ -1928,11 +1946,7 @@ impl Vm {
             // now escapes the completed control command instead of being
             // caught or handled by that same command.
             if defer_exec_leave && !act.exec_leave.is_empty() {
-                for ctx in act.exec_leave.drain(..).rev() {
-                    if let Some(replacement) = self.finish_exec_leave(&ctx, &c) {
-                        c = replacement;
-                    }
-                }
+                c = self.settle_exec_leaves(&mut act.exec_leave, c);
             }
             // Crossing an activation boundary is itself a provenance
             // consumption point. In particular, a freshly compiled computed-
@@ -5030,8 +5044,8 @@ impl Vm {
                     Tick::Call { .. }
                     | Tick::PushScript { .. }
                     | Tick::PushCatch(_)
-                    | Tick::PushSubst(_)
-                    | Tick::PushEachLoop(_)
+                    | Tick::PushSubst { .. }
+                    | Tick::PushEachLoop { .. }
                     | Tick::PushTry { .. } => self.pending_exec_leave = Some(ctx),
                     // Control shapes with no owning frame (a traced `yield` /
                     // `tailcall` builtin itself): settle with an empty ok —
@@ -5166,6 +5180,15 @@ impl Vm {
         }
     }
 
+    /// Build the generation-bearing empty unit used by scanner activations at
+    /// the moment their native command hands control to the trampoline.
+    fn current_placeholder_unit(&self) -> crate::compiled::CompiledUnit {
+        self.compiled_unit(
+            Rc::new(FunctionAsm::default()),
+            self.current_ns().to_owned(),
+        )
+    }
+
     /// Settle a synchronously-run native command (a [`BuiltinFn`] or an
     /// embedder's [`NativeCommand`](crate::command::NativeCommand)): drain any
     /// body it deferred to the explicit stack, else deliver its completion.
@@ -5200,13 +5223,19 @@ impl Vm {
         // A `subst` defers to a scanner-driven subst frame, whose `[…]`
         // bodies run yieldably as child frames (see `Frame::subst`).
         if let Some(req) = self.pending.subst.take() {
-            return Ok(Some(Tick::PushSubst(req)));
+            return Ok(Some(Tick::PushSubst {
+                req,
+                placeholder: self.current_placeholder_unit(),
+            }));
         }
         // A `foreach`/`lmap` runtime-fallback loop defers to a
         // scanner-driven each-loop frame, whose iterations run yieldably
         // as child frames (see `Frame::each_loop`, issue #1311).
         if let Some(req) = self.pending.each_loop.take() {
-            return Ok(Some(Tick::PushEachLoop(req)));
+            return Ok(Some(Tick::PushEachLoop {
+                req,
+                placeholder: self.current_placeholder_unit(),
+            }));
         }
         // A `try` defers its body (and, from `advance_try`, each
         // subsequent phase) to a try-phase frame (see `Frame::try_ctx`,
@@ -5558,16 +5587,14 @@ impl Vm {
         // nested drive (its `[…]` bodies can't yield across this native
         // re-entry), returning its accumulated result.
         if let Some(req) = self.pending.subst.take() {
-            let namespace = self.current_ns().to_owned();
-            let placeholder = self.compiled_unit(Rc::new(FunctionAsm::default()), namespace);
+            let placeholder = self.current_placeholder_unit();
             return self.run_activation(Frame::new_subst(req, placeholder));
         }
         // A `foreach`/`lmap` runtime-fallback loop deferred: run the
         // scanner-driven each-loop frame via a nested drive (a `yield` in
         // its body can't cross this native re-entry either).
         if let Some(req) = self.pending.each_loop.take() {
-            let namespace = self.current_ns().to_owned();
-            let placeholder = self.compiled_unit(Rc::new(FunctionAsm::default()), namespace);
+            let placeholder = self.current_placeholder_unit();
             return self.run_activation(Frame::new_each_loop(req, placeholder));
         }
         // A `try` deferred its body: run it (and, via `Vm::unwind`'s own
@@ -5719,121 +5746,97 @@ impl Vm {
     /// Run a `tailcall` in the place of the proc that issued it. The proc's
     /// activation (and its call-frame + namespace) is popped — it is in tail
     /// position, so it is finished — and `words` (`[cmd, arg, …]`) is dispatched
-    /// in the *caller's* activation: a proc tailcall is entered as a fresh
-    /// activation at the caller's level (so a tail-recursive loop neither grows
-    /// the activation stack nor counts against the recursion limit, the whole
-    /// point of `tailcall`); a builtin runs inline and pushes its result. Returns
-    /// `Some` when the whole `run` is finished, `None` when a parent resumed.
+    /// in the *caller's* activation. An `eval`/`uplevel` frame or the internal
+    /// script wrapper around an `apply` lambda between the opcode and that proc
+    /// is transparent: its command leaves with `RETURN`, then the enclosing proc
+    /// is replaced (Tcl's tailcall-13.2 shape).
     /// Mirrors C Tcl's deferred-tailcall NR callback.
     fn run_tailcall(
         &mut self,
         acts: &mut Vec<Frame>,
         words: &[Value],
-    ) -> Option<Completion<Value>> {
-        let is_proc = acts.last().is_some_and(|fr| fr.is_proc);
-        if !is_proc {
+        mode: DriveMode,
+    ) -> Option<RunExit> {
+        let Some(proc_index) = acts.iter().rposition(|frame| frame.is_proc) else {
             let c = err("tailcall can only be called from a proc, lambda or method");
-            return self.unwind(acts, c);
+            return self.unwind(acts, c).map(RunExit::Done);
+        };
+        if acts[proc_index + 1..].iter().any(|frame| {
+            !frame.is_script || (frame.body_label.is_none() && frame.cleanup_proc.is_none())
+        }) {
+            let c = err("tailcall can only be called from a proc, lambda or method");
+            return self.unwind(acts, c).map(RunExit::Done);
         }
-        // Pop the issuing proc in tail position.  Its execution-trace leave
-        // contexts (M16.3) transfer to whatever replaces it — C fires a
-        // tailcalling proc's leave trace when the tailcalled command finally
-        // returns.
-        let mut carried = acts
-            .pop()
-            .map(|mut fr| std::mem::take(&mut fr.exec_leave))
-            .unwrap_or_default();
+
+        // These transparent wrappers introduce no Tcl call frame. Their
+        // activation still owns the deferred command's leave trace, which sees
+        // the `RETURN` completion produced by the inner tailcall before the
+        // enclosing proc itself leaves. An apply wrapper also owns its temporary
+        // command, removed below when its lambda has tailcalled through it.
+        while acts.len() > proc_index + 1 {
+            let mut frame = acts.pop().expect("transparent tailcall frame present");
+            if let Some(previous) = frame.replay_namespace_restore.take() {
+                self.leave_replay_namespace(previous);
+            }
+            let completion = self.settle_exec_leaves(
+                &mut frame.exec_leave,
+                Completion::new(Code::Return, Value::empty(), Value::empty()),
+            );
+            if let Some(name) = frame.cleanup_proc.take() {
+                self.take_command_unchecked(&name);
+            }
+            if completion.code != Code::Return {
+                return self.unwind(acts, completion).map(RunExit::Done);
+            }
+        }
+
+        // The issuing proc is already complete before its replacement starts:
+        // C fires its leave trace with OK/empty before the target's enter trace.
+        // A leave failure prevents target dispatch altogether.
+        let mut issuer = acts.pop().expect("tailcall procedure activation present");
         self.pop_call_frame();
         self.pop_ns();
+        let issuer_completion = self.settle_exec_leaves(&mut issuer.exec_leave, ok(Value::empty()));
+        if !issuer_completion.code.is_ok() {
+            return if acts.is_empty() {
+                Some(RunExit::Done(issuer_completion))
+            } else {
+                self.unwind(acts, issuer_completion).map(RunExit::Done)
+            };
+        }
+
         if words.is_empty() {
             // `tailcall` with no command is a plain return of "".
-            let mut c = ok(Value::empty());
-            for ctx in carried.drain(..).rev() {
-                if let Some(replacement) = self.finish_exec_leave(&ctx, &c) {
-                    c = replacement;
-                }
-            }
-            if !c.code.is_ok() {
-                return self.unwind(acts, c);
-            }
             return match acts.last_mut() {
-                None => Some(c),
+                None => Some(RunExit::Done(issuer_completion)),
                 Some(parent) => {
-                    parent.last_options = c.options;
-                    parent.stack.push(c.result);
+                    parent.last_options = issuer_completion.options;
+                    parent.stack.push(issuer_completion.result);
                     None
                 }
             };
         }
         let name = words[0].to_str().to_string();
-        match acts.last_mut() {
-            // The issuing proc was the outermost activation: run the tailcall to
-            // completion and let it be the overall result.
-            None => {
-                let mut c = self.invoke_command(&name, &words[1..]);
-                for ctx in carried.drain(..).rev() {
-                    if let Some(replacement) = self.finish_exec_leave(&ctx, &c) {
-                        c = replacement;
-                    }
+        // The issuing proc was the outermost activation: run the tailcall to
+        // completion and let it be the overall result.
+        if acts.is_empty() {
+            return Some(RunExit::Done(self.invoke_command(&name, &words[1..])));
+        }
+        let dispatched = {
+            let parent = acts.last_mut().expect("tailcall parent present");
+            self.dispatch_words(parent, words)
+        };
+        match dispatched {
+            Ok(Some(tick)) => match self.install_tick(acts, tick) {
+                TickAction::Resume => None,
+                TickAction::Complete(completion) => {
+                    self.settle_completion(acts, completion).map(RunExit::Done)
                 }
-                Some(c)
-            }
-            Some(parent) => match self.dispatch_words(parent, words) {
-                Ok(Some(Tick::Call {
-                    proc,
-                    invoked,
-                    argv,
-                })) => match self.enter_proc(&proc, &invoked, &argv) {
-                    Ok(()) => {
-                        let mut fr = Frame::new(proc.body.clone(), true);
-                        if let Some(ctx) = self.pending_exec_leave.take() {
-                            fr.exec_leave.push(ctx);
-                        }
-                        fr.exec_leave.extend(carried);
-                        acts.push(fr);
-                        None
-                    }
-                    Err(c) => {
-                        let c = match self.pending_exec_leave.take() {
-                            Some(ctx) => self.finish_exec_leave(&ctx, &c).unwrap_or(c),
-                            None => c,
-                        };
-                        self.unwind(acts, c)
-                    }
-                },
-                Ok(_) => {
-                    // Synchronous tailcall target: its result is on the
-                    // parent's stack; settle the carried contexts with it.
-                    let result = acts
-                        .last()
-                        .and_then(|p| p.stack.last().cloned())
-                        .unwrap_or_else(Value::empty);
-                    let mut c = ok(result);
-                    let mut replaced = false;
-                    for ctx in carried.drain(..).rev() {
-                        if let Some(replacement) = self.finish_exec_leave(&ctx, &c) {
-                            c = replacement;
-                            replaced = true;
-                        }
-                    }
-                    if replaced {
-                        if let Some(parent) = acts.last_mut() {
-                            parent.stack.pop();
-                        }
-                        return self.unwind(acts, c);
-                    }
-                    None
-                }
-                Err(c) => {
-                    let mut c = c;
-                    for ctx in carried.drain(..).rev() {
-                        if let Some(replacement) = self.finish_exec_leave(&ctx, &c) {
-                            c = replacement;
-                        }
-                    }
-                    self.unwind(acts, c)
-                }
+                TickAction::Tailcall(next) => self.run_tailcall(acts, &next, mode),
+                TickAction::Suspend(req) => self.handle_suspend(acts, mode, req),
             },
+            Ok(None) => None,
+            Err(completion) => self.unwind(acts, completion).map(RunExit::Done),
         }
     }
 

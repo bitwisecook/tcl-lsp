@@ -185,6 +185,31 @@ evaluator transparently dereferences `PathRef` on field-access so
 `.ltm.virtual[].pool.members[].address` walks VS → pool → member in
 one chain.
 
+A dereference resolves against the whole view the query runs over.
+Under `--merge` every loaded source is one namespace, so each hop of a
+chain may land in a different source — a GTM wideip's `pools[]`
+reference resolves into an LTM config and the hops off that object
+resolve the same way.  Without `--merge` a dereference stays inside the
+config being iterated, which is what per-file semantics mean.
+
+A reference that resolves to no object in that view is never silent.
+Reading a field through one yields a value that renders as `null` but
+carries the path that failed, so the gap is visible in a projection and
+a further step can name it:
+
+| Shape | Result |
+| --- | --- |
+| Empty reference (`pool none`) | contributes nothing, at every kind of step |
+| Field read (`.pool.members`) | reads as `null`, carrying `/Common/…` |
+| Reading on through it (`.pool.members.foo`) | error naming the path |
+| Iterating it (`.pool.members[]`) | empty — nothing to iterate |
+| Iterating / subscripting the reference itself (`.pool[]`, `.pool["x"]`) | error naming the path |
+
+`length` of the `null` is `0`, and it is falsy.  Plain `null` is
+unaffected and still refuses to iterate; only an unresolved reference is
+empty.  Outside `--merge` the error also points at `--merge` when more
+than one source is loaded.
+
 ### `Stream`
 
 A flat sequence produced by `[]` or stream-returning builtins.
