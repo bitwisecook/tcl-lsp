@@ -28,16 +28,13 @@ use crate::code_actions::ActionKind;
 /// logical expression which must be wrapped in `[expr { … }]` so the
 /// resulting `set` stays a valid two-argument call.
 ///
-/// Every [`BinOp`](tcl_syntax::expr::ast::BinOp) variant is, by
-/// construction, a genuine infix binary operator — derived from
-/// `tcl_syntax::expr::operators::ALL_BIN_OPS` (issue #983's unification)
-/// rather than a hand-typed 17-entry list that used to miss the bitwise/
-/// shift symbols (`<<`/`>>`/`&`/`|`/`^`), the TIP 461 string-ordering words
-/// (`lt`/`le`/`gt`/`ge`), and every iRules word operator (`contains`/
-/// `starts_with`/…). That wasn't just a missed suggestion: selecting
-/// `$a << 2` and extracting it produced `set myvar $a << 2` — a 4-argument
-/// `set` call, which is a Tcl runtime error (`set` takes 1 or 2 args), not
-/// merely a semantic difference.
+/// Derived from `tcl_syntax::expr::operators::ALL_BIN_OPS`, every entry of
+/// which is by construction a genuine infix binary operator, so the set
+/// covers the bitwise / shift symbols (`<<`/`>>`/`&`/`|`/`^`), the TIP 461
+/// string-ordering words (`lt`/`le`/`gt`/`ge`), and the iRules word
+/// operators (`contains`/`starts_with`/…). Missing one is not a missed
+/// suggestion: extracting `$a << 2` unwrapped writes `set myvar $a << 2`,
+/// a four-argument `set`, which is a Tcl runtime error.
 fn expr_op_spellings() -> &'static [&'static str] {
     static OPS: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
     OPS.get_or_init(|| {
@@ -54,11 +51,10 @@ fn expr_op_spellings() -> &'static [&'static str] {
 /// A whitespace-delimited operator has a single whitespace byte on each
 /// side (`\s OP \s`); this scans for ` OP ` with single ASCII spaces,
 /// skipping any byte range inside a `"…"` word or inside nested
-/// brackets/braces/parens. Without the quote check, an ordinary string
-/// selection like `"salt and pepper"` matched the iRules `and` word
-/// operator as if it were a real operator token, wrapping a plain string
-/// in `[expr {…}]` — which then fails at runtime (`"salt"` isn't a valid
-/// `expr` bareword).
+/// brackets/braces/parens. The quote check is what keeps an ordinary
+/// string selection like `"salt and pepper"` from matching the iRules
+/// `and` word operator and being wrapped in `[expr {…}]`, which fails at
+/// runtime because `"salt"` is not a valid `expr` bareword.
 fn looks_like_expr(text: &str) -> bool {
     let bytes = text.as_bytes();
     let mut depth = 0i32;
