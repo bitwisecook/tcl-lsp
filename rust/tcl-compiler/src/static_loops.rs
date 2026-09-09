@@ -125,11 +125,11 @@ pub fn evaluate_expr_with_constants(
 ///
 /// Avoids a lossy `as` cast: the value is rendered to its exact integer
 /// decimal (`f` is integral by contract) and parsed. Out-of-range
-/// magnitudes fail to parse and saturate by sign, matching the previous
-/// `f as i64` saturating-cast behaviour.
+/// magnitudes fail to parse and saturate by sign, as an `f as i64` cast
+/// does.
 fn saturating_f64_to_i64(f: f64) -> i64 {
-    // `+ 0.0` normalises `-0.0` to `0.0` so it renders/parses as `0`,
-    // matching the previous `as i64` saturating cast.
+    // `+ 0.0` normalises `-0.0` to `0.0` so it renders/parses as `0`, as an
+    // `as i64` cast does.
     match format!("{:.0}", f + 0.0).parse::<i64>() {
         Ok(i) => i,
         Err(_) if f.is_sign_negative() => i64::MIN,
@@ -395,7 +395,7 @@ pub fn summarise_for_statement(
     else {
         return None;
     };
-    let _ = expr_text(condition); // reserved for diagnostics
+    let _ = expr_text(condition);
     summarise_static_for(
         init,
         condition,
@@ -449,7 +449,7 @@ mod tests {
         }
     }
 
-    // -- saturating_f64_to_i64 --
+    // saturating_f64_to_i64
 
     #[test]
     fn saturating_f64_to_i64_in_range_and_saturates() {
@@ -459,13 +459,13 @@ mod tests {
         assert_eq!(saturating_f64_to_i64(-42.0), -42);
         // `-0.0` normalises to 0 (tclsh `int(-0.0)` == 0), not "-0".
         assert_eq!(saturating_f64_to_i64(-0.0), 0);
-        // Out-of-range magnitudes saturate by sign (matches the prior
-        // `as i64` saturating-cast behaviour).
+        // Out-of-range magnitudes saturate by sign, as an `as i64` cast
+        // does.
         assert_eq!(saturating_f64_to_i64(1e30), i64::MAX);
         assert_eq!(saturating_f64_to_i64(-1e30), i64::MIN);
     }
 
-    // -- parse_literal_value --
+    // parse_literal_value
 
     #[test]
     fn parse_literal_int_bool_string() {
@@ -479,7 +479,7 @@ mod tests {
         );
     }
 
-    // -- simple_var_ref --
+    // simple_var_ref
 
     #[test]
     fn simple_var_ref_bare_and_braced() {
@@ -495,7 +495,7 @@ mod tests {
         assert_eq!(simple_var_ref("$1bad"), None);
     }
 
-    // -- summarise_static_for --
+    // summarise_static_for
 
     #[test]
     fn summarise_counts_iterations_to_five() {
@@ -708,7 +708,7 @@ mod tests {
         assert_eq!(env.get("i"), Some(&StaticValue::Int(2)));
     }
 
-    // -- evaluate_expr_with_constants --
+    // evaluate_expr_with_constants
 
     #[test]
     fn evaluate_expr_integer() {

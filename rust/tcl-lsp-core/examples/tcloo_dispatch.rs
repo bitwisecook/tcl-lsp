@@ -97,7 +97,7 @@ fn main() {
         let Ok(src) = std::fs::read_to_string(path) else {
             continue;
         };
-        // Only files that actually define TclOO classes are interesting.
+        // Only files that mention an object system are interesting.
         if !src.contains("oo::") && !src.contains("snit::") && !src.contains("itcl::") {
             continue;
         }

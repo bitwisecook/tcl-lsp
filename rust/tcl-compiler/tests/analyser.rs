@@ -6226,7 +6226,7 @@ mod class_factories {
 
     #[test]
     fn four_hundred_nested_foreach_bodies_do_not_abort_the_process() {
-        // Issue #1654, on this test's own default-sized thread — which is
+        // Run on this test's own default-sized thread — which is
         // the whole point: the walks this drives must contain themselves on
         // the 2 MiB every unremarkable caller gets, not only on the 64 MiB
         // the CLI and the LSP worker ask for. No parameterised creation
@@ -7321,7 +7321,7 @@ mod class_factories {
 
     #[test]
     fn static_brace_expansion_splices_a_member_signature() {
-        // TP — idx 53: `{*}` of a braced literal is spliced by the parser,
+        // TP: `{*}` of a braced literal is spliced by the parser,
         // so `method {*}{foo {} {…}}` defines a real `foo` (verified on
         // tclsh 9.0.4 and 8.6.16, in both the `oo::class create` body and
         // an `oo::define` body).
@@ -7772,7 +7772,7 @@ mod class_factories {
 
     #[test]
     fn a_workspace_metaclass_is_not_reached_by_a_same_tailed_bare_name() {
-        // TN (cross-link guard, the #1063 precedent carried across files) —
+        // TN (cross-link guard) —
         // the index holds `::tk::Megawidget`; a *global* `Megawidget create …`
         // names `::Megawidget`, which real Tcl does not resolve to it.
         // Matching on the tail would manufacture a class the interpreter
@@ -7902,7 +7902,7 @@ mod class_factories {
 
     #[test]
     fn a_braced_variable_command_head_resolves_through_its_constant() {
-        // TP — idx 44: the head's *variable* is `ns`, not the whole token
+        // TP: the head's *variable* is `ns`, not the whole token
         // text `ns}::setdef` the lexer hands over for a braced composite
         // word.  Reading the true source bytes makes the call resolve to
         // the proc it really dispatches to (tclsh 9.0.4 / 8.6.16 both run
@@ -7925,7 +7925,7 @@ mod class_factories {
     fn a_resolved_braced_variable_head_is_a_reference_not_a_rename_target() {
         // FP guard — the head's span is `${ns}::setdef`, which spells only
         // the tail.  Rewriting that span with a new name would splice it
-        // over the substitution and corrupt the source (the idx 95 lesson),
+        // over the substitution and corrupt the source,
         // so the invocation is marked `indirect`: references report it,
         // rename skips it.
         let src = concat!(
@@ -7989,11 +7989,9 @@ mod class_factories {
 
     #[test]
     fn foreach_installed_procs_are_enumerated_per_literal_element() {
-        // Previously-fixed regression pin — idx 43 (the ticklecharts
-        // `etypes.tcl` ensemble).  The `foreach`-literal simulation landed
-        // for issue #923 idx 86 (PR #1020) and already covers `proc`, so
-        // every element's proc is registered under its real qualified
-        // name.  Pinned here so the idx 43 shape cannot regress.
+        // The ticklecharts `etypes.tcl` ensemble shape: the
+        // `foreach`-literal simulation covers `proc`, so every element's
+        // proc is registered under its real qualified name.
         let src = concat!(
             "namespace eval ticklecharts {}\n",
             "foreach ptype {elist elist.n elist.s} {\n",
@@ -8643,7 +8641,7 @@ mod oo_helpers_namespace_path {
 //
 // `set ns ::app; namespace eval $ns { … }` creates `::app` on every run, so
 // the block's procs really do home to `::app::…`.  The word is settled by the
-// same identity-resolution helper the command head (idx 44), `source`,
+// same identity-resolution helper the command head, `source`,
 // `rename`, and `oo::define`'s target already use, so its dominance rule —
 // a branch-conditional binding proves nothing — applies here unchanged.
 // Anything it cannot settle keeps the per-site `@dynns@` domain.

@@ -59,11 +59,11 @@ fn find_indented_proc_call() {
     assert!(start_lines(&lsp.references(&uri, 0, 6, true)).contains(&1));
 }
 
-/// idx=9 (differential-audit main wave, high severity): a cursor placed
+/// A cursor placed
 /// directly on a variable's own bareword declaration/write token (a proc
 /// parameter, or a `catch script name` result-var reusing an existing
-/// variable) previously returned zero references, even though the same
-/// query from any `$name` read of the same variable resolved the full set.
+/// variable) must return the full reference set, the same as the same
+/// query from any `$name` read of the same variable.
 #[test]
 fn find_references_from_proc_param_bareword_declaration() {
     let mut lsp = Lsp::tcl();
@@ -90,12 +90,10 @@ fn find_references_from_catch_resultvar_bareword_include_the_original_declaratio
     );
 }
 
-/// Issue #923 idx 48 — the two declaring tokens the finding actually named,
-/// which the e2e tier covered only by proxy (a proc parameter, a `catch`
-/// result variable): a `set` left-hand side and a `foreach` loop variable.
-/// The query anchored on the bare declaring word must return exactly what the
-/// same query anchored on a `$name` read returns; anything less is the
-/// asymmetry the finding reported.
+/// Two more declaring tokens, beyond the proc parameter and `catch` result
+/// variable above: a `set` left-hand side and a `foreach` loop variable.
+/// The query anchored on the bare declaring word must return exactly what
+/// the same query anchored on a `$name` read returns.
 ///
 /// Oracle — tclsh 8.6.16 and 9.0.4: `set y 10; puts $y; puts $y` prints
 /// `10` twice, so all three tokens name one cell.
@@ -122,7 +120,7 @@ fn find_references_from_a_set_lhs_bareword_matches_the_read_anchored_query() {
     );
 }
 
-/// The `foreach` loop-variable half of idx 48, in the shape `etsb.tcl` writes:
+/// The `foreach` loop-variable half, in the shape `etsb.tcl` writes:
 /// the loop variable is declared bare and then read through `${cmd}` inside a
 /// `subst`ed proc body and a trace's `[list …]` prefix.
 ///

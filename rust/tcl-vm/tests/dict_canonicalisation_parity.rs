@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The cross-crate drift gate for Tcl's dict canonicalisation rule (#1608).
+//! The cross-crate drift gate for Tcl's dict canonicalisation rule.
 //!
 //! "A repeated key keeps its **first-occurrence position** and its **last
 //! value**" (`SetDictFromAny`, `tmp/tcl9.0.4/generic/tclDictObj.c:589`, over
@@ -32,10 +32,10 @@
 //! 3. `tcl_compiler::codegen::helpers::fold_dict_create_cmd`, the codegen's
 //!    `[dict create …]` fold.
 //!
-//! Before #1608 those were three independent copies of the walk, plus a fourth
-//! place where the rule had been *missed* — `parse_dict`, which fed six folders
-//! first-match semantics, so `[dict get {a 1 a 2} a]` folded to `1` where both
-//! oracles say `2` (#1427 / #1591). `cargo xtask owner-resolution` cannot see
+//! Three independent copies of the walk would drift from each other, and a
+//! fourth place where the rule is *missed* — `parse_dict` feeding six folders
+//! first-match semantics instead — would fold `[dict get {a 1 a 2} a]` to `1`
+//! where both oracles say `2`. `cargo xtask owner-resolution` cannot see
 //! that class of drift: it validates the manifest, not whether a surface calls
 //! the owner at all.
 //!

@@ -105,7 +105,7 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 /// Write `obj` to `name`, routing `arr(a)` to the array *element* rather than
-/// a literal scalar named `arr(a)` (issue #1577) — the same
+/// a literal scalar named `arr(a)` — the same
 /// `split_array_ref`/`var_set`/`var_set_elem` routing `set` uses, so
 /// `catch`'s result/options vars and `try`'s handler vars don't hand-roll a
 /// second name parser.
@@ -546,7 +546,7 @@ mod tests {
         i.result_bytes()
     }
 
-    /// Issue #1607: `try`'s handler-type word is a `Tcl_GetIndexFromObj(…,
+    /// `try`'s handler-type word is a `Tcl_GetIndexFromObj(…,
     /// "handler type", 0)` table, so the three types abbreviate and the empty
     /// word — a prefix of all three — is `ambiguous handler type ""`.
     ///

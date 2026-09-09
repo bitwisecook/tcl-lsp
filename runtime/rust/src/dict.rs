@@ -649,16 +649,16 @@ mod tests {
         });
     }
 
-    /// Issue #1429 — `\<newline>` is the line-continuation escape:
+    /// `\<newline>` is the line-continuation escape:
     /// `TclParseBackslash` (tclParse.c(9.0.4):884-890) collapses the backslash,
     /// the newline **and the run of spaces/tabs after it** into a single space,
     /// so that whitespace is *data* inside the element and must not terminate
-    /// it. The dict shimmer carried its own `FindElement` port whose backslash
-    /// arm only skipped two bytes, so it split `a\<LF> b c` into three
-    /// elements where the list codec (and tclsh) see two — the mutating dict
-    /// subcommands, which reach the dict through this scan rather than through
-    /// the canonical codec, then disagreed with `llength` and with `dict size`.
-    /// The scan now *is* the shared `tcl_syntax::list` codec.
+    /// it. The dict scan is the shared `tcl_syntax::list` codec rather than a
+    /// separate `FindElement` port: a port whose backslash arm only skips two
+    /// bytes would split `a\<LF> b c` into three elements where the list
+    /// codec (and tclsh) see two — and the mutating dict subcommands, which
+    /// reach the dict through this scan rather than through the canonical
+    /// codec, would then disagree with `llength` and with `dict size`.
     #[test]
     fn backslash_newline_absorbs_the_following_space_run() {
         leak_free(|| {

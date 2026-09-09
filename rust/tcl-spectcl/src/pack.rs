@@ -641,8 +641,8 @@ fn merge_group(
         }
         for mut row in pack.file_extensions {
             // Same reason as the command loop below: the merge is the only
-            // layer that knows which file of a multi-file pack a row came from
-            // (found reviewing #1637).
+            // layer that knows which file of a multi-file pack a row came
+            // from.
             row.file.clone_from(&file.path);
             if !merged
                 .file_extensions
