@@ -21,9 +21,9 @@
  * LSP `workspace/executeCommand` actually return data from the server.
  *
  * These tests bypass the VS Code command wrappers (which may show quick-pick
- * dialogs) and call the LSP server directly via `client.sendRequest`.  This
- * catches regressions like the `@server.feature(WORKSPACE_EXECUTE_COMMAND)`
- * handler swallowing commands registered with `@server.command()`.
+ * dialogs) and call the LSP server directly via `client.sendRequest`, so a
+ * command the server does not dispatch fails here rather than silently
+ * returning nothing in the editor.
  */
 import * as assert from "assert";
 import * as vscode from "vscode";
@@ -55,7 +55,7 @@ suite("LSP Command Execution", () => {
     await activate(docUri);
   });
 
-  // -- minifyDocument (the command that was broken) ----------------------------
+  // -- minifyDocument ---------------------------------------------------------
 
   test("tcl-lsp.minifyDocument returns minified source", async () => {
     const uri = docUri.toString();

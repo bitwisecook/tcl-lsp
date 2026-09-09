@@ -29219,8 +29219,9 @@ fn build_server_capabilities(
         // channel. Switching models is an initialize-time client/server
         // contract, not a live feature toggle.
         diagnostic_provider: None,
-        // Editor-invoked workspace commands (currently the
-        // minify-document command family).
+        // Every workspace command an editor may invoke. A command absent
+        // here is not offered by conforming clients, so this list and the
+        // `execute_command` dispatch move together.
         execute_command_provider: Some(ExecuteCommandOptions {
             commands: vec![
                 "tcl-lsp.minifyDocument".to_owned(),
