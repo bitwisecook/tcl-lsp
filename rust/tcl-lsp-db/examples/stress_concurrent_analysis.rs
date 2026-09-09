@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Direct-infrastructure concurrency stress test for the salsa query database
-//! — issue #829 robustness suite, "no LSP front end" half.
+//! — the "no LSP front end" half of the cancellation robustness suite.
 //!
 //! Hammers [`TclDatabase`] exactly the way `tcl-lsp-server` does (one writer
 //! thread repeatedly calling `SourceFile::set_text`, many reader threads each
@@ -28,7 +28,7 @@
 //! writer's `set_text` must never deadlock behind a reader, a reader must
 //! never observe a torn/inconsistent result, and neither side may panic.
 //!
-//! Every #829 fix in this crate — routing `semantic_tokens` through the
+//! Every cancellation fix in this crate — routing `semantic_tokens` through the
 //! cancellable `file_analysis_incremental` instead of the uncancellable
 //! `file_analysis`, and the server-side fast-path race — depends on this
 //! contract holding under real contention, not just in the single-threaded

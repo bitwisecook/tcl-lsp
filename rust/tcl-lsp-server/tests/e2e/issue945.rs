@@ -23,8 +23,8 @@
 //! domain model (faults 7–8), and probe references (fault 9).
 //!
 //! Rename outputs are **executed** under a real tclsh where one is
-//! available (`TCL_LSP_TCLSH`, else `PATH` probes) — the issue's
-//! validation bar is behaviour, not edit ranges.
+//! available (`TCL_LSP_TCLSH`, else `PATH` probes) — the validation bar
+//! is behaviour, not edit ranges.
 
 use serde_json::Value;
 
@@ -457,20 +457,20 @@ fn command_probe_navigates_without_asserting_existence_945() {
     );
 }
 
-// -- issue #923 idx 94: eval/uplevel argument-position indirect dispatch ----
+// Eval/uplevel argument-position indirect dispatch.
 //
 // A bare `$var` body of an `eval`/`uplevel` call (as opposed to `$var`
-// sitting at a command's own *head* position, fault 1's shape above)
+// sitting at a command's own *head* position, the fault 1 shape above)
 // dynamically evaluates $var's value as a script at runtime — the same
 // flow-sensitive constant-dispatch settlement this file already covers,
 // just reached through a different registration site
-// (`dispatch_one_body_argument`'s new `TokenType::Var` branch).
+// (`dispatch_one_body_argument`'s `TokenType::Var` branch).
 
 #[test]
 fn eval_of_a_list_computed_var_rewrites_the_defining_literal_and_executes_923_idx94() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    // The finding's own minimal repro: `set cmdD [list greetD World]; eval
+    // A minimal repro: `set cmdD [list greetD World]; eval
     // $cmdD` — real tclsh9.0/8.6-verified to print "D World".
     let src = "proc greetD {n} {puts \"D $n\"}\nset cmdD [list greetD World]\neval $cmdD\n";
     lsp.open_ready(&uri, src);

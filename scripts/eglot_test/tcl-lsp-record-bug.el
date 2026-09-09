@@ -79,7 +79,7 @@ having to call `tcl-lsp-bug-record-mark' for every event."
 (defvar tcl-lsp-bug-record--server nil)
 
 
-;;; ---------- helpers ----------------------------------------------------
+;;; Helpers.
 
 (defun tcl-lsp-bug-record--ts ()
   "Return seconds since recording start, as a float."
@@ -329,7 +329,7 @@ through `read'."
       s)))
 
 
-;;; ---------- hooks ------------------------------------------------------
+;;; Hooks.
 
 (defun tcl-lsp-bug-record--on-change (beg end old-len)
   "after-change-functions hook: record the change region."
@@ -409,7 +409,7 @@ through `read'."
   (funcall orig connection message))
 
 
-;;; ---------- public commands -------------------------------------------
+;;; Public commands.
 
 ;;;###autoload
 (defun tcl-lsp-bug-record-start ()
