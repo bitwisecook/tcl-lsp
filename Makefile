@@ -208,9 +208,9 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Top-level gates
 .PHONY: rust-check check-all prep-pr _prep-pr-checks _prep-pr-tests _prep-pr-smoke _prep-pr-smoke-tier
 # Tests
-.PHONY: test test-ext test-emacs test-jetbrains test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all print-server-targets-jetbrains
+.PHONY: test test-ext test-ext-partition test-ext-multi-folder test-emacs test-jetbrains test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all print-server-targets-jetbrains
 .PHONY: xtask-check xtask-editor-extensions xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data xtask-runtime-stdlib tcltest-sweep tcltest-sweep-check xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-api-ownership
-.PHONY: xtask-workflow-sync xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-gen-tmlanguage-keywords xtask-option-registry-drift xtask-callback-inventory check-tcl-reference-toolchains check-spectcl-compat-paths check-runtime-rust-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-release-dependency-graph xtask-dialect-drift xtask-segmentation-drift
+.PHONY: xtask-workflow-sync xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-gen-tmlanguage-keywords xtask-option-registry-drift xtask-callback-inventory check-tcl-reference-toolchains check-spectcl-compat-paths check-runtime-rust-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-vscode-test-partitions check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-release-dependency-graph xtask-dialect-drift xtask-segmentation-drift
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust check-rust-pr _check-rust-pr rust-deny
 .PHONY: build-report-assets build-report-pyz lint-report-ts typecheck-report-ts check-report-assets lint-spec-studio-ts typecheck-spec-studio-ts
@@ -219,6 +219,9 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Compile + codegen + generated assets
 .PHONY: compile codegen generate check-generated gen-editor-settings check-editor-settings gen-irule-test-data copy-canonical npm-env logo
 .PHONY: update-source-data check-source-data
+
+check-vscode-test-partitions: ## Verify VS Code partition manifest and workflow lifecycle
+	@bash scripts/dev/test-vscode-test-partitions.sh
 # Compiler explorer (WASM GUI)
 .PHONY: explorer-wasm explorer-build compiler-explorer-gui
 # Skills bundle + smoke tests
@@ -789,6 +792,36 @@ test-ext: ## Run VS Code extension integration tests (single-root + multi-root);
 	echo "==> Running multi-root VS Code extension tests"; \
 	if [[ "$$(uname -s)" == "Linux" && -z "$${DISPLAY:-}" ]]; then \
 		cd "$(EXT_DIR)" && xvfb-run -a "$(NPM)" run test:multi-folder; \
+	else \
+		cd "$(EXT_DIR)" && "$(NPM)" run test:multi-folder; \
+	fi
+
+# Run a single explicit whole-file partition. The ordinary test-ext target
+# remains unpartitioned for local use.
+test-ext-partition:
+	@set -eu; test -n "$${TCL_LSP_TEST_PARTITION:-}" || { echo "TCL_LSP_TEST_PARTITION must be INDEX/COUNT" >&2; exit 2; }; \
+	$(MAKE) compile ensure-vscode-test-deps; \
+	cd "$(EXT_DIR)" && "$(NPM)" run copy-canonical && "$(NPM)" run bundle; \
+	if [[ "$$(uname -s)" == "Linux" && -z "$${DISPLAY:-}" ]]; then \
+		if command -v xvfb-run >/dev/null 2>&1; then \
+			cd "$(EXT_DIR)" && xvfb-run -a node ./out/test/runTest.js; \
+		else \
+			echo "ERROR: DISPLAY is unset and xvfb-run is not available." >&2; exit 1; \
+		fi; \
+	else \
+		cd "$(EXT_DIR)" && node ./out/test/runTest.js; \
+	fi
+
+test-ext-multi-folder:
+	@set -eu; \
+	$(MAKE) compile ensure-vscode-test-deps; \
+	cd "$(EXT_DIR)" && "$(NPM)" run copy-canonical && "$(NPM)" run bundle; \
+	if [[ "$$(uname -s)" == "Linux" && -z "$${DISPLAY:-}" ]]; then \
+		if command -v xvfb-run >/dev/null 2>&1; then \
+			cd "$(EXT_DIR)" && xvfb-run -a "$(NPM)" run test:multi-folder; \
+		else \
+			echo "ERROR: DISPLAY is unset and xvfb-run is not available." >&2; exit 1; \
+		fi; \
 	else \
 		cd "$(EXT_DIR)" && "$(NPM)" run test:multi-folder; \
 	fi

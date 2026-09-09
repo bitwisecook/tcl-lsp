@@ -36,6 +36,19 @@ closures: the archive producer and all three partition jobs must succeed
 without building, uploading, downloading, or running the archive, and the
 required aggregate must still succeed after checking every upstream result.
 
+The native VS Code suite remains one unpartitioned extension-host run for
+local `npm test`. In CI, three isolated `test-ext-partition` producers run the
+106 single-root test files as whole-file assignments from
+`editors/vscode/test-partitions.json`; the 14-test multi-folder host remains a
+separate mandatory producer. Each producer uploads its file inventory,
+per-file duration, discovered identities, completed identities, and outcome
+counts. The stable `test-ext` aggregate fails unless the producers succeed and
+their metadata proves exact-once coverage of all 976 single-root identities
+(975 passed plus the one deliberately pending manual edit-storm test) and all
+14 passing multi-folder identities. The checked-in assignment records its
+hosted timing evidence and is balanced by measured duration rather than file
+or test count.
+
 The root workspace suite is five binary-aware `rust-tests-shard` matrix
 consumers. Every leg retains the complete `--workspace --all-features`
 resolver graph and builds all lib/bin unit harnesses, while the committed
@@ -321,6 +334,9 @@ identity** (tree/SHA, never a label or commit message), and bounded in time.
   binary and testcase coverage proof.
 - `scripts/dev/verify-nextest-partitions.py` — disjoint/completeness and
   transfer-integrity proof for the three-way archived LSP suite.
+- `editors/vscode/test-partitions.json` and
+  `scripts/dev/verify-vscode-test-{partitions,results}.mjs` — whole-file
+  desktop extension assignment and exact producer-metadata proof.
 
 ## Discoverability
 
