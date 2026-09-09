@@ -670,8 +670,8 @@ fn collect_tail_sites(
                 let split_args = if call_args.is_empty() {
                     Some(Vec::new())
                 } else {
-                    split_top_level_words(
-                        &call_args,
+                    split_call_arguments(
+                        &format!("{call_head} {call_args}"),
                         tcl_lexer::LexerConfig::for_profile(ctx.dialect),
                     )
                 };
@@ -707,19 +707,24 @@ fn collect_tail_sites(
     }
 }
 
-/// Split a command's argument text into its top-level Tcl words.
+/// Split a whole command's text into its top-level Tcl words, the command
+/// name first.
 ///
-/// One entry per argument, which is what O122's one-argument-per-parameter
-/// gate counts: `[expr {$n - 1}] [expr {$acc * $n}]` is two arguments, not
-/// eight.  Grouping the lexer's own tokens into words keeps a `{…}`, `[…]`
-/// or `"…"` word intact where splitting on whitespace would count its
+/// One entry per word, which is what O122's one-argument-per-parameter gate
+/// counts: `f [expr {$n - 1}] [expr {$acc * $n}]` is three words, not nine.
+/// Grouping the lexer's own tokens into words keeps a `{…}`, `[…]`, `"…"`
+/// or `${…}` word intact where splitting on whitespace would count its
 /// inner spaces.
+///
+/// The text must start at the command name, not at the first argument: a
+/// word is lexed according to its position, so an argument such as `#stop`
+/// is a comment at command position and an ordinary word after one.
 ///
 /// `None` when the arity is not statically known — a `{*}` expansion, whose
 /// runtime word count is unbounded, or more than one command, from a
 /// newline inside the substitution.  The gate refuses a site it cannot
 /// count rather than rewrite it against a wrong arity.
-fn split_top_level_words(text: &str, config: tcl_lexer::LexerConfig) -> Option<Vec<String>> {
+fn split_command_words(text: &str, config: tcl_lexer::LexerConfig) -> Option<Vec<String>> {
     let trimmed = text.trim();
     if trimmed.is_empty() {
         return Some(Vec::new());
@@ -734,20 +739,36 @@ fn split_top_level_words(text: &str, config: tcl_lexer::LexerConfig) -> Option<V
     if !command.expand_markers.is_empty() {
         return None;
     }
-    let sm = tcl_lexer::SourceMap::new(trimmed);
     command
         .words
         .iter()
         .map(|word| {
             // The lexer's inner-end convention leaves a delimited word's
-            // closer outside the token span; `word_span` puts it back.
-            let last = *tokens.get(word.tokens.end.checked_sub(1)?)?;
-            let end = tcl_lexer::word_span(&sm, last).end().max(word.span.end());
+            // closer outside the span. `word_span_at` puts it back for every
+            // delimited form, `${name}` included — its token-based sibling
+            // knows only `{`, `[` and `"` openers and would cut `${n}` back
+            // to `${n`.
+            let end = tcl_lexer::word_span_at(trimmed, word.span)
+                .end()
+                .max(word.span.end());
             trimmed
                 .get(word.span.start() as usize..end as usize)
                 .map(str::to_owned)
         })
         .collect()
+}
+
+/// The arguments of a self-call, one entry per argument, or `None` when
+/// their arity is not statically known. Splits the whole command so each
+/// word is lexed in the position it actually occupies, then drops the
+/// command name.
+fn split_call_arguments(command_text: &str, config: tcl_lexer::LexerConfig) -> Option<Vec<String>> {
+    let mut words = split_command_words(command_text, config)?;
+    if words.is_empty() {
+        return None;
+    }
+    words.remove(0);
+    Some(words)
 }
 
 /// Parse a `return` value's text looking for a `[cmd args…]`
@@ -1165,30 +1186,40 @@ mod tests {
     }
 
     #[test]
-    fn split_top_level_words_counts_bracketed_words_as_one() {
+    fn split_call_arguments_keeps_each_word_whole() {
         let config = tcl_lexer::LexerConfig::default();
+        let args = |text: &str| split_call_arguments(text, config);
         assert_eq!(
-            split_top_level_words("[expr {$n - 1}] [expr {$acc * $n}]", config),
+            args("f [expr {$n - 1}] [expr {$acc * $n}]"),
             Some(vec![
                 "[expr {$n - 1}]".to_owned(),
                 "[expr {$acc * $n}]".to_owned(),
             ]),
         );
         assert_eq!(
-            split_top_level_words("$b [expr {$a % $b}]", config),
+            args("f $b [expr {$a % $b}]"),
             Some(vec!["$b".to_owned(), "[expr {$a % $b}]".to_owned()]),
         );
         assert_eq!(
-            split_top_level_words("{a b} \"c d\" e", config),
+            args("f {a b} \"c d\" e"),
             Some(vec![
                 "{a b}".to_owned(),
                 "\"c d\"".to_owned(),
                 "e".to_owned(),
             ]),
         );
-        assert_eq!(split_top_level_words("   ", config), Some(Vec::new()));
+        // A braced variable reference keeps its closing brace: `${n}` sliced
+        // back to `${n` would make the reassignment unparseable.
+        assert_eq!(
+            args("f ${n} ${a b}"),
+            Some(vec!["${n}".to_owned(), "${a b}".to_owned()]),
+        );
+        // `#` is a comment only at command position; after the command name
+        // it is an ordinary word.
+        assert_eq!(args("f #stop"), Some(vec!["#stop".to_owned()]));
+        assert_eq!(args("f"), Some(Vec::new()));
         // A `{*}` expansion has no statically known arity.
-        assert_eq!(split_top_level_words("{*}$args $b", config), None);
+        assert_eq!(args("f {*}$args $b"), None);
     }
 
     #[test]
@@ -1225,6 +1256,40 @@ mod tests {
                 "O122 must not fire with a self-call in a control condition: {src}\ngot {opts:?}",
             );
         }
+    }
+
+    #[test]
+    fn o122_keeps_braced_variable_arguments_parseable() {
+        // `${n}` must reach the reassignment whole. Cut back to `${n` the
+        // rewritten proc no longer parses.
+        let opts = run_pass("proc f {n} {\n    if {$n <= 1} { return $n }\n    return [f ${n}]\n}");
+        let opt = opts
+            .iter()
+            .find(|o| o.code == DiagCode::O122)
+            .expect("O122 should fire");
+        assert!(
+            opt.replacement.contains("set n ${n}"),
+            "braced variable lost its closer: {:?}",
+            opt.replacement,
+        );
+    }
+
+    #[test]
+    fn o122_fires_when_an_argument_starts_with_hash() {
+        // `#stop` is a comment only at command position. Read as part of the
+        // whole call it is an ordinary argument, so the arity gate holds.
+        let opts = run_pass(
+            "proc h {tag} {\n    if {$tag eq \"stop\"} { return $tag }\n    return [h #stop]\n}",
+        );
+        let opt = opts
+            .iter()
+            .find(|o| o.code == DiagCode::O122)
+            .expect("O122 should fire for a `#`-leading argument");
+        assert!(
+            opt.replacement.contains("set tag #stop"),
+            "expected the argument kept, got {:?}",
+            opt.replacement,
+        );
     }
 
     #[test]
