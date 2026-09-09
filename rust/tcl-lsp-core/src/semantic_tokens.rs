@@ -712,8 +712,12 @@ fn add_stub_var_roles(
             (tcl_registry::ArgRole::VarRead, &mut *out_read),
             (tcl_registry::ArgRole::CommandPrefix, &mut *out_command),
         ] {
+            // The highlight index is a name-keyed table of *declaration*
+            // positions, applied at a call site by position, so it asks for
+            // the layout with every optional slot present.
             let indices: Vec<u32> = command
-                .arg_indices_for_role(role)
+                .arg_indices_for_role(role, command.arguments.len())
+                .into_iter()
                 .filter_map(|index| u32::try_from(index).ok())
                 .collect();
             if !indices.is_empty() {
@@ -3618,7 +3622,7 @@ fn insert_role_overrides(
 
 /// Sub-tokenise a `binary format`/`scan` field string into its
 /// specifiers: digit runs → `BinaryCount`, specifier letters →
-/// `BinarySpec`, a `u`/`s` modifier after an integer specifier (Tcl 8.5+)
+/// `BinarySpec`, a `u` suffix after any specifier (Tcl 8.5+)
 /// or a trailing `*` → `BinaryFlag`.  Whitespace and unrecognised
 /// characters are skipped.  Returns `false` when nothing was emitted.
 fn push_binary_subtokens(
@@ -10120,8 +10124,8 @@ mod tests {
 
     #[test]
     fn binary_signed_modifier_suppressed_in_tcl84() {
-        // The `u`/`s` modifier is 8.5+, so under tcl8.4 the `u` is not a
-        // binaryFlag (no signed/unsigned modifier).
+        // The `u` suffix is 8.5+ (TIP 275), so under tcl8.4 the `u` is not a
+        // binaryFlag.
         let ks = kinds(
             "binary scan $d su r\n",
             tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),

@@ -18,23 +18,30 @@ or `binary scan` specifier?
 
 ## Why
 
-The `u` modifier on an integer specifier — `cu`, `su`, `iu`, `wu`, and the
-rest — arrives in Tcl 8.5 (TIP 275). On Tcl 8.4 the same format string is
-rejected at run time with `bad field specifier "u"`. The analyser reads the
-literal format string and compares each modifier against the file's effective
-Tcl version: the dialect profile, raised by any `package require Tcl`.
+The `u` modifier — `cu`, `su`, `iu`, `wu`, and the rest — arrives in Tcl 8.5
+(TIP 275). On Tcl 8.4 the same format string is rejected at run time with
+`bad field specifier "u"`. The analyser reads the literal format string and
+compares it against the file's effective Tcl version: the dialect profile,
+raised by any `package require Tcl`.
 
-Known issue: the analyser also reports an `s` that follows an integer
-specifier (`ss`, `is`) as if it were a modifier. Tcl has no `s` modifier — that
-is a second short-integer field on every release — so that report is a false
-positive.
+Tcl accepts the `u` after *any* field letter, not only the integer ones, so
+`au` is flagged on 8.4 exactly like `iu`. Tcl has no `s` modifier: an `s`
+after another specifier (`ss`, `is`) is a second short-integer field on every
+release, so the analyser leaves it alone.
+
+The field letters themselves can also postdate the target — `t`, `n`, `m`,
+`r`, `R`, `q` and `Q` arrive in 8.5 too. That is
+[`W202`](kcs-diagnostic-w202-binary-field-letter-needs-newer-tcl.md), a
+separate code because the fix differs: a suffix can be dropped, an absent
+letter needs a different field.
 
 ## Symptoms
 
-- A yellow squiggle under the format string, with the message "signed/unsigned
+- A yellow squiggle under the format string, with the message "unsigned
   modifier 'u' on binary format specifier requires Tcl 8.5 but tcl8.4 provides
   8.4."
-- One diagnostic per gated modifier in the string.
+- One diagnostic per format string — every field shares the format token, so
+  several gated modifiers give one squiggle, not one each.
 
 ## Example that triggers it
 
@@ -77,4 +84,4 @@ in `.tcl-lsp.ini`, or in your editor with `tclLsp.diagnostics.W200` set to
 - [KCS codes index](README.md)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)
 - [command walk](../../GLOSSARY.md#command-walk)
-- Related codes: `W137`, `W138`, `W148`
+- Related codes: `W202`, `W137`, `W138`, `W148`

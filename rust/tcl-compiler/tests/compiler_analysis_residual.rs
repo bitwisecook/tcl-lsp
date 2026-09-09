@@ -934,6 +934,7 @@ fn rebased_units(base: &str, shifted: &str) -> (CompilationUnit, CompilationUnit
                     tcl_registry::model::ingress::resolve_environment(D).analyser_profile(),
                 ),
                 external_call_sites: None,
+                declared_commands: None,
             },
             &mut |req: &tcl_compiler::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
                 let key = format!(

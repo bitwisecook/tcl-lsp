@@ -661,14 +661,37 @@ fn st_binary_signed_modifier_present_in_86_absent_in_84() {
 }
 
 #[test]
-fn st_binary_modifier_only_after_integer_specifier() {
-    // `au` — `a` is NOT an integer specifier, so the `u` is not consumed as a
-    // signed/unsigned modifier (the `BINARY_INT_SPECIFIERS.contains` guard).
-    // `u` is itself not a binary specifier letter either, so it is skipped.
+fn st_binary_modifier_follows_any_specifier() {
+    // `GetFormatSpec` in tclBinary.c consumes a `u` after the command
+    // character without consulting the type, so `au` is one field carrying the
+    // unsigned suffix — `binary format au 1` is clean on tclsh 8.5.19 and a
+    // `bad field specifier "u"` error on 8.4.20.
     let toks = decode("binary format au $d\n", "tcl8.6");
     assert!(
+        !of_type(&toks, "binaryFlag").is_empty(),
+        "`u` after `a` is the unsigned flag; got {toks:?}",
+    );
+    // Gated off under 8.4, where the suffix is not part of the grammar.
+    let on_84 = decode("binary format au $d\n", "tcl8.4");
+    assert!(
+        of_type(&on_84, "binaryFlag").is_empty(),
+        "8.4 has no unsigned suffix; got {on_84:?}",
+    );
+}
+
+#[test]
+fn st_short_specifier_is_a_field_not_a_flag() {
+    // `ss` is two short-integer fields on every release (tclsh 8.4.20 through
+    // 9.0.4 all pack four bytes), so neither `s` is a flag.
+    let toks = decode("binary format ss 1 2\n", "tcl8.6");
+    assert!(
         of_type(&toks, "binaryFlag").is_empty(),
-        "`u` after non-integer `a` is not a flag; got {toks:?}",
+        "`ss` is two fields, not a flag; got {toks:?}",
+    );
+    assert_eq!(
+        of_type(&toks, "binarySpec").len(),
+        2,
+        "`ss` is two specifiers; got {toks:?}",
     );
 }
 

@@ -214,7 +214,7 @@ def _latest_release_version():
     # type: () -> str
     url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
     tag = (json.loads(_fetch(url).decode("utf-8")) or {}).get("tag_name") or ""
-    version = tag.removeprefix("v")
+    version = tag[1:] if tag.startswith("v") else tag
     if not _RELEASE_VERSION_RE.match(version):
         raise RuntimeError("latest tcl-lsp release is not a plain version tag")
     return version
@@ -239,10 +239,9 @@ def _download_verified(url, expected_sha256, destination):
     # type: (str, str, str) -> None
     digest = hashlib.sha256()
     request = urllib.request.Request(url, headers={"User-Agent": _user_agent()})
-    with (
-        urllib.request.urlopen(request, timeout=120) as response,
-        open(destination, "wb") as handle,
-    ):
+    with urllib.request.urlopen(request, timeout=120) as response, open(
+        destination, "wb"
+    ) as handle:
         while True:
             chunk = response.read(256 * 1024)
             if not chunk:

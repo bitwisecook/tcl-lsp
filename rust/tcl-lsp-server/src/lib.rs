@@ -56,7 +56,7 @@ use futures_util::future::FutureExt;
 use sha2::{Digest, Sha256};
 use tcl_compiler::compiler_checks::DiagCode;
 
-use tcl_compiler::analyser::{Analyser, AnalysisResult, NonAsciiMode};
+use tcl_compiler::analyser::{Analyser, AnalysisResult, NonAsciiMode, line_suppressed};
 use tcl_lsp_core::bigip as core_bigip;
 use tcl_lsp_core::call_hierarchy as core_call_hierarchy;
 use tcl_lsp_core::code_actions as core_code_actions;
@@ -5593,7 +5593,8 @@ async fn publish_fast_tier(
     let style_line_length = lift_inputs.style_line_length;
     let dialect = lift_inputs.dialect.to_owned();
     let lifted = crate::rt::spawn_blocking(move || {
-        let mut diagnostics = lift_analyser_diagnostics(&text, &fast);
+        let mut diagnostics =
+            lift_analyser_diagnostics(&text, &fast, &analysis_lifts.suppressed_lines);
         diagnostics.extend(lift_source_style_diagnostics(
             &text,
             decode_report.as_ref(),
@@ -5765,7 +5766,11 @@ async fn refine_and_lift_diagnostics(
     crate::rt::spawn_blocking(move || {
         // `analyser_diags` includes opt-in callback checks when enabled; direct
         // cross-file verdicts have already been settled by the workspace index.
-        let mut diagnostics = lift_analyser_diagnostics(&lift_text, &analyser_diags);
+        let mut diagnostics = lift_analyser_diagnostics(
+            &lift_text,
+            &analyser_diags,
+            &analysis_lifts.suppressed_lines,
+        );
         append_brace_expr_perf_hints(&mut diagnostics, optimiser_enabled, &opt_disabled);
         diagnostics.extend(lift_compiler_diagnostics(
             &lift_text,
@@ -5801,14 +5806,13 @@ async fn refine_and_lift_diagnostics(
         // byte-for-byte the same length.
         if sslictcl {
             let loader_text = tcl_lexer::normalise_lone_cr(&lift_text);
-            diagnostics.extend(lift_analyser_diagnostics(
+            extend_with_sslictcl_diagnostics(
+                &mut diagnostics,
                 &lift_text,
-                &tcl_lsp_core::sslictcl_diagnostics::diagnostics(
-                    &loader_text,
-                    &disabled,
-                    &analysis_lifts.suppressed_lines,
-                ),
-            ));
+                &loader_text,
+                &disabled,
+                &analysis_lifts.suppressed_lines,
+            );
         }
         finalise_diagnostics(
             &mut diagnostics,
@@ -19053,7 +19057,9 @@ impl Backend {
             .await;
         let style_line_length = self.resolved_style_line_length(uri).await;
         crate::rt::spawn_blocking(move || {
-            let mut diagnostics = lift_analyser_diagnostics(&analysis_text, &analyser_diags);
+            let suppressed = &analysis.suppressed_lines;
+            let mut diagnostics =
+                lift_analyser_diagnostics(&analysis_text, &analyser_diags, suppressed);
             append_brace_expr_perf_hints(&mut diagnostics, optimiser_enabled, &opt_disabled);
             diagnostics.extend(lift_compiler_diagnostics(
                 &analysis_text,
@@ -19061,13 +19067,13 @@ impl Backend {
                 optimiser_enabled,
                 &opt_disabled,
                 &disabled,
-                &analysis.suppressed_lines,
+                suppressed,
             ));
             suppress_duplicate_o120(&mut diagnostics);
             diagnostics.extend(lift_source_style_diagnostics(
                 &text,
                 decode_report.as_ref(),
-                &analysis.suppressed_lines,
+                suppressed,
                 &disabled,
                 style_line_length as usize,
                 profile,
@@ -19076,21 +19082,16 @@ impl Backend {
             // `f5-irules` documents when `xcDiagnostics` is enabled (mirrors
             // the push path).
             if xc_for_irules {
-                diagnostics.extend(lift_xc_diagnostics(
-                    &analysis_text,
-                    &disabled,
-                    &analysis.suppressed_lines,
-                ));
+                diagnostics.extend(lift_xc_diagnostics(&analysis_text, &disabled, suppressed));
             }
             if sslictcl {
-                diagnostics.extend(lift_analyser_diagnostics(
+                extend_with_sslictcl_diagnostics(
+                    &mut diagnostics,
                     &analysis_text,
-                    &tcl_lsp_core::sslictcl_diagnostics::diagnostics(
-                        &analysis_text,
-                        &disabled,
-                        &analysis.suppressed_lines,
-                    ),
-                ));
+                    &analysis_text,
+                    &disabled,
+                    suppressed,
+                );
             }
             finalise_diagnostics(
                 &mut diagnostics,
@@ -24293,7 +24294,7 @@ impl LanguageServer for Backend {
         // analyser's raw one, so a W123 the workspace refinements decided to
         // suppress can never leave a "did you mean…?" rewrite behind
         // (issue #923 idx 80).
-        let published = self
+        let mut published = self
             .published_analyser_diagnostics(
                 &uri,
                 &analysis,
@@ -24302,6 +24303,12 @@ impl LanguageServer for Backend {
                 &disabled_codes,
             )
             .await;
+        // …minus the ones an inline `# noqa` or a file-level directive
+        // silences, which the publish paths drop in
+        // `lift_analyser_diagnostics`. Same reasoning as the refinements
+        // above: a diagnostic the document does not show must not leave its
+        // quick-fix behind in the lightbulb.
+        retain_unsuppressed_diagnostics(&doc.text, &mut published, &analysis.suppressed_lines);
         // Lift the request-context diagnostics (the editor sends the ones it
         // currently shows) so context-driven quick-fixes — e.g. the iRules
         // taint encode-wrap fixes — can act on them even when the analyser
@@ -26688,28 +26695,6 @@ fn lift_config_diagnostic(
     }
 }
 
-/// Whether `code` is suppressed at `line` by an inline `# noqa` or a
-/// top-of-file `# tcl-lsp: disable=…` directive — the same `is_suppressed`
-/// contract `tcl_lsp_core::source_style` applies (a `"*"` entry suppresses
-/// every code; the file-level `-1` bucket is document-wide). Shared by every
-/// diagnostic family this module lifts directly (XC, compiler-checks);
-/// `lift_analyser_diagnostics` / `lift_source_style_diagnostics` apply the
-/// same contract via `tcl_lsp_core`'s own (private) copy.
-fn line_suppressed(
-    code: &str,
-    line: i32,
-    suppressed: &std::collections::HashMap<i32, HashSet<String>>,
-) -> bool {
-    if let Some(file_codes) = suppressed.get(&-1)
-        && (file_codes.contains("*") || file_codes.contains(code))
-    {
-        return true;
-    }
-    suppressed
-        .get(&line)
-        .is_some_and(|codes| codes.contains("*") || codes.contains(code))
-}
-
 /// Opt-in: lift the `f5-xc` XC100-301 translatability
 /// diagnostics into LSP diagnostics for an `f5-irules` document. Codes the editor disabled
 /// (`tclLsp.diagnostics.<CODE> = false`) are filtered, and the same `# noqa`
@@ -28170,44 +28155,107 @@ fn w120_required_package(d: &tcl_compiler::analyser::Diagnostic) -> Option<&str>
         .map(str::trim)
 }
 
+/// Append the `SslicTcl` loader's `SSLIC1xxx` findings to a document's report.
+///
+/// Shared by the push and pull paths, which differ only in the text the loader
+/// reads: the push path hands it the lone-`\r`-normalised form (byte-for-byte
+/// the same length, so offsets still index `text`), the pull path already has
+/// one. Lifted through [`lift_analyser_diagnostics`] because the loader speaks
+/// the analyser's diagnostic type.
+fn extend_with_sslictcl_diagnostics(
+    diagnostics: &mut Vec<tower_lsp_server::ls_types::Diagnostic>,
+    text: &str,
+    loader_text: &str,
+    disabled: &HashSet<String>,
+    suppressed: &std::collections::HashMap<i32, HashSet<String>>,
+) {
+    diagnostics.extend(lift_analyser_diagnostics(
+        text,
+        &tcl_lsp_core::sslictcl_diagnostics::diagnostics(loader_text, disabled, suppressed),
+        suppressed,
+    ));
+}
+
+/// Drop the analyser diagnostics an inline `# noqa` or a top-of-file
+/// `# tcl-lsp: disable=…` directive silences, in place.
+///
+/// The publish paths apply the same contract while lifting (see
+/// [`lift_analyser_diagnostics`]); this is for the consumer that reads the
+/// analyser's set *without* lifting it — `textDocument/codeAction`, which must
+/// not offer a quick-fix for a diagnostic the document does not show.
+fn retain_unsuppressed_diagnostics(
+    text: &str,
+    diagnostics: &mut Vec<tcl_compiler::analyser::Diagnostic>,
+    suppressed: &std::collections::HashMap<i32, HashSet<String>>,
+) {
+    if suppressed.is_empty() {
+        return;
+    }
+    let line_index = tcl_lexer::LineIndex::new_lsp(text);
+    diagnostics.retain(|d| {
+        let line =
+            i32::try_from(lift_span(text, &line_index, d.span).start.line).unwrap_or(i32::MAX);
+        !line_suppressed(d.code.as_str(), line, suppressed)
+    });
+}
+
+/// Lift the analyser's own diagnostics (the `E` / `W` / `H` / `I` families)
+/// into LSP diagnostics, dropping the ones an inline `# noqa` or a
+/// top-of-file `# tcl-lsp: disable=…` directive silences.
+///
+/// `suppressed` is the analyser's `suppressed_lines` map. The analyser
+/// *records* the map but never filters with it, so the suppression has to be
+/// applied here — exactly as `lift_compiler_diagnostics` does for the
+/// compiler-check and optimiser families, and through the same shared
+/// `line_suppressed` contract, so `# noqa: W210` means in the editor what
+/// `docs/kcs/kcs-howto-suppress-diagnostics.md` says it means (and what
+/// `tcl diag` reports for the same file).
 fn lift_analyser_diagnostics(
     text: &str,
     diagnostics: &[tcl_compiler::analyser::Diagnostic],
+    suppressed: &std::collections::HashMap<i32, HashSet<String>>,
 ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
     let line_index = tcl_lexer::LineIndex::new_lsp(text);
-    // Default-off codes are suppressed at the analyser via the seeded disabled
-    // set (see `default_disabled_set` / `settings_disabled_diagnostics`), so no
-    // publish-time filter is needed here — and removing it is what lets
-    // `tclLsp.diagnostics.<CODE>: true` actually enable an opt-in code.
+    // A default-off code is filtered at the analyser through its seeded disabled
+    // set (`default_disabled_set` / `settings_disabled_diagnostics`), never here:
+    // a publish-time code filter would defeat `tclLsp.diagnostics.<CODE>: true`,
+    // which exists to turn an opt-in code back on.
     diagnostics
         .iter()
         .cloned()
-        .map(|d| tower_lsp_server::ls_types::Diagnostic {
-            range: lift_span(text, &line_index, d.span),
-            severity: Some(match d.severity {
-                tcl_compiler::analyser::Severity::Error => {
-                    tower_lsp_server::ls_types::DiagnosticSeverity::ERROR
-                }
-                tcl_compiler::analyser::Severity::Warning => {
-                    tower_lsp_server::ls_types::DiagnosticSeverity::WARNING
-                }
-                tcl_compiler::analyser::Severity::Info => {
-                    tower_lsp_server::ls_types::DiagnosticSeverity::INFORMATION
-                }
-                tcl_compiler::analyser::Severity::Hint
-                | tcl_compiler::analyser::Severity::Suggestion => {
-                    tower_lsp_server::ls_types::DiagnosticSeverity::HINT
-                }
-            }),
-            code: Some(tower_lsp_server::ls_types::NumberOrString::String(
-                d.code.to_string(),
-            )),
-            code_description: None,
-            source: Some("tcl-lsp".to_string()),
-            message: d.message,
-            related_information: None,
-            tags: None,
-            data: None,
+        .filter_map(|d| {
+            let range = lift_span(text, &line_index, d.span);
+            let line = i32::try_from(range.start.line).unwrap_or(i32::MAX);
+            if line_suppressed(d.code.as_str(), line, suppressed) {
+                return None;
+            }
+            Some(tower_lsp_server::ls_types::Diagnostic {
+                range,
+                severity: Some(match d.severity {
+                    tcl_compiler::analyser::Severity::Error => {
+                        tower_lsp_server::ls_types::DiagnosticSeverity::ERROR
+                    }
+                    tcl_compiler::analyser::Severity::Warning => {
+                        tower_lsp_server::ls_types::DiagnosticSeverity::WARNING
+                    }
+                    tcl_compiler::analyser::Severity::Info => {
+                        tower_lsp_server::ls_types::DiagnosticSeverity::INFORMATION
+                    }
+                    tcl_compiler::analyser::Severity::Hint
+                    | tcl_compiler::analyser::Severity::Suggestion => {
+                        tower_lsp_server::ls_types::DiagnosticSeverity::HINT
+                    }
+                }),
+                code: Some(tower_lsp_server::ls_types::NumberOrString::String(
+                    d.code.to_string(),
+                )),
+                code_description: None,
+                source: Some("tcl-lsp".to_string()),
+                message: d.message,
+                related_information: None,
+                tags: None,
+                data: None,
+            })
         })
         .collect()
 }
@@ -28460,7 +28508,15 @@ fn lift_f5_source_integrity_diagnostics(
     let mut diagnostics = lift_style_diagnostics(encoding);
     let bidi =
         tcl_compiler::analyser::filtered_bidi_control_diagnostics(text, user_disabled, dialect);
-    diagnostics.extend(lift_analyser_diagnostics(text, &bidi));
+    // `filtered_bidi_control_diagnostics` has already applied the `# noqa` /
+    // file-directive contract against the map it parses for itself (these
+    // document families never run the Tcl analyser, so there is no
+    // `suppressed_lines` to thread), hence the empty map here.
+    diagnostics.extend(lift_analyser_diagnostics(
+        text,
+        &bidi,
+        &std::collections::HashMap::new(),
+    ));
     diagnostics
 }
 
@@ -28508,18 +28564,16 @@ fn lift_compiler_diagnostics(
             continue;
         }
         // Per-check feature toggle (`tclLsp.diagnostics.<CODE> = false`).
-        // The analyser path bakes the disabled set into its build, but the
+        // The analyser bakes the disabled set into its own build; the
         // compiler-checks (S1xx shimmer, T1xx / W2xx taint, IRULE1xxx-5xxx flow,
         // GVN, SCCP constant-branch) come through this separate lift, so the
-        // toggle must be applied here too.
+        // toggle is applied here too.
         if disabled_diagnostics.contains(d.code.as_str()) {
             continue;
         }
         let range = lift_span(text, &line_index, d.span);
-        // Inline `# noqa` / top-of-file suppression. The analyser path bakes
-        // `suppressed_lines` into its own build; this separate lift needs the
-        // same check applied explicitly — previously missing entirely, so
-        // `# noqa: S100` (and every other compiler-check code) had no effect.
+        // Inline `# noqa` / top-of-file suppression, through the same shared
+        // contract `lift_analyser_diagnostics` applies to the analyser families.
         let start_line = i32::try_from(range.start.line).unwrap_or(i32::MAX);
         if line_suppressed(d.code.as_str(), start_line, suppressed_lines) {
             continue;
@@ -28561,8 +28615,7 @@ fn lift_compiler_diagnostics(
             continue;
         }
         let range = lift_span(text, &line_index, o.span);
-        // Inline `# noqa` / top-of-file suppression — see the `.checks` loop
-        // above for why this was previously missing.
+        // Inline `# noqa` / top-of-file suppression, as in the `.checks` loop.
         let start_line = i32::try_from(range.start.line).unwrap_or(i32::MAX);
         if line_suppressed(o.code.as_str(), start_line, suppressed_lines) {
             continue;
@@ -31127,11 +31180,10 @@ mod tests {
         );
     }
 
-    /// `# noqa: S100` on the line before the shimmering command must
-    /// suppress it through the live compiler-checks lift — previously
-    /// `lift_compiler_diagnostics` never consulted `suppressed_lines` at
-    /// all, so `# noqa` had no effect on any compiler-check code (S1xx
-    /// shimmer, T1xx taint, IRULE1xxx-5xxx, O1xx, GVN, SCCP).
+    /// `# noqa: S100` on the line before the shimmering command must suppress
+    /// it through the live compiler-checks lift, which carries the directive
+    /// for every code in that family (S1xx shimmer, T1xx taint,
+    /// IRULE1xxx-5xxx, O1xx, GVN, SCCP).
     #[test]
     fn lift_compiler_diagnostics_honours_inline_noqa_suppression() {
         let registry = CommandRegistry::build_default();
@@ -37224,7 +37276,7 @@ proc p {} {
         let analyser_only = {
             let mut a = Analyser::new();
             let analysis = a.analyse(src, "tcl8.6").clone();
-            lift_analyser_diagnostics(src, &analysis.diagnostics)
+            lift_analyser_diagnostics(src, &analysis.diagnostics, &analysis.suppressed_lines)
         };
         let has_o100 = |ds: &[tower_lsp_server::ls_types::Diagnostic]| {
             ds.iter().any(|d| {

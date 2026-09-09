@@ -158,7 +158,10 @@ Use braces: {{ \u{2026} }}"
             return;
         };
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let mut indices = registry.arg_indices_for_role(
+        // The document's surface, not the bare catalogue: a declared
+        // `cond:expr` word is an expression operand, so an unbraced one
+        // draws W100 exactly as a registry command's does.
+        let mut indices = self.command_surface(registry).arg_indices_for_role(
             cmd_name,
             &arg_strs,
             tcl_registry::arg_role::ArgRole::Expr,
@@ -350,62 +353,128 @@ Use braces: {{ \u{2026} }}"
         }
     }
 
-    /// W200: a `u` / `s` modifier on a `binary format` / `binary
-    /// scan` integer specifier requires Tcl 8.5+ (TIP 275). Sites are
-    /// buffered and decided post-walk against the effective Tcl version
-    /// (§6 argument-DSL rung) — the old hardcoded dialect list wrongly
+    /// W200/W202: version gates on a literal `binary` template.
+    ///
+    /// Site selection is entirely registry-driven: the head's effective
+    /// command identity resolves through the binding realm (so
+    /// `::binary` is the builtin, and a `proc binary` / `rename` /
+    /// `interp alias` that takes the name over is not), then the
+    /// registry's `FormatType::Binary` metadata names which argument is
+    /// the template. No `cmd_name == "binary"` guard and no hardcoded
+    /// `format`/`scan` argument positions.
+    ///
+    /// The field grammar itself comes from the binary owner
+    /// (`tcl_cmd_core::binary::specifiers`), parsed with the suffix
+    /// admitted so the gate — not the parse — decides; sites are
+    /// buffered and settled post-walk against the effective Tcl version
+    /// (§6 argument-DSL rung).
+    ///
+    /// W200 is the `u` suffix (TIP 275, Tcl 8.5). W202 is a field
+    /// letter that does not exist on the target at all (`t n m r R q
+    /// Q`, also 8.5); its floor comes from
+    /// `tcl_cmd_core::binary::specifier_min_version`. They are separate
+    /// codes because the fixes differ: a suffix can be dropped, an
+    /// absent letter needs a different field.
+    ///
+    /// One site per code per template: every field shares the template
+    /// token's span, so several gated fields give one squiggle each,
+    /// not one per field. The old hardcoded dialect list wrongly
     /// included f5-iapps, whose host embeds a real Tcl 8.5.13 where the
-    /// modifiers work.
-    pub(in crate::analyser) fn emit_w200_binary_format_modifiers(
+    /// suffix works.
+    pub(in crate::analyser) fn emit_binary_field_version_gates(
         &mut self,
         cmd_name: &str,
+        cmd_tok: tcl_lexer::Token,
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
+        arg_single: &[bool],
     ) {
-        if cmd_name != "binary" || args.is_empty() {
+        let Some(registry) = self.registry.as_deref() else {
+            return;
+        };
+        // The effective command identity, exactly as the semantic-token
+        // and inlay-hint walks resolve it (issue #1185): a rebound or
+        // shadowed spelling is not this builtin, and `::binary` is.
+        let resolved = self
+            .head_identities
+            .resolve(cmd_name, cmd_tok.span.start())
+            .spec_name();
+        if resolved.is_empty() {
             return;
         }
-        let fmt_idx = match args[0].as_str() {
-            "format" if args.len() >= 2 => 1,
-            "scan" if args.len() >= 3 => 2,
-            _ => return,
-        };
-        let Some(fmt_tok) = arg_tokens.get(fmt_idx) else {
-            return;
-        };
-        let fmt = args[fmt_idx].as_bytes();
-        let mut i = 0;
-        while i < fmt.len() {
-            if fmt[i].is_ascii_whitespace() {
-                i += 1;
+        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+        for found in registry.format_string_args(resolved, &arg_strs) {
+            if found.kind != tcl_registry::patterns::FormatType::Binary {
                 continue;
             }
-            while i < fmt.len() && fmt[i].is_ascii_digit() {
-                i += 1;
+            let (Some(fmt), Some(fmt_tok)) = (args.get(found.index), arg_tokens.get(found.index))
+            else {
+                continue;
+            };
+            if !Self::is_literal_template(fmt_tok, arg_single.get(found.index).copied()) {
+                continue;
             }
-            if i >= fmt.len() {
-                break;
-            }
-            let spec = fmt[i];
-            i += 1;
-            if BINARY_INT_SPECIFIERS.contains(&spec)
-                && i < fmt.len()
-                && (fmt[i] == b'u' || fmt[i] == b's')
+            self.push_binary_field_gates(fmt.as_bytes(), fmt_tok.span);
+        }
+    }
+
+    /// Whether a template word is written text the scanner may read.
+    ///
+    /// A word is literal only when it is a *single* token that is not a
+    /// substitution. Both halves matter: `$fmt` is one `Var` token, and
+    /// `"a$fmt"` is several tokens whose representative is an ordinary
+    /// `Esc` — indistinguishable from the literal `q` by kind alone. In
+    /// either case the runtime template is unknown, and reading the
+    /// source text would scan the *variable name*: `$fmt` carries the
+    /// field letters `f`, `m` and `t`, and `$au` reads as a field plus a
+    /// gated `u` suffix.
+    fn is_literal_template(tok: &tcl_lexer::Token, single: Option<bool>) -> bool {
+        single == Some(true)
+            && !matches!(
+                tok.kind,
+                tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+            )
+    }
+
+    /// Buffer the W200/W202 gate sites for one literal template.
+    fn push_binary_field_gates(&mut self, fmt: &[u8], span: tcl_lexer::Span) {
+        let fields = tcl_cmd_core::binary::specifiers(fmt, true);
+        if fields.iter().any(|f| f.modifier == Some(b'u')) {
+            self.dsl_gate_sites.push(super::version_gate::DslGateSite {
+                span,
+                code: DiagCode::W200,
+                what: "unsigned modifier 'u' on binary format specifier".to_string(),
+                min: tcl_dialect::TclVersion::V8_5,
+            });
+        }
+
+        // Gated field letters, deduped and reported in template order so
+        // the message is stable regardless of how often each appears.
+        let mut gated: Vec<(u8, tcl_dialect::TclVersion)> = Vec::new();
+        for f in &fields {
+            if let Some(min) = tcl_cmd_core::binary::specifier_min_version(f.letter)
+                && !gated.iter().any(|(l, _)| *l == f.letter)
             {
-                let modifier = fmt[i] as char;
-                self.dsl_gate_sites.push(super::version_gate::DslGateSite {
-                    span: fmt_tok.span,
-                    code: DiagCode::W200,
-                    what: format!(
-                        "signed/unsigned modifier '{modifier}' on binary format specifier"
-                    ),
-                    min: tcl_dialect::TclVersion::V8_5,
-                });
-                i += 1;
+                gated.push((f.letter, min));
             }
-            if i < fmt.len() && fmt[i] == b'*' {
-                i += 1;
-            }
+        }
+        if let Some(min) = gated.iter().map(|(_, m)| *m).max() {
+            let letters = gated
+                .iter()
+                .map(|(l, _)| format!("'{}'", char::from(*l)))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let noun = if gated.len() == 1 {
+                "binary field specifier"
+            } else {
+                "binary field specifiers"
+            };
+            self.dsl_gate_sites.push(super::version_gate::DslGateSite {
+                span,
+                code: DiagCode::W202,
+                what: format!("{noun} {letters}"),
+                min,
+            });
         }
     }
 
@@ -1476,10 +1545,6 @@ pub(super) fn is_benign_unicode(ch: char) -> bool {
             | G::OtherPunctuation
     )
 }
-
-/// Integer format specifiers for `binary format` / `binary scan` that
-/// accept the Tcl 8.5+ `u` / `s` modifier.
-const BINARY_INT_SPECIFIERS: &[u8] = b"csSiInTwWmrR";
 
 /// Mask-octet values that can appear in a contiguous subnet mask.
 const VALID_MASK_OCTETS: &[u32] = &[0, 128, 192, 224, 240, 248, 252, 254, 255];
