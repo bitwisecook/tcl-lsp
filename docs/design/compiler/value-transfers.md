@@ -201,7 +201,7 @@ compile-time `ConstOps` described in
 [§ Single-source evaluation](#single-source-evaluation-the-cores-the-engines-and-codegen),
 so the compile-time answer and the runtime answer come from one
 implementation. That is the Family-B rule
-([family-b-routing.md](../family-b-routing.md)) applied to folding.
+([family-b-routing.md](../runtime/family-b-routing.md)) applied to folding.
 
 `ValueTransferId` is deliberately small. Its first members are the two
 transfers whose inputs are not literal words: `Expr` (the braced-versus-
@@ -605,7 +605,7 @@ commands *is* its own `const_fold` body; a proc whose body is `upvar 1 $name
 v; lappend v …` is a `cell_fold` with `ListAppend` semantics. The skill
 emits the stub, runs it through `spectcl_check`, and the differential test
 in the pack's corpus proves it against the library's real behaviour. That
-is [spec-packs.md](../spec-packs.md)'s observation — for a command
+is [spec-packs.md](../registry/spec-packs.md)'s observation — for a command
 implemented in pure Tcl, "fold" can mean running the implementation on the
 literal arguments — made mechanical.
 
@@ -658,7 +658,7 @@ existing folds.
 
 Whether a compile-time fold can be *the same code* the runtimes execute has a
 concrete answer in this workspace, because the seam that makes it possible
-already exists: the Family-B contract ([family-b-routing.md](../family-b-routing.md)).
+already exists: the Family-B contract ([family-b-routing.md](../runtime/family-b-routing.md)).
 Today the answer is "partly, and inconsistently"; the design makes it "by
 construction" for the commands the lattice depends on, and "by the engine"
 for the long tail.
@@ -1813,10 +1813,10 @@ refinement, bounded-loop enumeration, and proc-level transfer summaries.
 - [interprocedural-analysis.md](interprocedural-analysis.md), [interprocedural-call-site-seeding.md](interprocedural-call-site-seeding.md) — the summaries and the seeds
 - [pass-fact-ownership-matrix.md](pass-fact-ownership-matrix.md) — producer and consumer ownership this design adds a row to
 - [precision-limitations.md](precision-limitations.md) — where the deliberate imprecision is recorded
-- [../spec-packs.md](../spec-packs.md), [../spec-dsl-examples/README.md](../spec-dsl-examples/README.md), [../spectcl-design-e-deep-dive.md](../spectcl-design-e-deep-dive.md) — the DSL, its hook contract, and the `constraints` precedent
+- [../registry/spec-packs.md](../registry/spec-packs.md) (including § *Authoring rules for SpecTcl 2.0 (design E)*), [../spec-dsl-examples/README.md](../spec-dsl-examples/README.md) — the DSL, its hook contract, and the `constraints` precedent
 - [../contracts/command-spec-studio.md](../contracts/command-spec-studio.md) — the four-surface parity rule
 - [../contracts/shared-utility-contracts-rust.md](../contracts/shared-utility-contracts-rust.md) — the owner manifest
-- [../family-b-routing.md](../family-b-routing.md) — the shared-core rule the native evaluators follow
+- [../family-b-routing.md](../runtime/family-b-routing.md) — the shared-core rule the native evaluators follow
 - [../contracts/vm-compiled-artifact-provenance.md](../contracts/vm-compiled-artifact-provenance.md) — how a folded value in bytecode is admitted and invalidated
 - [../contracts/differential-fuzzing.md](../contracts/differential-fuzzing.md) — the engine pairs that are the fold's oracle
 - [compiler design index](README.md), [design docs index](../README.md)
