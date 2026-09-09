@@ -144,23 +144,7 @@ pub fn inline_proc_in_program(
     let title = format!("Inline proc '{}'", proc_def.name);
     let (call_start, call_end) = command_span_offsets(source, &call);
 
-    // The numeric-literal grammar of the dialect this document was analysed
-    // under — whether a substituted value reads as a number in an `expr`
-    // operand is release-dependent (`0o17` from 8.5, `0d99` and `1_000` from
-    // 9.0).  `AnalysisResult::dialect` carries the name the host passed to
-    // `Analyser::analyse`; an empty (default-constructed) one resolves to the
-    // permissive `plain_tcl` profile, i.e. modern rules.
-    let numbers = crate::profile_for_dialect(&analysis.dialect)
-        .grammar
-        .numbers;
-    // …and its `${…}` close rule, for the same reason: which bytes are the
-    // variable's name is release-dependent, and this transform rewrites the
-    // reference's own span (issue #1605).
-    let style = super::braced_var_style(analysis);
-
-    match plan_inline(
-        source, &call, proc_def, analysis, registry, numbers, style, config,
-    ) {
+    match plan_inline(source, &call, proc_def, analysis, registry, config) {
         Ok(new_text) => Some(Refactoring {
             title,
             edits: vec![RefactorEdit {
@@ -189,10 +173,21 @@ fn plan_inline(
     proc_def: &tcl_compiler::analyser::ProcDef,
     analysis: &AnalysisResult,
     registry: &CommandRegistry,
-    numbers: NumberSyntax,
-    style: BracedVarStyle,
     config: LexerConfig,
 ) -> Result<String, String> {
+    // The numeric-literal grammar of the dialect this document was analysed
+    // under — whether a substituted value reads as a number in an `expr`
+    // operand is release-dependent (`0o17` from 8.5, `0d99` and `1_000` from
+    // 9.0).  `AnalysisResult::dialect` carries the name the host passed to
+    // `Analyser::analyse`; an empty (default-constructed) one resolves to the
+    // permissive `plain_tcl` profile, i.e. modern rules.
+    let numbers: NumberSyntax = crate::profile_for_dialect(&analysis.dialect)
+        .grammar
+        .numbers;
+    // …and its `${…}` close rule, for the same reason: which bytes are the
+    // variable's name is release-dependent, and this transform rewrites the
+    // reference's own span (issue #1605).
+    let style: BracedVarStyle = super::braced_var_style(analysis);
     if proc_def.params_computed {
         return Err(
             "the proc's parameter list is computed at run time, so its formals are unknown"
