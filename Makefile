@@ -210,7 +210,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Tests
 .PHONY: test test-ext test-ext-partition test-ext-multi-folder test-emacs test-jetbrains test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all print-server-targets-jetbrains
 .PHONY: xtask-check xtask-editor-extensions xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data xtask-runtime-stdlib tcltest-sweep tcltest-sweep-check xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-api-ownership
-.PHONY: xtask-workflow-sync xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-gen-tmlanguage-keywords xtask-option-registry-drift xtask-callback-inventory check-tcl-reference-toolchains check-spectcl-compat-paths check-runtime-rust-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-vscode-test-partitions check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-release-dependency-graph xtask-dialect-drift xtask-segmentation-drift
+.PHONY: xtask-workflow-sync xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-gen-tmlanguage-keywords xtask-option-registry-drift xtask-callback-inventory check-tcl-reference-toolchains check-spectcl-compat-paths check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-vscode-test-partitions check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-release-dependency-graph xtask-dialect-drift xtask-segmentation-drift
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust check-rust-pr _check-rust-pr rust-deny
 .PHONY: build-report-assets build-report-pyz lint-report-ts typecheck-report-ts check-report-assets lint-spec-studio-ts typecheck-spec-studio-ts
@@ -644,7 +644,7 @@ PY_VENV := $(ROOT).venv-typecheck
 # gate uses, and it skips build outputs, the venv, and untracked scratch files.
 PY_FILES = $(shell git -C $(ROOT) ls-files '*.py')
 
-.PHONY: lint-py format-py typecheck-py py-venv
+.PHONY: lint-py format-py typecheck-py test-py-engine py-venv python-engine-source-hash
 
 lint-py: ## Lint + format-check every tracked Python file (ruff)
 	@echo "==> Linting Python (ruff format --check + ruff check)"
@@ -663,11 +663,11 @@ py-venv: ## Build the typecheck venv (f5report + native _engine + pytest)
 	@# The reinstall maturin-compiles the native `_engine` in release mode
 	@# (~4 min), so gate it on a content hash of the package tree: ty/pyright
 	@# read the committed `_engine.pyi` stub, never the compiled module, so the
-	@# venv only needs a rebuild when the Python package itself changes.
+	@# venv needs a rebuild when the Python package or any local Rust input
+	@# compiled into its native extension changes.
 	@cd $(ROOT) && \
 	  stamp="$(PY_VENV)/.f5report-src-hash"; \
-	  files=$$(git ls-files -- rust/bigip-report-gen/python | LC_ALL=C sort); \
-	  hash=$$( { printf '%s\n' "$$files"; printf '%s\n' "$$files" | xargs git hash-object; printf '%s\n' "pytest=$(PYTEST_VERSION)"; } | git hash-object --stdin ); \
+	  hash=$$($(MAKE) --no-print-directory python-engine-source-hash); \
 	  if [ ! -f "$$stamp" ] || [ "$$(cat "$$stamp")" != "$$hash" ]; then \
 	    uv pip install --python $(PY_VENV) --quiet \
 	        --reinstall-package f5report ./rust/bigip-report-gen/python pytest==$(PYTEST_VERSION) || exit; \
@@ -676,6 +676,14 @@ py-venv: ## Build the typecheck venv (f5report + native _engine + pytest)
 	    echo "    f5report source unchanged — venv already current"; \
 	  fi
 
+python-engine-source-hash: ## Hash every source/build input compiled into the f5report Python engine
+	@cd $(ROOT) && \
+	  files=$$(scripts/dev/python-engine-source-files.sh) && \
+	  { printf '%s\n' "$$files"; \
+	    printf '%s\n' "$$files" | git hash-object --stdin-paths; \
+	    printf '%s\n' "pytest=$(PYTEST_VERSION)"; \
+	  } | git hash-object --stdin
+
 typecheck-py: py-venv ## Type-check every tracked Python file (ty + pyright)
 	@echo "==> Type-checking Python (ty)"
 	@cd $(ROOT) && uvx ty@$(TY_VERSION) check \
@@ -683,6 +691,10 @@ typecheck-py: py-venv ## Type-check every tracked Python file (ty + pyright)
 	    --extra-search-path .claude/skills/lsp-client $(PY_FILES)
 	@echo "==> Type-checking Python (pyright)"
 	@cd $(ROOT) && uvx pyright@$(PYRIGHT_VERSION)
+
+test-py-engine: py-venv ## Test the native f5report query-engine binding
+	@echo "==> Testing the native Python query-engine binding"
+	@cd $(ROOT) && $(PY_VENV)/bin/pytest -q rust/bigip-report-gen/python/tests/test_engine.py
 
 # The lsp_e2e suite is native: rust/tcl-lsp-server/tests/*_e2e.rs, run by
 # `cargo test` (see test-rust). tclpkg is the `tcl-pkg` Rust crate, exercised by
@@ -857,7 +869,7 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 # --- Native (cargo xtask) check gates.  These need the Rust toolchain, so CI
 # runs them in the rust-tests-shard matrix and its stable rust-tests aggregate
 # (ci.yml). `xtask-check` is the CI aggregate.
-xtask-check: check-tcl-reference-toolchains check-spectcl-compat-paths check-runtime-rust-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-release-dependency-graph check-vsix-web-assets-contract xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
+xtask-check: check-tcl-reference-toolchains check-spectcl-compat-paths check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-release-dependency-graph check-vsix-web-assets-contract xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
 
 check-lsp-wasi-lto: ## Verify functional WASI uses thin LTO and tags retain fat LTO
 	@bash scripts/dev/test-lsp-wasi-lto.sh
@@ -874,6 +886,10 @@ check-spectcl-compat-paths: ## Verify CI's SpecTcl dependency closure and centra
 check-runtime-rust-paths: ## Verify CI's standalone-runtime dependency closure and job wiring (#1768)
 	@echo "==> Checking standalone runtime CI path ownership"
 	@bash scripts/dev/test-runtime-rust-paths.sh
+
+check-python-ci-paths: ## Verify Python CI's native-engine dependency closure, cache key, and wiring
+	@echo "==> Checking Python CI path and cache ownership"
+	@bash scripts/dev/test-python-ci-paths.sh
 
 check-rust-tests-paths: ## Verify CI's root Rust test dependency closure and classifier wiring
 	@echo "==> Checking root Rust test path ownership"
