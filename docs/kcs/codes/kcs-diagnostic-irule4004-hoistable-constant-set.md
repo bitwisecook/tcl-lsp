@@ -21,7 +21,9 @@ Assigning a fixed value on every request wastes CPU; moving it to `RULE_INIT` or
 
 ## Symptoms
 
-- A hint squiggle appears under the `set` call, with the message "constant set could be hoisted".
+- An informational underline appears on the `set`, with the message
+  "`set pool_name ...` runs on every request — consider hoisting to a
+  once-per-connection event."
 
 ## Example that triggers it
 

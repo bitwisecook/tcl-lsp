@@ -250,8 +250,11 @@ issues across platforms.
 ### 11. List the editors and tools the note applies to
 
 Every KCS note must include an `## Applies to` section immediately
-after the audience/type header. It is a **comma-separated plain-text
-list**, not bullet points. Each item is a tag. The build and query
+after the audience/type header — except a Functionality note, where it
+follows `## Summary`, as the
+[Functionality template](templates/kcs-template-functionality.md) lays
+out. It is a **comma-separated plain-text list**, not bullet points.
+Each item is a tag. The build and query
 scripts normalise each tag by lowercasing it and replacing internal
 spaces with a hyphen, so `VS Code` and `vs-code` are the same tag.
 
@@ -406,24 +409,20 @@ When you need a tag that is not already in the glossary above, add
 it in the same change that introduces it. The steps are:
 
 1. **Add a row** to the appropriate table in this file (rule 11)
-   with a one-line description of what the tag means. Keep the
-   table ordered alphabetically within its group, except for the
-   compiler-pass table, which follows pipeline order.
-2. **Update the vocabulary summary** in `AGENTS.md` (rule 12) so
-   agents and reviewers see the full list at a glance.
-3. **Update the diagnostic KCS tag gate** in
+   with a one-line description of what the tag means. The
+   compiler-pass table follows pipeline order.
+2. **Update the diagnostic KCS tag gate** in
    `rust/xtask/src/kcs_index_links.rs` when the tag can appear on a
    per-code diagnostic page. Keep a diagnostic-stage tag tied to its
    emission owner, not a broad "analyser" label.
-4. **If the tag names a new LSP editor**, add it to `LSP_EDITOR_TAGS`
+3. **If the tag names a new LSP editor**, add it to `LSP_EDITOR_TAGS`
    in `rust/tcl-cli/build.rs` as well, so `all-editors` expands to it
    and the help database groups the note correctly. No other tag
    needs a code change.
 
-Tags are cheap — a new one costs two or three small edits. A fuzzy or
-overloaded Applies to line is expensive — a reader cannot filter
-by it cleanly. Prefer adding a new tag over reusing an existing
-one with a stretched meaning.
+Tags are cheap. A fuzzy or overloaded Applies to line is expensive — a
+reader cannot filter by it cleanly. Prefer adding a new tag over
+reusing an existing one with a stretched meaning.
 
 ### 12. Sub-headings when editors differ
 
@@ -528,8 +527,9 @@ Before you merge a KCS note, check:
 
 - [ ] It has a single core question.
 - [ ] It has an `> **Audience:**` / `> **Type:**` blockquote header.
-- [ ] It has an `## Applies to` section immediately after the header,
-  written as a comma-separated plain-text list, not bullets.
+- [ ] It has an `## Applies to` section immediately after the header
+  (after `## Summary` in a Functionality note), written as a
+  comma-separated plain-text list, not bullets.
 - [ ] The filename describes the question in plain words, not an
   internal class or module name (see rule 10). Functionality notes
   are the exception and are named after the feature.

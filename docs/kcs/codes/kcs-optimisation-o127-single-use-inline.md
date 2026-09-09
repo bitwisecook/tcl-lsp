@@ -17,20 +17,30 @@ What does O127 rewrite, and when does it fire?
 
 ## Why
 
-A variable read exactly once can be replaced with its value, removing a needless temporary. This shortens the code and avoids an extra variable look-up at runtime.
+A variable read exactly once does not need a statement of its own. Folding the
+`set` into the use site drops the separate statement and the variable look-up
+that followed it.
 
 ## Before
 
 ```tcl
-set uri [HTTP::uri]
-pool_select $uri
+when HTTP_REQUEST {
+    set uri [HTTP::uri]
+    log local0. $uri
+}
 ```
 
 ## After
 
 ```tcl
-pool_select [HTTP::uri]
+when HTTP_REQUEST {
+    log local0. [set uri [HTTP::uri]]
+}
 ```
+
+The `set` moves into the argument rather than disappearing: it still returns
+the value it assigns, so the variable is left in place for anything that reads
+it later through a dynamic name.
 
 ## Safety conditions
 

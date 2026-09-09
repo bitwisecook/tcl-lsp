@@ -32,7 +32,7 @@
  * functions are inline C that fan out into fixed-arity exports, the freeing
  * conventions of Tcl_SetResult are resolved before the call crosses into
  * Rust — so the engine-neutral interface underneath never sees any of it.
- * See docs/design/c-extension-shim.md.
+ * See docs/design/runtime/c-extension-shim.md.
  */
 
 #ifndef TCLSHIM_H

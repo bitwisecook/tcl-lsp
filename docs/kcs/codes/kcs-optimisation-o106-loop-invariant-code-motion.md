@@ -37,10 +37,17 @@ foreach i $list {
 }
 ```
 
+O106 reports the invariant computation and leaves the source as written; the
+hoist above is the edit you make.
+
 ## Safety conditions
 
 - Skipped when the hoisted expression depends on a variable modified inside the loop body.
 - Skipped when the expression has side effects.
+- Skipped inside a procedure, method, or `apply` body. Hoisting changes how
+  many times a command is dispatched, and a caller can install an execution
+  trace before the body runs, so only a loop at the top level of a file can
+  prove the dispatch is stable.
 
 ## How to disable
 

@@ -8,10 +8,8 @@ code, with no per-extension shim.
 > **Implementation state.** This is a *design contract*, and the surface it
 > describes is not shipped: the repository contains no authored `tcl.h` /
 > `tclOO.h` / `tclTomMath.h`, and `runtime/rust/src/capi.rs` exports only a
-> small subset of the C-API. The mechanism (static link, dynamic side-module
-> load, a six-extension compile-check) was proven end to end by throwaway
-> spikes that have since been removed, so **do not derive the shape from spike
-> code** — derive it from this document. The per-function ownership and
+> small subset of the C-API. Derive the shape from this document — nothing in
+> the tree implements it. The per-function ownership and
 > error-path categories live in
 > [`c-api-ownership-contract.md`](c-api-ownership-contract.md).
 
@@ -19,8 +17,8 @@ Companion docs: [`memory-management.md`](memory-management.md),
 [`refcount-contract.md`](refcount-contract.md),
 [`../compiler/wasm-runtime-primitives.md`](../compiler/wasm-runtime-primitives.md).
 
-Reference Tcl sources: `tmp/tcl9.0.3/generic/tcl.h` + `tclDecls.h` (the public
-API the authored header mirrors), `tmp/tcl9.0.3/unix/dltest/*.c` (the canonical
+Reference Tcl sources: `tmp/tcl9.0.4/generic/tcl.h` + `tclDecls.h` (the public
+API the authored header mirrors), `tmp/tcl9.0.4/unix/dltest/*.c` (the canonical
 minimal extensions), and the WebAssembly
 [dynamic linking convention](https://github.com/WebAssembly/tool-conventions/blob/main/DynamicLinking.md)
 (`dylink.0`).
@@ -105,9 +103,9 @@ Tcl 9.0:
 - `tclTomMath.h` — the `mp_*` bignum API.
 
 These are the *only* shim. They are written once, by the runtime author, not
-per extension. None of the three exists yet: `runtime/rust/include/` currently
-holds one header, `tcl_regex_capi.h`, which is the §10 regex shim's own
-C surface and not part of this ABI.
+per extension. None of the three exists yet: `runtime/rust/include/` holds one
+header, `tcl_regex_capi.h`, the C surface of the pure-Rust ARE engine's shim
+([`rust-regex-port.md`](rust-regex-port.md)), which is not part of this ABI.
 
 ### 4.2 `Tcl_Obj` layout
 
@@ -200,10 +198,9 @@ load-time-registered command can be resolved.
 ### 5.1 Model A — whole-program static link
 
 Compile the extension `.c` to a WASM object with clang + wasi-sdk;
-link it with the runtime's objects via `wasm-ld` into a single module. Same model as
-the compiler's whole-program WASM link. Simplest deployment;
-proves API compatibility, Rust↔C wasm interop, and the §4.5 callback. This was
-spike-validated (spike since removed).
+link it with the runtime's objects via `wasm-ld` into a single module. Same
+model as the compiler's whole-program WASM link. Simplest deployment; proves API
+compatibility, Rust↔C wasm interop, and the §4.5 callback.
 
 ### 5.2 Model B — dynamic side-module load (`package require`)
 
@@ -226,9 +223,9 @@ module**. A loader in the runtime/host loads it at runtime:
 7. Call `Foo_Init(interp)`. Its `Tcl_CreateObjCommand` calls register command
    procs (now resident in the shared table at `__table_base + k`).
 
-The runtime then dispatches as in §4.6. This was spike-validated (spike since
-removed) with a `wasmtime` host loader plus a Rust cdylib runtime exporting
-memory and a growable, exported `__indirect_function_table`.
+The runtime then dispatches as in §4.6. It needs a `wasmtime`-class host loader
+plus a runtime cdylib exporting memory and a growable, exported
+`__indirect_function_table`.
 
 **Linker flags that matter.** The main module must export its table
 (`--export-table`) and make it growable (`--growable-table`); the side module is
@@ -243,7 +240,7 @@ are language-agnostic; they are independent of the runtime's implementation lang
 ### 5.4 The libc question
 
 `pkga.c` uses no libc, but most real extensions do (`snprintf`, `<string.h>`,
-`malloc`). Two coherent options, both compatible with §4.4:
+`malloc`). The answer, compatible with §4.4:
 
 - **Compile with clang + a WASI sysroot (wasi-sdk)** — the project standard
   (what `runtime/rust/build.rs` uses for the libtommath tower). The authored
@@ -310,8 +307,7 @@ library**, never the Tcl API.
   (+ exported `memory`). Side module: `--experimental-pic -shared --no-entry
   --import-memory --import-table`.
 - **Host/loader (Model B):** parses `dylink.0`, allocates bases, wires imports.
-  The spike loader is Python + `wasmtime`; production would put the loader in
-  the runtime itself.
+  It belongs in the runtime itself.
 
 ## 9. Runtime-language analysis (Rust)
 
@@ -330,26 +326,7 @@ Net: Rust is fully **capable**. Its safety benefit is real for the pure-logic
 halves and partial in the `Tcl_Obj`/shared-memory layer, which is inherently
 `unsafe`.
 
-## 10. The regex engine is the first C library
-
-> **Superseded.** This section argued for keeping the C Henry-Spencer engine as
-> the runtime's first vendored C library. That is no longer the design: the ARE
-> engine is now the pure-Rust `tcl-regex` crate (bit-for-bit fidelity —
-> backreferences, lookahead, POSIX leftmost-longest — verified against
-> `reg.test`), with **no C compiled, vendored, or fetched**. The direction is
-> reversed: rather than C being linked into the runtime, C consumers link the
-> *Rust* engine through the `regex_capi` C-ABI shim (`TclReComp`/`TclReExec`/…).
-> The rationale below is retained as historical context.
-
-Tcl's Henry Spencer ARE engine is already C, already compiled into the runtime
-(the vendored `tcl-regex` engine). Once "compile C against the runtime" exists,
-the regex engine *is* the first such C library — keeping it gives bit-for-bit
-ARE fidelity (backreferences + lookahead + POSIX leftmost-longest, which no
-pure-Rust crate matches) in the Rust runtime. Its small locale shim is
-a *runtime-internal* C component, not a user extension, so it is exempt from the
-"no per-extension shim" rule.
-
-## 11. Open questions / production work
+## 10. Open questions / production work
 
 - **GOT relocations are narrowly scoped (measured).** Linked as `-shared` side
   modules, `pkga`/`pkgb`/`pkgt` and even `synth_surface` (static `Tcl_ObjType` /
@@ -370,8 +347,7 @@ a *runtime-internal* C component, not a user extension, so it is exempt from the
   encoding those categories in the `runtime/rust/` implementations and gating
   on them.
 - **Faithful struct fidelity.** Ship the full versioned `Tcl_ChannelType` /
-  `Tcl_Filesystem` / `Tcl_ObjType` bodies (the spike carries only the fields the
-  probes touch).
+  `Tcl_Filesystem` / `Tcl_ObjType` bodies.
 - **Nominal stub tables** for introspecting extensions (§6).
 - **Safe interpreters, multiple interpreters, `unload`.** How extension state
   and command tables map onto child interps.
@@ -380,9 +356,9 @@ a *runtime-internal* C component, not a user extension, so it is exempt from the
 The durable artefact is *this ABI plus the headers*, which is reusable
 whichever language the runtime is written in.
 
-## 12. The extension corpus this ABI is held to
+## 11. The extension corpus this ABI is held to
 
-The reference corpus is the nine in-tree Tcl 9.0.3 dltest extensions
+The reference corpus is the nine in-tree Tcl 9.0.4 dltest extensions
 (`pkga`–`pkge`, `pkgt`, `pkgua`, `pkgπ`, `pkgooa`) plus two synthetic probes.
 Between them they exercise every part of the surface that is easy to
 under-specify:
@@ -391,14 +367,14 @@ under-specify:
   `Tcl_SetVar2`, `Tcl_DeleteCommandFromToken`;
 - `pkgπ` — non-ASCII init-function naming;
 - `pkgooa` — stubs introspection, and with it the only GOT-relocation pattern
-  in the corpus (§11);
+  in the corpus (§10);
 - the synthetic probes — static `Tcl_ObjType` / `Tcl_ChannelType` /
   `Tcl_Filesystem` tables of function pointers.
 
 `embtest.c` is deliberately excluded: it *embeds* Tcl (`main()` +
 `Tcl_FindExecutable`), which is the opposite of extending it.
 
-## 13. The unproven seam
+## 12. The unproven seam
 
 One seam in §4.6 has never been exercised against the real product: a Tcl
 script compiled by `tcl_compiler::codegen::wasm` calling an

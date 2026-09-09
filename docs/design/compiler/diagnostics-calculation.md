@@ -1,104 +1,67 @@
-# Diagnostics calculation — two-phase architecture and scheduling
+# Diagnostics calculation — the two tiers
 
-Why some diagnostics appear instantly and others after a delay, how the
-diagnostic scheduler handles cancellation and document versions, and which
-phase a new diagnostic belongs in.
+Which diagnostics appear instantly and which after a delay, how the server
+keeps a slow pass from publishing stale results, and where a new diagnostic
+belongs.
 
-The LSP server produces diagnostics in two phases: a fast synchronous phase
-for immediate feedback (basic diagnostics) and an expensive asynchronous phase
-(deep diagnostics) that runs in a background thread.  The `DiagnosticScheduler`
-manages task lifecycle with cancellation and version tracking.
+Source: `rust/tcl-lsp-server/src/lib.rs` (scheduling and publication),
+`rust/tcl-lsp-db/src/lib.rs` (the salsa queries).
 
-Source: `rust/tcl-lsp-db/src/lib.rs`,
-`rust/tcl-lsp-server/src/lib.rs`
+### Fast tier
 
-### Phase 1 — Basic diagnostics (fast, synchronous)
+Published first only when the deep pass overruns its 40 ms budget on a
+document of 500 lines or more (see
+[async-diagnostics-tiering.md](async-diagnostics-tiering.md)):
 
-The basic phase runs on every keystroke and returns immediately:
+- every analyser diagnostic no workspace pass can retract — syntax (`E*`),
+  semantic (`W*`, `H*`, `I*`), iRules (`IRULE*`) — i.e. every code for which
+  `DiagCode::refined_by_workspace()` is false; only W120 and W123 are
+  excluded;
+- the pure source-style lints from `tcl_lsp_core::source_style` (W111, W112,
+  W115, W118).
 
-- **Semantic analysis**:
-  - W100: Unbraced expression argument
-  - E002 / E003: Too few / too many arguments for command
-  - W101: `eval` with string concatenation — code injection risk
-  - W102: `subst` on variable input — code injection risk
-  - W103: `open` with pipeline `|` — command injection risk
-  - W104: String concatenation for list building
-  - W123: Unresolved command (default on; `tclLsp.diagnostics.W123 = false` to disable)
-  - W210: Variable read before it is set
-  - W200+: iRules event/command warnings
-  - W300+: Deprecation/style warnings
-- **Style checks**:
-  - W111: Line exceeds configured length
-  - W112: Trailing whitespace
-  - W115: Backslash-newline continuation in comment
-  - W120: Command used without package require
+### Deep tier
 
-### Phase 2 — Deep diagnostics (expensive, background thread)
+The authoritative publish for a version. Three whole-file analyses run
+concurrently off the event loop, then the results are refined, lifted, and
+published once:
 
-The deep phase runs on a background thread to avoid blocking. It reuses the
-`CompilationUnit` from Phase 1:
+| Analysis | Query | Codes |
+|---|---|---|
+| per-file analyser walk | `file_analysis` | every analyser code, including W120/W123 |
+| compiler checks + optimiser | `compiler_check_diagnostics` — `run_all_checks` and `optimise_unit` over one `CompilationUnit` | shimmer S100–S102/S110, sharing/thunking, taint T1xx and IRULE3xxx, iRules flow IRULE1xxx–5xxx, GVN O105/O106, SCCP constant branches; optimiser O1xx as HINT-severity suggestions |
+| cross-file resolution | `project_diagnostics`, `project_callback_diagnostics` | W120/W123 refinement, cross-file arity |
 
-- **Optimiser** (`find_optimisations`): O100–O130
-- **Shimmer detector** (`find_shimmer_warnings`): S100–S102
-- **Taint engine** (`find_taint_warnings`): T100–T106, IRULE3001–3004
-- **iRules flow checker** (`find_irules_flow_warnings`): IRULE1005–1008, IRULE4002, IRULE5004
-- **GVN/CSE** (`find_redundant_computations`): O105–O106
-
-### Async scheduling and cancellation
-
-```
-Document edit (version N)
-    │
-    ├─► Phase 1: basic diagnostics → publish immediately
-    │
-    └─► DiagnosticScheduler::schedule(uri, version = N, ...)
-          │
-          ├─► Cancel any in-flight deep task for this URI
-          │
-          └─► Spawn the deep run on a background thread
-                │
-                ▼
-            publish(uri, basic + deep, version = N)
-```
-
-Key properties:
-- **Cancellation**: new keystrokes cancel stale deep tasks.
-- **Version tracking**: results are discarded if a newer version was scheduled.
-- **Merge**: final published diagnostics are `basic + deep`.
-
-### Suppression with `# noqa`
+### Suppression
 
 ```tcl
-set x 42    ;# noqa: O109  — suppress dead store warning
-eval $cmd   ;# noqa: *     — suppress ALL warnings on this line
+set x 42    ;# noqa: O109  — suppress the dead-store warning
+eval $cmd   ;# noqa: *     — suppress every code on this line
 ```
 
-The suppression map (`suppressed_lines: HashMap<i32, HashSet<String>>`,
-`rust/tcl-compiler/src/analyser/types.rs`) is built during semantic analysis
-and checked by both phases before emitting.
+The analyser builds the suppression map (`AnalysisResult::suppressed_lines:
+HashMap<i32, HashSet<String>>`, `rust/tcl-compiler/src/analyser/types.rs`) —
+inline `# noqa` per line, a top-of-file `# tcl-lsp: disable=…` in the `-1`
+bucket — and every lift applies it (`line_suppressed` in the server; the same
+contract in `tcl_lsp_core::source_style`). Codes disabled with
+`tclLsp.diagnostics.<CODE> = false` are filtered at the same point.
 
 ### Grouped optimisations
 
-Related optimisation edits share a `group` ID.  The diagnostics publisher
-emits one primary diagnostic with others as `DiagnosticRelatedInformation`:
-
-```
-Primary: O100 "Propagate constant into expression" (+1 dead store eliminated)
-  └─ Related: O109 "Dead store: x is set but never read"
-```
-
-The LSP client applies all grouped edits atomically via a single code action.
+Related optimisation edits share a `group` id (`Optimisation::group`), carried
+in the diagnostic's `data`, so the client applies a group's edits as one code
+action.
 
 ## Decision rule
 
-- Fast diagnostics (W-codes, syntax errors) go in the basic phase.
-- Expensive diagnostics (optimisations, taint, shimmer) go in the deep phase.
-- If a new diagnostic requires `CompilationUnit` data (CFG, SSA, analysis),
-  it belongs in Phase 2.
-- If it only needs AST/tokens, it can go in Phase 1.
+- A diagnostic computed from tokens, the CST, or the per-file analyser is in
+  the fast tier automatically — unless a workspace pass can retract it, in
+  which case add its code to `DiagCode::refined_by_workspace`.
+- A diagnostic that needs `CompilationUnit` facts (CFG, SSA, lattices) is a
+  compiler check or an optimiser pass and is deep-tier only.
 
 ## Related docs
 
-- [Diagnostics section in walkthroughs](../../../docs/design/example-script-walkthroughs.md#how-diagnostics-are-calculated)
-- [kcs-async-diagnostics-tiering.md](../../../docs/design/compiler/async-diagnostics-tiering.md)
-- [kcs-diagnostics-integration.md](../../../docs/design/compiler/diagnostics-integration.md)
+- [Diagnostics section in walkthroughs](example-walkthroughs.md#how-diagnostics-are-calculated)
+- [async-diagnostics-tiering.md](async-diagnostics-tiering.md)
+- [diagnostics-integration.md](diagnostics-integration.md)

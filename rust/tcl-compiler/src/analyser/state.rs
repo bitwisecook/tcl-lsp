@@ -425,7 +425,7 @@ pub struct Analyser {
     /// key.
     ///
     /// It is load-bearing since the EDA vendor libraries became bundled
-    /// `.tclspec` loadables (`docs/design/spec-packs.md`): without it a
+    /// `.tclspec` loadables (`docs/design/registry/spec-packs.md`): without it a
     /// Vivado document's every command reads as unknown, because no compiled-in
     /// spec answers for `synth_design` any more.
     pub pack_overlay: u64,

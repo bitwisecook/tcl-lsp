@@ -32,12 +32,16 @@ an execution artefact; it is not a selectable Tcl-to-WebAssembly backend.
   executable IR without emitting a module;
 - `backend.rs` is the sole module emitter for both selected semantic invocation
   and general structured lowering;
+- `leaf_invoke.rs` plans the per-statement prebuilt argv the general
+  structured tier invokes through;
+- `native_emit.rs` emits the native tier from the native lowered IR (NLIR,
+  `rust/tcl-compiler/src/native_lowering/`);
 - `ir.rs` owns the target module, function, instruction, import, and data
   vocabulary; and
 - `encoding.rs` serialises the target IR.
 
-`backend`, `semantic_plan`, and `pipeline` are internal implementation modules.
-Consumers do not select or invoke them directly.
+All of these except `mod.rs` are internal implementation modules. Consumers do
+not select or invoke them directly.
 
 ## Public consumer contract
 

@@ -50,7 +50,7 @@ same three lines give a working `::app::helper`.
 
 ### Where the server stays silent
 
-No order at all — so the pre-existing lenient answer stands — when:
+No order at all — so the lenient answer stands — when:
 
 - the two files sit in different `source` trees and neither requires a
   package the other provides;
@@ -86,7 +86,7 @@ namespace import ::Shadow::*   ;# -> can't import command "set": already exists
 set counter 1                  ;# reaches the BUILTIN, not ::Shadow::set
 ```
 
-Oracle (tclsh 9.0.4 and 8.6.14, byte-identical): `namespace origin ::set`
+Oracle (tclsh 9.0.4 and 8.6.18, byte-identical): `namespace origin ::set`
 answers `::set`. Note that the import *errors* and still binds the other
 names it matched — `mything` exported alongside `set` is imported — so one
 import statement can produce both outcomes at once.
@@ -114,9 +114,9 @@ Tcl. The gate reads each document's own analysed dialect.
 
 *Known imprecision:* a command a **package** provides (`::csv::split`) is
 treated as present whether or not the script `package require`s it — the
-registry carries no "needs a `package require`" marker yet. Reaching that
-case means importing into a package's own namespace.
+registry carries no "needs a `package require`" marker. Reaching that case
+means importing into a package's own namespace.
 
 For the relation itself, its proofs, and its measured effect on real
 code, see the
-[import-order design note](../design/import-order-source-graph.md).
+[import-order design note](../design/analysis/import-order-source-graph.md).

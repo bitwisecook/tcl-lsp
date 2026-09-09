@@ -129,7 +129,7 @@
       "dialects": [
         "spectcl"
       ],
-      "source": "SpecTcl pack DSL (docs/design/spec-packs.md): a `command` declaration's brace body is evaluated as pack declarations",
+      "source": "SpecTcl pack DSL (docs/design/registry/spec-packs.md): a `command` declaration's brace body is evaluated as pack declarations",
       "oracle": null,
       "imprecision": null,
       "notes": ""

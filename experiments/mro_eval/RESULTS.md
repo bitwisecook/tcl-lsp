@@ -1,7 +1,7 @@
 # mro_eval — TclOO class-lattice dispatch resolver: results
 
 Experiment for the two-halves TclOO model (MRO graph + object→class
-lattice). Design: `docs/design/name-resolution.md` §5.6. Prototype:
+lattice). Design: `docs/design/analysis/name-resolution.md` §5.6. Prototype:
 `rust/tcl-compiler/src/analyser/class_lattice.rs` (not wired into shipping
 diagnostics). Harness: `rust/tcl-compiler/examples/mro_eval.rs`.
 
@@ -43,7 +43,7 @@ marginal value of each layer.
 
 - **⊤-rate** — `Abstain` sites / all `$obj method` sites. The make-or-break
   number: if it is high, the lattice buys little. Broken down by the ⊤
-  taxonomy (`docs/design/name-resolution.md` §5.6).
+  taxonomy (`docs/design/analysis/name-resolution.md` §5.6).
 - **Resolution split** — of the *resolved* (non-⊤) sites, `method-known`
   (class + method both found) vs `method-unknown` (class named, method not
   — the W308 candidate).
@@ -349,13 +349,6 @@ classes — resolves correctly *in isolation*. See the granularity caveat.
   therefore already gets this resolving power today, via the type lattice
   + workspace class index. This experiment did not find a case where the
   lattice adds to it.
-- **Cross-file inheritance is under-linked.** A class declared with a bare
-  `superclass Device` inside an importing file does not link to
-  `::SpiceGenTcl::Device` in the merged MRO (the hierarchy builder
-  normalises only via `::name`), producing the 6 false W308s. Fixing it
-  would need namespace-aware superclass normalisation in the shipping
-  `class_hierarchy` builder — out of scope for this measurement-only
-  experiment, and noted as a prerequisite for *any* cross-file W308.
 - **Labeled sample bias.** Precision/recall are measured on the sites the
   resolver could reach at all; 81 % of sites are `EXTERN`/`DYNAMIC` and are
   excluded from the "knowable" denominators by construction. The headline
@@ -424,11 +417,10 @@ Concretely, staged by evidence:
    `all_classes` already deliver the 18.7 % that *is* resolvable. Keep
    using them; the experiment validates that design.
 3. **Do not source W308 from this resolver.** Against the real emitter it
-   is a net *loss*: +2 W307 false positives removed, but **6 new W308 false
-   positives** introduced and **0 true findings**, because cross-file
-   inheritance through bare `superclass` names is under-linked. Cross-file
-   W308 needs namespace-aware superclass normalisation *first*, and even
-   then this corpus offers no true positives to gain.
+   is a net *loss*: +2 W307 false positives removed, but **3 new W308 false
+   positives** introduced and **0 true findings**. The remaining three are
+   the `{*}[info class definition …]` dynamic-method idiom; this corpus
+   offers no true positives to gain either way.
 4. **The ⊤-rate lever is *container element-typing*, not parameter flow —
    and it is expensive. Decision: not productionized.** The follow-up
    experiment (above) refutes the parameter-typing hypothesis (0.9 % of ⊤;
@@ -452,5 +444,6 @@ Concretely, staged by evidence:
 hypothesis ("the lattice beats the heuristic") is **not supported** — the
 lattice's local evidence is absent at 99.8 % of sites, and the value is
 entirely in the already-shipping MRO/CHA half plus cross-file indexing.
-The honest next step is interprocedural param typing, gated on its own
-measurement.
+The follow-up measurement then refuted interprocedural parameter typing
+as the next step; the residual is container element-typing, and its
+measured ceiling does not justify building it.

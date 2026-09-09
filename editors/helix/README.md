@@ -13,14 +13,11 @@ it with `make rust-server`.
 See [The server binary](../../INSTALL-editors.md#the-server-binary) in the
 installation guide for the per-platform asset names.
 
-## Upstream integration (after merge)
+## Configuration
 
-Once tcl-lsp is added to
+tcl-lsp is not yet in
 [`helix-editor/helix`](https://github.com/helix-editor/helix)'s default
-`languages.toml`, Helix users only need `tcl-lsp-server` on their PATH — no
-per-user `languages.toml` edit is required.
-
-## Configuration (until upstream merges)
+`languages.toml`, so add the blocks below to your own.
 
 ```toml
 # The released binary, or a local build from `make rust-server`.
@@ -196,7 +193,7 @@ Pass workspace settings via the `config` key:
 ```toml
 [language-server.tcl-lsp.config.tclLsp]
 # Valid dialects: tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, f5-irules, f5-iapps,
-# f5-tmsh, f5-bigip, bpf, expect, spectcl, cadence-eda-tcl,
+# f5-tmsh, f5-bigip, bpf, expect, spectcl, sslictcl, cadence-eda-tcl,
 # intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl,
 # synopsys-eda-tcl, xilinx-eda-tcl
 dialect = "tcl8.6"

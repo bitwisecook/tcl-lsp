@@ -9,7 +9,7 @@ Extract structured control-flow data from iRules for Mermaid diagrams, path enum
 
 ## Applies to
 
-MCP, Claude skill
+tcl-lsp CLI, MCP, Claude skill
 
 ## Question
 
@@ -21,8 +21,14 @@ Two tools cover control-flow extraction:
 
 | Tool | What it returns |
 |------|----------------|
-| `diagram` | JSON representation of event flow: events, if/switch decisions, terminal actions (pool, reject, redirect), and proc calls. Designed to feed a Mermaid flowchart or AI explanation. |
+| `diagram` | Event flow as JSON: events, if/switch decisions, terminal actions (pool, reject, redirect), and proc calls. Feeds a Mermaid flowchart or an AI explanation. |
 | `irule_cfg_paths` | Every unique path through the iRule to a terminal action, grouped by event, with conditions, path labels, and coverage hints. |
+
+### tcl-lsp CLI
+
+```
+tcl diagram my_irule.irul --json
+```
 
 ### MCP
 
@@ -37,22 +43,25 @@ The `/irule-diagram` skill wraps `diagram` and produces a rendered Mermaid flowc
 
 ## Example
 
-A two-branch `HTTP_REQUEST` event produces a `diagram` result like:
+A two-branch `HTTP_REQUEST` event produces:
 
 ```json
 {
   "events": [{
     "name": "HTTP_REQUEST",
+    "priority": null,
     "multiplicity": "per_request",
     "flow": [{
       "kind": "if",
-      "condition": "[HTTP::method] eq \"GET\"",
       "branches": [
-        {"condition": "true",  "body": [{"kind": "action", "command": "pool", "args": ["get_pool"]}]},
-        {"condition": "else",  "body": [{"kind": "action", "command": "pool", "args": ["post_pool"]}]}
+        {"condition": "[HTTP::method] eq \"GET\"",
+         "body": [{"kind": "action", "label": "pool get_pool", "command": "pool", "args": ["get_pool"]}]},
+        {"condition": "else",
+         "body": [{"kind": "action", "label": "pool post_pool", "command": "pool", "args": ["post_pool"]}]}
       ]
     }]
-  }]
+  }],
+  "procedures": []
 }
 ```
 

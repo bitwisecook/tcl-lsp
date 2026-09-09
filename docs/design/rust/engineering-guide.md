@@ -69,9 +69,9 @@ cancels the older one cleanly rather than queueing behind it.
 
 Consequences:
 
-- **`tower-lsp` is the LSP framework** — `async fn` handlers for every method,
-  dispatched on Tokio, so cancellation composes with `tokio::select!` and the
-  LSP cancellation token.
+- **`tower-lsp-server` is the LSP framework** — `async fn` handlers for every
+  method, dispatched on Tokio, so cancellation composes with `tokio::select!`
+  and the LSP cancellation token.
 - **The lexer is synchronous but `Send`.** It is CPU-bound and fast, holds no
   thread-local or `static mut` state, and is safe to call from any async task.
   Moving a large lex into `spawn_blocking` is the caller's decision, not baked
@@ -94,11 +94,13 @@ Consequences:
 
 Each choice serves the two principles above.
 
-- **Buffer storage (LSP layer): [`ropey`](https://crates.io/crates/ropey).**
-  O(log n) slicing so the hot path can flatten a range into a `&str` without an
-  O(n) copy; `Arc`-shareable handles so concurrent async readers do not contend;
-  built-in line indexing.
-- **LSP framework: [`tower-lsp`](https://crates.io/crates/tower-lsp).** Async to
+- **Buffer storage (LSP layer): shared handles, no rope.** `DocumentState`
+  carries `text: Arc<str>` beside an `Arc`-backed `LineIndex`, installed
+  together as one build-and-swap revision, so a snapshot two async readers hold
+  is two reference-count bumps and an edit never mutates a buffer a reader is
+  still reading. See [`lsp-performance.md`](lsp-performance.md).
+- **LSP framework:
+  [`tower-lsp-server`](https://crates.io/crates/tower-lsp-server).** Async to
   the core. `lsp-server` (rust-analyzer's) is synchronous and would need an
   async layer built on top; `async-lsp` has a smaller ecosystem.
 - **Incremental engine: [`salsa`](https://crates.io/crates/salsa).** A
@@ -107,8 +109,9 @@ Each choice serves the two principles above.
 - **Errors: [`thiserror`](https://crates.io/crates/thiserror)** in library
   crates, [`anyhow`](https://crates.io/crates/anyhow) in binaries.
 - **CLI parsing: [`clap`](https://crates.io/crates/clap)** with `derive`.
-- **Logging: [`tracing`](https://crates.io/crates/tracing)** +
-  `tracing-subscriber`.
+- **Logging: the protocol's own channel.** The server reports through
+  `window/logMessage` (so the editor's output pane sees it) and mirrors to
+  stderr; there is no `tracing` / `log` facade in the workspace.
 
 ### Spans threaded through everything
 
@@ -183,7 +186,8 @@ violated:
 4. `tcl-lsp-core` owns pure LSP feature providers: folding, document symbols,
    hover, completion, references, rename, semantic tokens, diagnostics
    projection, and code actions.
-5. `tcl-lsp-server` owns the `tower-lsp` binary, the async document store,
+5. `tcl-lsp-server` owns the `tower-lsp-server` binary, the async document
+   store,
    request routing, cancellation, progress, and protocol plumbing.
 
 No LSP feature provider lands in a binary crate; feature logic belongs in
@@ -278,8 +282,10 @@ point: reshape the design, rename things, split or merge modules.
 - **UK spelling** (`normalise`, `optimiser`, `analyse`) in identifiers and
   comments, matching the rest of the repo.
 - **Doc comments describe invariants and non-obvious decisions.** Don't
-  paraphrase the code, don't add banner dividers. Every public item gets one —
-  `#![deny(missing_docs)]` is on.
+  paraphrase the code, don't add banner dividers. Every public item gets one;
+  `#![deny(missing_docs)]` makes that a build error in the crates that carry it
+  (`tcl-lexer`, `tcl-dialect`, `tcl-registry`, `tcl-compiler`, `tcl-lsp-core`,
+  `tcl-lsp-server`, `tcl-bigip`, `f5-xc`).
 
 ### Tests
 
@@ -318,14 +324,15 @@ rust/
   tcl-cmd-core/           portable Tcl command logic (string/list/dict/…) generic over ValueOps
   tcl-runtime-api/        runtime-state contract (handles, role traits, CompileService)
   # --- lexer / syntax ---
-  tcl-lexer/              position-aware lexer (Span, LineIndex, SourceMap, CST) for Tcl + dialects
+  tcl-lexer/              position-aware lexer (Span, LineIndex, SourceMap) for Tcl + dialects
   tcl-syntax/             shared parse-tree + byte-exact semantics (lists, subst, expr, format)
   # --- registry (single source of truth) ---
   tcl-registry/           command metadata: ArgRole, Arity, Traits, taint, hooks, BytePayloadSpec,
                           commands/{tcl,irules}/*.rs (one file per command)
   # --- compiler + execution ---
   tcl-bytecode/           Tcl 9 bytecode artifact types (opcodes, FunctionAsm/ModuleAsm, layout, disasm)
-  tcl-compiler/           IR, lowering, CFG, SSA, dataflow (sccp/intervals/memory_ssa), type_infer,
+  tcl-compiler/           red-green CST (parsing/syntax) + segmenter, IR, lowering, CFG, SSA,
+                          dataflow (sccp/intervals/memory_ssa), type_infer,
                           shimmer, var_escape, optimiser, inlining, analyser, irules_checks, codegen/{,wasm}
   tcl-regex/              pure-Rust port of Tcl 9's Henry-Spencer ARE engine (drives both runtimes)
   tcl-vm/                 native Rust bytecode VM             tcl-vm-cli/  the `tclvm` binary
@@ -337,7 +344,7 @@ rust/
   # --- LSP ---
   tcl-lsp-core/           pure LSP feature providers (folding, symbols, diagnostics, inlay_hints)
   tcl-lsp-db/             salsa incremental DB (file_analysis_incremental, semantic_tokens, lattices)
-  tcl-lsp-server/         tower-lsp binary (async document store, request routing, cancellation)
+  tcl-lsp-server/         tower-lsp-server binary (async document store, routing, cancellation)
   # --- tooling ---
   tcl-explorer/           compiler-explorer pipeline + serialiser (CLI/TUI/WASM consume this)
   tcl-diagram/            flow/diagram extraction              tcl-spec-studio/  registry spec studio

@@ -22,7 +22,7 @@
 //! `list`/`dict` are first-class because the calling conventions above this
 //! layer are list- and dict-shaped (`words` is a list, `ctx` is a dict), and
 //! flattening them to text at the boundary is exactly the round-trip
-//! `docs/design/spec-packs.md` rules out.
+//! `docs/design/registry/spec-packs.md` rules out.
 
 use std::rc::Rc;
 

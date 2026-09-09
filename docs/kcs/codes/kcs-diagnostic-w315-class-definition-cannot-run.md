@@ -29,7 +29,7 @@ That is what makes this worth a diagnostic rather than a shrug: the file looks
 like it declares a class, the outline shows one, and at run time
 `oo::class create` throws and nothing exists.
 
-The three shapes are byte-identical on tclsh 9.0.4 and 8.6.14:
+All four shapes abort the definition:
 
 ```tcl
 oo::class create ::E1 { deletemethod ghost ; method ghost {} {} }
@@ -80,8 +80,9 @@ oo::define E { export ghost }             ;# succeeds too
 
 ## Symptoms
 
-- A yellow squiggle on the member-name word inside a class body, with the
-  message "this class definition cannot run: …".
+- A yellow squiggle on the member-name word inside the body, with the message
+  *"this class definition cannot run: method \"render\" does not exist"* — or
+  *"this object definition cannot run: …"* inside an `oo::objdefine` body.
 - At run time the `oo::class create` / `oo::define` raises `method … does not
   exist` or `method called … already exists`, and the class is missing.
 
@@ -129,6 +130,11 @@ oo::class create ::Widget {
 }
 ```
 
+Per-object bodies (`oo::objdefine $obj { … }`) are checked the same way,
+against the object's **own** member table: a `deletemethod` naming a method
+the object inherits from its class, rather than one defined on the object
+itself, is still an error.
+
 ## When it abstains
 
 - A **dynamic** member name (`deletemethod $name`, `renamemethod $old new`)
@@ -146,9 +152,6 @@ oo::class create ::Widget {
 
   An `oo::define` extending a class created *earlier in the same file* is not a
   stub — it reuses that class's tables — so it is checked normally.
-- Per-object bodies (`oo::objdefine $obj { … }`) are not checked, because the
-  per-object member state has nowhere to live across blocks yet.
-
 ## Navigation still works
 
 The partial class is still recorded, so the outline, hover, and

@@ -9,7 +9,7 @@ Detect legacy iRules patterns eligible for modernisation, and convert nginx, Apa
 
 ## Applies to
 
-VS Code Copilot Chat, tcl-lsp CLI, Claude skill
+Copilot Chat, tcl-lsp CLI, Claude skill
 
 ## Question
 
@@ -27,9 +27,10 @@ the transforms.
 |---|---|
 | Unbraced expressions (`W100`) | Braced `expr {…}` |
 | String concatenation for lists (`W104`) | `lappend` |
-| Deprecated `matchclass` (`IRULE2001`) | `class match` |
-| Ungated `log` in hot events (`IRULE5001`) | Guard with `[log level local0.]` |
+| `==` / `!=` on strings (`W110`) | `eq` / `ne` |
 | Missing `--` terminators (`W304`) | Add `--` before user-controlled arguments |
+| Deprecated `matchclass` (`IRULE2001`) | `class match` |
+| Ungated `log` in hot events (`IRULE5001`) | Add a debug gate |
 
 ### VS Code Copilot Chat
 
@@ -43,7 +44,7 @@ tcl find-legacy my_irule.irul
 
 ### Claude Code
 
-The `/irule-convert` skill wraps the CLI with AI-generated explanations.
+The `/irule-convert` skill runs the same detection through the MCP server and adds AI-generated explanations.
 
 ### Migrate (reverse-proxy conversion)
 
@@ -60,12 +61,11 @@ Reads an nginx `location` block, Apache `RewriteRule`, or HAProxy `acl`/`use_bac
 
 ```
 $ tcl find-legacy old_irule.irul
-=== Modernisation Suggestions ===
-
-  W100 (line 3): Unbraced expression — use expr {$x + 1} instead of expr $x + 1.
-  IRULE2001 (line 7): Deprecated matchclass — use "class match" instead.
-
-  2 suggestions found.
+legacy patterns: 2
+  IRULE2001 line 4:15 'matchclass' is deprecated since BIG-IP v10. Use 'class match <item> <operator> <class>' instead.
+    conversion: Deprecated matchclass -> class match
+  W100 line 8:16 Expression is not braced: may cause double substitution and prevents byte-compilation. Use expr {...} instead.
+    conversion: Unbraced expr -> braced expr
 ```
 
 ## Related

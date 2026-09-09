@@ -15,7 +15,7 @@ all-editors, MCP, Claude skill, refactoring
 
 ### Editor (all editors via LSP)
 
-Place the cursor on a `switch -exact` command where every arm follows `set var value` or `return value`. Trigger code actions and choose **"Convert to dict lookup"**.
+Place the cursor on a `switch -exact` command where every arm follows `set var value` or `return value`. Trigger code actions and choose **"Convert to dict lookup on '<var>'"** (**"Convert to dict lookup"** when the arms return).
 
 ### MCP
 
@@ -23,7 +23,7 @@ Call the `switch_to_dict` tool with `source`, `line`, and `character`.
 
 ### Claude Code
 
-Use the `refactor` CLI command — it lists switch-to-dict when the cursor is on an eligible `switch`.
+The `/tcl-refactor` skill calls the `refactor` tool, which lists switch-to-dict when the cursor is on an eligible `switch`.
 
 ## Before / After
 

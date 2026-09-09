@@ -26,7 +26,7 @@ Selection ranges are computed from the AST, expanding from the innermost express
 
 ## Example
 
-With the caret placed on `$x` in:
+With the caret on the second `x` in:
 
 ```tcl
 proc square {x} {
@@ -34,11 +34,10 @@ proc square {x} {
 }
 ```
 
-Pressing Shift+Alt+Right once selects `$x`, again expands to
-`$x * $x`, then to the braced expression `{$x * $x}`, then to the
-full `[expr {$x * $x}]` command substitution, then to the `return`
-command, then to the proc body, then to the whole `proc` command.
-Shift+Alt+Left shrinks back through the same levels.
+Pressing Shift+Alt+Right selects the name `x`, then the whole
+`expr {$x * $x}` word, then the `return [expr {$x * $x}]` command,
+then the proc body, then the whole `proc` command. Shift+Alt+Left
+shrinks back through the same levels.
 
 ## Discoverability
 

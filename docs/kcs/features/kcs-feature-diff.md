@@ -9,7 +9,7 @@ Semantic comparison of two iRule versions: explains behavioural changes, event d
 
 ## Applies to
 
-VS Code Copilot Chat, Claude skill
+Copilot Chat, Claude skill
 
 ## Question
 

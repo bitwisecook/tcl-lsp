@@ -748,7 +748,7 @@ fn all_dialect_command_names() -> &'static AllDialectCommandNames {
         add(crate::commands::iapps::iapps_command_specs());
         add(crate::commands::expect::expect_command_specs());
         // The EDA vendor libraries are deliberately NOT added: they ship as
-        // bundled `.tclspec` loadables (`docs/design/spec-packs.md`), so this
+        // bundled `.tclspec` loadables (`docs/design/registry/spec-packs.md`), so this
         // crate does not know their names at compile time and W002 reports an
         // EDA command outside an EDA profile as an ordinary unknown command
         // rather than as "exists, but not here". The pack is what knows.
@@ -1221,7 +1221,7 @@ impl CommandRegistry {
             // A core release brings no pack of its own — it records which
             // language the registry is. The EDA shells are such a release
             // plus `required_package`-gated command libraries, which ship as
-            // bundled `.tclspec` loadables (`docs/design/spec-packs.md`).
+            // bundled `.tclspec` loadables (`docs/design/registry/spec-packs.md`).
             _ => &[],
         };
         for spec in specs {

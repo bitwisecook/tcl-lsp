@@ -192,7 +192,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 
 # xxHash (XXH3) — the "xxhash-class" non-cryptographic digest the SpecTcl
-# compiled-pack cache keys on (docs/design/spec-packs.md). Zero dependencies,
+# compiled-pack cache keys on (docs/design/registry/spec-packs.md). Zero dependencies,
 # no_std; chosen over the already-present FxHash because this digest keys
 # *file contents* on disk, where FxHash's short-key-tuned quality is not
 # good enough, and over the already-present sha2 because the whole point of

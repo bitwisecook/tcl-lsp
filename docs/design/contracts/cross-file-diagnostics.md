@@ -17,8 +17,8 @@ diagnostic reaches the client. This document is the layer between them.
 call site against the workspace, and **every** consumer calls it —
 go-to-definition, find-references, and the diagnostics path alike.
 
-That is not a stylistic preference. Issue #1331 is the bill for having had
-two. Given two files in one workspace:
+That is not a stylistic preference. With two lookups, given two files in one
+workspace:
 
 ```tcl
 # deflib.tcl
@@ -29,12 +29,12 @@ proc libtest {a b c} { return [expr {$a + $b + $c}] }
 libtest 1 2
 ```
 
-`textDocument/definition` on `libtest` resolved to `deflib.tcl` — the index
-plainly held it — while `publishDiagnostics` reported `W123 Unknown command
-'libtest'` and, having no signature to compare against, never arity-checked
-the call. One server, two contradictory answers about one name, because
-navigation consulted the workspace index and diagnostics consulted a
-different, bare-tail name set that was off by default.
+`textDocument/definition` on `libtest` resolves to `deflib.tcl` — the index
+plainly holds it — while `publishDiagnostics` reports `W123 Unknown command
+'libtest'` and, having no signature to compare against, never arity-checks
+the call (issue #1331): one server, two contradictory answers about one name,
+because navigation consults the workspace index and diagnostics a different,
+bare-tail name set.
 
 The lookup applies these rules, in this order:
 
@@ -53,7 +53,7 @@ The lookup applies these rules, in this order:
 5. Otherwise the candidate settles if this document defines it, or the
    workspace does.
 
-### Why this can be on by default when the older tier cannot
+### Why this is on by default when the bare-tail tier is not
 
 Because it matches **fully-qualified candidates**, not bare tails.
 
@@ -61,11 +61,11 @@ A bare `current_class` called from namespace `::foo` has candidates
 `::foo::current_class` and `::current_class`. A `proc
 ::clay::define::current_class` defined in some other file matches *neither*,
 so its W123 stands — correctly, since Tcl would never route that call there.
-Measured over tcllib 2.0 (790 files, 450 W123s), the older bare-tail match
-silenced 396 of them, 197 of which no resolution candidate at the call site
-justified. That tier remains opt-in behind `crossFileResolution`; this one
-does not need to be, because **anything it suppresses is something
-go-to-definition would have navigated.**
+A bare-tail match silences most of a large library's W123s, many of them with
+no resolution candidate at the call site to justify it, so that tier stays
+opt-in behind `tclLsp.features.crossFileResolution`; this one does not need
+to be, because **anything it suppresses is something go-to-definition would
+have navigated.**
 
 ## Cross-file arity (E002 / E003)
 
@@ -182,10 +182,10 @@ document: a path no static fold can prove, a file outside the workspace, or
 one that does not exist. That file may `package require` anything and define
 any command, so W120 and W123 abstain document-wide.
 
-This is option (2) of issue #1332, and it is deliberately the *second*
-choice: following the `source` (option 1) preserves the diagnostics where the
-server can be sure, and abstention trades a false positive for a false
-negative only in the genuinely unknowable case — which is the right way round.
+Following the `source` is the first choice, because it preserves the
+diagnostics where the server can be sure; abstention trades a false positive
+for a false negative only in the genuinely unknowable case — which is the
+right way round.
 
 ### Known false negatives, accepted deliberately
 

@@ -22,17 +22,20 @@ A variable assigned but overwritten before any read wastes the computation; remo
 ## Before
 
 ```tcl
-set x 1
-set x 2
-puts $x
+set limit 1
+set limit 2
+puts $limit
 ```
 
 ## After
 
 ```tcl
-set x 2
-puts $x
+set limit 2
+puts 2
 ```
+
+O109 drops the first `set`. The surviving literal is then forwarded into the
+read by [O102](kcs-optimisation-o102-load-forwarding.md).
 
 ## Safety conditions
 

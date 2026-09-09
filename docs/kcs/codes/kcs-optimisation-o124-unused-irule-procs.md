@@ -22,16 +22,19 @@ Procs that are defined but never called from any event waste parse time and conf
 ## Before
 
 ```tcl
-proc legacy {} { ... }
+proc legacy {} { return 1 }
 when HTTP_REQUEST { pool main }
 ```
 
 ## After
 
 ```tcl
-# proc legacy {} { ... }
+# [O124] Unused proc — 'legacy' is not called from any event
+# proc legacy {} { return 1 }
 when HTTP_REQUEST { pool main }
 ```
+
+The proc is commented out, not deleted, and a header line says why.
 
 ## Safety conditions
 

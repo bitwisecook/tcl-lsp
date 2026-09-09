@@ -22,9 +22,9 @@ Place the cursor on the target construct and trigger code actions (Ctrl+. in VS 
 - **Extract into proc**: select whole commands → "Extract selection into proc" (caller-frame writes are carried through with `upvar`)
 - **Inline proc**: cursor on a call → "Inline proc 'name'" (parameters are bound to the call's argument values, defaults included)
 - **if/elseif → switch**: cursor on `if` with equality chain → "Convert to switch on $var"
-- **switch → dict lookup**: cursor on `switch` where every arm sets the same variable → "Convert to dict lookup"
+- **switch → dict lookup**: cursor on `switch` where every arm sets the same variable → "Convert to dict lookup on '$var'"
 - **Brace expr**: cursor on `expr "..."` → "Brace expr for safety and performance"
-- **Extract to data-group** (iRules): cursor on `if` or `switch` with literal values → "Extract to data-group" (type-aware: IP/CIDR, integer, string)
+- **Extract to data-group** (iRules): cursor on `if` or `switch` with literal values → "Extract to data-group 'name' (type)" (type-aware: IP/CIDR, integer, string)
 
 ### MCP tools
 
@@ -58,11 +58,11 @@ The extract-to-datagroup refactoring automatically detects value types:
 
 Every refactoring is a pure function that accepts source text and returns edit objects. The LSP code-actions layer, the MCP server, and the Claude Code skills all call the same functions, so a refactoring behaves identically on every surface.
 
-The AI-enhanced data-group tool (`suggest_datagroup_extractions`) returns structured context including pattern type, inferred value type, CIDR detection, body shape analysis (identical/set_mapping/return_mapping/complex), and confidence level (high/medium/low). This enables an LLM to make intelligent decisions about naming, consolidation across events, and coverage.
+`suggest_datagroup_extractions` returns pattern type, inferred value type, CIDR detection, body shape (identical/set_mapping/return_mapping/complex), and confidence (high/medium/low), so an agent can decide on naming, consolidation across events, and coverage.
 
 ## Refusals
 
-A refactoring that finds its subject but cannot preserve behaviour is offered **greyed out**, with a plain-English reason (LSP's `disabled.reason`), rather than silently omitted. A missing menu entry tells you nothing; "the body calls 'return', which acts on the call frame" tells you what to change first. The extract-proc and inline-proc refactorings both work this way.
+A refactoring that finds its subject but cannot preserve behaviour is offered **greyed out**, with a plain-English reason, rather than silently omitted — "the body calls 'return', which acts on the call frame" tells you what to change first. Extract-proc and inline-proc both work this way.
 
 ## Failure modes
 
@@ -72,9 +72,8 @@ A refactoring that finds its subject but cannot preserve behaviour is offered **
 
 ## Example
 
-This page is an index — for a concrete before/after, open any of
-the individual refactoring notes linked below. As a quick taste,
-the if-to-switch refactoring turns this:
+This page is an index; each note below carries its own before/after.
+The if-to-switch refactoring turns this:
 
 ```tcl
 if {$method eq "GET"} {

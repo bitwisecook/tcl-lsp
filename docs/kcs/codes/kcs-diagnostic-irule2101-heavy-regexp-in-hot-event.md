@@ -17,11 +17,13 @@ Why does the analyser show a hint about a complex regular expression in a hot ev
 
 ## Why
 
-A complex regular expression runs on every request, consuming CPU on every connection. In high-frequency events such as `HTTP_REQUEST`, this can degrade throughput across the entire virtual server.
+`regexp` runs on every request, consuming CPU on every connection. In a high-frequency event such as `HTTP_REQUEST`, that cost lands on the whole virtual server.
 
 ## Symptoms
 
-- A blue squiggle (hint severity) appears on the `regexp` call, with the message "heavy regexp in high-frequency event".
+- A hint appears on the `regexp` call, with the message "'regexp' in
+  HTTP_REQUEST may be expensive at high traffic volumes. Consider
+  'string match', 'switch -glob', or a data-group lookup."
 
 ## Example that triggers it
 
@@ -37,7 +39,7 @@ Use `string match` or a [data-group](../features/kcs-feature-refactor-extract-da
 
 ```tcl
 when HTTP_REQUEST {
-  if {[string match "*/api/*" [HTTP::uri]]} {
+  if {[string match "*/api/*" [HTTP::uri -normalized]]} {
     pool api_pool
   }
 }

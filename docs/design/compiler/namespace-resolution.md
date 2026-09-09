@@ -99,8 +99,7 @@ All procedure names in the IR module are fully qualified.
   as map keys or comparison targets.
 - Always build same-file call-resolution candidates through
   `bareword_resolution_candidates()` rather than hand-rolling the
-  current-namespace/global logic again — every prior hand-rolled copy
-  carried at least one of the two bugs above.
+  current-namespace/global logic again.
 - If a procedure call fails to resolve, check that the caller's namespace
   context was propagated correctly through lowering (or, for the analyser,
   through the scope tree).
@@ -109,6 +108,6 @@ All procedure names in the IR module are fully qualified.
 
 ## Related docs
 
-- [Example 26 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-26-namespace-resolution)
-- [compiler-pipeline-overview.md](../../../docs/design/compiler/compiler-pipeline-overview.md)
-- [interprocedural-analysis.md](../../../docs/design/compiler/interprocedural-analysis.md)
+- [Example 26 in walkthroughs](../../../docs/design/compiler/example-walkthroughs.md#example-26-namespace-resolution)
+- [compiler-pipeline-overview.md](compiler-pipeline-overview.md)
+- [interprocedural-analysis.md](interprocedural-analysis.md)

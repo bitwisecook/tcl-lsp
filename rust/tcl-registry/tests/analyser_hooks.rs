@@ -45,7 +45,7 @@ const LOADABLE_DIALECTS: &[&str] = &[
 
 /// The shipped `.tclspec` loadables, which is where the EDA vendor libraries
 /// live now — `sdc_base` and the five vendor packs have no Rust modules at
-/// all (`docs/design/spec-packs.md`), so a stamp on `foreach_in_collection`
+/// all (`docs/design/registry/spec-packs.md`), so a stamp on `foreach_in_collection`
 /// reaches this sweep only by way of the pack loader.
 ///
 /// The path is the repository's `specs/`, which is exactly what a release

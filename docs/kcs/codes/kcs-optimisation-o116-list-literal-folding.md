@@ -22,13 +22,13 @@ A list built from constants can be replaced with the literal result, avoiding ru
 ## Before
 
 ```tcl
-set items [list a b c]
+puts [list a b c]
 ```
 
 ## After
 
 ```tcl
-set items {a b c}
+puts {a b c}
 ```
 
 ## Safety conditions

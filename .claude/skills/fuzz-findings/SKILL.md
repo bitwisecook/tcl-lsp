@@ -12,8 +12,8 @@ allowed-tools: Bash, Read, Write, Edit
 # Fuzz Findings Management
 
 The differential fuzzer lives in `rust/tcl-fuzz`. It generates Tcl programs
-and runs each through a pair of **engines** (issue #1313), recording every
-divergence to a findings registry. Three engines are available:
+and runs each through a pair of **engines**, recording every divergence to a
+findings registry. Three engines are available:
 
 | Engine | What it is | Binary |
 |---|---|---|
@@ -22,14 +22,13 @@ divergence to a findings registry. Three engines are available:
 | `runtime-rust` | `runtime/rust`'s tree-walking interpreter | `runtime/rust`'s `run_script` dev-tool example (`cargo build --release --example run_script` under `runtime/rust`; needs `TCL_TOMMATH_DIR` pointed at a libtommath source tree for `expr`/math to work — see "Building the `runtime-rust` engine" below) |
 
 `run --reference E1 --subject E2` pairs any two of these (default: `tclsh`
-reference, `tclvm` subject — the original, still-default pair). Findings are
+reference, `tclvm` subject). Findings are
 keyed by their generating **seed** (so they replay exactly) and stored as a
 JSON record (see `rust/tcl-fuzz/src/findings.rs`) plus the raw `.tcl` script
 under the findings directory (default `fuzz-findings/`, override with
 `--findings DIR`). A non-default pair is namespaced under
 `<findings>/<subject>-vs-<reference>/` so two pairs never collide on the same
-seed; the default pair keeps using `<findings>/` directly (no migration for
-existing registries).
+seed; the default pair uses `<findings>/` directly.
 
 There is no separate "fixed/unfixed" state: the registry de-duplicates by seed
 and categorises by the divergence kind. A finding is "fixed" when its seed no
@@ -47,8 +46,10 @@ cargo run -q -p tcl-fuzz -- <command> [args...]
 
 Global flags: `--findings DIR` (registry location), `--timeout-ms MS`
 (per-script timeout), `--tclvm PATH` / `--tclsh PATH` / `--runtime-rust PATH`
-(engine binaries; sensible defaults are auto-located beside `tcl-fuzz` or on
-`PATH`).
+(engine binaries; defaults are auto-located beside `tcl-fuzz` or on `PATH`),
+and the two generator dials `--malformed-expr-permille` /
+`--word-shape-permille`. Both dials are global rather than `run`-only because
+`replay` has to generate a seed exactly as the recording campaign did.
 
 ## Commands
 
@@ -59,14 +60,15 @@ Global flags: `--findings DIR` (registry location), `--timeout-ms MS`
 | `replay` | `SEED [--reference E] [--subject E] [--tcl-version X.Y]` | Regenerate seed S, restoring its persisted release automatically. An explicit release selects that exact registry |
 | `wasm-check` | `--iterations N [--seed S] [--verbose]` | WASM-runnability arm: compile each program to the eval-fallback WASM module and flag codegen panics / instantiation failures / traps |
 | `wasm-diff` | `--iterations N [--seed S] [--verbose]` | WASM value-differential arm: compare compiled-WASM control flow (hosted by `tcl-vm`) against direct `tcl-vm`, isolating control-flow miscompiles |
+| `characterise` | `--iterations N [--seed S] [--verbose] [--compare-error-text]` | Three-way campaign classifying `tcl-vm` and `runtime/rust` against C Tcl 9; agreement between the two Rust backends alone is never correctness |
+| `bpf-diff` | `--iterations N [--seed S] [--verbose]` | eBPF arm: compare a generated BPF-Tcl socket filter's dialect contract against the real lowering, eBPF emitter, and userspace eBPF VM |
+| `linked-wasm-diff` | `--iterations N [--seed S] [--verbose]` | Link a compiled user module against `runtime/rust`'s WASM module and compare against C Tcl 9 |
 
 ## Match the reference `tclsh`'s version, or read every finding twice
 
 **A divergence is evidence of a bug only when both engines speak the same
-version of Tcl.** Issue #1328 was filed as two `runtime/rust` bugs from a
-200-iteration campaign against `tclsh8.6`. Re-run against `tclsh9.0.4`, **all
-eight** of that campaign's findings disappear — every one was a deliberate
-8.6-vs-9.0 language change, not a defect:
+version of Tcl.** A campaign against `tclsh8.6` with a 9.0-era subject reports
+deliberate language changes as findings. The usual culprits:
 
 | Cause | Seeds | What differs |
 |---|---|---|
@@ -74,9 +76,9 @@ eight** of that campaign's findings disappear — every one was a deliberate
 | TIP 521 `isfinite()`/`isinf()`/`isnan()` (9.0+) | 90119 | 8.6: `invalid command name "tcl::mathfunc::isfinite"` |
 | Namespace-scope global fallback for relative variable names, removed in 9.0 (TIP 278) | 90022, 90188 | see the [KCS note](../../../docs/kcs/kcs-qa-why-does-a-namespace-variable-behave-differently-on-tcl-8-and-9.md) |
 
-Every campaign now prints both engines' releases before it starts and warns
-when they differ, and every finding records `reference_version`,
-`subject_version` and `version_skew`. Check those before triaging.
+Every campaign prints both engines' releases before it starts and warns when
+they differ; every finding records `reference_version`, `subject_version` and
+`version_skew`. Check those before triaging.
 
 To run version-matched against an older reference, pin the whole pair:
 
@@ -89,10 +91,10 @@ cargo run -q -p tcl-fuzz -- \
 
 `runtime-rust` and `tclvm` receive the same `--tcl-version` argument. A fixed
 release engine such as C `tclsh` is selected by its binary instead, then its
-reported release is verified; no engine may silently ignore a pair pin. The old
-`--subject-tcl-version` spelling remains an alias, but now has pair-wide
-semantics. Pinned findings live below `tclX.Y/` and replay restores that line;
-the same seed at 8.6 and 9.0 is deliberately two separate records.
+reported release is verified; no engine may silently ignore a pair pin.
+`--subject-tcl-version` is an alias with the same pair-wide semantics. Pinned
+findings live below `tclX.Y/` and replay restores that line; the same seed at
+8.6 and 9.0 is deliberately two separate records.
 
 `--compare-error-text` (on `run`) additionally flags an `ErrorTextMismatch`
 finding when both engines error but their stderr text differs — off by

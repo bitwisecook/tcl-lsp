@@ -680,7 +680,7 @@ impl ExprNode {
     /// that already treats the presence of any `Raw` node as an *unbounded*
     /// read gains nothing from that enumeration — and, holding no document
     /// grammar of its own, would have to invent one to get it
-    /// (`docs/design/dialect-profile-model.md` §2.5: a document's grammar is
+    /// (`docs/design/registry/dialect-profile-model.md` §2.5: a document's grammar is
     /// born once at the ingress and threaded, never defaulted). So this walk
     /// stops at `Raw` exactly as it stops at [`Self::Command`], and needs no
     /// grammar at all.

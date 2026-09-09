@@ -21,7 +21,9 @@ Why does the analyser suggest using `unset -nocomplain` instead of plain `unset`
 
 ## Symptoms
 
-- A yellow squiggle appears under the `unset` call, with the message "variable may not exist — use unset -nocomplain".
+- A yellow squiggle appears under the variable name in the `unset` call, with a
+  message like `Variable 'maybe_defined' may not exist; use 'unset -nocomplain'
+  to suppress the error`.
 
 ## Example that triggers it
 

@@ -29,9 +29,9 @@ entirely.
 
 ## Symptoms
 
-- A yellow squiggle appears under the interpreter path word of an
-  `interp eval`, with the message: "interpreter 'worker' is never created
-  in this file — `interp eval` will raise `could not find interpreter`."
+- A yellow squiggle under the interpreter path word of an `interp eval`, with
+  the message "interpreter 'worker' is never created in this file — `interp
+  eval` will raise `could not find interpreter`".
 
 ## Example that triggers it
 
@@ -48,9 +48,27 @@ interp create worker
 interp eval worker { puts hi }
 ```
 
-## Notes
+## When it does not fire
 
-Paths are relative to the current interpreter: an `interp create t`
-inside `interp eval s { … }` creates the grandchild `{s t}`, which a
-top-level `interp eval {s t} { … }` reaches without warning.  A deleted
-path must be re-created before the next `interp eval` into it.
+- **A dynamic path anywhere in the file.** One `interp create $name` makes
+  interpreter existence unknowable, and the check abstains for the whole file.
+- **A grandchild reached by its full path.** Paths are relative to the current
+  interpreter: an `interp create t` inside `interp eval s { … }` creates
+  `{s t}`, which a top-level `interp eval {s t} { … }` reaches cleanly.
+
+A deleted path must be re-created before the next `interp eval` into it.
+
+## How to suppress
+
+Add `# noqa: W140` on the line **above** the offending command. You can also
+turn the code off for a project with `disabled = W140` under `[diagnostics]`
+in `.tcl-lsp.ini`, or in your editor with `tclLsp.diagnostics.W140` set to
+`false`. See
+[how to turn a diagnostic off](../kcs-howto-suppress-diagnostics.md).
+
+## Related
+
+- [KCS codes index](README.md)
+- [Diagnostics feature](../features/kcs-feature-diagnostics.md)
+- [command walk](../../GLOSSARY.md#command-walk)
+- Related codes: `W123`, `W129`, `T105`

@@ -11,7 +11,7 @@ false positives.
 
 ## Applies to
 
-all-editors, jetbrains (other editors via XDG config), warning
+all-editors, warning
 
 ## How to use
 
@@ -79,9 +79,9 @@ suppressed:
 | the guard cannot be read (it tests the platform, a file, or a variable) | suppressed — the server does not guess |
 | the package **does not** register on your Tcl version | **shown** — `package require` would fail here, so the call really is an error |
 
-The last row is the case that used to be missed: a package that cannot load on
-Tcl 9 no longer silences the warning for a Tcl 9 workspace. If you see W123 on
-a command you believe exists, check the `tclLsp.dialect` setting first.
+If you see W123 on a command you believe exists, check the `tclLsp.dialect`
+setting first: a package that cannot load on the Tcl version you target does
+not silence the warning.
 
 ## Operational context
 
@@ -89,9 +89,11 @@ W123 runs as a **post-analysis pass** after all proc definitions have been
 collected.  This means forward-defined procs and `unknown` handlers defined
 later in the file are still captured.
 
-The "did you mean?" engine uses Levenshtein edit distance (max distance 2)
-against the union of: registry commands, user-defined procs, stub commands,
-`unknown` dispatch targets, and command alias names.
+The "did you mean?" engine uses edit distance against the union of registry
+commands, user-defined procs, stub commands, `unknown` dispatch targets, and
+command alias names. The budget scales with the name's length — one edit for a
+short name, up to three for a long one — so a long name is never rewritten
+wholesale.
 
 ## Failure modes
 
@@ -115,9 +117,9 @@ gret "Alice"
 ```
 
 Line 5 shows a hint-level squiggle under `gret` with the message
-`W123 unresolved command 'gret' — did you mean 'greet'?`. A
-lightbulb code action offers **Replace with `greet`** which
-rewrites the call in one click.
+`W123 Unknown command 'gret'; did you mean 'greet'?`. A lightbulb
+code action offers **Replace with 'greet'**, which rewrites the call
+in one click.
 
 ## Discoverability
 

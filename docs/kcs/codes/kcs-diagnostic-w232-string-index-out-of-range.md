@@ -19,13 +19,14 @@ the string?
 
 ## Why
 
-Every `string` command with an out-of-range index returns silently in
-Tcl 9:
+Every one of these `string` subcommands returns silently when an index
+is out of range:
 
 - `string index` returns the empty string.
 - `string range` clamps to the valid slice (often empty).
 - `string replace` is a no-op — the original string is returned.
-- `string insert` clamps the insertion point to the start or end.
+- `string insert` clamps the insertion point to the start or end
+  (`string insert` exists from Tcl 9.0 onwards).
 
 None of these raise an error. When the index is a literal, the
 analyser can tell whether the expression underflows or overshoots

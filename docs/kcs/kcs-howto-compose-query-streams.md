@@ -59,8 +59,9 @@ $ f5 query --raw '.ltm.virtual[].pool | basename(.)' bigip.conf
 
 # Distinct partitions in use across all VSes — wrap the per-item
 # projection in a list literal, then aggregate.  ``unique`` already
-# returns sorted output (jq parity), so no trailing ``| sort`` needed:
-$ f5 query '[.ltm.virtual[].name | partition(.)] | unique' bigip.conf
+# returns sorted output (jq parity), so no trailing ``| sort`` needed.
+# ``partition`` needs the full path; ``.name`` is the bare name:
+$ f5 query '[.ltm.virtual[]."full-path" | partition(.)] | unique' bigip.conf
 ```
 
 ### `any` / `all` — collapse a list or stream to a boolean
@@ -93,7 +94,7 @@ For finding the **opposite** — items that appear more than once — use `dupes
 $ f5 query '[.ltm.virtual[].pool] | unique' bigip.conf
 
 # Count distinct partitions in use across all VSes
-$ f5 query '[.ltm.virtual[].name | partition(.)] | unique | count' bigip.conf
+$ f5 query '[.ltm.virtual[]."full-path" | partition(.)] | unique | count' bigip.conf
 
 # Pools attached to more than one VS — the inverse of unique
 $ f5 query '[.ltm.virtual[].pool] | dupes' bigip.conf

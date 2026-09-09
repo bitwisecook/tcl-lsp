@@ -9,7 +9,7 @@ all-editors, diagnostic, taint
 
 ## Profiles
 
-default, irule
+default
 
 ## Question
 
@@ -66,39 +66,58 @@ a branch condition.
 ## Example that triggers it
 
 ```tcl
-set uri [HTTP::uri]
-eval $uri
+set cmd [gets stdin]
+eval $cmd
 ```
 
-The analyser reports **`T100`** because `uri` carries tainted data into `eval`.
+The analyser reports **`T100`** because `cmd` carries tainted data into `eval`.
 
 ```tcl
-set uri [HTTP::uri]
-if {[string length $uri] > 200} {
-    log local0. "long uri"
+set n [gets stdin]
+if {$n > 200} {
+    puts big
 }
 ```
 
-The analyser also reports **`T100`** here: `$uri` is a direct numeric
+The analyser also reports **`T100`** here: `$n` is a direct numeric
 operand of `>` inside the `if` condition, evaluated exactly like any
 other braced `expr` — this is not limited to a bare `expr` statement.
+Wrapping the value in a command (`[string length $n]`) is not a direct
+operand and does not fire.
 
 ## Fix
 
+Dispatch on the value instead of evaluating it, using a string operator
+that never coerces:
+
 ```tcl
-set uri [HTTP::uri]
-# Validate or sanitise the input; avoid passing it to eval.
-if {$uri in $allowed_commands} {
-    eval $uri
+proc report_status {} { puts ok }
+proc report_version {} { puts 1 }
+
+set cmd [gets stdin]
+if {$cmd eq "status"} {
+    report_status
+} elseif {$cmd eq "version"} {
+    report_version
 }
 ```
 
-For `subst` specifically, when only variable/backslash substitution is
-needed, add `-nocommands` — this removes the code-execution hazard
-outright rather than merely validating around it, and the analyser
-recognises it: `subst -nocommands $template` does not raise T100. A
-quick fix ("Add -nocommands to disable command substitution") is
-offered for a `subst` sink.
+For the numeric case, parse the value into one you produced yourself
+rather than guarding around the tainted one:
+
+```tcl
+set line [gets stdin]
+if {[scan $line %d n] == 1 && $n > 200} { puts big }
+```
+
+A `[string is integer -strict $n]` guard reads well but does not clear the
+finding: the operand is still the tainted value.
+
+For `subst`, when only variable and backslash substitution is needed, add
+`-nocommands`. That removes the code-execution hazard outright, and the
+analyser recognises it: `subst -nocommands $template` does not raise T100.
+A quick fix ("Add -nocommands to disable command substitution") is offered
+on a `subst` sink.
 
 ## How to suppress
 

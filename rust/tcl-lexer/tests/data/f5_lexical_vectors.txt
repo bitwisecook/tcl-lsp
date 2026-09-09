@@ -1,7 +1,7 @@
 # F5 trunk lexical conformance vectors — the measured ground truth for the
 # two `f5-tcl` fork axes, hermetic (no appliance, no tclsh needed).
 #
-# Evidence: docs/design/bigip-irule-parser-measurements.md, measured live on
+# Evidence: docs/design/f5/bigip-irule-parser-measurements.md, measured live on
 # BIG-IP 21.1.0.1 (TMM 21.1.0.1) with same-host stock tclsh8.4/8.5 controls:
 #   §1  the implicit word break (R-rules R1-R7) — the word-formation table
 #   §2  the brace-line continuation (N-rules N1-N5)

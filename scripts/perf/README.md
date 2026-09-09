@@ -11,9 +11,7 @@ editing session against a pinned corpus of public Tcl projects, records
 memory / CPU / wall time, and renders graphs for the release notes.
 
 It exists to answer one question per release — *did this get worse?* — with
-evidence rather than impression. It was built after a memory-leak review
-against the issue #1181 corpus, and its first output showed v2.1.14 holding
-479 MiB where v2.1.15 holds 170 MiB.
+evidence rather than impression.
 
 For the human-readable source, dialect, age/recency, licence, and coding-style
 catalogue, see [`docs/CORPUS.md`](../../docs/CORPUS.md). The manifest below
@@ -54,9 +52,10 @@ python3 report.py
 | `get_server.py` | Resolves a tag to a binary: published release asset first, else a build from the tag in a throwaway worktree. Cached. |
 | `bench.py` | Runs the 15-check suite against one binary, samples RSS/CPU every 250 ms, writes `results/<version>.json`. |
 | `report.py` | Turns `results/*.json` into three SVGs plus `summary.md`. Stdlib only, byte-for-byte deterministic. |
+| `sweep.sh` | Benchmarks every version in the manifest, in order, on one machine and one harness revision. Use it rather than looping `bench.py` by hand, and re-run it whole whenever the check set changes. |
 
-`results/` and `graphs/` are committed — they are the record. `corpus/`,
-`servers/`, `.stage/` and `.build/` are generated and ignored.
+`results/`, `graphs/` and `comparisons/` are committed — they are the record.
+`corpus/`, `servers/`, `.stage/` and `.build/` are generated and ignored.
 
 ## The check set
 
@@ -122,10 +121,8 @@ Two design points worth knowing:
 - **Anchor files.** `[anchors]` in the manifest lists paths that must always
   be opened, pinning known pathological shapes. Without one, a seeded
   selection that happens to land on four cheap files reports a clean run
-  while the regression the suite exists to watch sits untouched — this
-  actually happened during development: `nav.references` read 0.013 s until
-  the #1297 anchor was added, then 4.0 s. **Add an anchor whenever a
-  performance issue is found.**
+  while the regression the suite exists to watch sits untouched. **Add an
+  anchor whenever a performance issue is found.**
 - **A check that issues zero requests fails.** A 0.000 s bar in a release-notes
   graph reading as "this got faster" is worse than no bar, so the suite
   refuses to record one.
@@ -247,19 +244,19 @@ graphs do: comparing two arbitrary versions where neither is *the* subject.
 
 The graphs are release-notes artefacts, so producing them is part of cutting a
 release rather than something to remember afterwards.
-`scripts/release/rust_release.sh` drives the whole 2.1.x pre-release sequence;
-each step is idempotent and separately runnable:
+`scripts/release/rust_release.sh` drives the whole sequence; each step is
+idempotent and separately runnable:
 
 ```bash
-scripts/release/rust_release.sh next patch      # -> 2.1.20
-scripts/release/rust_release.sh prepare 2.1.20  # preflight, bench, graphs, notes, verify, commit
+scripts/release/rust_release.sh next patch      # -> X.Y.Z
+scripts/release/rust_release.sh prepare X.Y.Z   # preflight, bench, graphs, notes, verify, commit
 #   ...open + merge the notes PR against `rust`, then pull and:
-scripts/release/rust_release.sh tag 2.1.20
+scripts/release/rust_release.sh tag X.Y.Z
 ```
 
 `prepare` builds the server from the tree about to be tagged, benchmarks it into
-`results/2.1.20.json`, adds `v2.1.20` to `MANIFEST.toml`, re-renders `graphs/`
-with 2.1.20 highlighted, and writes the performance section of
+`results/X.Y.Z.json`, adds `vX.Y.Z` to `MANIFEST.toml`, re-renders `graphs/`
+with X.Y.Z highlighted, and writes the performance section of
 `RELEASE_NOTES.md` — including the four release-asset URLs that are the easiest
 thing in the whole release to leave pointing at the previous version.
 

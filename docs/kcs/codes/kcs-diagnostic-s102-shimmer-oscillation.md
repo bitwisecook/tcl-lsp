@@ -21,22 +21,23 @@ The value converts back and forth on every iteration, making the performance cos
 
 ## Symptoms
 
-- Yellow squiggle under the variable, with the message "variable oscillates between types across iterations".
+- A yellow squiggle under the variable, with the message "'total' oscillates
+  between string and int across loop iterations (thunking)". `S101` normally
+  reports the same line as well.
 
 ## Example that triggers it
 
 ```tcl
-proc accumulate {} {
-    set x 0
-    while {1} {
-        set x [expr {$x + 1}]
-        set x [string range $x 0 end]
-    }
+set total 0
+foreach item {1 2 3} {
+    set total [expr {$total + 1}]
+    set total [string range $total 0 end]
 }
+puts $total
 ```
 
-The analyser reports **`S102`** because `x` alternates between integer and string types
-on every pass through the loop.
+The analyser reports **`S102`** because `total` alternates between integer and
+string on every pass through the loop.
 
 ## Fix
 
@@ -44,14 +45,14 @@ Give the two roles separate variables so neither one's intrep has to keep
 flipping:
 
 ```tcl
-proc accumulate {} {
-    set x_num 0
-    while {1} {
-        set x_num [expr {$x_num + 1}]
-        set x_str [string range $x_num 0 end]
-    }
+set total 0
+foreach item {1 2 3} {
+    set total [expr {$total + 1}]
 }
+puts [string range $total 0 end]
 ```
+
+Keep one type inside the loop and convert once on the way out.
 
 ## How to suppress
 

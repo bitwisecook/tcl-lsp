@@ -210,9 +210,9 @@ unused / read-before-set hint:
 
 - **`upvar` pass-by-reference** — `upvar 1 $varName local` (dynamic target) and
   `upvar 1 caller local` (literal) are treated identically: reading the alias is
-  not read-before-set, and writing through it is not a dead store. This is the
-  standard accessor idiom (`upvar 1 $arrayName arr; return $arr($key)`) and no
-  longer fires (issue #941).
+  not read-before-set, and writing through it is not a dead store, so the
+  standard accessor idiom (`upvar 1 $arrayName arr; return $arr($key)`) draws
+  no hint.
 - **Cross-scope globals** — a global assigned at the top level (`set cfg 1`) and
   read only inside a proc (`global cfg; … $cfg`, or `$::cfg`) is used, not a
   dead store; the reverse (a proc writing a global a top-level read consumes) is

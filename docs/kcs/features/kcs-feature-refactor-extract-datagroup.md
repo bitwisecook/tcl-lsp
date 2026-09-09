@@ -15,7 +15,7 @@ all-editors, MCP, Claude skill, refactoring
 
 ### Editor (all editors via LSP)
 
-Place the cursor on an `if` chain or `switch -exact` with literal value comparisons. Trigger code actions and choose **"Extract to data-group"**. The edit rewrites the source to a `class match` / `class lookup`; the tmsh definition of the data-group it expects rides along in the action's `data.data_group_definition`, and the MCP tools return it alongside the rewritten source.
+Place the cursor on an `if` chain or `switch -exact` with literal value comparisons. Trigger code actions and choose **"Extract to data-group '<name>' (<type>)"**. The edit rewrites the source to a `class match` / `class lookup`; the tmsh definition of the data-group it expects rides along in the action's `data.data_group_definition`, and the MCP tools return it alongside the rewritten source.
 
 Only available when the document dialect is iRules.
 
@@ -28,9 +28,9 @@ Only available when the document dialect is iRules.
 
 ### Claude Code
 
-- `suggest-datagroups <file>` — scan for all data-group extraction candidates
-- `extract-datagroup <file> --line N` — extract at a specific line
-- `/irule-datagroup <file>` — AI-enhanced analysis with LLM reasoning
+`/irule-datagroup <file>` — scans for candidates with
+`suggest_datagroup_extractions`, then converts the ones you pick with
+`extract_datagroup`.
 
 ## Before / After
 
@@ -198,7 +198,7 @@ The refactoring supports two source patterns:
 1. **if/elseif chains** — branches testing `$var eq "literal"`, including OR-chains (`$var eq "a" || $var eq "b"`)
 2. **switch -exact** — each arm is a literal key
 
-Type inference parses each literal as an `Ipv4Addr` / `Ipv6Addr`, and a `addr/prefix` word as a CIDR range whose prefix width is checked against the address family, so both families are detected without a separate address library. The AI-enhanced suggestion tool returns structured context including pattern type, variable name, inferred type, CIDR presence, body shape, confidence level, and a pre-computed static result for each candidate.
+IP/CIDR detection parses each value as an IPv4 or IPv6 address, and a `addr/prefix` word as a CIDR range whose prefix width is checked against the address family, so both families are recognised. `suggest_datagroup_extractions` returns pattern type, variable name, inferred type, CIDR presence, body shape, confidence, and a pre-computed static result for each candidate.
 
 The data-group name defaults to `<variable>_whitelist` for a membership test and `<variable>_map` for a value mapping. The MCP tools and the CLI accept an explicit name; the editor code action uses the default.
 

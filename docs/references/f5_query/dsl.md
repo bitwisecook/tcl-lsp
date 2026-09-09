@@ -29,23 +29,27 @@ rust/tcl-bigip-query/src/
   parser.rs           # recursive-descent parser
   projection.rs       # BigipConfig → navigable Container tree
   eval.rs             # walks the AST, collects edits, returns values
-  builtins/           # plain + stream builtin function library (mod.rs + submodules)
+  builtins/           # plain + stream builtin library (mod.rs + submodules);
+                      # graph.rs holds refs / referenced_by / references_to
   special.rs          # special-form builtins (select / map / paths / getpath / …)
-  probes.rs           # network-probe + X.509 builtins (refs / referenced_by
-                       # forward into tcl-bigip's grep/graph support)
-  edit_plan.rs         # routes identity writes through rewrite::rename_object,
-                       # detects conflicts, applies bottom-up
+  probes.rs           # network-probe + X.509 builtins; probes/{http,tls}.rs are
+                      # the backends
+  edit_plan.rs        # routes identity writes through rewrite::rename_object,
+                      # detects conflicts, applies bottom-up
   rewrite.rs          # token-bounded rename engine used by edit_plan and the
-                       # rename* builtins
-  output.rs           # auto / scf / raw / paths / json renderers
+                      # rename* builtins
+  output.rs           # auto / scf / raw / paths / json / table renderers
+  jsonfmt.rs          # the JSON pretty-printer output.rs and --json use
+  renderers/          # --render plugins (mermaid / gantt / ascii-blocks)
   runner.rs           # high-level orchestration used by the CLI verb
   grammar.rs          # plain-text grammar for --help-dsl
   manual.rs           # combined --help-manual surface (grammar + builtins + examples)
   examples.rs         # worked-example cookbook for --help-examples
   architecture.rs     # multi-device architecture / tier detection
-  inputs.rs           # side-input parsers (--input-json / -jsonl / -csv / -f5log)
-rust/f5-cli/src/commands/query.rs
-                     # clap plumbing + help actions for the `f5 query` verb
+  inputs.rs           # side-input formats: the --input KIND registry plus the
+                      # --input-json / -jsonl / -csv / -f5log shorthands
+rust/f5-cli/src/{cli.rs, lib.rs, commands/query.rs}
+                      # clap definition, help-action dispatch, and the verb
 ```
 
 ## Grammar
@@ -137,7 +141,7 @@ Deliberate divergences:
 | Object literals `{...}` | yes | yes — `{name, dest: .destination}` bareword keys desugar to `key: .key`; stream-valued fields broadcast element-wise into one row per item |
 | `expr as $x \| body` | yes | yes — streams iterate (one body call per item), plain lists (from an explicit `[...]` collector) bind once.  Right-associative so `.a[] as $x \| .b \| $x.c + ...` keeps `$x` bound across subsequent pipe stages |
 | `$name` variable | yes (let-binding only) | also names each loaded source — `$ltm`, `$gtm`, ... — for cross-config queries.  Auto-named from filename stem; `--name N=PATH` overrides |
-| String interpolation `"\(.x)"` | yes | not present in v1 |
+| String interpolation `"\(.x)"` | yes | not present |
 | Optional path suffix `?` | yes | yes for path steps (`.foo?`, `.items[]?`, `.[expr]?`); `try-catch` is still absent |
 | `//` / `try-catch` / `reduce` / `foreach` | yes | not present — practical query language, not a jq subset. (`paths` / `leaf_paths` / `getpath` / `setpath` / `del` / `delpaths` / `to_entries` / `from_entries` **are** implemented — see the `value` category in [`builtins.md`](builtins.md).) |
 | Truthiness (`select`, `and`, `or`, `if`) | only `false` and `null` are falsey | also: empty string, empty list/stream, empty `PathRef`, numeric `0`, `null` (broader falsey set; closer to "empty / zero / absent" than jq's strict definition) |
@@ -169,7 +173,7 @@ A projected BIG-IP object.  Holds:
   (strings, `PathRef`s, lists, sub-objects).
 - `field_slots` — dict of field name → byte range of the value in the
   source.  Single-line property values land in this map; sub-blocks
-  do not, which makes them non-writable in v1.
+  do not, which makes them non-writable.
 - `stanza_slot` — byte range of the whole stanza (header + body), used
   by `--scf` output and as a fallback for identity-rename verification.
 
@@ -296,10 +300,9 @@ reachable via source-level operations (`rename_partition` cascades,
 `--scf` selection through grep / a real SCF concatenation), but is
 not navigable from the DSL. `net.*`, `sys.*`, `apm.*`, `cm.*`,
 `pem.*`, `auth.*`, `vcmp.*`, `cli.*`, `api-protection.*`, `asm.*`,
-`ilx.*`, `wom.*`, and `analytics.*` currently have **no** typed
-projection at all — `.net.self[]`, `.sys.dns`, `.apm.access-policy`,
-`.cm.device`, and similar paths from earlier (Python-era) revisions
-of this document are not reachable today.
+`ilx.*`, `wom.*`, and `analytics.*` have **no** typed projection:
+`.net.self[]`, `.sys.dns`, `.apm.access-policy` and `.cm.device` are
+not reachable.
 
 The per-kind field construction lives in `project_fields()` and its
 per-kind helpers (`project_virtual`, `project_pool`, …) in the same
@@ -373,7 +376,7 @@ an `EditPlan`.  When evaluation finishes, the planner:
    value, the planner just hands it to `rename_object` like any
    other rename.
 4. Slots field writes by byte range; rejects edits without a
-   `field_slot` (compound sub-block values are not writable in v1).
+   `field_slot` (compound sub-block values are not writable).
 5. Sorts field-write slots by offset, checks for overlaps, raises
    `EditError` on conflict.
 6. Splices the new text in a single forward pass.
@@ -400,11 +403,9 @@ Builtin functions are registered by calling `plain(...)` / `ctx(...)`
 `probes::registrations()`). Each registration captures the name,
 category, arity bounds, and whether it is a special form
 (evaluator-driven, like `select` / `map`) or needs the evaluator
-context (`ctx`, e.g. `refs` / `rename`). Unlike the retired Python
-registry, the Rust `BuiltinSpec` deliberately does **not** carry
-prose (summary / signatures / examples) — that content lives only in
-the hand-maintained [`builtins.md`](builtins.md), so there is no
-automated check that every builtin is documented there.
+context (`ctx`, e.g. `refs` / `rename`). `BuiltinSpec` deliberately
+carries no prose (summary / signatures / examples) — that content
+lives only in [`builtins.md`](builtins.md).
 
 The same registry feeds:
 
@@ -417,8 +418,10 @@ The same registry feeds:
 To add a builtin, add a `plain(...)` (or `ctx(...)` / `special(...)`)
 entry to the relevant submodule's `registrations()` function and
 implement the function it names. Then hand-write the corresponding
-entry in [`builtins.md`](builtins.md) — nothing keeps the two in sync
-automatically.
+entry in [`builtins.md`](builtins.md): `cargo xtask
+f5-query-builtins-doc --check` (in `make xtask-check`) fails when the
+set of registered names and the set of documented names diverge. It
+gates names only — the prose is a human's job.
 
 ### Categories
 
@@ -440,8 +443,16 @@ automatically.
 - **stream** — `keys`, `values`, `first`, `last`, `count`, `unique`,
   `sort`, `any`, `all`, `select` (special form), `map` (special form)
 - **value** — `length`, `kind`, `path`, `defined`, `type`, `str`
-- **graph** — `refs`, `referenced_by` (backed by `tcl_bigip::graph`, the
-  same edge model `f5 grep` walks)
+- **graph** — `refs`, `referenced_by`, `references_to` (backed by
+  `tcl_bigip::graph`, the same edge model `f5 grep` walks)
+- **math** — the C `libm` surface (`floor` … `atan2`, `fma`, `jn`)
+- **time** — `now`, `strftime` / `strptime`, `todate` / `fromdate`,
+  `dateadd` / `datesub`
+- **bigip** — `profile_default`, `profile_defaults`
+- **forensic** — `file`, `files`, `glob`, `grep` (read files beside
+  the config)
+
+`f5 query --help-builtins` prints the full per-category listing.
 
 ### Rename verb integration
 
@@ -505,7 +516,7 @@ that returns `(partition, address, route_domain, port)`.  Adding new
 partition or RD-aware operations means dispatching that tuple and
 re-joining via `rebuild_destination` — no ad-hoc string slicing.
 
-## iRule sub-tree (v1)
+## iRule sub-tree
 
 `.ltm.rule["/Common/r1"]` exposes:
 
@@ -518,12 +529,12 @@ re-joining via `rebuild_destination` — no ad-hoc string slicing.
   These are the same edges `f5 grep` walks, so the two verbs always
   agree on what an iRule "uses".
 
-Writes inside an iRule body are restricted to those reference slots
-in v1, and they happen via the same `rename_object` text engine so
-the rewrite covers every `pool foo` / `persist add ... foo` / `class
-match ... foo` occurrence.  A general command-argument editor (range
-each arg, allow `.commands[].args[0] |= ...`) is deferred to v2 once
-the iRule parser exports byte-level ranges for every token.
+Writes inside an iRule body are restricted to those reference slots,
+and they happen via the same `rename_object` text engine so the
+rewrite covers every `pool foo` / `persist add ... foo` / `class
+match ... foo` occurrence.  There is no general command-argument
+editor (`.commands[].args[0] |= ...`): it needs byte-level ranges for
+every token, which the iRule parser does not export.
 
 ## Output modes
 
@@ -599,15 +610,11 @@ source.  Cross-file behaviour comes in two shapes:
 
 ## Help layers
 
-The CLI verb exposes four kinds of help:
-
 - `f5 query --help` — clap-generated summary plus example block.
 - `f5 query --help-dsl` — grammar reference (this document, abridged).
-- `f5 query --help-builtins [NAME]` — function catalogue (generated
-  from the registry).
-- `f5 query --help-examples` — cookbook of common one-liners
-  (generated from `examples.rs`).
-
-The same content powers the KCS feature note and the design doc, so
-end-users get one consistent surface whether they read the terminal,
-the rendered docs, or the source.
+- `f5 query --help-builtins [NAME]` — function catalogue (name /
+  category / arity / flags, from the registry).
+- `f5 query --help-examples` — one-liner cookbook (`examples.rs`).
+- `f5 query --help-inputs` / `--help-renderers` — the registered
+  `--input` formats and `--render` plugins.
+- `f5 query --help-manual` — grammar + builtins + examples together.

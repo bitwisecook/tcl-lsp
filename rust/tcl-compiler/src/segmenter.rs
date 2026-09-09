@@ -1021,7 +1021,7 @@ fn single_newline_gap(source: &str, gap_start: u32, gap_end: u32) -> bool {
     newlines == 1
 }
 
-/// **N5** (`docs/design/bigip-irule-parser-measurements.md` §2): under the
+/// **N5** (`docs/design/f5/bigip-irule-parser-measurements.md` §2): under the
 /// F5 trunk grammar, `else` / `elseif` are a *separate* lookahead performed
 /// by `if` itself — picked up across a single newline (a line starting with
 /// `else` is not a `{` line, so the lexical N-rules do not cover it), but

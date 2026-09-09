@@ -465,9 +465,11 @@ fn dispatch(command: &Command) -> anyhow::Result<u8> {
 /// Handle the `--help-*` actions, which short-circuit before requiring an
 /// expression / inputs.
 ///
-/// Returns `Ok(Some(code))` when a help action fired (so the caller exits with
-/// `code`), `Ok(None)` when no help flag was set, or an error for the
-/// unimplemented builtins-prose surfaces (`--help-builtins` / `--help-manual`).
+/// Returns `Some(code)` when a help action fired (so the caller exits with
+/// `code`), `None` when no help flag was set. Every action is implemented;
+/// `--help-builtins` and `--help-manual` render from the builtin registry's
+/// metadata because [`BuiltinSpec`](tcl_bigip_query::builtins::BuiltinSpec)
+/// carries no per-function prose.
 fn dispatch_query_help(command: &Command) -> Option<u8> {
     let Command::Query {
         help_dsl,

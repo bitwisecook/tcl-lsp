@@ -186,12 +186,10 @@ markup are not filesystem paths).
 
 - `HAS_LITERAL_SPACE` in the `may` properties — a literal space or tab marks
   prose or a protocol line, not a path being built.
-- The `PATH_NORMALISED` taint colour on the SSA value.  This arm is inert:
-  the taint engine does not put `PATH_NORMALISED` on `[file normalize]`
-  results, so it never fires.
+- The `PATH_NORMALISED` taint colour on the SSA value — `file normalize`
+  stamps it through its registry `taint_transform`.
 - Forward-scan: the next assignment to the same variable in the same block
-  is `[file normalize $var]`.  This is the only suppression path that fires
-  end to end.
+  is `[file normalize $var]`.
 
 ### Adding a new property
 

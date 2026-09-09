@@ -11,12 +11,6 @@ VS Code Copilot Chat participant for creating, explaining, fixing, reviewing, an
 
 Copilot Chat
 
-## Availability
-
-| Context | How |
-|---------|-----|
-| VS Code Copilot Chat | Type `@irule` then a slash command or question |
-
 ## How to use
 
 Type `@irule` in the Copilot Chat panel followed by a slash command:
@@ -35,6 +29,7 @@ Type `@irule` in the Copilot Chat panel followed by a slash command:
 | `/diff` | Compare two iRule versions |
 | `/event` | Event and command reference |
 | `/diagram` | Generate a Mermaid flowchart of the iRule logic |
+| `/test` | Generate a test script with the Event Orchestrator framework |
 | `/migrate` | Convert nginx/Apache/HAProxy config to an iRule |
 | `/xc` | Translate to F5 XC routes and service policies |
 | `/help` | Show available features and commands |
@@ -50,25 +45,14 @@ The chat participant uses the LSP server for diagnostics, symbols, and optimisat
 - AI features disabled (`tclLsp.ai.enabled` is false).
 - Copilot extension not installed.
 
-## Test anchors
+## Example
 
-- `editors/vscode/src/test/chatUtilities.test.ts`
-
-## Screenshots
-
-- `26-ai-create` — @irule /create generating an iRule
-- `27-ai-explain` — @irule /explain breaking down an iRule
-- `28-ai-diagram` — @irule /diagram generating a Mermaid flowchart
-- `29-ai-validate` — @irule /validate running LSP diagnostics
-- `30-ai-review` — @irule /review security review
-- `31-ai-help` — @irule /help showing feature guide
-
-![@irule /create generating an iRule](../screenshots/26-ai-create.png)
-![@irule /explain breaking down an iRule](../screenshots/27-ai-explain.png)
-![@irule /diagram generating a Mermaid flowchart](../screenshots/28-ai-diagram.png)
-![@irule /validate running LSP diagnostics](../screenshots/29-ai-validate.png)
-![@irule /review security review](../screenshots/30-ai-review.png)
-![@irule /help showing feature guide](../screenshots/31-ai-help.png)
+![@irule /create generating an iRule](../../screenshots/26-ai-create.png)
+![@irule /explain breaking down an iRule](../../screenshots/27-ai-explain.png)
+![@irule /diagram generating a Mermaid flowchart](../../screenshots/28-ai-diagram.png)
+![@irule /validate running LSP diagnostics](../../screenshots/29-ai-validate.png)
+![@irule /review security review](../../screenshots/30-ai-review.png)
+![@irule /help showing feature guide](../../screenshots/31-ai-help.png)
 
 ## Discoverability
 

@@ -5,7 +5,7 @@
 
 ## Applies to
 
-all-editors, optimisation, const-fold
+all-editors, optimisation, pattern
 
 ## Profiles
 
@@ -38,6 +38,11 @@ lassign {1 2 3} a b c
 - Skipped when any of the assigned values is not a compile-time constant.
 - Skipped when the variables have [traces](../../GLOSSARY.md#trace) that depend on being set individually.
 - Skipped when a later assignment reads a variable set earlier in the same group.
+- Skipped on Tcl 9.0, where individual `set`s are faster. Tcl 8.5 and 8.6 get
+  `lassign`; Tcl 8.4 gets `foreach {a b c} {1 2 3} {break}`, which every
+  version understands.
+- Only a strictly consecutive run is packed — the optimiser does not reorder
+  statements to bring candidates together.
 
 ## How to disable
 
@@ -47,5 +52,5 @@ Toggle the optimiser profile in your editor settings. See the [optimiser feature
 
 - [KCS codes index](README.md)
 - [Optimiser feature](../features/kcs-feature-optimiser.md)
-- [Constant folding](../../GLOSSARY.md#constant-folding)
+- [Pattern recognition](../../GLOSSARY.md#pattern-recognition)
 - Related codes: `O100`, `O116`

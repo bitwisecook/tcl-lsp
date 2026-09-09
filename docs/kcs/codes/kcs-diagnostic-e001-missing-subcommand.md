@@ -23,7 +23,7 @@ The same failure shape exists for TclOO objects: an object command invoked with 
 
 ## Symptoms
 
-- A red squiggle appears under the bare command, with the message "missing subcommand for 'string'" or "'Dog new' requires a method".
+- A red squiggle appears under the bare command, with the message "'string' requires a subcommand" or "'Dog new' requires a method".
 
 ## Example that triggers it
 
