@@ -1494,9 +1494,8 @@ mod tests {
 
     #[test]
     fn irule5001_quiet_for_log_gated_on_static_flag() {
-        // The recommended fix must actually clear the diagnostic — the
-        // emitter had no gate detection at all, so applying its own advice
-        // left the hint in place.
+        // The fix the message prescribes has to clear the diagnostic; a
+        // check that survives its own advice teaches the reader to ignore it.
         assert!(!has(
             "when HTTP_REQUEST { if {$static::debug} { log local0. hi } }",
             "IRULE5001"

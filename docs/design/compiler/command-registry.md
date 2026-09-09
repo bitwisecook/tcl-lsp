@@ -1165,6 +1165,13 @@ trait) stay separate. Also distinct from `HAS_BOOLEAN_COND`, which is about
 an argument being *read* as a boolean expression rather than about which
 bodies run.
 
+A third `CONTROL_FLOW` consumer asks a narrower question: *what* the command
+selects on. The analyser's `irules_debug_gate_depth` reads the words a
+control-flow command evaluates rather than executes — every argument outside
+its `ArgRole::Body` positions — and rises when one of them reads a debug
+flag, which is what lets IRULE5001 stay quiet for a `log` already gated the
+way its own message prescribes.
+
 ### Resolution priority
 
 Three mechanisms assign roles to command arguments. They are evaluated in
