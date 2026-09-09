@@ -250,7 +250,7 @@ pub enum OoContextFact {
     /// constant word, so it feeds the ordinary `const_fold` callbacks: this is
     /// what makes the real-corpus ticklecharts chain
     /// `set ns [namespace qualifiers [self class]] ; ${ns}::setdef …` resolve
-    /// in one step (issue #1096).  `namespace qualifiers` / `namespace tail`
+    /// in one step.  `namespace qualifiers` / `namespace tail`
     /// are pure string operations — they split a string at its last `::` and
     /// never consult the interpreter's namespace table — so no namespace has
     /// to exist for the chain to be sound.
@@ -274,7 +274,7 @@ pub enum OoContextFact {
 /// ensemble subcommand.  This is the registry half of the object-method
 /// pattern: knowing the class of an object handle (via the compiler's
 /// object-type tracking) plus the class's methods lets `$chart Xaxis -name …`
-/// light up its options precisely rather than by shape alone (issue #748).
+/// light up its options precisely rather than by shape alone.
 #[derive(Debug)]
 pub struct ObjectClassSpec {
     /// Fully-qualified class name — equal to the factory command name for a
@@ -1203,10 +1203,10 @@ pub struct ConstraintReport {
     pub conflict: bool,
 }
 
-/// What the option-relation checker did, for the P-B measurement.
+/// What the option-relation checker did, as a measurement.
 ///
-/// Principle P-B's claim — "every relation the declarative vocabulary can
-/// express is checked natively with no VM entry" — is only worth as much as
+/// The claim that "every relation the declarative vocabulary can
+/// express is checked natively with no VM entry" is only worth as much as
 /// the number behind it, so the checker counts rather than asserting. Three
 /// thread-local counters, incremented once per call site: cheap enough to
 /// leave on (they are `Cell<u64>` adds on a path that already allocates a
@@ -1314,7 +1314,7 @@ pub struct CommandSpec {
     pub arity: Arity,
 
     /// Per-release signature shapes, for a command whose arity changed across
-    /// its owning package's releases (issue #1627).
+    /// its owning package's releases.
     ///
     /// Empty for almost every command — a signature that never changed needs no
     /// windows, and [`Self::arity`] alone describes it. When non-empty, the
@@ -1340,7 +1340,7 @@ pub struct CommandSpec {
 
     /// Formatter **presentation** overrides, keyed by 0-based argument index
     /// — how an argument should be *laid out*, as distinct from what
-    /// [`Self::arg_roles`] says it *is* (issue #1186).
+    /// [`Self::arg_roles`] says it *is*.
     ///
     /// Only overrides are declared: every [`ArgRole::Body`] argument is an
     /// [`ArgPresentation::BlockScript`] by default, so a spec with nothing
@@ -1360,7 +1360,7 @@ pub struct CommandSpec {
     /// Folded into [`crate::CommandRegistry::arg_indices_for_role`] alongside
     /// [`Self::arg_roles`] and [`Self::arg_role_resolver`], so a consumer
     /// asking which arguments carry a role gets the unbounded tail without
-    /// knowing the command (issue #1185). See [`crate::repeated`].
+    /// knowing the command. See [`crate::repeated`].
     pub repeated_args: &'static [RepeatedArgLayout],
 
     /// How the command crosses stack frames — which argument is the level
@@ -1588,7 +1588,7 @@ pub struct CommandSpec {
     /// lowerer's alias table, and the analyser's rename / alias
     /// records via [`crate::CommandTableEffect::transitions`], which
     /// resolves this selector to the stock state-transition descriptor a
-    /// shipped spec names directly (centralisation ledger C8).
+    /// shipped spec names directly.
     pub command_table_effect: Option<CommandTableEffect>,
 
     /// Structured side-effect declarations.
@@ -1665,7 +1665,7 @@ pub struct CommandSpec {
     /// The mirror of [`Self::event_requires`]: that says where a command may
     /// be *written*, this says what running it *starts*. Consumers building
     /// event-rooted reachability follow this rather than growing a table of
-    /// command names (issue #1708). `None` means the command raises no event.
+    /// command names. `None` means the command raises no event.
     pub event_emits: Option<crate::events::EventEmission>,
 
     /// Argument-prefix-specific emissions, overriding [`Self::event_emits`]
@@ -2026,8 +2026,8 @@ pub struct CommandSpec {
     /// another argument saying which class (`set NAME [TYPE inst …]`).  The
     /// handle scan reads the two indices (and any required keyword) from the
     /// descriptor rather than matching the command word, so `::set` and a
-    /// provable static alias/rename of it bind exactly like the bare spelling
-    /// — issue #1185.  A member-body-only installer such as snit's `install`
+    /// provable static alias/rename of it bind exactly like the bare spelling.
+    /// A member-body-only installer such as snit's `install`
     /// carries the same descriptor on its
     /// [`crate::definer::MemberBodyCommand`] instead, so it stays scoped to
     /// the class system that provides it.  `None` = the command binds no
@@ -2042,7 +2042,7 @@ pub struct CommandSpec {
     /// The descriptor says which word is the handle, which word is the method,
     /// and whether the call awaits a reply, so the navigation providers cross
     /// from an iRule to the Node.js `ILXServer.addMethod` registration without
-    /// naming a command — issue #1707.  `None` = the command takes part in no
+    /// naming a command.  `None` = the command takes part in no
     /// RPC family.  See [`crate::remote_method`].
     pub remote_method: Option<&'static crate::remote_method::RemoteMethodRole>,
 
@@ -2664,8 +2664,8 @@ impl CommandSpec {
     ///
     /// `args` excludes the command name. `None` means the result's intrep is
     /// unknown for this call — the honest answer for an untypeable form, and
-    /// one every caller already handles; a confidently wrong type is what
-    /// issue #1720 was.
+    /// one every caller already handles; a confidently wrong type is the
+    /// hazard this guards against.
     ///
     /// A [`Self::return_type_hook`] wins over `return_type`. Subcommands
     /// resolve to their own static `return_type`: no subcommand needs a hook
@@ -3164,7 +3164,7 @@ pub struct SubCommand {
     /// [`Self::arity_windows`] selects nothing.
     pub arity: Arity,
 
-    /// Per-release signature shapes for this subcommand (issue #1627), with
+    /// Per-release signature shapes for this subcommand, with
     /// the same contract as [`CommandSpec::arity_windows`].
     pub arity_windows: &'static [ArityWindow],
 
@@ -3472,8 +3472,8 @@ pub struct SubCommand {
     /// word selects a further operation — `info object <subcommand> object …`
     /// and `info class <subcommand> class …` (per the `info` man page's OBJECT
     /// INTROSPECTION and CLASS INTROSPECTION sections). Declaring them here lets
-    /// the semantic-token pass colour that word as a subcommand keyword (issue
-    /// #798), and drives hover and completion for it. Empty for the
+    /// the semantic-token pass colour that word as a subcommand keyword, and
+    /// drives hover and completion for it. Empty for the
     /// overwhelmingly-common single-level subcommand.
     pub sub_subcommands: &'static [SubSubCommand],
 
@@ -3508,7 +3508,7 @@ pub struct SubCommand {
 ///
 /// Lighter than a full [`SubCommand`]: it carries just what the LSP needs to
 /// highlight, hover, and complete the word after the first-level subcommand
-/// (issue #798). Resolution accepts a unique prefix, matching how Tcl's own
+/// Resolution accepts a unique prefix, matching how Tcl's own
 /// ensemble dispatch abbreviates subcommands.
 #[derive(Debug, Clone, Copy)]
 pub struct SubSubCommand {
@@ -3541,7 +3541,7 @@ pub struct SubSubCommand {
     ///   merged with it, because merging is exactly the bug the field exists
     ///   to fix.
     ///
-    /// `namespace ensemble` needs all three (issue #1610). `create` and
+    /// `namespace ensemble` needs all three. `create` and
     /// `configure` are two different C option tables — `ensembleCreateOptions`
     /// has `-command` and no `-namespace`, `ensembleConfigOptions` the reverse
     /// (`tclEnsemble.c`) — so one merged table simultaneously offers `create`'s
@@ -3772,8 +3772,8 @@ impl SubCommand {
     ///
     /// For the overwhelmingly common single-level subcommand this is just
     /// [`Self::options`]. For a two-level ensemble whose operations disagree
-    /// about their options — `namespace ensemble create` vs `configure`,
-    /// issue #1610 — it is the resolved [`SubSubCommand::options`] instead,
+    /// about their options — `namespace ensemble create` vs `configure` —
+    /// it is the resolved [`SubSubCommand::options`] instead,
     /// and *instead* is the point: merging the two tables reintroduces the
     /// bug, since each table's distinctive entry is the other's error.
     ///
@@ -3785,7 +3785,7 @@ impl SubCommand {
     ///
     /// A resolved operation answers with whatever it declares, **including an
     /// explicitly empty table**: `Some(&[])` means "no options here" and must
-    /// not fall back (issue #1610, Codex review). Only
+    /// not fall back. Only
     /// [`SubSubCommand::options`] `== None` — declaring nothing either way —
     /// inherits.
     ///
@@ -4069,7 +4069,7 @@ mod tests {
     use super::*;
     use crate::registry::CommandRegistry;
 
-    // -- optional_trailing_arg_names (issue #1190) ------------------------
+    // Optional trailing argument names.
     //
     // A quick fix that appends a documented optional argument learns both how
     // many words it may append and what to call them from the synopsis, so a
@@ -4112,7 +4112,7 @@ mod tests {
         );
     }
 
-    // -- FormSpec lifecycle in the form-selection queries -----------------
+    // `FormSpec` lifecycle in the form-selection queries.
     //
     // A `FormSpec` carries its own lifecycle, so a synopsis a later release
     // added must not be shown to — nor its optional words offered to — a
@@ -4212,7 +4212,7 @@ mod tests {
         );
     }
 
-    // -- command-level argument-value gates ------------------------------
+    // Command-level argument-value gates.
     //
     // A literal value can be gated by its own `ArgValue::lifecycle`, by a
     // positional `versioned_arg_values` entry, or by both; the accessor must
@@ -4277,7 +4277,7 @@ mod tests {
         assert_eq!(names(None), vec!["old", "new"]);
     }
 
-    // -- second-level subcommand gates -----------------------------------
+    // Second-level subcommand gates.
 
     const OPS: &[SubSubCommand] = &[
         SubSubCommand {

@@ -1319,12 +1319,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 // `TclListObjGetElements`, which installs the LIST intrep —
                 // tclsh8.6-verified: a plain-string mapping flips to
                 // `list`, a list mapping stays `list`, a `dict create`
-                // mapping stays `dict`. The previous `expected: Dict` hint
-                // was refuted by that probe (a list mapping never converts
-                // to dict). Dict is listed transparent for the pure-dict
-                // path; a dict that has regenerated its string rep does
-                // re-parse as a list, which this positional hint cannot
-                // see — deliberate under-approximation.
+                // mapping stays `dict`. Not hinted `expected: Dict`: a list
+                // mapping never converts to dict, only to list. Dict is
+                // listed transparent for the pure-dict path; a dict that
+                // has regenerated its string rep does re-parse as a list,
+                // which this positional hint cannot see — deliberate
+                // under-approximation.
                 ArgTypeHint {
                     expected: Some(TclType::List),
                     shimmers: true,
@@ -1600,15 +1600,15 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "trim",
-        // S110 correction (was `Transparent`): whenever `trim` actually
-        // strips characters it builds a fresh *string* from the UTF rep in
-        // both 8.6 and 9.0 (`StringTrimCmd` → `Tcl_NewStringObj`, and the
-        // compiled `INST_STR_TRIM` likewise; tclsh 8.6.14-verified — trimming
-        // whitespace off a bytearray yields a pure string). The byte-array
-        // rep survives only the compiled *no-op* trim (nothing stripped →
-        // the same object is returned) — 8.6's interpreted command proc
-        // strings-ifies even that — so `Coerces` (may-corrupt) is the honest
-        // classification for both versions.
+        // Whenever `trim` actually strips characters it builds a fresh
+        // *string* from the UTF rep in both 8.6 and 9.0 (`StringTrimCmd`
+        // → `Tcl_NewStringObj`, and the compiled `INST_STR_TRIM`
+        // likewise; tclsh 8.6.14-verified — trimming whitespace off a
+        // bytearray yields a pure string). The byte-array rep survives
+        // only the compiled *no-op* trim (nothing stripped — the same
+        // object is returned) — 8.6's interpreted command proc
+        // strings-ifies even that — so `Coerces` (may-corrupt) is the
+        // honest classification for both versions.
         byte_array_effect: ByteArrayEffect::Coerces,
         arity: Arity::new(1, 2),
         detail: "Trim leading and trailing characters.",
@@ -1620,9 +1620,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "trimleft",
-        // S110 correction (was `Transparent`): see `trim` above — an
-        // effective trim builds a fresh string in both 8.6 and 9.0
-        // (`StringTrimLCmd` / `INST_STR_TRIM_LEFT`).
+        // An effective trim builds a fresh string in both 8.6 and 9.0
+        // (`StringTrimLCmd` / `INST_STR_TRIM_LEFT`); see `trim` above.
         byte_array_effect: ByteArrayEffect::Coerces,
         arity: Arity::new(1, 2),
         detail: "Trim leading characters.",
@@ -1634,9 +1633,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "trimright",
-        // S110 correction (was `Transparent`): see `trim` above — an
-        // effective trim builds a fresh string in both 8.6 and 9.0
-        // (`StringTrimRCmd` / `INST_STR_TRIM_RIGHT`).
+        // An effective trim builds a fresh string in both 8.6 and 9.0
+        // (`StringTrimRCmd` / `INST_STR_TRIM_RIGHT`); see `trim` above.
         byte_array_effect: ByteArrayEffect::Coerces,
         arity: Arity::new(1, 2),
         detail: "Trim trailing characters.",

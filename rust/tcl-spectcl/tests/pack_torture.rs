@@ -775,7 +775,7 @@ fn duplicate_command_declarations_are_reported_and_the_first_wins() {
     );
     // The notice lands on the *ignored* declaration (line 3 here), not on the
     // file's first line, and does not send the reader to the path they already
-    // have open (issue #1638).
+    // have open.
     let in_file = set
         .notices
         .iter()
@@ -883,7 +883,7 @@ fn two_packs_claiming_one_command_install_deterministically() {
     );
 
     // Deterministic is not enough on its own — the losing author has to be
-    // told, on their own declaration, which is what issue #1637 was about.
+    // told, on their own declaration.
     let notice = set
         .notices
         .iter()
@@ -906,7 +906,7 @@ fn two_packs_claiming_one_command_install_deterministically() {
 }
 
 /// The `-override` direction of the same collision: the later pack wins, and
-/// the notice moves to the declaration it displaced (#1637).
+/// the notice moves to the declaration it displaced.
 ///
 /// The notice must track the install, not a fixed idea of who wins — otherwise
 /// it would tell the author the opposite of what the registry did.
@@ -952,7 +952,7 @@ fn a_cross_pack_override_reports_on_the_declaration_it_replaces() {
 }
 
 /// Two packs declaring the same name for **different vendor packages** are not
-/// a collision, and must not be reported (#1637).
+/// a collision, and must not be reported.
 ///
 /// This is the false positive that matters: the six shipped EDA loadables all
 /// declare `report_timing`, and `install_into`'s vendor gate means no profile
@@ -1026,8 +1026,8 @@ fn one_owner_per_file_extension_across_packs() {
     );
     assert_eq!(shr[0].1, "tcl9.0", "the first pack in name order owns it");
 
-    // And the pack that lost the extension is told, on the row it declared
-    // (issue #1637). This matters more than the command case: an extension
+    // And the pack that lost the extension is told, on the row it declared.
+    // This matters more than the command case: an extension
     // routed to the wrong dialect mis-lexes every file of that type.
     let notice = set
         .notices
@@ -1522,9 +1522,9 @@ fn editing_a_lifecycle_stamp_changes_the_verdict_on_reload() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-// Regressions for the notice gaps this sweep found (#1634, #1635, #1637, #1638)
+// Regressions for notice gaps in cross-pack collision and BOM handling.
 
-/// A `.tclspec` saved with a UTF-8 BOM loads normally (#1635).
+/// A `.tclspec` saved with a UTF-8 BOM loads normally.
 ///
 /// The mark is a file prologue, exactly as Tcl 9's `source` treats it — so the
 /// `speclib` word is `speclib`, not `\u{feff}speclib`, and the pack is not
@@ -1553,8 +1553,8 @@ fn a_bom_prefixed_pack_loads_like_any_other() {
 /// not exercise it. If the two disagreed about whether a leading mark is a
 /// prologue, the upgrade would compute a byte range against a different
 /// tokenisation than the one `evaluate_pack` used and rewrite the wrong span.
-/// (Caught by mutation testing during the #1641 review: flipping this entry's
-/// disposition alone left every existing test green.)
+/// Mutation testing shows the gap this closes: flipping this entry's
+/// disposition alone left every existing test green.
 #[test]
 fn the_version_span_skips_a_leading_bom_like_the_loader() {
     let source = "\u{feff}speclib demo 1.1 {\n  command demo::a { arity 1 }\n}\n";
@@ -1571,7 +1571,7 @@ fn the_version_span_skips_a_leading_bom_like_the_loader() {
     );
 }
 
-/// …but a BOM *inside* a block is ordinary data (#1635).
+/// …but a BOM *inside* a block is ordinary data.
 ///
 /// The half of the fix that is easy to get wrong: flipping the disposition for
 /// every segmentation, rather than only the file entry, would silently edit
@@ -1600,7 +1600,7 @@ fn a_bom_inside_a_block_is_content_not_a_prologue() {
     );
 }
 
-/// A BOM'd pack survives the compiled-pack cache round trip (#1635).
+/// A BOM'd pack survives the compiled-pack cache round trip.
 ///
 /// The fix bumped the on-disk `FORMAT`, so a cold load, a warm load, and a load
 /// with the cache thrown away mid-flight must all produce the same pack — both
@@ -1675,7 +1675,7 @@ fn a_bom_prefixed_pack_survives_the_cache_round_trip() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-/// A `command` with no body block is named in a notice (#1634).
+/// A `command` with no body block is named in a notice.
 ///
 /// The shape is the brace-on-the-next-line mistake, which is valid Tcl and so
 /// reaches the loader as two statements. Before the fix the command vanished
@@ -1699,7 +1699,7 @@ fn a_command_with_no_body_is_named_in_a_notice() {
 }
 
 /// The orphaned block left over by that mistake gets a readable one-line
-/// notice, not its own body quoted back (#1634).
+/// notice, not its own body quoted back.
 #[test]
 fn an_orphaned_block_notice_is_one_readable_line() {
     let pack = evaluate_pack("speclib demo 1.1 {\n  command demo::bar\n  {\n    arity 1\n  }\n}\n");
@@ -1722,14 +1722,13 @@ fn an_orphaned_block_notice_is_one_readable_line() {
 }
 
 /// An unknown *property* that is long or spans lines is elided, not quoted
-/// whole (#1634).
+/// whole.
 ///
 /// The orphaned-block test above returns before the quoting code, so it does
-/// not pin it — flipping `unknown_property` back to a raw `word_text(0)` left
-/// that test green (found by mutation testing during the #1641 review). This
-/// is the case that catches it: a word that is neither empty nor short, on the
-/// non-block path where `quotable` is the only thing keeping the message to
-/// one bounded line.
+/// not pin it — flipping `unknown_property` back to a raw `word_text(0)` would
+/// leave that test green. This is the case that catches it: a word that is
+/// neither empty nor short, on the non-block path where `quotable` is the
+/// only thing keeping the message to one bounded line.
 #[test]
 fn a_long_unknown_property_is_elided_rather_than_quoted_whole() {
     let pack = evaluate_pack(
@@ -1764,7 +1763,7 @@ fn a_long_unknown_property_is_elided_rather_than_quoted_whole() {
     );
 }
 
-/// A second `speclib` block in one file is reported, with what it costs (#1634).
+/// A second `speclib` block in one file is reported, with what it costs.
 #[test]
 fn a_second_speclib_block_is_reported_with_its_command_count() {
     let pack = evaluate_pack(
@@ -1796,8 +1795,8 @@ fn a_second_speclib_block_is_reported_with_its_command_count() {
 
 /// A command name carrying whitespace is **valid Tcl** and must load.
 ///
-/// #1638 originally dropped these, reasoning that a command word cannot carry
-/// whitespace. It can: a Tcl command name is an arbitrary string key in the
+/// Dropping these on the reasoning that a command word cannot carry
+/// whitespace would be wrong: a Tcl command name is an arbitrary string key in the
 /// namespace command table, and a braced or quoted call site invokes it.
 /// Confirmed against tclsh 8.6 and 9.0 — `proc {evil name} {} {…}` is created,
 /// listed by `info commands`, and invoked as `{evil name}`; the same holds for
@@ -1844,7 +1843,7 @@ fn a_whitespace_bearing_command_name_loads_and_is_installable() {
 /// The collision that matters is between the *second* and the *third*, and a
 /// standing-claim map holding one entry per name cannot see it: the third
 /// claim is compared only against the first, found vendor-disjoint, and waved
-/// through. Found reviewing #1637 — the fix keeps every standing claim, so a
+/// through. Keeping every standing claim fixes this: a
 /// new one settles against the first claim it could actually share a registry
 /// with.
 #[test]
@@ -1965,7 +1964,7 @@ fn an_extension_collision_names_the_file_that_declared_the_row() {
 }
 
 /// `speclib` with no version word is refused rather than taking the body as
-/// the pack name (#1638).
+/// the pack name.
 ///
 /// The name is the merge key and the `name` field every editor is handed in
 /// `spec_packs_loaded`, so a multi-line blob there is not a cosmetic problem.

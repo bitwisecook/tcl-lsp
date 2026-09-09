@@ -25,13 +25,13 @@
 //! An [`EnvironmentDefinition`] is a core-profile selector plus per-axis
 //! version-set targets, expected/ambient package placements, server-side
 //! detection facts, policy defaults, and a reference to a *fixed,
-//! contributed* editor language identity (review B7 — a server can never
-//! mint a new editor language id). Environments are dynamic data:
-//! `Arc`-held, equality by `(id, generation, overlay hash)`, never
-//! interned statics with pointer identity. Workspace/user adjustments are
+//! contributed* editor language identity — a server can never mint a new
+//! editor language id. Environments are dynamic data: `Arc`-held, equality
+//! by `(id, generation, overlay hash)`, never interned statics with
+//! pointer identity. Workspace/user adjustments are
 //! [`EnvironmentOverlay`]s whose content hash and origin are part of the
 //! resolved identity — the canonical definition is never redefined in
-//! place (review H1).
+//! place.
 //!
 //! The collision contract (§3.3): compiled canonical names are reserved,
 //! alias cycles are unrepresentable (an alias may never equal any
@@ -76,9 +76,9 @@ impl std::fmt::Display for EnvironmentId {
     }
 }
 
-/// A member of the FIXED, contributed editor language identity set
-/// (review B7): the language ids the shipped editor extensions actually
-/// contribute, seeded from `editors/vscode/src/languageIds.ts`'s
+/// A member of the FIXED, contributed editor language identity set: the
+/// language ids the shipped editor extensions actually contribute, seeded
+/// from `editors/vscode/src/languageIds.ts`'s
 /// `TCL_LANGUAGE_IDS` block. Dynamic server environments *select among*
 /// these; they can never mint a new one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -111,7 +111,8 @@ impl EditorLanguageIdentityId {
     ];
 
     /// The identity for `id`, or `None` when no editor contributes it —
-    /// the constructor is the whole enforcement of B7.
+    /// this constructor is the only way to obtain one, which is the whole
+    /// enforcement of "a server can never mint a new editor language id".
     #[must_use]
     pub fn new(id: &str) -> Option<Self> {
         Self::CONTRIBUTED
@@ -135,7 +136,7 @@ pub struct CoreProfileSelector {
     pub family: Family,
     /// The default release on that family's ladder.
     pub default_release: Release,
-    /// The build profile (review B1).
+    /// The build profile.
     pub build: BuildProfileId,
 }
 
@@ -162,8 +163,8 @@ pub enum Placement {
     /// A fixed platform version (Expect `5.45.4`).
     Pinned(Version),
     /// The version follows the environment's core release. Survives only
-    /// for hosts that genuinely guarantee matched versions (review B11 —
-    /// never the default for Tk).
+    /// for hosts that genuinely guarantee matched versions — never the
+    /// default for Tk.
     TracksBase,
     /// Resolved through an external key (the BIG-IP release, the EDA
     /// tool release).
@@ -281,7 +282,7 @@ pub struct EnvironmentDefinition {
     /// The human-facing name.
     pub display_name: Arc<str>,
     /// The contributed editor identity this environment's documents open
-    /// under, when one is dedicated (review B7).
+    /// under, when one is dedicated.
     pub editor_identity: Option<EditorLanguageIdentityId>,
     /// The core selector — `None` only for an identity-only environment
     /// that routes outside the Tcl language pipeline entirely
@@ -344,8 +345,8 @@ pub struct ConfigurationOrigin {
     pub content_hash: u64,
 }
 
-/// A workspace/user adjustment to a named environment (review H1): the
-/// canonical definition is never redefined in place — the overlay
+/// A workspace/user adjustment to a named environment: the canonical
+/// definition is never redefined in place — the overlay
 /// derives a new value whose origin hash is part of the identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnvironmentOverlay {
@@ -582,8 +583,9 @@ impl EnvironmentRegistry {
 /// Reject definitions claiming names reserved against their provenance
 /// (§3.3: **all** compiled canonical names are reserved, and so are the
 /// compiled aliases; a bundled pack's seeded names are reserved below the
-/// bundled tier; editor identities are selectable by anyone — that is
-/// their B7 purpose). See [`reserved_against`].
+/// bundled tier; editor identities are selectable by anyone, never minted,
+/// which is the whole point of keeping them a fixed contributed set). See
+/// [`reserved_against`].
 fn check_reserved(definitions: &[EnvironmentDefinition]) -> Result<(), EnvironmentRegistryError> {
     let compiled = compiled_definitions();
     for definition in definitions {
@@ -652,7 +654,7 @@ fn build_index(
     Ok(index)
 }
 
-// --- the compiled seed set -------------------------------------------
+// The compiled seed set.
 
 fn arc(text: &str) -> Arc<str> {
     Arc::from(text)
@@ -743,7 +745,7 @@ fn ladder_environments() -> Vec<EnvironmentDefinition> {
             // Tk is **hosted** here: a `tclsh8.6` document must
             // `package require Tk` (W120 nags when it does not), and the
             // floor rides Tk's **own** package axis — never the Tcl core
-            // axis (B11, invariant I2). `TracksBase` is B11's one named
+            // axis (invariant I2). `TracksBase` is the one named
             // exemption ("unless a specific host environment truly
             // guarantees matched versions"): a *release-pinned* Tcl
             // environment is exactly that host — the 8.6 distribution
@@ -779,12 +781,12 @@ fn plain_tcl_environment() -> EnvironmentDefinition {
         editor_identity: EditorLanguageIdentityId::new("tcl"),
         core: Some(tcl_core(Release::TCL_9_0)),
         targets: tcl_full_ladder(),
-        // P3: the lenient sink declares the same **hosted** Tk placement
-        // the ladder rows carry, so "can this environment host Tk?" is a
+        // The lenient sink declares the same **hosted** Tk placement the
+        // ladder rows carry, so "can this environment host Tk?" is a
         // placement query everywhere instead of a lenient special case.
         // No release is implied — an unversioned document names no Tcl
-        // release either — so Tk sits on a requirement over its own axis
-        // (B11), which is also why this row grants no floor.
+        // release either — so Tk sits on a requirement over its own axis,
+        // which is also why this row grants no floor.
         expected_packages: vec![PackagePlacement {
             package: arc("Tk"),
             version: Placement::Requirement(reqs(VersionAxisId::package("Tk"), &["8.4-"])),
@@ -810,19 +812,19 @@ fn plain_tcl_environment() -> EnvironmentDefinition {
 }
 
 /// The `tk` environment (alias `wish`): tcl at base + Tk **ambient** on
-/// Tk's **own** version axis — never `tracks-base` (review B11). Erases
-/// the tk triangle.
+/// Tk's **own** version axis — never `tracks-base`. Erases the tk
+/// triangle.
 ///
-/// **P3 (the Tk pilot).** The placement is `ambient` because that is what
-/// a `wish` document *is*: the interpreter has already loaded Tk before
-/// the first byte of the script runs, so there is no `package require Tk`
-/// to write and none to nag about. Everything the old triangle spelled
-/// three ways now falls out of this one row — `package_active("Tk")`,
-/// the context's `TK` authoring bit, the Tk-checks activation fact, and
-/// W120's silence (ledger F4). The version stays a **requirement** on
-/// `Tk`'s own axis rather than a point: `wish` reports its own Tk
-/// patchlevel, which the document text does not carry, so the honest
-/// answer is "some Tk ≥ 8.4" and the permissive no-primary rule applies.
+/// The placement is `ambient` because that is what a `wish` document *is*:
+/// the interpreter has already loaded Tk before the first byte of the
+/// script runs, so there is no `package require Tk` to write and none to
+/// nag about. `package_active("Tk")`, the context's `TK` authoring bit,
+/// the Tk-checks activation fact, and W120's silence all fall out of this
+/// one placement fact, rather than being spelled three separate ways. The
+/// version stays a **requirement** on `Tk`'s own axis rather than a point:
+/// `wish` reports its own Tk patchlevel, which the document text does not
+/// carry, so the honest answer is "some Tk ≥ 8.4" and the permissive
+/// no-primary rule applies.
 fn tk_environment() -> EnvironmentDefinition {
     EnvironmentDefinition {
         id: EnvironmentId::new("tk"),
@@ -864,7 +866,7 @@ fn tk_environment() -> EnvironmentDefinition {
 ///
 /// Three deliberate absences:
 ///
-/// - **No editor identity.** Review B7: a server may select among the
+/// - **No editor identity.** A server may select among the
 ///   identities the shipped extensions contribute and can never mint a
 ///   new one. No editor contributes a `tcl-jim` id today, so this
 ///   environment carries `None` exactly as `tk` and `bpf` do, and the
@@ -942,13 +944,12 @@ fn iapps_environment() -> EnvironmentDefinition {
         aliases: Vec::new(),
         display_name: arc("F5 iApps"),
         editor_identity: EditorLanguageIdentityId::new("tcl-iapp"),
-        // CORRECTED by measurement
-        // (`docs/design/f5/bigip-irule-parser-measurements.md` §4a): the
-        // 8.5 baseline hypothesis is falsified — `IAppImplementation`
+        // Per measurement (`docs/design/f5/bigip-irule-parser-measurements.md`
+        // §4a): the 8.5 baseline hypothesis is falsified — `IAppImplementation`
         // reports patchlevel 8.4.6, fails every 8.5 discriminator, and
         // carries the full `f5-tcl` trunk grammar. The core rides the
         // trunk under the 32-bit `scriptd` build profile (`wordSize 4`,
-        // measurements §4 — review B1's build axis).
+        // measurements §4).
         core: Some(CoreProfileSelector {
             family: Family::F5Tcl,
             default_release: Release::F5_TCL_TMOS,
@@ -959,8 +960,7 @@ fn iapps_environment() -> EnvironmentDefinition {
         policy_defaults: EnvironmentPolicy {
             closed_world: WorldPolicy::AmbientPlusRequire,
             fixed_ensembles: true,
-            // The W108 strict-ASCII rule, formerly keyed on the IAPPS
-            // vendor bit.
+            // The W108 strict-ASCII rule.
             strict_ascii: true,
             // The fork point caps Tcl-versioned surface claims: the
             // embedded core is 8.4.6, and all sixteen measured 8.4/8.5
@@ -1485,9 +1485,9 @@ mod tests {
         }
     }
 
-    /// **P6.** One `jim` environment for a nine-release ladder: the
-    /// releases are targets on the family's own axis, not nine catalogue
-    /// rows, and no editor identity is minted for it (review B7).
+    /// One `jim` environment for a nine-release ladder: the releases are
+    /// targets on the family's own axis, not nine catalogue rows, and no
+    /// editor identity is minted for it.
     #[test]
     fn one_jim_environment_covers_the_whole_ladder() {
         let registry = EnvironmentRegistry::compiled();
@@ -1519,7 +1519,7 @@ mod tests {
         }
         assert!(
             jim.editor_identity.is_none(),
-            "no editor contributes a jim language id (B7)"
+            "no editor contributes a jim language id"
         );
         assert!(
             jim.expected_packages.is_empty(),
@@ -1590,8 +1590,8 @@ mod tests {
         }
     }
 
-    /// Review B11 and the P3 pilot: the `tk` environment places Tk
-    /// **ambient** (a `wish` shell has already loaded it — no `package
+    /// The `tk` environment places Tk **ambient** (a `wish` shell has
+    /// already loaded it — no `package
     /// require Tk` exists to write) on Tk's **own** version axis, never
     /// `tracks-base`. Every plain-Tcl environment places the same package
     /// **hosted**, which is what makes `Tk` a library with an ambient
@@ -1625,7 +1625,7 @@ mod tests {
     /// declares that it *can* host Tk without shipping it, so "can this
     /// environment host Tk?" is a placement query with no lenient special
     /// case, and a release-pinned host derives the Tk point from its own
-    /// release (B11's named exemption) while the unpinned ones do not.
+    /// release (the one named exemption) while the unpinned ones do not.
     #[test]
     fn plain_tcl_environments_host_tk_without_shipping_it() {
         let registry = EnvironmentRegistry::compiled();
@@ -1775,10 +1775,10 @@ mod tests {
         );
     }
 
-    /// D17: the environments the bundled packs declare seed the compiled
-    /// registry at `Provenance::BundledPack`, and their names are reserved
-    /// one step below the built-in ones — restatable by the bundled tier,
-    /// refused from every other.
+    /// The environments the bundled packs declare seed the compiled
+    /// registry at `Provenance::BundledPack` (redesign D17), and their
+    /// names are reserved one step below the built-in ones — restatable by
+    /// the bundled tier, refused from every other.
     #[test]
     fn bundled_pack_names_are_reserved_below_the_bundled_tier() {
         let seeded = bundled_pack_definitions();
@@ -1831,10 +1831,9 @@ mod tests {
         );
     }
 
-    /// D17's residue, held equal: the six vendor `DialectProfile` rows stay
-    /// compiled as the lexer's grammar key (ledger D5) and the editor
-    /// catalogues' key (D15), so each must agree with the pack-declared
-    /// environment on every identity fact both carry.
+    /// The six vendor `DialectProfile` rows stay compiled as the lexer's
+    /// grammar key and the editor catalogues' key, so each must agree with
+    /// the pack-declared environment on every identity fact both carry.
     #[test]
     fn every_bundled_environment_agrees_with_its_catalogue_profile() {
         let seeded = bundled_pack_definitions();

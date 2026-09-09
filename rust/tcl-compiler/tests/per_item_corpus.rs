@@ -134,12 +134,13 @@ fn per_item_matches_analyse_over_corpus() {
     );
 }
 
-/// CI-runnable slice of the byte-identity gate (issue #1123): the corpus
-/// gates in this file are `#[ignore]`d (they need the fetched `tmp/` trees),
-/// which let the contract rot unnoticed for months.  This one walks the
-/// repo's **own** `samples/**/*.tcl` — checked in, deterministic, always
-/// present — so every ordinary `cargo test` run re-proves `analyse_per_item
-/// == analyse` over real files, not just the unit fixtures.
+/// CI-runnable slice of the byte-identity gate: the corpus gates in this
+/// file are `#[ignore]`d (they need the fetched `tmp/` trees), so without a
+/// substitute that runs by default the contract could rot unnoticed.  This
+/// one walks the repo's **own** `samples/**/*.tcl` — checked in,
+/// deterministic, always present — so every ordinary `cargo test` run
+/// re-proves `analyse_per_item == analyse` over real files, not just the
+/// unit fixtures.
 #[test]
 fn per_item_matches_analyse_over_repo_samples() {
     let dialect = "tcl8.6";

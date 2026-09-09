@@ -339,8 +339,7 @@ pub enum WordOpacity {
     /// ordinary text, so such a word would otherwise decompose to a single
     /// `Text` part and be promoted to [`WordExpr::Literal`] — and lowering
     /// would emit the *spelling* `$(1+2)` instead of evaluating it. The word
-    /// is opaque instead, which is what the pre-#1785 fragment walk produced
-    /// (a `Template` whose only part was opaque).
+    /// is opaque instead.
     DialectSubstitution,
 }
 
@@ -351,9 +350,9 @@ pub enum WordOpacity {
 /// static analysis (`eval`, a dynamic-body `catch`, `return -code …`), so
 /// codegen dispatches it. The CFG builder also inserts statements that carry
 /// only a `defs` list or a widening effect, and codegen must never emit an
-/// invoke for one of *those*: before issue #1602's fix the caller-frame
-/// widening reused the callee's own name, so
-/// `proc p {} { upvar 1 {a b} v ; puts "u=$v" }; p` invoked `p` twice and
+/// invoke for one of *those*: a caller-frame widening that reused the
+/// callee's own name would make
+/// `proc p {} { upvar 1 {a b} v ; puts "u=$v" }; p` invoke `p` twice and
 /// printed its body's output twice where tclsh 8.6.16 / 9.0.4 print it once.
 ///
 /// The identity has to be **typed**, which is why this enum exists rather than
@@ -395,13 +394,13 @@ pub enum SyntheticMarker {
     /// on a statement of its own because the host statement cannot hold them.
     UpvarInvalidate,
     /// A callee that runs an unreadable script at the global frame
-    /// (`uplevel #0 $body`, issue #1198): it can write any global or namespace
+    /// (`uplevel #0 $body`): it can write any global or namespace
     /// name, so the site widens instead of enumerating defs.
     GlobalFrameScript,
     /// A callee whose caller-frame `upvar` alias cannot be placed
     /// (`upvar 1 $computed x`): it can write any caller variable, so the call
     /// site widens. It sits *beside* the call it widens for, which is why
-    /// naming the callee on it made codegen run the callee twice (issue #1602).
+    /// naming the callee on it would make codegen run the callee twice.
     CallerFrameOpaque,
 }
 
@@ -535,8 +534,8 @@ impl CommandTokens {
         }
     }
 
-    /// Build compatibility token data when only the historical parallel
-    /// arrays are available.
+    /// Build compatibility token data when only the parallel arrays are
+    /// available.
     ///
     /// New source lowering should use [`Self::from_segmented`]. This adapter
     /// intentionally produces opaque word nodes for data that cannot preserve
@@ -591,7 +590,7 @@ impl CommandTokens {
     ///
     /// Synthetic codegen snapshots may intentionally omit representative spans
     /// or argv text, so this checks the one invariant the semantic sidecar
-    /// requires rather than imposing a stronger invariant on historical
+    /// requires rather than imposing a stronger invariant on compatibility
     /// consumers.
     #[must_use]
     pub fn words_align_with_argv_text(&self) -> bool {
@@ -615,8 +614,7 @@ impl CommandTokens {
     ///
     /// The one definition of this question in the compiler — the dynamic-name
     /// barrier, the place bridge, the inliner's literal-argument binding and
-    /// the def/use naming layer all ask it here rather than re-deriving it
-    /// (issue #1078).
+    /// the def/use naming layer all ask it here rather than re-deriving it.
     #[must_use]
     pub fn arg_is_braced_literal(&self, idx: usize) -> bool {
         self.argv_kinds.get(idx + 1) == Some(&tcl_lexer::TokenType::Str)
@@ -791,8 +789,8 @@ impl Script {
 }
 
 /// Depth cap for [`for_each_statement`]'s recursion over nested
-/// `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch`/`uplevel` bodies —
-/// issue #996. Transitively bounded today via `MAX_LOWER_NEST_DEPTH` (every
+/// `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch`/`uplevel` bodies.
+/// Transitively bounded via `MAX_LOWER_NEST_DEPTH` (every
 /// `Script` this crate hands to `for_each_statement` was built by
 /// [`crate::lowering`], which already caps its own construction at 256 and
 /// emits a `Statement::Barrier` past that point), capped here independently
@@ -979,7 +977,7 @@ pub struct ForeachIterator {
     /// is the same distinction [`Statement::AssignConst::braced`],
     /// [`Statement::Return::braced`] and
     /// [`CommandTokens::arg_is_braced_literal`] carry for their own
-    /// words (issue #1260).
+    /// words.
     pub list_braced: bool,
 }
 
@@ -1001,7 +999,7 @@ pub enum Statement {
         /// array-element target's key (`a($x)`) must be pushed
         /// LITERALLY (`$x` stays `$x`) rather than substituted — and,
         /// conversely, a *non*-braced name word still has its backslash
-        /// escapes to decode before it is a variable name (issue #1616).
+        /// escapes to decode before it is a variable name.
         /// Mirrors the `braced` precedent on [`Self::Return`].
         /// Defaults to `false` for every construction site except
         /// the `set` lowering hook (only it knows the source token
@@ -1417,12 +1415,11 @@ pub enum Statement {
         ///
         /// `raw_args` are *values*, and a value cannot say how it was written,
         /// so the emitter that pushes them has no way to tell a braced word's
-        /// literal content from a bare word that still substitutes. It used to
-        /// fabricate the flags — marking only a single braced arm list — and
-        /// everything else went out substituting: `switch -glob -- {a[bc]d}`
-        /// ran `bc`, and the pattern `{a\[bc\]d}` was decoded to `a[bc]d` and
-        /// matched as a character class, so it matched `abd` and not the
-        /// literal both oracles match.
+        /// literal content from a bare word that still substitutes. Fabricating
+        /// the flags — marking only a single braced arm list — sends everything
+        /// else out substituting: `switch -glob -- {a[bc]d}` runs `bc`, and the
+        /// pattern `{a\[bc\]d}` decodes to `a[bc]d` and matches as a character
+        /// class, so it matches `abd` and not the literal both oracles match.
         ///
         /// Empty when the flags are unknown (a hand-built statement), which the
         /// emitter reads as "none braced" — the prior behaviour.
@@ -1625,7 +1622,7 @@ impl MethodKind {
 
 /// Whole-module evidence about OO definitions the lowering could not
 /// statically model, grouped so consumers widen on exactly the right
-/// axis (issues #1164 / #1166).
+/// axis.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct OoDefinitionEvidence {
     /// An `oo::class create` / `oo::define` targeted a class whose name
@@ -1707,7 +1704,7 @@ pub struct Module {
     /// namespace, so a name it reads without writing is routinely defined
     /// elsewhere.  The read-before-set family (`W210`) therefore runs over
     /// this subset only — a lambda body is a closed frame and an unwritten
-    /// read in it is a genuine error (issue #1070).
+    /// read in it is a genuine error.
     pub lambda_body_units: std::collections::BTreeSet<String>,
     /// Procedure names that were defined more than once.
     pub redefined_procedures: std::collections::HashSet<String>,
@@ -1715,8 +1712,8 @@ pub struct Module {
     /// in-body redefinition replaces the body at runtime), keyed by
     /// method qname. [`Self::methods`] keeps the *first* body
     /// (last-definition-wins stays with the navigation layer); each
-    /// **replacement** body is retained here in definition order (issue
-    /// #1166), so analysis consumers — the SCCP method-dispatch barrier,
+    /// **replacement** body is retained here in definition order,
+    /// so analysis consumers — the SCCP method-dispatch barrier,
     /// O126 method purity — can scan every body a dispatch may run
     /// instead of abstaining on the mere fact of redefinition. The union
     /// of bodies over-approximates whichever is live at dispatch time,
@@ -1739,9 +1736,9 @@ pub struct Module {
     /// every argument as a class reference
     /// ([`tcl_registry::definer::MemberRefKind::Class`] — `superclass`,
     /// `mixin`). The written word is kept as written; consumers resolve it
-    /// against the module's class set conservatively (issue #1164: the
-    /// method-dispatch propagation barrier scopes itself to
-    /// hierarchy-connected classes instead of the whole module).
+    /// against the module's class set conservatively — the method-dispatch
+    /// propagation barrier scopes itself to hierarchy-connected classes
+    /// instead of the whole module.
     pub class_relations: Vec<(String, String)>,
     /// `namespace import` directives captured at lowering time —
     /// `(context_namespace, absolute_pattern)` pairs. Future codegen
@@ -1972,9 +1969,9 @@ mod tests {
         assert_eq!(seen, vec!["if", "inner1", "inner2"]);
     }
 
-    /// Regression coverage for issue #996: `for_each_statement` recurses
+    /// `for_each_statement` recurses
     /// once per nested `If`/`For`/`While`/`Foreach`/`Catch`/`Try`/`Switch`/
-    /// `UpFrame` body, with no depth cap of its own before this fix.
+    /// `UpFrame` body, so it needs a depth cap of its own.
     /// Transitively bounded to `MAX_LOWER_NEST_DEPTH` (256) by the lowering
     /// pass today (every `Script` this crate hands to `for_each_statement`
     /// is built by `crate::lowering`), so this is defence-in-depth /

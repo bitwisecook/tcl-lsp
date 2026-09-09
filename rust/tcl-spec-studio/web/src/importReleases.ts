@@ -99,7 +99,7 @@ export function initReleasesPanel(deps: ReleasesDeps): void {
     selected: new Set(),
   };
 
-  /* Staging archives ---------------------------------------------------- */
+  // Staging archives
 
   /** Unpack one archive's bytes and stage it as a release. */
   function stage(origin: string, bytes: Uint8Array, suggested: string): void {
@@ -193,7 +193,7 @@ export function initReleasesPanel(deps: ReleasesDeps): void {
     }
   }
 
-  /* Deriving the ranges -------------------------------------------------- */
+  // Deriving the ranges
 
   function run(): void {
     const problems = validateReleases(panel.releases);
@@ -311,7 +311,7 @@ export function initReleasesPanel(deps: ReleasesDeps): void {
     );
   }
 
-  /* The GitHub panel ----------------------------------------------------- */
+  // The GitHub panel
 
   function renderTags(): void {
     const list = byId("ghTags");
@@ -408,7 +408,7 @@ export function initReleasesPanel(deps: ReleasesDeps): void {
     );
   }
 
-  /* Wiring --------------------------------------------------------------- */
+  // Wiring
 
   const zipPicker = byId<HTMLInputElement>("zipPicker");
   const zipDrop = byId("zipDrop");

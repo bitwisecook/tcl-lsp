@@ -201,9 +201,9 @@ fn run_one(
 /// Expand `${NAME}` references from `vars`; unknown names expand to empty.
 ///
 /// Operates on `&str` slices (split at ASCII `${` / `}` boundaries, which are
-/// always char boundaries) rather than re-encoding each byte as a `char`, which
-/// mojibake-corrupted non-ASCII text — a hook `command = ["/opt/prüfer"]`
-/// became `/opt/prÃ¼fer`.
+/// always char boundaries) rather than re-encoding each byte as a `char`,
+/// which would corrupt non-ASCII text — a hook `command = ["/opt/prüfer"]`
+/// would otherwise become `/opt/prÃ¼fer`.
 fn expand(input: &str, vars: &HashMap<String, String>) -> String {
     let mut out = String::with_capacity(input.len());
     let mut rest = input;

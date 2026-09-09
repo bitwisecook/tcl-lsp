@@ -16,28 +16,26 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! End-to-end coverage for issue #996: `Analyser::analyse()` crashed the
+//! End-to-end coverage for the hazard: `Analyser::analyse()` can crash the
 //! whole process with an uncatchable stack overflow (SIGABRT) on Tcl source
 //! nested 100-150 levels deep.
 //!
-//! Root cause (confirmed empirically, not just inferred): the analyser's
-//! `analyse_body` recursion is correctly bounded by `MAX_BODY_DEPTH` (256 at
-//! the time), but 256 real Rust stack frames of that recursive chain need
-//! more stack
-//! than Tokio's default 2 MiB worker-thread stack provides — the thread the
-//! native LSP server actually runs analysis on via `tokio::spawn`. `ulimit -s
-//! 2048` against the *unfixed* binary reproduces a crash at nesting depth
-//! 130-140, an exact match for the reported range; `tcl-lsp-server/src/
-//! main.rs` now builds its Tokio runtime with a 64 MiB `thread_stack_size`,
-//! which eliminates it (verified: the same pathological input survives at
-//! every depth up to and well past the analyser's own cap).
+//! The analyser's `analyse_body` recursion is correctly bounded by
+//! `MAX_BODY_DEPTH` (256), but 256 real Rust stack frames of that recursive
+//! chain need more stack than Tokio's default 2 MiB worker-thread stack
+//! provides — the thread the native LSP server actually runs analysis on via
+//! `tokio::spawn`. `ulimit -s 2048` reproduces a crash at nesting depth
+//! 130-140 without the fix; `tcl-lsp-server/src/main.rs` builds its Tokio
+//! runtime with a 64 MiB `thread_stack_size`, which eliminates it (verified:
+//! the same pathological input survives at every depth up to and well past
+//! the analyser's own cap).
 //!
-//! Issue #1654 later closed the other half: a big stack made the *shipped*
-//! entry points safe, but the cap itself still did not fit the 2 MiB any
-//! ordinary caller gets, and the lowering walk — fatter per level than
-//! `analyse_body`, and never in this suite's frame — aborted on ~400 nested
-//! `foreach` bodies. The braced-body caps are now derived from that budget
-//! in `tcl_compiler::depth_guard`, so they trip before the stack runs out
+//! A big stack alone makes the *shipped* entry points safe, but the cap
+//! itself must still fit the 2 MiB any ordinary caller gets: the lowering
+//! walk — fatter per level than `analyse_body`, and never in this suite's
+//! frame — would abort on ~400 nested `foreach` bodies otherwise. The
+//! braced-body caps are derived from that budget in
+//! `tcl_compiler::depth_guard`, so they trip before the stack runs out
 //! rather than long after; the 64 MiB here remains as headroom.
 //!
 //! This suite drives the real, packaged native server (not the analyser
@@ -48,11 +46,11 @@
 //! thread hitting EOF, so a regression fails as an `await_diagnostics`
 //! timeout — loud, not a silent pass.
 //!
-//! The investigation this issue triggered found the same bug class in the
-//! formatter and minifier (`docs/design/compiler/
-//! recursive-descent-depth-limits.md`), both LSP-reachable (`textDocument/
-//! formatting`, the `tcl-lsp.minifyDocument` workspace command) — covered
-//! here too, driving the same real server process.
+//! The same bug class also affects the formatter and minifier
+//! (`docs/design/compiler/recursive-descent-depth-limits.md`), both
+//! LSP-reachable (`textDocument/formatting`, the `tcl-lsp.minifyDocument`
+//! workspace command) — covered here too, driving the same real server
+//! process.
 
 use serde_json::{Value, json};
 

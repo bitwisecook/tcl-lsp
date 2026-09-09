@@ -21,10 +21,10 @@ use crate::prelude::*;
 use tcl_dialect::model::SpecSurface;
 // `-onexit`/`-noexit` are Expect's own extensions to `exit`; core Tcl
 // `exit` takes only `?returnCode?` (exit(n)). They carry an explicit
-// `Some(EXPECT)` gate rather than inheriting the command's universal
-// `surface: None` (see below) — otherwise the inherited `None` would offer
-// these Expect-only flags as valid `exit` options under *every* dialect
-// (plain Tcl, iRules, the EDA vendors, …).
+// `Some(EXPECT)` gate rather than leaving `surface: None` to inherit the
+// command's own `Some(ALL_TCL)` (see below) — otherwise they would be
+// offered as valid `exit` options under every core Tcl dialect, not just
+// Expect.
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-onexit",
@@ -47,7 +47,8 @@ const OPTIONS: &[OptionSpec] = &[
 ];
 
 const FORMS: &[FormSpec] = &[
-    // The universal core-Tcl form (exit(n)): available in every dialect.
+    // The core-Tcl form (exit(n)): available under every dialect the
+    // command itself supports (`Some(ALL_TCL)` below).
     FormSpec {
         synopsis: "exit ?returnCode?",
         ..FormSpec::DEFAULT

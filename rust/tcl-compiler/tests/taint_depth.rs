@@ -1202,7 +1202,7 @@ mod irule3101_depth {
     #[test]
     fn not_classified_under_plain_tcl() {
         // The setter constraint is dialect-gated: a literal non-slash target
-        // under tcl8.6 emits nothing (defense-in-depth gate).
+        // under tcl8.6 emits nothing (defence-in-depth gate).
         assert!(of_code("HTTP::uri relativepath", D, "IRULE3101").is_empty());
     }
 }
@@ -1487,9 +1487,9 @@ mod sanitiser_breadth {
         // directly and treats every `$var` syntactically present in the sink
         // argument as flowing in — even one consumed by an embedded sanitiser.
         //
-        // FIXED: `emit_sink_warnings` now applies the embedded-sanitiser
-        // carve-out (mirroring the expr/word_taint path), so the sanitiser-
-        // consumed `$x` no longer false-fires T101.
+        // `emit_sink_warnings` applies the embedded-sanitiser carve-out
+        // (mirroring the expr/word_taint path), so a sanitiser-consumed `$x`
+        // does not false-fire T101.
         assert!(!has(
             "set x [read $fd]\nputs [string length $x]",
             D,

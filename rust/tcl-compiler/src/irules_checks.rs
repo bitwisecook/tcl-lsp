@@ -123,7 +123,7 @@ fn supports_normalized_flag(registry: &CommandRegistry, cmd: &str) -> bool {
 /// that is **provably** semantics-preserving for the instance it was built
 /// from belongs there.  A whitelist of diagnostic *codes* cannot express
 /// that, because the same code can produce an equivalent rewrite in one
-/// place and a behaviour-changing one in another (issue #1195).
+/// place and a behaviour-changing one in another.
 ///
 /// The classification is per **fix instance**, not per code.  An emitter
 /// that can prove equivalence for some inputs and not others must classify
@@ -2322,7 +2322,7 @@ mod tests {
         );
     }
 
-    // -- side-switch body descent + peer flip -----
+    // Side-switch body descent and peer flip.
 
     #[test]
     fn collect_inside_clientside_body_is_seen() {
@@ -2682,7 +2682,7 @@ mod tests {
 
     #[test]
     fn irule4004_registry_only_per_request_event_fires() {
-        // TP: the registry's per-request classification is the sole oracle —
+        // TP: the registry's per-request classification is the only source —
         // a compiler-local event list would not carry ASM_REQUEST_DONE.
         let ws = hoist_warnings(r#"when ASM_REQUEST_DONE { set svc "foo" }"#);
         assert!(
@@ -2887,7 +2887,7 @@ mod tests {
     #[test]
     fn irule4002_custom_patterns_replace_defaults() {
         // A custom pattern set replaces the defaults wholesale: `myapp_token`
-        // now fires, while the previously-generic `debug` goes quiet.
+        // fires, while `debug` — generic under the defaults — stays quiet.
         let patterns = vec![r"^myapp_".to_owned()];
         let ws = generic_warnings_with("when RULE_INIT { set static::myapp_token 1 }", &patterns);
         assert!(

@@ -19,9 +19,8 @@
 //! File-operation helpers: rewrite `source FILE` references when a
 //! sourced file is renamed.
 //!
-//! When a
-//! `.tcl` file is renamed, every dependent file that `source`s it
-//! (via a *literal* path) gets its path literal rewritten so the
+//! When a `.tcl` file is renamed, every dependent file that `source`s
+//! it (via a *literal* path) gets its path literal rewritten so the
 //! workspace still loads.  `compute_rename_edits` is pure and
 //! returns byte-span edits keyed by dependent URI; the server resolves
 //! the spans to LSP ranges against each dependent's current text and
@@ -160,14 +159,14 @@ fn hex_val(b: u8) -> Option<u8> {
 /// `old_path`, or `None` if it does not resolve.  Candidate bases (for the
 /// relative case) are the script's own directory first, then each workspace
 /// root; an absolute literal resolves only to itself (base unused, reported as
-/// `""`).  The pure analog of the filesystem `isfile` probes — a match against
+/// `""`).  The pure analogue of the filesystem `isfile` probes — a match against
 /// *any* candidate counts, since the renamed file is known to exist at
 /// `old_path`.
 ///
 /// The matched base is returned (not just a bool) so the rewrite re-relativises
 /// the literal against the *same* base it matched under: a literal matched via
 /// a workspace root must stay root-relative, not be recomputed against the
-/// script's directory (issue 178).
+/// script's directory.
 fn matched_base(raw: &str, dep_path: &str, roots: &[String], old_path: &str) -> Option<String> {
     if raw.starts_with('/') {
         return (normpath(raw) == old_path).then(String::new);
@@ -357,8 +356,7 @@ mod tests {
         // Without a workspace root it isn't matched; with one it is, and the
         // rewrite re-relativises against the *same* base it matched under (the
         // root) — so `helper.tcl` → `helper2.tcl`, staying root-relative, not
-        // `../helper2.tcl` (which would resolve elsewhere at runtime, issue
-        // 178).
+        // `../helper2.tcl` (which would resolve elsewhere at runtime).
         let idx = index_of("file:///proj/sub/main.tcl", "source helper.tcl\n");
         let no_root = compute_rename_edits(
             "file:///proj/helper.tcl",

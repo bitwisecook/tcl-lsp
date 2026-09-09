@@ -210,17 +210,16 @@ impl CodegenCtx<'_> {
     ///   and `push_array_key` resolves the key at run time; the escape-only
     ///   base is still decoded.
     ///
-    /// Two divergences close here. Not decoding put the variable in the table
-    /// under its source spelling, so a read through one spelling missed a write
-    /// through the other (issue #1616); not pushing the resolved name verbatim
-    /// let `subst_word` substitute it a *second* time — stripping a name's
-    /// outer braces, reading a `${…}` inside it, and running a `[…]` inside it
-    /// (issue #1602).
+    /// Two divergences close here. Not decoding puts the variable in the table
+    /// under its source spelling, so a read through one spelling misses a write
+    /// through the other; not pushing the resolved name verbatim lets
+    /// `subst_word` substitute it a *second* time — stripping a name's outer
+    /// braces, reading a `${…}` inside it, and running a `[…]` inside it.
     ///
-    /// Oracle — identical on tclsh 8.4.20, 8.5.19, 8.6.14, 9.0.4 and 9.1:
+    /// Identical on tclsh 8.4.20, 8.5.19, 8.6.14, 9.0.4 and 9.1:
     ///
     /// ```text
-    /// # issue #1616 — the name is the word's value, not its spelling
+    /// # the name is the word's value, not its spelling
     /// set "z1\\" A ; set "z2\}" B ; set "z3\ x" C ; set z4\\ D ; set {z5\\} E
     /// set "z6\x41" F ; set "z7\t" G
     /// foreach n [lsort [info vars z*]] { puts "$n len=[string length $n]" }
@@ -232,7 +231,7 @@ impl CodegenCtx<'_> {
     ///     z6A len=3      (quoted `\x41`)
     ///     z7<TAB> len=3  (quoted `\t`)
     ///
-    /// # issue #1602 — the resolved name is never substituted again
+    /// # the resolved name is never substituted again
     /// set {{a}} V ; set {a[bogus]} V ; set {${x}} V ; set arr({k}) V
     /// ->  variables `{a}` (len 3), `a[bogus]` (len 8) and `${x}` (len 4),
     ///     plus `arr` with the single key `{k}` (len 3) — no command runs,
@@ -447,9 +446,9 @@ impl CodegenCtx<'_> {
         // <cond>`), so matching on the name silently dropped such a call.
         //
         // Dispatching a *marker*, conversely, either duplicates the callee's
-        // side effects (issue #1602: the caller-frame barrier used to reuse
-        // the callee's own name, so `proc p {} { upvar 1 {a b} v ; puts
-        // "u=$v" }; p` printed twice) or reaches the VM as an invalid command
+        // side effects — a caller-frame barrier reusing the callee's own name
+        // makes `proc p {} { upvar 1 {a b} v ; puts "u=$v" }; p` print twice —
+        // or reaches the VM as an invalid command
         // name (`invalid command name "<global-frame-script>"`).
         if let Some(marker) = tokens.and_then(|t| t.synthetic) {
             if marker == crate::ir::SyntheticMarker::EmptyClause {
@@ -515,11 +514,11 @@ impl CodegenCtx<'_> {
             } => {
                 // Each word goes out the way it was written. A braced word is
                 // data — its `[…]` / `${…}` must not run — and that is true of
-                // every position, not just the trailing arm list this used to
-                // special-case: `switch -glob -- {a[bc]d} {a\[bc\]d} …` ran
-                // `bc` for the subject, and decoded the pattern to `a[bc]d`,
-                // which then matched as a character class rather than as the
-                // literal both oracles match.
+                // every position, not just the trailing arm list: otherwise
+                // `switch -glob -- {a[bc]d} {a\[bc\]d} …` runs `bc` for the
+                // subject, and decodes the pattern to `a[bc]d`, which then
+                // matches as a character class rather than as the literal both
+                // oracles match.
                 //
                 // `raw_arg_braced` is the lexer's answer, carried through the
                 // IR because `raw_args` are values and a value cannot say how
@@ -629,8 +628,7 @@ impl CodegenCtx<'_> {
             return;
         }
         // The `[list …]` / `[format …]` / `[dict create …]` folds and the two
-        // `list` inlinings — shared with `emit_value`, which carried an
-        // identical copy of them (issues #1427 / #1585).
+        // `list` inlinings — one copy, shared with `emit_value`.
         if self.try_emit_constant_fold(value) {
             return;
         }
@@ -656,9 +654,9 @@ impl CodegenCtx<'_> {
         // substitution (e.g. `"{[list …]}"`, `"{$z}"`): the braces are literal
         // word content and the `[…]` / `${…}` must run, but pushing the value
         // raw would let the runtime `subst_word` mistake it for a braced
-        // literal, strip the braces and hand back the *unsubstituted* inside —
-        // `puts "{$z}"` printed `${z}`, and `set q "{$z}"` stored four bytes
-        // where both oracles store three. This is the marker-carrying half of
+        // literal, strip the braces and hand back the *unsubstituted* inside:
+        // `puts "{$z}"` would print `${z}`, and `set q "{$z}"` would store four
+        // bytes where both oracles store three. This is the marker-carrying half of
         // the value rule `push_word_value` states: a value the runtime still
         // owns cannot simply be frozen, so it is resolved here instead. A
         // genuine braced argument never reaches here (it is emitted by the
@@ -836,7 +834,7 @@ impl CodegenCtx<'_> {
     /// ([`push_lit_exact`](Self::push_lit_exact)): the VM must not run word
     /// substitution over a name it has already resolved, or it strips a name's
     /// outer braces (`set {{a}} V` creating `a` instead of `{a}`), reads a
-    /// `${…}` inside one, and runs a `[…]` inside one (issue #1602). The
+    /// `${…}` inside one, and runs a `[…]` inside one. The
     /// literal bytes are unchanged — only the out-of-band `push_verbatim` flag
     /// differs — so the disassembly is byte-stable.
     ///

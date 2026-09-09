@@ -140,8 +140,8 @@ pub fn inlay_hints(
 ///
 /// The parameter-name hints are labelled from *the proc the call actually
 /// reaches*, so a `namespace import -force` whose covering `namespace export`
-/// lives in another file changes which parameter names are correct here
-/// (issue #1116 item 1).  Hinting the shadowed local proc's parameters over a
+/// lives in another file changes which parameter names are correct here.
+/// Hinting the shadowed local proc's parameters over a
 /// call that runs the imported one is a wrong answer, not a missing one.
 ///
 /// `resolution` carries the registry and the oracle together rather than as
@@ -512,11 +512,11 @@ fn regsub_short(c: char) -> Option<&'static str> {
 /// The format-string words of one segmented command, as `(argv index,
 /// family)` pairs, resolved entirely from the registry.
 ///
-/// This used to be a second, independent copy of the format-family dispatch
-/// the semantic-token walk carried — `match head { "format" => …, "scan" =>
-/// …, "binary" => …, "clock" => …, "regsub" => … }`, each re-deriving its own
-/// argument layout, and neither firing for the explicitly global spellings
-/// C Tcl resolves to the same commands (issue #1185). Both now read one
+/// A second, independent copy of the format-family dispatch — `match head {
+/// "format" => …, "scan" => …, "binary" => …, "clock" => …, "regsub" => … }`,
+/// each re-deriving its own argument layout — would not fire for the
+/// explicitly global spellings C Tcl resolves to the same commands. This and
+/// the semantic-token walk read one
 /// registry answer, so they cannot drift.
 fn format_args(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
@@ -532,7 +532,7 @@ fn format_args(
     // Resolve the head's *effective command identity* first, exactly as the
     // semantic-token walk does, so a call through a proven `interp alias` /
     // `rename` gets the target's format family and a `rename`d-away or
-    // `proc`-shadowed spelling gets none (issue #1185).
+    // `proc`-shadowed spelling gets none.
     let resolved = identities.resolve(head, tok.span.start()).spec_name();
     let source_args = segmented_command_arguments(seg);
     registry
@@ -1220,7 +1220,7 @@ mod tests {
         assert_eq!(hints[0].position_line, 2);
     }
 
-    /// Issue #1160: a command whose span falls entirely outside the
+    /// A command whose span falls entirely outside the
     /// requested range must never reach `lookup_proc` or the registry
     /// synopsis lookup. There is no call counter to assert against through
     /// the public API, so this is parity: the narrow-range result must equal
@@ -1279,9 +1279,8 @@ mod tests {
         tcl_registry::CommandRegistry::build_default()
     }
 
-    /// Regression coverage for issue #996: `walk_scope_type_hints`
-    /// recurses once per nested namespace/proc scope, with no depth cap
-    /// before this fix (`MAX_SCOPE_WALK_DEPTH`, `crate::lib`). 80 nested
+    /// `walk_scope_type_hints` recurses once per nested namespace/proc
+    /// scope, capped by `MAX_SCOPE_WALK_DEPTH` (`crate::lib`). 80 nested
     /// `namespace eval` levels is past the point (confirmed empirically:
     /// 100+) where unguarded namespace-scope recursion overflows `cargo
     /// test`'s bare ~2 MiB per-test default. The assertion is that
@@ -1850,7 +1849,7 @@ mod tests {
         );
     }
 
-    /// Issue #1185: format hints follow the head's *effective command
+    /// Format hints follow the head's *effective command
     /// identity*, so a proven `interp alias` / `rename` of a format-family
     /// command hints like the original — and a spelling whose binding was
     /// taken over hints not at all.

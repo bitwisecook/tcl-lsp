@@ -103,7 +103,7 @@ const FORMS: &[FormSpec] = &[
 
 /// Command spec for `global`.
 /// `global name ?name ...?` declares *every* argument, not just the first:
-/// the unbounded tail a fixed index table cannot express (issue #1185).
+/// the unbounded tail a fixed index table cannot express.
 static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout::every(ArgRole::VarWrite, 0)];
 
 pub fn spec() -> CommandSpec {

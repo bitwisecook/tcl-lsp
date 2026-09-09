@@ -59,10 +59,10 @@ suite("Code Lens", () => {
     }
   });
 
-  // Regression for issue #637 / PR #644: the reference-count title must match
-  // the actual references, including a call written before its definition
-  // (which resolves to null at analysis time), and a bare call must be
-  // attributed only to the same-named proc in its own namespace.
+  // The reference-count title must match the actual references, including a
+  // call written before its definition (which resolves to null at analysis
+  // time), and a bare call must be attributed only to the same-named proc in
+  // its own namespace.
   test("reference count matches resolution for forward and namespaced calls", async () => {
     const refsUri = getDocUri("codeLensRefs.tcl");
     await activate(refsUri);
@@ -117,11 +117,10 @@ suite("Code Lens", () => {
     );
   });
 
-  // Regression for issue #923: the reference-count lens above a proc nested
-  // two `namespace eval` levels deep must count a call embedded in a Tk
-  // `bind` callback script, whether the call is written fully-qualified
-  // (the reported symptom — the lens showed "0 references") or bare (called
-  // from inside the proc's own namespace).
+  // The reference-count lens above a proc nested two `namespace eval` levels
+  // deep must count a call embedded in a Tk `bind` callback script, whether
+  // the call is written fully-qualified or bare (called from inside the
+  // proc's own namespace).
   test("reference count is correct for procs called from a bind callback in a nested namespace", async () => {
     const refsUri = getDocUri("issue923NestedNamespace.tcl");
     await activate(refsUri);
@@ -154,8 +153,7 @@ suite("Code Lens", () => {
     }
 
     // Line 2: called only by its fully-qualified name from inside the
-    // `bind` callback script (line 8) — this is the exact shape the issue
-    // reported as "0 references".
+    // `bind` callback script (line 8).
     assert.strictEqual(
       titleByLine.get(2),
       "1 reference",
@@ -170,20 +168,18 @@ suite("Code Lens", () => {
     );
   });
 
-  // Regression for issue #864: the reference-count lens above a TclOO method
-  // must count external `$obj method` dispatch, not just intra-class calls.
-  // `puts [$b get foo]` (with `set b [Bar new]`) is one reference to `get`.
-  // Also the exact repro shape from issue #956 — a `variable` and
-  // `constructor` declared before the `method`, the method body reading the
-  // instance variable — so this doubles as the #956 regression: the lens
-  // must resolve to a *clickable* `tcl-lsp.showReferences` command, not the
-  // count-only-but-inert shape the #724 defect left for methods
-  // specifically (proc/class lenses were fixed under #724; methods were not,
-  // until #956).
+  // The reference-count lens above a TclOO method must count external
+  // `$obj method` dispatch, not just intra-class calls. `puts [$b get foo]`
+  // (with `set b [Bar new]`) is one reference to `get`. This also covers a
+  // `variable` and `constructor` declared before the `method`, with the
+  // method body reading the instance variable: the lens must resolve to a
+  // *clickable* `tcl-lsp.showReferences` command, not a count-only, inert
+  // shape. Proc and class lenses already resolve to a clickable command;
+  // method lenses are a distinct code path and must match that behaviour.
   test("method lens counts external \\$obj method dispatch and is clickable", async () => {
     const refsUri = getDocUri("codeLensMethodRefs.tcl");
     await activate(refsUri);
-    // Since #956, method / classmethod lenses resolve lazily the same way
+    // Method / classmethod lenses resolve lazily the same way
     // proc/class lenses do — `executeCodeLensProvider`'s resolveCount arg
     // drives VS Code to call `codeLens/resolve` itself, so poll until the
     // lenses on the member lines under test carry a resolved command.
@@ -239,8 +235,7 @@ suite("Code Lens", () => {
     );
   });
 
-  // Regression for issue #956 (a distinct gap found while fixing the method
-  // lens's clickability): a `classmethod` dispatches on the *class's own*
+  // A `classmethod` dispatches on the *class's own*
   // command (`Factory make`) — never on an instance — so the reference count
   // and lens above `classmethod make` must count that bare dispatch too, and
   // the lens must resolve to a clickable command exactly like an instance
@@ -296,7 +291,7 @@ suite("Code Lens", () => {
     );
   });
 
-  // Regression for issue #724: the reference-count lens must be *clickable* —
+  // The reference-count lens must be *clickable* —
   // its resolved command must invoke `tcl-lsp.showReferences` with the URI,
   // anchor position, and reference locations. A bare title with no command is
   // rendered but inert ("reference is not active").

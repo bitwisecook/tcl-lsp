@@ -122,10 +122,9 @@ fn dynamic_callback_head_is_not_recorded() {
     );
 }
 
-/// A braced multi-word prefix (`{cb extra}`) — previously silently dropped
-/// entirely, per the module doc's former "out of scope" note — must now be
-/// recorded exactly like a bareword head, with the head's own span (not the
-/// whole braced literal) and its trailing words counted as baked arguments.
+/// A braced multi-word prefix (`{cb extra}`) is recorded exactly like a
+/// bareword head, with the head's own span (not the whole braced literal) and
+/// its trailing words counted as baked arguments.
 #[test]
 fn braced_multi_word_prefix_records_head_span_and_baked_count() {
     let mut a = tcl_compiler::analyser::Analyser::new();
@@ -298,9 +297,8 @@ fn regsub_command_prefix_fires_w123_only_when_unknown() {
 fn coroprobe_records_reference_but_never_arity_checks() {
     // `coroprobe`'s appended arity is Unknown (depends on the yield point), so
     // the injected command is a reference/W123 surface but is never arity-checked.
-    // (`coroinject`, once this test's exemplar, was moved off `Unknown` to the
-    // verified `Exactly(2)` its own implementation always appends — see
-    // `coroinject.rs` — so it no longer demonstrates this FP guard.)
+    // (`coroinject` is not the exemplar here: its own implementation always
+    // appends a verified `Exactly(2)` — see `coroinject.rs`.)
     let reg = CommandRegistry::build_default();
     let src = "proc worker {args} { yield }\nproc kick {c} {\n    coroprobe $c worker extra\n}\n";
     let g = graphs::call_graph(
@@ -370,10 +368,9 @@ fn tcllib_calculus_func_records_reference_with_fixed_arity() {
     );
 }
 
-/// Tk `script()→command_prefix` conversion (highest-risk change).  A bareword
-/// user-proc scroll/scale callback that was previously *invisible* (script
-/// recursion never recorded a single-word head) is now a first-class reference
-/// + call-graph edge.
+/// Tk `script()→command_prefix` conversion.  A bareword user-proc
+/// scroll/scale callback is a first-class reference + call-graph edge; script
+/// recursion alone never records a single-word head.
 #[test]
 fn tk_scale_command_bareword_head_is_a_callback_edge() {
     let reg = CommandRegistry::build_default();
@@ -685,7 +682,7 @@ fn struct_tree_walkproc_trailing_prefix_is_recorded() {
     );
 }
 
-/// Issue #923 differential audit, finding idx 47 — the `trace` idiom Tk's own
+/// The `trace` idiom Tk's own
 /// `etrace.tcl` writes verbatim: `trace add variable V write [list handler
 /// baked…]`.  The general `[list HEAD …]` mechanism is covered above via
 /// `lsort -command`; this pins the trace-specific spelling, whose head sits in
@@ -792,7 +789,7 @@ fn trace_add_variable_write_list_prefix_with_a_dynamic_head_is_not_recorded() {
     );
 }
 
-// The issue #1706 parity control. `fcopy -command` and `chan copy -command`
+// The parity control. `fcopy -command` and `chan copy -command`
 // are one contract with two spellings — chan.n says the subcommand is
 // "identical to fcopy" — so a consumer that finds the callback through one and
 // not the other is the drift the coverage gate exists to catch. The manifest
@@ -830,8 +827,7 @@ fn fcopy_command_option_is_a_callback_edge() {
 }
 
 /// The same source with `chan copy` in place of `fcopy`. Both spellings must
-/// answer identically — a difference here is exactly the regression the stale
-/// report in issue #1706 claimed.
+/// answer identically.
 #[test]
 fn chan_copy_command_option_matches_fcopy() {
     let reg = CommandRegistry::build_default();

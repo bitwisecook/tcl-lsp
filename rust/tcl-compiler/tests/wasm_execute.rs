@@ -276,7 +276,7 @@ fn emitted_control_flow_runs_the_right_commands() {
         return;
     }
 
-    // ----- conditions false (else arms taken, loops exit immediately) -----
+    // Conditions false (else arms taken, loops exit immediately).
     // Linear: both commands run, in order.
     assert_eq!(
         run_capture("set x 5\nputs $x\n", 0, "lin"),
@@ -300,7 +300,7 @@ fn emitted_control_flow_runs_the_right_commands() {
         "set i 0\n"
     );
 
-    // ----- conditions true (then arms taken) -----
+    // Conditions true (then arms taken).
     // if/else → the then arm.
     assert_eq!(
         run_capture("if {1} {puts a} else {puts b}\n", 1, "ifT"),
@@ -321,7 +321,7 @@ fn emitted_control_flow_runs_the_right_commands() {
 /// A leaf command's **completion code** is honoured, not swallowed:
 /// an `error`/`return` unwinds the compiled function and a
 /// `break` re-enters the enclosing loop's exit — so an abrupt code inside a
-/// compiled `while` no longer loops forever or runs dead code. The recording
+/// compiled `while` must not loop forever or run dead code. The recording
 /// host forces `tcl_expr_bool` to `1` (guard true) and `tcl_eval_code` to the
 /// code under test, so a *swallowed* code would iterate the `while {1}` forever;
 /// the tests terminate precisely because the code is honoured.
@@ -367,9 +367,9 @@ const TABLE_HOST_WAT: &str = r#"(module
     (call_indirect (type $slot_t) (local.get $slot))))
 "#;
 
-/// A module in the shape issue #1774 emits: import the runtime's table, grow
-/// it, keep the base in a global, install a function of its own, and have the
-/// host call it back through the table.
+/// A module in the shape the table-install codegen emits: import the
+/// runtime's table, grow it, keep the base in a global, install a function of
+/// its own, and have the host call it back through the table.
 ///
 /// The installed function is deliberately **not** exported, so the declarative
 /// element segment is the only thing making its `ref.func` legal — which is

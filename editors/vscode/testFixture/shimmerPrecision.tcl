@@ -1,6 +1,6 @@
-# S100/S101 shimmer precision fixture: TP/FP/TN/FN cases from the deep
-# shimmer review (interp alias, TclOO, namespace eval, write-traces,
-# suppression directives).
+# S100/S101 shimmer precision fixture: true/false positive and negative
+# cases covering interp alias, TclOO, namespace eval, write-traces, and
+# suppression directives.
 
 # True case: a committed dict intrep gets shimmered to a list by lindex.
 proc shimmer_true_case {} {

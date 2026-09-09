@@ -96,7 +96,7 @@ pub const SMALL_BODY_THRESHOLD: usize = 5;
 
 /// Depth cap shared by every `Script`/`Statement`-tree recursion in this
 /// module (`tally_calls`, `has_irreturn_in_unsafe_scope`,
-/// `walk_local_writes`) — issue #996.
+/// `walk_local_writes`).
 ///
 /// Transitively bounded today via `crate::lowering`'s
 /// `MAX_LOWER_NEST_DEPTH` (every `Script` this module walks is built by

@@ -780,11 +780,11 @@ fn links_source_uri_is_percent_encoded() {
     }
 }
 
-// Computed `source` paths — issue #1140 idx 41. The provider used to fall
-// through to treating the *raw unevaluated Tcl text* as a literal path, then
-// percent-encode it onto the workspace root, producing a syntactically valid
-// but semantically bogus `file://` URI. It now resolves what the source
-// graph's own evaluator can resolve, and emits nothing otherwise.
+// Computed `source` paths. Treating the *raw unevaluated Tcl text* as a
+// literal path and percent-encoding it onto the workspace root produces a
+// syntactically valid but semantically bogus `file://` URI. The provider
+// resolves what the source graph's own evaluator can resolve, and emits
+// nothing otherwise.
 
 fn links_in(src: &str, script_path: &str) -> Vec<DocumentLink> {
     let root = script_path.rsplit_once('/').map_or("/", |(dir, _)| dir);
@@ -824,8 +824,8 @@ fn fp_a_bare_variable_source_path_produces_no_link() {
 
 #[test]
 fn tp_info_script_based_paths_resolve_through_the_source_graph_evaluator() {
-    // TP — `[file dirname [info script]]` is what the source graph already
-    // evaluates for the M9 rehoming edges; the link provider consumes the
+    // TP — `[file dirname [info script]]` is what the source graph
+    // evaluates for its rehoming edges; the link provider consumes the
     // same evaluator instead of growing a second one.
     let src = "source [file join [file dirname [info script]] lib helper.tcl]\n";
     let links = links_in(src, "/proj/test/all.tcl");
@@ -907,7 +907,7 @@ fn actions_catch_without_result_var_offers_capture_fixes() {
     // analyser's, computed from the argument tokens: the diagnostic itself
     // spans only the `catch` keyword, so a provider reconstructing the point
     // from the diagnostic's end writes the word before the body and turns the
-    // call into a catch of the script `result` (issue #1190).
+    // call into a catch of the script `result`.
     let src = "proc f {} {\n    catch {expr {1/0}}\n}\n";
     let analysis = analyse(src);
     // Sanity: the analyser actually flagged W302 here; otherwise this test

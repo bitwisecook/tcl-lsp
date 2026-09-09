@@ -25,10 +25,9 @@ import * as vsctm from "vscode-textmate";
 // TextMate grammar tokenisation tests.  These exercise the *static* syntax
 // grammar (editors/vscode/syntaxes/tcl.tmLanguage.json) directly — the layer
 // that colours code before/without the LSP's semantic tokens, and the only
-// layer GitHub and other TextMate consumers ever see.  Regression cover for
-// issue #759: a comment whose line ends in an unescaped backslash continues
-// onto the next physical line, and that continuation must stay coloured as a
-// comment.
+// layer GitHub and other TextMate consumers ever see.  A comment whose line
+// ends in an unescaped backslash continues onto the next physical line, and
+// that continuation must stay coloured as a comment.
 
 const GRAMMAR_PATH = path.resolve(__dirname, "../../syntaxes/tcl.tmLanguage.json");
 
@@ -173,7 +172,7 @@ suite("TextMate grammar: comment continuation (#759)", () => {
   });
 });
 
-// Regression cover for issue #749: the grammar recurses `source.tcl` into every
+// The grammar recurses `source.tcl` into every
 // brace group, so a bare control word (`for`, `else`, `in`, …) inside an unknown
 // command's braced *data* argument — e.g. `argparse -help {...}` — is coloured as
 // a keyword.  A context-free TextMate grammar cannot tell a script body from
@@ -221,12 +220,12 @@ suite("TextMate grammar: keywords inside unknown-command braces (#749)", () => {
   });
 });
 
-// Regression cover for issue #862: `lmap` carries the registry's
-// LANGUAGE_KEYWORD trait (it binds loop variables, like `foreach`), but the
-// grammar used to list it among the plain "common built-in commands"
-// (support.function.tcl) — so it visibly flipped colour between the
-// TextMate-only fallback and the LSP's semantic-token overlay. It now lives
-// in the same keyword.control.tcl alternation as foreach/for/while.
+// `lmap` carries the registry's LANGUAGE_KEYWORD trait (it binds loop
+// variables, like `foreach`); it must not be classified among the plain
+// "common built-in commands" (support.function.tcl), which would visibly
+// flip its colour between the TextMate-only fallback and the LSP's
+// semantic-token overlay. It belongs in the same keyword.control.tcl
+// alternation as foreach/for/while.
 suite("TextMate grammar: lmap is a control keyword, not a plain builtin (#862)", () => {
   let grammar: vsctm.IGrammar;
 
@@ -314,14 +313,14 @@ suite("TextMate grammar: generated lexical owners (#1469)", () => {
   });
 });
 
-// Issue #903: the grammar is the paint the user sees before the server answers,
+// The grammar is the paint the user sees before the server answers,
 // and the only paint anywhere the server never runs (GitHub/Linguist, a file too
 // large for semantic tokens, an editor with no extension). Where it disagrees
 // with the semantic-token layer, the colour visibly flips once the LSP replies.
 //
 // The semantic layer types proc/method parameters as `parameter`, TclOO class
-// names as `class` and method names as `method`. The grammar previously typed
-// none of them: it scoped a proc's *name* and nothing else. Sublime's bundled
+// names as `class` and method names as `method`. The grammar itself types
+// none of them: it scopes a proc's *name* and nothing else. Sublime's bundled
 // Tcl syntax has scoped proc parameters for years; the TextMate bundle scopes
 // neither, and no surveyed Tcl grammar scopes TclOO at all.
 suite("TextMate grammar: definitions agree with the semantic-token types (#903)", () => {
@@ -396,7 +395,7 @@ suite("TextMate grammar: definitions agree with the semantic-token types (#903)"
     assert.ok(scopes.includes("variable.parameter.tcl"), scopes.join(", "));
   });
 
-  // The guard from issue #637: a bareword `proc` used as a *value* must not
+  // A bareword `proc` used as a *value* must not
   // start a definition and swallow the following quote.
   test("a bareword 'proc' used as an argument does not start a definition", () => {
     const scopes = scopesForWord('dict set frame proc "x"', "proc");
@@ -407,8 +406,9 @@ suite("TextMate grammar: definitions agree with the semantic-token types (#903)"
     );
   });
 
-  // Issue #904. `throw` was a control keyword and `error` an ordinary library
-  // call, so the two halves of one construct came out in different colours.
+  // `catch`, `error`, and `throw` are one construct and must share the same
+  // colouring: treating `throw` as a control keyword and `error` as an
+  // ordinary library call would split the two halves into different colours.
   // Every Tcl grammar that *has* a function category agrees `error` is not one.
   test("catch, error and throw are all control keywords", () => {
     for (const [line, word] of [
@@ -444,11 +444,9 @@ suite("TextMate grammar: definitions agree with the semantic-token types (#903)"
   });
 });
 
-// Issue #903: `tcl-apl` and `tcl-bigip` were both contributed with
-// `tcl.tmLanguage.json` — the *Tcl* grammar, which contains no APL rule and no
-// BIG-IP rule. A `bigip.conf` was therefore painted with Tcl rules and then
-// replaced wholesale by a 34-type BIG-IP token stream once the server answered.
-// They now have their own grammars.
+// `tcl-apl` and `tcl-bigip` each have their own grammar, distinct from the
+// *Tcl* grammar (`tcl.tmLanguage.json`), which contains no APL rule and no
+// BIG-IP rule.
 //
 // The design rule these tests hold: the grammar may be *less specific* than the
 // semantic layer (it emits `entity.name.type.bigip` where the server can tell a
@@ -516,7 +514,7 @@ suite("TextMate grammars: BIG-IP config and APL (#903)", () => {
   // A `monitor` value is an EXPRESSION — `default` / `none` / `M1 and M2` /
   // `min N of { … }`. The simple `monitor <ref>` rule painted `min` as the
   // monitor object. The server types the whole expression, keywords and the
-  // count included, as `monitor` (#905 review).
+  // count included, as `monitor`.
   test("a monitor expression is not mistaken for a monitor reference", () => {
     const scopes = scopeMap(bigip, [
       "ltm pool /Common/p {",
@@ -621,7 +619,7 @@ suite("TextMate grammars: BIG-IP config and APL (#903)", () => {
   });
 });
 
-// Marked-up grammar fixtures (#903/#904).
+// Marked-up grammar fixtures.
 //
 // `src/test/grammarFixtures/*` are ordinary, valid source files in which each
 //

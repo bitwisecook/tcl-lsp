@@ -19,9 +19,10 @@
 //! Control-flow diagram extraction — walk the lowered IR and build the
 //! `{events, procedures}` flow tree used to render iRule diagrams.
 //!
-//! This is the shared, consumer-agnostic home for the diagram shape: the
-//! `tcl diagram` CLI verb and the `tcl_lsp_py` `PyO3` facade both build the
-//! *same* tree from this one implementation. Callers supply a resolved
+//! This is the shared, consumer-agnostic home for the diagram shape. The
+//! `tcl diagram` CLI verb, the LSP server, `tcl-mcp` and the BIG-IP report
+//! (through its `PyO3` facade) all build the *same* tree from this one
+//! implementation. Callers supply a resolved
 //! [`CommandRegistry`]; the only registry dependency is the `DIAGRAM_ACTION`
 //! trait (`CommandRegistry::is_diagram_action`).
 

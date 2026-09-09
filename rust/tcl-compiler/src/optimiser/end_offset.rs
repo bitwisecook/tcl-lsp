@@ -23,7 +23,7 @@
 //! `lindex $L end`, `string range $s 0 [expr {[string length $s] - 2}]`
 //! → `string range $s 0 end-1`, and so on. The rewrite only fires when
 //! the length command's argument is *textually identical* to the
-//! command's own list/string operand — otherwise `[llength $A]` used to
+//! command's own list/string operand: rewriting `[llength $A]` used to
 //! index `$B` would change semantics.
 //!
 //! Each statement's source slice is re-segmented (the IR `Statement`
@@ -140,7 +140,7 @@ fn collect_statement_spans(script: &Script, out: &mut Vec<Span>, depth: u32) {
 /// Emit O128 for any end-offset index in `cmd`, then recurse into the
 /// command's nested `[…]` substitutions.
 fn apply_to_command(ctx: &mut PassContext<'_>, cmd: &SegmentedCommand, depth: u32) {
-    // Native-stack safety net (issue #996): recurses into nested `[…]`
+    // Native-stack safety net: recurses into nested `[…]`
     // substitutions inside a command word, a genuinely unbounded axis. Past
     // the cap, stop descending — the only effect is that O128 opportunities
     // buried deeper than the cap go unreported; never a crash.
@@ -227,7 +227,7 @@ fn emit_for_command(ctx: &mut PassContext<'_>, cmd: &SegmentedCommand) {
         // The `Cmd` token span follows the lexer's inner-end convention, so
         // the full `[…]` substitution needs its closing `]`. Deriving that
         // as `end + 1` overshoots an empty `[]`, so it goes through the
-        // owner rather than by hand (issue #1423).
+        // owner rather than by hand.
         let span = tcl_lexer::word_span_at(ctx.source, idx_tok.span);
         ctx.report(Optimisation::new(
             DiagCode::O128,
@@ -396,14 +396,13 @@ mod tests {
         Some((slice, opt.replacement))
     }
 
-    /// Regression coverage for issue #996: `collect_statement_spans`
-    /// recurses once per nested `if`/`for`/`while`/`foreach`/`catch`/
-    /// `try`/`switch` body, with no depth cap of its own before this fix.
-    /// Transitively bounded to `MAX_LOWER_NEST_DEPTH` (256) by the
-    /// lowering pass today, so this is defence-in-depth / consistency with
-    /// every other full-tree walker in this crate, not a
+    /// `collect_statement_spans` recurses once per nested
+    /// `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch` body, so it needs a
+    /// depth cap of its own. Transitively bounded to `MAX_LOWER_NEST_DEPTH`
+    /// (256) by the lowering pass, so this is defence-in-depth / consistency
+    /// with every other full-tree walker in this crate, not a
     /// currently-reproducible crash. 1000 levels of source nesting is
-    /// comfortably past this new cap; the assertion is that `run_pass`
+    /// comfortably past that cap; the assertion is that `run_pass`
     /// returns at all, not what it returns. Spawns its own big-stack
     /// thread since the lexer/CST/segmenter stages upstream of the
     /// lowering cap still walk the full un-truncated source nesting before
@@ -431,10 +430,10 @@ mod tests {
             .unwrap();
     }
 
-    /// Regression coverage for issue #996: `apply_to_command` recurses once
+    /// `apply_to_command` recurses once
     /// per nested `[cmd …]` substitution inside a single command word (Tier
     /// 1B) — a genuinely unbounded axis, independent of the statement-tree
-    /// nesting cap. Empirically it overflowed the native stack (SIGABRT) in
+    /// nesting cap. Uncapped it overflows the native stack (SIGABRT) in
     /// the low thousands of levels on a 2 MiB thread. Segment a
     /// `foo [a [a [… [x] …]]]` word directly and drive the pass on it (the
     /// nesting lives in one argument word, so it never reaches lowering's

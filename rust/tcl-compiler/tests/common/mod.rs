@@ -286,9 +286,9 @@ pub fn describe_analysis_divergence(
 
 /// Deterministic first-difference pinpoint for the `Scope` tree: walks the two
 /// trees in lock-step (map fields through sorted key views, children in
-/// order) and names the path + field of the first divergence.  Replaces a
-/// `Debug`-line diff whose "first differing line" sampled whichever `HashMap`
-/// entry the hasher enumerated first — different every run.
+/// order) and names the path + field of the first divergence.  A `Debug`-line
+/// diff cannot: its "first differing line" is whichever `HashMap` entry the
+/// hasher enumerated first, and differs every run.
 fn first_scope_diff(
     got: &tcl_compiler::analyser::types::Scope,
     want: &tcl_compiler::analyser::types::Scope,

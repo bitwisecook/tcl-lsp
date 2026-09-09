@@ -92,8 +92,8 @@ pub fn fetch_tarball(url: &str, dest: &Path, timeout: u64) -> Result<(), TclPkgE
 /// hardlink skipping, and the 256 MiB uncompressed cap — and a singular
 /// top-level directory is stripped the same way, so a caller that already holds
 /// the bytes (a local `.zip` snapshot, say) gets the identical guarantees
-/// without a second implementation. Added for `tcl spec import`, which reads
-/// release archives off disk as well as off the network.
+/// without a second implementation. `tcl spec import` uses this to read
+/// release archives off disk as well as over the network.
 pub fn extract_archive(bytes: &[u8], dest: &Path, name_hint: &str) -> Result<(), TclPkgError> {
     std::fs::create_dir_all(dest)
         .map_err(|e| fetch_error(format!("cannot create {}: {e}", dest.display())))?;

@@ -76,8 +76,7 @@
 //!   red-green concrete syntax tree under
 //!   [`parsing::syntax`]; the position-independent
 //!   green layer ([`parsing::syntax::green`])
-//!   is the lossless representation the segmenter / lowering / formatter
-//!   / tooling are meant to share.
+//!   is the lossless representation of the source text.
 
 #![deny(missing_docs)]
 
@@ -109,10 +108,10 @@ pub mod effect_ssa;
 pub(crate) mod environment_ingress;
 pub mod executable_ir;
 mod existence_query;
-// The `expr` AST + Pratt parser now live in the shared `tcl-syntax` crate
-// (consumed by both the compiler and the runtime port). Re-exported under the
-// original module paths so the ~45 in-crate consumers (and the LSP bindings)
-// are unchanged.
+// The `expr` AST and Pratt parser live in the shared `tcl-syntax` crate,
+// consumed by both the compiler and the runtime port. Re-exported here so
+// `crate::expr_ast` / `crate::expr_parser` resolve for in-crate consumers and
+// the LSP bindings.
 pub use tcl_syntax::expr::ast as expr_ast;
 pub use tcl_syntax::expr::parser as expr_parser;
 pub mod gvn;
@@ -136,8 +135,8 @@ pub mod mixed_region_plan;
 pub mod native_integer_proof;
 pub mod native_lowering;
 pub mod object_types;
-// Name normalisation moved to the shared `tcl-syntax` crate; re-export so
-// `crate::naming::*` keeps resolving across the compiler.
+// Name normalisation lives in the shared `tcl-syntax` crate; re-exported so
+// `crate::naming::*` resolves across the compiler.
 pub use tcl_syntax::naming;
 pub mod optimiser;
 pub mod parsing;

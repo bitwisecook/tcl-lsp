@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The loader lifecycle driven from a real compiled module (issue #1204), over
+//! The loader lifecycle driven from a real compiled module, over
 //! the deterministic `ModelKernel`. Real `bpf()`-syscall attachment is exercised
 //! only by the `#[ignore]`d `kernel_attach` tests; this proves the
 //! plan → load → test-run → attach → status → detach state machine and its

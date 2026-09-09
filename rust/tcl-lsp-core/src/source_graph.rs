@@ -38,10 +38,10 @@
 //! `source` is a two-way channel of facts, and the two directions answer
 //! different questions:
 //!
-//! * **Down** ([`ancestor_requires`], issue #804) — *what did my callers
+//! * **Down** ([`ancestor_requires`]) — *what did my callers
 //!   already load before they ran me?*  A module `source`d by an entry file
 //!   that required `Tk` may use `winfo` with no `package require` of its own.
-//! * **Up** ([`descendant_requires`], issue #1332) — *what did the files I
+//! * **Up** ([`descendant_requires`]) — *what did the files I
 //!   `source` load on my behalf?*  `source tkFile.tcl` where `tkFile.tcl` does
 //!   `package require Tk` makes `Tk` present in the sourcing file from that
 //!   statement onward, exactly as if the `package require` had been written
@@ -159,7 +159,7 @@ pub fn ancestor_requires<S: BuildHasher>(
 }
 
 /// A package a document acquires by `source`ing another file, together with
-/// **where in this document** it becomes available (issue #1332).
+/// **where in this document** it becomes available.
 ///
 /// The position is what separates this from a plain package name: `source`
 /// runs the child inline at that statement, so a command needing the package
@@ -180,7 +180,7 @@ pub struct PlacedRequire {
 }
 
 /// The `package require`s a document acquires from the files it (transitively)
-/// `source`s — the **up** direction of the graph (issue #1332).
+/// `source`s — the **up** direction of the graph.
 ///
 /// `edges` are the workspace's resolved `source` edges; only
 /// [`RunEdgeKind::Source`] edges are followed, because only a `source` inlines
@@ -195,8 +195,7 @@ pub struct PlacedRequire {
 /// walk takes the whole subtree and the caller treats the result as
 /// suppression evidence rather than proof.  That is the deliberate direction
 /// to be wrong in here — a missed suppression is a false "requires
-/// `package require X`" on code that runs fine, which is the failure mode
-/// issue #1332 was filed for.
+/// `package require X`" on code that runs fine.
 ///
 /// Cycles (`a` sources `b` sources `a`) terminate on the visited set, and a
 /// file sourced twice simply contributes its packages at both positions.
@@ -244,7 +243,7 @@ pub fn descendant_requires<S: BuildHasher>(
 
 /// **How** one document enters another's execution — the difference between
 /// a statement that says *exactly* when the child ran and one that only
-/// bounds it (issue #1279).
+/// bounds it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RunEdgeKind {
     /// `source CHILD`: the child's whole body is inlined **at this
@@ -314,7 +313,7 @@ pub struct RunEdge {
 
 /// Whether the **interpreter-global** `package prefer latest` latch is already
 /// raised by the time `target` is loaded, given the raises recorded per
-/// document (issue #1253).
+/// document.
 ///
 /// `package prefer` is a monotone latch on interpreter state, so a raise in a
 /// file that runs first really does change a later file's version selection.
@@ -418,7 +417,7 @@ pub struct Placed {
     /// `true` for a point in its own document and for one reached entirely
     /// through `source` statements; `false` once a
     /// [`RunEdgeKind::PackageRequire`] edge is on the path, where the true
-    /// position is *at most* `at` (issue #1279).  A bounded position still
+    /// position is *at most* `at`.  A bounded position still
     /// answers half the questions — see [`RunOrder::trusted`].
     pub exact: bool,
 }
@@ -427,8 +426,8 @@ pub struct Placed {
 ///
 /// Every one of these is probed from inside the cross-document import walk,
 /// which runs per (invocation × in-scope import), so the default `SipHash`
-/// over an owned URI string was itself a measurable share of a 26 s
-/// `textDocument/references` (issue #1297 — 338 of 439 samples under
+/// over an owned URI string is itself a measurable share of a 26 s
+/// `textDocument/references` (338 of 439 samples under
 /// [`RunOrder::alternatives`] were in `sip::Hasher::write`).  These keys are
 /// workspace-local document URIs, never attacker-chosen, so the `HashDoS`
 /// resistance `SipHash` buys is not worth its cost here.
@@ -437,8 +436,7 @@ type UriMap<V> = rustc_hash::FxHashMap<String, V>;
 type UriSet = rustc_hash::FxHashSet<String>;
 
 /// The **load order the workspace proves** — the single relation both
-/// wildcard-import tiers rank cross-document events with (issue #1104 item 3,
-/// #1116 item 6, #1279; design in
+/// wildcard-import tiers rank cross-document events with (design in
 /// `docs/design/analysis/import-order-source-graph.md` §6).
 ///
 /// # Why an order exists at all
@@ -490,10 +488,9 @@ type UriSet = rustc_hash::FxHashSet<String>;
 /// - the answer would rest on the *late* side of a `package require` bound —
 ///   see [`Self::trusted`].
 ///
-/// Two points in the **same** document never consult the graph at all: they
-/// were already ordered, by the same rule, before this type existed.  A
-/// workspace with no resolvable edge therefore behaves byte-identically
-/// to the pre-#1104-item-3 tiers.
+/// Two points in the **same** document never consult the graph at all: their
+/// order is already fixed by the same rule.  A workspace with no resolvable
+/// edge therefore orders nothing across documents.
 ///
 /// Only *literal*, resolvable `source` targets become `source` edges — the
 /// caller filters those — because `source $dir/x.tcl` sequences nothing; the
@@ -521,7 +518,7 @@ pub struct RunOrder {
     /// to three hash probes on owned URI strings inside the import walk, and
     /// the `package_entries.is_empty()` fast path that was supposed to make it
     /// free vanished the moment *any* document in the workspace contributed a
-    /// package edge (issue #1297).  Folding it into one probe of one map costs
+    /// package edge.  Folding it into one probe of one map costs
     /// nothing extra: the site vectors are shared with `Arc`, so a root's
     /// entry is stored once however many documents it covers, and a workspace
     /// with no package edge leaves the map empty and every probe a miss.
@@ -670,8 +667,7 @@ impl RunOrder {
 
     /// Resolve [`Self::alternatives`] for every document up front: the root
     /// walk and the ambiguity test do not depend on the point being asked
-    /// about, so they belong here rather than on the per-call path
-    /// (issue #1297).
+    /// about, so they belong here rather than on the per-call path.
     ///
     /// A root's site vector is shared by every document under it, so a tree is
     /// stored once however deep it is.  A document the graph knows only as a
@@ -762,8 +758,8 @@ impl RunOrder {
     ///   sliding earlier — it needs `a` exact.
     ///
     /// Two bounded sides settle nothing, which is why two documents that a
-    /// `package require` each brought in are ranked against each other exactly
-    /// as they were before this existed: not at all.
+    /// `package require` each brought in are not ranked against each other at
+    /// all.
     #[must_use]
     pub fn trusted(a_first: bool, a: Placed, b: Placed) -> bool {
         if a_first { b.exact } else { a.exact }
@@ -831,9 +827,9 @@ impl RunOrder {
     /// runs when the provider does, so it is bounded by the same require
     /// sites.
     /// One probe: which document a point sits in is the only thing left to
-    /// look up, because the root walk and the ambiguity test that used to
-    /// stand in front of it do not depend on the point's offset and were
-    /// folded into [`Self::package_alternatives`] at build time.
+    /// look up, because the root walk and the ambiguity test do not depend on
+    /// the point's offset and are folded into
+    /// [`Self::package_alternatives`] at build time.
     fn alternatives(&self, p: RunPoint<'_>) -> &[OwnedRunPoint] {
         self.package_alternatives
             .get(p.uri)
@@ -971,7 +967,7 @@ mod tests {
         assert!(ancestor_requires("app", &edges, &requires).is_empty());
     }
 
-    // `package prefer latest` across the source graph (issue #1253 item 1).
+    // `package prefer latest` across the source graph.
     //
     // tclsh-proof (8.6.14) that the latch really is interpreter-global and
     // crosses `source`:  with `lib.tcl` holding `puts [package prefer]`,
@@ -1095,7 +1091,7 @@ mod tests {
         ));
     }
 
-    // The `source`-graph load order (issue #1104 item 3, #1116 item 6).
+    // The `source`-graph load order.
     //
     // Oracle for the whole shape, byte-identical on tclsh 8.6.14 and 9.0.4 —
     // `source` inlines the sourced file's whole body at the `source`
@@ -1315,7 +1311,7 @@ mod tests {
         assert_eq!(order.has_run(point("lib", 7), point("lib", 7)), Some(false));
     }
 
-    // The `package require` half of the load order (issue #1279, design §3.4).
+    // The `package require` half of the load order.
     //
     // Oracle, byte-identical on tclsh 8.6.14 and 9.0.4.  `pkg/lib.tcl` holds
     //
@@ -1535,11 +1531,11 @@ mod tests {
         assert_eq!(order.cmp_run(point("app", 5), point("lib", 30)), None);
     }
 
-    // Issue #1297: `alternatives` used to resolve, per call, "is there any
-    // package edge at all / is this document ambiguous / what is its root /
-    // does that root have require sites" — three hash probes on owned URI
-    // strings, on the hottest path in the cross-document import walk.  All
-    // four questions are fixed at build time, so they are now one probe of
+    // Resolving, per call, "is there any package edge at all / is this
+    // document ambiguous / what is its root / does that root have require
+    // sites" costs three hash probes on owned URI strings, on the hottest
+    // path in the cross-document import walk.  All
+    // four questions are fixed at build time, so they are one probe of
     // `package_alternatives`.  These pin that the folded answer is the same
     // answer, case by case, because a silent change here would move which
     // cross-document events the import tiers can rank.
@@ -1645,7 +1641,7 @@ mod tests {
         assert!(!RunOrder::trusted(false, bound, bound));
     }
 
-    // `descendant_requires` — the up direction (issue #1332)
+    // `descendant_requires` — the up direction
     //
     // Oracle for the whole group, C Tcl 9.0.4:
     //
@@ -1665,7 +1661,7 @@ mod tests {
     // defined above for the `ancestor_prefer_latest_raised` group — same
     // shape, same meaning, so it is shared rather than duplicated.
 
-    /// The reported #1332 shape: `main.tcl` sources `tkFile.tcl`, which
+    /// The reported shape: `main.tcl` sources `tkFile.tcl`, which
     /// requires Tk. Tk becomes available to `main` *at the source statement*.
     #[test]
     fn descendant_requires_carries_a_sourced_files_package_up() {

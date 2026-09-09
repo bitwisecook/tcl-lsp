@@ -16,12 +16,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Oracle-pinned trace semantics — the R5 bucket of the WASM native-lowering
-//! plan (#1633, #1574, #1575, #1569).
+//! Oracle-pinned trace semantics.
 //!
 //! Every expectation in this file is a *transcript*, and every transcript was
 //! produced by running the same sheet through `tclsh9.0` (9.0.4) — and through
-//! `tclsh8.6` (8.6.16) as well wherever the issue says the releases differ.
+//! `tclsh8.6` (8.6.16) as well wherever the releases differ.
 //! The sheets are plain Tcl and are quoted verbatim in the test bodies, so a
 //! reader can paste one into a real `tclsh` and re-derive the expectation
 //! without any harness of ours in the way.
@@ -58,7 +57,7 @@ fn transcript_at(sheet: &str, version: Option<tcl_dialect::TclVersion>) -> Strin
 /// the *exact* argument list the callback received.
 const RECORDER: &str = "set ::log {}\nproc R {n1 n2 op} { lappend ::log [list $n1 $n2 $op] }\n";
 
-// -- #1633's `upvar` row: firing follows the cell, not the spelling ----------
+// The `upvar` row: firing follows the cell, not the spelling
 
 /// ```tcl
 /// proc P {} {
@@ -73,7 +72,7 @@ const RECORDER: &str = "set ::log {}\nproc R {n1 n2 op} { lappend ::log [list $n
 /// tclsh 8.6.16 and 9.0.4 both fire twice — `alias` then `loc` — because the
 /// alias and its target are one `Var` in C and the trace list hangs off that
 /// `Var`. Resolving the trace identity from the *access spelling* instead
-/// fires only once (the defect P1 recorded).
+/// would fire only once.
 #[test]
 fn a_write_through_an_upvar_alias_fires_the_targets_trace() {
     let got = transcript(&format!(
@@ -170,7 +169,7 @@ fn the_access_spelling_rule_holds_at_8_6() {
     assert_eq!(got, "::a2 {} write");
 }
 
-// -- #1633's `incr` row: a read-modify-write command fires `read` then `write`
+// The `incr` row: a read-modify-write command fires `read` then `write`
 
 /// ```tcl
 /// set x 1
@@ -235,7 +234,7 @@ fn an_erroring_read_trace_leaves_incr_counting_from_zero() {
     );
 }
 
-// -- #1633's errorInfo row: the trace's own trace survives the access failure
+// The errorInfo row: the trace's own trace survives the access failure
 
 /// ```tcl
 /// proc WE {n1 n2 op} { error "wboom" }
@@ -258,8 +257,8 @@ fn an_erroring_read_trace_leaves_incr_counting_from_zero() {
 /// "set x 2"
 /// ```
 ///
-/// with `-errorcode TCL WRITE VARNAME`. The runtime used to start a *fresh*
-/// error for `can't set "x": wboom`, discarding the callback's whole chain and
+/// with `-errorcode TCL WRITE VARNAME`. Starting a *fresh*
+/// error for `can't set "x": wboom` would discard the callback's whole chain and
 /// with it the `(write trace on "x")` frame.
 #[test]
 fn a_write_trace_error_keeps_its_chain_and_adds_the_trace_frame() {
@@ -300,7 +299,7 @@ fn a_read_trace_error_names_the_element_in_its_frame() {
     );
 }
 
-// -- #1633's two array-element rows, which differ by release ----------------
+// Two array-element rows, which differ by release
 
 /// The recording sheet both element rows share: an array with a whole-array
 /// trace (`A`) and an element trace (`E`), exercised through the `a(k)`
@@ -380,16 +379,16 @@ fn a_trace_added_through_an_element_alias_lands_on_the_element() {
     );
 }
 
-// -- #1633's re-entrancy rows: what a callback changes mid-firing -----------
+// Re-entrancy rows: what a callback changes mid-firing
 
 /// A callback that removes a *later* trace stops it firing in the same pass —
 /// C's firing loop follows `active.nextTracePtr`, which `Tcl_UntraceVar2`
 /// rewrites — while one it *adds* is not picked up until the next access.
 /// `trace info` sees each change immediately, from inside the callback.
 ///
-/// tclsh 8.6.16 and 9.0.4 print exactly the transcript below; the runtime used
-/// to fire `B` after `M` had removed it, because the firing loop snapshotted
-/// the callbacks up front.
+/// tclsh 8.6.16 and 9.0.4 print exactly the transcript below; a firing loop
+/// that snapshotted the callbacks up front, rather than following the live
+/// list, would fire `B` after `M` had removed it.
 #[test]
 fn a_trace_removed_during_firing_does_not_fire_in_that_pass() {
     let got = transcript(
@@ -428,8 +427,9 @@ fn a_trace_removed_during_firing_does_not_fire_in_that_pass() {
 /// and `delete`, which run newest-first, and for `leave`, whose reverse scan
 /// reaches the *oldest* first.
 ///
-/// tclsh 8.6.16 and 9.0.4 print exactly the transcript below; these three loops
-/// used to snapshot the callback strings, so `E2`, `D2` and `L1` still fired.
+/// tclsh 8.6.16 and 9.0.4 print exactly the transcript below; a loop that
+/// snapshotted the callback strings up front would still fire `E2`, `D2` and
+/// `L1`.
 #[test]
 fn a_command_or_execution_trace_removed_during_firing_does_not_fire() {
     let got = transcript(
@@ -550,8 +550,9 @@ fn an_execution_callback_redefining_the_command_stops_that_walk() {
 /// (`CMD_DYING`, its hash entry taken over by the new command), not whatever
 /// the name holds afterwards. The old command's traces still go.
 ///
-/// tclsh 8.6.16 and 9.0.4 both print the transcript below; the runtime used to
-/// delete the callback's fresh `foo`, leaving `unknown command "foo"`.
+/// tclsh 8.6.16 and 9.0.4 both print the transcript below; deleting
+/// "whatever is at the name now" instead would delete the callback's fresh
+/// `foo`, leaving `unknown command "foo"`.
 #[test]
 fn a_delete_trace_that_recreates_the_command_leaves_it_alive() {
     let got = transcript(
@@ -571,15 +572,15 @@ fn a_delete_trace_that_recreates_the_command_leaves_it_alive() {
     assert_eq!(got, "D ::foo {} delete\nexists: 1\ncall: FOO2\ntraces: ");
 }
 
-// -- #1574: re-entrancy suppression is per `Var` cell, not per array --------
+// Re-entrancy suppression is per `Var` cell, not per array
 
 /// C sets `VAR_TRACE_ACTIVE` on the `Var` an access reached, and an array
 /// element is a `Var` of its own. So a whole-array write trace whose callback
 /// writes a *different* element fires again — and one that writes the *same*
 /// element does not.
 ///
-/// tclsh 8.6.16 and 9.0.4 print the transcript below. Both engines used to
-/// suppress per whole array and stop after the first firing in each pair.
+/// tclsh 8.6.16 and 9.0.4 print the transcript below. Suppressing per whole
+/// array instead would stop after the first firing in each pair.
 // The sheet drives the traces with `if`, which only the tower build
 // registers (no `expr`, no condition to evaluate).
 #[cfg(have_tommath)]
@@ -630,7 +631,7 @@ fn the_arrays_own_cell_gates_the_whole_array_traces() {
     assert_eq!(got, "S g {} unset\nexists: 1");
 }
 
-// -- #1575: the unset-trace firing sites that were missing ------------------
+// Unset-trace firing sites
 
 /// A proc's locals are unset when its frame goes, and C's `TclDeleteVars` fires
 /// each one's unset traces — newest-first within a variable. runtime/rust fired
@@ -719,7 +720,7 @@ fn a_whole_array_unset_fires_each_elements_own_traces_too() {
     );
 }
 
-// -- #1569: `array` traces, which neither engine ever dispatched ------------
+// `array` traces
 
 /// C's `LocateArray` fires `TclCheckArrayTraces` at the top of every `array`
 /// subcommand, so each one invokes the callback exactly once as
@@ -804,7 +805,7 @@ fn an_array_trace_error_fails_the_subcommand_with_cs_verb() {
     );
 }
 
-/// #1633 row 1: `set`/`incr` must return the variable's value *read back
+/// `set`/`incr` must return the variable's value *read back
 /// after* their own write trace runs, not the value they handed the store —
 /// C's `TclPtrSetVarIdx` (tclVar.c 9.0.4:2050-2065) stores, fires the write
 /// traces, and only then decides what to return: the cell's current value if
@@ -837,14 +838,14 @@ fn a_write_trace_that_mutates_or_unsets_changes_what_set_and_incr_return() {
     }
 }
 
-// -- The `rename` trace window: one command under two names ------------------
+// The `rename` trace window: one command under two names
 //
 // C's `TclRenameCommand` (`tclBasic.c` 9.0.4) creates the destination hash
 // entry, fires the `rename` traces, and only *then* deletes the source one —
 // and the traces hang off the shared `Command` rather than off either entry.
 // So for the callbacks' duration the vacating name **is** the destination
-// command. The runtime used to fire before touching the table, so a callback
-// saw the old name but not yet the new one. Every sheet below is identical on
+// command. Firing the trace before touching the table would let a callback
+// see the old name but not yet the new one. Every sheet below is identical on
 // tclsh 8.6.16 and 9.0.4.
 
 /// Both names resolve, both are callable, and `trace info command` /
@@ -1129,14 +1130,14 @@ fn a_twice_nested_rename_keeps_retargeting_the_enclosing_window() {
     );
 }
 
-// -- `INTERP_TRACE_IN_PROGRESS` belongs to execution traces alone -----------
+// `INTERP_TRACE_IN_PROGRESS` belongs to execution traces alone
 //
 // C sets that flag in exactly one place — `TraceExecutionProc` (tclTrace.c
 // 9.0.4:1765), around an `enter`/`leave`/`enterstep`/`leavestep` callback —
 // and reads it in exactly one place, `TclCheckInterpTraces` (:1426), the step
-// machinery. `CallCommandTraces` sets nothing. The runtime used to raise its
-// `exec_firing` stand-in for `rename`/`delete` callbacks too, which silently
-// untraced everything they dispatched.
+// machinery. `CallCommandTraces` sets nothing. Raising the runtime's
+// `exec_firing` stand-in for `rename`/`delete` callbacks too would silently
+// untrace everything they dispatched.
 
 /// A command invoked from a `rename` or `delete` callback is traced like any
 /// other: its `enter` traces fire, exactly as they do outside one.
@@ -1206,8 +1207,8 @@ fn an_execution_callbacks_own_commands_are_not_step_observed() {
 /// inside an execution callback still fires its **own** `enter` and `leave`
 /// traces, because C's `TclCheckExecutionTraces` (tclTrace.c 9.0.4:1301) never
 /// consults `INTERP_TRACE_IN_PROGRESS` — only `TclCheckInterpTraces` (:1426)
-/// does. Both engines used to read their stand-in at the whole traced-dispatch
-/// fast path and so fired neither.
+/// does. Reading the stand-in at the whole traced-dispatch fast path instead
+/// would fire neither.
 #[test]
 fn an_execution_callback_does_not_untrace_what_it_dispatches() {
     let got = transcript(

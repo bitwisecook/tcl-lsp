@@ -16,18 +16,18 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! End-to-end TP/FP/TN/FN matrix for preview issues #954-#958, driven over
-//! real JSON-RPC against the packaged server:
+//! End-to-end TP/FP/TN/FN matrix for reference-resolution correctness,
+//! driven over real JSON-RPC against the packaged server:
 //!
-//! * #954 — commands inside an `apply` lambda body highlight as a script, and
+//! * Commands inside an `apply` lambda body highlight as a script, and
 //!   a bare arg-list name is a `parameter` (semantic tokens).
-//! * #955 — a `$dir` read in a `pkgIndex.tcl` is not W210 read-before-set
+//! * A `$dir` read in a `pkgIndex.tcl` is not W210 read-before-set
 //!   (publishDiagnostics), but the suppression is filename-scoped.
-//! * #956 — a `$obj method` dispatch is a reference and is counted by the
+//! * A `$obj method` dispatch is a reference and is counted by the
 //!   member lens.
-//! * #957 — a `my method` dispatch (including nested in `[ … ]`) is a reference
+//! * A `my method` dispatch (including nested in `[ … ]`) is a reference
 //!   and is counted by the member lens.
-//! * #958 — a `::tcl::mathfunc::<fn>` expr-function application is a reference
+//! * A `::tcl::mathfunc::<fn>` expr-function application is a reference
 //!   to the backing proc.
 
 #![allow(clippy::cast_possible_truncation)]
@@ -84,8 +84,8 @@ fn token_type_of(lsp: &mut Lsp, uri: &str, src: &str, needle: &str) -> Option<St
         .map(|t| legend[usize::try_from(t.ttype).unwrap()].clone())
 }
 
-/// The reference-count lens title anchored on `line`, resolved.  Since
-/// issue #956, a method / classmethod lens resolves lazily the same way a
+/// The reference-count lens title anchored on `line`, resolved. A method /
+/// classmethod lens resolves lazily the same way a
 /// proc/class lens does (range + `data`, no `command` until
 /// `codeLens/resolve`), so the raw listing has no `command.title` for a
 /// caller to read directly.
@@ -99,9 +99,8 @@ fn member_lens_title(lsp: &mut Lsp, uri: &str, line: i64) -> Option<String> {
         .find(|l| l["range"]["start"]["line"].as_i64() == Some(line))?
         .clone();
     let resolved = lsp.code_lens_resolve(lens);
-    // Every lens this server emits resolves to a real, clickable command
-    // (issue #956 — a member lens must never stay inert with an empty
-    // command id).
+    // Every lens this server emits resolves to a real, clickable command —
+    // a member lens must never stay inert with an empty command id.
     assert_ne!(
         resolved["command"]["command"].as_str(),
         Some(""),
@@ -117,7 +116,7 @@ fn has_diag_code(diags: &[Value], code: &str) -> bool {
         .any(|d| d.get("code").and_then(Value::as_str) == Some(code))
 }
 
-// ───────────────────────── #954 — apply lambda tokens ─────────────────────
+// Apply lambda tokens.
 
 mod apply_lambda {
     use super::*;
@@ -154,7 +153,7 @@ mod apply_lambda {
     }
 }
 
-// ─────────────────────── #955 — pkgIndex `$dir` W210 ──────────────────────
+// pkgIndex `$dir` W210.
 
 mod pkgindex_dir {
     use super::*;
@@ -195,7 +194,7 @@ mod pkgindex_dir {
     }
 }
 
-// ───────────────────────── #956 — `$obj method` refs ──────────────────────
+// `$obj method` refs.
 
 mod obj_method_dispatch {
     use super::*;
@@ -232,7 +231,7 @@ mod obj_method_dispatch {
     }
 }
 
-// ───────────────────────── #957 — `my method` refs ────────────────────────
+// `my method` refs.
 
 mod my_method_dispatch {
     use super::*;
@@ -269,12 +268,11 @@ mod my_method_dispatch {
         );
     }
 
-    /// FN→TP: the *exact* shape from the reopened issue #957 report —
-    /// `variable`, a `constructor {args}`, and `getOptions`'s own body doing
-    /// `[dict get $_options $key]` (its own nested command substitution) —
-    /// none of which should perturb the `my getOptions` dispatch inside
-    /// `get`'s `return [ … ]`.  This is the literal reporter repro, kept
-    /// as its own regression test distinct from the minimal shapes above.
+    /// FN→TP: `variable`, a `constructor {args}`, and `getOptions`'s own
+    /// body doing `[dict get $_options $key]` (its own nested command
+    /// substitution) — none of which should perturb the `my getOptions`
+    /// dispatch inside `get`'s `return [ … ]`.  Kept as its own test
+    /// distinct from the minimal shapes above.
     #[test]
     fn tp_original_issue_957_repro_reference_and_lens() {
         let mut lsp = Lsp::tcl();
@@ -293,12 +291,11 @@ mod my_method_dispatch {
         );
     }
 
-    /// FN→TP (issue #957's general form): a `my method` dispatch nested
+    /// FN→TP: a `my method` dispatch nested
     /// inside `if` / `foreach` / `while` / `switch` / `try` / `eval` bodies
     /// — not just `return [ … ]` — is a reference and is counted by the
-    /// lens.  The previous fix (cb10e7c9) only added `[...]`
-    /// command-substitution recursion; this is the control-flow-nested
-    /// shape that was still missed.
+    /// lens.  `[...]` command-substitution recursion alone is not enough;
+    /// the control-flow-nested shape must be reached too.
     #[test]
     fn tp_my_dispatch_nested_in_control_flow_reference_and_lens() {
         let mut lsp = Lsp::tcl();
@@ -336,7 +333,7 @@ mod my_method_dispatch {
     }
 }
 
-// ─────────────────── #958 — `::tcl::mathfunc` expr functions ──────────────
+// `::tcl::mathfunc` expr functions.
 
 mod mathfunc_expr {
     use super::*;

@@ -41,7 +41,7 @@
 //! and a false-word is ambiguous and rejected: `o` matches both `on` and
 //! `off`, so `expr {o}` is an error in real Tcl.
 
-/// The canonical true-words, longest resolution set for `Tcl_GetBoolean`.
+/// The canonical true-words, matched by unique case-insensitive prefix.
 const TRUE_WORDS: [&str; 3] = ["true", "yes", "on"];
 /// The canonical false-words.
 const FALSE_WORDS: [&str; 3] = ["false", "no", "off"];

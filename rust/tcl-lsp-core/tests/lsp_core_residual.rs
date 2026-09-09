@@ -792,7 +792,7 @@ fn minify_expr_comparison_inversion_in_value_context_is_safe() {
 // The fold was only valid where the result is consumed as a condition
 // (`if`/`while`), but the minifier processes Expr-role args without that
 // context (and `!!x` is unsound even as a subexpression of a boolean expr).
-// `shrink_not` no longer applies the `!!x -> x` fold, so `!!$x` is preserved.
+// `shrink_not` does not apply the `!!x -> x` fold, so `!!$x` is preserved.
 #[test]
 fn minify_double_negation_in_value_context_must_preserve_value() {
     assert_eq!(

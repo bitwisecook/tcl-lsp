@@ -109,7 +109,7 @@ fn only_effect(cse: &CommandSideEffects) -> &SideEffect {
 
 // Side-effect classification
 
-// --- TestEnums -------------------------------------------------------------
+// Enums.
 
 #[test]
 fn storage_type_members_distinct() {
@@ -155,7 +155,7 @@ fn side_effect_target_has_io_targets() {
     assert_ne!(SideEffectTarget::FileIo, SideEffectTarget::LogIo);
 }
 
-// --- TestSideEffect --------------------------------------------------------
+// Side effect.
 
 #[test]
 fn side_effect_default_values() {
@@ -177,7 +177,7 @@ fn side_effect_default_values() {
 // of `let` bindings (a `let e = …; e.reads = false;` simply would not compile),
 // so there is no runtime behaviour to assert.
 
-// --- TestCommandSideEffects ------------------------------------------------
+// Command side effects.
 
 #[test]
 fn command_side_effects_pure() {
@@ -272,7 +272,7 @@ fn command_side_effects_effects_on_side() {
     assert_eq!(*server[0], e1);
 }
 
-// --- TestClassifyPureCommands ----------------------------------------------
+// Classify pure commands.
 
 #[test]
 fn classify_expr_is_pure() {
@@ -296,7 +296,7 @@ fn classify_string_length_is_pure() {
     assert!(classify(&reg, "string", &["length", "hello"], None).pure);
 }
 
-// --- TestClassifyVariableCommands ------------------------------------------
+// Classify variable commands.
 
 #[test]
 fn classify_set_write() {
@@ -402,7 +402,7 @@ fn classify_lappend_is_list_type() {
     assert!(e.writes);
 }
 
-// --- TestClassifyDynamicBarriers -------------------------------------------
+// Classify dynamic barriers.
 
 #[test]
 fn classify_eval_is_dynamic_barrier() {
@@ -423,7 +423,7 @@ fn classify_uplevel_is_dynamic_barrier() {
     assert!(r.dynamic_barrier);
 }
 
-// --- TestClassifyTableCommand ---------------------------------------------
+// Classify table command.
 
 #[test]
 fn classify_table_set() {
@@ -464,7 +464,7 @@ fn classify_table_lookup() {
     assert_eq!(e.scope, StorageScope::Unknown);
 }
 
-// --- TestClassifyF5Commands ------------------------------------------------
+// Classify F5 commands.
 
 #[test]
 fn classify_pool_selection() {
@@ -583,7 +583,7 @@ fn classify_session_lookup() {
     assert!(!r.writes_any());
 }
 
-// --- TestClassifyProtocolNamespaceCommands ---------------------------------
+// Classify protocol namespace commands.
 
 #[test]
 fn classify_http_header_read() {
@@ -647,7 +647,7 @@ fn classify_unknown_command_is_conservative() {
     assert!(r.writes_any());
 }
 
-// --- TestClassifyWithRegistryHints -----------------------------------------
+// Classify with registry hints.
 
 #[test]
 fn classify_command_level_hint_is_applied() {
@@ -711,7 +711,7 @@ fn classify_hint_with_unspecified_dialect_preserves_shape() {
 // has no separate `subcommand` parameter — the effective subcommand is always
 // `args[0]` — so there is no override to exercise.
 
-// --- TestDialectSpecificHints ----------------------------------------------
+// Dialect-specific hints.
 
 #[test]
 fn classify_close_in_tcl_is_file_io() {
@@ -760,7 +760,7 @@ fn classify_file_io_does_not_kill_unknown_region() {
     assert_eq!(writes, EffectRegion::NONE);
 }
 
-// --- TestConformanceHintTargets --------------------------------------------
+// Conformance hint targets.
 
 /// One conformance row: `classify(command, (), dialect)` must surface
 /// `expected` among its effect targets — proving the registry hint is wired
@@ -840,7 +840,7 @@ fn conformance_tcl_core_targets() {
     }
 }
 
-// --- TestHintCoverageNotDead -----------------------------------------------
+// Hint coverage is not dead.
 
 #[test]
 fn hinted_irules_commands_return_non_unknown_effects() {
@@ -969,7 +969,7 @@ fn stmt_idx_in_entry(cfg: &tcl_compiler::cfg::Function, name: &str) -> usize {
         .unwrap_or_else(|| panic!("no statement {name:?} in entry block"))
 }
 
-// --- TestBaseline ----------------------------------------------------------
+// Baseline.
 
 #[test]
 fn binding_builtins_are_builtin() {
@@ -1016,7 +1016,7 @@ fn binding_undefined_name_is_opaque() {
     );
 }
 
-// --- TestFlowSensitiveRename -----------------------------------------------
+// Flow-sensitive rename.
 
 #[test]
 fn binding_proc_call_rename_call() {
@@ -1075,7 +1075,7 @@ fn binding_builtin_rename_away_then_redefine_is_proc() {
     );
 }
 
-// --- TestRedefinition ------------------------------------------------------
+// Redefinition.
 
 #[test]
 fn binding_proc_redefined_stays_proc() {
@@ -1104,7 +1104,7 @@ fn binding_proc_named_like_mathfunc_is_proc_not_builtin() {
     assert_eq!(binding.target.as_deref(), Some("::max"));
 }
 
-// --- TestInterpAlias -------------------------------------------------------
+// Interp alias.
 
 #[test]
 fn binding_alias_records_target() {
@@ -1119,7 +1119,7 @@ fn binding_alias_records_target() {
     assert_eq!(binding.target.as_deref(), Some("::set"));
 }
 
-// --- TestBranchJoin --------------------------------------------------------
+// Branch join.
 
 #[test]
 fn binding_rename_in_one_arm_joins_to_unknown() {
@@ -1146,7 +1146,7 @@ fn binding_rename_on_both_arms_agrees() {
     assert_eq!(binding.kind, BindingKind::Opaque);
 }
 
-// --- TestDynamicMutation ---------------------------------------------------
+// Dynamic mutation.
 
 #[test]
 fn binding_dynamic_rename_makes_everything_unknown() {
@@ -1168,7 +1168,7 @@ fn binding_dynamic_proc_name_makes_everything_unknown() {
     assert_eq!(binding.kind, BindingKind::Unknown);
 }
 
-// --- TestProcBodyMutationScan ----------------------------------------------
+// Proc body mutation scan.
 //
 // The whole-module `scan_module_command_mutations(ir_module)` summarises
 // renames buried in proc bodies — it walks the top-level *and* every proc/method
@@ -1211,7 +1211,7 @@ fn module_scan_clean_module_trusts_all() {
     assert!(mt.trusts("list"));
 }
 
-// --- TestModuleScanSoundness -----------------------------------------------
+// Module scan soundness.
 
 #[test]
 fn module_scan_transient_rename_and_restore_is_caught() {

@@ -313,8 +313,8 @@ pub(crate) fn handle_info(args: &[String], state: &mut CfgState, defs: &HashMap<
     }
     // Escape any registry-declared variable-*write* argument of this `info`
     // subcommand (`info default procname arg varname` writes `varname` in the
-    // current frame) before the safe-subcommand short-circuit drops it — issue
-    // 151. Registry-driven; no subcommand name or index hardcoded here.
+    // current frame) before the safe-subcommand short-circuit drops it.
+    // Registry-driven; no subcommand name or index hardcoded here.
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
     for idx in
         default_registry().arg_indices_for_role("info", &arg_refs, tcl_registry::ArgRole::VarWrite)

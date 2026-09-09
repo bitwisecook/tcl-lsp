@@ -45,7 +45,7 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"throw", throw_cmd);
 }
 
-// -- catch -----------------------------------------------------------------
+// catch
 
 /// `catch script ?resultVarName? ?optionsVarName?` — evaluate `script`, trap any
 /// completion code, and return it as an integer (0=ok … 4=continue).
@@ -105,7 +105,7 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 /// Write `obj` to `name`, routing `arr(a)` to the array *element* rather than
-/// a literal scalar named `arr(a)` (issue #1577) — the same
+/// a literal scalar named `arr(a)` — the same
 /// `split_array_ref`/`var_set`/`var_set_elem` routing `set` uses, so
 /// `catch`'s result/options vars and `try`'s handler vars don't hand-roll a
 /// second name parser.
@@ -176,7 +176,7 @@ fn api_code(code: Code) -> tcl_runtime_api::Code {
     }
 }
 
-// -- error -----------------------------------------------------------------
+// error
 
 /// `error message ?errorInfo? ?errorCode?` — raise an error. With an explicit
 /// non-empty `errorInfo`, the trace is pre-seeded with it and the `error`
@@ -214,7 +214,7 @@ fn error_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     rc
 }
 
-// -- try / throw -----------------------------------------------------------
+// try / throw
 
 /// A `try` handler clause. The handler `script` is kept as its argument object
 /// (not flattened to bytes) so it evaluates through `eval_control_body`, which
@@ -546,7 +546,7 @@ mod tests {
         i.result_bytes()
     }
 
-    /// Issue #1607: `try`'s handler-type word is a `Tcl_GetIndexFromObj(…,
+    /// `try`'s handler-type word is a `Tcl_GetIndexFromObj(…,
     /// "handler type", 0)` table, so the three types abbreviate and the empty
     /// word — a prefix of all three — is `ambiguous handler type ""`.
     ///

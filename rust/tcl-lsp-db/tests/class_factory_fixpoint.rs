@@ -16,8 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The workspace class-factory index is a **fixpoint**, not a single round
-//! (issue #1296).
+//! The workspace class-factory index is a **fixpoint**, not a single round.
 //!
 //! `project_class_factories` merges every file's `file_class_factories`, which
 //! reads `item_tree`, which reads the per-file `SourceFile::workspace_class_factories`
@@ -447,7 +446,7 @@ fn removing_a_link_retracts_the_classes_it_manufactured() {
 
 #[test]
 fn an_overriding_manufacturer_survives_the_extra_link() {
-    // The Tk shape (issue #1276) with one more link in front of it: the
+    // The Tk shape, with one more link in front of it: the
     // metaclass that overrides `create {name superclasses body}` is *itself*
     // manufactured cross-file, so the override's argument layout has to survive
     // being read on a later round rather than the first.

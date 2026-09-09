@@ -43,7 +43,7 @@ log local0. $user_agent
 # IRULE3101 — HTTP::uri set without provable leading /
 # ---------------------------------------------------------------
 # Setting the URI or path to a value that doesn't start with /
-# causes undefined behavior on the BIG-IP data plane.
+# causes undefined behaviour on the BIG-IP data plane.
 
 # BAD: string literal without leading /
 HTTP::uri "api/v2/resource"

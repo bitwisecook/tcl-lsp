@@ -53,7 +53,7 @@ chmod 0755 "$apple_clang"
 } > "$sdk_clang"
 chmod 0755 "$sdk_clang"
 
-# The exact compiler that produced #1716 must be rejected before Cargo starts,
+# The explicitly-overridden compiler above must be rejected before Cargo starts,
 # even when a valid SDK is available as a fallback: explicit overrides win.
 set +e
 bad_output="$({

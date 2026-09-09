@@ -147,7 +147,7 @@ impl RuntimeExprSurface {
     /// tmsh and iApp `expr` too, not iRules-only
     /// (`docs/design/f5/bigip-irule-parser-measurements.md` §4a), so any
     /// F5Tcl-cored profile accepts them by reading the family table directly
-    /// rather than duplicating rows (ledger C12/B6). This contains no
+    /// rather than duplicating rows. This contains no
     /// spelling-specific logic: every fact comes from the syntax descriptor or
     /// the family grammar, while the profile contributes the grammar base and
     /// availability point.

@@ -121,7 +121,7 @@ mod tests {
 
     #[test]
     fn every_bpf_command_carries_a_typed_lowering_descriptor() {
-        // Issue #1202: the registry is the source of truth for BPF lowering —
+        // The registry is the source of truth for BPF lowering —
         // a BPF-dialect spec without a `bpf_op` descriptor cannot be lowered
         // and must never exist.
         for spec in bpf_command_specs() {

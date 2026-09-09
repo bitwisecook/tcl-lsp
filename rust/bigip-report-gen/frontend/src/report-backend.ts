@@ -21,9 +21,9 @@ export interface GenerateOptions {
   reportId: string;
   /**
    * Report settings the builder persists / exports as JSON: the report *content*
-   * copyright notice (distinct from the fixed tooling copyright), and — in later
-   * phases — the Markdown front-matter and logo. Serialised straight to the wasm
-   * `generate_report` settings argument. Empty object = no settings.
+   * copyright notice (distinct from the fixed tooling copyright), the Markdown
+   * front-matter, and the logo. Serialised straight to the wasm `generate_report`
+   * settings argument. Empty object = no settings.
    */
   settings?: ReportSettings;
 }
@@ -58,7 +58,7 @@ export interface ReportBackend {
   engineVersion(): Promise<string>;
   probe(files: File[], passphrase: string): Promise<ProbeResult>;
   generate(files: File[], opts: GenerateOptions): Promise<GenerateResult>;
-  /** Re-run architecture/topology detection for the GUI editor (Phase C). */
+  /** Re-run architecture/topology detection for the GUI editor. */
   buildArchitecture(devicesJson: string, manifest: string): Promise<string>;
   /** The embedded f5-query manual for a topic ("", "dsl", "builtins", …). */
   manual(topic: string): Promise<string>;
@@ -84,7 +84,7 @@ interface WasmBindgen {
     reportId: string,
     settingsJson: string,
   ): string;
-  // Added in Phase C (guarded with `in` checks until the wasm exports them).
+  // Optional — guarded with a presence check until every wasm build exports them.
   build_architecture?(devicesJson: string, manifest: string): string;
   manual?(topic: string): string;
 }

@@ -420,8 +420,8 @@ mod tests {
         );
     }
 
-    /// Regression coverage for issue #996: top-level boundary discovery must
-    /// remain bounded on pathologically deep inert nested text. It is reached
+    /// Top-level boundary discovery must stay bounded on pathologically deep
+    /// inert nested text. It is reached
     /// by completion/code-actions on essentially every keystroke. The
     /// assertion is that both request-local views return, not their contents.
     #[test]

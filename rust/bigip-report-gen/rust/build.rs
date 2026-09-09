@@ -25,7 +25,7 @@ use std::process::Command;
 
 fn main() {
     let manifest = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
-    // rust/bigip-report/rust -> rust/bigip-report -> rust -> repo root.
+    // rust/bigip-report-gen/rust -> rust/bigip-report-gen -> rust -> repo root.
     let repo_root = manifest
         .parent()
         .and_then(Path::parent)

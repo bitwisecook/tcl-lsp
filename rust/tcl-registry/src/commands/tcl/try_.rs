@@ -51,7 +51,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 }];
 
 /// Whether a handler-body word is the literal `-` fallthrough marker
-/// (issue #703). Tcl recognises a body of `-` by string value, so the
+/// Tcl recognises a body of `-` by string value, so the
 /// braced `{-}` and quoted `"-"` forms — which evaluate to the same
 /// string — are equally fallthroughs. Role-resolver callers may pass
 /// the word either stripped (`-`) or brace/quote-inclusive (`{-}`),
@@ -231,7 +231,7 @@ mod tests {
 
     #[test]
     fn dash_handler_body_gets_no_body_role() {
-        // Issue #703: a `-` fallthrough handler body is not a script, so it
+        // A `-` fallthrough handler body is not a script, so it
         // must carry no `ArgRole::Body` (mirrors `switch`). Index layout for
         // `try <body> on ok result - trap NONE result <body>`:
         //   0 body, 1 on, 2 ok, 3 result, 4 `-`, 5 trap, 6 NONE, 7 result, 8 body

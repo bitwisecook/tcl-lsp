@@ -18,20 +18,19 @@
 
 //! `resolution-drift` — the name-resolution drift gate.
 //!
-//! The M1 root cause of the workspace's wrong-symbol bugs was consumers
-//! scanning `all_procs` / `all_classes` with a namespace-blind simple-name
-//! compare (`.name == word`) instead of the shared resolution contract
-//! (`tcl_syntax::naming` candidates, `definition.rs`'s sanctioned helpers) —
-//! 17 sites had drifted before the contract landed.  The "add a vector"
-//! discipline only protects consumers already inside the contract, so this
-//! lint (grep-shaped, per the plan) flags any **new** `.name ==` compare in
-//! the lexical neighbourhood of an `all_procs` / `all_classes` scan.
+//! Wrong-symbol bugs come from consumers scanning `all_procs` / `all_classes`
+//! with a namespace-blind simple-name compare (`.name == word`) instead of
+//! the shared resolution contract (`tcl_syntax::naming` candidates,
+//! `definition.rs`'s sanctioned helpers). The "add a vector" discipline only
+//! protects consumers already inside the contract, so this grep-shaped lint
+//! flags any **new** `.name ==` compare in the lexical neighbourhood of an
+//! `all_procs` / `all_classes` scan.
 //!
 //! Escapes:
 //! - the contract's own implementation files are exempt (see
 //!   [`SANCTIONED_FILES`]);
 //! - a deliberate, reviewed scan carries a `// drift-ok: <reason>` comment on
-//!   the flagged line or one of the two lines above it.
+//!   the flagged line or one of the four lines above it.
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};

@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Handler composition (issue #1204).
+//! Handler composition.
 //!
 //! Multiple `when EVENT priority N { … }` blocks for the same event compose
 //! into one **handler chain** with explicit, testable semantics:
@@ -146,7 +146,8 @@ impl EventChain {
 /// hazard — their relative order is decided only by the event-name tiebreaker,
 /// which is identical here, so the source order is not preserved deterministically
 /// across edits. [`ambiguous_priorities`] flags that so the front-end can reject
-/// it (issue #1204: "sorting independent object files is not sufficient").
+/// it: sorting independent object files is not sufficient to make the order
+/// deterministic.
 #[must_use]
 pub fn event_chains(module: &BpfModule) -> Vec<EventChain> {
     let mut chains: Vec<EventChain> = Vec::new();

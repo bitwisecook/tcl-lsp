@@ -18,7 +18,7 @@
 
 # WebAssembly build of the BIG-IP *report generator*.
 #
-# Compiles `tcl-bigip-report` (the Rust port of the f5report generator) plus the
+# Compiles `bigip-report-gen-rust` (the Rust port of the f5report generator) plus the
 # `tcl-bigip-io` UCS layer to wasm32, so the whole pipeline — decrypt/extract a
 # UCS (plain or OpenPGP-encrypted), run the `f5-query` engine, shape the model
 # and render the standalone HTML report — runs entirely in the browser. Nothing
@@ -30,7 +30,7 @@
 # own lockfile. Built with `build-wasm.sh` (cargo + wasm-bindgen + wasm-opt).
 #
 # The empty `[workspace]` table below is load-bearing (see the fuller comment
-# in `rust/tcl-spec-studio-wasm/Cargo.toml`, issue #1136): without it, cargo
+# in `rust/tcl-spec-studio-wasm/Cargo.toml`): without it, cargo
 # walks up past this crate looking for a `[workspace]` ancestor, and inside a
 # git worktree nested under the main checkout's directory (this repo's
 # standard parallel-agent worktree layout) it finds the *main checkout's*

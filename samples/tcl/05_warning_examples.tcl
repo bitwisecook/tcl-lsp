@@ -7,7 +7,7 @@ set b bar
 # Unbraced if expression (often warned by linters/analysers)
 if $a {puts "non-empty"}
 
-# String comparison in expr using == (often flagged in favor of eq/ne)
+# String comparison in expr using == (often flagged in favour of eq/ne)
 if {$a == "foo"} {puts "matched"}
 set eq_result [expr "$a == $b"]
 

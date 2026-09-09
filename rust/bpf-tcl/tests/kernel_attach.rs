@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Privileged loader / link-lifecycle acceptance tests (issue #1204).
+//! Privileged loader / link-lifecycle acceptance tests.
 //! **These do not run by default.**
 //!
 //! Attaching a program to an interface or cgroup calls the `bpf()` syscall and
@@ -189,7 +189,7 @@ fn xdp_attach_detach_in_a_disposable_namespace_leaks_nothing() {
 #[test]
 #[ignore = "needs root + iproute2(tc) + a live kernel; run with --ignored on a Linux host"]
 fn tc_ingress_attach_detach_in_a_disposable_namespace_leaks_nothing() {
-    // Issue #1310: TC (SCHED_CLS) codegen is implemented — this attaches a
+    // TC (SCHED_CLS) codegen is implemented — this attaches a
     // real classifier to a veth's ingress hook in a disposable namespace,
     // mirroring `xdp_attach_detach_in_a_disposable_namespace_leaks_nothing`
     // above. `__sk_buff` (TC's context) is exactly the socket filter's, so
@@ -272,13 +272,14 @@ fn tc_ingress_attach_detach_in_a_disposable_namespace_leaks_nothing() {
 #[test]
 #[ignore = "needs root + bpftool + a live kernel; run with --ignored on a Linux host"]
 fn cgroup_connect_attach_detach_on_a_disposable_cgroup_leaks_nothing() {
-    // Issue #1310: cgroup (CGROUP_SOCK_ADDR) codegen is implemented. Unlike
+    // cgroup (CGROUP_SOCK_ADDR) codegen is implemented. Unlike
     // XDP/TC, attaching a cgroup program has no `ip`/`tc` CLI path — it needs
-    // `bpftool cgroup attach`, so this additionally gates on `bpftool` (not
-    // available in every CI/sandbox image, hence a stricter skip condition
-    // than the netns-only tests above — confirmed absent in the sandbox this
-    // fix was developed in, so this exact sequence is unverified against a
-    // real kernel; the TC test above and the unit/e2e codegen suites are).
+    // `bpftool cgroup attach`, so this additionally gates on `bpftool`, which
+    // is not available in every CI/sandbox image, hence a stricter skip
+    // condition than the netns-only tests above. Where `bpftool` is
+    // unavailable, this exact sequence stays unverified against a real
+    // kernel; the TC test above and the unit/e2e codegen suites are not
+    // affected by that gap.
     if !is_root() {
         eprintln!("skip: cgroup attach needs root/CAP_BPF");
         return;

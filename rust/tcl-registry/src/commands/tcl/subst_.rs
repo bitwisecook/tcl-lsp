@@ -160,8 +160,8 @@ fn fold_subst(args: &[&str]) -> Option<String> {
 /// warns about for this command (variable and backslash substitution alone
 /// cannot execute anything). Drives `CommandSpec::taint_sink_gate`, so
 /// `subst -nocommands $tainted` — the exact mitigation this command's own
-/// hover snippet recommends — no longer trips the code-injection sink it
-/// was written to avoid.
+/// hover snippet recommends — correctly does not trip the code-injection
+/// sink it exists to avoid.
 ///
 /// One projection of [`crate::substitution::subst_substitutions`], which
 /// owns both switch families and the unreadable-call answer: this is that

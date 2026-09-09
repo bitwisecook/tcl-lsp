@@ -20,14 +20,12 @@ import * as assert from "assert";
 import { getWebviewHtml } from "../compilerExplorerHtml";
 
 /**
- * Regression guards for the compiler-explorer webview shell (issues
- * #1182 / #1183).
+ * Regression guards for the compiler-explorer webview shell.
  *
- * A renderer that threw used to abort the whole `result` handler: the
- * remaining tabs never rendered and the compile spinner was never hidden,
- * so the panel throbbed forever with no clue why. The webview now runs each
- * pane through `runRenderSteps` (from the shared `explorer-core.js`) and
- * clears the spinner in a `finally`.
+ * Each pane renders through `runRenderSteps` (from the shared
+ * `explorer-core.js`), and the spinner clears in a `finally`, so a renderer
+ * that throws cannot leave the other tabs unrendered or the compile spinner
+ * stuck.
  *
  * The webview body only exists as generated HTML, so assert on that rather
  * than trying to reach into a live panel's DOM.
@@ -131,8 +129,8 @@ suite("Compiler Explorer webview", () => {
   });
 
   test("the module header renderer tolerates a missing contract field", () => {
-    // `entry.types` was absent from the payload for a while; reading it
-    // unguarded took the whole WASM tab (and the spinner) down.
+    // `entry.types` can be absent from the payload; reading it unguarded
+    // would take the whole WASM tab (and the spinner) down.
     const header = core.slice(core.indexOf("function renderWasmModuleHeader"));
     for (const guard of ["entry.imports || []", "entry.types || []", "entry.dataSegments || []"]) {
       assert.ok(

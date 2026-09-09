@@ -232,7 +232,7 @@ fn workspace_symbols_classmethod_surfaces_as_method() {
 
 #[test]
 fn workspace_symbols_span_every_indexed_document() {
-    // Issue #1156: the answer is the whole workspace, not the caller's
+    // The answer is the whole workspace, not the caller's
     // document — two indexed documents both contribute, each naming its own
     // URI.
     let a = analyse("proc from_a {} {}\n");
@@ -373,7 +373,7 @@ fn minify_is_idempotent_on_already_minified_source() {
 fn minify_compact_isolated_renames_proc_everywhere_and_preserves_result() {
     // tclsh (8.6 + 9.0): original `proc fact {n} {…}; puts [fact 5]` -> 120.
     // Under `isolated` (proc names are public identities in the non-isolated
-    // tier — issue #1193) the compact tier renames `fact`->`a` at the
+    // tier) the compact tier renames `fact`->`a` at the
     // DECLARATION, the RECURSIVE self-call, and the top-level call. The
     // renamed program
     // `proc a {n} {if {$n<=1} {return 1};return [expr {$n*[a [expr {$n-1}]]}]};
@@ -399,7 +399,7 @@ fn minify_compact_isolated_renames_proc_everywhere_and_preserves_result() {
 
 #[test]
 fn minify_compact_non_isolated_keeps_proc_names() {
-    // Issue #1193: without `isolated`, a proc name is a PUBLIC command
+    // Without `isolated`, a proc name is a PUBLIC command
     // identity — external callers, `info procs`, `rename`, and `unknown`
     // can observe or invoke it — so it must survive verbatim.
     let src = "proc fact {n} {\n    if {$n <= 1} { return 1 }\n    return [expr {$n * [fact [expr {$n - 1}]]}]\n}\nputs [fact 5]\n";
@@ -514,10 +514,8 @@ fn minify_aggressive_empty_source_has_zero_savings() {
     );
 }
 
-// --- BUG: compact/aggressive minify corrupts `incr`/`append`/`lappend` -----
-//
-// The compact-name tier renames a variable at its `set` definition and at
-// every `$var` READ, but NOT when the variable name appears as the bare
+// The compact-name tier must rename a variable at its `set` definition, at
+// every `$var` READ, and where the name appears as the bare
 // (un-`$`-prefixed) WRITE-TARGET argument of `incr` / `append` / `lappend`.
 // The renamed program then mutates a *different* variable than the one it
 // reads, changing the result.

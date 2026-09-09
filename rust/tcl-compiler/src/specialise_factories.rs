@@ -294,11 +294,12 @@ pub fn detect_factory_shape(
 /// [`SUBST_NOCOMMANDS_KINDS`](crate::lowering::SUBST_NOCOMMANDS_KINDS) — the
 /// effect set [`subst_nocommands`] reproduces, whether the call spells it
 /// `-nocommands` or, from Tcl 9.1, `-variables -backslashes`. Returns `None`
-/// for any non-matching shape. Used by [`detect_factory_shape`].
+/// for any other shape, including one that also turns backslash or variable
+/// substitution off: those change what the template substitutes to, so the
+/// materialised body would not match. Used by [`detect_factory_shape`].
 ///
-/// Asking the registry rather than matching switch spellings is issue #2098:
-/// a call it cannot read — a computed switch word — answers every kind, which
-/// is not this set, so the shape is refused.
+/// The registry answers a call it cannot read — a computed switch word —
+/// with every kind, which is not this set, so the shape is refused.
 fn extract_subst_nocommands_template(
     inner: &str,
     config: tcl_lexer::LexerConfig,
@@ -343,8 +344,8 @@ fn rewrite_script(
 ) -> Vec<(String, String, Script)> {
     let mut synthesised: Vec<(String, String, Script)> = Vec::new();
     for stmt in &mut script.statements {
-        // Recurse into Block bodies (other structured statements
-        // are out of scope per main's rewriter).
+        // Recurse into Block bodies; call sites nested in other structured
+        // statements are not rewritten.
         if let Statement::Block { body, .. } = stmt {
             let inner = rewrite_script(body, factories, registry, namespace, counts, cap);
             synthesised.extend(inner);
@@ -468,7 +469,7 @@ mod tests {
     }
 
     /// Tcl 9.1's positive family reaches the same effect set the
-    /// materialiser reproduces, so it folds the same way (issue #2098).
+    /// materialiser reproduces, so it folds the same way.
     ///
     /// tclsh 9.1b0, with `name` set to `world`:
     /// `subst -variables -backslashes {hello $name\n[format X]}` → `hello
@@ -487,8 +488,7 @@ mod tests {
     }
 
     /// A computed switch word makes the call unreadable, and the registry
-    /// answers every kind — never this materialiser's effect set (issue
-    /// #2098).
+    /// answers every kind — never this materialiser's effect set.
     #[test]
     fn rejects_factory_with_computed_subst_switch() {
         let m = lower_to_ir(

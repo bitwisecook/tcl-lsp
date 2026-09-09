@@ -320,9 +320,9 @@ mod tests {
         Request::build(method).finish()
     }
 
-    /// Exact-head review of #1854: a request waiting for the matching live
-    /// publication must return its admission permit, or four providers for one
-    /// cold document can stop an unrelated request from starting.
+    /// A request waiting for the matching live publication must return its
+    /// admission permit, or four providers for one cold document can stop an
+    /// unrelated request from starting.
     #[tokio::test]
     async fn publication_wait_does_not_occupy_request_admission_1854() {
         let calls = Arc::new(AtomicUsize::new(0));

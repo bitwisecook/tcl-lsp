@@ -89,8 +89,8 @@ fn push_lit(lits: &mut LiteralTable, s: &str) -> Instruction {
     i
 }
 
-// -- compiled inline catch: the error path used to be unexecutable
-//    (`pushReturnCode` had no arm; `beginCatch4` was inert) --
+// Compiled inline catch: the error path must be reachable
+// (`pushReturnCode` needs an arm; `beginCatch4` must not be inert).
 
 /// 3-arg `catch` over an erroring body binds code 1, the message, and an
 /// options dict carrying `-code`/`-errorcode`/`-errorinfo` (catch-3.1-ish).
@@ -244,7 +244,7 @@ fn inline_catch_publishes_error_info() {
     assert_eq!(&*c.result.to_str(), "1");
 }
 
-// -- decorative ranges stay inert --
+// Decorative ranges stay inert.
 
 /// A `BEGIN_CATCH4` with no `catch_target` (the C-faithful reference shape
 /// for constructs the VM protects via its activation stack) must not absorb.
@@ -266,7 +266,7 @@ fn decorative_begin_catch_stays_inert() {
     assert_eq!(&*c.result.to_str(), "boom");
 }
 
-// -- returnCodeBranch --
+// `returnCodeBranch`.
 
 /// Build `push <code>; returnCodeBranch; 5×jump1 stubs; landing pushes` and
 /// return the landing literal — pins the `2*code − 1` byte arithmetic.
@@ -324,7 +324,7 @@ fn return_code_branch_rejects_ok_and_junk() {
     assert_eq!(result, "returnCodeBranch: TOS not a return code");
 }
 
-// -- returnStk: C stack order (options under result) + options application --
+// `returnStk`: C stack order (options under result) + options application.
 
 /// `returnStk` with `-code error` in the options raises that error — the
 /// options dict drives the completion (C `Tcl_SetReturnOptions`).
@@ -403,7 +403,7 @@ fn return_stk_plain_return() {
     assert_eq!(&*c.result.to_str(), "value");
 }
 
-// -- epilogue reads on the fall-through (no catch fired) path --
+// Epilogue reads on the fall-through (no catch fired) path.
 
 /// With no absorbed completion, `pushReturnCode` reports 0 and
 /// `pushReturnOpts` the ok options dict (C's untouched interp state).
@@ -422,7 +422,7 @@ fn epilogue_reads_without_catch() {
     assert_eq!(&*c.result.to_str(), "0 {-code 0 -level 0}");
 }
 
-// -- the epilogue reads must not leak between ranges (PR #1419 review) --
+// The epilogue reads must not leak between ranges.
 
 /// A *successful* 3-arg `catch` that follows an erroring one reports its own OK
 /// completion, not the earlier error's. Both paths of the compiled epilogue

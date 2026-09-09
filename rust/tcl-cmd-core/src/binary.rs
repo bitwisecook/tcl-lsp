@@ -1182,9 +1182,10 @@ mod tests {
     #[test]
     fn scan_huge_field_count_does_not_overflow() {
         // A field count from the format string is saturated to `usize::MAX`
-        // by `parse_count`, so `n * size` used to overflow usize and wrap *under*
-        // the bounds check (sneaking past it, then trying to allocate `usize::MAX`).
-        // It must instead stop scanning, exactly like the normal out-of-data path.
+        // by `parse_count`, so `n * size` must not overflow usize and wrap
+        // *under* the bounds check (which would sneak past it, then try to
+        // allocate `usize::MAX`). It must instead stop scanning, exactly
+        // like the normal out-of-data path.
         // Both an integer field (`w`, size 8) and a float field (`d`, size 8):
         let huge = b"w99999999999999999999"; // count saturates to usize::MAX
         assert!(scan(b"only-eight-bytes", huge).unwrap().is_empty());

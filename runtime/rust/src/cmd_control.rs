@@ -51,7 +51,7 @@ pub fn install(interp: &mut Interp) {
     }
 }
 
-// -- break / continue ------------------------------------------------------
+// break / continue
 
 fn break_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 1 {
@@ -72,7 +72,7 @@ fn continue_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Continue
 }
 
-// -- time ------------------------------------------------------------------
+// time
 
 /// `time command ?count?` — evaluate `command` (in the current frame) `count`
 /// times (default 1) and report the average as the 4-element list
@@ -135,7 +135,7 @@ fn time_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-// -- timerate --------------------------------------------------------------
+// timerate
 
 /// `timerate ?-direct? ?-calibrate? ?-overhead double? command ?time ?max-count??`
 /// (C `Tcl_TimeRateObjCmd`) — repeatedly evaluate `command` for up to `time`
@@ -415,7 +415,7 @@ fn timerate_calibrate_cycle(interp: &mut Interp, script: &[u8]) -> Code {
     Code::Ok
 }
 
-// -- tailcall --------------------------------------------------------------
+// tailcall
 
 /// `tailcall command ?arg ...?` — arrange for `command args` to run and its
 /// result to become the enclosing proc's result. Must be called from a proc /
@@ -440,7 +440,7 @@ fn tailcall_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-// -- if --------------------------------------------------------------------
+// if
 
 /// `if expr1 ?then? body1 elseif expr2 ?then? body2 ... ?else? ?bodyN?`.
 #[cfg(have_tommath)]
@@ -523,7 +523,7 @@ fn no_script_following(interp: &mut Interp, token: &[u8]) -> Code {
     interp.set_error(&m)
 }
 
-// -- while -----------------------------------------------------------------
+// while
 
 /// `while test body`.
 #[cfg(have_tommath)]
@@ -561,7 +561,7 @@ fn while_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-// -- for -------------------------------------------------------------------
+// for
 
 /// `for start test next body`.
 #[cfg(have_tommath)]
@@ -626,7 +626,7 @@ fn for_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-// -- foreach / lmap --------------------------------------------------------
+// foreach / lmap
 
 /// `foreach varList list ?varList list ...? body` — iterate one or more
 /// (var-list, value-list) groups in parallel, padding exhausted lists with `""`.
@@ -705,7 +705,7 @@ fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
                 let val = vals.get(it * vars.len() + k).cloned().unwrap_or_default();
                 let o = new_string(&val);
                 // `arr(a)` writes the array *element*, not a literal scalar
-                // named `arr(a)` (issue #1577) — the same `split_array_ref` +
+                // named `arr(a)` — the same `split_array_ref` +
                 // `var_set`/`var_set_elem` routing `set` uses (shared by
                 // `foreach` and `lmap`, this loop's two callers), so this
                 // doesn't hand-roll a second name parser.

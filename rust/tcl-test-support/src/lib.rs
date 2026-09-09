@@ -604,8 +604,9 @@ mod tests {
 
     /// `--tcl-root relative/path` is resolved by the controller, before sweep
     /// workers chdir into their isolated directories. Removing the
-    /// canonicalization makes this assertion retain a relative root and
-    /// reproduces #1736's worker-only miss.
+    /// canonicalization makes this assertion retain a relative root, which
+    /// a worker's chdir would then silently resolve against the wrong
+    /// directory.
     #[test]
     fn source_tree_validation_canonicalizes_a_relative_root() {
         let cwd = std::env::current_dir().expect("test working directory");

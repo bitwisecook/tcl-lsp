@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Issue #969: "Condition '$count & 1' is always false" — a false-positive
+// "Condition '$count & 1' is always false" must not be a false-positive
 // I230 on a genuinely alternating parity check. The deep TP/FP/TN/FN
 // coverage of the interprocedural call-site-literal seed lives in
 // `compilation_unit.rs`'s unit tests and the native `e2e` suite

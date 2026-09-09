@@ -26,8 +26,8 @@ import { getDocUri, activate } from "./helper";
 // (``caller_x``).
 //
 // This file is about ``upvar`` VARIABLE aliasing ONLY.  The unrelated
-// ``interp alias`` COMMAND aliasing (issue #923 audit idx 21 / idx 89) lives
-// in ``commandAliasTracking.test.ts``; nothing here covers it.
+// ``interp alias`` COMMAND aliasing lives in ``commandAliasTracking.test.ts``;
+// nothing here covers it.
 //
 // The fixture aliasTracking.tcl is:
 //

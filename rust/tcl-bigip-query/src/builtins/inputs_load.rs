@@ -76,10 +76,8 @@ fn read_text(name: &str, expanded: &str) -> Result<String, QueryError> {
     match std::fs::read(expanded) {
         Ok(bytes) => match String::from_utf8(bytes) {
             Ok(s) => Ok(s),
-            // The file is read as `utf-8`; a decode error surfaces
-            // as the OSError-shaped `cannot read` path is not hit — a
-            // UnicodeDecodeError is raised, which is not one of the caught
-            // exceptions, so it propagates. We surface a clear builtin error.
+            // A UTF-8 decode failure gets the same `cannot read` wording as
+            // an I/O error.
             Err(e) => Err(QueryError::builtin(format!(
                 "{name}: cannot read {expanded}: {e}"
             ))),
@@ -159,8 +157,8 @@ fn bi_cert_load(args: &[Value]) -> Result<Value, QueryError> {
     let p = as_str(&args[0], "cert_load", 1)?;
     let expanded = expanduser(&p);
     if args.len() > 1 {
-        // Validate the password arg shape so a type error matches
-        // `_as_str` before we hit the unsupported-parse error.
+        // Validate the password arg shape so a type error surfaces before
+        // the unsupported-parse error.
         let _ = as_str(&args[1], "cert_load", 2)?;
     }
     // Read order: missing / unreadable file errors first.

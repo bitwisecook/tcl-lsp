@@ -389,9 +389,9 @@ pub enum Op {
     /// `iruleMatches` — the F5 trunk's bare `matches` word operator. Its
     /// presence is measured
     /// (`docs/design/f5/bigip-irule-parser-measurements.md` §4a `e_matches`);
-    /// its discriminating semantics are §12's outstanding re-probe, so
-    /// the VM answers it as a string equality — the reading the measured
-    /// cell exercises — and the compiler declines to constant-fold it.
+    /// its discriminating semantics are not yet confirmed, so the VM
+    /// answers it as a string equality — the reading the measured cell
+    /// exercises — and the compiler declines to constant-fold it.
     IRULE_MATCHES,
     IRULE_WORD_AND,
     IRULE_WORD_OR,

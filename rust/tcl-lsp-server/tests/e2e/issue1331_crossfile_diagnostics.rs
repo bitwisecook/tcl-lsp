@@ -16,15 +16,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Issues #1331 and #1332 — facts that live in **another file**.
+//! Facts that live in **another file**.
 //!
-//! Both were reported by @nico-robert on #1181 against v2.1.16 / VS Code, and
-//! both are invisible to single-file coverage: the existing one-file tests for
-//! arity and for W120 pass today and would not have caught either bug. The
-//! two-file shape *is* the test, which is why these run over the real protocol
-//! with two documents open in one workspace.
+//! Both scenarios below are invisible to single-file coverage: the existing
+//! one-file tests for arity and for W120 pass today and would not have
+//! caught either bug. The two-file shape *is* the test, which is why these
+//! run over the real protocol with two documents open in one workspace.
 //!
-//! # #1331 — the diagnostics path ignored the cross-file index
+//! # The diagnostics path must consult the cross-file index
 //!
 //! ```text
 //! # deflib.tcl
@@ -39,10 +38,10 @@
 //! name, because navigation consulted the workspace index and diagnostics
 //! consulted a different, bare-tail name set that was off by default.
 //!
-//! The `definition` request is kept here as the **control**, exactly as the
-//! issue used it: it is what rules out a mis-scoped fixture (where every
-//! cross-file lookup fails for an unrelated reason and looks just like this
-//! bug). If the fixture were wrong, definition would fail too.
+//! The `definition` request is kept here as the **control**: it is what
+//! rules out a mis-scoped fixture (where every cross-file lookup fails for
+//! an unrelated reason and looks just like this bug). If the fixture were
+//! wrong, definition would fail too.
 //!
 //! Oracle — C Tcl 9.0.4:
 //!
@@ -51,7 +50,7 @@
 //! wrong # args: should be "libtest a b c"
 //! ```
 //!
-//! # #1332 — `source` was never followed
+//! # `source` must be followed
 //!
 //! ```text
 //! # tkFile.tcl
@@ -62,9 +61,8 @@
 //! ```
 //!
 //! `winfo` drew `W120 "winfo" requires package require Tk`, a false positive:
-//! Tk *is* loaded by the time `winfo` runs. The dynamic path in the original
-//! report was a red herring — the literal form behaved identically, so
-//! `source` was not followed however the path was written.
+//! Tk *is* loaded by the time `winfo` runs, whether `source`'s argument is
+//! dynamic or a literal path — `source` must be followed either way.
 //!
 //! Oracle — C Tcl 9.0.4, `package present` around a `source` of a file that
 //! requires a package:
@@ -81,7 +79,7 @@ use crate::common::{Lsp, unique_uri};
 use serde_json::{Value, json};
 use std::time::Duration;
 
-/// The library half of the #1331 repro.
+/// The library half of the repro.
 const DEFLIB: &str = "proc libtest {a b c} { return [expr {$a + $b + $c}] }\n";
 
 /// Diagnostic codes present, in source order.
@@ -159,8 +157,6 @@ fn replace_and_wait_for_index(lsp: &mut Lsp, uri: &str, version: i64, text: &str
         since,
     );
 }
-
-// #1331
 
 /// **The reported bug.** Default configuration — nothing opted into — and the
 /// two files joined only by living in the same workspace. The cross-file call
@@ -375,8 +371,6 @@ fn a_cross_file_args_tailed_proc_abstains_from_arity() {
     );
 }
 
-// #1332
-
 /// **The reported bug, literal form.** `main.tcl` sources a file that requires
 /// Tk, so `winfo` is satisfied and must draw no W120.
 #[test]
@@ -454,7 +448,7 @@ fn a_computed_source_path_behaves_like_the_literal_and_keeps_w300() {
     );
 }
 
-/// **The chained form** (issue #775) — the directory reaches the `source`
+/// **The chained form** — the directory reaches the `source`
 /// through an intermediate constant, georgtree/SpiceGenTcl's own shape:
 ///
 /// ```tcl
@@ -489,7 +483,7 @@ fn a_chained_computed_source_path_behaves_like_the_direct_one() {
     );
 }
 
-/// **The cross-file form** (issue #1368) — OSVVM's shape: the parent assigns
+/// **The cross-file form** — OSVVM's shape: the parent assigns
 /// a namespace constant and sources the reader; the reader sources the Tk
 /// file *through the imported constant*, a value its own text never assigns.
 /// The reader's edge must resolve exactly as if the assignment were local.
@@ -597,8 +591,8 @@ fn an_unfollowable_source_abstains_rather_than_misfiring() {
     );
 }
 
-/// A sourced file's **procs** are equally visible — the second symptom the
-/// issue notes, closed by the same cross-file resolution as #1331.
+/// A sourced file's **procs** are equally visible — the second symptom,
+/// closed by the same cross-file resolution.
 #[test]
 fn a_sourced_files_procs_resolve_in_the_sourcing_file() {
     let mut lsp = Lsp::tcl();

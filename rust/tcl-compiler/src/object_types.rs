@@ -20,15 +20,15 @@
 //! `$obj method …` / `[dict get $objs $k] method …` patterns.
 //!
 //! [`object_handle_classes`] recognises a `set VAR [Factory new|create …]`
-//! constructor assignment (the object-handle half of issue #748) *and* any SSA
-//! value the type lattice typed `OBJECT(class)` — the latter now including a
-//! handle retrieved from an object collection (`set p [dict get $pins $k]`).
+//! constructor assignment *and* any SSA value the type lattice typed
+//! `OBJECT(class)`, including a handle retrieved from an object collection
+//! (`set p [dict get $pins $k]`).
 //! [`object_collection_classes`] maps a `List`/`Dict` variable to the class of
 //! its elements, harvested from the lattice's container element-typing.
 //!
 //! The maps union across scopes.  For the syntactic constructor signal that is
 //! merely a highlight-precision convenience; for the collection signal it is
-//! also the *interprocedural bridge* that makes issue #797 resolvable — an
+//! also the *interprocedural bridge* that resolves the cross-method case — an
 //! object built into an instance-variable collection in one method is dispatched
 //! from it in another, which no intraprocedural lattice can connect
 //! (`experiments/mro_eval/RESULTS.md` measured 99.8% ⊤ intraprocedurally on real
@@ -36,8 +36,8 @@
 //! un-provenanced receiver is still left to the generic shape-based option
 //! fallback rather than resolved with a wrong-or-abstain lattice.
 //!
-//! [`object_handle_facts`] is the widened entry point issue #994's staged
-//! unification (C5a) is built on: the same union **plus** a scope-keyed twin,
+//! [`object_handle_facts`] is the widened entry point: the same union
+//! **plus** a scope-keyed twin,
 //! an owner-span index, the collection map, the factory-return fact, and the
 //! `::`-qualified subset — one fact for all five dispatch consumers instead of
 //! four maps that can disagree on the same document.
@@ -73,8 +73,8 @@ pub struct OwnerSpan {
 }
 
 /// Owner-attributed object-handle provenance for one
-/// [`CompilationUnit`] — the carrier issue #994's staged unification (C5a)
-/// puts on [`crate::analyser::types::AnalysisResult`].
+/// [`CompilationUnit`], carried on
+/// [`crate::analyser::types::AnalysisResult`].
 ///
 /// Every map is **best-effort**: an absent key means *no evidence was found*,
 /// never *proof that the name holds no object*.  A consumer that needs a sound
@@ -87,7 +87,7 @@ pub struct OwnerSpan {
 /// |---|---|---|---|
 /// | [`Self::any_scope`] | bare name | same name in two procs collides | highlighting, navigation (labelled) |
 /// | [`Self::by_scope`] | `(owner, name)` | none: sources resolve in their own scope | edits, references, rename, refusal gates |
-/// | [`Self::collections`] | bare name | cross-scope union (deliberate — the #797 bridge) | highlighting, collection dispatch |
+/// | [`Self::collections`] | bare name | cross-scope union (deliberate — the cross-method bridge) | highlighting, collection dispatch |
 /// | [`Self::returns_object`] | proc qname | none (one return type per proc) | factory-call typing |
 /// | [`Self::global_object_cells`] | `::`-qualified name | none (the name *is* the cell) | cross-document index seeds |
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -100,7 +100,7 @@ pub struct ObjectHandleFacts {
     /// return binds in the *assigning* unit, a proc-parameter edge in the
     /// *callee*, a constructor-parameter edge in the *constructor*, and a
     /// class instance variable in the *class* (unioned across its methods —
-    /// that union is the interprocedural bridge issue #797 needs).
+    /// that union is the interprocedural bridge).
     ///
     /// **Scoped propagation, not just scoped keying.**  Every variable *read*
     /// an edge resolves is resolved in the reading unit's own scope (falling
@@ -123,8 +123,8 @@ pub struct ObjectHandleFacts {
     /// classes of its elements.
     pub collections: HashMap<String, HashSet<String>>,
     /// Procedure qualified name → the class of the object it returns.  The
-    /// factory-proc fact the VTA fixpoint computes internally and used to
-    /// discard; exported so a cross-document index can seed on it (#1099).
+    /// factory-proc fact the VTA fixpoint computes internally, exported so a
+    /// cross-document index can seed on it.
     pub returns_object: HashMap<String, String>,
     /// The `::`-qualified subset of [`Self::any_scope`] — object handles that
     /// live in a *global* cell rather than a local, so another document's
@@ -198,7 +198,7 @@ pub fn object_handle_classes(
 }
 
 /// [`object_handle_classes`] **without** the empty-seed fast path — the
-/// propagation walk exactly as it ran before issue #994's C5a.
+/// unconditional propagation walk.
 ///
 /// Exists so the measurement harness (`examples/object_lattice_cost.rs`) and
 /// the unit test below can pin the fast path as behaviour-preserving and
@@ -225,8 +225,7 @@ pub enum ObjectFlowEdge {
     Alias,
     /// `set A [factoryProc …]`.
     ProcReturn,
-    /// `set A [$obj make …]` — a method-return on an already-typed receiver
-    /// (issue #1143).
+    /// `set A [$obj make …]` — a method-return on an already-typed receiver.
     MethodReturn,
     /// `f $obj` → `f`'s parameter.
     ProcParam,
@@ -267,8 +266,8 @@ pub fn object_handle_facts_instrumented(
     build_facts_gated(cu, registry, FactMode::Full, true)
 }
 
-/// The full owner-attributed object-handle fact set for `cu` — the C5a
-/// carrier described on [`ObjectHandleFacts`].
+/// The full owner-attributed object-handle fact set for `cu` — the carrier
+/// described on [`ObjectHandleFacts`].
 ///
 /// [`object_handle_classes`] is this entry point restricted to
 /// [`ObjectHandleFacts::any_scope`]; the union it returns is byte-identical
@@ -305,8 +304,9 @@ fn build_facts(
 /// The one implementation behind both public entry points.
 ///
 /// `empty_seed_fast_path` is `true` for every production caller; only
-/// [`object_handle_classes_full_walk`] passes `false`, to reproduce the
-/// pre-#994 walk for the behaviour-equality test and the cost measurement.
+/// [`object_handle_classes_full_walk`] passes `false`, to run the
+/// unconditional walk for the behaviour-equality test and the cost
+/// measurement.
 fn build_facts_gated(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
@@ -329,7 +329,7 @@ fn build_facts_gated(
     }
     sink.stats.seeds = sink.facts.any_scope.len();
     let returns = returning_procs(cu);
-    // Fast path (issue #994 C5a).  The early-out inside `propagate_object_flow`
+    // Fast path.  The early-out inside `propagate_object_flow`
     // checks the *callee-side* maps (returns / proc params / ctor params),
     // which are non-empty for any file that merely defines a proc — so every
     // ordinary non-OO file paid a full statement walk to discover that it had
@@ -392,7 +392,7 @@ struct OwnerIndex {
     method_class: HashMap<String, String>,
     /// Class qualified name → the instance-variable names in scope for any of
     /// its methods.  A name in this set is owned by the *class*, so a handle
-    /// stored in one method is visible to a dispatch in another (issue #797).
+    /// stored in one method is visible to a dispatch in another.
     class_instance_vars: HashMap<String, HashSet<String>>,
     /// [`ObjectHandleFacts::owner_spans`], already sorted.
     spans: Vec<OwnerSpan>,
@@ -556,7 +556,7 @@ fn returning_procs(cu: &CompilationUnit) -> HashMap<&str, &str> {
 
 /// Method [`FunctionUnit`] key (`::Class::method`) → the class of the object
 /// it returns — the method-return counterpart of [`returning_procs`], behind
-/// the `set b [$a make]` edge (issue #1143).
+/// the `set b [$a make]` edge.
 ///
 /// Direct declarations only: a receiver class that merely *inherits* the
 /// method resolves nothing here (the lattice carries no MRO), so the edge
@@ -676,7 +676,7 @@ struct FlowIndex<'a> {
     /// Proc qualified name → returned object class.
     returns: HashMap<&'a str, &'a str>,
     /// Method [`FunctionUnit`] key (`::Class::method`) → returned object
-    /// class, for the `set b [$a make]` method-return edge (issue #1143).
+    /// class, for the `set b [$a make]` method-return edge.
     method_returns: HashMap<&'a str, &'a str>,
     /// Proc qualified name → parameter names.
     proc_params: HashMap<&'a str, &'a [String]>,
@@ -697,8 +697,8 @@ struct FlowIndex<'a> {
 /// * `scoped_classes` resolves the edge's source *in the scope that owns it*
 ///   and feeds [`ObjectHandleFacts::by_scope`].  Empty means "no evidence in
 ///   the owning scope", which is the whole point: a `set y $x` in one proc
-///   must not read a same-named `x` bound in another (issue #994 C5a review —
-///   a false singleton in the narrow map is a wrong rename, not a missed one).
+///   must not read a same-named `x` bound in another: a false singleton in
+///   the narrow map is a wrong rename, not a missed one.
 struct Binding {
     owner: String,
     name: String,
@@ -864,8 +864,8 @@ struct ReturnEdges<'a, 'b> {
 }
 
 /// The edges an assignment can carry — aliasing (`set A $B`), proc return
-/// (`set A [make …]`), and method return (`set A [$obj make …]`, issue
-/// #1143) — plus the nested-constructor parameter edge of a
+/// (`set A [make …]`), and method return (`set A [$obj make …]`)
+/// — plus the nested-constructor parameter edge of a
 /// `set W [Class new $obj]` value.  The assignment edges bind in the
 /// *assigning* unit; the constructor edge binds in the constructor.
 fn scan_assign_edges(
@@ -918,7 +918,7 @@ fn scan_assign_edges(
             kind: ObjectFlowEdge::ProcReturn,
         });
     }
-    // Method-return edge (issue #1143): `set B [$a make …]` — the receiver's
+    // Method-return edge: `set B [$a make …]` — the receiver's
     // classes are already tracked, and a directly-declared `::Class::make`
     // whose own return type names an object class types the captured handle,
     // exactly like a proc return.  The *receiver* is a variable read in this
@@ -1018,7 +1018,7 @@ struct ScanContext<'a> {
 impl ScanContext<'_> {
     /// The classes `var` holds **in the unit being scanned** — the owning
     /// unit's binding, or its class's when `var` is one of that class's
-    /// instance variables (the cross-method bridge issue #797 needs).
+    /// instance variables (the cross-method bridge).
     ///
     /// Empty when there is no binding in that scope, which is exactly what
     /// stops one unit's `x` from flowing into another's.
@@ -1127,8 +1127,8 @@ fn deref_arg_var(text: &str) -> Option<&str> {
 /// interprocedural bridge the intraprocedural lattice cannot make on its own:
 /// a `Pins` instance variable filled with `[Pin new]` handles in one method is
 /// thereby known to be a `Dict` of `Pin` at a `[dict get $Pins $k] method …`
-/// dispatch in a *different* method — the exact `SpiceGenTcl` shape from issue
-/// #797.  Highlight-only, matching the imprecision tolerance of
+/// dispatch in a *different* method.  Highlight-only, matching the
+/// imprecision tolerance of
 /// [`object_handle_classes`].
 #[must_use]
 pub fn object_collection_classes(cu: &CompilationUnit) -> HashMap<String, HashSet<String>> {
@@ -1297,8 +1297,7 @@ mod tests {
         // naming-factory shape (`struct::graph g`) `harvest_unit` already
         // reads generically via `creates_instance_at`/`object_class` — so a
         // Tk widget's bareword path becomes a tracked handle with zero new
-        // code in this pass, once the registry declares those two fields
-        // (issue #927).
+        // code in this pass, once the registry declares those two fields.
         let registry = CommandRegistry::build_default();
         let src = "ttk::treeview .t\n.t instate {selected} {}\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
@@ -1538,7 +1537,7 @@ mod tests {
 
     #[test]
     fn collection_class_bridges_across_methods() {
-        // The interprocedural case from issue #797: one method fills the `pins`
+        // The interprocedural case: one method fills the `pins`
         // collection, a *different* method dispatches on an element.  The
         // cross-scope union makes `pins` a collection-of-Pin at both sites.
         let registry = CommandRegistry::build_default();
@@ -1562,8 +1561,8 @@ mod tests {
         // The exact SpiceGenTcl shape: namespaced `oo::configurable` classes,
         // the collection built and dispatched in the *same* big method's switch
         // arms with fully-qualified constructors.  Locks in that an
-        // `oo::configurable` class body is lowered (so its `[::ns::Pin new]`
-        // writes type the `Pins` dict) — issue #797.
+        // `oo::configurable` class body is lowered, so its `[::ns::Pin new]`
+        // writes type the `Pins` dict.
         let registry = CommandRegistry::build_default();
         let src = "namespace eval ::SpiceGenTcl {\n\
                      oo::configurable create Pin { property node }\n\
@@ -1586,8 +1585,8 @@ mod tests {
         );
     }
 
-    /// Build a unit and its full fact set in one step (the C5a tests below all
-    /// want both).
+    /// Build a unit and its full fact set in one step (the tests below want
+    /// both).
     fn facts_for(src: &str) -> (CommandRegistry, ObjectHandleFacts) {
         let registry = CommandRegistry::build_default();
         let cu = CompilationUnit::build_for(src, &registry, false);
@@ -1632,7 +1631,7 @@ mod tests {
     #[test]
     fn empty_seed_fast_path_is_behaviour_preserving() {
         // The fast path skips the propagation walk when no edge can fire.  Pin
-        // it against the pre-#994 unconditional walk on every shape that binds
+        // it against the unconditional walk on every shape that binds
         // from an *empty seed set* — a bare `out.is_empty()` gate (the obvious
         // one) silently drops all four of the middle cases here.
         for src in [
@@ -1736,8 +1735,8 @@ mod tests {
 
     #[test]
     fn owner_attribution_instance_var_is_owned_by_the_class() {
-        // The #797 bridge: `engine` is written in `Car`'s constructor and read
-        // in `Car`'s `go`.  Keying it by the *class* (not by either method)
+        // The cross-method bridge: `engine` is written in `Car`'s constructor
+        // and read in `Car`'s `go`.  Keying it by the *class* (not by either method)
         // is what makes the cross-method dispatch resolvable at all.
         let (_r, facts) = facts_for(
             "oo::class create Motor { method spin {args} {} }\n\
@@ -1809,7 +1808,7 @@ mod tests {
         // The `by_scope` twin of `registry_factory_operator_form_binds_nothing`:
         // the deserialise operator words name no object command, so the
         // abstention must survive in the scope-keyed map too — a bogus `=`
-        // binding there would be read by the C5b rename/refusal consumers.
+        // binding there would be read by the rename/refusal consumers.
         let registry = CommandRegistry::build_default();
         for op in ["=", ":=", "as", "deserialize"] {
             let src = format!("struct::graph {op} $serial\n");
@@ -1829,13 +1828,13 @@ mod tests {
 
     #[test]
     fn by_scope_does_not_import_another_units_binding_through_an_alias() {
-        // FP guard (Codex review of #1127).  `x` is a `::Pin` in `::a` and a
-        // plain integer in `::b`.  `any_scope` unions the two — that is its
-        // documented, deliberate imprecision — but the alias `set y $x` inside
-        // `::b` must resolve `x` **in `::b`**, where there is no object.  A
-        // `(::b, y) → ::Pin` entry would be a false *singleton* in the map
-        // C5b's rename edits and the "provably a different class" refusal gate
-        // read as authoritative: it would rewrite an unrelated integer.
+        // FP guard.  `x` is a `::Pin` in `::a` and a plain integer in `::b`.
+        // `any_scope` unions the two — that is its documented, deliberate
+        // imprecision — but the alias `set y $x` inside `::b` must resolve `x`
+        // **in `::b`**, where there is no object.  A `(::b, y) → ::Pin` entry
+        // would be a false *singleton* in the map the rename edits and the
+        // "provably a different class" refusal gate read as authoritative: it
+        // would rewrite an unrelated integer.
         let (_r, facts) = facts_for(
             "oo::class create Pin { method cfg {args} {} }\n\
              proc a {} { set x [Pin new] }\n\
@@ -1878,8 +1877,8 @@ mod tests {
 
     #[test]
     fn by_scope_instance_var_alias_reads_the_class_owner() {
-        // The #797 bridge under scoped propagation: `engine` is written in the
-        // constructor and read in another method.  The source lookup for
+        // The cross-method bridge under scoped propagation: `engine` is
+        // written in the constructor and read in another method.  The source lookup for
         // `set m $engine` inside `::Car::go` must fall back to the *class*
         // owner, or the bridge the design is built on would break.
         let (_r, facts) = facts_for(
@@ -1935,7 +1934,7 @@ mod tests {
 
     #[test]
     fn method_return_capture_types_the_handle() {
-        // Issue #1143: `set b [$a make]` — the receiver is already typed and
+        // `set b [$a make]` — the receiver is already typed and
         // `::A::make`'s own return type names an object class, so the captured
         // handle is a ::B in both facts.
         let (_r, facts) = facts_for(

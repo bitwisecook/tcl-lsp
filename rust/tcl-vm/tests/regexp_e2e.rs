@@ -86,7 +86,7 @@ const CASES: &[(&str, &str)] = &[
     (r#"regsub {(a)(b)} ab {\2\1}"#, "ba"),
     (r#"regsub -all {[abc]} "abcd" {[&]}"#, "[a][b][c]d"),
     (r#"regsub -nocase {ABC} xabcy Q"#, "xQy"),
-    // Word edges and classes — not expressible in the old approximate engine.
+    // Word edges and classes — not expressible in an approximate regex engine.
     (r#"regexp {\mfoo\M} "a foo b""#, "1"),
     (r#"regexp {\w+} "  hi_there! ""#, "1"),
     // POSIX longest-match submatch semantics (differs from Perl leftmost-first).

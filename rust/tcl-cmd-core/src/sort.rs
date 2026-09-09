@@ -27,8 +27,7 @@
 //!
 //! `dictionary_compare` in particular reproduces the fiddly logic of C's
 //! `DictionaryCompare` (`tclCmdIL.c`) — exactly the kind of subtle logic worth
-//! writing once. (The bytecode VM had no dictionary comparison at all before
-//! this; its `lsort -dictionary` fell back to a plain byte compare.)
+//! writing once.
 
 use core::cmp::Ordering;
 
@@ -182,8 +181,7 @@ mod tests {
 
     #[test]
     fn parse_wide_shares_the_canonical_integer_grammar() {
-        // The classic forms are unchanged (whitespace, sign, radix prefixes,
-        // and the i128 headroom past i64).
+        // Whitespace, sign, radix prefixes, and the i128 headroom past i64.
         assert_eq!(parse_wide(b" 42 "), Some(42));
         assert_eq!(parse_wide(b"+7"), Some(7));
         assert_eq!(parse_wide(b"-0x10"), Some(-16));
@@ -193,14 +191,12 @@ mod tests {
             parse_wide(b"0x7FFFFFFFFFFFFFFFF"), // one nibble past i64
             Some(0x0007_FFFF_FFFF_FFFF_FFFF_i128)
         );
-        // Routing through `tcl_syntax::number` (integer-only, whole-string)
-        // adds the Tcl 9.0 forms the hand-rolled copy rejected: `0d` decimal
-        // prefixes and `_` digit separators. (tclsh8.6 rejects both — they
-        // are 9.0 syntax; the shared grammar is 9.0-first by design.)
+        // The Tcl 9.0 spellings: `0d` decimal prefixes and `_` digit
+        // separators. (tclsh8.6 rejects both — they are 9.0 syntax; the shared
+        // grammar is 9.0-first by design.)
         assert_eq!(parse_wide(b"0d5"), Some(5));
         assert_eq!(parse_wide(b"1_000"), Some(1000));
-        // …and fixes its accidental double-sign acceptance (`--5` parsed as 5
-        // because `i128::from_str` re-parsed the sign; tclsh: not an integer).
+        // A doubled sign is not an integer, as in tclsh.
         assert_eq!(parse_wide(b"--5"), None);
         assert_eq!(parse_wide(b"0x-5"), None);
         // Non-integers stay rejected.

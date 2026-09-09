@@ -149,7 +149,7 @@ pub fn spec() -> CommandSpec {
             // file's commands can call back into whatever this one defines
             // — the signal `tcl_compiler::unit_scope` needs to stop
             // treating this file's own call sites as the complete caller
-            // set (issue #977).
+            // set.
             | Traits::LOADS_EXTERNAL_UNIT
             | Traits::DYNAMIC_EVAL_BODY
             | Traits::SAFE_INTERP_HIDDEN

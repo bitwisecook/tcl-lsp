@@ -28,9 +28,10 @@
 //! the helper, and maps the result onto its protocol.
 //!
 //! The helpers never name a runtime `Completion`/`Code` or touch an interp, so
-//! the crate depends only on `tcl-syntax` (the value seam + parse grammars) and
-//! `tcl-platform` (the host-capability seam) — not on `tcl-bytecode` or
-//! `tcl-runtime-api`.
+//! the crate depends only on `tcl-syntax` (the value seam + parse grammars),
+//! `tcl-dialect` (the version/profile seam), `tcl-platform` (the
+//! host-capability seam) and the light `tcl-runtime-api` (storage and
+//! introspection role traits) — never on `tcl-bytecode` or a concrete runtime.
 //!
 //! Module layout is **by concern**: pure value→value families flat at the top
 //! ([`string`], [`path`], …), platform-backed families under [`platform`].

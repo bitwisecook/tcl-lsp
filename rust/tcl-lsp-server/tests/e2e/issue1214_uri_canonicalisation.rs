@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Issue #1214 — server-constructed and client-sent URIs share one canonical
+//! Server-constructed and client-sent URIs share one canonical
 //! form, and a client that sends an unencoded URI is accepted rather than
 //! rejected.
 

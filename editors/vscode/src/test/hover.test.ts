@@ -56,7 +56,7 @@ suite("Hover", () => {
     assert.ok(hoverText.includes("fib"), `Hover should mention "fib", got: ${hoverText}`);
   });
 
-  // Peer of issue #776: a bare command imported into the global scope hovers as
+  // A bare command imported into the global scope hovers as
   // its qualified spec — `test` after `namespace import ::tcltest::*`.
   test("resolves hover for an imported command", async () => {
     const uri = getDocUri("tcltestImport.tcl");
@@ -81,7 +81,7 @@ suite("Hover", () => {
     );
   });
 
-  // Issue #1139 (issue #923 audit idx 22): a callee that binds a literal
+  // A callee that binds a literal
   // caller-frame name in its own body (`upvar name name`) creates the
   // variable in the calling frame with no call-site word to point at.
   // Hovering the `$name` read must render the caller-frame card naming the

@@ -1,5 +1,5 @@
 # tcl-dialect: tcl8.6
-# Tk widget checks are per-interpreter (issue #923 audit idx 91).
+# Tk widget checks are per-interpreter.
 #
 # `interp create child` gives the child its own command table and its own
 # widget hierarchy, so a `.top` created inside `child eval { … }` is a

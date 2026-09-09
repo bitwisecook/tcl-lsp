@@ -784,8 +784,8 @@ const GRAMMAR__PEG__INTERP_CMDS: &[Row] = &[
 /// because the package mixes pure string transformers (`quoteFormValue`,
 /// `nl2br`, `doctype`, …) with state-accumulating generators (`head`,
 /// `bodyTag`, `openTag`, …) and carries a handful of version-gated commands
-/// (`css`/`js`/`doctype`, new in html 1.4), and issue #811 needs every
-/// command's real arity and synopsis rather than the previous partial set.
+/// (`css`/`js`/`doctype`, new in html 1.4), and every
+/// command's real arity and synopsis is needed here rather than a partial set.
 type HtmlRow = (
     &'static str,
     Arity,
@@ -2562,7 +2562,7 @@ const TEXTUTIL_CMDS: &[Row] = &[(
 /// `textutil__adjust.rs` / `textutil__indent.rs` for those, which are gated
 /// on `required_package: "textutil"` (the umbrella), not this package.
 /// Requiring `textutil::adjust` alone grants only these three-segment names
-/// (issue #923 idx 3/4, confirmed against tclsh 9.0.4 + real tcllib-2.0: a
+/// (confirmed against tclsh 9.0.4 + real tcllib-2.0: a
 /// bare `::textutil::adjust` command exists only after `package require
 /// textutil`, never after `package require textutil::adjust` alone).
 const TEXTUTIL__ADJUST_CMDS: &[Row] = &[
@@ -2668,7 +2668,7 @@ const TEXTUTIL__STRING_CMDS: &[Row] = &[
 /// `textutil__trimleft.rs` / `textutil__trimright.rs` for those (gated on
 /// `required_package: "textutil"`, not this package). Requiring
 /// `textutil::trim` alone grants only these three-segment names (same
-/// meta-package-flattening shape as `textutil::adjust`, issue #923 idx 3/4;
+/// meta-package-flattening shape as `textutil::adjust`;
 /// confirmed against tclsh 9.0.4 + real tcllib-2.0).
 const TEXTUTIL__TRIM_CMDS: &[Row] = &[
     (
@@ -2712,7 +2712,7 @@ const TEXTUTIL__TRIM_CMDS: &[Row] = &[
 /// `textutil__tabify2.rs` / `textutil__untabify2.rs` for those (gated on
 /// `required_package: "textutil"`, not this package). Requiring
 /// `textutil::tabify` alone grants only these three-segment names (same
-/// meta-package-flattening shape as `textutil::adjust`, issue #923 idx 3/4;
+/// meta-package-flattening shape as `textutil::adjust`;
 /// confirmed against tclsh 9.0.4 + real tcllib-2.0).
 const TEXTUTIL__TABIFY_CMDS: &[Row] = &[
     (
@@ -2893,7 +2893,7 @@ const GROUPS: &[(&str, &[Row])] = &[
     ("pt_export_api", PT_EXPORT_API_CMDS),
     ("pt_import_api", PT_IMPORT_API_CMDS),
     ("sha1", SHA1_CMDS),
-    // The `::sha2` namespace; the package is `sha256` (P5 identity).
+    // The `::sha2` namespace; the package is `sha256`.
     ("sha256", SHA2_CMDS),
     ("simulation::annealing", SIMULATION__ANNEALING_CMDS),
     ("simulation::montecarlo", SIMULATION__MONTECARLO_CMDS),
@@ -2941,7 +2941,7 @@ fn processman_onexit_spec() -> CommandSpec {
         // said in data: the eval happens later, in `::processman::events`.
         // tclsh 8.6.16 / 9.0.4, byte-identical: `proc p {} {
         // processman::onexit x {error stop}; set ::reached 1 }` sets
-        // `::reached` (issue #1672 audit).
+        // `::reached`.
         traits: Traits::DEFERS_BODY,
         ..CommandSpec::DEFAULT
     }
@@ -2960,11 +2960,11 @@ fn processman_onexit_spec() -> CommandSpec {
 /// trait descriptors (`Traits::PURE`, …) — [`sync_textutil_submodule_traits`]
 /// copies them onto the `Row`-built submodule spec below rather than a
 /// second, independent `Traits::PURE` declaration, so the two spellings of
-/// the same real tcllib command can never drift apart (issue #923 idx 3/4
-/// review follow-up: the submodule spec was built via the generic `Row` →
-/// `CommandSpec::DEFAULT` path and so silently lacked the `Traits::PURE` its
-/// umbrella sibling already carried, blocking purity-based GVN/DCE on the
-/// canonical three-segment spelling only).
+/// the same real tcllib command can never drift apart: without it, the
+/// submodule spec built via the generic `Row` → `CommandSpec::DEFAULT`
+/// path would silently lack the `Traits::PURE` its umbrella sibling
+/// carries, blocking purity-based GVN/DCE on the canonical three-segment
+/// spelling only.
 fn textutil_submodule_trait_sources() -> Vec<(&'static str, CommandSpec)> {
     vec![
         ("textutil::adjust::adjust", textutil__adjust::spec()),
@@ -3003,7 +3003,7 @@ pub fn specs() -> Vec<CommandSpec> {
         .flat_map(|&(pkg, table)| rows(pkg, table))
         // The `html` package uses the richer [`HtmlRow`] table (per-command
         // return type, purity, and introducing release) rather than the shared
-        // 4-tuple [`Row`], so it is appended separately (issue #811).
+        // 4-tuple [`Row`], so it is appended separately.
         .chain(html_rows(HTML_CMDS))
         .chain(std::iter::once(processman_onexit_spec()))
         .collect();

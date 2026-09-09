@@ -1,4 +1,4 @@
-# Issue #976: a call dispatched through a variable (`$cmd dev`) reaches
+# A call dispatched through a variable (`$cmd dev`) reaches
 # `i976dispatchHelper` with a literal no other call site passes, but the interprocedural
 # param-constant seed enumerated only *literal* command words, so the
 # dispatch counted neither for nor against `i976dispatchHelper`'s `mode` — folding

@@ -68,7 +68,7 @@ pub fn spec() -> CommandSpec {
             // …and the same "stored, not executed" fact the comment below
             // spells out, in the form a consumer can read: `DEFERS_BODY`
             // is what tells a static walk that an unreadable `body` word
-            // costs it nothing about *this* call's completion (issue #1571).
+            // costs it nothing about *this* call's completion.
             | Traits::DEFERS_BODY,
         // Deliberately no `TAINT_SINK` / `DYNAMIC_EVAL_BODY`: `body` is
         // *stored*, not executed, by this call. Unlike `eval` / `uplevel`

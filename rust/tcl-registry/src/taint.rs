@@ -969,7 +969,7 @@ y"}"#,
     }
 
     /// A call shape that hands back attacker-derived text is not a sanitiser,
-    /// even though the command's usual result is an int (issue #1720).
+    /// even though the command's usual result is an int.
     /// `regexp -inline` returns substrings *of the tainted input*, and
     /// `regsub` without a `varName` the substituted string; treating either as
     /// a fixed numeric result laundered the taint out of the flow.

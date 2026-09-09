@@ -191,14 +191,14 @@ mod tests {
     /// a quoted last word, `{*}`, comments, line continuation,
     /// empty/degenerate bodies).
     ///
-    /// This pins the equivalence of the two CST entry points.  A
-    /// CST-CONSUMERS "optional fold" of `analyse_body` / `rename.rs` onto
-    /// the descent was prototyped against this gate but **deferred**: it is
-    /// byte-identical (zero behavioural change), and routing `analyse_body`
+    /// This pins the equivalence of the two CST entry points.  Folding
+    /// `analyse_body` / `rename.rs` onto the descent was prototyped against
+    /// this gate but not adopted: it is byte-identical (zero behavioural
+    /// change), and routing `analyse_body`
     /// through `descend_token` would couple it to `self.source` containing
     /// the body token's absolute span — breaking the self-contained
     /// `analyse_body(body_text, …)` contract that ~36 handler unit tests
-    /// rely on, for no functional gain.  See the `CST-CONSUMERS` ledger row.
+    /// rely on, for no functional gain.
     #[test]
     fn descend_token_body_matches_segment_with_offset() {
         use super::super::descend::descend_token;

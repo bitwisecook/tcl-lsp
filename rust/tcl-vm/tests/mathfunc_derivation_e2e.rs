@@ -17,18 +17,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `tcl::mathfunc::*` and `::tcl::mathop::*` registration is **derived**, not
-//! typed (ledger row B3).
+//! typed.
 //!
-//! Before this, the VM hand-registered 37 math-function names and listed 27
-//! operator spellings in a `macro_rules!` invocation. The hand-typed function
-//! list had gone stale by the whole TIP 745 (Tcl 9.1) C99 batch — 21 names
-//! `tcl_syntax::expr::mathfunc::dispatch_with_backend` already implemented,
-//! and that `runtime/rust` (which derives its list) already registered, but
-//! that the VM never bound as commands. `expr {cbrt(27)}` was
-//! `invalid command name "tcl::mathfunc::cbrt"` under every pin, 9.1
-//! included.
+//! A hand-typed function/operator list drifts: it can miss an entire batch
+//! like TIP 745 (Tcl 9.1)'s C99 math functions even once
+//! `tcl_syntax::expr::mathfunc::dispatch_with_backend` and `runtime/rust`
+//! (which derives its own list) already support them, silently leaving
+//! `expr {cbrt(27)}` as `invalid command name "tcl::mathfunc::cbrt"` under
+//! every pin, 9.1 included.
 //!
-//! Both lists now come from layer 1 — `mathfunc::all()` and the
+//! Both lists come from layer 1 — `mathfunc::all()` and the
 //! `mathop_shape` of `expr::operators` — so this file is the drift gate in
 //! both directions plus the availability and value evidence.
 //!
@@ -103,8 +101,8 @@ const TIP745_BATCH: &[&str] = &[
 ];
 
 /// Drift gate: every name the shared table lists is registered as a command
-/// under a 9.1 pin. A name added to `mathfunc::all()` needs no VM edit — but
-/// a regression back to a hand-typed list fails here.
+/// under a 9.1 pin. A name added to `mathfunc::all()` needs no VM edit —
+/// but reverting to a hand-typed list fails here.
 #[test]
 fn every_shared_mathfunc_name_is_registered() {
     let names: Vec<&'static str> = tcl_syntax::expr::mathfunc::all()
@@ -120,7 +118,7 @@ fn every_shared_mathfunc_name_is_registered() {
     assert!(ok, "must not error: {out}");
     assert_eq!(out, "done", "unregistered math functions");
     // FP guard on the gate itself: the table is not trivially small, and it
-    // really does carry the batch the old list missed.
+    // really does carry the TIP 745 batch.
     assert!(names.len() >= 58, "shared table shrank: {}", names.len());
     for name in TIP745_BATCH {
         assert!(names.contains(name), "{name} left the shared table");

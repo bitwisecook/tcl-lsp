@@ -26,8 +26,8 @@
 //! toolchain check, the identical `--global-base=0x200000` runtime build, and
 //! the identical per-checkout/per-process scratch discipline — so it lives here
 //! once rather than being copied, because a *divergent* copy is exactly how a
-//! suite ends up linking someone else's `tcl_runtime.wasm` (issue #1590) or
-//! silently skipping in CI (issue #1542).
+//! suite ends up linking someone else's `tcl_runtime.wasm` or silently
+//! skipping in CI.
 #![allow(dead_code)]
 
 use std::fmt::Write as _;
@@ -37,7 +37,7 @@ use std::process::Command;
 /// The environment variable that turns every real-link skip into a
 /// failure. Set it in any environment that is *supposed* to have the whole
 /// toolchain — above all CI, where a silent skip is indistinguishable from a
-/// pass and made this entire file vacuous (issue #1542).
+/// pass and would make this entire file vacuous.
 pub const REQUIRE_VAR: &str = "TCL_REQUIRE_WASM_LINK";
 
 /// The workspace root (`CARGO_MANIFEST_DIR` is `…/rust/tcl-compiler`).
@@ -51,17 +51,16 @@ pub fn workspace_root() -> PathBuf {
 /// Where the reserved `wasm32-wasip1` runtime is built: **inside this
 /// checkout's own `target/`**, never a machine-global `/tmp` name.
 ///
-/// This is the isolation that matters most, and getting it wrong is what
-/// issue #1590 turned out to be. A shared `--target-dir` means every
-/// concurrent checkout builds its own `runtime/rust` over the same
+/// This is the isolation that matters most. A shared `--target-dir` means
+/// every concurrent checkout builds its own `runtime/rust` over the same
 /// `tcl_runtime.wasm`; cargo's lock serialises the *builds* but nothing holds
 /// it across the gap between building the runtime and linking against it, so a
 /// suite can link a runtime compiled from a different checkout's source. When
 /// that stale runtime lacks the current tree's host wiring, `puts` writes into
 /// a hostless `StdIo` and is silently dropped (`runtime/rust`'s
 /// `cmd_chan.rs:474`) — the module still runs, still exits 0, and the
-/// assertion reads `"2"` against `"6\n2"`. That is exactly the shape #1542 was
-/// filed as, and it is indistinguishable from a codegen regression.
+/// assertion reads `"2"` against `"6\n2"`, indistinguishable from a codegen
+/// regression.
 ///
 /// Keying on the checkout keeps the first-run build cached (the point of a
 /// fixed path) without ever handing this suite someone else's runtime, and
@@ -141,10 +140,9 @@ pub fn wasi_sdk_root() -> Option<PathBuf> {
 /// `build.rs` degrades silently when it cannot find the source — it prints a
 /// `cargo:warning` and builds with the bignum backend disabled — and the
 /// resulting module then fails `expr {$b + $c}` inside the link, so `puts`
-/// prints nothing and the assertion reads `"2"` against `"6\n2"`. That looks
-/// exactly like a codegen regression and has cost at least one lane a
-/// diagnosis (issue #1542). Every worktree hits it, because `tmp/` is
-/// gitignored and so is empty in a fresh checkout.
+/// prints nothing and the assertion reads `"2"` against `"6\n2"` —
+/// indistinguishable from a codegen regression. Every worktree hits it,
+/// because `tmp/` is gitignored and so is empty in a fresh checkout.
 pub fn libtommath_dir() -> Option<PathBuf> {
     if let Some(dir) = std::env::var_os("TCL_TOMMATH_DIR").map(PathBuf::from)
         && dir.join("tommath.h").is_file()
@@ -214,10 +212,8 @@ pub fn missing_requirements() -> Vec<MissingRequirement> {
 /// toolchain is present and the reserved runtime built, otherwise a skip.
 ///
 /// Under `TCL_REQUIRE_WASM_LINK=1` there is no skip — a missing dimension is a
-/// panic naming every one of them and how to install it. That is the point of
-/// issue #1542: without an assertive mode `wasm_real_link.rs`'s eight tests reported
-/// green in CI while linking nothing at all, and the issue's own acceptance criterion
-/// would have passed vacuously.
+/// panic naming every one of them and how to install it, so a suite cannot
+/// report green in CI while silently linking nothing at all.
 ///
 /// Without the variable the skip is still **loud and specific** — it names the
 /// dimension, not just "skipping". Callers add their own suite name to the

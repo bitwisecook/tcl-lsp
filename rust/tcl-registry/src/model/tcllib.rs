@@ -16,10 +16,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Per-module tcllib package identity (redesign §3.2, phase P5).
+//! Per-module tcllib package identity.
 //!
 //! tcllib is not one package. It is a distribution of ~140 independently
-//! versioned modules, and the redesign's package layer takes that
+//! versioned modules, and the package layer takes that
 //! literally: each module is its own [`Provider::Package`] with its own
 //! version axis, its own **trains**, and its own Tcl-core requirement.
 //! This table is the evidence layer for that claim — every row is read
@@ -46,9 +46,9 @@
 //! - **[`TcllibModule::evidence`]** — the file the two facts were read
 //!   from, relative to `tmp/tcllib-2.0/modules/`.
 //!
-//! **Every tcllib module is hosted, never ambient** (the deliverable's
-//! placement half). No compiled environment ships a tcllib module as part
-//! of its own runtime, so no module is
+//! **Every tcllib module is hosted, never ambient.** No compiled
+//! environment ships a tcllib module as part of its own runtime, so no
+//! module is
 //! [`is_closed_world_package`](crate::model::surface::is_closed_world_package)
 //! or
 //! [`is_placement_gated_package`](crate::model::surface::is_placement_gated_package):
@@ -327,9 +327,8 @@ pub const TCLLIB_MODULES: &[TcllibModule] = &[
         evidence: "fumagic/pkgIndex.tcl",
     },
     TcllibModule {
-        // P5's third named hostile shape: a `snit::type` factory whose
-        // object carries three command-prefix options and a real
-        // looping `foreach` method.
+        // A `snit::type` factory whose object carries three command-prefix
+        // options and a real looping `foreach` method.
         package: "fileutil::traverse",
         trains: &["0.7"],
         core_floor: Some("8.5"),
@@ -777,7 +776,7 @@ pub const TCLLIB_MODULES: &[TcllibModule] = &[
     TcllibModule {
         // No head guard in the index; `processman.tcl` states the floor
         // itself. Its `cron 2.0` dependency needs 8.6 transitively — a
-        // floor the model has no field for (P5's recorded limit).
+        // floor the model has no field for.
         package: "processman",
         trains: &["0.8"],
         core_floor: Some("8.5"),
@@ -968,9 +967,9 @@ pub const TCLLIB_MODULES: &[TcllibModule] = &[
         evidence: "struct/pkgIndex.tcl",
     },
     TcllibModule {
-        // P5's flagship adversarial module: two trains whose walker APIs
-        // are incompatible — 1.x takes `-command` with `%n`/`%a`/`%t`
-        // placeholders, 2.x takes `loopvar script` and adds `walkproc`.
+        // Two trains whose walker APIs are incompatible — 1.x takes
+        // `-command` with `%n`/`%a`/`%t` placeholders, 2.x takes
+        // `loopvar script` and adds `walkproc`.
         package: "struct::tree",
         trains: &["2.1.3", "1.2.3"],
         core_floor: Some("8.5"),
@@ -1349,7 +1348,7 @@ pub const TCLLIB_MODULES: &[TcllibModule] = &[
 ///
 /// Fixing these means re-filing the affected commands under their real
 /// providers, which is per-command surface work rather than identity
-/// work, so P5 records the census and leaves the rows. The exhaustiveness
+/// work, so this table records the census and leaves the rows. The exhaustiveness
 /// test `the_identity_census_is_closed` (in `commands::tcllib`) fails the
 /// build if a *new* unbacked name appears, so the list can only shrink.
 pub const UNBACKED_PACKAGE_NAMES: &[(&str, &str)] = &[
@@ -1496,9 +1495,8 @@ mod tests {
     }
 
     /// A train is a *requirement*, so a module's applicability is a range
-    /// — never the single point its `pkgIndex.tcl` happens to ship. This
-    /// is the deliverable's "fix any pinned-to-one-version rows" rule,
-    /// stated as an invariant over the whole table.
+    /// — never the single point its `pkgIndex.tcl` happens to ship, stated
+    /// here as an invariant over the whole table.
     #[test]
     fn a_single_train_is_still_a_range() {
         let csv = module_version_set("csv").expect("csv");
@@ -1569,8 +1567,7 @@ mod tests {
         }
     }
 
-    /// The placement half of the deliverable: a tcllib module is
-    /// **hosted**, never ambient. No compiled environment ships one as
+    /// A tcllib module is **hosted**, never ambient. No compiled environment ships one as
     /// part of its runtime, so none is closed-world and none is
     /// placement-gated — its commands stay leniently visible with W120
     /// owning the nag, and its floor comes from `package require`.

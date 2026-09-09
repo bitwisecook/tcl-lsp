@@ -178,8 +178,7 @@ impl OptCategory {
 /// [`DiagTag::Unnecessary`] and strikes through one tagged
 /// [`DiagTag::Deprecated`].  That fade is the cue users actually recognise as
 /// "this identifier is unused" — a bare `hint` severity on a one-character
-/// span renders as three near-invisible dots and is effectively silent
-/// (issue #1333).
+/// span renders as three near-invisible dots and is effectively silent.
 ///
 /// **The mapping is table data, not code.**  Which codes carry which tag is
 /// declared alongside the code itself in the `diagnostic_codes!` table below
@@ -245,8 +244,8 @@ pub enum DocRow {
         /// nothing — so it is excluded from the generated editor-settings
         /// catalogues the same way `internal` is, but for the opposite
         /// reason, and it stays included in [`DiagCode::ALL`] and the
-        /// published code tables (it is a real, load-bearing identity, not
-        /// dead code) — see issue #1317.
+        /// published code tables: it is a real, load-bearing identity, not
+        /// dead code.
         reserved: bool,
         /// The one-line description.
         description: &'static str,
@@ -540,7 +539,7 @@ diagnostic_codes! {
     W104 => "W104", diag(Warning, true, "String concatenation for list building — use `lappend` instead.");
     W105 => "W105", diag(Warning, true, "Unbraced code block argument. Escalates to Error when the block provably contains a substitution (double-substitution risk).");
     W106 => "W106", diag(Warning, true, "Dangerous unbraced `switch` body — risks double substitution.");
-    // W107 / W109 are the *encoding-integrity* pair (issue #1326): they answer
+    // W107 / W109 are the *encoding-integrity* pair: they answer
     // "are the bytes on disk the text we analysed?", where W108 answers "is
     // this character ASCII?".  A file that fails W107 makes every other
     // diagnostic's offsets suspect, so they read as a prefix to the rest of the
@@ -559,10 +558,10 @@ diagnostic_codes! {
     W118 => "W118", diag(Warning, true, "Inconsistent line endings.");
     W120 => "W120", diag(Warning, true, "Command used without a corresponding `package require`.");
     W121 => "W121", diag(Warning, true, "Subnet mask has non-contiguous bits.");
-    // W122 ("Mistyped IPv4 address, octet > 255 or leading zero") retired —
-    // issue #1317. It duplicated W124's SSA-traced octet check under a less
-    // precise regex-based implementation with no independent producer left in
-    // the tree; the old dedup rule that suppressed it on a W124 line
+    // W122 ("Mistyped IPv4 address, octet > 255 or leading zero") is retired:
+    // it duplicated W124's SSA-traced octet check under a less precise
+    // regex-based implementation, with no independent producer left in the
+    // tree, and the dedup rule that suppressed it on a W124 line
     // (analyser/diagnostics.rs) is gone with it. Do not reuse "W122" for an
     // unrelated diagnostic — a stale user config disabling it should stay a
     // harmless no-op (unknown codes are silently ignored), not resurface as
@@ -574,7 +573,7 @@ diagnostic_codes! {
     W127 => "W127", diag(Warning, true, "Value not in the command's allowed set.");
     W128 => "W128", diag(Warning, true, "Command called after it was renamed or deleted earlier in this file; the call falls through to the `unknown` handler.");
     W129 => "W129", diag(Warning, true, "Command is hidden in a safe interpreter — the call raises `invalid command name` unless it is exposed or reached via `interp invokehidden`.");
-    // W130-W134 are genuinely reserved (issue #1317): `tcl-pkg` and the
+    // W130-W134 are genuinely reserved: `tcl-pkg` and the
     // `tcl pkg` verbs exist and the design docs specify these diagnostics,
     // but the analyser has no `tclpkg.tcl` / `tclpkg.lock` awareness yet, so
     // no path can emit them. `diag_reserved` keeps them out of the generated
@@ -692,17 +691,18 @@ impl DiagCode {
     /// and a later workspace / cross-file resolution pass may *refine it away*.
     /// Such a code is not stable until the deep diagnostics pass has consulted
     /// the workspace package database and the cross-file source graph, so it is
-    /// the only kind held back from the progressive **fast tier** (#844):
-    /// publishing it un-refined would resurface a false positive the deep pass
-    /// then retracts (the startup false-positive W120 that #841 eliminated).
+    /// the only kind held back from the progressive **fast tier**:
+    /// publishing it un-refined would resurface a startup false positive
+    /// (e.g. W120 before the workspace package database is available) that
+    /// the deep pass then retracts.
     ///
     /// The set is intentionally tiny and intrinsic to what these codes *mean*:
     ///
     /// - **W120** — "command used without a corresponding `package require`":
     ///   suppressed once the workspace package database shows the command's
-    ///   package is (transitively) available (`refine_workspace_w120`, #723/#804).
+    ///   package is (transitively) available (`refine_workspace_w120`).
     /// - **W123** — "unresolved command": suppressed once the package database
-    ///   resolves it (`refine_workspace_w123`, #832) or a workspace proc defines
+    ///   resolves it (`refine_workspace_w123`) or a workspace proc defines
     ///   it (the cross-file `project_diagnostics` pass).
     ///
     /// Codes that the deep pass only ever *adds* (compiler / optimiser findings,
@@ -735,7 +735,7 @@ impl DiagCode {
     /// ```
     /// use tcl_core_types::{DiagCode, DiagTag};
     ///
-    /// // An unused proc parameter renders faded (issue #1333).
+    /// // An unused proc parameter renders faded.
     /// assert_eq!(DiagCode::W214.lsp_tag(), Some(DiagTag::Unnecessary));
     /// assert_eq!(DiagCode::W214.lsp_tag().map(DiagTag::lsp_value), Some(1));
     ///
@@ -791,7 +791,7 @@ impl fmt::Display for DiagCode {
 mod tests {
     use super::*;
 
-    /// The complete intended tag map (issue #1333). Asserted **exhaustively**
+    /// The complete intended tag map. Asserted **exhaustively**
     /// against the table below so a stray `tag:` on an unrelated row — which
     /// would silently fade or strike through a diagnostic the user needs to
     /// see — fails the build.
@@ -826,7 +826,7 @@ mod tests {
 
     /// The false-positive guard the `Unnecessary` tag most needs: codes that
     /// look adjacent to "unused" but describe a genuine **defect**. Fading a
-    /// defect hides it, which is the opposite of what issue #1333 asks for.
+    /// defect would hide it from the user instead of drawing their eye to it.
     #[test]
     fn defect_codes_are_never_faded() {
         for code in [
@@ -849,7 +849,7 @@ mod tests {
 
     #[test]
     fn encoding_integrity_codes_exist_and_are_untagged() {
-        // Issue #1326: the three encoding codes are ordinary, user-toggleable
+        // The three encoding codes are ordinary, user-toggleable
         // diagnostics — neither internal nor reserved — and carry no
         // presentation tag (a mis-decoded file is not "unnecessary" code).
         for code in [DiagCode::W107, DiagCode::W109, DiagCode::W305] {
@@ -891,10 +891,10 @@ mod tests {
 
     #[test]
     fn refined_by_workspace_is_exactly_w120_and_w123() {
-        // #844: the progressive fast tier holds back exactly the codes a
+        // The progressive fast tier holds back exactly the codes a
         // workspace / cross-file pass can retract.  Pin the whole set so it
         // cannot silently grow (which would delay a stable diagnostic) or shrink
-        // (which would resurface the #841 startup false positive).
+        // (which would resurface a startup false positive).
         for &code in DiagCode::ALL {
             let expected = matches!(code, DiagCode::W120 | DiagCode::W123);
             assert_eq!(
@@ -1066,7 +1066,7 @@ mod tests {
     fn reserved_flag_classifies_the_tclpkg_family_issue_1317() {
         use core::str::FromStr;
         // W130-W134 (tclpkg lockfile/CAS/installer/policy) are documented and
-        // specified but not yet emitted by the analyser (issue #1317) — the
+        // specified but not yet emitted by the analyser — the
         // `reserved` flag keeps them out of the generated editor-settings
         // catalogues (a setting that always does nothing would be
         // misleading) while they stay full members of `DiagCode::ALL` and

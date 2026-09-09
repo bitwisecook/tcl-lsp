@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The Tcl **dict** value type (T1.6) — an *insertion-ordered* map.
+//! The Tcl **dict** value type — an *insertion-ordered* map.
 //!
 //! ## Representation decision (evidence-based; experiment in
 //! `experiments/dict_rep.rs`)
@@ -109,7 +109,7 @@ pub static TCL_DICT_TYPE: TclObjType = TclObjType {
     set_from_any_proc: None,
 };
 
-// -- internalRep accessors --------------------------------------------------
+// internalRep accessors
 
 unsafe fn dict_ref<'a>(obj: *mut TclObj) -> &'a TclDict {
     // SAFETY: `obj` has the dict type ⇒ its internalRep is a live `TclDict *`.
@@ -121,7 +121,7 @@ unsafe fn dict_mut<'a>(obj: *mut TclObj) -> &'a mut TclDict {
     unsafe { &mut *(obj::internal_rep(obj) as usize as *mut TclDict) }
 }
 
-// -- type procs -------------------------------------------------------------
+// type procs
 
 extern "C" fn dict_free(obj: *mut TclObj) {
     // SAFETY: reclaim the backing box and release the +1 on every key + value.
@@ -182,7 +182,7 @@ extern "C" fn dict_update_string(obj: *mut TclObj) {
     }
 }
 
-// -- shimmer ----------------------------------------------------------------
+// shimmer
 
 /// Ensure `obj` carries the dict internal rep, parsing its string rep (an
 /// even-length list `k v k v …`) if it does not. The string rep is kept.
@@ -226,7 +226,7 @@ fn ensure_dict(obj: *mut TclObj) -> Result<(), DictError> {
     Ok(())
 }
 
-// -- error ------------------------------------------------------------------
+// error
 
 /// Why a value could not be parsed as a dict (`SetDictFromAny`/`FindElement`
 /// with the "dict" type strings). Each variant carries what the C-faithful
@@ -330,7 +330,7 @@ fn scan_dict_pairs(bytes: &[u8]) -> Result<BytePairs, DictError> {
     Ok(pairs)
 }
 
-// -- public ops -------------------------------------------------------------
+// public ops
 
 /// `Tcl_NewDictObj` from key/value object pairs (keys + values retained). A
 /// later duplicate key overwrites the earlier value, keeping the first key obj.
@@ -584,7 +584,7 @@ mod tests {
         });
     }
 
-    /// Issue #1608 — this runtime's native dict rep is the one binding of the
+    /// This runtime's native dict rep is the one binding of the
     /// canonicalisation rule that is *not* a call to the shared owner
     /// [`tcl_syntax::value::canonical_dict_slots`]: it keeps a live key index
     /// across mutation, so it canonicalises incrementally (one
@@ -649,16 +649,16 @@ mod tests {
         });
     }
 
-    /// Issue #1429 — `\<newline>` is the line-continuation escape:
+    /// `\<newline>` is the line-continuation escape:
     /// `TclParseBackslash` (tclParse.c(9.0.4):884-890) collapses the backslash,
     /// the newline **and the run of spaces/tabs after it** into a single space,
     /// so that whitespace is *data* inside the element and must not terminate
-    /// it. The dict shimmer carried its own `FindElement` port whose backslash
-    /// arm only skipped two bytes, so it split `a\<LF> b c` into three
-    /// elements where the list codec (and tclsh) see two — the mutating dict
-    /// subcommands, which reach the dict through this scan rather than through
-    /// the canonical codec, then disagreed with `llength` and with `dict size`.
-    /// The scan now *is* the shared `tcl_syntax::list` codec.
+    /// it. The dict scan is the shared `tcl_syntax::list` codec rather than a
+    /// separate `FindElement` port: a port whose backslash arm only skips two
+    /// bytes would split `a\<LF> b c` into three elements where the list
+    /// codec (and tclsh) see two — and the mutating dict subcommands, which
+    /// reach the dict through this scan rather than through the canonical
+    /// codec, would then disagree with `llength` and with `dict size`.
     #[test]
     fn backslash_newline_absorbs_the_following_space_run() {
         leak_free(|| {

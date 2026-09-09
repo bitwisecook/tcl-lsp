@@ -1,17 +1,14 @@
-# _registry_data.tcl -- AUTO-GENERATED from Python command registry
+# _registry_data.tcl -- the TMM command surface this harness simulates.
 #
-# DO NOT EDIT.  Regenerate with:
-#   python -m tooling.irule_test.codegen_registry_data
+# Hand-maintained: no generator produces this file. `cargo xtask
+# gen-irule-test-data` writes only `_event_data.tcl` and `_mock_stubs.tcl`.
 #
-# Source: compiler/registry/
-#
-# `tooling.irule_test.codegen_registry_data` no longer exists (Python was
-# fully retired from this codebase) -- there is no regeneration step. The
-# `tcl::mathop::{&&,||,@}` entries below (bogus operators, never real Tcl
-# commands -- see rust/tcl-registry/src/commands/tcl/mathop_generated.rs)
-# and the missing `tcl::mathop::{lt,le,gt,ge}` entries (real Tcl 9.0+
-# TIP 461 operators) were hand-fixed for issue #984 to match the registry.
-# The rest of this file's data has not been re-audited against the registry.
+# The `tcl::mathop::{lt,le,gt,ge}` entries are the real Tcl 9.0+ TIP 461
+# operators. `tcl::mathop::{&&,||,@}` are not Tcl commands and must not be
+# reintroduced here -- see
+# rust/tcl-registry/src/commands/tcl/mathop_generated.rs for the operator
+# set the registry actually declares. Entries beyond the mathop block have
+# not been checked against the registry.
 #
 # Copyright (c) 2024 tcl-lsp contributors.  MIT licence.
 

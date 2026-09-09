@@ -25,7 +25,7 @@
 //! three-character *value* `a b`, because the braces are the caller's quoting
 //! and are consumed by the parse.  Splicing the written word into the body
 //! therefore changes the value the body sees — the body's `$name` produced
-//! `a b` before and produces `{a b}` afterwards (issue #1199).  Nor is a
+//! `a b` before and produces `{a b}` afterwards.  Nor is a
 //! parameter with no written argument simply absent: `proc f {{name world}}`
 //! called as `f` binds `name` to `world`, so an inlining that drops the
 //! parameter leaves the body reading an unset variable.
@@ -108,7 +108,7 @@ pub fn inline_proc(
 /// Inlining substitutes *the body of the proc the call actually reaches*, so
 /// a `namespace import -force` whose covering `namespace export` lives in
 /// another file makes inlining the local same-named proc a behaviour change,
-/// not a refactor (issue #1116 item 1). With the oracle attached the head
+/// not a refactor. With the oracle attached the head
 /// simply does not resolve locally and no action is offered — the safe
 /// answer, and the same one go-to-definition gives.
 #[must_use]
@@ -131,7 +131,7 @@ pub fn inline_proc_in_program(
     // Resolve the head exactly as the navigation providers do — the caller's
     // namespace candidates, the registry builtin gate, then the deterministic
     // simple-name fallback.  A namespace-blind `p.name == head` scan is the
-    // M1 drift class `cargo xtask resolution-drift` flags.
+    // drift class `cargo xtask resolution-drift` flags.
     let head_off = call.span.start();
     let namespace = crate::definition::namespace_context_at(
         &analysis.global_scope,
@@ -186,7 +186,7 @@ fn plan_inline(
         .numbers;
     // …and its `${…}` close rule, for the same reason: which bytes are the
     // variable's name is release-dependent, and this transform rewrites the
-    // reference's own span (issue #1605).
+    // reference's own span.
     let style: BracedVarStyle = super::braced_var_style(analysis);
     if proc_def.params_computed {
         return Err(
@@ -618,7 +618,7 @@ fn expr_argument_ranges(
 /// longer token being half-rewritten.
 /// Every `$name` / `${name}` reference in `text`, with the byte span of the
 /// whole reference — the span this transform rewrites, so it must be the
-/// span the document's own release would parse (issue #1605).
+/// span the document's own release would parse.
 fn variable_references(text: &str, style: BracedVarStyle) -> Vec<(String, usize, usize)> {
     super::variable_reference_spans(text, style)
 }
@@ -814,11 +814,11 @@ mod tests {
         assert!(result.ends_with("puts 1$nn\n"), "{result}");
     }
 
-    // -- FP: refusals that keep behaviour ---------------------------------
+    // FP: refusals that keep behaviour.
 
     #[test]
     fn fp_refuses_a_braced_argument_whose_value_is_not_a_plain_word() {
-        // The issue's second reproducer.  Original prints `hello a b`; the
+        // Original prints `hello a b`; the
         // textual splice emitted `puts "hello {a b}"`, printing the braces.
         let src = "proc greet {name} {\n    puts \"hello $name\"\n}\ngreet {a b}\n";
         let reason = outcome(src, "greet {a b}").unwrap_err();
@@ -911,7 +911,7 @@ mod tests {
         assert!(reason.contains("computed"), "{reason}");
     }
 
-    // -- TN: nothing to offer ---------------------------------------------
+    // TN: nothing to offer.
 
     #[test]
     fn tn_no_action_on_a_builtin_call() {
@@ -928,7 +928,7 @@ mod tests {
         assert!(at("\n\n", "\n").is_none());
     }
 
-    // -- Unit-level predicates --------------------------------------------
+    // Unit-level predicates.
 
     #[test]
     fn plain_word_rejects_every_parser_significant_character() {
@@ -1029,7 +1029,7 @@ mod tests {
         assert_eq!(names, vec!["n", "nn", "n"]);
     }
 
-    /// Issue #1605 — inline-proc **rewrites** each reference's own byte
+    /// Inline-proc **rewrites** each reference's own byte
     /// span, so the span must be the one the document's release parses. On a
     /// 9.x document `${a{b}c}` is one reference spanning all 8 bytes; on 8.x
     /// it ends at the first `}` and the trailing `c}` is word text that must

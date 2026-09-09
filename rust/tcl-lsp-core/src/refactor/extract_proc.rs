@@ -32,7 +32,7 @@
 //! ```
 //!
 //! into `proc extracted_proc {x} { set x 1; puts $x }` prints `after=0`, not
-//! `after=1`: the write moved into the proc's own `x` (issue #1201).
+//! `after=1`: the write moved into the proc's own `x`.
 //!
 //! Passing the variable in as a parameter is exactly what causes this.  A
 //! parameter is a *copy*; the caller never sees it change.
@@ -221,7 +221,7 @@ fn plan_extraction(
     reject_frame_sensitive_selection(source, selected, registry)?;
     // The document's own `${…}` close rule — a brace-bearing name read by
     // the wrong release's rule produces a proc built for a variable that
-    // does not exist (issue #1605).
+    // does not exist.
     let style = super::braced_var_style(analysis);
     let walk = super::FrameWalk::new(source, analysis);
     let roles = classify_variables(source, selected, registry, &walk, style)?;
@@ -512,7 +512,7 @@ fn same_frame_slices(start: u32, end: u32, holes: &[(u32, u32)]) -> Vec<(u32, u3
 /// still the caller's write, and reading it as anything else hands back a
 /// proc that silently drops the assignment — `foreach n {1 2 3} {set total …}`
 /// extracted with `total` as a value parameter never updates the caller's
-/// `total` (issue #1201).  [`nested_same_frame_commands`]
+/// `total`.  [`nested_same_frame_commands`]
 /// decides what "nested" means, so a body that opens its own frame stays out.
 fn classify_variables(
     source: &str,
@@ -887,7 +887,7 @@ fn render_definition(
 /// *matching* `}`, so `${a{b}c}` reads `a{b}c`, and the 8.x scanner ends it at
 /// the first `}`, so `${a{b}` reads `a{b}`'s 8.x form `a{b`. Emitting the bare
 /// `$a{b}c` instead would parse as `$a` followed by literal text on **both**
-/// releases — the same mistake the minifier made (issue #1605, fifth site).
+/// releases — the same mistake the minifier made.
 fn var_ref(name: &str) -> String {
     if tcl_syntax::naming::is_bare_var_name(name) {
         format!("${name}")
@@ -923,7 +923,7 @@ fn render_call(name: &str, by_value: &[String], by_name: &[String]) -> String {
 /// would occupy is `::<candidate>` — a `::app::extracted_proc` in some other
 /// namespace is a different command and is no reason to pick a different
 /// placeholder.  (A namespace-blind `proc_def.name == candidate` scan is also
-/// the M1 drift class `cargo xtask resolution-drift` flags.)
+/// the drift class `cargo xtask resolution-drift` flags.)
 fn unique_proc_name(analysis: &AnalysisResult, registry: &CommandRegistry) -> String {
     let taken = |candidate: &str| {
         let global = format!("::{candidate}");
@@ -953,7 +953,7 @@ fn unique_proc_name(analysis: &AnalysisResult, registry: &CommandRegistry) -> St
 /// `style` is the document's `${…}` close rule: the captured-variable set
 /// decides the generated proc's parameter list and its call-site arguments,
 /// so reading a brace-bearing name by the wrong release's rule emits a proc
-/// built for a variable that does not exist (issue #1605).
+/// built for a variable that does not exist.
 fn variable_references(text: &str, style: BracedVarStyle) -> BTreeSet<String> {
     super::variable_reference_spans(text, style)
         .into_iter()
@@ -988,7 +988,7 @@ mod tests {
     }
 
     /// [`at`] against a document analysed under a named release — the
-    /// `${…}` close rule is release-dependent (issue #1605).
+    /// `${…}` close rule is release-dependent.
     fn at_dialect(src: &str, needle: &str, dialect: &str) -> Option<Refactoring> {
         let registry = super::super::test_registry();
         let mut analyser = Analyser::new();
@@ -1007,7 +1007,7 @@ mod tests {
         }
     }
 
-    // -- TP: a pure selection with live-ins and no live-outs ---------------
+    // TP: a pure selection with live-ins and no live-outs.
 
     #[test]
     fn tp_extracts_a_read_only_selection_as_value_parameters() {
@@ -1020,7 +1020,7 @@ mod tests {
         assert!(result.contains("extracted_proc $x"), "{result}");
     }
 
-    /// Issue #1605 — the captured-variable set decides the generated proc's
+    /// The captured-variable set decides the generated proc's
     /// parameters and its call-site arguments, so a brace-bearing `${…}`
     /// name must be read by the **document's** release rule, not always the
     /// 8.x first-`}` one.
@@ -1032,10 +1032,9 @@ mod tests {
     ///
     /// Asserted on `variable_references` rather than through a whole
     /// extraction because the **segmenter**'s own `${…}` word span still
-    /// truncates at the first `}` on a 9.x document (issue #1568, the
-    /// compiled-word path — explicitly out of #1605's scope), so the block
-    /// boundary an end-to-end extraction computes is wrong for a reason this
-    /// change does not touch.
+    /// truncates at the first `}` on a 9.x document (the compiled-word
+    /// path), so the block boundary an end-to-end extraction computes is
+    /// wrong for a reason unrelated to the captured-variable set.
     #[test]
     fn variable_references_read_braced_names_by_the_documents_release() {
         let text = "puts ${a{b}c}";
@@ -1064,7 +1063,7 @@ mod tests {
     /// The **plumb**: the style must come from the document's own dialect,
     /// not a constant. The reference sits inside a braced body so the whole
     /// command's span is balanced and the segmenter hands over the complete
-    /// `${a{b}c}` (issue #1568 only truncates a bare `${…}` word).
+    /// `${a{b}c}`.
     ///
     /// Oracle: `puts ${a{b}c}` reads the variable `a{b}c` on tclsh 9.0.4 and
     /// `a{b` on 8.6.16, so the two releases capture different names — and
@@ -1102,8 +1101,7 @@ mod tests {
         );
         // …and one that cannot be written bare gets the `${…}` spelling.
         // `$a{b}c` would parse as `$a` followed by the literal `{b}c` on both
-        // 8.6.16 and 9.0.4, so the call passed the wrong value (issue #1636
-        // review).
+        // 8.6.16 and 9.0.4, so passing it bare passes the wrong value.
         assert_eq!(
             render_call("p", &["a{b}c".to_string()], &[]),
             "p ${a{b}c}",
@@ -1126,8 +1124,7 @@ mod tests {
     #[test]
     fn extracted_call_passes_a_brace_bearing_name_braced() {
         // End-to-end, with the reference inside a braced body so the command
-        // span is balanced and the segmenter hands over the complete word
-        // (the #1568 cap the PR documents).
+        // span is balanced and the segmenter hands over the complete word.
         let src = "if {1} {puts ${a{b}c}}\nputs done\n";
         let out = at_dialect(src, "if {1} {puts ${a{b}c}}", "tcl9.0")
             .expect("a selection")
@@ -1155,7 +1152,7 @@ mod tests {
         assert!(!result.contains("upvar"), "no upvar needed: {result}");
     }
 
-    // -- TP: caller-frame writes survive via upvar -------------------------
+    // TP: caller-frame writes survive via upvar.
     /// The same command with its variable substitution switched off reads
     /// nothing: `-novariables` leaves `$name` as four literal characters, so
     /// asking the caller for `name` would invent a parameter. Which kinds a
@@ -1475,7 +1472,7 @@ mod tests {
 
     #[test]
     fn tp_a_write_read_after_the_selection_is_carried_by_upvar() {
-        // The issue's reproducer.  With a value parameter the original
+        // With a value parameter the original
         // printed `after=1` and the refactored one printed `after=0`.
         let src = "set x 0\nset x 1\nputs $x\nputs \"after=$x\"\n";
         let result = outcome(src, "set x 1\nputs $x").unwrap();
@@ -1508,7 +1505,7 @@ mod tests {
         assert!(result.contains("proc extracted_proc_2 {x}"), "{result}");
     }
 
-    // -- FP/TN: refusals that keep behaviour -------------------------------
+    // FP/TN: refusals that keep behaviour.
 
     #[test]
     fn fp_refuses_a_selection_containing_return() {
@@ -1589,7 +1586,7 @@ mod tests {
         assert!(at(src, "\n\n\n").is_none());
     }
 
-    // -- Dialect-drift regression -------------------------------------------
+    // Dialect drift.
 
     /// iRules' `}{` ghost word separator (no space between an `if`'s
     /// condition and its body — the idiom every real iRule uses) must be
@@ -1650,7 +1647,7 @@ mod tests {
         );
     }
 
-    // -- Unit-level helpers ------------------------------------------------
+    // Unit-level helpers.
 
     #[test]
     fn variable_references_collects_bare_and_braced_names() {

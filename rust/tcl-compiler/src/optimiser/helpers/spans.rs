@@ -37,11 +37,10 @@
 //!
 //! Widening a **single** word to its own closing delimiter is not owned
 //! here: that is [`tcl_lexer::word_span_at`] (the token-free sibling of
-//! `tcl_lexer::word_span`), which the passes call directly. This module
-//! used to carry a `full_word_span` byte-counter of its own — a second
-//! implementation under the same name as the analyser's correct
-//! delegate, and one that recognised only `[…]` and `${…}` (issue
-//! #1423).
+//! `tcl_lexer::word_span`), which the passes call directly. A local
+//! `full_word_span` byte-counter here would be a second implementation
+//! under the same name as the analyser's delegate, recognising only
+//! `[…]` and `${…}`.
 
 use tcl_lexer::Span;
 
@@ -200,9 +199,9 @@ pub fn statement_delete_rewrite_range(
 /// Returns the input span unchanged when the first byte isn't `"` or
 /// no close quote is found, so a rewrite anchored on the result either
 /// covers the whole string or does not fire. Scanning without the
-/// command-substitution rule stopped `"a[foo "b"]c"` at the quote
-/// opening the inner `"b"`, and O129's auto-fix then replaced that
-/// truncated prefix and left `]c"` behind (issue #1424).
+/// command-substitution rule stops `"a[foo "b"]c"` at the quote
+/// opening the inner `"b"`, so O129's auto-fix replaces that truncated
+/// prefix and leaves `]c"` behind.
 #[must_use]
 pub fn full_quoted_string_span(source: &str, argv_span: Span) -> Span {
     let Some(close) = tcl_lexer::close_quote_offset(source, argv_span.start() as usize) else {
@@ -371,7 +370,7 @@ mod tests {
 
     #[test]
     fn full_quoted_string_span_spans_quote_inside_command_substitution() {
-        // Issue #1424: the `"b"` belongs to the substituted command, so
+        // The `"b"` belongs to the substituted command, so
         // the span must reach the *final* `"` — stopping at the inner
         // quote would make O129's auto-fix replace `"a[foo "` and leave
         // `b"]c"` behind as a stray fragment.

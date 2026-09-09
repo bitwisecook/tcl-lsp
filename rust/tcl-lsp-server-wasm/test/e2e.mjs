@@ -495,7 +495,7 @@ async function main() {
     session.notify("initialized", {});
     await settle(150);
 
-    // ---- the .tclspec document -------------------------------------------
+    // The .tclspec document.
     session.notify("textDocument/didOpen", {
         textDocument: {
             uri: SPEC_URI,
@@ -569,7 +569,7 @@ async function main() {
         pull.error ? `error ${pull.error.code}` : "result",
     );
 
-    // ---- break it, and expect the analyser to say so ---------------------
+    // Break it, and expect the analyser to say so.
     session.diagnostics.delete(SPEC_URI);
     session.notify("textDocument/didChange", {
         textDocument: { uri: SPEC_URI, version: 2 },
@@ -585,11 +585,10 @@ async function main() {
         broken ? `${broken.length}: ${broken[0].code ?? ""} ${broken[0].message}` : "none",
     );
 
-    // ---- the .sslictcl document ------------------------------------------
-    // The sibling declarative dialect. Its `SSLIC1xxx` diagnostics come from
-    // `tcl_sslictcl`, whose transitive crypto dependencies are the reason this
-    // check exists here at all: the browser server has to keep building and
-    // running with them linked in.
+    // The .sslictcl document: the sibling declarative dialect. Its `SSLIC1xxx`
+    // diagnostics come from `tcl_sslictcl`, whose transitive crypto dependencies
+    // are the reason this check exists here at all: the browser server has to
+    // keep building and running with them linked in.
     session.notify("textDocument/didOpen", {
         textDocument: {
             uri: SSLIC_URI,
@@ -622,7 +621,7 @@ async function main() {
         `${sslicDiags?.map((d) => d.code).join(", ") ?? "none"}`,
     );
 
-    // ---- a plain .tcl document -------------------------------------------
+    // A plain .tcl document.
     session.notify("textDocument/didOpen", {
         textDocument: {
             uri: TCL_URI,
@@ -661,7 +660,7 @@ async function main() {
         `${tclDiags?.length ?? "none"} diagnostics`,
     );
 
-    // ---- the closed-file store -------------------------------------------
+    // The closed-file store.
     session.worker.vfs_upsert("file:///w/lib.tcl", "proc helper {} { return 1 }\n");
     check("vfs_upsert stores a closed file", session.worker.vfs_len() === 1);
     check("vfs_delete forgets it", session.worker.vfs_delete("file:///w/lib.tcl") === true);
