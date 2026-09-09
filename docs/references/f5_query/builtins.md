@@ -5737,14 +5737,12 @@ Raises when the object did not come from a file-backed UCS, when
 the stanza has no ``cache-path``, or when no matching member is in
 the archive.
 
-**Not reachable from the DSL yet.**  Like :func:`x509_from_config`,
-this needs a ``sys file ssl-cert`` / ``cm cert`` object, and the query
-projection covers the ``ltm``, ``gtm`` and ``security`` kinds only —
-there is no ``.sys`` / ``.cm`` container to pipe from, and an
-``--input-json`` stanza arrives as a plain object, which this builtin
-rejects.  The UCS reader hook itself is wired and unit-tested in the
-f5 CLI; the examples below are the shape a query will take once those
-kinds are projected.
+Reach it through the ``.sys["file-ssl-cert"]`` / ``.cm.cert``
+containers: this builtin needs the projected object, because it reads
+the archive by the stanza's ``cache-path`` and the source URI the
+object was loaded from.  An ``--input-json`` stanza arrives as a plain
+object carrying neither, and is rejected — use
+:func:`x509_from_config` for that form.
 
 Related: ``x509_from_config`` (stanza metadata only), ``x509_eq``,
 ``cert_load``, ``tls_handshake``.
@@ -6103,8 +6101,9 @@ x509_eq(tls_handshake("example.com", 443).peer_cert,
 x509_eq(x509_parse($peer_pem), x509_from_config($cert))
 ```
 
-(``$cert`` is a cert stanza bound with ``--input-json``; the ``.sys`` /
-``.cm`` containers are not projected — see :func:`x509_from_config`.)
+(``$cert`` is any value carrying the cert metadata fields — a
+projected ``.sys["file-ssl-cert"]`` / ``.cm.cert`` object, or a stanza
+bound with ``--input-json``.)
 
 ### `x509_from_config`
 
@@ -6122,14 +6121,9 @@ returns a dict in the same shape :func:`x509_parse` produces:
 ``fingerprint_sha256`` / ``sans`` / ``key_alg`` / ``key_size``
 / ``version`` / etc.
 
-**The ``sys`` and ``cm`` containers are not projected.**  The query
-surface covers the ``ltm``, ``gtm`` and ``security`` kinds only, so
-``.sys["file-ssl-cert"]`` / ``.cm.cert`` navigate into an empty
-container and a client-ssl profile's ``cert`` PathRef does not
-dereference.  Today the stanza has to arrive as an external input
-(``--input-json``); unlike :func:`ucs_cert` this builtin reads plain
-objects, so that form works.  The projections below are the ones it
-understands once such an object reaches it:
+It reads whatever carries the metadata fields, so both a projected
+object and a plain one from an external input (``--input-json``) work.
+The projections it understands:
 
 - ``sys file ssl-cert`` — cert / chain / bundle store, the
   target of every client-ssl / server-ssl ``cert-key-chain``

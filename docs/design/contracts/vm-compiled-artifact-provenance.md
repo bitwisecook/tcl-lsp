@@ -113,6 +113,23 @@ that old frame appear to have completed safely. Before a coroutine resumes or
 accepts `Suspend`, it validates the whole frozen stack so a newly compiled
 handler or `finally` activation cannot hide a stale ancestor.
 
+`Vm::install_tick` is the exhaustive owner for turning a dispatch result into
+an activation, a completion, a tail call, or a suspension. The ordinary drive
+loop and a nested `tailcall` target both use that owner; neither may recognise
+individual deferred commands or install `Tick::Call`, `PushScript`,
+`PushCatch`, `PushSubst`, `PushEachLoop`, or `PushTry` independently. Every
+pushed frame takes the issuing command's pending execution-leave context at
+that boundary. A tailcalling procedure settles its own leave context before
+the replacement command enters, while transparent `eval`, `uplevel`, and
+`apply` wrappers settle with `RETURN` and retain their normal namespace and
+temporary-command cleanup.
+
+Scanner activations that need an otherwise-empty `CompiledUnit` (`subst` and
+runtime-dispatched `foreach`/`lmap`) stamp that placeholder when the command
+produces its tick, not later when the frame is installed. The placeholder
+therefore carries the exact source namespace, profile generation, command
+epoch, and compile-service generation that authorised the deferred work.
+
 Stale failure travels through the ordinary completion-settlement path so
 inline exception machinery sees a command-like error. Unwind validates its
 current activation before the first pop and revalidates every parent crossing

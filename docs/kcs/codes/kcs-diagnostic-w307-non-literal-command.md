@@ -21,7 +21,7 @@ A command name built from a variable or command substitution cannot be staticall
 
 ## Symptoms
 
-- A yellow squiggle appears under the command word, with the message *"Non-literal command name — cannot statically analyze"*.
+- A yellow squiggle appears under the command word, with the message *"Non-literal command name — cannot statically analyse"*.
 
 ## Example that triggers it
 
