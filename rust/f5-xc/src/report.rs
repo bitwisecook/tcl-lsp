@@ -182,7 +182,7 @@ mod tests {
         assert!(
             out["terraform"]
                 .as_str()
-                .is_some_and(|hcl| hcl.contains("volterra")),
+                .is_some_and(|hcl| hcl.contains("volterra_origin_pool")),
             "{out}"
         );
         assert!(out["json_api"].is_object(), "{out}");

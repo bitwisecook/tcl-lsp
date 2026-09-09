@@ -16,9 +16,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Render an [`XCTranslationResult`] as Terraform HCL (volterra provider):
-//! `volterra_origin_pool`, `volterra_http_loadbalancer`, and
-//! `volterra_service_policy` resources. Hand-rolled string formatting.
+//! Render an [`XCTranslationResult`] as Terraform HCL for the F5 XC
+//! Terraform provider, published as `volterraedge/volterra`. Its resource
+//! type names carry that same spelling — `volterra_origin_pool`,
+//! `volterra_http_loadbalancer`, `volterra_service_policy` — because they
+//! are the provider's schema, not our naming. Hand-rolled string
+//! formatting.
 
 use std::fmt::Write as _;
 

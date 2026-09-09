@@ -72,8 +72,8 @@ writes `$FILE.tf` and `$FILE.xc.json`.
 The translator walks the lowered IR of each event handler and maps
 commands to XC routes, service policy rules, origin pool references,
 header actions, and WAF exclusion rules. That model is rendered two
-ways: Terraform HCL for the `volterra` provider, and ves.io JSON-API
-objects. The Terraform carries `TODO` comments where XC needs a value
+ways: Terraform HCL for the F5 XC Terraform provider, and ves.io
+JSON-API objects. The Terraform carries `TODO` comments where XC needs a value
 the iRule cannot supply, such as origin server addresses and
 load-balancer domains. A command the translator has an entry for is
 always reported — mapped to its XC construct, or listed as having no XC
