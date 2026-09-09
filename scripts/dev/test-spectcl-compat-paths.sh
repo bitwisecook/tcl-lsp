@@ -75,6 +75,109 @@ esac
 
 echo "SpecTcl compatibility target contract tests passed"
 
+# The focused job's caches are accelerators, never alternate correctness
+# paths. It must derive Tcl identity from the manifest owner, restore before
+# the unchanged Make target, save only after success, and enable sccache only
+# after its optional setup succeeds.
+spectcl_job=$(awk '
+    /^  spectcl-compat:/ { in_job = 1 }
+    in_job && /^  [A-Za-z0-9_-]+:/ && $1 != "spectcl-compat:" { exit }
+    in_job { print }
+' "$REPO_ROOT/.github/workflows/ci.yml")
+
+spectcl_job_header=$(printf '%s\n' "$spectcl_job" | awk '
+    /^    steps:/ { exit }
+    { print }
+')
+
+case "$spectcl_job_header" in
+    *'env:'*'SCCACHE_GHA_ENABLED: "true"'*) ;;
+    *)
+        echo "spectcl-compat must enable the GitHub Actions sccache backend at job scope" >&2
+        exit 1
+        ;;
+esac
+
+spectcl_step() {
+    step_name=$1
+    step_count=$(printf '%s\n' "$spectcl_job" | awk -v header="      - name: $step_name" '
+        $0 == header { count += 1 }
+        END { print count + 0 }
+    ')
+    if [ "$step_count" -ne 1 ]; then
+        echo "spectcl-compat must contain exactly one step named: $step_name" >&2
+        exit 1
+    fi
+    printf '%s\n' "$spectcl_job" | awk -v header="      - name: $step_name" '
+        $0 == header { in_step = 1 }
+        in_step && /^      - / && $0 != header { exit }
+        in_step { print }
+    '
+}
+
+require_in_spectcl_step() {
+    required_step_name=$1
+    required_step_text=$2
+    required_step_block=$(spectcl_step "$required_step_name")
+    case "$required_step_block" in
+        *"$required_step_text"*) ;;
+        *)
+            echo "SpecTcl CI cache step '$required_step_name' is missing: $required_step_text" >&2
+            exit 1
+            ;;
+    esac
+}
+
+require_in_spectcl_step 'Resolve the exact Tcl 9.0 cache identity' 'id: tcl-oracle'
+require_in_spectcl_step 'Resolve the exact Tcl 9.0 cache identity' 'tcl_reference_patchlevel 9.0'
+require_in_spectcl_step 'Resolve the exact Tcl 9.0 cache identity' "hashFiles('rust/tcl-dialect/data/reference-toolchains.tsv', '.claude/skills/fetch-tcl-source/fetch_tcl_source.sh', 'scripts/dev/ensure-test-deps.sh', 'scripts/dev/tcl-reference-toolchains.sh')"
+
+require_in_spectcl_step 'Restore the exact Tcl 9.0 source and build tree' 'id: tcl-cache'
+require_in_spectcl_step 'Restore the exact Tcl 9.0 source and build tree' 'actions/cache/restore@'
+require_in_spectcl_step 'Restore the exact Tcl 9.0 source and build tree' 'path: ${{ steps.tcl-oracle.outputs.path }}'
+require_in_spectcl_step 'Restore the exact Tcl 9.0 source and build tree' 'key: ${{ steps.tcl-oracle.outputs.key }}'
+
+require_in_spectcl_step 'Set up sccache' 'id: sccache'
+require_in_spectcl_step 'Set up sccache' 'continue-on-error: true'
+require_in_spectcl_step 'Set up sccache' 'mozilla-actions/sccache-action@'
+
+require_in_spectcl_step 'Enable sccache when available' 'SCCACHE_SETUP_OUTCOME: ${{ steps.sccache.outcome }}'
+require_in_spectcl_step 'Enable sccache when available' 'RUSTC_WRAPPER=sccache'
+require_in_spectcl_step 'Enable sccache when available' 'continuing with uncached compilation'
+
+require_in_spectcl_step 'Run exact SpecTcl 1.x + 2.0 + real-Tcl compatibility gate' 'run: make test-spectcl-compat'
+
+require_in_spectcl_step 'Save the validated Tcl 9.0 source and build tree' "success() && steps.tcl-cache.outputs.cache-hit != 'true'"
+require_in_spectcl_step 'Save the validated Tcl 9.0 source and build tree' 'actions/cache/save@'
+require_in_spectcl_step 'Save the validated Tcl 9.0 source and build tree' 'path: ${{ steps.tcl-oracle.outputs.path }}'
+require_in_spectcl_step 'Save the validated Tcl 9.0 source and build tree' 'key: ${{ steps.tcl-oracle.outputs.key }}'
+
+require_in_spectcl_step 'Report sccache statistics' 'if: always()'
+require_in_spectcl_step 'Report sccache statistics' 'continue-on-error: true'
+require_in_spectcl_step 'Report sccache statistics' 'sccache --show-stats'
+
+previous_step_line=0
+while IFS= read -r ordered_step_name; do
+    ordered_step_line=$(printf '%s\n' "$spectcl_job" | awk -v header="      - name: $ordered_step_name" '
+        $0 == header { print NR }
+    ')
+    if [ "$ordered_step_line" -le "$previous_step_line" ]; then
+        echo "SpecTcl CI cache step is out of order: $ordered_step_name" >&2
+        exit 1
+    fi
+    previous_step_line=$ordered_step_line
+done <<'EOF'
+Resolve the exact Tcl 9.0 cache identity
+Restore the exact Tcl 9.0 source and build tree
+Set up sccache
+Enable sccache when available
+Run exact SpecTcl 1.x + 2.0 + real-Tcl compatibility gate
+Save the validated Tcl 9.0 source and build tree
+Report sccache statistics
+EOF
+
+echo "SpecTcl compatibility cache contract tests passed"
+
 # The repository's existing required check is `pr-gate`, so a job that is not
 # itself required must feed a real failure into that check. A plain `needs`
 # edge is insufficient: Actions skips dependent jobs after a failed need.

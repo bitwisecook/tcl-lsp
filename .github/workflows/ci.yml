@@ -1318,10 +1318,37 @@ jobs:
   spectcl-compat:
     needs: [channel]
     runs-on: ubuntu-26.04
+    env:
+      SCCACHE_GHA_ENABLED: "true"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
+
+      - name: Resolve the exact Tcl 9.0 cache identity
+        if: needs.channel.outputs.spectcl_compat_changed == 'true' && needs.channel.outputs.already_green != 'true'
+        id: tcl-oracle
+        shell: bash
+        run: |
+          set -euo pipefail
+          . scripts/dev/tcl-reference-toolchains.sh
+          tcl_reference_load_toolchains "$PWD"
+          patchlevel="$(tcl_reference_patchlevel 9.0)"
+          echo "path=tmp/tcl${patchlevel}" >> "$GITHUB_OUTPUT"
+          echo "key=spectcl-tcl90-ubuntu-26.04-x64-${{ hashFiles('rust/tcl-dialect/data/reference-toolchains.tsv', '.claude/skills/fetch-tcl-source/fetch_tcl_source.sh', 'scripts/dev/ensure-test-deps.sh', 'scripts/dev/tcl-reference-toolchains.sh') }}" >> "$GITHUB_OUTPUT"
+
+      # The static Tcl shell is only about 23 MB with its source tree, but a
+      # cold runner otherwise fetches, configures and builds it on every gate.
+      # Restore and save are separate so a failed bootstrap cannot publish a
+      # partial tree. The Make target below still probes the exact patchlevel
+      # and repairs a missing or unusable binary before any test can run.
+      - name: Restore the exact Tcl 9.0 source and build tree
+        if: needs.channel.outputs.spectcl_compat_changed == 'true' && needs.channel.outputs.already_green != 'true'
+        id: tcl-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.tcl-oracle.outputs.path }}
+          key: ${{ steps.tcl-oracle.outputs.key }}
 
       - name: Set up Rust
         if: needs.channel.outputs.spectcl_compat_changed == 'true' && needs.channel.outputs.already_green != 'true'
@@ -1330,9 +1357,48 @@ jobs:
           toolchain: stable
           cache-key: spectcl-compat
 
+      - name: Set up sccache
+        id: sccache
+        if: needs.channel.outputs.spectcl_compat_changed == 'true' && needs.channel.outputs.already_green != 'true'
+        continue-on-error: true
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+        with:
+          version: v0.17.0
+          disable_annotations: true
+
+      - name: Enable sccache when available
+        if: needs.channel.outputs.spectcl_compat_changed == 'true' && needs.channel.outputs.already_green != 'true'
+        shell: bash
+        env:
+          SCCACHE_SETUP_OUTCOME: ${{ steps.sccache.outcome }}
+        run: |
+          if [[ "$SCCACHE_SETUP_OUTCOME" == success ]] \
+              && command -v sccache >/dev/null 2>&1 \
+              && sccache --version >/dev/null 2>&1; then
+            echo 'RUSTC_WRAPPER=sccache' >> "$GITHUB_ENV"
+          else
+            echo '::warning::sccache is unavailable; continuing with uncached compilation'
+          fi
+
       - name: Run exact SpecTcl 1.x + 2.0 + real-Tcl compatibility gate
         if: needs.channel.outputs.spectcl_compat_changed == 'true' && needs.channel.outputs.already_green != 'true'
         run: make test-spectcl-compat
+
+      - name: Save the validated Tcl 9.0 source and build tree
+        if: needs.channel.outputs.spectcl_compat_changed == 'true' && needs.channel.outputs.already_green != 'true' && success() && steps.tcl-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.tcl-oracle.outputs.path }}
+          key: ${{ steps.tcl-oracle.outputs.key }}
+
+      - name: Report sccache statistics
+        if: always() && needs.channel.outputs.spectcl_compat_changed == 'true' && needs.channel.outputs.already_green != 'true'
+        continue-on-error: true
+        shell: bash
+        run: |
+          if command -v sccache >/dev/null 2>&1; then
+            sccache --show-stats || true
+          fi
 
   # The heavy VM-simulation suites, split out to run concurrently with
   # `rust-tests-shard` (see that job's header). Doctests are covered there.
