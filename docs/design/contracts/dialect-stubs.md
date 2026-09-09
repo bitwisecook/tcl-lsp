@@ -53,10 +53,13 @@ stub <command-name> {arg1:role arg2 ?optArg:role?} ?flags...?
 
 ### Argument roles
 
-Each role word maps to one registry `ArgRole` through
-`tcl_registry::model::role_for_word`. An unrecognised word is **not** an error
-— it falls through to `Value`, so a typo silently degrades to the generic role
-rather than rejecting the stub.
+`tcl_registry::model::role_for_word_checked` is the role vocabulary, and the
+directive parser is one of its callers: a word it does not know is a typo, so
+the whole declaration is dropped and the command stays unresolved rather than
+half-declaring with a silently generic role. `role_for_word` is the same
+lookup with the "value is the default" fallback an argument written without a
+`:role` annotation gets. A second list of accepted words beside it is how a
+role gets documented but stays unusable.
 
 | Role | `ArgRole` | Meaning |
 |------|---|---------|
@@ -187,6 +190,10 @@ lowering asked.
   `DECLARES_NAMESPACE`, or an absolutely-spelled name word) belongs to the
   body unit that owns it; walking it here would invent an edge to a
   same-named proc in the caller's namespace (issues #977 / #980).
+  `DocumentCommandSurface::command_prefixes` widens the callback positions
+  the same scan reads, so a declared `command_prefix` word names an edge too
+  — at `AppendedArity::Unknown`, since a declaration states a position and
+  no count.
 - **The analyser** asks the same surface through `Analyser::command_surface`
   for its generic body walk and for its expression dispatch, so a declared
   body's commands resolve and a declared expression draws the expression

@@ -96,16 +96,17 @@ Declaring the same command twice keeps the last declaration.
 
 Argument roles (after the `:`):
 
-| Role       | Meaning                                                |
-|------------|--------------------------------------------------------|
-| `body`     | Tcl script body — recursively analysed                 |
-| `expr`     | Expression (expr sub-language)                         |
-| `var`      | Variable name written by the command                   |
-| `var_read` | Variable name read without modification                |
-| `name`     | Symbolic name (proc name, namespace name)              |
-| `pattern`  | Pattern or regex                                       |
-| `channel`  | Channel identifier                                     |
-| `value`    | Generic value (default when no role is specified)      |
+| Role             | Meaning                                              |
+|------------------|------------------------------------------------------|
+| `body`           | Tcl script body — recursively analysed               |
+| `expr`           | Expression (expr sub-language)                       |
+| `var`            | Variable name written by the command                 |
+| `var_read`       | Variable name read without modification              |
+| `name`           | Symbolic name (proc name, namespace name)            |
+| `pattern`        | Pattern or regex                                     |
+| `channel`        | Channel identifier                                   |
+| `command_prefix` | A command prefix the command invokes as a callback   |
+| `value`          | Generic value (default when no role is specified)    |
 
 A declared role reaches the analysis through the same path a shipped command
 spec's does, so the two behave alike:
@@ -116,6 +117,8 @@ spec's does, so the two behave alike:
 - `expr` — the word is an expression, so it draws the expression diagnostics
   (an unbraced operand is a double-substitution risk, `W100`), and a
   `[cmd …]` substituted inside it is a call even when the operand is braced.
+- `command_prefix` — the word names a proc the command calls back, so that
+  proc is an edge of the caller and is not dead code.
 - `var` — the word names a variable the command writes, so it is defined from
   that call onwards and reading it afterwards is not "read before it is set"
   (`W210`).
@@ -170,8 +173,9 @@ an operator when you leave it out.
 - Run `tcl diag <file>` and confirm the `W123 Unknown command` hint on the
   stubbed command is gone.
 - Run `tcl callgraph <file>` and check that the procs the stubbed command
-  reaches — called from inside a `body` argument, or substituted inside an
-  `expr` argument — appear as outgoing edges from the caller.
+  reaches — called from inside a `body` argument, named by a
+  `command_prefix` argument, or substituted inside an `expr` argument —
+  appear as outgoing edges from the caller.
 - Run `tcl diag <file>` and check that a variable the stub declares `var` no
   longer draws `W210 Variable '…' is read before it is set` where the
   command writes it.

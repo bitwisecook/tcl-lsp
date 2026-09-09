@@ -251,6 +251,100 @@ fn a_stub_declared_expression_draws_the_unbraced_warning() {
     );
 }
 
+// ───────────────────── ArgRole::CommandPrefix → call graph ────────────────
+
+/// The registry baseline: `lsort -command` names a callback the sort
+/// invokes, so the procedure it names is an edge of the caller.
+#[test]
+fn registry_command_prefix_role_is_a_call_graph_edge() {
+    let source = concat!(
+        "proc compare {a b} { expr {$a - $b} }\n",
+        "proc main {items} { return [lsort -command compare $items] }\n",
+    );
+    assert!(
+        calls(source, "::main", "::compare"),
+        "a registry callback position is an edge; got {:?}",
+        edges(source)
+    );
+}
+
+/// The same fact declared by a stub: `cb:command_prefix` names the word
+/// `on_event` invokes as a callback.
+#[test]
+fn stub_command_prefix_role_is_a_call_graph_edge() {
+    let source = concat!(
+        "# tcl-lsp: stubs-begin\n",
+        "# tcl-lsp: stub on_event {name cb:command_prefix}\n",
+        "# tcl-lsp: stubs-end\n",
+        "proc handler {} { puts hi }\n",
+        "proc main {} { on_event click handler }\n",
+    );
+    assert!(
+        calls(source, "::main", "::handler"),
+        "a stub-declared callback position is an edge; got {:?}",
+        edges(source)
+    );
+}
+
+// ────────────────────────────── role vocabulary ───────────────────────────
+
+/// Whether `source` leaves `myc` — the stubbed head every vocabulary case
+/// declares — reported as an unknown command.
+///
+/// A `W123` naming something else is not the answer: a `body` role makes its
+/// word a script, so the fixture's argument resolves as a command of its own.
+fn head_is_unresolved(source: &str) -> bool {
+    Analyser::new()
+        .analyse(source, DIALECT)
+        .diagnostics
+        .iter()
+        .any(|d| d.code.to_string() == "W123" && d.message.contains("myc"))
+}
+
+/// Every role word the registry knows is one the directive parser accepts:
+/// a word in the table must not be rejected as a typo.
+#[test]
+fn every_registry_role_word_is_accepted_by_the_directive() {
+    for word in [
+        "body",
+        "expr",
+        "var",
+        "var_read",
+        "name",
+        "pattern",
+        "channel",
+        "command_prefix",
+        "value",
+    ] {
+        let source = format!(
+            "# tcl-lsp: stubs-begin\n# tcl-lsp: stub myc {{a:{word}}}\n# tcl-lsp: stubs-end\nmyc x\n"
+        );
+        assert!(
+            !head_is_unresolved(&source),
+            "`{word}` must declare the command; got {:?}",
+            codes(&source)
+        );
+    }
+}
+
+/// A word the registry does not know is a typo, not a silent generic role:
+/// the declaration is dropped and the command stays unresolved, which is
+/// what tells the author their spelling is wrong.
+#[test]
+fn an_unknown_role_word_drops_the_declaration() {
+    let source = concat!(
+        "# tcl-lsp: stubs-begin\n",
+        "# tcl-lsp: stub myc {a:nonsense}\n",
+        "# tcl-lsp: stubs-end\n",
+        "myc x\n",
+    );
+    assert!(
+        head_is_unresolved(source),
+        "a typo'd role leaves the command unresolved; got {:?}",
+        codes(source)
+    );
+}
+
 // ────────────────────────── optional argument slots ───────────────────────
 
 /// A declared position is not a call position. With the optional slot

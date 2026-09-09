@@ -1095,12 +1095,6 @@ fn strip_tcl_lsp_prefix(body: &str) -> &str {
     rest.strip_prefix(':').map_or(s, str::trim_start)
 }
 
-/// Valid argument-role annotations recognised after the ``:``
-/// separator in a stub argument token.
-const VALID_STUB_ROLES: &[&str] = &[
-    "body", "expr", "var", "var_read", "name", "pattern", "channel", "value",
-];
-
 /// Parse a ``stub NAME {ARGS} ?FLAGS?`` line (case-insensitive on
 /// the ``stub`` keyword).  Returns a fully-populated
 /// `StubCommandDef` (name, args, flags, range) on match, or
@@ -1169,11 +1163,11 @@ fn parse_stub_args(args_str: &str) -> Option<Vec<super::types::StubArgDef>> {
         }
         let (arg_name, role) = if let Some(idx) = name.find(':') {
             let arg_name = &name[..idx];
-            let role = &name[idx + 1..];
-            let role_lower = role.to_ascii_lowercase();
-            if !VALID_STUB_ROLES.contains(&role_lower.as_str()) {
-                return None;
-            }
+            let role_lower = name[idx + 1..].to_ascii_lowercase();
+            // The registry owns the role vocabulary, so a word it does not
+            // know is a typo rather than a silent `Value`: reject the whole
+            // declaration and let the unresolved-command hint say so.
+            tcl_registry::model::role_for_word_checked(&role_lower)?;
             (arg_name, role_lower)
         } else {
             (name, "value".to_string())
