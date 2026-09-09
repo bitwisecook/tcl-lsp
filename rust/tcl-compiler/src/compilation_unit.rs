@@ -1133,6 +1133,7 @@ fn resolve_unit_scope(
         &ir_module.procedures,
         &ir_module.namespace_imports,
         registry,
+        options.declared_commands,
         options
             .dialect
             .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
@@ -3779,6 +3780,7 @@ mod tests {
                 crate::unit_scope::scan_source_call_sites(
                     other,
                     reg,
+                    None,
                     tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
                     &known,
                     &[],

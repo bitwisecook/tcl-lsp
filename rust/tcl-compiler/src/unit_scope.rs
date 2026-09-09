@@ -288,6 +288,10 @@ struct CallSiteScanCtx<'a, S> {
     /// actually defines the callee.
     known: &'a HashSet<String, S>,
     registry: &'a CommandRegistry,
+    /// The document's own `# tcl-lsp: stub` declarations, when it has any.
+    /// Read through [`CallSiteScanCtx::surface`] so a declared argument role
+    /// reaches this scan exactly as a catalogue one does.
+    declared: Option<&'a tcl_registry::model::DeclaredSurface>,
     dialect: &'static tcl_dialect::DialectProfile,
     /// `namespace import` directives (`(importing_namespace, absolute_pattern)`
     /// pairs), from [`crate::ir::Module::namespace_imports`] — see
@@ -310,6 +314,14 @@ struct CallSiteScanCtx<'a, S> {
     /// The qualified name of the module's own unresolved-command handler,
     /// when it defines one — see [`unresolved_command_handler`].
     unresolved_handler: Option<&'a str>,
+}
+
+impl<'a, S> CallSiteScanCtx<'a, S> {
+    /// The catalogue extended by the document's declarations — the one door
+    /// every argument-role question in this scan goes through.
+    fn surface(&self) -> tcl_registry::model::DocumentCommandSurface<'a> {
+        tcl_registry::model::DocumentCommandSurface::new(self.registry, self.declared)
+    }
 }
 
 /// One body the scan walks as a *caller*.
@@ -412,10 +424,10 @@ impl ScopeVars {
 /// Constant assignments (`set cmd helper`, or the plain-bareword
 /// `AssignValue` shape lowering leaves alone) contribute a literal; every
 /// other write contributes "unknown" for that name.  Which *words* of a
-/// generic call name a variable is registry data ([`ArgRole::VarWrite`],
-/// plus [`Traits::CREATES_SCOPE_ALIAS`] for the vararg alias forms `global
-/// x y z` / `variable a b` / `upvar 1 a b 1 c d`, whose per-argument name
-/// list the role query deliberately does not expand) — no command name is
+/// generic call name a variable is command-surface data
+/// ([`ArgRole::VarWrite`], plus [`Traits::CREATES_SCOPE_ALIAS`] for the
+/// vararg alias forms `global x y z` / `variable a b` / `upvar 1 a b 1 c d`,
+/// whose per-argument name list the role query deliberately does not expand) — no command name is
 /// matched here.
 ///
 /// Structured bodies (`if`, `while`, `catch`, a *literal* `eval`/`uplevel
@@ -424,7 +436,10 @@ impl ScopeVars {
 /// that are not — a frame-shifting [`Statement::UpFrame`] body and a body
 /// reached only through a substitution on a [`Traits::EVALUATES_CODE`]
 /// command — set [`ScopeVars::cross_frame_write`] instead.
-fn collect_scope_var_facts(cfg: &CfgFunction, registry: &CommandRegistry) -> ScopeVars {
+fn collect_scope_var_facts(
+    cfg: &CfgFunction,
+    surface: &tcl_registry::model::DocumentCommandSurface<'_>,
+) -> ScopeVars {
     let mut out = ScopeVars::default();
     for block in cfg.blocks.values() {
         for stmt in &block.statements {
@@ -453,10 +468,10 @@ fn collect_scope_var_facts(cfg: &CfgFunction, registry: &CommandRegistry) -> Sco
                     for d in defs {
                         out.note_write_word(d);
                     }
-                    note_registry_var_writes(&mut out, registry, stmt, args);
+                    note_surface_var_writes(&mut out, surface, stmt, args);
                 }
                 Statement::Barrier { args, .. } => {
-                    note_registry_var_writes(&mut out, registry, stmt, args);
+                    note_surface_var_writes(&mut out, surface, stmt, args);
                 }
                 // `uplevel N {…}`: the body's writes land in another
                 // frame, which this per-scope walk does not own.
@@ -468,17 +483,17 @@ fn collect_scope_var_facts(cfg: &CfgFunction, registry: &CommandRegistry) -> Sco
     out
 }
 
-/// Record the variable writes the registry declares for one call.
-fn note_registry_var_writes(
+/// Record the variable writes the command surface declares for one call.
+fn note_surface_var_writes(
     out: &mut ScopeVars,
-    registry: &CommandRegistry,
+    surface: &tcl_registry::model::DocumentCommandSurface<'_>,
     stmt: &Statement,
     args: &[String],
 ) {
     let command = stmt.canonical_command_or_source();
     let bare = command.strip_prefix("::").unwrap_or(command);
     if is_dynamic_word(bare) {
-        // A computed head (`$cmd 5`) has no registry spec to read roles
+        // A computed head (`$cmd 5`) has no command spec to read roles
         // from, so there is nothing to record. It is deliberately not
         // treated as perturbing the scope either: a *user proc* reached
         // this way can only write the caller's locals through `upvar`,
@@ -491,12 +506,12 @@ fn note_registry_var_writes(
         return;
     }
     let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-    for idx in registry.arg_indices_for_role(bare, &arg_strs, ArgRole::VarWrite) {
+    for idx in surface.arg_indices_for_role(bare, &arg_strs, ArgRole::VarWrite) {
         if let Some(word) = args.get(idx) {
             out.note_write_word(word);
         }
     }
-    let Some(spec) = registry.get(bare) else {
+    let Some(spec) = surface.commands().get(bare) else {
         return;
     };
     // `global` / `variable` / `upvar` bind *every* name in a vararg list to
@@ -672,12 +687,13 @@ fn resolve_via_namespace_import<S: std::hash::BuildHasher>(
 /// site with a differing argument silently vanishes from
 /// [`params_constants_from_call_sites`]'s "every caller agrees" evidence.
 ///
-/// The registry already knows which argument position of which command is a
-/// script body (`ArgRole::Body`, driving the identical recursive call-graph
-/// walk in [`crate::interprocedural`] and the `BODY`-role scans in
+/// The command surface already knows which argument position of which
+/// command is a script body (`ArgRole::Body`, driving the identical recursive
+/// call-graph walk in [`crate::interprocedural`] and the `BODY`-role scans in
 /// `ir_helpers.rs` / `place_bridge.rs` / `ssa.rs`) — so this reuses that one
-/// fact via [`tcl_registry::CommandRegistry::arg_indices_for_role`] and the
-/// shared [`crate::segmenter`] rather than hand-rolling a second "which
+/// fact via
+/// [`tcl_registry::model::DocumentCommandSurface::arg_indices_for_role`] and
+/// the shared [`crate::segmenter`] rather than hand-rolling a second "which
 /// commands embed scripts" list here.
 fn record_call_site_evidence(
     out: &mut CallSiteEvidence,
@@ -710,20 +726,15 @@ fn record_call_site_evidence(
     // unreadable as a script body received as one, and may likewise call
     // anything.  A *literal* lambda needs no walking here — lowering gives it
     // its own body unit, which the scan already visits as a caller.
-    for idx in ctx
-        .registry
-        .arg_indices_for_role(command, &arg_strs, ArgRole::LambdaLiteral)
-    {
+    let surface = ctx.surface();
+    for idx in surface.arg_indices_for_role(command, &arg_strs, ArgRole::LambdaLiteral) {
         if args.get(idx).is_some_and(|w| {
             word_is_whole_substitution(w, tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar))
         }) {
             out.record_unenumerable_caller(ctx.unenumerable_reach);
         }
     }
-    for idx in ctx
-        .registry
-        .arg_indices_for_role(command, &arg_strs, tcl_registry::ArgRole::Body)
-    {
+    for idx in surface.arg_indices_for_role(command, &arg_strs, tcl_registry::ArgRole::Body) {
         let Some(body_text) = args.get(idx) else {
             continue;
         };
@@ -762,7 +773,7 @@ fn record_call_site_evidence(
             tcl_registry::ArgRole::Name,
         ]
         .into_iter()
-        .flat_map(|role| ctx.registry.arg_indices_for_role(command, &arg_strs, role))
+        .flat_map(|role| surface.arg_indices_for_role(command, &arg_strs, role))
         .filter_map(|i| args.get(i))
         .any(|name| name.starts_with("::"))
         {
@@ -984,9 +995,10 @@ fn resolve_target(
 /// disagrees". Recording them as opaque callers states the truth instead: a
 /// call site exists whose arguments are unknown.
 ///
-/// Registry-driven throughout — the callback positions come from
+/// Command-surface-driven throughout — the callback positions come from
 /// [`tcl_registry::ArgRole::CommandPrefix`]
-/// ([`CommandRegistry::arg_indices_for_role`]) and the rebinding forms from
+/// ([`tcl_registry::model::DocumentCommandSurface::arg_indices_for_role`])
+/// and the rebinding forms from
 /// [`crate::alias::command_table_transitions`], so no command name appears
 /// here.  Covers the `CommandPrefix` forms for both the in-unit and the
 /// cross-unit scan.
@@ -1012,7 +1024,7 @@ fn record_indirect_callers(
         record_invocation(out, ctx, caller, name, IndirectArgs::Words(rest));
     }
     for idx in ctx
-        .registry
+        .surface()
         .arg_indices_for_role(command, &arg_strs, ArgRole::CommandPrefix)
     {
         // A command prefix is a list whose first word is the command; the
@@ -1339,10 +1351,12 @@ pub(crate) fn collect_call_site_constants(
     procedures: &HashMap<String, crate::ir::Procedure>,
     namespace_imports: &[(String, String)],
     registry: &CommandRegistry,
+    declared: Option<&tcl_registry::model::DeclaredSurface>,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> CallSiteEvidence {
     let known: HashSet<String> = procedures.keys().cloned().collect();
-    let var_facts = collect_module_scope_var_facts(cfg_module, extra_callers, registry);
+    let surface = tcl_registry::model::DocumentCommandSurface::new(registry, declared);
+    let var_facts = collect_module_scope_var_facts(cfg_module, extra_callers, &surface);
     // Within one unit the reach is simply its own procedures, so an
     // unenumerable dispatch withdraws every seed the unit would have taken —
     // identical to the module-wide rule it replaces, but expressed per callee
@@ -1358,6 +1372,7 @@ pub(crate) fn collect_call_site_constants(
         let ctx = CallSiteScanCtx {
             known: &known,
             registry,
+            declared,
             dialect,
             namespace_imports,
             var_facts: &var_facts,
@@ -1449,14 +1464,14 @@ fn unenumerable_reach(
 fn collect_module_scope_var_facts(
     cfg_module: &CfgModule,
     extra_callers: &[ExtraCallSiteScanContext],
-    registry: &CommandRegistry,
+    surface: &tcl_registry::model::DocumentCommandSurface<'_>,
 ) -> ModuleVarFacts {
     let mut out = ModuleVarFacts::default();
     let funcs = std::iter::once(&cfg_module.top_level)
         .chain(cfg_module.procedures.values())
         .chain(extra_callers.iter().map(|caller| &caller.cfg));
     for func in funcs {
-        let facts = collect_scope_var_facts(func, registry);
+        let facts = collect_scope_var_facts(func, surface);
         out.cross_frame_write |= facts.cross_frame_write;
         out.scopes.insert(func.name.clone(), facts);
     }
@@ -1550,7 +1565,10 @@ fn scan_cfg_callers<'a>(
 ///
 /// `known` must be the **project-wide** set of procedure qualified names, so
 /// a bare call in the scanned file resolves to the file that really defines
-/// it rather than resolving to nothing.  The scan is deliberately the same
+/// it rather than resolving to nothing.  `declared` is the **scanned file's
+/// own** declaration set: a stub binds the file it is written in, so the
+/// argument roles that decide what counts as a call site here are that
+/// file's, not the host's.  The scan is deliberately the same
 /// lowering → CFG → [`record_call_site_evidence`] path the in-unit scan takes
 /// (including its `TclOO` method / `apply` / `namespace eval` body-unit
 /// callers and its `ArgRole::Body` recursion), so cross-file evidence is
@@ -1559,6 +1577,7 @@ fn scan_cfg_callers<'a>(
 pub fn scan_source_call_sites<S: std::hash::BuildHasher>(
     source: &str,
     registry: &CommandRegistry,
+    declared: Option<&tcl_registry::model::DeclaredSurface>,
     dialect: &'static tcl_dialect::DialectProfile,
     known: &HashSet<String, S>,
     dispatch_reach: &[String],
@@ -1589,7 +1608,11 @@ pub fn scan_source_call_sites<S: std::hash::BuildHasher>(
     // just as an in-unit one would.  Without the same var facts and fixpoint
     // here, an unreadable dispatch would stop retracting seeds across the
     // file boundary.
-    let var_facts = collect_module_scope_var_facts(&cfg_module, &extra, registry);
+    let var_facts = collect_module_scope_var_facts(
+        &cfg_module,
+        &extra,
+        &tcl_registry::model::DocumentCommandSurface::new(registry, declared),
+    );
     // What this file's own unreadable dispatches can reach is a *project*
     // fact, not a file one — `source` puts two files in one interpreter in
     // both directions, so a library reaches its sourcer's procedures just as
@@ -1611,6 +1634,7 @@ pub fn scan_source_call_sites<S: std::hash::BuildHasher>(
         let ctx = CallSiteScanCtx {
             known,
             registry,
+            declared,
             dialect,
             namespace_imports: &ir_module.namespace_imports,
             var_facts: &var_facts,
@@ -1926,6 +1950,12 @@ mod tests {
         CommandRegistry::build_default()
     }
 
+    /// The catalogue with no document declarations — what every fixture here
+    /// analyses against unless it states otherwise.
+    fn surface(reg: &CommandRegistry) -> tcl_registry::model::DocumentCommandSurface<'_> {
+        tcl_registry::model::DocumentCommandSurface::new(reg, None)
+    }
+
     fn known(names: &[&str]) -> HashSet<String> {
         names.iter().map(|n| (*n).to_owned()).collect()
     }
@@ -1963,6 +1993,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             "proc helper {a {b x}} { return $a }\nhelper 1 two\nhelper 1\n",
             &reg,
+            None,
             tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
             &known(&["::helper"]),
             &[],
@@ -1984,6 +2015,7 @@ mod tests {
         let mut a = scan_source_call_sites(
             &format!("{src}helper prod\n"),
             &reg,
+            None,
             tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
             &known(&["::helper"]),
             &[],
@@ -1995,6 +2027,7 @@ mod tests {
         let b = scan_source_call_sites(
             &format!("{src}helper dev\n"),
             &reg,
+            None,
             tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
             &known(&["::helper"]),
             &[],
@@ -2013,6 +2046,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             "::helper prod\noo::class create C { method run {} { hook } }\n",
             &reg,
+            None,
             tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
             &known(&["::helper"]),
             &["::helper".to_owned()],
@@ -2033,6 +2067,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             "::helper prod\noo::class create C { method run {} { ::puts ok } }\n",
             &reg,
+            None,
             tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
             &known(&["::helper"]),
             &["::helper".to_owned()],
@@ -2050,6 +2085,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             "helper prod\nafter 0 helper\n",
             &reg,
+            None,
             tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
             &known(&["::helper"]),
             &[],
@@ -2071,6 +2107,7 @@ mod tests {
             let evidence = scan_source_call_sites(
                 src,
                 &reg,
+                None,
                 tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
                 &known(&["::helper"]),
                 &[],
@@ -2089,6 +2126,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             "helper one two\nhelper one two\n",
             &reg,
+            None,
             tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
             &known(&["::helper"]),
             &[],
@@ -2129,6 +2167,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             "helper prod\nhelper prod\n",
             &reg,
+            None,
             tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
             &known(&["::helper"]),
             &[],
@@ -2213,6 +2252,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             src,
             &reg,
+            None,
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &known(&["::a::helper", "::a::run", "::helper"]),
             &[],
@@ -2250,6 +2290,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             src,
             &reg,
+            None,
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &known(&["::foo::helper", "::foo::runIt", "::helper"]),
             &[],
@@ -2272,6 +2313,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             "proc helper {mode} { return $mode }\ncatch { helper prod }\n",
             &reg,
+            None,
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &known(&["::helper"]),
             &[],
@@ -2293,6 +2335,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             "a 1\nb 2\n",
             &reg,
+            None,
             tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
             &known(&["::a", "::b"]),
             &[],
@@ -2318,6 +2361,7 @@ mod tests {
             &ir.procedures,
             &ir.namespace_imports,
             reg,
+            None,
             dialect,
         )
     }
@@ -2529,6 +2573,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             "oo::class create Dog { method bark {} { return woof } }\nDog new\n",
             &reg,
+            None,
             tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
             &known(&["::unknown"]),
             &[],
@@ -2670,6 +2715,7 @@ mod tests {
             let opaque = scan_source_call_sites(
                 src,
                 &reg,
+                None,
                 tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
                 &known,
                 &linked,
@@ -2695,6 +2741,7 @@ mod tests {
         let opaque = scan_source_call_sites(
             "proc mine {x} { return $x }\nset cmd [gets stdin]\n$cmd dev\n",
             &reg,
+            None,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &known,
             // Not in the callee's component: its reach is its own procs.
@@ -2806,7 +2853,7 @@ mod tests {
         );
         let cfg_module = build_cfg(&ir, false);
         let cfg = cfg_module.procedures.get("::p").expect("p lowered");
-        let facts = collect_scope_var_facts(cfg, &reg);
+        let facts = collect_scope_var_facts(cfg, &surface(&reg));
         assert!(!facts.dynamic_name_write);
         assert_eq!(
             facts.vars["a"].values.iter().cloned().collect::<Vec<_>>(),
@@ -2825,7 +2872,7 @@ mod tests {
         let ir = lower_to_ir("proc p {n} {\n set a one\n set $n two\n}\n", &reg);
         let cfg_module = build_cfg(&ir, false);
         let cfg = cfg_module.procedures.get("::p").expect("p lowered");
-        assert!(collect_scope_var_facts(cfg, &reg).dynamic_name_write);
+        assert!(collect_scope_var_facts(cfg, &surface(&reg)).dynamic_name_write);
     }
 
     #[test]
@@ -2834,7 +2881,7 @@ mod tests {
         let ir = lower_to_ir("proc p {} {\n global cmd\n set other one\n}\n", &reg);
         let cfg_module = build_cfg(&ir, false);
         let cfg = cfg_module.procedures.get("::p").expect("p lowered");
-        let facts = collect_scope_var_facts(cfg, &reg);
+        let facts = collect_scope_var_facts(cfg, &surface(&reg));
         assert!(
             facts.vars["cmd"].unknown,
             "`global cmd` binds an outer variable any other body may write",

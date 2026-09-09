@@ -430,6 +430,7 @@ export async function activate(context: ExtensionContext) {
     commands.registerCommand("tclLsp.copyFileAsBase64", copyFileAsBase64),
     commands.registerCommand("tclLsp.copyFileAsGzipBase64", copyFileAsGzipBase64),
     commands.registerCommand("tclLsp.translateXc", translateXc),
+    commands.registerCommand("tclLsp.translateXcConsole", translateXcConsole),
     // Wrapper for the built-in editor.action.showReferences: the LSP server
     // emits this command on its code lenses with URI/Position/Location args
     // serialised as JSON primitives, but the built-in command validates its
@@ -1327,6 +1328,70 @@ async function translateXc(): Promise<void> {
 
     window.showInformationMessage(
       `XC Translation: ${coverage.toFixed(1)}% coverage — ${translatable} translatable, ${untranslatable} untranslatable`,
+    );
+  } catch (err) {
+    window.showErrorMessage(`XC translation failed: ${err}`);
+  }
+}
+
+interface XcConsoleObject {
+  object_type: string;
+  name: string;
+  namespace: string;
+  document: unknown;
+}
+
+/**
+ * Open one F5 XC Console document per translated object, each shaped as the
+ * object's create request so it pastes into the Console's JSON editor as-is.
+ */
+async function translateXcConsole(): Promise<void> {
+  const editor = window.activeTextEditor;
+  if (!editor || !isTclLanguage(editor.document.languageId)) {
+    window.showWarningMessage("Open an iRule file to translate to F5 XC.");
+    return;
+  }
+
+  const source = editor.document.getText();
+  if (!source.trim()) {
+    window.showWarningMessage("The current file is empty.");
+    return;
+  }
+
+  try {
+    const result = (await client.sendRequest("workspace/executeCommand", {
+      command: "tcl-lsp.xcTranslate",
+      arguments: [source, "console"],
+    })) as Record<string, unknown> | null;
+
+    if (!result || result.error) {
+      window.showErrorMessage(
+        `XC translation failed: ${(result?.error as string) ?? "unknown error"}`,
+      );
+      return;
+    }
+
+    const objects = (result.console_objects as XcConsoleObject[]) ?? [];
+    if (objects.length === 0) {
+      window.showInformationMessage("The iRule produced no XC objects to configure.");
+      return;
+    }
+
+    for (const object of objects) {
+      const doc = await vscode.workspace.openTextDocument({
+        content: JSON.stringify(object.document, null, 2),
+        language: "json",
+      });
+      await vscode.window.showTextDocument(doc, {
+        preview: false,
+        viewColumn: vscode.ViewColumn.Beside,
+        preserveFocus: true,
+      });
+    }
+
+    const kinds = objects.map((o) => o.object_type).join(", ");
+    window.showInformationMessage(
+      `Opened ${objects.length} XC Console document(s): ${kinds}. Paste each into that object's JSON editor.`,
     );
   } catch (err) {
     window.showErrorMessage(`XC translation failed: ${err}`);

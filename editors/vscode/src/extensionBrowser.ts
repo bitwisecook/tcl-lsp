@@ -445,6 +445,7 @@ function registerCommands(context: ExtensionContext): void {
     commands.registerCommand("tclLsp.minifyDocument", minifyDocument),
     commands.registerCommand("tclLsp.minimizeDiagnostic", minimizeDiagnostic),
     commands.registerCommand("tclLsp.translateXc", translateXc),
+    commands.registerCommand("tclLsp.translateXcConsole", translateXcConsole),
     // The BIG-IP workflow. Every one of these is a server command plus editor
     // work, with no filesystem and no process anywhere in it, so it runs here
     // unchanged. (`tclLsp.extractAllRules` is the exception — it writes the
@@ -837,6 +838,57 @@ async function translateXc(): Promise<void> {
     `XC Translation: ${((result.coverage_pct as number) ?? 0).toFixed(1)}% coverage — ` +
       `${(result.translatable_count as number) ?? 0} translatable, ` +
       `${(result.untranslatable_count as number) ?? 0} untranslatable`,
+  );
+}
+
+interface XcConsoleObject {
+  object_type: string;
+  name: string;
+  namespace: string;
+  document: unknown;
+}
+
+/**
+ * Open one F5 XC Console document per translated object, each shaped as the
+ * object's create request so it pastes into the Console's JSON editor as-is.
+ */
+async function translateXcConsole(): Promise<void> {
+  const editor = activeTclEditor("translate to F5 XC");
+  if (!editor) return;
+  const source = editor.document.getText();
+  if (!source.trim()) {
+    window.showWarningMessage("The current file is empty.");
+    return;
+  }
+  const result = await executeServerCommand<Record<string, unknown>>("tcl-lsp.xcTranslate", [
+    source,
+    "console",
+  ]);
+  if (!result || result.error) {
+    window.showErrorMessage(
+      `XC translation failed: ${(result?.error as string) ?? "unknown error"}`,
+    );
+    return;
+  }
+  const objects = (result.console_objects as XcConsoleObject[]) ?? [];
+  if (objects.length === 0) {
+    window.showInformationMessage("The iRule produced no XC objects to configure.");
+    return;
+  }
+  for (const object of objects) {
+    const doc = await workspace.openTextDocument({
+      content: JSON.stringify(object.document, null, 2),
+      language: "json",
+    });
+    await window.showTextDocument(doc, {
+      preview: false,
+      viewColumn: vscode.ViewColumn.Beside,
+      preserveFocus: true,
+    });
+  }
+  const kinds = objects.map((o) => o.object_type).join(", ");
+  window.showInformationMessage(
+    `Opened ${objects.length} XC Console document(s): ${kinds}. Paste each into that object's JSON editor.`,
   );
 }
 

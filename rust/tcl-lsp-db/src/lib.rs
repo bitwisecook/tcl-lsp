@@ -483,8 +483,8 @@ pub struct AnalyserConfig {
     /// `synth_design` is a known command.
     #[returns(copy)]
     pub spec_pack_key: u64,
-    /// Declared version-target ranges (`tclLsp.targets`, redesign §5.4
-    /// range targeting) as `(provider, range)` pairs — `("tcl",
+    /// Declared version-target ranges (`tclLsp.targets`) as
+    /// `(provider, range)` pairs — `("tcl",
     /// "8.5-9.0")`, `("Tk", "8.5-8.6")` — feeding
     /// `Analyser::with_declared_targets`. Empty — the default — leaves
     /// range mode off; a source-level `# tcl-lsp: supports` directive
@@ -922,9 +922,15 @@ pub fn file_call_site_evidence(
         .iter()
         .cloned()
         .collect();
+    // The file's own stub declarations, through the same query the build
+    // reads: a call site sitting in a stub-declared body or behind a
+    // stub-declared callback counts for this file exactly as a catalogue one
+    // does.
+    let declared = declared_command_surface(db, file);
     let scanned = tcl_compiler::unit_scope::scan_source_call_sites(
         file.text(db),
         registry,
+        Some(&declared),
         tcl_lsp_core::profile_for_dialect(&dialect),
         &known,
         &reach,

@@ -1824,7 +1824,7 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
     // rejects dynamic `$cb` / bracketed heads), mirroring the reference
     // extractor's bareword guard.
     let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-    for (idx, _appended) in registry.command_prefixes(resolved, &arg_strs) {
+    for (idx, _appended) in ctx.surface().command_prefixes(resolved, &arg_strs) {
         if let Some(word) = args.get(idx).and_then(|a| command_prefix_head(registry, a))
             && is_plain_proc_name(&word)
             && let Some(target) = resolve_internal_call(&word, caller, known)

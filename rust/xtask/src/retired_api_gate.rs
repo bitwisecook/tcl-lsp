@@ -184,11 +184,11 @@ const RETIRED: &[RetiredPattern] = &[
         needle: "command_head_identities",
         outside_registry_only: false,
     },
-    // The dead axes (redesign §11.1).
+    // The dead axes.
     // Each was declared-and-unpopulated model surface — a word no data used,
     // inviting packs to guess at semantics the engine never implemented.
-    // Principle P-C: anything genuinely needed later comes back *with* its
-    // consumer, under whatever name that consumer wants.
+    // Anything genuinely needed later comes back *with* its consumer, under
+    // whatever name that consumer wants.
     //
     // `ProfileSpec::conflicts` is deliberately NOT here: it is the one axis of
     // the six with a live consumer (`tcl-bigip`'s BIGIP6039 profile-graph
@@ -320,8 +320,8 @@ const RETIRED: &[RetiredPattern] = &[
         needle: "to_stub_sig",
         outside_registry_only: false,
     },
-    // The `one-vocabulary` lane (redesign §11 D9): the second
-    // command-table transition vocabulary. `CommandTableEffect` survives as
+    // The `one-vocabulary` lane: the second command-table transition
+    // vocabulary. `CommandTableEffect` survives as
     // the pack-authoring **selector** — `CommandSpec::command_table_effect`
     // is still a field a `SpecTcl` pack writes — but the consumer-facing
     // resolver is gone: the needle carries its call parenthesis so the
@@ -439,7 +439,9 @@ const OWNED: &[OwnedPattern] = &[
     // declaration set only to hand it to `DocumentCommandSurface`, the one
     // thing any of them queries. A stub's argument roles have to reach
     // lowering and the call-graph scan for a declaration to mean anything
-    // there, and the borrowed set is how it travels.
+    // there, and the borrowed set is how it travels; the call-site scan
+    // (`unit_scope.rs`) carries it for the same reason, and `tcl-cli`'s
+    // `diag.rs` builds one per document to hand that scan.
     // `optimiser/branch_folding.rs` is on the list for a test fixture that
     // hand-builds a `CompilationUnit` and so has to name the field's type.
     OwnedPattern {
@@ -451,7 +453,9 @@ const OWNED: &[OwnedPattern] = &[
             "rust/tcl-compiler/src/interprocedural.rs",
             "rust/tcl-compiler/src/lowering/",
             "rust/tcl-compiler/src/optimiser/branch_folding.rs",
+            "rust/tcl-compiler/src/unit_scope.rs",
             "rust/tcl-lsp-db/src/",
+            "rust/tcl-cli/src/commands/diag.rs",
         ],
     },
 ];

@@ -68,18 +68,19 @@ use std::collections::BTreeMap;
 
 use tcl_dialect::model::{ItemHistory, Provenance, VersionAxisId, VersionSet};
 
-use crate::arg_role::ArgRole;
+use crate::arg_role::{AppendedArity, ArgRole};
 use crate::model::surface::{CapabilityPredicate, Provider, SurfaceDeclaration};
 
-/// Map a stub directive's role word (`body`, `expr`, `var`, `var_read`,
-/// `name`, `pattern`, `channel`, `command_prefix`) to the registry's own
-/// [`ArgRole`].
+/// Map a stub directive's role word to the registry's own [`ArgRole`], or
+/// `None` when the word names no role.
 ///
-/// An unrecognised word is [`ArgRole::Value`] — the same "value is the
-/// default" rule an argument with no `:role` annotation gets.
+/// **The** stub role vocabulary: the directive parser rejects a declaration
+/// whose role word this does not know, and every other consumer
+/// canonicalises through it. A second list of accepted words beside this one
+/// is how a role gets documented but stays unusable.
 #[must_use]
-pub fn role_for_word(word: &str) -> ArgRole {
-    match word {
+pub fn role_for_word_checked(word: &str) -> Option<ArgRole> {
+    Some(match word {
         "body" => ArgRole::Body,
         "expr" => ArgRole::Expr,
         "var" => ArgRole::VarWrite,
@@ -88,8 +89,16 @@ pub fn role_for_word(word: &str) -> ArgRole {
         "pattern" => ArgRole::Pattern,
         "channel" => ArgRole::Channel,
         "command_prefix" => ArgRole::CommandPrefix,
-        _ => ArgRole::Value,
-    }
+        "value" => ArgRole::Value,
+        _ => return None,
+    })
+}
+
+/// [`role_for_word_checked`] with the "value is the default" fallback an
+/// argument written without a `:role` annotation gets.
+#[must_use]
+pub fn role_for_word(word: &str) -> ArgRole {
+    role_for_word_checked(word).unwrap_or(ArgRole::Value)
 }
 
 /// The full [document axis](VersionAxisId::document) — a declared command
@@ -303,6 +312,28 @@ impl<'a> DocumentCommandSurface<'a> {
             .into_iter()
             .flat_map(DeclaredSurface::iter)
             .map(|(name, _)| name)
+    }
+
+    /// The command-prefix positions of `name` over the whole surface, each
+    /// with the arity it appends to the callback.
+    ///
+    /// The prefix twin of [`Self::arg_indices_for_role`], and widening in the
+    /// same way. A declaration carries a position but no arity, so it
+    /// contributes [`AppendedArity::Unknown`] — the arity-inert default,
+    /// which names the callback for reference and reachability consumers
+    /// without asserting a count no declaration stated.
+    #[must_use]
+    pub fn command_prefixes(&self, name: &str, args: &[&str]) -> Vec<(usize, AppendedArity)> {
+        let mut prefixes = self.commands.command_prefixes(name, args);
+        if let Some(declared) = self.declared.and_then(|surface| surface.get(name)) {
+            for index in declared.arg_indices_for_role(ArgRole::CommandPrefix, args.len()) {
+                if !prefixes.iter().any(|&(at, _)| at == index) {
+                    prefixes.push((index, AppendedArity::Unknown));
+                }
+            }
+            prefixes.sort_by_key(|&(index, _)| index);
+        }
+        prefixes
     }
 
     /// The argument indices of `name` carrying `role`, over the whole
