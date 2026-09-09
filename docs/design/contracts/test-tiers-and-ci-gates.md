@@ -214,9 +214,15 @@ CI skips only what demonstrably did not change. The rules live in
   the native f5report engine's locked local Cargo dependency closure. The
   classifier and package manifest come from the PR base and fail closed;
   `make check-python-ci-paths` re-derives the closure from the engine lockfile.
-  The restored venv is keyed and stamped with the content of that same native
-  source closure, so a transitive Rust edit both schedules the job and forces
-  maturin to rebuild the extension.
+  The restored venv is keyed and stamped with the compilation inputs from that
+  same native source closure, so a transitive Rust edit both schedules the job
+  and forces maturin to rebuild the extension. The cache keeps that source set
+  broad: production code may include data stored under a `tests/` directory.
+  It excludes only exact Cargo target roots declared solely as integration
+  tests, benches, or examples, plus the Python binding's pytest tree; those
+  are not compiled by maturin. The venv is cache-neutral: it fixes Git
+  provenance rather than embedding its checkout's commit, and is never a
+  report-artifact input.
 - The root `rust-tests-shard` matrix produces five binary-aware legs when the
   Rust suite is required, while the concurrent hosted
   `rust-tests-doctest` job runs `cargo test --workspace --all-features --doc
