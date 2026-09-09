@@ -36,12 +36,16 @@ closures: the archive producer and all three partition jobs must succeed
 without building, uploading, downloading, or running the archive, and the
 required aggregate must still succeed after checking every upstream result.
 
-The root workspace suite is five direct `rust-tests-shard` matrix consumers,
-with hash partitions `1/5` through `5/5`; the stable `rust-tests` aggregate
-checks that `channel`, every required shard, and the concurrent
+The root workspace suite is five binary-aware `rust-tests-shard` matrix
+consumers. Every leg retains the complete `--workspace --all-features`
+resolver graph and builds all lib/bin unit harnesses, while the committed
+`scripts/dev/rust-test-binary-shards.tsv` map limits integration-test linking
+and execution to the binaries assigned to that leg. The stable `rust-tests`
+aggregate checks that `channel`, every required shard, and the concurrent
 `rust-tests-doctest` job succeeded (or that the shard matrix was skipped only
-under the exact no-op rules), and proves the uploaded listings are a disjoint,
-complete five-way selection. Shard 1 is the only Tank-capable leg and uses
+under the exact no-op rules). It checks the map against locked Cargo metadata,
+then proves from the uploaded listings that every non-ignored testcase is
+selected exactly once. Shard 1 is the only Tank-capable leg and uses
 Tank only when the trusted runner decision selects it; shards 2–5 and doctests
 always run on hosted capacity. The shard matrix is job-skipped when
 `rust_tests_changed` is false or when a tag is already green; the aggregate
@@ -50,11 +54,15 @@ if `channel` or doctests fail. The doctest job has the same job-level
 unchanged/exact-green skip as the shard matrix, while its test command remains
 step-gated for docs-only and already-green merge revisions.
 
-This shape follows exact-head run 34283151340: its four old shard legs took
-9m28, 10m25, 11m12, and 12m14, with hosted compilation taking 3m24–3m56 and
-nextest 4m41–5m42. Shard 1 finished nextest at about 22:08:20, then spent a
-further 1m43 building doctests. A fifth direct hash partition reduces the
-nextest tail and the concurrent doctest job removes that avoidable serial tail.
+Exact-head run 34289762415 proved the preceding direct five-way hash layout
+complete, but each leg still spent 3m34–3m51 compiling/linking all 319 test
+binaries before 3m30–4m26 of execution. On the same tree, the binary-aware
+prototype linked/listed the 50 common lib/bin harnesses in 1m47 on a cold local
+target, added 64 integration targets in 7.46s once dependencies were warm,
+selected the same 4,568 tests for that representative shard, and executed them
+in 94.8s. Binary-level assignment preserves automatic coverage for new tests
+inside an existing harness; a new or renamed harness fails the metadata proof
+until the map assigns it.
 
 ## Decision rules / contracts
 
@@ -189,12 +197,17 @@ CI skips only what demonstrably did not change. The rules live in
 - **Docs-only** changes skip the cargo test steps; `python`, `test-ext`, and
   `test-ext-web` run only when their input paths changed (`test-ext-web` on
   `ext_changed` or `lsp_wasm_changed`, since it consumes both).
-- The root `rust-tests-shard` matrix produces five direct hash-partitioned
-  legs when the Rust suite is required, while the concurrent hosted
+- The root `rust-tests-shard` matrix produces five binary-aware legs when the
+  Rust suite is required, while the concurrent hosted
   `rust-tests-doctest` job runs `cargo test --workspace --all-features --doc
   --no-fail-fast` exactly once. The stable `rust-tests` aggregate keeps the
   required status context, executes no tests, and fails closed over every
-  shard plus doctests. The matrix job is skipped when `rust_tests_changed` is
+  shard plus doctests. Every shard retains workspace-wide feature resolution,
+  but links only all lib/bin harnesses and the integration targets named by its
+  row set in `scripts/dev/rust-test-binary-shards.tsv`. Locked Cargo metadata
+  proves that map covers the exact eligible target universe; each listing then
+  proves its assigned non-ignored tests match and all foreign suites do not.
+  The matrix job is skipped when `rust_tests_changed` is
   false or a tag is already green; the aggregate accepts that skip only for
   those exact channel cases. On an already-green non-tag merge push, the
   matrix still allocates, but only shard 1 runs the cache-warming `--no-run`
@@ -301,8 +314,13 @@ identity** (tree/SHA, never a label or commit message), and bounded in time.
   and exact Cargo fallback execution.
 - `.github/workflows/ci.yml` — the `channel` and `pr-gate` jobs.
 - `scripts/dev/lsp-e2e-path.sh` — the fail-closed archive/partition classifier.
-- `scripts/dev/verify-nextest-partitions.py` — configurable disjoint/completeness
-  proof for the five-way root suite and three-way archived LSP suite.
+- `scripts/dev/rust-test-binary-shard.sh` and
+  `scripts/dev/rust-test-binary-shards.tsv` — exact root-suite build/selection
+  command and reviewed binary assignment.
+- `scripts/dev/verify-nextest-binary-shards.py` — metadata-backed root-suite
+  binary and testcase coverage proof.
+- `scripts/dev/verify-nextest-partitions.py` — disjoint/completeness and
+  transfer-integrity proof for the three-way archived LSP suite.
 
 ## Discoverability
 

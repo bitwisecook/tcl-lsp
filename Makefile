@@ -850,6 +850,7 @@ check-lsp-e2e-paths: ## Verify CI's native LSP e2e archive dependency closure an
 check-rust-tests-runner: ## Verify trusted Rust shard 1 serializes on the shared Tank host
 	@echo "==> Checking self-hosted Rust test scheduling"
 	@sh scripts/dev/test-rust-tests-runner.sh
+	@bash scripts/dev/test-nextest-binary-shards.sh
 
 check-persistent-cargo-target: ## Verify safe per-registration Tank Cargo target reuse
 	@echo "==> Checking persistent Tank Cargo target safety"

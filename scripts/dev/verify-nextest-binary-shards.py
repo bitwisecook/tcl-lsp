@@ -20,9 +20,10 @@
 """Verify a binary-aware partition of cargo-nextest test listings.
 
 The manifest is deliberately independent of nextest's hash implementation:
-it records the binary target assigned to each shard.  Library and binary
-targets are listed on every shard (to retain the unit-test pool), while an
-integration-test target is listed on its assigned shard only.
+it records the binary target assigned to each shard. Library and binary
+targets are built and listed on every shard to retain workspace-wide feature
+unification, while an integration-test target is built on its assigned shard
+only. Tests from every target are selected only on their assigned shard.
 """
 
 from __future__ import annotations
@@ -89,7 +90,9 @@ def _metadata_targets(path: Path, excluded: frozenset[str]) -> dict[str, Target]
         raise VerificationError(f"{path}: cargo metadata has no workspace_members")
     member_ids: list[str] = []
     for index, member in enumerate(members):
-        member_ids.append(_nonempty_string(member, f"{path}: workspace_members[{index}]"))
+        member_ids.append(
+            _nonempty_string(member, f"{path}: workspace_members[{index}]")
+        )
     if len(set(member_ids)) != len(member_ids):
         raise VerificationError(f"{path}: duplicate workspace member IDs")
     by_id: dict[str, dict[str, Any]] = {}
@@ -106,16 +109,25 @@ def _metadata_targets(path: Path, excluded: frozenset[str]) -> dict[str, Target]
     for member_id in member_ids:
         package = by_id.get(member_id)
         if package is None:
-            raise VerificationError(f"{path}: workspace member {member_id!r} is absent from packages")
-        package_name = _nonempty_string(package.get("name"), f"{path}: package {member_id} name")
+            raise VerificationError(
+                f"{path}: workspace member {member_id!r} is absent from packages"
+            )
+        package_name = _nonempty_string(
+            package.get("name"), f"{path}: package {member_id} name"
+        )
         if package_name in seen_workspace_names:
-            raise VerificationError(f"{path}: duplicate workspace package name {package_name!r}")
+            raise VerificationError(
+                f"{path}: duplicate workspace package name {package_name!r}"
+            )
         seen_workspace_names.add(package_name)
         if package_name in excluded:
             continue
         package_targets = package.get("targets")
         if not isinstance(package_targets, list):
-            raise VerificationError(f"{path}: package {package_name!r} has no targets list")
+            raise VerificationError(
+                f"{path}: package {package_name!r} has no targets list"
+            )
+        has_common_harness = False
         for target_index, target_data in enumerate(package_targets):
             label = f"{path}: package {package_name!r} target {target_index}"
             if not isinstance(target_data, dict):
@@ -128,17 +140,28 @@ def _metadata_targets(path: Path, excluded: frozenset[str]) -> dict[str, Target]
             kind = kinds[0]
             if kind not in {"lib", "bin", "test"}:
                 continue
+            if kind in {"lib", "bin"}:
+                has_common_harness = True
             target_name = _nonempty_string(target_data.get("name"), f"{label} name")
             binary_id = _binary_id(package_name, kind, target_name)
             target = Target(binary_id, kind, package_name, target_name)
             if binary_id in targets:
-                raise VerificationError(f"{path}: duplicate eligible binary ID {binary_id!r}")
+                raise VerificationError(
+                    f"{path}: duplicate eligible binary ID {binary_id!r}"
+                )
             targets[binary_id] = target
+        if not has_common_harness:
+            raise VerificationError(
+                f"{path}: included workspace package {package_name!r} has no testable lib/bin harness; "
+                "the binary-aware runner cannot preserve its all-features test graph on every shard"
+            )
 
     unknown_exclusions = excluded - seen_workspace_names
     if unknown_exclusions:
         names = ", ".join(sorted(unknown_exclusions))
-        raise VerificationError(f"{path}: exclusions name non-workspace packages: {names}")
+        raise VerificationError(
+            f"{path}: exclusions name non-workspace packages: {names}"
+        )
     if not targets:
         raise VerificationError(f"{path}: eligible binary universe is empty")
     return targets
@@ -163,60 +186,96 @@ def _manifest(path: Path) -> Manifest:
         fields = raw_line.split("\t")
         if fields[0].startswith("@"):
             if rows_started:
-                raise VerificationError(f"{path}:{line_number}: directives must precede target rows")
+                raise VerificationError(
+                    f"{path}:{line_number}: directives must precede target rows"
+                )
             if fields[0] == "@partitions":
                 if len(fields) != 2 or partitions is not None or excluded:
-                    raise VerificationError(f"{path}:{line_number}: malformed or duplicate @partitions")
+                    raise VerificationError(
+                        f"{path}:{line_number}: malformed or duplicate @partitions"
+                    )
                 try:
                     partitions = int(fields[1])
                 except ValueError as exc:
-                    raise VerificationError(f"{path}:{line_number}: @partitions must be an integer") from exc
+                    raise VerificationError(
+                        f"{path}:{line_number}: @partitions must be an integer"
+                    ) from exc
                 if partitions < 1:
-                    raise VerificationError(f"{path}:{line_number}: @partitions must be positive")
+                    raise VerificationError(
+                        f"{path}:{line_number}: @partitions must be positive"
+                    )
             elif fields[0] == "@exclude":
                 if partitions is None or len(fields) != 2 or not fields[1]:
                     raise VerificationError(f"{path}:{line_number}: malformed @exclude")
                 if fields[1] in excluded:
-                    raise VerificationError(f"{path}:{line_number}: duplicate exclusion {fields[1]!r}")
+                    raise VerificationError(
+                        f"{path}:{line_number}: duplicate exclusion {fields[1]!r}"
+                    )
                 excluded.add(fields[1])
             else:
-                raise VerificationError(f"{path}:{line_number}: unknown directive {fields[0]!r}")
+                raise VerificationError(
+                    f"{path}:{line_number}: unknown directive {fields[0]!r}"
+                )
             continue
         if partitions is None:
-            raise VerificationError(f"{path}:{line_number}: target row precedes @partitions")
+            raise VerificationError(
+                f"{path}:{line_number}: target row precedes @partitions"
+            )
         if len(fields) != 5 or any(not field for field in fields):
-            raise VerificationError(f"{path}:{line_number}: expected SHARD, BINARY_ID, KIND, PACKAGE, TARGET")
+            raise VerificationError(
+                f"{path}:{line_number}: expected SHARD, BINARY_ID, KIND, PACKAGE, TARGET"
+            )
         shard_text, binary_id, kind, package, target_name = fields
         try:
             shard = int(shard_text)
         except ValueError as exc:
-            raise VerificationError(f"{path}:{line_number}: shard must be an integer") from exc
+            raise VerificationError(
+                f"{path}:{line_number}: shard must be an integer"
+            ) from exc
         if shard < 1 or shard > partitions:
-            raise VerificationError(f"{path}:{line_number}: shard {shard} is outside 1..{partitions}")
+            raise VerificationError(
+                f"{path}:{line_number}: shard {shard} is outside 1..{partitions}"
+            )
         if kind not in {"lib", "bin", "test"}:
-            raise VerificationError(f"{path}:{line_number}: unsupported target kind {kind!r}")
+            raise VerificationError(
+                f"{path}:{line_number}: unsupported target kind {kind!r}"
+            )
         if binary_id in assignments:
-            raise VerificationError(f"{path}:{line_number}: duplicate binary assignment {binary_id!r}")
+            raise VerificationError(
+                f"{path}:{line_number}: duplicate binary assignment {binary_id!r}"
+            )
         rows_started = True
         assignments[binary_id] = (Target(binary_id, kind, package, target_name), shard)
     if partitions is None:
         raise VerificationError(f"{path}: missing @partitions directive")
     if not assignments:
         raise VerificationError(f"{path}: manifest has no target rows")
+    populated = {shard for _, shard in assignments.values()}
+    empty = sorted(set(range(1, partitions + 1)) - populated)
+    if empty:
+        raise VerificationError(f"{path}: partitions contain no target rows: {empty}")
     return Manifest(partitions, frozenset(excluded), assignments)
 
 
-def _suite_target(path: Path, suite_name: Any, suite: Any, targets: dict[str, Target]) -> tuple[Target, dict[str, Any]]:
+def _suite_target(
+    path: Path, suite_name: Any, suite: Any, targets: dict[str, Target]
+) -> tuple[Target, dict[str, Any]]:
     if not isinstance(suite_name, str) or not suite_name:
         raise VerificationError(f"{path}: suite key must be a non-empty string")
     if not isinstance(suite, dict):
         raise VerificationError(f"{path}: suite {suite_name!r} is not an object")
-    binary_id = _nonempty_string(suite.get("binary-id"), f"{path}: suite {suite_name!r} binary-id")
+    binary_id = _nonempty_string(
+        suite.get("binary-id"), f"{path}: suite {suite_name!r} binary-id"
+    )
     if suite_name != binary_id:
-        raise VerificationError(f"{path}: suite key {suite_name!r} does not equal binary-id {binary_id!r}")
+        raise VerificationError(
+            f"{path}: suite key {suite_name!r} does not equal binary-id {binary_id!r}"
+        )
     target = targets.get(binary_id)
     if target is None:
-        raise VerificationError(f"{path}: suite {binary_id!r} is not an eligible cargo target")
+        raise VerificationError(
+            f"{path}: suite {binary_id!r} is not an eligible cargo target"
+        )
     expected = {
         "package-name": target.package,
         "binary-id": target.binary_id,
@@ -256,35 +315,52 @@ def _verify_listing(
     for suite_name, suite in suites.items():
         target, testcases = _suite_target(path, suite_name, suite, targets)
         if target.binary_id in seen_binary_ids:
-            raise VerificationError(f"{path}: duplicate suite for binary {target.binary_id!r}")
+            raise VerificationError(
+                f"{path}: duplicate suite for binary {target.binary_id!r}"
+            )
         seen_binary_ids.add(target.binary_id)
         assigned = manifest.assignments[target.binary_id][1]
-        expected_here = target.kind in {"lib", "bin"} or assigned == shard
+        expected_here = assigned == shard
         for test_name, testcase in testcases.items():
             testcase_count += 1
             if not isinstance(test_name, str) or not test_name:
-                raise VerificationError(f"{path}: suite {target.binary_id!r} has malformed testcase name")
+                raise VerificationError(
+                    f"{path}: suite {target.binary_id!r} has malformed testcase name"
+                )
             if not isinstance(testcase, dict):
-                raise VerificationError(f"{path}: testcase {target.binary_id}:{test_name} is not an object")
+                raise VerificationError(
+                    f"{path}: testcase {target.binary_id}:{test_name} is not an object"
+                )
             ignored = testcase.get("ignored")
             if type(ignored) is not bool:
-                raise VerificationError(f"{path}: testcase {target.binary_id}:{test_name} has malformed ignored flag")
+                raise VerificationError(
+                    f"{path}: testcase {target.binary_id}:{test_name} has malformed ignored flag"
+                )
             match = testcase.get("filter-match")
             if not isinstance(match, dict) or type(match.get("status")) is not str:
-                raise VerificationError(f"{path}: testcase {target.binary_id}:{test_name} has malformed filter-match.status")
+                raise VerificationError(
+                    f"{path}: testcase {target.binary_id}:{test_name} has malformed filter-match.status"
+                )
             status = match["status"]
             if status not in {"matches", "mismatch"}:
-                raise VerificationError(f"{path}: testcase {target.binary_id}:{test_name} has unknown filter status {status!r}")
+                raise VerificationError(
+                    f"{path}: testcase {target.binary_id}:{test_name} has unknown filter status {status!r}"
+                )
             if ignored:
                 if status == "matches":
-                    raise VerificationError(f"{path}: ignored testcase selected: {target.binary_id}:{test_name}")
+                    raise VerificationError(
+                        f"{path}: ignored testcase selected: {target.binary_id}:{test_name}"
+                    )
             elif expected_here:
                 if status != "matches":
-                    raise VerificationError(f"{path}: assigned testcase is not selected: {target.binary_id}:{test_name}")
-                if target.kind == "test":
-                    selected.add((target.binary_id, test_name))
+                    raise VerificationError(
+                        f"{path}: assigned testcase is not selected: {target.binary_id}:{test_name}"
+                    )
+                selected.add((target.binary_id, test_name))
             elif status == "matches":
-                raise VerificationError(f"{path}: testcase selected in wrong shard: {target.binary_id}:{test_name}")
+                raise VerificationError(
+                    f"{path}: testcase selected in wrong shard: {target.binary_id}:{test_name}"
+                )
 
     for binary_id, (_, assigned) in manifest.assignments.items():
         target = targets[binary_id]
@@ -305,6 +381,7 @@ def verify(
     manifest_path: Path,
     listing_paths: list[Path],
     partition_count: int | None = None,
+    metadata_only: bool = False,
 ) -> None:
     manifest = _manifest(manifest_path)
     if partition_count is not None:
@@ -314,10 +391,6 @@ def verify(
             raise VerificationError(
                 f"--partition-count is {partition_count}, manifest declares {manifest.partitions}"
             )
-    if len(listing_paths) != manifest.partitions:
-        raise VerificationError(
-            f"expected exactly {manifest.partitions} listings, got {len(listing_paths)}"
-        )
     targets = _metadata_targets(metadata_path, manifest.excluded)
     manifest_ids = set(manifest.assignments)
     metadata_ids = set(targets)
@@ -337,6 +410,19 @@ def verify(
                 f"{manifest_target} != {targets[binary_id]}"
             )
 
+    if metadata_only:
+        if listing_paths:
+            raise VerificationError("--metadata-only does not accept listing paths")
+        print(
+            f"nextest binary manifest proof: targets={len(targets)} "
+            f"partitions={manifest.partitions}"
+        )
+        return
+    if len(listing_paths) != manifest.partitions:
+        raise VerificationError(
+            f"expected exactly {manifest.partitions} listings, got {len(listing_paths)}"
+        )
+
     selected_by_shard: list[set[tuple[str, str]]] = []
     for shard, path in enumerate(listing_paths, 1):
         selected_by_shard.append(_verify_listing(path, shard, manifest, targets))
@@ -352,7 +438,7 @@ def verify(
         f"{shard}/{manifest.partitions}={len(selected)}"
         for shard, selected in enumerate(selected_by_shard, 1)
     )
-    print(f"nextest binary shard proof: selected-integration={len(union)} {counts}")
+    print(f"nextest binary shard proof: selected={len(union)} {counts}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -361,15 +447,26 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("metadata", type=Path, help="cargo metadata JSON")
     parser.add_argument("manifest", type=Path, help="binary shard TSV manifest")
-    parser.add_argument("listings", type=Path, nargs="+", help="one listing per shard")
+    parser.add_argument("listings", type=Path, nargs="*", help="one listing per shard")
     parser.add_argument(
         "--partition-count",
         type=int,
         help="optional expected partition count (must match @partitions)",
     )
+    parser.add_argument(
+        "--metadata-only",
+        action="store_true",
+        help="check only that the manifest exactly covers locked Cargo metadata",
+    )
     args = parser.parse_args(argv)
     try:
-        verify(args.metadata, args.manifest, args.listings, args.partition_count)
+        verify(
+            args.metadata,
+            args.manifest,
+            args.listings,
+            args.partition_count,
+            args.metadata_only,
+        )
     except VerificationError as exc:
         print(f"nextest binary shard proof failed: {exc}", file=sys.stderr)
         return 1
