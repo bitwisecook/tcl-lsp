@@ -72,7 +72,7 @@ new advisories are audited at every release point.
               ↓ invoked by both
 ┌─ CI ─────────────────────────────────────────────────────────┐
 │ .github/workflows/*.yml                                      │
-│   - pr-gate    fast Rust gate (`make rust-check`) on PRs     │
+│   - rust-check worker + pr-gate required aggregate on PRs    │
 │   - test-ext   VS Code extension tests (PRs, pushes, tags)   │
 │   - create-release  + build-vsix + native build matrix       │
 │     (tcl / f5-query / tcl-lsp-server / tcl-mcp, cross-matrix) │
