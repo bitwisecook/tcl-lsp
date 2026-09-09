@@ -95,7 +95,7 @@ fn write_value(
         return;
     }
     match value {
-        Value::Null | Value::Drop => out.push_str("null"),
+        Value::Null | Value::Unresolved(_) | Value::Drop => out.push_str("null"),
         Value::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
         Value::Int(i) => out.push_str(&i.to_string()),
         Value::Float(f) => out.push_str(&py_float_repr(*f)),

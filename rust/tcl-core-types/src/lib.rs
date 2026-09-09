@@ -192,7 +192,6 @@ impl<S, N> CommandSlot<S, N> {
         Self { namespace, simple }
     }
 }
-
 /// A variable-cell handle (arena id).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct VarId(pub u32);

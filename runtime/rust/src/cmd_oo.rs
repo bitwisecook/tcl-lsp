@@ -44,7 +44,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
-use tcl_core_types::RecursionLimit;
+use tcl_core_types::{OoId, RecursionLimit};
 use tcl_registry::commands::tcl::{
     info_oo_subcommands, resolve_info_oo_properties_option, resolve_tcloo_property_kind,
     resolve_tcloo_property_option, InfoOoEnsembleKind, InfoOoPropertiesOption, TclOoPropertyKind,
@@ -55,7 +55,7 @@ use crate::interp::{
     obj_bytes, CallMeta, Code, Command, Interp, MethodFrameWhat, Param, ProcFrame,
 };
 use crate::list;
-use crate::namespace::NsId;
+use crate::namespace::{NsId, GLOBAL};
 use crate::obj::{self, TclObj};
 
 /// Maximum superclass/mixin linearisation depth for [`Interp::linearize_class`]
@@ -91,7 +91,7 @@ const MAX_MRO_VISITS: u32 = 200_000;
 /// A native method handler `(interp, object, args) -> Code`, invoked without a
 /// Tcl call frame (so `info level` inside any method it calls is unchanged) —
 /// used for the `::oo::Slot` operations.
-type NativeMethod = fn(&mut Interp, &[u8], &[*mut TclObj]) -> Code;
+type NativeMethod = fn(&mut Interp, OoId, &[*mut TclObj]) -> Code;
 
 /// A method: a normal body, a `forward` to a command prefix, or a native handler.
 #[derive(Clone)]
@@ -114,8 +114,8 @@ enum Method {
 /// A class definition.
 #[derive(Default, Clone)]
 struct Class {
-    /// Superclass FQNs (defaults to `::oo::object` when none are declared).
-    supers: Vec<Vec<u8>>,
+    /// Stable superclass identities (defaults to `::oo::object`).
+    supers: Vec<OoId>,
     methods: BTreeMap<Vec<u8>, Method>,
     constructor: Option<Method>,
     destructor: Option<Vec<u8>>,
@@ -129,7 +129,7 @@ struct Class {
     readable_properties: Vec<Vec<u8>>,
     writable_properties: Vec<Vec<u8>>,
     /// Mixed-in classes (searched before the superclass MRO).
-    mixins: Vec<Vec<u8>>,
+    mixins: Vec<OoId>,
     /// Methods marked non-exported (callable only via `my`).
     unexported: BTreeSet<Vec<u8>>,
     /// Names explicitly `export`ed — overrides the default-unexported built-in
@@ -153,10 +153,10 @@ struct Class {
 }
 
 /// An object instance.
-#[derive(Default, Clone)]
+#[derive(Clone)]
 struct Object {
-    /// FQN of the object's class.
-    class: Vec<u8>,
+    /// Stable identity of the object's class.
+    class: OoId,
     /// The namespace holding this object's instance variables.
     var_ns: NsId,
     /// A unique, monotonic creation identifier (`info object creationid`),
@@ -165,7 +165,7 @@ struct Object {
     /// Per-object methods (`oo::objdefine method`).
     methods: BTreeMap<Vec<u8>, Method>,
     /// Per-object mixins.
-    mixins: Vec<Vec<u8>>,
+    mixins: Vec<OoId>,
     unexported: BTreeSet<Vec<u8>>,
     /// Explicitly `export`ed names (see `Class::exported`).
     exported: BTreeSet<Vec<u8>>,
@@ -191,18 +191,36 @@ struct Object {
     /// rather than running anything — what a nested-owned child sees when its
     /// destructor calls back into the parent mid-teardown (oo-35.7.1/2, oo-11.8).
     torn_down: bool,
-    /// Current FQNs of the per-object `my`/`myclass` commands. Tracked across
-    /// `rename` so that destroying the object also deletes a `my` renamed out
-    /// of the instance namespace (C ties `my`'s lifetime to the object).
-    my_aliases: Vec<Vec<u8>>,
 }
 
-/// One step of a method-call chain: the provider (object or class FQN) and the
+impl Object {
+    fn new(class: OoId, var_ns: NsId, creation_id: u64) -> Self {
+        Self {
+            class,
+            var_ns,
+            creation_id,
+            methods: BTreeMap::new(),
+            mixins: Vec::new(),
+            unexported: BTreeSet::new(),
+            exported: BTreeSet::new(),
+            private: BTreeSet::new(),
+            filters: Vec::new(),
+            variables: Vec::new(),
+            private_variables: Vec::new(),
+            readable_properties: Vec::new(),
+            writable_properties: Vec::new(),
+            destroyed: false,
+            torn_down: false,
+        }
+    }
+}
+
+/// One step of a method-call chain: the provider (object or class identity) and the
 /// method name to run there. Filters appear as steps whose `method` is the
 /// filter's name, ahead of the steps for the actually-invoked method.
 #[derive(Clone)]
 struct CallStep {
-    provider: Vec<u8>,
+    provider: OoId,
     method: Vec<u8>,
     /// Whether this step resolves against the *object* facet of `provider`
     /// (its per-object methods) rather than the *class* facet (its instance
@@ -214,7 +232,7 @@ struct CallStep {
 
 /// One active method invocation (for `self` / `my` / `next`).
 struct OoFrame {
-    object: Vec<u8>,
+    object: OoId,
     /// The full call chain (filter steps, then the target-method steps).
     chain: Vec<CallStep>,
     /// Index into `chain` of the step currently running.
@@ -232,15 +250,21 @@ struct OoFrame {
 /// A definition target: a class (`oo::define`) or an object (`oo::objdefine`).
 #[derive(Clone)]
 enum DefTarget {
-    Class(Vec<u8>),
-    Object(Vec<u8>),
+    Class(OoId),
+    Object(OoId),
 }
 
 /// The interpreter's TclOO state.
 #[derive(Default)]
 pub struct OoState {
-    classes: BTreeMap<Vec<u8>, Class>,
-    objects: BTreeMap<Vec<u8>, Object>,
+    classes: BTreeMap<OoId, Class>,
+    objects: BTreeMap<OoId, Object>,
+    /// Current Tcl-facing command spelling, indexed one-way by stable token.
+    names: BTreeMap<OoId, Vec<u8>>,
+    object_root: Option<OoId>,
+    class_root: Option<OoId>,
+    configurable_root: Option<OoId>,
+    next_oo_id: u64,
     counter: usize,
     /// Monotonic source of object creation IDs (`info object creationid`).
     next_id: u64,
@@ -270,7 +294,7 @@ pub struct OoState {
     /// for an in-progress unknown-method miss, captured at the original
     /// invocation so the `unknown`-handler frame does not mask it. Lets the
     /// unknown-method error list the in-scope private methods (TIP 500).
-    unknown_scope: Option<Vec<u8>>,
+    unknown_scope: Option<OoId>,
     /// Whether the unknown-method miss originated from an external (`$obj m`)
     /// call. An internal (`my m`) miss lists the unexported methods and the
     /// `oo::object` built-ins too; an external one lists only public methods.
@@ -286,6 +310,19 @@ pub struct OoState {
     ctor_words: Option<Vec<Vec<u8>>>,
 }
 
+impl OoState {
+    fn allocate(&mut self, name: Vec<u8>) -> OoId {
+        self.next_oo_id += 1;
+        let id = OoId(self.next_oo_id);
+        self.names.insert(id, name);
+        id
+    }
+
+    fn name(&self, id: OoId) -> &[u8] {
+        self.names.get(&id).map_or(b"", Vec::as_slice)
+    }
+}
+
 /// The object command name as named from the global scope (strip a single
 /// leading `::`) — the `wrong # args` prefix for a method (approximating C's
 /// literal `objv[0]` for the common, global-scope case).
@@ -293,6 +330,10 @@ fn object_display(obj: &[u8]) -> Vec<u8> {
     obj.strip_prefix(b"::")
         .map(<[u8]>::to_vec)
         .unwrap_or_else(|| obj.to_vec())
+}
+
+fn oo_display(interp: &Interp, obj: OoId) -> Vec<u8> {
+    object_display(&interp.oo_name(obj))
 }
 
 /// Exact command words whose dispatch entered a TclOO method body. Keeping
@@ -320,7 +361,8 @@ impl MethodInvocation {
 }
 
 fn method_invocation(
-    obj: &[u8],
+    interp: &Interp,
+    obj: OoId,
     invoked: Option<&[u8]>,
     method: &[u8],
     args: &[*mut TclObj],
@@ -330,7 +372,7 @@ fn method_invocation(
     words.push(if external {
         invoked
             .map(<[u8]>::to_vec)
-            .unwrap_or_else(|| object_display(obj))
+            .unwrap_or_else(|| oo_display(interp, obj))
     } else {
         b"my".to_vec()
     });
@@ -349,7 +391,7 @@ pub struct OoExec {
     call_stack: Vec<OoFrame>,
     private_depth: usize,
     def_rewrite: Option<Vec<u8>>,
-    unknown_scope: Option<Vec<u8>>,
+    unknown_scope: Option<OoId>,
     unknown_external: bool,
 }
 
@@ -395,65 +437,53 @@ pub fn install(interp: &mut Interp) {
     // objects (instances of `::oo::class`) and dispatch through `oo_dispatch`
     // like any other class command — so `create`/`new`/`destroy`, unknown-
     // method errors and the empty-name check are all handled uniformly.
-    interp
-        .oo
-        .borrow_mut()
-        .classes
-        .insert(b"::oo::object".to_vec(), Class::default());
-    interp.oo.borrow_mut().classes.insert(
-        b"::oo::class".to_vec(),
-        Class {
-            supers: vec![b"::oo::object".to_vec()],
-            ..Class::default()
-        },
-    );
+    let (object_root, class_root) = {
+        let mut oo = interp.oo.borrow_mut();
+        let object_root = oo.allocate(b"::oo::object".to_vec());
+        let class_root = oo.allocate(b"::oo::class".to_vec());
+        oo.object_root = Some(object_root);
+        oo.class_root = Some(class_root);
+        oo.classes.insert(object_root, Class::default());
+        oo.classes.insert(
+            class_root,
+            Class {
+                supers: vec![object_root],
+                ..Class::default()
+            },
+        );
+        (object_root, class_root)
+    };
     // `oo::object`'s instance-definition namespace (TIP 524, `-instance`) is
     // `::oo::objdefine` — defining any object (via `oo::objdefine`) runs there.
     // (`oo::class`'s `-class` namespace, `::oo::define`, is handled in the
     // `definitionnamespace` introspection.)
-    if let Some(c) = interp
-        .oo
-        .borrow_mut()
-        .classes
-        .get_mut(b"::oo::object".as_slice())
-    {
+    if let Some(c) = interp.oo.borrow_mut().classes.get_mut(&object_root) {
         c.def_ns = Some(b"::oo::objdefine".to_vec());
     }
     // Defining a class (an instance of `oo::class`) happens in `::oo::define`.
-    if let Some(c) = interp
-        .oo
-        .borrow_mut()
-        .classes
-        .get_mut(b"::oo::class".as_slice())
-    {
+    if let Some(c) = interp.oo.borrow_mut().classes.get_mut(&class_root) {
         c.class_def_ns = Some(b"::oo::define".to_vec());
     }
-    for fqn in [b"::oo::object".as_slice(), b"::oo::class".as_slice()] {
-        let var_ns = interp.ensure_namespace(fqn);
+    for (fqn, id) in [
+        (b"::oo::object".as_slice(), object_root),
+        (b"::oo::class".as_slice(), class_root),
+    ] {
+        let var_ns = interp.ensure_command_owned_namespace(fqn);
         let creation_id = interp.oo_next_id();
-        interp.oo.borrow_mut().objects.insert(
-            fqn.to_vec(),
-            Object {
-                class: b"::oo::class".to_vec(),
-                var_ns,
-                creation_id,
-                ..Object::default()
-            },
-        );
-        interp.ns_register(fqn, Command::OoObject(fqn.to_vec()));
+        interp
+            .oo
+            .borrow_mut()
+            .objects
+            .insert(id, Object::new(class_root, var_ns, creation_id));
+        interp.ns_register(fqn, Command::OoObject(id));
         // Engine-installed, not script-created: the registry dates these
         // (TCL86_PLUS) and the availability gate must honour that (#1463).
-        interp.declare_registry_object_root(fqn);
-        interp.oo_register_my(fqn);
+        interp.declare_registry_object_root(id, fqn);
+        interp.oo_register_my(id);
     }
     // `oo::object` has a built-in (unexported) `unknown` method — the standard
     // "unknown method" error, and the terminus of the `unknown` call chain.
-    if let Some(c) = interp
-        .oo
-        .borrow_mut()
-        .classes
-        .get_mut(b"::oo::object".as_slice())
-    {
+    if let Some(c) = interp.oo.borrow_mut().classes.get_mut(&object_root) {
         c.methods
             .insert(b"unknown".to_vec(), Method::Builtin(oo_object_unknown));
         c.unexported.insert(b"unknown".to_vec());
@@ -589,11 +619,12 @@ fn install_configurable(interp: &mut Interp) {
     );
     // The mixin that gives configurable objects their `configure` method.
     let _ = interp.eval_str(b"oo::class create ::oo::configuresupport::configurable {}");
+    let configurable_support = interp.oo_resolve_object(b"::oo::configuresupport::configurable");
     if let Some(c) = interp
         .oo
         .borrow_mut()
         .classes
-        .get_mut(b"::oo::configuresupport::configurable".as_slice())
+        .get_mut(&configurable_support)
     {
         c.methods
             .insert(b"configure".to_vec(), Method::Builtin(oo_configure));
@@ -608,6 +639,8 @@ fn install_configurable(interp: &mut Interp) {
         b"oo::class create ::oo::configurable { superclass ::oo::class }\n\
           oo::define ::oo::configurable definitionnamespace ::oo::configuresupport::configurableclass",
     );
+    let configurable_root = interp.oo_resolve_object(b"::oo::configurable");
+    interp.oo.borrow_mut().configurable_root = Some(configurable_root);
     install_abstract_singleton(interp);
     // The 9.0 metaclasses are engine-installed on the registry's behalf too,
     // so the release gate hides them below their introducing release the way
@@ -617,7 +650,8 @@ fn install_configurable(interp: &mut Interp) {
         b"::oo::singleton",
         b"::oo::abstract",
     ] {
-        interp.declare_registry_object_root(root);
+        let owner = interp.oo_resolve_object(root);
+        interp.declare_registry_object_root(owner, root);
     }
     // NOTE: `::oo::Slot` and `::oo::SingletonInstance` are engine-installed
     // too, but marking them roots here would be inert — the release gate dates
@@ -845,10 +879,10 @@ fn set_property_membership(
 /// `configure` method (TIP 558, `TclOO_Configurable_Configure`): with no args
 /// returns the readable properties as an `-opt value …` dict; with one `-opt`
 /// reads it; with `-opt value …` pairs writes them.
-fn oo_configure(interp: &mut Interp, obj: &[u8], args: &[*mut TclObj]) -> Code {
+fn oo_configure(interp: &mut Interp, obj: OoId, args: &[*mut TclObj]) -> Code {
     let n = args.len();
     if n != 1 && n % 2 == 1 {
-        let mut u = obj.to_vec();
+        let mut u = interp.oo_name(obj);
         u.extend_from_slice(b" configure ?-option value ...?");
         return wrong_args(interp, &u);
     }
@@ -893,13 +927,13 @@ fn oo_configure(interp: &mut Interp, obj: &[u8], args: &[*mut TclObj]) -> Code {
 /// Read a property by invoking the object's `<ReadProp-name>` method via `my`.
 /// A `break`/`continue` from the getter is turned into an error (C's
 /// ReadProperty).
-fn read_property(interp: &mut Interp, obj: &[u8], prop_hyph: &[u8]) -> Code {
+fn read_property(interp: &mut Interp, obj: OoId, prop_hyph: &[u8]) -> Code {
     let mname = property_method_name(b"<ReadProp", prop_hyph);
     let code = interp.oo_invoke(obj, &mname, &[], false, None);
     property_loopword_error(interp, code, b"getter", prop_hyph)
 }
 
-fn write_property(interp: &mut Interp, obj: &[u8], prop_hyph: &[u8], value: *mut TclObj) -> Code {
+fn write_property(interp: &mut Interp, obj: OoId, prop_hyph: &[u8], value: *mut TclObj) -> Code {
     let mname = property_method_name(b"<WriteProp", prop_hyph);
     let code = interp.oo_invoke(obj, &mname, &[value], false, None);
     property_loopword_error(interp, code, b"setter", prop_hyph)
@@ -926,7 +960,7 @@ fn property_loopword_error(interp: &mut Interp, code: Code, role: &[u8], prop_hy
 /// writable set, or produce the C error (`bad property` / `is read|write only`).
 fn get_property_name(
     interp: &mut Interp,
-    obj: &[u8],
+    obj: OoId,
     given: *mut TclObj,
     writable: bool,
 ) -> Result<Vec<u8>, Code> {
@@ -1022,7 +1056,7 @@ fn write_property_set(
     set: Vec<Vec<u8>>,
 ) {
     let fqn = match target {
-        DefTarget::Class(c) | DefTarget::Object(c) => c.clone(),
+        DefTarget::Class(c) | DefTarget::Object(c) => *c,
     };
     let mut oo = interp.oo.borrow_mut();
     if want_object {
@@ -1072,12 +1106,8 @@ fn install_slot_class(interp: &mut Interp) {
         (b"-clear", slot_m_clear),
         (b"unknown", slot_m_unknown),
     ];
-    if let Some(cl) = interp
-        .oo
-        .borrow_mut()
-        .classes
-        .get_mut(b"::oo::Slot".as_slice())
-    {
+    let slot_class = interp.oo_resolve_object(b"::oo::Slot");
+    if let Some(cl) = interp.oo.borrow_mut().classes.get_mut(&slot_class) {
         for (name, f) in ops {
             cl.methods.insert(name.to_vec(), Method::Builtin(*f));
         }
@@ -1110,7 +1140,8 @@ fn install_slot_instances(interp: &mut Interp) {
         let mut script = b"::oo::Slot create ".to_vec();
         script.extend_from_slice(name);
         let _ = interp.eval_str(&script);
-        if let Some(o) = interp.oo.borrow_mut().objects.get_mut(*name) {
+        let slot = interp.oo_resolve_object(name);
+        if let Some(o) = interp.oo.borrow_mut().objects.get_mut(&slot) {
             o.methods
                 .insert(b"Get".to_vec(), Method::Builtin(slot_inst_get));
             o.methods
@@ -1159,21 +1190,24 @@ fn slot_field_read(interp: &Interp, slot: &[u8], target: &DefTarget) -> Vec<Vec<
         (b"::oo::define::filter", DefTarget::Class(c)) => {
             oo.classes.get(c).map(|x| x.filters.clone())
         }
-        (b"::oo::define::mixin", DefTarget::Class(c)) => {
-            oo.classes.get(c).map(|x| x.mixins.clone())
-        }
-        (b"::oo::define::superclass", DefTarget::Class(c)) => {
-            oo.classes.get(c).map(|x| x.supers.clone())
-        }
+        (b"::oo::define::mixin", DefTarget::Class(c)) => oo
+            .classes
+            .get(c)
+            .map(|x| x.mixins.iter().map(|id| oo.name(*id).to_vec()).collect()),
+        (b"::oo::define::superclass", DefTarget::Class(c)) => oo
+            .classes
+            .get(c)
+            .map(|x| x.supers.iter().map(|id| oo.name(*id).to_vec()).collect()),
         (b"::oo::define::variable", DefTarget::Class(c)) => {
             oo.classes.get(c).map(|x| x.variables.clone())
         }
         (b"::oo::objdefine::filter", DefTarget::Object(o)) => {
             oo.objects.get(o).map(|x| x.filters.clone())
         }
-        (b"::oo::objdefine::mixin", DefTarget::Object(o)) => {
-            oo.objects.get(o).map(|x| x.mixins.clone())
-        }
+        (b"::oo::objdefine::mixin", DefTarget::Object(o)) => oo
+            .objects
+            .get(o)
+            .map(|x| x.mixins.iter().map(|id| oo.name(*id).to_vec()).collect()),
         (b"::oo::objdefine::variable", DefTarget::Object(o)) => {
             oo.objects.get(o).map(|x| x.variables.clone())
         }
@@ -1196,7 +1230,17 @@ fn slot_field_write(interp: &mut Interp, slot: &[u8], target: &DefTarget, list: 
         write_property_set(interp, target, want_object, writable, uniq);
         return;
     }
+    let class_refs = matches!(
+        slot,
+        b"::oo::define::mixin" | b"::oo::define::superclass" | b"::oo::objdefine::mixin"
+    )
+    .then(|| {
+        list.iter()
+            .map(|name| interp.oo_resolve_object(name))
+            .collect::<Vec<_>>()
+    });
     let mut oo = interp.oo.borrow_mut();
+    let object_root = oo.object_root;
     match (slot, target) {
         (b"::oo::define::filter", DefTarget::Class(c)) => {
             if let Some(x) = oo.classes.get_mut(c) {
@@ -1205,15 +1249,15 @@ fn slot_field_write(interp: &mut Interp, slot: &[u8], target: &DefTarget, list: 
         }
         (b"::oo::define::mixin", DefTarget::Class(c)) => {
             if let Some(x) = oo.classes.get_mut(c) {
-                x.mixins = list;
+                x.mixins = class_refs.unwrap_or_default();
             }
         }
         (b"::oo::define::superclass", DefTarget::Class(c)) => {
             if let Some(x) = oo.classes.get_mut(c) {
                 x.supers = if list.is_empty() {
-                    vec![b"::oo::object".to_vec()]
+                    object_root.into_iter().collect()
                 } else {
-                    list
+                    class_refs.unwrap_or_default()
                 };
             }
         }
@@ -1229,7 +1273,7 @@ fn slot_field_write(interp: &mut Interp, slot: &[u8], target: &DefTarget, list: 
         }
         (b"::oo::objdefine::mixin", DefTarget::Object(o)) => {
             if let Some(x) = oo.objects.get_mut(o) {
-                x.mixins = list;
+                x.mixins = class_refs.unwrap_or_default();
             }
         }
         (b"::oo::objdefine::variable", DefTarget::Object(o)) => {
@@ -1243,7 +1287,7 @@ fn slot_field_write(interp: &mut Interp, slot: &[u8], target: &DefTarget, list: 
 
 /// A built-in slot's `Get` method: returns its current contents from the active
 /// definition target.
-fn slot_inst_get(interp: &mut Interp, slot: &[u8], _args: &[*mut TclObj]) -> Code {
+fn slot_inst_get(interp: &mut Interp, slot: OoId, _args: &[*mut TclObj]) -> Code {
     let Some(target) = interp.active_def_target() else {
         return err(
             interp,
@@ -1251,14 +1295,14 @@ fn slot_inst_get(interp: &mut Interp, slot: &[u8], _args: &[*mut TclObj]) -> Cod
               ::oo::define or ::oo::objdefine command",
         );
     };
-    let list = slot_field_read(interp, slot, &target);
+    let list = slot_field_read(interp, &interp.oo_name(slot), &target);
     set_list(interp, &list);
     Code::Ok
 }
 
 /// A built-in slot's `Set` method: stores the (single list) argument into the
 /// active definition target.
-fn slot_inst_set(interp: &mut Interp, slot: &[u8], args: &[*mut TclObj]) -> Code {
+fn slot_inst_set(interp: &mut Interp, slot: OoId, args: &[*mut TclObj]) -> Code {
     let Some(target) = interp.active_def_target() else {
         return err(
             interp,
@@ -1270,7 +1314,7 @@ fn slot_inst_set(interp: &mut Interp, slot: &[u8], args: &[*mut TclObj]) -> Code
         .first()
         .map(|&a| parse_list(&obj_bytes(a)))
         .unwrap_or_default();
-    slot_field_write(interp, slot, &target, list);
+    slot_field_write(interp, &interp.oo_name(slot), &target, list);
     interp.set_result_bytes(b"");
     Code::Ok
 }
@@ -1278,11 +1322,11 @@ fn slot_inst_set(interp: &mut Interp, slot: &[u8], args: &[*mut TclObj]) -> Code
 /// A class-reference slot's `Resolve` method (C's `Slot_ResolveClass`): resolve
 /// the item as a class in the active definition context (current namespace then
 /// global), returning it unchanged if it does not name a class.
-fn slot_inst_resolve(interp: &mut Interp, _slot: &[u8], args: &[*mut TclObj]) -> Code {
+fn slot_inst_resolve(interp: &mut Interp, _slot: OoId, args: &[*mut TclObj]) -> Code {
     let raw = args.first().map(|&a| obj_bytes(a)).unwrap_or_default();
     let resolved = interp.oo_resolve_object(&raw);
     if interp.oo.borrow().classes.contains_key(&resolved) {
-        interp.set_result(obj::new_string_bytes(&resolved));
+        interp.set_result(obj::new_string_bytes(&interp.oo_name(resolved)));
     } else {
         interp.set_result(obj::new_string_bytes(&raw));
     }
@@ -1294,7 +1338,7 @@ fn slot_inst_resolve(interp: &mut Interp, _slot: &[u8], args: &[*mut TclObj]) ->
 /// arg that does not start with `-`, dispatch the slot's default operation over
 /// all the args; a leading `-flag` that is not a known operation chains (as C's
 /// `next` would) to the standard unknown-method error.
-fn slot_m_unknown(interp: &mut Interp, obj: &[u8], args: &[*mut TclObj]) -> Code {
+fn slot_m_unknown(interp: &mut Interp, obj: OoId, args: &[*mut TclObj]) -> Code {
     let first = args.first().map(|&a| obj_bytes(a)).unwrap_or_default();
     if !args.is_empty() && first.first() == Some(&b'-') {
         return interp.oo_unknown_method(obj, &first);
@@ -1325,14 +1369,14 @@ fn wrong_args(interp: &mut Interp, usage: &[u8]) -> Code {
 impl Interp {
     /// `unknown method "X": must be <public methods + built-ins>` — the C TclOO
     /// error, listing the callable methods (sorted, `a, b or c` style).
-    fn oo_unknown_method(&mut self, obj: &[u8], requested: &[u8]) -> Code {
+    fn oo_unknown_method(&mut self, obj: OoId, requested: &[u8]) -> Code {
         // `destroy` is a real (overridable, unexportable) method on every
         // object; it is visible unless unexported anywhere in the method chain
         // (e.g. `::oo::Slot`) without a re-export.
         let (destroy_exp, destroy_unexp, _) = self.method_visibility_flags(obj, b"destroy");
         let destroy_hidden = destroy_unexp && !destroy_exp;
         let mut names: BTreeSet<Vec<u8>> = BTreeSet::new();
-        if self.oo.borrow().classes.contains_key(obj) {
+        if self.oo.borrow().classes.contains_key(&obj) {
             // A class object responds to the class built-ins. `::oo::class`
             // is a singleton with `new` unexported, so it lists only `create`.
             // A class that unexports its own `create`/`new` (e.g. a metaclass
@@ -1340,7 +1384,7 @@ impl Interp {
             let ext = self.oo.borrow().unknown_external;
             let (cre_unexp, new_unexp) = {
                 let oo = self.oo.borrow();
-                let o = oo.objects.get(obj);
+                let o = oo.objects.get(&obj);
                 (
                     o.is_some_and(|o| o.unexported.contains(b"create".as_slice())),
                     o.is_some_and(|o| o.unexported.contains(b"new".as_slice())),
@@ -1349,7 +1393,7 @@ impl Interp {
             if !(ext && cre_unexp) {
                 names.insert(b"create".to_vec());
             }
-            if obj != b"::oo::class" && !(ext && new_unexp) {
+            if Some(obj) != self.oo.borrow().class_root && !(ext && new_unexp) {
                 names.insert(b"new".to_vec());
             }
         }
@@ -1403,10 +1447,10 @@ impl Interp {
         // declaring scope — the scope captured at the original invocation (the
         // `unknown` handler's own frame must not mask it; TIP 500). From
         // non-method code there is no scope, so none are listed.
-        let caller_scope: Option<Vec<u8>> = self.oo.borrow().unknown_scope.clone();
+        let caller_scope = self.oo.borrow().unknown_scope;
         for p in self.method_chain(obj) {
             let is_object = p == obj;
-            let in_scope = caller_scope.as_deref() == Some(p.as_slice());
+            let in_scope = caller_scope == Some(p);
             let oo = self.oo.borrow();
             if is_object {
                 if let Some(o) = oo.objects.get(&p) {
@@ -1438,7 +1482,7 @@ impl Interp {
         if names.is_empty() {
             // C: an object with no callable methods reports differently.
             let mut msg = b"object \"".to_vec();
-            msg.extend_from_slice(obj);
+            msg.extend_from_slice(&self.oo_name(obj));
             msg.extend_from_slice(b"\" has no visible methods");
             return self.error(&msg);
         }
@@ -1489,14 +1533,14 @@ fn oo_objdefine_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// and variables of the origin object's instance namespace into this object's.
 /// Invoked by `oo::copy`; a user `<cloned>` runs first and reaches this via
 /// `next`.
-fn oo_object_cloned(interp: &mut Interp, obj: &[u8], args: &[*mut TclObj]) -> Code {
+fn oo_object_cloned(interp: &mut Interp, obj: OoId, args: &[*mut TclObj]) -> Code {
     if args.len() != 1 {
         return wrong_args(interp, b"my <cloned> originObject");
     }
     let src = interp.oo_resolve_object(&obj_bytes(args[0]));
     let pair = {
         let oo = interp.oo.borrow();
-        match (oo.objects.get(&src), oo.objects.get(obj)) {
+        match (oo.objects.get(&src), oo.objects.get(&obj)) {
             (Some(s), Some(d)) => Some((s.var_ns, d.var_ns)),
             _ => None,
         }
@@ -1535,6 +1579,7 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             format!("::oo::Obj{n}").into_bytes()
         }
     };
+    interp.retire_gate_hidden_object_root(&dst);
     // If the source is also a class, clone the class definition too, so the
     // copy is a working class (TclOO copies both the object and class facets).
     let src_cls = interp.oo.borrow().classes.get(&src).cloned();
@@ -1552,11 +1597,12 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let ns = interp.fqn_for(ns);
             interp.ensure_namespace(&ns)
         }
-        _ => interp.ensure_namespace(&dst),
+        _ => interp.ensure_command_owned_namespace(&dst),
     };
     let creation_id = interp.oo_next_id();
+    let dst_id = interp.oo.borrow_mut().allocate(dst.clone());
     interp.oo.borrow_mut().objects.insert(
-        dst.clone(),
+        dst_id,
         Object {
             class: src_obj.class,
             var_ns,
@@ -1573,18 +1619,17 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             writable_properties: src_obj.writable_properties,
             destroyed: false,
             torn_down: false,
-            my_aliases: Vec::new(),
         },
     );
     if let Some(cls) = src_cls {
-        interp.oo.borrow_mut().classes.insert(dst.clone(), cls);
+        interp.oo.borrow_mut().classes.insert(dst_id, cls);
     }
-    interp.ns_register(&dst, Command::OoObject(dst.clone()));
-    interp.oo_register_my(&dst);
+    interp.ns_register(&dst, Command::OoObject(dst_id));
+    interp.oo_register_my(dst_id);
     // Run the `<cloned>` method (a user override first, then oo::object's native
     // implementation via `next`) to copy the instance namespace's procedures
     // and variables from the source (oo-15.6, oo-15.8).
-    let src_obj = obj::new_string_bytes(&src);
+    let src_obj = obj::new_string_bytes(&interp.oo_name(src));
     unsafe { obj::incr_ref_count(src_obj) };
     // A `wrong # args` from a user `<cloned>` names the new object (C reports the
     // copy as `<obj> <cloned> …`), not the internal `my` (oo-15.9). Prime the
@@ -1592,7 +1637,7 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut usage = dst.clone();
     usage.extend_from_slice(b" <cloned>");
     interp.oo.borrow_mut().fwd_usage = Some(usage);
-    let code = interp.oo_invoke(&dst, b"<cloned>", &[src_obj], false, None);
+    let code = interp.oo_invoke(dst_id, b"<cloned>", &[src_obj], false, None);
     interp.oo.borrow_mut().fwd_usage = None;
     unsafe { obj::decr_ref_count(src_obj) };
     if code == Code::Error {
@@ -1800,10 +1845,10 @@ fn def_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Err(c) => return c,
     };
     // The root classes' class may not be changed (each with its own message).
-    if obj == b"::oo::object" {
+    if Some(obj) == interp.oo.borrow().object_root {
         return err(interp, b"may not modify the class of the root object class");
     }
-    if obj == b"::oo::class" {
+    if Some(obj) == interp.oo.borrow().class_root {
         return err(interp, b"may not modify the class of the class of classes");
     }
     let new_cls = interp.oo_resolve_object(&obj_bytes(argv[1]));
@@ -1826,18 +1871,19 @@ fn def_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // `oo::class` or a metaclass) or back; keep the class-map membership in sync
     // so it gains/loses `create`/`new` and class introspection.
     let becomes_class = interp
-        .mro(&new_cls)
+        .mro(new_cls)
         .iter()
-        .any(|c| c.as_slice() == b"::oo::class");
+        .any(|c| Some(*c) == interp.oo.borrow().class_root);
     if let Some(ob) = interp.oo.borrow_mut().objects.get_mut(&obj) {
         ob.class = new_cls;
     }
     if becomes_class {
         if !interp.oo.borrow().classes.contains_key(&obj) {
+            let supers = interp.oo.borrow().object_root.into_iter().collect();
             interp.oo.borrow_mut().classes.insert(
-                obj.clone(),
+                obj,
                 Class {
-                    supers: vec![b"::oo::object".to_vec()],
+                    supers,
                     ..Class::default()
                 },
             );
@@ -1847,7 +1893,7 @@ fn def_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // or instances, so they are torn down (C's `TclOODeleteDescendants`
         // when the class facet goes away; oo-13.6). The object itself survives
         // as a plain object — only its class facet is removed.
-        interp.oo_destroy_class_descendants(&obj);
+        interp.oo_destroy_class_descendants(obj);
         interp.oo.borrow_mut().classes.remove(&obj);
     }
     interp.set_result_bytes(b"");
@@ -1868,7 +1914,7 @@ fn def_definitionnamespace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         Err(c) => return c,
     };
-    if cls == b"::oo::object" || cls == b"::oo::class" {
+    if Some(cls) == interp.oo.borrow().object_root || Some(cls) == interp.oo.borrow().class_root {
         return err(
             interp,
             b"may not modify the definition namespace of the root classes",
@@ -2049,7 +2095,7 @@ fn def_superclass(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // C's `Slot_ResolveClass`), storing the canonical FQN so the slot tracks
     // classes, not strings. An unresolvable name is kept as-is; validation runs
     // in the setter, so only the items being *added* are checked.
-    let resolved: Vec<Vec<u8>> = vals.iter().map(|v| interp.oo_resolve_object(v)).collect();
+    let resolved: Vec<OoId> = vals.iter().map(|v| interp.oo_resolve_object(v)).collect();
     // C resolves each via Tcl_GetObjectFromObj (→ `X does not refer to an
     // object`, as-written) then requires it be a class (→ `only a class can be
     // a superclass`).
@@ -2076,7 +2122,7 @@ fn def_superclass(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return err(interp, b"class should only be a direct superclass once");
     }
     // A class may not (transitively) be its own superclass.
-    if new.iter().any(|s| s == &class) || self_reachable(interp, &class, &new) {
+    if new.contains(&class) || self_reachable(interp, class, &new) {
         return err(interp, b"attempt to form circular dependency graph");
     }
     if new.is_empty() {
@@ -2084,11 +2130,15 @@ fn def_superclass(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // that is itself a class (a metaclass — reachable from `oo::class`), so
         // its instances stay classes; otherwise `oo::object` (C's
         // ClassSuperclassSet, Bug 9d61624b3d; oo-35.2).
-        let is_metaclass = self_reachable(interp, b"::oo::class", &current);
+        let (class_root, object_root) = {
+            let oo = interp.oo.borrow();
+            (oo.class_root, oo.object_root)
+        };
+        let is_metaclass = class_root.is_some_and(|root| self_reachable(interp, root, &current));
         new = vec![if is_metaclass {
-            b"::oo::class".to_vec()
+            class_root.expect("TclOO class root installed")
         } else {
-            b"::oo::object".to_vec()
+            object_root.expect("TclOO object root installed")
         }];
     }
     interp
@@ -2103,9 +2153,9 @@ fn def_superclass(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 /// Whether `class` is reachable through the proposed superclass list (a cycle).
-fn self_reachable(interp: &Interp, class: &[u8], supers: &[Vec<u8>]) -> bool {
-    let mut stack: Vec<Vec<u8>> = supers.to_vec();
-    let mut seen: Vec<Vec<u8>> = Vec::new();
+fn self_reachable(interp: &Interp, class: OoId, supers: &[OoId]) -> bool {
+    let mut stack: Vec<OoId> = supers.to_vec();
+    let mut seen: Vec<OoId> = Vec::new();
     while let Some(s) = stack.pop() {
         if s == class {
             return true;
@@ -2113,7 +2163,7 @@ fn self_reachable(interp: &Interp, class: &[u8], supers: &[Vec<u8>]) -> bool {
         if seen.contains(&s) {
             continue;
         }
-        seen.push(s.clone());
+        seen.push(s);
         if let Some(cl) = interp.oo.borrow().classes.get(&s) {
             stack.extend(cl.supers.clone());
         }
@@ -2177,7 +2227,7 @@ fn op_validates(op: &SlotOp) -> bool {
 }
 
 /// Apply a slot op to the current list, yielding the new list.
-fn slot_apply(op: &SlotOp, current: &[Vec<u8>], values: &[Vec<u8>]) -> Vec<Vec<u8>> {
+fn slot_apply<T: Clone + PartialEq>(op: &SlotOp, current: &[T], values: &[T]) -> Vec<T> {
     match op {
         SlotOp::Set => values.to_vec(),
         SlotOp::Clear => Vec::new(),
@@ -2210,7 +2260,7 @@ fn slot_apply(op: &SlotOp, current: &[Vec<u8>], values: &[Vec<u8>]) -> Vec<Vec<u
 /// `Get`/`Set`/`Resolve` are reachable), returning its result bytes.
 fn slot_call(
     interp: &mut Interp,
-    obj: &[u8],
+    obj: OoId,
     method: &[u8],
     args: &[Vec<u8>],
 ) -> Result<Vec<u8>, Code> {
@@ -2252,7 +2302,7 @@ fn build_list(elems: &[Vec<u8>]) -> Vec<u8> {
 
 /// Run a slot operation: `Resolve` each arg, `Get` the current list (except for
 /// `-set`/`-clear`), apply the op, then `Set` the result.
-fn slot_run_op(interp: &mut Interp, obj: &[u8], op: &SlotOp, args: &[*mut TclObj]) -> Code {
+fn slot_run_op(interp: &mut Interp, obj: OoId, op: &SlotOp, args: &[*mut TclObj]) -> Code {
     let new = match op {
         SlotOp::Clear => Vec::new(),
         _ => {
@@ -2284,22 +2334,22 @@ fn slot_run_op(interp: &mut Interp, obj: &[u8], op: &SlotOp, args: &[*mut TclObj
     }
 }
 
-fn slot_m_set(i: &mut Interp, o: &[u8], a: &[*mut TclObj]) -> Code {
+fn slot_m_set(i: &mut Interp, o: OoId, a: &[*mut TclObj]) -> Code {
     slot_run_op(i, o, &SlotOp::Set, a)
 }
-fn slot_m_append(i: &mut Interp, o: &[u8], a: &[*mut TclObj]) -> Code {
+fn slot_m_append(i: &mut Interp, o: OoId, a: &[*mut TclObj]) -> Code {
     slot_run_op(i, o, &SlotOp::Append, a)
 }
-fn slot_m_prepend(i: &mut Interp, o: &[u8], a: &[*mut TclObj]) -> Code {
+fn slot_m_prepend(i: &mut Interp, o: OoId, a: &[*mut TclObj]) -> Code {
     slot_run_op(i, o, &SlotOp::Prepend, a)
 }
-fn slot_m_remove(i: &mut Interp, o: &[u8], a: &[*mut TclObj]) -> Code {
+fn slot_m_remove(i: &mut Interp, o: OoId, a: &[*mut TclObj]) -> Code {
     slot_run_op(i, o, &SlotOp::Remove, a)
 }
-fn slot_m_appendifnew(i: &mut Interp, o: &[u8], a: &[*mut TclObj]) -> Code {
+fn slot_m_appendifnew(i: &mut Interp, o: OoId, a: &[*mut TclObj]) -> Code {
     slot_run_op(i, o, &SlotOp::AppendIfNew, a)
 }
-fn slot_m_clear(i: &mut Interp, o: &[u8], a: &[*mut TclObj]) -> Code {
+fn slot_m_clear(i: &mut Interp, o: OoId, a: &[*mut TclObj]) -> Code {
     slot_run_op(i, o, &SlotOp::Clear, a)
 }
 
@@ -2308,9 +2358,9 @@ fn slot_m_clear(i: &mut Interp, o: &[u8], a: &[*mut TclObj]) -> Code {
 /// does `next` lands here. `args[0]` is the originally-requested method name.
 /// With *no* args it was reached via a no-method invocation (`$obj`), whose
 /// default outcome is the `wrong # args` usage (C's `FORCE_UNKNOWN` path).
-fn oo_object_unknown(interp: &mut Interp, obj: &[u8], args: &[*mut TclObj]) -> Code {
+fn oo_object_unknown(interp: &mut Interp, obj: OoId, args: &[*mut TclObj]) -> Code {
     let Some(&first) = args.first() else {
-        let mut u = obj.to_vec();
+        let mut u = interp.oo_name(obj);
         u.extend_from_slice(b" method ?arg ...?");
         return wrong_args(interp, &u);
     };
@@ -2372,12 +2422,12 @@ fn def_mixin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(x) => x,
         Err(m) => return err(interp, &m),
     };
-    // Resolve each value to a class FQN (TIP 516: current namespace then
-    // global, C's `Slot_ResolveClass` — an unresolvable name is kept as-is).
+    // Resolve each value to stable class identity (TIP 516: current namespace
+    // then global, C's `Slot_ResolveClass`).
     // Validation (`X does not refer to an object`, as-written, then `may only
     // mix in classes`) happens in the setter, so only the items being *added*
     // are checked; `-remove`/`-clear` may name a now-deleted class harmlessly.
-    let resolved: Vec<Vec<u8>> = vals.iter().map(|v| interp.oo_resolve_object(v)).collect();
+    let resolved: Vec<OoId> = vals.iter().map(|v| interp.oo_resolve_object(v)).collect();
     if op_validates(&op) {
         for (mx, raw) in resolved.iter().zip(vals.iter()) {
             if !interp.oo.borrow().objects.contains_key(mx) {
@@ -2435,7 +2485,7 @@ fn def_mixin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 /// Whether `list` contains a duplicate element.
-fn has_duplicate(list: &[Vec<u8>]) -> bool {
+fn has_duplicate<T: PartialEq>(list: &[T]) -> bool {
     list.iter().enumerate().any(|(i, x)| list[..i].contains(x))
 }
 
@@ -2589,8 +2639,8 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let ctx = interp.oo.borrow().call_stack.last().map(|frame| {
         let step = frame.chain.get(frame.index);
         (
-            frame.object.clone(),
-            step.map(|s| s.provider.clone()).unwrap_or_default(),
+            frame.object,
+            step.map(|s| s.provider),
             step.map(|s| s.method.clone()).unwrap_or_default(),
             frame.target.clone(),
         )
@@ -2609,7 +2659,7 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 DefTarget::Object(o) => (o, false),
             };
             if argv.len() == 1 {
-                interp.set_result(obj::new_string_bytes(&tfqn));
+                interp.set_result(obj::new_string_bytes(&interp.oo_name(tfqn)));
                 return Code::Ok;
             }
             if !is_class {
@@ -2642,11 +2692,11 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     b"this command cannot be called when the object has been deleted",
                 );
             }
-            interp.oo.borrow_mut().def_stack.push((
-                DefTarget::Object(tfqn.clone()),
-                lvl,
-                creation_id,
-            ));
+            interp
+                .oo
+                .borrow_mut()
+                .def_stack
+                .push((DefTarget::Object(tfqn), lvl, creation_id));
             // `self { script }` runs a definition body; `self subcmd …` is one
             // directive — mirror `oo_run_def`'s script-vs-subcommand split.
             let is_body = argv.len() == 2;
@@ -2659,19 +2709,23 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             // The `self { script }` body is a class-side definition: on error it
             // adds its own `(in definition script for class object "X")` frame.
             if is_body && code == Code::Error {
-                interp.add_def_script_frame(b"class object", &tfqn, creation_id);
+                interp.add_def_script_frame(b"class object", &interp.oo_name(tfqn), creation_id);
             }
             return code;
         }
         return err(interp, b"self may only be called from inside a method");
     };
     match argv.get(1).map(|&a| obj_bytes(a)).as_deref() {
-        None | Some(b"object") => interp.set_result(obj::new_string_bytes(&object)),
+        None | Some(b"object") => interp.set_result(obj::new_string_bytes(&interp.oo_name(object))),
         // `self class` is the *declaring class* of the running method; a method
         // defined directly on the object (objdefine / class-side `self method`)
         // has no declaring class (C: `declaringClassPtr == NULL`).
-        Some(b"class") if class == object => return err(interp, b"method not defined by a class"),
-        Some(b"class") => interp.set_result(obj::new_string_bytes(&class)),
+        Some(b"class") if class.is_none_or(|class| class == object) => {
+            return err(interp, b"method not defined by a class");
+        }
+        Some(b"class") => interp.set_result(obj::new_string_bytes(
+            &interp.oo_name(class.expect("declaring class checked above")),
+        )),
         Some(b"method") => interp.set_result(obj::new_string_bytes(&method)),
         Some(b"namespace") => {
             let ns = interp.oo.borrow().objects.get(&object).map(|o| o.var_ns);
@@ -2687,25 +2741,29 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 f.chain
                     .iter()
                     .find(|s| s.method == target)
-                    .map(|s| (s.provider.clone(), s.method.clone()))
+                    .map(|s| (s.provider, s.method.clone()))
             });
             // A filter wrapping a built-in target (e.g. `destroy`) has no chain
             // step for it — the built-in is the implicit terminus — so name its
             // declaring class directly (`::oo::object` for the object built-ins,
             // `::oo::class` for the instantiation ones; oo-12.8).
             let pair = pair.or_else(|| {
-                let decl: &[u8] = match target.as_slice() {
+                let oo = interp.oo.borrow();
+                let decl = match target.as_slice() {
                     b"destroy" | b"eval" | b"variable" | b"varname" | b"unknown" | b"<cloned>" => {
-                        b"::oo::object"
+                        oo.object_root?
                     }
-                    b"create" | b"new" | b"createWithNamespace" => b"::oo::class",
+                    b"create" | b"new" | b"createWithNamespace" => oo.class_root?,
                     _ => return None,
                 };
-                Some((decl.to_vec(), target.clone()))
+                Some((decl, target.clone()))
             });
             match pair {
                 Some((p, m)) => {
-                    let objs = [obj::new_string_bytes(&p), obj::new_string_bytes(&m)];
+                    let objs = [
+                        obj::new_string_bytes(&interp.oo_name(p)),
+                        obj::new_string_bytes(&m),
+                    ];
                     interp.set_result(crate::list::new_list_obj(&objs));
                 }
                 None => interp.set_result_bytes(b""),
@@ -2737,19 +2795,12 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     };
                     let call_type: &[u8] = if is_filter {
                         b"filter"
-                    } else if interp.method_is_private(&s.provider, &s.method, is_object) {
+                    } else if interp.method_is_private(s.provider, &s.method, is_object) {
                         b"private"
                     } else {
                         b"method"
                     };
-                    call_chain_elem(
-                        interp,
-                        call_type,
-                        display,
-                        &s.method,
-                        &s.provider,
-                        is_object,
-                    )
+                    call_chain_elem(interp, call_type, display, &s.method, s.provider, is_object)
                 })
                 .collect();
             let inner_objs: Vec<*mut TclObj> =
@@ -2775,36 +2826,16 @@ fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 impl Interp {
     /// Register the per-object `my` command in the object's namespace (`<fqn>::my`).
-    pub(crate) fn oo_register_my(&mut self, fqn: &[u8]) {
-        let mut name = fqn.to_vec();
+    pub(crate) fn oo_register_my(&mut self, object: OoId) {
+        let fqn = self.oo_name(object);
+        let mut name = fqn.clone();
         name.extend_from_slice(b"::my");
-        self.ns_register(&name, Command::Builtin(my_cmd));
+        self.ns_register(&name, Command::OoMy(object));
         // `myclass` (TIP 478): a per-object command dispatching on the object's
         // class, for invoking class-side (`self method`) methods.
-        let mut mc = fqn.to_vec();
+        let mut mc = fqn;
         mc.extend_from_slice(b"::myclass");
-        self.ns_register(&mc, Command::Builtin(myclass_cmd));
-        // Remember these names so the object's teardown deletes them even if
-        // they are later renamed out of the instance namespace.
-        if let Some(o) = self.oo.borrow_mut().objects.get_mut(fqn) {
-            o.my_aliases = vec![name, mc];
-        }
-    }
-
-    /// The `info cmdtype` classification of the per-object private command `fqn`
-    /// (a `my`/`myclass` builtin): `privateObject` for an object's `my`,
-    /// `privateClass` for its `myclass`, else `None`. Matched against the
-    /// object's tracked `my_aliases` so a renamed command is still classified.
-    pub(crate) fn oo_private_cmd_kind(&self, fqn: &[u8]) -> Option<&'static [u8]> {
-        let oo = self.oo.borrow();
-        for o in oo.objects.values() {
-            match o.my_aliases.iter().position(|a| a.as_slice() == fqn) {
-                Some(0) => return Some(b"privateObject"),
-                Some(1) => return Some(b"privateClass"),
-                _ => {}
-            }
-        }
-        None
+        self.ns_register(&mc, Command::OoMyClass(object));
     }
 
     /// Whether evaluation is currently inside an `oo::define`/`oo::objdefine`
@@ -2957,85 +2988,36 @@ impl Interp {
     }
 }
 
-fn my_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+pub(crate) fn my_cmd(interp: &mut Interp, object: OoId, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return wrong_args(interp, b"my methodName ?arg ...?");
     }
-    // Inside a method, `my` dispatches on the current object; invoked directly
-    // (e.g. `[info object namespace o]::my m`) it dispatches on the object that
-    // owns this `my` command, found via its tracked alias (oo-16.13).
-    let object = match interp
-        .oo
-        .borrow()
-        .call_stack
-        .last()
-        .map(|f| f.object.clone())
-    {
-        Some(o) => Some(o),
-        None => {
-            let fqn = interp.fqn_for(&obj_bytes(argv[0]));
-            interp
-                .oo
-                .borrow()
-                .objects
-                .iter()
-                .find(|(_, o)| o.my_aliases.first().is_some_and(|a| *a == fqn))
-                .map(|(k, _)| k.clone())
-        }
-    };
-    let Some(object) = object else {
+    // The command token carries its owner through rename and same-name
+    // recreation instead of rediscovering an object by display spelling.
+    if !interp.oo.borrow().objects.contains_key(&object) {
         return err(interp, b"my may only be called from inside a method");
-    };
+    }
     let method = obj_bytes(argv[1]);
-    interp.oo_invoke(&object, &method, &argv[2..], false, None)
+    interp.oo_invoke(object, &method, &argv[2..], false, None)
 }
 
-fn myclass_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+pub(crate) fn myclass_cmd(interp: &mut Interp, object: OoId, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return wrong_args(interp, b"myclass methodName ?arg ...?");
     }
-    // Inside a method, `myclass` dispatches on the current object's class; invoked
-    // directly (e.g. a renamed `myclass`) it dispatches on the class of the object
-    // that owns this command, found via its tracked alias (`my_aliases[1]`;
-    // oo-41.2). The class can morph, so it is read live.
-    let object = match interp
-        .oo
-        .borrow()
-        .call_stack
-        .last()
-        .map(|f| f.object.clone())
-    {
-        Some(o) => Some(o),
-        None => {
-            let fqn = interp.fqn_for(&obj_bytes(argv[0]));
-            interp
-                .oo
-                .borrow()
-                .objects
-                .iter()
-                .find(|(_, o)| o.my_aliases.get(1).is_some_and(|a| *a == fqn))
-                .map(|(k, _)| k.clone())
-        }
-    };
-    let class = object.and_then(|o| {
-        interp
-            .oo
-            .borrow()
-            .objects
-            .get(&o)
-            .map(|ob| ob.class.clone())
-    });
+    // The owner is stable; its class can morph, so read that relation live.
+    let class = interp.oo.borrow().objects.get(&object).map(|ob| ob.class);
     let Some(class) = class else {
         return err(interp, b"myclass may only be called from inside a method");
     };
     let method = obj_bytes(argv[1]);
-    interp.oo_invoke(&class, &method, &argv[2..], false, None)
+    interp.oo_invoke(class, &method, &argv[2..], false, None)
 }
 
 fn next_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let ctx = interp.oo.borrow().call_stack.last().map(|frame| {
         (
-            frame.object.clone(),
+            frame.object,
             frame.chain.clone(),
             frame.index,
             frame.target.clone(),
@@ -3058,7 +3040,7 @@ fn next_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.oo.borrow_mut().filter_handling = false;
         }
         let code = interp.oo_run(
-            &object,
+            object,
             chain,
             index + 1,
             &target,
@@ -3074,7 +3056,7 @@ fn next_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // Past the last constructor in the chain — a no-op (C's default).
         interp.set_result_bytes(b"");
         Code::Ok
-    } else if let Some(code) = interp.oo_builtin_method(&object, &target, &argv[1..], external) {
+    } else if let Some(code) = interp.oo_builtin_method(object, &target, &argv[1..], external) {
         // Past the last user method: the `oo::object` built-ins (`eval`/
         // `variable`/`varname`) are the terminal implementations of those names,
         // so a user override that calls `next` reaches them (oo-18.5).
@@ -3082,11 +3064,7 @@ fn next_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     } else if target == b"destroy" {
         // `destroy` likewise has a built-in terminus (a filter/override chain
         // ending in the real teardown).
-        let code = interp.oo_destroy(&object);
-        if code == Code::Ok {
-            interp.set_result_bytes(b"");
-        }
-        code
+        interp.oo_destroy(object)
     } else {
         err(interp, b"no next method implementation")
     }
@@ -3098,7 +3076,7 @@ fn next_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 fn nextto_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let ctx = interp.oo.borrow().call_stack.last().map(|frame| {
         (
-            frame.object.clone(),
+            frame.object,
             frame.chain.clone(),
             frame.index,
             frame.target.clone(),
@@ -3115,10 +3093,7 @@ fn nextto_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // The class argument resolves like a command: current namespace then the
     // global fallback (C's Tcl_GetObjectFromObj), not relative to the object's
     // instance namespace that the method runs in.
-    let class = match interp.namespaces().resolve_fqn(interp.current_ns(), &raw) {
-        Some(c) if interp.oo.borrow().objects.contains_key(&c) => c,
-        _ => interp.fqn_for(&raw),
-    };
+    let class = interp.oo_resolve_object(&raw);
     if !interp.oo.borrow().objects.contains_key(&class) {
         return not_object(interp, &raw);
     }
@@ -3134,7 +3109,7 @@ fn nextto_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     for i in index + 1..chain.len() {
         if chain[i].provider == class && is_target(&chain[i]) {
             return interp.oo_run(
-                &object,
+                object,
                 chain,
                 i,
                 &target,
@@ -3269,15 +3244,10 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
         return wrong_args(interp, b"info object subcommand objName ?arg ...?");
     }
-    let obj = interp.fqn_for(&obj_bytes(argv[3]));
+    let obj = interp.oo_resolve_object(&obj_bytes(argv[3]));
     match sub {
         b"class" => {
-            let class = interp
-                .oo
-                .borrow()
-                .objects
-                .get(&obj)
-                .map(|o| o.class.clone());
+            let class = interp.oo.borrow().objects.get(&obj).map(|o| o.class);
             let Some(class) = class else {
                 return not_object(interp, &obj_bytes(argv[3]));
             };
@@ -3286,11 +3256,11 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             // mixins), like `info object isa typeof` (C's `InfoObjectClassCmd`).
             if let Some(&want_arg) = argv.get(4) {
                 let want = interp.oo_resolve_object(&obj_bytes(want_arg));
-                let yes = interp.method_chain(&obj).iter().skip(1).any(|p| *p == want);
+                let yes = interp.method_chain(obj).iter().skip(1).any(|p| *p == want);
                 interp.set_result_bytes(if yes { b"1" } else { b"0" });
                 return Code::Ok;
             }
-            interp.set_result(obj::new_string_bytes(&class));
+            interp.set_result(obj::new_string_bytes(&interp.oo_name(class)));
             Code::Ok
         }
         b"isa" => {
@@ -3337,14 +3307,14 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     let is_class = interp.oo.borrow().classes.contains_key(&target);
                     is_class
                         && interp
-                            .mro(&target)
+                            .mro(target)
                             .iter()
-                            .any(|c| c.as_slice() == b"::oo::class")
+                            .any(|c| Some(*c) == interp.oo.borrow().class_root)
                 }
                 // `mixin`: `mixinClass` is mixed into the object directly or via
                 // its class.
                 b"mixin" => {
-                    let mixin = interp.fqn_for(&obj_bytes(argv[5]));
+                    let mixin = interp.oo_resolve_object(&obj_bytes(argv[5]));
                     let oo = interp.oo.borrow();
                     oo.objects.get(&target).is_some_and(|o| {
                         o.mixins.contains(&mixin)
@@ -3358,10 +3328,10 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     // The object's full precedence list (mixins included), not
                     // just its class's superclass MRO (oo-16.9). The chain leads
                     // with the object itself, so drop it before matching classes.
-                    let want = interp.fqn_for(&obj_bytes(argv[5]));
+                    let want = interp.oo_resolve_object(&obj_bytes(argv[5]));
                     interp.oo.borrow().objects.contains_key(&target)
                         && interp
-                            .method_chain(&target)
+                            .method_chain(target)
                             .iter()
                             .skip(1)
                             .any(|p| *p == want)
@@ -3420,7 +3390,7 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 Ok(x) => x,
                 Err(code) => return code,
             };
-            let props = interp.object_property_list(&obj, writable, all);
+            let props = interp.object_property_list(obj, writable, all);
             set_list(interp, &props);
             Code::Ok
         }
@@ -3439,12 +3409,12 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let mut names: Vec<Vec<u8>> = Vec::new();
             // The object's own methods, plus (with `-all`, no `-scope`) the chain.
             let chain = if all && scope.is_none() {
-                interp.method_chain(&obj)
+                interp.method_chain(obj)
             } else {
-                vec![obj.clone()]
+                vec![obj]
             };
             for p in &chain {
-                let is_object = p.as_slice() == obj;
+                let is_object = *p == obj;
                 let oo = interp.oo.borrow();
                 let entry = if is_object {
                     oo.objects
@@ -3489,7 +3459,7 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     b"variable",
                     b"varname",
                 ] {
-                    let (exp, unexp, priv_) = interp.method_visibility_flags(&obj, b);
+                    let (exp, unexp, priv_) = interp.method_visibility_flags(obj, b);
                     // `destroy` is exported by default; the rest are unexported.
                     let eff_unexp = !exp && (unexp || b != b"destroy");
                     let show = if private { !priv_ } else { !eff_unexp };
@@ -3520,7 +3490,7 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 .map(|o| o.mixins.clone());
             match mx {
                 Some(m) => {
-                    set_list(interp, &m);
+                    set_oo_list(interp, &m);
                     Code::Ok
                 }
                 None => not_object(interp, &obj_bytes(argv[3])),
@@ -3556,10 +3526,10 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 None => not_object(interp, &obj_bytes(argv[3])),
             }
         }
-        b"forward" => info_forward(interp, &obj, argv, false),
-        b"definition" => info_definition(interp, &obj, argv, false),
-        b"methodtype" => info_methodtype(interp, &obj, argv, false),
-        b"call" => info_call(interp, &obj, argv, false),
+        b"forward" => info_forward(interp, obj, argv, false),
+        b"definition" => info_definition(interp, obj, argv, false),
+        b"methodtype" => info_methodtype(interp, obj, argv, false),
+        b"call" => info_call(interp, obj, argv, false),
         // `properties` is not yet modelled.
         other => {
             let mut m = b"unsupported info object subcommand \"".to_vec();
@@ -3571,7 +3541,7 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 /// `info object|class forward objName methodName` — the forward prefix list.
-fn info_forward(interp: &mut Interp, fqn: &[u8], argv: &[*mut TclObj], class: bool) -> Code {
+fn info_forward(interp: &mut Interp, id: OoId, argv: &[*mut TclObj], class: bool) -> Code {
     if argv.len() != 5 {
         let u: &[u8] = if class {
             b"info class forward className methodName"
@@ -3585,11 +3555,11 @@ fn info_forward(interp: &mut Interp, fqn: &[u8], argv: &[*mut TclObj], class: bo
         let oo = interp.oo.borrow();
         if class {
             oo.classes
-                .get(fqn)
+                .get(&id)
                 .and_then(|c| c.methods.get(&name).cloned())
         } else {
             oo.objects
-                .get(fqn)
+                .get(&id)
                 .and_then(|o| o.methods.get(&name).cloned())
         }
     };
@@ -3607,7 +3577,7 @@ fn info_forward(interp: &mut Interp, fqn: &[u8], argv: &[*mut TclObj], class: bo
 }
 
 /// `info object|class definition fqn methodName` — `{params} {body}`.
-fn info_definition(interp: &mut Interp, fqn: &[u8], argv: &[*mut TclObj], class: bool) -> Code {
+fn info_definition(interp: &mut Interp, id: OoId, argv: &[*mut TclObj], class: bool) -> Code {
     if argv.len() != 5 {
         let u: &[u8] = if class {
             b"info class definition className methodName"
@@ -3621,11 +3591,11 @@ fn info_definition(interp: &mut Interp, fqn: &[u8], argv: &[*mut TclObj], class:
         let oo = interp.oo.borrow();
         if class {
             oo.classes
-                .get(fqn)
+                .get(&id)
                 .and_then(|c| c.methods.get(&name).cloned())
         } else {
             oo.objects
-                .get(fqn)
+                .get(&id)
                 .and_then(|o| o.methods.get(&name).cloned())
         }
     };
@@ -3641,7 +3611,7 @@ fn info_definition(interp: &mut Interp, fqn: &[u8], argv: &[*mut TclObj], class:
 }
 
 /// `info object|class methodtype fqn methodName` — `method` or `forward`.
-fn info_methodtype(interp: &mut Interp, fqn: &[u8], argv: &[*mut TclObj], class: bool) -> Code {
+fn info_methodtype(interp: &mut Interp, id: OoId, argv: &[*mut TclObj], class: bool) -> Code {
     if argv.len() != 5 {
         let u: &[u8] = if class {
             b"info class methodtype className methodName"
@@ -3655,11 +3625,11 @@ fn info_methodtype(interp: &mut Interp, fqn: &[u8], argv: &[*mut TclObj], class:
         let oo = interp.oo.borrow();
         if class {
             oo.classes
-                .get(fqn)
+                .get(&id)
                 .and_then(|c| c.methods.get(&name).cloned())
         } else {
             oo.objects
-                .get(fqn)
+                .get(&id)
                 .and_then(|o| o.methods.get(&name).cloned())
         }
     };
@@ -3687,7 +3657,7 @@ fn unknown_method_named(interp: &mut Interp, name: &[u8]) -> Code {
 
 /// `info object|class call fqn methodName` — the method-resolution chain for
 /// `methodName`, each step a `{callType methodName declarer methodType}` list.
-fn info_call(interp: &mut Interp, fqn: &[u8], argv: &[*mut TclObj], class: bool) -> Code {
+fn info_call(interp: &mut Interp, id: OoId, argv: &[*mut TclObj], class: bool) -> Code {
     if argv.len() != 5 {
         let u: &[u8] = if class {
             b"info class call className methodName"
@@ -3698,17 +3668,17 @@ fn info_call(interp: &mut Interp, fqn: &[u8], argv: &[*mut TclObj], class: bool)
     }
     // The target must exist (oo-call-1.17): a non-object reports "X does not
     // refer to an object"; a non-class object reports `"X" is not a class`.
-    if !interp.oo.borrow().objects.contains_key(fqn) {
+    if !interp.oo.borrow().objects.contains_key(&id) {
         return not_object(interp, &obj_bytes(argv[3]));
     }
-    if class && !interp.oo.borrow().classes.contains_key(fqn) {
+    if class && !interp.oo.borrow().classes.contains_key(&id) {
         let mut m = b"\"".to_vec();
         m.extend_from_slice(&obj_bytes(argv[3]));
         m.extend_from_slice(b"\" is not a class");
         return err(interp, &m);
     }
     let method = obj_bytes(argv[4]);
-    let elems = build_call_chain(interp, fqn, &method, class);
+    let elems = build_call_chain(interp, id, &method, class);
     set_list(interp, &elems);
     Code::Ok
 }
@@ -3717,13 +3687,13 @@ fn info_call(interp: &mut Interp, fqn: &[u8], argv: &[*mut TclObj], class: bool)
 /// step) for `info object/class call`: filter steps (one per provider that
 /// implements an active filter, in precedence order), then either the method's
 /// own steps or — if the method is undefined — the `unknown`-handler chain.
-fn build_call_chain(interp: &Interp, fqn: &[u8], method: &[u8], class: bool) -> Vec<Vec<u8>> {
+fn build_call_chain(interp: &Interp, id: OoId, method: &[u8], class: bool) -> Vec<Vec<u8>> {
     let providers = if class {
-        interp.class_precedence(fqn)
+        interp.class_precedence(id)
     } else {
-        interp.method_chain(fqn)
+        interp.method_chain(id)
     };
-    let is_obj = |p: &[u8]| !class && p == fqn;
+    let is_obj = |p: OoId| !class && p == id;
     let mut elems: Vec<Vec<u8>> = Vec::new();
     // Active filter method names: the object's own filters then each provider's.
     let mut filter_names: Vec<Vec<u8>> = Vec::new();
@@ -3733,7 +3703,7 @@ fn build_call_chain(interp: &Interp, fqn: &[u8], method: &[u8], class: bool) -> 
         }
     };
     if !class {
-        if let Some(o) = interp.oo.borrow().objects.get(fqn) {
+        if let Some(o) = interp.oo.borrow().objects.get(&id) {
             for f in &o.filters {
                 add_name(f, &mut filter_names);
             }
@@ -3749,22 +3719,22 @@ fn build_call_chain(interp: &Interp, fqn: &[u8], method: &[u8], class: bool) -> 
     // Each filter contributes a step per implementing provider (precedence order).
     for fname in &filter_names {
         for p in &providers {
-            if interp.oo_has_method(p, fname, is_obj(p)) {
+            if interp.oo_has_method(*p, fname, is_obj(*p)) {
                 elems.push(call_chain_elem(
                     interp,
                     b"filter",
                     fname,
                     fname,
-                    p,
-                    is_obj(p),
+                    *p,
+                    is_obj(*p),
                 ));
             }
         }
     }
     // The target method's steps, or the unknown-handler chain if undefined.
-    let method_steps: Vec<Vec<u8>> = providers
+    let method_steps: Vec<OoId> = providers
         .iter()
-        .filter(|p| interp.oo_has_method(p, method, is_obj(p)))
+        .filter(|p| interp.oo_has_method(**p, method, is_obj(**p)))
         .cloned()
         .collect();
     // A core built-in (`destroy`/`eval`/`variable`/`varname`) is the terminal
@@ -3778,38 +3748,40 @@ fn build_call_chain(interp: &Interp, fqn: &[u8], method: &[u8], class: bool) -> 
     };
     if method_steps.is_empty() {
         if let Some(ct) = core_builtin {
-            if providers.iter().any(|p| p.as_slice() == b"::oo::object") {
-                elems.push(call_chain_elem(
-                    interp,
-                    ct,
-                    method,
-                    method,
-                    b"::oo::object",
-                    false,
-                ));
+            if let Some(object_root) = interp.oo.borrow().object_root {
+                if providers.contains(&object_root) {
+                    elems.push(call_chain_elem(
+                        interp,
+                        ct,
+                        method,
+                        method,
+                        object_root,
+                        false,
+                    ));
+                }
             }
         } else {
             for p in &providers {
-                if interp.oo_has_method(p, b"unknown", is_obj(p)) {
+                if interp.oo_has_method(*p, b"unknown", is_obj(*p)) {
                     elems.push(call_chain_elem(
                         interp,
                         b"unknown",
                         b"unknown",
                         b"unknown",
-                        p,
-                        is_obj(p),
+                        *p,
+                        is_obj(*p),
                     ));
                 }
             }
         }
     } else {
         for p in &method_steps {
-            let ct: &[u8] = if interp.method_is_private(p, method, is_obj(p)) {
+            let ct: &[u8] = if interp.method_is_private(*p, method, is_obj(*p)) {
                 b"private"
             } else {
                 b"method"
             };
-            elems.push(call_chain_elem(interp, ct, method, method, p, is_obj(p)));
+            elems.push(call_chain_elem(interp, ct, method, method, *p, is_obj(*p)));
         }
     }
     elems
@@ -3825,27 +3797,27 @@ fn call_chain_elem(
     call_type: &[u8],
     display_name: &[u8],
     type_key: &[u8],
-    provider: &[u8],
+    provider: OoId,
     is_object: bool,
 ) -> Vec<u8> {
     let mtype = method_type_name(interp, provider, type_key, is_object);
     let declarer: Vec<u8> = if is_object {
         b"object".to_vec()
     } else {
-        provider.to_vec()
+        interp.oo_name(provider)
     };
     build_list(&[call_type.to_vec(), display_name.to_vec(), declarer, mtype])
 }
 
 /// The `methodType` word for a method: `forward`, `core method: "NAME"` for a
 /// native builtin, or `method` for a proc body (incl. constructor/destructor).
-fn method_type_name(interp: &Interp, provider: &[u8], key: &[u8], is_object: bool) -> Vec<u8> {
+fn method_type_name(interp: &Interp, provider: OoId, key: &[u8], is_object: bool) -> Vec<u8> {
     if key == b"<constructor>" || key == b"<destructor>" || key.is_empty() {
         return b"method".to_vec();
     }
     // The `oo::object` core built-ins are rendered `core method: "NAME"` even
     // though they are not in the method table (they are dispatched natively).
-    if provider == b"::oo::object"
+    if Some(provider) == interp.oo.borrow().object_root
         && matches!(
             key,
             b"destroy" | b"eval" | b"variable" | b"varname" | b"unknown" | b"<cloned>"
@@ -3858,9 +3830,9 @@ fn method_type_name(interp: &Interp, provider: &[u8], key: &[u8], is_object: boo
     }
     let oo = interp.oo.borrow();
     let m = if is_object {
-        oo.objects.get(provider).and_then(|o| o.methods.get(key))
+        oo.objects.get(&provider).and_then(|o| o.methods.get(key))
     } else {
-        oo.classes.get(provider).and_then(|c| c.methods.get(key))
+        oo.classes.get(&provider).and_then(|c| c.methods.get(key))
     };
     match m {
         Some(Method::Forward { .. }) => b"forward".to_vec(),
@@ -3890,7 +3862,7 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
         return wrong_args(interp, b"info class subcommand className ?arg ...?");
     }
-    let cls = interp.fqn_for(&obj_bytes(argv[3]));
+    let cls = interp.oo_resolve_object(&obj_bytes(argv[3]));
     // C (`TclOOGetClassFromObj`) resolves the object first: a non-object name
     // reports `X does not refer to an object` (no quotes); an object that is
     // not a class reports `"X" is not a class`.
@@ -3906,12 +3878,12 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     match sub {
         b"superclasses" => {
             let s = interp.oo.borrow().classes[&cls].supers.clone();
-            set_list(interp, &s);
+            set_oo_list(interp, &s);
             Code::Ok
         }
         b"mixins" => {
             let m = interp.oo.borrow().classes[&cls].mixins.clone();
-            set_list(interp, &m);
+            set_oo_list(interp, &m);
             Code::Ok
         }
         b"variables" | b"variable" => {
@@ -3933,7 +3905,7 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 Ok(x) => x,
                 Err(code) => return code,
             };
-            let props = interp.class_property_list(&cls, writable, all);
+            let props = interp.class_property_list(cls, writable, all);
             set_list(interp, &props);
             Code::Ok
         }
@@ -3946,8 +3918,9 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 .borrow()
                 .objects
                 .iter()
-                .filter(|(k, o)| o.class == cls && fqn_glob_ok(pat.as_deref(), k))
-                .map(|(k, _)| k.clone())
+                .filter(|(_, o)| o.class == cls)
+                .map(|(k, _)| interp.oo_name(*k))
+                .filter(|name| fqn_glob_ok(pat.as_deref(), name))
                 .collect();
             insts.sort();
             set_list(interp, &insts);
@@ -3962,10 +3935,9 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 .borrow()
                 .classes
                 .iter()
-                .filter(|(k, c)| {
-                    **k != cls && c.supers.contains(&cls) && fqn_glob_ok(pat.as_deref(), k)
-                })
-                .map(|(k, _)| k.clone())
+                .filter(|(k, c)| **k != cls && c.supers.contains(&cls))
+                .map(|(k, _)| interp.oo_name(*k))
+                .filter(|name| fqn_glob_ok(pat.as_deref(), name))
                 .collect();
             subs.sort();
             set_list(interp, &subs);
@@ -3985,9 +3957,9 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             // mixins of its superclasses too), not just the superclass MRO
             // (oo-35.5).
             let chain = if all {
-                interp.class_precedence(&cls)
+                interp.class_precedence(cls)
             } else {
-                vec![cls.clone()]
+                vec![cls]
             };
             for c in &chain {
                 if let Some(cl) = interp.oo.borrow().classes.get(c) {
@@ -4091,10 +4063,10 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             set_list(interp, &f);
             Code::Ok
         }
-        b"forward" => info_forward(interp, &cls, argv, true),
-        b"definition" => info_definition(interp, &cls, argv, true),
-        b"methodtype" => info_methodtype(interp, &cls, argv, true),
-        b"call" => info_call(interp, &cls, argv, true),
+        b"forward" => info_forward(interp, cls, argv, true),
+        b"definition" => info_definition(interp, cls, argv, true),
+        b"methodtype" => info_methodtype(interp, cls, argv, true),
+        b"call" => info_call(interp, cls, argv, true),
         // `properties` is not yet modelled.
         other => {
             let mut m = b"unsupported info class subcommand \"".to_vec();
@@ -4158,94 +4130,46 @@ fn set_list(interp: &mut Interp, names: &[Vec<u8>]) {
     interp.set_result(list::new_list_obj(&elems));
 }
 
+fn set_oo_list(interp: &mut Interp, ids: &[OoId]) {
+    let names: Vec<Vec<u8>> = ids.iter().map(|&id| interp.oo_name(id)).collect();
+    set_list(interp, &names);
+}
+
 // -- the object-system engine (impl Interp) ----------------------------------
 
 impl Interp {
     /// An OO object's/class's command was renamed or deleted (e.g. `rename obj
     /// {}`): keep the OO registry in sync so the name frees up / follows the
     /// command. Tcl ties an object's lifetime to its command.
-    pub(crate) fn oo_command_renamed(&mut self, old_fqn: &[u8], new_fqn: Option<&[u8]>) {
+    pub(crate) fn oo_command_renamed(&mut self, object: OoId, new_fqn: Option<&[u8]>) {
         match new_fqn {
             // Rename: the object/class (and its `my`) follow to the new name.
             Some(nf) => {
                 let mut oo = self.oo.borrow_mut();
-                // A class is registered in *both* maps (classes-as-objects), so
-                // move from both to avoid a dangling half-entry.
-                let obj = oo.objects.remove(old_fqn);
-                let cls = oo.classes.remove(old_fqn);
-                // Only an actual OO object/class command gets re-bound below (not
-                // an incidental rename of `my` or some unrelated command).
-                let was_oo_object = obj.is_some() || cls.is_some();
-                if let Some(o) = obj {
-                    oo.objects.insert(nf.to_vec(), o);
-                }
-                if let Some(c) = cls {
-                    oo.classes.insert(nf.to_vec(), c);
-                }
-                // A renamed per-object `my`/`myclass` follows in the owning
-                // object's alias list, so teardown still finds and deletes it.
-                // References to the renamed object/class in other records' class,
-                // superclass, and mixin lists follow too — C tracks objects by
-                // pointer, so a rename is transparent to its dependents (e.g. a
-                // class mixed into its own renamed instance; oo-23.1).
-                for o in oo.objects.values_mut() {
-                    for a in &mut o.my_aliases {
-                        if a.as_slice() == old_fqn {
-                            *a = nf.to_vec();
-                        }
-                    }
-                    if o.class.as_slice() == old_fqn {
-                        o.class = nf.to_vec();
-                    }
-                    for m in &mut o.mixins {
-                        if m.as_slice() == old_fqn {
-                            *m = nf.to_vec();
-                        }
-                    }
-                }
-                for c in oo.classes.values_mut() {
-                    for s in &mut c.supers {
-                        if s.as_slice() == old_fqn {
-                            *s = nf.to_vec();
-                        }
-                    }
-                    for m in &mut c.mixins {
-                        if m.as_slice() == old_fqn {
-                            *m = nf.to_vec();
-                        }
-                    }
-                }
-                drop(oo);
-                // The object command embeds its own FQN (returned by `self` and
-                // used to resolve the object); re-bind it under the new name so a
-                // renamed object reports and dispatches as its new name (oo-23.1).
-                if was_oo_object {
-                    self.ns_register(nf, Command::OoObject(nf.to_vec()));
-                }
+                oo.names.insert(object, nf.to_vec());
             }
             // Deletion (`rename obj {}`): C ties the object's lifetime to its
             // command, so the destructor fires before the registry entry goes.
             None => {
-                if self.oo.borrow().classes.contains_key(old_fqn) {
-                    self.oo_destroy_class(old_fqn);
-                } else if self.oo.borrow().objects.contains_key(old_fqn) {
+                if self.oo.borrow().classes.contains_key(&object) {
+                    self.oo_destroy_class(object);
+                } else if self.oo.borrow().objects.contains_key(&object) {
                     // Implicit teardown swallows the destructor result.
-                    self.oo_destroy_bg(old_fqn);
+                    self.oo_destroy_bg(object);
                 }
             }
         }
     }
 
-    /// Destroy every OO object whose instance-variable namespace lies within the
-    /// namespace `ns` (or a descendant) — invoked just before `namespace delete`
-    /// clears it, so destructors run with the namespace still intact.
+    /// Destroy every OO object whose instance-variable namespace is the exact
+    /// namespace token `ns`. Namespace recursion invokes this only after that
+    /// token's own activation check, so an active child retains its OO state
+    /// while an inactive parent generation tears down around it.
     pub(crate) fn oo_namespace_deleted(&mut self, ns: NsId) {
         if self.oo_is_empty() {
             return;
         }
-        let ids: std::collections::HashSet<NsId> =
-            self.namespaces().descendant_ids(ns).into_iter().collect();
-        let victims: Vec<Vec<u8>> = self
+        let victims: Vec<OoId> = self
             .oo
             .borrow()
             .objects
@@ -4253,11 +4177,11 @@ impl Interp {
             // Skip objects already being torn down (e.g. the object whose own
             // namespace deletion triggered this cascade) — only the not-yet-
             // destroyed descendants are destroyed here.
-            .filter(|(_, o)| ids.contains(&o.var_ns) && !o.destroyed)
-            .map(|(k, _)| k.clone())
+            .filter(|(_, o)| o.var_ns == ns && !o.destroyed)
+            .map(|(k, _)| *k)
             .collect();
         for v in victims {
-            self.oo_destroy_bg(&v);
+            self.oo_destroy_bg(v);
         }
     }
 
@@ -4269,8 +4193,10 @@ impl Interp {
 
     /// Create class `fqn` (running its optional definition script).
     fn oo_make_class(&mut self, fqn: &[u8], display: &[u8], script: Option<&[u8]>) -> Code {
-        let taken = self.oo.borrow().classes.contains_key(fqn)
-            || self.oo.borrow().objects.contains_key(fqn);
+        self.retire_gate_hidden_object_root(fqn);
+        let existing = self.oo_resolve_object(fqn);
+        let taken = self.oo.borrow().classes.contains_key(&existing)
+            || self.oo.borrow().objects.contains_key(&existing);
         // A root this release does not have is not a collision: the engine
         // seeds the 9.0 metaclasses unconditionally and lets the gate hide
         // them, so on an 8.6 surface the name is the script's to take.
@@ -4282,37 +4208,42 @@ impl Interp {
             m.extend_from_slice(b"\": command already exists with that name");
             return self.error(&m);
         }
+        let object = self.oo.borrow_mut().allocate(fqn.to_vec());
+        let (object_root, class_root) = {
+            let oo = self.oo.borrow();
+            (oo.object_root, oo.class_root)
+        };
         self.oo.borrow_mut().classes.insert(
-            fqn.to_vec(),
+            object,
             Class {
-                supers: vec![b"::oo::object".to_vec()],
+                supers: object_root.into_iter().collect(),
                 ..Class::default()
             },
         );
         // A class is also an object (an instance of `::oo::class`), so it can
         // carry its own methods (`oo::define … self method`) — the TclOO
         // classes-as-objects model.
-        let var_ns = self.ensure_namespace(fqn);
+        let var_ns = self.ensure_command_owned_namespace(fqn);
         let creation_id = self.oo_next_id();
         self.oo.borrow_mut().objects.insert(
-            fqn.to_vec(),
-            Object {
-                class: b"::oo::class".to_vec(),
+            object,
+            Object::new(
+                class_root.expect("TclOO class root installed"),
                 var_ns,
                 creation_id,
-                ..Object::default()
-            },
+            ),
         );
-        self.ns_register(fqn, Command::OoObject(fqn.to_vec()));
-        self.oo_register_my(fqn);
+        self.ns_register(fqn, Command::OoObject(object));
+        self.oo_register_my(object);
         if let Some(script) = script {
-            let code = self.oo_define_body(DefTarget::Class(fqn.to_vec()), script, None);
+            let code = self.oo_define_body(DefTarget::Class(object), script, None);
             if code != Code::Ok {
                 // Roll back a failed definition so the name frees up (C destroys
                 // a partially-created class whose definition script errors).
-                self.oo.borrow_mut().classes.remove(fqn);
-                self.oo.borrow_mut().objects.remove(fqn);
+                self.oo.borrow_mut().classes.remove(&object);
+                self.oo.borrow_mut().objects.remove(&object);
                 self.delete_command(fqn);
+                self.oo.borrow_mut().names.remove(&object);
                 return code;
             }
         }
@@ -4338,7 +4269,7 @@ impl Interp {
         let saved = self.oo.borrow_mut().def_rewrite.replace(prefix);
         let lvl = self.current_level();
         let tfqn = match &target {
-            DefTarget::Class(c) | DefTarget::Object(c) => c.clone(),
+            DefTarget::Class(c) | DefTarget::Object(c) => *c,
         };
         let cid = self.oo.borrow().objects.get(&tfqn).map(|o| o.creation_id);
         self.oo.borrow_mut().def_stack.push((target, lvl, cid));
@@ -4367,14 +4298,15 @@ impl Interp {
         body: &[u8],
         body_src: Option<(Rc<[u8]>, u32)>,
     ) -> Code {
-        let (kind, fqn): (&[u8], Vec<u8>) = match &target {
-            DefTarget::Class(c) => (b"class", c.clone()),
-            DefTarget::Object(o) => (b"object", o.clone()),
+        let (kind, object): (&[u8], OoId) = match &target {
+            DefTarget::Class(c) => (b"class", *c),
+            DefTarget::Object(o) => (b"object", *o),
         };
+        let fqn = self.oo_name(object);
         // The errorInfo frame names the object by its *current* command name, so
         // a `rename` inside the body is reflected (oo-18.6/18.7). The creation id
         // is stable across rename, so we re-find the entry by it at error time.
-        let creation_id = self.oo.borrow().objects.get(&fqn).map(|o| o.creation_id);
+        let creation_id = self.oo.borrow().objects.get(&object).map(|o| o.creation_id);
         let lvl = self.current_level();
         self.oo
             .borrow_mut()
@@ -4404,7 +4336,7 @@ impl Interp {
                     .objects
                     .iter()
                     .find(|(_, o)| o.creation_id == id)
-                    .map(|(k, _)| k.clone())
+                    .map(|(k, _)| self.oo_name(*k))
             })
             .unwrap_or_else(|| fqn.to_vec());
         let mut inner = b"in definition script for ".to_vec();
@@ -4431,11 +4363,11 @@ impl Interp {
         let oo = self.oo.borrow();
         let ns = match target {
             DefTarget::Class(c) => {
-                let meta = oo.objects.get(c).map(|o| o.class.clone())?;
+                let meta = oo.objects.get(c).map(|o| o.class)?;
                 oo.classes.get(&meta)?.class_def_ns.clone()
             }
             DefTarget::Object(o) => {
-                let cls = oo.objects.get(o).map(|ob| ob.class.clone())?;
+                let cls = oo.objects.get(o).map(|ob| ob.class)?;
                 oo.classes.get(&cls)?.def_ns.clone()
             }
         }?;
@@ -4457,21 +4389,21 @@ impl Interp {
     /// an applicable built-in, so the caller falls through.
     fn oo_class_factory(
         &mut self,
-        fqn: &[u8],
+        class: OoId,
         cmd: &[u8],
         method: &[u8],
         args: &[*mut TclObj],
         block_unexported: bool,
     ) -> Option<Code> {
-        if !self.oo.borrow().classes.contains_key(fqn) {
+        if !self.oo.borrow().classes.contains_key(&class) {
             return None;
         }
         // The metaclass `::oo::class` is a singleton: instantiating it builds a
         // *class* (`oo_make_class`), and `new` is unexported on it.
-        let is_meta = fqn == b"::oo::class";
+        let is_meta = Some(class) == self.oo.borrow().class_root;
         let (cre_unexp, new_unexp, cwn_exp) = {
             let oo = self.oo.borrow();
-            match oo.objects.get(fqn) {
+            match oo.objects.get(&class) {
                 Some(o) => (
                     o.unexported.contains(b"create".as_slice()),
                     o.unexported.contains(b"new".as_slice()),
@@ -4494,7 +4426,7 @@ impl Interp {
             self.oo.borrow_mut().ctor_words = Some(words);
         }
         match method {
-            b"new" if !is_meta && new_ok => Some(self.oo_new(fqn, None, b"", args)),
+            b"new" if !is_meta && new_ok => Some(self.oo_new(class, None, b"", args)),
             b"createWithNamespace" if cwn_ok => {
                 if args.len() < 2 {
                     let mut u = cmd.to_vec();
@@ -4515,7 +4447,7 @@ impl Interp {
                     return Some(self.error(&m));
                 }
                 let ns = self.fqn_for(&ns_raw);
-                Some(self.oo_new_ns(fqn, Some(name), &raw, Some(ns), &args[2..]))
+                Some(self.oo_new_ns(class, Some(name), &raw, Some(ns), &args[2..]))
             }
             b"create" if cre_ok => {
                 if args.is_empty() {
@@ -4531,7 +4463,7 @@ impl Interp {
                 Some(if is_meta {
                     self.oo_make_class(&name, &raw, args.get(1).map(|&a| obj_bytes(a)).as_deref())
                 } else {
-                    self.oo_new(fqn, Some(name), &raw, &args[1..])
+                    self.oo_new(class, Some(name), &raw, &args[1..])
                 })
             }
             _ => None,
@@ -4541,12 +4473,12 @@ impl Interp {
     /// Whether `obj` has any active filter (its own object filters, or a class
     /// filter anywhere along its precedence) — so a built-in target like
     /// `destroy` must be dispatched through the filter chain, not directly.
-    fn object_has_filters(&self, obj: &[u8]) -> bool {
+    fn object_has_filters(&self, obj: OoId) -> bool {
         if self
             .oo
             .borrow()
             .objects
-            .get(obj)
+            .get(&obj)
             .is_some_and(|o| !o.filters.is_empty())
         {
             return true;
@@ -4560,20 +4492,21 @@ impl Interp {
         })
     }
 
-    /// Dispatch a command bound to the OO object/class FQN `fqn`.
-    pub(crate) fn oo_dispatch(&mut self, fqn: &[u8], argv: &[*mut TclObj]) -> Code {
+    /// Dispatch a command bound to a stable OO object/class identity.
+    pub(crate) fn oo_dispatch(&mut self, object: OoId, argv: &[*mut TclObj]) -> Code {
         let invoked = obj_bytes(argv[0]);
-        if self.oo.borrow().classes.contains_key(fqn) {
+        if self.oo.borrow().classes.contains_key(&object) {
             // The class instantiation built-ins honour the class's own
             // `export`/`unexport` for this external call.
             if let Some(sub) = argv.get(1).map(|&a| obj_bytes(a)) {
-                if let Some(code) = self.oo_class_factory(fqn, &invoked, &sub, &argv[2..], true) {
+                if let Some(code) = self.oo_class_factory(object, &invoked, &sub, &argv[2..], true)
+                {
                     return code;
                 }
             }
             match argv.get(1).map(|&a| obj_bytes(a)).as_deref() {
                 Some(b"destroy") => {
-                    self.oo_destroy_class(fqn);
+                    self.oo_destroy_class(object);
                     self.set_result_bytes(b"");
                     Code::Ok
                 }
@@ -4581,13 +4514,13 @@ impl Interp {
                 // `oo::define … self method`); dispatch it on the class object.
                 // An unknown method funnels through `oo_invoke` →
                 // `oo_unknown_method` for the C error text.
-                Some(other) => self.oo_invoke(fqn, other, &argv[2..], true, Some(&invoked)),
+                Some(other) => self.oo_invoke(object, other, &argv[2..], true, Some(&invoked)),
                 // No method name: C forces the unknown handler (`FORCE_UNKNOWN`)
                 // with an empty method, so a *user* `unknown` runs with no args.
                 // With only the default handler, report the `wrong # args` usage
                 // naming the command as invoked (`argv[0]`, not the FQN).
-                None if self.has_user_unknown(fqn) => {
-                    self.oo_invoke(fqn, b"unknown", &[], false, None)
+                None if self.has_user_unknown(object) => {
+                    self.oo_invoke(object, b"unknown", &[], false, None)
                 }
                 None => {
                     let mut u = invoked;
@@ -4595,7 +4528,7 @@ impl Interp {
                     wrong_args(self, &u)
                 }
             }
-        } else if self.oo.borrow().objects.contains_key(fqn) {
+        } else if self.oo.borrow().objects.contains_key(&object) {
             match argv.get(1).map(|&a| obj_bytes(a)) {
                 // Explicit `obj destroy` propagates a destructor error to its
                 // caller; on success the method yields the empty string. A
@@ -4604,24 +4537,20 @@ impl Interp {
                 // the unknown handler instead of tearing the object down.
                 Some(m)
                     if m == b"destroy"
-                        && (self.method_exported(fqn, b"destroy")
-                            || !self.method_visibility_flags(fqn, b"destroy").1)
+                        && (self.method_exported(object, b"destroy")
+                            || !self.method_visibility_flags(object, b"destroy").1)
                         // An active filter must wrap `destroy` too, so route it
                         // through oo_invoke (which prepends the filter chain) in
                         // that case rather than tearing down directly (oo-12.2).
-                        && !self.object_has_filters(fqn) =>
+                        && !self.object_has_filters(object) =>
                 {
-                    let code = self.oo_destroy(fqn);
-                    if code == Code::Ok {
-                        self.set_result_bytes(b"");
-                    }
-                    code
+                    self.oo_destroy(object)
                 }
-                Some(method) => self.oo_invoke(fqn, &method, &argv[2..], true, Some(&invoked)),
+                Some(method) => self.oo_invoke(object, &method, &argv[2..], true, Some(&invoked)),
                 // No method name: force a *user* `unknown` (C's `FORCE_UNKNOWN`)
                 // with empty args; else the `wrong # args` usage (as invoked).
-                None if self.has_user_unknown(fqn) => {
-                    self.oo_invoke(fqn, b"unknown", &[], false, None)
+                None if self.has_user_unknown(object) => {
+                    self.oo_invoke(object, b"unknown", &[], false, None)
                 }
                 None => {
                     let mut u = invoked;
@@ -4630,13 +4559,13 @@ impl Interp {
                 }
             }
         } else {
-            self.invalid_command(fqn)
+            self.invalid_command(&self.oo_name(object))
         }
     }
 
     fn oo_new(
         &mut self,
-        class: &[u8],
+        class: OoId,
         name: Option<Vec<u8>>,
         display: &[u8],
         args: &[*mut TclObj],
@@ -4649,7 +4578,7 @@ impl Interp {
     /// `display` is the object name *as written* (for the dup error).
     fn oo_new_ns(
         &mut self,
-        class: &[u8],
+        class: OoId,
         name: Option<Vec<u8>>,
         display: &[u8],
         ns_override: Option<Vec<u8>>,
@@ -4660,8 +4589,10 @@ impl Interp {
             self.oo.borrow_mut().counter += 1;
             n.into_bytes()
         });
-        let taken = self.oo.borrow().objects.contains_key(&fqn)
-            || self.oo.borrow().classes.contains_key(&fqn);
+        self.retire_gate_hidden_object_root(&fqn);
+        let existing = self.oo_resolve_object(&fqn);
+        let taken = self.oo.borrow().objects.contains_key(&existing)
+            || self.oo.borrow().classes.contains_key(&existing);
         // A root this release does not have is not a collision: the engine
         // seeds the 9.0 metaclasses unconditionally and lets the gate hide
         // them, so on an 8.6 surface the name is the script's to take.
@@ -4673,23 +4604,19 @@ impl Interp {
         }
         let var_ns = match ns_override {
             Some(ns) => self.ensure_namespace(&ns),
-            None => self.ensure_namespace(&fqn),
+            None => self.ensure_command_owned_namespace(&fqn),
         };
         let creation_id = self.oo_next_id();
-        self.oo.borrow_mut().objects.insert(
-            fqn.clone(),
-            Object {
-                class: class.to_vec(),
-                var_ns,
-                creation_id,
-                ..Object::default()
-            },
-        );
+        let object = self.oo.borrow_mut().allocate(fqn.clone());
+        self.oo
+            .borrow_mut()
+            .objects
+            .insert(object, Object::new(class, var_ns, creation_id));
         // Instantiating a *metaclass* (one whose MRO includes `::oo::class`)
         // produces a class: register the new instance in the class map too, so
         // it responds to `create`/`new` and is `info object isa class`.
         let mro = self.mro(class);
-        let is_metaclass = mro.iter().any(|c| c.as_slice() == b"::oo::class");
+        let is_metaclass = mro.iter().any(|c| Some(*c) == self.oo.borrow().class_root);
         if is_metaclass {
             // A TIP 558 configurable class (instance of `::oo::configurable`)
             // mixes in the configurable support (for `configure`) and points its
@@ -4697,13 +4624,18 @@ impl Interp {
             // `oo::objdefine $inst property …` resolves). Done before the
             // definition script runs, which still resolves class-name arguments
             // in the caller's namespace.
-            let configurable = mro.iter().any(|c| c.as_slice() == b"::oo::configurable");
+            let configurable = mro
+                .iter()
+                .any(|c| Some(*c) == self.oo.borrow().configurable_root);
+            let configurable_support =
+                self.oo_resolve_object(b"::oo::configuresupport::configurable");
+            let object_root = self.oo.borrow().object_root.into_iter().collect();
             self.oo.borrow_mut().classes.insert(
-                fqn.clone(),
+                object,
                 Class {
-                    supers: vec![b"::oo::object".to_vec()],
+                    supers: object_root,
                     mixins: if configurable {
-                        vec![b"::oo::configuresupport::configurable".to_vec()]
+                        vec![configurable_support]
                     } else {
                         Vec::new()
                     },
@@ -4716,8 +4648,8 @@ impl Interp {
                 },
             );
         }
-        self.ns_register(&fqn, Command::OoObject(fqn.clone()));
-        self.oo_register_my(&fqn);
+        self.ns_register(&fqn, Command::OoObject(object));
+        self.oo_register_my(object);
 
         // Constructor dispatch runs along the *class* MRO (objects can't define
         // constructors), with the object as `self`; the chain is the
@@ -4726,35 +4658,39 @@ impl Interp {
         // that applies the (optional) definition-script argument.
         let chain: Vec<CallStep> = mro
             .iter()
-            .filter(|c| self.class_has_ctor(c) || (is_metaclass && c.as_slice() == b"::oo::class"))
+            .filter(|c| {
+                self.class_has_ctor(**c)
+                    || (is_metaclass && Some(**c) == self.oo.borrow().class_root)
+            })
             .map(|c| CallStep {
-                is_object: c.as_slice() == fqn,
-                provider: c.clone(),
+                is_object: *c == object,
+                provider: *c,
                 method: Vec::new(),
             })
             .collect();
         if !chain.is_empty() {
-            let code = self.oo_run(&fqn, chain, 0, b"", args, MethodInvocation::internal());
+            let code = self.oo_run(object, chain, 0, b"", args, MethodInvocation::internal());
             if code == Code::Error {
                 // A failed constructor tears the partially-built object down,
                 // running its destructor (C: the object is deleted, firing the
                 // destructor chain), then re-raises the constructor's error.
                 let snap = self.error_snapshot();
-                if self.oo.borrow().objects.contains_key(&fqn) {
-                    self.oo_destroy_bg(&fqn);
+                if self.oo.borrow().objects.contains_key(&object) {
+                    self.oo_destroy_bg(object);
                 }
                 // `oo_destroy_bg` removes the object; clean up the class facet
                 // (a failed metaclass instantiation) and the command too.
-                self.oo.borrow_mut().objects.remove(&fqn);
-                self.oo.borrow_mut().classes.remove(&fqn);
+                self.oo.borrow_mut().objects.remove(&object);
+                self.oo.borrow_mut().classes.remove(&object);
                 self.delete_command(&fqn);
+                self.oo.borrow_mut().names.remove(&object);
                 self.error_restore(snap);
                 return Code::Error;
             }
             // A constructor that destroys its own object (`[self] destroy`)
             // leaves nothing to return: `new`/`create` fails (oo-30.1/30.2,
             // Bug 2903011).
-            if !self.oo.borrow().objects.contains_key(&fqn) {
+            if !self.oo.borrow().objects.contains_key(&object) {
                 return self.error(b"object deleted in constructor");
             }
         }
@@ -4768,14 +4704,14 @@ impl Interp {
     /// Invoke method `method` on `obj`. `external` enforces export visibility.
     fn oo_invoke(
         &mut self,
-        obj: &[u8],
+        obj: OoId,
         method: &[u8],
         args: &[*mut TclObj],
         external: bool,
         invoked: Option<&[u8]>,
     ) -> Code {
-        if !self.oo.borrow().objects.contains_key(obj) {
-            return self.invalid_command(obj);
+        if !self.oo.borrow().objects.contains_key(&obj) {
+            return self.invalid_command(&self.oo_name(obj));
         }
         // A torn-down object (its destructor finished, structures dismantled, but
         // command still resolvable) has no call chain for anything — C's
@@ -4786,7 +4722,7 @@ impl Interp {
             .oo
             .borrow()
             .objects
-            .get(obj)
+            .get(&obj)
             .is_some_and(|o| o.torn_down)
         {
             let mut m = b"impossible to invoke method \"".to_vec();
@@ -4804,7 +4740,7 @@ impl Interp {
             .borrow()
             .call_stack
             .last()
-            .is_some_and(|f| f.object.as_slice() == obj);
+            .is_some_and(|f| f.object == obj);
         let enforce = external && !caller_is_self;
         let providers = self.method_chain_faceted(obj);
         // An `export` of the method anywhere in the chain (e.g. on the object)
@@ -4817,12 +4753,12 @@ impl Interp {
         // declaring entity of the currently-running method — is that same
         // provider. From non-method (external) code there is no scope, so all
         // private methods are invisible.
-        let caller_scope: Option<Vec<u8>> = self
+        let caller_scope: Option<OoId> = self
             .oo
             .borrow()
             .call_stack
             .last()
-            .and_then(|f| f.chain.get(f.index).map(|s| s.provider.clone()));
+            .and_then(|f| f.chain.get(f.index).map(|s| s.provider));
         // The target-method steps: every provider that defines `method`. For an
         // external call, skip steps the provider unexports (unless overridden by
         // an export) — so a public override still runs while a private one is
@@ -4831,17 +4767,17 @@ impl Interp {
             .iter()
             .filter(|(p, is_obj)| {
                 let is_obj = *is_obj;
-                if !self.oo_has_method(p, method, is_obj) {
+                if !self.oo_has_method(*p, method, is_obj) {
                     return false;
                 }
                 // A private method is in scope only from its own declarer.
-                if self.method_is_private(p, method, is_obj) {
-                    return caller_scope.as_deref() == Some(p.as_slice());
+                if self.method_is_private(*p, method, is_obj) {
+                    return caller_scope == Some(*p);
                 }
-                !(enforce && !exported_anywhere && self.method_unexported(p, method, is_obj))
+                !(enforce && !exported_anywhere && self.method_unexported(*p, method, is_obj))
             })
             .map(|(p, is_obj)| CallStep {
-                provider: p.clone(),
+                provider: *p,
                 method: method.to_vec(),
                 is_object: *is_obj,
             })
@@ -4849,10 +4785,10 @@ impl Interp {
         // A caller-scope private shadows any public override further down the
         // chain, so move it to the front (it is the most-specific step).
         if !external {
-            if let Some(c) = caller_scope.clone() {
-                let is_obj = c.as_slice() == obj;
-                if self.oo_has_method(&c, method, is_obj)
-                    && self.method_is_private(&c, method, is_obj)
+            if let Some(c) = caller_scope {
+                let is_obj = c == obj;
+                if self.oo_has_method(c, method, is_obj)
+                    && self.method_is_private(c, method, is_obj)
                 {
                     if let Some(pos) = steps.iter().position(|s| s.provider == c) {
                         let s = steps.remove(pos);
@@ -4876,7 +4812,8 @@ impl Interp {
                 if destroy_ok || objbuiltin_ok {
                     let filters = self.active_filters(obj, &providers);
                     if !filters.is_empty() {
-                        let invocation = method_invocation(obj, invoked, method, args, external);
+                        let invocation =
+                            method_invocation(self, obj, invoked, method, args, external);
                         return self.oo_run(obj, filters, 0, method, args, invocation);
                     }
                 }
@@ -4891,19 +4828,19 @@ impl Interp {
                     || exported_anywhere
                     || !self.method_visibility_flags(obj, b"destroy").1)
             {
-                let code = self.oo_destroy(obj);
-                if code == Code::Ok {
-                    self.set_result_bytes(b"");
-                }
-                return code;
+                return self.oo_destroy(obj);
             }
             // The class instantiation built-ins (`create`/`new`/
             // `createWithNamespace`) are reachable here when `obj` is a class
             // — notably via an internal `my create …` from a metaclass method
             // (oo-7.4/7.5). External calls honour the class's export state.
-            if let Some(code) =
-                self.oo_class_factory(obj, obj, method, args, enforce && !exported_anywhere)
-            {
+            if let Some(code) = self.oo_class_factory(
+                obj,
+                &self.oo_name(obj),
+                method,
+                args,
+                enforce && !exported_anywhere,
+            ) {
                 return code;
             }
             // The object built-ins (`variable`/`varname`/`eval`) are not in any
@@ -4917,11 +4854,8 @@ impl Interp {
             }
             // Record the originating scope for the unknown-method error so the
             // `unknown` handler's own frame does not mask it (restored after).
-            let saved_scope = self
-                .oo
-                .borrow_mut()
-                .unknown_scope
-                .replace(caller_scope.clone().unwrap_or_default());
+            let saved_scope = self.oo.borrow_mut().unknown_scope;
+            self.oo.borrow_mut().unknown_scope = caller_scope;
             let saved_external = self.oo.borrow().unknown_external;
             self.oo.borrow_mut().unknown_external = external;
             // A user-defined `unknown` method handles the miss (the method name
@@ -4932,7 +4866,7 @@ impl Interp {
             let code = if (method != b"unknown" || external)
                 && providers
                     .iter()
-                    .any(|(p, is_obj)| self.oo_has_method(p, b"unknown", *is_obj))
+                    .any(|(p, is_obj)| self.oo_has_method(*p, b"unknown", *is_obj))
             {
                 let head = obj::new_string_bytes(method);
                 unsafe { obj::incr_ref_count(head) };
@@ -4966,11 +4900,11 @@ impl Interp {
             if !filters.is_empty() {
                 let mut chain: Vec<CallStep> = filters;
                 chain.append(&mut steps);
-                let invocation = method_invocation(obj, invoked, method, args, external);
+                let invocation = method_invocation(self, obj, invoked, method, args, external);
                 return self.oo_run(obj, chain, 0, method, args, invocation);
             }
         }
-        let invocation = method_invocation(obj, invoked, method, args, external);
+        let invocation = method_invocation(self, obj, invoked, method, args, external);
         self.oo_run(obj, steps, 0, method, args, invocation)
     }
 
@@ -4980,12 +4914,12 @@ impl Interp {
     /// falls through to the unknown-method error).
     fn oo_builtin_method(
         &mut self,
-        obj: &[u8],
+        obj: OoId,
         method: &[u8],
         args: &[*mut TclObj],
         external: bool,
     ) -> Option<Code> {
-        let var_ns = self.oo.borrow().objects.get(obj).map(|o| o.var_ns)?;
+        let var_ns = self.oo.borrow().objects.get(&obj).map(|o| o.var_ns)?;
         match method {
             // Link each named instance variable into the calling method frame.
             b"variable" => {
@@ -5064,7 +4998,7 @@ impl Interp {
                 // Run the script with an OO context frame so `self`/`my` work
                 // inside it (`$obj eval {self}` returns the object; oo-18.12).
                 self.oo.borrow_mut().call_stack.push(OoFrame {
-                    object: obj.to_vec(),
+                    object: obj,
                     chain: Vec::new(),
                     index: 0,
                     target: Vec::new(),
@@ -5078,7 +5012,7 @@ impl Interp {
                 if code == Code::Error {
                     let mut inner = b"in \"".to_vec();
                     if external {
-                        inner.extend_from_slice(obj);
+                        inner.extend_from_slice(&self.oo_name(obj));
                     } else {
                         inner.extend_from_slice(b"my");
                     }
@@ -5094,14 +5028,14 @@ impl Interp {
 
     /// The active filter steps for `obj` (object filters, then class filters
     /// along the MRO), each resolved to the chain provider defining it.
-    fn active_filters(&self, obj: &[u8], providers: &[(Vec<u8>, bool)]) -> Vec<CallStep> {
+    fn active_filters(&self, obj: OoId, providers: &[(OoId, bool)]) -> Vec<CallStep> {
         let mut names: Vec<Vec<u8>> = Vec::new();
         let add = |n: &Vec<u8>, names: &mut Vec<Vec<u8>>| {
             if !names.contains(n) {
                 names.push(n.clone());
             }
         };
-        if let Some(o) = self.oo.borrow().objects.get(obj) {
+        if let Some(o) = self.oo.borrow().objects.get(&obj) {
             for f in &o.filters {
                 add(f, &mut names);
             }
@@ -5122,9 +5056,9 @@ impl Interp {
             .flat_map(|fname| {
                 providers
                     .iter()
-                    .filter(|(p, is_obj)| self.oo_has_method(p, fname, *is_obj))
+                    .filter(|(p, is_obj)| self.oo_has_method(*p, fname, *is_obj))
                     .map(|(p, is_obj)| CallStep {
-                        provider: p.clone(),
+                        provider: *p,
                         method: fname.clone(),
                         is_object: *is_obj,
                     })
@@ -5141,7 +5075,7 @@ impl Interp {
     /// superclass shared with the class chain) to after everything that derives
     /// from them, matching C's `TclOOComputePrecedenceList` / call-chain order
     /// (oo-21.x C3 ordering, oo-14.x mixins).
-    fn method_chain(&self, obj: &[u8]) -> Vec<Vec<u8>> {
+    fn method_chain(&self, obj: OoId) -> Vec<OoId> {
         self.method_chain_faceted(obj)
             .into_iter()
             .map(|(p, _)| p)
@@ -5153,16 +5087,16 @@ impl Interp {
     /// The object facet and a self-mixed class facet share the FQN but are
     /// distinct steps, so the dedup keeps each `(provider, facet)` pair (not
     /// just each name) — needed to dispatch a `self mixin <self>` method.
-    fn method_chain_faceted(&self, obj: &[u8]) -> Vec<(Vec<u8>, bool)> {
+    fn method_chain_faceted(&self, obj: OoId) -> Vec<(OoId, bool)> {
         let (obj_mixins, cls) = {
             let oo = self.oo.borrow();
-            match oo.objects.get(obj) {
-                Some(o) => (o.mixins.clone(), Some(o.class.clone())),
-                None => return vec![(obj.to_vec(), true)],
+            match oo.objects.get(&obj) {
+                Some(o) => (o.mixins.clone(), Some(o.class)),
+                None => return vec![(obj, true)],
             }
         };
-        let mut seq: Vec<(Vec<u8>, bool)> = Vec::new();
-        let mut path: Vec<Vec<u8>> = Vec::new();
+        let mut seq: Vec<(OoId, bool)> = Vec::new();
+        let mut path: Vec<OoId> = Vec::new();
         // One visit budget shared across every mixin and the class chain below
         // (issue #996 — see `MAX_MRO_VISITS`): the cap is on *this whole
         // dispatch's* total linearisation work, not on each sub-walk
@@ -5171,21 +5105,21 @@ impl Interp {
         // Mixins and the class hierarchy contribute *class*-facet steps; the
         // object itself sits between the object mixins and its class chain.
         for mx in &obj_mixins {
-            let mut tmp: Vec<Vec<u8>> = Vec::new();
-            self.linearize_class(mx, &mut tmp, &mut path, 0, &mut budget);
+            let mut tmp: Vec<OoId> = Vec::new();
+            self.linearize_class(*mx, &mut tmp, &mut path, 0, &mut budget);
             seq.extend(tmp.into_iter().map(|c| (c, false)));
         }
-        seq.push((obj.to_vec(), true));
+        seq.push((obj, true));
         if let Some(cls) = cls {
-            let mut tmp: Vec<Vec<u8>> = Vec::new();
-            self.linearize_class(&cls, &mut tmp, &mut path, 0, &mut budget);
+            let mut tmp: Vec<OoId> = Vec::new();
+            self.linearize_class(cls, &mut tmp, &mut path, 0, &mut budget);
             seq.extend(tmp.into_iter().map(|c| (c, false)));
         }
         // Keep each (provider, facet) at its last occurrence (drop earlier dups).
-        let mut chain: Vec<(Vec<u8>, bool)> = Vec::with_capacity(seq.len());
+        let mut chain: Vec<(OoId, bool)> = Vec::with_capacity(seq.len());
         for (i, c) in seq.iter().enumerate() {
             if !seq[i + 1..].iter().any(|x| x == c) {
-                chain.push(c.clone());
+                chain.push(*c);
             }
         }
         chain
@@ -5198,7 +5132,7 @@ impl Interp {
     fn private_storage_name(&self, name: &[u8]) -> Option<Vec<u8>> {
         let oo = self.oo.borrow();
         let frame = oo.call_stack.last()?;
-        let prov = frame.chain.get(frame.index)?.provider.clone();
+        let prov = frame.chain.get(frame.index)?.provider;
         let is_object = prov == frame.object;
         let is_private = if is_object {
             oo.objects
@@ -5289,44 +5223,40 @@ impl Interp {
         }
     }
 
-    /// Resolve an object name to its FQN, following namespace-import aliases to
-    /// the origin command if the qualified name is not itself an object (so an
-    /// imported object command resolves to the real object; oo-1.10).
-    fn oo_resolve_object(&self, name: &[u8]) -> Vec<u8> {
-        let fqn = self.fqn_for(name);
-        if self.oo.borrow().objects.contains_key(&fqn) {
-            return fqn;
+    /// Resolve an object command to its stable TclOO identity. The namespace
+    /// command table is authoritative, so a retained old namespace and a fresh
+    /// same-spelled namespace naturally resolve to different object tokens.
+    fn oo_resolve_object(&self, name: &[u8]) -> OoId {
+        if let Some(Command::OoObject(id)) = self.resolve_dispatchable(self.current_ns(), name) {
+            return id;
         }
-        if let Some(o) = tcl_cmd_core::namespace::origin_bytes(self, name)
-            .filter(|o| self.oo.borrow().objects.contains_key(o))
-        {
-            return o;
-        }
-        // Object/class names resolve like commands: an unqualified name not
-        // found in the current namespace falls back to the global namespace
-        // (e.g. `oo::objdefine [self] class Sub` from inside a method, where the
-        // current namespace is the object's instance namespace; oo-3.11).
-        if !name.starts_with(b"::") {
-            let mut global = b"::".to_vec();
-            global.extend_from_slice(name);
-            if self.oo.borrow().objects.contains_key(&global) {
-                return global;
+        if let Some(origin) = tcl_cmd_core::namespace::origin_bytes(self, name) {
+            if let Some(Command::OoObject(id)) = self.resolve_dispatchable(GLOBAL, &origin) {
+                return id;
             }
         }
-        fqn
+        // Standalone allocation starts at one, so zero is this interpreter's
+        // local miss sentinel. `OoId` itself deliberately has no `Default` or
+        // process-wide invalid value: other consumers may allocate zero.
+        OoId(0)
+    }
+
+    /// Tcl-facing command spelling for one stable TclOO identity.
+    pub(crate) fn oo_name(&self, id: OoId) -> Vec<u8> {
+        self.oo.borrow().name(id).to_vec()
     }
 
     /// The precedence (linearization) of a *class* itself — its mixins, the
     /// class, then its superclasses — keep-last deduped, for `info class call`.
-    fn class_precedence(&self, class: &[u8]) -> Vec<Vec<u8>> {
-        let mut seq: Vec<Vec<u8>> = Vec::new();
-        let mut path: Vec<Vec<u8>> = Vec::new();
+    fn class_precedence(&self, class: OoId) -> Vec<OoId> {
+        let mut seq: Vec<OoId> = Vec::new();
+        let mut path: Vec<OoId> = Vec::new();
         let mut budget = MAX_MRO_VISITS;
         self.linearize_class(class, &mut seq, &mut path, 0, &mut budget);
-        let mut out: Vec<Vec<u8>> = Vec::with_capacity(seq.len());
+        let mut out: Vec<OoId> = Vec::with_capacity(seq.len());
         for (i, c) in seq.iter().enumerate() {
             if !seq[i + 1..].iter().any(|x| x == c) {
-                out.push(c.clone());
+                out.push(*c);
             }
         }
         out
@@ -5347,9 +5277,9 @@ impl Interp {
     /// hanging on an adversarial diamond-mixin shape.
     fn linearize_class(
         &self,
-        class: &[u8],
-        seq: &mut Vec<Vec<u8>>,
-        path: &mut Vec<Vec<u8>>,
+        class: OoId,
+        seq: &mut Vec<OoId>,
+        path: &mut Vec<OoId>,
         depth: u32,
         budget: &mut u32,
     ) {
@@ -5357,23 +5287,23 @@ impl Interp {
             return;
         }
         *budget -= 1;
-        if path.iter().any(|c| c == class) {
+        if path.contains(&class) {
             return;
         }
-        path.push(class.to_vec());
+        path.push(class);
         let (mixins, supers) = {
             let oo = self.oo.borrow();
-            match oo.classes.get(class) {
+            match oo.classes.get(&class) {
                 Some(c) => (c.mixins.clone(), c.supers.clone()),
                 None => (Vec::new(), Vec::new()),
             }
         };
         for mx in &mixins {
-            self.linearize_class(mx, seq, path, depth + 1, budget);
+            self.linearize_class(*mx, seq, path, depth + 1, budget);
         }
-        seq.push(class.to_vec());
+        seq.push(class);
         for s in &supers {
-            self.linearize_class(s, seq, path, depth + 1, budget);
+            self.linearize_class(*s, seq, path, depth + 1, budget);
         }
         path.pop();
     }
@@ -5381,13 +5311,13 @@ impl Interp {
     /// Sorted (ASCII) unique property names for a class. With `all`, unions the
     /// class's readable/writable set over its mixins and superclasses (C's
     /// `FindClassProps`); otherwise just the class's own set (oo-1.1–1.6).
-    fn class_property_list(&self, class: &[u8], writable: bool, all: bool) -> Vec<Vec<u8>> {
+    fn class_property_list(&self, class: OoId, writable: bool, all: bool) -> Vec<Vec<u8>> {
         let mut acc: Vec<Vec<u8>> = Vec::new();
         if all {
-            let mut seen: Vec<Vec<u8>> = Vec::new();
+            let mut seen: Vec<OoId> = Vec::new();
             let mut budget = MAX_MRO_VISITS;
             self.gather_class_props(class, writable, &mut acc, &mut seen, 0, &mut budget);
-        } else if let Some(c) = self.oo.borrow().classes.get(class) {
+        } else if let Some(c) = self.oo.borrow().classes.get(&class) {
             let src = if writable {
                 &c.writable_properties
             } else {
@@ -5411,10 +5341,10 @@ impl Interp {
     /// `linearize_class`'s does.
     fn gather_class_props(
         &self,
-        class: &[u8],
+        class: OoId,
         writable: bool,
         acc: &mut Vec<Vec<u8>>,
-        seen: &mut Vec<Vec<u8>>,
+        seen: &mut Vec<OoId>,
         depth: u32,
         budget: &mut u32,
     ) {
@@ -5422,13 +5352,13 @@ impl Interp {
             return;
         }
         *budget -= 1;
-        if seen.iter().any(|c| c == class) {
+        if seen.contains(&class) {
             return;
         }
-        seen.push(class.to_vec());
+        seen.push(class);
         let (props, mixins, supers) = {
             let oo = self.oo.borrow();
-            match oo.classes.get(class) {
+            match oo.classes.get(&class) {
                 Some(c) => {
                     let p = if writable {
                         c.writable_properties.clone()
@@ -5446,17 +5376,17 @@ impl Interp {
             }
         }
         for m in &mixins {
-            self.gather_class_props(m, writable, acc, seen, depth + 1, budget);
+            self.gather_class_props(*m, writable, acc, seen, depth + 1, budget);
         }
         for s in &supers {
-            self.gather_class_props(s, writable, acc, seen, depth + 1, budget);
+            self.gather_class_props(*s, writable, acc, seen, depth + 1, budget);
         }
     }
 
     /// Sorted unique property names for an object. With `all`, unions the
     /// object's own set with its full precedence (mixins + class chain);
     /// otherwise just the object's own set (oo-1.7–1.11).
-    fn object_property_list(&self, obj: &[u8], writable: bool, all: bool) -> Vec<Vec<u8>> {
+    fn object_property_list(&self, obj: OoId, writable: bool, all: bool) -> Vec<Vec<u8>> {
         let mut acc: Vec<Vec<u8>> = Vec::new();
         let push = |src: &[Vec<u8>], acc: &mut Vec<Vec<u8>>| {
             for p in src {
@@ -5465,7 +5395,7 @@ impl Interp {
                 }
             }
         };
-        if let Some(o) = self.oo.borrow().objects.get(obj) {
+        if let Some(o) = self.oo.borrow().objects.get(&obj) {
             let src = if writable {
                 &o.writable_properties
             } else {
@@ -5497,11 +5427,11 @@ impl Interp {
     /// namespace (e.g. the per-object `my`/`myclass`), return its fully-qualified
     /// form so it resolves while the command still runs in the caller's context;
     /// otherwise return `word` unchanged (resolves globally).
-    fn qualify_in_object_ns(&self, obj: &[u8], word: &[u8]) -> Vec<u8> {
+    fn qualify_in_object_ns(&self, obj: OoId, word: &[u8]) -> Vec<u8> {
         if word.starts_with(b"::") {
             return word.to_vec();
         }
-        let var_ns = self.oo.borrow().objects.get(obj).map(|o| o.var_ns);
+        let var_ns = self.oo.borrow().objects.get(&obj).map(|o| o.var_ns);
         if let Some(ns) = var_ns {
             // Resolve the word as a command in the object's namespace. Only a
             // command whose home lies *within* the object's namespace subtree
@@ -5529,18 +5459,18 @@ impl Interp {
     /// *instance* methods (`classes[prov].methods`). A class is registered in
     /// both maps (classes-as-objects), so this distinction must be by position,
     /// not by which map `prov` is in.
-    fn oo_has_method(&self, prov: &[u8], method: &[u8], is_object: bool) -> bool {
+    fn oo_has_method(&self, prov: OoId, method: &[u8], is_object: bool) -> bool {
         if is_object {
             self.oo
                 .borrow()
                 .objects
-                .get(prov)
+                .get(&prov)
                 .is_some_and(|o| o.methods.contains_key(method))
         } else {
             self.oo
                 .borrow()
                 .classes
-                .get(prov)
+                .get(&prov)
                 .is_some_and(|c| c.methods.contains_key(method))
         }
     }
@@ -5549,29 +5479,29 @@ impl Interp {
     /// object or a class other than the `oo::object` root, whose built-in
     /// `unknown` is the default error). A no-method invocation (`$obj`) routes
     /// to a user handler but otherwise reports the `wrong # args` usage.
-    fn has_user_unknown(&self, obj: &[u8]) -> bool {
+    fn has_user_unknown(&self, obj: OoId) -> bool {
         self.method_chain(obj).iter().any(|p| {
-            p.as_slice() != b"::oo::object"
-                && self.oo_has_method(p, b"unknown", p.as_slice() == obj)
+            Some(*p) != self.oo.borrow().object_root
+                && self.oo_has_method(*p, b"unknown", *p == obj)
         })
     }
 
     /// Whether the class `prov` defines a constructor.
-    fn class_has_ctor(&self, prov: &[u8]) -> bool {
+    fn class_has_ctor(&self, prov: OoId) -> bool {
         self.oo
             .borrow()
             .classes
-            .get(prov)
+            .get(&prov)
             .is_some_and(|c| c.constructor.is_some())
     }
 
     /// Whether `method` was explicitly `export`ed anywhere in `obj`'s method
     /// chain (the object itself or any class in its MRO) — promotes a default-
     /// unexported built-in (`eval`/`variable`/`varname`) to public.
-    fn method_exported(&self, obj: &[u8], method: &[u8]) -> bool {
+    fn method_exported(&self, obj: OoId, method: &[u8]) -> bool {
         self.method_chain(obj).iter().any(|p| {
             let oo = self.oo.borrow();
-            if p.as_slice() == obj {
+            if *p == obj {
                 oo.objects
                     .get(p)
                     .is_some_and(|o| o.exported.contains(method))
@@ -5586,11 +5516,11 @@ impl Interp {
     /// `(exported, unexported, private)` membership for `method` aggregated over
     /// `obj`'s whole method chain — used to resolve a built-in method's effective
     /// visibility for `info object methods -all`.
-    fn method_visibility_flags(&self, obj: &[u8], method: &[u8]) -> (bool, bool, bool) {
+    fn method_visibility_flags(&self, obj: OoId, method: &[u8]) -> (bool, bool, bool) {
         let (mut exp, mut unexp, mut priv_) = (false, false, false);
         for p in self.method_chain(obj) {
             let oo = self.oo.borrow();
-            let sets = if p.as_slice() == obj {
+            let sets = if p == obj {
                 oo.objects
                     .get(&p)
                     .map(|o| (&o.exported, &o.unexported, &o.private))
@@ -5610,34 +5540,34 @@ impl Interp {
 
     /// Whether `method` is a TIP 500 *private* method of `prov` (a subset of its
     /// unexported methods — scoped to `prov`'s own methods).
-    fn method_is_private(&self, prov: &[u8], method: &[u8], is_object: bool) -> bool {
+    fn method_is_private(&self, prov: OoId, method: &[u8], is_object: bool) -> bool {
         if is_object {
             self.oo
                 .borrow()
                 .objects
-                .get(prov)
+                .get(&prov)
                 .is_some_and(|o| o.private.contains(method))
         } else {
             self.oo
                 .borrow()
                 .classes
-                .get(prov)
+                .get(&prov)
                 .is_some_and(|c| c.private.contains(method))
         }
     }
 
-    fn method_unexported(&self, prov: &[u8], method: &[u8], is_object: bool) -> bool {
+    fn method_unexported(&self, prov: OoId, method: &[u8], is_object: bool) -> bool {
         if is_object {
             self.oo
                 .borrow()
                 .objects
-                .get(prov)
+                .get(&prov)
                 .is_some_and(|o| o.unexported.contains(method))
         } else {
             self.oo
                 .borrow()
                 .classes
-                .get(prov)
+                .get(&prov)
                 .is_some_and(|c| c.unexported.contains(method))
         }
     }
@@ -5646,7 +5576,7 @@ impl Interp {
     /// invoked method (empty for a constructor), recorded for `self target`.
     fn oo_run(
         &mut self,
-        obj: &[u8],
+        obj: OoId,
         chain: Vec<CallStep>,
         index: usize,
         target: &[u8],
@@ -5657,7 +5587,7 @@ impl Interp {
             external,
             level_words,
         } = invocation;
-        let prov = chain[index].provider.clone();
+        let prov = chain[index].provider;
         let method = chain[index].method.clone();
         // Object-vs-class facet of this step (a class mixed into its own instance
         // contributes both, so use the step's recorded facet, not `prov == obj`).
@@ -5665,13 +5595,13 @@ impl Interp {
         // The `::oo::class` synthetic constructor: instantiating a metaclass
         // runs the (optional) definition-script argument on the new class. C's
         // `oo::class` constructor is `{{definitionScript ""}}`.
-        if method.is_empty() && prov == b"::oo::class" {
+        if method.is_empty() && Some(prov) == self.oo.borrow().class_root {
             let body = args.first().map(|&a| obj_bytes(a)).unwrap_or_default();
             if body.is_empty() {
                 self.set_result_bytes(b"");
                 return Code::Ok;
             }
-            return self.oo_define_body(DefTarget::Class(obj.to_vec()), &body, None);
+            return self.oo_define_body(DefTarget::Class(obj), &body, None);
         }
         let m = if method.is_empty() {
             self.oo
@@ -5712,7 +5642,7 @@ impl Interp {
         // already pushed by the caller for `self`/`my`).
         if let Method::Builtin(f) = m {
             self.oo.borrow_mut().call_stack.push(OoFrame {
-                object: obj.to_vec(),
+                object: obj,
                 chain,
                 index,
                 target: target.to_vec(),
@@ -5753,7 +5683,7 @@ impl Interp {
             // against them. `fwd_usage` keeps the simple single-step prefix for
             // the immediate next body's `info`-level naming.
             let head = if external {
-                object_display(obj)
+                oo_display(self, obj)
             } else {
                 b"my".to_vec()
             };
@@ -5766,7 +5696,7 @@ impl Interp {
             // `obj method` (2 words) is replaced by the forward `prefix`.
             let is_root = self.begin_ensemble_rewrite(source, 2, prefix.len());
             self.oo.borrow_mut().call_stack.push(OoFrame {
-                object: obj.to_vec(),
+                object: obj,
                 chain,
                 index,
                 target: target.to_vec(),
@@ -5789,9 +5719,9 @@ impl Interp {
         let Method::Body { params, body, src } = m else {
             unreachable!("forward handled above");
         };
-        let Some(var_ns) = self.oo.borrow().objects.get(obj).map(|o| o.var_ns) else {
+        let Some(var_ns) = self.oo.borrow().objects.get(&obj).map(|o| o.var_ns) else {
             let mut m = b"object \"".to_vec();
-            m.extend_from_slice(obj);
+            m.extend_from_slice(&self.oo_name(obj));
             m.extend_from_slice(b"\" has been deleted");
             return self.error(&m);
         };
@@ -5867,7 +5797,7 @@ impl Interp {
             MethodFrameWhat::Named(&method)
         };
         self.oo.borrow_mut().call_stack.push(OoFrame {
-            object: obj.to_vec(),
+            object: obj,
             chain,
             index,
             target: target.to_vec(),
@@ -5882,13 +5812,14 @@ impl Interp {
         // `wrong # args` prefix: a forward's rewritten original invocation, else
         // the invoking `obj method` (external) / `my method` (internal). Only
         // regular methods (constructors/destructors keep their synthetic name).
+        let forwarded_usage = self.oo.borrow_mut().fwd_usage.take();
         let usage_prefix: Option<Vec<u8>> = if method.is_empty() || method == b"<destructor>" {
             None
-        } else if let Some(u) = self.oo.borrow_mut().fwd_usage.take() {
+        } else if let Some(u) = forwarded_usage {
             Some(u)
         } else {
             let mut p = if external {
-                object_display(obj)
+                oo_display(self, obj)
             } else {
                 b"my".to_vec()
             };
@@ -5923,7 +5854,7 @@ impl Interp {
             CallMeta {
                 err: ProcFrame::Method {
                     kind,
-                    owner: &prov,
+                    owner: &self.oo_name(prov),
                     what,
                 },
                 fqn: None,
@@ -5951,22 +5882,24 @@ impl Interp {
 
     /// Destroy an object during implicit teardown, routing a destructor error to
     /// the `interp bgerror` handler (C's `AfterNRDestructor` → background error).
-    fn oo_destroy_bg(&mut self, obj: &[u8]) {
-        if self.oo_destroy(obj) == Code::Error {
-            let msg = self.result_bytes();
-            let ec = self.error_code();
-            let options = build_list(&[
-                b"-code".to_vec(),
-                b"1".to_vec(),
-                b"-level".to_vec(),
-                b"0".to_vec(),
-                b"-errorcode".to_vec(),
-                ec,
-                b"-errorinfo".to_vec(),
-                msg.clone(),
-            ]);
-            self.report_bg_error(&msg, &options);
-        }
+    fn oo_destroy_bg(&mut self, obj: OoId) {
+        self.with_preserved_result(|interp| {
+            if interp.oo_destroy(obj) == Code::Error {
+                let msg = interp.result_bytes();
+                let ec = interp.error_code();
+                let options = build_list(&[
+                    b"-code".to_vec(),
+                    b"1".to_vec(),
+                    b"-level".to_vec(),
+                    b"0".to_vec(),
+                    b"-errorcode".to_vec(),
+                    ec,
+                    b"-errorinfo".to_vec(),
+                    msg.clone(),
+                ]);
+                interp.report_bg_error(&msg, &options);
+            }
+        });
     }
 
     /// Destroy an object. Returns the destructor's result `Code`: explicit
@@ -5975,20 +5908,23 @@ impl Interp {
     /// teardown (`rename {}`/`namespace delete`/class cascade) reports it to
     /// `bgerror`. Cleanup of the command/namespace happens regardless of the
     /// destructor outcome.
-    fn oo_destroy(&mut self, obj: &[u8]) -> Code {
+    fn oo_destroy(&mut self, obj: OoId) -> Code {
         // Re-entrancy guard (C's DESTRUCTOR_CALLED): run the destructor at most
         // once even if `destroy`/`rename {}`/`namespace delete` all reach here.
-        let state = self.oo.borrow().objects.get(obj).map(|o| o.destroyed);
+        let state = self.oo.borrow().objects.get(&obj).map(|o| o.destroyed);
         let mut dtor_code = Code::Ok;
         match state {
             None => return Code::Ok, // not an object (or already fully removed)
             Some(false) => {
-                if let Some(o) = self.oo.borrow_mut().objects.get_mut(obj) {
+                // The no-destructor result is empty; a destructor body replaces
+                // it and explicit `destroy` must preserve that successful value.
+                self.set_result_bytes(b"");
+                if let Some(o) = self.oo.borrow_mut().objects.get_mut(&obj) {
                     o.destroyed = true;
                 }
                 dtor_code = self.oo_run_destructors(obj);
             }
-            Some(true) => {} // destructor already running/ran — fall through to cleanup
+            Some(true) => self.set_result_bytes(b""),
         }
         // The destructor has run; the object is now being dismantled. Mark it
         // torn-down *before* the descendant cascade so a nested-owned child whose
@@ -5996,34 +5932,27 @@ impl Interp {
         // method" (C guts the object in `ObjectNamespaceDeleted` before its
         // child namespaces are deleted). The object stays in the registry — and
         // its command resolvable — until cleanup below.
-        if let Some(o) = self.oo.borrow_mut().objects.get_mut(obj) {
+        if let Some(o) = self.oo.borrow_mut().objects.get_mut(&obj) {
             o.torn_down = true;
         }
         // If the object is also a class, its subclasses and instances are
         // descendants too (C's `TclOODeleteDescendants`): destroy them, so e.g.
         // tearing down a class reached as another metaclass's instance also tears
         // down that class's own instances (oo-16.14 pollution).
-        if self.oo.borrow().classes.contains_key(obj) {
+        if self.oo.borrow().classes.contains_key(&obj) {
             self.oo_destroy_class_descendants(obj);
         }
-        let var_ns = self.oo.borrow().objects.get(obj).map(|o| o.var_ns);
-        if let Some(ns) = var_ns {
-            // Nested ownership (C's `ObjectNamespaceDeleted` →
-            // `TclOODeleteDescendants`): an object created inside this object's
-            // instance namespace is owned by it, so destroying this object tears
-            // those children down too — in nesting order, while their namespaces
-            // are still intact. `oo_namespace_deleted` skips already-destroyed
-            // objects, so this only reaches the (not-yet-destroyed) descendants.
-            self.oo_namespace_deleted(ns);
-        }
-        let aliases = self
-            .oo
-            .borrow()
-            .objects
-            .get(obj)
-            .map(|o| o.my_aliases.clone())
-            .unwrap_or_default();
-        // Delete the instance namespace first — this unsets its variables and
+        let var_ns = self.oo.borrow().objects.get(&obj).map(|o| o.var_ns);
+        // Tcl retires all three command roles before tearing down the instance
+        // namespace: public object, `myclass`, then `my`. An earlier callback
+        // may relocate a later dispatcher, so the centralized role walk
+        // re-resolves every token immediately before firing it.
+        self.fire_oo_command_role_delete_traces(obj);
+        // Private dispatchers stop existing before object-variable unset
+        // callbacks. The public object command deliberately remains visible
+        // through that namespace phase, matching Tcl's `FreeObject` boundary.
+        self.remove_prefired_oo_private_commands(obj);
+        // Then delete the instance namespace — this unsets its variables and
         // fires their unset traces while the object is still registered and
         // torn-down, so a trace callback sees `info object isa object` true, the
         // namespace already gone, and a method call as "impossible to invoke
@@ -6031,27 +5960,25 @@ impl Interp {
         if let Some(ns) = var_ns {
             self.delete_namespace_by_id(ns);
         }
-        // Then drop the registry entries (a metaclass instance is in both maps),
-        // the command, and the per-object `my`/`myclass` (a `my` renamed out of
-        // the namespace is tied to the object's lifetime in C, so delete it too).
-        self.oo.borrow_mut().objects.remove(obj);
-        self.oo.borrow_mut().classes.remove(obj);
-        self.delete_command(obj);
-        for a in aliases {
-            self.delete_command(&a);
-        }
+        // Finally retire every remaining public/private command token by identity,
+        // wherever rename or hide moved it, before dropping the registry
+        // records those delete callbacks may inspect.
+        self.retire_prefired_oo_command_identity(obj);
+        self.oo.borrow_mut().objects.remove(&obj);
+        self.oo.borrow_mut().classes.remove(&obj);
+        self.oo.borrow_mut().names.remove(&obj);
         dtor_code
     }
 
     /// Run the object's destructor chain (every class in the MRO that declares a
     /// `destructor`, most-derived first, with `next` chaining), with the object
     /// still intact so the body's `my`/variables resolve.
-    fn oo_run_destructors(&mut self, obj: &[u8]) -> Code {
-        let Some(class) = self.oo.borrow().objects.get(obj).map(|o| o.class.clone()) else {
+    fn oo_run_destructors(&mut self, obj: OoId) -> Code {
+        let Some(class) = self.oo.borrow().objects.get(&obj).map(|o| o.class) else {
             return Code::Ok;
         };
         let chain: Vec<CallStep> = self
-            .mro(&class)
+            .mro(class)
             .into_iter()
             .filter(|c| {
                 self.oo
@@ -6061,7 +5988,7 @@ impl Interp {
                     .is_some_and(|cl| cl.destructor.is_some())
             })
             .map(|c| CallStep {
-                is_object: c.as_slice() == obj,
+                is_object: c == obj,
                 provider: c,
                 method: b"<destructor>".to_vec(),
             })
@@ -6082,14 +6009,14 @@ impl Interp {
         )
     }
 
-    fn oo_destroy_class(&mut self, class: &[u8]) {
+    fn oo_destroy_class(&mut self, class: OoId) {
         // Already being torn down (a cycle of mixins/superclasses, or reached
         // again via an instance cascade) — nothing more to do.
         if self
             .oo
             .borrow()
             .objects
-            .get(class)
+            .get(&class)
             .is_none_or(|o| o.destroyed)
         {
             return;
@@ -6097,7 +6024,7 @@ impl Interp {
         // Destroying a class cascades to its subclasses and instances (TclOO),
         // then removes the class object itself. Mark it destroyed first so the
         // cascade does not re-enter it.
-        if let Some(o) = self.oo.borrow_mut().objects.get_mut(class) {
+        if let Some(o) = self.oo.borrow_mut().objects.get_mut(&class) {
             o.destroyed = true;
         }
         self.oo_destroy_class_descendants(class);
@@ -6105,22 +6032,12 @@ impl Interp {
         // and the class's own instance namespace — a class created with an
         // explicit target namespace (`oo::copy … <ns>`) owns it, so destroying
         // the class must delete it too (oo-15.13.x), as `oo_destroy` does.
-        let (var_ns, aliases) = {
-            let oo = self.oo.borrow();
-            let o = oo.objects.get(class);
-            (
-                o.map(|o| o.var_ns),
-                o.map(|o| o.my_aliases.clone()).unwrap_or_default(),
-            )
-        };
-        self.oo.borrow_mut().classes.remove(class);
-        self.oo.borrow_mut().objects.remove(class);
-        self.delete_command(class);
-        for a in aliases {
-            self.delete_command(&a);
-        }
+        let var_ns = self.oo.borrow().objects.get(&class).map(|o| o.var_ns);
+        self.retire_oo_command_identity(class);
+        self.oo.borrow_mut().classes.remove(&class);
+        self.oo.borrow_mut().objects.remove(&class);
+        self.oo.borrow_mut().names.remove(&class);
         if let Some(ns) = var_ns {
-            self.oo_namespace_deleted(ns);
             self.delete_namespace_by_id(ns);
         }
     }
@@ -6129,19 +6046,17 @@ impl Interp {
     /// leaving the class object itself intact. Shared by full class destruction
     /// and by demoting a class to a plain object (oo-13.6). Already-destroyed
     /// descendants are skipped so cyclic hierarchies don't recurse forever.
-    fn oo_destroy_class_descendants(&mut self, class: &[u8]) {
+    fn oo_destroy_class_descendants(&mut self, class: OoId) {
         // Subclasses first: any class that lists this one as a superclass/mixin.
-        let subs: Vec<Vec<u8>> = self
+        let subs: Vec<OoId> = self
             .oo
             .borrow()
             .classes
             .iter()
             .filter(|(k, c)| {
-                k.as_slice() != class
-                    && (c.supers.iter().any(|s| s.as_slice() == class)
-                        || c.mixins.iter().any(|m| m.as_slice() == class))
+                **k != class && (c.supers.contains(&class) || c.mixins.contains(&class))
             })
-            .map(|(k, _)| k.clone())
+            .map(|(k, _)| *k)
             .filter(|k| {
                 self.oo
                     .borrow()
@@ -6151,31 +6066,29 @@ impl Interp {
             })
             .collect();
         for s in subs {
-            self.oo_destroy_class(&s);
+            self.oo_destroy_class(s);
         }
         // Then this class's direct instances *and* any object that mixes it in
         // (C's instances list includes the objects we're mixed into).
-        let insts: Vec<Vec<u8>> = self
+        let insts: Vec<OoId> = self
             .oo
             .borrow()
             .objects
             .iter()
             .filter(|(k, o)| {
-                k.as_slice() != class
-                    && !o.destroyed
-                    && (o.class == class || o.mixins.iter().any(|m| m.as_slice() == class))
+                **k != class && !o.destroyed && (o.class == class || o.mixins.contains(&class))
             })
-            .map(|(k, _)| k.clone())
+            .map(|(k, _)| *k)
             .collect();
         for o in insts {
-            self.oo_destroy_bg(&o);
+            self.oo_destroy_bg(o);
         }
     }
 
     /// The method-resolution order for `class`: a preorder walk of the class and
     /// its superclasses, each class appearing once.
-    fn mro(&self, class: &[u8]) -> Vec<Vec<u8>> {
-        let mut guard: Vec<Vec<u8>> = Vec::new();
+    fn mro(&self, class: OoId) -> Vec<OoId> {
+        let mut guard: Vec<OoId> = Vec::new();
         self.c3_linearize(class, &mut guard)
     }
 
@@ -6183,25 +6096,27 @@ impl Interp {
     /// in C3 order — so a diamond `D(B C)`/`B(A)`/`C(A)` yields `[D B C A]`,
     /// deferring `A` until after both `B` and `C`). `guard` breaks cycles in a
     /// malformed hierarchy (falling back to a preorder remainder).
-    fn c3_linearize(&self, class: &[u8], guard: &mut Vec<Vec<u8>>) -> Vec<Vec<u8>> {
-        if guard.iter().any(|c| c == class) {
-            return vec![class.to_vec()];
+    fn c3_linearize(&self, class: OoId, guard: &mut Vec<OoId>) -> Vec<OoId> {
+        if guard.contains(&class) {
+            return vec![class];
         }
-        guard.push(class.to_vec());
+        guard.push(class);
         let supers = self
             .oo
             .borrow()
             .classes
-            .get(class)
+            .get(&class)
             .map(|c| c.supers.clone())
             .unwrap_or_default();
         let result = if supers.is_empty() {
-            vec![class.to_vec()]
+            vec![class]
         } else {
-            let mut seqs: Vec<Vec<Vec<u8>>> =
-                supers.iter().map(|s| self.c3_linearize(s, guard)).collect();
+            let mut seqs: Vec<Vec<OoId>> = supers
+                .iter()
+                .map(|s| self.c3_linearize(*s, guard))
+                .collect();
             seqs.push(supers.clone());
-            let mut out = vec![class.to_vec()];
+            let mut out = vec![class];
             out.extend(c3_merge(seqs));
             out
         };
@@ -6214,8 +6129,8 @@ impl Interp {
 /// appear in the *tail* of any sequence, removing it from all. On an
 /// inconsistent hierarchy (no valid head), append the remaining heads in order
 /// (degraded, rather than looping).
-fn c3_merge(mut seqs: Vec<Vec<Vec<u8>>>) -> Vec<Vec<u8>> {
-    let mut out: Vec<Vec<u8>> = Vec::new();
+fn c3_merge(mut seqs: Vec<Vec<OoId>>) -> Vec<OoId> {
+    let mut out: Vec<OoId> = Vec::new();
     loop {
         seqs.retain(|s| !s.is_empty());
         if seqs.is_empty() {
@@ -6230,15 +6145,15 @@ fn c3_merge(mut seqs: Vec<Vec<Vec<u8>>>) -> Vec<Vec<u8>> {
             if in_tail {
                 None
             } else {
-                Some(h.clone())
+                Some(*h)
             }
         });
         let head = match head {
             Some(h) => h,
             // Inconsistent: break the deadlock with the first available head.
-            None => seqs[0][0].clone(),
+            None => seqs[0][0],
         };
-        out.push(head.clone());
+        out.push(head);
         for s in &mut seqs {
             if s.first() == Some(&head) {
                 s.remove(0);
@@ -7636,6 +7551,393 @@ mod tests {
             assert_eq!(
                 i.result_bytes(),
                 b"can't create object \"K\": command already exists with that name"
+            );
+        });
+    }
+
+    /// TclOO command lifetime is the stable owner identity, not the current
+    /// table/name. Explicit destruction must retire a hidden object token and
+    /// preserve the destructor's successful result.
+    #[test]
+    fn hidden_object_destruction_retires_identity_and_preserves_result() {
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    br#"set log {}
+                        oo::class create C {
+                            destructor {lappend ::log [self object]}
+                        }
+                        C create x
+                        interp hide {} x held
+                        set a [interp invokehidden {} held destroy]
+                        list $a $log [interp hidden {}] \
+                             [catch {interp invokehidden {} held destroy} m] $m"#,
+                ),
+                br#"::x ::x {} 1 {invalid hidden command name "held"}"#,
+            );
+        });
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    br#"namespace eval N {
+                            oo::class create C
+                            C create o
+                            namespace export o
+                        }
+                        namespace import N::o
+                        set a [o destroy]
+                        list $a [info commands o] [info commands ::N::o]"#,
+                ),
+                b"{} {} {}",
+            );
+        });
+    }
+
+    /// Class commands and the private dispatchers share the same retirement
+    /// seam, including after independent rename and hide operations.
+    #[test]
+    fn hidden_class_and_private_dispatchers_retire_by_owner_identity() {
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    br#"oo::class create C
+                        C create x
+                        interp hide {} C heldC
+                        interp invokehidden {} heldC destroy
+                        list [interp hidden {}] [info commands x] \
+                             [catch {interp invokehidden {} heldC new} m] $m"#,
+                ),
+                br#"{} {} 1 {invalid hidden command name "heldC"}"#,
+            );
+        });
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    br#"oo::class create C {method who {} {self object}}
+                        C create x
+                        set ns [info object namespace x]
+                        rename ${ns}::my myx
+                        interp hide {} myx heldmy
+                        x destroy
+                        list [interp hidden {}] \
+                             [catch {interp invokehidden {} heldmy who} m] $m"#,
+                ),
+                br#"{} 1 {invalid hidden command name "heldmy"}"#,
+            );
+        });
+    }
+
+    /// TclOO teardown removes the old command token's trace list, not traces a
+    /// delete callback attaches to a same-named replacement (Tcl 9.0.4).
+    #[test]
+    fn object_retirement_preserves_visible_replacement_traces() {
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    br#"set log {}
+                        oo::class create C {
+                            destructor {lappend ::log [list d [self object]]}
+                        }
+                        C create x
+                        proc cb {old new op} {
+                            lappend ::log [list t $old $new $op]
+                            proc x {} {return P}
+                            trace add command x delete cbnew
+                        }
+                        proc cbnew {old new op} {
+                            lappend ::log [list r $old $new $op]
+                        }
+                        trace add command x delete cb
+                        x destroy
+                        set before [list [x] [trace info command x] $log]
+                        rename x {}
+                        list $before $log"#,
+                ),
+                br#"{P {{delete cbnew}} {{d ::x} {t ::x {} delete}}} {{d ::x} {t ::x {} delete} {r ::x {} delete}}"#,
+            );
+        });
+    }
+
+    /// A hidden token keeps its generation, so its delete trace does not own a
+    /// visible replacement and trace at the same display spelling.
+    #[test]
+    fn object_retirement_preserves_hidden_name_replacement_traces() {
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    br#"set log {}
+                        oo::class create C {
+                            destructor {lappend ::log [list d [self object]]}
+                        }
+                        C create x
+                        proc cb {old new op} {
+                            lappend ::log [list t $old $new $op]
+                            proc held {} {return H}
+                            trace add command held delete cbnew
+                        }
+                        proc cbnew {old new op} {
+                            lappend ::log [list r $old $new $op]
+                        }
+                        trace add command x delete cb
+                        interp hide {} x held
+                        interp invokehidden {} held destroy
+                        set before [list [held] [trace info command held] $log \
+                                         [interp hidden {}]]
+                        rename held {}
+                        list $before $log"#,
+                ),
+                br#"{H {{delete cbnew}} {{d ::x} {t ::held {} delete}} {}} {{d ::x} {t ::held {} delete} {r ::held {} delete}}"#,
+            );
+        });
+    }
+
+    /// Renaming an object's private dispatcher does not turn its mutable name
+    /// into ownership: a callback replacement at that name remains independent.
+    #[test]
+    fn object_retirement_preserves_private_dispatcher_replacement_traces() {
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    br#"set log {}
+                        oo::class create C {
+                            destructor {lappend ::log [list d [self object]]}
+                        }
+                        C create x
+                        set ns [info object namespace x]
+                        rename ${ns}::my myx
+                        proc cb {old new op} {
+                            lappend ::log [list t $old $new $op]
+                            proc myx {} {return M}
+                            trace add command myx delete cbnew
+                        }
+                        proc cbnew {old new op} {
+                            lappend ::log [list r $old $new $op]
+                        }
+                        trace add command myx delete cb
+                        x destroy
+                        set before [list [myx] [trace info command myx] $log]
+                        rename myx {}
+                        list $before $log"#,
+                ),
+                br#"{M {{delete cbnew}} {{d ::x} {t ::myx {} delete}}} {{d ::x} {t ::myx {} delete} {r ::myx {} delete}}"#,
+            );
+        });
+    }
+
+    /// The public object's delete callback runs before private dispatchers. A
+    /// dispatcher it moves is found again by identity and retired at its new
+    /// location, including a trace attached there by the callback.
+    #[test]
+    fn public_delete_callback_can_relocate_a_private_dispatcher() {
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    br#"set log {}
+                        oo::class create C
+                        C create x
+                        set ns [info object namespace x]
+                        proc cb {ns old new op} {
+                            lappend ::log [list move \
+                                [catch {rename ${ns}::my ::movedmy} msg] \
+                                $msg [info commands ::movedmy]]
+                            trace add command ::movedmy delete mygone
+                        }
+                        proc mygone {old new op} {
+                            lappend ::log [list mygone $old $op]
+                        }
+                        trace add command x delete [list cb $ns]
+                        x destroy
+                        list $log [info commands ::movedmy]"#,
+                ),
+                br#"{{move 0 {} ::movedmy} {mygone ::movedmy delete}} {}"#,
+            );
+        });
+    }
+
+    /// Tcl retires an object's three command roles in semantic order rather
+    /// than their table-generation order, even after both private dispatchers
+    /// have moved out of the instance namespace.
+    #[test]
+    fn object_command_roles_retire_public_myclass_my() {
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    br#"set log {}
+                        oo::class create C
+                        C create x
+                        set ns [info object namespace x]
+                        rename ${ns}::my ::mm
+                        rename ${ns}::myclass ::mc
+                        proc t {tag old new op} {lappend ::log $tag}
+                        trace add command x delete [list t public]
+                        trace add command ::mm delete [list t my]
+                        trace add command ::mc delete [list t myclass]
+                        x destroy
+                        set log"#,
+                ),
+                b"public myclass my",
+            );
+        });
+    }
+
+    /// TclOO's semantic role order also precedes instance-variable teardown.
+    /// Moving only `myclass` from the public callback is the asymmetric case:
+    /// table order would otherwise delete the remaining `my` first.
+    #[test]
+    fn object_command_roles_precede_variables_after_asymmetric_move() {
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    br#"set log {}
+                        oo::class create C
+                        C create x
+                        set ns [info object namespace x]
+                        set ${ns}::v 1
+                        proc public {ns old new op} {
+                            lappend ::log public
+                            rename ${ns}::myclass ::mc
+                        }
+                        proc t {tag args} {lappend ::log $tag}
+                        proc var {name1 name2 op} {
+                            set c [catch {trace add command ::mc delete late} m]
+                            lappend ::log [list var [info commands ::mc] $c $m \
+                                                [info commands ::x]]
+                        }
+                        proc late {args} {lappend ::log late}
+                        trace add command x delete [list public $ns]
+                        trace add command ${ns}::my delete [list t my]
+                        trace add command ${ns}::myclass delete [list t myclass]
+                        trace add variable ${ns}::v unset var
+                        x destroy
+                        set log"#,
+                ),
+                b"public myclass my {var {} 1 {unknown command \"::mc\"} ::x}",
+            );
+        });
+    }
+
+    /// A later role may attach a trace to an earlier role while every command
+    /// token is still visible. Tcl discards that late trace at final removal;
+    /// it does not restart the semantic role walk (Tcl 9.0.4).
+    #[test]
+    fn object_command_role_walk_does_not_revisit_earlier_roles() {
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    br#"set log {}
+                        oo::class create C
+                        C create x
+                        set ns [info object namespace x]
+                        proc t {tag args} {lappend ::log $tag}
+                        proc mc {old new op} {
+                            set c [catch {trace add command ::x delete late} m]
+                            lappend ::log [list mc ::x $c $m]
+                        }
+                        proc late {old new op} {lappend ::log late}
+                        trace add command x delete [list t public]
+                        trace add command ${ns}::myclass delete mc
+                        trace add command ${ns}::my delete [list t my]
+                        x destroy
+                        set log"#,
+                ),
+                b"public {mc ::x 0 {}} my",
+            );
+        });
+    }
+
+    /// Namespace imports retain the source command token across `interp hide`.
+    /// They keep dispatching the hidden OO object, report its hidden origin,
+    /// and retire with it.
+    #[test]
+    fn hidden_object_imports_follow_and_retire_with_the_source_token() {
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    br#"oo::class create C {method ping {} {return ok}}
+                        C create x
+                        namespace export x
+                        namespace eval dst {namespace import ::x}
+                        set before [dst::x ping]
+                        interp hide {} x hx
+                        set hiddenCall [dst::x ping]
+                        set hiddenOrigin [namespace eval dst {namespace origin x}]
+                        interp invokehidden {} hx destroy
+                        list $before $hiddenCall $hiddenOrigin \
+                             [namespace eval dst {info commands x}]"#,
+                ),
+                b"ok ok ::hx {}",
+            );
+        });
+    }
+
+    /// Installing an ordinary command over an object command retires that
+    /// exact TclOO owner—including destructors and class descendant cascades—
+    /// while leaving the newly-installed command intact.
+    #[test]
+    fn ordinary_command_replacement_runs_displaced_oo_lifecycle() {
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    br#"set log {}
+                        oo::class create C {
+                            destructor {lappend ::log [self object]}
+                        }
+                        C create x
+                        proc x {} {return P}
+                        list $log [info object isa object x] [x]"#,
+                ),
+                b"::x 0 P",
+            );
+        });
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    br#"oo::class create C
+                        C create x
+                        proc C {} {return P}
+                        list [info commands x] [info object isa object x] [C]"#,
+                ),
+                b"{} 0 P",
+            );
+        });
+    }
+
+    /// The declaring scope of an unknown-method miss is stable OO identity.
+    /// Renaming the provider inside its user `unknown` method therefore does
+    /// not hide that provider's private methods from the final diagnostic.
+    #[test]
+    fn unknown_scope_survives_provider_rename() {
+        leak_free(|i| {
+            assert_eq!(
+                ok(
+                    i,
+                    br#"oo::class create C {
+                            private method secret {} {return SECRET}
+                            method probe {} {my missing}
+                            method unknown args {
+                                rename ::C ::D
+                                next {*}$args
+                            }
+                        }
+                        C create o
+                        catch {o probe} m
+                        list $m [info object class o]"#,
+                ),
+                br#"{unknown method "missing": must be <cloned>, destroy, eval, probe, secret, unknown, variable or varname} ::D"#,
             );
         });
     }
