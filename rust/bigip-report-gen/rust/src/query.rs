@@ -54,7 +54,7 @@ impl std::error::Error for ReportError {}
 /// Mirrors `f5report._engine::value_to_py` one-for-one.
 pub(crate) fn value_to_json(value: &Value) -> J {
     match value {
-        Value::Null | Value::Drop => J::Null,
+        Value::Null | Value::Unresolved(_) | Value::Drop => J::Null,
         Value::Bool(b) => J::Bool(*b),
         Value::Int(i) => J::from(*i),
         Value::Float(f) => serde_json::Number::from_f64(*f).map_or(J::Null, J::Number),
