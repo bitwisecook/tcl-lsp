@@ -190,18 +190,30 @@ fn build_side_roots(
 /// remaining sources fall back to filename-stem auto-naming, and a stem
 /// collision binds the later source under its full URI instead so the
 /// earlier name keeps working.
+///
+/// A source in *prebuilt* binds to that root rather than a fresh parse, so
+/// `$name` and `.` are the same root for the same source: they share the
+/// object cache, the merged view under `--merge`, and any post-edit state a
+/// multi-statement query has reached.
 fn build_named_roots(
     sources: &[(String, String)],
     side_roots: &HashMap<String, std::rc::Rc<Root>>,
+    prebuilt: &[std::rc::Rc<Root>],
     opts: &QueryOptions,
 ) -> HashMap<String, std::rc::Rc<Root>> {
     let mut bindings: HashMap<String, std::rc::Rc<Root>> = HashMap::new();
     let mut used: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    let root_for = |uri: &str, src: &str| {
+        prebuilt
+            .iter()
+            .find(|r| r.uri == uri)
+            .map_or_else(|| build_root(uri, src, opts), std::rc::Rc::clone)
+    };
 
     if !opts.names.is_empty() {
         for (nm, uri) in &opts.names {
             if let Some((u, src)) = sources.iter().find(|(u, _)| u == uri) {
-                bindings.insert(nm.clone(), build_root(u, src, opts));
+                bindings.insert(nm.clone(), root_for(u, src));
                 used.insert(u.as_str());
             }
         }
@@ -213,10 +225,10 @@ fn build_named_roots(
         let stem = filename_stem(uri);
         if bindings.contains_key(&stem) {
             // Collision: keep the earlier binding, expose this source by URI.
-            bindings.insert(uri.clone(), build_root(uri, src, opts));
+            bindings.insert(uri.clone(), root_for(uri, src));
             continue;
         }
-        bindings.insert(stem, build_root(uri, src, opts));
+        bindings.insert(stem, root_for(uri, src));
     }
     // Side-input `$NAME` bindings win over (and never participate in) the
     // BIG-IP auto-naming: they're bound by explicit name only. The CLI has
@@ -280,20 +292,17 @@ pub fn run_query(
         for stmt in &program.statements {
             // Rebuild the root against the post-edit text so a multi-statement
             // `;` chain reads coherent intermediate state.
-            let named_roots = build_named_roots(sources, &side_roots, opts);
+            let named_roots = build_named_roots(sources, &side_roots, &[], opts);
             let root = build_root(uri, &current_source, opts);
             let mut ctx = EvalContext {
                 root,
                 named_roots,
-                merge_mode: false,
-                merge_roots: Vec::new(),
                 bindings: HashMap::new(),
                 edits: crate::edit_plan::EditPlan::new(),
                 probes_enabled: opts.enable_probes,
                 ca_bundle: opts.ca_bundle.clone(),
                 ucs_cert_reader: opts.ucs_cert_reader.clone(),
                 files_reader: opts.files_reader.clone(),
-                merge_graph: std::cell::RefCell::new(None),
             };
             accumulated_values.extend(evaluate_statement(stmt, &mut ctx)?);
 
@@ -521,8 +530,8 @@ fn detect_collisions(roots: &[Rc<crate::eval::Root>]) -> Result<(), QueryError> 
 /// Run *program* in `--merge` mode.
 ///
 /// Builds every root once, refuses colliding object identities, then runs the
-/// program a single time: each statement is evaluated once per root with
-/// `merge_mode = true` and every root bound as an active root, and the
+/// program a single time: each statement is evaluated once per root, over a
+/// [`MergedView`](crate::eval::MergedView) spanning every root, and the
 /// per-root values are concatenated. `.ltm.virtual[]` thus enumerates virtuals
 /// from every source; `refs` / `referenced_by` walk the merged graph; edits
 /// route back to their originating source via [`apply`]'s URI partitioning.
@@ -564,10 +573,12 @@ fn run_query_merged(
             .iter()
             .map(|(uri, src)| build_root(uri, src, opts))
             .collect();
-        let named_roots = build_named_roots(&current_sources, side_roots, opts);
+        // One namespace: every reference walk off any of these roots spans
+        // all of them.
+        crate::eval::MergedView::install(&step_roots);
+        let named_roots = build_named_roots(&current_sources, side_roots, &step_roots, opts);
 
-        // Evaluate the statement once per root and concatenate, with
-        // `merge_mode = true` so graph builtins cross files. A shared
+        // Evaluate the statement once per root and concatenate. A shared
         // `EditPlan` collects every root's queued edits.
         let plan = eval_merge_statement(
             stmt,
@@ -613,9 +624,9 @@ fn run_query_merged(
     Ok(result)
 }
 
-/// Evaluate one merge statement once per root (`merge_mode = true`, every root
-/// bound active), pushing each root's values onto `accumulated_values` and
-/// returning the combined [`EditPlan`] of every root's queued edits.
+/// Evaluate one merge statement once per root, pushing each root's values onto
+/// `accumulated_values` and returning the combined [`EditPlan`] of every
+/// root's queued edits.
 fn eval_merge_statement(
     stmt: &Expr,
     step_roots: &[Rc<crate::eval::Root>],
@@ -625,26 +636,15 @@ fn eval_merge_statement(
 ) -> Result<crate::edit_plan::EditPlan, QueryError> {
     let mut plan = crate::edit_plan::EditPlan::new();
     for root in step_roots {
-        let mut named_for_step = named_roots.clone();
-        // Rebuild the named-root entry for this source against the step root
-        // so `$self.x` reads post-edit state within a multi-statement query.
-        for r in named_for_step.values_mut() {
-            if r.uri == root.uri {
-                *r = Rc::clone(root);
-            }
-        }
         let mut ctx = EvalContext {
             root: Rc::clone(root),
-            named_roots: named_for_step,
-            merge_mode: true,
-            merge_roots: step_roots.to_vec(),
+            named_roots: named_roots.clone(),
             bindings: HashMap::new(),
             edits: crate::edit_plan::EditPlan::new(),
             probes_enabled: opts.enable_probes,
             ca_bundle: opts.ca_bundle.clone(),
             ucs_cert_reader: opts.ucs_cert_reader.clone(),
             files_reader: opts.files_reader.clone(),
-            merge_graph: std::cell::RefCell::new(None),
         };
         accumulated_values.extend(evaluate_statement(stmt, &mut ctx)?);
         if ctx.edits.has_edits() {

@@ -604,6 +604,14 @@ pub struct Analyser {
     /// — they run unconditionally, so a deletion inside one is still
     /// straight-line.
     pub control_flow_body_depth: u32,
+    /// Depth of enclosing branch-selected bodies whose selector reads a debug
+    /// flag — a `static::` variable, or a name assigned by an event that runs
+    /// less often than once per request.
+    /// IRULE5001 stays silent while this is non-zero, because the `log` it
+    /// would report is already gated the way its own message prescribes.
+    /// Nested bodies inherit the gate: the depth only returns to zero once
+    /// the walk leaves every gating body.
+    pub irules_debug_gate_depth: u32,
     /// Body-nesting depth — incremented on entry to a braced
     /// body. Used for top-level-only command checks.
     pub body_depth: u32,
@@ -1253,6 +1261,15 @@ pub struct Analyser {
     /// [`Self::irules_file_profiles`]; `None` until the first IRULE4003
     /// candidate asks for it.
     pub(super) irules_event_bodies: Option<Vec<(String, Vec<String>)>>,
+    /// IRULE5001's debug-flag index: every variable name assigned by an event
+    /// that runs **less often than once per request**, so a hot-event `log`
+    /// gated on one of them is recognised as gated.  This is the half of the
+    /// check that makes its own advice
+    /// ("set a debug flag in a setup event and gate with `if {$debug}`")
+    /// true; the `static::` half needs no index.  Built lazily from
+    /// [`Self::irules_event_bodies`] and cleared with it at the top of each
+    /// analysis run.
+    pub(super) irules_debug_flags: Option<Vec<String>>,
     /// Creation calls the walk could not classify because their head was not
     /// yet known to be a class factory — replayed once the parameterised-class
     /// observation join has settled.
@@ -1551,6 +1568,7 @@ impl Analyser {
             builtin_dialect: None,
             conditional_depth: 0,
             control_flow_body_depth: 0,
+            irules_debug_gate_depth: 0,
             body_depth: 0,
             presubstituted_args: false,
             e207_emitted: false,
@@ -1623,6 +1641,7 @@ impl Analyser {
             per_item_fallback: None,
             irules_file_profiles: None,
             irules_event_bodies: None,
+            irules_debug_flags: None,
             deferred_class_creations: Vec::new(),
         }
     }
@@ -2005,6 +2024,7 @@ impl Analyser {
         // instance recomputes it for the new source / dialect.
         self.irules_file_profiles = None;
         self.irules_event_bodies = None;
+        self.irules_debug_flags = None;
         // File-suppression pre-scan: merge codes from any
         // top-of-file ``# tcl-lsp: disable=CODE`` directives into
         // ``self.disabled_diagnostics`` so later emitter passes
@@ -2392,6 +2412,7 @@ impl Analyser {
         self.source = source.to_string();
         // Same-source memo, cleared with the source it was derived from.
         self.irules_event_bodies = None;
+        self.irules_debug_flags = None;
         let tk_ambient = self.resolve_walk_environment(dialect);
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
@@ -2488,6 +2509,7 @@ impl Analyser {
         self.source = source.to_string();
         // Same-source memo, cleared with the source it was derived from.
         self.irules_event_bodies = None;
+        self.irules_debug_flags = None;
         let tk_ambient = self.resolve_walk_environment(dialect);
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();

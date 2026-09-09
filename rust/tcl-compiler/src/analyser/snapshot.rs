@@ -54,6 +54,8 @@ use super::types::AnalysisResult;
 /// - ``control_flow_body_depth`` — depth of nesting inside any
 ///   ``Traits::CONTROL_FLOW`` command's body; used to tell a
 ///   straight-line `rename` from one that may never run.
+/// - ``irules_debug_gate_depth`` — depth of enclosing branch-selected
+///   bodies whose selector reads a debug flag; silences IRULE5001.
 /// - ``command_aliases`` — `interp alias` table.
 /// - ``renamed_commands`` — static `rename` table.
 /// - ``const_strings`` / ``regex_vars`` — per-scope const-string
@@ -75,6 +77,8 @@ pub struct AnalyserSnapshot {
     pub conditional_depth: u32,
     /// Nesting depth inside a `Traits::CONTROL_FLOW` command's body.
     pub control_flow_body_depth: u32,
+    /// Nesting depth inside a debug-gated branch-selected body (IRULE5001).
+    pub irules_debug_gate_depth: u32,
     /// Command aliases: ``name -> (target, prepended_args)``.
     pub command_aliases: HashMap<String, (String, Vec<String>)>,
     /// Static renames: ``new_qname -> old_qname``.
@@ -141,6 +145,7 @@ impl Analyser {
             current_event: self.current_event.clone(),
             conditional_depth: self.conditional_depth,
             control_flow_body_depth: self.control_flow_body_depth,
+            irules_debug_gate_depth: self.irules_debug_gate_depth,
             command_aliases: self.command_aliases.clone(),
             renamed_commands: self.renamed_commands.clone(),
             const_strings: self.const_strings.clone(),
@@ -176,6 +181,7 @@ impl Analyser {
         self.current_event = snap.current_event;
         self.conditional_depth = snap.conditional_depth;
         self.control_flow_body_depth = snap.control_flow_body_depth;
+        self.irules_debug_gate_depth = snap.irules_debug_gate_depth;
         self.command_aliases = snap.command_aliases;
         self.renamed_commands = snap.renamed_commands;
         self.const_strings = snap.const_strings;
