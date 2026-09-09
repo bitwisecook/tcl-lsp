@@ -98,7 +98,8 @@ jobs:
   #                    event (fail-safe: detection failure, a >300-file
   #                    compare, or a tag ref → everything counts as changed),
   #                    so jobs whose input surface didn't change stop
-  #                    re-testing it on every PR.
+  #                    re-testing it on every PR. Python includes the complete
+  #                    locked local dependency closure of its native engine.
   #   lsp_wasm_changed — a wasm LSP transport (browser or WASI) or one of the
   #                    transitive local dependencies they share changed.  This
   #                    keeps the two expensive real wasm builds and their
@@ -233,6 +234,8 @@ jobs:
             if [[ "$ok" == "true" ]]; then
               for path in \
                 scripts/dev/changed-paths.sh \
+                scripts/dev/python-ci-path.sh \
+                scripts/dev/python-engine-package-paths.txt \
                 scripts/dev/rust-tests-path.sh \
                 scripts/dev/rust-tests-package-paths.txt \
                 scripts/dev/rust-tests-input-paths.txt \
@@ -246,16 +249,19 @@ jobs:
               done
             fi
             if [[ "$ok" == "true" ]]; then
-              chmod +x "$trusted/changed-paths.sh" "$trusted/rust-tests-path.sh" "$trusted/lsp-e2e-path.sh"
+              chmod +x "$trusted/changed-paths.sh" "$trusted/python-ci-path.sh" "$trusted/rust-tests-path.sh" "$trusted/lsp-e2e-path.sh"
               changed_paths="$trusted/changed-paths.sh"
+              python_ci_path="$trusted/python-ci-path.sh"
               rust_tests_path="$trusted/rust-tests-path.sh"
               lsp_e2e_path="$trusted/lsp-e2e-path.sh"
+              export TCL_LSP_PYTHON_ENGINE_PACKAGE_MANIFEST="$trusted/python-engine-package-paths.txt"
               export TCL_LSP_RUST_TESTS_PACKAGE_MANIFEST="$trusted/rust-tests-package-paths.txt"
               export TCL_LSP_RUST_TESTS_INPUT_MANIFEST="$trusted/rust-tests-input-paths.txt"
               export TCL_LSP_E2E_PACKAGE_MANIFEST="$trusted/lsp-e2e-package-paths.txt"
               export TCL_LSP_E2E_INPUT_MANIFEST="$trusted/lsp-e2e-input-paths.txt"
             fi
           fi
+          python_ci_path=${python_ci_path:-scripts/dev/python-ci-path.sh}
           if [[ "$ok" == "true" ]] && files="$("$changed_paths" "$GITHUB_EVENT_NAME" "$GITHUB_REPOSITORY" "$PR_NUMBER" "$BEFORE" "$GITHUB_SHA" "$GITHUB_REF")"; then
             :
           else
@@ -275,10 +281,15 @@ jobs:
           docs_only=true
           if [ "$ok" = "true" ]; then
             while IFS= read -r f; do
-              case "$f" in
-                *.py | *.pyi | typings/* | rust/bigip-report-gen/python/* | ruff.toml | pyrightconfig.json | Makefile | .github/workflows/ci.yml)
-                  python_changed=true ;;
-              esac
+              if "$python_ci_path" "$f"; then
+                python_changed=true
+              else
+                status=$?
+                if [ "$status" -ne 1 ]; then
+                  ok=false
+                  break
+                fi
+              fi
               case "$f" in
                 editors/vscode/* | scripts/dev/json-no-duplicate-keys.mjs | scripts/dev/test-vscode-test-partitions.sh | scripts/dev/verify-vscode-test-partitions.mjs | scripts/dev/verify-vscode-test-results.mjs | rust/* | grammars/* | ai/* | Cargo.toml | Cargo.lock | rust-toolchain.toml | Makefile | .github/workflows/ci.yml)
                   ext_changed=true ;;
@@ -2527,14 +2538,17 @@ jobs:
       - name: Compute venv cache key
         if: env.RUN_PY == 'true'
         id: pykey
-        run: echo "pyver=$(python3 -V | tr ' ' '-')" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "pyver=$(python3 -V | tr ' ' '-')" >> "$GITHUB_OUTPUT"
+          engine=$(make --no-print-directory python-engine-source-hash)
+          echo "engine=$engine" >> "$GITHUB_OUTPUT"
 
       - name: Cache typecheck venv
         if: env.RUN_PY == 'true'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .venv-typecheck
-          key: ${{ runner.os }}-venv-typecheck-${{ steps.pykey.outputs.pyver }}-${{ hashFiles('rust/bigip-report-gen/python/**') }}
+          key: ${{ runner.os }}-venv-typecheck-${{ steps.pykey.outputs.pyver }}-${{ steps.pykey.outputs.engine }}
 
       # Pinned installer rather than a floating action, so the uv that resolves
       # the pinned tool versions is itself pinned.  The installer is fetched to
@@ -2569,6 +2583,10 @@ jobs:
       - name: ty + pyright
         if: env.RUN_PY == 'true'
         run: make typecheck-py
+
+      - name: Native engine binding tests
+        if: env.RUN_PY == 'true'
+        run: make test-py-engine
 
   # The two npm roots that are NOT `editors/vscode`.  Nothing on a pull
   # request used to install them: every `npm ci` in this workflow is in
