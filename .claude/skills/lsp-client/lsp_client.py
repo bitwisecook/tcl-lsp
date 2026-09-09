@@ -26,19 +26,17 @@ Cross-file assertions (definition/references/diagnostics/code-actions/
 context/all/completion/code-lens touching more than one file's worth of
 state — workspace variables, package tiers, sibling-file completions,
 workspace-wide lens counts) wait out the server's background workspace scan
-first via `LspClient.wait_for_workspace_scan()` (bounded by --scan-timeout,
-default 30s — measured/tuned per issue #1111) rather than racing it — see
-issue #1094 and that method's
-docstring for the exact server-side signal it waits on. Single-file
-subcommands (semantic-tokens, hover, format, ...) are unaffected and
-don't wait.
+first via `LspClient.wait_for_workspace_scan()`, bounded by --scan-timeout,
+rather than racing it; that method's docstring names the exact server-side
+signal it waits on. Single-file subcommands (semantic-tokens, hover,
+format, ...) are unaffected and don't wait.
 
 Pass `--also-open FILE` (repeatable) to open one or more companion files
-before the main <file> argument — the first-class "open two files and
-assert" helper (issue #1111) for a cross-file check (a definition/reference
-in <file> resolving into FILE, a sibling-file completion, a workspace-wide
-lens count). Companion files are opened *after* the workspace-scan wait
-above and *before* <file>, so whichever subcommand you run sees them.
+before the main <file> argument, for a cross-file check: a
+definition/reference in <file> resolving into FILE, a sibling-file
+completion, a workspace-wide lens count. Companion files are opened *after*
+the workspace-scan wait above and *before* <file>, so whichever subcommand
+you run sees them.
 
 Usage:
     python3 lsp_client.py semantic-tokens <file.tcl>
@@ -143,16 +141,13 @@ LSP_SEVERITY = {1: "ERROR", 2: "WARNING", 3: "INFO", 4: "HINT"}
 # rust/tcl-lsp-server/src/lib.rs). It fires exactly once, after
 # `package_resolver` / `workspace_index` have been (re)built from disk —
 # unconditionally, even for a zero-root / single-file session — via a
-# `window/logMessage` notification (MessageType::LOG). The server's own doc
-# comment on that call site says explicitly: "a client (or a test) that
-# needs to know the autoload / cross-file workspace state is current rather
-# than racing this scan should wait on this line instead of an unrelated
-# per-document signal (issue #1003)". See issue #1094.
+# `window/logMessage` notification (MessageType::LOG). It is the line a
+# client that needs the autoload / cross-file workspace state to be current
+# should wait on.
 #
 # NOT the same marker as `[timing] workspace_state.update`, which is a
-# *per-document* diagnostics-publish timing line (fires once per open
-# document, unrelated to workspace-scan completion) — waiting on that one
-# instead is the exact confusion issue #1094 warns against.
+# *per-document* diagnostics-publish timing line: it fires once per open
+# document and says nothing about workspace-scan completion.
 WORKSPACE_SCAN_SIGNAL = "[timing] workspace_folders_scan"
 
 COMPLETION_KIND = {
@@ -184,8 +179,8 @@ COMPLETION_KIND = {
 }
 
 # Subcommands whose results can depend on cross-file workspace state
-# (workspace variables, package tiers — issue #1094): `definition` and
-# `references` query `workspace_index` directly per-request, so waiting
+# (workspace variables, package tiers). `definition` and `references` query
+# `workspace_index` directly per-request, so waiting
 # right before the request (see `cmd_definition`/`cmd_references`) is
 # sufficient. `diagnostics`, `code-actions`, `context`, and `all` are
 # different: diagnostics are *pushed* once, right after `didOpen`, and only
@@ -199,14 +194,6 @@ COMPLETION_KIND = {
 # (completion enumerates sibling-file procedures; lenses count
 # workspace-wide references), so they wait too — before `didOpen` via
 # `main()`, which is also sufficient for their per-request reads.
-#
-# Verified live (issue #1111) against a real `tcl-lsp-server` build (this
-# reasoning previously rested on code inspection only — no binary was
-# buildable in the sandbox that filed the issue): `--also-open` + `definition`
-# resolving a companion file's symbol on the *first* request of 20/20 freshly
-# spawned server processes, with no `--scan-timeout` override, confirms
-# waiting before `didOpen` sidesteps the race the comment above describes
-# rather than merely happening not to trigger it.
 CROSS_FILE_COMMANDS = {
     "definition",
     "references",
@@ -254,20 +241,14 @@ SYMBOL_KIND = {
 class LspClient:
     """Manages a language server subprocess and JSON-RPC communication."""
 
-    def __init__(self, server_dir: str, launch_cmd: list[str] | None = None) -> None:
-        self.server_dir = server_dir
-        #: argv used to spawn the server.  Defaults to the Python server via
-        #: ``uv``; ``launch_cmd`` overrides it (e.g. the native Rust binary).
-        self._launch_cmd = launch_cmd or [
-            "uv",
-            "run",
-            "--directory",
-            server_dir,
-            "--no-dev",
-            "python",
-            "-m",
-            "lsp",
-        ]
+    def __init__(self, server_dir: str, launch_cmd: list[str]) -> None:
+        #: Workspace root, resolved absolute because it becomes ``rootUri``:
+        #: a relative path there names a URI authority rather than a
+        #: directory, so the server would scan somewhere else entirely.
+        self.server_dir = str(Path(server_dir).resolve())
+        #: argv used to spawn the server — the native ``tcl-lsp-server``
+        #: binary.
+        self._launch_cmd = list(launch_cmd)
         self.process: subprocess.Popen | None = None
         self._request_id = 0
         self._pending: dict[int, dict] = {}  # id -> {"event": Event, "result": ...}
@@ -324,16 +305,13 @@ class LspClient:
 
         Writes through a raw, `select()`-bounded loop on the stdin file
         descriptor rather than the buffered file object's blocking
-        `write()`/`flush()`. That blocking write had no timeout at all: a
-        server that stops draining stdin (wedged, or mid-crash, or the
-        intermittent #1399 hang — a client stuck in `write()` opposite a
-        server idle in `read()`) blocked here forever, and `REQUEST_TIMEOUT_S`
-        in `send_request` never even got a chance to fire because the
-        request was never fully sent. `select()` reports writability before
-        each chunk, so a stalled peer surfaces as a `TimeoutError` a caller
-        can catch (as `Bench.check`/`Bench.request` in `bench.py` already
-        do for the read side) instead of a wedged process indistinguishable
-        from real work.
+        `write()`/`flush()`, which has no timeout: against a server that
+        stops draining stdin (wedged, mid-crash, or idle in `read()` while
+        the client is stuck in `write()`) it blocks forever, and
+        `send_request`'s response timeout never fires because the request
+        was never fully sent. `select()` reports writability before each
+        chunk, so a stalled peer surfaces as a `TimeoutError` a caller can
+        catch instead of a wedged process indistinguishable from real work.
 
         `os.write` is used directly on the fd (set non-blocking in `start()`)
         rather than mixed with the buffered `Popen.stdin` object, so every
@@ -357,8 +335,7 @@ class LspClient:
                 raise TimeoutError(
                     f"write() to server stdin blocked for >{timeout}s "
                     f"({len(payload) - len(view)}/{len(payload)} bytes sent) "
-                    "— the server appears to have stopped draining stdin "
-                    "(see issue #1399)"
+                    "— the server appears to have stopped draining stdin"
                 )
             try:
                 _, writable, _ = select.select([], [fd], [], remaining)
@@ -454,11 +431,8 @@ class LspClient:
     def send_request(self, method: str, params: dict, timeout: float = 30.0) -> Any:
         """Send a request and wait for the response.
 
-        `timeout` now bounds *both* halves of the round-trip: getting the
-        request onto the wire (the `_send` write, previously unbounded — see
-        `_send`'s docstring) and waiting for the reply. A caller that passed
-        a generous `timeout` for a slow server got that generosity on the
-        write before too; it just also now has a ceiling.
+        `timeout` bounds *both* halves of the round-trip: getting the
+        request onto the wire (the `_send` write) and waiting for the reply.
         """
         self._request_id += 1
         rid = self._request_id
@@ -591,8 +565,8 @@ class LspClient:
         `Backend::scan_workspace_folders` populates in the background —
         kicked off from the `initialized` handler, running concurrently
         with whatever `didOpen` the client sends next. Asserting before
-        that scan lands is issue #1094: results flip between "resolved"
-        and "unresolved" depending on scan timing.
+        that scan lands is racy: results flip between "resolved" and
+        "unresolved" depending on scan timing.
 
         Waits for the `[timing] workspace_folders_scan` `window/logMessage`
         line (see `WORKSPACE_SCAN_SIGNAL` above) — the scan's one
@@ -603,8 +577,8 @@ class LspClient:
         the signal has already arrived returns immediately (cheap to call
         defensively from multiple places).
 
-        Raises TimeoutError with a pointer back to the server-side signal
-        and this issue if the line never arrives within *timeout* seconds.
+        Raises TimeoutError, pointing back at the server-side signal, if
+        the line never arrives within *timeout* seconds.
         """
         deadline = time.monotonic() + timeout
         while True:
@@ -624,8 +598,8 @@ class LspClient:
             f"Timed out after {timeout}s waiting for the server's workspace "
             f"scan to complete — no {WORKSPACE_SCAN_SIGNAL!r} window/logMessage "
             "was seen. Cross-file navigation/diagnostics results read here "
-            "would be racy (issue #1094). If this is a legitimately large "
-            "workspace, pass a higher --scan-timeout; otherwise check that "
+            "would be racy. If this is a legitimately large workspace, pass "
+            "a higher --scan-timeout; otherwise check that "
             "the server actually reached `scan_workspace_folders` (see "
             "rust/tcl-lsp-server/src/lib.rs) — e.g. it never got past "
             "`initialized` because a server-to-client request went "
@@ -660,7 +634,7 @@ class LspClient:
 
 
 def find_native_server(override: str | None = None) -> str:
-    """Locate the native Rust ``tcl-lsp-server`` binary (serverKind=rust).
+    """Locate the native ``tcl-lsp-server`` binary.
 
     Honours ``override`` / ``TCL_LSP_SERVER_BIN`` first, then probes
     ``target/{release,debug}/`` under the project root.
@@ -682,42 +656,13 @@ def find_native_server(override: str | None = None) -> str:
     )
 
 
-def find_server_dir(override: str | None = None) -> str:
-    """Locate the tcl-lsp server directory."""
-    if override:
-        p = Path(override).resolve()
-        if (p / "lsp" / "__main__.py").exists():
-            return str(p)
-        raise FileNotFoundError(f"No server found at {p}")
-
-    # Walk up from script location: .claude/skills/lsp-client/lsp_client.py
-    script_dir = Path(__file__).resolve().parent
-    # Try: script_dir -> .claude/skills/lsp-client
-    #      project root -> script_dir / ../../..
-    #      server -> project_root / tcl-lsp
-    project_root = script_dir.parent.parent.parent
-    server_dir = project_root / "tcl-lsp"
-    if (server_dir / "lsp" / "__main__.py").exists():
-        return str(server_dir)
-
-    # Also try: maybe we're already inside tcl-lsp
-    cwd = Path.cwd()
-    if (cwd / "lsp" / "__main__.py").exists():
-        return str(cwd)
-
-    raise FileNotFoundError(
-        f"Cannot find tcl-lsp server. Tried {server_dir} and cwd={cwd}. "
-        "Use --server-dir to specify the path."
-    )
-
-
 def initialize(client: LspClient) -> dict:
     """Send initialize + initialized."""
     result = client.send_request(
         "initialize",
         {
             "processId": os.getpid(),
-            "rootUri": f"file://{client.server_dir}",
+            "rootUri": Path(client.server_dir).as_uri(),
             "capabilities": {
                 "textDocument": {
                     "semanticTokens": {
@@ -1248,10 +1193,9 @@ def cmd_completion(client: LspClient, uri: str, line: int, col: int) -> None:
 def cmd_definition(client: LspClient, uri: str, line: int, col: int) -> None:
     """Request and display definitions.
 
-    A "navigation request" per issue #1094: waits out the background
-    workspace scan first (idempotent/cheap if `main()` already did) so a
-    cross-file definition isn't raced. Belt-and-suspenders for callers that
-    invoke this directly rather than through `main()`.
+    Waits out the background workspace scan first (idempotent and cheap if
+    `main()` already did) so a cross-file definition isn't raced — callers
+    may invoke this directly rather than through `main()`.
     """
     client.wait_for_workspace_scan()
     result = client.send_request(
@@ -1269,10 +1213,9 @@ def cmd_definition(client: LspClient, uri: str, line: int, col: int) -> None:
 def cmd_references(client: LspClient, uri: str, line: int, col: int) -> None:
     """Request and display references.
 
-    A "navigation request" per issue #1094: waits out the background
-    workspace scan first (idempotent/cheap if `main()` already did) so
-    cross-file references aren't raced. Belt-and-suspenders for callers
-    that invoke this directly rather than through `main()`.
+    Waits out the background workspace scan first (idempotent and cheap if
+    `main()` already did) so cross-file references aren't raced — callers
+    may invoke this directly rather than through `main()`.
     """
     client.wait_for_workspace_scan()
     result = client.send_request(
@@ -1772,23 +1715,18 @@ def main() -> None:
         epilog="""\
 examples:
   %(prog)s semantic-tokens samples/for_screenshots/03-completions.tcl
-  %(prog)s diagnostics editors/vscode/testFixture/diagnostics.tcl
+  %(prog)s --server-dir editors/vscode/testFixture diagnostics editors/vscode/testFixture/diagnostics.tcl
   %(prog)s hover editors/vscode/testFixture/procs.tcl 1 6
   %(prog)s all samples/for_screenshots/03-completions.tcl
 """,
     )
     parser.add_argument(
-        "--server-dir", help="Path to tcl-lsp directory (auto-detected by default)"
-    )
-    parser.add_argument(
-        "--server",
-        choices=["python", "rust"],
-        default=os.environ.get("TCL_LSP_SERVER_KIND", "rust"),
-        help="Which LSP backend to drive: the native Rust binary (default) or the Python server.",
+        "--server-dir",
+        help="Workspace root sent as rootUri (defaults to the current directory)",
     )
     parser.add_argument(
         "--server-bin",
-        help="Path to the native tcl-lsp-server binary (for --server rust; else auto-detected).",
+        help="Path to the native tcl-lsp-server binary (auto-detected by default).",
     )
     parser.add_argument(
         "--scan-timeout",
@@ -1797,16 +1735,12 @@ examples:
         help=(
             "Seconds to wait for the background workspace scan to complete "
             "before cross-file subcommands (definition, references, "
-            "diagnostics, code-actions, context, all) proceed. See "
-            "issue #1094. Default: 30.0 — tuned against a measured "
-            "worst-case scan (issue #1111): a workspace at "
-            "WORKSPACE_SCAN_FILE_CAP (2000 files) took ~12.3s unloaded / "
-            "~15.2s under 4-way CPU contention on a 4-core box in a *debug* "
-            "build (a `--release` build did the same scan in ~1.9s), so the "
-            "old 15.0s default left under 20% headroom over the unloaded "
-            "debug-build worst case and none at all once loaded. 30.0 keeps "
-            "roughly 2x headroom over the worst measured case and matches "
-            "the Rust e2e harness's own `DEFAULT_TIMEOUT`."
+            "diagnostics, code-actions, context, all) proceed. The default "
+            "keeps roughly 2x headroom over a worst-case scan — a workspace "
+            "at WORKSPACE_SCAN_FILE_CAP in a debug build under CPU "
+            "contention — and matches the Rust e2e harness's DEFAULT_TIMEOUT. "
+            "Raise it for a larger workspace or a slower machine. "
+            "Default: 30.0"
         ),
     )
     parser.add_argument(
@@ -1822,7 +1756,7 @@ examples:
             "after the workspace-scan wait (for a cross-file subcommand) and "
             "before <file>, in the order given, so the request the "
             "subcommand issues against <file> already sees every one of "
-            "them. See issue #1111."
+            "them."
         ),
     )
 
@@ -1937,20 +1871,15 @@ examples:
 
     args = parser.parse_args()
 
-    # Find server (Python dir or native Rust binary)
-    server_kind = (args.server or "python").strip().lower()
-    launch_cmd: list[str] | None = None
+    # Find the native server binary.
     try:
-        if server_kind == "rust":
-            native = find_native_server(args.server_bin)
-            # rootUri only needs a directory; the binary doesn't need a bundle.
-            server_dir = args.server_dir or str(Path.cwd())
-            launch_cmd = [native]
-        else:
-            server_dir = find_server_dir(args.server_dir)
+        launch_cmd = [find_native_server(args.server_bin)]
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
+
+    # rootUri only needs a directory; the binary doesn't need a bundle.
+    server_dir = args.server_dir or str(Path.cwd())
 
     # Create client and run
     client = LspClient(server_dir, launch_cmd=launch_cmd)
@@ -2007,15 +1936,14 @@ examples:
             # workspace scan *before* opening the document, so the doc's
             # one diagnostics publish (and any definition/references
             # request issued below) already sees the fully-populated
-            # workspace_index / package_resolver instead of racing the
-            # scan (issue #1094).
+            # workspace_index / package_resolver instead of racing the scan.
             if args.command in CROSS_FILE_COMMANDS:
                 client.wait_for_workspace_scan(timeout=args.scan_timeout)
 
-            # `--also-open FILE` (repeatable): the multi-file helper (issue
-            # #1111) — open every companion file *before* the main one, in
-            # the order given, after the scan wait above so a cross-file
-            # subcommand's request against `args.file` already sees them.
+            # `--also-open FILE` (repeatable): open every companion file
+            # *before* the main one, in the order given, after the scan wait
+            # above so a cross-file subcommand's request against `args.file`
+            # already sees them.
             # Each open gets the same post-didOpen settle main() gives the
             # primary file below, so a companion file's own diagnostics
             # publish (which can itself touch workspace state a sibling-file

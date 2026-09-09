@@ -54,7 +54,7 @@ upstream than `tcl.tk` / SourceForge on every cold session. The hook exports
 |---|---|
 | Rust channel | `rust-toolchain.toml`; `Cargo.toml` `rust-version` |
 | Node.js minimum | `.github/workflows/ci.yml` `node-version`; `NODE_MIN_MAJOR` in `ensure-test-deps.sh` |
-| Tcl / Tk patchlevels and source tags | `rust/tcl-dialect/data/reference-toolchains.tsv` (the fetch skill and host installer consume it) |
+| Tcl / Tk patchlevels and source tags | `rust/tcl-dialect/data/reference-toolchains.tsv` (the fetch skill, host installer, and `tcl docker` source-build layers consume it) |
 | Wasmtime, Binaryen, wasi-sdk, tcllib (remote) | variables at the top of `.claude/hooks/session-start.sh` |
 | Wasmtime, wasi-sdk, tcllib (laptop) | variables near the top of `scripts/dev/ensure-test-deps.sh` |
 

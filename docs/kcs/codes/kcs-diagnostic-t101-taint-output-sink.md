@@ -55,6 +55,21 @@ $name]"`. Rewriting the text — `string map`, `regsub` — leaves attacker-deri
 text, so if you have sanitised the value in a way the analyser cannot see,
 suppress the code at that line.
 
+The injection T101 warns about is a CR or LF that forges a record boundary,
+so a value proven free of both clears the diagnostic. The analyser reads that
+proof off the mapping you wrote: a `string map` whose keys cover **both**
+`"\n"` and `"\r"` and whose replacement values contain neither cannot leave
+one behind, whatever it is given. Any other mapping proves nothing, so
+`string map {a b}` leaves the warning standing.
+
+Wrapping in place works the same way — `puts [string map {"\n" "" "\r" ""}
+$host]` is as good as the two-line form above. A quick fix ("Sanitise $var
+(strip CR/LF) before output") writes exactly that wrap.
+
+Commands that guarantee a CR/LF-free result unconditionally clear it too:
+`URI::encode`, `html_encode` and their aliases, and any value already known to
+be an IP address, a port, or an FQDN.
+
 ## How to suppress
 
 Add `# noqa: T101` on the line **above** the offending command. You can also

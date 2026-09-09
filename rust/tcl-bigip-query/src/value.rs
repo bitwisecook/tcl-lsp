@@ -172,6 +172,12 @@ pub enum Value {
     /// A navigable namespace / kind container projected from a
     /// `BigipConfig`.
     Container(Rc<Container>),
+    /// A reference that named no object anywhere in the view the query runs
+    /// over. Carries the path that failed to resolve so a later step can
+    /// name it. Reads as `null` in every output mode and is falsy, but
+    /// iterating it is empty rather than an error, and reading a field
+    /// through it reports the dangling path.
+    Unresolved(Rc<PathRef>),
     /// The `select` "drop this value" sentinel.
     Drop,
 }
@@ -188,6 +194,7 @@ impl Value {
     pub fn describe(&self) -> String {
         match self {
             Value::Null => "null".to_string(),
+            Value::Unresolved(p) => format!("unresolved-ref({})", p.full_path),
             Value::Container(c) => format!("container({})", c.kind),
             Value::ObjectRef(o) => format!("object({})", o.kind),
             Value::PathRef(p) => format!(
@@ -216,7 +223,7 @@ impl Value {
     #[must_use]
     pub fn type_name(&self) -> &'static str {
         match self {
-            Value::Null => "NoneType",
+            Value::Null | Value::Unresolved(_) => "NoneType",
             Value::Bool(_) => "bool",
             Value::Int(_) => "int",
             Value::Float(_) => "float",
@@ -240,7 +247,7 @@ impl Value {
 #[must_use]
 pub fn truthy(value: &Value) -> bool {
     match value {
-        Value::Null | Value::Drop => false,
+        Value::Null | Value::Unresolved(_) | Value::Drop => false,
         Value::Bool(b) => *b,
         Value::Str(s) => !s.is_empty(),
         Value::List(items) | Value::Stream(items) => !items.is_empty(),
@@ -274,7 +281,10 @@ pub fn py_eq(lhs: &Value, rhs: &Value, depth: u32) -> bool {
         return false;
     }
     match (lhs, rhs) {
-        (Value::Null, Value::Null) => true,
+        // An unresolved reference reads as `null` everywhere else, so it
+        // compares equal to one — `select(.pool.members == null)` finds the
+        // virtuals whose pool is missing.
+        (Value::Null | Value::Unresolved(_), Value::Null | Value::Unresolved(_)) => true,
         // A `bool` counts as the matching `int`, so `True == 1`, and
         // numbers compare across int/float/bool by numeric value.
         _ if is_number_like(lhs) && is_number_like(rhs) => num_value(lhs) == num_value(rhs),
@@ -345,7 +355,7 @@ pub fn sort_cmp(a: &Value, b: &Value) -> Ordering {
 
 fn sort_tag(v: &Value) -> u8 {
     match v {
-        Value::Null => 0,
+        Value::Null | Value::Unresolved(_) => 0,
         Value::Bool(_) => 1,
         Value::Int(_) | Value::Float(_) => 2,
         Value::Str(_) | Value::PathRef(_) => 3,

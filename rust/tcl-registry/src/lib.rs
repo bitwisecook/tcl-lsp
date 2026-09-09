@@ -216,7 +216,9 @@ pub mod prelude {
         VariableCellAliasTransition,
     };
     pub use crate::symbol_def::{DefinedSymbolKind, SymbolDef};
-    pub use crate::taint::{SetterConstraint, TaintColour, TaintColourAtom};
+    pub use crate::taint::{
+        SetterConstraint, TaintColour, TaintColourAtom, TaintTransformCondition,
+    };
     pub use crate::tk_geometry::{
         GRID_GEOMETRY, PACK_GEOMETRY, PLACE_GEOMETRY, TkGeometryContainerPolicy,
         TkGeometryManagerSpec, is_widget_path, is_widget_path_or_root, widget_path_is_within,
