@@ -1329,6 +1329,11 @@ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     );
     d.insert("taint_transform".into(), taint(sub.taint_transform));
     d.insert(
+        "taint_transform_when".into(),
+        sub.taint_transform_when
+            .map_or(Value::Null, |c| json!(catalogue::variant_name(&c))),
+    );
+    d.insert(
         "taint_double_encode_colour".into(),
         taint(sub.taint_double_encode_colour),
     );
@@ -1755,6 +1760,11 @@ fn command_taint(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     );
     d.insert("taint_source".into(), taint(spec.taint_source));
     d.insert("taint_transform".into(), taint(spec.taint_transform));
+    d.insert(
+        "taint_transform_when".into(),
+        spec.taint_transform_when
+            .map_or(Value::Null, |c| json!(catalogue::variant_name(&c))),
+    );
     d.insert(
         "taint_double_encode_colour".into(),
         taint(spec.taint_double_encode_colour),
