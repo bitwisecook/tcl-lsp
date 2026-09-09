@@ -4086,7 +4086,7 @@ impl Analyser {
     ///    that gains another such keyword — or loses `my` — propagates
     ///    through the registry, never through an edit here.
     /// 2. A **named instance command** bound by `CLASS create NAME`,
-    ///   gated below.
+    ///    gated below.
     ///
     /// `next` / `nextto` deliberately do **not** reach case 1: the registry
     /// classifies them [`MethodDispatchKind::NextChain`], and they re-invoke
