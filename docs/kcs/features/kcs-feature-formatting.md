@@ -93,7 +93,7 @@ The formatter rewrites source using the configurable style engine. It is idempot
 
 ## Example
 
-![formatting side-by-side before/after](../screenshots/07-formatting-after.png)
+![formatting side-by-side before/after](../../screenshots/07-formatting-after.png)
 
 ## Discoverability
 

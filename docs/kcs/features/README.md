@@ -48,7 +48,7 @@ combine them when more than one form helps:
   short snippet and say what the user sees on which token or line.
 - **Screenshot** — for panels and visual features (compiler explorer,
   call hierarchy, debugger, document symbols). Reference an image
-  from `../screenshots/` with a short caption.
+  from `../../screenshots/` with a short caption.
 
 ## LSP features
 

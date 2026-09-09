@@ -54,7 +54,7 @@ real data.
 
 ## Example
 
-![code folded to show structure](../screenshots/20-folding.png)
+![code folded to show structure](../../screenshots/20-folding.png)
 
 ## Discoverability
 

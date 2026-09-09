@@ -34,9 +34,9 @@ The server also answers pull-model requests — `textDocument/diagnostic` for on
 
 ## Example
 
-![squiggly underlines and Problems panel](../screenshots/01-diagnostics-overview.png)
-![security and taint tracking diagnostics](../screenshots/05-security-taint.png)
-![style warning diagnostics](../screenshots/08-style-warnings.png)
+![squiggly underlines and Problems panel](../../screenshots/01-diagnostics-overview.png)
+![security and taint tracking diagnostics](../../screenshots/05-security-taint.png)
+![style warning diagnostics](../../screenshots/08-style-warnings.png)
 
 ## Discoverability
 

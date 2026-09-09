@@ -194,7 +194,7 @@ cannot see.
 
 ## Screenshots
 
-![rename dialog inline](../screenshots/18-rename.png)
+![rename dialog inline](../../screenshots/18-rename.png)
 
 ## Related
 

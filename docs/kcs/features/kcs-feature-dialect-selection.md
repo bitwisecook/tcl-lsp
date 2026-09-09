@@ -40,7 +40,7 @@ The dialect controls which commands are available in completions and hover, whic
 
 ## Example
 
-![dialect picker showing available dialects](../screenshots/25-dialect-selection.png)
+![dialect picker showing available dialects](../../screenshots/25-dialect-selection.png)
 
 ## Discoverability
 

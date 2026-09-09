@@ -163,7 +163,7 @@ name: Tcl keeps variable names and command names in separate tables, so
 
 ## Example
 
-![hover showing proc signature and documentation](../screenshots/02-hover-proc.png)
+![hover showing proc signature and documentation](../../screenshots/02-hover-proc.png)
 
 ## Discoverability
 

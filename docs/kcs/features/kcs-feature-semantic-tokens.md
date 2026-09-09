@@ -53,7 +53,7 @@ anywhere else (`puts {$n}`) stays a string.
 
 - `09-semantic-highlighting` — rich syntax highlighting for embedded DSLs
 
-![rich syntax highlighting for embedded DSLs](../screenshots/09-semantic-highlighting.png)
+![rich syntax highlighting for embedded DSLs](../../screenshots/09-semantic-highlighting.png)
 
 ## Discoverability
 
