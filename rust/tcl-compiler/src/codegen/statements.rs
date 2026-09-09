@@ -597,8 +597,15 @@ impl CodegenCtx<'_> {
             // bytecode level (the body already ran in the caller's
             // frame in the original ``uplevel`` semantics).
             Statement::Block { body, .. } => {
+                let begin = self.instructions.len();
                 for inner in &body.statements {
                     self.emit_stmt(inner, used_generic_invoke);
+                }
+                if let Some(first) = (begin < self.instructions.len()).then_some(begin) {
+                    self.mark_completion_option_scope(
+                        first,
+                        tcl_runtime_api::completion_options::ControlOptionPolicy::FRESH_FORWARDED,
+                    );
                 }
             }
 

@@ -164,6 +164,12 @@ pub(crate) struct Frame {
     catch_ranges: Vec<CatchRange>,
     /// Last value dropped by `POP` — the `DONE` result when the stack is empty.
     last_result: Value,
+    /// Carried return options in this evaluation frame. An ordinary successful
+    /// command preserves them; a command that supplies options replaces them,
+    /// and a fresh proc/eval/catch frame begins empty. Keeping the options beside
+    /// `last_result` makes compiled catch ranges and transparent child
+    /// activations observe the same completion as native command dispatch.
+    last_options: Value,
     /// Whether this activation owns a `Vm` call-frame (a proc body) that must be
     /// popped, and whose boundary absorbs `Return`.
     is_proc: bool,
@@ -372,6 +378,7 @@ impl Frame {
             expand_markers: Vec::new(),
             catch_ranges: Vec::new(),
             last_result: Value::empty(),
+            last_options: Value::empty(),
             is_proc,
             is_script: false,
             replay_namespace_restore: None,
@@ -481,8 +488,9 @@ impl Frame {
     /// A **try-phase** activation ([`Frame::try_ctx`]): runs `req.script` (the
     /// current phase's compiled script) as ordinary bytecode, tagged with the
     /// state `Vm::unwind` hands to `cmd_try::advance_try` on completion.
-    pub(crate) fn new_try(req: crate::cmd_try::TryReq) -> Self {
+    pub(crate) fn new_try(req: crate::cmd_try::TryReq, initial_options: Value) -> Self {
         let mut f = Self::from_compiled_unit(req.script);
+        f.last_options = initial_options;
         f.try_ctx = Some(Box::new(req.state));
         f
     }
@@ -570,7 +578,10 @@ enum Tick {
     /// (yieldable) via a try-phase activation ([`Frame::new_try`]); its
     /// completion decides the next phase via `cmd_try::advance_try`. Drained
     /// from `Vm.pending.try_phase` (issue #1311).
-    PushTry(crate::cmd_try::TryReq),
+    PushTry {
+        req: crate::cmd_try::TryReq,
+        initial_options: Value,
+    },
     /// `tailcall cmd ?arg …?` — the current proc finishes and `cmd args` runs in
     /// its place (in the caller's activation), its result becoming the proc's.
     /// `words` is `[cmd, arg, …]` (the `tailcall` prefix word already dropped).
@@ -1462,8 +1473,11 @@ impl Vm {
                     }
                     acts.push(fr);
                 }
-                Tick::PushTry(req) => {
-                    let mut fr = Frame::new_try(req);
+                Tick::PushTry {
+                    req,
+                    initial_options,
+                } => {
+                    let mut fr = Frame::new_try(req, initial_options);
                     if let Some(ctx) = self.pending_exec_leave.take() {
                         fr.exec_leave.push(ctx);
                     }
@@ -1899,7 +1913,7 @@ impl Vm {
                 }
                 match crate::cmd_try::advance_try(self, *ctx, c) {
                     crate::cmd_try::TryOutcome::Push(req) => {
-                        let mut next = Frame::new_try(req);
+                        let mut next = Frame::new_try(req, Value::empty());
                         next.exec_leave.append(&mut act.exec_leave);
                         acts.push(next);
                         return None;
@@ -1961,6 +1975,7 @@ impl Vm {
                 None => return Some(c),
                 Some(parent) => {
                     if c.code.is_ok() {
+                        parent.last_options = c.options;
                         parent.stack.push(c.result);
                         return None;
                     }
@@ -2234,11 +2249,20 @@ impl Vm {
         };
         if done {
             let st = f.each_loop.take().expect("each_loop frame carries state");
-            return Tick::Return(ok(if st.collect {
-                Value::list(st.collected)
+            let options = if st.collect {
+                f.last_options.clone()
             } else {
                 Value::empty()
-            }));
+            };
+            return Tick::Return(Completion::new(
+                Code::Ok,
+                if st.collect {
+                    Value::list(st.collected)
+                } else {
+                    Value::empty()
+                },
+                options,
+            ));
         }
         let body = {
             let st = f.each_loop.as_mut().expect("each_loop frame carries state");
@@ -2288,9 +2312,13 @@ impl Vm {
                 if st.collect {
                     st.collected.push(c.result);
                 }
+                parent.last_options = c.options;
             }
-            Code::Continue => {}
-            Code::Break => st.it = st.iterations,
+            Code::Continue => parent.last_options = c.options,
+            Code::Break => {
+                st.it = st.iterations;
+                parent.last_options = Value::empty();
+            }
             Code::Error | Code::Return | Code::Other(_) => unreachable!("handled above"),
         }
         EachLoopFold::Resume
@@ -2363,11 +2391,14 @@ impl Vm {
             .retain(|entered| entered.continuation > f.pc);
         let asm = Rc::clone(&f.asm);
         if f.pc >= asm.instructions.len() {
-            return Tick::Return(ok(f
-                .stack
-                .last()
-                .cloned()
-                .unwrap_or_else(|| f.last_result.clone())));
+            return Tick::Return(Completion::new(
+                Code::Ok,
+                f.stack
+                    .last()
+                    .cloned()
+                    .unwrap_or_else(|| f.last_result.clone()),
+                f.last_options.clone(),
+            ));
         }
         let instr = &asm.instructions[f.pc];
         // Tcl resets the interpreter result at the start of every source
@@ -2442,6 +2473,12 @@ impl Vm {
             self.capture_entered_command(f, &asm, instr, f.pc.saturating_add(1))
         {
             return Tick::Return(completion);
+        }
+        if instr
+            .completion_option_scope
+            .is_some_and(tcl_runtime_api::completion_options::ActivationOptionScope::begins_fresh)
+        {
+            f.last_options = Value::empty();
         }
         f.pc += 1;
         // Line-watch seam: keep the embedder's cell on the dispatching
@@ -2631,7 +2668,14 @@ impl Vm {
             // `BEGIN_CATCH4` pushed nothing, so its paired `END_CATCH` finds
             // the stack empty and stays a no-op.
             Op::END_CATCH => {
-                f.catch_ranges.pop();
+                if f.catch_ranges.pop().is_some() {
+                    // The protected completion's options have already been read
+                    // by PUSH_RETURN_OPTS. A live END_CATCH completes `catch`
+                    // itself, whose successful integer result has ordinary
+                    // options. Decorative try/dict cleanup ranges preserve the
+                    // completion they are forwarding.
+                    f.last_options = Value::empty();
+                }
             }
 
             // -- variables (stack form, by name) --
@@ -2805,10 +2849,9 @@ impl Vm {
                         tcl_runtime_api::VarStore::array_keys_at(vm, target).is_some(),
                     ))
                 });
-                if completion.code != Code::Ok {
+                if let Err(completion) = Self::deliver_sync(f, completion) {
                     return Tick::Return(completion);
                 }
-                f.stack.push(completion.result);
             }
             Op::ARRAY_EXISTS_STK => {
                 // The stack form resolves an arbitrary (possibly qualified) name,
@@ -2819,10 +2862,9 @@ impl Vm {
                         tcl_runtime_api::VarStore::array_keys_at(vm, target).is_some(),
                     ))
                 });
-                if completion.code != Code::Ok {
+                if let Err(completion) = Self::deliver_sync(f, completion) {
                     return Tick::Return(completion);
                 }
-                f.stack.push(completion.result);
             }
             // `array set`'s materialising half (C `INST_ARRAY_MAKE_*`): make the
             // variable an empty array when undefined, no-op when it already is
@@ -3329,6 +3371,14 @@ impl Vm {
             //    instruction; foreach_start jumps to step; step binds the loop
             //    vars and jumps back to the body, or falls through to end. --
             Op::FOREACH_START => {
+                let policy = if instr.foreach_collect {
+                    tcl_runtime_api::completion_options::ControlOptionPolicy::FRESH_FORWARDED
+                } else {
+                    tcl_runtime_api::completion_options::ControlOptionPolicy::FRESH_SETTLED
+                };
+                if policy.begins_fresh() {
+                    f.last_options = Value::empty();
+                }
                 let start_idx = f.pc - 1;
                 let body_idx = f.pc;
                 let groups = instr.foreach_vars.clone().unwrap_or_default();
@@ -3385,6 +3435,7 @@ impl Vm {
                     }
                 };
                 if more {
+                    f.last_options = Value::empty();
                     for (name, v) in binds {
                         try_op!(self.set_var(&name, v));
                     }
@@ -3406,10 +3457,12 @@ impl Vm {
                 // A collecting loop (`lmap`) yields `list(accum)`; a plain
                 // `foreach` yields nothing (its `""` result is pushed by the
                 // loop-end block).
-                if let Some(st) = st
-                    && st.collect
-                {
-                    f.stack.push(Value::list(st.accum));
+                if let Some(st) = st {
+                    if st.collect {
+                        f.stack.push(Value::list(st.accum));
+                    } else {
+                        f.last_options = Value::empty();
+                    }
                 }
             }
 
@@ -3969,9 +4022,7 @@ impl Vm {
                         result,
                     ],
                 );
-                if c.code == Code::Ok {
-                    f.stack.push(c.result);
-                } else {
+                if let Err(c) = Self::deliver_sync(f, c) {
                     return Tick::Return(c);
                 }
             }
@@ -3989,9 +4040,7 @@ impl Vm {
                 let opts = pop(f);
                 let c =
                     crate::command::cmd_return(self, &[Value::string("-options"), opts, result]);
-                if c.code == Code::Ok {
-                    f.stack.push(c.result);
-                } else {
+                if let Err(c) = Self::deliver_sync(f, c) {
                     return Tick::Return(c);
                 }
             }
@@ -4490,11 +4539,14 @@ impl Vm {
 
             // -- termination --
             Op::DONE => {
-                return Tick::Return(ok(f
-                    .stack
-                    .last()
-                    .cloned()
-                    .unwrap_or_else(|| f.last_result.clone())));
+                return Tick::Return(Completion::new(
+                    Code::Ok,
+                    f.stack
+                        .last()
+                        .cloned()
+                        .unwrap_or_else(|| f.last_result.clone()),
+                    f.last_options.clone(),
+                ));
             }
 
             // The compiled catch epilogue's reads (C `INST_PUSH_RESULT`/
@@ -4513,7 +4565,13 @@ impl Vm {
             }
             Op::PUSH_RETURN_OPTS => {
                 let opts = Self::innermost_caught(f).map_or_else(
-                    || crate::command::options_dict(Code::Ok, 0, &[]),
+                    || {
+                        crate::command::completion_options(&Completion::new(
+                            Code::Ok,
+                            f.last_result.clone(),
+                            f.last_options.clone(),
+                        ))
+                    },
                     |c| c.options.clone(),
                 );
                 f.stack.push(opts);
@@ -4974,7 +5032,7 @@ impl Vm {
                     | Tick::PushCatch(_)
                     | Tick::PushSubst(_)
                     | Tick::PushEachLoop(_)
-                    | Tick::PushTry(_) => self.pending_exec_leave = Some(ctx),
+                    | Tick::PushTry { .. } => self.pending_exec_leave = Some(ctx),
                     // Control shapes with no owning frame (a traced `yield` /
                     // `tailcall` builtin itself): settle with an empty ok —
                     // their real result forms elsewhere.
@@ -5098,6 +5156,9 @@ impl Vm {
         res: Completion<Value>,
     ) -> Result<Option<Tick>, Completion<Value>> {
         if res.code.is_ok() {
+            if !res.options.to_str().is_empty() {
+                f.last_options = res.options;
+            }
             f.stack.push(res.result);
             Ok(None)
         } else {
@@ -5151,7 +5212,10 @@ impl Vm {
         // subsequent phase) to a try-phase frame (see `Frame::try_ctx`,
         // issue #1311).
         if let Some(req) = self.pending.try_phase.take() {
-            return Ok(Some(Tick::PushTry(req)));
+            return Ok(Some(Tick::PushTry {
+                req,
+                initial_options: f.last_options.clone(),
+            }));
         }
         Self::deliver_sync(f, res)
     }
@@ -5514,7 +5578,7 @@ impl Vm {
         // `run_activation` call carries the whole construct through to
         // its final completion.
         if let Some(req) = self.pending.try_phase.take() {
-            return self.run_activation(Frame::new_try(req));
+            return self.run_activation(Frame::new_try(req, Value::empty()));
         }
         res
     }
@@ -5695,6 +5759,7 @@ impl Vm {
             return match acts.last_mut() {
                 None => Some(c),
                 Some(parent) => {
+                    parent.last_options = c.options;
                     parent.stack.push(c.result);
                     None
                 }

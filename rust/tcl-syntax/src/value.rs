@@ -232,6 +232,16 @@ pub trait ValueOps {
     /// A list value from element handles.
     fn new_list(&mut self, items: Vec<Self::Value>) -> Self::Value;
 
+    /// Keep a borrowed value handle alive across later runtime callbacks.
+    ///
+    /// Owning value models need no extra work. Pointer-based runtimes override
+    /// this with their object reference-count increment; every successful pin
+    /// must be paired with [`Self::unpin_value`], including error exits.
+    fn pin_value(&mut self, _value: &Self::Value) {}
+
+    /// Release one transient hold established by [`Self::pin_value`].
+    fn unpin_value(&mut self, _value: &Self::Value) {}
+
     // -- string access (UTF-8; char-indexed downstream) --
 
     /// The string representation, generated and cached on first call

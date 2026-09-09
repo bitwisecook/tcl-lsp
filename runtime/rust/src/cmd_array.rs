@@ -145,18 +145,45 @@ fn array_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         let Some(name_obj) = argv.get(index) else {
             return interp.set_error(b"array subcommand has incomplete registry metadata");
         };
-        if let Some(code) = interp.fire_array_trace(&obj_bytes(*name_obj)) {
-            return code;
-        }
+        let name = obj_bytes(*name_obj);
+        return interp.with_array_trace_target(&name, |interp, target| {
+            array_cmd_after_trace(
+                interp,
+                argv,
+                sub,
+                for_variables,
+                default_option,
+                Some(target),
+            )
+        });
     }
+    array_cmd_after_trace(interp, argv, sub, for_variables, default_option, None)
+}
+
+fn array_cmd_after_trace(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    sub: &[u8],
+    for_variables: Option<[Vec<u8>; 2]>,
+    default_option: Option<&'static [u8]>,
+    target: Option<&tcl_runtime_api::ArrayTarget>,
+) -> Code {
     let sub_str = String::from_utf8_lossy(sub);
     // The read-side + `unset` are the shared `tcl_cmd_core::array` core (over
     // this runtime's `VarStore`/`Frames`/`ValueOps`); a fresh-or-borrowed result
     // object is retained by `set_result`.
-    if let Some(result) = tcl_cmd_core::array::dispatch(interp, &sub_str, &argv[2..]) {
+    if let Some(result) = tcl_cmd_core::array::dispatch_at(interp, &sub_str, &argv[2..], target) {
         return match result {
-            Ok(v) => {
-                interp.set_result(v);
+            Ok(result) => {
+                if let Some(miss) = result.read_miss {
+                    interp.set_return_options(
+                        tcl_runtime_api::completion_options::retained_array_read_options(
+                            &miss,
+                            <[u8]>::to_vec,
+                        ),
+                    );
+                }
+                interp.set_result(result.value);
                 Code::Ok
             }
             Err(e) => interp.report_cmd_error(e),
@@ -277,6 +304,8 @@ fn array_for(
     argv: &[*mut TclObj],
     prepared_variables: Option<[Vec<u8>; 2]>,
 ) -> Code {
+    use tcl_runtime_api::completion_options::ControlOptionPolicy;
+
     if argv.len() != 5 {
         return interp.wrong_args(b"array for {key value} arrayName script");
     }
@@ -297,6 +326,8 @@ fn array_for(
     // change to the *set* of keys (not their values) aborts the loop.
     let snapshot = interp.array_names(&name).unwrap_or_default();
     let snapshot_set: std::collections::BTreeSet<Vec<u8>> = snapshot.iter().cloned().collect();
+    let policy = ControlOptionPolicy::FRESH_SETTLED;
+    interp.begin_control_options(policy);
 
     for idx in 0..=snapshot.len() {
         // Detect a structural change since the snapshot (C's search invalidation).
@@ -312,6 +343,7 @@ fn array_for(
         if idx == snapshot.len() {
             break;
         }
+        interp.begin_control_options(policy);
         let key = &snapshot[idx];
         // Read the value through the trace-firing path (var-23.13 counts reads).
         if let Some(c) = interp.fire_read_trace(&name, Some(key)) {
@@ -342,6 +374,7 @@ fn array_for(
         }
     }
     interp.set_result_bytes(b"");
+    interp.settle_control_options(policy, Code::Ok);
     Code::Ok
 }
 

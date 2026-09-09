@@ -1394,11 +1394,28 @@ pub(crate) fn err_with_code(message: impl Into<String>, code: &str) -> Completio
 
 /// Convert a portable command-layer error without losing its Tcl identity.
 pub(crate) fn completion_from_cmd_error(error: CmdError) -> Completion<Value> {
-    let (message, code) = error.into_parts();
-    match code {
-        Some(code) => err_with_code(message, &code),
-        None => err(message),
+    let (message, code, info, line) = error.into_details();
+    if info.is_none() && line.is_none() {
+        return match code {
+            Some(code) => err_with_code(message, &code),
+            None => err(message),
+        };
     }
+    let mut extra = Vec::with_capacity(3);
+    if let Some(code) = code {
+        extra.push(("-errorcode", Value::string(code)));
+    }
+    if let Some(info) = info {
+        extra.push(("-errorinfo", Value::string(String::from_utf8_lossy(&info))));
+    }
+    if let Some(line) = line {
+        extra.push(("-errorline", Value::int(line)));
+    }
+    Completion::new(
+        Code::Error,
+        Value::string(message),
+        options_dict(Code::Error, 0, &extra),
+    )
 }
 
 /// An `ERROR` completion carrying a structured Tcl lookup error code.
@@ -1449,6 +1466,30 @@ pub(crate) fn completion_options(comp: &Completion<Value>) -> Value {
     } else {
         comp.options.clone()
     }
+}
+
+/// Settle an adapter-owned control completion under the shared option policy.
+///
+/// A native completion's empty `options` value normally means “this command did
+/// not replace the surrounding carried options”. Fresh control activations need
+/// to distinguish that from an explicitly empty option set, so a successful
+/// fresh/settled completion materialises the standard `-code 0 -level 0` dict.
+/// The dispatcher can then replace the prior state without command-name logic.
+pub(crate) fn settle_control_options(
+    mut completion: Completion<Value>,
+    policy: tcl_runtime_api::completion_options::ControlOptionPolicy,
+) -> Completion<Value> {
+    if completion.code != Code::Ok {
+        return completion;
+    }
+    let empty = completion
+        .options
+        .as_list()
+        .is_ok_and(|options| options.is_empty());
+    if policy.settles_success() || (policy.begins_fresh() && empty) {
+        completion.options = options_dict(Code::Ok, 0, &[]);
+    }
+    completion
 }
 
 /// Resolve the `-errorcode` an error completion publishes to `$errorCode`.
@@ -1760,12 +1801,15 @@ fn cmd_time(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     } else {
         Value::double(total / count as f64)
     };
-    ok(Value::list(vec![
-        num,
-        Value::string("microseconds"),
-        Value::string("per"),
-        Value::string("iteration"),
-    ]))
+    settle_control_options(
+        ok(Value::list(vec![
+            num,
+            Value::string("microseconds"),
+            Value::string("per"),
+            Value::string("iteration"),
+        ])),
+        tcl_runtime_api::completion_options::ControlOptionPolicy::FRESH_SETTLED,
+    )
 }
 
 /// `encoding subcommand ?arg …?` — matches the tree-walking runtime
