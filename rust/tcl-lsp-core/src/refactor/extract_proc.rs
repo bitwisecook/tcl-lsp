@@ -375,8 +375,7 @@ fn containing_region(
         ) {
             return Some((region, true));
         }
-        if let Some(region) =
-            region_containing(&same_frame_regions(source, &command, walk), offset)
+        if let Some(region) = region_containing(&same_frame_regions(source, &command, walk), offset)
         {
             return Some((region, false));
         }

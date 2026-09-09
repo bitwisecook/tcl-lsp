@@ -126,7 +126,9 @@ Find All References and the caller-frame scan use, and find the frame
 boundaries through its complement, `frame_shifted_dispatch_regions`. It is
 registry-driven throughout: `Plain` body arguments, `switch`-style clause arms
 via the registry's own `CaseListSpec`, and `[…]` command substitutions are
-descended, while `Structural` bodies and `apply` lambdas end the walk.
+descended, the ones inside a braced expression argument through the expression
+parser's own script bridge, while `Structural` bodies and `apply` lambdas end
+the walk.
 
 ## Failure modes
 
