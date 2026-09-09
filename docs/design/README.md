@@ -53,13 +53,22 @@ passes, and ownership matrices.
 - [example-walkthroughs.md](compiler/example-walkthroughs.md) — full pipeline
   traces for progressively complex Tcl scripts.
 - [value-transfers.md](compiler/value-transfers.md) — **proposal** for the
-  registry's dataflow axis (issue #1943): how a command invocation transforms
-  the constant lattice, declared once per command, authorable from a
-  `.tclspec` pack, and consumed generically by every pass and diagnostic.
+  registry's value axis (issue #1943): the consumer interface contract under
+  which the registry owns what an invocation computes and writes and the
+  analyser owns the generic operations that apply it, with the rulings,
+  the answer protocol, the three permissions, and branch facts.
+- [value-evaluation.md](compiler/value-evaluation.md) — **proposal**: the
+  evaluation contract behind that interface — the direct, expression, and
+  declared-implementation routes, the shared cores and adapters, the regexp
+  owner, the bounded engine, one analysis context, budgets, and authoring.
+- [value-transfers-migration.md](compiler/value-transfers-migration.md) —
+  **proposal**: the migration plan — the inventory of hand-written command
+  knowledge, the delivery slices, what changes for every pass and
+  diagnostic, the drift gate, and validation.
 - [registry-consumer-contracts.md](compiler/registry-consumer-contracts.md)
-  — **proposal** companion: the description, identity, and implementation
-  contracts under which the registry can drive the analyser, codegen, and the
-  runtimes, with the dialect, package, and C-extension consequences.
+  — **proposal** companion: the description, identity, and backing contracts
+  under which the registry can drive the analyser, codegen, and the
+  runtimes, with the dialect, package, and C-extension follow-ons.
 - [value-transfers-review.md](compiler/value-transfers-review.md) — review
   of the value-transfer and consumer-contract proposals: registry-owned
   specialisation, shared expression/regexp evaluation, correctness findings,

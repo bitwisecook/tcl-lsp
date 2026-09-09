@@ -68,16 +68,28 @@ User-facing compiler troubleshooting and how-tos live in
 - [constant-folding-type-inference.md](constant-folding-type-inference.md)
   — SCCP and type lattice.
 - [value-transfers.md](value-transfers.md) — **proposal** for the
-  registry's dataflow axis (issue #1943): one `ValueTransfer` descriptor per
-  command replacing the per-command fold and `incr` arms in SCCP, its
-  SpecTcl `cell_fold` / `destructure_fold` families, the soundness gates,
-  and what changes for every analysis, optimisation, and diagnostic.
+  registry's value axis (issue #1943): the consumer interface contract —
+  the ownership boundary, one invocation and one analysis context, the
+  answer protocol of result plus ordered storage outcomes, the three
+  permissions, the lift over the lattice, `expr` as the first client,
+  branch facts, and diagnostics as consumers of facts.
+- [value-evaluation.md](value-evaluation.md) — **proposal**: the evaluation
+  contract — the direct route over the shared cores through `ConstOps` and
+  its adapters, the shared expression engine, the regexp owner with typed
+  precision, the declared-implementation route in the bounded engine with
+  per-evaluation state, one memo under one context, budgets and
+  cancellation, target semantics, and the SpecTcl authoring sketches.
+- [value-transfers-migration.md](value-transfers-migration.md) —
+  **proposal**: the migration plan — the versioned inventory of hand-written
+  command knowledge, the seven delivery slices with exit criteria, what
+  changes for every analysis, optimisation, and diagnostic, the third-party
+  tiers, the drift gate, and the validation matrix.
 - [registry-consumer-contracts.md](registry-consumer-contracts.md) —
-  **proposal** companion to value-transfers: the description, identity, and
-  implementation contracts under which the registry and `.tclspec` packs can
-  drive the analyser, both code generators, and both runtimes; the four
-  rungs of a pack claim reaching emitted code; the dialect, package, and
-  C-extension consequences; and the rulings needed first.
+  **proposal** companion: the description, identity, and backing contracts
+  under which the registry and `.tclspec` packs can drive the analyser,
+  both code generators, and both runtimes; the four rungs of a pack claim
+  reaching emitted code; the dialect, package, and C-extension follow-ons;
+  and the rulings still open.
 - [value-transfers-review.md](value-transfers-review.md) — review of those
   proposals against registry-owned specialisation, with shared expression
   and regexp evaluation, analysis/diagnostic separation, correctness findings,

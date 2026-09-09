@@ -114,8 +114,8 @@ to remove. The same problem can recur with analyser hooks: a switch over
 `Hook::DictWith` is still command-specific if its handler understands dict
 syntax and implements the command's binding rules.
 
-Evidence: [the descriptor](value-transfers.md#one-descriptor-five-kinds),
-[the proposed folding changes](value-transfers.md#folding), and the current
+Evidence: [the descriptor](value-transfers.md#the-interface),
+[the proposed folding changes](value-transfers-migration.md#the-slices), and the current
 `dispatch_analyser_hook` in
 [analyser/commands.rs](../../../rust/tcl-compiler/src/analyser/commands.rs).
 

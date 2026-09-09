@@ -681,20 +681,20 @@ KCS tag: `type-infer`.
 
 ### Value transfer
 
-The proposed registry-owned description of how one command invocation
-transforms the [SCCP](#sccp) lattice: the value each written variable
-holds afterwards and the value the command returns. A *pure* transfer is
-a `const_fold` (`[string range foobarbaz 3 6]` → `barb`); a *cell*
-transfer reads a variable and writes it back (`incr`, `append`,
-`lappend`, `dict incr`); a *destructure* transfer writes several
-variables (`lassign`, `scan`, `regexp` with match variables); *destroy*
-and *iterate* cover `unset` and `foreach`. Declared as
-`CommandSpec::value_transfer` or derived from existing facts, resolved by
-one query, applied by SCCP under the trust, escape, trace, and dialect
-gates every fold already obeys, and authorable by a `.tclspec` pack as a
-`cell_fold` / `destructure_fold` body. Not yet implemented.
+The proposed registry-owned answer for one command invocation on the value
+axis: the command's result, the ordered outcome for each storage place it
+may affect — write a value, preserve the prior state, unbind, or may-write
+with bounded facts — the semantic types of both, and the evidence the
+answer depends on. The registry declares what an invocation computes and
+which places it writes; the analyser owns the generic operations that
+prove operands, resolve places, validate the answer, and join it into the
+[SCCP](#sccp) lattice. A known result authorises propagation, never the
+deletion of the producing operation. Computed through a declared evaluator
+route (a shared core, the shared expression engine, or a declared
+implementation in the bounded engine), never inferred from purity. Not yet
+implemented.
 
-See also: [Value transfers](design/compiler/value-transfers.md), [Registry consumer contracts](design/compiler/registry-consumer-contracts.md), and
+See also: [Value transfers](design/compiler/value-transfers.md), [Value evaluation](design/compiler/value-evaluation.md), [Value-transfer migration](design/compiler/value-transfers-migration.md), [Registry consumer contracts](design/compiler/registry-consumer-contracts.md), and
 [Constant folding](#constant-folding).
 
 ### Def-use chains
@@ -940,9 +940,12 @@ registry spec — `GuardIdentity` in `rust/tcl-runtime-api/src/guard.rs`, an
 intrinsic's stable id packed with its release-semantics key. Compiled code
 that wants to take an intrinsic fast path asks the runtime to attest the
 identity of the live command first, and falls back to generic dispatch
-when it cannot. Both runtimes derive identities through
-`register_spec_builtin` for one command today and clear their identity
-tables on every command-environment mutation, including the profile pin.
+when it cannot. This is intrinsic guard *eligibility*, distinct from the
+command-binding provenance check (`command_binding_matches`) that
+re-resolves every specialised site at admission. Both runtimes derive
+identities through `register_spec_builtin` for one command today and clear
+their guard tables on every command-environment mutation, including the
+profile pin; the binding check survives those mutations.
 See [Registry consumer contracts](design/compiler/registry-consumer-contracts.md).
 
 KCS tag: `codegen`.
