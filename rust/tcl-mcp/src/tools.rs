@@ -1004,6 +1004,9 @@ fn code_actions(args: &Value) -> Value {
 
 fn extract_variable(args: &Value) -> Value {
     let source = arg_str(args, "source");
+    let dialect = resolve_dialect(args, source);
+    let config =
+        LexerConfig::from_grammar(crate::environment::profile_for_dialect(&dialect).grammar);
     let line_index = LineIndex::new(source);
     let start_off = line_index.offset_at_utf16(
         arg_u32(args, "start_line"),
@@ -1025,6 +1028,7 @@ fn extract_variable(args: &Value) -> Value {
         end_off,
         var_name,
         &line_index,
+        config,
     ) {
         Some(r) => refactoring_json(source, &r),
         None => Value::Null,
@@ -1104,6 +1108,7 @@ fn refactor(args: &Value) -> Value {
                 end_off,
                 "result",
                 &line_index,
+                config,
             ),
         );
     }

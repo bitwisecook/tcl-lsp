@@ -19,7 +19,8 @@
 //! Extract variable — replace a selected expression with a named
 //! variable.
 
-use tcl_lexer::LineIndex;
+use tcl_compiler::segmenter::has_exactly_one_command_with_config;
+use tcl_lexer::{LexerConfig, LineIndex};
 
 use super::{RefactorEdit, Refactoring};
 use crate::code_actions::ActionKind;
@@ -86,37 +87,14 @@ fn looks_like_expr(text: &str) -> bool {
     false
 }
 
-/// `true` when `text` holds a command terminator — an unescaped newline
-/// or `;` outside quotes, braces, brackets and parens — with code on both
-/// sides of it.
+/// `true` when `selected` holds more than one command.
 ///
-/// Such a selection is two or more commands, and a `set` can only take one
-/// value word: extracting it would build `set result set x 1` and drop the
-/// rest of the selection into the assignment.
-fn spans_multiple_commands(text: &str) -> bool {
-    let bytes = text.as_bytes();
-    let mut depth = 0i32;
-    let mut in_quotes = false;
-    let mut i = 0;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'\\' if i + 1 < bytes.len() => {
-                i += 2;
-                continue;
-            }
-            b'"' => in_quotes = !in_quotes,
-            b'(' | b'{' | b'[' if !in_quotes => depth += 1,
-            b')' | b'}' | b']' if !in_quotes => depth -= 1,
-            b'\n' | b';' if !in_quotes && depth == 0 => {
-                if !text[..i].trim().is_empty() && !text[i + 1..].trim().is_empty() {
-                    return true;
-                }
-            }
-            _ => {}
-        }
-        i += 1;
-    }
-    false
+/// A `set` takes a single value word, so extracting two commands would
+/// build `set result set x 1` and drop the rest of the selection into the
+/// assignment. Command boundaries come from the segmenter, which owns
+/// where a Tcl command ends.
+fn spans_multiple_commands(selected: &str, config: LexerConfig) -> bool {
+    !has_exactly_one_command_with_config(selected, config)
 }
 
 /// Extract the selection `[start_off, end_off)` into a `set` assignment.
@@ -132,12 +110,13 @@ pub fn extract_variable(
     end_off: u32,
     var_name: &str,
     line_index: &LineIndex,
+    config: LexerConfig,
 ) -> Option<Refactoring> {
     if end_off <= start_off {
         return None;
     }
     let selected = source.get(start_off as usize..end_off as usize)?;
-    if selected.trim().is_empty() || spans_multiple_commands(selected) {
+    if selected.trim().is_empty() || spans_multiple_commands(selected, config) {
         return None;
     }
 
@@ -197,7 +176,8 @@ mod tests {
 
     fn run(source: &str, start: u32, end: u32, name: &str) -> Option<String> {
         let li = LineIndex::new(source);
-        extract_variable(source, start, end, name, &li).map(|r| r.apply(source))
+        extract_variable(source, start, end, name, &li, LexerConfig::default())
+            .map(|r| r.apply(source))
     }
 
     #[test]
@@ -216,7 +196,8 @@ mod tests {
     fn title_carries_custom_name() {
         let source = "puts [expr {$a + $b}]";
         let li = LineIndex::new(source);
-        let r = extract_variable(source, 5, 20, "total", &li).expect("result");
+        let r =
+            extract_variable(source, 5, 20, "total", &li, LexerConfig::default()).expect("result");
         assert!(r.title.contains("total"));
     }
 
@@ -228,6 +209,8 @@ mod tests {
         assert!(run("set a 1; set b 2", 0, 16, "result").is_none());
         // FP-guard: a newline inside a braced word is still one command.
         assert!(run("puts [expr {1 +\n2}]", 5, 19, "total").is_some());
+        // FP-guard: one command plus its trailing newline is one command.
+        assert!(run("proc f {} {\n    return $x\n}\n", 12, 26, "result").is_some());
     }
 
     #[test]
@@ -245,7 +228,8 @@ mod tests {
     fn bare_expression_is_wrapped_in_expr() {
         let source = "puts $a + $b";
         let li = LineIndex::new(source);
-        let r = extract_variable(source, 5, 12, "sum", &li).expect("result");
+        let r =
+            extract_variable(source, 5, 12, "sum", &li, LexerConfig::default()).expect("result");
         let applied = r.apply(source);
         assert!(applied.contains("set sum [expr {$a + $b}]"), "{applied:?}");
     }
@@ -258,7 +242,15 @@ mod tests {
     #[test]
     fn bitwise_and_tip461_expressions_are_wrapped_in_expr() {
         let li = LineIndex::new("puts $a << $b");
-        let r = extract_variable("puts $a << $b", 5, 13, "shifted", &li).expect("result");
+        let r = extract_variable(
+            "puts $a << $b",
+            5,
+            13,
+            "shifted",
+            &li,
+            LexerConfig::default(),
+        )
+        .expect("result");
         assert!(
             r.apply("puts $a << $b")
                 .contains("set shifted [expr {$a << $b}]"),
@@ -267,7 +259,15 @@ mod tests {
         );
 
         let li2 = LineIndex::new("puts $a lt $b");
-        let r2 = extract_variable("puts $a lt $b", 5, 13, "ordered", &li2).expect("result");
+        let r2 = extract_variable(
+            "puts $a lt $b",
+            5,
+            13,
+            "ordered",
+            &li2,
+            LexerConfig::default(),
+        )
+        .expect("result");
         assert!(
             r2.apply("puts $a lt $b")
                 .contains("set ordered [expr {$a lt $b}]"),
@@ -285,7 +285,8 @@ mod tests {
     fn quoted_string_containing_operator_words_is_not_wrapped_in_expr() {
         let source = r#"puts "salt and pepper""#;
         let li = LineIndex::new(source);
-        let r = extract_variable(source, 5, 22, "seasoning", &li).expect("result");
+        let r = extract_variable(source, 5, 22, "seasoning", &li, LexerConfig::default())
+            .expect("result");
         let applied = r.apply(source);
         assert!(
             applied.contains(r#"set seasoning "salt and pepper""#),
@@ -303,7 +304,8 @@ mod tests {
         let source = "puts helper {a and b} $x";
         let li = LineIndex::new(source);
         // selection of `helper {a and b} $x` (cols 5..24).
-        let r = extract_variable(source, 5, 24, "result", &li).expect("result");
+        let r =
+            extract_variable(source, 5, 24, "result", &li, LexerConfig::default()).expect("result");
         let applied = r.apply(source);
         assert!(
             applied.contains("set result helper {a and b} $x"),
