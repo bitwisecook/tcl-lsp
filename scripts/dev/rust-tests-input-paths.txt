@@ -25,12 +25,16 @@ scripts/dev/changed-paths.sh
 scripts/dev/rust-tests-path.sh
 scripts/dev/rust-tests-package-paths.txt
 scripts/dev/rust-tests-input-paths.txt
+scripts/dev/rust-test-binary-shard.sh
+scripts/dev/rust-test-binary-shards.tsv
 scripts/dev/select-rust-tests-runner.sh
 scripts/dev/persistent-cargo-target.sh
 scripts/dev/test-already-green.sh
+scripts/dev/test-nextest-binary-shards.sh
 scripts/dev/test-rust-tests-paths.sh
 scripts/dev/test-rust-tests-runner.sh
 scripts/dev/test-persistent-cargo-target.sh
+scripts/dev/verify-nextest-binary-shards.py
 scripts/dev/verify-nextest-partitions.py
 scripts/dev/tcl-reference-toolchains.sh
 scripts/dev/test-reference-tcl-toolchains.sh

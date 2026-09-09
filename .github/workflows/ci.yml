@@ -296,7 +296,7 @@ jobs:
                   web_frontends_changed=true ;;
               esac
               case "$f" in
-                .github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/changed-paths.sh | scripts/dev/rust-tests-path.sh | scripts/dev/rust-tests-input-paths.txt | scripts/dev/rust-tests-package-paths.txt | scripts/dev/select-rust-tests-runner.sh | scripts/dev/persistent-cargo-target.sh | scripts/dev/test-rust-tests-paths.sh | scripts/dev/test-rust-tests-runner.sh | scripts/dev/test-persistent-cargo-target.sh)
+                .github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/changed-paths.sh | scripts/dev/rust-tests-path.sh | scripts/dev/rust-tests-input-paths.txt | scripts/dev/rust-tests-package-paths.txt | scripts/dev/rust-test-binary-shard.sh | scripts/dev/rust-test-binary-shards.tsv | scripts/dev/verify-nextest-binary-shards.py | scripts/dev/test-nextest-binary-shards.sh | scripts/dev/select-rust-tests-runner.sh | scripts/dev/persistent-cargo-target.sh | scripts/dev/test-rust-tests-paths.sh | scripts/dev/test-rust-tests-runner.sh | scripts/dev/test-persistent-cargo-target.sh)
                   runner_policy_changed=true ;;
               esac
               if "$rust_tests_path" "$f"; then
@@ -875,8 +875,8 @@ jobs:
   # suites don't serialise behind each other. The first five required status
   # checks on `rust` are:
   #
-  #   rust-tests-shard   five direct hash-partitioned consumers of the workspace
-  #                     suite (minus VM-sim heavies and tcl-lsp-server)
+  #   rust-tests-shard   five binary-aware consumers of the workspace suite
+  #                     (minus VM-sim heavies and tcl-lsp-server)
   #   rust-tests-doctest all workspace doctests, independently concurrent with
   #                     the direct nextest consumers
   #   rust-tests-heavy  the VM-sim heavies (`tcl-irule-test`, `f5-cli`) plus
@@ -919,12 +919,16 @@ jobs:
   #                     Release — the same producer/attacher split
   #                     `build-server-matrix` uses.
   #
-  # nextest runs each hash shard in its own global parallel pool. Exact-head
-  # run 34283151340 measured four legs at 9m28–12m14 (hosted compile
-  # 3m24–3m56, nextest 4m41–5m42); shard 1 then added about 1m43 building
-  # doctests after nextest ended. Five direct consumers shorten the hash tail,
-  # while the independent doctest job removes that serial suffix. The aggregate
-  # proves that the exact selected nextest set is neither dropped nor duplicated.
+  # Each nextest consumer keeps the exact whole-workspace/all-features resolver
+  # graph, links every lib/bin unit harness, and links only its assigned
+  # integration-test targets. Run 34289762415 showed that direct hash shards
+  # spent 3m34–3m51 compiling/linking all 319 binaries before each 3m30–4m26
+  # test partition. A local exact-tree prototype linked/listed the 50 common
+  # unit harnesses in 1m47 on a cold target and added 64 assigned integration
+  # targets in 7.46s; its 4,568-test shard executed in 94.8s. The committed
+  # binary map came from that run's complete timings. The aggregate checks it
+  # against locked Cargo metadata and proves that every non-ignored testcase is
+  # selected exactly once, so target drift or a bad filter fails closed.
   #
   # `tcl-lsp-server` is excluded from rust-tests-shard because lsp-e2e runs that crate
   # in full.  The crate declares no [features], so dropping it from the
@@ -1122,7 +1126,7 @@ jobs:
       # `--no-run --no-fail-fast` outright ("the argument '--no-run' cannot be
       # used with '--no-fail-fast'"), and the flag is meaningless anyway when
       # no tests are executed.
-      - name: cargo nextest run (workspace minus VM-sim heavies and lsp-e2e)
+      - name: cargo nextest run (binary-aware workspace shard)
         if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
         env:
           ALREADY_GREEN: ${{ needs.channel.outputs.already_green }}
@@ -1140,9 +1144,9 @@ jobs:
             exit 0
           fi
           if [ "$RUST_TESTS_RUNNER" = tank ]; then
-            bash scripts/dev/persistent-cargo-target.sh with-lock "$CARGO_TARGET_DIR" cargo nextest run $extra --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --all-features --partition "hash:$SHARD"
+            bash scripts/dev/persistent-cargo-target.sh with-lock "$CARGO_TARGET_DIR" bash scripts/dev/rust-test-binary-shard.sh run "$SHARD" $extra
           else
-            cargo nextest run $extra --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --all-features --partition "hash:$SHARD"
+            bash scripts/dev/rust-test-binary-shard.sh run "$SHARD" $extra
           fi
 
       - name: Record selected shard listing
@@ -1151,9 +1155,9 @@ jobs:
           SHARD: ${{ matrix.shard }}
         run: |
           shard_file=$(printf '%s' "$SHARD" | tr '/' '-')
-          cargo nextest list --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --all-features --partition "hash:$SHARD" --message-format json > "$RUNNER_TEMP/rust-tests-$shard_file.json"
+          bash scripts/dev/rust-test-binary-shard.sh list "$SHARD" --message-format json > "$RUNNER_TEMP/rust-tests-$shard_file.json"
           if [ "$SHARD" = "1/5" ]; then
-            cargo nextest list --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --all-features --message-format json > "$RUNNER_TEMP/rust-tests-all.json"
+            cargo metadata --no-deps --locked --format-version 1 > "$RUNNER_TEMP/rust-tests-metadata.json"
           fi
 
       - name: Upload selected shard listing
@@ -1167,12 +1171,12 @@ jobs:
           retention-days: 1
           overwrite: true
 
-      - name: Upload authoritative all-tests listing
+      - name: Upload authoritative Cargo metadata
         if: always() && matrix.shard == '1/5' && needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: rust-tests-listing-all
-          path: ${{ runner.temp }}/rust-tests-all.json
+          name: rust-tests-metadata
+          path: ${{ runner.temp }}/rust-tests-metadata.json
           if-no-files-found: error
           compression-level: 0
           retention-days: 1
@@ -1215,7 +1219,7 @@ jobs:
           fi
 
   # nextest does not run doctests. Keep the whole-workspace doctest command
-  # separate from the CPU-bound hash shards, so its build does not extend the
+  # separate from the CPU-bound binary shards, so its build does not extend the
   # slowest shard's wall time. This job is deliberately hosted: Tank capacity
   # is reserved for shard 1, and doctests do not need its persistent target.
   # It remains a step-gated job so the stable aggregate context is preserved
@@ -1247,9 +1251,10 @@ jobs:
         if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
         run: cargo test --workspace --all-features --doc --no-fail-fast
 
-  # Stable required status context. Every selected testcase must appear in
-  # exactly one of the five direct nextest listings, every shard must pass,
-  # and the independent whole-workspace doctest job must pass.
+  # Stable required status context. Locked Cargo metadata must agree with the
+  # committed binary map, every non-ignored testcase must be selected by
+  # exactly one listing, every shard must pass, and the independent
+  # whole-workspace doctest job must pass.
   rust-tests:
     if: ${{ always() }}
     needs: [channel, rust-tests-shard, rust-tests-doctest]
@@ -1290,15 +1295,16 @@ jobs:
         if: needs.channel.result == 'success' && needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: rust-tests-listing-*
+          pattern: rust-tests-*
           merge-multiple: true
           path: ${{ runner.temp }}/rust-tests-listings
 
-      - name: Verify complete five-way selection
+      - name: Verify complete five-way binary selection
         if: needs.channel.result == 'success' && needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
         run: |
-          python3 scripts/dev/verify-nextest-partitions.py --partition-count 5 \
-            "$RUNNER_TEMP/rust-tests-listings/rust-tests-all.json" \
+          python3 scripts/dev/verify-nextest-binary-shards.py --partition-count 5 \
+            "$RUNNER_TEMP/rust-tests-listings/rust-tests-metadata.json" \
+            scripts/dev/rust-test-binary-shards.tsv \
             "$RUNNER_TEMP/rust-tests-listings/rust-tests-1-5.json" \
             "$RUNNER_TEMP/rust-tests-listings/rust-tests-2-5.json" \
             "$RUNNER_TEMP/rust-tests-listings/rust-tests-3-5.json" \

@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# Contract test for the direct five-way Rust test fan-out. The matrix keeps
+# Contract test for the binary-aware five-way Rust test fan-out. The matrix keeps
 # shard 1 eligible for the one-physical-host Tank lane; shards 2–5 are always
 # hosted. The assertions below parse job and step structure, then exercise the
 # mocked selector API contract so comments or unrelated jobs cannot satisfy it.
@@ -208,7 +208,7 @@ END {
     paths_step = step("jobs.channel", "id", "paths")
     need(paths_step >= 0, "channel must define the paths step")
     paths_run = "jobs.channel.steps." paths_step ".run"
-    path_list = ".github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/changed-paths.sh | scripts/dev/rust-tests-path.sh | scripts/dev/rust-tests-input-paths.txt | scripts/dev/rust-tests-package-paths.txt | scripts/dev/select-rust-tests-runner.sh | scripts/dev/persistent-cargo-target.sh | scripts/dev/test-rust-tests-paths.sh | scripts/dev/test-rust-tests-runner.sh | scripts/dev/test-persistent-cargo-target.sh)"
+    path_list = ".github/workflows/ci.yml | .github/dependabot.yml | scripts/dev/changed-paths.sh | scripts/dev/rust-tests-path.sh | scripts/dev/rust-tests-input-paths.txt | scripts/dev/rust-tests-package-paths.txt | scripts/dev/rust-test-binary-shard.sh | scripts/dev/rust-test-binary-shards.tsv | scripts/dev/verify-nextest-binary-shards.py | scripts/dev/test-nextest-binary-shards.sh | scripts/dev/select-rust-tests-runner.sh | scripts/dev/persistent-cargo-target.sh | scripts/dev/test-rust-tests-paths.sh | scripts/dev/test-rust-tests-runner.sh | scripts/dev/test-persistent-cargo-target.sh)"
     contains(paths_run, path_list, "runner and dependency-policy changes must classify themselves for hosted proof")
 
     runner_step = step("jobs.channel", "id", "rust-runner")
@@ -280,18 +280,17 @@ END {
     nextest_setup = step(shard_job, "name", "Install cargo-nextest")
     need(nextest_setup > enable && values[shard_job ".steps." nextest_setup ".if"] == active, "cargo-nextest setup must be warm-path-gated")
 
-    nextest = step(shard_job, "name", "cargo nextest run (workspace minus VM-sim heavies and lsp-e2e)")
+    nextest = step(shard_job, "name", "cargo nextest run (binary-aware workspace shard)")
     need(nextest >= 0, "Rust shards must retain the broad nextest step")
     contains(shard_job ".steps." nextest ".run", "if [ \"$RUST_TESTS_RUNNER\" = tank ]; then", "nextest must branch on the actual per-shard runner mode")
-    contains(shard_job ".steps." nextest ".run", "cargo nextest run $extra --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --all-features --partition \"hash:$SHARD\"", "nextest must retain the exact root workspace selection")
+    contains(shard_job ".steps." nextest ".run", "rust-test-binary-shard.sh run \"$SHARD\" $extra", "nextest must use the reviewed binary-aware selection")
     contains(shard_job ".steps." nextest ".run", "cargo nextest run --no-run --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --all-features", "already-green must warm the complete root workspace")
-    contains(shard_job ".steps." nextest ".run", "--partition \"hash:$SHARD\"", "nextest must use the five-way hash shard")
     contains(shard_job ".steps." nextest ".run", "persistent-cargo-target.sh with-lock", "Tank nextest must hold the persistent target lock")
     need(index(values[shard_job ".steps." nextest ".if"], "matrix.shard == '\''1/5'\''") != 0, "already-green warm compilation must be restricted to shard 1")
     shard_upload = step(shard_job, "name", "Upload selected shard listing")
-    all_upload = step(shard_job, "name", "Upload authoritative all-tests listing")
+    metadata_upload = step(shard_job, "name", "Upload authoritative Cargo metadata")
     need(shard_upload > nextest && values[shard_job ".steps." shard_upload ".with.overwrite"] == "true", "shard listing uploads must be replaceable on job reruns")
-    need(all_upload > shard_upload && values[shard_job ".steps." all_upload ".with.overwrite"] == "true", "authoritative listing uploads must be replaceable on job reruns")
+    need(metadata_upload > shard_upload && values[shard_job ".steps." metadata_upload ".with.overwrite"] == "true", "authoritative metadata uploads must be replaceable on job reruns")
     doctest = step(doctest_job, "name", "cargo test --doc")
     need(doctest >= 0, "doctests must run in their own job")
     need(values[doctest_job ".if"] == values[shard_job ".if"], "doctests must retain the shard matrix unchanged/exact-green job skips")
@@ -380,8 +379,8 @@ case "$aggregate" in
     *) echo "rust-tests aggregate must always run and fail closed over every shard plus doctests" >&2; exit 1 ;;
 esac
 case "$aggregate" in
-    *'verify-nextest-partitions.py --partition-count 5'*'rust-tests-all.json'*'rust-tests-5-5.json'*) ;;
-    *) echo "rust-tests aggregate must prove complete five-way selection" >&2; exit 1 ;;
+    *'verify-nextest-binary-shards.py --partition-count 5'*'rust-tests-metadata.json'*'rust-test-binary-shards.tsv'*'rust-tests-5-5.json'*) ;;
+    *) echo "rust-tests aggregate must prove complete five-way binary selection" >&2; exit 1 ;;
 esac
 
 # Keep the stable aggregate alive for unrelated changes and already-green tags.
@@ -396,4 +395,4 @@ case "$(cat "$WORKFLOW")" in
     *) echo "root Rust closure must override the broad docs-only path shape" >&2; exit 1 ;;
 esac
 
-echo "direct five-way Rust test scheduling contract passed"
+echo "binary-aware five-way Rust test scheduling contract passed"
