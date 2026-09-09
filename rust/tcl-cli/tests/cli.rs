@@ -639,6 +639,39 @@ fn diag_honours_a_file_directive_across_every_pass() {
     );
 }
 
+/// A file whose bytes are not UTF-8 text reports the integrity code alone, and
+/// a file-level directive silences it by name or by the `*` wildcard.
+///
+/// `*` is the spelling `# tcl-lsp: disable=*` records, and it governs this
+/// family as it governs every other. The document below is NUL-interleaved,
+/// which is what makes the analysis abstain: everything derived from the
+/// decoded text would describe positions the file does not have.
+#[test]
+fn diag_honours_a_file_directive_on_an_abstaining_document() {
+    let nul_run = "\u{0}".repeat(80);
+    let plain = format!("set x 1\n{nul_run}");
+    let by_name = format!("# tcl-lsp: disable=W109\nset x 1\n{nul_run}");
+    let by_wildcard = format!("# tcl-lsp: disable=*\nset x 1\n{nul_run}");
+
+    let plain_rows = tcl_diag_rows("abstain-plain", &plain);
+    assert_eq!(
+        plain_rows
+            .iter()
+            .map(|(code, _)| code.as_str())
+            .collect::<Vec<_>>(),
+        ["W109"],
+        "an abstaining document reports the integrity code and nothing else"
+    );
+    assert!(
+        tcl_diag_rows("abstain-named", &by_name).is_empty(),
+        "`disable=W109` must silence it"
+    );
+    assert!(
+        tcl_diag_rows("abstain-wildcard", &by_wildcard).is_empty(),
+        "`disable=*` must silence it too"
+    );
+}
+
 /// The rows a lone-CR document and its `\n` twin must agree on: everything
 /// except `W118`, the one lint whose subject *is* the line terminators.
 fn without_line_ending_lint(rows: &[(String, u64)]) -> Vec<(String, u64)> {

@@ -397,10 +397,15 @@ fn sslictcl_rows(
 /// rather than about the user's code, pointing at positions the file does not
 /// have. One accurate finding beats a three-line UTF-16 iRule's 87 wrong ones.
 fn abstained_rows(document: &InputDocument, disabled: &HashSet<String>) -> Vec<Row> {
+    // `*` is the "every code" spelling a `# tcl-lsp: disable=*` directive
+    // records, and it governs this family as it governs every other — the same
+    // gate `source_style::style_diagnostics` applies to these codes on the
+    // path this one stands in for.
+    let enabled = |code: &str| !disabled.contains("*") && !disabled.contains(code);
     document
         .encoding_diagnostics()
         .into_iter()
-        .filter(|d| !disabled.contains(d.code))
+        .filter(|d| enabled(d.code))
         .map(style_row)
         .collect()
 }
