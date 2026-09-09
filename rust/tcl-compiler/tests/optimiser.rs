@@ -1686,6 +1686,46 @@ fn load_forwarding_o127() {
     //    is not treated as a barrier).
 }
 
+// Deletion and replay extents — a removal or replay covers the whole written
+// statement, closing delimiter included.
+
+#[test]
+fn removed_and_replayed_statements_keep_their_closer() {
+    // A statement span stops *on* the closer of a quoted, braced, or bracketed
+    // last word. A removal that inherits that boundary strands the closer on a
+    // line of its own, and a replay copies an opener without it, so each case
+    // pins the exact text and re-checks it through the `tcl diag` surface.
+    //
+    // tclsh: both pairs are observationally identical. `set a "hello"; puts $a`
+    // prints `hello`, as does `puts hello`; `set x V; puts $x` prints V, as
+    // does `puts [set x V]`, since `set` yields the value it assigns.
+    for (before, after) in [
+        // O102 propagation coupled with the O109 removal of the feeding store,
+        // whose value word is quoted.
+        (
+            "proc f {} {\n  set a \"hello\"\n  puts $a\n}",
+            "proc f {} {\n  puts hello\n}",
+        ),
+        // O127 replays the assignment into the use site; the value word is
+        // quoted and holds a command substitution.
+        (
+            "proc f {} {\n  set x \"a [clock seconds] b\"\n  puts $x\n}",
+            "proc f {} {\n  puts [set x \"a [clock seconds] b\"]\n}",
+        ),
+    ] {
+        assert_eq!(
+            optimised(before, TCL),
+            after,
+            "rewritten source for: {before}"
+        );
+        assert!(
+            reparse_errors(&optimised(before, TCL), TCL).is_empty(),
+            "the rewritten source must re-parse: {}",
+            optimised(before, TCL)
+        );
+    }
+}
+
 // Profile directive / multipass — profile survival + string-build collapse
 
 #[test]

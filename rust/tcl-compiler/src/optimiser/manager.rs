@@ -39,6 +39,7 @@ use crate::compilation_unit::CompilationUnit;
 
 use super::elimination::DeadStore;
 use super::helpers::select::select_non_overlapping;
+use super::helpers::spans::{full_rewrite_span, line_delete_span};
 use super::helpers::var_refs::{bareword_occurrences, count_var_refs};
 use super::{Optimisation, PassContext, PassId, run_passes};
 
@@ -571,8 +572,11 @@ fn couple_const_dead_store_chain(
     // Approach B: `def_stmt` is from `fu.cfg` (relative to `base_offset`).
     // Widen past the inner-end convention before deleting: a value word that
     // is quoted, braced, or bracketed leaves its closer outside the statement
-    // span, and a deletion that stops short of it strands the closer.
-    let del_span = line_delete_span(source, fu.abs_span(def_stmt.span()));
+    // Widen past the inner-end convention before taking the line: a quoted
+    // value word leaves its closer outside the statement span, and a deletion
+    // that stops short of it strands the closer on a line of its own.
+    let written = full_rewrite_span(source, fu.abs_span(def_stmt.span()));
+    let del_span = line_delete_span(source, written);
     Some(Optimisation::new(
         DiagCode::O109,
         "Eliminate dead store",
@@ -669,28 +673,6 @@ fn function_source_span(fu: &crate::compilation_unit::FunctionUnit) -> (usize, u
         // memoised offset-0 path.
         (fu.abs_pos(lo) as usize, fu.abs_pos(hi) as usize)
     }
-}
-
-/// Extend a statement's span to swallow its trailing newline (and leading
-/// indentation) so the whole `set` line is removed cleanly.
-fn line_delete_span(source: &str, span: tcl_lexer::Span) -> tcl_lexer::Span {
-    let bytes = source.as_bytes();
-    let mut start = span.start() as usize;
-    let mut end = span.end() as usize;
-    // Back up over leading spaces/tabs on the line.
-    while start > 0 && matches!(bytes.get(start - 1), Some(b' ' | b'\t')) {
-        start -= 1;
-    }
-    // Swallow a single trailing newline (and a preceding CR).
-    if end < bytes.len() && bytes[end] == b'\n' {
-        end += 1;
-    } else if end + 1 < bytes.len() && bytes[end] == b'\r' && bytes[end + 1] == b'\n' {
-        end += 2;
-    }
-    tcl_lexer::Span::new(
-        u32::try_from(start).unwrap_or(u32::MAX),
-        u32::try_from(end).unwrap_or(u32::MAX),
-    )
 }
 
 /// Canonicalise group ids in-place to `0, 1, 2, …` by order of first appearance.

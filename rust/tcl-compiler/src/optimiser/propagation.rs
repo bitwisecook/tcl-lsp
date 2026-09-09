@@ -70,7 +70,9 @@ use tcl_registry::CommandRegistry;
 
 use super::helpers::expr_simplify::{NumericCtx, operand_types, try_unwrap_expr_in_expr};
 use super::helpers::literals::{is_safe_word, is_static_var_word};
-use super::helpers::spans::{full_quoted_string_span, quoted_word_rewrite_span};
+use super::helpers::spans::{
+    full_quoted_string_span, full_rewrite_span, line_delete_span, quoted_word_rewrite_span,
+};
 use super::{Optimisation, PassContext};
 
 /// Run the propagation pass across every function.
@@ -813,7 +815,13 @@ fn build_forward_edits(
     {
         return None;
     }
-    let stmt_text = &source[ds as usize..de as usize];
+    // The def span follows the lexer's inner-end convention, so a value word
+    // that is quoted, braced, or bracketed leaves its closer outside. Both the
+    // replayed text and the deletion extent need the whole written statement,
+    // or the closer is copied without its opener and dropped from its own
+    // line.
+    let def_span = full_rewrite_span(source, def_span);
+    let stmt_text = &source[def_span.start() as usize..def_span.end() as usize];
     let inline = Optimisation::new(
         DiagCode::O127,
         format!("Inline single-use variable `${def_name}`"),
@@ -908,29 +916,6 @@ fn locate_use_var(tokens: &CommandTokens, var_name: &str) -> Option<(tcl_lexer::
         }
     }
     None
-}
-
-/// Extend a statement span to cover the whole source line — the
-/// leading indentation back to the previous newline and the trailing
-/// newline — so deleting the store removes its line cleanly.
-fn line_delete_span(source: &str, span: tcl_lexer::Span) -> tcl_lexer::Span {
-    let bytes = source.as_bytes();
-    let mut start = span.start() as usize;
-    // Walk back over leading spaces / tabs on the line.
-    while start > 0 && matches!(bytes[start - 1], b' ' | b'\t') {
-        start -= 1;
-    }
-    let mut end = span.end() as usize;
-    // Consume a single trailing newline (and a preceding CR).
-    if end < bytes.len() && bytes[end] == b'\n' {
-        end += 1;
-    } else if end + 1 < bytes.len() && bytes[end] == b'\r' && bytes[end + 1] == b'\n' {
-        end += 2;
-    }
-    tcl_lexer::Span::new(
-        u32::try_from(start).unwrap_or(span.start()),
-        u32::try_from(end).unwrap_or(span.end()),
-    )
 }
 
 /// True when `[start, end)` overlaps any of the recorded ranges.
@@ -2209,7 +2194,6 @@ fn try_substitute_assign_expr(
         expr_has_command_subst, expr_uses_shadowed_mathfunc, instcombine_expr_typed,
         substitute_expr_constants,
     };
-    use super::helpers::spans::full_rewrite_span;
     use crate::expr_parser::parse_expr_for_profile;
     use crate::tcl_expr_eval::{
         Env, eval_tcl_expr_with_octal_and_dialect, format_tcl_value, leading_zero_is_octal,
