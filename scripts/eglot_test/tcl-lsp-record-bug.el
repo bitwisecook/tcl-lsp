@@ -18,8 +18,7 @@
 ;; SPDX-License-Identifier: AGPL-3.0-or-later
 
 ;;
-;; A self-contained emacs recorder for users hitting eglot+tcl-lsp issues
-;; (e.g. https://github.com/bitwisecook/tcl-lsp/issues/333).
+;; A self-contained emacs recorder for users hitting eglot+tcl-lsp issues.
 ;;
 ;; Usage:
 ;;   1. Save this file somewhere, e.g. ~/.emacs.d/lisp/tcl-lsp-record-bug.el

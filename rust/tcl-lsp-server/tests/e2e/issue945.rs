@@ -165,18 +165,17 @@ fn const_dispatch_still_references_a_proc_reestablished_after_deletion_1009() {
     );
 }
 
-// Issue #1009, Codex PR #1014 review follow-up — two confirmed false
-// positives found in review after the original #1009/#1006/#973 fixes
-// landed:
+// Two false-positive hazards in resolving a call inside a proc/class body
+// against deletion:
 //
-// 1. `scope.rs`'s `finalise_invocation_resolutions` picked between a local
-//    and a global candidate using a *file-end-only* deletion check, so a
-//    namespaced local call textually before a later unconditional
-//    deletion wrongly lost to the global candidate.
-// 2. `fact_live_for_call` treated *any* call inside a proc/class body as
-//    automatically after every top-level deletion, drawing a spurious
-//    W123 even when the enclosing definition's own top-level invocation
-//    demonstrably ran before that deletion.
+// 1. `scope.rs`'s `finalise_invocation_resolutions` must not pick between a
+//    local and a global candidate using a *file-end-only* deletion check —
+//    that would make a namespaced local call textually before a later
+//    unconditional deletion wrongly lose to the global candidate.
+// 2. `fact_live_for_call` must not treat *any* call inside a proc/class body
+//    as automatically after every top-level deletion — that would draw a
+//    spurious W123 even when the enclosing definition's own top-level
+//    invocation demonstrably ran before that deletion.
 //
 // Both confirmed against tclsh 8.6.14 (see the unit tests alongside
 // `finalise_invocation_resolutions` and `fact_live_for_call` for the exact
@@ -186,10 +185,10 @@ fn const_dispatch_still_references_a_proc_reestablished_after_deletion_1009() {
 // own call-site resolver (`tcl-lsp-core::definition::resolve_called_proc`)
 // is a namespace-visibility check with no deletion tracking of its own, so
 // it always prefers a namespace-visible local proc regardless of a later
-// `rename` — it does not exercise `finalise_invocation_resolutions`'s fix.
-// `references` does: it matches a call site against a definition via
-// `resolved_qualified_name` (`tcl-lsp-core::references`), the exact field
-// this fix corrects.
+// `rename` — it does not exercise the `finalise_invocation_resolutions`
+// hazard above. `references` does: it matches a call site against a
+// definition via `resolved_qualified_name` (`tcl-lsp-core::references`),
+// the exact field these hazards concern.
 
 #[test]
 fn local_call_before_later_deletion_is_a_reference_to_the_local_definition_codex_1009() {
@@ -215,18 +214,17 @@ fn local_call_before_later_deletion_is_a_reference_to_the_local_definition_codex
 
 #[test]
 fn local_call_after_deletion_is_a_reference_to_the_global_definition_issue_973() {
-    // FN guard / regression: `foo::caller` is only ever invoked (line 6,
+    // FN guard: `foo::caller` is only ever invoked (line 6,
     // after `rename foo::bar {}` on line 3) — the local `bar` is genuinely
     // gone by the time the call executes, so it must be a reference to
-    // the global `bar` (line 0), not the local one (line 2). Guards
-    // against #973's original fix regressing.
+    // the global `bar` (line 0), not the local one (line 2).
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "proc bar {} { return global }\nnamespace eval foo {\n    proc bar {} { return local }\n    rename foo::bar {}\n    proc caller {} { return [bar] }\n}\nfoo::caller\n";
     lsp.open_ready(&uri, src);
     // Driven by `resolved_qualified_name` resolving to the global `::bar`:
-    // before this fix it stayed `::foo::bar`, and `invocation_references_named`
-    // would not have matched this query at all (`call_ns` ("foo") differs
+    // if it stayed `::foo::bar`, `invocation_references_named`
+    // would not match this query at all (`call_ns` ("foo") differs
     // from the global definition's own namespace ("")).
     let global_refs = start_lines(&lsp.references(&uri, 0, 5, false));
     assert!(
@@ -308,7 +306,7 @@ fn branch_joined_dispatch_definition_offers_both_targets_945() {
     }
 }
 
-// -- fault 3: multi-seed source views ------------------------------------
+// Fault 3: multi-seed source views.
 
 #[test]
 fn multi_seeded_source_declaration_unions_every_view_945() {
@@ -340,7 +338,7 @@ fn multi_seeded_source_declaration_unions_every_view_945() {
     );
 }
 
-// -- faults 4–6: TclOO visibility, dispatch entry, binding identity ------
+// Faults 4–6: TclOO visibility, dispatch entry, binding identity.
 
 #[test]
 fn unexported_method_is_not_externally_resolvable_945() {
@@ -406,7 +404,7 @@ fn per_object_methods_resolve_by_binding_identity_945() {
     assert_eq!(a_def, vec![3], "a's own override: {a_def:?}");
 }
 
-// -- faults 7–8: the interpreter domain ----------------------------------
+// Faults 7–8: the interpreter domain.
 
 #[test]
 fn safe_interp_hides_unsafe_commands_945() {
@@ -434,7 +432,7 @@ fn safe_interp_hides_unsafe_commands_945() {
     );
 }
 
-// -- fault 9: probe references -------------------------------------------
+// Fault 9: probe references.
 
 #[test]
 fn command_probe_navigates_without_asserting_existence_945() {

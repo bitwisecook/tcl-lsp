@@ -19,9 +19,10 @@
 //! Analysis graph JSON builders — the call graph, symbol graph, and
 //! dataflow/taint graph, each rendered to a `serde_json::Value`.
 //!
-//! This is the shared, consumer-agnostic home for the graph shapes: the
-//! `tcl` CLI (`callgraph` / `symbolgraph` / `dataflow` verbs) and the LSP
-//! server both build the *same* graphs from this one implementation. Callers supply a resolved
+//! This is the shared, consumer-agnostic home for the graph shapes. Every
+//! consumer — the `tcl` CLI (`callgraph` / `symbolgraph` / `dataflow`
+//! verbs), the LSP server, `tcl-mcp` and the WASM hosts — builds the *same*
+//! graphs from this one implementation. Callers supply a resolved
 //! [`CommandRegistry`] and the dialect string; every position is 0-based
 //! and UTF-16 counted, matching the LSP wire convention.
 
