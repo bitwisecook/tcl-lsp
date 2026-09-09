@@ -228,7 +228,7 @@ fn alias_to_user_proc_named_method_does_not_fold_data_as_a_member_body() {
     );
 }
 
-// Issue #1243 — a leading UTF-8 byte-order mark is a *file* prologue under
+// A leading UTF-8 byte-order mark is a *file* prologue under
 // Tcl 9 (`source` strips it), but ordinary data at the head of a nested body
 // slice. Every provider that re-segments the raw document must draw that split
 // at its own top level.

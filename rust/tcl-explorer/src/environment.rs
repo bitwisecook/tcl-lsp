@@ -17,21 +17,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The explorer's dialect ingress — its face of the one shared seam,
-//! [`tcl_registry::model::ingress`] (centralisation contract R-a; P1-F
-//! wave 4b, alongside the MCP server, the CLIs, and the spec studio).
+//! [`tcl_registry::model::ingress`].
 //!
 //! Every dialect **name** the explorer pipeline accepts — `run_pipeline`'s
 //! `dialect` argument, and each serialiser view's `result.dialect` —
 //! resolves here, once. Nothing here changes what a view reports: the
 //! catalogue names the explorer resolves map to their same-named
-//! environments, whose profiles are exactly the ones the retired
-//! `DialectProfile` ingress returned for the same string.
+//! environments, whose profiles are exactly the ones `DialectProfile`'s own
+//! name-resolution methods return for the same string.
 //!
-//! Four resolver forms, because the explorer used four:
+//! Four resolver forms, because the explorer needs four:
 //!
-//! * [`profile_for_dialect`] is the *promoting* form (the old
-//!   `resolve_known(name).unwrap_or_else(|| by_name(name))` ingress
-//!   `run_pipeline` used), so `tk` keeps the typed additive profile;
+//! * [`profile_for_dialect`] is the *promoting* form — it tries
+//!   `resolve_known(name)` first, falling back to `by_name(name)`, the
+//!   ingress `run_pipeline` uses for its dialect argument — so `tk` keeps
+//!   the typed additive profile;
 //! * [`analyser_profile_for_dialect`] is the exact `DialectProfile::by_name`
 //!   twin, for the one reader (`serialise_event_order`'s head-identity
 //!   resolution) that took the plain fallback for `tk`;
@@ -49,13 +49,9 @@
 use tcl_dialect::DialectProfile;
 
 /// Resolve a dialect **name** to the profile the explorer pipeline builds
-/// its compilation unit against — the environment-model form of the old
-/// `resolve_known(name).unwrap_or_else(|| by_name(name))` ingress
-/// [`crate::run_pipeline`] used.
-///
-/// Post-P1-G (which deleted the name validators): the threaded profile
-/// handle itself retires with ledger C1's re-type, when the pipeline
-/// reads its grammar/availability facts off the environment instead.
+/// its compilation unit against — the environment-model form of
+/// `resolve_known(name).unwrap_or_else(|| by_name(name))`, the ingress
+/// [`crate::run_pipeline`] uses.
 #[must_use]
 pub fn profile_for_dialect(name: &str) -> &'static DialectProfile {
     tcl_registry::model::resolve_environment(name).unit_profile()
@@ -81,20 +77,19 @@ pub fn analyser_profile_for_dialect(name: &str) -> &'static DialectProfile {
 /// The serialiser views that thread `Option<&DialectProfile>` into the GVN /
 /// taint / optimiser / irules-flow finders read it here; a `None` still maps
 /// to `None` at each `surface_query` read, not to the fallback's permissive
-/// mask, exactly as the retired `DialectProfile::resolve_known` ingress left
-/// it.
+/// mask, exactly as `DialectProfile::resolve_known` requires.
 ///
 /// Deliberately **not** `resolve_known_environment(name).map(unit_profile)`:
 /// that seam helper answers `Some(&PLAIN_TCL)` for the literal name `"tcl"`
 /// (a registered environment id, for the editor-identity and lenient-sink
-/// roles), where the retired `DialectProfile::resolve_known("tcl")` —
+/// roles), where `DialectProfile::resolve_known("tcl")` —
 /// `find("tcl").or_else(|| tcl_dialect::DialectProfile::find("tcl").map(tcl_dialect::DialectProfile::surface_query)…)`, and `"tcl"` is
 /// neither a catalog profile name nor a `DialectProfile::find` spelling —
-/// answered `None`. Composed from [`catalogue_profile_for_dialect`] (the
-/// exact `find` twin) plus the one `DialectProfile::find` promotion the old
-/// function ever took (`"tk"`) instead, so this answers `None` for `"tcl"`
-/// exactly as the retired ingress did. Confirmed by a direct probe against
-/// both APIs, not merely by re-reading the source.
+/// answers `None`. Composed from [`catalogue_profile_for_dialect`] (the
+/// exact `find` twin) plus the one `DialectProfile::find` promotion this
+/// contract requires (`"tk"`) instead, so this answers `None` for `"tcl"`
+/// exactly as that contract does. Confirmed by a direct probe against both
+/// APIs, not merely by re-reading the source.
 #[must_use]
 pub fn known_profile_for_dialect(name: &str) -> Option<&'static DialectProfile> {
     catalogue_profile_for_dialect(name)

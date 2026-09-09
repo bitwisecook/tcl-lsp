@@ -1074,10 +1074,9 @@ mod tests {
     use super::*;
     use std::fmt::Write as _;
 
-    /// Regression coverage for issue #996: `scope_to_value`,
-    /// `count_variables`, and `count_namespaces` recurse once per nested
-    /// namespace scope, with no depth cap before this fix
-    /// (`MAX_SCOPE_WALK_DEPTH`, `crate::lib`). 80 nested `namespace eval`
+    /// `scope_to_value`, `count_variables`, and `count_namespaces` recurse
+    /// once per nested namespace scope, capped by
+    /// `MAX_SCOPE_WALK_DEPTH` (`crate::lib`). 80 nested `namespace eval`
     /// levels is past the point (confirmed empirically: 100+) where
     /// unguarded namespace-scope recursion overflows `cargo test`'s bare
     /// ~2 MiB per-test default — namespace nesting costs meaningfully more

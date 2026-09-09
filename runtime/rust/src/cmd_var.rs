@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `global` / `variable` / `upvar` (T1.5, the variable-namespace side).
+//! `global` / `variable` / `upvar` — the variable-namespace side.
 //!
 //! All three install variable [`Link`](crate::frame::Link)s through the one
 //! variable resolver ([`crate::vars`]) — the variable parallel of `rename`/
@@ -64,7 +64,7 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"incr", incr_cmd);
 }
 
-// -- set / incr: return-after-trace ------------------------------------------
+// set / incr: return-after-trace
 //
 // C's `TclPtrSetVarIdx` (tclVar.c 9.0.4:2050-2065) stores the value, fires the
 // write traces, and only *then* decides what to return: the cell's *current*
@@ -216,7 +216,7 @@ fn inverted_upvar(interp: &mut Interp, local: &[u8]) -> Code {
     interp.error_with_code(&message, b"TCL UPVAR INVERTED")
 }
 
-// -- global ----------------------------------------------------------------
+// global
 
 /// `global varName ?varName ...?` — link each name's tail to the global of that
 /// name (resolved in the global namespace context).
@@ -233,7 +233,7 @@ fn global(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-// -- variable --------------------------------------------------------------
+// variable
 
 /// `variable ?name value ...? name ?value?` — declare/link namespace variables,
 /// initialising those given a value. The trailing name may omit its value.
@@ -272,7 +272,7 @@ pub(crate) fn variable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-// -- upvar -----------------------------------------------------------------
+// upvar
 
 /// `upvar ?level? otherVar localVar ?otherVar localVar ...?` — link each
 /// `localVar` in the current frame to `otherVar`. The optional level is `#N`

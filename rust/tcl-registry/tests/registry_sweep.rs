@@ -82,10 +82,10 @@ use tcl_registry::{
 /// The registry for `dialect` **with the shipped `.tclspec` loadables
 /// installed** — the sweep's stand-in for [`tcl_registry::registry_for_dialect`].
 ///
-/// The EDA vendor libraries are bundled loadables now (`sdc_base` and the five
-/// vendor packs have no Rust modules; `docs/design/registry/spec-packs.md`), so the
-/// plain per-profile registry no longer carries a `get_cells` or a
-/// `synth_design` at all. Routing the sweep through the pack loader is what
+/// The EDA vendor libraries are bundled loadables (`sdc_base` and the five
+/// vendor packs have no Rust modules; see `docs/design/registry/spec-packs.md`),
+/// so the plain per-profile registry carries no `get_cells` or `synth_design`
+/// of its own. Routing the sweep through the pack loader is what
 /// keeps those ~350 specs under every accessor assertion below — and it means
 /// the sweep now tests the loader's output as well as the registry's, which is
 /// the point of shipping them as loadables.
@@ -225,7 +225,7 @@ fn assert_arity_consistent(a: Arity, what: &str) {
     }
 }
 
-/// Assert the invariants of a versioned-arity window list (issue #1627).
+/// Assert the invariants of a versioned-arity window list.
 ///
 /// Windows are a *shipped-spec hard gate* here, matching every other lifecycle
 /// (`docs/design/registry/spec-packs.md`, "Ordering and containment"): a pack degrades
@@ -1322,7 +1322,7 @@ fn family_control_flow_shapes() {
 
 /// `resolve_option_terminator` must accept a unique subcommand prefix the same
 /// way ensemble dispatch (and `arg_indices_for_role`) does, so an abbreviated
-/// subcommand keeps its subcommand-scoped `--` terminator profile (issue 158).
+/// subcommand keeps its subcommand-scoped `--` terminator profile.
 #[test]
 fn terminator_resolves_subcommand_prefix() {
     let reg = registry_for_dialect("f5-irules");
@@ -1690,7 +1690,7 @@ fn sweep_dialect_catalogue() {
 /// second-level subcommands, options, option constraints, forms, side
 /// effects, enumerable argument values, versioned argument values, iRules
 /// events, and BIG-IP profile types — must order its releases legally
-/// (#1210), and a child's window must lie inside its parent's.
+/// and a child's window must lie inside its parent's.
 ///
 /// Bad ordering (`deprecated < introduced`, `retired < deprecated`, …) is
 /// unrepresentable downstream: `state_at` would report a state the data
@@ -1847,7 +1847,7 @@ fn sweep_lifecycle_ordering_is_valid_everywhere() {
     }
 }
 
-/// The lifecycle seed cases from #1210: each of the four states is reachable
+/// The lifecycle seed cases: each of the four states is reachable
 /// and independently observable on real registry data.
 ///
 /// f5-dialect: the event/profile releases are F5 facts, not tclsh.
@@ -1924,7 +1924,7 @@ fn sweep_lifecycle_seed_cases() {
     );
 }
 
-/// Issue #1256 — the boolean argument role is a declared registry fact, and
+/// The boolean argument role is a declared registry fact, and
 /// the whole registry agrees about which options carry it.
 ///
 /// Two invariants, both sweeping every command and subcommand option table in
@@ -2102,13 +2102,10 @@ fn callback_and_variable_option_metadata_is_well_formed() {
 }
 
 /// A conditionally-bound local must never carry an `ArgRole` SSA models as
-/// an unconditional definition — issue #1278, prompted by the investigation
-/// that closed #1247.
+/// an unconditional definition.
 ///
-/// #1247 reported a W210 false positive on a `dict update` value-var. It did
-/// not reproduce on `rust` (the commit it cited was on an unmerged
-/// integration branch), but the mechanism is real: that branch declared
-/// `dict update`'s pair locals `ArgRole::VarWrite`. `VarWrite` at a
+/// Declaring `dict update`'s pair locals `ArgRole::VarWrite` reproduces a
+/// W210 false positive: `VarWrite` at a
 /// `repeated_args` position feeds every generic "does this argument write a
 /// variable" site the compiler has — established by reading each one's own
 /// `arg_indices_for_role` call: `tcl-compiler`'s `ssa::defs_of_with_registry`
@@ -2265,7 +2262,7 @@ fn is_empty_state_transition(descriptor: StateTransitionDescriptor) -> bool {
         && descriptor.commit == StateTransitionCommit::OnOkOnly
 }
 
-/// Issue #1364 — a referentially transparent *result* claim is only safe for a
+/// A referentially transparent *result* claim is only safe for a
 /// semantic optimisation when the same level also closes the world-effect and
 /// state-transition questions.
 ///
@@ -2320,9 +2317,8 @@ fn sweep_referentially_transparent_specs_declare_closed_dispatch_surface() {
 /// The `CSE_CANDIDATE` specs that still declare no result contract at any
 /// level, recorded so the sweep below can be exact rather than weakened.
 ///
-/// This is tracked migration debt for issue #1364, not a permanent exemption.
-/// Three distinct follow-ups are needed, and none of them is a plain
-/// `CLOSED_REFERENTIALLY_TRANSPARENT` stamp across the board:
+/// None of these takes a plain `CLOSED_REFERENTIALLY_TRANSPARENT` stamp
+/// across the board, for three distinct reasons:
 ///
 /// - the iRules data getters read the live connection, so their contract is a
 ///   `ResultStability::ReadsVersionedWorld` domain set, not referential
@@ -2383,7 +2379,7 @@ const CSE_CANDIDATES_AWAITING_A_RESULT_CONTRACT: &[&str] = &[
     "remquo",
 ];
 
-/// Issue #1364 — `Traits::CSE_CANDIDATE` marks a call the optimiser may prove
+/// `Traits::CSE_CANDIDATE` marks a call the optimiser may prove
 /// redundant against an earlier one. That proof needs the declared result
 /// contract: without `result_stability`, resolution falls back to
 /// `ResultStability::Unknown`, and a common-subexpression pass must fail closed
@@ -2450,7 +2446,7 @@ fn sweep_cse_candidates_declare_result_stability() {
     );
 }
 
-/// Issue #1364 — a closed referentially transparent command declares exactly
+/// A closed referentially transparent command declares exactly
 /// the irreducible dispatch dependencies, not the conservative default.
 ///
 /// `ResolvedDispatchDependencies::resolve` starts at
@@ -2526,7 +2522,7 @@ fn sweep_closed_referentially_transparent_dispatch_resolves_to_base() {
     );
 }
 
-/// Issue #1708 — every declared event emission names an event the registry
+/// Every declared event emission names an event the registry
 /// knows.
 ///
 /// The descriptor's whole point is that consumers follow registry data instead

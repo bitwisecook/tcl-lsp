@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The C Tcl API exports (`#[no_mangle] extern "C"`) for the T1.1 surface.
+//! The C Tcl API exports (`#[no_mangle] extern "C"`).
 //!
 //! These are the runtime side of `c-extension-abi.md` §4.3 (direct C-ABI
 //! imports): each is exported with the C ABI so an extension's WASM imports it
@@ -33,7 +33,7 @@ use core::ffi::{c_char, c_int};
 use crate::interp::Interp;
 use crate::obj::{self, TclObj, TclSize, TclWideInt};
 
-// ---- object creation (all `fresh_zero` — refCount 0) ----
+// object creation (all `fresh_zero` — refCount 0)
 
 /// `Tcl_NewObj` — fresh empty-string object, refCount 0.
 #[no_mangle]
@@ -70,7 +70,7 @@ pub extern "C" fn Tcl_NewBooleanObj(value: c_int) -> *mut TclObj {
     obj::new_boolean_obj(value)
 }
 
-// ---- refcount management ----
+// refcount management
 
 /// `Tcl_IncrRefCount`. Null-safe.
 ///
@@ -92,7 +92,7 @@ pub unsafe extern "C" fn Tcl_DecrRefCount(obj: *mut TclObj) {
     unsafe { obj::decr_ref_count(obj) }
 }
 
-// ---- result ----
+// result
 
 /// `Tcl_SetObjResult` — interp retains `resultObjPtr` (`borrowed→stored`).
 ///
@@ -114,7 +114,7 @@ pub unsafe extern "C" fn Tcl_GetObjResult(interp: *mut Interp) -> *mut TclObj {
     unsafe { (*interp).get_obj_result() }
 }
 
-// ---- string rep ----
+// string rep
 
 /// `Tcl_GetStringFromObj` — borrowed pointer into the string rep; shimmers on
 /// demand. Writes the byte length through `lengthPtr` when non-null.
@@ -140,10 +140,10 @@ pub unsafe extern "C" fn Tcl_GetString(objPtr: *mut TclObj) -> *mut c_char {
     unsafe { obj::get_string(objPtr, core::ptr::null_mut()) }
 }
 
-// ---- runtime interp lifecycle (host entry points, not in tcl.h) ----
+// runtime interp lifecycle (host entry points, not in tcl.h)
 //
 // `Tcl_CreateInterp` / `Tcl_DeleteInterp` (the public surface) land with the
-// full interp port; for T1.1 the host needs a way to mint and tear down the
+// full interp port; until then the host needs a way to mint and tear down the
 // minimal result-only interp, so the runtime exposes these two entry points.
 
 /// Create a runtime interp; returns an owning raw pointer the caller must pass
@@ -172,7 +172,7 @@ pub unsafe extern "C" fn tcl_runtime_delete_interp(interp: *mut Interp) {
     }
 }
 
-// ---- leak-check test exports (the `tcl_test_*` surface) ----
+// leak-check test exports (the `tcl_test_*` surface)
 
 /// Reset the alloc/free/double-free counters (`tcl_test_reset_counters`).
 #[no_mangle]

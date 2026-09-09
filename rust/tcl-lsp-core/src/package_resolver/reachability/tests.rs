@@ -54,8 +54,7 @@ fn an_unguarded_declaration_is_available_everywhere() {
     assert_eq!(only(src, None), Availability::Available);
 }
 
-/// Issue #1017's exact repro, shrunk from tcllib's `modules/try/pkgIndex.tcl`
-/// `file::home` gate.
+/// Shrunk from tcllib's `modules/try/pkgIndex.tcl` `file::home` gate.
 ///
 /// Oracle: `tclsh9.0` → `package require mypkg` fails ("can't find package
 /// mypkg"); `tclsh8.6` → it loads and returns 1.0.
@@ -83,7 +82,7 @@ fn the_tcllib_head_guard_admits_both_supported_releases() {
     assert_eq!(only(src, Some(TclVersion::V8_4)), Availability::Unavailable);
 }
 
-/// The trivial control from issue #1017: unreachable under *every* release,
+/// The trivial control: unreachable under *every* release,
 /// with no version reasoning involved at all.
 #[test]
 fn a_constant_true_early_return_gates_the_declaration_1017() {
@@ -99,10 +98,9 @@ fn a_constant_true_early_return_gates_the_declaration_1017() {
     }
 }
 
-/// The negative control from issue #1017, which already behaved: a
-/// declaration nested in a constant-false branch never registers.  It is now
-/// *seen* (the scan descends into branches) and reported unavailable, rather
-/// than being invisible by accident.
+/// The negative control: a declaration nested in a constant-false branch
+/// never registers.  The scan descends into branches, so it is *seen* and
+/// reported unavailable rather than being invisible by accident.
 #[test]
 fn a_constant_false_branch_never_registers_1017() {
     let src =
@@ -111,7 +109,7 @@ fn a_constant_false_branch_never_registers_1017() {
     assert_eq!(only(src, V86), Availability::Unavailable);
 }
 
-/// Issue #923 idx 42: the TEA idiom that picks a Tcl-8 or Tcl-9 build.  Both
+/// The TEA idiom that picks a Tcl-8 or Tcl-9 build.  Both
 /// arms declare the package, so it is available on both releases — the
 /// over-flagging direction of the same mechanism.
 ///
@@ -350,14 +348,14 @@ fn every_body_taking_command_is_descended() {
 }
 
 /// TN — the descent must not turn an *unguarded* top-level declaration
-/// conditional, and must not disturb the #1017 guarded-return result.
+/// conditional, and must not disturb the guarded-return result.
 #[test]
 fn the_body_descent_leaves_top_level_declarations_alone() {
     let plain = "package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n";
     assert_eq!(only(plain, V90), Availability::Available);
     assert_eq!(only(plain, V86), Availability::Available);
 
-    // Issue #1017's guarded-return TP still decides both ways.
+    // The guarded-return TP still decides both ways.
     let guarded = "if {[package vsatisfies [package provide Tcl] 9-]} { return }\n\
                    package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n";
     assert_eq!(only(guarded, V90), Availability::Unavailable);

@@ -37,8 +37,7 @@
 //! source (an F5 rule-profiler log format this crate has no reader for) and
 //! a CFG the compiler crate exposes but `f5-cli` does not currently depend
 //! on, to safely reorder `if`/`switch` arms without changing behaviour. That
-//! is a standalone compiler feature, out of scope for a CLI-wiring fix — see
-//! issue #1315.
+//! is a standalone compiler feature, out of scope for a CLI-wiring fix.
 
 use std::path::{Path, PathBuf};
 
@@ -92,8 +91,9 @@ struct LoadedIrules {
 ///
 /// Projected from the dialect catalog rather than restated: the `f5-irules`
 /// profile owns `irul`, `irule` and `irules`, and every editor registers all
-/// three, but this list was hand-written with two of them — so `foo.irules`
-/// was parsed as a BIG-IP config instead of an iRule (issue #1625). `tcl` is
+/// three, so this list must not be hand-written with only two of them —
+/// otherwise `foo.irules` would be parsed as a BIG-IP config instead of an
+/// iRule. `tcl` is
 /// added on top because the catalog deliberately leaves the generic extension
 /// unowned (content decides the dialect there), while `f5-query irule` is
 /// already in iRules context by the time it reads a file.
@@ -1118,13 +1118,12 @@ fn run_extract(paths: &[String], output: &Path) -> Result<u8, u8> {
 
 /// The formatter knobs from the command line, aimed at `profile`.
 ///
-/// The profile is the formatter's whole dialect story (issue #1465): with
-/// `--dialect f5-irules` (this command's default, and its `irules` /
-/// `tcl-irule` alias spellings) the formatter tokenises with the iRules
-/// grammar, so an iRule's `}{` re-emits as `} {` and a `{*}` stays the
-/// literal braced word TMM's 8.4 core reads it as. Starting from
-/// `FormatterConfig::default()` instead formatted every iRule with the
-/// modern Tcl 9 lexer.
+/// The profile is the formatter's whole dialect story: with `--dialect
+/// f5-irules` (this command's default, and its `irules` / `tcl-irule` alias
+/// spellings) the formatter tokenises with the iRules grammar, so an
+/// iRule's `}{` re-emits as `} {` and a `{*}` stays the literal braced word
+/// TMM's 8.4 core reads it as. Starting from `FormatterConfig::default()`
+/// instead would format every iRule with the modern Tcl 9 lexer.
 fn build_formatter_config(
     formatter: &IruleFormatterArgs,
     profile: &'static DialectProfile,

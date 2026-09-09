@@ -64,7 +64,7 @@ fn typed(lsp: &mut Lsp, legend: &[String], uri: &str) -> Vec<TypedToken> {
     // which the server may legitimately deliver a refresh late when the 40 ms
     // fast-path budget loses. Reading only the first response makes those
     // assertions a bet on how much CPU the machine had — see
-    // `Lsp::semantic_tokens_settled` (issue #1082).
+    // `Lsp::semantic_tokens_settled`.
     let raw = lsp.semantic_tokens_settled(uri);
     decode_semantic_tokens(&raw)
         .into_iter()
@@ -126,7 +126,7 @@ fn invariant_corpus() -> Vec<(&'static str, &'static str)> {
             "comments",
             "# leading comment\nputs hi ;# trailing comment\n",
         ),
-        // Issue #759: a `#` comment ending in an unescaped backslash continues
+        // A `#` comment ending in an unescaped backslash continues
         // onto the next physical line; the continuation must stay a comment and
         // its per-line tokens must satisfy the bounds/overlap invariants.
         (
@@ -142,11 +142,11 @@ fn invariant_corpus() -> Vec<(&'static str, &'static str)> {
             "multibyte_string",
             "set greeting \"héllo wörld café\"\nputs $greeting\n",
         ),
-        // A backslash immediately before a non-ASCII char used to slice a
-        // fixed 2 bytes at the escape, splitting the multibyte char and
-        // panicking the whole semanticTokens/full request. The escape now
-        // spans the backslash plus the full UTF-8 char; drive it through the
-        // server so the bounds/overlap invariants (and non-panic) are checked.
+        // A fixed 2-byte slice at a backslash escape immediately before a
+        // non-ASCII char would split the multibyte char and panic the whole
+        // semanticTokens/full request. The escape must span the backslash
+        // plus the full UTF-8 char; drive it through the server so the
+        // bounds/overlap invariants (and non-panic) are checked.
         ("escape_before_multibyte", "puts \"\\é\"\nset after 1\n"),
         (
             "escape_before_multibyte_run",
@@ -166,7 +166,7 @@ fn invariant_corpus() -> Vec<(&'static str, &'static str)> {
             "switch_braced",
             "switch $x {\n  {a b} { puts one }\n  default { puts def }\n}\n",
         ),
-        // Issue #757 review (Codex P1): a `#`-leading physical line inside a
+        // A `#`-leading physical line inside a
         // multi-line literal must not produce a `comment` token overlapping the
         // per-line `string` token.  Exercises the non-overlap invariant.
         (
@@ -215,11 +215,12 @@ fn test_tokens_strictly_non_overlapping_dense_line() {
 
 #[test]
 fn test_escape_before_multibyte_char_does_not_panic() {
-    // Regression: `\<non-ASCII>` (`\é`, `\你`, `\€`) inside a string used to
-    // slice a fixed 2 bytes at the backslash, landing inside the multibyte
-    // char and panicking the whole `textDocument/semanticTokens/full`
-    // request. Drive the real request through the server and require it to
-    // succeed AND emit an `escape` sub-token for the `\X` run.
+    // `\<non-ASCII>` (`\é`, `\你`, `\€`) inside a string must not be
+    // handled as a fixed 2-byte slice at the backslash: that would land
+    // inside the multibyte char and panic the whole
+    // `textDocument/semanticTokens/full` request. Drive the real request
+    // through the server and require it to succeed AND emit an `escape`
+    // sub-token for the `\X` run.
     let mut lsp = Lsp::tcl();
     let legend_names = legend(&lsp);
     for source in [
@@ -253,7 +254,7 @@ fn test_simple_puts() {
 #[test]
 fn range_request_honours_semantic_tokens_toggle() {
     // Disabling `semanticTokens` must silence the viewport (`range`) request
-    // too, not just `full` / `full/delta` (issue 174).
+    // too, not just `full` / `full/delta`.
     let mut lsp = Lsp::with_config(serde_json::json!({
         "features": { "linkedEditingRange": true, "semanticTokens": false }
     }));
@@ -315,7 +316,7 @@ fn test_comment() {
 
 #[test]
 fn test_comment_continuation() {
-    // Issue #759, end-to-end through the packaged server: a `#` comment whose
+    // End-to-end through the packaged server: a `#` comment whose
     // line ends in an unescaped backslash continues onto the next line, and an
     // even (escaped) backslash run does not.
     let mut lsp = Lsp::tcl();
@@ -451,10 +452,10 @@ fn test_braced_string() {
 
 #[test]
 fn test_multiline_braced_string_highlighted_per_line() {
-    // Issue #757: a braced string literal spanning multiple lines used to lose
-    // its highlighting (the enclosing multi-line `string` token was dropped).
-    // End-to-end it must now carry a `string` token on every covered line,
-    // exactly like the quoted form.
+    // A braced string literal spanning multiple lines must not lose its
+    // highlighting: the enclosing multi-line `string` token must not be
+    // dropped. End-to-end it must carry a `string` token on every covered
+    // line, exactly like the quoted form.
     let mut lsp = Lsp::tcl();
     let lg = legend(&lsp);
     let braced = open_doc(
@@ -545,7 +546,7 @@ fn test_command_subst_inside_expression() {
 // tcllib commands that carry a script body (`control::do`,
 // `struct::list foreachperm`) or an expression (`control::do`'s test,
 // `control::assert`) must recurse into that argument rather than emit it
-// as one opaque string — same treatment as core `while`/`if` (issue #760).
+// as one opaque string — same treatment as core `while`/`if`.
 
 #[test]
 fn test_control_do_body_recursion() {
@@ -610,7 +611,7 @@ fn test_struct_list_foreachperm_body_recursion() {
 
 #[test]
 fn test_uplevel_body_recursion() {
-    // Issue #837: the braced body of `uplevel ?level? {…}` is a script and
+    // The braced body of `uplevel ?level? {…}` is a script and
     // must recurse end-to-end through the packaged server — `foreach` inside
     // it is a keyword and `puts` a function, not one opaque string.
     let mut lsp = Lsp::tcl();
@@ -641,7 +642,7 @@ fn test_uplevel_body_recursion() {
 
 #[test]
 fn test_uplevel_issue_837_repro_recursion() {
-    // The exact reproducer from issue #837 — the `namespace children` /
+    // A `namespace children` /
     // `namespace forget` body inside `uplevel 1 {…}` highlights end-to-end.
     let mut lsp = Lsp::tcl();
     let lg = legend(&lsp);
@@ -668,7 +669,7 @@ fn test_uplevel_issue_837_repro_recursion() {
 #[test]
 fn test_bind_script_body_recursion() {
     // `bind tag sequence script` — the trailing event-handler script recurses
-    // rather than being emitted as one opaque string (issue #785), so `set`
+    // rather than being emitted as one opaque string, so `set`
     // inside it is a function token and `$w` a variable.
     let mut lsp = Lsp::tcl();
     let lg = legend(&lsp);
@@ -751,7 +752,7 @@ fn test_try_on_finally_are_keywords() {
 #[test]
 fn test_builtin_name_as_bareword_arg_is_string() {
     // `proc` here is a plain dict value, not the command-definition keyword — it
-    // must stay a string (the bareword-builtin glitch #637).
+    // must stay a string (the bareword-builtin glitch).
     let mut lsp = Lsp::tcl();
     let lg = legend(&lsp);
     let source = "dict set frame proc \"asasdas asd\"\n";
@@ -767,8 +768,8 @@ fn test_builtin_name_as_bareword_arg_is_string() {
 #[test]
 fn test_quoted_structural_keyword_offsets_past_quote() {
     // A quoted `"else"` is an ESC-token word whose start sits on the opening
-    // quote; PR #643 emits the keyword from the content base so the range covers
-    // `else`, not `"els`.
+    // quote; the keyword is emitted from the content base so the range
+    // covers `else`, not `"els`.
     let mut lsp = Lsp::tcl();
     let lg = legend(&lsp);
     let source = "if 0 {} \"else\" {puts ok}\n";
@@ -868,10 +869,10 @@ fn test_switch_glob_no_regexp_tokens() {
     assert_eq!(tokens.iter().filter(|t| is_re_type(&t.ttype)).count(), 0);
 }
 
-/// Regression for #758: the braced case-list form of a plain (non-`-regexp`)
+/// The braced case-list form of a plain (non-`-regexp`)
 /// `switch` must recurse each body as a script so the commands inside are
 /// highlighted, rather than treating the whole `{ pat body … }` list as one
-/// opaque body.  Before the fix the bodies received no tokens at all.
+/// opaque body.
 #[test]
 fn test_switch_plain_braced_case_list_recurses_bodies() {
     let mut lsp = Lsp::tcl();
@@ -993,7 +994,7 @@ fn test_regex_source_variable_highlights_def_site_literal() {
     );
 }
 
-/// Issue #967 end-to-end: `return -code error "bad"` must reach the client
+/// End-to-end: `return -code error "bad"` must reach the client
 /// with `-code` as a `decorator` and `error` as an `enumMember`, not as
 /// plain strings.  The `tcl-lsp-core` unit test pins the classifier; this
 /// pins the whole server pipeline (registry `OptionSpec` → token pass →
@@ -1225,11 +1226,9 @@ fn test_clock_without_format_option() {
     );
 }
 
-// -- georgtree issues #774 / #775 / #776 (end-to-end) --------------------
-
 #[test]
 fn test_tcloo_body_variable_declares_every_name() {
-    // Issue #774: `variable a b c` in a TclOO class body declares every name as
+    // `variable a b c` in a TclOO class body declares every name as
     // an instance variable, not just the first.
     let mut lsp = Lsp::tcl();
     let lg = legend(&lsp);

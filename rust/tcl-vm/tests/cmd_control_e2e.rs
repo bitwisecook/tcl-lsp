@@ -235,8 +235,8 @@ fn literal_catch_executes_complete_prefix_before_later_parse_error() {
 
 #[test]
 fn nested_try_executes_complete_phase_prefix_before_later_parse_error() {
-    // The specialized try body reaches its handler only after the complete
-    // prefix ran; the specialized handler likewise runs its complete prefix
+    // The specialised try body reaches its handler only after the complete
+    // prefix ran; the specialised handler likewise runs its complete prefix
     // before its malformed tail escapes to the enclosing catch.
     // tclsh 9.0.4: `0 1 {BODY:missing "}` / `1 1 {missing "}`
     assert_eq!(

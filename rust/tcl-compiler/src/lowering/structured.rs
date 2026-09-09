@@ -72,10 +72,10 @@ struct SwitchElement {
 /// A braced case list is a list, not a script: C Tcl's
 /// `TclNRSwitchObjCmd` splits it with `TclListObjGetElements`
 /// (`generic/tclCmdMZ.c`), so `#` starts no comment there and `;` is an
-/// ordinary pattern character.  The previous script-lexer implementation
-/// skipped `TokenType::Comment` tokens, silently deleting a valid `#`
-/// pattern and its body (issue #1197 — tclsh 9.0.4: `switch # { #
-/// {puts matched} default {puts default} }` prints `matched`).
+/// ordinary pattern character.  A script lexer that skips
+/// `TokenType::Comment` tokens silently deletes a valid `#` pattern and its
+/// body (tclsh 9.0.4: `switch # { # {puts matched} default {puts default} }`
+/// prints `matched`).
 ///
 /// Returns `None` when the text is not a well-formed list — the caller
 /// bails the whole `switch` to the runtime command, which reports the
@@ -368,7 +368,7 @@ impl Lowerer<'_> {
         // span — safe only for a substitution-free literal (`seg_word_is_static_literal`,
         // matching `TclCompileForCmd`'s `TCL_TOKEN_SIMPLE_WORD` check). A single-token
         // but dynamic word (`$body`, `[cmd]`) must barrier rather than be
-        // lowered as if it were the literal text (issue #1375).
+        // lowered as if it were the literal text.
         if !arg_single[1]
             || !super::seg_word_is_static_literal(seg, 1)
             || !super::seg_word_is_static_literal(seg, 3)
@@ -429,7 +429,7 @@ impl Lowerer<'_> {
         // for a substitution-free literal (matching `TclCompileWhileCmd`'s
         // `TCL_TOKEN_SIMPLE_WORD` check on the body). A single-token but
         // dynamic body (`$body`, `[cmd]`) must barrier rather than be lowered
-        // as if it were the literal text (issue #1375).
+        // as if it were the literal text.
         if !arg_single[0] || !super::seg_word_is_static_literal(seg, 2) {
             return self.barrier(seg, "while with dynamic arguments");
         }
@@ -483,7 +483,7 @@ impl Lowerer<'_> {
         // for a substitution-free literal (matching `TclCompileForeachCmd`'s
         // `TCL_TOKEN_SIMPLE_WORD` check on the body). A single-token but
         // dynamic body (`$body`, `[cmd]`) must barrier rather than be lowered
-        // as if it were the literal text (issue #1375).
+        // as if it were the literal text.
         if body_tok.is_none() || !super::seg_word_is_static_literal(seg, body_idx + 1) {
             return self.barrier(seg, "foreach with dynamic body");
         }
@@ -492,8 +492,7 @@ impl Lowerer<'_> {
         // `foreach n {a $b c}` iterates the three literal elements `a`,
         // `$b`, `c` and reads nothing (tclsh 8.6.14), while `foreach n
         // "a $b c"` substitutes. Both lower to the same `list_arg` text,
-        // so the flag is what downstream read-harvesting gates on
-        // (issue #1260).
+        // so the flag is what downstream read-harvesting gates on.
         let cmd_tokens = self.cmd_tokens(seg);
         let mut iterators = Vec::new();
         for i in (0..body_idx).step_by(2) {
@@ -716,8 +715,7 @@ impl Lowerer<'_> {
         // segmenter-reconstructed word text at the token's span — safe only
         // for a brace-literal (`Str`) token, matching `lower_catch`'s body
         // guard. A single-token but dynamic body (`$body`, `[cmd]`) must
-        // barrier rather than be lowered as if it were the literal text
-        // (issue #1375).
+        // barrier rather than be lowered as if it were the literal text.
         if arg_tokens.is_empty() || !super::seg_word_is_static_braced(seg, 1) {
             return self.barrier(seg, "try with dynamic body");
         }
@@ -735,10 +733,10 @@ impl Lowerer<'_> {
                 let fin_tok = arg_tokens.get(i + 1);
                 // The `finally` word is a body like any other, so it needs the
                 // same static gate as the primary body above: single-token-ness
-                // alone let `try {} finally $body` through, and rebasing the
-                // reconstructed `${body}` text at the `$body` token's span put
-                // the inner statement off the end of the source (issue #1375,
-                // missed here; PR #1481 review).  C's `TclCompileTryCmd` makes
+                // alone would let `try {} finally $body` through, and rebasing
+                // the reconstructed `${body}` text at the `$body` token's span
+                // puts the inner statement off the end of the source.
+                // C's `TclCompileTryCmd` makes
                 // the same call — a `finally` word that is not a
                 // `TCL_TOKEN_SIMPLE_WORD` is `goto failedToCompile`, deferring
                 // the whole `try` to the runtime command.
@@ -791,7 +789,7 @@ impl Lowerer<'_> {
                 // clause shares the next non-`-` handler's body (like `switch`).
                 // Treat it as an empty body rather than lowering `-` as a script
                 // — otherwise it compiles to a zero-arg call of the `-` command
-                // and trips a spurious arity error (issue #703).
+                // and trips a spurious arity error.
                 //
                 // Tcl recognises the marker by the word's *string value*, so the
                 // braced `{-}`, quoted `"-"`, and backslash-escaped (`\-`,
@@ -811,10 +809,10 @@ impl Lowerer<'_> {
                 let is_fallthrough = handler_single && body_value == "-";
                 // Every handler body that is *not* the fallthrough marker gets
                 // the primary body's static gate: `on error {} $body` is a
-                // single VAR token, so the old unconditional walk rebased the
-                // reconstructed `${body}` text at that token and emitted a span
-                // past the end of the source (issue #1375, missed here; PR
-                // #1481 review).  C's `TclCompileTryCmd` refuses the same shape
+                // single VAR token, so an unconditional walk would rebase the
+                // reconstructed `${body}` text at that token and emit a span
+                // past the end of the source.  C's `TclCompileTryCmd` refuses
+                // the same shape
                 // — a handler body that is not a `TCL_TOKEN_SIMPLE_WORD` is
                 // `goto failedToCompile` — so the whole `try` defers to the
                 // runtime command, exactly as the primary-body gate does.
@@ -1125,7 +1123,7 @@ impl Lowerer<'_> {
                 // token, matching `lower_catch`'s body guard. A
                 // single-token but dynamic body (`$body`, `[cmd]`) must
                 // barrier rather than be lowered as if it were the literal
-                // text (issue #1375).
+                // text.
                 if body_tok.is_none() || !super::seg_word_is_static_braced(seg, body_idx + 1) {
                     return self.barrier(seg, &format!("dict {sub} with dynamic body"));
                 }
@@ -1138,7 +1136,7 @@ impl Lowerer<'_> {
                         list_arg: sub_args[1].clone(),
                         // `dict for {k v} {a $b} …` iterates the literal
                         // dictionary; the value word is `args[2]` in the
-                        // full argument list (issue #1260).
+                        // full argument list.
                         list_braced: self.cmd_tokens(seg).arg_is_braced_literal(2),
                     }],
                     body,
@@ -1221,7 +1219,7 @@ impl Lowerer<'_> {
     /// word does not: its value is the brace content welded to the trailing
     /// fragment with the `}` dropped, so every token past the drop slides one
     /// byte left — an off-by-one span on ASCII, an offset inside a UTF-8
-    /// sequence on anything else (issue #1325).  Clamp to the part that does
+    /// sequence on anything else.  Clamp to the part that does
     /// map, exactly as the analyser's `analyse_body` does, so the welded tail
     /// — which is not a script in the first place — is dropped rather than
     /// lowered at fictional offsets.  An ordinary braced body fills its
@@ -1272,9 +1270,8 @@ mod tests {
 
     #[test]
     fn switch_single_braced_body_is_lowered() {
-        // The single-braced arm form
-        // `switch $x { a {body} … }` must lower each arm body into real
-        // IR statements (it used to produce an empty Script).
+        // The single-braced arm form `switch $x { a {body} … }` must lower
+        // each arm body into real IR statements, not an empty Script.
         let m = lower_to_ir("switch $x { a {puts hi} b {set y 1} }", &reg());
         let Statement::Switch { arms, .. } = &m.top_level.statements[0] else {
             panic!("expected Switch");
@@ -1448,7 +1445,7 @@ mod tests {
 
     #[test]
     fn try_dash_handler_body_is_fallthrough() {
-        // Issue #703: a `-` handler body is a fallthrough marker (shares the
+        // A `-` handler body is a fallthrough marker (shares the
         // next non-`-` handler's body, like `switch`), not a zero-arg `-`
         // command. It must lower to a fallthrough handler with an empty body.
         let m = lower_to_ir(
@@ -1529,7 +1526,7 @@ mod tests {
     fn try_backslash_escaped_dash_handler_body_is_fallthrough() {
         // Tcl applies backslash substitution before `try` sees the word, so a
         // bare `\-` / `\x2d` body evaluates to `-` and is a fallthrough
-        // (Codex review on #706 / port of #704).
+        // marker.
         for src in [
             "try {set x 1} on ok a \\- trap NONE b {return $b}",
             "try {set x 1} on ok a \\x2d trap NONE b {return $b}",
@@ -1643,13 +1640,13 @@ mod tests {
         ));
     }
 
-    // issue #1375: `while`/`for`/`foreach`/`try`/`dict for` gated their body
-    // word on single-token-ness alone, not the token's kind. `$body` is a
-    // single VAR token, so it passed the old gate and was lowered as if its
-    // reconstructed text (`${body}`) were the literal script — miscompiling,
-    // or (when the reconstruction lengthened the word, as `${body}` does
-    // over `$body`) panicking in codegen on an out-of-bounds span. Each must
-    // now barrier instead, mirroring `catch_dollar_var_body_falls_through_to_barrier`.
+    // `while`/`for`/`foreach`/`try`/`dict for` must gate their body word on
+    // the token's kind, not single-token-ness alone. `$body` is a single VAR
+    // token, so a single-token gate lowers it as if its reconstructed text
+    // (`${body}`) were the literal script — miscompiling, or (when the
+    // reconstruction lengthens the word, as `${body}` does over `$body`)
+    // panicking in codegen on an out-of-bounds span. Each must barrier
+    // instead, mirroring `catch_dollar_var_body_falls_through_to_barrier`.
 
     #[test]
     fn while_dollar_var_body_falls_through_to_barrier() {
@@ -1687,9 +1684,9 @@ mod tests {
         ));
     }
 
-    // …and the `try` bodies #1375 missed (PR #1481 review): the gate landed on
-    // the primary body only, so `finally` and every non-`-` `on`/`trap`
-    // handler still walked a `$body` word and rebased its reconstructed text
+    // …and the `try` bodies: a gate on the primary body alone leaves
+    // `finally` and every non-`-` `on`/`trap` handler walking a `$body` word
+    // and rebasing its reconstructed text
     // off the end of the source. tclsh 8.6.16 / 9.0.4 run both spellings fine
     // (`set body {puts hi}; try {} finally $body` prints `hi`), so the
     // degraded path must be a barrier — the runtime `try` — not a panic.
@@ -1756,10 +1753,10 @@ mod tests {
         ));
     }
 
-    // issue #1431: a varList word is a Tcl list, not a whitespace split. The
-    // hand-rolled splitter took only the first word of a braced element and cut
-    // a backslash-escaped space in two, so both spellings of a one-variable
-    // binding bound the wrong names.
+    // A varList word is a Tcl list, not a whitespace split: a splitter that
+    // takes only the first word of a braced element, or cuts a
+    // backslash-escaped space in two, binds the wrong names for both spellings
+    // of a one-variable binding.
 
     /// Loop-variable names of the single-iterator `foreach` at statement 0.
     fn foreach_vars(src: &str) -> Vec<String> {
@@ -1780,7 +1777,7 @@ mod tests {
 
     #[test]
     fn foreach_escaped_space_var_binds_one_name() {
-        // Same oracle for the escaped spelling: `foreach {a\ b} {1} {}` binds
+        // Same for the escaped spelling: `foreach {a\ b} {1} {}` binds
         // the one local `a b`, not the two names `a\` and `b`.
         assert_eq!(foreach_vars("foreach {a\\ b} {1} {puts hi}"), vec!["a b"]);
     }

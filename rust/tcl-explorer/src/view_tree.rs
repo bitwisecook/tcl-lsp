@@ -993,7 +993,7 @@ fn build_interproc(d: &Value) -> Vec<ViewNode> {
 /// Why the interprocedural constant seed fired (or declined) for each
 /// procedure: the registry-declared unit boundaries the file crosses, whether
 /// the host supplied a cross-file view, and the merged call-site evidence
-/// per callee (issue #977).
+/// per callee.
 fn build_unit_scope(d: &Value) -> Vec<ViewNode> {
     let scope = &d["unitScope"];
     let boundaries = join_str_array(&scope["boundaries"]);
@@ -1036,7 +1036,7 @@ fn build_unit_scope(d: &Value) -> Vec<ViewNode> {
 /// the per-pass pipeline.
 ///
 /// A `hintOnly` entry carries no replacement: its range spans the whole
-/// consuming statement, so the literal was never a valid edit for it (#1934).
+/// consuming statement, so the literal is never a valid edit for it.
 /// Rendering the usual `code message -> replacement` for one shows advice as a
 /// rewrite to the empty string — a deletion — which is the opposite of what it
 /// means, so the arrow is dropped and the row says what it is.
@@ -1723,8 +1723,8 @@ mod tests {
     /// A hint is advice, not an edit, and the row must not read as one.
     ///
     /// A `hintOnly` optimisation carries no replacement — its range spans the
-    /// whole consuming statement, so the literal was never a valid edit for it
-    /// (#1934). Rendering the usual `code message -> replacement` gives
+    /// whole consuming statement, so the literal is never a valid edit for
+    /// it. Rendering the usual `code message -> replacement` gives
     /// `-> ` with nothing after it, which reads as a rewrite to the empty
     /// string: a deletion, and the opposite of what the entry means.
     #[test]

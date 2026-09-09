@@ -62,7 +62,7 @@ use tcl_lsp_core::linked_editing_range::{WORD_PATTERN, linked_editing_ranges};
 use tcl_lsp_core::type_definition::type_definition;
 use tcl_lsp_core::type_hierarchy::prepare as type_hierarchy_prepare;
 
-// -- shared helpers --------------------------------------------------------
+// Shared helpers.
 
 fn analyse(source: &str) -> AnalysisResult {
     let mut a = Analyser::new();

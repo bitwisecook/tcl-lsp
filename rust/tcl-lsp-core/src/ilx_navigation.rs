@@ -17,8 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! iRulesLX cross-language navigation: an `ILX::call` / `ILX::notify` method
-//! word ↔ the `ILXServer.addMethod` registration that implements it
-//! (issue #1707).
+//! word ↔ the `ILXServer.addMethod` registration that implements it.
 //!
 //! [`tcl_irules::ilx`] finds the two halves inside one file each; this module
 //! is what connects them across the workspace, and it is the only place that
@@ -52,10 +51,9 @@
 //! and a `…/<ancestor>/PLUGIN/extensions/…` sibling — never by scanning the
 //! whole workspace.  If the name does not match, or two distinct directories
 //! match, nothing resolves: an unknown or ambiguous mapping abstains rather
-//! than guessing.  A plugin deliberately named
-//! differently from its workspace is therefore **not** navigable yet; that is
-//! the "documented workspace/config mapping" half of criterion 2, and it is
-//! left for a follow-up rather than approximated here.
+//! than guessing.  A plugin deliberately named differently from its workspace
+//! is therefore **not** navigable through the convention alone; it needs the
+//! explicit mapping described below.
 //!
 //! # Everything else abstains
 //!
@@ -218,8 +216,7 @@ impl<'a> IlxFiles<'a> {
 /// W`) and the two need not match. Without a declaration the only association
 /// available is the directory-name convention, and a plugin named otherwise is
 /// simply not navigable; guessing from the extension name alone would pick the
-/// wrong file in a workspace holding two plugins, which is the guess issue
-/// #1707 criterion 4 forbids. So the user says it instead
+/// wrong file in a workspace holding two plugins.  So the user says it instead
 /// (`.tcl-lsp.ini [iruleslx.plugins]`, or the `tclLsp.iruleslx` settings key).
 ///
 /// A declaration is **authoritative**: once a plugin name is configured, the
@@ -381,9 +378,7 @@ impl IlxUnresolved {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Tcl side: from a call site to the registration
-// ---------------------------------------------------------------------------
+// Tcl side: from a call site to the registration.
 
 /// The `ILX::call` / `ILX::notify` site whose **method word** the cursor sits
 /// on, if any.
@@ -442,9 +437,8 @@ pub fn definition(doc: IlxDocument<'_>, ctx: IlxContext<'_>, call: &IlxMethodCal
 /// and how the call reaches it.
 ///
 /// `ILX::call` and `ILX::notify` share the method target but are *not* the same
-/// operation, so the dispatch line always says which one this is — the
-/// "synchronous versus best-effort notification" distinction issue #1707
-/// criterion 5 asks to keep visible.
+/// operation, so the dispatch line always says which one this is, keeping the
+/// "synchronous versus best-effort notification" distinction visible.
 #[must_use]
 pub fn hover_markdown(call: &IlxMethodCall, target: &IlxTarget) -> String {
     use std::fmt::Write as _;
@@ -576,9 +570,7 @@ fn call_sites_in(
         .collect()
 }
 
-// ---------------------------------------------------------------------------
-// JavaScript side: from a registration back to the iRules
-// ---------------------------------------------------------------------------
+// JavaScript side: from a registration back to the iRules.
 
 /// The `addMethod` registration whose **name literal** the cursor sits on.
 #[must_use]
@@ -685,9 +677,7 @@ fn extension_of_entry(path: &Path) -> Option<(PathBuf, String)> {
     None
 }
 
-// ---------------------------------------------------------------------------
-// Extension discovery
-// ---------------------------------------------------------------------------
+// Extension discovery.
 
 /// One located extension: where its sources are, and which workspace holds it.
 struct ExtensionSite {

@@ -89,14 +89,12 @@ extern "C" {
     fn mp_signed_rsh(a: *const MpInt, b: c_int, c: *mut MpInt) -> c_int;
 }
 
-// ---------------------------------------------------------------------------
 // Tower arithmetic — the integer rung (wide → bignum, with demote-when-fits)
 // plus double promotion. Follows `tclExecute.c`'s overflow-checked wide fast
 // path → `ExecuteExtendedBinaryMathOp` bignum path → canonical demote. Operands
 // are `TclObj`s; results are fresh (`rc 0`) `TclObj`s (int / bignum / double).
 // Covers +/-/*/neg, floor `/`/`%` (sign-of-divisor), comparison, `**` (TIP 123),
 // the bitwise ops `& | ^ ~`, and shifts `<< >>`. The `expr` walker builds on this.
-// ---------------------------------------------------------------------------
 
 /// An RAII libtommath integer: owns its `mp_int`, clearing it on drop.
 struct Mp(MpInt);
@@ -751,9 +749,7 @@ fn big_vs_double(m: &Mp, d: f64) -> NumericCompare {
     })
 }
 
-// ---------------------------------------------------------------------------
 // Exponentiation, bitwise ops, and shifts (integer-only except `**` on floats).
-// ---------------------------------------------------------------------------
 
 /// An integer operand (rejecting floats) for the bit-ops / shifts.
 enum IntVal {
@@ -1084,9 +1080,7 @@ fn store(mut mp: MpInt) -> *mut TclObj {
     obj::alloc_typed(&TCL_BIGNUM_TYPE, boxed as u64)
 }
 
-// ---------------------------------------------------------------------------
 // The shared-tower backend adapter: `BigIntOps` over the real `mp_int`.
-// ---------------------------------------------------------------------------
 
 /// Lift an integer operand onto the shared tower's backend value. A float
 /// operand is `NonInteger` (the integer tiers of `**`/`/`/`%`/`<<`/`>>` are
@@ -1365,7 +1359,7 @@ mod tests {
         assert_eq!(crate::counters::finalize(), 0);
     }
 
-    // ---- tower arithmetic ----
+    // tower arithmetic
     //
     // Helpers own (`rc 1`) every operand + result and release them, so each test
     // ends leak-clean. The ops *borrow* operands (never consume them).

@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Variable tables + call frames (T1.3, extended for namespaces in T1.5).
+//! Variable tables + call frames, extended for namespaces.
 //!
 //! Canonical model: `tclInt.h`'s `Var` is a tagged union
 //! `{ scalar objPtr | array tablePtr | linkPtr }` held in a hash table
@@ -134,9 +134,7 @@ pub enum VarError {
     IsConstant,
 }
 
-// ---------------------------------------------------------------------------
 // VarTable — the per-frame / per-namespace name→cell store + cell mechanics.
-// ---------------------------------------------------------------------------
 
 /// One addressable cell of a [`VarTable`]: the name it is bound to and the
 /// variable currently in it, if any.
@@ -718,9 +716,7 @@ impl Drop for VarTable {
     }
 }
 
-// ---------------------------------------------------------------------------
 // FrameStack — the proc call frames (level 0 is the global context).
-// ---------------------------------------------------------------------------
 
 /// One call frame: its local variable table, absolute level, and the namespace
 /// it runs in (so `uplevel` can restore the target frame's namespace context —

@@ -1186,7 +1186,7 @@ mod tests {
 
     /// A truncated IPv4 packet must not panic the whole-file rewriter: the
     /// malformed record is skipped (passed through unmodified) and the run
-    /// completes cleanly. Regression guard for the out-of-bounds slice panic.
+    /// completes cleanly.
     #[test]
     fn remap_pcap_skips_truncated_packet() {
         let mut rm = map_with(&[("93.184.216.34", "10.0.0.34")]);

@@ -292,14 +292,12 @@ pub struct ModuleCommandBindings {
     /// procedure identity.
     rebound_names: BTreeSet<String>,
     /// Flow-insensitive, namespace-candidate rebound names for procedure
-    /// call-site trust. This retains the legacy scanner's conservative
-    /// local-or-global interpretation without weakening the exact binding
-    /// resolver above.
+    /// call-site trust: a conservative local-or-global interpretation, kept
+    /// separate so it cannot weaken the exact binding resolver above.
     proc_rebound_names: BTreeSet<String>,
     /// `Module` records a duplicate procedure declaration even when each
-    /// source body was readable and could be replayed. The optimiser's
-    /// historical trust contract deliberately treats that metadata as a
-    /// whole-domain mutation.
+    /// source body was readable and could be replayed. The optimiser's trust
+    /// contract deliberately treats that metadata as a whole-domain mutation.
     has_redefined_procedures: bool,
 }
 
@@ -688,7 +686,7 @@ impl ModuleCommandBindings {
     /// user procedures and registry-backed targets are reported; consumers
     /// select the semantic domain they own from [`ResolvedCommandTarget`].
     /// A source-aware statement keeps substitution and expansion opaque, while
-    /// a hand-built statement without tokens retains the legacy all-literal
+    /// a hand-built statement without tokens falls back to the all-literal
     /// argument view.
     pub(crate) fn for_each_resolved_invocation<F>(
         &self,
@@ -947,10 +945,10 @@ impl ModuleCommandBindings {
     }
 
     /// Project the prepared lattice into the narrower trust fact used when a
-    /// call site wants to seed a retained procedure's parameters. This keeps
-    /// the legacy contract: only an explicit rebinding or a dynamic
-    /// command-binding transition disqualifies the declared procedure
-    /// identity; source/lookup/body opacity alone does not.
+    /// call site wants to seed a retained procedure's parameters: only an
+    /// explicit rebinding or a dynamic command-binding transition
+    /// disqualifies the declared procedure identity; source/lookup/body
+    /// opacity alone does not.
     #[must_use]
     pub(crate) fn proc_binding_trust_projection(&self) -> ProcBindingTrustProjection {
         ProcBindingTrustProjection {
@@ -3189,8 +3187,8 @@ fn apply_registry_transitions(
 /// Apply `stmt`'s command-table mutation to `state` in place.
 ///
 /// Registry-declared [`StateTransition`] facts are authoritative for ordinary
-/// definitions, renames, deletions, and aliases.  Unstamped legacy mutators
-/// widen conservatively instead of being re-decoded here.  Runtime object
+/// definitions, renames, deletions, and aliases.  An unstamped mutator
+/// widens conservatively instead of being re-decoded here.  Runtime object
 /// receiver calls remain a small separate path because their source head is a
 /// value, not a statically registered command.
 fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRegistry) {
@@ -3620,8 +3618,8 @@ impl ModuleCommandMutations {
     /// The everything-is-untrusted lattice top: `trusts` /
     /// `trusts_proc_binding` answer `false` for every name. The sound
     /// stand-in when a consumer has **no whole-module view at all** (the
-    /// analyser's isolated per-item body pass, issue #1132) — folding with
-    /// builtin semantics is then never permitted.
+    /// analyser's isolated per-item body pass) — folding with builtin
+    /// semantics is then never permitted.
     #[must_use]
     pub fn distrust_all() -> Self {
         Self {
@@ -3680,7 +3678,7 @@ impl ModuleCommandMutations {
 /// A canonical (sorted), hashable form of [`ModuleCommandMutations`], so
 /// the whole-module trust fact can ride inside a memoisation key — the
 /// analyser's per-item body pass carries it on each deferred body whose
-/// text could fold a command substitution (issue #1132), keeping the
+/// text could fold a command substitution, keeping the
 /// isolated fragment memo sound when a `rename` elsewhere in the file
 /// appears or disappears.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -4056,8 +4054,8 @@ pub(crate) fn scan_module_command_mutations_with_bindings(
     }
     dynamic |= has_runtime_selected_root;
 
-    // The source-recursive legacy walk above sees bodies retained in `Module`,
-    // while this owner also recovers bodies installed through alias prefixes.
+    // The source-recursive walk above sees bodies retained in `Module`, while
+    // this owner also recovers bodies installed through alias prefixes.
     // Project its closed may-state into the same optimiser trust summary so
     // every compiler consumer agrees about those runtime-created procedures.
     let projected = command_bindings.mutation_projection(registry);
@@ -4251,10 +4249,10 @@ mod tests {
         external_proc.traits |= tcl_registry::Traits::LOADS_EXTERNAL_UNIT;
         reg.insert(external_proc);
 
-        // The leading command ensures the historical state already exists
-        // when the exact definition runs. The former one-key fast path then
-        // suppressed the ordinary observation and lost the external-unit
-        // opacity which accompanied the otherwise-exact Define(Procedure).
+        // The leading command ensures the observed state already exists when
+        // the exact definition runs. A one-key fast path here would suppress
+        // the ordinary observation and lose the external-unit opacity that
+        // accompanies the otherwise-exact Define(Procedure).
         let cu =
             CompilationUnit::build_for("set marker 1\nproc created {} {return ok}", &reg, false);
         let bindings = ModuleCommandBindings::analyse(&cu.ir_module, &reg);
@@ -5382,13 +5380,13 @@ Dog create d",
         assert!(!m2.trusts("string") && !m2.trusts("lappend"));
     }
 
-    /// Regression coverage for issue #996: `walk_body_calls` recurses once
+    /// `walk_body_calls` recurses once
     /// per nested `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch`
-    /// body, with no depth cap of its own before this fix. Transitively
-    /// bounded to `MAX_LOWER_NEST_DEPTH` (256) by the lowering pass today,
+    /// body, with no depth cap of its own. Transitively
+    /// bounded to `MAX_LOWER_NEST_DEPTH` (256) by the lowering pass,
     /// so this is defence-in-depth / consistency with every other
     /// full-tree walker in this crate, not a currently-reproducible
-    /// crash. 1000 levels of source nesting is comfortably past this new
+    /// crash. 1000 levels of source nesting is comfortably past this
     /// cap; the assertion is that `scan_module_command_mutations` returns
     /// at all, not what it returns. Spawns its own big-stack thread since
     /// the lexer/CST/segmenter stages upstream of the lowering cap still

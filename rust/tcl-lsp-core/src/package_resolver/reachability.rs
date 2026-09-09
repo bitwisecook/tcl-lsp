@@ -51,7 +51,7 @@
 //! That is the standard TEA shape for picking a Tcl-8 or Tcl-9 shared
 //! library.  Reading only *top-level* commands misses it entirely and the
 //! package looks nonexistent, so its commands draw a false "unknown command"
-//! (issue #923 idx 42) — the same mechanism, the opposite error.
+//! — the same mechanism, the opposite error.
 //!
 //! # What this module models
 //!

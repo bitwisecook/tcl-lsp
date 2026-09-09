@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The `dict` ensemble (T1.6 + M4) — `create`/`get`/`getdef`/`set`/`replace`/
+//! The `dict` ensemble — `create`/`get`/`getdef`/`set`/`replace`/
 //! `remove`/`exists`/`unset`/`size`/`keys`/`values`/`merge`/`filter`/`for`/
 //! `map`/`update`/`with`/`append`/`lappend`/`incr`/`info`, over the
 //! [`crate::dict`] value type.
@@ -158,7 +158,7 @@ const DICT_SUBS: &[&[u8]] = &[
     b"with",
 ];
 
-// -- read subcommands (operate on a dict value) ----------------------------
+// read subcommands (operate on a dict value)
 
 /// `dict create ?key value ...?`
 fn create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -399,7 +399,7 @@ fn dict_filter_bool(o: *mut TclObj) -> Result<bool, crate::typed_value::TypedErr
     crate::typed_value::boolean(o)
 }
 
-// -- variable-mutating subcommands (copy-on-write) -------------------------
+// variable-mutating subcommands (copy-on-write)
 
 /// The dict object to mutate for `dictVar`: the variable's (mutated in place if
 /// unshared), a COW copy, or a fresh empty dict. Returns `(obj, is_new)`.
@@ -798,7 +798,7 @@ fn dict_path_unset(dict: *mut TclObj, keys: &[*mut TclObj]) -> Result<(), PathEr
     Ok(())
 }
 
-// -- iteration -------------------------------------------------------------
+// iteration
 
 /// `dict for {keyVar valueVar} dictValue body` — iterate in insertion order,
 /// evaluating `body` in the current scope with the loop vars set.
@@ -1060,7 +1060,7 @@ fn with(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     code
 }
 
-// -- helpers ---------------------------------------------------------------
+// helpers
 
 /// Re-word a *list*-parse failure as the **dict** failure C reports.
 ///

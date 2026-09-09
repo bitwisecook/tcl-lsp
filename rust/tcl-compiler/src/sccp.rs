@@ -257,7 +257,7 @@ pub fn sccp(
 }
 
 /// Inputs for folding a pure-builtin command substitution **during lattice
-/// evaluation** (issue #1134): the registry `const_fold` callbacks are pure
+/// evaluation**: the registry `const_fold` callbacks are pure
 /// functions of constant argument words, so an `AssignValue` RHS like
 /// `[namespace qualifiers $base]` whose `$base` is a lattice constant folds
 /// to a lattice constant itself — the folded value re-enters the lattice and
@@ -352,7 +352,7 @@ pub fn sccp_with_extra_escaping(
 
 /// Like [`sccp_with_extra_escaping`] but additionally folds pure-builtin
 /// command substitutions during lattice evaluation via the registry
-/// `const_fold` callbacks — see [`BuiltinFoldInputs`] (issue #1134). Passing
+/// `const_fold` callbacks — see [`BuiltinFoldInputs`]. Passing
 /// `None` is byte-identical to [`sccp_with_extra_escaping`].
 #[must_use]
 #[allow(clippy::implicit_hasher)]
@@ -988,7 +988,7 @@ fn scan_defined_and_unset(cfg: &CfgFunction) -> (FxHashSet<String>, FxHashSet<&s
 /// Bundled rather than passed positionally so a new fact reaches both
 /// consumers of the fold — the analyser's I230 and the optimiser's O101 — by
 /// construction: the two build the same struct from the same IR, so they
-/// cannot drift (they did, on method parameters — issue #1129).
+/// cannot drift on, say, method parameters.
 #[derive(Clone, Copy, Default)]
 pub struct ExistenceFrame<'a> {
     /// The body's formal parameter names: bound on entry as scalars, so
@@ -1014,7 +1014,7 @@ pub struct ExistenceFrame<'a> {
 /// outside the function's view.
 ///
 /// Deliberately **not**
-/// [`split_element_ref`](tcl_syntax::naming::split_element_ref) (issue #1606):
+/// [`split_element_ref`](tcl_syntax::naming::split_element_ref):
 /// this is a narrower *fold-safety* predicate, and its extra tests — non-empty
 /// base, bareword base — are the point. The owner admits the zero-length array
 /// name `(k)` that `TclObjLookupVarEx` admits, which is not a name this fold
@@ -1032,11 +1032,11 @@ fn array_element_base(var: &str) -> Option<&str> {
 /// Fold `[info exists X]` / `[array exists X]`
 /// if-conditions into [`ConstantBranch`] entries for the
 /// false-positive-free cases — a parameter always exists, as a **scalar**
-/// (`info exists` → `true`, `array exists` → `false`, issue #1239); a
-/// never-defined non-parameter never exists (`false`); an element guard
-/// `X(elem)` on an array this body never touches never exists (`false`,
-/// issue #1173 — the guard is decided on the *array* name, with the same
-/// abstentions as a simple name, so the element key may even be dynamic).
+/// (`info exists` → `true`, `array exists` → `false`); a never-defined
+/// non-parameter never exists (`false`); an element guard `X(elem)` on an
+/// array this body never touches never exists (`false` — the guard is decided
+/// on the *array* name, with the same abstentions as a simple name, so the
+/// element key may even be dynamic).
 /// `![info exists X]` flips the value.
 ///
 /// SCCP itself can't fold these (the predicate is an opaque
@@ -1052,11 +1052,11 @@ fn array_element_base(var: &str) -> Option<&str> {
 /// ([`ExistenceFrame::initial_global`]) the registry's special variables join
 /// them for the same reason: that frame is the interpreter's own global
 /// namespace, whose startup bindings and runtime-materialised entries the
-/// body's assignment scan cannot see (issue #1557).
+/// body's assignment scan cannot see.
 ///
 /// `dynamic_names` carries the function's
 /// [dynamic-name barrier](crate::dynamic_names) and gates each direction
-/// independently (issue #923 audit idx 1):
+/// independently:
 ///
 /// - a **dynamic write** (`set $switch {}`) can define *any* name, so the
 ///   "never defined here, therefore absent" fold is no longer provable;
@@ -1068,14 +1068,14 @@ fn array_element_base(var: &str) -> Option<&str> {
 ///
 /// [`ExistenceFrame::object_state`] carries the frame's *auto-bound*
 /// out-of-frame names — a `TclOO` method body's
-/// [`crate::ir::MethodDef::instance_vars`] (issue
-/// #1129).  A class-level `variable x` declaration binds `x` in **every**
+/// [`crate::ir::MethodDef::instance_vars`].
+/// A class-level `variable x` declaration binds `x` in **every**
 /// method's frame with no `variable` statement in the body itself, so
 /// [`crate::optimiser::elimination::scan_scope_aliases`] (which only sees the
 /// body's own commands) cannot find it — the name looks like a never-defined
-/// local and the fold used to call it "always absent".  It is not: existence
-/// is per-instance runtime state, set by whichever method or constructor
-/// assigned it first.  tclsh 9.0.4 and 8.6.14 agree:
+/// local, which the fold would otherwise call "always absent".  It is not:
+/// existence is per-instance runtime state, set by whichever method or
+/// constructor assigned it first.  tclsh 9.0.4 and 8.6.14 agree:
 ///
 /// ```tcl
 /// oo::class create C { variable x; constructor {} { set x 1 }
@@ -1139,7 +1139,7 @@ pub fn existence_constant_branches(
     let mut aliased = crate::optimiser::elimination::scan_scope_aliases(cfg, registry);
     // Object state is aliased the same way, minus a visible binding command:
     // `TclOO` links every class-level `variable` declaration into each method
-    // frame at entry, so the body's own command scan cannot see it (#1129).
+    // frame at entry, so the body's own command scan cannot see it.
     //
     // A formal parameter of the same name is the one exception: it shadows the
     // class-level declaration outright, so the name is an ordinary local that
@@ -1172,8 +1172,8 @@ pub fn existence_constant_branches(
     }
     // The document's initial global frame *is* the interpreter's global
     // namespace, so every name the special-variable registry recognises there
-    // is out-of-frame runtime state exactly like object state above (issue
-    // #1557).  Some are bound before user code (`argv`, `env`, `tcl_platform`,
+    // is out-of-frame runtime state exactly like object state above.
+    // Some are bound before user code (`argv`, `env`, `tcl_platform`,
     // `auto_path`), some are materialised by a later runtime event this body
     // cannot see (`errorInfo` after a `catch`, `auto_index` after an
     // auto-load), and some by a read trace (`tcl_precision` on Tcl 8.x) — none
@@ -1214,7 +1214,7 @@ pub fn existence_constant_branches(
         };
         let exists = if let Some(base) = array_element_base(&var) {
             // An array-element guard on a never-touched array is provably
-            // false (issue #1173): no element of `a` can exist when nothing
+            // false: no element of `a` can exist when nothing
             // in this barrier-free body ever created `a` — tclsh 9.0.4 /
             // 8.6.16: `proc f {} { info exists Params(key) }` → 0.  The
             // decision is about the *array* name alone, so a dynamic element
@@ -1255,7 +1255,7 @@ pub fn existence_constant_branches(
                 if unset.contains(var.as_str()) || dynamic_names.destroys {
                     continue;
                 }
-                // Which constant depends on the spelling (issue #1239).  A
+                // Which constant depends on the spelling.  A
                 // parameter is bound as a *scalar* on entry — Tcl has no
                 // pass-an-array-by-value — so `array exists PARAM` is
                 // provably **false** where `info exists PARAM` is true.
@@ -1273,7 +1273,7 @@ pub fn existence_constant_branches(
                 matches!(kind, crate::existence_query::ExistenceKind::AnyVariable)
             } else if !defined.contains(&var) {
                 // `set $switch {}` may have defined exactly this name — the
-                // argparse idiom the fold used to call unreachable.
+                // argparse idiom.
                 if dynamic_names.writes {
                     continue;
                 }
@@ -1320,8 +1320,8 @@ pub fn evaluate_def<S: std::hash::BuildHasher>(
     evaluate_def_with_folds(stmt_ssa, values, ssa, policy, None)
 }
 
-/// [`evaluate_def`] with an optional registry builtin-fold context (issue
-/// #1134): when `folds` is supplied, an `AssignValue` command-substitution
+/// [`evaluate_def`] with an optional registry builtin-fold context: when
+/// `folds` is supplied, an `AssignValue` command-substitution
 /// RHS additionally consults the registry `const_fold` engine — see
 /// [`BuiltinFoldInputs`]. `None` is byte-identical to [`evaluate_def`].
 #[must_use]
@@ -1753,7 +1753,7 @@ where
 /// 2. **Simple var reference** `$x` / `${x}` → lattice lookup.
 /// 3. **Command substitution** `[cmd args…]` → delegate to
 ///    [`try_fold_cmd_subst`], then (when `folds` is supplied) to the
-///    registry const-fold engine ([`BuiltinFoldInputs`], issue #1134).
+///    registry const-fold engine ([`BuiltinFoldInputs`]).
 ///
 /// Anything else widens to `Overdefined`.
 fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
@@ -1778,7 +1778,7 @@ fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         if let Some(lv) = try_fold_cmd_subst(stripped, uses, values, ssa, policy, folds) {
             return lv;
         }
-        // Registry const-fold fallback (issue #1134): the fold's `$var`
+        // Registry const-fold fallback: the fold's `$var`
         // words resolve at this statement's use versions, so a folded
         // value re-enters the lattice and downstream statements see it —
         // the multi-hop chain the hardcoded arms above cannot close.
@@ -1896,9 +1896,9 @@ fn try_fold_cmd_subst<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     // Each arm below *is* a builtin's semantics, so it may only run while
     // that name still denotes the builtin: after `rename list mylist` or a
     // shadowing `proc format …` anywhere in the unit, `[list a 1 a 2]` is a
-    // call to something else entirely (issue #1585). This is the same trust
-    // fact the registry-driven engine below already consults; the arms here
-    // ran ahead of it and never asked.
+    // call to something else entirely. This is the same trust fact the
+    // registry-driven engine below consults; these arms run ahead of it, so
+    // they must ask for themselves.
     //
     // `folds == None` is the mutation-fact-free shared per-unit lattice (see
     // [`BuiltinFoldInputs`]), which no rewrite lands from: the optimiser
@@ -1941,8 +1941,8 @@ fn try_fold_cmd_subst<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         // Unlike `foreach`'s `list_arg` (already delimiter-stripped by the
         // segmenter), `arg` here is raw source text straight out of the
         // `[...]` command substitution, so it still carries its own
-        // `{…}`/`"…"` wrapping that `extract_foreach_elements` no longer
-        // strips — peel exactly one level before splitting.
+        // `{…}`/`"…"` wrapping that `extract_foreach_elements` does not
+        // strip — peel exactly one level before splitting.
         if let Some(elements) = extract_foreach_elements(strip_one_level(arg), policy.word_rules) {
             let n = i64::try_from(elements.len()).unwrap_or(i64::MAX);
             return Some(LatticeValue::Const(ConstValue::Int(n)));
@@ -2256,7 +2256,7 @@ mod tests {
         assert!(join_pos > e_pos);
     }
 
-    /// Issue #1409 — a static-body `uplevel 0` is an `UpFrame`, not a generic
+    /// A static-body `uplevel 0` is an `UpFrame`, not a generic
     /// barrier, but its body can create a local in the frame whose existence
     /// query follows. The whole-function existence fold must abstain just as
     /// it does for `Barrier`.
@@ -2289,7 +2289,7 @@ mod tests {
         // `uplevel 0` evaluates in this procedure's frame. The nested body
         // aliases that frame's parameter and unsets it, so Tcl observes the else
         // branch. The no-uplevel twin proves the branch is otherwise foldable;
-        // this is a mutation test of the exact fact #1409 must block.
+        // this is a mutation test of the exact fact the fold must block.
         let registry = CommandRegistry::build_default();
         let stable = crate::compilation_unit::CompilationUnit::build_for(
             "proc f {local} { if {[info exists local]} { return yes } else { return no } }",
@@ -2708,11 +2708,10 @@ mod tests {
     /// SCCP folds the iRules word operators when — and only when — the
     /// policy says the dialect has them.
     ///
-    /// Regression for the Codex #1046-5 / soundness-review finding: SCCP
-    /// took a bare `octal: Option<bool>` and evaluated through the
-    /// dialect-blind entry point, so `FoldOps::is_irules` was always
-    /// `false` here and every word operator silently declined — while the
-    /// `eq` control on the same shape folded, because plain Tcl shares it.
+    /// Evaluating through a dialect-blind entry point (a bare
+    /// `octal: Option<bool>`) leaves `FoldOps::is_irules` `false`, so every
+    /// word operator silently declines while the `eq` control on the same
+    /// shape folds, because plain Tcl shares it.
     #[test]
     fn evaluate_def_folds_irules_word_operator_only_under_an_irules_policy() {
         let mut ssa = bare_ssa();
@@ -2993,7 +2992,7 @@ mod tests {
         );
     }
 
-    // Regression tests for issue #1433: `list_text` already has its outer
+    // `list_text` already has its outer
     // `foreach`-word delimiter removed by the segmenter (see
     // `Statement::Foreach::list_arg`'s construction in
     // `lowering::structured`), so a value that itself starts with `{` / `"`
@@ -3054,7 +3053,7 @@ mod tests {
     #[test]
     fn evaluate_def_foreach_list_cmd_subst_folds_constset() {
         // `foreach v [list a b c]` folds through `try_fold_cmd_subst` to the
-        // same element CONSTSET as the braced-literal form (issue #777).
+        // same element CONSTSET as the braced-literal form.
         let mut ssa = bare_ssa();
         let stmt = foreach_stmt(&mut ssa, "v", "[list a b c]", 1);
         let result = evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default());
@@ -3082,11 +3081,10 @@ mod tests {
 
     #[test]
     fn evaluate_def_foreach_nested_braced_elements_folds_constset() {
-        // Regression test for issue #1433: source `foreach v {{a b} {c d}}`
-        // hands `list_arg` = `{a b} {c d}` (only the word's own outer `{…}`
-        // is stripped by the segmenter). Before the fix, `evaluate_def`
-        // wrongly peeled a *second* level of bracing off this already
-        // delimiter-stripped text, folding `v` to the corrupted CONSTSET
+        // Source `foreach v {{a b} {c d}}` hands `list_arg` = `{a b} {c d}`
+        // (only the word's own outer `{…}` is stripped by the segmenter).
+        // Peeling a *second* level of bracing off this already
+        // delimiter-stripped text would fold `v` to the corrupted CONSTSET
         // {"a", "b}"} instead of the two list elements.
         let mut ssa = bare_ssa();
         let stmt = foreach_stmt(&mut ssa, "v", "{a b} {c d}", 1);
@@ -3231,7 +3229,7 @@ mod tests {
         );
     }
 
-    // -- the fold arms answer to the command-binding trust fact (issue #1585) --
+    // The fold arms answer to the command-binding trust fact.
 
     /// The whole-module mutation summary for `src`.
     fn mutations_for(src: &str) -> crate::command_binding::ModuleCommandMutations {
@@ -3261,9 +3259,9 @@ mod tests {
         )
     }
 
-    /// The `[list …]` / `[format …]` arms run ahead of the registry engine and
-    /// used to skip its trust gate entirely, so a unit that renamed `list`
-    /// still got the builtin's answer (issue #1585).
+    /// The `[list …]` / `[format …]` arms run ahead of the registry engine, so
+    /// they must apply its trust gate themselves — otherwise a unit that
+    /// renamed `list` still gets the builtin's answer.
     ///
     /// tclsh 8.6.16 / 9.0.4 (identical): after `rename list mylist`, evaluating
     /// `list a b c` raises rather than returning `a b c`.
@@ -3588,14 +3586,13 @@ mod tests {
 
     #[test]
     fn sccp_foreach_nested_braced_list_constset_not_corrupted() {
-        // End-to-end regression test for issue #1433. `foreach v {{a b} {c d}}`
-        // lowers `list_arg` to the segmenter-stripped text `{a b} {c d}`
-        // (only the word's own outer braces are gone). Before the fix, SCCP's
-        // foreach constset extraction peeled a *second* level of bracing off
-        // this already-stripped text, corrupting `v`'s CONSTSET to the two
-        // elements `a` and `b}` (from the lenient split of `a b} {c d`) and
-        // wrongly proving `if {$v eq "c d"}` false. It must fold to the two
-        // correct elements `a b` and `c d` instead.
+        // End to end: `foreach v {{a b} {c d}}` lowers `list_arg` to the
+        // segmenter-stripped text `{a b} {c d}` (only the word's own outer
+        // braces are gone). Peeling a *second* level of bracing off this
+        // already-stripped text corrupts `v`'s CONSTSET to the two elements
+        // `a` and `b}` (from the lenient split of `a b} {c d`) and wrongly
+        // proves `if {$v eq "c d"}` false. It must fold to the two correct
+        // elements `a b` and `c d` instead.
         let c = cu(
             "proc ::p {} { foreach v {{a b} {c d}} { if {$v eq \"c d\"} { set r yes } else { set r no } } }",
         );

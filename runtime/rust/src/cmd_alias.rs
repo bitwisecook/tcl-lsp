@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `rename` + `interp alias` (T1.5, the rename-alias wave).
+//! `rename` + `interp alias`.
 //!
 //! Both layer on the one command resolver in [`crate::namespace`]: `rename`
 //! moves/deletes a binding in the table; `interp alias` installs a
@@ -46,7 +46,7 @@ pub fn install(interp: &mut Interp) {
     // `update` is registered by `cmd_event` (the real event loop).
 }
 
-// -- rename ----------------------------------------------------------------
+// rename
 
 /// `rename oldName newName` — move a command, or delete it when `newName` is the
 /// empty string. Any command may be renamed, builtins included — C Tcl has no
@@ -111,7 +111,7 @@ fn alias_loop_error(interp: &mut Interp, simple: &[u8]) -> Code {
     interp.error_with_code(&m, b"TCL OPERATION INTERP ALIASLOOP")
 }
 
-// -- interp ----------------------------------------------------------------
+// interp
 
 /// `interp`'s subcommand words, in C table order (`options[]`, `tclInterp.c`).
 /// C resolves them with `Tcl_GetIndexFromObj(…, "option", 0)`, so `cr`
@@ -787,7 +787,7 @@ fn interp_alias(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let src = obj_bytes(argv[2]);
     let name = obj_bytes(argv[3]);
 
-    // -- alias in a child interp, delegating to the parent (this interp) -------
+    // alias in a child interp, delegating to the parent (this interp)
     if !src.is_empty() {
         if !interp.child_exists(&src) {
             let mut m = b"could not find interpreter \"".to_vec();
@@ -814,7 +814,7 @@ fn interp_alias(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return Code::Ok;
     }
 
-    // -- alias in the current interp (single-interp) --------------------------
+    // alias in the current interp (single-interp)
     // Query: `interp alias {} aliasName`.
     if argv.len() == 4 {
         return match interp.alias_info(&name) {
@@ -876,7 +876,7 @@ fn interp_aliases(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-// -- helpers ---------------------------------------------------------------
+// helpers
 
 fn only_single_interp(interp: &mut Interp) -> Code {
     interp.set_error(b"only single-interp aliases (empty interpreter paths) are supported")

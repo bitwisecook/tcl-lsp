@@ -437,7 +437,7 @@ fn references_namespaced_proc_matches_qualified_and_short_calls() {
 
 #[test]
 fn references_relative_qualified_call_falls_back_to_global_target() {
-    // tclsh8.6 (verified, PR #924 review): `inner::p` called inside `outer`
+    // tclsh8.6 (verified): `inner::p` called inside `outer`
     // dispatches the *global* `::inner::p` when `::outer::inner::p` does not
     // exist — Tcl's two-step rule commits to the local candidate only when
     // that command exists.  References on `::inner::p`'s declaration must
@@ -540,15 +540,13 @@ fn references_namespaced_proc_does_not_leak_to_same_name_in_other_namespace() {
 }
 
 // references — nested namespaces (2+ levels): qualified, relative, and the
-// exact `bind`-callback shape from
-// https://github.com/bitwisecook/tcl-lsp/issues/923
+// exact `bind`-callback shape.
 //
-// Regression coverage for a namespace-resolution bug found while
-// investigating #923: the analyser's per-call-site "what namespace does an
-// unqualified name resolve against" computation
-// (`Analyser::resolve_command_qualified_name`) read a scope-path field that
-// was never actually updated during the real body walk, and the LSP-side
-// namespace gate (`innermost_namespace_at`) took only the *innermost*
+// The analyser's per-call-site "what namespace does an unqualified name
+// resolve against" computation
+// (`Analyser::resolve_command_qualified_name`) must read a scope-path field
+// the real body walk keeps updated, and the LSP-side
+// namespace gate (`innermost_namespace_at`) must not take only the *innermost*
 // enclosing `namespace eval`'s own segment rather than the full accumulated
 // path — so a bare call from inside a namespace nested *two or more* levels
 // deep (`namespace eval a { namespace eval b { ... } }`) was resolved as if
@@ -600,9 +598,8 @@ fn references_two_level_nested_namespace_qualified_call_in_bind_style_body_match
     // to reach a namespaced proc from a deferred/global-eval'd context (a Tk
     // `bind` script, `after`, a widget `-command`; Tcl evaluates these via
     // `uplevel #0`/`TCL_EVAL_GLOBAL`, not the caller's active namespace).
-    // Issue #923: this exact call form — a namespaced proc invoked by its
-    // fully-qualified name from inside a `bind` callback script — was
-    // reported as not found ("0 references").
+    // A namespaced proc invoked by its fully-qualified name from inside a
+    // `bind` callback script must not read as "0 references".
     let src = concat!(
         "namespace eval modelTestVerTool {\n",
         "    namespace eval gui {\n",
@@ -805,8 +802,8 @@ fn references_relative_name_with_embedded_colons_prefers_current_namespace() {
     // `::outer::inner::p`, not the global one — Tcl tries the current
     // namespace before falling back to global even for a relative name that
     // itself contains `::`. `resolve_command_qualified_name` must produce
-    // this same candidate (previously it treated any `cmd_name.contains("::")`
-    // as unconditionally global-rooted).
+    // this same candidate rather than treating any `cmd_name.contains("::")`
+    // as unconditionally global-rooted.
     let src = concat!(
         "namespace eval inner {\n",
         "    proc p {} { return \"global-inner\" }\n",
@@ -1025,11 +1022,10 @@ fn rename_class_two_level_nested_namespace_scoped_correctly() {
 
 #[test]
 fn rename_class_rewrites_its_superclass_and_mixin_sites() {
-    // Regression for issue #923: renaming a class must rewrite every
-    // `superclass` / `mixin` word that names it.  References and rename now
-    // read the same `command_invocations`, so they can no longer disagree —
-    // before the fix, references found the superclass site but rename left it
-    // dangling, silently breaking the inheritance graph.
+    // Renaming a class must rewrite every `superclass` / `mixin` word that
+    // names it.  References and rename read the same `command_invocations`,
+    // so they cannot disagree; a rename that leaves the superclass site
+    // dangling silently breaks the inheritance graph.
     // tclsh-proof: `oo::class create Base {}; oo::class create Sub {superclass
     // Base}; oo::class create C {mixin Base}; [Sub new]; [C new]` all run.
     let src = concat!(
@@ -1066,9 +1062,9 @@ fn rename_class_rewrites_its_superclass_and_mixin_sites() {
 fn references_variable_held_command_name_is_not_resolved_documented_limitation() {
     // A command name stored in a variable and invoked indirectly is, in the
     // general case, statically undecidable.  The flow-sensitive value model
-    // narrows the limitation further than M7's
-    // original constant map: a pure single-`$var` copy chain
-    // (`set src helper; set cmd $src; $cmd`) now resolves — see
+    // narrows the limitation further than a plain constant map: a pure
+    // single-`$var` copy chain (`set src helper; set cmd $src; $cmd`)
+    // resolves — see
     // `const_cmd_head_resolves_through_a_pure_copy_chain_m7` — so the
     // remaining honest abstention is a *computed* value.  This pins that
     // boundary: no crash, no false attribution, no reference.
@@ -2333,14 +2329,13 @@ fn namespace_variables_in_different_namespaces_do_not_unify() {
     );
 }
 
-// M7 — command names carried in variables / dispatch tables
+// Command names carried in variables / dispatch tables.
 
 #[test]
 fn references_include_a_const_cmd_dispatch_site_m7() {
     // tclsh: `proc target {} {..}; set cmd target; $cmd` runs `target` — the
     // `$cmd` head is a genuine (indirect) invocation of it, and the defining
-    // literal in `set cmd target` is the writable reference feeding it
-    // (issue #945 fault 1).
+    // literal in `set cmd target` is the writable reference feeding it.
     let src = "proc target {} { return hi }\nset cmd target\n$cmd\ntarget\n";
     let analysis = analyse(src);
     let refs = references(
@@ -2407,11 +2402,10 @@ fn apply_edits(src: &str, edits: &[tcl_lsp_core::rename::TextEdit]) -> String {
 
 #[test]
 fn rename_rewrites_the_defining_literal_and_never_the_dispatch_span_945() {
-    // Issue #945 fault 1: the correct non-corrupting rename rewrites the
-    // *defining constant's literal* (`set cmd target` → `set cmd renamed`),
-    // never the `$cmd` head — the old expectation (leave the literal stale)
-    // produced Tcl that fails with `invalid command name "target"` under
-    // tclsh 9.0.4.
+    // The non-corrupting rename rewrites the *defining constant's literal*
+    // (`set cmd target` → `set cmd renamed`), never the `$cmd` head.
+    // Leaving the literal stale produces Tcl that fails with
+    // `invalid command name "target"` under tclsh 9.0.4.
     let src = "proc target {} { return hi }\nset cmd target\n$cmd\ntarget\n";
     let analysis = analyse(src);
     let edits = rename(
@@ -2742,7 +2736,7 @@ fn rename_classmethod_is_scoped_in_the_other_direction_too() {
     assert_eq!(edit_lines(&edits), vec![8, 10], "{edits:?}");
 }
 
-// Issue #1078 — a brace-quoted `$`-bearing name is its own variable
+// A brace-quoted `$`-bearing name is its own variable.
 //
 // tclsh 9.0.4 and 8.6.14, byte-identical:
 //
@@ -2752,10 +2746,9 @@ fn rename_classmethod_is_scoped_in_the_other_direction_too() {
 //   set ${$n}                         -> can't read "v"  (`${$n}` read `$n`)
 //
 // So `{$n}` and `n` are two cells, and an edit to one must never touch the
-// other.  Before the fix the analyser normalised `{$n}` down to `n`, merged
-// the two into one `VarDef`, and renaming the *plain* `n` emitted an edit
-// over the `{$n` span — turning `set {$n} 1` into `set q} 1`, which no longer
-// parses.
+// other.  Normalising `{$n}` down to `n` merges the two into one `VarDef`, so
+// renaming the *plain* `n` emits an edit over the `{$n` span — turning
+// `set {$n} 1` into `set q} 1`, which does not parse.
 
 /// The mixed script: line 1 writes the literal `$n`, line 2 the plain `n`,
 /// line 3 reads the plain one, line 4 reads the literal one.
@@ -2856,8 +2849,8 @@ fn rename_of_an_ordinary_name_is_still_allowed() {
     assert_eq!(edit_lines(&edits), vec![2, 3], "{edits:?}");
 }
 
-// PR #1106 review, P2 — every variable provider resolves a brace-literal
-// cursor to the literal cell (the cursor half of issue #1108)
+// Every variable provider resolves a brace-literal cursor to the literal
+// cell.
 //
 // The character scan behind `find_var_at_position` reports `n` for a cursor on
 // the `n` of `set {$n} 1`.  That word is brace-quoted, so Tcl substitutes
@@ -2939,9 +2932,9 @@ declaration"
 
             // Both of the literal cell's own sites: its declaration and the
             // `[set {$n}]` read.  The read is a registry `VarRead`-role name
-            // word, recorded generically since issue #1108 — before that fix
-            // the cell's reference list held only the declaration, so Find
-            // References under-reported every `[set X]`-shaped read.
+            // word, recorded generically; without that, the cell's reference
+            // list holds only the declaration and Find References
+            // under-reports every `[set X]`-shaped read.
             let read = LspRange {
                 start_line: read_line,
                 start_character: 14,
@@ -3098,9 +3091,9 @@ fn rename_still_refuses_from_every_column_of_the_brace_literal_word() {
 
 #[test]
 fn genuinely_inert_dollar_shapes_still_resolve_to_nothing() {
-    // TN control for hoisting the inert-text proof into the shared gate
-    // (issue #923 idx 24): a `$v`-shaped substring Tcl never substitutes is
-    // still not a reference, in a data brace or a comment.
+    // TN control for the inert-text proof in the shared gate: a `$v`-shaped
+    // substring Tcl never substitutes is still not a reference, in a data
+    // brace or a comment.
     for (src, line, col) in [
         ("set v 1\nputs {plain $v here}\n", 1u32, 14u32),
         ("set v 1\nputs hi ;# note $v\n", 1, 18),
@@ -3129,7 +3122,7 @@ fn genuinely_inert_dollar_shapes_still_resolve_to_nothing() {
     }
 }
 
-// Issue #1108 — a registry `VarRead`-role name word is a navigable use site
+// A registry `VarRead`-role name word is a navigable use site.
 //
 // A variable is read by more than `$name`.  tclsh 9.0.4 / 8.6.16, identical:
 //
@@ -3217,7 +3210,7 @@ fn tn_a_value_word_of_the_same_spelling_is_not_a_reference() {
     );
 }
 
-// Issue #1138 idx 102 — a read inside a `[list …]`-built script argument
+// A read inside a `[list …]`-built script argument.
 //
 // `::tk::SourceLibFile` in Tk's `library/tk.tcl`:
 //
@@ -3277,9 +3270,8 @@ fn a_parameter_read_inside_a_list_built_body_navigates() {
 
 #[test]
 fn the_parameter_declaration_hovers_as_a_variable_not_the_file_command() {
-    // The second bug in the same three lines: `file` is also a registry
-    // command name, and the parameter *declaration* used to hover as that
-    // command's documentation.
+    // `file` is also a registry command name, so the parameter *declaration*
+    // must not hover as that command's documentation.
     let analysis = analyse(TK_SOURCE_LIB_FILE);
     let hover = hover_text(TK_SOURCE_LIB_FILE, 0, 27, &analysis)
         .expect("hover must resolve the parameter declaration");

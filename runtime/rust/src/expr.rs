@@ -41,9 +41,7 @@ use tcl_syntax::expr::errors::{OperandDesc, OperandSide};
 use tcl_syntax::expr::mathfunc::MathFuncError;
 use tcl_syntax::expr::{eval, BinOp, ExprNode, ExprOps, NumericCompare, UnaryOp};
 
-// ---------------------------------------------------------------------------
 // `TCL_EXPR_TYPE` — the parsed-expression internal rep.
-// ---------------------------------------------------------------------------
 
 /// The expression cache's backing: the parsed AST, plus the emulated release
 /// its registry validation was performed against.
@@ -575,7 +573,7 @@ pub fn eval_mathop(
     tcl_cmd_core::mathop::eval(&mut ops, op, args)
 }
 
-// ---- value helpers ---------------------------------------------------------
+// value helpers
 
 /// Tcl boolean context (`Tcl_GetBooleanFromObj`) as an `expr` error: the
 /// runtime's one typed-read owner ([`crate::typed_value::boolean`]) — the

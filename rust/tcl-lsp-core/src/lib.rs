@@ -275,7 +275,7 @@ pub use tcl_syntax::naming::normalise_qualified_name as normalise_qualified_comm
 #[cfg(test)]
 mod dialect_ingress_tests {
 
-    /// Regression for the `tk` leg of issue #1405.
+    /// The `tk` ingress leg.
     ///
     /// A `wish` document typically carries no `package require Tk`, so the Tk
     /// checks are reachable only through the *dialect*. `tk` is not a

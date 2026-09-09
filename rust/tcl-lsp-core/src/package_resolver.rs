@@ -409,8 +409,8 @@ fn is_version_word(word: &str) -> bool {
 /// Tcl-era `pkg_mkIndex` output, where the index always sources concrete
 /// files but hand-written indices sometimes don't.  When *that* finds nothing
 /// either the declaration is still returned, with an empty `source_files` —
-/// see [`PackageInfo::source_files`] for what that state means and why
-/// dropping it was issue #923 differential-audit finding idx 72.
+/// see [`PackageInfo::source_files`] for what that state means and why the
+/// declaration must not be dropped.
 ///
 /// Declarations are found through the [`reachability`] scan, so a declaration
 /// nested inside an `if` branch is found (the TEA "pick a Tcl 8 or Tcl 9
@@ -466,12 +466,11 @@ pub fn parse_pkg_index(
         // A declaration with no implementation *file* is still a declaration.
         // The `load`-only C extension (`package ifneeded pix 0.8 [list apply
         // {dir {… load [file join $dir $os $lib] Pix}} $dir]`, whose directory
-        // holds nothing but `pkgIndex.tcl` and the shared object) is the real
-        // shape this used to drop on the floor — name and version parsed
-        // successfully, then thrown away, so `provides("pix")` was false for a
-        // package plainly declared in the workspace and every W120 in any
-        // document requiring it was suppressed as "unknowable" (issue #923
-        // differential-audit finding idx 72).
+        // holds nothing but `pkgIndex.tcl` and the shared object) is the
+        // shape that must not be dropped: parsing the name and version and
+        // then throwing them away makes `provides("pix")` false for a
+        // package plainly declared in the workspace, and every W120 in any
+        // document requiring it is then suppressed as "unknowable".
         //
         // Recording it with an empty `source_files` is the honest state: the
         // package **exists**, its command set is **not statically

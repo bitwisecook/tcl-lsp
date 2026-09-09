@@ -1225,11 +1225,11 @@ fn runtime_selected_my_abstains_when_the_target_can_reach_its_caller_frame() {
     );
 }
 
-// The method-body propagation barrier's EVIDENCE SOURCES (review findings on
-// #1096 / #1097).  Each was a would-be miscompile: the optimiser proposed
-// replacing `$x` with `1` where real Tcl prints `2`.  The governing rule is
-// that when the module's evidence about what a `my` / `next` dispatch can do
-// is incomplete, the barrier widens to abstention.
+// The method-body propagation barrier's evidence sources.  Each guards a
+// potential miscompile: the optimiser would replace `$x` with `1` where real
+// Tcl prints `2`.  The governing rule is that when the module's evidence
+// about what a `my` / `next` dispatch can do is incomplete, the barrier
+// widens to abstention.
 //
 // Every oracle below is byte-identical on tclsh 9.0.4 and 8.6.14.
 

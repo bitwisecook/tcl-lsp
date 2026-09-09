@@ -49,7 +49,7 @@ fn as_str(b: &[u8]) -> &str {
     core::str::from_utf8(b).unwrap_or("")
 }
 
-// -- source ----------------------------------------------------------------
+// source
 
 /// `source ?-encoding name? ?-nopkg? fileName` — read and evaluate a file.
 /// We are UTF-8 internally so `-encoding` is accepted and ignored; `-nopkg`
@@ -84,7 +84,7 @@ fn source_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-// -- file ------------------------------------------------------------------
+// file
 
 /// Runtime arity declarations (arguments after the `file` subcommand). The
 /// command-backing gate parses this table and compares it with the registry;
@@ -1031,7 +1031,7 @@ fn normalize(p: &[u8], cwd: &[u8]) -> Vec<u8> {
     out
 }
 
-// -- pwd / cd --------------------------------------------------------------
+// pwd / cd
 
 fn pwd_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 1 {
@@ -1068,7 +1068,7 @@ fn cd_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-// -- glob ------------------------------------------------------------------
+// glob
 
 /// `glob`'s option words, in C table order (`globOptions[]`, `tclFileName.c`),
 /// resolved with `Tcl_GetIndexFromObj(…, "option", 0)`: `-n`/`-d`/`-j`

@@ -56,7 +56,7 @@ class TclLspServerDescriptor(project: Project) :
     // exists at 2024.3, which is the floor below which the plugin cannot go.
     override val lspCustomization: LspCustomization = TclLspCustomization()
 
-    // Pack-declared file extensions (issue #1650). The push is the main path:
+    // Pack-declared file extensions. The push is the main path:
     // the server sends `tcl-lsp/specPacksReloaded` after every reload, this
     // client is installed before the server process starts, so the startup
     // reload is never missed.
@@ -190,8 +190,8 @@ class TclLspServerDescriptor(project: Project) :
         // deliberately avoid putting it inside the plugin jar
         // (``src/main/resources/``) because an executable can't be spawned
         // from a ``jar:file:...!/...`` URL and we'd have to extract on first
-        // use, then re-extract on every plugin upgrade (the bug fixed in PR
-        // #448).  Pattern matches JetBrains' own Prisma ORM plugin which
+        // use, then re-extract on every plugin upgrade.  Pattern matches
+        // JetBrains' own Prisma ORM plugin which
         // ships its native ``prisma-language-server`` binaries the same way.
         val pluginDir = findPluginInstallDir() ?: return null
         val name = bundledServerName()
@@ -219,7 +219,7 @@ class TclLspServerDescriptor(project: Project) :
         // string contains ``Application%20Support`` and ``Tcl%20Language%20Support``
         // and ``File(path)`` resolves to a non-existent directory, leaving
         // the user with a "bundled server not found" error.  ``Paths.get(URI)``
-        // handles the decoding correctly (Codex review on PR #448).
+        // handles the decoding correctly.
         val classResource = this::class.java.getResource("/${this::class.java.name.replace('.', '/')}.class")
             ?: return null
         return try {

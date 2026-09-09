@@ -646,7 +646,7 @@ fn nested_array_read_in_key_template_substitutes() {
 
 /// A `\<newline>` line continuation inside an inline command substitution
 /// assigned with `set` is a word separator: the inner command keeps all its
-/// arguments. Regression for the inline-cmd-subst tokenizer dropping an arg
+/// arguments. Regression for the inline-cmd-subst tokeniser dropping an arg
 /// across a continuation (spurious `wrong # args`), which crashed tcltest's
 /// `SubstArguments` and every test file using the `{-body … -result …}` dict
 /// form (info / lrepeat / lseq).

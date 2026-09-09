@@ -394,11 +394,10 @@ fn minify_symbol_map_written_for_plain_minify() {
     let _ = std::fs::remove_file(&tmp);
 }
 
-/// Issue #977: `tcl diag` over several inputs is a multi-file compilation, so
-/// a call in one file must be visible to another file's interprocedural
-/// constant seed.  On its own, the library's two agreeing callers make
-/// `$mode eq "prod"` fold (I230); adding the file that calls it with `dev`
-/// must retract that.
+/// `tcl diag` over several inputs is a multi-file compilation, so a call in
+/// one file must be visible to another file's interprocedural constant seed.
+/// On its own, the library's two agreeing callers make `$mode eq "prod"`
+/// fold (I230); adding the file that calls it with `dev` must retract that.
 #[test]
 fn diag_shares_call_sites_across_inputs() {
     let lib = fixtures_dir().join("issue977Lib.tcl");
@@ -421,12 +420,13 @@ fn diag_shares_call_sites_across_inputs() {
     );
 }
 
-/// Issue #1048: the transform verbs auto-detect a document's dialect, so an
-/// iRule folds the same with and without an explicit `--dialect`.
+/// The transform verbs auto-detect a document's dialect, so an iRule folds
+/// the same with and without an explicit `--dialect`.
 ///
-/// Before the fix `dialect_or_default()` returned `tcl8.6` whenever the flag
-/// was absent, so the optimiser ran the file as plain Tcl: `contains` was not
-/// an operator, the condition never folded, and no `O101` was reported.
+/// If `dialect_or_default()` fell back to `tcl8.6` whenever the flag was
+/// absent, the optimiser would run the file as plain Tcl: `contains` would
+/// not be an operator, the condition would never fold, and no `O101` would
+/// be reported.
 #[test]
 fn opt_detects_the_irules_dialect_without_the_flag() {
     let input = fixtures_dir().join("wordOperator.irule");
@@ -507,17 +507,17 @@ fn diag_reads_a_cr_terminated_sslictcl_document_the_way_the_editor_does() {
     );
 }
 
-/// Issue #1799 — every code on the `tcl diag` path, not only `SSLIC1xxx`,
-/// must read the analysis form of a lone-CR document.
+/// Every code on the `tcl diag` path, not only `SSLIC1xxx`, must read the
+/// analysis form of a lone-CR document.
 ///
-/// The loader branch normalised for itself (#1794) and left the analyser and
-/// compiler-checks passes reading the raw bytes. That diverged from the editor
-/// twice over: the lexer treats a bare `\r` as horizontal whitespace, so the
-/// whole file parsed as one command — inventing findings and hiding real ones —
-/// and `LineIndex` starts a line only after a `\n`, so whatever survived was
-/// reported at line 1.
+/// If the analyser and compiler-checks passes read the raw bytes instead
+/// (even with the loader branch normalising for itself), that diverges from
+/// the editor twice over: the lexer treats a bare `\r` as horizontal
+/// whitespace, so the whole file parses as one command — inventing findings
+/// and hiding real ones — and `LineIndex` starts a line only after a `\n`,
+/// so whatever survives is reported at line 1.
 ///
-/// The reproducer is the issue's own: an unclosed bracket on the second line.
+/// The reproducer is an unclosed bracket on the second line.
 #[test]
 fn diag_reads_a_cr_terminated_tcl_document_the_way_the_editor_does() {
     let lf = "set a 1\nset b [\nputs $a\n";
@@ -546,7 +546,7 @@ fn diag_reads_a_cr_terminated_tcl_document_the_way_the_editor_does() {
     );
 }
 
-/// #1799 review — dialect *detection* must read the analysis form too.
+/// Dialect *detection* must read the analysis form too.
 ///
 /// `detect_dialect`'s directive, shebang and version-guard tiers scan by line,
 /// and Rust's `lines()` splits on `\n` only, so on the raw form of an old-Mac
@@ -571,9 +571,9 @@ fn diag_detects_the_dialect_of_a_cr_terminated_document() {
     );
 }
 
-/// #1799 review — the cross-file evidence scans must read the analysis form.
+/// The cross-file evidence scans must read the analysis form too.
 ///
-/// `tcl diag a.tcl b.tcl` is one compilation (#977): the declared-procedure set
+/// `tcl diag a.tcl b.tcl` is one compilation: the declared-procedure set
 /// and the call-site scan decide what may be folded. On the raw form of a
 /// lone-CR pair both scans parse each file as one command, so the caller in the
 /// second file is invisible and the fold the pair should retract survives.
@@ -686,12 +686,12 @@ fn sslictcl_diag_rows(tag: &str, text: &str) -> Vec<(String, u64)> {
 /// The committed `samples/optimiser/` outputs are what the current optimiser
 /// produces, byte for byte.
 ///
-/// Nothing compared them to a run, so they spent the Python optimiser's whole
-/// retirement documenting behaviour the toolchain no longer had — down to
-/// showing an `incr` rewrite the Rust optimiser declines and a footer format
-/// that no longer exists (issue #1789). The regeneration loop in
-/// `samples/optimiser/README.md` is exactly this test, so a pass that changes
-/// what any profile emits fails here until the samples are refreshed with it.
+/// Without a test comparing them to a real run, committed samples can drift
+/// from actual behaviour undetected — e.g. showing an `incr` rewrite the
+/// current optimiser declines, or a footer format it no longer emits. The
+/// regeneration loop in `samples/optimiser/README.md` is exactly this test,
+/// so a pass that changes what any profile emits fails here until the
+/// samples are refreshed with it.
 #[test]
 fn samples_optimiser_profiles_are_regenerated() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");

@@ -131,7 +131,7 @@ pub fn inline_proc_in_program(
     // Resolve the head exactly as the navigation providers do — the caller's
     // namespace candidates, the registry builtin gate, then the deterministic
     // simple-name fallback.  A namespace-blind `p.name == head` scan is the
-    // M1 drift class `cargo xtask resolution-drift` flags.
+    // drift class `cargo xtask resolution-drift` flags.
     let head_off = call.span.start();
     let namespace = crate::definition::namespace_context_at(
         &analysis.global_scope,
@@ -667,7 +667,7 @@ mod tests {
         )
     }
 
-    // -- TP: binding is performed and the result is correct ---------------
+    // TP: binding is performed and the result is correct.
 
     #[test]
     fn tp_inlines_a_literal_argument() {
@@ -724,11 +724,11 @@ mod tests {
         assert!(result.ends_with("puts 1$nn\n"), "{result}");
     }
 
-    // -- FP: refusals that keep behaviour ---------------------------------
+    // FP: refusals that keep behaviour.
 
     #[test]
     fn fp_refuses_a_braced_argument_whose_value_is_not_a_plain_word() {
-        // The issue's second reproducer.  Original prints `hello a b`; the
+        // Original prints `hello a b`; the
         // textual splice emitted `puts "hello {a b}"`, printing the braces.
         let src = "proc greet {name} {\n    puts \"hello $name\"\n}\ngreet {a b}\n";
         let reason = outcome(src, "greet {a b}").unwrap_err();
@@ -821,7 +821,7 @@ mod tests {
         assert!(reason.contains("computed"), "{reason}");
     }
 
-    // -- TN: nothing to offer ---------------------------------------------
+    // TN: nothing to offer.
 
     #[test]
     fn tn_no_action_on_a_builtin_call() {
@@ -838,7 +838,7 @@ mod tests {
         assert!(at("\n\n", "\n").is_none());
     }
 
-    // -- Unit-level predicates --------------------------------------------
+    // Unit-level predicates.
 
     #[test]
     fn plain_word_rejects_every_parser_significant_character() {
@@ -939,7 +939,7 @@ mod tests {
         assert_eq!(names, vec!["n", "nn", "n"]);
     }
 
-    /// Issue #1605 — inline-proc **rewrites** each reference's own byte
+    /// Inline-proc **rewrites** each reference's own byte
     /// span, so the span must be the one the document's release parses. On a
     /// 9.x document `${a{b}c}` is one reference spanning all 8 bytes; on 8.x
     /// it ends at the first `}` and the trailing `c}` is word text that must

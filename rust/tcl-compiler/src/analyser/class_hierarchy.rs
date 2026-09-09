@@ -49,8 +49,8 @@ pub const DESTRUCTOR_MEMBER: &str = "<destructor>";
 /// The lookup every `next`-resolution consumer needs once
 /// [`ClassHierarchy::member_next_provider`] has named the providing class:
 /// keeping it here means a constructor's `MethodDef` is fetched the same
-/// way in go-to-definition, find-references, and the arity check (issue
-/// #923 idx 37). The *effective* constructor is the last declared one, the
+/// way in go-to-definition, find-references, and the arity check. The
+/// *effective* constructor is the last declared one, the
 /// same "most recent declaration wins" rule
 /// [`ClassHierarchy::constructor_provider`] applies.
 #[must_use]
@@ -299,14 +299,13 @@ impl ClassHierarchy {
     ///
     /// The single entry point for `next` resolution, so go-to-definition,
     /// find-references, and the `next`-arity check cannot disagree about
-    /// which slot a `next` chains through. Before it existed all three went
-    /// straight to [`Self::next_provider`], whose per-ancestor filter only
-    /// consults `methods`/`class_methods`, so a `next` inside a
-    /// `constructor` — the ordinary way a subclass forwards to its
-    /// superclass's constructor — resolved to nothing at all and its arity
-    /// went unchecked, while the identical `next` inside a plain `method`
-    /// worked (issue #923 idx 37; a real `next` there does dispatch, pinned
-    /// against tclsh 9.0.4).
+    /// which slot a `next` chains through. [`Self::next_provider`]'s
+    /// per-ancestor filter consults only `methods`/`class_methods`, so going
+    /// straight there leaves a `next` inside a `constructor` — the ordinary way
+    /// a subclass forwards to its superclass's constructor — resolving to
+    /// nothing at all and its arity unchecked, while the identical `next`
+    /// inside a plain `method` resolves (a real `next` there does dispatch,
+    /// pinned against tclsh 9.0.4).
     ///
     /// `source` is the document text `body_span`s index into, needed only
     /// for the constructor slot's empty-body rule — see
@@ -386,9 +385,9 @@ impl ClassHierarchy {
     /// metaclass's
     /// [`property_accessor_methods`](tcl_registry::definer::DefinitionBodyGrammar::property_accessor_methods),
     /// so no consumer spells `configure` and none can invent a generated
-    /// method the class system does not have — the `cget` this used to
-    /// hardcode is not one of them (issue #1362; `configurable.n` documents
-    /// no `cget` in either 9.0 or 9.1, and dispatching one really does fail).
+    /// method the class system does not have. `cget` is not one of them:
+    /// `configurable.n` documents no `cget` in either 9.0 or 9.1, and
+    /// dispatching one really does fail.
     ///
     /// The whole MRO is asked, not just the receiver's own class, because the
     /// generated method is a real method on the configurable ancestor and a
@@ -450,9 +449,9 @@ impl ClassHierarchy {
     /// The generated-method fold and the W308 *existence* check
     /// (`Analyser::validate_method_on_class`) both go through
     /// [`Self::property_accessor_methods`] precisely so they cannot disagree:
-    /// when only this side folded them in, `$obj configure` on a configurable
-    /// class drew "Unknown method 'configure' … did you mean 'configure'?"
-    /// (issue #1362).
+    /// were only this side to fold them in, `$obj configure` on a configurable
+    /// class would draw "Unknown method 'configure' … did you mean
+    /// 'configure'?".
     #[must_use]
     pub fn known_methods(
         &self,
@@ -477,18 +476,6 @@ impl ClassHierarchy {
     }
 }
 
-/// Build a [`ClassHierarchy`] from a dict of class definitions.
-///
-/// Computes `TclOO` MRO, subclass maps, and method-provider
-/// resolution for all
-/// classes in the index.
-///
-/// Names without leading `::` are normalised (when a `::name`
-/// match exists in the class map, the leading `::` is added) so
-/// downstream lookups don't have to disambiguate.  Cycles in the
-/// pure-superclass hierarchy land in `result.errors`; the
-/// affected classes get a single-element MRO (themselves only).
-///
 /// Whether a `TclOO` method/constructor body span is *effectively* empty —
 /// `{}` / `[]` / `""` with **nothing at all** between the delimiters.
 /// `TclOO` treats exactly this shape as "no constructor was written" (see
@@ -522,10 +509,11 @@ pub(in crate::analyser) fn is_empty_method_body(source: &str, body_span: tcl_lex
 /// simple name is *globally unique* — to that single class (covering the
 /// common `namespace import` idiom without needing per-file import data).
 /// An ambiguous simple name (several classes share the tail) stays bare,
-/// so no wrong link is ever manufactured.  This fixes cross-file
+/// so no wrong link is ever manufactured.  This is what links cross-file
 /// inheritance where a subclass in one file names a base class defined,
 /// under a namespace, in another (the `SpiceGenTcl` `superclass Device`
-/// shape) — previously left unlinked, silently dropping inherited methods.
+/// shape), which would otherwise stay unlinked, silently dropping the
+/// inherited methods.
 fn resolve_super_name(
     name: &str,
     owner_qname: &str,
@@ -565,8 +553,8 @@ pub fn resolve_class_name<S: std::hash::BuildHasher>(
     // (`oo::define` call-site) namespace in exactly two scopes — the current
     // namespace, then global — with NO walk through intermediate ancestors.
     // Verified against the VM's `cmd_oo::resolve_class` and C's
-    // `GetClassInOuterContext` (`tclOODefineCmds.c`).  The former ancestor walk
-    // manufactured a wrong inheritance edge (e.g. a bare `superclass Base` in
+    // `GetClassInOuterContext` (`tclOODefineCmds.c`).  An ancestor walk
+    // manufactures a wrong inheritance edge (e.g. a bare `superclass Base` in
     // `::a::b::Sub` linked to `::a::Base` even though real Tcl errors — `Base`
     // is reachable from neither `::a::b` nor global).  Uses the shared command
     // -resolution candidate order so class-name resolution can never diverge
@@ -579,7 +567,7 @@ pub fn resolve_class_name<S: std::hash::BuildHasher>(
     }
     // Globally-unique simple-name match (the `namespace import` case).
     //
-    // Tradeoff (deliberate, retained): this can manufacture a *wrong* edge
+    // Tradeoff (deliberate): this can manufacture a *wrong* edge
     // when `name` refers to a base that isn't in the class universe (e.g. an
     // external/library class the index never saw) yet exactly one *unrelated*
     // indexed class happens to share the tail — the fallback then links to
@@ -589,7 +577,7 @@ pub fn resolve_class_name<S: std::hash::BuildHasher>(
     // (b) it stays sound-by-abstention on the far more common failure mode: a
     // tail shared by two or more indexed classes never links (returns `None`).
     // The precondition — a globally *unique* tail that is nonetheless the
-    // wrong class — is rare in practice.  Revisit if false links surface.
+    // wrong class — is rare in practice.
     let tail = name.rsplit("::").next().unwrap_or(name);
     match tail_index.get(tail) {
         Some(qs) if qs.len() == 1 => Some(qs[0].clone()),
@@ -600,12 +588,12 @@ pub fn resolve_class_name<S: std::hash::BuildHasher>(
 /// Resolve a class name *as written at a call site* (no owning-class
 /// context — `resolve_class_name` is the owner-aware variant for
 /// superclass / mixin edges) to a key of `classes`: an exact hit, the
-/// global-qualified form of its canonical spelling (colon-run rule, #934),
+/// global-qualified form of its canonical spelling (colon-run rule),
 /// or — last — the unique class sharing its tail (the `namespace import`
 /// idiom).  `None` when unresolved or the tail is ambiguous, so callers
 /// stay sound-by-abstention.  The single implementation behind the
 /// analyser's method-validation keying and the LSP's definer-head
-/// resolution (M4.2 dedup — three near-copies once drifted here).
+/// resolution, so the two cannot drift.
 pub fn resolve_written_class_name<V, S: std::hash::BuildHasher>(
     name: &str,
     classes: &HashMap<String, V, S>,
@@ -637,7 +625,7 @@ pub fn build_tail_index<'a>(
 ) -> HashMap<String, Vec<String>> {
     let mut tail_index: HashMap<String, Vec<String>> = HashMap::new();
     for qname in qnames {
-        // `qname` is a constructed key — construction-inverse tail (#934).
+        // `qname` is a constructed key — construction-inverse tail.
         let tail = crate::naming::key_tail(qname);
         tail_index
             .entry(tail.to_string())
@@ -1212,8 +1200,8 @@ mod tests {
         assert!(!is_empty_method_body("{}", Span::new(0, 5)));
     }
 
-    // `constructor_next_provider` / `destructor_next_provider` — issue #992's
-    // constructor/destructor next-chain lens support.
+    // `constructor_next_provider` / `destructor_next_provider` — the
+    // constructor/destructor next-chain.
 
     #[test]
     fn constructor_next_provider_none_when_class_unknown() {
@@ -1361,7 +1349,7 @@ mod tests {
     fn bare_superclass_links_via_namespace_ancestry() {
         // A subclass in `::Ns::Sub` names its base bare (`Base`); the base
         // lives at `::Ns::Base`. Ancestry resolution links them so the
-        // inherited method resolves (previously left unlinked).
+        // inherited method resolves.
         let classes = map(vec![
             cls("::Ns::Base", &[], &[], &["inherited"]),
             cls("::Ns::Sub", &["Base"], &[], &[]),
@@ -1445,10 +1433,10 @@ mod tests {
         resolve_class_name(name, owner, |q| known.contains(q), &tail_index)
     }
 
-    /// FP guard (the ancestor-walk bug): a bare `superclass Base` in
-    /// `::a::b::Sub` where `Base` exists only at `::a::Base` (an *ancestor*, not
-    /// the current ns or global) and the tail is ambiguous must NOT link — real
-    /// Tcl errors there.  Before the fix this wrongly returned `::a::Base`.
+    /// FP guard: a bare `superclass Base` in `::a::b::Sub` where `Base` exists
+    /// only at `::a::Base` (an *ancestor*, not the current ns or global) and the
+    /// tail is ambiguous must NOT link — real Tcl errors there, and an ancestor
+    /// walk would wrongly return `::a::Base`.
     #[test]
     fn superclass_resolution_abstains_on_ancestor_only_base() {
         let got = resolve_from(

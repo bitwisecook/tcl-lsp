@@ -3301,7 +3301,7 @@ struct DeliveryCtx<'a> {
 impl DeliveryCtx<'_> {
     /// Whether this run is still the current state for `uri`, evaluated against a
     /// held `documents` snapshot.  An open run is current while the buffer is
-    /// open at the captured revision; a closed-file run (#865) is current while
+    /// open at the captured revision; a closed-file run is current while
     /// the buffer stays closed *and* no newer closed run has bumped the per-URI
     /// generation past the one this run captured — a reopen hands authority back
     /// to the open path, and a superseding close / watched-change refresh drops
@@ -3351,18 +3351,18 @@ impl DeliveryCtx<'_> {
         matches!(receipt.await, Ok(DiagnosticPublishOutcome::Delivered))
     }
 
-    /// Deliver the #844 progressive **fast tier** — push-only, and only to a
+    /// Deliver the progressive **fast tier** — push-only, and only to a
     /// push client — iff the document is still at this run's `revision`.
     ///
     /// Deliberately *not* [`deliver_if_current`]: the fast tier must **never**
-    /// prime the pull-diagnostic cache (trap #3).  The pull path
+    /// prime the pull-diagnostic cache.  The pull path
     /// (`textDocument/diagnostic`) always serves or computes the *complete* deep
     /// set; a cache primed with the incomplete fast tier would let a pull in the
     /// window return a partial report.  A pull-capable client is skipped outright
     /// — its "early" signal would be a `workspace/diagnostic/refresh`, but a
     /// re-pull recomputes the full deep set synchronously, which defeats the fast
-    /// tier's whole purpose, so such a client just gets the deep tier's refresh
-    /// as before. The currency check and mailbox deposit are atomic relative to
+    /// tier's whole purpose, so such a client gets the deep tier's refresh
+    /// instead. The currency check and mailbox deposit are atomic relative to
     /// edits and closes; the client send happens outside `documents`.
     /// Publish the fast tier for a push client, iff this run's revision is still
     /// current. Skipped for a pull client (the pull path always serves the
@@ -3451,7 +3451,7 @@ async fn run_diagnostics_master_off(delivery: &DeliveryCtx<'_>) -> bool {
     true
 }
 
-/// `tclLsp.diagnostics.exclude` matched this document (#1556): publish an
+/// `tclLsp.diagnostics.exclude` matched this document: publish an
 /// empty set so any existing squiggles clear, then settle — the master
 /// switch's exact shape, with its own timing marker so "why does this file
 /// show no diagnostics" is answerable from the log.  The e2e harness'
@@ -3540,15 +3540,15 @@ struct SalsaAnalysisCtx<'a> {
 /// A panic in the analysis pipeline costs the document every diagnostic it
 /// would have had, and the document is then presented as clean.  Silence there
 /// is the worst possible failure mode: a reviewer reads "no findings" as "no
-/// problems" — issue #1325's zero-width-space iRule lost a `WARNING IRULE3102`
+/// problems" — a zero-width-space iRule can lose its `WARNING IRULE3102`
 /// URL-evasion finding exactly this way, with nothing shown anywhere the user
 /// could see.  `eprintln!` alone reaches only the server's stderr, which no
 /// editor surfaces.
 ///
 /// `window/logMessage` at `ERROR` puts it in the language-server output channel
-/// every LSP client exposes, which is what
-/// [`publish_diagnostics_result`] already does for a *lift*-worker panic; this
-/// makes the analysis worker say the same thing rather than fail quietly.
+/// every LSP client exposes, which is what [`publish_diagnostics_result`] does
+/// for a *lift*-worker panic; the analysis worker says the same thing rather
+/// than failing quietly.
 async fn report_analysis_worker_panic(
     client: &Client,
     uri: &Uri,
@@ -3587,13 +3587,13 @@ fn with_pack_hooks<R>(work: impl FnOnce() -> R) -> R {
     work()
 }
 
-/// Base analysis: the cancellable salsa `file_analysis_incremental` query
-/// (slice 5), off the LSP event loop — the whole-file per-item walk that
-/// dominates the deep pass and feeds *both* the workspace-independent fast tier
-/// (#844) and the deep tier.  `ctx.file` is `None` only if the salsa input is
-/// somehow absent; then fall back to a direct (uncached) analyse.  The cross-file
-/// callback-arity pass is now a separate query ([`compute_project_diags`]) so it
-/// can run concurrently with this one and so the fast tier can publish before it.
+/// Base analysis: the cancellable salsa `file_analysis_incremental` query, off
+/// the LSP event loop — the whole-file per-item walk that dominates the deep
+/// pass and feeds *both* the workspace-independent fast tier and the deep tier.
+/// `ctx.file` is `None` only if the salsa input is somehow absent; then fall
+/// back to a direct (uncached) analyse.  The cross-file callback-arity pass is
+/// a separate query ([`compute_project_diags`]) so it can run concurrently with
+/// this one and so the fast tier can publish before it.
 ///
 /// `Continue(analysis)` carries the result; `Break(settled)` is the early return
 /// for the deep pass — `Break(false)` on a genuine salsa cancellation (retry the
@@ -3695,7 +3695,7 @@ async fn compute_base_analysis(
         // The path- and release-keyed inputs `file_analysis_incremental` reads
         // off the salsa `SourceFile` / `AnalyserConfig` (pkgIndex.tcl and
         // tclpkg.tcl scoping; the BIG-IP library-version axis).  This branch is
-        // the **closed-file** tier since #1144, not just a rare fallback, so a
+        // the **closed-file** tier, not just a rare fallback, so a
         // closed file's badge must not lose them.
         let a_path = uri.to_file_path().map(|p| p.display().to_string());
         let (a_packs, a_resource) = {
@@ -3756,7 +3756,7 @@ struct RecoveryNameKey {
     dialect: String,
 }
 
-/// Two-tier memo for [`widen_recovery_extra_commands`] (issue #1154).
+/// Two-tier memo for [`widen_recovery_extra_commands`].
 ///
 /// The **shared** tier — `tclLsp.extraCommands` widened with every
 /// workspace-indexed proc / class and every auto-loadable command name — is the
@@ -3800,7 +3800,7 @@ struct SharedRecoveryNames {
 /// one layer further out: every workspace-indexed proc/class (regardless of
 /// which file defines it — `WorkspaceIndex::procs`/`classes`), every
 /// auto-loadable command the scanned library paths provide (`tclIndex`-style,
-/// no `package require` needed — mirrors the #832 W123 refinement), and, when
+/// no `package require` needed — mirrors the W123 refinement), and, when
 /// `text` itself `package require`s something, the commands that package's
 /// resolved implementation files define.
 ///
@@ -3812,8 +3812,8 @@ struct SharedRecoveryNames {
 ///
 /// Memoised through `cache` — see [`RecoveryNameCache`]. The recovery branch is
 /// the *normal* state while a delimiter is open, so this runs on every debounced
-/// run of a document being typed into; without the memo each of those rebuilt
-/// the whole set from scratch.
+/// run of a document being typed into; without the memo each of those would
+/// rebuild the whole set from scratch.
 ///
 /// Only called from [`compute_base_analysis`]'s `!script_is_complete`
 /// recovery branch — never on the well-formed-document hot path.
@@ -3889,7 +3889,7 @@ async fn widen_recovery_extra_commands(
 /// aliases/renames — rather than a second, hand-rolled copy: a workspace
 /// proc referenced by its absolute `::ns::name` form needs recognising just
 /// as much as one referenced relatively. The auto-loadable names mirror the
-/// #832 W123 refinement (`tclIndex`-style, no `package require` needed).
+/// W123 refinement (`tclIndex`-style, no `package require` needed).
 async fn shared_recovery_names(
     ctx: &RecoveryWidenCtx<'_>,
     key: &RecoveryNameKey,
@@ -3935,7 +3935,7 @@ async fn shared_recovery_names(
 /// or no salsa input): the caller falls back to the per-file diagnostics.
 ///
 /// Split out of [`compute_base_analysis`] so it can run concurrently with the
-/// base walk and the compiler checks (#844 Gap 2) and so the workspace-
+/// base walk and the compiler checks and so the workspace-
 /// independent fast tier can publish before the callback check lands.
 /// It reuses the memoised per-item analysis rather than re-walking the file, so
 /// the split adds no second whole-file analysis.  `Break(settled)` mirrors
@@ -4063,12 +4063,13 @@ async fn compute_compiler_diags(
 /// itself is dropped; an open document keeps its slot, with `running` cleared so
 /// the next edit starts a fresh worker.
 ///
-/// Dropping the slot is what bounds closed-file state (#1144): every URI ever
-/// scheduled used to keep a [`DiagInputs`] — per-URI clones of the disabled /
-/// extra-command / severity-override / entry-point sets — for the process's
-/// life, so browsing a workspace grew `diag_slots` without limit.  Retaining it
-/// bought nothing: `did_open` re-resolves the inputs unconditionally
-/// (`reschedule_diagnostics`, #104), so a reopened document never reads them.
+/// Dropping the slot is what bounds closed-file state: keeping one for every
+/// URI ever scheduled would retain a [`DiagInputs`] — per-URI clones of the
+/// disabled / extra-command / severity-override / entry-point sets — for the
+/// process's life, so browsing a workspace would grow `diag_slots` without
+/// limit.  Retaining it buys nothing: `did_open` re-resolves the inputs
+/// unconditionally (`reschedule_diagnostics`), so a reopened document never
+/// reads them.
 fn retire_slot(slots: &mut HashMap<Uri, DiagSlot>, uri: &Uri) {
     let Some(slot) = slots.get_mut(uri) else {
         return;
@@ -4158,8 +4159,8 @@ fn spawn_diagnostics_worker(slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: Uri)
             // A document that has never had cross-file evidence set gets it
             // *before* its first analysis, so its first published diagnostics
             // are already correct — publishing an "always true" fold and
-            // retracting it a moment later is precisely the flicker issue #977
-            // is about. Subsequent passes skip this and refresh after
+            // retracting it a moment later is precisely the flicker this
+            // avoids. Subsequent passes skip this and refresh after
             // publishing instead, keeping the project-wide scan off the
             // critical path for every later edit (and out from in front of the
             // semantic-token enrichment tier on a large document).
@@ -4203,10 +4204,10 @@ fn spawn_diagnostics_worker(slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: Uri)
                 continue;
             }
             // Refresh the project's cross-file call-site evidence *after*
-            // publishing (issue #977). Off the edit handler, as it must be —
-            // but also behind this document's own result rather than in front
-            // of it: the cold path lowers every project file, and on a large
-            // document that delayed both the diagnostics and the semantic-token
+            // publishing. Off the edit handler, as it must be — but also
+            // behind this document's own result rather than in front of it:
+            // the cold path lowers every project file, and on a large document
+            // that would delay both the diagnostics and the semantic-token
             // enrichment tier gated behind them.
             //
             // The cost of publishing first is that a file's *first* run uses
@@ -4238,9 +4239,9 @@ async fn refresh_cross_file_evidence(
     // whole-project lower-and-CFG path this function is explicitly kept off the
     // edit handler for — and that lands in front of `reschedule_peers`, which
     // is what actually republishes the files the factory publish invalidated.
-    // On a large workspace that delayed convergence enough to lose a case that
-    // resolved before (issue #1296: a two-level cross-file chain rooted in
-    // tcllib's `clay.tcl` stopped resolving inside the probe's window).  Run in
+    // On a large workspace that delays convergence enough to lose a two-level
+    // cross-file chain that would otherwise resolve inside the client's
+    // window.  Run in
     // this order the call-site pass reads memoised state and the reschedule
     // follows the factory publish immediately; the call-site tables computed
     // under the pre-sync oracle are corrected by the peers' own next refresh,
@@ -4265,7 +4266,7 @@ async fn refresh_cross_file_evidence(
     }
     // An edit that adds or removes a metaclass changes what *unopened*
     // documents manufacture too, and `reschedule_peers` below can only reach
-    // documents that have a diagnostics slot — i.e. open ones (issue #1304).
+    // documents that have a diagnostics slot — i.e. open ones.
     // Only when the oracle actually moved: an unchanged oracle re-indexes
     // nothing, so the ordinary editing loop pays nothing for this.
     if oracle_moved {
@@ -4286,7 +4287,7 @@ async fn refresh_cross_file_evidence(
     {
         slot.mark_dirty();
     }
-    // The subclass-provided-method view (issue #1367) rides the same
+    // The subclass-provided-method view rides the same
     // refresh: computed off the workspace index the publish just updated,
     // single-round (nothing it writes feeds its own computation).  A moved
     // view marks this document's own slot dirty directly — the
@@ -4313,27 +4314,26 @@ async fn refresh_cross_file_evidence(
 }
 
 /// Re-index the **unopened** workspace documents whose analysis the
-/// class-factory oracle can change, now that the oracle has been
-/// published (issue #1304).
+/// class-factory oracle can change, once the oracle has been published.
 ///
 /// The startup scan analyses every file with a bare `Analyser::new()` and
 /// merges the result into `workspace_index` *before*
 /// [`sync_workspace_class_factories`] has anything to publish — it cannot
 /// be otherwise, because the oracle is computed **from** those files. So
-/// a document holding `Meta create Widget {…}` was indexed as if `Meta`
-/// were an unknown command, and every class it manufactures was missing
-/// from the index the navigation providers read. An **open** document
-/// recovered: `reschedule_peers` marks it dirty and its diagnostics
-/// worker re-analyses it with the oracle in hand. An unopened one has no
-/// diagnostics slot to mark, so nothing ever re-indexed it — which is why
-/// a plain `oo::class` resolved unopened and a manufactured class did
-/// not.
+/// a document holding `Meta create Widget {…}` is first indexed as if
+/// `Meta` were an unknown command, and every class it manufactures is
+/// missing from the index the navigation providers read. An **open**
+/// document recovers: `reschedule_peers` marks it dirty and its
+/// diagnostics worker re-analyses it with the oracle in hand. An unopened
+/// one has no diagnostics slot to mark, so without this pass nothing
+/// re-indexes it, and a plain `oo::class` would resolve unopened where a
+/// manufactured class would not.
 ///
 /// Scoped to the documents that can actually be affected: a document
 /// qualifies only when one of its recorded invocations resolves to a
 /// metaclass the oracle names ([`core_workspace_index::WorkspaceIndex::documents_invoking_classes`]),
 /// so a workspace with no metaclass re-indexes nothing and a workspace
-/// with one re-indexes its handful of consumers, not all 113 files.
+/// with one re-indexes its handful of consumers, not every file it holds.
 ///
 /// One pass suffices however deep the metaclass chain is: the oracle is
 /// already a fixpoint over the whole project when this runs, so every
@@ -4461,11 +4461,11 @@ async fn reschedule_peers(
 /// nothing to add" — the latter cannot change the file's analysis, so it must
 /// not trigger a second, identical publish:
 ///
-/// * its **call-site evidence** names a caller (issue #977) — what retracts an
+/// * its **call-site evidence** names a caller — what retracts an
 ///   interprocedural fold;
-/// * the workspace's **class-factory index** is non-empty (issue #1276) — a
+/// * the workspace's **class-factory index** is non-empty — a
 ///   `Meta create Name …` in this file is recorded or abstained on depending
-///   on it, so a file that published before the index arrived published
+///   on it, so a file that publishes before the index arrives publishes
 ///   without the classes it manufactures.
 ///
 /// Lock order is `db` → `db_files`.
@@ -4492,7 +4492,7 @@ struct EvidenceHandles {
     db_project_members: Arc<Mutex<HashSet<Uri>>>,
     db_project: Arc<Mutex<Option<tcl_lsp_db::Project>>>,
     workspace_index: Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
-    /// The open-document map, so the unopened-consumer re-index (issue #1304)
+    /// The open-document map, so the unopened-consumer re-index
     /// can tell an open buffer — whose own diagnostics worker republishes it —
     /// from a disk-backed file that nothing else will ever revisit.
     documents: Arc<DocumentStore>,
@@ -4619,12 +4619,12 @@ async fn apply_cross_file_evidence_if_current(
 }
 
 /// Refresh every project file's [`tcl_lsp_db::SourceFile::external_call_sites`]
-/// — the call sites in *other* files that reach the procedures it declares
-/// (issue #977) — and report the URIs whose evidence actually moved.
+/// — the call sites in *other* files that reach the procedures it declares —
+/// and report the URIs whose evidence actually moved.
 ///
 /// **Runs on the debounced diagnostics worker, never on the edit handler.**
 /// The cold path lowers and builds a CFG for every project file
-/// (`file_call_site_evidence`), which measured ~7s for a 500-file workspace;
+/// (`file_call_site_evidence`), seconds of work for a large workspace;
 /// doing that inside `did_change` while the `documents` and `db` locks are
 /// held would block the LSP message loop on every keystroke. On the worker it
 /// is already off the message loop, already debounced, and already the place
@@ -4641,12 +4641,12 @@ async fn apply_cross_file_evidence_if_current(
 /// that cancelled this pass drives its own refresh.
 ///
 /// **The project-wide read runs on a cloned salsa snapshot inside
-/// `spawn_blocking`** (issue #1148), so the `db` mutex — which every feature
-/// read path and every `db_set_source` contends on — is held only long enough
-/// to clone the handle, and again for the short write section at the end. Held
-/// across the read, as it used to be, one worker pass over a large workspace
-/// stalled hover, completion and the next keystroke's `set_text` for the whole
-/// scan. The snapshot shares salsa's memo storage with the live database, so
+/// `spawn_blocking`**, so the `db` mutex — which every feature read path and
+/// every `db_set_source` contends on — is held only long enough to clone the
+/// handle, and again for the short write section at the end. Held across the
+/// read, one worker pass over a large workspace would stall hover, completion
+/// and the next keystroke's `set_text` for the whole scan. The snapshot shares
+/// salsa's memo storage with the live database, so
 /// the writes below still see everything the read computed.
 ///
 /// **Not gated on `crossFileResolution`**, despite feeding a cross-file fact.
@@ -4657,7 +4657,7 @@ async fn apply_cross_file_evidence_if_current(
 /// `document_compilation_unit`'s interprocedural seed, which is *soundness*,
 /// not an opt-in refinement: without the project's call sites a library file
 /// folds on its own callers' literals and reports an I230 the workspace
-/// contradicts (issue #977). Skipping the pass when the toggle is off
+/// contradicts. Skipping the pass when the toggle is off
 /// reinstates exactly that unsound fold —
 /// `caller_in_a_sourcing_file_with_a_differing_literal_clears_i230` in the e2e
 /// suite runs with `crossFileResolution` at its default (off) and fails
@@ -4737,7 +4737,7 @@ async fn sync_cross_file_evidence(handles: &EvidenceHandles) -> CrossFileEvidenc
 const CLASS_FACTORY_SYNC_ROUNDS: usize = 16;
 
 /// Refresh every project file's [`tcl_lsp_db::SourceFile::workspace_class_factories`]
-/// — the workspace's user-defined `TclOO` metaclasses (issue #1276) — to a
+/// — the workspace's user-defined `TclOO` metaclasses — to a
 /// **fixpoint**, and report the union of the URIs whose oracle moved across
 /// all rounds.
 ///
@@ -4745,20 +4745,19 @@ const CLASS_FACTORY_SYNC_ROUNDS: usize = 16;
 /// not a per-file slice, and there is no per-file narrowing to make.  It is
 /// **empty for the overwhelming majority of workspaces**, and an empty index
 /// is stored as `None`, so the input never leaves its default and nothing is
-/// ever invalidated by it — a workspace with no metaclass behaves exactly as
-/// it did before the index existed, and settles in exactly one round that
-/// writes nothing.
+/// ever invalidated by it — a workspace with no metaclass pays nothing for the
+/// index and settles in exactly one round that writes nothing.
 ///
-/// **Why a fixpoint and not a single round** (issue #1296).  The index is
+/// **Why a fixpoint and not a single round.**  The index is
 /// computed from [`tcl_lsp_db::project_class_factories`], which reads each
 /// file's `item_tree`, which reads the very input this function writes.  A
 /// metaclass that is *itself* manufactured by another file's metaclass is
 /// therefore provable only once the manufacturing metaclass is already
 /// published: round 1 proves `MetaA` (written out as `oo::class create`, so
 /// provable with no index at all), and only in round 2 can the file holding
-/// `MetaA create MetaB` prove `MetaB`.  A single round left `MetaB` — and so
-/// every class `MetaB` makes — unknown, which is what made a cross-file
-/// three-level chain resolve to nothing from a call site.  Each round is run
+/// `MetaA create MetaB` prove `MetaB`.  A single round leaves `MetaB` — and so
+/// every class `MetaB` makes — unknown, so a cross-file three-level chain
+/// resolves to nothing from a call site.  Each round is run
 /// against a snapshot taken *after* the previous round's writes, so the next
 /// link of the chain is visible to it.
 ///
@@ -4781,9 +4780,8 @@ const CLASS_FACTORY_SYNC_ROUNDS: usize = 16;
 /// never learned, so the loop takes another one against a fresh snapshot
 /// rather than mistaking "unknown" for "settled".  That retry is what the cap
 /// bounds in the pathological case; without it a `did_open` arriving mid-pass
-/// truncated the chain at whatever link had been published so far, and the
-/// deeper links waited on whatever unrelated edit happened to run the sync
-/// next.
+/// would truncate the chain at whatever link had been published so far, leaving
+/// the deeper links to whatever unrelated edit happened to run the sync next.
 ///
 /// `wake`, when supplied, republishes each round's invalidated peers **as that
 /// round lands** rather than after the whole fixpoint.  A round only reads, but
@@ -4791,9 +4789,9 @@ const CLASS_FACTORY_SYNC_ROUNDS: usize = 16;
 /// through the input the publish just moved, so on a large workspace the
 /// confirming round — the one that merely agrees the index has stopped moving —
 /// is the slowest part of the pass.  Left in front of the reschedule it delays
-/// the republish that the *previous* round already earned, and a two-level
-/// chain that resolved before the fixpoint existed stopped resolving until
-/// later (measured on tcllib's `clay.tcl`, issue #1296).  Waking per round
+/// the republish that the *previous* round already earned, so a two-level chain
+/// that is already provable stops resolving until the whole fixpoint lands.
+/// Waking per round
 /// keeps the fixpoint's extra rounds strictly additive: nothing that was
 /// already provable waits on them.
 ///
@@ -4962,7 +4960,7 @@ async fn sync_workspace_class_factories_round(handles: &EvidenceHandles) -> Clas
 /// Refresh every file's
 /// [`tcl_lsp_db::SourceFile::workspace_subclass_methods`] — the
 /// subclass-provided-method view behind the cross-file half of the
-/// template-method W308 abstention (issue #1367) — and report the URIs whose
+/// template-method W308 abstention — and report the URIs whose
 /// stored view actually moved.
 ///
 /// One round always suffices, unlike the factory fixpoint: the view is
@@ -4976,14 +4974,12 @@ async fn sync_workspace_class_factories_round(handles: &EvidenceHandles) -> Clas
 /// **Each file stores only its own slice** — the entries for classes *it*
 /// defines (creation site or `oo::define` stub), which are the only
 /// receivers its `my`-dispatch W308 sites can name
-/// (`enclosing_class_at_offset` resolves within the document).  The first
-/// draft stored the whole project map on every file, which turned every
-/// index movement into a whole-project invalidation: during a scan or a
-/// benchmark's document churn the map moves with nearly every publish, so
-/// N documents cost ~N² re-analyses and the Performance suite ran from its
-/// ~5-minute baseline into the 60-minute timeout.  Sliced, an edit
-/// invalidates exactly the files whose own classes gained or lost
-/// subclass-provided methods.
+/// (`enclosing_class_at_offset` resolves within the document).  Storing the
+/// whole project map on every file would turn every index movement into a
+/// whole-project invalidation: during a scan or heavy document churn the map
+/// moves with nearly every publish, so N documents cost ~N² re-analyses.
+/// Sliced, an edit invalidates exactly the files whose own classes gained or
+/// lost subclass-provided methods.
 ///
 /// The project fold itself is one bounded pass
 /// ([`core_workspace_index::WorkspaceIndex::subclass_provided_methods`] —
@@ -5045,7 +5041,7 @@ async fn sync_workspace_subclass_methods(handles: &EvidenceHandles) -> Vec<Uri> 
 /// A file whose `source` target the host never indexed has a caller the project
 /// cannot enumerate, so it gets **no** evidence: `None` keeps its
 /// `LOADS_EXTERNAL_UNIT` boundary closed rather than letting `Some(empty)`
-/// assert a closed world the scan cannot back (issue #977).
+/// assert a closed world the scan cannot back.
 fn wanted_call_site_evidence(
     db: &tcl_lsp_db::TclDatabase,
     uri: &Uri,
@@ -5064,7 +5060,7 @@ fn wanted_call_site_evidence(
 /// The pointer check is the steady-state fast path: `file_external_call_sites`
 /// hands back the *same* memoised `Arc` the previous sync stored whenever the
 /// query did not re-execute, so an unchanged project settles in one comparison
-/// per file instead of a deep set comparison per file (issue #1148).
+/// per file instead of a deep set comparison per file.
 fn call_site_evidence_matches(
     have: Option<&Arc<tcl_compiler::unit_scope::CallSiteEvidence>>,
     want: Option<&Arc<tcl_compiler::unit_scope::CallSiteEvidence>>,
@@ -5078,14 +5074,14 @@ fn call_site_evidence_matches(
 
 /// The project files whose unit-loading boundaries the host can actually
 /// account for — the precondition for claiming a closed world over their
-/// callers (issue #977).
+/// callers.
 ///
-/// `has_cross_file_evidence` only ever proved that the server enumerated *its
-/// configured project*; it never proved the thing a `source` boundary
-/// actually implies, namely that the loaded unit was among them. A
-/// `source ../shared.tcl` pointing outside the workspace runs a script that
-/// can call this file's procedures with anything, so handing that file
-/// `Some(empty)` would re-open exactly the unsound fold this change closes.
+/// Enumerating the configured project proves only that the server knows its own
+/// files; it does not prove what a `source` boundary implies, namely that the
+/// loaded unit is among them. A `source ../shared.tcl` pointing outside the
+/// workspace runs a script that can call this file's procedures with anything,
+/// so handing that file `Some(empty)` would re-open exactly the unsound fold
+/// this guards against.
 ///
 /// A file is covered when **every** `source` site it contains is a literal
 /// path resolving to a document the project holds. A non-literal path
@@ -5236,15 +5232,16 @@ struct AnalyserPathInputs<'a> {
     non_ascii_mode: NonAsciiMode,
     db_project: &'a Arc<Mutex<Option<tcl_lsp_db::Project>>>,
     workspace_index: &'a Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
-    /// M9 applied-seed record; the publish path invalidates entries.
+    /// The applied source-site seed record; the publish path invalidates
+    /// entries.
     rehomed_source_seeds: &'a Arc<Mutex<HashMap<String, Vec<String>>>>,
-    /// M9 publication/query transaction gate; see [`Backend::rehoming_gate`].
+    /// Publication/query transaction gate; see [`Backend::rehoming_gate`].
     rehoming_gate: &'a Arc<tokio::sync::Mutex<()>>,
     package_resolver: &'a Arc<RwLock<PackageResolver>>,
     /// Memo for the unclosed-delimiter recovery path's widened known-command
     /// set (see [`RecoveryNameCache`]).
     recovery_names: &'a Arc<Mutex<RecoveryNameCache>>,
-    /// #804 W120 inheritance for this document's folder (see [`DiagInputs`]).
+    /// W120 inheritance for this document's folder (see [`DiagInputs`]).
     entry_points: &'a [String],
     folder_root: Option<&'a Path>,
     /// Whether opt-in cross-file resolution is enabled — see
@@ -5257,12 +5254,12 @@ struct AnalyserPathInputs<'a> {
     store: &'a Arc<dyn vfs::SourceStore>,
 }
 
-/// The Tcl analyser path, made **progressive** (#844): the deep pass — base
+/// The **progressive** Tcl analyser path: the deep pass — base
 /// analysis, compiler checks, and cross-file resolution (all cancellable, off
 /// the event loop), the W120/W123 workspace refinement, the diagnostic lifts,
 /// and the final currency-guarded publish — runs as one future, raced against
 /// [`DIAGNOSTICS_FAST_TIER_BUDGET`].  If it settles inside the budget (a small
-/// or warm file) the client sees a single publish, exactly as before.  If it
+/// or warm file) the client sees a single publish.  If it
 /// overruns (a large or cold file), the workspace-independent **fast tier**
 /// (syntax / structural / style diagnostics, everything but W120/W123) is
 /// published first so the user gets the bulk of the diagnostics without waiting
@@ -5297,7 +5294,7 @@ async fn run_diagnostics_analyser_path(
 
     // Compute the base per-file analysis once and share it (`.shared()`): the deep
     // pass awaits it inside its `join!` (concurrently with the compiler and
-    // cross-file passes, #844 Gap 2), and — when the budget elapses — the fast tier
+    // cross-file passes), and — when the budget elapses — the fast tier
     // awaits the *same* future for its coarse publish. `Shared` lets any polled
     // clone drive the read, so the fast-tier await below still makes progress while
     // the deep future is parked. This is the explicit form of what salsa's
@@ -5356,9 +5353,9 @@ async fn run_diagnostics_analyser_path(
             biased;
             // The whole pipeline finished inside the budget: the deep publish is the
             // one and only publish, so the fast tier is never sent (no redundant
-            // round-trip on small / warm files — the debounce-skip trap #844 calls
-            // out).  `biased` prefers this arm so a deep pass that lands right on the
-            // deadline still skips the fast tier.
+            // round-trip on small / warm files).  `biased` prefers this arm so a
+            // deep pass that lands right on the deadline still skips the fast
+            // tier.
             settled = &mut deep => return settled,
             () = crate::rt::sleep_until(fast_tier_deadline) => {}
         }
@@ -5388,27 +5385,26 @@ async fn run_diagnostics_analyser_path(
 }
 
 /// The deep diagnostics pass: the three independent whole-file analyses run
-/// concurrently (#844 Gap 2) — the per-file analyser walk, the compiler /
+/// concurrently — the per-file analyser walk, the compiler /
 /// optimiser checks, and the cross-file resolution — then the W120/W123
 /// workspace refinement, the diagnostic lifts, and the single authoritative
 /// currency-guarded publish.  Only the downstream refine + lift consume all
 /// three passes, so overlapping them collapses the deep pass towards its longest
 /// single pass.  The one thing given up is fail-fast on a base-analysis
 /// cancellation — the compiler / cross-file passes may do a little wasted work
-/// before observing the same cancellation, the trade #844 explicitly accepts.
+/// before observing the same cancellation, which is the accepted trade.
 ///
 /// `base` is the per-file analyser walk, supplied by the caller (as a `Shared`
 /// future) rather than started here, so the progressive fast tier can await the
 /// *same* computation instead of issuing a second one; it is simply the first arm
 /// of the `join!`.
 ///
-/// Returns whether the version **settled** (published or superseded), matching
-/// the old serial path — `false` only on a genuine salsa cancellation. A
-/// deterministic worker panic in a *secondary* pass (compiler / cross-file)
-/// degrades that pass to its empty / per-file fallback and still publishes the
-/// currency-guarded deep tier, so the fast tier — which may already have replaced
-/// the client's set with its reduced subset — is never left as the terminal
-/// state (#844).
+/// Returns whether the version **settled** (published or superseded) —
+/// `false` only on a genuine salsa cancellation. A deterministic worker panic
+/// in a *secondary* pass (compiler / cross-file) degrades that pass to its
+/// empty / per-file fallback and still publishes the currency-guarded deep
+/// tier, so the fast tier — which may already have replaced the client's set
+/// with its reduced subset — is never left as the terminal state.
 async fn run_deep_diagnostics(
     delivery: &DeliveryCtx<'_>,
     salsa_ctx: &SalsaAnalysisCtx<'_>,
@@ -5438,7 +5434,7 @@ async fn run_deep_diagnostics(
         // Deterministic worker panic → degrade to no compiler diags but STILL
         // publish below. The fast tier may already have replaced the client's
         // complete set with its reduced subset; an early return here would leave
-        // that reduced set as the terminal state (settled ⇒ no retry, #844) —
+        // that reduced set as the terminal state (settled ⇒ no retry) —
         // stripping the O1xx/refined-W12x/cross-file findings the user had. The
         // degraded deep publish is still a strict superset of the fast tier, just
         // without the compiler/optimiser hints.
@@ -5459,15 +5455,15 @@ async fn run_deep_diagnostics(
         ControlFlow::Break(false) => return false,
     };
 
-    // What the workspace `source` graph contributes to this document (#804 up
-    // to now, #1332 for the `source`-descendant direction), and its call sites
-    // settled against the workspace index (#1331). Both read the index, so
-    // they share one lock acquisition.
+    // What the workspace `source` graph contributes to this document (in both
+    // the ancestor and the `source`-descendant direction), and its call sites
+    // settled against the workspace index. Both read the index, so they share
+    // one lock acquisition.
     //
     // Demanded only when they can change a verdict: the inheritance when there
     // is a W120 or W123 to refine, the settled calls when the analyser
     // recorded any unresolved site at all. A document with neither pays
-    // nothing, exactly as before.
+    // nothing.
     let needs_inheritance = analyser_diags
         .iter()
         .any(|d| d.code == DiagCode::W120 || d.code == DiagCode::W123);
@@ -5495,8 +5491,8 @@ async fn run_deep_diagnostics(
     } else {
         (SourceInheritance::default(), CrossFileCalls::default())
     };
-    // idx 80: the workspace's own definitions, as the cross-file
-    // unknown-command refinement's known-name set — demanded only when it can
+    // The workspace's own definitions, as the cross-file unknown-command
+    // refinement's known-name set — demanded only when it can
     // change this document's verdict (see `needs_workspace_command_names`), and
     // read from the index's own derived-set cache.
     let workspace_known_names = if needs_workspace_command_names(
@@ -5538,7 +5534,7 @@ async fn run_deep_diagnostics(
 }
 
 /// Whether a diagnostic code belongs to the workspace-independent **fast tier**
-/// (#844) that [`publish_fast_tier`] delivers ahead of the deep pass.
+/// that [`publish_fast_tier`] delivers ahead of the deep pass.
 ///
 /// The classification lives on [`DiagCode::refined_by_workspace`] (the single
 /// source of truth for which codes a workspace / cross-file pass can retract) —
@@ -5552,14 +5548,14 @@ const fn is_fast_tier(code: DiagCode) -> bool {
     !code.refined_by_workspace()
 }
 
-/// Publish the flicker-safe **fast tier** (#844): the workspace-independent
+/// Publish the flicker-safe **fast tier**: the workspace-independent
 /// analyser diagnostics ([`is_fast_tier`]) plus the pure source-style lints,
 /// lifted off the event loop.  Delivered push-only through
 /// [`DeliveryCtx::deliver_fast_tier_if_current`] (never priming the pull cache,
 /// see that method), currency-guarded so a superseding edit can never let this
 /// land after the deep tier for the same version.  A lift-worker panic just
-/// means the deep tier is the first thing the client sees — no worse than before
-/// the fast tier existed.
+/// means the deep tier is the first thing the client sees, which is no worse
+/// than publishing no fast tier at all.
 async fn publish_fast_tier(
     delivery: &DeliveryCtx<'_>,
     analysis: &Arc<AnalysisResult>,
@@ -5623,8 +5619,8 @@ struct LiftInputs<'a> {
 
 /// The workspace-wide inputs the W120 / W123 refinements resolve against,
 /// grouped so [`refine_and_lift_diagnostics`] takes them as one parameter: what
-/// the `source` graph contributes (#804 / #1332), the package database (#723 / #832),
-/// and the workspace index's own command names (issue #923 idx 80).
+/// the `source` graph contributes, the package database, and the workspace
+/// index's own command names.
 struct RefinementInputs<'a> {
     inheritance: &'a SourceInheritance,
     package_resolver: &'a Arc<RwLock<PackageResolver>>,
@@ -5639,7 +5635,7 @@ struct RefinementInputs<'a> {
     workspace_known_names: Option<Arc<HashSet<String>>>,
     /// The document's call sites settled against the workspace index — the
     /// always-on tier 2 of [`refine_workspace_index_w123`] and the source of
-    /// the cross-file arity errors (issue #1331).
+    /// the cross-file arity errors.
     settled_calls: CrossFileCalls,
     /// Whether `crossFileResolution` is on, i.e. whether the *project* tier of
     /// [`refine_workspace_index_w123`] applies on top of its always-on tiers.
@@ -5669,7 +5665,7 @@ struct PullRefinementInputs<'a> {
 }
 
 /// Refine the analyser's single-file W120 against the workspace package
-/// database (#723), then lift the analyser / compiler / source-style / XC
+/// database, then lift the analyser / compiler / source-style / XC
 /// diagnostics into LSP diagnostics on a `spawn_blocking` worker.  Returns the
 /// join result so the caller distinguishes a worker panic from a clean set.
 async fn refine_and_lift_diagnostics(
@@ -5688,8 +5684,8 @@ async fn refine_and_lift_diagnostics(
     if tcl_lsp_core::sslictcl_diagnostics::applies_to(inputs.dialect) {
         tcl_lsp_core::sslictcl_diagnostics::supersede_analyser_diagnostics(&mut analyser_diags);
     }
-    // #723 + #804: refine the analyser's single-file W120 against the workspace
-    // package database and the requires inherited from entry points / `source`
+    // Refine the analyser's single-file W120 against the workspace package
+    // database and the requires inherited from entry points / `source`
     // ancestors (shared with the pull path via `refine_workspace_w120`).
     let analyser_diags = refine_workspace_w120(
         analyser_diags,
@@ -5700,7 +5696,7 @@ async fn refine_and_lift_diagnostics(
         refinement.registry,
     )
     .await;
-    // #832: drop any W123 (unknown command) the package database can resolve —
+    // Drop any W123 (unknown command) the package database can resolve —
     // an auto-loaded library command (`tclIndex`) or a command an available
     // package's implementation defines. Always on, like the W120 refinement.
     let analyser_diags = refine_workspace_w123(
@@ -5712,7 +5708,7 @@ async fn refine_and_lift_diagnostics(
         inputs.dialect,
     )
     .await;
-    // idx 80: and any W123 the *workspace index* resolves — a proc / class in a
+    // And any W123 the *workspace index* resolves — a proc / class in a
     // sibling document.  Its math-function tier is always on; its whole-project
     // tier is opt-in via `crossFileResolution`.
     let mut analyser_diags = refine_workspace_index_w123(
@@ -5722,7 +5718,7 @@ async fn refine_and_lift_diagnostics(
         &refinement.settled_calls,
         refinement.cross_file_resolution,
     );
-    // #1331: a cross-file call that resolved to a workspace proc with a bad
+    // A cross-file call that resolved to a workspace proc with a bad
     // argument count is the same error as the same-file one, reported with the
     // same codes. Emitted after the W123 refinement because it replaces that
     // W123 with something more specific — the command is not unknown, the call
@@ -5825,7 +5821,7 @@ struct IndexedDiagnosticFacts {
     /// `/b`) changes which child a computed `source` resolves to — and which
     /// values sourced children import — while the source rows themselves
     /// compare equal, so the constants are resolution-relevant exactly as
-    /// the rows are (issue #1368 review).
+    /// the rows are.
     path_constants: Vec<tcl_compiler::auto_path_eval::PathConstantWrite>,
     package_requires: Vec<core_workspace_index::WorkspacePackageRequire>,
     package_provides: Vec<core_workspace_index::WorkspacePackageProvide>,
@@ -5882,7 +5878,7 @@ impl IndexedDiagnosticFacts {
 
     /// The documents this one sourced **before** the edit — resolved from
     /// the captured rows *and the captured constants*, so a computed path
-    /// reconstructs the edge it actually had (issue #1370 review).  Call on
+    /// reconstructs the edge it actually had.  Call on
     /// the pre-edit capture; the post-edit consumers come from
     /// [`source_diagnostic_consumers`] against the live index.
     fn stale_source_consumers(
@@ -5942,16 +5938,16 @@ impl IndexedDiagnosticChange {
 }
 
 /// The **open** documents the index does not currently hold — the ones a
-/// workspace-fact write has to wake by hand (issue #1619).
+/// workspace-fact write has to wake by hand.
 ///
 /// Every other consumer set is read *from* the index, so a document that is
 /// open but has no entry cannot be found in one — and that is exactly the
 /// document whose analysis ran against a snapshot older than the write that
 /// just happened: `did_open` drops the entry and the debounced publish is what
-/// puts it back, so its own call-site records do not exist yet. Before this,
-/// such a document kept whatever verdict it reached against the older index,
-/// because re-opening an unedited buffer starts no new analysis and nothing
-/// else ever named it a consumer.
+/// puts it back, so its own call-site records do not exist yet. Without this
+/// set, such a document keeps whatever verdict it reached against the older
+/// index, because re-opening an unedited buffer starts no new analysis and
+/// nothing else ever names it a consumer.
 ///
 /// Call only when the publish moved something
 /// ([`IndexedDiagnosticChange::moved_workspace_facts`]): with no change there
@@ -5964,21 +5960,20 @@ impl IndexedDiagnosticChange {
 /// fact of its own — the common case, a caller that defines nothing — wakes
 /// nobody.
 ///
-/// Orphaned buffers are excluded (issue #1624) — this is the **transient**
+/// Orphaned buffers are excluded — this is the **transient**
 /// set, and only transience makes it self-limiting: a document is in it just
 /// between its `didOpen` and its first debounced publish, after which
 /// `replace_document` puts it in the index and it leaves for good. A buffer
 /// whose backing file was deleted out of band is the one way to be in it
 /// permanently, because [`publish_diagnostics_result`] deliberately calls
-/// `remove_document` for those rather than re-adding them (re-adding is what
-/// used to resurrect the ghost `did_change_watched_files` had just retired), so
-/// it is open and never indexed for as long as it stays open. Blanket-waking it
-/// on every fact-moving publish anywhere in the workspace is the waste #1624
-/// describes.
+/// `remove_document` for those rather than re-adding them (re-adding would
+/// resurrect the ghost `did_change_watched_files` has just retired), so it is
+/// open and never indexed for as long as it stays open. Blanket-waking it on
+/// every fact-moving publish anywhere in the workspace is pure waste.
 ///
 /// That exclusion is **not** a ruling that an orphan needs no diagnostics
-/// refresh — it still consumes workspace facts, and losing that was the defect
-/// the #1666 review caught. [`orphaned_fact_consumers`] carries the consumption
+/// refresh — it still consumes workspace facts.
+/// [`orphaned_fact_consumers`] carries the consumption
 /// half, targeted by what actually moved; the two sets are disjoint by
 /// construction and are extended together at the one call site.
 fn unindexed_open_documents(
@@ -5996,12 +5991,12 @@ fn unindexed_open_documents(
 /// The **orphaned** open buffers a fact-moving publish must still wake.
 ///
 /// Absence from the index is two separate facts about such a buffer, and
-/// [`unindexed_open_documents`] alone conflates them (#1666 review):
+/// [`unindexed_open_documents`] alone conflates them:
 ///
 /// * It must not **contribute** facts. Its path is dead, so re-indexing it
 ///   duplicates every proc of the file it was renamed to and sends
 ///   go-to-definition somewhere the editor cannot open — the ghost
-///   `did_change_watched_files` had just retired. `publish_diagnostics_result`
+///   `did_change_watched_files` has just retired. `publish_diagnostics_result`
 ///   keeps calling `remove_document` for it, and that stays true.
 /// * It does still **consume** them. The buffer is on screen and its squiggles
 ///   are read like any other's, so when a peer changes the arity of a proc it
@@ -6012,12 +6007,11 @@ fn unindexed_open_documents(
 ///
 /// So the contribution filter lives on the index write, and this is the
 /// consumption half — deliberately a *separate* set rather than a relaxation
-/// of [`unindexed_open_documents`], which must stay orphan-free to keep the
-/// property #1624 asked for: that set is the transient-race fallback, and it is
-/// self-limiting only because every document in it leaves at its first publish.
+/// of [`unindexed_open_documents`], which must stay orphan-free to keep its own
+/// property: that set is the transient-race fallback, and it is self-limiting
+/// only because every document in it leaves at its first publish.
 ///
-/// Targeted, not blanket — which is what makes this compatible with #1624's
-/// complaint rather than a revert of it:
+/// Targeted, not blanket:
 ///
 /// * A **source or package** move can change what the orphan's own calls
 ///   resolve to without renaming anything, so it is not filterable by name and
@@ -6102,7 +6096,7 @@ fn source_diagnostic_consumers(
 /// The replacement rows plus the constants they resolved under **when they
 /// were live** — the pre-replacement capture.  Folding an old row with the
 /// post-edit constants would reconstruct an edge the old document never had
-/// (issue #1368 review), so the old facts travel together.
+/// so the old facts travel together.
 struct ReplacedSources<'a> {
     rows: &'a [core_workspace_index::WorkspaceSource],
     constants: &'a [tcl_compiler::auto_path_eval::PathConstantWrite],
@@ -6198,7 +6192,6 @@ async fn add_entry_point_diagnostic_consumers(
 /// outside all global guards, and log timing. Always
 /// settled (`true`) — a stale revision or a lift-revision panic both keep the
 /// prior diagnostics rather than retrying.
-///
 async fn publish_diagnostics_result(
     delivery: &DeliveryCtx<'_>,
     workspace_index: &Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
@@ -6227,20 +6220,19 @@ async fn publish_diagnostics_result(
         // through its final index snapshot. Take it before `documents` (the
         // same order as reconciliation's `read_document`) so this standalone
         // publish cannot replace a re-homed view in the gap between those two
-        // operations. Previously that gap made declaration-side references
-        // intermittently resolve `::helper` instead of `::x::helper` (M9).
+        // operations. Left unordered, that gap lets declaration-side references
+        // intermittently resolve `::helper` instead of `::x::helper`.
         let rehoming_guard = rehoming_gate.lock().await;
         // Hold the `documents` lock across the currency re-check, the
         // workspace-index update, AND the pull-cache/mailbox commit so a
         // concurrent `did_change`/`did_close` (which also take `documents`)
-        // cannot interleave between them — the role the former global
-        // `document_analysis_gate` served, now via the natural
+        // cannot interleave between them — one ordered commit, via the natural
         // `documents` → `workspace_index` and `documents` → `pull_diag_cache`
         // lock order. The mailbox deposit inside the lock is what stops a
         // `did_close` from landing between currency check and publication: a
         // later close replaces the pending state or follows an in-flight state
         // on the single consumer. The actual client await is below, after this
-        // guard and `rehoming_guard` have been released (#1657).
+        // guard and `rehoming_guard` have been released.
         let docs = delivery.documents.lock("publish_diagnostics_result").await;
         if !delivery.is_current(&docs).await {
             // Superseded by a newer edit (open run), a reopen, or a newer closed
@@ -6252,8 +6244,8 @@ async fn publish_diagnostics_result(
         // A buffer whose backing file has been deleted (an out-of-band rename /
         // removal — no `didClose` arrives) is re-analysed and re-published like
         // any other, but must not be re-added to the cross-document index: the
-        // path is dead, and re-adding it here is what used to resurrect the
-        // ghost `did_change_watched_files` had just retired.
+        // path is dead, and re-adding it here would resurrect the ghost
+        // `did_change_watched_files` has just retired.
         let orphaned = docs
             .get(delivery.uri)
             .is_some_and(|doc| doc.backing_file_deleted);
@@ -6275,10 +6267,10 @@ async fn publish_diagnostics_result(
             }
             // …plus the open documents no index query can reach. Two disjoint
             // sets, one per role: documents the index does not hold *yet*
-            // (the #1619 race, transient), and orphaned buffers it will never
-            // hold again but which still consume what this write moved (#1666
-            // review). Neither can be found by the queries above, for opposite
-            // reasons.
+            // (the transient open-before-first-publish race), and orphaned
+            // buffers it will never hold again but which still consume what
+            // this write moved. Neither can be found by the queries above, for
+            // opposite reasons.
             if change.moved_workspace_facts() {
                 consumers.extend(unindexed_open_documents(&index, &docs));
                 consumers.extend(orphaned_fact_consumers(&docs, &change));
@@ -6300,7 +6292,7 @@ async fn publish_diagnostics_result(
             .filter(|consumer| consumer != delivery.uri && docs.contains_key(consumer))
             .collect();
         // The document is now indexed standalone: invalidate its applied
-        // source-site seed record (M9) so the next cross-document query
+        // source-site seed record so the next cross-document query
         // re-applies the seeded views.
         docs.retag("publish_diagnostics_result: rehomed_source_seeds");
         rehomed_source_seeds
@@ -6437,7 +6429,7 @@ struct PublicationLocks<'a> {
 ///
 /// `rehomed_source_seeds` is intentionally absent: opening a live buffer does
 /// not read or mutate that map, so retaining its guard would only widen the
-/// foreground contention surface (#1849 review).
+/// foreground contention surface.
 struct LiveSourceLocks<'a> {
     db: TrackedMutexGuard<'a, tcl_lsp_db::TclDatabase>,
     files: TrackedMutexGuard<'a, HashMap<Uri, tcl_lsp_db::SourceFile>>,
@@ -6557,7 +6549,7 @@ enum DiskRemovalPolicy<'a> {
 pub struct Backend {
     client: Client,
     /// Persistent latest-wins diagnostics delivery, isolated from every
-    /// request-critical lock (issue #1657).
+    /// request-critical lock.
     diagnostic_publisher: Arc<DiagnosticPublisher>,
     /// Open documents. `Arc` so the detached diagnostics task can hold it.
     documents: Arc<DocumentStore>,
@@ -6566,9 +6558,7 @@ pub struct Backend {
     /// worker debounces, then repeatedly analyses the document's **latest**
     /// state until it has published the current version (retrying if a run was
     /// cancelled mid-flight).  This guarantees the final version's diagnostics
-    /// are always published even under heavy edit bursts / CPU load — replacing
-    /// the older per-edit generation-counter scheme, which could drop the last
-    /// run with no retry.
+    /// are always published even under heavy edit bursts / CPU load.
     diag_slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>,
     /// Fallback dialect string used when ``did_open`` cannot derive
     /// one from the ``languageId`` and no per-session
@@ -6587,14 +6577,13 @@ pub struct Backend {
     /// [`Backend::default_dialect`] and is **immune to configuration**.
     ///
     /// The chat commands run a buffer under a fixed dialect (`f5-irules`) and
-    /// restore the previous one afterwards.  They used to do that by pushing a
-    /// `didChangeConfiguration` that rewrote `default_dialect`, so the very next
-    /// `workspace/configuration` pull re-applied the user's configured
-    /// `tclLsp.dialect` and silently reverted the override — its lifetime was
-    /// "until anything touches settings", which is arbitrary (issue #1217).
-    /// Held in its own slot, the override survives every pull and is cleared
-    /// only by the command that set it (`tcl-lsp.setSessionDialect` with a
-    /// `null` argument).
+    /// restore the previous one afterwards.  Doing that by pushing a
+    /// `didChangeConfiguration` that rewrote `default_dialect` would let the
+    /// very next `workspace/configuration` pull re-apply the user's configured
+    /// `tclLsp.dialect` and silently revert the override, giving it a lifetime
+    /// of "until anything touches settings".  Held in its own slot, the
+    /// override survives every pull and is cleared only by the command that set
+    /// it (`tcl-lsp.setSessionDialect` with a `null` argument).
     ///
     /// Same *tier* as `default_dialect` — the last-resort fallback, below an
     /// explicit language id, a BIG-IP basename, and a folder override — so
@@ -6610,8 +6599,8 @@ pub struct Backend {
     /// in-source `# tcl-dialect:` directive.  Every other override is either
     /// session-wide ([`Backend::session_dialect_override`]) or folder-wide
     /// ([`Backend::folder_dialects`]); re-tagging one buffer through either of
-    /// those re-tags every other buffer with it, which is exactly what
-    /// #1217 moved away from (issue #1931).
+    /// those re-tags every other buffer with it, which is precisely what a
+    /// per-document override must not do.
     ///
     /// Keyed by URI *string* rather than [`Uri`], matching how
     /// `folder_dialect_for` compares folder URIs.  Survives a document
@@ -6650,7 +6639,7 @@ pub struct Backend {
     /// server-side lift.  Folders without such overrides fall back to
     /// [`Backend::db_config`].
     folder_db_configs: Arc<Mutex<Vec<(Uri, tcl_lsp_db::AnalyserConfig)>>>,
-    /// Retired per-folder `AnalyserConfig` handles, keyed by folder URI (#1145).
+    /// Retired per-folder `AnalyserConfig` handles, keyed by folder URI.
     ///
     /// The `AnalyserConfig` half of [`Backend::db_tombstones`], and there for
     /// the same reason: a folder whose override set empties (or which leaves the
@@ -6669,7 +6658,7 @@ pub struct Backend {
     /// codes are filtered, and consulted by the source-style pass.
     disabled_diagnostics: Mutex<HashSet<String>>,
     /// Glob patterns naming files that produce **no** diagnostics at all
-    /// (`tclLsp.diagnostics.exclude`, #1556), matched against the
+    /// (`tclLsp.diagnostics.exclude`), matched against the
     /// workspace-folder-relative path (or the file name alone for `/`-less
     /// patterns).  The process-global fallback; a folder whose merged config
     /// sets the key overrides it via [`FolderConfig::diagnostics_exclude`].
@@ -6689,18 +6678,18 @@ pub struct Backend {
     /// `pkgIndex.tcl` / `tclIndex` index used to resolve a `package require`
     /// to the files it loads (and transitively what *they* require). The
     /// diagnostics worker consults it to refine W120 — e.g. to see that a
-    /// `package require myTkPackage` (transitively) pulls in Tk (#723).
+    /// `package require myTkPackage` (transitively) pulls in Tk.
     /// Rebuilt by `scan_workspace_folders`.
     package_resolver: Arc<RwLock<PackageResolver>>,
     /// Memo for [`widen_recovery_extra_commands`] — the unclosed-delimiter
-    /// recovery path's widened known-command set (issue #1154).
+    /// recovery path's widened known-command set.
     ///
     /// That set is a pure function of the workspace index, the package
     /// database, the configured `tclLsp.extraCommands`, and the document's own
     /// `package require`s; none of those change per keystroke, but the recovery
     /// branch is the *normal* mid-typing state, so rebuilding it on every
-    /// debounced run cost three `String` allocations per workspace-indexed proc
-    /// and class (tens of thousands on a tcllib-sized workspace) per edit.
+    /// debounced run would cost three `String` allocations per workspace-indexed
+    /// proc and class — tens of thousands on a large workspace — per edit.
     recovery_names: Arc<Mutex<RecoveryNameCache>>,
     /// Held for the duration of every `scan_workspace_folders` call (the
     /// blocking tree walk + analysis that rebuilds `package_resolver`).
@@ -6710,20 +6699,20 @@ pub struct Backend {
     /// possibly-still-empty resolver — otherwise a rename / go-to-definition
     /// fired shortly after startup (or a workspace-folder / config change)
     /// could race the scan and silently find nothing, even though the same
-    /// request moments later would have resolved correctly (issue #1003).
+    /// request moments later would have resolved correctly.
     workspace_scan_gate: tokio::sync::Mutex<()>,
     /// Released once the first `scan_workspace_folders` pass has completed —
     /// the "the scan has not started yet" half of the startup race
     /// `workspace_scan_gate` alone cannot cover.  See
     /// [`WorkspaceScanReadiness`].
     workspace_scan_ready: Arc<WorkspaceScanReadiness>,
-    /// Library files the autoload tier (M8) has merged into the workspace
+    /// Library files the autoload tier has merged into the workspace
     /// index on demand, so references / rename keep reaching them.  Cleared
     /// (and their index entries dropped) whenever the package database is
     /// rebuilt, so a `libraryPaths` change cannot leave stale library
     /// definitions behind.
     autoloaded_library_uris: Arc<Mutex<HashSet<String>>>,
-    /// M9: per-document source-site namespace seeds currently merged into the
+    /// Per-document source-site namespace seeds currently merged into the
     /// index (`uri → sorted seeds`; `"::"` = the standalone view).  `source`
     /// evaluates a file in the caller's namespace, so a document sourced from
     /// `namespace eval ::x` is indexed under a `::x`-seeded analysis; this
@@ -6739,28 +6728,28 @@ pub struct Backend {
     /// producer and consumer has to agree on that single representation, via
     /// [`Backend::is_standalone_view`]: while
     /// [`Backend::refresh_source_rehoming_locked`]'s work queue and its store
-    /// disagreed about it, an ordinary top-level `source b.tcl` never converged
-    /// — `b.tcl` was re-analysed and re-indexed on every round of every call,
+    /// disagree about it, an ordinary top-level `source b.tcl` never converges
+    /// — `b.tcl` is re-analysed and re-indexed on every round of every call,
     /// and each re-index bumps the workspace index's generation, dropping every
-    /// `Derived` memo built on it (issue #1297).
+    /// `Derived` memo built on it.
     rehomed_source_seeds: Arc<Mutex<HashMap<String, Vec<String>>>>,
     /// Serialises [`Backend::refresh_source_rehoming`] passes.
     ///
     /// A dozen request handlers (references, definition, hover, rename, …)
     /// each call `refresh_source_rehoming` at their own entry, and
     /// `scan_workspace_folders` calls it again after every merge. Without
-    /// this gate, concurrent callers each ran the full (up to 4-round)
+    /// this gate, concurrent callers each run the full (up to 4-round)
     /// convergence loop independently — on a `source`-heavy workspace, every
-    /// one of them re-read and re-analysed the same re-homed documents and
-    /// took its own turn on `workspace_index`'s write lock, so N concurrent
-    /// requests paid N times the real reconciliation cost and serialised
-    /// against each other on that lock (issue #1158: the measured 130 s
-    /// `references` call that head-of-line-blocked an unrelated `definition`
-    /// request). With the gate, a caller that lands while a pass is already
+    /// one of them re-reads and re-analyses the same re-homed documents and
+    /// takes its own turn on `workspace_index`'s write lock, so N concurrent
+    /// requests pay N times the real reconciliation cost, serialise against
+    /// each other on that lock, and head-of-line-block unrelated requests for
+    /// as long as it takes. With the gate, a caller that lands while a pass is
+    /// already
     /// running simply waits for it — `refresh_source_rehoming`'s own
     /// early-return ("nothing left to reconcile") then answers instantly for
     /// every waiter but the one that did the real work. Same "wait out the
-    /// in-flight pass" idiom as [`Self::workspace_scan_gate`] (issue #1003).
+    /// in-flight pass" idiom as [`Self::workspace_scan_gate`].
     rehoming_gate: Arc<tokio::sync::Mutex<()>>,
     /// Tcl installations discovered by scanning common install locations on
     /// disk (never by executing `tclsh`). Cached once per session. The package
@@ -6779,7 +6768,7 @@ pub struct Backend {
     /// environment (or, on 9.0+, the running Tcl is itself an unstable build).
     /// Neither is a fact about the source tree, so it is carried as a setting
     /// rather than inferred from the server's own environment — which is not
-    /// the environment the user's interpreter runs in (issue #1253).
+    /// the environment the user's interpreter runs in.
     package_prefer_latest_default: Mutex<bool>,
     /// `tclLsp.packages.provides` — declared "requiring this package also
     /// loads these" edges, as `(package, packages it also loads)` pairs in
@@ -6788,8 +6777,8 @@ pub struct Backend {
     /// A binary extension whose `Init` calls `Tcl_PkgRequire` — or links Tk
     /// through `Tk_InitStubs` — makes a package available with nothing in any
     /// Tcl source saying so, so the workspace `pkgIndex.tcl` scan that finds a
-    /// Tcl wrapper's own requires (#723) has nothing to read. Declaring the
-    /// edge is the only way to state it (issue #1813).
+    /// Tcl wrapper's own requires has nothing to read. Declaring the edge is
+    /// the only way to state it.
     package_provides: Mutex<Vec<(String, Vec<String>)>>,
     /// User-declared extra command names (`tclLsp.extraCommands`) treated as
     /// known by the unknown-command (W123) check; mirrored onto the salsa
@@ -6856,8 +6845,8 @@ pub struct Backend {
     /// absolute `tclLsp.specPacks` entry.
     ///
     /// The main watcher registration is a workspace-relative pattern, which a
-    /// client only ever matches inside the workspace folders; an edit to a
-    /// user-tier pack therefore reached nothing and the specs stayed stale
+    /// client only ever matches inside the workspace folders, so without these
+    /// an edit to a user-tier pack reaches nothing and the specs stay stale
     /// until an unrelated config reload or a restart. Remembered here so a
     /// reload re-registers only when the set actually moves, since each change
     /// costs an unregister/register round trip to the client.
@@ -6870,14 +6859,13 @@ pub struct Backend {
     /// round trip, so they are refreshed only when the set actually moves.
     /// Also the trigger for re-scanning the workspace — a pack that has just
     /// started claiming `.irulex` needs the `.irulex` files already on disk
-    /// indexed, which only a fresh scan does (issue #1626, finding P1-3).
+    /// indexed, which only a fresh scan does.
     pack_source_extensions: Arc<Mutex<Vec<String>>>,
     /// `tclLsp.bigipVersion` — the session's target BIG-IP release for the
     /// keyed library-version axis (`None` = the oldest-supported default).
     bigip_version: Mutex<Option<String>>,
-    /// `tclLsp.targets` — declared version-target ranges (redesign §5.4
-    /// range targeting) as `(provider, range)` pairs; empty = range mode
-    /// off. Mirrored onto the salsa `AnalyserConfig`.
+    /// `tclLsp.targets` — declared version-target ranges as `(provider, range)`
+    /// pairs; empty = range mode off. Mirrored onto the salsa `AnalyserConfig`.
     declared_targets: Mutex<Vec<(String, String)>>,
     /// Generic `static::` variable-name patterns for IRULE4002
     /// (`tclLsp.diagnostics.genericVariablePatterns`). `None` keeps the built-in
@@ -6972,12 +6960,12 @@ pub struct Backend {
     /// `textDocument/diagnostic` / `workspace/diagnostic` handlers; evicted on
     /// `did_close`.
     pull_diag_cache: Arc<Mutex<HashMap<Uri, PullDiagEntry>>>,
-    /// Monotonic per-URI generation for **closed**-file diagnostics runs (#865),
+    /// Monotonic per-URI generation for **closed**-file diagnostics runs,
     /// so overlapping close / watched-change refreshes cannot let an older run
     /// publish stale diagnostics over a newer one — see [`DiagInputs::closed_diag_gen`].
     closed_diag_gen: Arc<Mutex<HashMap<Uri, u64>>>,
     /// Publish order of the **closed** files that currently hold a badge record,
-    /// oldest first — the recency list backing [`CLOSED_DIAG_BADGE_CAP`] (#1144).
+    /// oldest first — the recency list backing [`CLOSED_DIAG_BADGE_CAP`].
     /// Only [`Backend::record_closed_diag_badge`] touches it, so an open
     /// document's cache entry is never queued and never evicted.
     closed_diag_order: Arc<Mutex<VecDeque<Uri>>>,
@@ -6989,7 +6977,7 @@ pub struct Backend {
     /// the client to re-pull (`workspace/diagnostic/refresh`).  A client that
     /// supports both — `vscode-languageclient` does — otherwise routes the
     /// server's push **and** its own pull into two separate diagnostic
-    /// collections and renders every diagnostic twice (#721).  Editors that
+    /// collections and renders every diagnostic twice.  Editors that
     /// only understand push (no pull capability) keep receiving the push.
     client_supports_pull_diagnostics: std::sync::atomic::AtomicBool,
     /// Per-URI cache of the last semantic-token stream we served — its
@@ -7000,7 +6988,7 @@ pub struct Backend {
     /// Every editor that speaks `full/delta` (`VS Code`, Zed, Neovim, eglot, …)
     /// benefits: a keystroke transmits a few changed tokens rather than the
     /// entire document, which keeps the client's token round-trip — and, for
-    /// eglot, its stale-repaint window (issue #333) — small on large files.
+    /// eglot, its stale-repaint window — small on large files.
     /// Keyed by URI; the entry is refreshed on every `full` / `full/delta`
     /// response and evicted on `did_close`.  `Arc` so the detached
     /// semantic-tokens background continuation (see
@@ -7018,10 +7006,9 @@ pub struct Backend {
     /// Unlike the ordinary document analysis this one is not a salsa query:
     /// it depends on the workspace class set as well as the document, which
     /// is not a salsa input.  Without a memo the consumer scan re-ran it once
-    /// per candidate document per request, so one code-lens resolve cost
-    /// (documents × analysis) — measured at 0.31 s over 40 consumer documents,
-    /// paid again for every lens the editor has on screen (adversarial review
-    /// of #1047, item 8).  Entries validate against a fingerprint of both
+    /// per candidate document per request, so one code-lens resolve would cost
+    /// (documents × analysis), paid again for every lens the editor has on
+    /// screen.  Entries validate against a fingerprint of both
     /// inputs rather than a revision counter, so a stale entry is impossible
     /// however the document or the index changed; the URI key just keeps the
     /// map small and evictable on `did_close`.
@@ -7043,8 +7030,8 @@ pub struct Backend {
     /// not coalesce them itself (`VS Code` does; eglot may not) would re-pull
     /// every open document once per refresh.
     semantic_tokens_refresh_pending: Arc<std::sync::atomic::AtomicU8>,
-    /// URIs with a detached semantic-token convergence continuation in flight
-    /// (#1147).  `semantic_tokens_refresh_pending` above coalesces the resulting
+    /// URIs with a detached semantic-token convergence continuation in flight.
+    /// `semantic_tokens_refresh_pending` above coalesces the resulting
     /// *notification*; this bounds the **work**, which is what holds a document
     /// copy and a queued blocking job.  Shared by the `range` and `full` timeout
     /// paths, since both settle into the same workspace-scoped refresh — see
@@ -7100,14 +7087,12 @@ pub struct Backend {
 /// A known editor language ID after its ingress spelling has been resolved
 /// through the one environment seam.
 ///
-/// **Ledger row F3, retired here**: this used to be a two-armed enum because
-/// `tk` was a bare `SpecSurface` bit rather than a catalogue profile. `tk`
-/// is now an environment like any other, so the ingress has one arm — the
+/// `tk` is an environment like any other, so the ingress has one arm — the
 /// resolved environment's
 /// [`unit_profile`](tcl_registry::model::DocumentEnvironment::unit_profile),
 /// which is its catalogue profile for a catalogue environment and the typed
-/// additive Tk profile for `tk`. The newtype still keeps the language-id
-/// table from leaking a raw dialect string into server routing.
+/// additive Tk profile for `tk`. The newtype keeps the language-id table from
+/// leaking a raw dialect string into server routing.
 #[derive(Clone, Copy)]
 struct LanguageDialect(&'static tcl_dialect::DialectProfile);
 
@@ -7127,10 +7112,9 @@ impl LanguageDialect {
 /// `Backend` classifies *every* field and so refuses to compile once a new one
 /// is added — and consumed only by [`PerUriCaches::forget`], which destructures
 /// this struct exhaustively in turn.  Between them, a per-URI cache cannot be
-/// wired into one retirement path and forgotten by another: that asymmetry is
-/// exactly how issue #1298 arose (`retire_renamed_uri` cleared seven per-URI
-/// maps but not `rehomed_source_seeds`, which every other retirement path did
-/// clear) and how issue #1300's three stale caches survived a folder removal.
+/// wired into one retirement path and forgotten by another — the asymmetry that
+/// otherwise leaves one map uncleared behind a rename or a folder removal while
+/// every other retirement path clears it.
 struct PerUriCaches<'a> {
     /// [`Backend::autoloaded_library_uris`] — keyed by `uri.as_str()`.
     autoloaded_library_uris: &'a Arc<Mutex<HashSet<String>>>,
@@ -7203,8 +7187,8 @@ impl PerUriCaches<'_> {
 /// `buffer_unordered(max_concurrency)`, which *first-polls* the handler futures
 /// in stream order but lets their **awaits** resume in whatever order the
 /// runtime schedules. Sequencing on a `Mutex` taken as the first await is
-/// therefore not enough: handlers were measured entering `did_change` as
-/// 14,15,16,17 and acquiring the lock as 14,16,15,17. An incremental
+/// therefore not enough: handlers can enter `did_change` as 14,15,16,17 and
+/// acquire the lock as 14,16,15,17. An incremental
 /// `didChange` is a *range* edit computed against the previous version, so
 /// applying one out of order splices it into text it was never computed against
 /// and corrupts the buffer permanently — every later feature then reads a
@@ -7218,7 +7202,7 @@ impl PerUriCaches<'_> {
 ///
 /// A turn covers the handler's **ordered mutations only** — the buffer splice,
 /// the salsa source, the index entry — and is handed on the moment they are
-/// committed, not when the handler returns (#1150). This is a *global* barrier:
+/// committed, not when the handler returns. This is a *global* barrier:
 /// every request handler waits on it, so work a handler does after its
 /// mutations (a disk reindex, a closed-file republish, a dialect re-scan) must
 /// not sit inside the turn, or one document's close stalls every other
@@ -7247,7 +7231,7 @@ struct EditOrder {
     /// *which handler* stopped it, and that cannot be recovered afterwards
     /// because a wedged server writes nothing. Recording it at the grant makes
     /// [`Backend::report_edit_barrier_stall`] able to name the culprit in the
-    /// one line it gets out (issue #1657).
+    /// one line it gets out.
     holder: std::sync::Mutex<Option<TurnHolder>>,
 }
 
@@ -7267,14 +7251,13 @@ struct TurnHolder {
     /// The `await` the holder last reached, named after the call it is about to
     /// suspend on — see [`EditTurn::at`].
     ///
-    /// Naming the *handler* narrowed issue #1657 from "the server" to
-    /// `did_open`; it did not narrow it any further, and a stack trace taken
-    /// during the wedge is why. Every Tokio worker was parked with an empty run
-    /// queue, so the holder is not running and not blocked in any OS primitive:
-    /// it is a suspended future whose wakeup never arrived. A suspended future
-    /// has no thread and therefore appears in no backtrace, which is exactly why
-    /// the suspension point has to be recorded on the way in rather than
-    /// recovered afterwards.
+    /// Naming the *handler* narrows a wedge from "the server" to one
+    /// notification, and no further. In a wedge every Tokio worker is parked
+    /// with an empty run queue: the holder is neither running nor blocked in
+    /// any OS primitive, but suspended at an `await` whose wakeup never
+    /// arrived. A suspended future has no thread and therefore appears in no
+    /// backtrace, which is why the suspension point has to be recorded on the
+    /// way in rather than recovered afterwards.
     phase: &'static str,
     /// When [`Self::phase`] was entered. Read against [`Self::since`]: a phase
     /// as old as the turn means the holder never got past its first `await`.
@@ -7398,9 +7381,9 @@ impl EditOrder {
 /// A ticket is a reservation in a strictly increasing sequence: `now_serving`
 /// advances one at a time, so nothing after ticket N can run until N has been
 /// accounted for. [`EditTurn`] accounts for a ticket that was *granted*. Before
-/// the grant there was nothing, and a handler future dropped while parked in
-/// [`EditOrder::wait_turn`] therefore left `now_serving` pointing at a number
-/// no guard would ever release.
+/// the grant there is nothing, so a handler future dropped while parked in
+/// [`EditOrder::wait_turn`] would leave `now_serving` pointing at a number no
+/// guard will ever release.
 ///
 /// The result is not a lost edit but a stopped server. Every later
 /// document-sync notification blocks in `wait_turn`, every request handler
@@ -7408,7 +7391,7 @@ impl EditOrder {
 /// [`crate::transport_liveness::DeferredConcurrency`] permits, and the process
 /// sits at zero CPU answering nothing while its stdin reader — which the
 /// unbounded transport keeps running — goes on draining input it will never
-/// act on. That is precisely the steady state issue #1657 records.
+/// act on. That is the steady state of a wedged server.
 ///
 /// So the reservation itself is the guard. `wait_turn` takes it by value, which
 /// puts it inside the very future that might be dropped; if that happens,
@@ -7464,7 +7447,7 @@ impl EditTurn<'_> {
     ///
     /// # Why a marker rather than a stack trace
     ///
-    /// Issue #1657's wedge produces no stack to read. A backtrace of the wedged
+    /// Such a wedge produces no stack to read. A backtrace of the wedged
     /// process shows every Tokio worker parked with an empty run queue — the
     /// holder is a *suspended future*, owned by no thread, waiting on a wakeup
     /// that never came. Its suspension point exists only as a discriminant
@@ -7519,9 +7502,9 @@ impl Drop for EditTurn<'_> {
 /// startup.  It is not enough at startup: `initialized` pulls the client
 /// config and registers file watchers — two client round-trips — **before** it
 /// starts the scan, and a request that lands in that window acquires a free
-/// gate and answers against an empty index (issue #1179: the first
-/// `workspace/symbol` query of a session returned nothing while the second,
-/// moments later, returned the same file's symbols).  This signal is what a
+/// gate and answers against an empty index — the first `workspace/symbol`
+/// query of a session returns nothing while the second, moments later, returns
+/// the same file's symbols.  This signal is what a
 /// cross-file handler waits on instead: it is only released once a scan has
 /// actually completed, so "the scan has not begun yet" and "the scan is in
 /// flight" both wait.
@@ -7589,7 +7572,7 @@ impl FeatureToggles {
         "workspaceSymbols",
         // Inlay hints split into two independently-toggled families:
         // inferred-type hints and parameter-name hints.  Both
-        // default **off** (see `DEFAULT_OFF`).  The retired `inlayHints`
+        // default **off** (see `DEFAULT_OFF`).  The legacy `inlayHints`
         // key is accepted on input as an alias for `inlayTypeHints`
         // (see `apply`).
         "inlayTypeHints",
@@ -7611,10 +7594,9 @@ impl FeatureToggles {
         // and cross-file E002/E003 arity, for *every* dialect (default
         // **off** — see `Backend::cross_file_resolution_enabled`).
         // Deliberately separate from `xcDiagnostics`, which gates only the
-        // f5-irules-specific XC100-301 translatability lints — the two
-        // toggles used to be one, which meant a plain Tcl project had no
-        // way to opt into cross-file analysis without also opting into an
-        // unrelated F5 migration feature.
+        // f5-irules-specific XC100-301 translatability lints, so a plain
+        // Tcl project can opt into cross-file analysis without also opting
+        // into an unrelated F5 migration feature.
         "crossFileResolution",
     ];
 
@@ -7657,10 +7639,10 @@ impl FeatureToggles {
     /// Merge an editor-supplied `features` object, setting only the
     /// keys it carries (absent keys keep their last-applied value).
     ///
-    /// The retired `inlayHints` key is a backward-compatible alias for
-    /// `inlayTypeHints`: an existing explicit opt-in keeps showing
-    /// the useful inferred-variable-type hints after the rename, while the
-    /// verbose parameter-name hints stay off.  Applied first so an
+    /// The legacy `inlayHints` key is a backward-compatible alias for
+    /// `inlayTypeHints`: an explicit opt-in through it enables the
+    /// inferred-variable-type hints, while the verbose parameter-name hints
+    /// stay off.  Applied first so an
     /// explicit new `inlayTypeHints` in the same object always wins when a
     /// config carries both.
     fn apply(&mut self, features: &serde_json::Map<String, serde_json::Value>) {
@@ -7714,19 +7696,17 @@ impl FeatureToggles {
 ///
 /// A 3-state resolution, distinguishing "the folder said nothing" from "the
 /// folder explicitly asked for the built-in defaults" from "the folder supplied
-/// its own list".  Replaces a former `Option<Option<Vec<String>>>`, preserving
-/// its exact semantics.
+/// its own list".
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 enum FolderGenericPatterns {
-    /// The folder did not set the value (former outer `None`): inherit the
-    /// process-global `genericVariablePatterns`.
+    /// The folder did not set the value: inherit the process-global
+    /// `genericVariablePatterns`.
     #[default]
     Inherit,
-    /// The folder set the value to the built-in default patterns (former
-    /// `Some(None)`): the analyser uses its built-in generic-name set.
+    /// The folder set the value to the built-in default patterns: the analyser
+    /// uses its built-in generic-name set.
     BuiltinDefaults,
-    /// The folder supplied its own list (former `Some(Some(list))`): replace the
-    /// built-in patterns with this list.
+    /// The folder supplied its own list: replace the built-in patterns with it.
     Replace(Vec<String>),
 }
 
@@ -7740,20 +7720,18 @@ enum FolderGenericPatterns {
 /// The analyser inputs `VS Code` declares `"scope": "resource"` — settings whose
 /// value belongs to the document rather than the session.
 ///
-/// Bundled rather than passed as three more positional arguments because each
-/// of the three was, at some point, added to only a subset of the analyser
-/// construction sites: `package_provides` reached one of six, `bigip_version`
-/// one of the direct paths, and `declared_targets` none of them — so §5.4
-/// range targeting was silently off for every analysis that did not go through
-/// salsa. A single value that every site applies makes the *next*
-/// resource-scoped input a one-line change here instead of an audit.
+/// Bundled rather than passed as three more positional arguments: wired one at
+/// a time, each reaches only a subset of the analyser construction sites, and a
+/// resource-scoped input missing from a site is silently off for every analysis
+/// that does not go through salsa. A single value that every site applies makes
+/// the *next* resource-scoped input a one-line change here instead of an audit.
 ///
 /// Resolve with [`Backend::resource_analyser_inputs`], which answers per
 /// document: a folder override wins, else the process-global value.
 #[derive(Debug, Clone, Default)]
 struct ResourceAnalyserInputs {
     /// `tclLsp.packages.provides` / `[packages.provides]` — what a package's
-    /// loader additionally brings up (issue #1813).
+    /// loader additionally brings up.
     package_provides: Vec<(String, Vec<String>)>,
     /// `tclLsp.bigipVersion` — the keyed library-version axis; `None` is the
     /// oldest-supported default.
@@ -7794,7 +7772,7 @@ impl ResourceAnalyserInputs {
 /// the two.
 #[derive(Clone, Default)]
 struct FolderConfig {
-    /// `tclLsp.dialect` scoped to this folder (issue #407).  `None` when the
+    /// `tclLsp.dialect` scoped to this folder.  `None` when the
     /// folder's pulled config names no dialect (or names an unknown one, which
     /// is dropped by [`is_known_dialect_name`] exactly as the
     /// `initializationOptions.folderDialects` path drops it), in which case the
@@ -7849,8 +7827,8 @@ struct FolderConfig {
     /// because a **relative** entry here means "under this folder" — the
     /// client answered the pull for this folder's `scopeUri`. Resolving it
     /// against every root would invent packs the user never configured, and
-    /// dropping it (what the server did before) loses a secondary folder's
-    /// packs entirely in a multi-root workspace.
+    /// dropping it would lose a secondary folder's packs entirely in a
+    /// multi-root workspace.
     spec_packs: Option<Vec<String>>,
     /// `.tcl-lsp.ini [project] entryPoints` — the project's "main" files (paths
     /// relative to the folder root). When set, the W120 workspace refinement
@@ -7858,14 +7836,14 @@ struct FolderConfig {
     /// and disables the automatic `source`-graph inheritance. `None` / empty
     /// leaves auto-detection on.
     entry_points: Option<Vec<String>>,
-    /// `tclLsp.diagnostics.exclude` override (#1556) — glob patterns naming
+    /// `tclLsp.diagnostics.exclude` override — glob patterns naming
     /// files that produce no diagnostics at all; `None` inherits the global
     /// list.  `Some` (possibly empty) whenever the folder's merged config
     /// carries the key, so a folder list replaces the global one rather
     /// than unioning with it.
     diagnostics_exclude: Option<Vec<String>>,
     /// `tclLsp.iruleslx` / `.tcl-lsp.ini [iruleslx.plugins]` + `[iruleslx.rules]`
-    /// — the declared iRulesLX plugin associations (#1707). Held per folder
+    /// — the declared iRulesLX plugin associations. Held per folder
     /// because the paths are folder-relative, exactly as `entry_points` is.
     iruleslx: Vec<IlxPluginSpec>,
 }
@@ -7915,8 +7893,8 @@ fn longest_folder_match<'a, T>(entries: &'a [(Uri, T)], uri: &Uri) -> Option<&'a
 /// Drive `futures` to completion with at most `concurrency` live at once,
 /// collecting the `Some` results (`None` — an unreadable / no-longer-a-file
 /// entry — is dropped).  Used by the `did_change_watched_files` batch reindex
-/// (#1161), which analyses its whole (bounded, per-event) file set in one
-/// pass; [`Backend::scan_workspace_folders`] (#1151) needs to merge completed
+/// which analyses its whole (bounded, per-event) file set in one
+/// pass; [`Backend::scan_workspace_folders`] needs to merge completed
 /// analyses into the index in batches rather than all at once (a large tree's
 /// `AnalysisResult`s must not all be live in memory together), so it runs the
 /// same acquire-before-spawn dispatch inline instead of reusing this return-a-
@@ -7966,7 +7944,7 @@ struct RenameContext<'a> {
     registry: &'a CommandRegistry,
 }
 
-/// How wide a document set a pure-consumer method scan covers (issue #1099).
+/// How wide a document set a pure-consumer method scan covers.
 ///
 /// The narrow set is "documents that invoke a family constructor", which is
 /// what the index can answer cheaply — and it is a real ceiling: a consumer
@@ -7993,7 +7971,7 @@ enum ConsumerCoverage {
 
 /// What one pure-consumer method scan is about: the member, and how wide a
 /// document set to cover.  Grouped so the scan entry points stay within the
-/// argument budget as the plan grew a coverage mode (issue #1099).
+/// argument budget now that they carry a coverage mode.
 #[derive(Debug, Clone, Copy)]
 struct ConsumerTarget<'a> {
     /// The class the cursor resolved the member against.
@@ -8056,7 +8034,7 @@ enum DefinerSpans {
 ///
 /// Shared by the cross-file references and rename passes so the two cannot
 /// disagree about what a document contributes, and so the receiver-scoped
-/// `[self]`-capture permission (issue #1705) is read the same way on both.
+/// `[self]`-capture permission is read the same way on both.
 fn family_spans_in_document(
     scan: FamilySpanScan<'_>,
     definers: &[String],
@@ -8120,7 +8098,7 @@ struct MethodFamily {
     classmethod_cmd_names: Vec<String>,
     /// The inheriting receivers that can dispatch the method **externally**,
     /// so a captured `[self]` object command written in their bodies really
-    /// reaches the family's declaration (issue #1705).
+    /// reaches the family's declaration.
     ///
     /// A property of the receiver, not of the provider: a subclass can
     /// `export` / `unexport` a name it inherits without redeclaring it, and
@@ -8202,7 +8180,7 @@ fn workspace_class_analysis_fingerprint(
 struct ConsumerDoc {
     uri: Uri,
     /// Shares the document snapshot's text handle rather than copying the
-    /// buffer per candidate document (issue #1184).
+    /// buffer per candidate document.
     text: Arc<str>,
     dialect: String,
     line_index: tcl_lexer::LineIndex,
@@ -8213,14 +8191,13 @@ struct ConsumerDoc {
 ///
 /// Split out to say *where* the collision is. "`::b` is already declared in
 /// this workspace" is a claim the user cannot check: the workspace the gate
-/// reads spans every scanned folder, not the files they have in mind, and a
-/// report against a project whose only Tcl file plainly contained no `b` left
-/// both the reporter and the investigation with nowhere to go (issue #1935).
-/// Naming the documents turns the refusal into something falsifiable in one
-/// glance.
+/// reads spans every scanned folder, not the files they have in mind, so a
+/// refusal against a project whose only visible Tcl file plainly declares no
+/// `b` leaves the user with nowhere to look. Naming the documents turns the
+/// refusal into something falsifiable in one glance.
 ///
 /// At most three are listed, with a count for the rest: the reason renders as a
-/// single unwrapped line in some hosts (the report's screenshot), so the point
+/// single unwrapped line in some hosts, so the point
 /// is to be checkable, not exhaustive — one name is usually the whole answer,
 /// and the gate refuses on the first one regardless.
 fn describe_variable_collision(cell: &str, new_cell: &str, colliding: &[String]) -> Option<String> {
@@ -8432,8 +8409,7 @@ impl Backend {
     /// Borrows the text rather than taking it by value: callers on the edit
     /// path hold the document snapshot's shared `Arc<str>` and must not have to
     /// own a separate copy of it.  The salsa `SourceFile::text` input is a
-    /// `String`, so exactly one copy is made here — the same single copy the
-    /// caller used to make before handing it over (issue #1184).
+    /// `String`, so exactly one copy is made here.
     /// # INVARIANT (no wedged sessions): never hold a salsa snapshot across an await
     ///
     /// The `set_text` / `SourceFile` calls below take `&mut` on the database,
@@ -8445,9 +8421,8 @@ impl Backend {
     /// ```
     ///
     /// That is a **blocking** condvar wait, on a Tokio worker thread, for every
-    /// other `DatabaseImpl` clone in the process to be dropped. The original
-    /// `did_open` / `did_change` path called this while holding the
-    /// [`EditOrder`] turn, so for as long as it waited:
+    /// other `DatabaseImpl` clone in the process to be dropped. Called while
+    /// holding the [`EditOrder`] turn, then for as long as it waits:
     ///
     /// * `now_serving` does not advance, so every later document-sync
     ///   notification blocks in `wait_turn`;
@@ -8456,9 +8431,9 @@ impl Backend {
     /// * the server answers nothing, writes nothing, and burns no CPU, while
     ///   its stdin reader goes on draining input.
     ///
-    /// That is issue #1657's signature exactly. Live setters now run after the
-    /// turn is released and only after the snapshot census reaches zero; the
-    /// same lifetime rule remains mandatory for every clone. A
+    /// That is the signature of a wedged session. Live setters therefore run
+    /// after the turn is released and only once the snapshot census reaches
+    /// zero; the same lifetime rule is mandatory for every clone. A
     /// `db.lock().await.clone()` anywhere in this crate must be **moved straight
     /// into the worker it was cloned for** and never held across an unrelated
     /// `.await`. `scratchpad`-style audits will not catch it either — the mutex
@@ -8534,7 +8509,7 @@ impl Backend {
     }
 
     /// Move `uri`'s live `SourceFile` handle into the tombstone map with its
-    /// payload released, returning whether there was one (#1145).
+    /// payload released, returning whether there was one.
     ///
     /// Salsa 0.27 allocates inputs and never frees them, so dropping the handle
     /// would strand the text and every memo keyed on it.  Emptying the text and
@@ -8561,7 +8536,7 @@ impl Backend {
 
     /// The `SourceFile` handle to file under `uri`: its retired one revived with
     /// the new text, or a fresh input when the session has never seen this URI
-    /// (#1145).  Reviving keeps one input per distinct URI however many
+    /// Reviving keeps one input per distinct URI however many
     /// delete/re-create cycles the URI goes through.
     fn revive_or_create_db_source(
         db: &mut tcl_lsp_db::TclDatabase,
@@ -8581,13 +8556,14 @@ impl Backend {
             tcl_lsp_db::SourceFile::new(&*db, text, dialect, path)
         };
         // Hand the arriving file the workspace class-factory oracle the rest of
-        // the project already carries (issue #1276/#1296), rather than leaving
-        // it at `None` for `sync_workspace_class_factories` to correct a publish
-        // later. A default-`None` arrival is analysed — and *published* — as if
-        // the workspace declared no metaclass at all, so every class a
-        // cross-file metaclass manufactures in it is missing from that first
-        // result and from the workspace index built out of it; only a second,
-        // rescheduled pass repaired it. The value is a project-wide fact every
+        // the project already carries, rather than leaving it at `None` for
+        // `sync_workspace_class_factories` to correct a publish later. A
+        // default-`None` arrival is analysed — and *published* — as if the
+        // workspace declared no metaclass at all, so every class a cross-file
+        // metaclass manufactures in it is missing from that first result and
+        // from the workspace index built out of it, and only a second,
+        // rescheduled pass would repair it. The value is a project-wide fact
+        // every
         // other file is already entitled to, so seeding it asserts nothing the
         // next sync would not assert anyway.
         if oracle.is_some() {
@@ -8619,7 +8595,7 @@ impl Backend {
     /// Returning the first unavailable dependency drops every partial
     /// acquisition. In particular, disk work never parks on `workspace_index`
     /// while retaining `db`, or parks on `db` while retaining the open-document
-    /// map (#1800).
+    /// map.
     fn try_publication_locks(&self) -> Result<PublicationLocks<'_>, LivePublicationWait> {
         let db = self
             .db
@@ -9033,7 +9009,7 @@ impl Backend {
     /// tracked salsa snapshot census is empty. Because the db mutex is already
     /// held at that check, no new snapshot can start between it and the salsa
     /// setters; `cancel_others` therefore cannot turn this bounded commit into
-    /// the synchronous multi-second wait observed in #1657/#1800.
+    /// a synchronous multi-second wait.
     async fn publish_disk_results(
         &self,
         replacements: &[(Uri, String, String, AnalysisResult)],
@@ -9161,8 +9137,8 @@ impl Backend {
                     }
                 })
                 .collect();
-            // This is the crucial #1800 boundary: all potentially slow work is
-            // below, after the global map is available to every handler again.
+            // The crucial boundary: all potentially slow work is below, after
+            // the global map is available to every handler again.
             drop(docs);
 
             if replacements.is_empty() && removals.is_empty() && index_only_removals.is_empty() {
@@ -9446,13 +9422,12 @@ impl Backend {
     /// live workspace-index view if it is still the revision this `didOpen`
     /// installed.
     ///
-    /// The release `v2.2.2` extension suite caught `did_open` suspended on the
-    /// Salsa mutex while it already owned both the document-sync turn and the
-    /// open-document map (#1849). `did_open` now installs the authoritative
-    /// buffer and drops that global turn before entering this function. This
-    /// deferred transaction owns neither the turn nor any partial lock while
-    /// it retries, so a slow Salsa dependency cannot hold every request behind
-    /// `edits_settled()`.
+    /// Suspending on the Salsa mutex while owning both the document-sync turn
+    /// and the open-document map wedges every request behind
+    /// `edits_settled()`. `did_open` therefore installs the authoritative
+    /// buffer and drops that global turn before entering this function, and
+    /// this deferred transaction owns neither the turn nor any partial lock
+    /// while it retries.
     ///
     /// The Salsa setter runs with neither the edit turn nor the document map
     /// held, and only after the tracked snapshot census is empty. Because the
@@ -9488,7 +9463,7 @@ impl Backend {
     ///
     /// Taking the seed as a future makes the supersession boundary directly
     /// testable: neither the publication gate nor a Salsa snapshot may live
-    /// while this future is pending (#1854 automated review).
+    /// while this future is pending.
     async fn commit_open_document_with_seed<F>(
         &self,
         uri: &Uri,
@@ -9606,7 +9581,7 @@ impl Backend {
     /// on the edit-order turn. A later edit or close changes the currency check
     /// and makes this older publication a no-op; the latest handler publishes
     /// the authoritative source. No lock or snapshot wait occurs while the
-    /// global turn or document map is held (#1849 review).
+    /// global turn or document map is held.
     async fn commit_live_source(
         &self,
         operation: &'static str,
@@ -9893,8 +9868,7 @@ impl Backend {
     }
 
     /// The workspace class-factory oracle this document is analysed under,
-    /// cloned out of the salsa db so a `spawn_blocking` analysis can carry it
-    /// (issue #1276).
+    /// cloned out of the salsa db so a `spawn_blocking` analysis can carry it.
     ///
     /// `None` when the document is not in the salsa db, which is the honest
     /// answer — no workspace view — rather than a claim of one.  Lock order is
@@ -9926,14 +9900,14 @@ impl Backend {
     }
 
     /// This document's cross-file call-site evidence, cloned out of the salsa
-    /// db so a `spawn_blocking` build can carry it (issue #977).
+    /// db so a `spawn_blocking` build can carry it.
     ///
     /// The tracked `compilation_unit` query reads
     /// [`tcl_lsp_db::SourceFile::external_call_sites`] itself, but every
     /// **uncached** build — the pull-diagnostics path and code actions — makes
-    /// a standalone unit that cannot. Without this a pull-mode client would
-    /// get a correct analyser I230 alongside an unsound optimiser O101 for the
-    /// very shape this change exists to fix.
+    /// a standalone unit that cannot. Without this a pull-mode client gets a
+    /// correct analyser I230 alongside an unsound optimiser O101 for the same
+    /// shape.
     ///
     /// `None` when the document is not in the salsa db (no workspace view to
     /// speak of), which is the honest answer rather than a claim of one.
@@ -10200,7 +10174,7 @@ impl Backend {
     /// Run the salsa `document_symbols` query for `uri` on a worker thread,
     /// reading the current `SourceFile` input.  Returns `None` when the input
     /// is absent or a concurrent edit cancels the read, so the caller can fall
-    /// back to a direct computation (behaviour preserved).
+    /// back to a direct computation.
     ///
     /// Yields the **core** symbol tree, and the caller lifts it into
     /// `lsp_types` afterwards.  Keeping the projection out of the closure is a
@@ -10209,7 +10183,7 @@ impl Backend {
     /// on open reads while holding the server's db mutex, and a lift is a pure
     /// allocation walk with no cancellation checkpoint.  Projecting in here
     /// stalls the next keystroke and — via that mutex — every other request.
-    /// See `docs/design/rust/lsp-performance.md` and issue #829.
+    /// See `docs/design/rust/lsp-performance.md`.
     async fn db_document_symbols(
         &self,
         uri: &Uri,
@@ -10228,7 +10202,7 @@ impl Backend {
     /// Run the salsa `folding_ranges` query for `uri` on a worker thread,
     /// reading the current `SourceFile` input. Returns `None` when the input
     /// is absent or a concurrent edit cancels the read, so the caller can
-    /// fall back to a direct computation (behaviour preserved). Mirrors
+    /// fall back to a direct computation. Mirrors
     /// [`Self::db_document_symbols`]; the BIG-IP dialect has no salsa query
     /// (it folds on the stanza tree, not the Tcl analyser) and so never
     /// calls this.
@@ -10274,8 +10248,7 @@ impl Backend {
     /// accessor — hover, completion, `semantic_tokens_range`'s fallback, and
     /// anything else routed through [`Backend::cached_analysis`] —
     /// shares the diagnostics worker's already-computed analysis for this
-    /// revision instead of paying for an independent whole-file walk
-    /// (issue #829).
+    /// revision instead of paying for an independent whole-file walk.
     async fn db_file_analysis(
         &self,
         uri: &Uri,
@@ -10293,7 +10266,7 @@ impl Backend {
     /// [`db_file_analysis`], but returns the worker `JoinHandle` immediately
     /// instead of awaiting it — so `semantic_tokens_range` can race the read
     /// against the fast-path budget and, on timeout, keep awaiting it from a
-    /// detached convergence continuation (#844 Gap 4) rather than dropping it and
+    /// detached convergence continuation rather than dropping it and
     /// losing the enriched result.  Same cancellable per-item query and the same
     /// liveness invariant as [`db_semantic_tokens`] (the read is unwound at a
     /// per-item boundary by a concurrent `set_text`).  `None` when there is no
@@ -10314,7 +10287,8 @@ impl Backend {
     }
 
     /// [`db_compilation_unit`], but returns the worker `JoinHandle` immediately
-    /// (see [`db_file_analysis_handle`] for why #844 Gap 4 needs it).  `None`
+    /// (see [`db_file_analysis_handle`] for why the range-convergence path
+    /// needs it).  `None`
     /// when there is no salsa input for `uri`.
     async fn db_compilation_unit_handle(
         &self,
@@ -10352,9 +10326,9 @@ impl Backend {
     /// [`tcl_lsp_db::file_analysis`]: an edit's `set_text` flips the cancel
     /// flag, this detached read unwinds at its next item boundary, and the
     /// write proceeds promptly. Routing this query back through the coarse
-    /// `file_analysis` would reintroduce a worse version of #829's symptom —
-    /// a single cold background token computation could serialise every
-    /// subsequent keystroke behind a whole-file walk. See
+    /// `file_analysis` would be worse still: a single cold background token
+    /// computation could serialise every subsequent keystroke behind a
+    /// whole-file walk. See
     /// `docs/design/rust/lsp-performance.md` §7.
     async fn db_semantic_tokens(
         &self,
@@ -10402,7 +10376,7 @@ impl Backend {
     /// and the cache-miss path moves the handle into the blocking worker and
     /// analyses through a deref.  Taking `Arc<str>` is what keeps the ~30
     /// `analysis_for` call sites from each copying the whole document per
-    /// request (issue #1184).
+    /// request.
     async fn analysis_for(
         &self,
         uri: &Uri,
@@ -10579,7 +10553,7 @@ impl Backend {
     ///    `tcl-lsp.setDocumentDialectOverride`
     ///    ([`Backend::document_dialect_overrides`]) — a host naming this exact
     ///    URI outranks every inference below, including the in-source
-    ///    directive (issue #1931).
+    ///    directive.
     /// 1. The LSP ``languageId`` field — when it names a known
     ///    dialect (``"tcl-irule"`` / ``"f5-irules"`` / ``"tcl90"`` /
     ///    ``"tcl9.0"`` / etc.), use it directly.
@@ -10618,7 +10592,7 @@ impl Backend {
     }
 
     /// One snapshot of every per-document override, for a caller resolving
-    /// many URIs off-lock (the watched-files batch reindex, #1161).
+    /// many URIs off-lock (the watched-files batch reindex).
     async fn document_dialect_override_snapshot(&self) -> Arc<HashMap<String, String>> {
         Arc::new(self.document_dialect_overrides.lock().await.clone())
     }
@@ -10628,7 +10602,7 @@ impl Backend {
     /// the configured [`Backend::default_dialect`].
     ///
     /// The one read point for that tier, so a configuration pull rewriting
-    /// `default_dialect` cannot silently revert an override (issue #1217).
+    /// `default_dialect` cannot silently revert an override.
     async fn session_dialect(&self) -> String {
         if let Some(over) = self.session_dialect_override.lock().await.clone() {
             return over;
@@ -10650,8 +10624,8 @@ impl Backend {
     ///    outright is making a deliberate choice the editor's settings files
     ///    should not silently override.
     /// 2. The folder's pulled `tclLsp.dialect` (`folder_configs`) — what VS
-    ///    Code resolves for a `.vscode/settings.json` at the folder scope
-    ///    (issue #407).  Applies to every folder the map above does not name.
+    ///    Code resolves for a `.vscode/settings.json` at the folder scope.
+    ///    Applies to every folder the map above does not name.
     ///
     /// Across *different* folders precedence is unchanged: `folder_dialect_for`
     /// still picks the longest matching folder prefix, so a nested folder
@@ -10678,7 +10652,7 @@ impl Backend {
     /// [`Self::dialect_for_closed`]): every input the resolution needs reduced
     /// to plain arguments, so a caller that already holds a `folder_dialects` /
     /// `default_dialect` snapshot — a batched watched-file reindex resolving
-    /// many URIs at once (#1161) — can resolve a dialect without a per-file
+    /// many URIs at once — can resolve a dialect without a per-file
     /// `&self` lock round trip. `dialect_for_open` is the only other caller;
     /// keeping the logic in one place is what makes the two paths agree.
     ///
@@ -10688,7 +10662,7 @@ impl Backend {
     ///    `tcl-lsp.setDocumentDialectOverride`
     ///    ([`Backend::document_dialect_overrides`]) — a host naming this exact
     ///    URI outranks every inference below, including the in-source
-    ///    directive (issue #1931).
+    ///    directive.
     /// 1. The LSP ``languageId`` field — when it names a known
     ///    dialect (``"tcl-irule"`` / ``"f5-irules"`` / ``"tcl90"`` /
     ///    ``"tcl9.0"`` / etc.), use it directly.
@@ -10755,7 +10729,7 @@ impl Backend {
         // `.tcl` (or opened by an editor with no iRules language mode) from
         // its `when EVENT {` handlers; the extension tier never fires for a
         // plain `.tcl` name, so the folder override and session default below
-        // still decide an ordinary Tcl buffer (issue #805). An empty `default`
+        // still decide an ordinary Tcl buffer. An empty `default`
         // is the "nothing detected" sentinel: it keeps that deferral intact.
         if language_id == "tcl" {
             // The directive / shebang / version-guard tiers are line-oriented,
@@ -10777,9 +10751,9 @@ impl Backend {
         // to defer to the folder override and the session `default_dialect`
         // (which the `dialect =` key of `config.ini` / `.tcl-lsp.ini` sets).
         // Without this deferral a config-file dialect would never take effect
-        // for a normally-opened `.tcl` buffer (issue #805); the session default
-        // is itself `tcl8.6` unless configured, so an unconfigured file still
-        // resolves exactly as the old direct `"tcl"` → `tcl8.6` mapping did.
+        // for a normally-opened `.tcl` buffer; the session default is itself
+        // `tcl8.6` unless configured, so an unconfigured file still resolves
+        // to `tcl8.6`.
         if language_id != "tcl"
             && let Some(d) = lang_dialect
         {
@@ -10827,7 +10801,7 @@ impl Backend {
         // other spelling — a canonical id, an alias, or a contributed editor
         // identity (`tcl90`, `tcl-synopsys`; the version-pinned ones are
         // undotted because a language id containing a `.` cannot carry a
-        // `configurationDefaults` override, issue #1122) — is declared by the
+        // `configurationDefaults` override) — is declared by the
         // environment catalogue and resolves below, which keeps a new
         // environment resolvable here the day it is added.
         let mapped = match language_id {
@@ -10860,7 +10834,7 @@ impl Backend {
             // alias: `irules` resolves to `f5-irules` wherever a dialect
             // name is configured, but no editor contributes it as a language
             // id, and taking it as one would select an environment through a
-            // spelling the contribution manifest never declares (review B7).
+            // spelling the contribution manifest never declares.
             .filter(|environment| environment.is_contributed_identity(mapped))
             .map(|environment| LanguageDialect(environment.unit_profile()))
     }
@@ -10881,21 +10855,20 @@ impl Backend {
     /// ([`EditOrder::settled_to`]), so a later edit does not hold this reader up
     /// and readers never serialise against one another.
     ///
-    /// A wait here that never ends is the shape of issue #1657 — the whole
-    /// server stops answering while burning no CPU — and from the outside it is
+    /// A wait here that never ends is the shape of a wedged server — it stops
+    /// answering while burning no CPU — and from the outside it is
     /// indistinguishable from any other stall. So a wait that overruns
     /// [`EDIT_BARRIER_STALL_WARN`] says so on the client's log channel before
     /// resuming, which names the barrier as the culprit and says exactly where
-    /// the sequence stopped. The extension-host capture quotes the tail of that
-    /// channel, so the next occurrence carries this line with it.
+    /// the sequence stopped. An extension-host capture quotes the tail of that
+    /// channel, so a wedge carries this line with it.
     ///
     /// That reporting must not be paid for on the hot path. **Every** request
     /// handler calls this, and in the overwhelmingly common case there is no
     /// edit in flight at all, so the barrier is already satisfied: the check
     /// below settles it in two atomic loads, allocating nothing and registering
-    /// no timer. Only a wait that genuinely has to block reaches the timeout —
-    /// which is cheaper than the previous unconditional `settled()`, since that
-    /// built a `Notified` even when it had nothing to wait for.
+    /// no timer. Only a wait that genuinely has to block reaches the timeout,
+    /// and only such a wait builds a `Notified`.
     async fn edits_settled(&self) {
         // Snapshot the target so the resumed wait asks the same question the
         // timed-out one did, rather than a stricter one that includes edits
@@ -10933,7 +10906,7 @@ impl Backend {
     /// Worse than the noise is what it would do to the rate limiter. Recording
     /// that position would make a later, genuine stall at the same position
     /// suppress itself, so the false report could hide the real one. Both
-    /// failures land in the one diagnosis stream issue #1657 depends on, so the
+    /// failures land in the one diagnosis stream a wedge leaves behind, so the
     /// re-read comes first and the suppression slot is only ever written for a
     /// stall that is real at the moment it is claimed.
     async fn report_edit_barrier_stall(&self, target: u64) {
@@ -10979,7 +10952,7 @@ impl Backend {
         // phase marker above is what answers that, and the two are printed
         // together precisely so a reader can check them against each other. A
         // stale-looking snapshot next to a phase that never reached
-        // `db_set_source` means the snapshot is a bystander (issue #1657).
+        // `db_set_source` means the snapshot is a bystander.
         let census = self.db.snapshot_report();
         let waiting_on = match census.oldest {
             Some((site, age)) => format!(
@@ -10993,30 +10966,30 @@ impl Backend {
         };
         // The third reading, and the one that closes the chain. The phase marker
         // says which lock the turn holder is *waiting* on; this says who is
-        // *holding* it. The first #1657 capture had to infer that from an
-        // adjacent `diagnostics.publish.enqueued` marker with no matching
-        // completion — a good inference, but an inference, and the next
-        // occurrence may not leave so tidy a trail.
+        // *holding* it. Inferring the holder from adjacent log markers is
+        // guesswork that depends on the wedge leaving a tidy trail.
+        //
         // Two samples a moment apart, because a free map is ambiguous on its
-        // own: "nobody wants it" and "everybody is taking turns while the barrier
-        // holder is skipped" look identical in one reading. The gap is short
-        // enough not to extend a stall anyone is waiting on and long enough for
-        // a busy map to move (issue #1657).
+        // own: "nobody wants it" and "everybody is taking turns while the
+        // barrier holder is skipped" look identical in one reading. The gap is
+        // short enough not to extend a stall anyone is waiting on and long
+        // enough for a busy map to move.
         let before = self.documents.contention();
         crate::rt::sleep(DOCUMENTS_CONTENTION_SAMPLE_GAP).await;
         let after = self.documents.contention();
-        // Re-read the barrier after the sample window, for the same reason
-        // #1664 re-reads it after `edits_settled`'s timeout: the edit this
-        // report is about may have landed while we slept. Announcing a
+        // Re-read the barrier after the sample window, for the same reason it
+        // is re-read after `edits_settled`'s timeout: the edit this report is
+        // about may have landed while we slept. Announcing a
         // permanent wedge that is already over is bad on its own, and burning
         // the rate limiter's slot on that stale report is worse — it would
         // suppress the next *genuine* stall at this position.
         //
         // So the slot is claimed only here, after the barrier has been shown to
-        // still be stuck. Claiming it earlier deduplicated concurrent reporters
-        // but paid for that with exactly the suppression above; claiming it now
-        // deduplicates just as well, since the swap is still the gate — the
-        // other reporters simply sleep first and then find the slot taken.
+        // still be stuck. Claiming it earlier would deduplicate concurrent
+        // reporters but pay for that with exactly the suppression above;
+        // claiming it here deduplicates just as well, since the swap is still
+        // the gate — the other reporters simply sleep first and then find the
+        // slot taken.
         let serving = self.edit_order.served();
         if serving >= target {
             return;
@@ -11071,7 +11044,7 @@ impl Backend {
         self.edits_settled().await;
         // A document-sync notification publishes the shadow buffer first and
         // shared derived stores second so it can release the global request
-        // barrier before a contended store (#1849). Preserve revision
+        // barrier before a contended store. Preserve revision
         // consistency by waiting only requests for this URI until the store
         // tier their provider needs has caught up.
         loop {
@@ -11102,7 +11075,7 @@ impl Backend {
         let path = url.to_file_path()?.into_owned();
         // Through the shared decoder, not `read_to_string`: a closed file with
         // one ill-formed byte must still resolve its spans rather than vanish
-        // from cross-document navigation (issue #1326).
+        // from cross-document navigation.
         let store = Arc::clone(&self.store);
         let (text, _) = crate::rt::spawn_blocking(move || store.read_source(&path))
             .await
@@ -11118,7 +11091,7 @@ impl Backend {
     /// Read a document only after its Salsa source **and** workspace-index view
     /// are current. This is the ordinary provider boundary: navigation and
     /// workspace-aware analysis must not observe the deliberately empty index
-    /// slot between `didOpen` retirement and live re-indexing (#1854 review).
+    /// slot between `didOpen` retirement and live re-indexing.
     async fn read_document(&self, url: &Uri) -> Option<DocumentState> {
         self.read_document_at(url, DocumentReadiness::Indexed).await
     }
@@ -11139,7 +11112,7 @@ impl Backend {
     /// Salsa read is explicitly raced against a small budget and falls back to
     /// lexical tokens over this returned text. Making them wait for the
     /// independent whole-file index seed defeats that fast path on cold large
-    /// files (the two prompt regressions caught by CI on #1854).
+    /// files.
     async fn read_document_for_semantic_tokens(&self, url: &Uri) -> Option<DocumentState> {
         self.read_document_at(url, DocumentReadiness::Salsa).await
     }
@@ -11305,8 +11278,7 @@ impl Backend {
     }
 
     /// Compute the packed semantic-token stream for `uri`, prioritising a
-    /// prompt response over waiting for the fully enriched result (issue
-    /// #829).
+    /// prompt response over waiting for the fully enriched result.
     ///
     /// Races the memoised, SSA/SCCP-enriched `semantic_tokens` salsa query
     /// against [`SEMANTIC_TOKENS_FAST_PATH_BUDGET`]. When it lands in time —
@@ -11329,7 +11301,7 @@ impl Backend {
     /// `semantic_tokens_project`, whose cross-file class/proc-role indices
     /// (`project_class_index` / `project_proc_var_index`) read every project
     /// file, not just this one.  They read it at the light `file_token_facts`
-    /// tier and behind a per-file backdating firewall (#1163), so on a warm
+    /// tier and behind a per-file backdating firewall, so on a warm
     /// workspace this is an aggregation, not a walk; a cold one still pays a
     /// first pass, which this fast path keeps off the token response — it only
     /// delays how soon the *refresh* follows.
@@ -11534,7 +11506,7 @@ impl Backend {
     /// awaiting the read and ask the client to re-request once it lands, so the
     /// enrichment reaches the editor without waiting for the next edit.
     ///
-    /// At most one continuation per document (#1147), on the same claim set the
+    /// At most one continuation per document, on the same claim set the
     /// `range` path uses: both end in the same workspace-scoped
     /// `workspace/semanticTokens/refresh`, so a continuation already pending for
     /// this URI covers this request too and a second one would only hold a
@@ -11608,7 +11580,7 @@ impl Backend {
     /// publication optimistically acquires its complete write set, briefly
     /// try-locks `documents` to re-check that the file is still closed, and
     /// releases that map before the no-`await` commit; a newly reopened unsaved
-    /// buffer still wins without background work pinning every handler (#1800).
+    /// buffer still wins without background work pinning every handler.
     /// Remove from the cross-document index every entry whose URI sits under
     /// one of `folders` and is not currently open in the editor.  Used when a
     /// workspace folder is removed (`did_change_workspace_folders`) so its
@@ -11620,10 +11592,10 @@ impl Backend {
     /// any of their per-URI state is touched here.
     ///
     /// Every per-URI cache of the *closed* files goes through the shared
-    /// [`Self::forget_uri_states`] (#1300): this function used to clear the
-    /// rehoming seeds by hand and left `last_semantic_tokens`,
-    /// `semantic_tokens_refresh_asked` and `workspace_class_analyses` holding
-    /// entries for files that are no longer in any workspace folder.
+    /// [`Self::forget_uri_states`]: clearing the rehoming seeds by hand here
+    /// would leave `last_semantic_tokens`, `semantic_tokens_refresh_asked` and
+    /// `workspace_class_analyses` holding entries for files that are no longer
+    /// in any workspace folder.
     async fn drop_index_under_folders(&self, folders: &[Uri]) {
         if folders.is_empty() {
             return;
@@ -11632,7 +11604,7 @@ impl Backend {
         // Keep source-site reconciliation/query snapshots atomic with the
         // removal. Derive candidates under the gate, then let the shared
         // publication transaction re-check the open set without ever waiting
-        // while it owns that map (#1800).
+        // while it owns that map.
         let disk_publication = self.disk_publication_gate.lock().await;
         let mut removed_urls = Vec::new();
         loop {
@@ -11675,7 +11647,7 @@ impl Backend {
             removed_urls.extend(removed);
         }
         // Clear the Problems / File-Explorer badge of any removed-folder file
-        // that still carried one (#865) — it is no longer part of the workspace,
+        // that still carried one — it is no longer part of the workspace,
         // so a retained closed-file badge would be stale.
         for uri in &removed_urls {
             if self.pull_diag_cache.lock().await.contains_key(uri) {
@@ -11691,7 +11663,7 @@ impl Backend {
     /// tombstone retire path, exactly like a `DELETED` watched-file event.
     /// Shared by [`Self::reindex_index_from_disk`] (the single-file path used
     /// by `did_close` / `didRenameFiles`) and the watched-files batch
-    /// reindex (#1161), so both agree on exactly how a disk-backed file is
+    /// reindex, so both agree on exactly how a disk-backed file is
     /// turned into an index/salsa entry.
     async fn scan_disk_file(
         store: &Arc<dyn vfs::SourceStore>,
@@ -11707,9 +11679,9 @@ impl Backend {
             // Normalise on the way in, exactly as `read_document` does for the
             // interactive path, so a disk-backed file's index entry, salsa
             // input and diagnostics describe the same script the editor would
-            // see once the file is opened (issue: background and interactive
-            // paths must not disagree about where a lone `\r` breaks a line).
-            // Read through the shared decoder (issue #1326): `read_to_string`
+            // see once the file is opened: the background and interactive
+            // paths must not disagree about where a lone `\r` breaks a line.
+            // Read through the shared decoder: `read_to_string`
             // would fail on ill-formed UTF-8 and `.ok()?` would then drop the
             // whole file — its procs, its `source` edges, its symbols — out of
             // the index with nothing said about it.
@@ -11729,8 +11701,7 @@ impl Backend {
             // sibling that inherits through `source` under-reports — and the
             // same file yields different requires depending on whether it was
             // reached through this path or the closed-file branch of
-            // `compute_base_analysis`, which does carry them (issue #1813
-            // review).
+            // `compute_base_analysis`, which does carry them.
             let analysis = resource
                 .as_ref()
                 .clone()
@@ -11744,9 +11715,9 @@ impl Backend {
     }
 
     /// Batched counterpart of [`Self::reindex_index_from_disk`] for the
-    /// `did_change_watched_files` CREATED/CHANGED set (#1161): reads and
+    /// `did_change_watched_files` CREATED/CHANGED set: reads and
     /// analyses every URI in `uris` across the bounded worker pool
-    /// [`run_bounded`] drives (shared with `scan_workspace_folders`, #1151),
+    /// [`run_bounded`] drives (shared with `scan_workspace_folders`),
     /// then applies one atomic salsa/workspace-index publication instead of
     /// `uris.len()` sequential full analyses.
     ///
@@ -11817,7 +11788,7 @@ impl Backend {
 
     async fn reindex_index_from_disk(&self, uri: &Uri) {
         // Read + analyse off-lock, on the same read-dialect-analyse helper the
-        // watched-files batch reindex uses (#1161).  Keep the source text +
+        // watched-files batch reindex uses.  Keep the source text +
         // dialect too: the salsa db (cross-file diagnostics) must track the
         // same on-disk population as the workspace index, so a proc defined in
         // a closed/never-opened file still suppresses W123 / drives the arity
@@ -11860,7 +11831,7 @@ impl Backend {
     }
 
     /// Compute and publish a **closed** workspace file's diagnostics from its
-    /// on-disk contents (#865), so a file that was opened and had its editor tab
+    /// on-disk contents, so a file that was opened and had its editor tab
     /// closed keeps its Problems / File-Explorer badge instead of losing it the
     /// moment the tab closes.  Runs the *same* [`run_diagnostics_core`] pipeline
     /// the open path uses — analyser, compiler checks, source-style, and the
@@ -11871,7 +11842,7 @@ impl Backend {
     /// [`Self::reindex_index_from_disk`]).  When the URI has no readable on-disk
     /// `SourceFile` (an untitled buffer, or a file deleted between the reindex and
     /// here), there is nothing to analyse and the stale squiggles are cleared
-    /// instead — matching the pre-#865 close behaviour for such files.  The
+    /// instead.  The
     /// dialect is resolved from the on-disk content (matching the `SourceFile`
     /// dialect the reindex stored), and the run captures a fresh per-URI
     /// generation so a newer refresh supersedes it.
@@ -11925,15 +11896,16 @@ impl Backend {
             language_id: String::new(),
             currency: DiagCurrency::ClosedFromDisk(generation),
             version: None,
-            // #1144: deliberately **not** `Some(file)`.  Routing a closed file
+            // Deliberately **not** `Some(file)`.  Routing a closed file
             // through the salsa queries would memoise its whole deep compiler
             // tier — the `compilation_unit` IR/CFG/SSA build behind
             // `file_analysis_incremental` / `compiler_check_diagnostics` — and
-            // salsa cannot evict it, so every file the editor ever opened kept
-            // ~12 MB of compiler memos for the process's life (a workspace
-            // browse OOM-killed the server).  This run happens *inline* on every
-            // close, so it, not the debounced open path, is what pinned a memo
-            // chain for files the user merely glanced at.  The uncached pipeline
+            // salsa cannot evict it, so every file the editor ever opened would
+            // keep tens of megabytes of compiler memos for the process's life,
+            // which a workspace browse turns into an out-of-memory kill.  This
+            // run happens *inline* on every close, so it, not the debounced open
+            // path, is what would pin a memo chain for files the user merely
+            // glanced at.  The uncached pipeline
             // computes the same per-file diagnostics and drops everything it
             // built, keeping the closed tier bounded; the file's `SourceFile`
             // input stays in the `Project` so its *lightweight* decls/signature
@@ -11951,7 +11923,7 @@ impl Backend {
     /// ([`tcl_registry::dialect_from_extension`], falling back to the bare
     /// `"tcl"` id that triggers in-source directive detection) so the basename
     /// (BIG-IP), `# tcl-dialect:` / shebang / `package require Tcl` hint,
-    /// per-folder override, and session default all still apply (#865).
+    /// per-folder override, and session default all still apply.
     async fn dialect_for_closed(&self, uri: &Uri, text: &str) -> String {
         let language_id = tcl_registry::dialect_from_extension(uri.as_str()).unwrap_or("tcl");
         self.dialect_for_open(uri, language_id, text).await
@@ -11959,7 +11931,7 @@ impl Backend {
 
     /// Pure core of [`Self::dialect_for_closed`] — see
     /// [`Self::dialect_for_open_sync`]. Lets the watched-files batch reindex
-    /// (#1161) resolve every changed file's dialect from one snapshot instead
+    /// resolve every changed file's dialect from one snapshot instead
     /// of a `&self` lock round trip per file.
     fn dialect_for_closed_sync(
         uri: &Uri,
@@ -11979,7 +11951,7 @@ impl Backend {
         )
     }
 
-    /// Bump and return `uri`'s closed-file diagnostics generation (#865). Each
+    /// Bump and return `uri`'s closed-file diagnostics generation. Each
     /// closed run captures the value this returns; the publish-time currency
     /// guard ([`DeliveryCtx::is_current`]) drops any run whose captured
     /// generation is no longer the latest, so an older run finishing after a
@@ -12003,7 +11975,7 @@ impl Backend {
             }
             // Commit the clear, pull-cache removal and generation retirement in
             // one document-ordered critical section. The publisher performs the
-            // client I/O after this guard is released (#1657).
+            // client I/O after this guard is released.
             self.pull_diag_cache.lock().await.remove(uri);
             self.closed_diag_gen.lock().await.remove(uri);
             self.diagnostic_publisher
@@ -12011,7 +11983,7 @@ impl Backend {
         };
         let _ = receipt.await;
         // …and its place in the closed-badge recency list, so a cleared URI does
-        // not count against [`CLOSED_DIAG_BADGE_CAP`] (#1144).
+        // not count against [`CLOSED_DIAG_BADGE_CAP`].
         self.closed_diag_order
             .lock()
             .await
@@ -12027,9 +11999,10 @@ impl Backend {
     /// the caches into an owned nested struct (the `DocumentRecords::clear`
     /// technique this borrows, in `tcl-lsp-core`'s `workspace_index`): a nested
     /// struct only catches a field added *inside* the group, whereas a new
-    /// per-URI map is by definition added to `Backend` first — which is precisely
-    /// how issue #1298 happened.  Moving the five fields into an owned struct
-    /// would also have rewritten ~60 unrelated access sites for no extra safety.
+    /// per-URI map is by definition added to `Backend` first, which is exactly
+    /// the case that must not slip through.  Moving the five fields into an
+    /// owned struct would also rewrite dozens of unrelated access sites for no
+    /// extra safety.
     ///
     /// The classification, by field:
     ///
@@ -12044,7 +12017,7 @@ impl Backend {
     ///   ([`Self::evict_diag_slot`] — a slot a worker is draining is that
     ///   worker's liveness record and must survive), `db_files` /
     ///   `db_tombstones` / `db_project_members` ([`Self::db_remove_source`] retires the salsa handle
-    ///   rather than dropping it, #1145), `pull_diag_cache` / `closed_diag_gen` /
+    ///   rather than dropping it), `pull_diag_cache` / `closed_diag_gen` /
     ///   `closed_diag_order` ([`Self::clear_closed_diagnostics`], which must also
     ///   publish the empty diagnostic set), `semantic_tokens_convergence` (a
     ///   claim released by [`ConvergenceGuard`] on drop), and `workspace_index`
@@ -12156,7 +12129,7 @@ impl Backend {
     }
 
     /// Forget every piece of per-URI state keyed on `uris` — the single entry
-    /// point every path that retires a URI goes through (#1298, #1300).
+    /// point every path that retires a URI goes through.
     ///
     /// Covers the [`PerUriCaches`] group plus `diag_slots`, whose eviction is
     /// not a plain map removal.  Callers keep the rest of their retirement
@@ -12181,28 +12154,28 @@ impl Backend {
     }
 
     /// Retire every trace of a path a `workspace/didRenameFiles` moved away
-    /// from (#1146).
+    /// from.
     ///
     /// The old path no longer exists on disk, so it is treated exactly as
     /// [`LanguageServer::did_change_watched_files`] treats a `DELETED` file:
-    /// dropping only the `workspace_index` entry left its salsa `SourceFile` in
-    /// the `Project` — so the renamed file's procedures were counted twice in
-    /// cross-file resolution, and the old URI's whole memo chain, pull-cache
-    /// entry, semantic-token baseline and class analysis survived every rename
-    /// for the process's life.  The empty publish is what removes the client's
-    /// Problems entry for the dead path.
+    /// dropping only the `workspace_index` entry would leave its salsa
+    /// `SourceFile` in the `Project`, counting the renamed file's procedures
+    /// twice in cross-file resolution and keeping the old URI's whole memo
+    /// chain, pull-cache entry, semantic-token baseline and class analysis
+    /// alive for the process's life.  The empty publish is what removes the
+    /// client's Problems entry for the dead path.
     ///
     /// The per-URI caches go through the shared [`Self::forget_uri_states`]
-    /// (#1298): this function used to clear them by hand and missed
-    /// `rehomed_source_seeds` and `autoloaded_library_uris`, which every *other*
-    /// retirement path did clear.  A retained seed record is far worse than the
+    /// rather than being cleared by hand here, which is how
+    /// `rehomed_source_seeds` and `autoloaded_library_uris` get missed.  A
+    /// retained seed record is far worse than the
     /// bytes it holds — `refresh_source_rehoming_locked` can never reach its
     /// early return again, because the stale URI is queued as work on every
     /// round of every call (the desired set no longer names it) and the work
     /// item then dies at the `read_document` guard before it can heal the
-    /// record.  One rename of a `source`d file therefore turned an O(1) early
-    /// return into a permanent four-round workspace scan on every navigation
-    /// request that enters through `rehomed_index_guard`.
+    /// record.  One rename of a `source`d file would therefore turn an O(1)
+    /// early return into a permanent four-round workspace scan on every
+    /// navigation request that enters through `rehomed_index_guard`.
     async fn retire_renamed_uri(&self, uri: &Uri) {
         {
             // Serialise the index/salsa removal *and* the cache forget with
@@ -12228,7 +12201,7 @@ impl Backend {
         self.clear_closed_diagnostics(uri).await;
     }
 
-    /// Release `uri`'s diagnostics slot when its document closes (#1144).
+    /// Release `uri`'s diagnostics slot when its document closes.
     ///
     /// With no worker draining it the slot is dropped outright.  With one
     /// in flight the slot must stay — it is the worker's own liveness record —
@@ -12250,12 +12223,12 @@ impl Backend {
     }
 
     /// Record that `uri` now carries a **closed**-file badge and evict the
-    /// oldest closed badges beyond [`CLOSED_DIAG_BADGE_CAP`] (#1144).
+    /// oldest closed badges beyond [`CLOSED_DIAG_BADGE_CAP`].
     ///
     /// Open documents are never queued here, so they are never evicted.  An
     /// evicted URI only loses the server's *record* of its badge — the client
     /// keeps the diagnostics it was last sent, and reopening the file (or a
-    /// watched-file change) recomputes them from disk — so #865's retained
+    /// watched-file change) recomputes them from disk — so the closed-file
     /// badge survives; what stops growing is the per-URI `Vec<Diagnostic>` the
     /// server would otherwise hold for every file the user ever opened.
     async fn record_closed_diag_badge(&self, uri: &Uri) {
@@ -12337,7 +12310,7 @@ impl Backend {
     }
 
     /// The workspace's `namespace export` records, as the whole-program
-    /// oracle the single-document providers consult (issue #1116 item 1).
+    /// oracle the single-document providers consult.
     ///
     /// Taken under the index lock and returned owned, so it can be moved into
     /// the `spawn_blocking` worker that runs the provider with the lock
@@ -12347,8 +12320,7 @@ impl Backend {
         self.workspace_index.read().await.export_snapshot()
     }
 
-    /// The iRulesLX method word under `pos`, with what it resolves to
-    /// (issue #1707).
+    /// The iRulesLX method word under `pos`, with what it resolves to.
     ///
     /// The dialect gate is the registry itself: `ILX::call` / `ILX::notify` are
     /// iRules-surface specs carrying the remote-method descriptors, so a
@@ -12378,7 +12350,7 @@ impl Backend {
     }
 
     /// Find-references for the iRulesLX method relation, or `None` when the
-    /// cursor is not on one of its two ends (issue #1707).
+    /// cursor is not on one of its two ends.
     ///
     /// The JavaScript end is gated on the document actually being an ILX
     /// extension entry point — `…/extensions/<name>/index.js`, or whatever its
@@ -12448,7 +12420,7 @@ impl Backend {
     }
 
     /// `tcl-lsp.ilxReferences` — find-references from a point inside an ILX
-    /// extension's **JavaScript** entry point (issue #1707 criterion 3).
+    /// extension's **JavaScript** entry point.
     ///
     /// A command rather than a `textDocument/references` route because a `.js`
     /// file is not a Tcl document and must not become one: routing it to this
@@ -12519,7 +12491,7 @@ impl Backend {
     }
 
     /// Go-to-definition for an iRulesLX method word, or `None` when the cursor
-    /// is not on one (issue #1707).
+    /// is not on one.
     ///
     /// `Some(vec![])` — an ILX method word that resolved to nothing — is a
     /// *definitive* answer, not a fall-through. The cursor sits on an argument
@@ -12551,8 +12523,7 @@ impl Backend {
     /// rules, and the extension's JavaScript — and must see the same bytes
     /// [`Backend::read_document`] would: the open buffer when there is one,
     /// the file on disk otherwise. Without this, find-references over a rule
-    /// with unsaved edits reports the text last written to disk (issue #1707
-    /// review).
+    /// with unsaved edits would report the text last written to disk.
     ///
     /// A snapshot rather than a per-file `read_document` round trip because
     /// the core walk is synchronous and discovers the files itself; the map is
@@ -12591,7 +12562,7 @@ impl Backend {
         let Some(doc) = self.read_document(uri).await else {
             return Ok(Vec::new());
         };
-        // An iRulesLX method word is answered here, in full (issue #1707).
+        // An iRulesLX method word is answered here, in full.
         if let Some(locations) = self.ilx_definition(uri, &doc, pos).await {
             return Ok(locations);
         }
@@ -12607,8 +12578,8 @@ impl Backend {
         // false-positive go-to-definition jump.
         let on_command_head = position_is_command_head(&doc.text, pos, &analysis, &doc.line_index);
         // A namespace-name argument is answered here, in full, and never
-        // reaches the tiers below.  Two reasons, both from the review of
-        // #1088: the position is *definitive* (a proc or class of the same
+        // reaches the tiers below.  Two reasons: the position is
+        // *definitive* (a proc or class of the same
         // spelling is not what it names), and the answer is the union of the
         // local and workspace declaring blocks — reopening a namespace
         // extends the same namespace, so a local block does not make a
@@ -12622,7 +12593,7 @@ impl Backend {
         let analysis_worker = Arc::clone(&analysis);
         // The whole-program export view the in-document tier needs to decide
         // whether a `namespace import -force` really deleted this file's own
-        // command of the name (issue #1116 item 1).  Snapshotted under the
+        // command of the name.  Snapshotted under the
         // index lock and moved into the worker, which runs with the lock
         // released.
         let exports = self.export_snapshot().await;
@@ -12650,9 +12621,9 @@ impl Backend {
             // dispatch must still honour the *workspace* visibility union
             // before that answer stands.  The declaring document's own
             // provider resolves `C Cm` from its local tables, so a cross-file
-            // `self unexport Cm` / `self deletemethod Cm` suppressed the
-            // member for every document except the one declaring the class
-            // (issue #1168).  The predicate reads the same chain fold the
+            // `self unexport Cm` / `self deletemethod Cm` would otherwise
+            // suppress the member for every document except the one declaring
+            // the class.  The predicate reads the same chain fold the
             // cross-file tier resolves through, and abstains (answers
             // "not suppressed") without positive suppression evidence.
             if self
@@ -12671,7 +12642,7 @@ impl Backend {
         }
         // A per-object visibility mask (`oo::objdefine $o { unexport m }`, or
         // an unexported per-object member) makes `$obj m` answer `unknown
-        // method` regardless of the class chain (issue #1170).  The
+        // method` regardless of the class chain.  The
         // in-document provider answers such a call with a *definitive* empty
         // result, which is indistinguishable from "no local answer" here —
         // without this gate the cross-file method tier below would resolve
@@ -12691,8 +12662,7 @@ impl Backend {
         // method token, so this is not gated on `on_command_head`.  Resolved
         // oracle-aware so a pure-consumer receiver (class defined elsewhere)
         // still identifies the method, and access-context-aware so an
-        // external call resolves the exported dispatch entry only
-        // (issue #945 faults 4 + 6).
+        // external call resolves the exported dispatch entry only.
         if let Some((class_q, method, is_classmethod, access)) = self
             .resolve_method_target(
                 uri,
@@ -12711,8 +12681,8 @@ impl Backend {
             }
         }
         // Cross-file namespace variable: `$::NS::var` whose declaring
-        // `namespace eval NS { variable var }` is in another document (issue
-        // #923 idx 65 / 75 / 78).  Not gated on `on_command_head` — a `$var`
+        // `namespace eval NS { variable var }` is in another document.
+        // Not gated on `on_command_head` — a `$var`
         // site never is one — and safe without that gate because the cell is
         // named exactly, not matched by simple name.
         let cross_var = self
@@ -12732,7 +12702,7 @@ impl Backend {
         if !cross.is_empty() {
             return Ok(cross);
         }
-        // Autoload tier (M8): the command is defined nowhere in the open
+        // Autoload tier: the command is defined nowhere in the open
         // workspace, but the package / auto-load database may know which
         // library file (`tclIndex` / `pkgIndex.tcl` on the configured
         // `libraryPaths` / `TCLLIBPATH`) defines it.  Resolve that file, analyse
@@ -12779,10 +12749,9 @@ impl Backend {
     /// `namespace eval ::a {}` twice leaves one namespace holding both
     /// blocks' variables), so every block is a definition site and a local
     /// one does not make a sibling document's block any less of one.  The
-    /// first cut returned as soon as the in-document provider answered, *and*
-    /// excluded the current URI from the index lookup, so a namespace opened
-    /// both here and next door reported only the local half (issue #1088
-    /// review, finding 2).
+    /// answer must not stop as soon as the in-document provider replies, nor
+    /// exclude the current URI from the index lookup: either would report only
+    /// the local half for a namespace opened both here and next door.
     ///
     /// The local half is read from the request's own analysis rather than the
     /// index, so an unindexed or just-edited document still answers; rows are
@@ -12791,10 +12760,9 @@ impl Backend {
     ///
     /// When nothing anywhere declares the cell outright, the answer falls back
     /// to its **implicit** creators — the covering prefix of every deeper
-    /// `namespace eval` name word, local and workspace alike (issue #1246).
-    /// The in-document provider has always done this; doing it only there
-    /// meant a namespace whose sole creating block lived in a sibling file
-    /// answered nothing at all.
+    /// `namespace eval` name word, local and workspace alike.  Doing that only
+    /// in the in-document provider would leave a namespace whose sole creating
+    /// block lives in a sibling file answering nothing at all.
     async fn namespace_declaration_locations(
         &self,
         uri: &Uri,
@@ -12858,9 +12826,9 @@ impl Backend {
     /// Hover for the namespace `cell`, counted over the local document **and**
     /// every indexed sibling.
     ///
-    /// Counting only the document under the cursor contradicted
-    /// go-to-definition, which offers every declaring block wherever it lives
-    /// (issue #1088 review, finding 2).  The rendering itself stays in
+    /// Counting only the document under the cursor would contradict
+    /// go-to-definition, which offers every declaring block wherever it lives.
+    /// The rendering itself stays in
     /// [`core_namespace_symbol::namespace_hover_markdown`], so the
     /// in-document provider and this tier cannot word the same fact
     /// differently — they differ only in how wide a set they counted, which
@@ -12871,8 +12839,8 @@ impl Backend {
     /// no file in view creates — never a fall-through to command
     /// documentation.  A sibling file's deeper `namespace eval` counts as an
     /// implicit creator here exactly as it does in the local tally, so the
-    /// "implicitly created by" wording is reachable cross-document
-    /// (issue #1246); the count is pure name arithmetic, so unlike the
+    /// "implicitly created by" wording is reachable cross-document; the count
+    /// is pure name arithmetic, so unlike the
     /// definition tier it needs no document text.
     async fn namespace_hover(
         &self,
@@ -12967,7 +12935,7 @@ impl Backend {
     /// Only ever consulted after the in-document provider came back empty, so
     /// a locally-declared cell always answers locally.  The index lookup is an
     /// exact qualified-name match over the index's variable table — no scan of
-    /// other documents, no re-analysis (issue #923 idx 65 / 75 / 78).
+    /// other documents, no re-analysis.
     async fn cross_document_variable_definition(
         &self,
         uri: &Uri,
@@ -12983,7 +12951,7 @@ impl Backend {
         ) else {
             return Vec::new();
         };
-        // The index answers under source-site namespaces too (M9), so
+        // The index answers under source-site namespaces too, so
         // reconcile before asking, exactly as the proc/class tier does.
         let rehoming_guard = self.rehomed_index_guard().await;
         let targets: Vec<(String, tcl_lexer::Span)> = {
@@ -12998,7 +12966,7 @@ impl Backend {
         self.resolve_target_locations(targets).await
     }
 
-    /// Autoload-tier go-to-definition (M8): resolve a command head that the
+    /// Autoload-tier go-to-definition: resolve a command head that the
     /// workspace index cannot place to the library file the auto-load / package
     /// database says defines it, then jump to that proc's declaration.
     ///
@@ -13046,7 +13014,7 @@ impl Backend {
     }
 
     /// Merge the library file(s) the auto-load / package database says define
-    /// `word` into the shared workspace index (M8's second half): references,
+    /// `word` into the shared workspace index: references,
     /// rename, and definition then reach library definitions through the same
     /// index queries that serve workspace files.
     ///
@@ -13063,8 +13031,8 @@ impl Backend {
     /// `workspace_scan_gate`'s field doc) — otherwise a request landing
     /// shortly after startup, a workspace-folder change, or a config change
     /// could read `package_resolver` before that scan has (re)built it and
-    /// wrongly conclude the command isn't auto-loadable at all (issue
-    /// #1003).
+    /// wrongly conclude the command isn't auto-loadable at all.
+    ///
     /// Both library tiers in priority order: the `tclIndex` auto-load index
     /// ([`Self::ensure_autoload_indexed`]) first, since it names the command
     /// directly, then the document's own `package require`s
@@ -13102,12 +13070,11 @@ impl Backend {
     /// commands an `auto_index` names.  A repo-local package declared by a
     /// `pkgIndex.tcl` has no `tclIndex` at all — its commands become reachable
     /// by `package require` evaluating the `ifneeded` script — so nothing
-    /// reached them unless the file happened to sit under a configured
-    /// workspace root and get swept up by the blunt recursive scan (issue #923
-    /// differential-audit finding idx 73; with `auto_path` now fed from the
-    /// document's own mutations, see
-    /// [`extend_resolver_with_document_auto_paths`], the resolver knows the
-    /// package even when the root does not enclose it).
+    /// would reach them unless the file happened to sit under a configured
+    /// workspace root and get swept up by the blunt recursive scan.  With
+    /// `auto_path` fed from the document's own mutations (see
+    /// [`extend_resolver_with_document_auto_paths`]) the resolver knows the
+    /// package even when the root does not enclose it.
     ///
     /// Bounded by **this document's** `package require` list, not the
     /// workspace's: a handful of packages, each contributing the files its own
@@ -13145,7 +13112,7 @@ impl Backend {
         // the mode a file that (transitively) `source`s it already latched.
         // The state is interpreter-global, and along the `source` graph "ran
         // first" is a static fact, so a `package prefer latest` in the entry
-        // file really is in force here (issue #1253).
+        // file really is in force here.
         let inherited_prefer = {
             let index = self.workspace_index.read().await;
             if index.source_ancestor_prefers_latest(uri.as_str(), resolve_source_uri) {
@@ -13165,11 +13132,11 @@ impl Backend {
                 // `PackageResolver::resolve_require`), not whichever directory
                 // the scan happened to read first.  `-exact` is carried
                 // through, so `package require -exact widget 2.0` navigates
-                // into 2.0 or nothing at all — never into 2.3 (issue #1090).
+                // into 2.0 or nothing at all — never into 2.3.
                 // The `package prefer` mode is taken **at this require's own
                 // position**, so a document that raised the interpreter to
                 // `latest` above it navigates into the prerelease it really
-                // loads (issue #1126 item 1).
+                // loads.
                 let prefer = tcl_lsp_core::package_resolver::package_prefer_at(
                     analysis,
                     req.range.start(),
@@ -13279,15 +13246,15 @@ impl Backend {
     }
 
     /// Hover for a command head the current document cannot resolve, using
-    /// the same two fallback tiers `compute_definition` already has: the
-    /// cross-document workspace index, then the autoload / package database
-    /// (issue #1018).
+    /// the same two fallback tiers `compute_definition` has: the
+    /// cross-document workspace index, then the autoload / package database.
     ///
     /// Go-to-definition, find-references, and the unknown-command diagnostic
     /// all resolve a tcllib-shaped command whose `proc` lives in a sibling
-    /// file reached through `source` or `auto_path`/`tclIndex`.  Hover used to
-    /// be the one provider that gave up at the file boundary and silently
-    /// showed nothing, at the very call site the other three resolved.
+    /// file reached through `source` or `auto_path`/`tclIndex`.  Without these
+    /// tiers hover would be the one provider that gives up at the file
+    /// boundary and silently shows nothing, at the very call site the other
+    /// three resolve.
     ///
     /// The body is rendered from the *defining* document's own analysis
     /// ([`core_hover::qualified_symbol_hover`]) — the same renderer, and the
@@ -13310,9 +13277,10 @@ impl Backend {
                 return Some(hover);
             }
         }
-        // Autoload tier (M8's hover twin): the command is defined nowhere in
-        // the open workspace, but `tclIndex` / `pkgIndex.tcl` on the configured
-        // library paths says which file defines it.  `ensure_autoload_indexed`
+        // Autoload tier, hover's twin of the definition one: the command is
+        // defined nowhere in the open workspace, but `tclIndex` /
+        // `pkgIndex.tcl` on the configured library paths says which file
+        // defines it.  `ensure_autoload_indexed`
         // merges that file into the workspace index, so the render below reads
         // it exactly like any other indexed document.
         let (word, namespace) = core_definition::command_head_and_namespace_at(
@@ -13423,7 +13391,7 @@ impl Backend {
         pos: Position,
         analysis: &AnalysisResult,
     ) -> jsonrpc::Result<Vec<Location>> {
-        // Reconcile the index with the source graph first (M9): sourced
+        // Reconcile the index with the source graph first: sourced
         // documents answer under their source-site namespaces.
         let (rehoming_guard, symbols) = self
             .resolved_symbol_index_snapshot(uri, source, analysis, pos)
@@ -13482,18 +13450,17 @@ impl Backend {
     ///
     /// `targets` holds one entry per reference **site**, but many sites
     /// share a URI (a heavily-`source`d proc can have hundreds of call sites
-    /// in a handful of files). Resolving per site used to call
+    /// in a handful of files). Resolving per site would call
     /// [`Self::read_document`] — a full `DocumentState` clone, or a
     /// `std::fs::read_to_string` for a closed file, plus an `edits_settled()`
-    /// wait — once per site; on 800 sites across 60 files that was 800 reads
-    /// for 60 documents' worth of real work (issue #1153). Read each unique
-    /// URI once instead, then look every site's span up against its
-    /// document's already-resolved `line_index`. `targets`' own order is
-    /// untouched (a document is read once, on its first site, but sites are
-    /// still emitted in their original relative order — some callers dedup
-    /// results and others (the code-lens click target, #991) rely on the
-    /// order matching `textDocument/references`'), so no caller needs to
-    /// change.
+    /// wait — once per site: 800 sites across 60 files would cost 800 reads
+    /// for 60 documents' worth of real work. Each unique URI is read once
+    /// instead, and every site's span is looked up against its document's
+    /// already-resolved `line_index`. `targets`' own order is untouched (a
+    /// document is read once, on its first site, but sites are still emitted
+    /// in their original relative order — some callers dedup results and
+    /// others, such as the code-lens click target, rely on the order matching
+    /// `textDocument/references`).
     async fn resolve_target_locations(
         &self,
         targets: Vec<(String, tcl_lexer::Span)>,
@@ -13546,13 +13513,13 @@ impl Backend {
     /// 1. On a proc / class **declaration name** in this document — the symbol
     ///    whose name span covers the cursor.  A declaration in a document
     ///    sourced under several namespaces is one physical token with one
-    ///    runtime identity **per source-site view** (issue #945 fault 3), so
+    ///    runtime identity **per source-site view**, so
     ///    every seed-mapped identity is returned, never an arbitrary first.
     /// 2. On a **command-head call** — the invocation's ordered resolution
     ///    candidates (caller namespace, each `namespace path` entry, then
     ///    global) walked in Tcl priority order; the first defined in the current
     ///    document or anywhere in the workspace is the call's target.  This is
-    ///    the workspace-scoped resolution oracle, replacing a namespace-blind
+    ///    the workspace-scoped resolution oracle, rather than a namespace-blind
     ///    `name == word` scan and an arbitrary same-simple-name sibling pick.
     ///
     /// Anything else (a bareword argument, whitespace, a `$var`) resolves to
@@ -13577,7 +13544,7 @@ impl Backend {
 
         // A declaration in a *sourced* document resolves standalone to its
         // global-rooted name; the index holds one source-site re-homed twin
-        // per seed (M9), so map through the applied seeds to the full set.
+        // per seed, so map through the applied seeds to the full set.
         if let Some(proc_def) = analysis.all_procs.values().find(|p| covers(p.name_span)) {
             return self
                 .seed_mapped_symbols(uri, proc_def.qualified_name.clone())
@@ -13598,11 +13565,11 @@ impl Backend {
         // finding the cursor there still means "this token declares
         // qualified name X", so resolve through `all_procs` to whichever
         // definition currently wins for X — never the shadowed span
-        // itself (issue #923 idx 31, main audit wave: a rename or
-        // find-references issued from the shadowed declaration must reach
-        // the same cross-file callers as one issued from the winning
-        // declaration or a call site, or a rename silently corrupts the
-        // program by leaving callers bound to the dead definition).
+        // itself: a rename or find-references issued from the shadowed
+        // declaration must reach the same cross-file callers as one issued
+        // from the winning declaration or a call site, or a rename silently
+        // corrupts the program by leaving callers bound to the dead
+        // definition.
         if let Some((qualified, _)) = analysis
             .proc_declaration_sites
             .iter()
@@ -13649,10 +13616,10 @@ impl Backend {
             // binds to the namespace, not the file it was written in, so
             // this is not restricted to imports recorded in this document)
             // whose source namespace actually exported the name cover this
-            // call? (issue #923 idx 18; the same gate
+            // call? This is the same gate
             // `definition::resolve_called_proc` / `resolve_class_target_at`
-            // already apply in-document, extended here to a source
-            // namespace defined in another file.)
+            // apply in-document, extended to a source namespace defined in
+            // another file.
             if let Some(target) = index.resolve_wildcard_import(
                 &inv.name,
                 &inv.resolution_candidates,
@@ -13688,7 +13655,7 @@ impl Backend {
             return indexed;
         }
 
-        // Autoload tier (M8): the command resolves nowhere in the open
+        // Autoload tier: the command resolves nowhere in the open
         // workspace. Ask the auto-load / package database, merging the
         // defining library file into the index so this query — and every
         // later references / rename / definition — sees its definitions.
@@ -13780,19 +13747,17 @@ impl Backend {
         .await
     }
 
-    /// Consumer-document references fallback (mirrors rename's "M8"
-    /// pattern, [`Self::add_workspace_resolved_rename_edits`]): the
+    /// Consumer-document references fallback, mirroring the autoload-tier
+    /// rename pattern ([`Self::add_workspace_resolved_rename_edits`]): the
     /// cursor's command has no local declaration in the current document,
     /// so the single-document reference pass found nothing to anchor on —
     /// not a genuine zero-references case, since
     /// [`Self::cross_document_references`]'s exclusion of the current
-    /// document assumes that pass already covers it (issue #923 idx 71:
-    /// nico-robert/pix's `test_context.test` `source`s `data_b64.test` for
-    /// `isEqual`/`getbase64`, then calls them bare — every one of
-    /// `test_context.test`'s *own* call sites, including the one the
-    /// cursor sits on, was silently dropped). Resolves through the
-    /// workspace oracle and gathers every reference the index knows,
-    /// current-document call sites included.
+    /// document assumes that pass already covers it.  A file that `source`s
+    /// a sibling and then calls its procs bare would otherwise lose every one
+    /// of its *own* call sites, including the one the cursor sits on.
+    /// Resolves through the workspace oracle and gathers every reference the
+    /// index knows, current-document call sites included.
     async fn workspace_resolved_references(
         &self,
         uri: &Uri,
@@ -13827,8 +13792,8 @@ impl Backend {
         if symbols.is_empty() {
             return Vec::new();
         }
-        // A multi-seeded declaration names several runtime identities
-        // (issue #945 fault 3) — the reference set is the **union over
+        // A multi-seeded declaration names several runtime identities —
+        // the reference set is the **union over
         // every view**, so a `::x::helper` caller and a `::y::helper`
         // caller both surface from the one physical declaration.
         let targets: Vec<(String, tcl_lexer::Span)> = {
@@ -13871,10 +13836,10 @@ impl Backend {
     /// (`tcl-lsp.showReferences`) opens.  The declaration is never included,
     /// matching the lens's "N references" call-site count; everything else is
     /// literally [`Self::reference_locations`], the same path the
-    /// `textDocument/references` handler runs (issue #991 — the lens used to
-    /// skip the method/classmethod cross-file layer the handler applied, so a
-    /// lens click showed fewer sites than Find All References on the very
-    /// same declaration).
+    /// `textDocument/references` handler runs.  A separate lens path would
+    /// skip the method/classmethod cross-file layer the handler applies, so a
+    /// lens click would show fewer sites than Find All References on the very
+    /// same declaration.
     async fn reference_locations_at(
         &self,
         uri: &Uri,
@@ -13893,7 +13858,7 @@ impl Backend {
     ///
     /// The **one** path behind both `textDocument/references` and the code
     /// lens's click target.  They must not re-derive it separately: the lens
-    /// listing fewer sites than the peek on the same symbol is issue #991.
+    /// listing fewer sites than the peek on the same symbol is a defect.
     async fn reference_locations(
         &self,
         uri: &Uri,
@@ -13907,7 +13872,7 @@ impl Backend {
         // local set — which is what asking for references without
         // declarations from a namespace's only declaring block produces —
         // would otherwise route the query to `workspace_resolved_references`,
-        // the proc/class tier (issue #1088 review, finding 1).
+        // the proc/class tier.
         if let Some(cell) = Self::namespace_cell(&doc.text, analysis, position) {
             return self
                 .namespace_reference_locations(uri, analysis, &cell, include_declaration)
@@ -13917,7 +13882,7 @@ impl Backend {
         let dialect = doc.dialect.clone();
         let analysis_for_worker = analysis.clone();
         // Which definition a bare call is a reference *to* can turn on a
-        // `namespace export` in another file (issue #1116 item 1), so the
+        // `namespace export` in another file, so the
         // single-document pass gets the same whole-program export view
         // go-to-definition uses — or the two contradict each other on one
         // cursor.
@@ -13939,7 +13904,7 @@ impl Backend {
         })
         .await
         .unwrap_or_default();
-        // A pure-consumer document (issue #923 idx 71) has no local
+        // A pure-consumer document has no local
         // declaration to anchor the single-document pass on, so an empty
         // `ranges` here does not mean "genuinely zero" — see
         // `workspace_resolved_references`'s own doc.
@@ -14082,8 +14047,8 @@ impl Backend {
                 index.bare_word_construction_class_qnames(),
             )
         };
-        // The class-factory oracle travels with the class-name set (issue
-        // #1276): without it this tier would not see a class the document
+        // The class-factory oracle travels with the class-name set:
+        // without it this tier would not see a class the document
         // manufactures through a cross-file metaclass at all, and a method
         // lookup on one would miss where the cached tier resolves it.
         let workspace_class_factories = self.class_factories_for(uri).await;
@@ -14138,7 +14103,7 @@ impl Backend {
     ///
     /// Rename and Find-All-References must resolve the cursor through the
     /// *same* tiers go-to-definition does, or a class-side call in a pure
-    /// consumer file navigates but cannot be renamed (issue #1119 review).
+    /// consumer file navigates but cannot be renamed.
     async fn resolve_method_rename_target(
         &self,
         uri: &Uri,
@@ -14160,7 +14125,7 @@ impl Backend {
     /// Whether the cursor sits on a bare `ClassName member` **class-side**
     /// dispatch whose member the workspace visibility union suppresses —
     /// the gate the in-document definition and hover tiers consult before
-    /// their local answer stands (issue #1168).
+    /// their local answer stands.
     ///
     /// Classification comes from the local analysis alone
     /// ([`core_rename::method_target_with_access`]), which is exactly the
@@ -14210,8 +14175,7 @@ impl Backend {
         // types `$obj`), but a bare `ClassName member` needs the class's
         // class-side member table, which no reanalysis of *this* document can
         // produce — a pure consumer never mentions the class's body.  Handing
-        // the index in lets the classmethod arm ask the one tier that knows
-        // (issue #1119 review).
+        // the index in lets the classmethod arm ask the one tier that knows.
         let index = self.workspace_index.read().await;
         core_rename::method_target_with_access_in_workspace(
             source,
@@ -14230,7 +14194,7 @@ impl Backend {
     /// **Qualified names only.**  The core scanner resolves each written head
     /// against the call site's own lexical namespace and compares the winner
     /// against these names, so handing it simple names too would re-introduce
-    /// exactly the namespace-blind text match issue #981 removed: with a
+    /// exactly the namespace-blind text match this avoids: with a
     /// `Factory` in `::a` and another in `::b`, a bare `Factory make` inside
     /// `namespace eval ::b` must be attributed to `::b::Factory` alone.
     ///
@@ -14254,9 +14218,9 @@ impl Backend {
     /// tclsh 8.6 and 9.0.4).  `ooutil`'s `classmethod` keyword does
     /// propagate.  Both share the `"classmethod"` receiver kind, so the
     /// inheritors are folded in only when an indexed definer declares a
-    /// genuinely inheritable copy — otherwise a rename rewrote a subclass
-    /// consumer's `Gadget make`, which never called the renamed member at
-    /// all (Codex review on #1047).
+    /// genuinely inheritable copy — otherwise a rename would rewrite a
+    /// subclass consumer's `Gadget make`, which never called the renamed
+    /// member at all.
     fn classmethod_dispatch_names(
         definers: &[&core_workspace_index::WorkspaceClass],
         inheritors: &[&core_workspace_index::WorkspaceClass],
@@ -14268,7 +14232,7 @@ impl Backend {
         // cursor, or the caller's own test fixture) about which of a
         // possibly-same-named `method` / `classmethod` pair is meant — not
         // re-derived from workspace membership, which can't disambiguate
-        // when a class legally defines both (Codex review on #971, P2).
+        // when a class legally defines both.
         if !is_classmethod {
             return Vec::new();
         }
@@ -14277,8 +14241,8 @@ impl Backend {
             .filter_map(|wc| wc.class_method(method))
             .collect();
         // No indexed declaration at all (a class not yet indexed) keeps the
-        // inheritors, as before — the exclusion needs positive knowledge that
-        // every declaration is a `self method`.
+        // inheritors — the exclusion needs positive knowledge that every
+        // declaration is a `self method`.
         let inheritable = declarations.is_empty() || declarations.iter().any(|m| !m.is_self_method);
         definers
             .iter()
@@ -14338,8 +14302,8 @@ impl Backend {
     /// References ([`Self::cross_file_consumer_method_references`]) and the
     /// consumer leg of rename ([`Self::cross_file_method_rename`]).  They
     /// must agree site-for-site: a site references sees but rename misses is
-    /// a call left bound to a name that no longer exists (issue #993), so
-    /// the two never re-derive the set independently.
+    /// a call left bound to a name that no longer exists, so the two never
+    /// re-derive the set independently.
     async fn consumer_method_site_ranges(
         &self,
         current_uri: &Uri,
@@ -14454,10 +14418,9 @@ impl Backend {
                 .documents_invoking_classes(&family_norm)
                 .into_iter()
                 .collect(),
-            // Issue #1099: a document that receives an instance without
-            // constructing one invokes no family constructor, so it is in no
-            // index table at all — the only set that provably contains it is
-            // every document.
+            // A document that receives an instance without constructing one
+            // invokes no family constructor, so it is in no index table at
+            // all — the only set that provably contains it is every document.
             ConsumerCoverage::WholeWorkspace => index.document_uris(),
         };
         consumer_uris.sort();
@@ -14595,7 +14558,7 @@ impl Backend {
         }
         // The family a receiver's capture may join is the set of definers
         // this pass is about; a receiver whose external dispatch lands
-        // elsewhere is dispatching a different member (issue #1705).
+        // elsewhere is dispatching a different member.
         let definer_names: Vec<&str> = by_uri
             .values()
             .flat_map(|classes| classes.definers.iter().map(String::as_str))
@@ -14660,11 +14623,11 @@ impl Backend {
     /// with its reason, exactly like the workspace gate's.  Flattening it to
     /// an empty edit set would present the one hazard the gate exists to stop
     /// as "nothing renameable here" and let the cross-document tier build
-    /// edits for it (issue #923 idx 79, verification pass).
+    /// edits for it.
     ///
     /// The export snapshot is what lets a rename started from a
     /// `-force`-shadowed call retarget to the definition that call actually
-    /// reaches (issue #1116 item 1).
+    /// reaches.
     ///
     /// Extracted from [`Self::rename`] to keep that entry point inside the
     /// line budget.
@@ -14720,13 +14683,13 @@ impl Backend {
         pos: Position,
         new_name: &str,
     ) -> Option<jsonrpc::Result<Option<WorkspaceEdit>>> {
-        // Namespace tier (issue #1114): the cursor names a namespace, so
+        // Namespace tier: the cursor names a namespace, so
         // rename it across the whole workspace or refuse with the reason.
         // Either answer is returned from here and never falls through: an
         // empty edit set would reach the ordinary and workspace-resolved
         // rename tiers, which resolve the cursor **word** as a command — so
-        // `namespace children widget` beside a `proc widget` renamed the proc
-        // instead (issue #1088 review, finding 1).
+        // `namespace children widget` beside a `proc widget` would rename the
+        // proc instead.
         if Self::namespace_cell(&doc.text, analysis, pos).is_some() {
             return Some(
                 match self
@@ -14770,8 +14733,7 @@ impl Backend {
         }
     }
 
-    /// Rename the **namespace** the cursor names, across the whole workspace
-    /// (issue #1114).
+    /// Rename the **namespace** the cursor names, across the whole workspace.
     ///
     /// A namespace is spelled in every file that reaches into it — a
     /// `namespace eval` block that reopens it, a `$::ns::v`, a `::ns::p` call,
@@ -14889,7 +14851,7 @@ impl Backend {
     /// is the workspace fan-out.  A hazard in a *sibling* document is every
     /// bit as fatal as one in the request's own: the edit set spans all of
     /// them, so an unrewritable dispatch anywhere refuses the whole rename
-    /// rather than half-applying it (issue #923 idx 79).
+    /// rather than half-applying it.
     ///
     /// # The gate's set is the edit collector's set
     ///
@@ -14900,7 +14862,7 @@ impl Backend {
     /// dispatches the method on an untracked receiver is rewritten by the
     /// consumer leg but, if never scanned, contributes no refusal, and the
     /// declaration moves out from under a call that still names the old
-    /// member (issue #1092, Codex review of PR #1091).  The set is therefore
+    /// member.  The set is therefore
     /// the definers' and pure inheritors' documents, every consumer document,
     /// and the request's own.
     ///
@@ -14933,8 +14895,7 @@ impl Backend {
                     seed_class: &seed_class,
                     method: &method,
                     is_classmethod,
-                    // The same coverage the rename's edit collector uses,
-                    // which is the #1092 invariant — and since #1099 that is
+                    // The same coverage the rename's edit collector uses:
                     // every indexed document, so a consumer holding an
                     // instance it never constructed is scanned rather than
                     // invisible.
@@ -14985,9 +14946,9 @@ impl Backend {
         None
     }
 
-    /// Rename the **namespace variable** cell at `pos` across the workspace
-    /// (PR C3, completing the cross-document variable tier PR #1086 added for
-    /// go-to-definition / hover / find-references).
+    /// Rename the **namespace variable** cell at `pos` across the workspace —
+    /// the rename half of the cross-document variable tier that serves
+    /// go-to-definition, hover and find-references.
     ///
     /// The cell is resolved by the one shared entry point
     /// ([`Self::qualified_variable_cell`]), which already applies the
@@ -15023,7 +14984,7 @@ impl Backend {
     {
         let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
             std::collections::HashMap::new();
-        // Resolved once for the whole rename (issue #1405).
+        // Resolved once for the whole rename.
         let profile = tcl_lsp_core::profile_for_dialect(&analysis.dialect);
         let Some(cell) = Self::qualified_variable_cell(&doc.text, profile, analysis, pos) else {
             return Ok(changes);
@@ -15043,10 +15004,9 @@ impl Backend {
             // just as destructive — so both tables gate the collision.
             //
             // The refusal names the documents it found, because "already
-            // declared in this workspace" is unfalsifiable from the editor: a
-            // report against a workspace whose only Tcl file demonstrably
-            // contained no `b` had no way to go further than disbelief, and
-            // neither did the investigation (issue #1935). The workspace the
+            // declared in this workspace" is unfalsifiable from the editor
+            // when the workspace's only visible Tcl file plainly declares no
+            // such cell. The workspace the
             // gate reads is not the set of files the user has in mind — it
             // spans every scanned folder — so the one fact that makes the
             // refusal checkable is *which* document declares the cell.
@@ -15161,9 +15121,10 @@ impl Backend {
     /// subclass lives in a different file from the definer.  **Pure-consumer**
     /// documents — ones that neither define nor extend any family class and
     /// only call `$obj method` / `Class method` — are covered by the same
-    /// resolver Find All References uses ([`Self::consumer_method_site_ranges`],
-    /// issue #993); leaving them out rewrote the declaration while the consumer
-    /// kept calling a name that no longer existed.
+    /// resolver Find All References uses
+    /// ([`Self::consumer_method_site_ranges`]); leaving them out would rewrite
+    /// the declaration while the consumer kept calling a name that no longer
+    /// existed.
     async fn cross_file_method_rename(
         &self,
         current_uri: &Uri,
@@ -15240,7 +15201,7 @@ impl Backend {
                 new_name,
             );
         }
-        // The consumer leg (issue #993): documents that only *call* the
+        // The consumer leg: documents that only *call* the
         // method.  Same resolver as the references path, so what Find All
         // References reports as a call site is exactly what rename rewrites.
         // A document already visited above contributes here too (its own
@@ -15257,7 +15218,7 @@ impl Backend {
                     is_classmethod,
                     // The rename leg covers every indexed document, so a
                     // consumer that only *receives* an instance is rewritten
-                    // rather than silently missed (issue #1099).
+                    // rather than silently missed.
                     coverage: ConsumerCoverage::WholeWorkspace,
                 },
             )
@@ -15430,10 +15391,10 @@ impl Backend {
     /// Cross-file go-to-definition for a `TclOO` method: the declaration
     /// site of the **dispatch entry** — the first implementation on the
     /// receiver class's C-faithful linearisation that is callable under
-    /// `access` (issue #945 fault 6: a definition request identifies the
+    /// `access` (a definition request identifies the
     /// implementation the call actually enters, never the whole override
-    /// family; fault 4: an externally-uncallable method resolves to
-    /// nothing, mirroring C's `unknown method`).
+    /// family; an externally-uncallable method resolves to nothing, mirroring
+    /// C's `unknown method`).
     ///
     /// The current document participates: a mixin override in this file
     /// outranks the receiver class's own method in another.  (Same-file
@@ -15445,8 +15406,8 @@ impl Backend {
     /// picks the **side** the chain is walked on.  A `ClassName member`
     /// dispatch goes through the class object's own tables, so it must honour
     /// the class-side visibility channel: without it a `self unexport m` in one
-    /// file left this resolving a `::C m` the interpreter rejects with `unknown
-    /// method "m"` (issue #1119).
+    /// file would leave this resolving a `::C m` the interpreter rejects with
+    /// `unknown method "m"`.
     async fn cross_file_method_definition(
         &self,
         _current_uri: &Uri,
@@ -15502,14 +15463,14 @@ impl Backend {
 
     /// Cross-file **hover** for a `TclOO` method dispatch: the same dispatch
     /// entry [`Self::cross_file_method_definition`] jumps to, rendered as the
-    /// one-line summary the in-document hover renders (issue #923 idx 28).
+    /// one-line summary the in-document hover renders.
     ///
     /// The in-document provider (`core_hover`'s `method_dispatch_hover`) is
     /// MRO-aware, but only over `analysis.all_classes` — the classes *this*
-    /// document declares.  The finding's real corpus shape is cross-file:
-    /// `my ArgsPreprocess` in a device file, the `mixin` that provides it in
-    /// the library file.  Definition and references crossed that boundary
-    /// through the workspace index; hover returned nothing at all.
+    /// document declares.  The common shape is cross-file: `my ArgsPreprocess`
+    /// in a device file, the `mixin` that provides it in the library file.
+    /// Definition and references cross that boundary through the workspace
+    /// index, and this is what lets hover do the same.
     ///
     /// Deliberately built on the *same* resolution and the *same* chain walk
     /// as the definition tier — [`Self::resolve_method_target`] then
@@ -15584,11 +15545,11 @@ impl Backend {
     /// and merges into the per-URI edit map (deduped).
     /// Returns `true` when the rename must be **aborted wholesale**: a
     /// sibling document holds an indirect dispatch of this symbol whose
-    /// contributing constants are not all source-writable (issue #945
-    /// fault 1) — no edit set can keep that dispatch alive, so not even
+    /// contributing constants are not all source-writable — no edit set can
+    /// keep that dispatch alive, so not even
     /// the in-document edits may apply.
     ///
-    /// A multi-seeded declaration (issue #945 fault 3) is an explicit
+    /// A multi-seeded declaration is an explicit
     /// **multi-symbol rename**: the one physical token names every
     /// source-site identity, so the edit set is the union over all of
     /// them — each view's callers rewritten — keeping every runtime
@@ -15626,7 +15587,7 @@ impl Backend {
         false
     }
 
-    /// Consumer-document rename (M8): the cursor's command has no local
+    /// Consumer-document rename: the cursor's command has no local
     /// definition, so the in-document rename had nothing to resolve against —
     /// not a *rejection* when the workspace (or a library file the autoload
     /// tier merges on demand) defines the symbol.  Resolve through the
@@ -15667,7 +15628,7 @@ impl Backend {
             // Every identity of a multi-seeded declaration must accept the
             // rename (no collision, no unwritable indirect dispatch) — a
             // partial multi-symbol edit would leave the views inconsistent,
-            // so one refusal aborts them all (issue #945 faults 1 + 3).
+            // so one refusal aborts them all.
             let mut intents: Vec<core_rename::WorkspaceTextEdit> = Vec::new();
             for qualified in &symbols {
                 let Some(symbol_intents) =
@@ -15689,7 +15650,7 @@ impl Backend {
     /// Extracted from [`LanguageServer::rename`] to keep it within the line
     /// budget.  Returns `true` when the caller must abort the whole rename
     /// (`Ok(None)`): a sibling document dispatches this symbol through a
-    /// value whose provenance is not fully writable (issue #945 fault 1).
+    /// value whose provenance is not fully writable.
     ///
     /// Gated on the same safety checks as the in-document path
     /// (`is_safe_symbol_name`, no built-in shadow) so a cross-doc rename
@@ -16411,11 +16372,10 @@ impl Backend {
     ///
     /// "Safe" is a property of the individual fix, read from the
     /// [`FixSafety`](tcl_compiler::analyser::FixSafety) the emitter attached
-    /// to it — not of the diagnostic's code.  The command used to carry its
-    /// own whitelist of codes (`W100`, `W110`, …), which promised a guarantee
-    /// the implementation never established: the same code emits an
-    /// equivalent rewrite for one call and a behaviour-changing one for the
-    /// next.  Under C Tcl 9.0.3:
+    /// to it — not of the diagnostic's code.  A whitelist of codes (`W100`,
+    /// `W110`, …) would promise a guarantee it cannot establish: the same code
+    /// emits an equivalent rewrite for one call and a behaviour-changing one
+    /// for the next.  Under C Tcl 9.0.3:
     ///
     /// ```tcl
     /// set a {$x}; set x 3; set b 2
@@ -16424,7 +16384,7 @@ impl Backend {
     /// ```
     ///
     /// Both are valuable fixes — they are offered as their own named code
-    /// actions — but neither belongs in an unattended bulk pass (#1195).
+    /// actions — but neither belongs in an unattended bulk pass.
     ///
     /// Per pass: re-analyse (so a fix whose proof depended on text an earlier
     /// pass rewrote is re-derived rather than re-used), take each
@@ -16596,12 +16556,9 @@ impl Backend {
         // The catalog's labels for the resolved dialect, so a status bar or
         // picker can render it without keeping its own name table. `null` for a
         // name the catalog does not know (an unrecognised configured value).
-        // Ledger F9 (payload half, still open): the labels move to the
-        // environment's own
-        // `display_name` when the environment/targets status surface lands;
-        // the model carries no `short_name` yet, so the catalogue projection
-        // is held — but reached from the *resolved environment*, not from a
-        // second name validator, and still `null` for a name that names no
+        // The model carries no `short_name`, so the label comes from the
+        // catalogue projection — reached from the *resolved environment*, not
+        // from a second name validator, and `null` for a name that names no
         // catalogue entry (`tk`, the lenient `tcl`, an unknown value).
         let dialect_profile = tcl_lsp_core::environment_for_dialect(&dialect).catalogue_profile();
         // Whether a `tclLsp.dialect` was actually configured for this URI — by
@@ -16609,7 +16566,7 @@ impl Backend {
         // built-in fallback that a never-configured session reports.  A
         // deliberate session override counts: it is exactly "someone chose this
         // dialect", and a caller tracing a surprising dialect must be able to
-        // see it (issue #1217).
+        // see it.
         let iruleslx_plugins = self.reported_ilx_plugin_roots().await;
         let session_override = self.session_dialect_override.lock().await.clone();
         let dialect_explicitly_set = parsed_uri
@@ -16624,9 +16581,9 @@ impl Backend {
         let disabled_signatures = self.signature_disabled_for(parsed_uri.as_ref()).await;
         // Resolved through the same folder chain every provider gate uses, so a
         // client polling this command observes the fact the provider will act
-        // on rather than the process-global one.  The two used to differ, which
-        // made a folder-scoped toggle invisible here and left the VS Code
-        // suite's toggle barrier waiting on the wrong fact (issue #1295).
+        // on rather than the process-global one.  If the two differed, a
+        // folder-scoped toggle would be invisible here and a client's toggle
+        // barrier would wait on the wrong fact.
         let features = self
             .resolved_feature_toggles(parsed_uri.as_ref())
             .await
@@ -16644,7 +16601,7 @@ impl Backend {
         let library_paths = self.editor_library_paths.lock().await.clone();
         let (spec_packs, spec_packs_loaded, pack_file_extensions) = self.spec_pack_report().await;
         let line_length = *self.line_length.lock().await;
-        // `tclLsp.formatting.docstringStyle` (#1314) — same per-URI fold as
+        // `tclLsp.formatting.docstringStyle` — same per-URI fold as
         // `resolved_docstring_style`, but a folder-only query (no readable
         // document) has no `Uri` to resolve *through*, so it reads the
         // process-global settings object directly, matching the `dialect`
@@ -16714,7 +16671,7 @@ impl Backend {
             "docstring_style": docstring_style_str,
             "non_ascii_mode": non_ascii_mode_str(mode),
             "disabled_diagnostics": disabled_sorted,
-            // The declared iRulesLX plugin associations (#1707), resolved to
+            // The declared iRulesLX plugin associations, resolved to
             // absolute paths — session-wide, so a caller can see what is
             // configured without naming a document inside the folder.
             "iruleslx_plugins": iruleslx_plugins,
@@ -16758,7 +16715,7 @@ impl Backend {
     /// session default: an override lives in its own slot
     /// ([`Backend::session_dialect_override`]) that no `workspace/configuration`
     /// pull touches, so it lasts until the caller clears it rather than until
-    /// the next time anything happens to settings (issue #1217).  That is the
+    /// the next time anything happens to settings.  That is the
     /// contract the chat commands need — run this buffer under `f5-irules`,
     /// then put it back — and the reason they must not push a
     /// `didChangeConfiguration` to get it.
@@ -16792,13 +16749,12 @@ impl Backend {
     /// [`Self::set_session_dialect_override_command`], and the seam a host
     /// needs when *one* buffer must differ from the session. Both existing
     /// dialect commands are session-global, so a host using either to re-tag a
-    /// single buffer re-tags every other open buffer with it — the behaviour
-    /// #1217 deliberately moved away from. The Spec Studio's dialect selector
-    /// is the first caller: its sample surface is always materialised as
-    /// `test.tcl`, so without this the server resolves it as generic Tcl and a
-    /// pack whose commands only exist in, say, `f5-irules` shows no
-    /// highlighting, completion or hover in the very buffer the studio exists
-    /// to give feedback on (issue #1931).
+    /// single buffer re-tags every other open buffer with it. The Spec
+    /// Studio's dialect selector is one caller: its sample surface is always
+    /// materialised as `test.tcl`, so without this the server resolves it as
+    /// generic Tcl and a pack whose commands only exist in, say, `f5-irules`
+    /// shows no highlighting, completion or hover in the very buffer the studio
+    /// exists to give feedback on.
     ///
     /// Arguments are `[uri, dialect]`; `dialect` absent or `null` clears.
     /// Returns `{success, uri, dialect}` (`dialect: null` when cleared), or
@@ -17000,11 +16956,11 @@ impl Backend {
         // buffer must be re-resolved against the new state here, at the single
         // point every pull passes through, rather than at each of the four call
         // sites (`initialized`, `did_change_configuration`, the workspace-folder
-        // change, and the `.tcl-lsp.ini` watcher) — two of which previously did
-        // not, which is what let a transient session-global dialect stay baked
-        // into open buffers (the pull reverted the global without re-resolving)
-        // and what left a document opened concurrently with `initialized`'s pull
-        // stuck on the pre-config default.
+        // change, and the `.tcl-lsp.ini` watcher).  A call site that skips it
+        // leaves a transient session-global dialect baked into open buffers —
+        // the pull reverts the global without re-resolving — and leaves a
+        // document opened concurrently with `initialized`'s pull stuck on the
+        // pre-config default.
         //
         // Outside the pull body on purpose: a client that declines
         // `workspace/configuration` (or answers with an empty array) still needs
@@ -17083,12 +17039,12 @@ impl Backend {
                 .map(|root| core_tcl_install::project_config_path(&root)),
             config_ini::Layer::Project,
         );
-        // Collapse the retired `features.inlayHints` alias to `inlayTypeHints`
+        // Collapse the legacy `features.inlayHints` alias to `inlayTypeHints`
         // *within each layer* before merging. The alias must be resolved
         // per-layer because `merge_settings` is layer-agnostic: a lower layer
         // (the global `config.ini`) carrying an explicit `inlayTypeHints` would
         // otherwise win over a higher layer (the editor) that only sets the
-        // `inlayHints` alias, inverting precedence (#728).
+        // `inlayHints` alias, inverting precedence.
         let mut global_ini = global_ini;
         let mut cfg = cfg;
         let mut primary_project = primary_project;
@@ -17189,11 +17145,11 @@ impl Backend {
     }
 
     /// The whole `didChangeConfiguration` reload pipeline, run **once** for a
-    /// burst of notifications instead of once per notification (issue #1213).
+    /// burst of notifications instead of once per notification.
     ///
-    /// A settings-editor burst of 16 notifications used to produce 32
+    /// Uncoalesced, a settings-editor burst of 16 notifications produces 32
     /// `workspace/configuration` batches (one unscoped request plus one scoped
-    /// batch per folder, each time) and re-analyse every open buffer 16 times.
+    /// batch per folder, each time) and re-analyses every open buffer 16 times.
     ///
     /// Coalescing is leader-and-dirty-flag rather than a plain trailing
     /// debounce, because the ordering guarantee matters: the settings the *last*
@@ -17261,7 +17217,7 @@ impl Backend {
         // master switch goes off, dropping O-codes when the optimiser goes off)
         // rather than lingering until the next keystroke.
         self.reschedule_all_open_documents().await;
-        // The same toggles govern closed files that still carry a badge (#865):
+        // The same toggles govern closed files that still carry a badge:
         // a master-switch-off must clear their squiggles too, and a disabled-code
         // change must re-lint them — the open-document reschedule alone would
         // leave a closed file's badge frozen at its pre-toggle set.
@@ -17322,8 +17278,7 @@ impl Backend {
         self.sync_db_config().await;
         // Everything above is an input to `diag_inputs`, so no diagnostics run
         // scheduled before this point may keep its cached copy — including one
-        // an edit schedules between here and the reload's own reschedule
-        // (issue #1651).
+        // an edit schedules between here and the reload's own reschedule.
         self.invalidate_diag_inputs();
         drop(analyser_inputs_guard);
         if rescan_workspace {
@@ -17361,7 +17316,7 @@ impl Backend {
         }
         // `tclLsp.packages.preferLatest` — the interpreter's starting
         // `package prefer` mode. See the field doc for why this is a setting
-        // and not read off the server's own environment (issue #1253).
+        // and not read off the server's own environment.
         if let Some(flag) = cfg
             .get("packages")
             .and_then(|p| p.get("preferLatest"))
@@ -17372,7 +17327,7 @@ impl Backend {
         // `tclLsp.packages.provides` — what a `package require` additionally
         // loads. See the field doc: a binary extension's own
         // `Tcl_PkgRequire` / `Tk_InitStubs` is invisible to every scan, so it
-        // is declared (issue #1813).
+        // is declared.
         if let Some(map) = cfg
             .get("packages")
             .and_then(|p| p.get("provides"))
@@ -17390,7 +17345,7 @@ impl Backend {
             };
             // The workspace scan bakes these edges into every closed file's
             // index entry, so a change to them has to re-scan — the same
-            // treatment `libraryPaths` gets above (issue #1813 review).
+            // treatment `libraryPaths` gets above.
             if changed {
                 rescan_workspace = true;
             }
@@ -17399,7 +17354,7 @@ impl Backend {
     }
 
     /// The interpreter's **starting** `package prefer` mode — the base
-    /// `package_prefer_at` latches up from (issue #1253).
+    /// `package_prefer_at` latches up from.
     async fn default_package_prefer(&self) -> tcl_lsp_core::package_resolver::PackagePrefer {
         if *self.package_prefer_latest_default.lock().await {
             tcl_lsp_core::package_resolver::PackagePrefer::Latest
@@ -17579,7 +17534,7 @@ impl Backend {
             *self.generic_variable_patterns.lock().await = Some(patterns);
         }
         // `tclLsp.diagnostics.exclude` — glob patterns for files that produce
-        // no diagnostics at all (#1556). Reset unconditionally: the production
+        // no diagnostics at all. Reset unconditionally: the production
         // caller always passes the fully merged config, so an absent key means
         // the exclusion list really is empty now — a stale list must not keep
         // suppressing a file the user just un-excluded.
@@ -17623,7 +17578,7 @@ impl Backend {
     /// A folder that stops overriding anything — or leaves the workspace — has
     /// its handle *retired* into [`Backend::folder_db_config_tombstones`] with
     /// its payload cleared, not dropped, and a folder that starts overriding
-    /// again revives the retired handle (#1145).  Salsa never frees an input, so
+    /// again revives the retired handle.  Salsa never frees an input, so
     /// dropping one leaks it: `.tcl-lsp.ini` re-pulls the whole layered config
     /// on every save, which would otherwise allocate a fresh config input per
     /// save for a folder toggling an override.
@@ -17749,11 +17704,10 @@ impl Backend {
     ///
     /// Every per-URI toggle question resolves through this one place, so what
     /// `getEffectiveConfig` *reports* for a document cannot drift from what the
-    /// providers *do* for it.  It used to: the command reported the global map
-    /// while every gate below consulted the folder chain first, which made
-    /// `waitForFeatureToggle` (the `VS Code` suite's barrier before asserting a
-    /// toggle took effect) observe a different fact from the one the provider
-    /// would use — issue #1295.
+    /// providers *do* for it.  Were the command to report the global map while
+    /// the gates below consulted the folder chain first, a client's
+    /// toggle-took-effect barrier would observe a different fact from the one
+    /// the provider uses.
     ///
     /// `uri` is optional because the command also answers for no document at
     /// all, which resolves to the global set alone.
@@ -17994,7 +17948,7 @@ impl Backend {
                 let _ = writeln!(out, "{code} = false");
             }
             // The exclude globs round-trip as the continuation list the
-            // parser reads (#1556) — never a comma list, which would split
+            // parser reads — never a comma list, which would split
             // a brace alternation apart.
             if !exclude.is_empty() {
                 out.push_str("exclude =\n");
@@ -18209,7 +18163,7 @@ impl Backend {
     }
 
     /// The resolved `tclLsp.formatting.docstringStyle` setting for `uri`
-    /// (#1314) — a folder override wins, else the process-global value,
+    /// — a folder override wins, else the process-global value,
     /// same precedence as [`Self::resolved_formatting`] (whose object this
     /// reads the key from). Falls back to
     /// [`core_formatting::DocstringStyle::None`] — the documented default —
@@ -18387,7 +18341,7 @@ impl Backend {
     /// The file extensions the *discovered* packs claim, each resolved to the
     /// editor language id a client should associate it with.
     ///
-    /// The dynamic half of extension registration (issue #1626). A pack's
+    /// The dynamic half of extension registration. A pack's
     /// `file_extension NAME -dialect D` row already routes the extension
     /// server-side — `dialect_from_extension` consults pack routing before the
     /// static catalogue — but an editor learns its associations from a static
@@ -18574,7 +18528,7 @@ impl Backend {
         }
     }
 
-    /// The project entry points and folder root that govern the #804 W120
+    /// The project entry points and folder root that govern the W120
     /// inheritance for `uri`: the longest matching workspace folder's
     /// `.tcl-lsp.ini [project] entryPoints` (empty ⇒ automatic `source`-graph
     /// mode) and that folder's filesystem root (to resolve relative entry
@@ -18598,8 +18552,8 @@ impl Backend {
         }
     }
 
-    /// The iRulesLX plugin associations declared for `uri`'s workspace folder
-    /// (issue #1707), with every path resolved against that folder's root.
+    /// The iRulesLX plugin associations declared for `uri`'s workspace folder,
+    /// with every path resolved against that folder's root.
     ///
     /// Folder-scoped for the same reason `entry_points` is: a relative path
     /// here means "under this folder", and resolving it against every root in
@@ -18621,7 +18575,7 @@ impl Backend {
     /// back to the workspace's *directory name*, which is exactly the name the
     /// declaration exists to correct. Reverse references would then find no
     /// callers even though Tcl-to-JavaScript navigation through the same
-    /// mapping worked (issue #1707 review).
+    /// mapping works.
     ///
     /// Widening cannot mismatch here, because the JavaScript end selects by
     /// resolved **workspace path**: a declaration only applies when its
@@ -18686,7 +18640,7 @@ impl Backend {
     }
 
     /// Whether `uri` matches the resolved `tclLsp.diagnostics.exclude` glob
-    /// list (#1556). Path patterns are matched against the workspace-folder-
+    /// list. Path patterns are matched against the workspace-folder-
     /// relative path; name patterns against the file name alone, so a
     /// no-folder document can still be excluded by name.
     async fn diagnostics_excluded(&self, uri: &Uri) -> bool {
@@ -18786,16 +18740,14 @@ impl Backend {
         // A salsa snapshot is not an ordinary handle. `set_text` (and creating a
         // `SourceFile`) goes through `Storage::cancel_others`, which parks on a
         // condvar until every **other** clone has been dropped — a blocking
-        // wait, taken on a Tokio worker. The original edit path entered it from
-        // inside the `EditOrder` turn; the current deferred publication path
-        // waits for the tracked census to become empty first. A clone retained
-        // past its query would still hold publication back and used to stall
-        // every request handler in the server (issue #1657).
+        // wait, taken on a Tokio worker. Deferred publication waits for the
+        // tracked census to become empty first, so a clone retained past its
+        // query holds publication back and can stall every request handler in
+        // the server.
         //
-        // Holding one across an unrelated `.await` — as this did across the
-        // `db_project` lock, and on the `None` branch across the whole
-        // function — widens that window for no benefit. Cloning last keeps the
-        // snapshot's life exactly the worker's.
+        // Holding one across an unrelated `.await` — the `db_project` lock, or
+        // the whole function on the `None` branch — widens that window for no
+        // benefit. Cloning last keeps the snapshot's life exactly the worker's.
         let project = *self.db_project.lock().await;
         let p = project?;
         let db = self.db.snapshot("project_callback_arities_if").await;
@@ -18917,7 +18869,7 @@ impl Backend {
         if !self.feature_enabled("diagnostics", uri).await {
             return Vec::new();
         }
-        // `tclLsp.diagnostics.exclude` (#1556): an excluded file's pull report
+        // `tclLsp.diagnostics.exclude`: an excluded file's pull report
         // is empty too, matching the push path's empty publish.
         if self.diagnostics_excluded(uri).await {
             return Vec::new();
@@ -18925,7 +18877,7 @@ impl Backend {
         let (disabled, _non_ascii_mode, optimiser_enabled, opt_disabled) =
             self.resolved_analysis_settings(uri).await;
         // Resolve the document's dialect once for the whole report rather than
-        // at each provider call below (issue #1405).
+        // at each provider call below.
         let profile = tcl_lsp_core::profile_for_dialect(&dialect);
         // Match the push worker's exact snapshot contract. A pull can race the
         // debounced push before its cache is primed, so it must carry the same
@@ -18943,7 +18895,7 @@ impl Backend {
         // W118 line-ending lint sees the real terminators, and the two agree
         // on every offset because the rewrite preserves byte length.
         // In the overwhelmingly common no-bare-CR case the analysis form *is*
-        // the client buffer, so reuse its `Arc` rather than copying (#1184).
+        // the client buffer, so reuse its `Arc` rather than copying.
         let analysis_text: Arc<str> = match tcl_lexer::normalise_lone_cr(&text) {
             std::borrow::Cow::Borrowed(_) => text.clone(),
             std::borrow::Cow::Owned(s) => s.into(),
@@ -19046,12 +18998,13 @@ impl Backend {
     /// `refine_and_lift_diagnostics` applies, so a pulled report matches a
     /// pushed one diagnostic for diagnostic:
     ///
-    /// * **#723 / #804 W120** — a package the workspace's
+    /// * **W120** — a package the workspace's
     ///   `pkgIndex.tcl` / `libraryPaths` prove is transitively provided, or
     ///   that an entry file / `source` ancestor already required.
-    /// * **#832 W123** — a command the package database resolves (auto-loaded
-    ///   library command, or an available package's defined command).
-    /// * **idx 80 W123** — a command the workspace index resolves: always for
+    /// * **W123 from the package database** — an auto-loaded library command,
+    ///   or an available package's defined command.
+    /// * **W123 from the workspace index** — a command the index resolves:
+    ///   always for
     ///   an `expr` math-function call site, and for any name at all when
     ///   `crossFileResolution` is on (see [`refine_workspace_index_w123`]).
     ///
@@ -19073,7 +19026,7 @@ impl Backend {
         } else {
             SourceInheritance::default()
         };
-        // #1331: settle this document's unresolved call sites against the
+        // Settle this document's unresolved call sites against the
         // workspace index — the same lookup navigation uses — so the pull path
         // suppresses the same W123s and raises the same arity errors the push
         // path does. Both surfaces must agree; see
@@ -19104,8 +19057,8 @@ impl Backend {
         )
         .await;
         // Demanded whenever the refinement below can change a verdict, which
-        // is no longer only when the toggle is on: its math-function tier and
-        // its settled cross-file tier are always on.
+        // is not only when the toggle is on: its math-function tier and its
+        // settled cross-file tier are always on.
         let workspace_known_names = if needs_workspace_command_names(
             &analyser_diags,
             analysis,
@@ -19133,17 +19086,16 @@ impl Backend {
     /// The analyser diagnostics this document actually **publishes**: the
     /// analyser's own set put through every workspace pass the diagnostics
     /// pipeline applies — cross-file resolution when `crossFileResolution` is
-    /// on, then the #723/#804 W120 and #832 / idx-80 W123 refinements.
+    /// on, then the W120 and W123 refinements.
     ///
     /// This is the single answer both diagnostic-consuming surfaces must use.
     /// `textDocument/diagnostic` publishes it; `textDocument/codeAction` lifts
     /// quick-fixes from it.  Having code actions read `analysis.diagnostics`
-    /// instead is what let the server offer "Replace with 'ni'" over a
-    /// perfectly good cross-file `Pi()` call *whose diagnostic it had already
-    /// decided to suppress* — a quick-fix that rewrites working code into a
-    /// syntax error (tclsh 8.6.16 / 9.0.4: `expr {ni() / acos(-1.0)}` →
-    /// `missing operand`).  One function, one verdict, so the two surfaces
-    /// cannot drift apart again.
+    /// instead would let the server offer "Replace with 'ni'" over a perfectly
+    /// good cross-file `Pi()` call *whose diagnostic it had already decided to
+    /// suppress* — a quick-fix that rewrites working code into a syntax error
+    /// (tclsh 8.6.16 / 9.0.4: `expr {ni() / acos(-1.0)}` → `missing operand`).
+    /// One function, one verdict, so the two surfaces cannot drift apart.
     async fn published_analyser_diagnostics(
         &self,
         uri: &Uri,

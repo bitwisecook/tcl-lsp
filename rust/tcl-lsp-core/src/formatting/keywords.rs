@@ -55,8 +55,8 @@
 //!   spellings that are unambiguously boolean: `-validate yes` normalises,
 //!   `-validate 0` keeps its bytes because the command reads it as a number,
 //!   and the `0/1` form has nothing safe to write there at all.
-//! * The rewrite must hold across the document's target release range as well
-//!   (issue #1257): the option word has to name the *same* option, carrying
+//! * The rewrite must hold across the document's target release range as
+//!   well: the option word has to name the *same* option, carrying
 //!   the *same* boolean role, in every release of the range. An option a
 //!   later release removes, renames the prefix of, or re-roles is left alone.
 //!
@@ -189,8 +189,8 @@ enum RangeTable<'a> {
 /// source that a newer interpreter reads differently.
 ///
 /// An empty range (the default, and every vendor dialect with no core release
-/// row) means "no range was declared", so the target's own answer stands — the
-/// pre-existing behaviour. A release that no longer carries the command
+/// row) means "no range was declared", so the target's own answer stands. A
+/// release that no longer carries the command
 /// contributes an empty table, which can never vouch for the word, so the
 /// rewrite is abandoned. The keyword table `scope` names on `cmd_name`'s spec
 /// in one specific `release`, filtered by that release's own dialect bit —
@@ -261,8 +261,8 @@ fn resolves_in_release(
 /// source that a newer interpreter reads differently.
 ///
 /// An empty range (the default, and every vendor dialect with no core release
-/// row) means "no range was declared", so the target's own answer stands — the
-/// pre-existing behaviour: `releases` is already empty in that case
+/// row) means "no range was declared", so the target's own answer stands:
+/// `releases` is already empty in that case
 /// ([`tcl_registry::version_range::core_releases_in`]), and `.all()` over an
 /// empty iterator is vacuously `true`. A release that no longer carries the
 /// command contributes an empty table, which can never vouch for the word, so
@@ -488,7 +488,7 @@ fn subcommand_scope(
 }
 
 /// The option-word half of [`rewrites_for_command`]: expands an abbreviated
-/// option name (issues #1232/#1233) and classifies each option's value word
+/// option name and classifies each option's value word
 /// as a boolean site by the same [`declared_boolean_site_at`] query the
 /// positional pass uses, preserving the dialect and
 /// target-range gates around it.
@@ -569,9 +569,8 @@ fn scan_options(
             claimed[value_idx] = true;
         }
         // The option's value word, when the registry *declares* the position
-        // boolean (issue #1256, driven from `arg_indices_for_role` per issue
-        // #1268) and every release of the target range agrees about both the
-        // option and its role.
+        // boolean (driven from `arg_indices_for_role`) and every release of
+        // the target range agrees about both the option and its role.
         if consumed == 1 && config.boolean_form != BooleanForm::Preserve && touchable(i + 1) {
             let value_index = i + 1;
             let canonical_refs: Vec<&str> = canonical_args.iter().map(String::as_str).collect();
@@ -679,10 +678,9 @@ pub(crate) fn rewrites_for_command(
         !dynamic.get(i).copied().unwrap_or(false) && args.get(i).is_some_and(|a| is_static_word(a))
     };
 
-    // The registry packs the document's target range spans,
-    // computed once so every per-release check below — subcommand words,
-    // option words, and now positional/repeated-tail boolean sites (issue
-    // #1268) — walks the same list.
+    // The registry packs the document's target range spans, computed once so
+    // every per-release check below — subcommand words, option words, and
+    // positional/repeated-tail boolean sites — walks the same list.
     let release_names = tcl_registry::version_range::core_releases_in(config.target_range());
     let releases: Vec<(&str, &CommandRegistry)> = release_names
         .iter()
@@ -690,12 +688,12 @@ pub(crate) fn rewrites_for_command(
         .collect();
 
     let mut out: Vec<KeywordRewrite> = Vec::new();
-    // A copy of `args` used only to query `CommandRegistry::arg_indices_for_role`
-    // (issue #1268): the subcommand word and any recognised option word are
-    // replaced by their canonical spelling so the registry's exact-match role
-    // query sees an abbreviated `-noc`/subcommand prefix the way the option
-    // scan's own abbreviation table already did. Genuine positional words are
-    // never touched here.
+    // A copy of `args` used only to query
+    // `CommandRegistry::arg_indices_for_role`: the subcommand word and any
+    // recognised option word are replaced by their canonical spelling so the
+    // registry's exact-match role query sees an abbreviated
+    // `-noc`/subcommand prefix the way the option scan's own abbreviation
+    // table does. Genuine positional words are never touched here.
     let mut canonical_args: Vec<String> = args.to_vec();
     // Argument indices the option scan below already classified (an option's
     // value word) — the positional pass past it must not reclassify them.
@@ -1009,9 +1007,9 @@ mod tests {
         );
     }
 
-    /// Issue #1268: the option scan only ever reaches a boolean value through
-    /// an `-option`; a plain positional argument was never classified at all.
-    /// `CommandRegistry::arg_indices_for_role` already answers the role
+    /// The option scan only reaches a boolean value through an `-option`, so
+    /// a plain positional argument needs its own classification.
+    /// `CommandRegistry::arg_indices_for_role` answers the role
     /// question for a positional the same way it does for an option's value,
     /// so a spec that declares `ArgRole::Boolean` at a fixed argument index
     /// is now a rewrite site the day it is declared — no core built-in does
@@ -1164,8 +1162,7 @@ mod tests {
         );
     }
 
-    /// The option path's own dialect gate keeps working post-refactor
-    /// (issue #1268 preserves #1257's guarantee): a range spanning a release
+    /// The option path's own dialect gate: a range spanning a release
     /// that does not carry the option drags the verdict to `None`, and a
     /// range confined to releases that do all agree.
     #[test]

@@ -20,8 +20,7 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import { getDocUri, activate, pollUntil, waitForDiagnostics } from "./helper";
 
-// Caller-frame injection through `upvar` (issue #923 audit cluster C1 —
-// idx 7, 22, 57, 58, 98; issue #1019), through the real editor surface.
+// Caller-frame injection through `upvar`, through the real editor surface.
 //
 // Every fact asserted here is pinned on tclsh 9.0.4 and 8.6.16, which agree;
 // the transcripts are quoted in `testFixture/callerFrameCluster.tcl` and in

@@ -161,7 +161,7 @@ pub enum TkUncertaintyKind {
     /// A fact occurs inside a body whose execution is not statically proven.
     PotentialExecution,
     /// A later widget instance operation changes state the static model does
-    /// not yet fold into the constructor fact.
+    /// not fold into the constructor fact.
     PostConstructorMutation,
     /// A destroy/rename-like operation changes a previously created widget's
     /// lifetime or command identity.

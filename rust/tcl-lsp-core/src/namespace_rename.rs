@@ -24,7 +24,7 @@
 //! `NamespaceName`-role argument that mentions it, and in the import /
 //! forget patterns that name it.  Miss one and the program stops running;
 //! guess at one and it runs differently.  So this tier either produces the
-//! complete edit set or **refuses with a reason**, the #1091 precedent.
+//! complete edit set or **refuses with a reason**.
 //!
 //! # What one edit looks like
 //!
@@ -133,7 +133,7 @@ pub fn namespace_rename_edits(
         }
     }
     // 3. Command call sites resolved beneath it.  An indirect site's span is
-    //    not the written name (M7), so it is never a rewrite target — and
+    //    not the written name, so it is never a rewrite target — and
     //    never a silent miss either: the gate below sees it as an
     //    unattributed word if it writes the namespace.
     for inv in &analysis.command_invocations {
@@ -314,7 +314,7 @@ fn written_cell_segment(source: &str, word: Span, resolved: &str, cell: &str) ->
 ///
 /// `considered` is the exact set of word spans the edit collector looked at,
 /// so "everything else" is what the gate examines — the coverage-equals-edits
-/// discipline #1092 established for the member tier, applied here.
+/// discipline the member tier applies, applied here.
 fn namespace_rename_hazard(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
@@ -582,7 +582,7 @@ mod tests {
     }
 
     /// TN — a computed namespace word that provably cannot spell this
-    /// namespace does not refuse (the #1093 provenance rule, applied to
+    /// namespace does not refuse (the per-site provenance rule, applied to
     /// namespace words).
     #[test]
     fn tn_a_computed_namespace_word_elsewhere_does_not_refuse() {
@@ -625,7 +625,7 @@ mod tests {
         assert!(renamed(src, "::old", "new").is_ok());
     }
 
-    /// TP, issue #1261 — a literal `namespace path` entry naming the
+    /// TP — a literal `namespace path` entry naming the
     /// namespace is *rewritten*, not refused: each element carries its own
     /// span, so the tier edits the element's segment like any other spelling.
     ///
@@ -688,7 +688,7 @@ mod tests {
         assert!(out.contains("namespace path {::a ::b}"), "{out}");
     }
 
-    /// TP (refusal), issue #1261 — a `namespace path` built from a value
+    /// TP (refusal) — a `namespace path` built from a value
     /// computed at run time still refuses: its entries are unknowable, any of
     /// them may be this namespace, and there is no element word to rewrite.
     #[test]

@@ -234,15 +234,13 @@ enum TokenKind {
     Encrypted = 53,
     /// A procedure / method / constructor parameter, in its declaring parameter
     /// list.  The standard LSP type, so a theme distinguishes an argument from
-    /// an ordinary local (#898 §4).
+    /// an ordinary local.
     Parameter = 54,
     /// A `TclOO` / snit / itcl **method** — its declared name (`method foo {…}`)
-    /// and its call sites (`my foo`, `$obj foo`).  The standard LSP type:
-    /// `v1.11.4` typed these `function`, which was better than `v2.1.6`'s
-    /// `string` but still conflated a method with a free procedure (#898 §2).
+    /// and its call sites (`my foo`, `$obj foo`).  The standard LSP type, so a
+    /// method is not conflated with a free procedure.
     Method = 55,
-    /// A class name — `oo::class create Shape`, `oo::define Shape`.  Typed
-    /// `string` by *both* v1.11.4 and v2.1.6 (#898 §2).
+    /// A class name — `oo::class create Shape`, `oo::define Shape`.
     Class = 56,
 }
 
@@ -348,10 +346,9 @@ const MOD_DECLARATION: u32 = 1 << 0;
 /// specific to this crate (its clause-keyword half lives in the registry;
 /// see that function's docs).
 ///
-/// Both gained real, 9.0-gated registry specs with issue #923's
-/// `ticklecharts` idx 51 (`tcl_registry::commands::tcl::oo_callback`), so
-/// under a 9.0/9.1 profile the `LANGUAGE_KEYWORD` lookup already answers and
-/// this list is inert. It still earns its place on 8.4-8.6, where the same
+/// Both carry real, 9.0-gated registry specs
+/// (`tcl_registry::commands::tcl::oo_callback`), so under a 9.0/9.1 profile
+/// the `LANGUAGE_KEYWORD` lookup answers and this list is inert. It still earns its place on 8.4-8.6, where the same
 /// two words are only ever a hand-installed `proc ::oo::Helpers::callback`
 /// (the "`TclOO` Tricks" wiki helper) or Tcllib `ooutil`'s `mymethod`: they
 /// read as method-body keywords to a human either way, and the highlighter
@@ -390,8 +387,8 @@ fn is_language_keyword_sub_keyword(name: &str) -> bool {
 ///
 /// The keyword / operator tests run against the head's *effective identity*
 /// (`resolved`), so `interp alias {} myforeach {} foreach` makes `myforeach` a
-/// keyword and a `rename foreach ""` stops the bare spelling being one — issue
-/// #1185.  The `::`-qualified test stays on the written spelling: an imported
+/// keyword and a `rename foreach ""` stops the bare spelling being one.
+/// The `::`-qualified test stays on the written spelling: an imported
 /// bare `test` resolves to `tcltest::test` without becoming a namespace token.
 fn classify_command_head(head: CommandHead<'_>, registry: &CommandRegistry) -> TokenKind {
     let CommandHead {
@@ -430,11 +427,10 @@ fn classify_command_head(head: CommandHead<'_>, registry: &CommandRegistry) -> T
 /// command heads (`+`, `in`, `eq`, `lt`, …) — the registry's
 /// `Traits::OPERATOR_COMMAND` on `name`'s spec, already correctly and
 /// exhaustively populated for every mathop-shaped operator by
-/// `tcl_syntax::expr::operators` (issue #983's unification). Previously a
-/// 10-symbol hand-typed list (`+ - * / > >= < <= == !=`) that missed every
-/// word-form operator (`eq`/`ne`/`in`/`ni`/`lt`/`le`/`gt`/`ge`) and every
-/// bitwise/shift symbol (`%`/`**`/`<<`/`>>`/`&`/`|`/`^`/`~`/`!`) entirely —
-/// issue #986.
+/// `tcl_syntax::expr::operators`.  Registry data rather than a hand-typed
+/// symbol list (`+ - * / > >= < <= == !=`), which would miss every word-form
+/// operator (`eq`/`ne`/`in`/`ni`/`lt`/`le`/`gt`/`ge`) and every bitwise/shift
+/// symbol (`%`/`**`/`<<`/`>>`/`&`/`|`/`^`/`~`/`!`).
 fn is_operator_command(name: &str, registry: &CommandRegistry) -> bool {
     registry.get(name).is_some_and(|spec| {
         spec.traits
@@ -450,7 +446,7 @@ fn is_operator_command(name: &str, registry: &CommandRegistry) -> bool {
 /// name a variable — split by direction, since a *written* target highlights as
 /// a `Variable` declaration and a *read* reference as a plain `Variable`.  Lets
 /// the retag highlight `myset arr(key) …` / `myexists arr(key)` the same way it
-/// highlights `set arr(key) …` / `info exists arr(key)` (issue #813 follow-up).
+/// highlights `set arr(key) …` / `info exists arr(key)`.
 ///
 /// Built from an [`AnalysisResult`] (single file) or merged across a project's
 /// files.  Empty (and cost-free) on the pure-segmentation path, where only the
@@ -767,7 +763,7 @@ pub fn apl_range(
 /// Like APL (see [`apl_full`]), BIG-IP config text is not Tcl: it is a
 /// brace-delimited declarative config.  The Tcl tokenizer reads each stanza
 /// body as one literal braced word and emits whole *lines* as `String` tokens
-/// — 272 of `samples/bigip/bigip.conf`'s 302 tokens were exactly that, which
+/// — 272 of `samples/bigip/bigip.conf`'s 302 tokens are exactly that, which
 /// mis-colours the file rather than merely under-colouring it.
 ///
 /// The caller decides a document is BIG-IP config with the server's
@@ -803,8 +799,8 @@ fn clip_to_range(mut entries: Vec<Entry>, range: crate::definition::LspRange) ->
 /// embedded iRule body as **Tcl**.
 ///
 /// A `ltm rule /Common/x { … }` stanza's body is iRules code sitting inside a
-/// config file.  Read as config it produced nonsense — `when` / `if` / `switch`
-/// became config *property keys* and `[HTTP::uri]` was not tokenised at all —
+/// config file.  Read as config it is nonsense — `when` / `if` / `switch`
+/// become config *property keys* and `[HTTP::uri]` is not tokenised at all —
 /// so the config lexer leaves those spans empty and they are re-walked here with
 /// the iRules registry.  `registry` must therefore be the **iRules** one.
 fn bigip_conf_entries(source: &str, registry: &CommandRegistry) -> Vec<Entry> {
@@ -1028,7 +1024,7 @@ pub fn full_with_cu_and_classes(
 /// [`full_with_cu_and_classes`] with the workspace-merged inferred variable-name
 /// argument roles ([`VarNameArgRoles`]), so a `myproc arr(key) …` call whose
 /// `myproc` parameter aliases a caller variable highlights its array-element
-/// target like `set arr(key) …` (issue #813 follow-up).  The project path
+/// target like `set arr(key) …`.  The project path
 /// passes a cross-file index; `None` restricts the retag to the static registry
 /// roles (plus source-derived stub roles).
 #[must_use]
@@ -1055,7 +1051,7 @@ pub fn full_with_cu_and_classes_and_roles(
 }
 
 /// [`full_with_cu_and_classes_and_roles`] with the workspace-merged named
-/// bareword instance-command index bundled in (issue #1312), so `CLASS
+/// bareword instance-command index bundled in, so `CLASS
 /// create NAME` resolves its class exactly like the single-file
 /// [`full_with_cu_and_analysis`] path does — the project token-aggregation
 /// path (`semantic_tokens_project`) is the one caller with a project-wide
@@ -1200,10 +1196,9 @@ type Entry = (u32, u32, u32, TokenKind, u32);
 
 /// The process-wide iRules command store, for the dialect-independent
 /// `when EVENT` overlay ([`special_arg_kinds`]) — the `f5-irules`
-/// environment's registry generation (ledger row F5: the handle is now
-/// environment-keyed and generation-aware, resolved through the one
-/// ingress seam), memoised so the per-command fallback lookup skips the
-/// generation cache's mutex.
+/// environment's registry generation, resolved through the one ingress seam
+/// and memoised so the per-command fallback lookup skips the generation
+/// cache's mutex.
 fn irules_registry() -> &'static CommandRegistry {
     static IRULES: std::sync::OnceLock<&'static CommandRegistry> = std::sync::OnceLock::new();
     IRULES.get_or_init(|| crate::registry_for_dialect("f5-irules"))
@@ -1433,8 +1428,8 @@ fn subspec_content(source: &str, tok: Token) -> Option<(usize, &str)> {
     // `span.end()` lands *past* its closing delimiter rather than at it, so the
     // closer would otherwise be handed back as the word's content.  For a body
     // argument that content is then re-segmented as a script, and the stray `}`
-    // is classified as a command head — `proc p {args} {}` emitted `'}':function`
-    // (#898 §7).  Recognised exactly (span length == content_offset + 1, last
+    // is classified as a command head — `proc p {args} {}` would emit
+    // `'}':function`.  Recognised exactly (span length == content_offset + 1, last
     // byte is the matching closer), so a non-empty word ending in an *escaped*
     // quote (`"a\""`) is untouched.
     if tok.content_offset > 0
@@ -1602,8 +1597,8 @@ fn special_arg_kinds(
     // first argument, the same convention the completion provider's
     // event-name surface uses for the trait.  The overlay is deliberately
     // dialect-independent — iRules snippets are routinely opened in generic
-    // Tcl buffers, and `when EVENT` was event-coloured there long before the
-    // trait dispatch — so a head the document registry does not know is
+    // Tcl buffers, and `when EVENT` must colour as an event there too — so a
+    // head the document registry does not know is
     // resolved against the cached iRules registry before giving up.
     if registry
         .get(head)
@@ -1667,9 +1662,9 @@ fn special_arg_kinds(
     // completion/hover entries, and `overrides` is a first-writer-wins map
     // (`.or_insert`) — the more specific inline-keyword classification must
     // claim that span first, or the generic closed-set-value pass claims it
-    // as `EnumMember` instead (mirroring the existing `ArgRole::Keyword`
-    // carve-out in `insert_enum_value_overrides`, issue #760, which this
-    // dynamic `definition_body`-driven case isn't modelled by).
+    // as `EnumMember` instead (mirroring the `ArgRole::Keyword` carve-out in
+    // `insert_enum_value_overrides`, which does not model this dynamic
+    // `definition_body`-driven case).
     insert_oo_define_keyword_overrides(seg, registry, dialect, &mut overrides);
     insert_enum_value_overrides(seg, registry, head, dialect, &mut overrides);
     insert_definer_class_name_override(seg, registry, &mut overrides);
@@ -1704,7 +1699,7 @@ fn special_arg_kinds(
 /// the repeating one (`foreach v1 l1 ?v2 l2 …? body`, `lmap` likewise), whose
 /// stride and excluded trailing body are declared as a
 /// [`tcl_registry::RepeatedArgLayout`] on the spec rather than re-derived
-/// here from the command's name (issue #1185) — so the explicitly global
+/// here from the command's name — so the explicitly global
 /// `::foreach` is covered too, and a same-named user proc is not.
 ///
 /// Highlighting only: the loop bodies already resolve these reads via the
@@ -1744,8 +1739,8 @@ fn insert_param_list_overrides(
         // A braced literal list (`{a b}`) or a **bare** single-name list — Tcl
         // accepts `proc unknown args {…}` / `proc auto_execok name {…}` without
         // braces, and Tcl's own `init.tcl` / `word.tcl` use it.  That form is an
-        // unquoted `Esc` word, and skipping it left the parameter painted as a
-        // plain string.  A *quoted* list is not a literal name list, so it is
+        // unquoted `Esc` word, and skipping it would leave the parameter
+        // painted as a plain string.  A *quoted* list is not a literal name list, so it is
         // still left alone.
         let Some(tok) = seg.argv.get(i + 1) else {
             continue;
@@ -1770,7 +1765,7 @@ fn insert_param_list_overrides(
 /// `dict update dictVar key varName ?key varName? body` — declare their pair
 /// tail as a [`tcl_registry::RepeatedArgLayout`] on their subcommand spec and
 /// are handled generically by [`insert_multiname_var_overrides`]'s
-/// `VarWrite` walk (issue #1185).
+/// `VarWrite` walk.
 ///
 /// `upvar`'s own layout is not a [`tcl_registry::RepeatedArgLayout`] because
 /// the registry already models it more precisely: its
@@ -1827,7 +1822,7 @@ fn insert_ref_var_overrides(
 /// The stride is registry data: each spec declares a
 /// [`tcl_registry::RepeatedArgLayout`] for its `VarWrite` tail, so this reads
 /// [`ArgRole::VarWrite`] positions and never names a command or re-derives a
-/// stride (issue #1185).  That also makes the explicitly global spellings
+/// stride.  That also makes the explicitly global spellings
 /// (`::global`, `::variable`) behave like the bare ones.
 ///
 /// A `variable` *inside a definition body* is a grammar member handled by
@@ -1864,16 +1859,6 @@ fn insert_multiname_var_overrides(
     }
 }
 
-/// Apply the enclosing definition-body grammar to a member call: recurse its
-/// script bodies ([`ArgOverride::BodyScript`]), highlight its parameter list
-/// ([`ArgOverride::ParamList`]), and declare its variable names
-/// ([`ArgOverride::VarDecl`]).  The member keywords (`method`, `typemethod`,
-/// `constructor`, `variable`, …) have no standalone `CommandSpec`; their layout
-/// comes entirely from the registry grammar ([`crate::oo_body`]).
-///
-/// Only fires when `oo_grammar` is `Some` — i.e. this segment is a top-level
-/// word of a definition body — so a same-named user proc is never
-/// misclassified.
 /// Colour the ensemble operation word of a scoped command as a subcommand
 /// keyword — the `set` / `enable` in `top set …` / `top enable` inside a
 /// `report::defstyle` style script.  Fires only when `head` is a command of the
@@ -1901,6 +1886,16 @@ fn insert_scoped_subcommand_overrides(
     }
 }
 
+/// Apply the enclosing definition-body grammar to a member call: recurse its
+/// script bodies ([`ArgOverride::BodyScript`]), highlight its parameter list
+/// ([`ArgOverride::ParamList`]), and declare its variable names
+/// ([`ArgOverride::VarDecl`]).  The member keywords (`method`, `typemethod`,
+/// `constructor`, `variable`, …) have no standalone `CommandSpec`; their layout
+/// comes entirely from the registry grammar ([`crate::oo_body`]).
+///
+/// Only fires when `oo_grammar` is `Some` — i.e. this segment is a top-level
+/// word of a definition body — so a same-named user proc is never
+/// misclassified.
 fn insert_oo_body_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     oo_grammar: Option<&'static DefinitionBodyGrammar>,
@@ -1933,8 +1928,8 @@ fn insert_oo_body_overrides(
 /// head (`base = 0`, `method m {} {…}`), while the one-liner definer form puts
 /// it after the class/object target (`base = 2`,
 /// `oo::define C method m {} {…}`).  Sharing one path is what stops the
-/// one-liner form silently losing its name / parameters / body — it used to get
-/// only its keyword marked.
+/// one-liner form silently losing its name / parameters / body and getting only
+/// its keyword marked.
 fn insert_oo_member_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     grammar: &'static DefinitionBodyGrammar,
@@ -1973,8 +1968,8 @@ fn insert_oo_member_overrides(
         }
     }
     // The member's declared name (`method foo …`, `property p …`).  The grammar
-    // has always carried this role; consuming it is what stops a method name
-    // painting as a plain string (#898 §2).
+    // carries this role; consuming it is what stops a method name painting as
+    // a plain string.
     for idx in crate::oo_body::member_name_indices_in(grammar, head, arg_texts, dialect) {
         if let Some(tok) = seg.argv.get(base + idx + 1)
             && matches!(tok.kind, TokenType::Esc | TokenType::Str)

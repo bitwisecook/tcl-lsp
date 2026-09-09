@@ -3737,7 +3737,7 @@ mod tests {
         });
     }
 
-    // ---- native proc entries (issue #1774) ---------------------------------
+    // native proc entries (issue #1774)
 
     thread_local! {
         /// The argv [`stub_body`] dispatches, and how many times a stub ran.

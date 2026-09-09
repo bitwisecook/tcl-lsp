@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `::tcl::mathop::*` — the `expr` operators as **real commands** (T1.5).
+//! `::tcl::mathop::*` — the `expr` operators as **real commands**.
 //!
 //! C Tcl 9 (`tclMathOp.c`) exposes every `expr` operator as a command in
 //! `::tcl::mathop::` with variadic fold / chained-comparison semantics. These

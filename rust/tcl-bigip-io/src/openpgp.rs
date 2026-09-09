@@ -53,10 +53,10 @@ use crate::aes_cfb::{Aes, cfb_decrypt};
 const BLOCK: usize = 16;
 
 /// Maximum nesting depth of `OpenPGP` Compressed Data (tag 8) packets
-/// [`extract_literal`] will unwrap before giving up — issue #996:
+/// [`extract_literal`] will unwrap before giving up:
 /// `extract_literal` recurses natively once per nested Compressed Data
 /// packet, fully attacker/generator-controlled via a crafted `.ucs`/`.scf`
-/// archive, with no cap before this fix. A legitimate BIG-IP UCS never
+/// archive, so it needs a depth cap. A legitimate BIG-IP UCS never
 /// nests Compressed Data more than one level deep (SEIPD → one Compressed
 /// Data → Literal Data); 16 is deliberately generous relative to that (a
 /// handful of levels of headroom for any oddly-repacked archive) while
@@ -612,9 +612,9 @@ mod recursion_tests {
         cur
     }
 
-    /// Regression coverage for issue #996: `extract_literal` recurses
-    /// natively once per nested Compressed Data (tag 8) packet, with no
-    /// depth cap before this fix — depth is fully attacker/generator
+    /// Regression coverage: `extract_literal` recurses
+    /// natively once per nested Compressed Data (tag 8) packet, so it needs
+    /// a depth cap — depth is fully attacker/generator
     /// controlled via a crafted `.ucs`/`.scf` archive, reachable from the
     /// native `bigip-report-gen` CLI and the in-browser
     /// `bigip-report-gen/wasm` target alike. 5000 nested Compressed Data

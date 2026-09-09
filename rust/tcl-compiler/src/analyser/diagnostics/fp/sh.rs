@@ -56,7 +56,7 @@ fn fp_sh_01_string_arith_still_fires() {
 
 /// FP-SH-02: `variable v` is a scope-alias — its intrep is externally
 /// determined so it cannot be confidently typed STRING.  S100 here would be
-/// the bug fixed by commit adfc6d84.
+/// a false positive.
 #[test]
 fn fp_sh_02_variable_alias_no_shimmer() {
     let src = "\
@@ -285,7 +285,7 @@ fn fp_sh_06_real_oscillation_within_one_loop_still_fires() {
 }
 
 // FP-SH-07 — `find_expr_shimmers` covers standalone expr/if/while/for
-// expr contexts (D5-SH-EXPR)
+// expr contexts
 
 /// FP-SH-07 TP: `if {$s + 1}` — expr in if-cond promotes $s from STRING to
 /// INT.  `find_expr_shimmers` walks `Terminator::Branch.condition` as well
@@ -336,7 +336,7 @@ fn fp_sh_07_pure_numeric_if_no_shimmer() {
 }
 
 // FP-SH-08 — `==`/`!=` falsely flagged as numeric shimmer when both
-// operands are provably non-numeric (D5-SH-EQ)
+// operands are provably non-numeric
 
 /// FP-SH-08: `expr {$s == "hello"}` with `s = "hello"` — both operands are
 /// non-numeric text.  tclsh takes the STRING compare path (no coercion
@@ -355,9 +355,8 @@ fn fp_sh_08_eq_both_non_numeric_no_shimmer() {
 /// C Tcl probes each comparison operand's OWN string with
 /// `GetNumberFromObj`: `"5"` parses (the literal shimmers, harmlessly), but
 /// `$s` = "hello" does not — the comparison falls back to a string compare
-/// and `s` keeps its intrep (tclsh-verified: `s` stays `string`). The old
-/// claim "the sibling operand parses as numeric, so `$s` is coerced" was a
-/// verified false positive.
+/// and `s` keeps its intrep (tclsh-verified: `s` stays `string`).  A sibling
+/// operand that parses as numeric does not coerce `$s`.
 #[test]
 fn fp_sh_08_eq_with_numeric_literal_stays_silent() {
     let src = r#"proc f {} { set s [string trim hello]; set y [expr {$s == "5"}]; puts $y }"#;
@@ -465,8 +464,8 @@ proc f {} {
 }
 
 /// Per-element TP: the SAME element oscillating int ↔ string every
-/// iteration is a real per-iteration re-thunk (the pre-P5 conflation
-/// exclusion was a forced false negative here).
+/// iteration is a real per-iteration re-thunk; excluding conflated array
+/// symbols wholesale would force a false negative here.
 #[test]
 fn fp_sh_13_same_element_oscillation_fires_s102() {
     let src = "\
@@ -505,7 +504,7 @@ proc f {} {
     );
 }
 
-/// FP-SH-13 (extended to S100): the S102 array-element guard now also covers
+/// FP-SH-13 (extended to S100): the S102 array-element guard also covers
 /// the use-site pass. `set arr(n) 5; set arr(label) "text"; incr arr(n)` reads
 /// the conflated `arr` symbol as STRING (the last element written), but
 /// `arr(n)` is always INT — an independent slot, not a shimmer. No S100.
@@ -653,7 +652,7 @@ proc f {n} {
 // `eval`, TclOO instance variables, and `args`/positional parameters as the
 // oscillation seed
 
-/// FP-SH-15 (detection gap now closed): a command renamed onto `set`
+/// FP-SH-15: a command renamed onto `set`
 /// (`rename set myset`) resolves back to the registry's `set` spec. The
 /// lowerer records the rename in the same binding snapshot it uses for
 /// `interp alias` (so the store carries `canonical_command = set`), and
@@ -683,10 +682,10 @@ proc f {} {
 
 /// FP-SH-15: a `rename` inside `namespace eval ::ns` binds NEW in *that*
 /// namespace (`::ns::myset`), not globally — so the namespace-qualified call
-/// resolves to `set` and fires S102. Regression for the Codex review point
-/// that qualifying NEW with `normalise_qualified_name` alone recorded a global
-/// `::myset` (missing the real `::ns::myset` calls, and mis-analysing a global
-/// `myset` that Tcl considers invalid).
+/// resolves to `set` and fires S102.  Qualifying NEW with
+/// `normalise_qualified_name` alone records a global `::myset`, which misses
+/// the real `::ns::myset` calls and mis-analyses a global `myset` that Tcl
+/// considers invalid.
 #[test]
 fn fp_sh_15_namespaced_rename_indirection_fires_s102() {
     let src = "\
@@ -708,7 +707,7 @@ namespace eval ::ns {
     );
 }
 
-/// FP-SH-15 (detection gap now closed): `interp alias {} myset {} set` is the
+/// FP-SH-15: `interp alias {} myset {} set` is the
 /// same indirection through the interpreter's alias table rather than
 /// `rename` — the lowerer already records it, so threading
 /// `canonical_command` through `type_infer` / `ssa` closes it identically to
@@ -833,12 +832,11 @@ oo::class create C {
     );
 }
 
-/// FP-SH-15 (blind-spot fix, the case that was a genuine false positive):
-/// `my variable x` *followed by a local `set x 0`* used to give the loop a
-/// versioned `Known(Int)` entry and fire a spurious S102 — the instance
-/// variable's intrep is externally determined (the constructor / other
-/// methods can set it), so this must stay silent, the same protection a bare
-/// `variable x; set x 0` already had (FP-SH-16).
+/// FP-SH-15: `my variable x` *followed by a local `set x 0`* gives the loop a
+/// versioned `Known(Int)` entry, which alone would fire a spurious S102 — the
+/// instance variable's intrep is externally determined (the constructor /
+/// other methods can set it), so this must stay silent, the same protection a
+/// bare `variable x; set x 0` gets (FP-SH-16).
 #[test]
 fn fp_sh_15_my_variable_locally_initialised_no_s102() {
     let src = "\
@@ -887,10 +885,10 @@ oo::class create C {
 /// loop body IS thunking — the per-iteration cost (`expr` re-parses the
 /// string arm; `string range` re-stringifies the int arm) is invariant of
 /// what the caller passed in, so the unknown (OVERDEFINED) *entry* type is
-/// no reason to abstain.  The old guard encoded the header-phi path's
-/// evidence limitation; the intra-iteration path proves the cost from the
-/// body's own defs, exactly as the unaliased-local sibling
-/// ([`fp_sh_15_unaliased_method_local_still_fires`]) always expected.  A
+/// no reason to abstain.  The header-phi path has no evidence of the entry
+/// type, but the intra-iteration path proves the cost from the body's own
+/// defs, exactly like the unaliased-local sibling
+/// ([`fp_sh_15_unaliased_method_local_still_fires`]).  A
 /// genuinely aliased variable (`global` / `variable` / `upvar`) still
 /// abstains — see [`fp_sh_15_tcloo_instance_variable_no_s102`].
 #[test]
@@ -1077,14 +1075,14 @@ proc use_it {} {
 }
 
 // FP-SH-17 — destructuring writers do not broadcast their return type onto
-// the variables they write (issue #867).  `lassign`/`scan`/`regexp`/`binary
+// the variables they write.  `lassign`/`scan`/`regexp`/`binary
 // scan` write element-wise pieces, not the leftover-list / match-count they
 // return, so a target must not inherit `List`/`Int`.  Driven by each command's
 // registry `VarWriteTyping`, never a compiler-side def-count heuristic.
 
-/// FP-SH-17: the reported case — `lassign $point x y z` then arithmetic on the
-/// targets.  Pre-fix the targets were typed `List` (the command's return type),
-/// so `expr {$x + $y + $z}` wrongly fired S100 "list intrep used in arithmetic".
+/// FP-SH-17: `lassign $point x y z` then arithmetic on the targets.  Typing the
+/// targets `List` (the command's return type) makes `expr {$x + $y + $z}`
+/// wrongly fire S100 "list intrep used in arithmetic".
 #[test]
 fn fp_sh_17_lassign_targets_arithmetic_no_shimmer() {
     let src = "set point [list 1 2 3]\n\
@@ -1099,9 +1097,9 @@ fn fp_sh_17_lassign_targets_arithmetic_no_shimmer() {
     );
 }
 
-/// FP-SH-17: the single-target `lassign $l x` case the old `defs.len() > 1`
-/// heuristic never covered — one write still fell through to the `List` return
-/// type.  Both arithmetic and string-comparison uses must stay silent.
+/// FP-SH-17: the single-target `lassign $l x` case, which a `defs.len() > 1`
+/// heuristic would not cover — the one write would fall through to the `List`
+/// return type.  Both arithmetic and string-comparison uses must stay silent.
 #[test]
 fn fp_sh_17_lassign_single_target_no_shimmer() {
     let arith = "set p [list 5]\nlassign $p x\nset o [expr {$x + 1}]";
@@ -1119,9 +1117,9 @@ fn fp_sh_17_lassign_single_target_no_shimmer() {
 }
 
 /// FP-SH-17: `regexp` capture variables hold matched *substrings*, not the
-/// `Int` match count the command returns.  Pre-fix a single capture was typed
-/// `Int`, so comparing it with `eq` wrongly fired S100 "numeric variable used
-/// in string comparison".
+/// `Int` match count the command returns.  Typing a single capture `Int` makes
+/// comparing it with `eq` wrongly fire S100 "numeric variable used in string
+/// comparison".
 #[test]
 fn fp_sh_17_regexp_capture_string_compare_no_shimmer() {
     let src = "set s \"abc\"\n\
@@ -1168,8 +1166,8 @@ fn fp_sh_17_regsub_output_string_compare_no_shimmer() {
 
 /// FP-SH-17 TP control: `regsub`'s output is a genuine `String` (`Fixed(String)`,
 /// not `Destructured`), so using it in arithmetic is a real string→int shimmer
-/// and must still fire S100 — the fix drops the bogus `Int` typing without
-/// widening the value away (PR #885 review).
+/// and must still fire S100 — the destructured typing drops the bogus `Int`
+/// typing without widening the value away.
 #[test]
 fn fp_sh_17_regsub_output_in_arithmetic_still_fires() {
     let src = "set s \"aaa\"\n\
@@ -1182,18 +1180,17 @@ fn fp_sh_17_regsub_output_in_arithmetic_still_fires() {
     );
 }
 
-// FP-SH-18 — a numeric loop-body oscillation seeded by an Int entry was
-// masked: `type_join`'s exact-equality Known-vs-Shimmered rule degraded
-// `Known(Int) ⊔ SHIMMERED(Numeric, String)` to OVERDEFINED, so the genuine
-// thunk went undetected. The numeric-refinement join keeps it SHIMMERED.
+// FP-SH-18 — a numeric loop-body oscillation seeded by an Int entry: an
+// exact-equality Known-vs-Shimmered join rule degrades
+// `Known(Int) ⊔ SHIMMERED(Numeric, String)` to OVERDEFINED and hides the
+// thunk.  The numeric-refinement join keeps it SHIMMERED.
 
-/// FP-SH-18 (detection gap now closed): a self-referential loop whose body
-/// oscillates between `Numeric` (from `expr {$x + …}` on the loop-carried
-/// `$x`) and `String`, seeded by an `Int` entry (`set x 0`). Pre-fix the
-/// loop-header phi joined `Known(Int)` with the body's `SHIMMERED(Numeric,
-/// String)` and — because `Int != Numeric` under exact equality — degraded to
-/// OVERDEFINED, silently masking the thunk. `Int` is subsumed by the `Numeric`
-/// side, so the join now stays SHIMMERED and S102 fires. Genuine thunk
+/// FP-SH-18: a self-referential loop whose body oscillates between `Numeric`
+/// (from `expr {$x + …}` on the loop-carried `$x`) and `String`, seeded by an
+/// `Int` entry (`set x 0`). The loop-header phi joins `Known(Int)` with the
+/// body's `SHIMMERED(Numeric, String)`; under exact equality `Int != Numeric`
+/// would degrade that to OVERDEFINED and mask the thunk. `Int` is subsumed by
+/// the `Numeric` side, so the join stays SHIMMERED and S102 fires. Genuine thunk
 /// (verified against tclsh: the loop pays a per-iteration numeric↔string
 /// re-conversion).
 #[test]
@@ -1222,8 +1219,7 @@ proc f {n} {
 /// FP-SH-17: a call that writes several variables under the default typing
 /// (`catch {body} resultVar optionsVar`) must not broadcast its `Int` status
 /// return onto them — `result`/`opts` (and the body's `msg`) stay overdefined,
-/// so comparing `opts` as a string draws no numeric-in-string-compare S100
-/// (PR #885 review).
+/// so comparing `opts` as a string draws no numeric-in-string-compare S100.
 #[test]
 fn fp_sh_17_catch_result_and_options_vars_no_shimmer() {
     let src = "catch {set msg hello} result opts\n\
@@ -1235,7 +1231,7 @@ fn fp_sh_17_catch_result_and_options_vars_no_shimmer() {
     );
 }
 
-/// FP-SH-17 TP control: the fix widens *destructured* targets, not every value
+/// FP-SH-17 TP control: the widening applies to *destructured* targets, not every value
 /// — a genuine `set s hello; expr {$s + 1}` STRING-in-arithmetic shimmer must
 /// still fire, proving the change is not blanket-silencing.
 #[test]
@@ -1251,8 +1247,8 @@ fn fp_sh_17_genuine_string_arithmetic_still_fires() {
 /// FP-SH-17 TP control: a `lassign` *leftover* captured with `set left
 /// [lassign …]` still types `left` as the returned `List` — the return value
 /// genuinely is a list, so using it where a scalar is expected is a real
-/// signal.  Here the leftover flows to `llength` (a list use) — no shimmer,
-/// confirming the return-value path is unchanged.
+/// signal.  Here the leftover flows to `llength` (a list use) — no shimmer:
+/// the return-value path is unaffected by the destructured typing.
 #[test]
 fn fp_sh_17_lassign_leftover_capture_is_list() {
     let src = "set p [list 1 2 3]\n\
@@ -1295,10 +1291,10 @@ proc f {n} {
 /// `string range $payload …` → `*::payload replace` idiom is byte-exact and
 /// must NOT fire S110. Registry-driven via `ByteArrayEffect::Transparent`.
 ///
-/// `string trim*` was removed from this list: whenever a trim actually strips
+/// `string trim*` is not in this list: whenever a trim actually strips
 /// characters it builds a fresh string in both 8.6 and 9.0 (`StringTrimCmd` →
 /// `Tcl_NewStringObj`; the compiled `INST_STR_TRIM` keeps the object only for
-/// a no-op trim), so trim is now classified `Coerces` — see the TP control
+/// a no-op trim), so trim is classified `Coerces` — see the TP control
 /// below.
 #[test]
 fn fp_sh_19_transparent_string_ops_on_payload_silent() {
@@ -1364,9 +1360,8 @@ fn fp_sh_20_ordering_compare_non_numeric_silent() {
 /// FP-SH-20 guard: `$s <= 5` stays silent too. A numeric literal on one side
 /// does NOT force the other operand onto the numeric path — the probe is
 /// per-operand on its own value, and "hello" cannot parse, so the comparison
-/// string-compares and `s` keeps its `string` intrep (tclsh-verified). The
-/// old "numeric literal forces the numeric path" claim was a verified false
-/// positive.
+/// string-compares and `s` keeps its `string` intrep (tclsh-verified).  A
+/// numeric literal on one side does not force the numeric path.
 #[test]
 fn fp_sh_20_ordering_compare_numeric_literal_stays_silent() {
     let src = "set s [string trim hello]\nset y [expr {$s <= 5}]\n";
@@ -1377,9 +1372,9 @@ fn fp_sh_20_ordering_compare_numeric_literal_stays_silent() {
     );
 }
 
-// FP-SH-21 — a pure value's first conversion is free (issue #940)
+// FP-SH-21 — a pure value's first conversion is free
 
-/// FP-SH-21 (issue #940): a braced list literal used as a list must NOT fire
+/// FP-SH-21: a braced list literal used as a list must NOT fire
 /// S100. `{10.0 12.0 16.0 24.0}` is a pure string (oracle: `typePtr == NULL`),
 /// and `foreach` parses it into a list intrep once, for free — the reference
 /// contract's "pure string first type assignment is not a shimmer".
@@ -1393,8 +1388,8 @@ fn fp_sh_21_braced_list_literal_in_foreach_silent() {
     );
 }
 
-/// FP-SH-21: the empty list `{}` — the exact case named in issue #940's title —
-/// is a valid (empty) list, so `foreach` over it is free.
+/// FP-SH-21: the empty list `{}` is a valid (empty) list, so `foreach` over it
+/// is free.
 #[test]
 fn fp_sh_21_empty_braces_in_foreach_silent() {
     let src = "set empty {}\nforeach x $empty { puts $x }\n";
@@ -1541,7 +1536,7 @@ fn fp_sh_22_merge_use_matching_neither_arm_fires() {
     );
 }
 
-// FP-SH-23 — element-tracked containers and the union lattice (P2/P3)
+// FP-SH-23 — element-tracked containers and the union lattice
 
 /// FP-SH-23: a committed element retrieved from a tracked container keeps its
 /// intrep — `lindex` on `[list [expr {…}] …]` yields the numeric element, so
@@ -1558,9 +1553,8 @@ fn fp_sh_23_committed_element_arithmetic_silent() {
     );
 }
 
-/// FP-SH-23: a three-way branch merge stays a tracked union (previously
-/// collapsed to OVERDEFINED and silently missed) — the phi merge reports
-/// every member.
+/// FP-SH-23: a three-way branch merge stays a tracked union rather than
+/// collapsing to OVERDEFINED — the phi merge reports every member.
 #[test]
 fn fp_sh_23_three_way_merge_reports_all_members() {
     let src = "proc f {c} {\n  if {$c == 1} { set x [list 1] } elseif {$c == 2} { set x [dict create a 1] } else { set x [expr {1+1}] }\n  return $x\n}\n";
@@ -1585,7 +1579,7 @@ fn fp_sh_23_three_way_same_type_merge_silent() {
 
 /// FP-SH-23: exact bignum folding — `expr {2**64}` and a chained `$big + 1`
 /// fold to C Tcl's exact values, so the SCCP-driven checks see real
-/// constants, never a wrapped or declined value (P4; values tclsh-verified).
+/// constants, never a wrapped or declined value (values tclsh-verified).
 #[test]
 fn fp_sh_23_bignum_folds_are_exact() {
     use crate::compilation_unit::CompilationUnit;
@@ -1612,13 +1606,13 @@ fn fp_sh_23_bignum_folds_are_exact() {
     );
 }
 
-// FP-SH-24 — a braced argument word substitutes nothing (issue #1845)
+// FP-SH-24 — a braced argument word substitutes nothing
 
 /// FP-SH-24: `lindex {$x} 0` reads nothing. Tcl performs no substitution
 /// inside `{…}` — tclsh 9.0.4: `set x 5; lindex {$x} 0` yields the two
-/// characters `$x` — but a statement's IR `args` hold the *de-braced* word,
-/// so the detectors saw a live `$x` and reported a conversion that never
-/// happens.
+/// characters `$x` — but a statement's IR `args` hold the *de-braced* word, so
+/// a detector reading them naively sees a live `$x` and reports a conversion
+/// that never happens.
 #[test]
 fn fp_sh_24_braced_list_argument_silent() {
     let src = "proc f {l} {\n set x [llength $l]\n lindex {$x} 0\n}\n";

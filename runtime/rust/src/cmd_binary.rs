@@ -259,7 +259,7 @@ fn binary_format(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-// -- scan ------------------------------------------------------------------
+// scan
 
 fn binary_scan(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {

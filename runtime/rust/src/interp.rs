@@ -16,15 +16,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The interpreter: `Tcl_Interp` + the eval loop + command dispatch (T1.4).
+//! The interpreter: `Tcl_Interp` + the eval loop + command dispatch.
 //!
-//! Builds on the value model (T1.1), parse/subst (T1.2), and the frame/var
-//! store (T1.3). This is the **interpreter-fallback** path — the AOT compiler
+//! Builds on the value model, parse/subst, and the frame/var
+//! store. This is the **interpreter-fallback** path — the AOT compiler
 //! is the primary route (north star); this runs what isn't (yet) AOT-compiled
 //! and what genuinely needs runtime interpretation (`eval $dynamic`, etc.).
 //!
-//! Closes the **command** half of T1.2's subst seam: a `[cmd]` substitution
-//! recursively evaluates its inner script through this loop.
+//! Closes the **command** half of the substitution engine's seam: a `[cmd]`
+//! substitution recursively evaluates its inner script through this loop.
 //!
 //! ## Why no deferred-free queue
 //!
@@ -799,7 +799,7 @@ struct ArrayOperationTarget {
 pub struct InterpState {
     pub(crate) frames: RefCell<FrameStack>,
     /// The command-table-as-core-service: the namespace tree + the one
-    /// `resolve(currentNs, name)` resolver (T1.5).
+    /// `resolve(currentNs, name)` resolver.
     namespaces: RefCell<Namespaces>,
     /// Exact array bindings retained by nested `array` operations. The public
     /// runtime contract carries only the opaque `VarId`; this stack keeps the
@@ -1463,7 +1463,7 @@ impl Interp {
         self.write_release_globals();
         // `package provide Tcl` is a release fact, not a runtime constant, and
         // the pre-provided entries were written against the *previous* pin —
-        // re-derive them (ledger row B4).
+        // re-derive them.
         self.packages.borrow_mut().provide_core(version);
     }
 
@@ -6829,8 +6829,9 @@ impl Interp {
         // characters after close-brace` with `sfx` never called. Walking the
         // words in order and raising at the first `WordPart::ParseError` (this
         // engine's carrier for those failures — the scanner stays infallible so
-        // the LSP can keep tokenizing) substituted word by word instead, which
-        // ran `sfx`. Issue #1787; the gap #1818's header recorded as pending.
+        // the LSP can keep tokenizing) matches that: substituting word by word
+        // without this check would run `sfx` before the later parse error is
+        // seen.
         if let Some(msg) = parse::first_parse_error(words, self.lexer_config()) {
             return self.error(msg.as_bytes());
         }
@@ -7241,7 +7242,7 @@ impl Interp {
                 }
                 // Gated resolution: a source the emulated release does not carry
                 // is a miss, so an imported spelling cannot smuggle a hidden
-                // builtin past the surface check (PR #1481 review).
+                // builtin past the surface check.
                 match self.resolve_dispatchable(GLOBAL, &source) {
                     // Transparent redirect: forward argv unchanged to the source.
                     Some(cmd) => self.invoke(cmd, argv),
@@ -7321,9 +7322,8 @@ impl Interp {
     pub(crate) fn rand_next(&self) -> f64 {
         // The generator itself — step, seed nudge and C's reciprocal-multiply
         // scaling — is the shared owner's (`tcl_syntax::expr::rand`), so this
-        // engine and the VM cannot drift on a seeded stream (#1432). What
-        // stays here is the seed *storage* and the nondeterministic
-        // first-seed policy.
+        // engine and the VM cannot drift on a seeded stream. What stays here
+        // is the seed *storage* and the nondeterministic first-seed policy.
         let mut seed = self.rand_seed.get().unwrap_or_else(|| {
             // Nondeterministic first seed, kept in [1, 2^31-2]. The wall clock
             // comes from the host (so the browser/WASI hosts seed it too).
@@ -7399,7 +7399,7 @@ impl Interp {
     /// the empty word is `ambiguous option ""`. The child command object
     /// advertises a *shorter* list than `interp` does (no `children`, `create`,
     /// `delete`, or `exists`: those are only ever spelled `interp <op> path`),
-    /// and this runtime dispatches all thirteen (issue #1412 item 7).
+    /// and this runtime dispatches all thirteen.
     pub(crate) const CHILD_OPTIONS: &[&[u8]] = &[
         b"alias",
         b"aliases",
@@ -7682,10 +7682,10 @@ impl Interp {
         // reports and behaves as its parent's release. Inherited before the
         // globals are written, so the child's `tcl_version`/`tcl_patchLevel`
         // and its namespace-scope variable resolution both agree with the
-        // parent (issue #1328). Resolution still runs against the child's
-        // *own* global namespace: the rule is shared, the variables are not.
-        // The whole profile is inherited, not just the release, so a child's
-        // command-surface availability gate agrees too (issue #1463).
+        // parent. Resolution still runs against the child's *own* global
+        // namespace: the rule is shared, the variables are not. The whole
+        // profile is inherited, not just the release, so a child's
+        // command-surface availability gate agrees too.
         child.set_dialect_profile(self.dialect_profile());
         child
             .channels
@@ -8138,16 +8138,16 @@ impl Interp {
 
     /// Make this interp "safe": hide the commands that touch the host
     /// (filesystem, processes, sockets, the interpreter itself) — the core of
-    /// `interp create -safe`. The Safe Base's re-aliasing of `source`/`load`/
-    /// `file` is a follow-up (needs cross-interp aliases).
+    /// `interp create -safe`. This does not re-alias `source`/`load`/`file`
+    /// through the Safe Base, which would need cross-interp aliases.
     pub(crate) fn make_safe(&mut self) {
         // Variable unsets below can fire callbacks. Stale existing tokens before
         // the first visibility/policy write, not after re-entrant code can run.
         self.invalidate_interpreter_policy();
         // The hide list is the registry's `Traits::SAFE_INTERP_HIDDEN` query,
-        // not a name list this engine keeps (ledger row B2): C's own set is
-        // the `CmdInfo` rows lacking `CMD_IS_SAFE` plus the whole-command rows
-        // of `unsafeEnsembleCommands`, and that is what the trait records.
+        // not a name list this engine keeps: C's own set is the `CmdInfo`
+        // rows lacking `CMD_IS_SAFE` plus the whole-command rows of
+        // `unsafeEnsembleCommands`, and that is what the trait records.
         // `hide_command` returns `false` for a name this interpreter does not
         // carry, which is the per-release narrowing: `unload` (8.5+) and
         // `zipfs` (9.0+) are release-gated and simply are not there under an
@@ -8155,9 +8155,9 @@ impl Interp {
         //
         // `after` / `vwait` are correctly absent from the trait — confirmed
         // present and callable inside a real safe child on tclsh 8.6.14
-        // (`s eval {info commands after}` returns `after`); an earlier
-        // hand-typed list here once hid them, breaking legitimate safe-interp
-        // code using `after idle` / `after cancel`.
+        // (`s eval {info commands after}` returns `after`). A hand-typed hide
+        // list here would risk hiding them by mistake, breaking legitimate
+        // safe-interp code that uses `after idle` / `after cancel`.
         for name in tcl_registry::safe_interp_hidden_commands() {
             self.hide_command(name.as_bytes(), name.as_bytes());
         }
@@ -10417,8 +10417,9 @@ mod tests {
         });
     }
 
-    /// Regression coverage for issue #996 in this runtime specifically: a
-    /// tree-walking interpreter recurses natively (`eval_command` → command
+    /// Regression coverage for the native-stack recursion hazard this
+    /// runtime is exposed to: a tree-walking interpreter recurses natively
+    /// (`eval_command` → command
     /// dispatch → `eval_control_body`/`run_proc` → `eval_script_mode`,
     /// recursively) for every nested control-flow body or proc call, unlike
     /// C Tcl's bytecode-compiled control structures. Empirically, on this
@@ -10450,7 +10451,7 @@ mod tests {
         });
     }
 
-    /// Defence in depth for the alias trampoline (issue #1447). `interp alias`
+    /// Defence in depth for the alias trampoline. `interp alias`
     /// and `rename` both refuse a cycle at definition time, so plant one
     /// straight into the command table — bypassing that gate the way only a
     /// bug could — and confirm the dispatch bound turns what would otherwise be
@@ -10738,8 +10739,7 @@ mod tests {
 
     #[test]
     fn qualified_global_aliases_plain_at_top_level() {
-        // The headline T1.5 fix: `::pinged` and `pinged` are the SAME global
-        // (before, `::pinged` was a literal frame key distinct from `pinged`).
+        // `::pinged` and `pinged` resolve to the SAME global.
         leak_free(|i| {
             assert_eq!(i.eval_str(b"set ::pinged 1"), Code::Ok);
             assert_eq!(i.eval_str(b"set pinged"), Code::Ok);
@@ -10942,8 +10942,8 @@ mod tests {
     }
 
     /// Selecting the release selects the *lexing grammar* scripts parse
-    /// under (issue #1462) and the builtin command surface (issue #1463):
-    /// under an 8.4 pin `{*}` does not expand and the first-close `${…}`
+    /// under and the builtin command surface: under an 8.4 pin `{*}` does
+    /// not expand and the first-close `${…}`
     /// rule applies, and `lassign` (8.5+) resolves to `invalid command
     /// name` — while a user-defined proc of the same name stays callable
     /// (the compat-polyfill pattern).
@@ -10951,7 +10951,7 @@ mod tests {
     fn grammar_and_command_surface_follow_the_selected_release() {
         use tcl_dialect::TclVersion;
 
-        // #1462 — the `{*}` expansion grammar (TIP 157, 8.5+).
+        // The `{*}` expansion grammar (TIP 157, 8.5+).
         leak_free(|i| {
             i.set_runtime_version(TclVersion::V9_0);
             assert_eq!(ok(i, b"llength [list {*}{a b}]"), b"2");
@@ -10962,14 +10962,15 @@ mod tests {
             // braced word `{*}` with `{a b}` welded onto its close-brace —
             // which C rejects. Measured on tclsh8.4.20: `llength [list
             // {*}{a b}]` reports `extra characters after close-brace`, where
-            // 8.5.19/8.6.16/9.0.4/9.1b0 all answer `2`. This engine used to
-            // recover it as one word and answer `1`; the boundary owner's
-            // `welded_after_close` (#1786) closed that residual gap.
+            // 8.5.19/8.6.16/9.0.4/9.1b0 all answer `2`. The boundary owner's
+            // `welded_after_close` enforces this: a braced word directly
+            // followed by another brace-delimited word is rejected rather
+            // than merged into one word.
             assert_eq!(i.eval_str(b"llength [list {*}{a b}]"), Code::Error);
             assert_eq!(i.result_bytes(), b"extra characters after close-brace");
         });
 
-        // #1462 — the `${…}` delimiting rule: 8.x stops at the first `}`
+        // The `${…}` delimiting rule: 8.x stops at the first `}`
         // (its `Tcl_ParseVarName` counts no braces), 9.x nests. Verified
         // against tclsh8.4.20 / tclsh9.0.4.
         leak_free(|i| {
@@ -10985,7 +10986,7 @@ mod tests {
             assert_eq!(ok(i, b"set r ${a{b}c}"), b"9");
         });
 
-        // #1463 — the builtin surface: lassign is 8.5+, lpop is 9.0+.
+        // The builtin surface: lassign is 8.5+, lpop is 9.0+.
         leak_free(|i| {
             i.set_runtime_version(TclVersion::V8_4);
             assert_eq!(i.eval_str(b"lassign {a b} x"), Code::Error);
@@ -11012,13 +11013,12 @@ mod tests {
         });
     }
 
-    /// The #1463 availability gate is a property of the **final resolved
-    /// builtin**, not of the spelling the caller wrote. PR #1481's review
-    /// found the gate spelled out at direct dispatch only, so the two
-    /// resolve-then-`invoke` shapes — the alias trampoline and the `namespace
-    /// import` redirect — reached the builtin through a second, ungated
-    /// resolution and made an 8.4-hidden `lassign` callable as
-    /// `interp alias {} la {} lassign; la {a b} x y`.
+    /// The availability gate is a property of the **final resolved
+    /// builtin**, not of the spelling the caller wrote. Without that, the
+    /// two resolve-then-`invoke` shapes — the alias trampoline and the
+    /// `namespace import` redirect — could reach the builtin through a
+    /// second, ungated resolution and make an 8.4-hidden `lassign` callable
+    /// as `interp alias {} la {} lassign; la {a b} x y`.
     ///
     /// Error identity is oracled against real tclsh 8.6.16 / 9.0.4:
     /// `interp alias {} la {} nosuchcmd; la a b` reports `invalid command
@@ -11062,8 +11062,8 @@ mod tests {
         leak_free(|i| {
             i.set_runtime_version(TclVersion::V9_0);
             assert_eq!(i.eval_str(IMPORT), Code::Ok);
-            // The exact #1493 reproducer is successful without an explicit
-            // export.  Global builtins are not exported by default, so this
+            // This reproducer succeeds without an explicit export.  Global
+            // builtins are not exported by default, so this
             // records no alias; the important contract is that it does not
             // resolve the absolute root as the destination namespace.
             assert_eq!(i.eval_str(b"namespace export lassign"), Code::Ok);
@@ -11088,9 +11088,9 @@ mod tests {
     }
 
     /// The same gate on the two *non*-dispatch shapes that would hand a
-    /// release-hidden builtin back ungated (PR #1481 review): `rename`, which
-    /// would rebind it under a name the registry has no spec for, and `interp
-    /// hide`, which would park it where `interp invokehidden` reaches it.
+    /// release-hidden builtin back ungated: `rename`, which would rebind it
+    /// under a name the registry has no spec for, and `interp hide`, which
+    /// would park it where `interp invokehidden` reaches it.
     ///
     /// `rename`'s refusal is oracled against tclsh 8.6.16 / 9.0.4:
     /// `rename nosuchcmd zz` → `can't rename "nosuchcmd": command doesn't

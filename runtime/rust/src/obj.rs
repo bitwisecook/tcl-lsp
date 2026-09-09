@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The `Tcl_Obj` value model + refcount discipline (Track 1, T1.1).
+//! The `Tcl_Obj` value model + refcount discipline.
 //!
 //! Every allocation is balanced by a free driven by the refcount reaching
 //! zero, and the alloc/free counters (`crate::counters`) prove it.
@@ -32,7 +32,7 @@
 //! handle/tagged-immediate layout is a separate codegen detail; the runtime
 //! serves the same `tcl_*`/`obj_*` codegen primitives over the
 //! ABI-faithful struct, with the immediate/inline-string optimisations layered
-//! on later — see T1.5/S6).
+//! on later).
 //!
 //! ## Refcount semantics — faithful to `tclObj.c`
 //!
@@ -42,7 +42,7 @@
 //! `Tcl_DecrRefCount` frees immediately when the count reaches zero (Tcl's
 //! `TclFreeObj`). The runtime-internal *deferred* free queue
 //! (`tcl_obj_drain_pending`, for the eval-loop aliasing case in
-//! `memory-management.md` MM-B.6) lands with the eval loop (T1.3); the C-API
+//! `memory-management.md` MM-B.6) lands with the eval loop; the C-API
 //! boundary is immediate, which is what `Tcl_DecrRefCount` documents.
 
 use core::ffi::{c_char, c_void};
@@ -140,12 +140,10 @@ impl TclObj {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Allocation — the single allocator (§4.4). Natively this is the Rust global
-// allocator; on wasm it becomes the one shared-memory allocator (T1.6). Every
+// allocator; on wasm it becomes the one shared-memory allocator. Every
 // header and every owned string buffer is counted so the leak gate can prove
 // balance.
-// ---------------------------------------------------------------------------
 
 fn obj_layout() -> Layout {
     Layout::new::<TclObj>()
@@ -197,10 +195,8 @@ unsafe fn obj_free(obj: *mut TclObj) {
     counters::obj_freed();
 }
 
-// ---------------------------------------------------------------------------
 // Typed internal-rep helpers — the shimmer keystone's plumbing, used by the
 // value-type modules (`list`, future `dict`, …). pub(crate): internal only.
-// ---------------------------------------------------------------------------
 
 /// Allocate a fresh (`rc 0`) object with a typed internal rep and no string rep.
 pub(crate) fn alloc_typed(type_ptr: *const TclObjType, internal_rep: u64) -> *mut TclObj {
@@ -421,7 +417,7 @@ unsafe fn set_owned_string(obj: *mut TclObj, src: *const u8, len: usize) {
 unsafe fn free_string_buffer(obj: *mut TclObj) {
     // SAFETY: `obj` is live per caller; `bytes`, when non-null, was allocated
     // by `set_owned_string` with `Layout(length + 1, 1)` and `length` is
-    // immutable for T1.1 obj kinds (strings are not appended-to here yet).
+    // immutable for these obj kinds — strings are not appended-to here.
     unsafe {
         let bytes = (*obj).bytes;
         if bytes.is_null() {
@@ -443,9 +439,7 @@ unsafe fn free_string_buffer(obj: *mut TclObj) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Constructors — all `fresh_zero` (refCount 0).
-// ---------------------------------------------------------------------------
 
 /// `Tcl_NewObj` — a fresh empty-string object at refCount 0.
 pub fn new_obj() -> *mut TclObj {
@@ -608,9 +602,7 @@ pub fn new_boolean_obj(value: i32) -> *mut TclObj {
     new_wide_int_obj(if value != 0 { 1 } else { 0 })
 }
 
-// ---------------------------------------------------------------------------
 // Refcount — `Tcl_IncrRefCount` / `Tcl_DecrRefCount` (faithful to the macros).
-// ---------------------------------------------------------------------------
 
 /// `Tcl_IncrRefCount`. Null-safe.
 ///
@@ -652,9 +644,7 @@ pub unsafe fn decr_ref_count(obj: *mut TclObj) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // String rep — `Tcl_GetStringFromObj` / `Tcl_GetString` (shimmer on demand).
-// ---------------------------------------------------------------------------
 
 /// `Tcl_GetStringFromObj` — returns a borrowed pointer into the object's string
 /// rep, generating it on demand for pure int objects (shimmer). The pointer is
@@ -687,9 +677,7 @@ pub unsafe fn get_string(obj: *mut TclObj, length_out: *mut TclSize) -> *mut c_c
     }
 }
 
-// ---------------------------------------------------------------------------
 // Small helpers (no libc dependency in the native build).
-// ---------------------------------------------------------------------------
 
 /// `strlen` over a NUL-terminated C string.
 ///

@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Analysing valid multi-byte UTF-8 must never abort, and must never report a
-//! span that lands inside a character (issue #1325).
+//! span that lands inside a character.
 //!
 //! The trigger is a **compound** body word — a braced group welded to more word
 //! characters, `{body}x`.  Real Tcl rejects that outright ("extra characters
@@ -195,16 +195,16 @@ fn body_text_in_region_leaves_a_position_preserving_overlay_alone() {
     assert_eq!(body_text_in_region(src, 8, 15, "puts hi"), "puts hi");
 }
 
-// The lowering side of the same guard (issue #1393).
+// The lowering side of the same guard.
 //
 // IR spans are the contract every downstream consumer trusts — codegen slices
 // the source with them, the LSP turns them into editor ranges — so the
 // lowerer has to be as truthful a span producer as the analyser.  It rebases a
 // body word's tokens by one offset in the same places and for the same
-// reasons, and until #1393 it did so with no guard at all: the shapes that
-// still reach a body rebase past #1375's literal gates (`namespace eval`,
-// `eval`, `uplevel`, `apply`, `when`) slid every token of a compound `{body}x`
-// word one byte left, exactly as `analyse_body` used to.
+// reasons, so it needs the same guard: the shapes that still reach a body
+// rebase past the literal gates (`namespace eval`, `eval`, `uplevel`,
+// `apply`, `when`) would otherwise slide every token of a compound `{body}x`
+// word one byte left, exactly the fault `analyse_body` guards against.
 
 /// Every statement span the lowering emits for `src`, checked against `src`.
 ///
@@ -242,7 +242,7 @@ fn assert_lowered_spans_are_sliceable(src: &str, dialect: &str) {
     }
 }
 
-/// The shapes that still reach a body rebase after #1375's literal gates, each
+/// The shapes that still reach a body rebase after the literal gates, each
 /// with a compound body word — the `{body}x` weld that slides the rebase.
 fn compound_body_shapes(tail: &str) -> Vec<(String, &'static str)> {
     vec![
@@ -277,8 +277,8 @@ fn compound_body_shapes(tail: &str) -> Vec<(String, &'static str)> {
 
 #[test]
 fn lowered_spans_survive_a_compound_body_word() {
-    // The ASCII weld is the quiet half of #1325: every span past the dropped
-    // `}` is one byte out, which `str::get` cannot see. It is here so the
+    // The ASCII weld is the quiet half of the hazard: every span past the
+    // dropped `}` is one byte out, which `str::get` cannot see. It is here so the
     // matrix covers both halves; the multi-byte tails below are what turn the
     // same slide into an unsliceable span.
     for tail in ["x", "\u{200b}", "é", "→", "🎈"] {
@@ -290,7 +290,7 @@ fn lowered_spans_survive_a_compound_body_word() {
 
 #[test]
 fn lowered_spans_survive_the_zero_width_irule() {
-    // The corpus shape from #1325, lowered rather than analysed.
+    // The corpus file's shape (`NESTED`), lowered rather than analysed.
     assert_lowered_spans_are_sliceable(NESTED, "f5-irules");
     assert_lowered_spans_are_sliceable(MINIMAL, "tcl8.6");
 }
@@ -333,7 +333,7 @@ fn a_compound_body_lowers_at_the_offsets_it_is_written_at() {
     }
 }
 
-/// The other half of #1375's literal gate: a body word that *substitutes*.
+/// The other half of the literal gate: a body word that *substitutes*.
 ///
 /// Its value is run-time data that appears nowhere in the document, so its
 /// written spelling is not a script sitting at those offsets.  `namespace eval`
@@ -362,7 +362,7 @@ fn a_substituted_body_word_is_not_lowered_at_its_written_offsets() {
     }
 }
 
-/// `try`'s *other* bodies — the ones #1375's gate missed (PR #1481 review).
+/// `try`'s *other* bodies — the ones the primary-body gate missed.
 ///
 /// The gate landed on the primary body alone.  `finally` only required its
 /// word to be a single token, and every non-`-` `on` / `trap` handler body was
@@ -379,7 +379,7 @@ fn a_substituted_body_word_is_not_lowered_at_its_written_offsets() {
 #[test]
 fn a_substituted_try_finally_or_handler_body_is_not_lowered_at_its_written_offsets() {
     for src in [
-        // The two reproducers from the review, byte-for-byte.
+        // The two reproducers, byte-for-byte.
         "set body {puts hi}; try {} finally $body",
         "set body {puts hi}; try {error x} on error {} $body",
         // …and the shapes around them: `trap`, a command substitution, a

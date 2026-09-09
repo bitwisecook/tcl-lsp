@@ -311,8 +311,7 @@ proc f {} {
     );
 }
 
-// test_FP_dict_with_does_not_suppress_unrelated_missing_var
-// (not tagged FP-RBS-NN; belongs to the dict-with precision gap documented inline)
+// Untagged: the dict-with precision gap.
 #[test]
 fn fp_rbs_dict_with_does_not_suppress_unrelated_missing_var() {
     // TP: empty literal dict; dict with unpacks no keys; $missing read is a real W210.
@@ -330,8 +329,7 @@ proc f {} {
     );
 }
 
-// test_FP_dispatch_protocol_requires_dispatcher_evidence
-// (not tagged FP-RBS-NN; inline precision gap)
+// Untagged: the dispatch-protocol precision gap.
 #[test]
 fn fp_rbs_dispatch_protocol_requires_dispatcher_evidence() {
     // TP: three helpers sharing {ctx token} with no dispatcher evidence — token unused, W214 fires.
@@ -349,8 +347,7 @@ namespace eval ::n {
     );
 }
 
-// test_FP_call_by_name_info_exists_dynamic_target_not_caller_read
-// (not tagged FP-RBS-NN; inline precision gap)
+// Untagged: the call-by-name precision gap.
 #[test]
 fn fp_rbs_call_by_name_info_exists_dynamic_target_not_caller_read() {
     // TP: callee uses target as DYNAMIC_NAME_LOCAL; caller's $x must still fire W211/W220.
@@ -578,9 +575,9 @@ fn fp_rbs_05_alias_exists_guard_is_not_constant() {
     // local exists tracks the linked namespace variable — runtime state — so
     // `[info exists alias]` must not fold to a constant branch (I230).
     // tclsh 8.6: `namespace upvar ns s a; info exists a` → 1 when `ns::s`
-    // exists, 0 when it does not.  Pre-fix the fold said "always false"
-    // (the lowered `namespace upvar` Call carries no defs, unlike
-    // `global`/`variable`/`upvar`).  Scalar and array-element sources both.
+    // exists, 0 when it does not.  Without the alias def the fold would say
+    // "always false", since the lowered `namespace upvar` Call carries no defs
+    // unlike `global`/`variable`/`upvar`.  Scalar and array-element sources both.
     for src in [
         "proc t {} {\n    namespace upvar ::ns state alias\n    if {[info exists alias]} { puts yes }\n}\n",
         "proc t {} {\n    namespace upvar ::ns arr(k) alias\n    if {[info exists alias]} { puts yes }\n}\n",
@@ -1048,7 +1045,7 @@ fn fp_rbs_14_omitting_arm_still_fires() {
 
 #[test]
 fn fp_rbs_14_break_arm_escaping_loop_still_fires() {
-    // TP (Codex P1): break in opaque-switch arm does NOT define var on the path escaping the loop.
+    // TP: break in an opaque-switch arm does NOT define the var on the path escaping the loop.
     let src =
         "proc f {} { foreach x {a} { switch -glob $x {a* {break} default {set y 1}} }; puts $y }\n";
     assert!(
@@ -1118,7 +1115,7 @@ fn fp_rbs_15_one_completing_arm_fires() {
 
 #[test]
 fn fp_rbs_15_all_break_switch_not_a_proc_terminator() {
-    // TP (Codex P1): a switch whose arms all `break` jumps to loop exit, not proc return.
+    // TP: a switch whose arms all `break` jumps to loop exit, not proc return.
     let src = "proc f {x} { foreach i {1 2 3} { switch -glob $x {a* {break} default {break}} }; puts $y }\n";
     assert!(
         fires(src, D, "W210"),
@@ -1129,7 +1126,7 @@ fn fp_rbs_15_all_break_switch_not_a_proc_terminator() {
 
 #[test]
 fn fp_rbs_15_while1_break_in_opaque_switch_exits_loop() {
-    // TP (Codex P1 / C3): while 1 whose only exit is break inside opaque switch — post-loop read is reachable.
+    // TP: while 1 whose only exit is break inside an opaque switch — the post-loop read is reachable.
     let src = "proc f {x} { while 1 { switch -glob $x {a* {break} default {break}} }; puts $y }\n";
     assert!(
         fires(src, D, "W210"),
@@ -1183,7 +1180,7 @@ fn fp_rbs_16_while1_conditional_break_silent() {
 
 #[test]
 fn fp_rbs_16_normal_while_body_defined_silent() {
-    // FP-RBS-19 (#756): a non-constant `while` may run zero times, but its body
+    // FP-RBS-19: a non-constant `while` may run zero times, but its body
     // unconditionally sets `y`, so a read after the loop is defined whenever the
     // loop ran. Matching C Tcl (which errors only when the condition is false on
     // entry at runtime, not merely when it could be), we assume a may-run loop
@@ -1252,11 +1249,11 @@ fn fp_rbs_17_empty_literal_still_fires() {
 
 #[test]
 fn fp_rbs_17_dynamic_list_body_defined_silent() {
-    // FP-RBS-19 (#756): a foreach over a *dynamic* list may be empty, but its
+    // FP-RBS-19: a foreach over a *dynamic* list may be empty, but its
     // body unconditionally sets `y`, so a read after the loop is defined
     // whenever the loop ran. Matching C Tcl (which errors only when the list is
-    // actually empty at runtime), we assume a may-run loop runs — this is the
-    // exact accumulator idiom the reporter hit (`foreach … { lappend acc … }`).
+    // actually empty at runtime), we assume a may-run loop runs — the
+    // accumulator idiom (`foreach … { lappend acc … }`).
     let src = "proc f {items} { foreach x $items { set y $x } ; puts $y }\n";
     assert!(
         !fires(src, D, "W210"),
@@ -1309,7 +1306,7 @@ fn fp_rbs_18_false_on_entry_still_fires() {
 
 #[test]
 fn fp_rbs_18_unknown_bound_body_defined_silent() {
-    // FP-RBS-19 (#756): a `for` with an unknown bound may run zero times, but
+    // FP-RBS-19: a `for` with an unknown bound may run zero times, but
     // its body unconditionally sets `y`, so a read after the loop is defined
     // whenever the loop ran. Matching C Tcl, we assume a may-run loop runs.
     let src = "proc f {n} { for {set i 0} {$i < $n} {incr i} { set y $i } ; puts $y }\n";
@@ -1337,7 +1334,7 @@ fn fp_rbs_18_stale_const_init_body_defined_silent() {
     // A stale const from the for-init (`set i $n` overwrites `set i 0`) leaves
     // the loop may-run (not guaranteed-nonempty; the rotation-soundness of that
     // classification is covered by the CFG-builder tests). Under FP-RBS-19
-    // (#756) the after-loop read is still silent: the body unconditionally sets
+    // the after-loop read is still silent: the body unconditionally sets
     // `y`, so a may-run loop is assumed to run, matching C Tcl.
     let src = "proc f {n} { for {set i 0; set i $n} {$i < 3} {incr i} { set y $i }; puts $y }\n";
     assert!(
@@ -1363,10 +1360,10 @@ fn fp_rbs_18_incr_in_init_provably_empty_fires() {
     );
 }
 
-// FP-RBS-19 (#756) — a may-run loop whose body defines a variable is assumed
+// FP-RBS-19 — a may-run loop whose body defines a variable is assumed
 // to run: an after-loop read is not read-before-set
 
-// The reporter's exact pattern (issue #756): a multi-group `foreach` over
+// The reported pattern: a multi-group `foreach` over
 // dynamic (`dict get`) lists building `lappend` accumulators, read after the
 // loop. tclsh errors only when the iterator lists are actually empty at
 // runtime; on real data the accumulators are defined, so the after-loop reads
@@ -1525,13 +1522,12 @@ fn fp_rbs_callbyname_upvar_alias_still_suppresses() {
 }
 
 // FP-RBS-20 — a condition-embedded variable writer defines its target
-// (issue #923 audit idx 49)
 //
-// `condition_command_out_vars` used to hardcode `catch` / `scan` / `gets` /
-// `regexp`, so the ubiquitous `if {[set VAR EXPR] rel N} {…$VAR…}` idiom
-// (ticklecharts utils.tcl:1068-1071) read as read-before-set.  It now asks
-// the registry for the call's `ArgRole::VarWrite` positions, so every command
-// the registry knows writes an out-var answers.
+// `condition_command_out_vars` asks the registry for the call's
+// `ArgRole::VarWrite` positions, so every command the registry knows writes an
+// out-var answers.  A hardcoded `catch` / `scan` / `gets` / `regexp` list
+// instead reads the ubiquitous `if {[set VAR EXPR] rel N} {…$VAR…}` idiom as
+// read-before-set.
 //
 // Oracle (tclsh 9.0.4 and 8.6.14, identical):
 //   proc bar {lst} { if {[set idx [lsearch $lst foo]] > -1} { puts $idx } }
@@ -1585,8 +1581,8 @@ fn fp_rbs_20_binary_scan_in_condition_defines_its_targets() {
 
 #[test]
 fn fp_rbs_20_previously_hardcoded_four_still_silent() {
-    // Regression net for the deleted name list: catch / scan / gets / regexp
-    // must keep the recognition the registry query replaced.
+    // catch / scan / gets / regexp must keep their recognition through the
+    // registry query, without a hardcoded name list.
     for src in [
         "proc c {} { if {[catch {error x} msg]} { puts $msg } }\n",
         "proc s {t} { if {[scan $t {%d %d} a b] == 2} { puts $a$b } }\n",
@@ -1633,11 +1629,10 @@ emitted: {:?}",
 
 #[test]
 fn fp_rbs_20_substituted_command_head_harvests_nothing() {
-    // TN control (PR #1076 review, P2): the head word's *content* spelling
-    // drops the `$`, so `[$set length foo]` used to resolve as the builtin
-    // `set` and harvest `length` as a definition — silencing a genuine
-    // warning.  Which command runs is run-time data, so nothing may be
-    // claimed about what it writes.
+    // TN control: the head word's *content* spelling drops the `$`, so
+    // `[$set length foo]` would resolve as the builtin `set` and harvest
+    // `length` as a definition, silencing a genuine warning.  Which command
+    // runs is run-time data, so nothing may be claimed about what it writes.
     //
     // tclsh 9.0.4 / 8.6.14 (identical): calling `f string` executes
     // `string length foo`, which defines nothing —
@@ -1664,7 +1659,7 @@ emitted: {:?}",
     );
 }
 
-// Issue #1078 — a brace-quoted `$`-bearing name is a *literal* variable name
+// A brace-quoted `$`-bearing name is a *literal* variable name
 //
 // Oracle, tclsh 9.0.4 and 8.6.14, byte-identical:
 //
@@ -1679,12 +1674,12 @@ emitted: {:?}",
 //     info exists arr(5)             -> 0
 //   unset {$n} ; info exists {$n} / n -> 0 / 1
 //
-// These are the acceptance measurements recorded when PR #1076 reverted its
-// one-parameter attempt (`docs/design/compiler/ssa-construction.md`).
+// Acceptance measurements for this family
+// (`docs/design/compiler/ssa-construction.md`).
 
-/// The **missed true positive** the reverted #1076 attempt produced: with the
-/// def landing on the wrong variable, `set {$n} 1; puts $n` stopped warning
-/// even though tclsh errors `can't read "n": no such variable`.
+/// The **true positive** a def landing on the wrong variable would miss:
+/// `set {$n} 1; puts $n` must warn, because tclsh errors
+/// `can't read "n": no such variable`.
 #[test]
 fn issue_1078_braced_write_does_not_define_the_plain_name() {
     let src = "proc f {} { set {$n} 1; puts $n }\n";
@@ -1696,10 +1691,9 @@ read-before-set (tclsh: `can't read \"n\"`); emitted: {:?}",
     );
 }
 
-/// The **pre-existing false positive** #1078 was filed for: a lone
-/// `set {$n} 1` reads nothing at all, yet the naming layer recorded a read of
-/// `n` and fired `W210 Variable 'n' is read before it is set` on code that
-/// never mentions `n`.
+/// The **false positive** to avoid: a lone `set {$n} 1` reads nothing at all,
+/// so recording a read of `n` fires `W210 Variable 'n' is read before it is
+/// set` on code that never mentions `n`.
 #[test]
 fn issue_1078_braced_write_alone_is_not_a_read_of_the_plain_name() {
     let src = "proc f {} { set {$n} 1 }\n";
@@ -1727,9 +1721,9 @@ emitted: {:?}",
     );
 }
 
-/// The **two fresh false `W220`s** the reverted #1076 attempt produced.  The
-/// braced verdict must match the identically-shaped plain-named control
-/// exactly — both silent, because `[set …]` really does read the store.
+/// The **two false `W220`s** to avoid.  The braced verdict must match the
+/// identically-shaped plain-named control exactly — both silent, because
+/// `[set …]` really does read the store.
 #[test]
 fn issue_1078_braced_double_store_matches_the_plain_control() {
     let braced = "proc f {} { set {$n} 1; set {$n} 2; return [set {$n}] }\n";
@@ -1766,9 +1760,9 @@ fn issue_1078_braced_unset_does_not_touch_the_plain_name() {
 }
 
 /// TN control for the family: the *unbraced* substituted spellings must keep
-/// behaving as dynamic names — the #1076 barrier still has to fire.  Same
-/// shape as FP-DS-14's control, restated here so the #1078 changes cannot
-/// quietly erase the barrier they sit on top of.
+/// behaving as dynamic names — the dynamic-name barrier still has to fire.
+/// Same shape as FP-DS-14's control, restated here so the braced-name rules
+/// cannot quietly erase the barrier they sit on top of.
 #[test]
 fn issue_1078_unbraced_substituted_target_still_behaves_dynamically() {
     // `[set $p]` may observe *any* store, so the read barrier blinds the
@@ -1835,7 +1829,7 @@ fn issue_1078_braced_element_and_spaced_names_key_on_their_own_spelling() {
 //   proc f {} { return {$y} }; f    -> $y
 //   catch {puts $y} m; set m        -> can't read "y": no such variable
 
-/// #1237 — a braced data argument reads nothing, so no `W210`.
+/// A braced data argument reads nothing, so no `W210`.
 #[test]
 fn issue_1237_braced_data_argument_is_not_a_read() {
     for src in [
@@ -1851,7 +1845,7 @@ fn issue_1237_braced_data_argument_is_not_a_read() {
     }
 }
 
-/// #1142 — the generic half: an un-hooked / unknown definer's brace-shaped
+/// The generic half: an un-hooked / unknown definer's brace-shaped
 /// trailing argument carries no role information, so a `$y` in it that the
 /// same word `set`s is that body's own local, whichever frame the body ends up
 /// running in — never a read-before-set of the enclosing scope. The
@@ -1873,7 +1867,7 @@ emitted: {:?}",
     );
 }
 
-/// TN control for #1142 — a **free** read in an unclassified braced word (one
+/// TN control — a **free** read in an unclassified braced word (one
 /// nothing sets) is still a read: the word may be a script, and a wrapper that
 /// hands it to an `uplevel`-ing worker runs it in this frame, where tclsh
 /// errors on the unset name. Only a registry-*described* command's braced
@@ -1949,7 +1943,7 @@ fn issue_1237_quoted_use_still_keeps_the_variable_live() {
     );
 }
 
-// Issue #1260 — a `$var` inside a **braced** `foreach` / `lmap` / `dict for`
+// A `$var` inside a **braced** `foreach` / `lmap` / `dict for`
 // value word is a literal list element, not a substitution.
 //
 // tclsh-proof (tclsh 8.6.14 — the only interpreter available in this
@@ -1963,7 +1957,7 @@ fn issue_1237_quoted_use_still_keeps_the_variable_live() {
 // `ForeachIterator::list_braced` is what the CFG's synthetic loop-header call
 // carries the fact on.
 
-/// #1260 FP — a braced value word reads nothing, at top level and inside a
+/// FP — a braced value word reads nothing, at top level and inside a
 /// proc, for every loop that lowers to `Statement::Foreach`.
 #[test]
 fn issue_1260_braced_loop_value_word_is_not_a_read() {
@@ -1986,7 +1980,7 @@ fn issue_1260_braced_loop_value_word_is_not_a_read() {
     }
 }
 
-/// #1260 TP — the substituting spellings of the same word must still fire.
+/// TP — the substituting spellings of the same word must still fire.
 /// This is what separates "carry the braced flag" from "stop scanning the
 /// loop's value word".
 #[test]
@@ -2007,7 +2001,7 @@ fn issue_1260_substituted_loop_value_word_still_fires() {
     }
 }
 
-/// #1260 TN — the braced word still keeps the mentioned store *live*: the use
+/// TN — the braced word still keeps the mentioned store *live*: the use
 /// is classified (`UseClass::Quoted`), not dropped, so W211/W220 must not
 /// resurrect on a variable whose only mention is inside the braced list. Same
 /// guard rail as `issue_1237_quoted_use_still_keeps_the_variable_live`.
@@ -2028,21 +2022,19 @@ fn issue_1260_braced_loop_value_word_keeps_the_store_live() {
     );
 }
 
-// Issue #1266 — a read collapsed out of an **opaque** `switch` arm keeps its
-// `UseClass`.
+// A read collapsed out of an **opaque** `switch` arm keeps its `UseClass`.
 //
 // A non-lowered `switch` (`-glob` / `-regexp`, or `-exact` with a
 // fall-through arm) keeps its arms as one opaque CFG statement, so those arm
-// bodies are the only scripts that reach SSA un-lowered. `ssa::switch_reads`
-// collected them through `free_reads_in_script` / `reads_in_script` as a bare
-// name set and merged the lot into `ClassifiedUses::substituted`, so every
-// brace-quoted DATA word inside an arm was seen as a *substituted* read and
-// drew a false W210 — while the identical spelling outside an arm is
-// correctly quiet, because the lowered path classifies it `UseClass::Quoted`
-// and the W210 emitter skips a quoted use.
+// bodies are the only scripts that reach SSA un-lowered.  Collecting them as a
+// bare name set and merging the lot into `ClassifiedUses::substituted` would
+// see every brace-quoted DATA word inside an arm as a *substituted* read and
+// draw a false W210 — while the identical spelling outside an arm is quiet,
+// because the lowered path classifies it `UseClass::Quoted` and the W210
+// emitter skips a quoted use.
 //
-// The walk now threads `ClassifiedUses` end to end, so an arm body is
-// classified exactly as the same script would be when lowered.
+// The walk threads `ClassifiedUses` end to end, so an arm body is classified
+// exactly as the same script is when lowered.
 //
 // tclsh-proof (tclsh 9.0.4, the interpreter available in this container; the
 // issue reports the same on 8.6.14):
@@ -2058,7 +2050,7 @@ fn issue_1260_braced_loop_value_word_keeps_the_store_live() {
 //   proc f {z} { switch -glob $z { a* { puts $b } } }
 //   f abc                    -> can't read "b": no such variable
 
-/// #1266 FP — a braced data word inside an opaque arm substitutes nothing, in
+/// FP — a braced data word inside an opaque arm substitutes nothing, in
 /// every arm shape that keeps the `switch` opaque and at every nesting depth
 /// the collapsed walk descends.
 #[test]
@@ -2098,7 +2090,7 @@ fn issue_1266_braced_data_word_in_opaque_switch_arm_is_not_a_read() {
     }
 }
 
-/// #1266 TP — the substituting spellings of the same words inside an opaque
+/// TP — the substituting spellings of the same words inside an opaque
 /// arm must still fire. This is what separates "classify the arm's reads"
 /// from "stop collecting them".
 #[test]
@@ -2121,11 +2113,10 @@ fn issue_1266_substituted_word_in_opaque_switch_arm_still_fires() {
     }
 }
 
-/// #1266 TN / guard rail — the classification must be *threaded*, never
-/// dropped. The naive fix (omitting the name from `reads_in_script`) was
-/// rejected in #1260 precisely because a dropped name loses its **liveness**
-/// use as well, resurrecting a false W211/W220 on a store whose only mention
-/// is the braced word. Same guard rail as
+/// TN / guard rail — the classification must be *threaded*, never dropped.
+/// Omitting the name from `reads_in_script` instead would lose its
+/// **liveness** use as well, resurrecting a false W211/W220 on a store whose
+/// only mention is the braced word. Same guard rail as
 /// `issue_1237_quoted_use_still_keeps_the_variable_live` and
 /// `issue_1260_braced_loop_value_word_keeps_the_store_live`, now inside an
 /// opaque arm.
@@ -2158,7 +2149,7 @@ fn issue_1266_quoted_arm_mention_keeps_the_store_live() {
     }
 }
 
-/// #1266 FN guard — the whole point is that an opaque arm agrees with the
+/// FN guard — the whole point is that an opaque arm agrees with the
 /// lowered path. A plain `-exact` `switch` with no fall-through lowers its
 /// arms into ordinary CFG blocks; the `-glob` spelling of the same body must
 /// produce the same verdict, braced and substituted alike.
@@ -2195,15 +2186,15 @@ and the opaque one ({opaque}); {:?} vs {:?}",
     }
 }
 
-/// #1266 — the same collapse covered the arm **patterns**, which the
+/// The same collapse covers the arm **patterns**, which the
 /// canonical single-braced `{pat body …}` block also carries literally.
 ///
 /// tclsh 9.0.4: `proc f {z} { switch -glob $z { $a* { puts hit } default {
 /// puts miss } } }` prints `hit` for `f {$a}` and `miss` for `f zz`, with `a`
 /// undefined throughout — the pattern matched the two literal characters
 /// `$a`. Supplied as separate words the pattern *does* substitute, and the
-/// lowered `-exact` path already classified its patterns this way, so this is
-/// the same lowered-vs-opaque parity gap.
+/// lowered `-exact` path classifies its patterns this way, so this is the
+/// same lowered-vs-opaque parity question.
 #[test]
 fn issue_1266_braced_switch_pattern_is_not_a_read() {
     for src in [
@@ -2233,8 +2224,7 @@ fn issue_1266_braced_switch_pattern_is_not_a_read() {
     );
 }
 
-// Issue #923 audit idx 24 / issue #1019 — a variable assigned indirectly in
-// an outer frame by `uplevel`.
+// A variable assigned indirectly in an outer frame by `uplevel`.
 //
 // Every claim below is pinned on tclsh 9.0.4 and 8.6.16, byte-identical.
 // The three scripts print `99`, so the reads are not read-before-set:
@@ -2247,8 +2237,8 @@ fn issue_1266_braced_switch_pattern_is_not_a_read() {
 // the same with `setInCallerPlain`, and by the two-frame chain
 // `proc middle {} {setUp2 answer}` / `proc outer {} {middle; return $answer}`.
 
-/// FP — the one-hop list-built spelling. Already silent before idx 24's fix;
-/// pinned here because nothing else locks it in.
+/// FP — the one-hop list-built spelling, pinned here because nothing else
+/// locks it in.
 #[test]
 fn idx24_uplevel_one_list_built_set_is_not_read_before_set() {
     let src = "\
@@ -2287,9 +2277,8 @@ proc useIt {} {
     );
 }
 
-/// FP — the multi-frame shape idx 24 was still broken on: the writing proc is
-/// reached through an *ordinary* call, and its `uplevel 2` lands in that
-/// caller's caller.
+/// FP — the multi-frame shape: the writing proc is reached through an
+/// *ordinary* call, and its `uplevel 2` lands in that caller's caller.
 #[test]
 fn idx24_uplevel_two_reaches_through_a_plain_call() {
     let src = "\
@@ -2311,8 +2300,8 @@ proc outer {} {
     );
 }
 
-/// FP — the same, with a literal braced body instead of a built list. The
-/// `UpFrame` arm used to drop every level but 1 outright.
+/// FP — the same, with a literal braced body instead of a built list.  An
+/// `UpFrame` arm that handled only level 1 would drop this.
 #[test]
 fn idx24_uplevel_two_literal_body_reaches_through_a_plain_call() {
     let src = "\
@@ -2448,7 +2437,7 @@ fn idx24_tp_w212_still_fires_on_a_directly_written_name_word() {
     }
 }
 
-/// TN guard rail (#1237 / #1260 family) — widening a caller's frame must not
+/// TN guard rail (the braced-use family) — widening a caller's frame must not
 /// cost a variable its liveness: a store the `uplevel`-written name later
 /// feeds must not resurface as a dead store (W220) or an unused variable
 /// (W211).
@@ -2475,7 +2464,7 @@ proc outer {} {
 }
 
 /// FP — the same W212 carve-out on the canonical caller-frame-injection
-/// idiom the `tclopt` corpus is built from (issue #923 audit idx 38): a
+/// idiom the `tclopt` corpus is built from: a
 /// `[list set $varName $value]` built inside a `foreach`, where **both**
 /// words are substitutions.
 ///
@@ -2544,19 +2533,16 @@ proc NewArrays {varNames value} {
 }
 
 // FP-RBS-21 — a barriered structured loop still binds its literal loop
-// variables (issue #1380)
+// variables
 //
 // A structured loop whose words carry a `{*}` expansion cannot be lowered to
 // an `IRForeach` — the argv shape is unknowable — so it stays a
 // `Statement::Barrier`.  Its body still runs in the caller's frame and is
 // scanned for reads, so without the barrier contributing its
 // `ArgRole::LoopVarList` names as defs, every read of a loop variable inside
-// that body read as read-before-set.
-//
-// `foreach` showed this before #1380 (it was one of the nine names the old
-// expansion barrier knew); `lmap` / `dict for` / `array for` / `foreachLine`
-// were silent only because they fabricated an `IRForeach` over the
-// *un-expanded* words — the wrong IR, which the same issue removed.
+// that body would read as read-before-set.  `lmap` / `dict for` / `array for`
+// / `foreachLine` must not paper over this by fabricating an `IRForeach` over
+// the *un-expanded* words — that is the wrong IR.
 //
 // Oracle (tclsh 9.0.4, identical in 8.6.16 — `{*}` exists from 8.5):
 //   set spec {{a b}}
@@ -2613,11 +2599,10 @@ fn fp_rbs_21_tp_unexpanded_loops_are_unchanged() {
 // FP-RBS-21b — a *brace-quoted* var-list word binds the names it literally
 // spells, `$` and `[` included.
 //
-// The barrier harvest used to test the reconstructed word text for `$` / `[`,
-// which conflates "the word's value contains a dollar" with "the word
-// substitutes".  A braced word substitutes nothing, so `{$x}` is a
-// one-element list naming the variable `$x` — a legal Tcl name that the byte
-// test dropped from the def set (PR #1481 review of issue #1380).
+// Testing the reconstructed word text for `$` / `[` conflates "the word's
+// value contains a dollar" with "the word substitutes".  A braced word
+// substitutes nothing, so `{$x}` is a one-element list naming the variable
+// `$x` — a legal Tcl name such a byte test would drop from the def set.
 //
 // Oracle (tclsh 8.6.16 and 9.0.4 both print `1`):
 //   set spec {{1}}

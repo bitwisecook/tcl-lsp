@@ -204,7 +204,7 @@ pub(crate) struct Frame {
     /// Set on an **each-loop** activation: a scanner-driven frame (no bytecode,
     /// like `subst`) running a `foreach`/`lmap` runtime-fallback loop, one
     /// iteration's body per yieldable child script frame, folding each result
-    /// back in by `each_loop`'s collect/continue/break rules (issue #1311).
+    /// back in by `each_loop`'s collect/continue/break rules.
     each_loop: Option<Box<EachLoopState>>,
     /// Set on a **try-phase** activation: runs one phase (body/handler/
     /// `finally`) of a `try` construct's real bytecode (unlike `subst`/
@@ -212,7 +212,7 @@ pub(crate) struct Frame {
     /// normally). On completion, `Vm::unwind` calls `cmd_try::advance_try`
     /// with the taken state, which decides whether to push a fresh try-phase
     /// activation for the next phase or deliver the construct's final
-    /// completion (issue #1311).
+    /// completion.
     ///
     /// A completed phase is transparent to the caller's enclosing loop when
     /// no handler/finally clause consumes its `break`/`continue`, just like an
@@ -226,7 +226,7 @@ pub(crate) struct Frame {
     /// hence a Vec.  Fired (and step scopes popped) as the frame unwinds.
     exec_leave: Vec<ExecLeaveCtx>,
     /// A command name to delete once this activation completes, regardless of
-    /// completion code — `apply`'s temporary lambda proc (issue #1311), torn
+    /// completion code — `apply`'s temporary lambda proc, torn
     /// down the same way whether the call returned, errored, or unwound a
     /// `break`/`continue`/`return`. `None` for every other script activation.
     cleanup_proc: Option<String>,
@@ -292,11 +292,11 @@ pub(crate) struct EachLoopGroup {
 }
 
 /// A `foreach`/`lmap` runtime-fallback loop deferred to the explicit stack:
-/// each iteration's body runs as a yieldable child script frame (issue #1311
-/// — this is what a value-consumed `lmap`, e.g. `set r [lmap x {1 2} { yield
-/// $x }]`, needs: reached via generic command dispatch rather than the
-/// compiler's inline `LMAP_COLLECT` loop, its body used to run through
-/// `Vm::eval_source`'s nested drive). Parked in `Vm.pending.each_loop` by
+/// each iteration's body runs as a yieldable child script frame. A
+/// value-consuming `lmap`, e.g. `set r [lmap x {1 2} { yield $x }]`, is
+/// reached via generic command dispatch rather than the compiler's inline
+/// `LMAP_COLLECT` loop, so its body needs this yieldable path rather than
+/// `Vm::eval_source`'s nested drive. Parked in `Vm.pending.each_loop` by
 /// `each_loop` and drained into an each-loop activation (see
 /// [`Frame::each_loop`]).
 pub(crate) struct EachLoopReq {
@@ -572,12 +572,12 @@ enum Tick {
     /// (yieldable) via an each-loop activation ([`Frame::new_each_loop`]); each
     /// iteration's body runs as a child script frame and is folded back by
     /// `each_loop`'s collect/continue/break rules. Drained from
-    /// `Vm.pending.each_loop` (issue #1311).
+    /// `Vm.pending.each_loop`.
     PushEachLoop(EachLoopReq),
     /// Run one phase (body/handler/`finally`) of a `try` on the explicit stack
     /// (yieldable) via a try-phase activation ([`Frame::new_try`]); its
     /// completion decides the next phase via `cmd_try::advance_try`. Drained
-    /// from `Vm.pending.try_phase` (issue #1311).
+    /// from `Vm.pending.try_phase`.
     PushTry {
         req: crate::cmd_try::TryReq,
         initial_options: Value,
@@ -685,7 +685,7 @@ fn dict_from_pairs_with_hash_bucket_count(
 /// `list element in braces followed by "c" instead of space` /
 /// `TCL VALUE LIST JUNK` from `llength` gives the `dict …` /
 /// `TCL VALUE DICTIONARY JUNK` pair from `dict size`. The shared codec speaks
-/// list, so the noun is swapped back on the dict side (issue #1573).
+/// list, so the noun is swapped back on the dict side.
 ///
 /// `missing value to go with key` is already dict-specific, but C still tags it
 /// `TCL VALUE DICTIONARY` where this VM left it `NONE`.
@@ -723,9 +723,9 @@ pub(crate) fn dict_parse_err(message: &str) -> Completion<Value> {
 /// the WASM runtime see: first-occurrence position, **last value winning** on a
 /// duplicate key (`SetDictFromAny`, tclDictObj.c(9.0.4):589, feeding
 /// `Tcl_DictObjPut`'s hash overwrite). Decoding the list rep straight into
-/// `chunks_exact(2)` pairs instead — as these opcodes used to — leaves both
-/// values of a duplicate key in the list, and every `find` then reads or
-/// rewrites the *first* one (issue #1427).
+/// `chunks_exact(2)` pairs instead would leave both values of a duplicate key
+/// in the list, so every `find` would read or rewrite the *first* one instead
+/// of the canonical last.
 impl Vm {
     /// The dict's canonical ordered `(key-string, value)` pairs.
     ///
@@ -734,8 +734,8 @@ impl Vm {
     /// `FindElement`, so `dict size {a 1 {b}c d}` says `dict element in braces
     /// …` with `errorCode` `TCL VALUE DICTIONARY JUNK`. The shared codec is
     /// list-worded (it is the *list* element codec), so the noun is restored
-    /// here — the one place every VM dict path now decodes through, which is
-    /// what makes this a single fix rather than eleven (issue #1573).
+    /// here — the one place every VM dict path decodes through, so the wording
+    /// only needs to be right in one place.
     pub(crate) fn dict_pairs(
         &mut self,
         v: &Value,
@@ -947,16 +947,14 @@ fn get_at(items: &[Value], i: isize) -> Value {
 /// `0..=len` where `len` appends a fresh (possibly nested) slot. Error messages
 /// match tclsh 9.0 (the reference standard).
 ///
-/// Issue #996: this used to recurse once per path segment natively, with no
-/// depth cap — trivially inflated via a long flat index path (`INST_LSET_FLAT`
-/// / `lset listVar {*}[lrepeat 100000 0] v`). Empirically (a throwaway
-/// `zzz_probe_depth lset <depth>` harness, deleted before this fix landed),
-/// unguarded input overflowed the native stack (SIGABRT) between depth 1800
-/// and 2000 on a 2 MiB thread. Rewritten iteratively — an explicit
-/// work-stack instead of one native call per index — which eliminates the
-/// native-stack risk entirely rather than just capping it: walk down `path`
-/// recording each level's element vector and the index being set (or
-/// appended to), then rebuild bottom-up. This is on the hot bytecode path
+/// Recursing once per path segment natively has no depth cap: an unguarded
+/// long flat index path (`INST_LSET_FLAT` / `lset listVar {*}[lrepeat 100000
+/// 0] v`) overflows the native stack (SIGABRT, empirically between depth 1800
+/// and 2000 on a 2 MiB thread). This walks `path` with an explicit
+/// work-stack instead of one native call per index, which eliminates the
+/// native-stack risk entirely rather than just capping it: it records each
+/// level's element vector and the index being set (or
+/// appended to) walking down, then rebuilds bottom-up. This is on the hot bytecode path
 /// (`INST_LSET_LIST`/`INST_LSET_FLAT`), so the signature (and its two
 /// `exec.rs` callers) is unchanged.
 pub(crate) fn lset_descend(
@@ -1086,7 +1084,7 @@ fn bin(f: &mut Frame, op: BinOp) -> Result<(), Completion<Value>> {
         // `-errorcode` on the arithmetic failures (`ARITH DIVZERO`,
         // `ARITH DOMAIN`), and a bare `err` would drop it, leaving the
         // compiled `expr {…}` path reporting `NONE` where the dynamic
-        // `expr $e` path reports the real code (#1428).
+        // `expr $e` path reports the real code.
         Err(e) => Err(crate::command::completion_from_tcl_error(e)),
     }
 }
@@ -1128,8 +1126,8 @@ fn land_lor(f: &mut Frame, is_and: bool) -> Result<(), Completion<Value>> {
 
 /// A boolean-coercion failure with the `-errorcode` C stamps: `TCL VALUE
 /// DOUBLE NAN` for a NaN in a boolean context, `TCL VALUE NUMBER` for a value
-/// that is neither a number nor a boolean word. Both were `NONE` before
-/// #1581.
+/// that is neither a number nor a boolean word. Without this, both would
+/// default to `NONE`.
 fn boolean_operand_error(e: crate::TclError) -> Completion<Value> {
     let code = if e.message == tcl_syntax::expr::errors::NAN_MESSAGE {
         tcl_syntax::expr::errors::NAN_CODE
@@ -1147,7 +1145,7 @@ fn un(f: &mut Frame, op: UnaryOp) -> Result<(), Completion<Value>> {
             Ok(())
         }
         // Keeps C's `-errorcode` (`ARITH DOMAIN <description>` for an
-        // operand-type error); a bare `err` dropped it (#1581).
+        // operand-type error); a bare `err` would drop it.
         Err(e) => Err(crate::command::completion_from_tcl_error(e)),
     }
 }
@@ -1184,8 +1182,8 @@ fn irule(f: &mut Frame, op: BinOp) -> Result<(), Completion<Value>> {
 
 /// The Tcl `wrong # args` usage message for a proc.
 fn proc_usage(proc: &ProcDef) -> String {
-    // `proc.name` is the VM's unrooted key: construction-inverse tail
-    // (#934) — an `rsplit` would misread a lone-colon name.
+    // `proc.name` is the VM's unrooted key: construction-inverse tail —
+    // an `rsplit` would misread a lone-colon name.
     let simple = proc.usage_name.as_deref().map_or_else(
         || crate::interp::key_holder_and_tail_unrooted(&proc.name).1,
         str::to_owned,
@@ -1285,8 +1283,7 @@ impl Vm {
     /// Deep-copies `asm` into the `Rc` the activation needs. A fallback embedder
     /// invoking the same body repeatedly should hold a
     /// [`FunctionHandle`](crate::embed::FunctionHandle) and call
-    /// [`Vm::invoke_function`] instead, which pays that copy once (issue
-    /// #1373 finding 3).
+    /// [`Vm::invoke_function`] instead, which pays that copy once.
     pub fn run_function(&mut self, asm: &FunctionAsm) -> Completion<Value> {
         if !self.dialect_profile().is_fallback() {
             return err(format!(
@@ -1882,7 +1879,7 @@ impl Vm {
             // `apply`'s temporary lambda proc is torn down here, once its script
             // activation completes — on every completion code, mirroring the old
             // nested-drive `cmd_apply`'s unconditional `vm.take_command` after
-            // `eval_source` returned (issue #1311).
+            // `eval_source` returned.
             if let Some(name) = act.cleanup_proc.take() {
                 self.take_command_unchecked(&name);
             }
@@ -1904,7 +1901,7 @@ impl Vm {
             // directly — `act` itself is already gone, unlike `each_loop`'s
             // parent-stays-put pattern) or the whole `try` is done, in which
             // case `c` becomes its completion and unwinding continues below
-            // exactly as for any other completed activation (issue #1311).
+            // exactly as for any other completed activation.
             if let Some(mut ctx) = act.try_ctx.take() {
                 if c.code == Code::Ok
                     && let Some(message) = ctx.fatal_tail.take()
@@ -1956,9 +1953,9 @@ impl Vm {
             }
             // An `each_loop` (`foreach`/`lmap` runtime-fallback) activation's body
             // child (`act`) just completed: fold its result into the enclosing
-            // loop's iteration state (issue #1311 — this is what makes a
+            // loop's iteration state — this is what makes a
             // value-consumed `lmap`, e.g. `set r [lmap x {1 2} { yield $x }]`,
-            // yieldable). `Resume` re-ticks the loop frame for the next iteration
+            // yieldable. `Resume` re-ticks the loop frame for the next iteration
             // (or its final result, once exhausted); `Unwind` drops it and keeps
             // unwinding (an error, or an uncaught `return`).
             if acts.last().is_some_and(|p| p.each_loop.is_some()) {
@@ -2876,7 +2873,7 @@ impl Vm {
             Op::ARRAY_MAKE_STK => {
                 let name = pop(f).to_str();
                 // The element-reference test comes from the one owner rather
-                // than a local re-spelling of its predicate (issue #1458).
+                // than a local re-spelling of its predicate.
                 if tcl_syntax::naming::split_element_ref(&name).is_some() {
                     return Tick::Return(err(format!(
                         "can't array set \"{name}\": variable isn't array"
@@ -4818,8 +4815,7 @@ impl Vm {
         entered: Option<&EnteredCommand>,
     ) -> Result<Option<Tick>, Completion<Value>> {
         // Every dispatched command is charged against the `commands` limit
-        // before anything runs, so an armed budget bounds the work exactly
-        // (issue #1373 finding 1).
+        // before anything runs, so an armed budget bounds the work exactly.
         if let Some(exceeded) = self.charge_command() {
             return Err(exceeded);
         }
@@ -5204,13 +5200,12 @@ impl Vm {
         }
         // A `foreach`/`lmap` runtime-fallback loop defers to a
         // scanner-driven each-loop frame, whose iterations run yieldably
-        // as child frames (see `Frame::each_loop`, issue #1311).
+        // as child frames (see `Frame::each_loop`).
         if let Some(req) = self.pending.each_loop.take() {
             return Ok(Some(Tick::PushEachLoop(req)));
         }
         // A `try` defers its body (and, from `advance_try`, each
-        // subsequent phase) to a try-phase frame (see `Frame::try_ctx`,
-        // issue #1311).
+        // subsequent phase) to a try-phase frame (see `Frame::try_ctx`).
         if let Some(req) = self.pending.try_phase.take() {
             return Ok(Some(Tick::PushTry {
                 req,
@@ -5305,7 +5300,7 @@ impl Vm {
                 // there at its global frame/namespace, then switches back with
                 // the completion — errors propagate catchably.  This works
                 // whether this interp is at top level or re-entered deeper on
-                // the stack (issue #946 fault 1: no more C-stack-busy).
+                // the stack: there is no shared C stack to be busy.
                 let mut argv: Vec<Value> = (*target).clone();
                 argv.extend_from_slice(&words[1..]);
                 let res = self.invoke_alias_words(target_interp, &argv);
@@ -5663,9 +5658,9 @@ impl Vm {
             // Cross-interp alias: switch to the target interp and run the words
             // there.  Identical to the bytecode path — a cross-interp alias
             // works from a native re-entry (coroutine resume, `lsort
-            // -command`, `invoke_command`), which used to error
-            // `cannot invoke parent-interp alias: C stack busy` (issue #946
-            // fault 1).
+            // -command`, `invoke_command`), unlike C Tcl's shared C stack,
+            // where the same re-entry raises `cannot invoke parent-interp
+            // alias: C stack busy`.
             Command::CrossAlias {
                 target: target_interp,
                 words: target,
@@ -6008,18 +6003,15 @@ mod tests {
         assert_eq!(top_pairs(&nested), [("a".into(), "c 2".into())]);
     }
 
-    /// Regression coverage for issue #996: `lset_descend` recurses once per
-    /// index in `lset`'s (possibly nested) index path, with no depth cap
-    /// before this fix — it backs the compiled `INST_LSET_LIST`/
-    /// `INST_LSET_FLAT` opcodes, so a flat index path is trivially inflated
-    /// via `lset listVar {*}[lrepeat 100000 0] v`. Empirically (a
-    /// throwaway `zzz_probe_depth lset <depth>` harness, deleted before
-    /// this fix landed), unguarded input overflowed the native stack
-    /// (SIGABRT) between depth 1800 and 2000 on a 2 MiB thread (`cargo
-    /// test`'s per-test default). Rewritten iteratively (no depth cap at
-    /// all); 2000 is comfortably past that crash range, and the result is
-    /// checked for exact correctness at this depth (descending back down
-    /// the same index path lands on the value that was set), not merely
+    /// `lset_descend` backs the compiled `INST_LSET_LIST`/`INST_LSET_FLAT`
+    /// opcodes; a naive implementation recursing once per index in `lset`'s
+    /// (possibly nested) index path has no depth cap, so a flat index path is
+    /// trivially inflated via `lset listVar {*}[lrepeat 100000 0] v`,
+    /// overflowing the native stack (SIGABRT) between depth 1800 and 2000 on
+    /// a 2 MiB thread (`cargo test`'s per-test default). The iterative
+    /// implementation has no such cap; this test checks exact correctness at
+    /// depth 2000, comfortably past that crash range — descending back down
+    /// the same index path lands on the value that was set, not merely
     /// survival.
     ///
     /// Deliberately NOT 50,000+: constructing (and, at the end of this

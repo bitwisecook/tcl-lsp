@@ -93,10 +93,10 @@ impl FormStats {
     ///
     /// Ties break towards the **smaller** arity, deliberately: `arity_hist` is
     /// a `HashMap`, whose iteration order is unspecified, so a bare
-    /// `max_by_key` on the count alone picks an arbitrary winner among equally
-    /// common arities and reports a different one from run to run. That made
-    /// the emitted CSV irreproducible for the 39 (of 1,966) registry forms
-    /// whose top two arities are equally frequent.
+    /// `max_by_key` on the count alone would pick an arbitrary winner among
+    /// equally common arities, reporting a different one from run to run and
+    /// making the emitted CSV irreproducible for the 39 (of 1,966) registry
+    /// forms whose top two arities are equally frequent.
     fn dominant_arity(&self) -> (usize, u64) {
         self.arity_hist
             .iter()

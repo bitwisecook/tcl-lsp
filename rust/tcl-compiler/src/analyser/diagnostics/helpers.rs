@@ -151,7 +151,7 @@ pub(in crate::analyser) fn has_substitution_of_kind(
 ///
 /// Bracing is the recommended form because it stops Tcl substituting the
 /// word *before* the command sees it.  That is exactly why it cannot be
-/// classified once for the whole diagnostic code (issue #1195): where the
+/// classified once for the whole diagnostic code: where the
 /// written word carries no substitution, brace-quoting reaches the command
 /// with byte-identical text and nothing observable changes; where it does,
 /// the fix deliberately removes a round of substitution and a program that
@@ -545,8 +545,7 @@ pub(super) struct UndefSuppression {
     /// script the lowering left as an opaque barrier — `eval set l2 hello`
     /// really does set `l2` in the caller's own frame, but its words reach
     /// the IR as barrier arguments with no def attached, so a later
-    /// `puts $l2` looked read-before-set (issue #1051).  Name-level,
-    /// suppress-only.
+    /// `puts $l2` would look read-before-set.  Name-level, suppress-only.
     script_concat_writes: FxHashSet<String>,
     /// `(name, version)` pairs killed by an `unset` — undef at their reads,
     /// so a direct read of one is read-before-set just like a version-0
@@ -1175,14 +1174,6 @@ pub(super) fn collect_defined_vars(cfg: &crate::cfg::Function) -> HashSet<String
 /// global aliases × locally-written names (case (2)).  Used at
 /// top-level to suppress W210 for globals a helper proc may
 /// populate before the top-level read.
-///
-/// There is no ``CommandRegistry::is_destroys_variable`` yet, so
-/// commands like ``unset`` aren't filtered out of the "writes" set.
-/// That makes the suppression slightly more permissive (more
-/// vars marked "written-by-procs" → more W210 suppressions).
-/// Safe-on-correctness — the alternative is false positives
-/// on real RBS sites.  When the registry gains
-/// ``destroys_variable``, add the filter here.
 pub(super) fn globals_written_by_procs(
     cu: &crate::compilation_unit::CompilationUnit,
 ) -> HashSet<String> {

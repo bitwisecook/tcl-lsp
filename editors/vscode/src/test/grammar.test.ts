@@ -25,10 +25,9 @@ import * as vsctm from "vscode-textmate";
 // TextMate grammar tokenisation tests.  These exercise the *static* syntax
 // grammar (editors/vscode/syntaxes/tcl.tmLanguage.json) directly — the layer
 // that colours code before/without the LSP's semantic tokens, and the only
-// layer GitHub and other TextMate consumers ever see.  Regression cover for
-// issue #759: a comment whose line ends in an unescaped backslash continues
-// onto the next physical line, and that continuation must stay coloured as a
-// comment.
+// layer GitHub and other TextMate consumers ever see.  A comment whose line
+// ends in an unescaped backslash continues onto the next physical line, and
+// that continuation must stay coloured as a comment.
 
 const GRAMMAR_PATH = path.resolve(__dirname, "../../syntaxes/tcl.tmLanguage.json");
 
@@ -173,7 +172,7 @@ suite("TextMate grammar: comment continuation (#759)", () => {
   });
 });
 
-// Regression cover for issue #749: the grammar recurses `source.tcl` into every
+// The grammar recurses `source.tcl` into every
 // brace group, so a bare control word (`for`, `else`, `in`, …) inside an unknown
 // command's braced *data* argument — e.g. `argparse -help {...}` — is coloured as
 // a keyword.  A context-free TextMate grammar cannot tell a script body from
@@ -221,12 +220,12 @@ suite("TextMate grammar: keywords inside unknown-command braces (#749)", () => {
   });
 });
 
-// Regression cover for issue #862: `lmap` carries the registry's
-// LANGUAGE_KEYWORD trait (it binds loop variables, like `foreach`), but the
-// grammar used to list it among the plain "common built-in commands"
-// (support.function.tcl) — so it visibly flipped colour between the
-// TextMate-only fallback and the LSP's semantic-token overlay. It now lives
-// in the same keyword.control.tcl alternation as foreach/for/while.
+// `lmap` carries the registry's LANGUAGE_KEYWORD trait (it binds loop
+// variables, like `foreach`); it must not be classified among the plain
+// "common built-in commands" (support.function.tcl), which would visibly
+// flip its colour between the TextMate-only fallback and the LSP's
+// semantic-token overlay. It belongs in the same keyword.control.tcl
+// alternation as foreach/for/while.
 suite("TextMate grammar: lmap is a control keyword, not a plain builtin (#862)", () => {
   let grammar: vsctm.IGrammar;
 
@@ -314,14 +313,14 @@ suite("TextMate grammar: generated lexical owners (#1469)", () => {
   });
 });
 
-// Issue #903: the grammar is the paint the user sees before the server answers,
+// The grammar is the paint the user sees before the server answers,
 // and the only paint anywhere the server never runs (GitHub/Linguist, a file too
 // large for semantic tokens, an editor with no extension). Where it disagrees
 // with the semantic-token layer, the colour visibly flips once the LSP replies.
 //
 // The semantic layer types proc/method parameters as `parameter`, TclOO class
-// names as `class` and method names as `method`. The grammar previously typed
-// none of them: it scoped a proc's *name* and nothing else. Sublime's bundled
+// names as `class` and method names as `method`. The grammar itself types
+// none of them: it scopes a proc's *name* and nothing else. Sublime's bundled
 // Tcl syntax has scoped proc parameters for years; the TextMate bundle scopes
 // neither, and no surveyed Tcl grammar scopes TclOO at all.
 suite("TextMate grammar: definitions agree with the semantic-token types (#903)", () => {

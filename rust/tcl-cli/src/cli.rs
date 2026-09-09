@@ -692,7 +692,7 @@ pub struct SpecUpgradeShape {
     /// registration calls at the house layout, through the same renderer
     /// `tcl spec export` uses. Comments and author layout do not survive
     /// it. A programmed pack (one whose `speclib` body runs rather than
-    /// registers) is refused whole, never rewritten (design E-R12), and a
+    /// registers) is refused whole, never rewritten, and a
     /// partially upgraded file keeps its TODO markers instead.
     #[arg(long)]
     pub restyle: bool,

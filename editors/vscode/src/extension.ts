@@ -250,7 +250,7 @@ export async function activate(context: ExtensionContext) {
   context.subscriptions.push(diffSuppressor);
 
   // iRulesLX: find-references from an extension's JavaScript back to the
-  // iRules that call it (issue #1707). A second reference provider for
+  // iRules that call it. A second reference provider for
   // `javascript`, deliberately *not* a document-selector entry on the language
   // client — see ./ilxReferences for why a `.js` file must not become a Tcl
   // document. `client` is read lazily because it is assigned further down.
@@ -324,7 +324,7 @@ export async function activate(context: ExtensionContext) {
 
   // Warn once when semantic highlighting can't reach a Tcl buffer (wrong
   // language association, or semantic highlighting disabled) — grammar-only
-  // colouring mis-highlights keywords inside braced strings (issue #749).
+  // colouring mis-highlights keywords inside braced strings.
   registerHighlightingHealthChecks(context);
 
   // Update status bar label when manually changing settings, and re-push
@@ -533,7 +533,7 @@ export async function deactivate(): Promise<void> {
 
 /**
  * Keep workspace `files.associations` in step with the extensions the
- * discovered SpecTcl packs claim (issue #1626).
+ * discovered SpecTcl packs claim.
  *
  * Driven by the server's `tcl-lsp/specPacksReloaded` push, not by watching the
  * filesystem here. The client cannot derive the right moment on its own: it
@@ -542,7 +542,7 @@ export async function deactivate(): Promise<void> {
  * pack set with nothing scheduled to ask again. A workspace-scoped watcher
  * also never fires for a pack under an absolute `tclLsp.specPacks` root, which
  * the server watches and it cannot. The push settles both, and it arrives
- * after every consequence of the reload has landed (review finding P1-2).
+ * after every consequence of the reload has landed.
  *
  * One pull still happens, immediately: the server notifies on every reload
  * including the startup one, but a client that finished starting *after* that
@@ -711,7 +711,7 @@ interface TclInstallationsResult {
  * "Select Tcl Installation" — ask the server which Tcl installations it
  * discovered on disk (it never runs tclsh), let the user pick one or enter a
  * custom path, and write the chosen `auto_path` root(s) to
- * `tclLsp.libraryPaths` so the package database (and #723 W120 resolution) can
+ * `tclLsp.libraryPaths` so the package database (and W120 resolution) can
  * see system-installed packages like Tk.
  */
 async function selectTclInstallation(): Promise<void> {
@@ -803,7 +803,7 @@ function detectDialectFromDocument(document: TextDocument): string {
   // 3. Shebang detection. `wish` counts alongside `tclsh`: Tk is a library in
   //    this model, not a dialect, so a `#!/usr/bin/wish8.6` script is a Tcl
   //    8.6 script for exactly the reason a `tclsh8.6` one is. Mirrors the
-  //    server's `SHEBANG_TCL_SHELLS` (issue #1625).
+  //    server's `SHEBANG_TCL_SHELLS`.
   if (document.lineCount > 0) {
     const firstLine = document.lineAt(0).text;
     if (/^#!.*\bexpect\b/i.test(firstLine)) {
@@ -820,11 +820,9 @@ function detectDialectFromDocument(document: TextDocument): string {
 
   // 4. The file's own name — its whole basename, then its extension — through
   //    the generated catalogue projection, so every registered extension is
-  //    covered. A hand-written switch here used to answer for 6 of the 25 and
-  //    sat *above* the directive and shebang tiers, which is both narrower
-  //    and more eager than the server's own order (issue #1625); it now sits
-  //    where the server puts it, since a file's content is a stronger signal
-  //    than its name.
+  //    covered and consulted in the same tier order the server uses: below
+  //    the directive and shebang tiers, since a file's content is a stronger
+  //    signal than its name.
   const pathLanguage = tclLanguageIdForPath(document.fileName);
   if (pathLanguage) {
     const pathDialect = LANGUAGE_ID_DIALECTS[pathLanguage];
@@ -875,7 +873,7 @@ function setActiveDialectLabel(dialect: string): void {
  * For a *temporary* dialect that must be put back afterwards, use
  * {@link setSessionDialectOverride} instead — a configuration push is the wrong
  * tool for that and the next ``workspace/configuration`` pull silently undoes
- * it (issue #1217).
+ * it.
  */
 export async function setServerDialect(dialect: string): Promise<void> {
   if (activeDialect === dialect) {
@@ -901,8 +899,8 @@ export async function setServerDialect(dialect: string): Promise<void> {
  * afterwards needs.  Pushing ``tclLsp.dialect`` as a configuration change
  * (:{@link setServerDialect}) does not survive: the server re-pulls
  * ``workspace/configuration`` on all sorts of unrelated events, and the pulled
- * value overwrites the push, so the override's lifetime was "until anything
- * touches settings" (issue #1217).  The override lives in its own server-side
+ * value overwrites the push, so the override's lifetime would be "until
+ * anything touches settings".  The override lives in its own server-side
  * slot that no pull touches.
  *
  * Clearing restores whatever the configuration currently resolves to, so there
@@ -935,8 +933,8 @@ export async function setSessionDialectOverride(dialect: string | null): Promise
  * Status bar only.  Per-document dialect resolution belongs to the server: it
  * runs the same directive / shebang / ``package require`` / content-signature /
  * extension detection at ``didOpen`` and on every edit, scoped to that one
- * document.  This used to push the focused file's dialect as a session-global
- * ``didChangeConfiguration``, which re-tagged every other open buffer with it.
+ * document.  Pushing the focused file's dialect as a session-global
+ * ``didChangeConfiguration`` here would re-tag every other open buffer with it.
  */
 export function applyDialectForDocument(document: TextDocument): void {
   if (!isTclLanguage(document.languageId)) {
@@ -1380,7 +1378,7 @@ async function fixAllSafeIssues(): Promise<void> {
     command: "tcl-lsp.fixAllSafeIssues",
     arguments: [uri],
   })) as {
-    // `safety` is the fix's classification (issue #1195). Only
+    // `safety` is the fix's classification. Only
     // `semantics-equivalent` fixes reach this list — the server applies
     // nothing else in bulk — so it is reported for traceability rather than
     // filtered on here.

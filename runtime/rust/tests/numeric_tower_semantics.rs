@@ -75,12 +75,10 @@ fn expr_err(body: &str, message: &str, code: &str) {
     assert_eq!(error_code, code, "expr {{{body}}} errorCode");
 }
 
-// ---------------------------------------------------------------------------
 // #1428 — `**`, `<<`, `>>`, `/` and `%` route their integer tier through
 // `tcl_syntax::number_tower`, so `0 ** -1` is C's domain error (not a
 // division by zero) and the 2^28 exponent ceiling refuses instead of
 // allocating.
-// ---------------------------------------------------------------------------
 
 /// tclsh 8.6.16/9.0.4: `exponentiation of zero by negative power`,
 /// `-errorcode ARITH DOMAIN {exponentiation of zero by negative power}` —
@@ -196,11 +194,9 @@ fn a_float_left_operand_beats_a_negative_shift_count() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // #1382 — `entier`/`int`/`wide`/`round` on a float outside the wide range.
 // The shared arms now widen through the tower's bignum rung, so the runtime
 // answers what tclsh answers instead of raising `ARITH DOMAIN`.
-// ---------------------------------------------------------------------------
 
 /// tclsh 8.6.16/9.0.4: TIP 237 makes `entier()` unbounded, so `entier(1e300)`
 /// is the exact 301-digit value of the double `1e300` — not `10^300`, and not
@@ -315,11 +311,9 @@ const E1E300: &str = "1000000000000000052504760255204420248704468581108159154915
 /// tclsh `expr {isqrt(1e300)}` (151 digits).
 const ISQRT_1E300: &str = "1000000000000000026252380127602209779758503108492371458359424883684651414333812736380124287612629691547944630047071980611862607399628869272326975124240";
 
-// ---------------------------------------------------------------------------
 // #1432 — `rand`/`srand`. The generator (Park-Miller step, seed nudge, and C's
 // reciprocal-multiply scaling) is now `tcl_syntax::expr::rand`; only the seed
 // storage and the nondeterministic first-seed policy stay per engine.
-// ---------------------------------------------------------------------------
 
 /// `srand(251)` is the smallest seed in the dense family where C's
 /// `seed * (1.0/RAND_IM)` and a true `seed / RAND_IM` differ by one ulp, which
@@ -372,10 +366,8 @@ fn srand_refuses_a_non_integer_operand() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // #1581 — the expr/mathfunc error taxonomy: IOVERFLOW / NaN codes, the
 // boolean-context codes, and the release axis for `IllegalExprOperandType`.
-// ---------------------------------------------------------------------------
 
 const IOVERFLOW: &str = "integer value too large to represent";
 const IOVERFLOW_CODE: &str = "ARITH IOVERFLOW {integer value too large to represent}";
@@ -540,10 +532,8 @@ fn operand_type_errors_use_the_8_6_wording_at_8_6() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // #1425 — boolean context: the shared `tcl_syntax::boolean` words, by unique
 // prefix, in every context the runtime evaluates.
-// ---------------------------------------------------------------------------
 
 /// tclsh 8.6.16/9.0.4: every unique prefix of a boolean word is accepted in
 /// `expr`'s `?:`, in `if`, in `while`, and in `dict filter … script` — the

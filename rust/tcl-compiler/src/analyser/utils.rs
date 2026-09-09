@@ -688,8 +688,8 @@ pub fn recovery_known_commands(
 /// tens of thousands of entries on a large workspace, and unchanged between
 /// keystrokes. Merging the two would deep-copy that set on every analysis of a
 /// document with an open delimiter — which is the *normal* mid-typing state, so
-/// it happened on every debounced run (issue #1154). Sharing it behind an `Arc`
-/// makes the layering free.
+/// it would happen on every debounced run. Sharing it behind an `Arc` makes the
+/// layering free.
 ///
 /// Every consumer only ever asks "is this name known?" or enumerates the
 /// universe once, both of which the two layers answer directly.
@@ -825,7 +825,7 @@ fn matches_marker(body: &str, marker: &str) -> bool {
 ///
 /// The directive states what a package's loader pulls in behind the
 /// analyser's back — a binary extension whose C `Init` calls
-/// `Tcl_PkgRequire` or `Tk_InitStubs` (issue #1813). It declares the same
+/// `Tcl_PkgRequire` or `Tk_InitStubs`. It declares the same
 /// edge `[packages.provides]` configures, for one file, and it names the
 /// loading package rather than relying on where it sits: a document gains
 /// the packages only once it actually requires the one named, and the
@@ -1083,8 +1083,8 @@ fn strip_tcl_lsp_prefix(body: &str) -> &str {
     let kw_end = lower_prefix.len();
     // `s.get(..kw_end)` (unlike `s[..kw_end]`) returns `None` rather than
     // panicking when `kw_end` falls inside a multi-byte char instead of on a
-    // boundary — a real case: a non-ASCII byte in the comment before that
-    // offset used to crash the server while scanning a stubs block.
+    // boundary — a non-ASCII byte in the comment before that offset would
+    // otherwise crash the scan of a stubs block.
     let Some(prefix) = s.get(..kw_end) else {
         return s;
     };
@@ -1478,8 +1478,7 @@ pub fn full_word_span(token: Token, source: &str) -> Span {
 /// *word* makes span resolution `O(document size × word count)` — the same
 /// quadratic that [`crate::analyser::state::Analyser::cached_line_index`] was
 /// introduced to remove for the per-command `SourceMap::new(&self.source)`
-/// call sites (issue #996); the per-word helper was simply missed at the time.
-/// On a ~5k-line file the rebuilds dominated whole-file analysis.
+/// call sites. On a ~5k-line file those rebuilds dominate whole-file analysis.
 ///
 /// Callers inside the analyser should build the map once with
 /// `Analyser::source_map(&self.source, &self.cached_line_index,
@@ -1496,10 +1495,9 @@ pub fn full_word_span_in(source_map: &SourceMap<'_>, token: Token) -> Span {
 /// Reads the `IRULES_TOP_LEVEL_ONLY` trait from `registry` and
 /// returns the matching command names.
 ///
-/// **Not cached.** A previous version cached the first-call
-/// result in a static `OnceLock`, which silently returned stale
-/// data when a non-default `CommandRegistry` was passed on a
-/// later call. The trait scan is `O(n)` over the registry's
+/// **Not cached.** Caching the first-call result in a static
+/// `OnceLock` silently returns stale data once a non-default
+/// `CommandRegistry` is passed on a later call. The trait scan is `O(n)` over the registry's
 /// command specs (~150 entries) and the registry itself is
 /// already cached at the call sites that need this — so per-call
 /// recomputation is cheap in practice and removes a correctness
@@ -1832,7 +1830,7 @@ mod tests {
         assert!(codes.is_empty());
     }
 
-    /// Issue #1813: the `package … provides …` directive is read anywhere in
+    /// The `package … provides …` directive is read anywhere in
     /// the file and names the loading package, so it does not depend on where
     /// it sits.
     #[test]
@@ -1913,9 +1911,8 @@ mod tests {
 
     #[test]
     fn parse_file_suppression_multibyte_leading_comment_does_not_panic() {
-        // Regression: the fixed-byte-offset keyword checks in
-        // `parse_disable_directive` used to slice at `line[..kw_end]` /
-        // `line[..dis_end]` unconditionally, which panics
+        // A fixed-byte-offset keyword check that sliced `line[..kw_end]` /
+        // `line[..dis_end]` unconditionally would panic
         // (`byte index N is not a char boundary`) whenever a multi-byte
         // UTF-8 character — an em dash, an accented letter, any ordinary
         // non-ASCII text — straddles that offset. Neither of these is
@@ -2443,8 +2440,8 @@ proc foo {} {}
     fn multibyte_comment_before_keyword_length_does_not_panic() {
         // A non-ASCII byte (an em dash here) landing inside the
         // `tcl-lsp` / `stub` / `expr-func` / `expr-op` keyword's byte
-        // length used to panic on a raw `s[..len]` slice instead of
-        // just not matching. Each string below is crafted so the em
+        // length must simply not match, where a raw `s[..len]` slice
+        // would panic. Each string below is crafted so the em
         // dash straddles the exact byte offset the check compares.
         assert!(cmd_stub("# st—b my_cmd {arg}").is_none());
         assert!(cmd_stub("# abcde—z not a stub").is_none());
@@ -2576,8 +2573,8 @@ proc foo {} {}
 
     #[test]
     fn scan_source_for_stubs_handles_non_ascii_comments() {
-        // Regression: a `#` comment opening with a multi-byte char used to
-        // panic `matches_marker`'s byte slicing (`s[..7]` splitting inside the
+        // A `#` comment opening with a multi-byte char would panic
+        // `matches_marker`'s byte slicing (`s[..7]` splitting inside the
         // char). Boundary-safe `str::get` must simply not match.
         let src = "\
 # ═══ banner ═══
@@ -2614,7 +2611,7 @@ proc foo {} {}
         assert!(known.contains("workspace_helper"));
     }
 
-    /// Issue #1154: the caller-supplied set must be *shared*, not copied — on
+    /// The caller-supplied set must be *shared*, not copied — on
     /// the LSP recovery path it holds every workspace-indexed proc and class,
     /// and the recovery branch runs on every keystroke inside an unterminated
     /// block.

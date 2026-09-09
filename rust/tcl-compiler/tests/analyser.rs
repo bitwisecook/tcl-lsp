@@ -2342,13 +2342,12 @@ mod rename {
 
     #[test]
     fn foreach_over_a_braced_list_element_is_not_mis_split_on_whitespace() {
-        // Codex review (PR #1020): the literal-`foreach` simulation parsed
-        // its value with `split_whitespace`, so a braced element `{bar baz}`
-        // in `foreach c {a {bar baz}} { proc ::$c {} {} }` was mis-sliced
-        // into `{bar` + `baz}` and the re-dispatched `proc` created bogus
-        // commands `::{bar` / `::baz}`. Parsed as a real Tcl list, that value
-        // is exactly two elements — `a` and `bar baz` — so no brace-fragment
-        // proc is ever recorded.
+        // The literal-`foreach` simulation must parse its value as a real
+        // Tcl list, not with `split_whitespace`: a braced element
+        // `{bar baz}` in `foreach c {a {bar baz}} { proc ::$c {} {} }` is
+        // exactly two elements — `a` and `bar baz` — never `{bar` + `baz}`,
+        // so the re-dispatched `proc` never creates bogus commands
+        // `::{bar` / `::baz}` and no brace-fragment proc is ever recorded.
         let procs = Analyser::new()
             .analyse("foreach c {a {bar baz}} { proc ::$c {} {} }\n", D)
             .all_procs;
@@ -2361,8 +2360,8 @@ mod rename {
 
     #[test]
     fn rename_target_set_only_in_a_conditional_branch_does_not_resolve() {
-        // Codex review (PR #1020): a `rename`/`source` target read from the
-        // last-write-wins const map is unsound across an `if` join. Here `t`
+        // A `rename`/`source` target read from the last-write-wins const map
+        // is unsound across an `if` join. Here `t`
         // is `::foo` straight-line but reassigned `::bar` inside an `if`
         // body, so at the `rename` it could be either — the analyser must
         // abstain (leave the rename dynamic), never pin it to the branch
@@ -2530,22 +2529,22 @@ mod eval_uplevel_indirect_dispatch {
     }
 }
 
-// `apply [list {params} {body} ns]` — the list-constructor lambda idiom
-// (issue #923 idx 116). Each list element must reach the body walk with its
-// list delimiters removed, exactly as a literal braced lambda does.
+// `apply [list {params} {body} ns]` — the list-constructor lambda idiom.
+// Each list element must reach the body walk with its list delimiters
+// removed, exactly as a literal braced lambda does.
 mod apply_list_lambda {
     use super::*;
 
     #[test]
     fn apply_list_constructor_body_element_is_delimiter_stripped() {
-        // Codex review (PR #1020): `resolve_dynamic_apply_lambda`'s `[list
-        // …]` path sliced each element's raw source span, keeping the braces
-        // of a `{frobnicate arg}` body element, so the body re-segmented as a
-        // single braced word and the real `frobnicate` call was never seen.
-        // With the element text delimiter-stripped (zipped from the
-        // segmenter's `texts`, the same shape the literal-lambda path uses),
-        // the body walks as `frobnicate arg` and records `frobnicate` as its
-        // own command invocation.
+        // `resolve_dynamic_apply_lambda`'s `[list …]` path must strip each
+        // element's list delimiters (zipped from the segmenter's `texts`,
+        // the same shape the literal-lambda path uses) rather than slicing
+        // raw source spans — otherwise a `{frobnicate arg}` body element
+        // keeps its braces, the body re-segments as a single braced word,
+        // and the real `frobnicate` call is never seen. With delimiters
+        // stripped, the body walks as `frobnicate arg` and records
+        // `frobnicate` as its own command invocation.
         let invs = Analyser::new()
             .analyse("apply [list {} {frobnicate arg} ::myns]\n", D)
             .command_invocations;
@@ -2557,9 +2556,9 @@ mod apply_list_lambda {
     }
 }
 
-// `::tcl::dict::*` standalone spellings (issue #923 idx 105) must carry the
-// same analysis contract as the `dict` subcommands they mirror, not a
-// `CommandSpec::DEFAULT` stub (Codex review, PR #1020).
+// `::tcl::dict::*` standalone spellings must carry the same analysis
+// contract as the `dict` subcommands they mirror, not a
+// `CommandSpec::DEFAULT` stub.
 mod dict_qualified_specs {
     use super::*;
 
@@ -3911,8 +3910,7 @@ mod oo_helpers_scoping {
     }
 
     /// **W123 keys on resolution, and the family genuinely resolves in a
-    /// class `initialise` body** — so it must stay silent there (Codex
-    /// review of PR #1084).
+    /// class `initialise` body** — so it must stay silent there.
     ///
     /// tclsh 9.0.4, inside `oo::class create ::P { initialize { … } }`:
     /// `namespace current` is `::oo::Obj20`, `namespace path` is
@@ -5628,14 +5626,14 @@ mod class_factories {
 
     #[test]
     fn an_immediately_executed_body_the_walk_cannot_read_still_abstains() {
-        // FP guard (PR #1652 review, thread r3818596741) — and the reason
-        // dormancy has to be *declared* rather than inferred.
+        // FP guard, and the reason dormancy has to be *declared* rather than
+        // inferred.
         //
         // None of these commands carries control-arm semantics, exactly like
         // `proc`. Unlike `proc`, every one of them **runs** its script as part
         // of this very call, so the script can raise, `return`, or otherwise
         // stop control ever reaching the creation below it. Reading "no typed
-        // control semantics" as proof of dormancy therefore let the walk
+        // control semantics" as proof of dormancy would therefore let the walk
         // materialise a class created after a script that aborts.
         //
         // `BodyKind` cannot separate them either: `proc` and `uplevel` are
@@ -5774,8 +5772,8 @@ mod class_factories {
     #[test]
     fn the_incremental_path_records_the_same_classes_as_a_full_analysis() {
         // The deferred creation is *pending verdict* state, so it has to
-        // survive a snapshot/restore exactly as the pending-arity buffers do
-        // (PR #1673 review, thread r3825697165). The LSP's incremental path
+        // survive a snapshot/restore exactly as the pending-arity buffers
+        // do. The LSP's incremental path
         // restores a snapshot covering the clean prefix and re-walks only the
         // dirty chunk: if the buffer is not in the snapshot, a creation call
         // written in that prefix is gone, while the evidence that proves its
@@ -6076,10 +6074,10 @@ mod class_factories {
         // `after` is the same fact with a different mechanism: the script is
         // scheduled, not run, so both oracles reach the creation even when the
         // scheduled script would raise.
-        // The rest of the list is the widened audit PR #1676's review asked
-        // for: reading the *absence* of `DEFERS_BODY` as "runs now" makes a
-        // missing trait a silent wrong answer, so every store-only form the
-        // registry ships was enumerated and measured. Each row below is one
+        // The rest of the list enumerates and measures every store-only form
+        // the registry ships: reading the *absence* of `DEFERS_BODY` as
+        // "runs now" would make a missing trait a silent wrong answer. Each
+        // row below is one
         // that gained the trait, and each was proved on tclsh 8.6.16 and
         // 9.0.4 with `proc p {} { FORM {error stop}; set ::reached 1 }` —
         // `::reached` is set on both for all of them.

@@ -127,7 +127,7 @@ fn array_unset_pattern_and_whole() {
     assert_eq!(run("set a(x) 1\narray unset a\narray exists a").1, "0");
 }
 
-/// BUG: `array set` onto an existing scalar reports the wrong variable name in
+/// `array set` onto an existing scalar reports the wrong variable name in
 /// its error. C raises the failure at the *element* write, so the message names
 /// the element (`s(a)`); the VM pre-checks with `ensure_array`, which raises
 /// before any element is written and so names only the bare scalar (`s`).
@@ -346,7 +346,7 @@ fn dict_read_errors() {
     );
 }
 
-/// BUG: `dict get` with NO keys does not validate that its argument is a
+/// `dict get` with NO keys does not validate that its argument is a
 /// well-formed dict. tclsh always parses the dict first, so `dict get` of an
 /// odd-length value errors; the VM's shared `get` core returns the value
 /// unchanged when the key path is empty, so the malformed value slips through.
@@ -481,7 +481,7 @@ fn dict_for() {
     assert_eq!(msg, "must have exactly two variable names");
 }
 
-/// BUG: the *compiled* form of `dict map` fails. The codegen rewrites
+/// The *compiled* form of `dict map` fails. The codegen rewrites
 /// `dict map` to the qualified ensemble member `::tcl::dict::map` (its registry
 /// spec carries `cfg_rewrite_name`), but `cmd_dict::register` only installs
 /// `::tcl::dict::for` among the rewritten members — `::tcl::dict::map` is never
@@ -527,7 +527,7 @@ fn dict_map_indirect_path_works() {
     );
 }
 
-/// BUG: `dict map` with `break` in the body must discard *all* accumulated pairs
+/// `dict map` with `break` in the body must discard *all* accumulated pairs
 /// and return the empty dict (C `DictMapNRCmd` drops the result on `TCL_BREAK`).
 /// The VM's `cmd_dict_map` instead returns the pairs collected before the break.
 /// (Exercised through the indirect dispatch path so it is not masked by the
@@ -1094,7 +1094,7 @@ fn lsort_modes() {
     assert_eq!(run("lsort -unique {a b a c b}").1, "a b c");
 }
 
-/// BUG: `lsort -unique` retains the WRONG member of an equal run. Tcl keeps the
+/// `lsort -unique` retains the WRONG member of an equal run. Tcl keeps the
 /// *last* element of each duplicate group (in input order); the VM keeps the
 /// *first*. Distinct elements under the mode are unaffected, so this only shows
 /// when two inputs compare equal but render differently.

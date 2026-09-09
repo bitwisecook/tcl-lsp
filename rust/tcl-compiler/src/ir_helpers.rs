@@ -155,8 +155,8 @@ pub(crate) fn requires_runtime_command_namespace(
             if specialised_binding
                 .is_some_and(|binding| execution_namespace.for_head(&binding.name).is_none())
             {
-                // A nested command consumed by typed lowering is no longer in
-                // the expression/text surfaces below. Its binding metadata is
+                // A nested command consumed by typed lowering does not appear
+                // in the expression/text surfaces below. Its binding metadata is
                 // therefore the authoritative source head for the same
                 // runtime-selected namespace proof as an ordinary Call.
                 return true;
@@ -199,8 +199,8 @@ pub(crate) fn requires_runtime_command_namespace(
 }
 
 /// Depth cap for [`collect_defs_from_script`]'s recursion over nested
-/// `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch` bodies — issue #996.
-/// Transitively bounded today via `MAX_LOWER_NEST_DEPTH` (every `Script`
+/// `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch` bodies.
+/// Transitively bounded via `MAX_LOWER_NEST_DEPTH` (every `Script`
 /// feeding SSA construction was built by [`crate::lowering`], which already
 /// caps its own construction at 256), capped here independently for
 /// defence-in-depth and consistency with every other full-tree walker in
@@ -432,7 +432,7 @@ fn defs_from_body_script(body_text: &str, registry: &CommandRegistry) -> Vec<Str
 /// guarded body is **not** read-before-set — the CFG records them as defs on
 /// the synthetic `<cond>` statement so the def-use / W210 analysis sees the
 /// write.  Which arguments those are is the registry's
-/// [`ArgRole::VarWrite`] answer, never a name list here (issue #923 idx 49).
+/// [`ArgRole::VarWrite`] answer, never a name list here.
 pub(crate) fn condition_command_out_vars(
     condition: &ExprNode,
     registry: &CommandRegistry,
@@ -484,12 +484,11 @@ fn push_out_var(word: &CommandWord, out: &mut Vec<String>) {
 /// [`CommandRegistry::arg_indices_for_role`]`(…, `[`ArgRole::VarWrite`]`)`,
 /// which is the same machinery the analyser's out-var handling and W210's
 /// suppression harvest already consult.  It answers for every command the
-/// registry knows — `catch` / `scan` / `gets` / `regexp` as before, plus
+/// registry knows — `catch` / `scan` / `gets` / `regexp`, plus
 /// `set` / `append` / `lappend` / `incr` / `lset` / `regsub` / `lassign` /
 /// `binary scan` / `dict update` / `array set` / … — so
-/// `if {[set idx [lsearch $l foo]] > -1} {puts $idx}` no longer looks
-/// read-before-set (issue #923 idx 49; tclsh 9.0.4 / 8.6.14 both print the
-/// index).
+/// `if {[set idx [lsearch $l foo]] > -1} {puts $idx}` does not look
+/// read-before-set (tclsh 9.0.4 / 8.6.14 both print the index).
 ///
 /// Bodies that run in the *caller's own* frame
 /// ([`CommandRegistry::plain_body_arg_indices`] — `catch`'s script, and any
@@ -521,7 +520,7 @@ fn cmd_substitution_out_vars(
     out: &mut Vec<String>,
     depth: u32,
 ) {
-    // Native-stack safety net (issue #996): `catch {catch {catch …}}` nests
+    // Native-stack safety net: `catch {catch {catch …}}` nests
     // body text inside one word, so the bracket-text cap applies. Past it,
     // stop harvesting — under-collection is the safe direction here.
     if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
@@ -566,7 +565,7 @@ fn cmd_substitution_out_vars(
 /// Shared by [`cmd_substitution_out_vars`]'s `Plain`-body descent (a `catch`
 /// script) and the analyser's read-before-set suppression for a
 /// [`tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS`] call whose words the
-/// lowering left as an opaque barrier (`eval set l2 hello` — issue #1051).
+/// lowering left as an opaque barrier (`eval set l2 hello`).
 /// Both need the same answer from the same text, so they ask once here.
 ///
 /// Suppress-only: over-collection is safe (it only avoids false warnings),
@@ -594,13 +593,13 @@ fn script_text_out_vars_at(
 /// for emission-time startCommand wrapping.
 #[must_use]
 pub fn expr_has_command(expr: &ExprNode) -> bool {
-    // Public entry: the top of an expression tree is nesting depth 0 (issue
-    // #996 — the recursion cap lives in [`expr_has_command_at`]).
+    // Public entry: the top of an expression tree is nesting depth 0; the
+    // recursion cap lives in [`expr_has_command_at`].
     expr_has_command_at(expr, 0)
 }
 
 fn expr_has_command_at(expr: &ExprNode, depth: u32) -> bool {
-    // Native-stack safety net (issue #996): past the cap, assume "yes, has a
+    // Native-stack safety net: past the cap, assume "yes, has a
     // command substitution" — the conservative direction, since callers use
     // this to decide whether a branch condition needs a synthetic `<cond>`
     // placeholder / startCommand wrapping; a false `true` only adds a
@@ -638,8 +637,8 @@ fn expr_has_command_at(expr: &ExprNode, depth: u32) -> bool {
 /// always included (conservative — we do not attempt compile-time
 /// constant evaluation).
 pub(crate) fn collect_expr_commands(expr: &ExprNode, out: &mut Vec<String>) {
-    // Entry point: the top of an expression tree is nesting depth 0 (issue
-    // #996 — the recursion cap lives in [`collect_expr_commands_at`]).
+    // Entry point: the top of an expression tree is nesting depth 0; the
+    // recursion cap lives in [`collect_expr_commands_at`].
     collect_expr_commands_at(expr, out, 0);
 }
 
@@ -648,7 +647,7 @@ pub(crate) fn collect_expr_commands(expr: &ExprNode, out: &mut Vec<String>) {
 /// had to give up.
 ///
 /// This is the shared statement-shape inventory for effect consumers.  It is
-/// intentionally conservative: where structured IR no longer retains enough
+/// intentionally conservative: where structured IR does not retain enough
 /// word quoting to prove a fragment inert, the fragment is included.  A false
 /// positive only widens an effect summary; omitting an executed substitution
 /// can make propagation carry a stale value across an arbitrary command.
@@ -814,7 +813,7 @@ pub(crate) fn evaluated_command_substitution_surfaces(
 }
 
 fn collect_expr_commands_at(expr: &ExprNode, out: &mut Vec<String>, depth: u32) {
-    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // Native-stack safety net: walks the `ExprNode` tree, one
     // native frame per level. Past the cap, stop descending — a collector
     // that returns the command texts gathered so far is the safe fallback
     // (substitutions buried deeper than the cap are not collected; never a
@@ -964,7 +963,7 @@ pub(crate) fn variable_write_effects_from_commands(
 /// second, differently-configured tokenisation would disagree with the IR
 /// about *which* argument sits in a variable-name position, which is a wrong
 /// fact rather than a coarse one for a caller such as
-/// [`crate::dynamic_names`] (issue #1393).
+/// [`crate::dynamic_names`].
 pub(crate) fn tokenise_command_words(source: &str, config: LexerConfig) -> Vec<Vec<CommandWord>> {
     let sm = SourceMap::new(source);
     crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
@@ -1119,9 +1118,9 @@ mod tests {
         assert!(defs_from_ir_script(&script).is_empty());
     }
 
-    /// Regression coverage for issue #996: `expr_has_command` and
-    /// `collect_expr_commands` each recurse once per `ExprNode` level with no
-    /// depth cap before this fix. A tree built directly is unbounded (the
+    /// `expr_has_command` and
+    /// `collect_expr_commands` each recurse once per `ExprNode` level, so both
+    /// need a depth cap. A tree built directly is unbounded (the
     /// Pratt parser caps its own output at 256) and empirically overflowed
     /// the native stack (SIGABRT) in the low thousands of levels on a 2 MiB
     /// thread. 3000 is past that crash range and past `MAX_EXPR_NODE_DEPTH`
@@ -1201,9 +1200,9 @@ mod tests {
         assert_eq!(defs_from_ir_script(&script), vec!["y"]);
     }
 
-    /// Regression coverage for issue #996: `collect_defs_from_script`
+    /// `collect_defs_from_script`
     /// recurses once per nested `If`/`For`/`While`/`Foreach`/`Catch`/`Try`/
-    /// `Switch` body, with no depth cap of its own before this fix.
+    /// `Switch` body, so it needs a depth cap of its own.
     /// Transitively bounded to `MAX_LOWER_NEST_DEPTH` (256) by the lowering
     /// pass today, so this is defence-in-depth / consistency with every
     /// other full-tree walker in this crate, not a currently-reproducible
@@ -1430,9 +1429,8 @@ mod tests {
         assert!(cond_out_vars("catch {*}{set x 1} result").is_empty());
     }
 
-    /// Contract for issue #923 audit idx 49: the registry's
-    /// `ArgRole::VarWrite` query must answer for every command the deleted
-    /// `catch` / `scan` / `gets` / `regexp` name list covered.
+    /// The registry's `ArgRole::VarWrite` query must answer for every command
+    /// a `catch` / `scan` / `gets` / `regexp` name list would cover.
     #[test]
     fn registry_query_covers_the_deleted_hardcoded_four() {
         for (cmd_text, expected) in [
@@ -1510,7 +1508,7 @@ mod tests {
         assert!(got.is_empty(), "got {got:?}");
     }
 
-    /// PR #1076 review, P2: a command word that is itself a substitution names
+    /// A command word that is itself a substitution names
     /// an unknown command, so nothing may be harvested from it — not even when
     /// its *content* spelling collides with a builtin.
     ///

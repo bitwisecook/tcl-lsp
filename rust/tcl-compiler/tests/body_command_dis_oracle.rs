@@ -16,8 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Disassembly regression + C-Tcl-`dis` oracle for the opaque body commands
-//! generalised in this work: `apply`, `namespace eval`, and `array for`.
+//! Disassembly regression + C-Tcl-`dis` oracle for the opaque body commands:
+//! `apply`, `namespace eval`, and `array for`.
 //!
 //! C Tcl compiles each of these to a runtime call with the script body pushed
 //! as a single **unparsed literal** — it never compiles the body's inner

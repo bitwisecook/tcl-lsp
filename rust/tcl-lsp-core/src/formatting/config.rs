@@ -100,8 +100,7 @@ pub enum DocstringTagStyle {
     None,
 }
 
-/// Which spelling pair every boolean-consumed word is normalised to
-/// (#1233).
+/// Which spelling pair every boolean-consumed word is normalised to.
 ///
 /// Tcl accepts `true`/`false`, `yes`/`no`, `on`/`off`, `0`/`1`, and any
 /// unique prefix of the word forms, wherever a value is consumed as a
@@ -261,7 +260,7 @@ pub struct FormatterConfig {
     /// filters per-release rewrite candidates ([`Self::dialect_query`]), and
     /// the release range a rewrite must stay correct across
     /// ([`Self::target_range`]). All three are pure projections of this
-    /// profile and are derived from it here, so a caller can no longer set a
+    /// profile and are derived from it here, so a caller cannot set a
     /// strict subset and format an iRule with the Tcl 9 lexer.
     ///
     /// Defaults to the lenient environment's profile — the permissive
@@ -392,7 +391,7 @@ impl FormatterConfig {
     /// The availability point the profile's own release(s) contribute, or
     /// `None` when the profile is the permissive fallback — i.e. no dialect
     /// was declared, so every keyword the handed registry declares stays a
-    /// rewrite candidate (the pre-#1257 conservative direction).
+    /// rewrite candidate (the conservative direction).
     #[must_use]
     pub fn dialect_query(&self) -> Option<SurfaceQuery<'static>> {
         (!self.profile.is_fallback()).then(|| self.profile.surface_query())
@@ -447,7 +446,7 @@ mod tests {
 
     #[test]
     fn every_dialect_fact_follows_from_the_one_profile() {
-        // Issue #1465: the lexer preset, the candidate-filter mask, and the
+        // The lexer preset, the candidate-filter mask, and the
         // forward range are projections of the resolved profile, so aiming
         // the formatter at iRules is one decision, not three.
         let cfg = FormatterConfig::for_profile(DialectProfile::irules());
@@ -503,7 +502,7 @@ mod tests {
         assert!(cfg.lexer_config().expand_syntax);
         assert!(!cfg.lexer_config().irules_brace_separator);
         // No dialect declared, so no candidate filter and no range — the
-        // conservative direction, unchanged from before #1465.
+        // conservative direction.
         assert_eq!(cfg.dialect_query(), None);
         assert!(cfg.target_range().is_empty());
         assert_eq!(cfg.line_ending, LINE_ENDING_AUTO);

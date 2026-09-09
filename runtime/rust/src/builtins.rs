@@ -16,13 +16,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Built-in commands (T1.4 starter set).
+//! Built-in commands.
 //!
 //! A minimal set — `set`, `incr`, `return`, `unset` — sufficient to drive the
 //! eval loop end to end and prove command substitution + variable integration.
-//! The full builtin surface (string/list/dict/expr/control-flow/proc/…) is
-//! ported incrementally in T1.5, each command (or small group) as its own gated
-//! change with its tcltest delta.
+//! The full builtin surface (string/list/dict/expr/control-flow/proc/…) lives
+//! in the sibling `cmd_*` modules, each with its own tcltest coverage.
 //!
 //! Each handler matches the [`BuiltinFn`](crate::interp::BuiltinFn) shape:
 //! `argv[0]` is the command name (Tcl's `objv` convention).
@@ -182,7 +181,7 @@ fn make_constant_error(interp: &mut Interp, name: &[u8], reason: &[u8]) -> Code 
     interp.set_error(&msg)
 }
 
-// -- set -------------------------------------------------------------------
+// set
 
 /// `set varName ?value?` — write (returns the value) or read (returns it).
 fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -234,7 +233,7 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-// -- incr ------------------------------------------------------------------
+// incr
 
 /// `incr varName ?increment?` — add (default 1) over the **numeric tower**,
 /// storing and returning the sum. Both operands must be integers; the sum
@@ -358,7 +357,7 @@ fn not_integer(interp: &mut Interp, bytes: &[u8]) -> Code {
     interp.set_error(&msg)
 }
 
-// -- return ----------------------------------------------------------------
+// return
 
 /// Map a `-code` word (`ok`/`error`/`return`/`break`/`continue` or any integer)
 /// to a [`Code`]; `None` for an unrecognised spelling. A non-0..4 integer maps to
@@ -552,7 +551,7 @@ fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-// -- unset -----------------------------------------------------------------
+// unset
 
 /// `unset varName ...` — remove variables (scalars or array elements).
 fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -646,7 +645,7 @@ const SUBST_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
         &[b"-nobackslashes", b"-nocommands", b"-novariables"],
     );
 
-// -- helpers ---------------------------------------------------------------
+// helpers
 
 /// Minimal Tcl integer parse for the no-tower `incr` fallback (the tower build
 /// reads operands through `tcl_syntax::number` via `bignum`).
@@ -690,7 +689,7 @@ fn parse_i64(bytes: &[u8]) -> Option<i64> {
     Some(if neg { -acc } else { acc })
 }
 
-// -- expr ------------------------------------------------------------------
+// expr
 
 /// The interp's [`ExprCtx`](crate::expr::ExprCtx): `$var` resolves through the
 /// frame store (preserving the value's object → `$bignum` stays a bignum), and

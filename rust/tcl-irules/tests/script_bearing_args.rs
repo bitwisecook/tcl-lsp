@@ -205,8 +205,8 @@ fn unavailable_apply_lambda_body_is_not_an_irules_reference_surface() {
     );
 }
 
-/// The regression itself, spelled out — the exact iRule that `bigip-cleanup`
-/// would have deleted a live pool from.
+/// The exact iRule that `bigip-cleanup` would delete a live pool from if
+/// this reference were missed.
 #[test]
 fn a_pool_used_only_in_a_switch_arm_is_referenced() {
     let registry = irules_registry();

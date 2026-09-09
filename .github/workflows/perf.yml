@@ -10,12 +10,12 @@ name: Performance
 # (the pinned corpus), and it should be re-runnable on its own from the
 # Actions tab without dragging the whole release graph along.
 #
-# NOT GATING YET. The suite reports and warns; it does not fail the build on
-# a slow check. Wall time on a shared runner is not comparable to the
-# maintainer laptop the committed `results/` were measured on, so a
-# threshold would be arbitrary until this job has established its own
-# baseline over a few runs. `bench.py --fail-on-failed-check` is wired and
-# commented out below — flip it on once the baseline exists.
+# Not a gate: the suite reports and warns; it does not fail the build on a
+# slow check. Wall time on a shared runner is not comparable to the
+# maintainer laptop the committed `results/` were measured on, so a fixed
+# threshold would be arbitrary without an established baseline for this
+# runner. `bench.py --fail-on-failed-check` exists for that and is
+# commented out below.
 
 on:
   push:
@@ -27,11 +27,11 @@ on:
     tags: ["v*"]
   pull_request:
     branches: [rust]
-  # The `benchmark` job stays off PRs — it is NOT GATING YET (see above), so a
-  # PR-time run produced a number nothing consumed before merge, and the same
-  # commit's numbers were then recomputed on the push and again on the tag.
-  # Re-enable it on PRs only together with --fail-on-failed-check, so a PR run
-  # actually gates something.
+  # The `benchmark` job stays off PRs — it is not a gate (see above), so a
+  # PR-time run would produce a number nothing consumes before merge, only for
+  # the same commit's numbers to be recomputed on the push and again on the
+  # tag. Running it on PRs only makes sense once `--fail-on-failed-check` is
+  # enabled, so a PR run actually gates something.
   #
   # `graphs-current` is a different animal and does run here: it needs no
   # corpus, no build and no network, it takes seconds, and what it catches — a
@@ -153,8 +153,8 @@ jobs:
 
       - name: Run the benchmark suite
         working-directory: scripts/perf
-        # BENCH_DEADLINE_S: bench.py's own outer wall-clock budget (issue
-        # #1399) — on expiry it reports which phase/binary/request died and
+        # BENCH_DEADLINE_S: bench.py's own outer wall-clock budget —
+        # on expiry it reports which phase/binary/request died and
         # exits nonzero, well inside this job's 60-minute backstop above, so
         # a wedge here is attributed instead of just timing the whole job
         # out. Raised above bench.py's own default (240s) because a shared

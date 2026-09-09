@@ -265,7 +265,7 @@ pub fn canonicalise_word<S: std::hash::BuildHasher>(
             // A name this misreads is not merely unversioned: the reference is
             // then copied through verbatim, so two occurrences at *different*
             // SSA versions produce the same key and GVN treats them as
-            // redundant — an unsound CSE, not a lost one (issue #1604).
+            // redundant — an unsound CSE, not a lost one.
             let start = i + 2;
             if let tcl_lexer::BracedVarEnd::Closed(j) =
                 tcl_lexer::braced_var_name_end(bytes, start, braced_var)
@@ -1469,7 +1469,7 @@ pub fn find_redundancies_for_function(
 /// Code motion must consult the same fact rather than raw CFG reachability:
 /// a plain terminator-successor walk still reaches a block behind a
 /// constant-false branch, so PRE and LICM would offer a hoist *into* a
-/// region the deletion passes simultaneously offer to remove (issue #1385).
+/// region the deletion passes simultaneously offer to remove.
 /// SCCP is optimistic, so a block it never marked executable is provably
 /// dead under those same facts — pruning to the set is the sound direction.
 fn adopt_executable_blocks<S: std::hash::BuildHasher>(
@@ -1488,8 +1488,7 @@ fn adopt_executable_blocks<S: std::hash::BuildHasher>(
 /// body contains. The bodies stay separate only because the back-edge
 /// search around this one uses `SsaFunction::dominator_intervals` (one O(V)
 /// numbering, O(1) per query) where `crate::loops::dominates`
-/// (`loops.rs:64-73`) walks the idom chain per query — the quadratic issue
-/// #1250 removed from this pass.
+/// (`loops.rs:64-73`) walks the idom chain per query, which is quadratic.
 fn natural_loop_blocks(
     cfg: &CfgFunction,
     header: BlockId,
@@ -1580,7 +1579,7 @@ pub fn find_loop_invariants<S: std::hash::BuildHasher>(
 ///
 /// Executability comes from the function's own SCCP result, the same fact
 /// the deletion passes read, so a hoist is never offered into a block O112 /
-/// O107 offer to delete (issue #1385).
+/// O107 offer to delete.
 #[must_use]
 pub fn find_loop_invariants_for_function(
     registry: &CommandRegistry,
@@ -1609,8 +1608,7 @@ fn find_loop_invariants_with_legality(
     let mut results: Vec<RedundantComputation> = Vec::new();
     // One O(V) dominator-tree numbering serves every dominance query below.
     // Walking the idom chain per query instead made this pass O(V²) on a wide
-    // CFG — a flat N-branch dispatch chain is one idom chain N blocks deep
-    // (issue #1250).
+    // CFG — a flat N-branch dispatch chain is one idom chain N blocks deep.
     let dom = ssa.dominator_intervals();
 
     // Collect unique header → loop_blocks pairs via back-edge
@@ -1728,7 +1726,7 @@ pub enum OccurrenceEvent {
 /// Blocks outside `executable` (see [`adopt_executable_blocks`]) contribute
 /// nothing: an occurrence SCCP proved unreachable is not a real earlier
 /// computation, so it must not become the hoist target a later occurrence is
-/// told to reuse (issue #1385).
+/// told to reuse.
 #[must_use]
 pub fn collect_function_occurrence_events<S: std::hash::BuildHasher>(
     registry: &CommandRegistry,
@@ -1957,7 +1955,7 @@ pub fn find_partial_redundancies<S: std::hash::BuildHasher>(
 /// closed.
 ///
 /// Executability comes from the function's own SCCP result, the same fact
-/// the deletion passes read (issue #1385).
+/// the deletion passes read.
 #[must_use]
 pub fn find_partial_redundancies_for_function(
     registry: &CommandRegistry,
@@ -2583,13 +2581,13 @@ mod tests {
         assert_eq!(canonicalise_word("${x}", &uses, &ssa, STYLE), "$x@3");
     }
 
-    /// Issue #1604 — the `${…}` closer follows the release rule, so a
+    /// The `${…}` closer follows the release rule, so a
     /// nested-brace name is *versioned* rather than copied through verbatim.
     ///
     /// The verbatim copy is the unsound half: two occurrences of `${a{b}c}` at
     /// different SSA versions both render to the same literal text, so their
     /// `ExprKey`s match and GVN reports the second as redundant — a CSE that
-    /// reuses a stale value. Oracle: `set {a{b}c} 7; subst {${a{b}c}}` is `7`
+    /// reuses a stale value: `set {a{b}c} 7; subst {${a{b}c}}` is `7`
     /// on tclsh 9.0.4 and `can't read "a{b"` on 8.6.16.
     #[test]
     fn canonicalise_braced_var_follows_the_release_rule() {
@@ -2961,8 +2959,8 @@ mod tests {
 
     /// Every block of a hand-built CFG, as the executable set. These tests
     /// exercise the loop / availability machinery on CFGs with no SCCP run,
-    /// so they hand it the whole CFG — the pre-#1385 premise, stated at the
-    /// call site instead of derived inside the pass.
+    /// so they hand it the whole CFG, stating the premise at the call site
+    /// instead of deriving it inside the pass.
     fn all_blocks(cfg: &Function) -> std::collections::HashSet<BlockId> {
         cfg.blocks.keys().copied().collect()
     }
@@ -3859,9 +3857,9 @@ mod tests {
 
     #[test]
     fn dominator_intervals_answer_siblings_and_unreachable() {
-        // Issue #1250: the interval index must give the same answers the idom
-        // chain walk gave — including "no", which is the case an interval
-        // scheme can get wrong if the numbering is off by one.
+        // The interval index must give the same answers an idom chain walk
+        // does — including "no", which is the case an interval scheme can get
+        // wrong if the numbering is off by one.
         //
         //   entry → a → { b, c },  d unreachable (no idom entry)
         let mut cfg = Function::new("::top", "entry");

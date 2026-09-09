@@ -486,9 +486,9 @@ fn expr_double_default_formatting() {
     expr_eq("1.0 * 1000000000000000.0", "1000000000000000.0");
 }
 
-// BUG: a *bare* literal (or bare `$var`) that is the entire `expr` is returned
+// A *bare* literal (or bare `$var`) that is the entire `expr` is returned
 // verbatim instead of being coerced to its canonical numeric string. tclsh
-// normalizes the single operand to its number form. The VM only normalizes when
+// normalises the single operand to its number form. The VM only normalises when
 // the literal participates in an operation (the dynamic `expr $v` form, which
 // recompiles, is also correct — the divergence is specific to a single-operand
 // braced `expr {…}`).
@@ -504,13 +504,13 @@ fn bug_bare_literal_operand_not_normalized() {
     expr_eq("0xff", "255"); // tclsh: 255
     expr_eq("0o17", "15"); // tclsh: 15
     expr_eq("0b1010", "10"); // tclsh: 10
-    // A bare `$var` operand whose value is an un-normalized number, likewise.
+    // A bare `$var` operand whose value is an un-normalised number, likewise.
     let (ok, result, _) = run("set v 1e3; expr {$v}");
     assert!(ok, "expr {{$v}} should evaluate: {result}");
     assert_eq!(result, "1000.0"); // tclsh: 1000.0
 }
 
-// BUG: a double operation that produces NaN from non-NaN operands is a
+// A double operation that produces NaN from non-NaN operands is a
 // "domain error" in tclsh (tclExecute.c checks the result), but the VM's
 // `dbl_arith` returns the NaN silently and stringifies it as "NaN".
 //   script:        expr {0.0 / 0.0}
@@ -700,7 +700,7 @@ fn expr_binary_operand_errors() {
 #[test]
 fn expr_radix_literals() {
     // Radix prefixes parsed in an arithmetic context (a bare literal hits the
-    // not-normalized bug, covered separately).  tclsh: shared 8.6/9.0 (avoiding
+    // not-normalised case, covered separately).  tclsh: shared 8.6/9.0 (avoiding
     // bare 0NNN octal, which 8.6/9.0 disagree on).
     expr_eq("0xff + 0", "255");
     expr_eq("0xFF * 1", "255");
@@ -1009,7 +1009,7 @@ fn expr_runtime_unary_list_operand_error() {
     assert_eq!(result, "cannot use a list as operand of \"-\"");
 }
 
-// BUG: a negative shift count reports "negative shift count" in the VM, but
+// A negative shift count reports "negative shift count" in the VM, but
 // tclsh (8.6 and 9.0) reports "negative shift argument".
 //   script:        set a 1; set b -1; expr {$a << $b}
 //   tclsh 8.6/9.0: negative shift argument
@@ -1068,7 +1068,7 @@ fn mathfunc_abs() {
     expr_eq("abs(3.0)", "3.0");
 }
 
-// BUG: abs() of the most-negative wide overflows. tclsh promotes to a bignum
+// Abs() of the most-negative wide overflows. tclsh promotes to a bignum
 // and returns the positive magnitude; the VM uses `i64::wrapping_abs`, which
 // leaves the most-negative wide unchanged (negative).
 //   script:        expr {abs(-9223372036854775808)}
@@ -1399,7 +1399,7 @@ fn mathfunc_bool_nonboolean_argument_error() {
     assert_eq!(result, "expected boolean value but got \"abc\"");
 }
 
-// BUG: the integer-ish functions (abs/int/round/entier/isqrt/max/min) funnel a
+// The integer-ish functions (abs/int/round/entier/isqrt/max/min) funnel a
 // non-numeric argument through `as_double()`, so they report "expected
 // floating-point number" where tclsh 9.0 reports the integer-flavoured
 // "expected number" (the function never accepts a fractional value here).
@@ -1418,7 +1418,7 @@ fn bug_integer_mathfunc_nonnumeric_error_wording() {
     assert_eq!(result, "expected number but got \"abc\"");
 }
 
-// BUG: the classification predicates reject the literal `NaN` value. tclsh 9.0
+// The classification predicates reject the literal `NaN` value. tclsh 9.0
 // accepts `NaN`/`Inf` as floating-point values for `isnan`/`isunordered`/… (the
 // whole point of `isnan` is to detect one), but the VM's `pred_fn`/`pred_fn2`
 // coerce via `as_double()`, which parses `Inf` yet errors on `NaN`.
@@ -1455,7 +1455,7 @@ fn mathfunc_max_min_double() {
     expr_eq("min(1.0,2,3)", "1.0"); // winner 1.0 is a double
 }
 
-// BUG: max()/min() over a mix of integers and doubles returns the *winning
+// Max()/min() over a mix of integers and doubles returns the *winning
 // element with its own type* in tclsh. The VM's `min_max` coerces every
 // argument to f64 and returns a double whenever any argument is non-integer,
 // so it prints the integer winner as a double.
@@ -1474,7 +1474,7 @@ fn bug_max_min_mixed_preserves_winner_type() {
 
 // tcl::mathfunc: arg-count and bad-argument errors
 
-// BUG: the math-function arity error wording diverges across every function.
+// The math-function arity error wording diverges across every function.
 // tclsh 9.0 says "not enough arguments for math function \"X\"" (too few) and
 // "too many arguments for math function \"X\"" (too many); the VM emits the
 // single phrasing "too many/few args to math function \"X\"" (and "too few args

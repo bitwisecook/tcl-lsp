@@ -72,7 +72,7 @@ const fn closer_for(opener: u8) -> Option<u8> {
 /// (`tclParse.c:1410`) and 9.0.4 (`tclParse.c:1327`).
 ///
 /// Both `subst` engines report the unterminated form with this exact text, so
-/// the spelling has one owner rather than a copy per engine (issue #1457).
+/// the spelling has one owner rather than a copy per engine.
 pub const MISSING_CLOSE_BRACE_FOR_VAR: &str = "missing close-brace for variable name";
 
 /// C Tcl's parse error when a raw byte forbidden by the active array-index
@@ -205,7 +205,7 @@ fn scan_bare_var_name(source: &[u8], mut position: usize) -> usize {
 /// [`MISSING_CLOSE_BRACE_FOR_VAR`] there. An `Option` invited each consumer to
 /// invent its own recovery — the VM's `?` emitted the whole `${…}` literally
 /// and the runtime's `.unwrap_or(len)` swallowed the rest of the template —
-/// so two engines disagreed with C and with each other (issue #1457).
+/// so two engines disagreed with C and with each other.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BracedVarEnd {
     /// The `}` closing the name sits at this byte offset.
@@ -237,18 +237,18 @@ pub enum BracedVarEnd {
 /// here rather than re-implementing a scan — the lexer's own `parse_var` and
 /// array-index scans, and both `subst` engines — because an engine that
 /// hard-codes one release's rule answers `subst {${a{b}c}}` wrongly on the
-/// other (issue #1457).
+/// other.
 ///
 /// Two surfaces are deliberately **not** covered here:
 ///
 /// - the **compiled-word** path (`segmenter`/`values`/`helpers`), whose pair of
-///   `${…}` decoders still disagree with each other — issue #1568;
+///   `${…}` decoders still disagree with each other;
 /// - the runtime's **script-word** path,
 ///   `runtime/rust/src/parse.rs::build_word`, which reads `${…}` from a lexed
 ///   `TokenType::Var` rather than through this scan and so keeps the lenient
 ///   run-to-end-of-input behaviour on an unterminated form.
 ///
-/// Both are pre-existing and out of #1457's scope; only the `subst`/tokenizer
+/// Both stay outside this consolidation; only the `subst`/tokenizer
 /// surface is consolidated on this owner.
 ///
 /// `src` need not be valid UTF-8. The scan steps a byte at a time, which is
@@ -306,8 +306,8 @@ pub fn braced_var_name_end(src: &[u8], name_start: usize, style: BracedVarStyle)
 /// line/column advance accordingly — keeping them consistent with
 /// `offset` for line/column-based consumers.
 ///
-/// Only `\n` breaks a line, matching [`crate::LineIndex`]'s `\n`-only model
-/// (the #537 invariant).  A bare `\r` last-inner byte is *not* a line break,
+/// Only `\n` breaks a line, matching [`crate::LineIndex`]'s `\n`-only model.
+/// A bare `\r` last-inner byte is *not* a line break,
 /// so treating it as one would place the closer at a line/column
 /// `position_at` never reports — an inconsistent, nonexistent position.
 fn closer_position(end: SourcePosition, last_inner: Option<u8>) -> SourcePosition {
@@ -370,7 +370,7 @@ pub fn word_closer_offset(sm: &SourceMap<'_>, tok: Token) -> Option<u32> {
 /// must be derived from the word's own geometry rather than from the
 /// command-head token: a body-bearing command's head span covers only the
 /// word `catch`, so anchoring there writes the new word *before* the body
-/// and silently re-assigns every argument position (issue #1190).
+/// and silently re-assigns every argument position.
 ///
 /// For a delimited word this is one byte past its closing `}` / `]` / `"`
 /// (via [`word_closer_offset`], so an empty `{}` / `[]` / `""` is not
@@ -396,7 +396,7 @@ pub fn word_append_offset(sm: &SourceMap<'_>, tok: Token) -> u32 {
 /// therefore yields a word with its tail lopped off, and any diagnostic
 /// anchored on the raw span underlines one character short — or, when the
 /// word is written across a line continuation, underlines a region that
-/// stops mid-word on the wrong line (issue #1330).
+/// stops mid-word on the wrong line.
 ///
 /// Worked example — the source `[Dog new] bark`, with byte offsets:
 ///
@@ -467,11 +467,10 @@ pub fn word_span(sm: &SourceMap<'_>, tok: Token) -> crate::Span {
 /// a word's [`Span`] but not the [`Token`] it came from — an optimiser pass
 /// holding a CFG terminator's condition span, a rename edit built from an
 /// analysis reference span, the compiler explorer widening an IR range.
-/// Those callers used to hand-roll the arithmetic and the copies drifted:
-/// `branch_folding`'s decided the question with a textual
-/// `!text.ends_with('}')` guess, so a condition ending in a *nested* empty
-/// pair — `while {$x eq {}}` — looked already-widened and the outer `}` was
-/// dropped from the rewrite target (issue #1423).
+/// Callers hand-rolling this arithmetic independently drift: a textual
+/// `!text.ends_with('}')` guess makes a condition ending in a *nested*
+/// empty pair — `while {$x eq {}}` — look already-widened, dropping the
+/// outer `}` from the rewrite target.
 ///
 /// *span* must be the lexer's own span for a whole delimited word: the
 /// opening delimiter is its first byte and, by the inner-end convention,
@@ -567,11 +566,10 @@ pub fn word_end_position(sm: &SourceMap<'_>, tok: Token) -> SourcePosition {
 /// The token-free sibling of [`word_closer_offset`], for a caller that
 /// holds source text and a byte offset rather than a lexed [`Token`] — a
 /// rewrite pass that has only an argv span, or a minifier folding a
-/// `"…"` argument in place.  Such callers used to hand-roll the scan, and
-/// the copies drifted: one skipped `\`-escapes but not command
-/// substitutions, so `"a[foo "b"]c"` closed at the quote *opening* the
-/// inner `"b"` and any edit made against that offset truncated the word
-/// mid-substitution (issue #1424).
+/// `"…"` argument in place.  A caller hand-rolling the scan independently
+/// risks skipping `\`-escapes but not command substitutions, so
+/// `"a[foo "b"]c"` closes at the quote *opening* the inner `"b"` and any
+/// edit made against that offset truncates the word mid-substitution.
 ///
 /// The scan follows the same rules the lexer's own quoted-word and
 /// command-substitution parsers use:
@@ -580,7 +578,7 @@ pub fn word_end_position(sm: &SourceMap<'_>, tok: Token) -> SourcePosition {
 ///   `\"` is content and `\[` opens nothing.  The release-blind (Tcl 9.0) form
 ///   is deliberate: the escape grammar is release-variant in *width*, but every
 ///   form's payload is hex or octal digits, none of which is a delimiter, so no
-///   release's widths move a closing `"` or `]` (issue #1479);
+///   release's widths move a closing `"` or `]`;
 /// * a `[…]` command substitution is skipped whole — quotes inside it
 ///   belong to the substituted command, not to this word — with brackets
 ///   nesting and a `]` inside a braced or quoted word of the inner
@@ -756,7 +754,7 @@ mod tests {
         }
     }
 
-    /// The `${…}` close rule (issue #1457). `Tcl_ParseVarName` delimits the
+    /// The `${…}` close rule. `Tcl_ParseVarName` delimits the
     /// brace form differently in the 8.x family (`tclParse.c(8.6.16):1398` —
     /// first literal `}`) and in 9.x (`tclParse.c(9.0.4):1315` — brace depth
     /// plus inert `\X` pairs). Both `subst` engines and the lexer's own
@@ -939,7 +937,7 @@ mod tests {
 
     #[test]
     fn closer_offset_empty_brace_does_not_grab_enclosing_closer() {
-        // The #527 case: an empty `{}` immediately followed by an
+        // An empty `{}` immediately followed by an
         // enclosing `}`. The empty brace's own closer is at offset 3;
         // the naive `span.end()` (offset 4) would point at the
         // *enclosing* `}` — an overshoot. This pins the faithful answer.
@@ -1012,7 +1010,7 @@ mod tests {
     #[test]
     fn end_position_bare_cr_is_not_a_line_break() {
         // `{a\r}` — the last inner byte is a bare `\r`. LineIndex counts only
-        // `\n`, so the closer must stay on line 0 (issue 161); treating `\r`
+        // `\n`, so the closer must stay on line 0; treating `\r`
         // as a break would report a position `position_at` never emits.
         let src = "{a\r}";
         let sm = SourceMap::new(src);
@@ -1059,7 +1057,7 @@ mod tests {
 
     #[test]
     fn append_offset_lands_past_a_braced_body() {
-        // The issue #1190 shape: `catch {error oops}` — a new trailing word
+        // `catch {error oops}` — a new trailing word
         // belongs immediately after the body's `}`, at offset 18.
         let src = "catch {error oops}";
         let sm = SourceMap::new(src);
@@ -1155,7 +1153,7 @@ mod tests {
 
     #[test]
     fn span_word_covers_a_nested_empty_pair() {
-        // Issue #1423: the span `{$x eq {}` already *ends* in a `}` — the
+        // The span `{$x eq {}` already *ends* in a `}` — the
         // inner empty pair's closer — so a textual "does it end with `}`?"
         // test skips the widening the outer word really needs and the
         // rewrite target loses the outer brace.
@@ -1247,7 +1245,7 @@ mod tests {
 
     #[test]
     fn close_quote_skips_quote_inside_command_substitution() {
-        // The issue #1424 shape: the `"b"` belongs to the substituted
+        // The `"b"` belongs to the substituted
         // command, so the word closes at the final `"`.
         let src = "\"a[foo \"b\"]c\"";
         let close = close_quote_offset(src, 0).unwrap();

@@ -34,7 +34,7 @@ use crate::side_effects::EffectRegion;
 /// Depth cap shared by every `Script`/`Statement`-tree recursion in this
 /// module (`collect_instance_var_writes`; the mutually-recursive
 /// `scan_script`/`scan_statement`/`scan_control_flow_statement` trio;
-/// `script_always_returns`/`stmt_always_returns`) — issue #996.
+/// `script_always_returns`/`stmt_always_returns`).
 ///
 /// Transitively bounded today via `crate::lowering`'s
 /// `MAX_LOWER_NEST_DEPTH` (every `Script` this module walks is built by
@@ -386,9 +386,8 @@ fn is_literal_var_name(word: &str) -> bool {
 /// A Tcl procedure's `upvar 1 $param local` reaches the frame of whoever
 /// called it, so a helper defined in *another file* creates the caller's
 /// variable just as one defined here does.  C Tcl, tclsh 9.0.4 and 8.6.16
-/// (identical), for the ticklecharts layout the issue #923 audit idx 59
-/// finding was mined from — `setdef` in `utils.tcl`, the caller in
-/// `options.tcl`, tied together by a `pkgIndex.tcl`:
+/// (identical), for a ticklecharts-style layout — `setdef` in `utils.tcl`,
+/// the caller in `options.tcl`, tied together by a `pkgIndex.tcl`:
 ///
 /// ```text
 /// proc demo::setdef {d key args} { upvar 1 $d _dict; … dict set _dict … }
@@ -523,7 +522,7 @@ pub fn resolve_call_target<S: std::hash::BuildHasher>(
 /// genuinely unknown.
 ///
 /// The one place that answers this question, shared by the two consumers that
-/// need it (issue #978): this module's own call-graph builder
+/// need it: this module's own call-graph builder
 /// ([`scan_call_facts`], which records the callback as a reachability edge)
 /// and [`crate::call_site_scan`] (which records it as a call site whose
 /// arguments the runtime supplies). Fixing them independently is what let the
@@ -1081,13 +1080,13 @@ fn build_method_summaries(
             local_pure: true,
             ..LocalFacts::default()
         };
-        // Scan the primary body, then — since the lowering retains them
-        // (issue #1166) — every replacement body of a redefined method,
-        // all into the SAME fact accumulators: the summary describes the
-        // union of every body a dispatch may run — pure only when all
-        // are, constant-return only when every body's exits agree on the
-        // one constant. This replaces the former abstain-on-redefinition
-        // kill switch with a strictly more precise, equally sound join.
+        // Scan the primary body, then — the lowering retains them — every
+        // replacement body of a redefined method, all into the SAME fact
+        // accumulators: the summary describes the union of every body a
+        // dispatch may run — pure only when all are, constant-return only
+        // when every body's exits agree on the one constant. A join rather
+        // than an abstain-on-redefinition kill switch: more precise, equally
+        // sound.
         let mut written_ivars: HashSet<String> = HashSet::new();
         let replacements = ir_module
             .redefined_methods
@@ -1192,8 +1191,7 @@ fn build_method_summaries(
 /// [`build_method_summaries`]: the local-purity / call / effect scan, the
 /// fall-through return, and the instance-variable writes. Called once for
 /// the primary [`crate::ir::MethodDef`] and once per retained replacement
-/// body (issue #1166) so the summary joins over every body a dispatch may
-/// run.
+/// body, so the summary joins over every body a dispatch may run.
 #[derive(Clone, Copy)]
 struct MethodScan<'a> {
     mqname: &'a str,
@@ -1717,8 +1715,7 @@ struct ScanCtx<'a> {
     /// The document's statically proven command-identity facts
     /// ([`crate::realm`]), so a call's side-effect classification,
     /// callback-prefix layout, and body / lambda / expression recursion are
-    /// chosen by the command a head *is* rather than the one it is spelled as
-    /// (issue #1275).
+    /// chosen by the command a head *is* rather than the one it is spelled as.
     ///
     /// Read *unpositioned*: this scan walks lowered `Statement::Call`s and
     /// re-segments body text at offset 0, so no document-absolute offset
@@ -1756,7 +1753,7 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
         identities,
         ..
     } = ctx;
-    // The head's *effective command identity* (issue #1275).  Every registry
+    // The head's *effective command identity*.  Every registry
     // query below reads it, so a call through a proven `interp alias` /
     // `rename` gets the target's traits, prefixes, and effect profile, and a
     // spelling whose binding was provably taken over gets none of them.  The
@@ -2252,9 +2249,9 @@ fn global_alias_names(command: &str, args: &[String]) -> Option<HashSet<String>>
 /// recursion) for every `[cmd ...]` command substitution embedded
 /// in the expression.
 ///
-/// Call-graph edges and unused-proc detection used to miss proc calls
-/// embedded in control-flow predicates because the per-proc fact
-/// scanner walked statement bodies but skipped expression operands.
+/// Without it, call-graph edges and unused-proc detection miss proc calls
+/// embedded in control-flow predicates: the per-proc fact scanner walks
+/// statement bodies but not expression operands.
 /// `if {[q]} ...`, `while {[q]} ...`, and `for {init} {[q]} {next}
 /// ...` left `q` unrecorded as a callee — flagging it as dead code
 /// and missing the edge in `tcl callgraph`.
@@ -2265,7 +2262,7 @@ fn scan_expr_for_calls(
     depth: u32,
 ) {
     use crate::expr_ast::ExprNode;
-    // Native-stack safety net (issue #996): this walks the `ExprNode`
+    // Native-stack safety net: this walks the `ExprNode`
     // operator tree, one native frame per level. Past the cap, stop
     // descending — a fact collector that returns what it has recorded so far
     // is the safe fallback (call edges buried deeper than the cap are simply
@@ -2376,14 +2373,14 @@ fn scan_value_substitutions(text: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts
             && text.is_char_boundary(end)
         {
             // Thin dispatcher — carry the caller's bracket-text depth straight
-            // through; `scan_source_for_calls` enforces the cap (issue #996).
+            // through; `scan_source_for_calls` enforces the cap.
             scan_source_for_calls(&text[start..end], ctx, facts, depth);
         }
     }
 }
 
 fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts, depth: u32) {
-    // Native-stack safety net (issue #996): this recurses into `ArgRole::Body`
+    // Native-stack safety net: this recurses into `ArgRole::Body`
     // args, `apply` lambda bodies, and nested `[cmd …]` substitutions inside a
     // single word's raw text — a genuinely unbounded axis, independent of any
     // statement-tree cap (`catch {catch {catch {…}}}` / `apply {{} {apply {{}
@@ -2413,8 +2410,8 @@ fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts,
         if name.is_empty() {
             continue;
         }
-        // The head's effective identity, for every registry role query below
-        // (issue #1275).  `scan_call_facts` resolves it again for its own
+        // The head's effective identity, for every registry role query below.
+        // `scan_call_facts` resolves it again for its own
         // queries — it is also reached from the `Statement::Call` arm, which
         // has no segmented command to hand it.
         let resolved: &str = identities.resolve_unpositioned(name).spec_name();
@@ -2439,7 +2436,7 @@ fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts,
         // is a 2-element list, not a script, so scanning it as one (like a
         // plain `Body` arg) would misread the parameter word as a call-graph
         // edge to a non-existent proc and never reach the real body's own
-        // calls at all (issue #954's call-graph sibling gap).
+        // calls at all.
         let lambda_indices = registry.arg_indices_for_role(
             resolved,
             &arg_strs,
@@ -2461,9 +2458,8 @@ fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts,
                 // derives its search namespace from the caller qname's own
                 // namespace prefix) resolves bare calls inside the lambda the
                 // same way Tcl itself would, instead of relative to
-                // `ctx.caller`'s enclosing namespace (codex review of #954's
-                // follow-up: an `apply {{} {helper}}` inside `::ns::f` calls
-                // `::helper`, not `::ns::helper`).
+                // `ctx.caller`'s enclosing namespace: an `apply {{} {helper}}`
+                // inside `::ns::f` calls `::helper`, not `::ns::helper`.
                 let lambda_caller = match elems
                     .namespace
                     .and_then(|ns| source.get(ns.start() as usize..ns.end() as usize))
@@ -2582,7 +2578,7 @@ fn note_params_in_expr(
     depth: u32,
 ) {
     use crate::expr_ast::ExprNode;
-    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // Native-stack safety net: walks the `ExprNode` tree, one
     // native frame per level. Past the cap, stop descending — param
     // observations buried deeper than the cap are simply not recorded (a
     // param not marked `UsedInCondition` stays whatever it already was);
@@ -2738,7 +2734,7 @@ fn walk_collect_param_refs(
     depth: u32,
 ) {
     use crate::expr_ast::ExprNode;
-    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // Native-stack safety net: walks the `ExprNode` tree, one
     // native frame per level. Past the cap, stop descending — this collector
     // returns the param refs gathered so far (a conservative under-count only
     // reachable past 256 levels of expression nesting); never a crash.
@@ -2953,8 +2949,8 @@ mod tests {
         calls
     }
 
-    /// Issue #978: a procedure invoked only through a `CommandPrefix`-role
-    /// callback is a real caller. The bare-word prefix already produced an
+    /// A procedure invoked only through a `CommandPrefix`-role callback is a
+    /// real caller. A bare-word prefix produces an
     /// edge; a prefix *built* by a registry-declared builder (`[list cb]`,
     /// `Traits::BUILDS_COMMAND_PREFIX`) did not — the head read as `[list`
     /// and failed the bareword guard, so a callback-only proc looked dead.
@@ -2978,7 +2974,7 @@ mod tests {
         }
     }
 
-    /// Issue #978, the reported shape: `trace add variable … command cb`.
+    /// The `trace add variable … command cb` shape.
     #[test]
     fn a_trace_callback_is_a_call_graph_edge() {
         let src = "proc cb {args} { return 0 }\n\
@@ -3054,8 +3050,7 @@ mod tests {
         assert_eq!(command_prefix_head(&registry, "[pick]"), None);
     }
 
-    /// Regression coverage for issue #996: the interprocedural call-graph
-    /// scanners recurse with no depth cap before this fix —
+    /// The interprocedural call-graph scanners each need a depth cap —
     /// `scan_expr_for_calls`, `note_params_in_expr` and
     /// `walk_collect_param_refs` once per `ExprNode` level (Tier 1A);
     /// `scan_source_for_calls` (+ its `scan_value_substitutions` helper) once
@@ -3282,7 +3277,7 @@ mod tests {
         assert!(ia.procedures.is_empty());
     }
 
-    /// Issue #954's call-graph sibling gap: a proc called *inside* an
+    /// A proc called *inside* an
     /// `apply` lambda body reached through a `[…]` command substitution
     /// (`set y [apply {p {…}} $x]`) must still register as a call-graph
     /// edge. `apply`'s lambda-literal argument is `ArgRole::LambdaLiteral`,
@@ -3305,7 +3300,7 @@ mod tests {
         );
     }
 
-    /// Codex review of #954's follow-up: a lambda body's bare calls must
+    /// A lambda body's bare calls must
     /// resolve in the lambda's own namespace (the optional third `apply`
     /// element, or global when omitted) — never the enclosing procedure's
     /// namespace. `::ns::f`'s `apply {{} {helper}}` must resolve `helper` to
@@ -3398,8 +3393,7 @@ mod tests {
     fn global_alias_write_counts_as_writes_global() {
         // A bare `set g` after `global g` mutates a caller-visible
         // variable through the alias — writes_global, even though the
-        // written name is bare (previously missed: only `::`-qualified
-        // names counted).
+        // written name is bare, not `::`-qualified.
         for src in [
             "proc ::f {} { global g\nset g 5 }",
             "proc ::f {} { variable v\nset v 1 }",
@@ -3496,7 +3490,7 @@ mod tests {
 
     #[test]
     fn redefined_method_joins_over_every_retained_body() {
-        // Issue #1166: the lowering retains replacement bodies, so the
+        // The lowering retains replacement bodies, so the
         // summary is the JOIN over every body a dispatch may run —
         // pure when all bodies are pure, impure when any is.
         let ia = build(
@@ -3595,9 +3589,8 @@ mod tests {
 
     #[test]
     fn call_in_if_condition_is_recorded() {
-        // Call-graph edges and unused-proc detection used to miss proc calls
-        // embedded in `if {[q]} ...` predicates.  Verify ::q now
-        // appears in ::a's direct calls.
+        // Calls embedded in an `if {[q]} ...` predicate are call-graph edges:
+        // ::q must appear in ::a's direct calls.
         let ia = build(
             "proc ::q {} { return 1 }\n\
              proc ::a {} { if {[::q]} { puts hi } }",
@@ -3871,7 +3864,7 @@ mod tests {
         }
     }
 
-    /// Regression coverage for issue #996: `collect_instance_var_writes`
+    /// `collect_instance_var_writes`
     /// and the mutually-recursive `scan_script`/`scan_statement`/
     /// `scan_control_flow_statement` trio recurse once per nested
     /// `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch` body, with no
@@ -3909,9 +3902,9 @@ mod tests {
             .unwrap();
     }
 
-    /// Regression coverage for issue #996: `collect_instance_var_writes`
+    /// `collect_instance_var_writes`
     /// (the `TclOO` method-body instance-write scan) recurses once per
-    /// nested `if` body, with no depth cap of its own before this fix.
+    /// nested `if` body, so it needs a depth cap of its own.
     /// Same transitively-bounded-today caveat and big-stack-thread
     /// rationale as `deeply_nested_if_survives_interprocedural_scan`. 1000
     /// levels is comfortably past the new cap; the assertion is that the
@@ -3940,8 +3933,8 @@ mod tests {
             .unwrap();
     }
 
-    /// Issue #1275 — the call-graph scan must resolve a command head's
-    /// *effective identity*, not its written spelling.
+    /// The call-graph scan must resolve a command head's *effective
+    /// identity*, not its written spelling.
     ///
     /// `catch`'s argument carries `ArgRole::Body`, so the text scan descends
     /// into it and records the calls inside as reachability edges.  Whether
@@ -3952,9 +3945,9 @@ mod tests {
     /// The call sits inside a `[…]` substitution deliberately: a *statement*
     /// `catch {…}` is turned into control-flow structure by lowering long
     /// before this scan sees it, so only the value-context path exercises the
-    /// registry role query this issue is about.
+    /// registry role query in question.
     ///
-    /// tclsh oracle (8.6.16 and 9.0.4, byte-identical): `interp alias {} guard
+    /// On tclsh 8.6.16 and 9.0.4 (byte-identical): `interp alias {} guard
     /// {} catch` makes `guard` run `catch`; `rename catch guard` moves it and
     /// leaves `catch` gone; a top-level `proc catch …` takes the name over.
     fn p_calls_q(prelude: &str, head: &str) -> bool {
@@ -4009,7 +4002,7 @@ mod tests {
     }
 
     /// The side-effect classification reads the resolved head too: a call
-    /// through a proven alias is a *known* command, so it no longer forces
+    /// through a proven alias is a *known* command, so it does not force
     /// `has_unknown_calls` (which alone makes a procedure permanently impure).
     #[test]
     fn side_effect_classification_follows_an_aliased_head() {

@@ -107,8 +107,8 @@ suite("Configuration Settings", () => {
     // tests below; their editor globals are non-boolean so they are not
     // included in this boolean-assertion loop.
     //
-    // folding is deliberately absent here (issue #1122): it used to inherit
-    // editor.folding but no longer does -- see the round-trip test below.
+    // folding is deliberately absent here: it does not inherit
+    // editor.folding -- see the round-trip test below.
   ];
 
   for (const [featureKey, editorSetting] of editorGlobalMappings) {
@@ -213,16 +213,16 @@ suite("Configuration Settings", () => {
     }
   });
 
-  // folding — deliberately NOT inherited from editor.folding (issue #1122).
+  // folding — deliberately NOT inherited from editor.folding.
   // Vanilla VS Code's sticky-scroll model provider queries folding-range
   // providers unconditionally -- it never reads EditorOption.folding -- so a
   // user with the folding UI off in vanilla VS Code still gets
-  // provider-based sticky scroll. `features.folding` used to inherit
-  // `editor.folding`, so the same user's Tcl files got no folding ranges at
-  // all, which VS Code >=1.105 treats as a terminal (not a fall-through)
-  // sticky-scroll model: sticky scroll went blank for every Tcl file. The
+  // provider-based sticky scroll. If `features.folding` inherited
+  // `editor.folding`, that same user's Tcl files would get no folding ranges
+  // at all, which VS Code >=1.105 treats as a terminal (not a fall-through)
+  // sticky-scroll model: sticky scroll would go blank for every Tcl file. The
   // explicit `tclLsp.features.folding` override still works; only the
-  // implicit inheritance from `editor.folding` is gone.
+  // implicit inheritance from `editor.folding` is absent.
 
   test("editor.folding=false does not suppress the LSP folding provider (issue #1122)", async () => {
     const docUri = getDocUri("folding.tcl");
@@ -254,7 +254,7 @@ suite("Configuration Settings", () => {
       // is what the LSP client's registered FoldingRangeProvider (and, in
       // turn, sticky scroll) actually sees.
       //
-      // Bounded wait, not a single sample (issue #1295's shape): the toggle
+      // Bounded wait, not a single sample: the toggle
       // barrier above only proves the server's effective config round-tripped
       // back to true, not that a request issued right now sees it. This test
       // expects the *same* answer as the baseline, so in the common case the
@@ -726,7 +726,7 @@ suite("Configuration Settings", () => {
     assert.strictEqual(value.length, 0);
   });
 
-  // Diagnostics file exclusion (#1556)
+  // Diagnostics file exclusion
   test("diagnostics.exclude defaults to empty array", () => {
     const value = cfg().get<string[]>("diagnostics.exclude");
     assert.ok(Array.isArray(value), "exclude should be an array");
@@ -881,7 +881,7 @@ suite("Configuration Settings", () => {
       await config.update("documentSymbols", false, undefined);
       await waitForFeatureToggle(docUri, "documentSymbols", false);
 
-      // Wait on the *result*, not on a single sample of it (issue #1295):
+      // Wait on the *result*, not on a single sample of it:
       // the toggle barrier above only proves the server's effective config
       // moved, not that a request issued now is answered under the new
       // config. The server's `document_symbol` handler returns `None` when
@@ -1088,8 +1088,8 @@ suite("Configuration Settings", () => {
       await waitForFeatureToggle(docUri, "folding", false);
 
       // Raw LSP response (see `foldingRangeViaLsp`), not
-      // `vscode.executeFoldingRangeProvider`: since issue #1122's server-side
-      // fix, a disabled folding provider answers `null` (never an empty
+      // `vscode.executeFoldingRangeProvider`: a disabled folding provider
+      // answers `null` (never an empty
       // array, which VS Code's sticky-scroll model treats as terminal
       // instead of falling through) -- and `executeFoldingRangeProvider`
       // normalises a `null` response into indentation-based fallback ranges,
@@ -1181,7 +1181,7 @@ suite("Configuration Settings", () => {
       // barrier above says the server's effective config has moved; it does
       // not say a request issued now has been answered under the new config,
       // and there is no event that announces that transition.  Sampling once
-      // is what made this test fail with the depth unchanged (issue #1295) —
+      // can catch the depth unchanged before a late request settles —
       // and because the wait rejects rather than resolving, a feature toggle
       // that genuinely never takes effect fails here loudly and
       // deterministically instead of passing whenever the sample happens to
@@ -1260,8 +1260,8 @@ suite("Configuration Settings", () => {
       // A bare publish barrier is wrong here twice over. It resolves on the
       // first onDidChangeDiagnostics naming this URI, so a publish computed
       // before the toggle and delivered late satisfies it — this server is
-      // known to deliver a publish long after the turn that produced it
-      // (#1678, #1849, #1865). And the config change itself re-analyses open
+      // known to deliver a publish long after the turn that produced it.
+      // And the config change itself re-analyses open
       // documents, so a W100-free set can already be published before the
       // edit is even sent. In the first case the assertion reads a stale
       // pre-toggle set and fails on timing; in the second it passes without

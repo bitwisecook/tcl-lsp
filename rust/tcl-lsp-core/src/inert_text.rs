@@ -21,12 +21,11 @@
 //! The cursor-word scan ([`crate::hover::find_var_at_position`] /
 //! [`crate::hover::find_word_span_at_position`]) is a delimiter-based
 //! character scan: it happily matches a `$level`-shaped substring in a place
-//! Tcl emits byte-for-byte unsubstituted, and hover / go-to-definition /
-//! find-references / rename then resolved it to a real declaration —
-//! contradicting the LSP's own semantic tokens (one opaque comment / string
-//! token, no nested variable) and its own W220 "assignment is never read"
-//! (which correctly treats those as non-reads). Issue #923 differential-audit
-//! finding idx 24.
+//! Tcl emits byte-for-byte unsubstituted, so hover / go-to-definition /
+//! find-references / rename must not resolve it to a real declaration —
+//! that would contradict the LSP's own semantic tokens (one opaque comment /
+//! string token, no nested variable) and its own W220 "assignment is never
+//! read", which treats those as non-reads.
 //!
 //! Both tests here are **conservative**: they answer `true` only when the
 //! position is provably inert, and `false` whenever anything is unclear, so a
@@ -72,10 +71,10 @@ const MAX_DEPTH: u32 = 32;
 /// puts "5: before" ;# comment $v   ;# 5: before
 /// ```
 ///
-/// Line 1 is the case this used to get wrong: `a{#` is a single bare word (the
-/// list quoting shows the brace is literal) and `$v` really is substituted, yet
-/// treating the mid-word `{` as structural classified the `#` as a comment and
-/// suppressed a genuine variable read.
+/// Line 1 is the delicate case: `a{#` is a single bare word (the list quoting
+/// shows the brace is literal) and `$v` really is substituted, so treating the
+/// mid-word `{` as structural would classify the `#` as a comment and suppress
+/// a genuine variable read.
 ///
 /// A word-start `{` does keep command position, and that is sound whichever
 /// kind of braced word it opens: if the braces hold a script, a `#` at its
@@ -276,7 +275,7 @@ mod tests {
         u32::try_from(src.find(needle).expect("needle present")).expect("fits u32")
     }
 
-    /// TP: the `$level` inside the audit's own inert comment.
+    /// TP: a `$level` inside an inert comment.
     #[test]
     fn a_dollar_ref_inside_a_comment_is_inert() {
         let src = "proc p {} {\n    set level 42\n    # so $level ...\n}\n";

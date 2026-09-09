@@ -66,8 +66,7 @@
 //! / `destructor_next_provider`), not just the immediate superclass.
 //! Carries a `{class}::constructor` / `{class}::destructor` qname
 //! ([`tcl_compiler::analyser::class_constructor_key`] /
-//! `class_destructor_key`) for the same click-to-references flow (issue
-//! #992).
+//! `class_destructor_key`) for the same click-to-references flow.
 //!
 //! Cross-document reference counts: when the
 //! caller threads a [`crate::workspace_index::WorkspaceIndex`]
@@ -89,8 +88,8 @@
 //!   the server relabels it there from the workspace-wide site set it
 //!   resolves for the click, via [`reference_count_title`].  The number
 //!   shown and the locations the click opens are therefore one and the same
-//!   set, and both match Find All References on the declaration (issue
-//!   #991).  The counts here are the single-document floor under that, and
+//!   set, and both match Find All References on the declaration.  The counts
+//!   here are the single-document floor under that, and
 //!   what a caller with no server gets.
 
 use tcl_compiler::analyser::AnalysisResult;
@@ -133,10 +132,10 @@ pub fn code_lenses(
     };
     // The lens title is a reference *count*, so it has to agree with the peek
     // it labels — and both must exclude a bare call a live `namespace import
-    // -force` shadows, a fact only whole-program export knowledge can settle
-    // (issue #1116 item 1). The workspace index this provider already
-    // receives is exactly that knowledge, so no extra parameter is needed;
-    // without one the counts stay document-only, as before.
+    // -force` shadows, a fact only whole-program export knowledge can
+    // settle. The workspace index this provider already receives is exactly
+    // that knowledge, so no extra parameter is needed; without one the counts
+    // stay document-only.
     let exports = workspace.map(crate::workspace_index::WorkspaceIndex::export_snapshot);
     let resolution = match exports.as_deref() {
         Some(oracle) => crate::definition::CallResolution::document_only().in_program(
@@ -218,7 +217,7 @@ pub fn code_lenses(
         // title and the peek can never drift.  That resolver
         // counts both intra-class `my method` dispatch and external
         // `$obj method` call sites (via `instance_classes` plus the
-        // object-type lattice's scoped facts — issue #994 C5b), plus the
+        // object-type lattice's scoped facts), plus the
         // call sites of any subclass that inherits this definition.
         emit_class_member_lenses(
             source,
@@ -244,8 +243,8 @@ pub fn code_lenses(
 /// the lens title and the peek can never drift.  The method/classmethod
 /// resolver covers intra-class `my method` dispatch, external `$obj method`
 /// sites (resolved through the analyser's `instance_classes` variable-type
-/// tracking plus the object-type lattice's scope-keyed facts — issue #994
-/// C5b), and the call sites of any subclass that inherits (does not
+/// tracking plus the object-type lattice's scope-keyed facts), and the call
+/// sites of any subclass that inherits (does not
 /// override) this definition.
 ///
 /// Each lens carries a `{class}::method::{name}` / `{class}::classmethod::{name}`
@@ -255,9 +254,8 @@ pub fn code_lenses(
 /// `qname`-present shape as the proc / class lenses — so the server's
 /// `code_lens_resolve` treats it as resolvable and attaches the *clickable*
 /// `tcl-lsp.showReferences` command instead of leaving it an inert bare
-/// title (issue #956: the `#724` "reference is not active" defect,
-/// previously fixed for proc/class lenses, recurring for methods; issue
-/// #992 extends the same treatment to properties).
+/// title that reports "reference is not active".  Properties get the same
+/// treatment.
 fn emit_class_member_lenses(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
@@ -271,7 +269,7 @@ fn emit_class_member_lenses(
     // of call sites (declaration excluded) the shared resolver returns.
     // `is_classmethod` is passed explicitly rather than inferred, so a
     // `method` and `classmethod` sharing a name each count and resolve only
-    // their own dispatch shape (Codex review on #971, P2).
+    // their own dispatch shape.
     let member_ref_count = |name: &str, is_classmethod: bool| -> usize {
         crate::references::method_references_for_class(
             source,
@@ -396,10 +394,10 @@ pub fn reference_count_title(count: usize) -> String {
 /// `emit_class_member_lenses` apply (a member with an empty `name_span`
 /// gets no lens, so it must not answer `true` here either).
 ///
-/// `codeLens/resolve` used this existence check to decide
+/// `codeLens/resolve` uses this existence check to decide
 /// whether a lens is genuinely one of this document's own lenses before
-/// resolving its click locations — previously by calling [`code_lenses`] in
-/// full and searching its output for a matching `qname`, which recomputed
+/// resolving its click locations.  Calling [`code_lenses`] in full and
+/// searching its output for a matching `qname` would recompute
 /// every *other* proc's / class's / member's reference count (each itself a
 /// resolver walk) just to answer one boolean. This answers the same
 /// question with direct `HashMap`/`Vec` lookups: O(1) for a plain proc or
@@ -586,7 +584,7 @@ mod tests {
 
     #[test]
     fn method_lens_counts_a_method_return_captured_dispatch_site() {
-        // Issue #994 C5b: the lens count comes from the same resolver Find
+        // The lens count comes from the same resolver Find
         // References uses, so a `$b greet` site typed only by the lattice's
         // method-return edge must be counted too.
         let src = "oo::class create A { method make {} { ::return [::B new] } }\n\
@@ -750,15 +748,15 @@ mod tests {
     // so the server treats it as resolvable (`has_qname` in
     // `tcl-lsp-server`'s `code_lens` handler) and attaches a clickable
     // `tcl-lsp.showReferences` command via `codeLens/resolve`, instead of
-    // leaving it an inert bare title (the `#724` defect recurring for
-    // methods).  The wire-level resolve round-trip itself is covered by
+    // leaving it an inert bare title.  The wire-level resolve round-trip
+    // itself is covered by
     // `tcl-lsp-server`'s `code_lens_resolve_wires_show_references_command_for_method`
     // / `..._for_classmethod` tests; these lock in the `qname` this crate
     // hands the server.
 
     #[test]
     fn method_lens_carries_class_member_key_qname() {
-        // FN→TP regression for the exact issue #956 shape: a `variable` and
+        // FN→TP for the shape with a `variable` and
         // `constructor` declared before the `method` in the class body.
         let src = "oo::class create Bar {\n   variable _options\n    constructor {args} {\n         set _options $args\n    }\n\n    method get {key} {\n        return [dict get $_options $key]\n    }\n\n}\nset b [Bar new]\nputs [$b get foo]\n";
         let analysis = analyse(src);
@@ -1113,7 +1111,7 @@ mod tests {
         assert_eq!(helper.command_title, "1 reference", "{lenses:?}");
     }
 
-    // -- lens count must equal the reference list -----
+    // The lens count must equal the reference list.
 
     /// Parse a `"N reference(s)"` title back into its integer count.
     fn title_count(title: &str) -> usize {
@@ -1259,15 +1257,15 @@ mod tests {
         );
     }
 
-    // -- issue #864: method lens must count external `$obj method` sites --
+    // A method lens must count external `$obj method` sites.
     //
     // TP  — a real reference (`$obj method`, `my method`) is counted.
     // FP  — a non-reference (`dict get`, a bare word) is *not* counted.
     // TN  — a method with genuinely no references reads `0 references`.
-    // FN  — the regression: the external `$obj method` call the old
-    //       body-head heuristic missed is now counted.
+    // FN  — an external `$obj method` call, which a body-head heuristic
+    //       misses, is counted.
 
-    /// The exact source from issue #864.
+    /// The shared fixture for the four cases above.
     const ISSUE_864_SRC: &str = concat!(
         "oo::class create Bar {\n",
         "   variable _options\n",
@@ -1428,9 +1426,9 @@ mod tests {
 
     #[test]
     fn lens_matches_peek_for_inherited_method_with_subclass_my_dispatch() {
-        // Codex #881: the lens uses `method_references_for_class`, which counts
+        // The lens uses `method_references_for_class`, which counts
         // a `my speak` call in an *inheriting* subclass body; the peek from the
-        // declaration must count it too (it now shares that resolver), so lens
+        // declaration counts it too through the same resolver, so lens
         // and peek can't drift.  Here `Base::speak` is referenced by `Derived`'s
         // `my speak` and by `$d speak` — two sites.
         let src = concat!(
@@ -1585,8 +1583,7 @@ mod tests {
         assert_lens_matches_references(src, name_line);
     }
 
-    // lens_qname_exists (issue #1152: codeLens/resolve's targeted existence
-    // check, replacing a full `code_lenses` walk)
+    // `lens_qname_exists` — `codeLens/resolve`'s targeted existence check.
 
     #[test]
     fn lens_qname_exists_finds_a_plain_proc() {

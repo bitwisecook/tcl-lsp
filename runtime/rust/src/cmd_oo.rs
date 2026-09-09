@@ -59,16 +59,15 @@ use crate::namespace::NsId;
 use crate::obj::{self, TclObj};
 
 /// Maximum superclass/mixin linearisation depth for [`Interp::linearize_class`]
-/// / [`Interp::gather_class_props`] (issue #996). `tcl_syntax::mro::MAX_MRO_DEPTH`
-/// fixed the identical algorithm (TclOO's DFS + late-placement) in the
-/// *diagnostics* linearizer under the internal tracking label,
-/// settling on 1024 there — but that pass runs on a host-controlled analysis
-/// stack, not this runtime's live call stack. Confirmed crash reproduction
-/// (this sweep): a deep `mixin` chain (`oo::class create C$i { mixin C[i-1]
-/// }`) SIGABRTs between depth 100-150 on a 256 KiB stack, and still crashes
-/// at depth 2000 on a 1 MiB stack, so 1024 would not actually stop the crash
-/// on a small-stack embedding (a caught P1 review finding on the fix that
-/// first introduced this guard). 64 — the same cap `MAX_ARRAY_INDEX_DEPTH` /
+/// / [`Interp::gather_class_props`]. `tcl_syntax::mro::MAX_MRO_DEPTH` fixes
+/// the identical algorithm (TclOO's DFS + late-placement) in the
+/// *diagnostics* linearizer, settling on 1024 there — but that pass runs on
+/// a host-controlled analysis stack, not this runtime's live call stack.
+/// Confirmed crash reproduction: a deep `mixin` chain (`oo::class create
+/// C$i { mixin C[i-1] }`) SIGABRTs between depth 100-150 on a 256 KiB
+/// stack, and still crashes at depth 2000 on a 1 MiB stack, so 1024 would
+/// not actually stop the crash on a small-stack embedding. 64 — the same
+/// cap `MAX_ARRAY_INDEX_DEPTH` /
 /// `MAX_SCAN_PARTS_DEPTH` / `MAX_RESOLVE_PARTS_DEPTH` settled on for the same
 /// crash class elsewhere in this crate — is comfortably under the measured
 /// 100-150 floor, with margin for a smaller WASM host stack, and still far
@@ -442,7 +441,7 @@ pub fn install(interp: &mut Interp) {
         );
         interp.ns_register(fqn, Command::OoObject(fqn.to_vec()));
         // Engine-installed, not script-created: the registry dates these
-        // (TCL86_PLUS) and the availability gate must honour that (#1463).
+        // (TCL86_PLUS) and the availability gate must honour that.
         interp.declare_registry_object_root(fqn);
         interp.oo_register_my(fqn);
     }
@@ -611,7 +610,7 @@ fn install_configurable(interp: &mut Interp) {
     install_abstract_singleton(interp);
     // The 9.0 metaclasses are engine-installed on the registry's behalf too,
     // so the release gate hides them below their introducing release the way
-    // it hides a builtin (#1463) — real tclsh 8.6.16 has no `oo::configurable`.
+    // it hides a builtin — real tclsh 8.6.16 has no `oo::configurable`.
     for root in [
         b"::oo::configurable".as_slice(),
         b"::oo::singleton",
@@ -625,7 +624,8 @@ fn install_configurable(interp: &mut Interp) {
     // name, so `profile_admits_registry_builtin` admits them on every surface.
     // They are therefore still present (and consistently callable) on an 8.4
     // surface that should have no TclOO at all. That is a registry-content
-    // gap, not a gate gap; #1463's gate is mirrored correctly without them.
+    // gap, not a gate gap; the release gate itself is mirrored correctly
+    // without them.
 }
 
 /// TIP-less foundation metaclasses created by `InitFoundation` in C
@@ -1452,7 +1452,7 @@ impl Interp {
     }
 }
 
-// -- oo::class / oo::object / oo::define / oo::objdefine ---------------------
+// oo::class / oo::object / oo::define / oo::objdefine
 
 /// `oo::define class script` or `oo::define class subcommand ?arg ...?`.
 fn oo_define_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -1602,7 +1602,7 @@ fn oo_copy_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-// -- definition-script commands ---------------------------------------------
+// definition-script commands
 
 /// The current definition target, or an error if outside a definition body.
 fn def_target(interp: &mut Interp) -> Result<DefTarget, Code> {
@@ -2200,7 +2200,7 @@ fn slot_apply(op: &SlotOp, current: &[Vec<u8>], values: &[Vec<u8>]) -> Vec<Vec<u
     }
 }
 
-// -- the `::oo::Slot` class (TIP 380) ----------------------------------------
+// the `::oo::Slot` class (TIP 380)
 //
 // The public operations are *native* methods so they add no Tcl call frame:
 // the overridable `Get`/`Set`/`Resolve` they invoke therefore run at the same
@@ -2583,7 +2583,7 @@ fn def_export(interp: &mut Interp, argv: &[*mut TclObj], export: bool) -> Code {
     Code::Ok
 }
 
-// -- method context: self / my / next ---------------------------------------
+// method context: self / my / next
 
 fn self_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let ctx = interp.oo.borrow().call_stack.last().map(|frame| {
@@ -3238,7 +3238,7 @@ fn classvariable_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-// -- info object / info class (called from cmd_info) -------------------------
+// info object / info class (called from cmd_info)
 
 /// `info object subcommand object ?arg?`.
 pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -3297,8 +3297,7 @@ pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             // `info object isa category objName ?arg?`. C resolves the category
             // with `Tcl_GetIndexFromObj(…, "category", 0)` (`categories[]`,
             // `tclOOInfo.c`), so `cl`/`ob`/`t` abbreviate, `m` is ambiguous
-            // (metaclass/mixin), and an unknown word is an error — this used to
-            // answer a plain `0`.
+            // (metaclass/mixin), and an unknown word is an error.
             const ISA_CATEGORIES: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
                 tcl_cmd_core::prefix::OptionTable::abbreviating(
                     "category",
@@ -4158,7 +4157,7 @@ fn set_list(interp: &mut Interp, names: &[Vec<u8>]) {
     interp.set_result(list::new_list_obj(&elems));
 }
 
-// -- the object-system engine (impl Interp) ----------------------------------
+// The object-system engine.
 
 impl Interp {
     /// An OO object's/class's command was renamed or deleted (e.g. `rename obj
@@ -5164,9 +5163,8 @@ impl Interp {
         let mut seq: Vec<(Vec<u8>, bool)> = Vec::new();
         let mut path: Vec<Vec<u8>> = Vec::new();
         // One visit budget shared across every mixin and the class chain below
-        // (issue #996 — see `MAX_MRO_VISITS`): the cap is on *this whole
-        // dispatch's* total linearisation work, not on each sub-walk
-        // independently.
+        // (see `MAX_MRO_VISITS`): the cap is on *this whole dispatch's* total
+        // linearisation work, not on each sub-walk independently.
         let mut budget = MAX_MRO_VISITS;
         // Mixins and the class hierarchy contribute *class*-facet steps; the
         // object itself sits between the object mixins and its class chain.
@@ -5339,8 +5337,8 @@ impl Interp {
     ///
     /// `depth` is this call's nesting level (0 at the root) and `budget` is the
     /// remaining total-visit allowance shared across the whole linearisation
-    /// (both callers') — see [`MAX_MRO_DEPTH`]/[`MAX_MRO_VISITS`] (issue #996).
-    /// Past either cap, this call stops descending without recursing further:
+    /// (both callers') — see [`MAX_MRO_DEPTH`]/[`MAX_MRO_VISITS`]. Past
+    /// either cap, this call stops descending without recursing further:
     /// the already-linearised prefix in `seq` is kept as-is, the same graceful
     /// "just stop" degradation the `path` cycle guard above already applies to
     /// a malformed hierarchy, rather than overflowing the native stack or
@@ -5401,7 +5399,7 @@ impl Interp {
     }
 
     /// `depth`/`budget` — see [`linearize_class`](Self::linearize_class), which
-    /// this mirrors (issue #996). Unlike `linearize_class`'s `path`,
+    /// this mirrors. Unlike `linearize_class`'s `path`,
     /// `gather_class_props`'s `seen` is a *global* (never-popped) visited set,
     /// so a diamond is naturally visited once, not once per reaching path —
     /// `budget` is therefore more a defensive second layer than a load-bearing
@@ -6278,12 +6276,13 @@ mod tests {
         haystack.windows(needle.len()).any(|w| w == needle)
     }
 
-    /// Issue #1607: TclOO's four option tables — `info object isa`'s
-    /// `category`, `configure`'s `property` (which C reaches through
-    /// `tcl::prefix match -message property`), `definitionnamespace`'s `kind`,
-    /// and `method`'s `export flag` — were all matched exactly, with their
-    /// enumerations hand-joined. `info object isa` answered a plain `0` for an
-    /// unknown category instead of erroring.
+    /// TclOO's four option tables — `info object isa`'s `category`,
+    /// `configure`'s `property` (which C reaches through `tcl::prefix match
+    /// -message property`), `definitionnamespace`'s `kind`, and `method`'s
+    /// `export flag` — resolve by unambiguous prefix through the shared
+    /// option-table matcher, matching C's `Tcl_GetIndexFromObj`/`tcl::prefix
+    /// match` semantics rather than an exact match against a hand-joined
+    /// enumeration.
     ///
     /// tclsh 9.0.4 (8.6.16 agrees on the `category` rows):
     ///   info object isa x o   -> bad category "x": must be class, metaclass,
@@ -6452,7 +6451,8 @@ mod tests {
         });
     }
 
-    /// Issue #1607's `property` half, which needs a configurable class.
+    /// The `property` half of the option-table prefix matching, which needs
+    /// a configurable class.
     #[test]
     fn configure_property_word_abbreviates() {
         const MUST: &str = "must be -yellow or -zed";
@@ -8135,27 +8135,29 @@ mod tests {
         });
     }
 
-    /// Regression coverage for issue #996: `linearize_class` (backing
-    /// `method_chain_faceted` — the hot path for every ordinary method
-    /// dispatch — and `class_precedence`, `info class call`) and
-    /// `gather_class_props` (`info class properties -all`) recursed once
-    /// per mixin/superclass level, with only a same-branch cycle guard and
-    /// no depth cap before this fix. Confirmed crash reproduction (this
-    /// sweep): a deep `mixin` chain (`oo::class create C$i { mixin C[i-1]
-    /// }`, no `{*}` needed) SIGABRTs between depth 100-150 on a 256 KiB
-    /// stack, and still crashes at depth 2000 on a 1 MiB stack (a plain
-    /// `superclass` chain hits the same recursion but is masked by
-    /// `self_reachable`'s separate O(n²)-ish cycle-check cost, which makes
-    /// naive *construction* slow before reaching crash depth — mixins avoid
-    /// that and reproduce cleanly). This builds a 2000-deep mixin chain
-    /// (matching that confirmed-still-crashing depth) and drives both fixed
-    /// functions over the whole thing via `info class call` and `info class
+    /// Regression coverage for the native-stack recursion hazard
+    /// `MAX_MRO_DEPTH`/`MAX_MRO_VISITS` guard against: `linearize_class`
+    /// (backing `method_chain_faceted` — the hot path for every ordinary
+    /// method dispatch — and `class_precedence`, `info class call`) and
+    /// `gather_class_props` (`info class properties -all`) recurse once
+    /// per mixin/superclass level, with only a same-branch cycle guard
+    /// bounding a malformed hierarchy — an unguarded deep mixin chain
+    /// overflows the native stack. Confirmed crash reproduction: a deep
+    /// `mixin` chain (`oo::class create C$i { mixin C[i-1] }`, no `{*}`
+    /// needed) SIGABRTs between depth 100-150 on a 256 KiB stack, and still
+    /// crashes at depth 2000 on a 1 MiB stack (a plain `superclass` chain
+    /// hits the same recursion but is masked by `self_reachable`'s separate
+    /// O(n²)-ish cycle-check cost, which makes naive *construction* slow
+    /// before reaching crash depth — mixins avoid that and reproduce
+    /// cleanly). This builds a 2000-deep mixin chain (matching that
+    /// confirmed-still-crashing depth) and drives both guarded functions
+    /// over the whole thing via `info class call` and `info class
     /// properties -all`; the assertion is that both complete at all, not
     /// what they return — `MAX_MRO_DEPTH` (64) means the reported
     /// precedence/property set is legitimately truncated for a hierarchy
     /// this deep, the same graceful "just stop descending" degradation the
-    /// pre-existing `path`/`seen` cycle guards already apply to a malformed
-    /// hierarchy, rather than erroring the whole dispatch out or crashing.
+    /// `path`/`seen` cycle guards already apply to a malformed hierarchy,
+    /// rather than erroring the whole dispatch out or crashing.
     #[test]
     fn deeply_nested_mixin_chain_survives_linearisation_and_property_gathering() {
         leak_free(|i| {

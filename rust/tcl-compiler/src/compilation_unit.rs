@@ -1132,8 +1132,8 @@ fn resolve_unit_scope(
     if let Some(external) = options.external_call_sites {
         call_sites.merge_from(external);
     }
-    // Which registry-declared unit boundaries this file crosses — the generic
-    // replacement for the old hardcoded `package provide` check.
+    // Which registry-declared unit boundaries this file crosses, derived from
+    // the registry rather than a hardcoded `package provide` check.
     let linkage = crate::unit_scope::scan_unit_linkage(ir_module, registry, options.dialect);
     (call_sites, linkage, extra_callers)
 }
@@ -1163,18 +1163,15 @@ fn prepared_command_trust(
 /// named no dialect — carries no environment, and the semantic bundle records
 /// its `ContextUnavailable` decline rather than inventing one.
 ///
-/// **Ledger C1 / redesign §11.2 D1 — the re-key.** This replaces the retired
-/// `semantic_dialect_set` name→`SpecSurface` projection, which selected the
-/// *exact* bit the profile's own name parsed to and therefore answered
-/// `None` (no executable facts at all) for every environment the old name
-/// ingress could not resolve — the lenient `tcl` sink and the six EDA
-/// shells — and a bare vendor surface for the composite environments. The
-/// context's authoring point is the environment's real one, which is what
-/// the deep-analysis and
-/// Explorer paths already passed, so the interactive path now agrees with
-/// them instead of seeing a narrower registry. It is `pub` so `tcl-lsp-db`'s
-/// per-item unit build reads the **same** projection instead of resolving the
-/// environment itself (P1-F wave 2).
+/// Keyed on the environment, not on a name→`SpecSurface` projection: parsing
+/// the profile's own name selects a single bit, which answers `None` (no
+/// executable facts at all) for every environment such an ingress cannot
+/// resolve — the lenient `tcl` sink and the six EDA shells — and a bare
+/// vendor surface for the composite environments. The context's authoring
+/// point is the environment's real one, the same one the deep-analysis and
+/// Explorer paths pass, so the interactive path sees the same registry rather
+/// than a narrower one. It is `pub` so `tcl-lsp-db`'s per-item unit build
+/// reads the **same** projection instead of resolving the environment itself.
 #[must_use]
 pub fn semantic_context(
     dialect: Option<&'static tcl_dialect::DialectProfile>,
@@ -1382,11 +1379,11 @@ impl CompilationUnit {
             source,
             registry,
             defer_top_level,
-            // dialect-drift-ok: `build_for` is now a test-only entry point —
+            // dialect-drift-ok: `build_for` is a test-only entry point —
             // every production build goes through `build_for_with_config` /
             // `build_for_profile` / `build_for_dialect` with the document's
-            // own config; the workspace's test fixtures still spell the
-            // plain-Tcl default this way.
+            // own config; the workspace's test fixtures spell the plain-Tcl
+            // default this way.
             tcl_lexer::LexerConfig::default(),
         )
     }
@@ -1825,12 +1822,11 @@ impl CompilationUnit {
             .collect()
     }
 
-    /// Cross-event existence post-pass: `existence_constant_branches` ran per
-    /// function (before the connection scope existed) and folded
-    /// `[info exists VAR]` → false for any VAR not defined *in that event*.
-    /// That is unsound for an iRules cross-event variable (set in another
-    /// `when` handler), so drop those folds from `::when::*` procs now that the
-    /// connection scope is known — otherwise O101 rewrites
+    /// Cross-event existence post-pass: `existence_constant_branches` runs per
+    /// function and folds `[info exists VAR]` → false for any VAR not defined
+    /// *in that event*. That is unsound for an iRules cross-event variable
+    /// (set in another `when` handler), so drop those folds from `::when::*`
+    /// procs once the connection scope is known — otherwise O101 rewrites
     /// `if {[info exists ans_cleared]}` to `if {0}` even though a sibling event
     /// set it (a miscompile).
     fn drop_cross_event_existence_folds(
@@ -3080,10 +3076,10 @@ mod tests {
         /// `Statement::UpFrame`'s body survives CFG construction as a block
         /// *statement*, which `scan_cfg_callers` (walking only
         /// `Call`/`Barrier`) skips entirely, so this real, differing call
-        /// site vanished from `::helper`'s evidence and its one remaining
-        /// caller's `"a"` folded the condition.
+        /// site would vanish from `::helper`'s evidence, leaving its one
+        /// remaining caller's `"a"` to fold the condition.
         ///
-        /// `build_extra_call_site_scan_contexts` now builds a bare CFG for
+        /// `build_extra_call_site_scan_contexts` builds a bare CFG for
         /// every *absolute* shift-`0` `UpFrame` body, resolved as `"::top"`
         /// — mirroring how a `TclOO` method body is forced global.
         ///
@@ -3128,12 +3124,11 @@ mod tests {
             );
         }
 
-        /// MISCOMPILE regression (adversarial review): `uplevel 0 { … }` is
-        /// the *relative* current-frame form and must NOT be treated as the
-        /// absolute global form. Lowering encoded `#0` and `0` as the same
-        /// `frame_shift == 0`, so this body was resolved against `"::top"`
-        /// and `::foo::helper` lost its only varying call site — folding a
-        /// branch that real Tcl reaches both ways.
+        /// MISCOMPILE regression: `uplevel 0 { … }` is the *relative*
+        /// current-frame form and must NOT be treated as the absolute global
+        /// form. Encoding `#0` and `0` as the same `frame_shift == 0` resolves
+        /// this body against `"::top"`, losing `::foo::helper`'s only varying
+        /// call site — folding a branch that real Tcl reaches both ways.
         ///
         /// On tclsh8.6 and tclsh9.0: inside
         /// `::foo::runIt`, `uplevel #0 { helper b }` prints `GLOBAL helper`
@@ -3370,14 +3365,13 @@ mod tests {
                 .any(|b| b.condition.contains(needle))
         }
 
-        /// FN (was silently wrong before the fix): a proc declared inside a
-        /// `namespace eval` block recurses into itself by its *bare* name.
-        /// The old resolver only ever tried global-qualified spellings of the
-        /// command word, so it could never match the proc's namespaced
-        /// qualified name — the recursive call (whose argument necessarily
-        /// varies call to call) silently vanished from the call-site scan,
-        /// leaving only the one external caller's literal `0` visible.
-        /// `params_constants_from_call_sites` then (wrongly) seeded `count`
+        /// FN: a proc declared inside a `namespace eval` block recurses into
+        /// itself by its *bare* name. A resolver that only tries
+        /// global-qualified spellings of the command word can never match the
+        /// proc's namespaced qualified name — the recursive call (whose
+        /// argument necessarily varies call to call) vanishes from the
+        /// call-site scan, leaving only the one external caller's literal `0`
+        /// visible. `params_constants_from_call_sites` would then seed `count`
         /// as the compile-time constant `0`, folding the always-alternating
         /// `$count & 1` parity check to a fixed `false` — exactly the
         /// reported false positive.
@@ -3462,8 +3456,8 @@ mod tests {
         /// never be conflated by a bare same-namespace call — `::a::go`'s
         /// only caller passes `"same"`; `::b::go`'s only caller passes
         /// `"different"`. Each must fold to *its own* literal, not the
-        /// other's (which the old namespace-blind resolver could not even
-        /// attempt, since it never matched either bare call to a real proc).
+        /// other's — a namespace-blind resolver matches neither bare call to a
+        /// real proc.
         #[test]
         fn sibling_namespace_procs_with_same_leaf_name_are_not_conflated() {
             let reg = registry();
@@ -3886,7 +3880,7 @@ mod tests {
             /// FN guard — a cross-file `rename` moves `helper`'s binding, so
             /// a call reaching it need not be one any scan attributed to it.
             /// `command_mutations` only sees the file being compiled, so
-            /// without this the rebinding was invisible across files.
+            /// without this the rebinding is invisible across files.
             #[test]
             fn cross_file_rename_poisons_the_callee() {
                 let reg = registry();
@@ -3994,11 +3988,9 @@ mod smoke {
     }
 }
 
-/// The property the review found missing: a unit built for the *string*
-/// `"jim"` is built under Jim's grammar and hands codegen the name `jim` —
-/// not the permissive fallback's grammar and the name `tcl`, which is what
-/// every ingress produced before the projected profile existed, so the
-/// centralised resolution was never asked about Jim at all.
+/// A unit built for the *string* `"jim"` is built under Jim's grammar and
+/// hands codegen the name `jim` — not the permissive fallback's grammar and
+/// the name `tcl`, which would bypass the centralised resolution entirely.
 #[cfg(test)]
 mod jim_ingress_tests {
     use super::*;

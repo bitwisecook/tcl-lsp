@@ -58,7 +58,7 @@ fn transcript_at(sheet: &str, version: Option<tcl_dialect::TclVersion>) -> Strin
 /// the *exact* argument list the callback received.
 const RECORDER: &str = "set ::log {}\nproc R {n1 n2 op} { lappend ::log [list $n1 $n2 $op] }\n";
 
-// -- #1633's `upvar` row: firing follows the cell, not the spelling ----------
+// #1633's `upvar` row: firing follows the cell, not the spelling
 
 /// ```tcl
 /// proc P {} {
@@ -300,7 +300,7 @@ fn a_read_trace_error_names_the_element_in_its_frame() {
     );
 }
 
-// -- #1633's two array-element rows, which differ by release ----------------
+// #1633's two array-element rows, which differ by release
 
 /// The recording sheet both element rows share: an array with a whole-array
 /// trace (`A`) and an element trace (`E`), exercised through the `a(k)`
@@ -380,7 +380,7 @@ fn a_trace_added_through_an_element_alias_lands_on_the_element() {
     );
 }
 
-// -- #1633's re-entrancy rows: what a callback changes mid-firing -----------
+// #1633's re-entrancy rows: what a callback changes mid-firing
 
 /// A callback that removes a *later* trace stops it firing in the same pass —
 /// C's firing loop follows `active.nextTracePtr`, which `Tcl_UntraceVar2`
@@ -571,7 +571,7 @@ fn a_delete_trace_that_recreates_the_command_leaves_it_alive() {
     assert_eq!(got, "D ::foo {} delete\nexists: 1\ncall: FOO2\ntraces: ");
 }
 
-// -- #1574: re-entrancy suppression is per `Var` cell, not per array --------
+// #1574: re-entrancy suppression is per `Var` cell, not per array
 
 /// C sets `VAR_TRACE_ACTIVE` on the `Var` an access reached, and an array
 /// element is a `Var` of its own. So a whole-array write trace whose callback
@@ -630,7 +630,7 @@ fn the_arrays_own_cell_gates_the_whole_array_traces() {
     assert_eq!(got, "S g {} unset\nexists: 1");
 }
 
-// -- #1575: the unset-trace firing sites that were missing ------------------
+// #1575: the unset-trace firing sites that were missing
 
 /// A proc's locals are unset when its frame goes, and C's `TclDeleteVars` fires
 /// each one's unset traces — newest-first within a variable. runtime/rust fired
@@ -719,7 +719,7 @@ fn a_whole_array_unset_fires_each_elements_own_traces_too() {
     );
 }
 
-// -- #1569: `array` traces, which neither engine ever dispatched ------------
+// #1569: `array` traces, which neither engine ever dispatched
 
 /// C's `LocateArray` fires `TclCheckArrayTraces` at the top of every `array`
 /// subcommand, so each one invokes the callback exactly once as
@@ -837,7 +837,7 @@ fn a_write_trace_that_mutates_or_unsets_changes_what_set_and_incr_return() {
     }
 }
 
-// -- The `rename` trace window: one command under two names ------------------
+// The `rename` trace window: one command under two names
 //
 // C's `TclRenameCommand` (`tclBasic.c` 9.0.4) creates the destination hash
 // entry, fires the `rename` traces, and only *then* deletes the source one —
@@ -1129,7 +1129,7 @@ fn a_twice_nested_rename_keeps_retargeting_the_enclosing_window() {
     );
 }
 
-// -- `INTERP_TRACE_IN_PROGRESS` belongs to execution traces alone -----------
+// `INTERP_TRACE_IN_PROGRESS` belongs to execution traces alone
 //
 // C sets that flag in exactly one place — `TraceExecutionProc` (tclTrace.c
 // 9.0.4:1765), around an `enter`/`leave`/`enterstep`/`leavestep` callback —

@@ -63,7 +63,7 @@ pub struct Span {
 const MATCH_FUEL: u64 = 4_000_000;
 
 /// Recursion budget for [`Matcher::dissect`]/[`Matcher::dissect_seq`]/
-/// [`Matcher::dissect_repeat`] (issue #996). `dissect_repeat`'s `min == 0`
+/// [`Matcher::dissect_repeat`]. `dissect_repeat`'s `min == 0`
 /// branch recurses once per matched iteration of a repeated sub-pattern —
 /// so a shallow, everyday pattern like `.*` or `a+` matched against a long
 /// subject produces recursion depth proportional to the subject length,
@@ -94,9 +94,9 @@ const MATCH_FUEL: u64 = 4_000_000;
 const MAX_DISSECT_DEPTH: RecursionLimit = RecursionLimit(256);
 
 /// Recursion budget for the backtracking matcher's mutually-recursive
-/// [`Bt::m`]/[`Bt::m_seq`]/[`Bt::m_repeat`]/[`Bt::m_star`]/[`Bt::m_backref`]
-/// (issue #996) — the separate matching path used only when a pattern
-/// contains a backreference. `m_star` recurses once per matched iteration
+/// [`Bt::m`]/[`Bt::m_seq`]/[`Bt::m_repeat`]/[`Bt::m_star`]/[`Bt::m_backref`] —
+/// the separate matching path used only when a pattern contains a
+/// backreference. `m_star` recurses once per matched iteration
 /// of a repeated sub-pattern (same shape as `dissect_repeat`, but via a
 /// continuation closure rather than a plain call) and `m_backref` recurses
 /// once per repetition of a quantified backreference (`\1*`); both are
@@ -487,9 +487,9 @@ impl<'a> Matcher<'a> {
             // iteration count* — unrelated to how deeply `sub` itself is
             // structurally nested — so `sub`'s one-off dissection over the
             // approximated span gets a fresh depth budget (0) rather than
-            // inheriting the exhausted counter. Passing `depth + 1` here (a
-            // caught review bug) made `dissect`'s own top-of-function guard
-            // trip immediately, silently leaving the capture unset instead of
+            // inheriting the exhausted counter. Passing `depth + 1` here
+            // instead would trip `dissect`'s own top-of-function guard
+            // immediately, silently leaving the capture unset instead of
             // recording the documented approximation; `sub`'s own structural
             // depth is independently bounded by this same cap one level at a
             // time, same as the ordinary top-down walk.
@@ -855,9 +855,9 @@ impl Bt<'_> {
     // trying the continuation at each candidate stop count (longest-first for
     // greedy, shortest-first for lazy) is exactly equivalent to the original
     // one-native-frame-per-repetition recursion, without its native-stack
-    // cost. This fixes a correctness regression the original recursive form
-    // introduced (issue #996 follow-up, caught in review): capping recursion
-    // depth at [`MAX_BT_DEPTH`] (256) made an anchored pattern like
+    // cost. This avoids a correctness hazard the original recursive form
+    // had: capping recursion depth at [`MAX_BT_DEPTH`] (256) would make an
+    // anchored pattern like
     // `(a)\1*$` spuriously fail to match ordinary, non-pathological input —
     // a run of 300 repeated characters is unremarkable in real text — instead
     // of merely bounding native stack use on truly pathological input.

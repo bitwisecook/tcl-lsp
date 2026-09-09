@@ -18,7 +18,7 @@
 
 //! Salsa incremental query database for the Tcl LSP.
 //!
-//! Foundational phase: a single memoised query graph replaces the server's
+//! A single memoised query graph replaces the server's
 //! hand-maintained caches.  Inputs ([`SourceFile`], [`AnalyserConfig`]) feed
 //! tracked queries that wrap the existing sync pure functions in
 //! `tcl-compiler` / `tcl-lsp-core`; salsa owns memoisation and
@@ -439,8 +439,8 @@ impl SourceFile {
     }
 }
 
-/// Analyser configuration mirrored from the editor (the former
-/// `disabled_diagnostics` / `non_ascii_mode` server state).  One input
+/// Analyser configuration mirrored from the editor (covers the server's
+/// `disabled_diagnostics` / `non_ascii_mode` state).  One input
 /// instance shared by every file's analysis; setting it recomputes all
 /// analyses.
 ///
@@ -1785,7 +1785,7 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
 }
 
 /// Interned identity of one top-level `proc`'s **offset-0** static body source
-/// (SRV-INCREMENTAL Task 3 — incremental per-item IR *lowering*).  A `proc`
+/// (incremental per-item IR *lowering*).  A `proc`
 /// body is lowered against a clean slate (`lower_proc` pushes an empty const-map
 /// frame, so the body inherits no tracked scalars from preceding code), so its
 /// lowering is a pure function of `(body_text, namespace, dialect, config)` —
@@ -1814,8 +1814,8 @@ pub struct ProcBodyKey<'db> {
     pub dialect: String,
 }
 
-/// Memoised offset-0 isolated lowering of one top-level `proc` body
-/// (SRV-INCREMENTAL Task 3).  Replicates the body-lowering setup `lower_proc`
+/// Memoised offset-0 isolated lowering of one top-level `proc` body.
+/// Replicates the body-lowering setup `lower_proc`
 /// performs for a static literal body (a fresh `Lowerer` at `proc_depth == 1`
 /// with an empty const-map frame, lowering at offset 0).  Byte-identical to the
 /// body the whole-file lowering produces for that procedure, normalised to
@@ -1825,8 +1825,8 @@ pub struct ProcBodyKey<'db> {
 pub fn lower_proc_body<'db>(db: &'db dyn TclDb, key: ProcBodyKey<'db>) -> Arc<Script> {
     let registry = db.registry(key.dialect(db));
     // The body's own environment grammar — the key already carries the
-    // dialect, so the three truncated `LexerConfig` fields the key used to
-    // duplicate are derived rather than interned (redesign §11.4 E1).
+    // dialect, so the three truncated `LexerConfig` fields are derived
+    // rather than interned as duplicate key fields.
     let config = tcl_lexer::LexerConfig::from_grammar(
         tcl_lsp_core::environment_for_dialect(key.dialect(db)).grammar(),
     );
@@ -1901,8 +1901,8 @@ fn build_unit_with_keys<'db>(
     let dialect = options.dialect;
     // Salsa keys own their fields, so the memo identity is the profile's
     // canonical *name*. Unknown ingress names all resolve to the plain-Tcl
-    // profile and so now share one memo entry instead of one per spelling —
-    // the analysis they produce was already identical.
+    // profile and so share one memo entry instead of one per spelling —
+    // the analysis they produce is identical either way.
     let dialect_key = dialect.map_or("", |profile| profile.name);
     let dialect_opt =
         dialect.and_then(|profile| tcl_lsp_core::stated_profile_for_dialect(profile.name));
@@ -2781,7 +2781,7 @@ fn opt_deps_key<'db>(
     )
 }
 
-/// Memoised offset-0 raw optimisations for one procedure (SRV-INCREMENTAL Task 4).
+/// Memoised offset-0 raw optimisations for one procedure.
 /// Builds a single-procedure offset-0 [`CompilationUnit`] — the proc's offset-0
 /// `function_lattice` unit, its offset-0 IR body, and the reconstructed interproc
 /// (domain stubs overlaid with the resolved direct callees' real opt summaries) —
@@ -3121,13 +3121,13 @@ fn top_level_only_unit(
 /// [`tcl_lexer::LexerConfig`].  The call-site knobs (`strict_quoting = false`,
 /// zero base offsets) are genuinely the default on every path.
 ///
-/// **This closes redesign §11.4 row E1.** The key used to intern three of the
-/// six dialect-derived `LexerConfig` fields (`expand_syntax`,
-/// `irules_brace_separator`, `brace_line_continuation`) and let `to_config`
-/// restore the rest from [`tcl_lexer::LexerConfig::default`] — so on the
-/// memoised path `braced_var` was always `Tcl9Nesting` and `escapes` always
-/// `Tcl90`, whatever the document's dialect said, and a `tcl8.6` document
-/// lexed `${a{b}c}` under the 9.0 close rule.  Keying on the environment id
+/// Interning only three of the six dialect-derived `LexerConfig` fields
+/// (`expand_syntax`, `irules_brace_separator`, `brace_line_continuation`) and
+/// letting `to_config` restore the rest from
+/// [`tcl_lexer::LexerConfig::default`] would pin the memoised path's
+/// `braced_var` to `Tcl9Nesting` and `escapes` to `Tcl90` regardless of the
+/// document's dialect, so a `tcl8.6` document would lex `${a{b}c}` under the
+/// 9.0 close rule.  Keying on the environment id
 /// instead of the expanded fields makes `to_config` name
 /// [`tcl_lexer::LexerConfig::for_dialect`] itself, so every field is the
 /// document's.
@@ -3245,9 +3245,9 @@ pub fn file_analysis_incremental(
     // document's own environment grammar mirrors what
     // `emit_cfg_ssa_diagnostics` builds for itself, so the supplied unit is
     // the one it would otherwise build; routing through the tracked query lets
-    // `compiler_check_diagnostics` reuse this exact build in the same edit —
-    // now for *every* environment, because both consumers intern the same
-    // environment id (redesign §11.4 E1).
+    // `compiler_check_diagnostics` reuse this exact build in the same edit,
+    // for *every* environment, because both consumers intern the same
+    // environment id.
     let cfg_key = lexer_cfg_key(db, &dialect);
     analyser.set_cu_override(compilation_unit(db, file, cfg_key));
 
@@ -3325,7 +3325,7 @@ fn compiler_diagnostics_from_unit(
 /// query (so an unchanged procedure is built once and shared with the analyser
 /// tail).  The optimiser lowers with the dialect lexer config — distinct from
 /// the analyser tail's default config, so the two intern different bodies and
-/// never cross-pollute.  Byte-identical to the former direct
+/// never cross-pollute.  Byte-identical to the direct
 /// `lift_compiler_diagnostics` build.
 // LRU-capped: per-file key, see the crate docs' "Deep-memo eviction".
 #[salsa::tracked(lru = 64, returns(clone))]
@@ -3441,17 +3441,14 @@ pub fn document_compilation_unit(db: &dyn TclDb, file: SourceFile) -> Arc<Compil
 /// highlights its originating `set` literal as a regex (see
 /// [`tcl_compiler::regex_source`]), and the whole-file analysis so a
 /// `$obj method …` / `[dict get $objs $k] method …` dispatch resolves against
-/// user classes and their `oo::configurable` properties (issue #797), not only
-/// registry ones. That reworked the earlier "tokens never touch the analysis
-/// pipeline" latency shortcut (issue #333) in favour of correctness — but the
-/// analysis half originally reused the coarse, non-incremental
-/// [`file_analysis`] rather than [`file_analysis_incremental`], which
-/// reintroduced a latency/starvation regression (issue #829): every token
-/// request paid for a *third* independent whole-file analyser walk (on top of
+/// user classes and their `oo::configurable` properties, not only
+/// registry ones. Using the coarse, non-incremental [`file_analysis`] for
+/// this instead of [`file_analysis_incremental`] would cost every token
+/// request a *third* independent whole-file analyser walk (on top of
 /// the two the diagnostics path already shares via [`compilation_unit`]), and
 /// that walk has no interior salsa cancellation checkpoint, so a concurrent
-/// edit's `set_text` blocks until it finishes.  Using
-/// [`file_analysis_incremental`] here instead keeps the #797 correctness fix
+/// edit's `set_text` would block until it finishes.  Using
+/// [`file_analysis_incremental`] here instead gets the same correctness
 /// (identical `AnalysisResult` shape, proven byte-identical to `file_analysis`
 /// by the `per_item_corpus` gate) while sharing the diagnostics path's
 /// per-item memoisation and cancellation checkpoints: a token request that
@@ -3490,26 +3487,26 @@ pub struct FileTokenFacts {
     pub proc_roles: VarNameArgRoles,
     /// Bareword instance-command names this file binds via `CLASS create
     /// NAME`, mapped to the (locally-resolved) qualified class name — the
-    /// named-object dispatch form (issue #1312), gated on
+    /// named-object dispatch form, gated on
     /// `created_instance_commands` exactly like the LSP's
     /// `receiver_instance_class`.
     pub named_instances: HashMap<String, String>,
 }
 
 /// The light (structure-only) per-file tier feeding [`project_class_index`] and
-/// [`project_proc_var_index`] (issue #1163).
+/// [`project_proc_var_index`].
 ///
 /// These aggregates read *every* file in the project, so whatever per-file
 /// query they call decides what an interactive `semanticTokens` request costs
 /// on a large workspace.  Reading the deep tier
-/// ([`file_analysis_incremental`]) meant one whole-workspace *deep* analysis —
-/// CFG/SSA units, per-body lattices, diagnostic emitters — behind a token
-/// request for a single file: measured at ~19 s of CPU over an 883-file
-/// tcllib checkout, which no request survives.  Every attempt was cancelled by
-/// the next `set_text`, so it never memoised and every subsequent request paid
-/// it again, while the in-flight read blocked the writer that cancelled it
-/// (`didOpen`'s `set_text` measured at 270–660 ms) — the open-to-tokens spikes
-/// #1163 reports.
+/// ([`file_analysis_incremental`]) instead would mean one whole-workspace
+/// *deep* analysis — CFG/SSA units, per-body lattices, diagnostic emitters —
+/// behind a token request for a single file: measured at ~19 s of CPU over an
+/// 883-file tcllib checkout, which no request survives.  Every attempt would
+/// be cancelled by the next `set_text`, so it would never memoise and every
+/// subsequent request would pay it again, while the in-flight read would
+/// block the writer that cancelled it (`didOpen`'s `set_text` measured at
+/// 270–660 ms) — producing open-to-tokens latency spikes.
 ///
 /// The structural facts these aggregates want do not need the deep tier: an
 /// unopened workspace file only ever needs the lightweight state the scan
@@ -3586,7 +3583,7 @@ pub fn project_class_index(db: &dyn TclDb, project: Project) -> Arc<ClassHierarc
 /// file's user-proc parameter roles — a parameter the analyser inferred to
 /// alias a caller variable (`upvar $param` + write) — unioned into one
 /// cross-file index, so a `myproc arr(key) …` call highlights its array-element
-/// target even when `myproc` is defined in another file (issue #813 follow-up).
+/// target even when `myproc` is defined in another file.
 ///
 /// A proc name defined with *conflicting* roles across files is dropped as
 /// ambiguous by [`VarNameArgRoles::merge`], so the merged index is
@@ -3607,7 +3604,7 @@ pub fn project_proc_var_index(db: &dyn TclDb, project: Project) -> Arc<VarNameAr
 }
 
 /// The project's workspace-merged `CLASS create NAME` bareword
-/// instance-command index (issue #1312): every file's `named_instances`
+/// instance-command index: every file's `named_instances`
 /// unioned into one cross-file map, so `$obj method` on a named object
 /// bound in *another* project file's file resolves too.
 ///
@@ -3725,14 +3722,14 @@ mod tests {
         assert!(body_cache_eligible(" set x 1 "));
         assert!(body_cache_eligible(" puts hi "));
         // A body carrying a cross-item construct is not — including the tab-
-        // separated forms (Codex #731): the isolated lowerer drops the effect.
+        // separated forms: the isolated lowerer drops the effect.
         assert!(!body_cache_eligible(" interp\talias {} x {} y "));
         assert!(!body_cache_eligible(" namespace\timport ::ns::* "));
         assert!(!body_cache_eligible(" rename set myset "));
         assert!(!body_cache_eligible(" oo::class create C "));
         // A nested `proc` disqualifies the enclosing body.
         assert!(!body_cache_eligible(" proc inner {} {} "));
-        // The gate is per-body: a context-carrying sibling no longer disables the
+        // The gate is per-body: a context-carrying sibling does not disable the
         // clean body — the clean body stays eligible on its own.
         assert!(body_cache_eligible(" set y 2 "));
     }
@@ -3743,7 +3740,7 @@ mod tests {
         // (recursion→loop). The per-proc optimise memo must reconstruct
         // `proc.body_source` as the *body text* — not the whole-command slice used
         // for span alignment — so the loop-conversion replacement wraps only the
-        // body, not the entire `proc …` declaration (Codex #731 review, lib.rs:1743).
+        // body, not the entire `proc …` declaration.
         let dialect = "tcl8.6";
         let src = "proc countdown {n} {\n    puts $n\n    if {$n <= 0} { return }\n    countdown [expr {$n - 1}]\n}\n";
         let db = TclDatabase::default();
@@ -3773,7 +3770,7 @@ mod tests {
         assert!(got.all_procs.contains_key("::greet"));
     }
 
-    /// Issue #1159: a memo *hit* must hand its per-procedure lattices over by
+    /// A memo *hit* must hand its per-procedure lattices over by
     /// refcount, not deep-copy them.
     ///
     /// The span-carrying halves of a `FunctionUnit` (`cfg` / `ssa` /
@@ -3918,7 +3915,7 @@ mod tests {
         );
     }
 
-    /// Issue #1159: an unchanged proc body must re-intern to the *same*
+    /// An unchanged proc body must re-intern to the *same*
     /// `ItemBodyKey` (so the memo hits) and must not cost a fresh copy of the
     /// body text to get there — the key shares the analyser's `Arc<str>`.
     #[test]
@@ -4005,9 +4002,9 @@ mod tests {
     /// (`tcl_lsp_core::semantic_tokens::full`, no `CompilationUnit`) has no
     /// SSA facts to do this with, so the two streams differ — proving the
     /// enrichment `semantic_tokens` performs over the coarse walk is real,
-    /// not a no-op (issue #829: the fast-path fallback in
-    /// `Backend::semantic_tokens_core_data` trades this enrichment away
-    /// temporarily, so it must exist for the trade to mean anything).
+    /// not a no-op: the fast-path fallback in
+    /// `Backend::semantic_tokens_core_data` trades this enrichment away,
+    /// so it must exist for the trade to mean anything.
     #[test]
     fn semantic_tokens_retags_constant_regex_source_true_positive() {
         let src = "set my_re \".*abc\"\nregexp $my_re $s\n";
@@ -4050,7 +4047,7 @@ mod tests {
         );
     }
 
-    /// Issue #829 root-cause regression test: `semantic_tokens` must depend on
+    /// `semantic_tokens` must depend on
     /// the incremental, per-item-memoised `file_analysis_incremental` — not
     /// the coarse `file_analysis` — so a token request that lands after the
     /// diagnostics worker has already analysed this revision is a cache hit
@@ -4133,7 +4130,7 @@ mod tests {
         );
     }
 
-    /// Issue #977, end-to-end through the query graph: `lib.tcl` has no
+    /// End-to-end through the query graph: `lib.tcl` has no
     /// `package provide`, its two in-file callers agree on `"prod"`, and
     /// `main.tcl` — which the single-file compilation unit can never see —
     /// calls `helper dev`.  With the project's evidence set on the file, the
@@ -4300,8 +4297,8 @@ mod tests {
         /// fails, and the first file loses a fold it is entitled to — and would
         /// regain only when the unrelated file changed.
         ///
-        /// Caught by the VS Code suite, where ~200 fixtures share one workspace
-        /// folder: this exact collision broke issue #969's TP control.
+        /// This exact collision surfaces in the VS Code suite, where ~200
+        /// fixtures share one workspace folder.
         #[test]
         fn an_unrelated_file_reusing_a_proc_name_does_not_poison_the_seed() {
             use salsa::Setter as _;
@@ -4407,12 +4404,13 @@ mod tests {
             );
         }
 
-        /// Issue #1148: the `source`-graph decomposition is *project* work, not
+        /// The `source`-graph decomposition is *project* work, not
         /// per-file work.  Demanding every file's reach must execute
         /// [`project_dispatch_components`] exactly **once** — the property that
-        /// turns the old union-find-and-merge-per-file into `O(N)` — and a decl
-        /// change must recompute it once for the project rather than once per
-        /// file.  A body edit backdates its inputs and recomputes nothing.
+        /// keeps the union-find-and-merge at `O(N)` overall rather than paying
+        /// it once per file — and a decl change must recompute it once for the
+        /// project rather than once per file.  A body edit backdates its
+        /// inputs and recomputes nothing.
         #[test]
         fn dispatch_components_are_computed_once_per_project_revision() {
             use salsa::Setter as _;
@@ -4423,7 +4421,8 @@ mod tests {
                 TclDatabase::with_event_logger(move |key| sink.lock().unwrap().push(key))
             };
             // A single `source` chain, so every file lands in one component —
-            // the shape whose merge the old query re-paid per file.
+            // the shape a per-file union-find-and-merge would re-pay for
+            // every file.
             let body = |i: usize| {
                 if i + 1 < FILES {
                     format!("source f{}.tcl\nproc p{i} {{}} {{ set r 1 }}\n", i + 1)
@@ -4506,14 +4505,15 @@ mod tests {
         (db, log)
     }
 
-    /// Issue #1163: [`project_class_index`] / [`project_proc_var_index`] read
+    /// [`project_class_index`] / [`project_proc_var_index`] read
     /// *every* file in the project, so the tier they read decides what an
     /// interactive `semanticTokens` request costs on a large workspace. They
     /// must stay on the light [`file_token_facts`] tier and never reach the deep
-    /// one — reading `file_analysis_incremental` there meant a whole-workspace
-    /// deep analysis (CFG/SSA units, per-body lattices, diagnostic emitters)
-    /// behind a token request for one file, which on an 883-file checkout never
-    /// completed before the next `set_text` cancelled it.
+    /// one — reading `file_analysis_incremental` there would mean a
+    /// whole-workspace deep analysis (CFG/SSA units, per-body lattices,
+    /// diagnostic emitters) behind a token request for one file, which on an
+    /// 883-file checkout would never complete before the next `set_text`
+    /// cancelled it.
     #[test]
     fn project_indexes_never_touch_the_deep_tier() {
         let (db, log) = logging_db();
@@ -5121,13 +5121,13 @@ mod tests {
     /// procedure, so it never gets an offset-0 `FnLatticeKey` and is invisible to
     /// [`proc_taint_solve`]'s main `analysable_functions` loop — it is reached
     /// only by that query's explicit top-up over
-    /// `analysable_methods_and_body_units`.  That top-up used to run just the
-    /// `shimmer_family_checks` half of `function_nontaint_checks`, so every SCCP
+    /// `analysable_methods_and_body_units`.  That top-up must run the whole
+    /// `function_nontaint_checks` family, not just its `shimmer_family_checks`
+    /// half: running only the shimmer half would silently drop every SCCP
     /// constant-branch (`O100`) and GVN full / partial / loop-invariant
-    /// (`O105`/`O106`) finding inside a method or a body unit was silently
-    /// dropped from the memoised path while the direct
-    /// [`compiler_check_diagnostics_uncached`] build reported it — 20 missing
-    /// hints on one large `TclOO` corpus file (issue #1117).
+    /// (`O105`/`O106`) finding inside a method or a body unit from the
+    /// memoised path while the direct [`compiler_check_diagnostics_uncached`]
+    /// build reports it — 20 missing hints on one large `TclOO` corpus file.
     ///
     /// The existing corpus differential could not see this: it sweeps the
     /// procedural `tmp/tcl*/library` + `tcllib` trees, which define almost no
@@ -5188,12 +5188,12 @@ mod tests {
         assert_eq!(got.optimisations, want.optimisations);
     }
 
-    /// Issue #1129 — `[info exists x]` where `x` is `TclOO` instance state
+    /// `[info exists x]` where `x` is `TclOO` instance state
     /// must not fold on **either** compiler-check path.
     ///
     /// A class-level `variable x` binds `x` in every method frame with no
-    /// binding command in the body, so the existence fold saw a
-    /// never-defined local and produced an "always false" constant branch —
+    /// binding command in the body, so a naive existence fold would see a
+    /// never-defined local and produce an "always false" constant branch —
     /// an `O100` hint (and its `I230` twin) on code that runs.  Oracle,
     /// identical on tclsh 9.0.4 and 8.6.14: `oo::class create C { variable x;
     /// constructor {} { set x 1 }; method m {} { puts [info exists x] } }`
@@ -5247,7 +5247,7 @@ mod tests {
         assert_eq!(folded(&want.checks), hints, "cold path must match");
     }
 
-    /// The #1117 top-up must also **invalidate**: an edit inside a `TclOO`
+    /// The method/body-unit top-up must also **invalidate**: an edit inside a `TclOO`
     /// method body has to move the memoised path's O1xx hints with it (and drop
     /// them when the construct goes away), not serve a stale `proc_taint_solve`
     /// result — the opposite failure direction from the missing-hints bug.
@@ -5380,9 +5380,8 @@ mod tests {
         }
     }
 
-    /// Random-edit differential fuzzer for the **whole** memoised checks path
-    /// (SRV-INCREMENTAL Task 2b verification gate — the "random-edit fuzzer still
-    /// to build" the status table flags).  The cold corpus differential and the
+    /// Random-edit differential fuzzer for the **whole** memoised checks path.
+    /// The cold corpus differential and the
     /// hand-written `taint_cascade_matches_uncached_under_edits` prove the memo is
     /// complete and correct on a fixed edit script; this drives a **randomised**
     /// sequence of incremental edits — body swaps, signature changes, and proc
@@ -5618,7 +5617,7 @@ mod tests {
         );
     }
 
-    /// SRV-INCREMENTAL Task 3: the per-procedure body-lowering memo
+    /// The per-procedure body-lowering memo
     /// (`lower_proc_body`) must skip an unchanged proc's body lowering across a
     /// body-only edit. For a context-free file (no `namespace`/`oo::`/nested
     /// `proc`), `build_unit_with_keys` lowers each top-level proc's static body
@@ -6717,12 +6716,12 @@ mod tests {
         );
     }
 
-    /// Issue #1107 — a proc whose parameter-list word is **computed** has
-    /// unknown formals, so the *cross-file* arity check must abstain. Before
-    /// the fix the analyser correctly recorded no formals but `ItemSig` did
-    /// not carry the "unknown, not none" flag, so the cross-file table read
-    /// the empty list as "takes no arguments" and every call drew a false
-    /// `E003` — on code both tclsh 9.0.4 and 8.6.16 run
+    /// A proc whose parameter-list word is **computed** has
+    /// unknown formals, so the *cross-file* arity check must abstain.
+    /// `ItemSig` must carry an "unknown, not none" flag distinct from a
+    /// genuinely empty parameter list — without it the cross-file table
+    /// would read the empty list as "takes no arguments" and every call
+    /// would draw a false `E003` — on code both tclsh 9.0.4 and 8.6.16 run
     /// (`proc makeargs {} {return {a b}}`; `proc p [makeargs] {…}`;
     /// `info args p` → `a b`; `p 1 2` → runs).
     #[test]
@@ -6780,15 +6779,15 @@ mod tests {
         );
     }
 
-    /// Regression for a real `proc_arity` bug: a required parameter
+    /// A required parameter
     /// positioned *after* a defaulted one does not lower the minimum by
     /// the defaulted parameters ahead of it — Tcl's argument binding is
     /// strictly positional, so supplying a value for the later required
     /// parameter requires also supplying one for every position before
     /// it, including the "optional" one. Confirmed against real `tclsh`
     /// 9.0.4: `proc opt {a {b 5} c} {}` accepts exactly 3 arguments,
-    /// never 2 — the old formula (`min` = count of non-default params =
-    /// 2) silently accepted a 2-argument call that real Tcl rejects.
+    /// never 2 — computing `min` as the count of non-default params (2)
+    /// would silently accept a 2-argument call that real Tcl rejects.
     #[test]
     fn cross_file_arity_required_after_default_forces_exact_count() {
         let db = TclDatabase::default();
@@ -6995,9 +6994,9 @@ mod tests {
     #[test]
     fn callback_arity_braced_prefix_bakes_extra_args_too_few() {
         // `-command {cb 99}` bakes 1 extra arg ahead of `lsort`'s own
-        // appended 2, for 3 total; `cb` needs 4 → E002.  Before this fix,
-        // a braced multi-word prefix was silently dropped entirely (never
-        // even recorded as an invocation), so this drew nothing at all.
+        // appended 2, for 3 total; `cb` needs 4 → E002.  A braced
+        // multi-word prefix must be recorded as an invocation, or this
+        // would draw nothing at all.
         let d = callback_arity_codes(
             "proc cb {a b c d} { return 0 }\nlsort -command {cb 99} {3 1 2}\n",
         );
@@ -7181,11 +7180,10 @@ mod tests {
     fn callback_arity_unknown_appended_never_fires() {
         // FP guard: `coroprobe` carries `Unknown` appended arity (depends on
         // the yield point), so the injected command is a reference only —
-        // never arity-checked, whatever its param count. (`coroinject`, once
-        // this test's other exemplar, was moved off `Unknown` to the
-        // verified `Exactly(2)` its own implementation always appends — see
-        // `coroinject.rs` — so a 0-param `h` there now correctly draws E003
-        // instead of demonstrating this FP guard.)
+        // never arity-checked, whatever its param count. `coroinject` is not
+        // an example of this guard: its own implementation always appends a
+        // verified `Exactly(2)` (see `coroinject.rs`), so a 0-param `h` there
+        // correctly draws E003 instead.
         let d = callback_arity_codes("proc h {} { return 0 }\ncoroprobe myCoro h\n");
         assert!(
             !d.iter().any(|(c, _)| c == "E002" || c == "E003"),
@@ -7611,14 +7609,14 @@ mod tests {
             "tcl8.6: both consumers share exactly one compilation_unit build"
         );
 
-        // **Enumerated delta of redesign §11.4 row E1.** This case used to
-        // assert *two* builds: the analyser tail asked for
-        // `LexerConfig::default()` and the checks pass for
-        // `for_dialect("tcl8.4")`, whose `expand_syntax` differs, so the
-        // truncated three-field key interned two entries. Both consumers now
-        // lex under the document's own environment, so `tcl8.4` shares one
-        // build like every other environment (the sharing measurement went
-        // 15/20 → 20/20).
+        // `tcl8.4` is the interesting case: its `expand_syntax` differs from
+        // `LexerConfig::default()`, so keying on the truncated three-field
+        // config (rather than the environment id) would intern two separate
+        // entries — one for the analyser tail's default config and one for
+        // the checks pass's `for_dialect("tcl8.4")`. Keying on the
+        // environment id instead means both consumers lex under the
+        // document's own environment, so `tcl8.4` shares one build like
+        // every other environment.
         let file84 = SourceFile::new(&db, src.to_owned(), "tcl8.4".to_owned(), None);
         let _ = file_analysis_incremental(&db, file84, cfg);
         let _ = compiler_check_diagnostics(&db, file84, cfg);

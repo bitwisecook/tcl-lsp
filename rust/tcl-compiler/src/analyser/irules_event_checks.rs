@@ -143,11 +143,10 @@ fn is_deprecated_event(event: &str, target: Option<&str>) -> bool {
 /// static `arg_roles` table and any repeated tail
 /// ([`tcl_registry::CommandRegistry::arg_indices_for_role`]).
 ///
-/// The registry answer replaces a hardcoded 13-name table that named a single
-/// index per command (issue #1381).  It reaches every multi-name writer the
-/// table missed (`catch {…} ::err`, `lassign $l ::a ::b`, `regexp … ::m`,
-/// `scan … ::v`) and stops reading `array names ::x` — whose subcommand
-/// declares [`ArgRole::VarRead`] — as a write.
+/// Registry-driven rather than a per-command table of single indices: it
+/// covers every multi-name writer (`catch {…} ::err`, `lassign $l ::a ::b`,
+/// `regexp … ::m`, `scan … ::v`) and does not read `array names ::x` — whose
+/// subcommand declares [`ArgRole::VarRead`] — as a write.
 fn var_write_indices(registry: &CommandRegistry, cmd_name: &str, args: &[String]) -> Vec<usize> {
     let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
     registry.arg_indices_for_role(cmd_name, &arg_strs, ArgRole::VarWrite)
@@ -170,8 +169,7 @@ fn static_var_from_set<'a>(cmd_name: &str, args: &'a [String]) -> Option<&'a str
 /// them — [`Traits::DESTROYS_VARIABLE`] on the command (`unset`), or the
 /// resolved subcommand's `destructive` flag (`array unset`, `dict unset`).
 /// A destroyer never *creates* the implicit global that IRULE6001's `RULE_INIT`
-/// variant reports, which is what the old `cmd_name == "unset"` and
-/// `args[0] != "set"` special cases said by name.
+/// variant reports.
 fn destroys_variables(registry: &CommandRegistry, cmd_name: &str, args: &[String]) -> bool {
     let Some(spec) = registry.get(cmd_name) else {
         return false;
@@ -532,12 +530,11 @@ impl Analyser {
     /// per analysis run.
     ///
     /// Structural, not textual: [`collect_event_bodies`] uses the shared
-    /// top-level, offset-resolved event-handler boundary owner. The byte scan
-    /// it replaces matched
-    /// `\bwhen\s+[A-Z_][A-Z0-9_]*` anywhere in the file, so a `when` inside a
-    /// `#` comment or a string literal invented a phantom event block, and it
-    /// carried its own `priority` / `timing` skip and brace matcher that the
-    /// registry's argument roles already describe (issue #1390).
+    /// top-level, offset-resolved event-handler boundary owner.  A byte scan
+    /// for `\bwhen\s+[A-Z_][A-Z0-9_]*` matches anywhere in the file, so a
+    /// `when` inside a `#` comment or a string literal invents a phantom event
+    /// block, and it needs its own `priority` / `timing` skip and brace matcher
+    /// that the registry's argument roles already describe.
     fn irules_event_bodies(&mut self) -> &[(String, Vec<String>)] {
         if self.irules_event_bodies.is_none() {
             let bodies = collect_event_bodies(
@@ -574,8 +571,8 @@ impl Analyser {
         if event_registry().is_known(event_name) {
             // Known event — check the declared BIG-IP version range
             // (explicit data, or the 15.0 axis baseline) against the
-            // session's target release (the D5 oldest-supported default
-            // when nothing pins it).
+            // session's target release (the oldest-supported default when
+            // nothing pins it).
             let target = self.library_versions.bigip_version.clone().or_else(|| {
                 tcl_dialect::VersionKey::BigipVersion
                     .default_version()
@@ -986,7 +983,7 @@ impl Analyser {
 /// handlers, inert data, and unavailable command-table mutations therefore
 /// cannot enter the cross-event inventory. Non-literal event names are already
 /// rejected by that owner. Its caller-supplied profile preserves the TMM `}{`
-/// ghost separator (PR #1481 review of issue #1390).
+/// ghost separator.
 fn collect_event_bodies(
     source: &str,
     registry: Option<&CommandRegistry>,
@@ -1355,10 +1352,9 @@ mod tests {
             .count()
     }
 
-    /// Issue #1381: the writer set is the registry's `ArgRole::VarWrite`
-    /// answer for the concrete call, so the multi-name and switch-skipping
-    /// writers a 13-name / one-index-per-command table could not express are
-    /// now seen.
+    /// The writer set is the registry's `ArgRole::VarWrite` answer for the
+    /// concrete call, so multi-name and switch-skipping writers — which a table
+    /// of one index per command cannot express — are covered.
     #[test]
     fn irule6001_fires_for_registry_writers_the_name_table_missed() {
         for (source, expected) in [
@@ -1377,9 +1373,9 @@ mod tests {
         }
     }
 
-    /// `array names` declares [`ArgRole::VarRead`], not `VarWrite`, so the
-    /// old unconditional `"array" => Some(1)` arm that read it as a write —
-    /// and offered a code fix rewriting the *read* to `static::x` — is gone.
+    /// `array names` declares [`ArgRole::VarRead`], not `VarWrite`, so it is not
+    /// read as a write (an unconditional `"array" => Some(1)` arm would be, and
+    /// would offer a code fix rewriting the *read* to `static::x`).
     #[test]
     fn irule6001_quiet_for_array_names_read() {
         assert!(!has("when HTTP_REQUEST { array names ::x }", "IRULE6001"));
@@ -1389,7 +1385,7 @@ mod tests {
         ));
     }
 
-    /// Every command the old 13-name table listed still reports.
+    /// Every command a hand-written writer table would list still reports.
     #[test]
     fn irule6001_still_fires_for_every_name_the_old_table_listed() {
         for source in [
@@ -1417,7 +1413,7 @@ mod tests {
     }
 
     /// The `RULE_INIT` implicit-global variant reaches the same registry
-    /// writers, and its three hand-written carve-outs are now registry facts:
+    /// writers, and its three carve-outs are registry facts:
     /// `set var` with one argument resolves as `VarRead`, and a destroyer
     /// (`unset`, `array unset`) removes a variable rather than creating an
     /// implicit global.
@@ -1563,9 +1559,8 @@ mod tests {
     #[test]
     fn irule4003_quiet_for_commented_out_second_event() {
         // The "other event" exists only in a comment, so there is no second
-        // handler and no cross-event concern.  The byte scan this replaced
-        // read the comment as a `when` block and invented the hint
-        // (issue #1390).
+        // handler and no cross-event concern.  A byte scan would read the
+        // comment as a `when` block and invent the hint.
         let src = "when HTTP_REQUEST { set token abc }\n# when CLIENT_DATA { log local0. $token }";
         assert!(!has(src, "IRULE4003"));
     }
@@ -1643,8 +1638,8 @@ mod tests {
     #[test]
     fn collect_event_bodies_ignores_comments_and_string_literals() {
         // Neither a commented-out handler nor one quoted inside a string is a
-        // command, so neither contributes an event body — the byte scan this
-        // replaced invented both (issue #1390).
+        // command, so neither contributes an event body; a byte scan would
+        // invent both.
         let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let source = "# when HTTP_REQUEST { log local0. $x }\n\
                       log local0. \"when LB_SELECTED { set y 1 }\"\n\
@@ -1661,11 +1656,10 @@ mod tests {
     /// TMM accepts a handler written with no separator before its body —
     /// `when {HTTP_REQUEST}{ … }` — because the `}{` sequence acts as a
     /// command-word separator in the iRules grammar.  The collector must
-    /// segment with the *document's* dialect config to see it; segmenting
-    /// with `LexerConfig::default()` read the whole line as one malformed
-    /// word, found no event handler, and silently dropped every handler
-    /// written that way from IRULE4003's index (PR #1481 review of
-    /// issue #1390).
+    /// segment with the *document's* dialect config to see it: segmenting with
+    /// `LexerConfig::default()` reads the whole line as one malformed word,
+    /// finds no event handler, and silently drops every handler written that
+    /// way from IRULE4003's index.
     #[test]
     fn collect_event_bodies_honours_the_tmm_ghost_separator() {
         let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
@@ -1801,8 +1795,8 @@ mod tests {
     /// (`docs/design/f5/bigip-irule-parser-measurements.md` §8): the rule
     /// compiler refuses `HTTP::uri` in `HTTP_RESPONSE` and `HTTP::status`
     /// in `HTTP_REQUEST` at rule load, though both events carry an HTTP
-    /// profile. The model admitted both until the F5 conformance corpus
-    /// caught them (`tcl_registry::f5::corpus`, rows now `Agrees`).
+    /// profile. The registry model must refuse them too — the F5 conformance
+    /// corpus (`tcl_registry::f5::corpus`) carries both rows as `Agrees`.
     #[test]
     fn irule1001_warns_the_measured_http_asymmetries() {
         for (source, command, event) in [
@@ -1830,13 +1824,13 @@ mod tests {
         }
     }
 
-    /// The mirror image, and the reason the fix could not be a blanket
+    /// The mirror image, and the reason the rule cannot be a blanket
     /// tightening: the same §8 sweep measured `IP::server_addr` accepted
     /// in every traffic event including the client-side ones (its own
     /// documentation says it returns `0` before the serverside connection
     /// exists), and `HTTP::uri`/`HTTP::status`/`HTTP::collect` accepted in
-    /// `LB_SELECTED`, which implies no HTTP profile at all. Each of these
-    /// was a false positive before P4 moved the registry data.
+    /// `LB_SELECTED`, which implies no HTTP profile at all. Warning on any of
+    /// these is a false positive.
     #[test]
     fn irule1001_quiet_for_the_measured_acceptances() {
         // `IP::server_addr` has no profile requirement at all, so these
@@ -1857,8 +1851,8 @@ mod tests {
         // half: the event implies no HTTP profile, so the file cannot
         // confirm the virtual server carries one, and the unconfirmed
         // -namespace-profile hint still fires. What must be gone is the
-        // **warning** — the appliance loads all three there (§8), and
-        // claiming otherwise was the false positive.
+        // **warning** — the appliance loads all three there (§8), so claiming
+        // otherwise would be a false positive.
         for source in [
             "when LB_SELECTED { HTTP::uri }",
             "when LB_SELECTED { HTTP::status }",
@@ -1881,8 +1875,9 @@ mod tests {
     }
 
     /// `SSL::cipher` is refused either side of a completed handshake and
-    /// in `RULE_INIT`, and accepted in the three events between (§8). The
-    /// model accepted it everywhere until the corpus caught it.
+    /// in `RULE_INIT`, and accepted in the three events between (§8) — the
+    /// registry model follows the measured row rather than accepting it
+    /// everywhere.
     #[test]
     fn irule1001_follows_the_measured_ssl_cipher_row() {
         // The four handshake-adjacent events are a measured closed list,
@@ -2020,10 +2015,9 @@ mod tests {
 
     #[test]
     fn irule1001_fn_prevention_documented_examples_are_not_invalidated() {
-        // These were false warnings caused by treating optional protocol
-        // consumers as mandatory requirements. The generic event-contract
-        // test covers every registry example; retain focused regression cases
-        // for the two data rows that first exposed the problem.
+        // Treating optional protocol consumers as mandatory requirements draws
+        // false warnings here. The generic event-contract test covers every
+        // registry example; these two data rows are kept as focused cases.
         assert!(irule1001("when HTTP_REQUEST { active_members web_pool }").is_empty());
         assert!(irule1001("when HTTP_REQUEST { snat automap }").is_empty());
     }

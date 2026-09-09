@@ -279,7 +279,7 @@ fn string_match_command() {
     );
 }
 
-/// BUG: `string match <bad-option> pattern string` (three args where the first
+/// `string match <bad-option> pattern string` (three args where the first
 /// is an unrecognised option) reports a generic "wrong # args" instead of the
 /// bad-option error. Both tclsh 8.6 and 9.0 flag the option; the VM routes the
 /// 3-argument form through the shared core's arity check before validating the
@@ -710,7 +710,7 @@ fn string_is_errors() {
     );
 }
 
-/// BUG: `string is <class> <option> <str>` where `<option>` is an unrecognised
+/// `string is <class> <option> <str>` where `<option>` is an unrecognised
 /// word and a trailing operand follows reports the *wrong* error. Real tclsh
 /// flags the bad option; the VM mis-counts the operands and reports a generic
 /// "wrong # args".
@@ -744,7 +744,7 @@ fn string_is_dash_and_empty_option_words_are_ambiguous() {
     );
 }
 
-/// BUG: `string is integer -failindex` reports the wrong failure index when the
+/// `string is integer -failindex` reports the wrong failure index when the
 /// integer has internal whitespace followed by a non-digit. For `"12 x"` real
 /// tclsh records the failure at the `x` (char index 3); the VM stops at the
 /// interior space (index 2). (`"12 "` with only trailing space is a valid
@@ -850,7 +850,7 @@ fn format_errors() {
     err_eq("format {%5 } 1", "bad field specifier \" \"");
 }
 
-/// BUG: `format %#b` omits the `0b` alternate-form prefix. Both tclsh 8.6 and
+/// `format %#b` omits the `0b` alternate-form prefix. Both tclsh 8.6 and
 /// tclsh 9.0 prepend `0b`; the VM's `tcl_cmd_core::format::based_digits` returns
 /// no prefix for the binary verb.
 ///
@@ -863,7 +863,7 @@ fn bug_format_hash_binary_prefix() {
     res_eq("format %#b 5", "0b101");
 }
 
-/// BUG: `format %#o` uses the legacy `0` octal prefix instead of Tcl 9's `0o`.
+/// `format %#o` uses the legacy `0` octal prefix instead of Tcl 9's `0o`.
 /// The VM matches tclsh 8.6, but it otherwise targets Tcl 9.0 (lowercase `0x`
 /// for `%#X`, `entier`/`dict` classes, arbitrary-precision `string is integer`),
 /// where the octal alternate form is `0o`.
@@ -877,7 +877,7 @@ fn bug_format_hash_octal_prefix_tcl9() {
     res_eq("format %#o 8", "0o10");
 }
 
-/// BUG: `format %#d` drops the Tcl 9 `0d` alternate-form prefix. As with `%#o`,
+/// `format %#d` drops the Tcl 9 `0d` alternate-form prefix. As with `%#o`,
 /// the VM matches tclsh 8.6 (no prefix) but targets Tcl 9.0, where `%#d` renders
 /// a leading `0d`.
 ///
@@ -890,7 +890,7 @@ fn bug_format_hash_decimal_prefix_tcl9() {
     res_eq("format %#d 42", "0d42");
 }
 
-/// BUG: the `0` (zero-pad) flag is ignored for floating-point conversions. Both
+/// The `0` (zero-pad) flag is ignored for floating-point conversions. Both
 /// tclsh 8.6 and 9.0 zero-pad floats to the field width; the VM pads with spaces
 /// (the `0` flag works for integers — `%08d` is fine — so this is float-specific
 /// in `tcl_cmd_core::format`).
@@ -905,7 +905,7 @@ fn bug_format_zero_flag_on_float() {
     res_eq("format %+08.2f 3.14", "+0003.14");
 }
 
-/// BUG: `%e`/`%E` render the exponent without the C/Tcl minimum-two-digit,
+/// `%e`/`%E` render the exponent without the C/Tcl minimum-two-digit,
 /// always-signed form. Both tclsh 8.6 and 9.0 print `e+04`; the VM (Rust's
 /// `{:e}` formatter) prints `e4` — no sign, no zero-padding.
 ///
@@ -921,7 +921,7 @@ fn bug_format_exponent_format() {
     res_eq("format %e 1.5", "1.500000e+00");
 }
 
-/// BUG: `%g` does not switch to exponential notation for out-of-range
+/// `%g` does not switch to exponential notation for out-of-range
 /// magnitudes. C/Tcl `%g` uses `%e` when the exponent is < -4 or >= the
 /// precision (default 6); the VM always renders fixed-point and merely trims
 /// trailing zeros, so large/small values print in full / with leading zeros.
@@ -936,7 +936,7 @@ fn bug_format_g_exponential_range() {
     res_eq("format %g 0.00001", "1e-05");
 }
 
-/// BUG: positional conversion specifiers (`%n$`) are unsupported. C/Tcl's
+/// Positional conversion specifiers (`%n$`) are unsupported. C/Tcl's
 /// `format` accepts `%1$s` to index a specific argument and reuse it; the VM's
 /// `tcl_cmd_core::format` parser rejects the `$` as a bad field specifier.
 ///
@@ -973,7 +973,7 @@ fn format_positional_mode_star_and_mixing() {
     );
 }
 
-/// BUG: a format string that ends with an incomplete specifier (a width but no
+/// A format string that ends with an incomplete specifier (a width but no
 /// conversion verb) is silently echoed instead of erroring. tclsh reports
 /// "not enough arguments for all format specifiers"; the VM returns the literal
 /// text.

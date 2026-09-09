@@ -464,8 +464,7 @@ struct BodyWord {
 ///   ([`LambdaLiteralElements::braced_body`](tcl_compiler::lambda_literal::LambdaLiteralElements::braced_body)):
 ///   a bare / double-quoted one is backslash-decoded before `apply`
 ///   evaluates it, so its source slice is not the script that runs and the
-///   spans a code action derived from it would edit the wrong bytes (Codex
-///   review on #1047).
+///   spans a code action derived from it would edit the wrong bytes.
 fn body_words(source: &str, cmd: &SegmentedCommand, registry: &CommandRegistry) -> Vec<BodyWord> {
     let name = cmd.name();
     if name.is_empty() {

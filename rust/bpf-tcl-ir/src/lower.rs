@@ -25,7 +25,7 @@
 //! width, packet-load width, map role, verdict family + compatible program
 //! types), and this lowerer matches on the descriptor — never on the command
 //! name — so registry, lowering, capability policy, and documentation cannot
-//! drift (issue #1202).
+//! drift.
 
 use std::collections::HashMap;
 
@@ -518,7 +518,7 @@ impl Lowerer<'_> {
             }
             // `next` — the explicit non-terminal continuation. The handler
             // returns the reserved continuation sentinel; the composition model
-            // reads it as "run the next handler" (issue #1204).
+            // reads it as "run the next handler".
             BpfVerdictKind::Next => {
                 if !args.is_empty() {
                     return Err(arity(span, cmd, "(no arguments)"));
@@ -776,7 +776,7 @@ impl Lowerer<'_> {
                 // The cgroup sock-addr hooks' context (`bpf_sock_addr`) has no
                 // packet body — no `data`/`data_end` pointers for `setbuf`'s
                 // prologue to load, and codegen's `ctx_layout` has nothing
-                // meaningful to offer them (issue #1310). Named context-field
+                // meaningful to offer them. Named context-field
                 // reads (`user_ip4`/`user_port`/`family`, already registry
                 // schema — `BpfCtxField`) are not wired to a DSL accessor for
                 // *any* program type yet, so there is no packet-free
@@ -975,9 +975,8 @@ impl Lowerer<'_> {
                 ))
             }
             // Control reaches the end of the handler with no explicit
-            // verdict. Never synthesize one silently — this is a hard error
-            // (issue #1202: "define whether verdict-less handlers are an
-            // error … never synthesize it silently").
+            // verdict. Verdict-less handlers are an error; never synthesize
+            // one silently.
             Some(Terminator::Return { span, .. }) => {
                 Err(self.missing_verdict(span.unwrap_or_else(|| Span::empty(0))))
             }
@@ -1238,9 +1237,8 @@ mod tests {
     /// without being counted as one of `map_un`'s supported variants.
     const SUPPORTED_UNARYOPS: &[UnaryOp] = &[UnaryOp::Neg, UnaryOp::Not, UnaryOp::BitNot];
 
-    /// Issue #983 (Phase I, bpf-tcl-ir completeness): `map_bin`/`map_cmp`
-    /// already fall back to a wildcard `_ => None` rather than an
-    /// exhaustive match, so a newly added `BinOp` variant can never panic
+    /// `map_bin`/`map_cmp` fall back to a wildcard `_ => None` rather than
+    /// an exhaustive match, so a newly added `BinOp` variant can never panic
     /// here by construction — `lower_expr` funnels every `None` result
     /// into `BpfDiag::OutOfSubset` (BPF001) unconditionally, regardless of
     /// which operator produced it. What this test pins down is the

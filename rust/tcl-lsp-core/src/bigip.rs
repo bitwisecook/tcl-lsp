@@ -53,9 +53,9 @@ use crate::folding::{FoldKind, FoldingRange};
 ///
 /// The names themselves live on the `f5-bigip` profile's `filenames` axis in
 /// the dialect catalog, which is what the editors' generator projects into
-/// each editor's per-language `filenames` list. They used to be a private
-/// list here, invisible to the editors — so VS Code contributed no
-/// `filenames` and a `bigip.conf` never associated.
+/// each editor's per-language `filenames` list.  A private list here would be
+/// invisible to the editors, so VS Code would contribute no `filenames` and a
+/// `bigip.conf` would never associate.
 #[must_use]
 pub fn is_bigip_conf_name(uri: &str) -> bool {
     let basename = uri.rsplit(['/', '\\']).next().unwrap_or(uri);

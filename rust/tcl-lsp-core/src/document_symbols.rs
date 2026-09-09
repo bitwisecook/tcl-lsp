@@ -215,8 +215,8 @@ pub fn document_symbols_from_analysis(
     // A proc written with a qualified name outside any `namespace eval` block
     // (`proc pix::svg::parse {…} {…}` at file top level) really lands in the
     // namespace its own name spells — tclsh, and this LSP's own hover /
-    // definition / references, all agree on `::pix::svg::parse`. The outline
-    // used to place it lexically, contradicting the very same response's
+    // definition / references, all agree on `::pix::svg::parse`. Placing it
+    // lexically would contradict the very same response's
     // `Namespace pix > svg` tree. Home each one under
     // the namespace node its qualified name names; a namespace this document
     // never opens has no node, so the symbol stays where it was written.
@@ -599,9 +599,9 @@ fn scope_symbols(
             );
             // `selectionRange` is "the range that should be selected and
             // revealed when this symbol is picked" — the *name*, exactly as
-            // `proc_symbol` does.  A namespace used to answer its whole body
-            // for both ranges, so clicking it in the outline selected the
-            // entire block.  `range` then widens to cover the
+            // `proc_symbol` does.  Answering the whole body for both ranges
+            // would make clicking a namespace in the outline select the
+            // entire block.  `range` widens to cover the
             // name **and** the body, keeping the LSP containment invariant
             // (`selectionRange` ⊆ `range`) that the narrowing would otherwise
             // break — the name word sits before the body's opening brace.
@@ -930,7 +930,7 @@ mod tests {
         assert!(find(&ns.children, "q").is_some(), "{symbols:?}");
     }
 
-    // ---- issue #790: tcltest `test` names in the outline ----
+    // tcltest `test` names in the outline.
 
     #[test]
     fn tp_imported_test_name_is_a_symbol() {
@@ -1335,13 +1335,11 @@ mod tests {
         assert_eq!(symbols[0].detail.as_deref(), Some("()"));
     }
 
-    /// Regression coverage for issue #996: `scope_symbols`/`proc_symbol`
-    /// recurse once per nested namespace/proc scope, with no depth cap
-    /// before this fix (`MAX_SCOPE_WALK_DEPTH`, `crate::lib`). A `Scope`
+    /// `scope_symbols`/`proc_symbol` recurse once per nested namespace/proc
+    /// scope, capped by `MAX_SCOPE_WALK_DEPTH` (`crate::lib`). A `Scope`
     /// tree built by the real analyser can never exceed its own
     /// `MAX_BODY_DEPTH` (256 when this was written; derived from a stack
-    /// budget and lower still since issue #1654), so this exercises
-    /// deep-but-valid
+    /// budget), so this exercises deep-but-valid
     /// nesting rather than this crate's own cap tripping — that cap is
     /// defence-in-depth against a scope tree built/received some other way.
     ///
@@ -1491,7 +1489,7 @@ mod tests {
 
     #[test]
     fn oo_literal_foreach_installed_methods_appear_in_the_outline() {
-        // Issue #1277: a literal `foreach`-installed member's *name* is
+        // A literal `foreach`-installed member's *name* is
         // statically knowable even though its signature is not, so it must
         // still show up in `documentSymbol` alongside an ordinary method.
         let source = concat!(
@@ -1624,7 +1622,7 @@ mod tests {
 
     #[test]
     fn oo_self_block_form_emits_class_side_method_symbols() {
-        // Issue #1081 — TP. `self { method … }` is `self method …` spelled as
+        // TP. `self { method … }` is `self method …` spelled as
         // a block; both declare a method on the class *object*. Oracle
         // (tclsh 9.0.4 / 8.6.16, identical):
         //   oo::class create ::C { self { method make {n} {…} } }
@@ -1715,7 +1713,7 @@ mod tests {
 
     #[test]
     fn self_introspection_call_in_a_method_body_emits_no_symbol() {
-        // Issue #1081 — TN. A `self` *introspection* call inside a method body
+        // TN. A `self` *introspection* call inside a method body
         // is not a definer member at all; it must contribute nothing to the
         // outline. (`self class` there is an ordinary command substitution —
         // tclsh returns the defining class, it declares nothing.)
@@ -1745,7 +1743,7 @@ mod tests {
 
     #[test]
     fn oo_self_block_deleted_member_is_not_in_the_outline() {
-        // Issue #1095 review. A member the same block goes on to delete must
+        // A member the same block goes on to delete must
         // not appear in the outline — a stale entry navigates to a name the
         // interpreter does not have. Oracle (tclsh 9.0.4 / 8.6.16, identical):
         //   oo::class create ::C1 {
@@ -1803,7 +1801,7 @@ mod tests {
 
     #[test]
     fn oo_unwrapped_deleted_member_is_not_in_the_outline() {
-        // Issue #1101 — TP, and the user-visible symptom: an *unwrapped*
+        // TP, and the user-visible symptom: an *unwrapped*
         // `deletemethod` (no `self` / `private` wrapper) really removes the
         // method, so a retained outline entry navigates to a name the
         // interpreter does not have. Oracle (tclsh 9.0.4 / 8.6.14, identical):
@@ -1848,7 +1846,7 @@ mod tests {
 
     #[test]
     fn oo_unwrapped_renamed_member_is_listed_under_its_new_name() {
-        // Issue #1121 (the residual #1101/#1118 left). `renamemethod old new`
+        // `renamemethod old new`
         // is a move: `old` goes and `new` takes its place as a fully navigable
         // outline entry. Oracle, byte-identical on tclsh 9.0.4 and 8.6.14:
         //   oo::class create ::I3 { method old {} {return o}; renamemethod old new }
@@ -1891,7 +1889,7 @@ mod tests {
 
     #[test]
     fn oo_unwrapped_deletemethod_leaves_the_class_side_member_listed() {
-        // Issue #1101 — TN. The unwrapped word is instance-scoped, so a
+        // TN. The unwrapped word is instance-scoped, so a
         // class-object-side member of the same name keeps its outline entry.
         let source = concat!(
             "oo::class create Counter {\n",
@@ -1919,7 +1917,7 @@ mod tests {
 
     #[test]
     fn oo_self_scoped_unexport_keeps_both_same_named_members_listed() {
-        // Issue #1098 — TN at the outline level. Side-scoping the visibility
+        // TN at the outline level. Side-scoping the visibility
         // flip must not disturb which members are *listed*: the class-side and
         // instance-side `m` are separate members and both stay in the outline.
         let source = concat!(
@@ -1957,9 +1955,9 @@ mod tests {
 
     #[test]
     fn oo_private_block_form_emits_instance_method_symbols() {
-        // Issue #1081, symmetric half: `private` is the other registry member
+        // The symmetric half: `private` is the other registry member
         // marked wrapper-with-block-body, so the same normalisation gives it
-        // the outline node its prefix form already had.
+        // the outline node the prefix form gets.
         let source = concat!(
             "oo::class create Counter {\n",
             "    private {\n",
@@ -2006,9 +2004,9 @@ mod tests {
         assert_eq!(format_param_list(&[]), "()");
     }
 
-    /// Issue #1218: `namespace eval` used to answer its whole body for
-    /// `selectionRange`, so picking the namespace in the outline selected the
-    /// entire block instead of its name.
+    /// `namespace eval`'s `selectionRange` is its name word, not its whole
+    /// body — picking the namespace in the outline must select the name, not
+    /// the entire block.
     #[test]
     fn namespace_selection_range_is_the_name_word() {
         let source = concat!(
@@ -2116,11 +2114,10 @@ mod tests {
 
     #[test]
     fn foreach_rename_reinstall_idiom_outline_has_no_garbled_dollar_symbol() {
-        // TP — issue #923 idx 86: the finding's own outline complaint
-        // (`tk/library/accessibility.tcl`'s rename-and-reinstall idiom
-        // showing a `Function ${wtype}(args)` outline entry — the raw,
+        // TP — `tk/library/accessibility.tcl`'s rename-and-reinstall idiom
+        // must not show a `Function ${wtype}(args)` outline entry — the raw,
         // unresolved dynamic-name text — instead of the real per-element
-        // wrapper names). Every symbol name in the outline must be real
+        // wrapper names. Every symbol name in the outline must be real
         // Tcl identifier text; none may contain the literal `$` of an
         // unresolved substitution.
         let src = "proc button {args} {return orig_button}\n\
@@ -2146,10 +2143,9 @@ mod tests {
 
     #[test]
     fn opt_proc_outline_shows_the_real_args_only_signature() {
-        // TP — issue #923 idx 90: before the fix, the missing analyser hook
-        // left the stub's `{}`-arity `ProcDef` in place, so the outline
-        // showed an empty (or missing) signature instead of the real
-        // `(args)` one.
+        // TP — without the analyser hook the stub's `{}`-arity `ProcDef`
+        // stays in place and the outline shows an empty (or missing)
+        // signature instead of the real `(args)` one.
         let src = "::tcl::OptProc greet {child -use -display} { return $child }\n";
         let symbols = document_symbols(
             src,
@@ -2352,8 +2348,8 @@ mod tests {
     /// not have is dropped wholesale by the outline-model sticky-scroll
     /// provider — `StickyRange(selectionRange.start, range.end)` fails
     /// `TextModel.isValidRange` — while breadcrumbs, which use the same
-    /// symbols but no such check, keep working.  That asymmetry is exactly
-    /// what masked issue #1122, so the bound is pinned here.
+    /// symbols but no such check, keep working.  That asymmetry hides the
+    /// breakage, so the bound is pinned here.
     fn assert_symbol_ranges_in_bounds(source: &str, label: &str) {
         fn walk(symbol: &DocumentSymbol, last_line: u32, label: &str) {
             assert!(
@@ -2386,9 +2382,8 @@ mod tests {
         }
     }
 
-    /// Definitions closing on the document's final line, in the four shapes
-    /// the issue #1122 report can take: LF and CRLF (the reporter is on
-    /// Windows), each with and without a final newline.  The class fixture
+    /// Definitions closing on the document's final line, in all four shapes:
+    /// LF and CRLF, each with and without a final newline.  The class fixture
     /// keeps the reported module's structure — a top-level `oo::class
     /// create` with a superclass, an instance variable, a constructor, and
     /// methods — under invented names.
@@ -2437,11 +2432,11 @@ mod tests {
 
     #[test]
     fn tp_a_qualified_proc_written_outside_its_namespace_block_nests_under_it() {
-        // TP — issue #1140 idx 67, the nico-robert/pix shape reduced: the
+        // TP — the nico-robert/pix shape reduced: the
         // `namespace eval` blocks have already closed when the qualified
         // `proc` is written, yet tclsh puts it at `::pix::svg::parse` and
-        // this LSP's own hover / definition / references all say so. The
-        // outline used to contradict them by placing it at top level.
+        // this LSP's own hover / definition / references all say so, so the
+        // outline must not place it at top level.
         let src = concat!(
             "namespace eval ::pix {\n",
             "    namespace eval svg {\n",

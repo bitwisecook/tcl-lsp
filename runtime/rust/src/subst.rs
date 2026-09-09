@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Tcl substitution engine (`subst`, and the eval loop's word expander) — T1.2.
+//! Tcl substitution engine (`subst`, and the eval loop's word expander).
 //!
 //! The scan half is not implemented here: [`scan`] is a flag adapter over
 //! [`tcl_lexer::word_parts::decompose`], the one owner of Tcl word-component
@@ -28,9 +28,9 @@
 //! 2. **Resolve** each component to bytes ([`resolve_with`]) — backslashes and
 //!    literals resolve here; **variables** and **command substitutions** are
 //!    supplied as caller closures, because resolving them needs the var tables
-//!    and the eval loop (T1.3/T1.4). Wiring those closures to the runtime
-//!    completes `subst`/word-expansion; until then the engine is complete and
-//!    unit-tested against mock resolvers.
+//!    and the eval loop. The interpreter's own eval loop resolves those
+//!    directly instead of calling through [`resolve_with`], so this half is
+//!    exercised only by this module's own unit tests against mock resolvers.
 //!
 //! `unsafe`-free.
 

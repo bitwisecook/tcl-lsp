@@ -189,10 +189,10 @@ fn fp_inj_05_eval_string_fires_w101() {
 
 #[test]
 fn fp_inj_06_string_range_strips_path_prefixed_proof() {
-    // FN regression: `string range` has no registry classification, so it
-    // could turn a `/`-anchored path into something starting with `-`
-    // (e.g. path `/-nocase/x`, `string range $p 1 end` => `-nocase/x`).
-    // PATH_PREFIXED must not survive it.
+    // `string range` has no registry classification, so it could turn a
+    // `/`-anchored path into something starting with `-` (e.g. path
+    // `/-nocase/x`, `string range $p 1 end` => `-nocase/x`). PATH_PREFIXED
+    // must not survive it.
     let src = "set p [HTTP::path]\nset stripped [string range $p 1 end]\nregexp $stripped test";
     assert!(
         fires(src, IRULES, "T102"),
@@ -203,10 +203,10 @@ fn fp_inj_06_string_range_strips_path_prefixed_proof() {
 
 #[test]
 fn fp_inj_06_split_lindex_strips_path_prefixed_proof() {
-    // FN regression, realistic iRules idiom: splitting `HTTP::path` and
-    // indexing a segment can hand back attacker-controlled text with no
-    // `/`-anchoring guarantee at all (path `/-nocase/x` splits to
-    // `{{} -nocase x}`; `lindex $parts 1` is `-nocase`).
+    // Realistic iRules idiom: splitting `HTTP::path` and indexing a segment
+    // can hand back attacker-controlled text with no `/`-anchoring
+    // guarantee at all (path `/-nocase/x` splits to `{{} -nocase x}`;
+    // `lindex $parts 1` is `-nocase`).
     let src =
         "set parts [split [HTTP::path] \"/\"]\nset second [lindex $parts 1]\nregexp $second test";
     assert!(
@@ -232,8 +232,8 @@ fn fp_inj_06_pure_copy_still_suppresses() {
 }
 
 // FP-INJ-07 — `exec -encoding <name>` must not mask the option-injection
-// scan for the arguments that follow it — the registry was missing
-// `-encoding` from `exec`'s option list entirely.
+// scan for the arguments that follow it — `exec`'s option list must declare
+// `-encoding`.
 
 const FP_INJ_07_REPRO: &str = "\
 proc run {} {
@@ -244,11 +244,11 @@ proc run {} {
 
 #[test]
 fn fp_inj_07_exec_encoding_does_not_mask_option_scan() {
-    // FN regression: `-encoding` takes a value (the encoding name); before
-    // the registry declared that, `option_scan_region` treated the literal
-    // encoding name as a definite positional and stopped scanning right
-    // there, hiding every tainted argument after it (including the actual
-    // program name) from T102/W304.
+    // `-encoding` takes a value (the encoding name). Unless the registry
+    // declares that, `option_scan_region` treats the literal encoding name
+    // as a definite positional and stops scanning right there, hiding every
+    // tainted argument after it (including the actual program name) from
+    // T102/W304.
     assert!(
         fires(FP_INJ_07_REPRO, D, "T102"),
         "FP-INJ-07: `exec -encoding utf-8 $prog` must fire T102; emitted {:?}",
@@ -258,9 +258,8 @@ fn fp_inj_07_exec_encoding_does_not_mask_option_scan() {
 
 #[test]
 fn fp_inj_07_exec_bare_control_still_warns() {
-    // TP control: the same taint without the `-encoding` option already
-    // fired correctly — pins the baseline this regression test compares
-    // against.
+    // TP control: the same taint without the `-encoding` option fires
+    // correctly — the baseline the FP-INJ-07 test compares against.
     let src = "proc run {} {\n    set prog [gets stdin]\n    exec $prog\n}\n";
     assert!(
         fires(src, D, "T102"),

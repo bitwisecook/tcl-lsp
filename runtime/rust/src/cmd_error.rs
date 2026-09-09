@@ -45,7 +45,7 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"throw", throw_cmd);
 }
 
-// -- catch -----------------------------------------------------------------
+// catch
 
 /// `catch script ?resultVarName? ?optionsVarName?` — evaluate `script`, trap any
 /// completion code, and return it as an integer (0=ok … 4=continue).
@@ -176,7 +176,7 @@ fn api_code(code: Code) -> tcl_runtime_api::Code {
     }
 }
 
-// -- error -----------------------------------------------------------------
+// error
 
 /// `error message ?errorInfo? ?errorCode?` — raise an error. With an explicit
 /// non-empty `errorInfo`, the trace is pre-seeded with it and the `error`
@@ -214,7 +214,7 @@ fn error_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     rc
 }
 
-// -- try / throw -----------------------------------------------------------
+// try / throw
 
 /// A `try` handler clause. The handler `script` is kept as its argument object
 /// (not flattened to bytes) so it evaluates through `eval_control_body`, which

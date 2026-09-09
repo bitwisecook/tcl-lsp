@@ -311,7 +311,7 @@ mod tests {
         b
     }
 
-    // -- bytes_to_str / str_to_bytes unit coverage -------------------------
+    // bytes_to_str / str_to_bytes unit coverage
 
     /// TP: an arbitrary invalid UTF-8 plain string gets Tcl's U+00XX byte view,
     /// not Rust's replacement character. Runtime-created binary values use the
@@ -355,7 +355,7 @@ mod tests {
         assert_eq!(str_to_bytes("a\u{65e5}b"), "a\u{65e5}b".as_bytes().to_vec());
     }
 
-    // -- end-to-end: byte-array dual ports, driven through `string`/`binary` --
+    // end-to-end: byte-array dual ports, driven through `string`/`binary`
 
     /// TP: `string index`/`range`/`replace`/`length` on a `binary format` value
     /// preserve binary bytes exactly in both C Tcl 8.6 and 9.0.

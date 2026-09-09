@@ -30,7 +30,8 @@
  *
  * `./extension.ts` remains the node entry and is unchanged in behaviour. What
  * this entry deliberately does NOT register, and why, is listed at
- * `WEB_UNSUPPORTED` below — each of those needs a real migration, not a shim.
+ * `WEB_UNSUPPORTED` below — each of those needs genuine browser-native
+ * support, not a shim.
  */
 
 import * as vscode from "vscode";
@@ -992,10 +993,10 @@ async function generateDocstring(): Promise<void> {
 // the same editor work around them. Only `extractAllRules` differs, because it
 // writes files.
 //
-// TODO(web): these five and their node twins in `./extension.ts` are the same
-// code twice. The natural next step is one shared `bigipCommands` module taking
-// a client accessor; it is not done here because moving them would touch the
-// node entry's proven path for no behaviour change.
+// These five duplicate their node twins in `./extension.ts`. A shared
+// `bigipCommands` module taking a client accessor would remove the
+// duplication, but factoring it out would touch the node entry's proven
+// path for no behaviour change, so the duplication stands.
 
 interface RuleInfo {
   name: string;
@@ -1220,7 +1221,7 @@ function base64DecodeText(text: string): string {
 
 /**
  * Keep workspace `files.associations` in step with the extensions the
- * discovered SpecTcl packs claim (issue #1626) — the same push/pull pair the
+ * discovered SpecTcl packs claim — the same push/pull pair the
  * node entry runs, against the same server.
  */
 function registerPackAssociationSync(

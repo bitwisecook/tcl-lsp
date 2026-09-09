@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Command namespaces (T1.5) — the command-table-as-core-service.
+//! Command namespaces — the command-table-as-core-service.
 //!
 //! The runtime's command lookup is **one** `resolve(currentNs, name) → Command`
 //! function (the command-binding contract's A1/A2 — see
@@ -869,7 +869,7 @@ impl Namespaces {
         !self.dead.contains(&ns) && !self.dying.contains(&ns)
     }
 
-    // -- activations and deferred teardown (C's `activationCount`) -----------
+    // activations and deferred teardown (C's `activationCount`)
 
     /// Count the activation `Tcl_PushCallFrame` adds when a call frame starts
     /// running in `ns`.
@@ -931,7 +931,7 @@ impl Namespaces {
         false
     }
 
-    // -- per-namespace variable tables (the variable resolver's storage) ------
+    // per-namespace variable tables (the variable resolver's storage)
 
     /// For a **qualified** variable name, the `(namespace, simple tail)` it
     /// addresses, or `None` if that namespace doesn't exist. Absolute when
@@ -1032,7 +1032,7 @@ impl Namespaces {
         out
     }
 
-    // -- the `namespace` command surface --------------------------------------
+    // the `namespace` command surface
 
     /// The fully-qualified name a command `name` resolves to from `current`
     /// (`namespace which -command`), or `None` if it doesn't resolve.
@@ -1512,7 +1512,7 @@ impl Namespaces {
         self.arena[ns].commands.remove(name).is_some()
     }
 
-    // -- helpers --------------------------------------------------------------
+    // helpers
 
     /// Locate the namespace + simple name that *holds* the binding `name`
     /// resolves to, following C Tcl's full command-resolution order

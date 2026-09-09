@@ -123,9 +123,9 @@ pub(in crate::analyser) mod widget_command;
 /// definition the document makes itself.
 ///
 /// The complement is what matters: a head this answers `false` for is a
-/// callee whose body is simply not here (the ticklecharts layout of issue
-/// #923 audit idx 59 — the helper in `utils.tcl`, the caller in
-/// `options.tcl`), so nothing in this unit can say whether it writes the
+/// callee whose body is simply not here (the split-file layout of a helper in
+/// `utils.tcl` called from `options.tcl`), so nothing in this unit can say
+/// whether it writes the
 /// caller's frame through `upvar`.
 /// [`crate::interprocedural::collect_opaque_callee_name_args`] turns that
 /// into the per-frame abstention the read-before-set emitters honour.
@@ -301,7 +301,7 @@ impl<'a> BodyFrame<'a> {
         }
     }
 
-    /// The entry facts the `[info exists]` fold needs (issue #1129): the
+    /// The entry facts the `[info exists]` fold needs: the
     /// frame's formal parameters, plus a method's instance variables.
     #[must_use]
     fn existence_frame(self) -> crate::sccp::ExistenceFrame<'a> {
@@ -359,7 +359,7 @@ impl Analyser {
         }
         // The profile name is `&'static str`, so no borrow of `self` is held
         // across the firewall closure below (which needs `&mut self`).
-        // AN-H1: firewall the lowering→CFG→SSA→interprocedural build (and the
+        // Firewall the lowering→CFG→SSA→interprocedural build (and the
         // emission that consumes it). A panic on adversarial input is contained
         // to "no CFG/SSA diagnostics for this document" instead of crashing the
         // whole document's diagnostics — the same conservative containment the
@@ -378,10 +378,10 @@ impl Analyser {
             // `cu_override` seam (`tcl diag`'s `collect_rows`,
             // `tcl_lsp_db::analyse_per_item_with`, `xtask fp_sweep`) builds it
             // the same way, so the supplied unit is the one this branch would
-            // have built. It used to be `LexerConfig::default()` on all four —
-            // agreeing, but wrong: an 8.x document lexed `${a{b}c}` under the
-            // 9.0 close rule and decoded escapes as 9.0, and an iRules
-            // document lexed with `{*}` expansion and no F5 word break
+            // have built. A blanket `LexerConfig::default()` on all four would
+            // agree but be wrong: an 8.x document would be lexed with the 9.0
+            // `${a{b}c}` close rule and 9.0 escape decoding, and an iRules
+            // document with `{*}` expansion and no F5 word break
             // (redesign §11.4 row E1, §9.1 defect 1).
             let cu = crate::compilation_unit::CompilationUnit::build_with_options(
                 source,
@@ -401,7 +401,7 @@ impl Analyser {
     /// The compilation-unit-derived object-fact seam, run before any emitter
     /// that reads those facts.
     ///
-    /// Issue #923 idx 121: the pending `$class`-headed `TclOO`
+    /// The pending `$class`-headed `TclOO`
     /// instance-creation sites must settle against `cu`'s flow-sensitive value
     /// model **first** — `emit_var_command_diagnostics` reads
     /// `instance_classes` to suppress W307 / validate W308, so the settle must
@@ -416,7 +416,7 @@ impl Analyser {
         self.produce_object_handle_facts(cu, registry);
     }
 
-    /// Issue #994 (C5a): the **one** producer of
+    /// The **one** producer of
     /// [`crate::analyser::types::AnalysisResult::object_handle_facts`], from
     /// the same `cu` the CFG/SSA diagnostics ride on.
     ///
@@ -439,9 +439,8 @@ impl Analyser {
     /// Split out of [`Self::emit_cfg_ssa_diagnostics`] so the incremental
     /// per-item path can supply a `CompilationUnit` whose per-function
     /// lattices were memoised, instead of rebuilding the whole-file unit on
-    /// every edit.  Behaviour is identical: the whole-file entry point builds
-    /// the unit exactly as before and delegates here, and every cross-function
-    /// pass below reads the supplied unit unchanged.
+    /// every edit.  The whole-file entry point builds the unit and delegates
+    /// here; every cross-function pass below reads the supplied unit as given.
     pub fn emit_cfg_ssa_diagnostics_with_cu(
         &mut self,
         cu: &crate::compilation_unit::CompilationUnit,
@@ -473,7 +472,7 @@ impl Analyser {
         // The registry-driven whole-module fact stores the canonical
         // (`::`-stripped) spelling, so an *unqualified* top-level store
         // (`set g 1`, chain key `g`) is also suppressed when the trace
-        // names `::g` (issue #1377) — the same fact SCCP and the O102 /
+        // names `::g` — the same fact SCCP and the O102 /
         // O109 gates consult.
         traced_globals.extend(cu.ir_module.traced_variables.iter().cloned());
 
@@ -536,7 +535,7 @@ impl Analyser {
         // index script runs, so a read of it is not read-before-set (W210).
         // `cross_event_vars` only reaches the dead-store / unused checks, so
         // fold the implicit set into `extra_known_defined` too — that is the
-        // argument the W210 emitters consult (#955).
+        // argument the W210 emitters consult.
         let mut top_level_known_defined: HashSet<String> = if pkgindex_implicit_vars.is_empty() {
             globals_written.clone()
         } else {
@@ -547,9 +546,9 @@ impl Analyser {
                 .collect()
         };
 
-        // **W210 opaque-callee abstention (issue #923 audit idx 59).** A call
-        // to a command whose body this unit does not hold — the cross-file
-        // helper the finding was mined from — may create any caller-frame
+        // **W210 opaque-callee abstention.** A call to a command whose body
+        // this unit does not hold — a cross-file helper, say — may create any
+        // caller-frame
         // name it is handed, so the names it *spells* stop being provably
         // unset here.  Per frame, and per name: everything else in the frame
         // still reports.
@@ -635,26 +634,24 @@ impl Analyser {
         // known commands via SCCP.
         self.resolve_interpolated_w123_diagnostics(cu);
 
-        // M7 settlement (issue #945 faults 1–2): resolve the constant-
-        // `$cmd` dispatch sites against the flow-sensitive value model,
+        // Resolve the constant-`$cmd` dispatch sites against the
+        // flow-sensitive value model,
         // emitting the indirect head references and their writable
         // literal-anchored twins.
         self.settle_const_dispatches(cu);
     }
 
-    /// `TclOO`/snit method bodies (issue #923 idx 77, main audit wave, high
-    /// severity): `cu.methods` is kept in a *separate* map from
-    /// `cu.procedures` precisely so [`Self::emit_cfg_ssa_diagnostics_with_cu`]'s
-    /// procs loop was historically unaffected by their addition (see
-    /// [`crate::compilation_unit::CompilationUnit::methods`]'s own doc) — but
-    /// that meant the entire CFG/SSA dataflow family (W210 read-before-set
-    /// and siblings) silently never ran on any method body at all, a
-    /// systemic false-negative gap: tomato's real `Vector3d.tcl::* {type}`
-    /// reads `$other` (a variable belonging to a *sibling* method, never
-    /// bound in `*`'s own scope) and crashes at runtime the moment it's
-    /// called with an object operand (tclsh8.6/9.0.4-verified) — the exact
-    /// same unbound-read shape inside a plain `proc` already fires W210
-    /// twice, but zero diagnostics fired here. No `::when::`/`ConnectionScope`
+    /// `TclOO`/snit method bodies.  `cu.methods` is kept in a *separate* map
+    /// from `cu.procedures` so that
+    /// [`Self::emit_cfg_ssa_diagnostics_with_cu`]'s procs loop is unaffected by
+    /// them (see [`crate::compilation_unit::CompilationUnit::methods`]'s own
+    /// doc), so without this loop the whole CFG/SSA dataflow family (W210
+    /// read-before-set and siblings) would never run on a method body — a
+    /// systemic false negative: a real `Vector3d.tcl::* {type}` method reading
+    /// `$other` (a variable belonging to a *sibling* method, never bound in
+    /// `*`'s own scope) crashes at runtime the moment it is called with an
+    /// object operand (tclsh8.6/9.0.4-verified), while the same unbound-read
+    /// shape inside a plain `proc` fires W210 twice. No `::when::`/`ConnectionScope`
     /// handling needed — a method's qualified name (`{class}::{method}`)
     /// never has that prefix, so every one of the procs loop's
     /// iRule-specific branches would always take their empty-set arm
@@ -699,8 +696,7 @@ impl Analyser {
             // The set is read off the unit's own `method_facts` — the one
             // carrier `build_for_method` fills — rather than rebuilt from
             // the IR here, so this family and the existence fold (I230 /
-            // O100 / O101) cannot source the same fact from different maps
-            // (issue #1174; that divergence shape was issue #1129).
+            // O100 / O101) cannot source the same fact from different maps.
             let mut known_bound: HashSet<String> = fu.method_facts.as_deref().map_or_else(
                 HashSet::new,
                 crate::compilation_unit::MethodBodyFacts::known_bound_at_entry,
@@ -764,7 +760,7 @@ impl Analyser {
     /// ([`crate::ssa::structural_body_indices`]), so this loop is what keeps
     /// the *body's* own genuine unbound reads visible — without it, moving the
     /// literal out of the caller's frame would trade a false positive on the
-    /// lambda's parameters for a false negative on its body (issue #1070).
+    /// lambda's parameters for a false negative on its body.
     ///
     /// Restricted to [`crate::ir::Module::lambda_body_units`]: a
     /// `namespace eval` body unit shares its namespace's variables with every
@@ -1000,11 +996,6 @@ impl Analyser {
     ///    arity message a false positive).
     ///
     /// Lines come from the [`SourceMap`] over `self.source`.
-    ///
-    /// (Formerly also suppressed `W122` on a line where `W124` fired —
-    /// removed with `W122` itself, which duplicated `W124`'s IPv4 octet
-    /// check under a superseded code with no independent producer;
-    /// issue #1317.)
     pub fn dedupe_diagnostics(&mut self) {
         let sm = Analyser::source_map(
             &self.source,
@@ -1044,12 +1035,12 @@ impl Analyser {
 
         // Canonical, deterministic order. The post-walk emitters
         // (`emit_variable_usage_diagnostics` etc.) iterate the scope tree's
-        // `HashMap`s, whose per-instance iteration order is non-deterministic —
-        // so emission order varied run-to-run and, critically, between
-        // `analyse` and `analyse_commands` (the per-item incremental path).
-        // That non-determinism meant the multiset always
-        // matched; only the `Vec` order differed. Sorting by source position
-        // here makes the output deterministic and path-independent — required
+        // `HashMap`s, whose per-instance iteration order is non-deterministic,
+        // so emission order otherwise varies run-to-run and, critically,
+        // between `analyse` and `analyse_commands` (the per-item incremental
+        // path) — the multiset matches either way, only the `Vec` order
+        // differs. Sorting by source position here makes the output
+        // deterministic and path-independent — required
         // for `incremental == fresh`, and a saner source-ordered contract for
         // the LSP. Dedupe above guarantees `(code, start, end, message,
         // severity)` is unique, so this key is a total order (no ties).

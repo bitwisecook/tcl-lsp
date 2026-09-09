@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! List commands (T1.6) — `list` / `llength` / `lindex` / `lappend` / `lrange`
+//! List commands — `list` / `llength` / `lindex` / `lappend` / `lrange`
 //! / `lreverse` / `concat` / `join` / `split` / `lassign` / `lrepeat` /
 //! `linsert` / `lreplace` / `lset` / `ledit` / `lsearch` / `lsort`, over the
 //! [`crate::list`] value type.
@@ -66,7 +66,7 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"lsort", lsort);
 }
 
-// -- helpers ---------------------------------------------------------------
+// helpers
 
 /// Set the result to a list built from element objects (each retained).
 fn set_list(interp: &mut Interp, elems: &[*mut TclObj]) {
@@ -85,7 +85,7 @@ pub(crate) fn index_spec(spec: &[u8], len: usize) -> Option<isize> {
     isize::try_from(v).ok()
 }
 
-// -- commands --------------------------------------------------------------
+// commands
 
 /// `list ?arg ...?` — a list of its arguments.
 fn list_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -286,13 +286,13 @@ fn lassign(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-// -- error helpers ---------------------------------------------------------
+// error helpers
 
 fn bad_list(interp: &mut Interp, e: crate::parse::ListError) -> Code {
     interp.error_with_code(e.message(), e.error_code())
 }
 
-// -- lrepeat / linsert / lreplace / lsearch / lsort ------------------------
+// lrepeat / linsert / lreplace / lsearch / lsort
 
 /// `lrepeat count ?value ...?` — `count` copies of the value sequence.
 ///

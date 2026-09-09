@@ -484,7 +484,7 @@ pub(crate) fn object_entries(v: &Value, name: &str) -> Result<Vec<(String, Value
 ///
 /// `depth` is the nesting level of this call (0 at the top); past
 /// [`MAX_VALUE_WALK_DEPTH`] this returns `Value::Null` in place of the
-/// over-deep subtree instead of recursing further — issue #996.
+/// over-deep subtree instead of recursing further.
 #[must_use]
 pub(crate) fn to_jsonable(v: &Value, depth: u32) -> Value {
     if MAX_VALUE_WALK_DEPTH.exceeded(depth) {
@@ -565,8 +565,7 @@ pub(crate) fn all_paths(v: &Value, only_leaves: bool) -> Vec<Vec<Value>> {
 
 /// `depth` is the nesting level of this call (0 at the top); past
 /// [`MAX_VALUE_WALK_DEPTH`] this stops descending into `cur`'s children —
-/// the paths collected so far still stand — rather than recursing further
-/// (issue #996).
+/// the paths collected so far still stand — rather than recursing further.
 fn walk_paths(
     cur: &Value,
     prefix: &mut Vec<Value>,
@@ -662,7 +661,7 @@ pub(crate) fn coerce_path_list(
 /// `path` is itself query-built and unbounded (e.g. `range(1000000)` alone
 /// builds a path far longer than any real document nests). Past
 /// [`MAX_VALUE_WALK_DEPTH`] this returns [`QueryError::Builtin`] instead of
-/// descending further (issue #996).
+/// descending further.
 pub(crate) fn set_at_path(
     value: Value,
     path: &[Value],
@@ -741,9 +740,9 @@ pub(crate) fn set_at_path(
 /// `depth` is the nesting level of this call (0 at the top), tracking
 /// `path`'s index like [`set_at_path`]'s does — `path` is itself
 /// query-built and unbounded. Past [`MAX_VALUE_WALK_DEPTH`] this stops
-/// descending and returns `value` unchanged rather than recursing further
-/// (issue #996): failing to apply a pathologically-deep delete is a safe
-/// no-op, never data corruption.
+/// descending and returns `value` unchanged rather than recursing further:
+/// failing to apply a pathologically-deep delete is a safe no-op, never
+/// data corruption.
 pub(crate) fn delete_at_path(value: Value, path: &[Value], depth: u32) -> Value {
     if path.is_empty() {
         return Value::Null;
@@ -870,7 +869,7 @@ pub(crate) fn flatten_value(value: &Value, depth: i64) -> Result<Vec<Value>, Que
 /// does, and that is fully generator-controlled. Past
 /// [`MAX_VALUE_WALK_DEPTH`] this stops descending — the untouched subtree
 /// is returned as-is, exactly like hitting `remaining == 0` — rather than
-/// recursing further (issue #996).
+/// recursing further.
 fn flatten_go(seq: &[Value], remaining: i64, native_depth: u32) -> Vec<Value> {
     if remaining == 0 || MAX_VALUE_WALK_DEPTH.exceeded(native_depth) {
         return seq.to_vec();
@@ -1045,11 +1044,11 @@ fn bi_values(args: &[Value]) -> Result<Value, QueryError> {
 /// Sum a numeric sequence (`first` is the leading `Int`/`Float`, used only for
 /// mixed-type error wording).  Integers accumulate with a *checked* add that
 /// stands in for the `+` operator's clean overflow error — never a debug panic
-/// or release wraparound (issue 193).  A float anywhere promotes the whole sum
+/// or release wraparound.  A float anywhere promotes the whole sum
 /// to a float; from that point the integer accumulator is dead, so its checked
 /// add is skipped rather than allowed to error on an overflow that can no longer
 /// reach the result (matching `+`, which never re-narrows to int after
-/// promoting — so `[i64::MAX, 1.0, 1] | add` yields a float, review follow-up).
+/// promoting — so `[i64::MAX, 1.0, 1] | add` yields a float).
 fn bi_add_numeric(items: &[Value], first: &Value) -> Result<Value, QueryError> {
     let mut is_float = false;
     let mut isum: i64 = 0;
@@ -1579,7 +1578,7 @@ mod add_tests {
         assert!(err.to_string().contains("integer sum overflows"), "{err}");
     }
 
-    // FP guard (the review finding): once a float has been seen the result is a
+    // FP guard: once a float has been seen the result is a
     // float, so a later integer that would overflow the *dead* integer
     // accumulator must NOT error — the `+` fold returns a float here.
     #[test]
@@ -1613,10 +1612,10 @@ mod add_tests {
     }
 }
 
-/// Regression coverage for issue #996: `to_jsonable`, `walk_paths`
+/// Regression coverage: `to_jsonable`, `walk_paths`
 /// (`all_paths`), `set_at_path`, `delete_at_path`, and `flatten_go`
-/// (`flatten_value`) each recurse once per nested `Value`/path level, with
-/// no depth cap before this fix. All are reachable with a fully
+/// (`flatten_value`) each recurse once per nested `Value`/path level, so
+/// each needs a depth cap. All are reachable with a fully
 /// generator-controlled nesting depth: `tojson`/`debug`/`stderr` on deeply
 /// nested `fromjson` input, `paths`/`leaf_paths` on the same, `setpath`
 /// with a `range()`-built path far longer than any real document nests,

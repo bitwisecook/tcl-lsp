@@ -471,12 +471,12 @@ fn instcombine_ternary_and_boolean_context() {
 /// The iRules word operators fold through **SCCP** — not just through the
 /// expression-simplification passes that already carried a dialect.
 ///
-/// Regression for the Codex #1046 / soundness review finding: SCCP,
-/// interprocedural propagation, the static-loop simulator, and codegen's
-/// expression folder all evaluated with a dialect-blind policy, so
-/// `FoldOps::is_irules` was `false` there and every word operator declined.
-/// The `eq` control below folded on the same input, proving the loss was
-/// dialect threading rather than the fold itself.
+/// SCCP, interprocedural propagation, the static-loop simulator, and
+/// codegen's expression folder must all evaluate under the document's actual
+/// dialect: a dialect-blind policy leaves `FoldOps::is_irules` `false`, so
+/// every word operator declines to fold. The `eq` control below folds on the
+/// same input, proving any loss is dialect threading rather than the fold
+/// itself.
 #[test]
 fn irules_word_operators_fold_through_sccp() {
     const IR: &str = "f5-irules";

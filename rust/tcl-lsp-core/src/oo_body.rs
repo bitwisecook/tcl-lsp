@@ -539,7 +539,7 @@ fn flat_member_indices(
 }
 
 /// The index of the first *value* argument of a slot member call — `1` when
-/// the member is a slot ([`MemberSpec::slot`], issue #1169) and `args[0]` is
+/// the member is a slot ([`MemberSpec::slot`]) and `args[0]` is
 /// an explicit slot-operation word (`variable -set c`, `filter -append f`),
 /// else `0`.  The operation word names no variable / method / class, so the
 /// walker must not paint it as one; a `-word` that is *not* a recognised

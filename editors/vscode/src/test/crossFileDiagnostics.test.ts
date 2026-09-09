@@ -91,7 +91,7 @@ suite("Cross-file diagnostics in a multi-file workspace (#1331, #1332)", () => {
   const mutableCaller = getDocUri("crossFileMutableCaller.tcl");
 
   // Open the definition once, and wait for the server to have *published* it,
-  // before any test opens a caller (issue #1619).
+  // before any test opens a caller.
   //
   // `did_open` momentarily drops a document's workspace-index entry, and the
   // debounced diagnostics publish is what puts it back. A caller opened inside

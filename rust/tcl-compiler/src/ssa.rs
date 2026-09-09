@@ -124,7 +124,7 @@ pub struct SsaStatement {
     /// naming the cell (`incr a`, `append a x`, `info exists a`, `unset a`)
     /// rather than by substituting a `$a` word. As real a read as any other,
     /// but with no operand for a value-forwarding pass to rewrite; carried
-    /// through to [`crate::def_use::UseKind::VariableName`] (issue #1934).
+    /// through to [`crate::def_use::UseKind::VariableName`].
     pub name_only_uses: HashSet<Symbol>,
 }
 
@@ -147,8 +147,7 @@ pub struct SsaStatement {
 ///
 /// Filtering at either end breaks the other: dropping the use resurrects
 /// `W211 set but never used` on `set a(k) 1; puts {$a(k)}`, and recording the
-/// name as a self-initialising def deletes the feeding store outright
-/// (issues #1142, #1237).
+/// name as a self-initialising def deletes the feeding store outright.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UseClass {
     /// Substituted at this call site, or evaluated by the callee in this same
@@ -171,7 +170,7 @@ pub enum UseClass {
     /// that there is **no operand to rewrite**. A value-forwarding pass that
     /// splices a literal over such a use destroys the statement — the reaching
     /// literal of `a` is `1`, and `incr 1` is neither an increment nor a
-    /// command (issue #1934). [`UseKind::VariableName`] is how the def-use
+    /// command. [`UseKind::VariableName`] is how the def-use
     /// chains carry that distinction to those passes.
     Name,
 }
@@ -371,7 +370,7 @@ impl SsaFunction {
 /// The straightforward answer walks `b`'s immediate-dominator chain looking
 /// for `a`, which is O(depth) with a hash lookup per hop — and on a flat
 /// N-branch dispatch chain the idom chain *is* the whole function, so a
-/// per-block-pair loop over it is O(V²) (issue #1250).  A pre-order DFS of
+/// per-block-pair loop over it is O(V²).  A pre-order DFS of
 /// the dominator tree instead assigns every block a half-open `[enter, exit)`
 /// interval that contains exactly its dominator-tree subtree, and `a`
 /// dominates `b` iff `b`'s interval nests inside `a`'s.
@@ -507,7 +506,7 @@ pub fn is_complexity_guarded(func: &cfg::Function) -> bool {
 ///
 /// Pass `Some(&CommandRegistry)` when available so barrier defs route
 /// through the registry's `ArgRole::VarWrite` query; pass
-/// `None` for the legacy string-match path used by the unit-test
+/// `None` for the string-match fallback used by the unit-test
 /// helpers.
 #[must_use]
 pub fn defs_of(stmt: &Statement) -> Vec<String> {
@@ -520,7 +519,7 @@ pub fn defs_of(stmt: &Statement) -> Vec<String> {
 /// flag on the subcommand: the barrier name's last segment is the
 /// subcommand, the one before it the base command (`… ::tcl::dict::for` →
 /// `dict for`). Callers without a registry (test helpers) fall back to the
-/// legacy suffix heuristic, mirroring the trace fallback below.
+/// suffix heuristic, mirroring the trace fallback below.
 fn barrier_is_loop_list_header(command: &str, registry: Option<&CommandRegistry>) -> bool {
     let Some(registry) = registry else {
         return command.ends_with("::for") || command.ends_with("::map");
@@ -551,10 +550,10 @@ fn barrier_is_loop_list_header(command: &str, registry: Option<&CommandRegistry>
 ///
 /// `braced_literal` is the statement's own `name_braced` flag: a brace-quoted
 /// word (`set {$n} 1`) substitutes nothing, so its `$` is part of a perfectly
-/// static name and the target is **not** dynamic (issue #1078).  Reading the
-/// name text alone called it dynamic, withheld the def, and recorded a read of
-/// `n` — a `W210 Variable 'n' is read before it is set` on code that never
-/// mentions `n`.
+/// static name and the target is **not** dynamic.  Reading the name text
+/// alone calls it dynamic, withholds the def, and records a read of `n` — a
+/// `W210 Variable 'n' is read before it is set` on code that never mentions
+/// `n`.
 #[must_use]
 pub fn is_dynamic_write_target(name: &str, braced_literal: bool) -> bool {
     if braced_literal {
@@ -578,9 +577,9 @@ pub fn is_dynamic_write_target(name: &str, braced_literal: bool) -> bool {
 /// [`CommandTokens::arg_is_braced_literal`].  A brace-quoted word substitutes
 /// nothing, so `foreach {{$x}} {*}$spec {puts ${$x}}` binds the perfectly legal
 /// variable named `$x`; testing the reconstructed word text for `$` / `[`
-/// dropped that name from the barrier's def set and reported a phantom
-/// `W210 Variable '$x' is read before it is set` on code `tclsh` runs happily
-/// (PR #1481 review of issue #1380).  A word that really does substitute
+/// drops that name from the barrier's def set and reports a phantom
+/// `W210 Variable '$x' is read before it is set` on code `tclsh` runs happily.
+/// A word that really does substitute
 /// (`foreach $names …`, `foreach [names] …`, `foreach {*}$spec …`) names
 /// nothing statically and contributes no def.
 ///
@@ -632,7 +631,7 @@ fn registry_barrier_defs(
     // a barrier — `{*}` expansion among its words, a dynamic body — still
     // binds every variable its *literal* var-list words name, and its body is
     // scanned for reads in this same frame, so without these defs a body read
-    // of a loop variable reported W210 "read before it is set" (issue #1380).
+    // of a loop variable reports W210 "read before it is set".
     // A dynamic var-list word (`foreach {*}$pairs …`) names nothing statically
     // and contributes no def — see [`loop_var_list_word_is_static`] for how
     // that verdict is reached.
@@ -640,7 +639,7 @@ fn registry_barrier_defs(
     // A **conditionally-bound** layout is excluded: `dict update dictVar key
     // varName … body` binds `varName` only when the key is present at runtime,
     // so it is not a definite def and the key-aware read-before-set harvester
-    // owns it instead (`RepeatedArgLayout::conditional_binding`, issue #1278).
+    // owns it instead (`RepeatedArgLayout::conditional_binding`).
     let loop_vars_conditional = |repeated: &[tcl_registry::RepeatedArgLayout]| {
         repeated
             .iter()
@@ -677,8 +676,7 @@ fn registry_barrier_defs(
         reg.arg_indices_for_role(command, &arg_strs, ArgRole::VarWrite)
             .into_iter()
             .filter_map(|idx| {
-                // A brace-quoted name word is a literal name, `$` and all
-                // (issue #1078).
+                // A brace-quoted name word is a literal name, `$` and all.
                 let braced = tokens.is_some_and(|t| t.arg_is_braced_literal(idx));
                 args.get(idx).map(|s| {
                     let name = crate::naming::element_var_name_braced(s, braced);
@@ -727,7 +725,7 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
             // is **not** a static def of the name-bearing variable.  `uses_of`
             // records the name read separately.  A brace-quoted target
             // (`set {$n} 1`) substitutes nothing — it is a static def of the
-            // variable literally named `$n` (issue #1078).
+            // variable literally named `$n`.
             if is_dynamic_write_target(name, *name_braced) {
                 return Vec::new();
             }
@@ -773,8 +771,8 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
                     return defs;
                 }
             }
-            // Legacy string-match fallback for callers without a
-            // registry (test helpers).
+            // String-match fallback for callers without a registry
+            // (test helpers).
             if command == "trace" && args.len() >= 3 && args[0] == "add" && args[1] == "variable" {
                 return vec![crate::naming::element_var_name(&args[2]).to_owned()];
             }
@@ -1247,7 +1245,7 @@ fn expand_defs(direct: &[String], elems: &ArrayElems) -> Vec<String> {
 /// reads *every* element, and a dynamic-key / whole-array write reads each
 /// fanned element's prior version (the may-def join input). Both make the
 /// element chains live and upward-exposed so phi placement and liveness see
-/// them (adversarial findings F1/F2/F5 on PR #944).
+/// them.
 fn expand_uses(direct_uses: &[String], direct_defs: &[String], elems: &ArrayElems) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     let push = |n: &str, out: &mut Vec<String>| {
@@ -1426,7 +1424,7 @@ pub(crate) fn structural_body_indices(
     // parameter list bound (`lowering::lower_apply` registers it as a body
     // unit) — so scanning the literal here both mis-frames the read and
     // duplicates it, drawing a false `W210` on the lambda's own parameters
-    // (issue #1070).  Unconditional, not gated on `body_kind`: the role is
+    // Unconditional, not gated on `body_kind`: the role is
     // itself the "fresh frame" statement.  A *dynamic* lambda (`apply
     // $lambda`) is not braced, so `is_braced_arg` keeps it a genuine read.
     let lambda_words: HashSet<usize> = {
@@ -1833,7 +1831,7 @@ fn uses_in_call(
     // `reads` are the registry's `ArgRole::VarRead` positions and
     // `reads_own_defs` its `READS_BEFORE_WRITE` targets: both name the cell
     // rather than substituting it, so they are `UseClass::Name` — a real read
-    // with no operand word behind it (issue #1934).
+    // with no operand word behind it.
     for name in reads {
         if !name.is_empty() {
             found.by_name.insert(name.clone());
@@ -1873,7 +1871,7 @@ fn uses_in_assignment(
 ) {
     // A brace-quoted target's `$` is part of a literal name, not a
     // substitution: it is neither a dynamic target nor a read of the
-    // `$`-less lookalike (issue #1078).
+    // `$`-less lookalike.
     let note_reads_own = |name: &str,
                           braced: bool,
                           scanner: &VarReferenceScanner,
@@ -1916,10 +1914,10 @@ fn uses_in_assignment(
             // `scan_word` declines to substitute inside braces, exactly as the
             // *word* parser does — but a nested `[expr {$x + 1}]` substitutes
             // its own braced body, and that read is real. The call path has
-            // recovered it since #1826; an assignment value substitutes by the
-            // same rules, so `set r [list [expr {0 in $x}]]` reads `x` just as
-            // `puts [list [expr {0 in $x}]]` does (issue #1844 review). Same
-            // owner, one more statement kind — not a second recovery.
+            // recovered it; an assignment value substitutes by the same
+            // rules, so `set r [list [expr {0 in $x}]]` reads `x` just as
+            // `puts [list [expr {0 in $x}]]` does. Same owner, one more
+            // statement kind — not a second recovery.
             scan_nested_substitution_words(tokens.as_ref(), scanner, registry, vars_found);
             if is_dynamic_write_target(name, *name_braced) {
                 vars_found.extend(scanner.scan_word(name, registry));
@@ -1989,8 +1987,8 @@ fn scan_command_words(
     // A **brace-quoted word in a variable-name position** is a literal name,
     // not a template: `unset {$n}` destroys the variable called `$n` and reads
     // nothing (tclsh 9.0.4 / 8.6.14 — `set {$n} v; unset {$n}` leaves `n`
-    // untouched).  Scanning its de-braced content recorded a phantom read of
-    // `n`, which surfaced as `W213 Variable 'n' may not exist` (issue #1078).
+    // untouched).  Scanning its de-braced content records a phantom read of
+    // `n`, which surfaces as `W213 Variable 'n' may not exist`.
     // Only name roles are exempt: a braced `Expr` word (`expr {$a + $b}`)
     // really does substitute, so its reads must still be seen.
     let name_role_braced: std::collections::HashSet<usize> =
@@ -2142,7 +2140,7 @@ fn scan_nested_substitution_words(
 /// whole command names, so a plain `get` would report a `dict for` header as
 /// *unclassified* and read its braced value word as a substitution.  Mirrors
 /// the base/sub split `shimmer::use_site::foreach_header_expected_type`
-/// already does for the same statement (issue #1260).
+/// already does for the same statement.
 fn registry_describes(registry: &CommandRegistry, name: &str) -> bool {
     if registry.get(name).is_some() {
         return true;
@@ -2187,7 +2185,7 @@ struct BracedWordSite<'a> {
 ///   role that never evaluates it: `puts {$y}`, `string match {$pat*} …`,
 ///   `lsort -command {cmp $x}`. The registry is the authority that nothing
 ///   here evaluates the word in this frame, so there is no read.
-///   [`UseClass::Quoted`] (issue #1237).
+///   [`UseClass::Quoted`].
 /// - **unclassified** — a braced word of a command the registry does *not*
 ///   describe: a user proc, an unknown definer. It may be a script, and if it
 ///   is it may run in this frame — a wrapper that hands it to an
@@ -2195,7 +2193,7 @@ struct BracedWordSite<'a> {
 ///   unset name — so the read stands. **Unless** the word sets the name
 ///   itself first: then the read is of that script's own local whichever
 ///   frame it runs in, which is the shape an un-hooked definer body takes
-///   (issue #1142).
+///   frame it runs in.
 fn braced_word_class(site: &BracedWordSite<'_>) -> UseClass {
     if !site.braced || site.evaluated_in_frame {
         return UseClass::Substituted;
@@ -2230,8 +2228,8 @@ fn word_sets_name(word: &str, name: &str, config: tcl_lexer::LexerConfig) -> boo
 ///
 /// The arm bodies are the *only* scripts in the pipeline that reach SSA
 /// un-lowered, so this walk is the one place a `UseClass` would otherwise be
-/// invented rather than derived. It is threaded through instead (issue
-/// #1266): a brace-quoted data word inside an arm keeps the same
+/// invented rather than derived. It is threaded through instead: a
+/// brace-quoted data word inside an arm keeps the same
 /// [`UseClass::Quoted`] it would carry had the arm been lowered, so
 /// read-before-set skips it while liveness still honours it.
 fn switch_reads(
@@ -2309,7 +2307,7 @@ fn reads_in_script(
 /// Every context this walk adds by hand — an `if`/`while`/`for` condition, a
 /// loop's value word, a nested body — is one the enclosing frame really does
 /// evaluate, so it is [`UseClass::Substituted`]; the single exception is a
-/// **braced** loop value word, which is literal list text (issue #1260).
+/// **braced** loop value word, which is literal list text.
 fn reads_in_stmt(
     stmt: &Statement,
     scanner: &mut VarReferenceScanner,
@@ -2355,11 +2353,10 @@ fn reads_in_stmt(
             for it in iterators {
                 // A braced value word is literal list text — `foreach n {a $b
                 // c}` iterates the three characters `$b`, it does not read
-                // `b` (issue #1260). The name is still *recorded*, as
-                // `Quoted`: dropping it here would take its liveness use with
-                // it and resurrect a false W220 on a store whose only mention
-                // is that word (the #1237 guard rail). Classifying is what
-                // separates the two.
+                // `b`. The name is still *recorded*, as `Quoted`: dropping it
+                // here would take its liveness use with it and draw a false
+                // W220 on a store whose only mention is that word.
+                // Classifying is what separates the two.
                 let sink = if it.list_braced {
                     &mut reads.quoted
                 } else {
@@ -2392,8 +2389,8 @@ fn reads_in_stmt(
 }
 
 /// Depth cap for [`collapsed_extra_defs`]'s recursion over nested
-/// `if`/`while`/`for`/`foreach`/`catch`/`try`/`switch` bodies — issue #996.
-/// Transitively bounded today via `MAX_LOWER_NEST_DEPTH` (every `Script`
+/// `if`/`while`/`for`/`foreach`/`catch`/`try`/`switch` bodies.
+/// Transitively bounded via `MAX_LOWER_NEST_DEPTH` (every `Script`
 /// feeding SSA construction was built by `crate::lowering`, which already
 /// caps its own construction at 256), capped here independently for
 /// defence-in-depth and consistency with every other full-tree walker in
@@ -3411,9 +3408,9 @@ mod tests {
 
     #[test]
     fn brace_quoted_write_target_is_not_dynamic() {
-        // Issue #1078 — `set {$n} 1` names the literal variable `$n`; the
-        // braces suppressed every substitution, so nothing about the target
-        // is computed.  tclsh 9.0.4 / 8.6.14 (identical):
+        // `set {$n} 1` names the literal variable `$n`; the braces suppress
+        // every substitution, so nothing about the target is computed.
+        // tclsh 9.0.4 / 8.6.14 (identical):
         //   set {$n} v; info exists {$n} → 1 ; info exists n → 0
         assert!(!is_dynamic_write_target("$n", true));
         assert!(!is_dynamic_write_target("${n}", true));
@@ -3570,8 +3567,8 @@ mod tests {
 
     /// `tcltest::test` body indices come from the spec's arg-role resolver
     /// (option-keyed `-setup`/`-body`/`-cleanup` values plus the legacy
-    /// positional body) via the generic `ArgRole::Body` walk — the old
-    /// `command == "test"` special case is gone.
+    /// positional body) via the generic `ArgRole::Body` walk, not a
+    /// `command == "test"` special case.
     #[test]
     fn structural_body_indices_tcltest_via_registry() {
         use tcl_registry::ArgRole;
@@ -4120,7 +4117,7 @@ mod tests {
         assert!(uses.contains(&"b".to_string()));
     }
 
-    // UseClass classification (issues #1142 / #1237)
+    // UseClass classification
 
     /// A `Call` whose argument words are `args`, with per-word token kinds
     /// derived from the word text: `{…}` lexes to `Str` (brace-quoted, the one
@@ -4209,7 +4206,7 @@ mod tests {
     /// A command the registry does not describe carries no role information,
     /// so its braced word is *unclassified*: it may be a script that runs in
     /// this frame. A name the word sets itself is that script's own local —
-    /// the un-hooked definer shape (#1142) — so it is `Quoted`.
+    /// the un-hooked definer shape — so it is `Quoted`.
     #[test]
     fn uses_of_classified_unknown_definer_body_local_is_quoted() {
         let reg = default_registry();
@@ -4280,7 +4277,7 @@ mod tests {
         }
     }
 
-    /// Issue #1266 — an arm body is the one script that reaches SSA
+    /// An arm body is the one script that reaches SSA
     /// un-lowered, and its reads must arrive classified exactly as the same
     /// word would be outside the arm. A braced data word is `Quoted`.
     /// tclsh-proof: tclsh 9.0.4 — `proc f {z} { switch -glob $z { a* { puts
@@ -4307,9 +4304,9 @@ mod tests {
         assert_eq!(classify(&stmt, &reg, "y"), Some(UseClass::Substituted));
     }
 
-    /// Issue #1266 — a `Statement::Foreach` inside an opaque arm is walked by
+    /// A `Statement::Foreach` inside an opaque arm is walked by
     /// `reads_in_stmt` rather than lowered, so `ForeachIterator::list_braced`
-    /// (#1260) is the extra fact that walk needs: a braced value word is
+    /// is the extra fact that walk needs: a braced value word is
     /// literal list text, recorded `Quoted` so liveness still honours it.
     #[test]
     fn uses_of_classified_opaque_switch_arm_braced_foreach_list_is_quoted() {
@@ -4359,7 +4356,7 @@ mod tests {
         assert_eq!(classify(&stmt, &reg, "y"), Some(UseClass::Substituted));
     }
 
-    /// Issue #1266 — a pattern from the canonical braced arm block is a
+    /// A pattern from the canonical braced arm block is a
     /// literal list element; supplied as separate words it substitutes.
     #[test]
     fn uses_of_classified_switch_pattern_class_follows_patterns_braced() {
@@ -4857,10 +4854,10 @@ mod tests {
         assert_eq!(ssa.entry, b0);
     }
 
-    /// Regression coverage for issue #996: `collapsed_extra_defs` recurses
-    /// once per nested `If`/`While`/`For`/`Foreach`/`Catch`/`Try`/`Switch`
-    /// body, with no depth cap of its own before this fix. Transitively
-    /// bounded to `MAX_LOWER_NEST_DEPTH` (256) by the lowering pass today,
+    /// `collapsed_extra_defs` recurses once per nested
+    /// `If`/`While`/`For`/`Foreach`/`Catch`/`Try`/`Switch` body, with no
+    /// depth cap of its own. Transitively
+    /// bounded to `MAX_LOWER_NEST_DEPTH` (256) by the lowering pass,
     /// so this is defence-in-depth / consistency with every other
     /// full-tree walker in this crate, not a currently-reproducible crash.
     /// 2000 levels is comfortably past this new cap; the assertion is that
@@ -4925,8 +4922,8 @@ mod tests {
     /// a direct call is, when the registry says the callee evaluates it in
     /// this frame. Only a pair of braces separated `[expr $tainted]` (whose
     /// read the enclosing word's own scan already saw) from
-    /// `[expr {$tainted}]` (invisible to every consumer of the use map)
-    /// before the def-use hole was closed — issue #1814.
+    /// `[expr {$tainted}]`, which would otherwise be invisible to every
+    /// consumer of the use map.
     #[test]
     fn braced_word_of_a_nested_substitution_is_read_in_an_evaluated_role() {
         let uses = classified_call_uses("puts [expr {$tainted}]");
@@ -4953,8 +4950,7 @@ mod tests {
     /// lowering: a statement's body becomes its own CFG block, so `lmap`'s
     /// loop variable is defined where the body's reads are seen, while a
     /// nested substitution gets no block at all — so its body's reads arrive
-    /// with none of its own definitions and `x` looks read-before-set
-    /// (issue #1844 review).
+    /// with none of its own definitions and `x` looks read-before-set.
     #[test]
     fn body_word_of_a_nested_substitution_is_not_a_frame_read() {
         let uses = classified_call_uses("puts [join [lmap x $tainted {string toupper $x}] ,]");
@@ -4994,11 +4990,11 @@ mod tests {
         out
     }
 
-    /// Issue #1844 review: an assignment's value word substitutes by exactly
-    /// the rules a call's word does, so the braced body of a nested `[expr …]`
-    /// is a read there too. Without it the expression's operands were absent
+    /// An assignment's value word substitutes by exactly the rules a call's
+    /// word does, so the braced body of a nested `[expr …]`
+    /// is a read there too. Without it the expression's operands are absent
     /// from `uses` and every consumer of that map — the expr shimmer detector
-    /// included — was blind to `set r [list [expr {$tainted + 1}]]`.
+    /// included — is blind to `set r [list [expr {$tainted + 1}]]`.
     #[test]
     fn braced_word_of_a_nested_substitution_is_read_in_an_assignment_value() {
         let uses = classified_assign_uses("set r [list [expr {$tainted + 1}]]");

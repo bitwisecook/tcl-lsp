@@ -19,7 +19,7 @@
 //! Namespaces as **navigable symbols** — the one entry point every provider
 //! resolves a namespace name through.
 //!
-//! Before this, a namespace existed in the model only as a *container*: a
+//! A namespace is also a *container*: a
 //! [`ScopeKind::Namespace`](tcl_compiler::analyser::ScopeKind) node holding
 //! variables and procs, and a `Namespace` entry in the document outline.  A
 //! namespace *name* written as an argument — `namespace children ::tomato`,
@@ -41,8 +41,8 @@
 //! Both blocks are the same namespace: the first creates it, the second
 //! extends it.  So a namespace has a **set** of declaring sites, not one, and
 //! go-to-definition answers with all of them in source order — the same shape
-//! find-references already takes for a proc declared twice (issue #923
-//! idx 31), and the reason [`namespace_declaration_spans`] returns a `Vec`.
+//! find-references takes for a proc declared twice, and the reason
+//! [`namespace_declaration_spans`] returns a `Vec`.
 //!
 //! `namespace eval` is also the **only** declaring form.  A qualified `proc`
 //! does *not* create the namespace it names:
@@ -74,8 +74,8 @@
 //!   [`namespace_implicit_parent_spans`], with the *covering prefix* of the
 //!   deepest written name — the sub-range spelling exactly that namespace,
 //!   never the whole word, which names a different one — and hover words it
-//!   as "implicitly created by" rather than "declared by" (issue #1113
-//!   item 1).  A prefix that is not written at all (inside `namespace eval
+//!   as "implicitly created by" rather than "declared by".  A prefix that is
+//!   not written at all (inside `namespace eval
 //!   ::p`, the word `q::r` spells no `::p`) still answers nothing.
 //! * A **computed** target (`namespace eval $ns { … }`) is recorded only when
 //!   its value is constant-dominated — `set ns ::app; namespace eval $ns
@@ -85,8 +85,8 @@
 //!   neither answers nor pollutes another namespace's reference set.  A
 //!   computed word in *reference* position stays unrecorded either way.
 //! * Inert text is excluded: a `namespace exists ::x` that is really comment
-//!   prose or a braced data word is not code, so it must not resolve
-//!   (issue #923 idx 24).  Here that falls out of the model rather than
+//!   prose or a braced data word is not code, so it must not resolve.
+//!   Here that falls out of the model rather than
 //!   needing a textual gate — a `NamespaceRef` exists only because the
 //!   analyser walked the command as live code, and the walk descends neither
 //!   comments nor braced data words.  See [`namespace_cell_at_offset`] for
@@ -215,8 +215,7 @@ pub fn namespace_declaration_spans(analysis: &AnalysisResult, cell: &str) -> Vec
 /// The answer is the **covering prefix** of the deepest written name: the
 /// leading sub-range of that `namespace eval`'s name word which spells
 /// `cell`, so the span is real source text naming exactly this namespace and
-/// nothing more — never the whole word, which names a different namespace
-/// (issue #1113 item 1).
+/// nothing more — never the whole word, which names a different namespace.
 ///
 /// Empty when `cell` is declared outright (the declaration is the better
 /// answer and [`namespace_declaration_spans`] already gives it), and empty
@@ -391,8 +390,8 @@ pub struct NamespaceFacts {
     /// Occurrences that are not declarations.
     pub references: usize,
     /// Deeper `namespace eval` blocks that create this namespace **only as a
-    /// parent** — `namespace eval ::p::q::r {}` for `::p::q` (issue #1113
-    /// item 1).  Counted separately because it is a weaker statement than a
+    /// parent** — `namespace eval ::p::q::r {}` for `::p::q`.  Counted
+    /// separately because it is a weaker statement than a
     /// declaration and hover must not word the two alike.
     pub implicit_declarations: usize,
     /// How many documents contributed — `1` for a single-document tally.
@@ -459,8 +458,8 @@ pub fn namespace_facts(analysis: &AnalysisResult, cell: &str) -> NamespaceFacts 
 pub fn namespace_hover_markdown(cell: &str, facts: NamespaceFacts) -> Option<String> {
     if facts.declarations == 0 {
         // Nothing declares it outright — but a deeper block may still create
-        // it as a parent, which is a real answer and a differently-worded one
-        // (issue #1113 item 1).
+        // it as a parent, which is a real answer and a differently-worded
+        // one.
         if facts.implicit_declarations == 0 {
             return None;
         }
@@ -657,8 +656,7 @@ mod tests {
     }
 
     // TN: a namespace-name-shaped run of text inside a **comment** is inert —
-    // Tcl runs nothing there, so it must resolve to nothing (issue #923
-    // idx 24's rule, applied to this new symbol kind).
+    // Tcl runs nothing there, so it must resolve to nothing.
     #[test]
     fn tn_comment_text_is_not_a_namespace_reference() {
         let src = "namespace eval mypkg {}\n# namespace children ::mypkg here\n";
@@ -779,7 +777,7 @@ mod tests {
         assert!(namespace_implicit_parent_spans(src, &analysis, "::q").is_empty());
     }
 
-    /// Issue #1246 — the row-wise form the workspace tier calls, given a
+    /// The row-wise form the workspace tier calls, given a
     /// *sibling* document's span and qualified name plus that document's own
     /// text.  It must answer exactly what the whole-document form does.
     #[test]
@@ -938,8 +936,7 @@ mod tests {
     }
 
     // TP: a **braced** namespace name is an ordinary name, so the data-brace
-    // inertness proof must not veto it (issue #1088 review, finding 3
-    // adjacent).
+    // inertness proof must not veto it.
     //
     // Oracle — both interpreters: `namespace eval {my ns} { variable v 7;
     // proc p {} {return P} }` gives `namespace exists {my ns}` -> 1,
@@ -1037,7 +1034,7 @@ mod tests {
         assert!(text.contains("1 other reference(s)"), "{text}");
     }
 
-    // `namespace path {::a ::b}` — issue #1113 item 2.  The argument is a
+    // `namespace path {::a ::b}`.  The argument is a
     // *list* of namespace names inside one word, so no whole-word `ArgRole`
     // can mark it; each element is recorded at its own span by the analyser's
     // `namespace path` handler, using the shared Tcl list grammar.
@@ -1119,9 +1116,8 @@ mod tests {
     fn tp_a_braced_path_word_that_looks_dynamic_is_still_split() {
         // TP — braces suppress substitution, so tclsh reads `$ns` here as a
         // *literal* namespace name (verified on 8.6.14).  The whole-word
-        // dynamic gate used to read the de-braced text and skip the command
-        // outright; it now consults the token kind, so the
-        // elements are recorded at their own spans.
+        // dynamic gate consults the token kind rather than the de-braced
+        // text, so the elements are recorded at their own spans.
         let src = "namespace eval ::a {}\nnamespace path {$ns ::a}\n";
         let analysis = analyse(src);
         assert!(
@@ -1142,7 +1138,7 @@ mod tests {
         );
     }
 
-    // `apply {{x} {…} ::ns}`'s third list element — issue #1113 item 4.  The
+    // `apply {{x} {…} ::ns}`'s third list element.  The
     // analyser already models its *semantics* (`namespace_overrides`); this
     // is its reference identity, which sits inside an
     // `ArgRole::LambdaLiteral` word no whole-word role reaches.
@@ -1186,7 +1182,7 @@ mod tests {
         );
     }
 
-    // A constant-dominated computed target — issue #1113 item 3.  `set ns
+    // A constant-dominated computed target.  `set ns
     // ::app; namespace eval $ns { … }` creates `::app` on every run, so the
     // `$ns` word is a declaring occurrence and navigation reaches it.
 

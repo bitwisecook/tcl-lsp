@@ -135,9 +135,9 @@ pub fn serialise_meta() -> Value {
         "severities": severities,
         "traits": traits,
         // The codegen-pass catalogue, so a front end can render its toggles
-        // before the first compile — the same reason `dialects` is here
-        // (issue #1183). The per-result `semanticOptimisations` view carries
-        // the same rows plus the state the shown module was built with.
+        // before the first compile — the same reason `dialects` is here.
+        // The per-result `semanticOptimisations` view carries the same rows
+        // plus the state the shown module was built with.
         "semanticOptimisations": serialise_semantic_optimisations(
             SemanticOptimisationConfig::new(),
         ),
@@ -1313,9 +1313,9 @@ pub fn serialise_optimisations(result: &ExplorerResult, li: &LineIndex, source: 
                 "replacement": o.replacement,
                 // Informational rather than actionable, and its span is the
                 // whole consuming statement rather than a sub-word. Without
-                // this the view is indistinguishable from an applicable
-                // rewrite — which is how a hint-only O102 came to be read as a
-                // one-click fix (issue #1934). The LSP has always sent it.
+                // this flag a hint-only finding like O102 is indistinguishable
+                // from an applicable rewrite and can be read as a one-click
+                // fix, so the LSP sends it unconditionally.
                 "hintOnly": o.hint_only,
             })
         })
@@ -2412,13 +2412,13 @@ pub fn serialise_bounds(result: &ExplorerResult) -> Value {
 /// with the seed verdict at each argument position — the inputs
 /// `tcl_compiler::unit_scope::params_constants_from_call_sites` reads, so a
 /// surprising (or surprisingly absent) constant fold can be traced to the
-/// evidence that produced it (issue #977).
+/// evidence that produced it.
 #[must_use]
 pub fn serialise_unit_scope(result: &ExplorerResult) -> Value {
     let scope = &result.unit.caller_scope;
     // `scan_unit_linkage` already masks to `UNIT_LINKAGE_TRAITS`, so every
     // name here is a boundary — and `iter_names` is generated from the trait
-    // declarations, so this cannot drift from them (#1034).
+    // declarations, so this cannot drift from them.
     let boundaries: Vec<Value> = scope
         .linkage
         .iter_names()
@@ -3519,7 +3519,7 @@ mod tests {
         );
 
         // `meta` carries the catalogue with nothing enabled, so the panel can
-        // be built before a compile lands (issue #1183's rule for dialects).
+        // be built before a compile lands — the same rule dialects follow.
         let meta = serialise_meta();
         assert_eq!(
             meta["semanticOptimisations"]["passes"]
@@ -3622,8 +3622,8 @@ mod tests {
 
     /// The interprocedural view surfaces the caller-uniform-literal SCCP
     /// seed, and stops surfacing it when a dynamic dispatch reaches the
-    /// same procedure with a different literal (issue #976) — the one fact
-    /// that explains why a condition on a parameter did or did not fold.
+    /// same procedure with a different literal — the one fact that explains
+    /// why a condition on a parameter did or did not fold.
     #[test]
     fn interproc_view_shows_the_param_constant_seed_and_its_withdrawal() {
         const HELPER: &str = "proc helper {mode} {\n\
@@ -4363,7 +4363,7 @@ mod tests {
 
     /// The Unit Scope view must show *why* the interprocedural seed fired:
     /// the registry-declared boundaries the file crosses, whether a
-    /// cross-file view was supplied, and the per-position verdict (#977).
+    /// cross-file view was supplied, and the per-position verdict.
     #[test]
     fn unit_scope_reports_uniform_literals_and_no_boundary() {
         let result = run_pipeline(

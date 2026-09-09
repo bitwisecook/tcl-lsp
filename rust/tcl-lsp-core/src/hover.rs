@@ -1012,8 +1012,8 @@ fn builtin_command_hover_text(
     };
     let name = name.as_ref();
     // A command whose *bare* spelling only works inside a `TclOO` method
-    // context (`link` / `my` / `next` / `nextto` / `self` / `classvariable`
-    // ) has no hover anywhere else: at the top level real Tcl
+    // context (`link` / `my` / `next` / `nextto` / `self` /
+    // `classvariable`) has no hover anywhere else: at the top level real Tcl
     // answers `invalid command name`, so there is nothing to describe.
     // Registry data decides which commands those are; the frame classifier
     // decides where the cursor is. Hover keys on *callability*, not mere
@@ -3654,7 +3654,7 @@ fn member_declaration_hover_text(
 /// `class_q` may name either a *user*-defined class (`analysis.all_classes`
 /// — `oo::class`/`oo::define`/snit/itcl bodies the analyser parsed) or a
 /// *registry*-modelled one (a `tcl-registry` `ObjectClassSpec` — tcllib
-/// factories, or a Tk/ttk widget's self-referential class, issue #927).
+/// factories, or a Tk/ttk widget's self-referential class).
 /// User classes are tried first (richer: params, MRO note); the registry is
 /// the fallback so e.g. `.t instate` still hovers even though `ttk::treeview`
 /// is never a user-defined class.

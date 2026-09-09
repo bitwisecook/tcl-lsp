@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The variable resolver (T1.5) — the variable parallel of the command resolver.
+//! The variable resolver — the variable parallel of the command resolver.
 //!
 //! One classification + one link walk, modelled on `tclVar.c:TclLookupSimpleVar`
 //! (`tmp/tcl9.0.4`) and `namespace-tree.md` §5.3. Given a name and the current
@@ -501,7 +501,7 @@ pub(crate) fn resolved_full_name(
     Some(fqn)
 }
 
-// -- the public coordinator API (mirrors the old FrameStack surface) ---------
+// the public coordinator API (mirrors the old FrameStack surface)
 
 /// `set name value` — write through links to wherever `name` resolves. The cell
 /// takes a **+1** on `obj`. A qualified write into a missing namespace errors.
@@ -562,7 +562,7 @@ pub(crate) fn get(
     }
 }
 
-// -- frame-addressed access (the `VarStore` `FrameId`-honouring path) ---------
+// frame-addressed access (the `VarStore` `FrameId`-honouring path)
 //
 // These resolve `name` as if `level` were the active frame, following links —
 // the `set`/`get`/`unset`/`exists` above are exactly these at the active level.
@@ -993,7 +993,7 @@ pub(crate) fn resolve_var_bytes(
     }
 }
 
-// -- link installation (global / variable / upvar) ---------------------------
+// link installation (global / variable / upvar)
 
 /// Install a link from the current context's `local` name to `target`, unless it
 /// would be a self-link (already that exact cell — the no-op `global`/`variable`

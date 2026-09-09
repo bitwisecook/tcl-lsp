@@ -512,7 +512,7 @@ $g op }
     );
 }
 
-// FP-OBJ-12 — W307 fires on [<cmd-sub>] run in a method body (D3-P3/D4-F5)
+// FP-OBJ-12 — W307 fires on [<cmd-sub>] run in a method body
 
 const FP_OBJ_12_REPRO: &str =
     "oo::class create C {\n    method m {} { [format notACommand] run }\n}";
@@ -520,7 +520,7 @@ const FP_OBJ_12_REPRO: &str =
 #[test]
 fn fp_obj_12_format_in_method_fires() {
     // TP: `[format notACommand] run` inside a method body must fire W307.
-    // D4-F5 closure removed the in-method blanket suppression.
+    // A method body carries no blanket suppression.
     assert!(
         fires(FP_OBJ_12_REPRO, D, "W307"),
         "FP-OBJ-12 TP: [format X] run inside a method body must fire W307 after D4-F5; emitted: {:?}",
@@ -539,7 +539,7 @@ fn fp_obj_12_known_class_new_in_method_silent() {
     );
 }
 
-// FP-OBJ-13 — W307 fires on [my plain] where plain returns literal (D3-P4)
+// FP-OBJ-13 — W307 fires on [my plain] where plain returns literal
 
 const FP_OBJ_13_REPRO: &str = "oo::class create C {\n    method plain {} { return notACommand }\n    method m {} { [my plain] run }\n}";
 
@@ -567,7 +567,7 @@ fn fp_obj_13_my_method_returns_object_silent() {
 }
 
 // FP-OBJ-14 — registered ::ns::cmd / known user proc with non-OBJECT return overrides
-// the ::-prefix factory heuristic (D3-P5 PARTIAL / D4-F6)
+// the ::-prefix factory heuristic
 
 const FP_OBJ_14_REPRO: &str = "\
 namespace eval ::pkg { proc plain {} { return notACommand } }
@@ -580,7 +580,7 @@ proc f {} {
 #[test]
 fn fp_obj_14_namespaced_user_proc_non_object_return_fires() {
     // TP: `::pkg::plain` is a known user proc whose interproc fixpoint result is NOT
-    // object-returning. D4-F6 partial closure overrides the ::-prefix factory heuristic.
+    // object-returning, which overrides the ::-prefix factory heuristic.
     assert!(
         fires(FP_OBJ_14_REPRO, D, "W307"),
         "FP-OBJ-14 TP: namespaced user proc with plain-string return must fire W307; emitted: {:?}",
@@ -613,14 +613,14 @@ fn fp_obj_14_unregistered_external_namespaced_still_silent() {
     );
 }
 
-// FP-OBJ-15 — bare-name [NotAClass new] no longer suppressed (D3-P6/D4-F6)
+// FP-OBJ-15 — bare-name [NotAClass new] is not suppressed
 
 const FP_OBJ_15_REPRO: &str = "proc f {} { set x [NotAClass new]; $x method }\n";
 
 #[test]
 fn fp_obj_15_unknown_class_new_fires() {
     // TP: `[NotAClass new]` MUST fire W307 -- the analyser has no evidence that
-    // NotAClass is an object factory. D4-F6 closure removed the bare-`new`-subcommand heuristic.
+    // NotAClass is an object factory; a bare `new` subcommand is not evidence.
     assert!(
         fires(FP_OBJ_15_REPRO, D, "W307"),
         "FP-OBJ-15 TP: [NotAClass new] must fire W307; emitted: {:?}",
@@ -640,7 +640,7 @@ fn fp_obj_15_known_oo_class_new_silent() {
     );
 }
 
-// FP-OBJ-16 — composed ${ns}::tail ensemble lookup runs unconditionally (D4-F7)
+// FP-OBJ-16 — composed ${ns}::tail ensemble lookup runs unconditionally
 
 const FP_OBJ_16_REPRO: &str = "\
 namespace eval ::mypkg { proc dowork {arg} {} }
@@ -669,7 +669,7 @@ fn fp_obj_16_const_prefix_unknown_proc_fires() {
     );
 }
 
-// FP-OBJ-17 — array set literal-element harvester for callback array (D3-P7)
+// FP-OBJ-17 — array set literal-element harvester for callback array
 
 const FP_OBJ_17_REPRO: &str =
     "proc f {} { array set state {-command notACommand}; $state(-command) hi }\n";
@@ -698,7 +698,7 @@ fn fp_obj_17_callback_array_holds_known_command_silent() {
     );
 }
 
-// FP-OBJ-18 — dict with key-value pair harvester for interproc callback (D3-P8)
+// FP-OBJ-18 — dict with key-value pair harvester for interproc callback
 
 const FP_OBJ_18_REPRO: &str = "proc f {d} { dict with d { $cmd hi } }\nf {cmd notACommand}\n";
 
@@ -724,8 +724,6 @@ fn fp_obj_18_interproc_dict_with_known_command_silent() {
         codes(src, D)
     );
 }
-
-// Follow-up findings (not tagged FP-OBJ-NN)
 
 #[test]
 fn fp_w307_dict_with_does_not_suppress_explicit_local_dispatch() {
@@ -753,8 +751,8 @@ fn fp_w307_oo_class_bare_name_factory_propagates() {
 #[test]
 fn fp_w307_oo_class_method_local_literal_fires() {
     // TP: an exact local set to a literal non-command inside an oo::class
-    // method body must fire W307 — `in_method` is no longer a blanket
-    // suppression. Qualifying the builtin keeps this test independent of an
+    // method body must fire W307 — `in_method` is not a blanket suppression.
+    // Qualifying the builtin keeps this test independent of an
     // object-local command that may shadow a relative `set` at runtime.
     let src = "oo::class create C {\n    method m {} { ::set cmd nope; $cmd arg }\n}";
     assert!(
@@ -847,7 +845,7 @@ fn fp_var_as_cmd_literal_non_command_fires() {
     );
 }
 
-// Pair 2: interprocedural param flow (D3-P2 seeding)
+// Pair 2: interprocedural param flow (interproc seeding)
 
 #[test]
 fn fp_var_as_cmd_param_flow_single_caller_silent() {
@@ -938,7 +936,7 @@ fn fp_var_as_cmd_mixed_callers_conservative_silent() {
 
 // FP-OBJ-19 — `CLASS create NAME` binds a command NAME; later `NAME method`
 // dispatch (and `$var method` where var provably holds NAME) is a real call,
-// not an unknown command / stray dispatch.  Issue #777.
+// not an unknown command / stray dispatch.
 
 #[test]
 fn fp_obj_19_external_class_create_name_no_w123() {
@@ -990,7 +988,7 @@ fn fp_obj_19_created_name_via_var_no_w307() {
 
 #[test]
 fn fp_obj_19_created_names_via_list_foreach_no_w307() {
-    // FP (exact repro of issue #777's screenshot): the created object names are
+    // FP: the created object names are
     // iterated with `foreach elem [list c1 l1 …]` and dispatched via `$elem`.
     // SCCP folds the `[list …]` to the element set, each of which is a created
     // command, so W307 must not fire.
@@ -1118,7 +1116,7 @@ fn fp_obj_20_local_mixin_unknown_method_still_w308() {
 
 #[test]
 fn fp_obj_20_local_mixin_provides_method_silent() {
-    // Regression: an in-file mixin providing the method resolves through the
+    // An in-file mixin providing the method resolves through the
     // MRO — silent, with no reliance on the external-mixin abstention.
     let src = "oo::class create ::Observable { method subscribe {h} {} }\noo::class create Reactive {\n    mixin ::Observable\n    method local {} {}\n}\nset o [Reactive new]\n$o subscribe handler\n";
     assert!(

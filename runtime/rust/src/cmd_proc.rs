@@ -22,7 +22,7 @@
 //! pairs, and a trailing `args` catch-all) and registers a
 //! [`Command::Proc`](crate::interp::Command); the call protocol
 //! (`Interp::call_proc`) pushes a frame, binds the args, and runs the body —
-//! see `proc-call-and-stack-traces.md` (PC-2). `puts` writes to stdout/stderr.
+//! see `proc-call-and-stack-traces.md`. `puts` writes to stdout/stderr.
 
 use crate::interp::{obj_bytes, CallMeta, Code, Interp, Param, ProcFrame};
 use crate::obj::TclObj;
@@ -34,8 +34,6 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"proc", proc_cmd);
     interp.register_builtin(b"apply", apply_cmd);
 }
-
-// -- proc ------------------------------------------------------------------
 
 /// `proc name params body` — define a procedure.
 fn proc_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -79,8 +77,6 @@ pub(crate) fn parse_params(spec: &[u8]) -> Result<Vec<Param>, Vec<u8>> {
         })
         .map_err(|error| error.message().into_bytes())
 }
-
-// -- apply -----------------------------------------------------------------
 
 /// `apply {params body ?namespace?} ?arg ...?` — invoke an anonymous procedure.
 /// The lambda runs in `namespace` (default global), via the shared proc-call

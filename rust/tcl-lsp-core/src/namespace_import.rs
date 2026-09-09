@@ -89,18 +89,18 @@
 //!   by `namespace eval ::mymod {namespace export helper}`, then
 //!   `::app::setup; ::app::run` → `HELP`.
 //! - **Different file from the import: ordered only where the `source` graph
-//!   proves an order** ([`crate::source_graph::RunOrder`], issue #1104 item
-//!   3). Sourcing a file inlines its whole body at the `source` statement's
+//!   proves an order** ([`crate::source_graph::RunOrder`]). Sourcing a file
+//!   inlines its whole body at the `source` statement's
 //!   position, so the DFS of the `source` forest *is* the run order and two
 //!   events in one tree are genuinely comparable. Everywhere else — different
 //!   trees, a re-sourced file, a `source` cycle — nothing is ordered and this
 //!   module abstains toward the safer side *for navigation*: an unrankable
-//!   pattern still counts (keep answering go-to-definition / find-references,
-//!   the pre-#1027 behaviour), while an unrankable `-clear` does **not**
+//!   pattern still counts (keep answering go-to-definition /
+//!   find-references), while an unrankable `-clear` does **not**
 //!   revoke anything (revoking on a guess would silently drop real
 //!   references).
 //!
-//!   Two events written in the **same** foreign file were always ordered
+//!   Two events written in the **same** foreign file are ordered
 //!   against each other even before the graph existed — a file's statements
 //!   run consecutively — so a `namespace export p` followed by a `namespace
 //!   export -clear` in one other file now revokes, where the old
@@ -149,9 +149,9 @@ use tcl_syntax::glob::string_match;
 /// ran?" — three-valued, because *absence of an export record* is only
 /// evidence where the export records themselves are visible.
 ///
-/// The distinction the single-document tier could not draw before issue #1116
-/// item 1: it saw one file, so "no export here" and "the export is in another
-/// file" were the same observation. Both consumers of a verdict abstain, but
+/// The distinction a single-document tier cannot draw: seeing one file makes
+/// "no export here" and "the export is in another file" the same observation.
+/// Both consumers of a verdict abstain, but
 /// in opposite directions, because the questions are opposite:
 ///
 /// | verdict | "what does this call reach?" | "did `-force` delete the local command?" |
@@ -292,7 +292,7 @@ fn in_effect_at(order: &RunOrder, event: RunPoint<'_>, query: Option<RunPoint<'_
 /// Stated over [`exports_in_effect`], which is the whole rule *except* the
 /// name: `name` enters only at the final glob match. Callers that ask about
 /// many names at one import site should hoist that half themselves rather
-/// than call this in a loop — see [`exports_in_effect`] and issue #1297.
+/// than call this in a loop — see [`exports_in_effect`].
 #[must_use]
 pub fn exported_at_import_site(
     events: &mut dyn Iterator<Item = ExportEvent<'_>>,
@@ -320,9 +320,9 @@ pub fn exported_at_import_site(
 ///
 /// The workspace tier ranks every export row against the import with
 /// [`RunOrder`], which is a `HashMap` walk over document URIs. Asking per
-/// *call site* made that walk run once per (invocation × in-scope import ×
-/// export row) — 26 s to answer one `textDocument/references` on the #1181
-/// corpus, where 88 load-level `namespace import`s meet 38 `namespace export`
+/// *call site* makes that walk run once per (invocation × in-scope import ×
+/// export row) — 26 s to answer one `textDocument/references` on a corpus
+/// where 88 load-level `namespace import`s meet 38 `namespace export`
 /// rows. An import's site does not move between edits, so the
 /// timeline half is decided once per recorded import at index-build time and
 /// only the glob match stays on the per-call path.
@@ -584,8 +584,8 @@ mod tests {
         }
     }
 
-    /// No `source` statement anywhere — the workspace shape that must behave
-    /// exactly as the pre-#1104-item-3 tiers did.
+    /// No `source` statement anywhere — the workspace shape in which nothing
+    /// is ordered across documents.
     fn unlinked() -> RunOrder {
         RunOrder::default()
     }
@@ -775,11 +775,11 @@ mod tests {
         ));
     }
 
-    /// TN, issue #1104 item 3. Two export events written in **one** other file
-    /// were always ordered against each other — a file's statements run
-    /// consecutively — even though where that file sits relative to this
-    /// import is unknown. The old one-`Option<u32>`-per-event encoding could
-    /// only call both "unordered" and kept the export.
+    /// TN. Two export events written in **one** other file are ordered
+    /// against each other — a file's statements run consecutively — even
+    /// though where that file sits relative to this import is unknown.  An
+    /// encoding carrying one `Option<u32>` per event could only call both
+    /// "unordered" and keep the export.
     #[test]
     fn a_clear_revokes_a_pattern_written_above_it_in_the_same_foreign_file() {
         let evs = [
@@ -832,7 +832,7 @@ mod tests {
         ));
     }
 
-    // ---- the `source` graph orders what the file boundary did not ---------
+    // The `source` graph orders what the file boundary did not.
 
     /// The two documents the sourced-order tests use, and the order that
     /// sequences them: `app.tcl` sources `exp.tcl` and then `imp.tcl`.
@@ -874,7 +874,7 @@ mod tests {
         ));
     }
 
-    /// TN (CRITICAL, issue #1104 item 3): the same export in a file sourced
+    /// TN (CRITICAL): the same export in a file sourced
     /// **after** the importing one has not run when the import executes, so it
     /// exports nothing to it. This is the leniency the source graph removes.
     #[test]
@@ -905,8 +905,8 @@ mod tests {
         assert!(!exported_at_import_site(&mut evs, "p", &order, at(DOC, 0)));
     }
 
-    /// TN: a `-clear` in an earlier-sourced file now revokes an export from a
-    /// file sourced before *it* — the second row of #1104 item 3's table.
+    /// TN: a `-clear` in an earlier-sourced file revokes an export from a
+    /// file sourced before *it*.
     #[test]
     fn a_clear_in_a_later_sourced_file_revokes_an_earlier_export() {
         let order = RunOrder::build(&[
@@ -983,7 +983,7 @@ mod tests {
         ));
     }
 
-    // ---- load order, for the conflict rule --------------------------------
+    // Load order, for the conflict rule.
 
     #[test]
     fn load_order_is_the_strict_did_this_already_run_relation() {
@@ -1015,7 +1015,7 @@ mod tests {
         assert!(!ran_before((10, BODY), (10, BODY)));
     }
 
-    // ---- the import edge's own lifecycle (issue #1103) -------------------
+    // The import edge's own lifecycle.
 
     fn install(off: u32) -> AliasEvent<'static> {
         AliasEvent {
@@ -1080,7 +1080,7 @@ mod tests {
 
     #[test]
     fn an_install_later_than_the_call_has_not_run_yet() {
-        // #1104 item 1: a bare call written *before* its own `namespace
+        // A bare call written *before* its own `namespace
         // import` reaches nothing (oracle in the function's docs), so an
         // install at 30 with the call at 20 does not install here.
         let mut evs = [install(30)].into_iter();
@@ -1150,11 +1150,10 @@ mod tests {
         assert!(alias_live_at(&mut evs, &unlinked(), None));
     }
 
-    /// TN (CRITICAL, #1104 item 3 / #1116 item 6): `source lib.tcl` followed
-    /// by `namespace forget ::lib::p` beside it — the genuinely-sequenced
-    /// idiom that got *both* halves of the abstention wrong. The install from
-    /// `lib.tcl` counts (it always did), and now the forget written after the
-    /// `source` revokes it.
+    /// TN (CRITICAL): `source lib.tcl` followed by `namespace forget
+    /// ::lib::p` beside it — a genuinely-sequenced idiom.  The install from
+    /// `lib.tcl` counts, and the forget written after the `source` revokes
+    /// it.
     #[test]
     fn a_forget_after_the_source_statement_revokes_the_sourced_install() {
         let order = RunOrder::build(&[RunEdge {
@@ -1184,9 +1183,9 @@ mod tests {
         ));
     }
 
-    // Issue #1297: `exported_at_import_site` is now stated over
+    // `exported_at_import_site` is stated over
     // `exports_in_effect`, which is the whole rule minus the name.  The
-    // workspace tier decides that half once per recorded import instead of
+    // workspace tier decides that half once per recorded import rather than
     // once per (invocation x import x export row).  These pin that the split
     // is exact: whatever `exports_in_effect` keeps must glob-match to the
     // same verdict the one-shot function gives, over every shape the

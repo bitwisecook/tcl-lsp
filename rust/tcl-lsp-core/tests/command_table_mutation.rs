@@ -46,8 +46,7 @@
 //!   inscope ::demo Tracer}}` and writing the variable dispatches
 //!   `::demo::Tracer`, so the wrapped `Tracer` word is a real call site.
 //!
-//! Three further claims were pinned on tclsh 9.0.4 and 8.6.14 for the PR
-//! #1075 review round:
+//! Three further claims, pinned on tclsh 9.0.4 and 8.6.14:
 //!
 //! * `proc a {} {return A}` / `proc b {} {return B}` / `rename a x` /
 //!   `interp alias {} x {} b` — `x` returns `B`: the *later* of the two
@@ -66,8 +65,8 @@
 //!   *outside* the body: `proc outer {} { later }` / `proc later {…}` prints
 //!   `LATER`.
 //!
-//! Issue #1064, issue #1062's deferred B1/B2, and issue #923 differential
-//! -audit findings idx 21 / 45 / 89 / 92.
+//! Every claim above is an oracle for the command-table mutation shapes this
+//! file pins.
 
 use tcl_compiler::analyser::{Analyser, AnalysisResult};
 use tcl_lsp_core::definition::{LspRange, definition};
@@ -86,8 +85,7 @@ fn start_lines(ranges: &[LspRange]) -> Vec<u32> {
 ///
 /// Distinct from [`refs`] on purpose: `references()` dedupes by range, so a
 /// call site recorded twice is invisible there, while `code_lenses` counts
-/// `proc_reference_spans().len()` raw and would show it doubled (PR #1075
-/// review, P2).
+/// `proc_reference_spans().len()` raw and would show it doubled.
 fn lens_count(source: &str, qname: &str) -> usize {
     let analysis = analyse(source);
     let title = tcl_lsp_core::code_lens::code_lenses(
@@ -285,7 +283,7 @@ fn tn_references_exclude_a_call_written_before_the_alias() {
 
 #[test]
 fn tp_references_on_an_alias_target_reach_the_shadowing_call_site() {
-    // TP: idx 89's other half — `::tk::spinbox`'s reference set must include
+    // TP: `::tk::spinbox`'s reference set must include
     // the `::ttk::spinbox` call the alias redirects onto it.
     let src = concat!(
         "namespace eval ::ttk {}\n",
@@ -302,8 +300,8 @@ fn tp_references_on_an_alias_target_reach_the_shadowing_call_site() {
     );
 }
 
-/// The other query direction of the same document — the one that was still
-/// wrong after the go-to-definition half of idx 89 landed.
+/// The other query direction of the same document, which go-to-definition
+/// alone does not settle.
 ///
 /// Oracle (tclsh 9.0.4 and 8.6.16, byte-identical): the script prints
 /// `classic tk::spinbox: .sb -from 0 -to 100`, so `::ttk::spinbox`'s own
@@ -420,8 +418,8 @@ fn tn_an_alias_installed_in_another_body_does_not_drop_the_call_site() {
     );
 }
 
-/// The idx 89 document, shared by the tests above so they all speak about
-/// exactly the same program (`f8/alias_shadow.tcl`, run under both
+/// The alias-shadow document, shared by the tests above so they all speak
+/// about exactly the same program (`f8/alias_shadow.tcl`, run under both
 /// interpreters).
 const ALIAS_SHADOW_SRC: &str = concat!(
     "namespace eval ::ttk {}\n",
@@ -477,8 +475,7 @@ fn tp_references_agree_from_either_declaration_of_a_redefined_proc() {
     );
 }
 
-// Latest binding wins when a name carries both a rename and an alias
-// (PR #1075 review, P2)
+// Latest binding wins when a name carries both a rename and an alias.
 
 /// `proc a`, `proc b`, `rename a x`, `interp alias {} x {} b` — oracle
 /// (tclsh 9.0.4 and 8.6.14): `x` returns `B`.  The alias ran last, so it is
@@ -603,7 +600,7 @@ fn tn_references_do_not_merge_two_commands_split_by_a_rename() {
 #[test]
 fn tp_references_through_a_rename_without_a_redefinition_are_unaffected() {
     // TN guard for the identity check: with a single declaration there is
-    // nothing to disambiguate, so idx 21's plain case still unifies.
+    // nothing to disambiguate, so the plain case still unifies.
     let src = "proc greet {} { return hi }\nrename greet hello\nhello\n";
     assert_eq!(refs(src)(0, 6), vec![0, 1, 2]);
 }

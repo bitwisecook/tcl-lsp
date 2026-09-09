@@ -17,14 +17,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `TclOO` method-resolution-order parity: go-to-definition, hover, and
-//! find-references must give the **same** answer at the **same** cursor
-//! (issue #923 idx 28 / 34 / 35 / 37).
+//! find-references must give the **same** answer at the **same** cursor.
 //!
 //! Each test drives all three providers at one position and asserts them
-//! together, so the three cannot drift apart again: the audit's finding was
-//! precisely that they had — definition walked the full linearisation
-//! (superclasses *and* mixins), while hover and references looked the
-//! method up only on the receiver's own class and abstained on a miss.
+//! together, so the three cannot drift apart: definition walking the full
+//! linearisation (superclasses *and* mixins) while hover and references look
+//! the method up only on the receiver's own class is exactly the divergence
+//! this file forbids.
 //!
 //! C-Tcl proof model: each snippet is a complete, runnable script whose
 //! dispatch was pinned against tclsh 9.0.4.
@@ -128,8 +127,8 @@ fn trio_at(source: &str, (line, character): (u32, u32)) -> Trio {
 
 /// `my m` where `m` comes from a `mixin` two MRO hops away — the exact
 /// shape of `tclopt.tcl`'s `Optimization::addPars` calling
-/// `my duplListCheck` (issue #923 idx 34 / 35, and the second half of idx
-/// 28, whose `ArgsPreprocess` is the same mixin-then-superclass chain).
+/// `my duplListCheck`; `ArgsPreprocess` is the same mixin-then-superclass
+/// chain.
 const MIXIN_CHAIN: &str = "\
 oo::class create DuplChecker {
     method duplListCheck {lst} { return ok }
@@ -174,8 +173,8 @@ fn my_call_to_a_mixin_provided_method_resolves_in_all_three_providers() {
 
 #[test]
 fn declaration_side_query_agrees_with_the_call_site_query() {
-    // The audit's asymmetry: querying from the declaration already found
-    // the call site, while querying from the call site found nothing.
+    // Both directions must agree: querying from the declaration and querying
+    // from the call site.
     let from_decl = trio(MIXIN_CHAIN, "duplListCheck {lst}");
     let from_call = trio(MIXIN_CHAIN, "duplListCheck {}");
     assert_eq!(
@@ -256,8 +255,8 @@ oo::class create Solo {
 }
 
 /// `next` inside a `constructor` — the shape `::tclopt::ParameterMpfit`
-/// uses to forward its options to `::tclopt::Parameter` (issue #923 idx
-/// 37). Pinned: `Derived new 1` prints `base 1` under tclsh 9.0.4.
+/// uses to forward its options to `::tclopt::Parameter`. Pinned: `Derived new
+/// 1` prints `base 1` under tclsh 9.0.4.
 const CONSTRUCTOR_CHAIN: &str = "\
 oo::class create Base {
     constructor {n} { set x $n }
@@ -410,12 +409,10 @@ fn initialize_block_variables_do_not_leak_between_sibling_classes() {
     );
 }
 
-// ───────────── class factories and dynamically-installed members ─────────────
-//
-// Issue #923 idx 53 / 55 / 96 / 97 at the *LSP* surface.  The analyser-side
-// mechanics have their own matrix (`tcl-compiler/tests/analyser.rs`,
-// `mod class_factories`); these pin what the editor actually sees, which is
-// what those findings reported.
+// Class factories and dynamically-installed members, at the *LSP* surface.
+// The analyser-side mechanics have their own matrix
+// (`tcl-compiler/tests/analyser.rs`, `mod class_factories`); these pin what
+// the editor actually sees.
 
 /// Flatten an outline to `(container, member)` pairs, one per nested symbol.
 fn outline_members(source: &str) -> Vec<(String, String)> {
@@ -452,7 +449,7 @@ fn diag_codes(source: &str) -> Vec<String> {
         .collect()
 }
 
-/// idx 55 (TP): `foreach class {A B} { oo::define $class { method m … } }` —
+/// TP: `foreach class {A B} { oo::define $class { method m … } }` —
 /// the ticklecharts `etsb.tcl` monkey-patch.  The target names come from a
 /// **literal** list, so each real class genuinely gains the method (tclsh
 /// 9.0.4 / 8.6.16: `[mychart::chart new] RenderTsb` answers
@@ -500,7 +497,7 @@ $obj RenderTsb
     );
 }
 
-/// idx 96 (TP): a class made by a **user-defined metaclass** (Tk's
+/// TP: a class made by a **user-defined metaclass** (Tk's
 /// `::tk::Megawidget`) is a real class, and the method it inherits from the
 /// superclass that metaclass splices in resolves like any other.
 ///
@@ -551,7 +548,7 @@ oo::class create ::tk::MegawidgetClass {
     );
 }
 
-/// idx 97 (TP): `next` inside a metaclass-made class walks the same
+/// TP: `next` inside a metaclass-made class walks the same
 /// linearisation the literal spelling would.
 ///
 /// tclsh 9.0.4 / 8.6.14: `[IconList new] probe` → `GetSpecs
@@ -588,21 +585,20 @@ Megawidget create IconList FocusableWidget {
     );
 }
 
-/// idx 53 (abstention) / issue #1277 (partial recovery): a class whose
-/// members are installed by *reflection* keeps its member tables as a lower
-/// bound, so W308 answers nothing rather than answering wrongly.
+/// Abstention with partial recovery: a class whose members are installed by
+/// *reflection* keeps its member tables as a lower bound, so W308 answers
+/// nothing rather than answering wrongly.
 ///
 /// tclsh 9.0.4 / 8.6.16 both prove the members are real (`info class methods
-/// ::C3` lists `options`; `[C3 new] options` runs). Since issue #1277, the
+/// ::C3` lists `options`; `[C3 new] options` runs). The
 /// installer's `method $m …` names itself with exactly the loop variable
 /// bound to a **literal** list (`foreach m {options} { … }`), so the walk
 /// can honestly say where `options`'s name comes from — the list element
 /// itself — even though it still knows nothing about the method's
 /// parameter list (`{*}[info class definition ::Donor $m]` is itself
-/// computed, so the signature stays `params_computed`). Definition/hover
-/// now resolve to that honest source location instead of finding nothing;
-/// what must still never happen is the W308 that used to fire here, or an
-/// invented arity diagnostic on a call of any shape.
+/// computed, so the signature stays `params_computed`). Definition and hover
+/// resolve to that honest source location; what must never happen is a W308
+/// here, or an invented arity diagnostic on a call of any shape.
 #[test]
 fn idx53_reflectively_installed_members_abstain_instead_of_warning() {
     let src = "\
@@ -646,7 +642,7 @@ $c3 options
     );
 }
 
-/// idx 53 (FN guard): the abstention is scoped to the class that earns it.
+/// FN guard: the abstention is scoped to the class that earns it.
 /// A sibling class in the same file whose body is fully readable keeps every
 /// method check.
 #[test]

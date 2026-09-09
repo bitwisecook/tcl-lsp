@@ -483,9 +483,7 @@ fn spec_upgrade_verifies_and_refuses_downgrades() {
 /// ambient package provider (`spectcl` — its surface is compiled) is
 /// left byte-identical, marked, and the file reports partial; a token
 /// whose environment does declare one (`f5-iapps`) translates for real
-/// through the live registry (upgrade spec U3, landed with P2-H — this
-/// test previously pinned the pre-U3 all-deferred behaviour and had gone
-/// stale against `tcl-spectcl`'s own U3 gates).
+/// through the live registry.
 #[test]
 fn spec_upgrade_defers_environment_membership_tokens() {
     let tree = Tree::new("upgrade-partial");

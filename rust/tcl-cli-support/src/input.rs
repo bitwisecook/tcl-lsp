@@ -29,11 +29,10 @@ use tcl_lsp_core::source_style::StyleDiagnostic;
 /// Source file extensions the CLI accepts — the registry's single list, shared
 /// with the LSP server's workspace scan and the VS Code activation glob.
 ///
-/// `test` is the standard `tcltest` suite-file extension — `tcl check
-/// path/to/tests/` skipped a project's whole test suite without it, the CLI
-/// twin of the workspace-scan gap in issue #923 differential-audit findings
-/// idx 10 / idx 27. The CLI's own copy had additionally drifted from the
-/// server's by `exp` / `apl` (issue #1242).
+/// `test` is the standard `tcltest` suite-file extension — without it,
+/// `tcl check path/to/tests/` would skip a project's whole test suite,
+/// mirroring the same gap in the workspace scan. The list must also stay in
+/// sync with the server's `exp` / `apl` extensions.
 use tcl_registry::dialects::TCL_SOURCE_EXTENSIONS as SOURCE_SUFFIXES;
 
 /// Directory names skipped during recursive discovery.
@@ -77,7 +76,7 @@ pub struct InputDocument {
     /// The originating file path, if any.
     pub path: Option<PathBuf>,
     /// What the decoder had to substitute to produce [`Self::source`] from the
-    /// bytes on disk (issue #1326).
+    /// bytes on disk.
     ///
     /// [`DecodeReport::is_faithful`] holds for every document read from text
     /// the caller already had — `--source`, stdin — because there were no bytes
@@ -102,7 +101,7 @@ impl InputDocument {
     /// The server normalises at every entry point that reaches the analyser
     /// (`DocumentState::normalised_for_analysis`), and detection there runs on
     /// the normalised text. This is the CLI's one place to do the same, so a
-    /// verb gets it by asking rather than by remembering (issue #1799).
+    /// verb gets it by asking rather than by remembering.
     ///
     /// [`Self::source`] stays the bytes the caller supplied — the byte-backed
     /// encoding diagnostics describe the file on disk and must not be
@@ -409,10 +408,10 @@ pub fn read_input_documents(
         }
         let bytes = std::fs::read(&file_path)
             .map_err(|e| CliError::input(format!("failed to read {}: {e}", file_path.display())))?;
-        // The one byte -> text boundary for Tcl source: still a lossy decode
-        // (so a broken file is analysed rather than refused), but no longer a
-        // silent one — `decode` carries exactly what was substituted, and
-        // `encoding_diagnostics` turns it into a real finding. Issue #1326.
+        // The one byte -> text boundary for Tcl source: a lossy decode (so a
+        // broken file is analysed rather than refused), but not a silent
+        // one — `decode` carries exactly what was substituted, and
+        // `encoding_diagnostics` turns it into a real finding.
         let (source, decode) = decode_source(&bytes);
         documents.push(InputDocument {
             label: file_path.display().to_string(),

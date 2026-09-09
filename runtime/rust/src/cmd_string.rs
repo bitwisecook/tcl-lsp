@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `append` + the `string` ensemble (T1.6), per the EXP-STRING decision:
+//! `append` + the `string` ensemble:
 //! capacity-backed in-place `append` (amortised O(1)), and char-indexed `string`
 //! ops with an **ASCII fast path** (byte index == char index) falling back to a
 //! UTF-8 scan for non-ASCII.
@@ -51,7 +51,7 @@ pub fn install(interp: &mut Interp) {
     );
 }
 
-// -- append ----------------------------------------------------------------
+// append
 
 /// `append varName ?value ...?` — append to the string in `varName` (creating
 /// it if unset), growing the buffer in place (amortised O(1)) when the value is
@@ -115,7 +115,7 @@ pub(crate) fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-// -- string ensemble -------------------------------------------------------
+// string ensemble
 
 fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
@@ -1015,7 +1015,7 @@ fn str_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 // (the per-class membership + fail-index logic). `str_is` above is the thin
 // per-runtime wrapper (option parsing + `-failindex` var write) over it.
 
-// -- char helpers (ASCII fast path) ----------------------------------------
+// char helpers (ASCII fast path)
 
 #[inline]
 fn utf8_len(b: u8) -> usize {
@@ -1087,7 +1087,7 @@ fn parse_isize(b: &[u8]) -> Option<isize> {
 // `TclGetIntForIndex` grammar with the list commands — reuse one parser.
 use crate::cmd_list::index_spec;
 
-// -- error helpers ---------------------------------------------------------
+// error helpers
 /// Whether `opt` abbreviates `-nocase` (`strncmp` with `length > 1`), the sole
 /// option of `string map`/`string match`.
 fn is_nocase_opt(opt: &[u8]) -> bool {

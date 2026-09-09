@@ -6674,12 +6674,9 @@ mod tests {
     #[test]
     fn tcl9_commands_gated_to_tcl90() {
         let reg = CommandRegistry::build_default();
-        // `const` (Tcl 9.0, TIP 677) joins the list: it used to carry
-        // `surface: None` as a workaround to reach iRules events, which
-        // wrongly made it appear valid in 8.4/8.5/8.6 too. The registry-wide
-        // explicit-dialect sweep corrected it to `TCL90_PLUS` — it does not
-        // exist in iRules' embedded Tcl 8.4.6, so it is (correctly) neither
-        // pre-9.0 nor iRules-visible.
+        // `const` (Tcl 9.0, TIP 677) joins the list, gated `TCL90_PLUS`: it
+        // does not exist in iRules' embedded Tcl 8.4.6, so it is (correctly)
+        // neither pre-9.0 nor iRules-visible.
         for name in ["foreachLine", "readFile", "writeFile", "lpop", "const"] {
             let spec = reg.get(name).expect("registered");
             // A 9.0 addition is available in 9.0 *and* 9.1 (a `.1` release is
@@ -8210,8 +8207,8 @@ mod tests {
 
     #[test]
     fn command_prefix_option_is_captured_but_never_a_body() {
-        // `lsort -command cmp {a b}` — the `-command` value is a CommandPrefix
-        // (Phase 6), so it is captured under that role but never returned for a
+        // `lsort -command cmp {a b}` — the `-command` value is a CommandPrefix,
+        // so it is captured under that role but never returned for a
         // Body query, i.e. a bareword prefix is not recursed as a script.
         let reg = CommandRegistry::build_default();
         let args = ["-command", "cmp", "{a b}"];
@@ -8259,7 +8256,7 @@ mod tests {
 
     #[test]
     fn command_prefixes_cover_core_callback_commands() {
-        // Ground-truthed vs real tclsh 8.6/9.0 (stable). Locks in the Phase-2
+        // Ground-truthed vs real tclsh 8.6/9.0 (stable). Locks in the
         // coverage of trace / interp / tcllib callbacks.
         let reg = CommandRegistry::build_default();
         // `trace add variable v w cb` → cb(name1 name2 op) = 3.
@@ -8792,7 +8789,7 @@ mod tests {
     #[test]
     fn namespace_name_option_carries_name_role() {
         // `interp invokehidden -namespace ns cmd` — the `-namespace` value is a
-        // symbolic (namespace) name (Phase 7): captured declaratively for a
+        // symbolic (namespace) name: captured declaratively for a
         // Name query, never for Body/VarWrite (not recursed, not a var def).
         let reg = CommandRegistry::build_default();
         let args = ["invokehidden", "-namespace", "ns", "cmd"];
@@ -8813,7 +8810,7 @@ mod tests {
 
     #[test]
     fn bind_script_form_recurses_only_the_trailing_script() {
-        // `bind $w <KeyPress> {…}` binds a script (issue #785): the third
+        // `bind $w <KeyPress> {…}` binds a script: the third
         // argument is a deferred event-handler body and must be recursed for
         // highlighting.  The `bind tag` / `bind tag sequence` query forms carry
         // no script and must not surface a Body.
@@ -8917,7 +8914,7 @@ mod tests {
     #[test]
     fn text_tag_bind_script_is_a_body() {
         // `pathName tag bind tagName sequence script` binds a deferred
-        // event-handler script as its trailing word (issue #785 class).
+        // event-handler script as its trailing word.
         let reg = CommandRegistry::build_default();
         assert_eq!(
             reg.arg_indices_for_role(
@@ -9327,7 +9324,7 @@ mod tests {
         assert_eq!(set_vars, vec![0]);
     }
 
-    /// `unset x y z` names *every* argument as a variable (issue #774), not
+    /// `unset x y z` names *every* argument as a variable, not
     /// just the first, so all of them highlight as variables.
     #[test]
     fn unset_marks_every_name() {
@@ -9488,10 +9485,9 @@ mod tests {
     /// `BodyKind` cannot answer this — `proc` and `uplevel` are both
     /// `Structural`, because that descriptor answers *which frame*, not
     /// *when* — and neither can the absence of `control_arm_semantics`, which
-    /// `uplevel` / `oo::define` share with `proc` (issue #1571, PR #1652
-    /// review). (`apply` was in that list until issue #1656 gave its lambda
-    /// position a typed frame boundary; it still declares no `DEFERS_BODY`,
-    /// which is what this test checks.)
+    /// `uplevel` / `oo::define` share with `proc`. `apply`'s lambda position
+    /// is a typed frame boundary; it still declares no `DEFERS_BODY`,
+    /// which is what this test checks.
     #[test]
     fn defers_body_marks_only_stored_bodies() {
         use crate::body_kind::BodyKind;
@@ -9535,7 +9531,7 @@ mod tests {
     }
 
     /// `apply`'s lambda position is a typed **frame boundary**: the script
-    /// runs as part of this call, in a fresh procedure frame (issue #1656).
+    /// runs as part of this call, in a fresh procedure frame.
     ///
     /// The declaration is what lets a consumer walking a statement stream
     /// treat an unreadable `apply $lambda` as the missing answer it is — the
@@ -9573,7 +9569,7 @@ mod tests {
     /// what running it means" gate is never the thing deciding a shipped
     /// command's fate.
     ///
-    /// Pinned rather than assumed (issue #1656): `apply` is the only such
+    /// Pinned rather than assumed: `apply` is the only such
     /// command today, so dropping that gate would change nothing here — but a
     /// pack, or a future built-in, can carry the role without typing it, and
     /// then the gate is what keeps an untyped script that runs *now* from
@@ -9605,7 +9601,7 @@ mod tests {
     /// runs it *now*, pinned by name.
     ///
     /// The analyser reads the absence of `DEFERS_BODY` as "this body runs as
-    /// part of this invocation" and, since issue #1672, lets such a body stop
+    /// part of this invocation" and lets such a body stop
     /// its fall-through walk. That makes a *missing* `DEFERS_BODY` a silent
     /// wrong answer rather than a missing one, so the inventory is pinned:
     /// adding a Body-role command fails this test until its author puts it on
@@ -11138,7 +11134,7 @@ mod tests {
     /// `unit_linkage` composes `spec.traits | sub.traits` and filters to the
     /// linkage union, so the answer is subcommand-precise: `package provide`
     /// publishes an API surface, `package require` pulls another unit in, and
-    /// `package names` does neither (issue #977).
+    /// `package names` does neither.
     #[test]
     fn unit_linkage_is_subcommand_precise() {
         let reg = CommandRegistry::build_default();
@@ -11165,7 +11161,7 @@ mod tests {
     /// concrete call, which is the only way the eval-family bits on the
     /// compound members are visible: `namespace eval` / `namespace inscope` /
     /// `interp eval` carry `EVALUATES_CODE` on the **subcommand**, so a
-    /// parent-only `get(name).traits` test misses them (issue #1055).
+    /// parent-only `get(name).traits` test misses them.
     #[test]
     fn invocation_traits_compose_subcommand_traits() {
         let reg = CommandRegistry::build_default();
@@ -12459,10 +12455,9 @@ mod tests {
         }
     }
 
-    /// Widening `Traits` to `u128` gave `SAFE_INTERP_HIDDEN` a bit of its own
-    /// (issue #1031): while it aliased `TRANSFERS_CONTROL` at bit 61, every
-    /// `break`/`continue`/`tailcall`/`yield` read as safe-interp-hidden and
-    /// every `cd`/`exec`/`glob`/… read as control-transferring, which
+    /// `SAFE_INTERP_HIDDEN` has its own bit, distinct from `TRANSFERS_CONTROL`:
+    /// every `break`/`continue`/`tailcall`/`yield` reads as safe-interp-hidden
+    /// and every `cd`/`exec`/`glob`/… reads as control-transferring, which
     /// `FRAME_SENSITIVE_TRAITS` consumes directly.
     #[test]
     fn safe_interp_hidden_no_longer_aliases_transfers_control() {
@@ -12477,7 +12472,7 @@ mod tests {
         assert!(!brk.traits.contains(Traits::SAFE_INTERP_HIDDEN));
     }
 
-    /// Issue #1302: `declares_command_at` answers "is this in a fresh
+    /// `declares_command_at` answers "is this in a fresh
     /// interpreter's command table", which is strictly narrower than `get`'s
     /// "is this a spelling a call site may write".
     ///

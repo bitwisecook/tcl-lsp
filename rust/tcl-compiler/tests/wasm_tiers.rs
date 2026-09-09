@@ -63,7 +63,7 @@
 //! target, wasi-sdk and the libtommath source must all be present, the skip
 //! names whichever is missing, and **`TCL_REQUIRE_WASM_LINK=1`** turns that
 //! skip into a failure. Set it in CI; a silent skip here is indistinguishable
-//! from a pass (issue #1542).
+//! from a pass.
 //!
 //! The budgets test needs none of that — it only compiles — so framing drift
 //! is caught even on a machine with no wasm toolchain at all.
@@ -164,7 +164,7 @@ struct ExpectedDivergence {
 /// §2.2 of the plan document records 29/36 for the analysis plan: its second
 /// defect (`50_catch_error`) closed with the P1 lane's "a compiled activation
 /// is an eval-loop activation" change, and its first — the `puts` fast path
-/// re-parsing compatibility text (issue #1772: `11_while_loop`, `20_lists`,
+/// re-parsing compatibility text (affecting `11_while_loop`, `20_lists`,
 /// `24_regex`, `41_upvar`, `70_var_traces`) — closed when P3 retired that path
 /// from `codegen/wasm/backend.rs`. This suite's stale-entry check is what
 /// caught each ledger row going out of date the moment it did. The plan

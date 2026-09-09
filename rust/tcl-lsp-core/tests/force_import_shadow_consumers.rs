@@ -60,8 +60,8 @@ const MAIN: &str = "namespace eval src {\n    proc helper {alpha beta} { puts \"
 const SIBLING_SHADOWS: &str = "namespace eval src {\n    namespace export helper\n}\n";
 
 /// The sibling that does not: nothing in the program exports `helper`, so the
-/// import binds only `other` and the local definition survives. Issue #1116's
-/// pinned true negative.
+/// import binds only `other` and the local definition survives — the pinned
+/// true negative.
 const SIBLING_INERT: &str = "namespace eval other {\n    proc q {} { puts Q }\n}\n";
 
 const MAIN_URI: &str = "file:///main.tcl";

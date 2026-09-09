@@ -367,8 +367,8 @@ fn st_switch_regexp_literal_pattern_without_metachars_is_plain_regexp() {
 }
 
 // switch (plain, non-regexp) braced case list — `collect_switch_case_list`
-// (exact / glob mode).  Regression for #758: the whole `{ pat body … }` list
-// used to be walked as one opaque body, so the case bodies got no tokens.
+// (exact / glob mode).  Walking the whole `{ pat body … }` list as one opaque
+// body leaves the case bodies with no tokens.
 //
 // tclsh-proof: the case list parses and dispatches. tclsh8.6/9.0:
 //   `set x b; switch $x {a {set r 1} b {set r 2} default {set r 3}}; set r`

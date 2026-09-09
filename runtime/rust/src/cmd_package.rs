@@ -427,7 +427,7 @@ fn vcompare_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-// -- version arithmetic (TIP 268) ------------------------------------------
+// version arithmetic (TIP 268)
 
 fn components(v: &[u8]) -> Vec<i64> {
     v.split(|&b| b == b'.')

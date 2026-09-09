@@ -56,7 +56,7 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"::tcl::unsupported::corotype", corotype_cmd);
 }
 
-// -- the cross-thread plumbing --------------------------------------------
+// the cross-thread plumbing
 
 #[cfg(not(target_arch = "wasm32"))]
 mod imp {
@@ -700,7 +700,7 @@ pub fn in_coroutine() -> bool {
     imp::in_coroutine()
 }
 
-// -- wasm: no OS threads → coroutines need the explicit-stack evaluator -----
+// wasm: no OS threads → coroutines need the explicit-stack evaluator
 
 #[cfg(target_arch = "wasm32")]
 fn coroutine_cmd(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {

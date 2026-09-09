@@ -19,7 +19,7 @@
 //! The version floor a **request-time** provider answers at.
 //!
 //! Every lifecycle-bearing fact in the registry — a command, a subcommand, an
-//! option, an enumerable value, and since issue #1644 a per-argument row — is
+//! option, an enumerable value, and a per-argument row — is
 //! read through an accessor taking `package_version: Option<&str>`. The floor
 //! itself is a per-document fact, so `tcl-registry` never holds one: its
 //! handles are cached per (profile, pack overlay) and shared across documents.

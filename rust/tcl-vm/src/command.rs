@@ -470,13 +470,11 @@ pub(crate) fn build_lambda_proc(
 ///
 /// Defers the call to the *explicit* stack via the pending eval request (like
 /// `eval`/`uplevel`) rather than `Vm::eval_source`'s nested drive, so a `yield`
-/// inside the lambda body stays yieldable — `coroutine c apply {lambda}`
-/// already got this treatment (`cmd_coroutine` binds the lambda to an internal
-/// proc run on the coroutine's own stack); a bare `apply` called *from inside*
-/// a coroutine body did not (issue #1311). `cleanup_proc` carries the
-/// temporary proc's name so it is torn down once the deferred call completes,
-/// mirroring the old `vm.take_command` that ran unconditionally after
-/// `eval_source` returned.
+/// inside the lambda body stays yieldable, matching `coroutine c apply
+/// {lambda}` (`cmd_coroutine` binds the lambda to an internal proc run on the
+/// coroutine's own stack), including a bare `apply` called *from inside* a
+/// coroutine body. `cleanup_proc` carries the temporary proc's name so it is
+/// torn down once the deferred call completes, on every completion path.
 fn cmd_apply(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((lambda, call_args)) = args.split_first() else {
         return err("wrong # args: should be \"apply lambdaExpr ?arg ...?\"");
@@ -547,7 +545,7 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         }
     } else {
         // Reserve the exact `(namespace token, simple name)` destination.
-        // Its Tcl display can collide with another legal command (#1778), so
+        // Its Tcl display can collide with another legal command, so
         // every lifecycle map below uses this private injective key.
         let key = vm.note_rename_destination(&new_name);
         // Procedure provenance keeps a display projection for compatibility,
@@ -957,7 +955,7 @@ fn interp_invokehidden_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 /// abbreviates `create` and the empty word — a prefix of every entry — is
 /// `ambiguous option ""`.
 ///
-/// Like the WASM runtime (#1412 item 3), the table names only the subcommands
+/// Like the WASM runtime, the table names only the subcommands
 /// this engine dispatches: `aliases`, `cancel`, and `target` need
 /// infrastructure the VM has none of, so they are dropped rather than left
 /// advertised-but-undispatchable. `slaves` is 8.x's deprecated spelling of
@@ -1049,7 +1047,7 @@ fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "alias" => match rest {
             [src_path, src_cmd, target_path, target @ ..] if !target.is_empty() => {
                 // Routing (same-interp / parent→child / child→parent), the
-                // written-name → key qualification (#934), and C's
+                // written-name → key qualification, and C's
                 // `TclPreventAliasLoop` walk all live on the Vm.
                 let res = vm.interp_alias_create(
                     &src_path.to_str(),
@@ -1329,7 +1327,7 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let body_key = reg_name.clone();
     // `reg_name` is an already-constructed unrooted key. Invert it through the
     // key owner rather than parsing it again as a written word: a literal `:`
-    // namespace begins with colons but is not a root separator (#934).
+    // namespace begins with colons but is not a root separator.
     let namespace = if tcl_syntax::naming::is_qualified(name_s.as_bytes()) {
         key_holder_and_tail_unrooted(&reg_name).0
     } else {
@@ -1750,8 +1748,8 @@ pub(crate) fn cmd_const(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let name = name_v.to_str();
     let bad = |reason: &str| err(format!("can't make constant \"{name}\": {reason}"));
     // Through the one element-reference owner, not a local re-spelling of its
-    // predicate (issue #1458): the two agree today, which is exactly when a
-    // copy is cheapest to remove and most likely to drift later.
+    // predicate: the two must agree, and a local copy is exactly the kind of
+    // thing that drifts later.
     if looks_like_element(&name) {
         return bad("name refers to an element in an array");
     }
@@ -2177,7 +2175,7 @@ fn cmd_unset(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 /// Whether `name` looks like an array element (`arr(k)`, `(k)`) — the test C's
-/// `TclObjLookupVarEx` applies, through the one shared owner (issue #1458).
+/// `TclObjLookupVarEx` applies, through the one shared owner.
 fn looks_like_element(name: &str) -> bool {
     tcl_syntax::naming::split_element_ref(name).is_some()
 }
@@ -2201,8 +2199,8 @@ fn name_tail(name: &str) -> &str {
 /// an element in an array` (the whole word is one element reference, index
 /// `x::y`), whereas the identical `global v(x::y)` is accepted because its
 /// scan splits at the `::` and lands on the non-element tail `y)`. Splitting
-/// `variable` the same way made all five `::`-in-index spellings silently
-/// succeed (issue #1458).
+/// `variable` the same way would make all five `::`-in-index spellings
+/// silently succeed instead of erroring.
 fn variable_name_tail(name: &str) -> &str {
     let scan_end = name.find('(').unwrap_or(name.len());
     match name[..scan_end].rfind("::") {
@@ -2218,8 +2216,8 @@ fn variable_name_tail(name: &str) -> &str {
 ///
 /// This check runs *before* the element-name guard: `variable ::nosuch::v(k)`
 /// is a missing-namespace error, not an element error, on 8.6.16 and 9.0.4
-/// alike. It closes a slice of #1588 (the VM had no parent-namespace check at
-/// all); the remaining `upvar` surface of that issue is untouched.
+/// alike. `upvar`'s own parent-namespace surface is a separate, uncovered
+/// case.
 fn missing_parent_ns(vm: &Vm, op: &str, name: &str) -> Option<Completion<Value>> {
     if vm.var_parent_exists(name) {
         return None;
@@ -2241,8 +2239,7 @@ fn lookup_var_error_code(name: &str) -> String {
 
 /// C's `MakeUpvar` refusal for a link *target name* that looks like an array
 /// element — a link is always to a scalar cell, so `upvar 0 zz (v)` and
-/// `global a(b)` are hard errors rather than silent mislinks (issue #1458's
-/// companion guard).
+/// `global a(b)` are hard errors rather than silent mislinks.
 fn bad_link_name(name: &str) -> Completion<Value> {
     err_with_code(
         format!(

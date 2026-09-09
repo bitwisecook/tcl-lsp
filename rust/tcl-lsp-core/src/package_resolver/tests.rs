@@ -158,9 +158,8 @@ fn auto_qualify_differential_against_tclsh() {
 
 // pkgIndex.tcl parsing — pure cases + differential against pkg_mkIndex.
 
-/// Regression coverage for issue #996: `collect_source_targets` recurses
-/// once per `[...]`/`{...}`/`"..."` wrapper word, with no depth cap
-/// before this fix (`MAX_SOURCE_TARGET_SCAN_DEPTH`). 2000 nested `[list
+/// `collect_source_targets` recurses once per `[...]`/`{...}`/`"..."`
+/// wrapper word, capped by `MAX_SOURCE_TARGET_SCAN_DEPTH`. 2000 nested `[list
 /// ...]` wrappers is comfortably past that cap (256); the assertion is
 /// that parsing returns at all, not what it returns.
 #[test]
@@ -453,8 +452,8 @@ fn resolve_picks_the_highest_release_satisfying_the_constraint() {
 /// avail {2.0a1}               widget 2.0 -> 2.0a1
 /// ```
 ///
-/// Before #1090 the flag was parsed and dropped, so the first row resolved
-/// 2.3 — a navigation jump into a release the script provably never loads.
+/// Parsing the flag and dropping it resolves the first row to 2.3 — a
+/// navigation jump into a release the script provably never loads.
 #[test]
 fn exact_require_selects_that_release_or_nothing() {
     let td = TempDir::new("exact");
@@ -575,8 +574,7 @@ fn unconstrained_require_prefers_the_highest_stable_release() {
     );
 }
 
-/// `package prefer latest` flips the same corpus onto the prerelease
-/// (issue #1126 item 1).
+/// `package prefer latest` flips the same corpus onto the prerelease.
 ///
 // tclsh-proof: tclsh8.6 (8.6.14), with both registered by hand —
 //   package ifneeded widget 1.2   {package provide widget 1.2}
@@ -700,7 +698,7 @@ fn package_prefer_state_is_ordered_against_the_require() {
     }
 }
 
-/// Issue #1253 item 2 — the interpreter's **starting** mode is an input, not
+/// The interpreter's **starting** mode is an input, not
 /// a constant.  `TCL_PKG_PREFER_LATEST` in the environment (and, on 9.0+, an
 /// unstable build of Tcl itself) makes `latest` the default, which no reading
 /// of the source tree can discover; the workspace setting carries it.
@@ -745,8 +743,8 @@ fn a_latest_default_holds_at_every_position() {
     );
 }
 
-/// Two providers whose versions compare **equal** both contribute their files
-/// (issue #1126 item 2).
+/// Two providers whose versions compare **equal** both contribute their
+/// files.
 ///
 // tclsh-proof: tclsh8.6 (8.6.14) —
 //   package ifneeded w 1.0   {puts A}
@@ -861,7 +859,7 @@ fn package_requires_in_collects_require_and_provide_names() {
 
 #[test]
 fn transitive_closure_pulls_in_tk_through_a_wrapper_package() {
-    // Regression model for #723: `package require myTkPackage`, whose
+    // `package require myTkPackage`, whose
     // implementation does `package require Tk`, makes Tk transitively
     // available — exactly what C Tcl's ifneeded script would do.
     let td = TempDir::new("trans");
@@ -909,8 +907,7 @@ fn transitive_closure_pulls_in_tk_through_a_wrapper_package() {
 
 /// Two providers declaring versions that compare *equal*: the first scanned
 /// is the selected declaration, deterministically — while the *files* are the
-/// union of both (issue #1126 item 2, and
-/// [`super::PackageResolver::resolve_require`]'s doc).
+/// union of both (see [`super::PackageResolver::resolve_require`]'s doc).
 ///
 /// Real Tcl collapses them into one `package ifneeded` entry — first
 /// registration's version string, last registration's script — and the
@@ -954,10 +951,10 @@ fn resolver_first_provider_wins() {
     );
 }
 
-// `auto_loads_command` — the W123 "command defined in library path" oracle
-// (issue #832).  A library that ships a `tclIndex` makes its procs auto-loadable
-// by bare name with no `package require`, exactly the Rbc_* / BLT idiom in the
-// issue.  These pin the TP / FP / TN / FN arms of that resolvability check.
+// `auto_loads_command` — the W123 "command defined in library path" oracle.
+// A library that ships a `tclIndex` makes its procs auto-loadable
+// by bare name with no `package require`, the Rbc_* / BLT idiom.
+// These pin the TP / FP / TN / FN arms of that resolvability check.
 
 /// TN control — the resolvability oracle answers *yes* for a command the scanned
 /// `tclIndex` genuinely provides, so the W123 that would fire on it is a true

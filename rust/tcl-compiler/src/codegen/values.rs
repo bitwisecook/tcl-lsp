@@ -37,7 +37,7 @@ use super::{CodegenCtx, Op, Operand, bytecode_imm};
 /// stricter `::`-segmented `tcl_syntax::naming::is_bare_var_name` that quick
 /// fixes use. `pub(crate)` so
 /// [`native_lowering::cells`](crate::native_lowering::cells) consumes this one
-/// rather than re-deriving the charset (issue #1459).
+/// rather than re-deriving the charset.
 pub(crate) fn is_bare_var_name(name: &str) -> bool {
     !name.is_empty()
         && name
@@ -49,8 +49,8 @@ pub(crate) fn is_bare_var_name(name: &str) -> bool {
 
 impl CodegenCtx<'_> {
     /// Registry-owned constant command-substitution folds and the two `list`
-    /// inlinings that sit beside them — one copy, shared by both value emitters,
-    /// which previously carried it independently.
+    /// inlinings that sit beside them — one copy, shared by both value
+    /// emitters.
     ///
     /// **A folded result is a value, so it is always pushed verbatim.** Folding
     /// runs the command at compile time; its result has no word rule left to
@@ -58,11 +58,11 @@ impl CodegenCtx<'_> {
     /// a second time.
     ///
     /// Every fold is gated on its own builtin still *being* the builtin
-    /// anywhere in this unit (issue #1585): a fold **is** that command's
+    /// anywhere in this unit: a fold **is** that command's
     /// semantics, so after `rename list mylist` or a shadowing `proc format …`
     /// it would answer for a command that is no longer there. The active
     /// registry selects the exact command/subcommand callback and release
-    /// surface (issue #1427), so an owned registry can replace a fold and an
+    /// surface, so an owned registry can replace a fold and an
     /// unavailable command cannot be manufactured by codegen.
     ///
     /// Returns `true` when it emitted the value and the caller must stop.
@@ -200,9 +200,9 @@ impl CodegenCtx<'_> {
     /// A de-quoted or plain word is a value, not source: `"{}"` *is* the
     /// two-byte string `{}`. Handed to the substituting [`push_lit`], the VM's
     /// `subst_word` reads it back as a whole-word braced literal and strips the
-    /// braces a second time — `string index "{}" 0` answered empty where both
-    /// oracles say `{`, and `set v "{}"` stored the empty string (issue #1602
-    /// fixed the braced half of this; the quoted half is the same hole).
+    /// braces a second time — `string index "{}" 0` would answer empty where
+    /// both oracles say `{`, and `set v "{}"` would store the empty string.
+    /// The braced and quoted halves are the same hole.
     ///
     /// The marker test is the VM's own, byte for byte: `subst_word` returns a
     /// word carrying no `${` and no `[` unchanged *apart from* that brace
@@ -298,9 +298,8 @@ impl CodegenCtx<'_> {
 ///
 /// The codegen-side facade over the one element-split owner,
 /// [`split_element_ref`](tcl_syntax::naming::split_element_ref) —
-/// `TclObjLookupVarEx`'s rule (`tclVar.c(9.0.4):683-686`). It carried a
-/// byte-equivalent re-implementation until issue #1606; both halves may be
-/// empty, so `(x)` is element `x` of the array named `""` (issue #1458).
+/// `TclObjLookupVarEx`'s rule (`tclVar.c(9.0.4):683-686`). Both halves may be
+/// empty, so `(x)` is element `x` of the array named `""`.
 #[must_use]
 pub fn split_array_ref(name: &str) -> Option<(&str, &str)> {
     tcl_syntax::naming::split_element_ref(name)
@@ -345,33 +344,32 @@ impl CodegenCtx<'_> {
     /// takes the [`load_var`](Self::load_var) fast path (matching tclsh's
     /// `LOAD_SCALAR`-based key in proc context). A *composite* key that embeds
     /// a substitution (`-$opt`, `x$item`, `${item}suf`, `$a([f])`) is built by
-    /// the full interpolation emitter so the substitution actually runs —
-    /// previously such keys were pushed as a raw literal, so the variable in
-    /// the index never expanded and the element lookup failed. A pure literal
-    /// key is pushed verbatim.
+    /// the full interpolation emitter so the substitution actually runs;
+    /// pushing such a key as a raw literal leaves the variable in the index
+    /// unexpanded and the element lookup fails. A pure literal key is pushed
+    /// verbatim.
     pub fn push_array_key(&mut self, elem: &str) {
         if let Some(inner) = parse_simple_var_ref(elem, self.braced_var) {
             // Whole braced variable reference: `${var}`.
             //
             // Resolved through the same release-aware decoder as every other
-            // `${…}` consumer (issue #1568). This arm used to hand-roll the
-            // scan — `strip_suffix('}')` plus a
-            // `.filter(|inner| !inner.contains(['{', '}']))` guard — which was
-            // a *fourth* copy of the close rule and the only one left
-            // unthreaded. It got two shapes wrong:
+            // `${…}` consumer. Hand-rolling the scan here —
+            // `strip_suffix('}')` plus a
+            // `.filter(|inner| !inner.contains(['{', '}']))` guard — would be
+            // another copy of the close rule, and it gets two shapes wrong:
             //
             //   set {a\}b} K; set arr(K) V; puts $arr(${a\}b})
             //   set {a\{b} K; set arr(K) V; puts $arr(${a\{b})
             //
-            // A whole `${…}` key containing a backslash fell past this arm
-            // (the guard rejects any brace in the name), past the bare-`$`
+            // A whole `${…}` key containing a backslash falls past such a
+            // guard (which rejects any brace in the name), past the bare-`$`
             // arm, and past the composite arm (one part, not >1), landing in
-            // the trailing `elem.contains('\\')` literal arm — which ran
+            // the trailing `elem.contains('\\')` literal arm — which runs
             // `backslash_subst_in` over the *whole* `${…}` spelling. Inside
-            // `${}` the name is literal in C, so that decoded escapes that
-            // must stay verbatim: the first vector failed at 9.x and the
-            // second at **every** release. Composite keys (`x${a\}b}`) were
-            // always correct, which is why only this arm needed the fix.
+            // `${}` the name is literal in C, so that decodes escapes that
+            // must stay verbatim: the first vector fails at 9.x and the
+            // second at **every** release. Composite keys (`x${a\}b}`) are
+            // unaffected.
             self.load_var(inner);
         } else if let Some(var) = elem.strip_prefix('$').filter(|v| is_bare_var_name(v)) {
             // Whole bare variable reference: `$var` (the name runs to the end).
@@ -463,8 +461,8 @@ impl CodegenCtx<'_> {
             // so it goes out verbatim for the same reason a store name does:
             // the VM must not word-substitute a name a second time and strip
             // its outer braces — `set {{}} Z; puts ${{}}` reads the variable
-            // `{}` on tclsh 9.0.4 / 9.1 and printed `can't read ""` here
-            // (issue #1602). Only the element key still substitutes.
+            // `{}` on tclsh 9.0.4 / 9.1, and substituting again reports
+            // `can't read ""`. Only the element key still substitutes.
             //
             // Byte-exact, not `push_lit_verbatim`: a resolved name is not a
             // braced *word*, so its `\<newline>` bytes are name content and
@@ -705,12 +703,11 @@ impl CodegenCtx<'_> {
 ///
 /// `style` is the release-aware `Tcl_ParseVarName` brace rule, resolved
 /// through the shared owner [`tcl_lexer::braced_var_name_end`] rather than
-/// re-scanned here. This function used to walk brace *depth* and require the
-/// first balanced close to be the final byte — which is the **9.x** rule,
-/// applied at every release — while `helpers::parse_subst_template` used the
-/// **8.x** first-`}` rule. Two decoders reading one encoding under two
-/// different releases' rules is what made issue #1568's outcome *inverted*
-/// rather than merely wrong.
+/// re-scanned here. Walking brace *depth* and requiring the first balanced
+/// close to be the final byte is the **9.x** rule; `helpers::parse_subst_template`
+/// would then be reading the same encoding under the **8.x** first-`}` rule.
+/// Two decoders reading one encoding under two different releases' rules
+/// invert the outcome rather than merely getting it wrong.
 ///
 /// The whole value must be the reference: a trailing byte after the name's
 /// closer means this word is `${…}` followed by literal text, which is not a
@@ -718,9 +715,9 @@ impl CodegenCtx<'_> {
 /// `${::a(${::a(1)})}`, because the nesting rule consumes the inner pairs.
 ///
 /// An unterminated name yields `None`: there is no reference to load, and the
-/// caller's fallback path re-reads the word (issue #1457 gave the shared owner
-/// [`tcl_lexer::BracedVarEnd::Unterminated`] precisely so each consumer stops
-/// inventing its own recovery).
+/// caller's fallback path re-reads the word. The shared owner reports
+/// [`tcl_lexer::BracedVarEnd::Unterminated`] so no consumer has to invent its
+/// own recovery.
 ///
 /// Both wrong values of `style` are real defects — do not "simplify" this
 /// parameter away in either direction.
@@ -758,36 +755,33 @@ pub fn parse_simple_var_ref(value: &str, style: tcl_dialect::BracedVarStyle) -> 
     }
 }
 
-// The `$={name}` "braced scalar" marker used to be decoded here, by a
-// `strip_prefix("$={")` + `strip_suffix('}')` pair. It is gone (issue #1617).
+// There is deliberately no `$={name}` "braced scalar" marker decoded here.
 //
-// It was a port artifact: no pass in this workspace has ever *produced* that
-// spelling — the segmenter re-spells a braced variable word verbatim from
-// source (`${…}`, see `segmenter::word_piece`), and nothing else writes a `$=`
-// prefix. A marker with no producer is not an internal encoding at all: every
-// word that reached the decoder was the user's own text, and `$={y}` is
-// literal text in every supported release —
+// Nothing in this workspace produces that spelling — the segmenter re-spells a
+// braced variable word verbatim from source (`${…}`, see
+// `segmenter::word_piece`), and nothing writes a `$=` prefix — so every word
+// reaching such a decoder would be the user's own text, in which `$={y}` is
+// literal in every supported release:
 //
 // ```tcl
 // set y hi
-// puts $={y}     ;# 8.4-9.0: $={y}   — we compiled it to `push y; loadStk` → hi
+// puts $={y}     ;# 8.4-9.0: $={y}
 // ```
 //
 // (`$` is only a substitution trigger before a name character, and `=` is not
-// one; `Tcl_ParseVarName`, tmp/tcl9.0.4/generic/tclParse.c). So the decoder was
-// pure wrong-code: a whole-word `$={name}` loaded the variable `name` instead
-// of pushing the literal. It was also unpinnable — the mutation inventory's
-// M3b (flip the marker arm's close scan) survived the whole corpus precisely
-// because no *real* program could tell the two halves apart (#1615).
+// one; `Tcl_ParseVarName`, tmp/tcl9.0.4/generic/tclParse.c.) Decoding it would
+// be wrong code: a whole-word `$={name}` would load the variable `name`
+// instead of pushing the literal, and no real program could tell the two
+// readings apart, so no corpus test would catch it.
 //
-// Nothing is lost by dropping it: the form it existed to spell, `${a(1)}`,
-// reaches `parse_simple_var_ref` and `load_var`, which agree with both tclsh
-// oracles (`set {a(1)} S; array set a {1 A}; puts ${a(1)}` → `A`, because
+// The form such a marker would spell, `${a(1)}`, reaches
+// `parse_simple_var_ref` and `load_var`, which agree with both tclsh oracles
+// (`set {a(1)} S; array set a {1 A}; puts ${a(1)}` → `A`, because
 // `TclObjLookupVar` parses the parens out of the *name* at lookup time).
 //
-// Do not reintroduce a marker in the `$…` space: any spelling a user can type
-// collides with real source. A future internal marker needs an out-of-band
-// channel (an IR node or a word flag), not a string prefix.
+// Do not introduce a marker in the `$…` space: any spelling a user can type
+// collides with real source. An internal marker needs an out-of-band channel
+// (an IR node or a word flag), not a string prefix.
 
 /// Check if a string is an integer literal (optionally negative).
 fn is_integer_literal(s: &str) -> bool {
@@ -940,7 +934,7 @@ mod tests {
         assert_eq!(split_array_ref("arr(${inner})"), Some(("arr", "${inner}")));
     }
 
-    /// The owner's edge cases hold through this facade (issues #1458, #1606):
+    /// The owner's edge cases hold through this facade:
     /// both halves may be empty, and a `(` with nothing closing it is not a
     /// reference. A local re-spelling that adds a "base must be non-empty"
     /// test would silently demote `set (x) 5` to a scalar.
@@ -1018,13 +1012,13 @@ mod tests {
         );
     }
 
-    // -- the retired `$={name}` marker (issue #1617) --
+    // The `$={name}` spelling is not a marker.
 
     /// A whole word spelt `$={name}` is the *user's* literal text — `=` is not
     /// a name character, so `Tcl_ParseVarName` never starts a substitution
-    /// there and both tclsh oracles print `$={y}` for `puts $={y}`. The
-    /// producer-less "braced scalar" marker that used to claim this spelling
-    /// compiled it to `push "y"; loadStk`, silently reading a variable.
+    /// there and both tclsh oracles print `$={y}` for `puts $={y}`. Treating
+    /// it as a "braced scalar" marker would compile it to
+    /// `push "y"; loadStk`, silently reading a variable.
     #[test]
     fn dollar_equals_word_is_a_literal_not_a_variable_load() {
         let registry = CommandRegistry::build_default();

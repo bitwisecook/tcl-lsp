@@ -35,7 +35,7 @@ use super::config::FormatterConfig;
 use tcl_syntax::word_rules::WordValueRules;
 
 /// Depth cap for [`format_body`]'s (and [`format_case_list_body`]'s) recursion
-/// over nested control-flow bodies — issue #996. Reuses their existing
+/// over nested control-flow bodies. Reuses their existing
 /// `indent_level` parameter as the depth signal rather than threading a
 /// separate one: `indent_level` already increments by exactly one per
 /// nested body, the same shape the depth cap needs.
@@ -74,7 +74,7 @@ enum ArgKind {
     /// shape) — the parameter-list element is normalised and the body
     /// element recursively formatted, then reassembled; never fed to
     /// `format_body` as a whole (that would misread the parameter word as a
-    /// command name — issue #954).
+    /// command name).
     LambdaLiteral,
 }
 
@@ -115,8 +115,8 @@ struct ParsedCommand {
     head_start: u32,
     /// The registry name [`Self::name`] effectively resolves to — the command
     /// this call really *is* once the document's `namespace import` / `interp
-    /// alias` / `rename` / built-in-shadowing `proc` statements are folded in
-    /// (issue #1275).  Equal to [`Self::name`] until [`identify_body_args`]
+    /// alias` / `rename` / built-in-shadowing `proc` statements are folded
+    /// in.  Equal to [`Self::name`] until [`identify_body_args`]
     /// resolves it, and empty for a head whose binding was provably taken over,
     /// which every registry query then answers "unknown" for.
     resolved_name: String,
@@ -338,7 +338,7 @@ fn parse_commands(
             _ => {}
         }
 
-        // segmentation-drift-ok: known #1786 debt — the formatter's own
+        // segmentation-drift-ok: the formatter's own
         // `parse_commands` is a word grouper that must also keep the trivia
         // (comments, blank-line runs) `WordSpan` deliberately does not carry.
         let is_start_of_new_arg = matches!(prev_type, TokenType::Sep | TokenType::Eol);
@@ -419,7 +419,7 @@ fn identify_body_args(
     // registry-driven decision below — body / keyword / param-list / lambda
     // roles, presentation, expression bracing, keyword rewrites, the traits —
     // key off it.  Without this a document doing `rename format
-    // origfmt` or `interp alias {} myfmt {} format` was still laid out under
+    // origfmt` or `interp alias {} myfmt {} format` is laid out under
     // the grammar of the command it no longer is.
     //
     cmd.resolved_name = identities
@@ -952,8 +952,8 @@ fn count_body_commands(body_text: &str) -> usize {
                 depth = depth.saturating_sub(1);
                 in_statement = true;
             }
-            // segmentation-drift-ok: known #1786 debt — `count_body_commands` is a
-            // private top-level command counter over a body it only needs a count
+            // segmentation-drift-ok: `count_body_commands` is a private
+            // top-level command counter over a body it only needs a count
             // for, with its own brace/bracket depth and escape tracking.
             '\n' | ';' if depth == 0 => {
                 if in_statement {
@@ -1221,10 +1221,10 @@ fn keyword_rewrites_for(
     // later Tcl adds is not counted against a prefix the target resolves
     // uniquely.  The forward-compatibility half — "and it must still mean the
     // same thing in every later release of the target range" — is enforced
-    // inside `rewrites_for_command` from `config.target_range()` (issue
-    // #1257).  With no dialect declared this falls back to `None`, the
-    // pre-#1257 conservative direction: every declared keyword stays a
-    // candidate, which can only make a prefix *less* unique.
+    // inside `rewrites_for_command` from `config.target_range()`.  With no
+    // dialect declared this falls back to `None`, the conservative direction:
+    // every declared keyword stays a candidate, which can only make a prefix
+    // *less* unique.
     super::keywords::rewrites_for_command(
         registry,
         config.dialect_query(),
@@ -1439,8 +1439,7 @@ fn concat_expr_parts(
     }
     // Never brace a tail containing an expansion: `expr {*}$pieces` expands the
     // list before evaluating, and `expr {{*}$pieces}` would demote `{*}` to
-    // literal text, breaking the expression (Codex review). Leave such a
-    // command untouched.
+    // literal text, breaking the expression. Leave such a command untouched.
     if args[1..]
         .iter()
         .any(|a| a.tokens.iter().any(|t| t.kind == TokenType::Expand))
@@ -1531,10 +1530,10 @@ pub(crate) fn format_body(
     identities: &tcl_compiler::realm::CommandBindingRealm,
     indent_level: usize,
 ) -> String {
-    // Native-stack safety net — see `MAX_FORMAT_DEPTH`'s doc comment
-    // (issue #996). Past the cap, leave this (deeply nested) body
-    // unformatted rather than recursing further, matching the existing
-    // give-up-gracefully fallback just below for an unparseable body.
+    // Native-stack safety net — see `MAX_FORMAT_DEPTH`'s doc comment.
+    // Past the cap, leave this (deeply nested) body unformatted rather than
+    // recursing further, matching the give-up-gracefully fallback just below
+    // for an unparseable body.
     if MAX_FORMAT_DEPTH.exceeded(u32::try_from(indent_level).unwrap_or(u32::MAX)) {
         return source.to_owned();
     }
@@ -1617,8 +1616,7 @@ pub(crate) fn format_body(
                 // (rather than reformatting the raw source spelling) matters
                 // for a non-literal (bare/quoted) body: its backslash escapes
                 // must be collapsed before the result is parsed as a script,
-                // exactly as Tcl's own list-then-script evaluation would
-                // (codex review of #954's follow-up).
+                // exactly as Tcl's own list-then-script evaluation would.
                 let lambda_body_offset = lambda_body_source_offset(source, source_offset, tok);
                 let formatted = format_body(
                     &body_text,
@@ -1757,9 +1755,8 @@ pub fn format_tcl(source: &str, config: &FormatterConfig, registry: &CommandRegi
     // deliberately outside the shared raw escape decoder: run-time strings
     // with raw CR/CRLF retain their Tcl value semantics.
     let source = super::normalise_document_line_endings(source);
-    // The document's command-identity facts, computed once for the whole file
-    // (issue #1275).  Empty — and lookup-free — unless the document binds
-    // something.
+    // The document's command-identity facts, computed once for the whole
+    // file.  Empty — and lookup-free — unless the document binds something.
     let identities = tcl_compiler::realm::document_realm_bindings_with_config(
         &source,
         config.lexer_config(),
@@ -1804,7 +1801,7 @@ mod tests {
         format_tcl(src, &FormatterConfig::for_profile(dialect), registry)
     }
 
-    /// Regression coverage for issue #996: `format_body` recurses once per
+    /// `format_body` recurses once per
     /// nested control-flow body. Empirically, unguarded nested `if` bodies
     /// overflowed the native stack (SIGABRT) between depth 800 and 1200 on
     /// a 2 MiB thread (`cargo test`'s per-test default). 2000 is
@@ -1928,7 +1925,7 @@ mod tests {
 
     #[test]
     fn enforce_braced_expr_preserves_expansion_tail() {
-        // Codex review: `expr {*}$pieces` expands the list before evaluating;
+        // `expr {*}$pieces` expands the list before evaluating;
         // bracing it (`expr {{*}$pieces}`) would demote `{*}` to literal text
         // and break the expression. The rewrite must leave it alone.
         let config = FormatterConfig {
@@ -2076,7 +2073,7 @@ mod tests {
 
     #[test]
     fn the_irules_profile_alone_decides_the_ghost_separator() {
-        // Issue #1465: the dialect reaches the formatter as one resolved
+        // The dialect reaches the formatter as one resolved
         // profile, so a caller that names iRules — under either spelling —
         // gets the iRules lexer, and one that names a Tcl release does not.
         // `}{` is the discriminator: TMM parses it as two words, stock Tcl
@@ -2095,8 +2092,8 @@ mod tests {
                 "{spelling} left `}}{{` unfixed:\n{out}"
             );
         }
-        // The mismatched modern-Tcl profile — what a caller that forgot the
-        // dialect used to get — leaves the same bytes alone.
+        // The mismatched modern-Tcl profile — what a caller that forgets the
+        // dialect gets — leaves the same bytes alone.
         let tcl9 = format_tcl(
             source,
             &FormatterConfig::for_profile(profile_of("tcl9.0")),
@@ -2372,8 +2369,8 @@ mod tests {
         );
     }
 
-    // Issue #1186 — the formatting engine holds no `if` / `try` / `for`
-    // name checks; every layout decision comes from the registry.
+    // The formatting engine holds no `if` / `try` / `for` name checks; every
+    // layout decision comes from the registry.
 
     /// TP / FN — C Tcl resolves the absolute global spelling to the same
     /// command (`namespace which -command ::if` → `::if`), so `::if`,
@@ -2507,7 +2504,7 @@ mod tests {
         );
     }
 
-    /// Issue #1196 — the regression this fix exists for. C Tcl 9 collapses the
+    /// C Tcl 9 collapses the
     /// backslash-newline in a pre-pass *before* the parameter word is
     /// list-parsed (even inside braces), so `proc f {a\<newline> b}` has the
     /// two required parameters `a` and `b`:
@@ -2601,7 +2598,7 @@ mod tests {
         check("puts \"hello $name\"\n", "puts \"hello $name\"\n");
     }
 
-    /// Issue #954: `apply`'s lambda-literal argument (`ArgRole::LambdaLiteral`,
+    /// `apply`'s lambda-literal argument (`ArgRole::LambdaLiteral`,
     /// not `Body`) must have its real body element reformatted — not the
     /// whole `{argList} {body}` blob re-segmented as one script (which
     /// misreads the parameter word as a command name and never reaches the
@@ -2627,7 +2624,7 @@ mod tests {
         );
     }
 
-    /// Codex review of #954's follow-up: a bare body element's backslash
+    /// A bare body element's backslash
     /// escape must be decoded before reformatting, not reformatted from its
     /// raw source spelling — `puts\ hi`'s real runtime body is the two-word
     /// command `puts hi`, not one word containing a literal backslash.
@@ -2715,12 +2712,12 @@ mod tests {
             "proc a {} {\n    return\n}\n\nproc b {} {\n    return\n}\n",
         );
     }
-    /// Issue #1275 — the formatter must lay a command out under the grammar
+    /// The formatter must lay a command out under the grammar
     /// of the command it *is*, not the one it is spelled as.
     ///
-    /// This is the user-visible half of the issue: an `ArgRole::Body` argument
-    /// is expanded onto its own lines, so a rebound body-bearing command that
-    /// resolved by spelling was formatted under a grammar it no longer had.
+    /// An `ArgRole::Body` argument is expanded onto its own lines, so a
+    /// rebound body-bearing command resolved by spelling would be formatted
+    /// under a grammar it no longer has.
     ///
     /// tclsh oracle (8.6.16 and 9.0.4, byte-identical): `interp alias {} maybe
     /// {} if` makes `maybe` run `if`; `rename if maybe` moves it and leaves

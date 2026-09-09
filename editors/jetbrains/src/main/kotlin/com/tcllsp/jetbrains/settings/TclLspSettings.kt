@@ -36,9 +36,9 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
 
     // General
 
-    // Kept for XML deserialization of old settings; the server is now a
-    // bundled native binary launched directly, so no Python interpreter is
-    // discovered or used.
+    // Kept only so XML deserialization of previously saved settings does not
+    // fail; the bundled native server is launched directly, so no Python
+    // interpreter is discovered or used.
     var pythonPath: String = "auto"
     var serverPath: String = ""
     var dialect: String = "tcl8.6"
@@ -53,7 +53,8 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var featureHover: Boolean = true
     var featureCompletion: Boolean = true
     var featureDiagnostics: Boolean = true
-    // Kept for XML deserialization of old settings; no longer sent to server.
+    // Kept only so XML deserialization of previously saved settings does not
+    // fail; not sent to the server.
     var featureFormatting: Boolean = true
     var featureSemanticTokens: Boolean = true
     var featureCodeActions: Boolean = true
@@ -69,7 +70,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var featureCallHierarchy: Boolean = true
     var featureDocumentLinks: Boolean = true
     var featureSelectionRange: Boolean = true
-    // New in 1.6.x — see editors/vscode/package.json for matching defaults.
+    // See editors/vscode/package.json for matching defaults.
     var featureDocumentHighlight: Boolean = true
     var featureCodeLens: Boolean = true
     var featureWorkspaceFileOps: Boolean = true

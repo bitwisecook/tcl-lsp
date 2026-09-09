@@ -1108,9 +1108,9 @@ mod tests {
         Regex::new(pattern).expect("valid regex").is_match(subject)
     }
 
-    /// Regression guard: `eq`/`starts_with` (already working before this
-    /// fix) must keep working now that the alternation is built from
-    /// `BinOp` spellings instead of hand-typed.
+    /// `eq`/`starts_with` extraction must keep working when the
+    /// alternation is built from `BinOp` spellings instead of hand-typed
+    /// strings.
     #[test]
     fn uri_hint_still_extracts_eq_and_starts_with() {
         let cond = if_cond(r#"[HTTP::uri] eq "/login""#);

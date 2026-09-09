@@ -42,7 +42,7 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"zlib", zlib_cmd);
 }
 
-// -- checksums -------------------------------------------------------------
+// checksums
 
 /// The reflected CRC-32 table (polynomial `0xEDB88320`), built at compile time.
 const fn crc_table() -> [u32; 256] {
@@ -90,7 +90,7 @@ fn adler32(init: u32, data: &[u8]) -> u32 {
     (b << 16) | a
 }
 
-// -- codec (flate2 / miniz_oxide) ------------------------------------------
+// codec (flate2 / miniz_oxide)
 
 /// zlib's `zError` string for a decompression failure — corrupt or truncated
 /// input surfaces as `Z_DATA_ERROR`, whose message is `data error` (`tclZlib.c`
@@ -134,7 +134,7 @@ fn decompress_gzip(data: &[u8]) -> Option<Vec<u8>> {
     Some(out)
 }
 
-// -- argument helpers ------------------------------------------------------
+// argument helpers
 
 /// Parse an optional `level` (0..=9) argument for `compress`/`deflate`; the
 /// default (no argument) is zlib's `Z_DEFAULT_COMPRESSION` (level 6).
@@ -154,7 +154,7 @@ fn parse_level(interp: &mut Interp, arg: Option<&[u8]>) -> Result<Compression, C
     }
 }
 
-// -- the ensemble ----------------------------------------------------------
+// the ensemble
 
 fn zlib_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     const SUBS: &[&[u8]] = &[

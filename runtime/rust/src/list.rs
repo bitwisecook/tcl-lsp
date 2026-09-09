@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The Tcl **list** value type (T1.6) — the first user of the typed-internal-rep
+//! The Tcl **list** value type — the first user of the typed-internal-rep
 //! machinery (`obj::change_type` / `free`/`dup`/`update_string` via `typePtr`).
 //!
 //! ## Representation decision (re-derived)
@@ -68,7 +68,7 @@ pub static TCL_LIST_TYPE: TclObjType = TclObjType {
     set_from_any_proc: None,
 };
 
-// -- internalRep accessors --------------------------------------------------
+// internalRep accessors
 
 unsafe fn list_ref<'a>(obj: *mut TclObj) -> &'a TclList {
     // SAFETY: `obj` has the list type, so its internalRep is a live `TclList *`.
@@ -80,7 +80,7 @@ unsafe fn list_mut<'a>(obj: *mut TclObj) -> &'a mut TclList {
     unsafe { &mut *(obj::internal_rep(obj) as usize as *mut TclList) }
 }
 
-// -- type procs -------------------------------------------------------------
+// type procs
 
 extern "C" fn list_free(obj: *mut TclObj) {
     // SAFETY: `obj` is a live list obj being freed; reclaim the backing box and
@@ -125,7 +125,7 @@ extern "C" fn list_update_string(obj: *mut TclObj) {
     }
 }
 
-// -- shimmer ----------------------------------------------------------------
+// shimmer
 
 /// Ensure `obj` carries the list internal rep, parsing its string rep into
 /// elements if it does not (string → list shimmer). The string rep is kept.
@@ -152,7 +152,7 @@ fn ensure_list(obj: *mut TclObj) -> Result<(), ListError> {
     Ok(())
 }
 
-// -- public ops -------------------------------------------------------------
+// public ops
 
 /// `Tcl_NewListObj` — a fresh (`rc 0`) list of the given elements (each retained).
 pub fn new_list_obj(elems: &[*mut TclObj]) -> *mut TclObj {
@@ -217,7 +217,7 @@ pub fn list_append(obj: *mut TclObj, elem: *mut TclObj) -> Result<(), ListError>
     Ok(())
 }
 
-// -- list-element string quoting --------------------------------------------
+// list-element string quoting
 
 /// Tcl list whitespace (the bytes `TclFindElement` treats as separators).
 #[inline]

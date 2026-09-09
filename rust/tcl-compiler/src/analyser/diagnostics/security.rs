@@ -62,12 +62,11 @@ impl Analyser {
     /// in the caller's frame is a frame-escalation finding with its own
     /// message, not the same warning as injecting into a same-frame `eval`.
     ///
-    /// The gate used to read that split *indirectly* — "no
-    /// `arg_role_resolver`, with a fixed [`ArgRole::Body`] at argument 0" —
-    /// which made W101's scope an accident of how a spec spells its argument
-    /// layout rather than of what the command does. Both halves now name the
-    /// semantics, so re-modelling `eval`'s roles cannot silently switch W101
-    /// off (issue #1051).
+    /// Both halves name the semantics directly.  Reading the split indirectly
+    /// — "no `arg_role_resolver`, with a fixed [`ArgRole::Body`] at argument
+    /// 0" — would make W101's scope an accident of how a spec spells its
+    /// argument layout rather than of what the command does, so re-modelling
+    /// `eval`'s roles could silently switch W101 off.
     fn is_concat_eval_command(&self, cmd_name: &str) -> bool {
         self.security_spec(cmd_name).is_some_and(|s| {
             s.traits
@@ -104,8 +103,8 @@ impl Analyser {
 
     /// True when the inner script of a `[…]` substitution invokes a
     /// substitution performer ([`Traits::PERFORMS_SUBSTITUTION`] — `subst`)
-    /// as its command head.  Registry-driven replacement for the former
-    /// literal `subst` prefix match; `get` resolves a leading `::`, so the
+    /// as its command head.  Registry-driven rather than a literal `subst`
+    /// prefix match; `get` resolves a leading `::`, so the
     /// fully-qualified `[::subst …]` spelling is caught too.
     fn inner_head_performs_substitution(&self, inner: &str) -> bool {
         let head = inner
@@ -135,8 +134,7 @@ impl Analyser {
     /// [`Self::trailing_arg_fixes`] from the argument tokens.  A consumer
     /// that instead reconstructed an insertion point from the diagnostic's
     /// end would write the new word between `catch` and its body and
-    /// silently shift every argument one position along — the corruption
-    /// issue #1190 reports.
+    /// silently shift every argument one position along, corrupting the call.
     pub(in crate::analyser) fn emit_w302_catch_no_result_var(
         &mut self,
         cmd_name: &str,
@@ -345,7 +343,7 @@ Consider capturing the result: catch {\u{2026}} result"
         // approximation gap: ``"foo{$x}bar"`` (substitution inside
         // a brace pair within a quoted string — Tcl treats braces
         // as literal inside ``"…"``) is not detected.  Real W101
-        // shapes don't hit that pattern; documented for posterity.
+        // shapes don't hit that pattern.
         // Anchor at the *first argument that actually carries the
         // substitution*, not `arg_tokens[0]`: `eval "safeprefix" $x` puts the
         // hazard in `$x`, so highlighting the safe literal prefix would point
@@ -696,8 +694,7 @@ This is a code-injection risk. Use [format] or [string map] for safe templating.
         // spec's arg-role resolver: the resolver treats a *dynamic* first
         // word (`uplevel $lvl $body`) as a level when a script word
         // follows, but for injection purposes a substituted word must be
-        // scanned as script — the conservative posture this check has
-        // always taken.
+        // scanned as script — the conservative posture this check takes.
         let script_idx = usize::from(uplevel_has_level(&args[0]));
         if script_idx >= args.len() || script_idx >= arg_tokens.len() {
             return;
@@ -1485,7 +1482,6 @@ Store secrets in environment variables or a vault, not in source code."
 /// True when `pattern` contains a catastrophic-backtracking shape: a
 /// nested quantifier (`…+)+`, `…*)*`, `…+){`) or an overlapping
 /// alternation (`(…|…)` immediately followed by `+` / `*` / `{`).
-/// Hand-written replacement for the `_REDOS_PATTERN` regex.
 pub(super) fn has_redos_shape(pattern: &str) -> bool {
     let bytes = pattern.as_bytes();
     let quant = |b: Option<&u8>| matches!(b, Some(b'+' | b'*' | b'{'));
@@ -1573,8 +1569,8 @@ fn catch_body_is_fire_and_forget(
     if head.is_empty() {
         return false;
     }
-    // Resolve a namespace-qualified spelling to its tail, matching the
-    // pre-registry behaviour (`::close` and `myns::close` both counted).
+    // Resolve a namespace-qualified spelling to its tail, so `::close` and
+    // `myns::close` both count.
     let bare = head
         .trim_start_matches(':')
         .rsplit("::")

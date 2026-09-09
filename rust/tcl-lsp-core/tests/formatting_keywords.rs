@@ -195,7 +195,7 @@ fn formatting_never_changes_a_range_it_was_not_asked_about() {
     );
 }
 
-// Issue #1256 — the boolean consumption site is a declared registry fact
+// The boolean consumption site is a declared registry fact
 // (`ArgRole::Boolean`), not something inferred from an option's value set.
 //
 // tclsh-proof (8.6.16 / 9.0.4): the value's bytes are consumed and discarded,
@@ -276,8 +276,8 @@ fn the_declared_role_reaches_the_whole_boolean_option_surface() {
         // Tk geometry and fonts.
         ("pack configure .w -expand yes\n", "-expand true"),
         ("font configure f -underline yes\n", "-underline true"),
-        // tcltest — the two options the pre-#1256 inference could see, still
-        // rewritten now that the fact is declared rather than inferred.
+        // tcltest — the two options an inference over the value set could
+        // see, rewritten here from the declared fact instead.
         ("tcltest::configure -singleproc yes\n", "-singleproc true"),
         (
             "tcltest::configure -limitconstraints yes\n",
@@ -358,7 +358,7 @@ fn a_dynamic_boolean_option_value_abstains() {
     assert!(out.contains("-blocking $flag"), "{out}");
 }
 
-// Issue #1257 — the formatter config carries the document's dialect and target
+// The formatter config carries the document's dialect and target
 // version range, so a version-range-aware rewrite can apply it.
 //
 // tclsh ground truth: `string c` is unique in 8.5 (only `compare` starts with
@@ -379,7 +379,7 @@ fn fmt_over_range(src: &str, dialect: &str) -> String {
 }
 
 /// Format `src` against `dialect`'s registry with no declared range — the
-/// pre-#1257 behaviour, kept as the control.
+/// control for the range-aware cases.
 fn fmt_no_range(src: &str, dialect: &str) -> String {
     let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
     format_tcl(src, &FormatterConfig::default(), registry)
@@ -392,9 +392,8 @@ fn the_default_config_declares_no_range() {
     assert_eq!(cfg.dialect_query(), None);
     assert!(cfg.target_range().is_empty());
     // No dialect and no range: every declared keyword stays a candidate, the
-    // pre-#1257 conservative direction. `string c` is ambiguous under that
-    // rule (8.6's `cat` is in the table whatever the target), so it is left
-    // alone — unchanged behaviour.
+    // conservative direction. `string c` is ambiguous under that rule (8.6's
+    // `cat` is in the table whatever the target), so it is left alone.
     assert!(fmt_no_range("string c $a $b\n", "tcl8.5").contains("string c $a $b"));
 }
 

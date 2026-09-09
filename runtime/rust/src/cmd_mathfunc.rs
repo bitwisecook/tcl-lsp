@@ -16,8 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `::tcl::mathfunc::*` — the math functions as **real, overridable commands**
-//! (T1.5, the registry-backed convergence).
+//! `::tcl::mathfunc::*` — the math functions as **real, overridable commands**,
+//! registry-backed.
 //!
 //! In C Tcl 9 (`tclBasic.c`) `expr`'s function calls dispatch as commands in the
 //! `::tcl::mathfunc` namespace, so they are overridable/renamable. This registers

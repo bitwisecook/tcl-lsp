@@ -354,7 +354,7 @@ fn delay(interp: &mut Interp, ms: u64) -> Code {
     Code::Ok
 }
 
-// -- helpers ---------------------------------------------------------------
+// helpers
 
 fn join_args(args: &[*mut TclObj]) -> Vec<u8> {
     let mut out = Vec::new();

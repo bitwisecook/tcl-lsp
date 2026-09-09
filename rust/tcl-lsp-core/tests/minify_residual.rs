@@ -122,9 +122,9 @@ fn agg(src: &str, isolated: bool) -> MinifyResult {
 fn symbol_map_format_emits_every_populated_section() {
     // Build a map touching every section so `format` walks all its branches
     // (procs, per-scope variables, command / argument / string aliases,
-    // static folds — the array-member section was removed with issue #1192:
-    // array keys are Tcl data and are never compacted). This is a
-    // presentation contract, not a Tcl value.
+    // static folds).  There is no array-member section: array keys are Tcl
+    // data and are never compacted.  This is a presentation contract, not a
+    // Tcl value.
     let mut sm = SymbolMap::default();
     sm.procs.insert("greet".to_owned(), "a".to_owned());
     sm.variables
@@ -156,9 +156,9 @@ fn symbol_map_format_emits_every_populated_section() {
 
 #[test]
 fn symbol_map_parse_round_trips_vars_and_procs() {
-    // `parse` only reconstructs the procs / variables sections (the aliases
-    // are not parsed back; the array-member section no longer exists —
-    // issue #1192). Round-trip through `format` -> `parse`.
+    // `parse` only reconstructs the procs / variables sections; the aliases
+    // are not parsed back, and there is no array-member section. Round-trip
+    // through `format` -> `parse`.
     let mut sm = SymbolMap::default();
     sm.procs.insert("greet".to_owned(), "a".to_owned());
     sm.variables
@@ -321,8 +321,8 @@ fn remap_word_bounded_line_keyword_is_not_matched() {
 
 // Aggressive pipeline constant interpolation — end-to-end semantics.
 //
-// NOTE on layering: the aggressive tier runs the OPTIMISER (phase 1) BEFORE the
-// SCCP static-substring fold (phase 1.5). For a constant interpolation like
+// Layering: the aggressive tier runs the optimiser before the SCCP
+// static-substring fold. For a constant interpolation like
 // `puts "n=$x"` the optimiser's own constant-propagation already rewrites the
 // argument (and drops the now-dead `set`), so the visible end-to-end result is
 // `puts n=5`. (The standalone `fold_static_substrings` branches are covered by
@@ -568,8 +568,7 @@ fn expr_comparison_inversion_membership() {
 
 #[test]
 fn expr_comparison_inversion_less_than_is_declined() {
-    // FIXED (was an unsound minification, issue #1437): `!($a < $b)` is NOT
-    // `$a >= $b` once an operand may be NaN.
+    // `!($a < $b)` is NOT `$a >= $b` once an operand may be NaN.
     // tclsh-proof: a=NaN b=1 -> `!($a<$b)` -> 1 but `$a>=$b` -> 0 (8.6 + 9.0),
     //   because a NaN operand makes every ordered comparison false. The
     //   minifier has no type information about `$a`, so it cannot rule NaN out

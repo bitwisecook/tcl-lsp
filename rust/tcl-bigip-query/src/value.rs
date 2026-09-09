@@ -50,7 +50,7 @@ use tcl_core_types::RecursionLimit;
 use crate::projection::Container;
 
 /// Maximum nesting depth every recursive `Value`-tree walker in this crate
-/// enforces (issue #996) — `py_eq` here, plus `to_jsonable`, `walk_paths`,
+/// enforces — `py_eq` here, plus `to_jsonable`, `walk_paths`,
 /// `set_at_path`, `delete_at_path`, and `flatten_go` in
 /// [`crate::builtins`], the special-form `walk` builtin in
 /// [`crate::special`], the SCF-splice renderer's `format_value` in
@@ -263,7 +263,7 @@ pub fn truthy(value: &Value) -> bool {
 ///
 /// `depth` is the nesting level of this call (0 at the top); past
 /// [`MAX_VALUE_WALK_DEPTH`] this stops descending and reports the pair as
-/// unequal rather than recursing further — issue #996. A conservative
+/// unequal rather than recursing further. A conservative
 /// "not equal" is the safe default here: it can only make an
 /// astronomically-nested `==`/`!=`/`contains`/`index` comparison (never
 /// reachable from a real document) report "different" instead of silently
@@ -468,8 +468,8 @@ mod recursion_tests {
             .expect("worker thread did not panic / overflow")
     }
 
-    /// Regression coverage for issue #996: `py_eq` recurses once per nested
-    /// `List`/`Object`/`ObjectRef` level, with no depth cap before this fix
+    /// Regression coverage: `py_eq` recurses once per nested
+    /// `List`/`Object`/`ObjectRef` level, so it needs a depth cap
     /// — reachable from the `==`/`!=` operators, `IN`, and every builtin
     /// that coerces through `contains`/`index` equality on
     /// generator-controlled `Value` trees (e.g. deeply nested `fromjson`

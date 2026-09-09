@@ -845,9 +845,9 @@ mod tests {
 
     #[test]
     fn proc_signature_stops_at_its_script_body() {
-        // Issue #1735's screenshots put the caret at the ends of these body
-        // lines. Neither position belongs to the outer `proc` invocation: the
-        // body is a registry-declared nested Tcl script.
+        // The caret at the end of either body line belongs to neither the
+        // outer `proc` invocation: the body is a registry-declared nested Tcl
+        // script.
         let src = concat!(
             "proc someproc {arg1 arg2} {\n",
             "    # this box always appears\n",
