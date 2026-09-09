@@ -88,6 +88,19 @@ matched here"; `rust/tcl-compiler/src/world_state_ssa.rs` renames mutable
 interpreter state from registry `StateTransition` facts alone. The transfer
 descriptor is the same move applied to the value axis.
 
+```mermaid
+flowchart LR
+    P["one program<br/>set · incr · append<br/>[string range …]"]
+    P --> L["shared lattice<br/>FunctionUnit::sccp<br/>no BuiltinFoldInputs; incr arm only"]
+    P --> O["optimiser re-run<br/>sccp_with_builtin_folds<br/>registry folds + trust snapshot"]
+    P --> A["analyser<br/>Analyser::const_strings<br/>lexical last-write-wins + re-scans"]
+    P --> C["codegen<br/>try_emit_constant_fold<br/>literal words, binding guards"]
+    L -->|reads| D["every diagnostic<br/>I230 I231 W124 W230–W233<br/>S100–S110 T100–T106"]
+    O -->|reads| F["O-code findings<br/>O100–O103 O112 O116 O118 O129"]
+    A -->|reads| N["navigation, rename, hover"]
+    C -->|emits| B["bytecode artefact<br/>literal pushes + binding sites"]
+```
+
 The three structural gaps the inventory reduces to:
 
 1. `evaluate_def_with_folds` answers `Overdefined` for every `Statement::Call`
@@ -247,6 +260,39 @@ The derivation, applied when `value_transfer` is unset, in order:
 | `Traits::LOOP_LIST_HEADER`, or `HAS_LOOP_BODY` with a `LoopVarList` role | `Iterate` |
 | anything else | `None` — every def widens, exactly today's `_ => Overdefined` |
 
+```mermaid
+flowchart LR
+    subgraph facts["existing fact on the spec"]
+        F1["const_fold / const_fold_versioned"]
+        F2["native_lowering: CellReadModifyWrite(u)"]
+        F3["semantic_operation: Intrinsic(id)"]
+        F4["var_write_typing: ElementsOf"]
+        F5["Traits::DESTROYS_VARIABLE"]
+        F6["LOOP_LIST_HEADER · LoopVarList role"]
+        F7["authored: value_transfer = Native(id)"]
+        F8["anything else"]
+    end
+    subgraph kinds["derived kind"]
+        K1["Pure"]
+        K2["Cell(update)"]
+        K3["Destructure(fn)"]
+        K4["Destroy"]
+        K5["Iterate"]
+        K6["Native(id)"]
+        K7["None — every def widens"]
+    end
+    F1 --> K1
+    F2 --> K2
+    F3 --> K2
+    F4 --> K3
+    F5 --> K4
+    F6 --> K5
+    F7 --> K6
+    F8 --> K7
+    K1 & K2 & K3 & K4 & K5 & K6 --> Q["value_transfer_for_call(args)<br/>ResolvedValueTransfer: kind, targets,<br/>values_from, written_type, result_type"]
+    Q --> S["SCCP · static_loops · intervals<br/>elimination · chain_fold"]
+```
+
 `incr`, `append`, and `lappend` therefore need **no new authored fact**:
 their `native_lowering` already names the update kind, and
 `assigns_variable_at: Some(0)` plus `ArgRole::VarWrite` already name the
@@ -309,6 +355,25 @@ when its inputs are known:
    `ResultTooLarge`, `DepthExceeded`, `NoTransfer`) that the Explorer's
    `sccp` view renders and the inventory counts, the way `NativeLowering`
    declines are typed rather than silent.
+
+```mermaid
+flowchart LR
+    S1["1 · resolve<br/>Call / Incr / foreach header<br/>→ invocation view; realm resolves the head"]
+    S2["2 · trust<br/>ModuleCommandMutations::trusts"]
+    S3["3 · words<br/>literal token, lattice Const,<br/>or a nested fold"]
+    S4["4 · target<br/>Unknown → Unknown<br/>Const(v) → old = v"]
+    S5["5 · ConstSet<br/>one member set:<br/>evaluate each, join"]
+    S6["6 · evaluate<br/>CellFoldFn / core over ConstOps,<br/>or the engine"]
+    S7["7 · write<br/>defs + folded_types"]
+    S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7
+    S1 -. NoTransfer .-> W
+    S2 -. UntrustedHead .-> W
+    S3 -. NonLiteralWord<br/>DepthExceeded .-> W
+    S4 -. TargetEscapes · TargetTraced<br/>DynamicKey .-> W
+    S5 -. two ConstSets .-> W
+    S6 -. WrongIntrep · Overflow<br/>ReleaseAmbiguous · ResultTooLarge .-> W
+    W["widen lane<br/>every def → Overdefined<br/>reason recorded as TransferDecline"]
+```
 
 The transfer is monotone by construction — a deterministic function of
 `Const` inputs answers `Const` or widens, never a different constant for the
@@ -620,6 +685,18 @@ caught panic poisons the pack ([spec-dsl-examples/README.md](../spec-dsl-example
 § *Purity and the sandbox*). Three properties of that host matter to a
 transfer, and one gap must close first:
 
+```mermaid
+flowchart LR
+    T[".tclspec<br/>cell_fold {words ctx} {…}<br/>cell_fold -native KIND"]
+    T -->|parses| L["loader.rs · hook_source<br/>one grammar per family;<br/>-native resolves by catalogue"]
+    L -->|installs| P["pack_hooks slot tables<br/>64 slots per family · thunk<br/>CacheMode from -inputs"]
+    P -->|runs| H["HookHost per thread<br/>tcl-vm engine per pack<br/>30 whitelisted commands<br/>100k cmds · 250 ms · 16 MiB"]
+    H -->|emits| E["emit.rs · answer_of<br/>fold VALUE → Some<br/>write IDX VALUE<br/>silence or error → None"]
+    E --> K["thread-local cache<br/>shape + content hash<br/>(words, target-value)"]
+    K --> S["SCCP step 6"]
+    K -. miss .-> H
+```
+
 - **Everything a transfer body needs is whitelisted** — `incr`, `lappend`,
   `string`, `dict`, `binary`, `format`, `scan`, `regexp`, `regsub`, `expr`
   — and `foldlist` is `tcl_registry::const_fold::fold_list` itself, so a
@@ -733,6 +810,20 @@ for the long tail.
   and `tclsh`, with the rule that "a two-way native pair has no oracle"
   ([differential-fuzzing.md](../contracts/differential-fuzzing.md)).
 
+```mermaid
+flowchart TB
+    VM["impl ValueOps for Vm<br/>rust/tcl-vm/src/value_ops.rs<br/>int_add: i64 overflow is an error"]
+    RT["impl ValueOps for Interp<br/>runtime/rust/src/value_ops.rs<br/>int_add: widens to a bignum"]
+    CO["ConstOps (proposed)<br/>string-backed · Option&lt;TclVersion&gt;<br/>int_add sides with C Tcl; ValueError → None"]
+    CORE["tcl-cmd-core · written once over ValueOps<br/>string::dispatch_canon · string::range<br/>binary::{format, scan, encode, decode}<br/>format_cmd_with_syntax(NumberSyntax)<br/>string_is::class_check · index::resolve_opt_with<br/>regex::regsub · list / dict · int_add · list_append"]
+    VM -->|calls, passing self| CORE
+    RT -->|calls, passing self| CORE
+    CO -->|calls, passing self| CORE
+    CORE -->|proves| OR["the oracle<br/>differential_fold.rs → tclsh9.0<br/>fuzzer: tclvm × runtime-rust × tclsh"]
+    CORE -->|runs the real command| EN["the engine route (Level 2)<br/>Engine → TclVmEngine → sandbox<br/>memo: (command, words, release)"]
+    RET["retired: registry fold_range, fold_format, fold_is;<br/>codegen try_format_fold, fold_list_cmd;<br/>the five name-keyed SCCP arms"]
+```
+
 ### Three levels of integration
 
 **Level 1 — the fold is the core.** One live, string-backed `ValueOps`
@@ -825,6 +916,20 @@ re-run (`sccp_with_builtin_folds` in `propagation.rs`, with
 `BuiltinFoldInputs`, gated on a function containing a command-substitution
 assignment). Native transfers belong in the shared lattice, or the
 diagnostics never see them.
+
+```mermaid
+flowchart LR
+    subgraph today["today · two lattices"]
+        SL["shared per-unit lattice<br/>FunctionUnit::sccp<br/>no BuiltinFoldInputs, no trust in the key"] --> DG["every diagnostic<br/>O112 O107 I230 I231 W124 W230–W233<br/>shimmer, taint"]
+        RR["optimiser re-run<br/>sccp_with_builtin_folds<br/>folds + trust snapshot"] --> OP["the optimiser only<br/>O129 O116 O118 O103"]
+    end
+    subgraph after["after · one lattice, one key"]
+        ONE["shared lattice + transfers<br/>FnLatticeKey gains<br/>trust: CommandTrustSnapshot"] --> DG2["every diagnostic"]
+        ONE --> OP2["the optimiser"]
+        FB["re-run kept only for a stale memo<br/>or a proven TclOO frame (defining_class)"]
+    end
+```
+
 
 The blocker is the memo key, not the work: the shared lattice's salsa key
 (`FnLatticeKey` in `rust/tcl-lsp-db/src/lib.rs`) cannot carry
@@ -1134,6 +1239,17 @@ rules — and `Raw` cannot be evaluated. The result, by form:
 | exact + `-nocase`, or a fall-through arm | fires | never — opaque |
 | `-glob` | fires (`pattern_matches` is glob-aware) | never — opaque |
 | `-regexp` | never (bails) | never |
+
+```mermaid
+flowchart LR
+    SRC["set x b<br/>switch $x { a {A} b {B} default {D} }"] -->|lowers| C1["StrEq(Raw $x, &quot;a&quot;)<br/>Raw: unevaluable today"]
+    C1 -->|true| A["arm A<br/>I231 · O107 after fix 1"]
+    C1 -->|false| C2["StrEq(Raw $x, &quot;b&quot;)<br/>→ Const(&quot;b&quot;) after fix 1"]
+    C2 -->|true| B["arm B · taken"]
+    C2 -->|false| D["default body D<br/>not taken · O107"]
+    OP["opaque forms: -glob, -regexp, -nocase, a - body<br/>Statement::Switch, one opaque call today"] -->|subject Const or ConstSet| PP["fix 2 · arm post-pass over case_list<br/>exact / -nocase → string compare<br/>-glob → string match folder<br/>-regexp → tcl-regex"]
+    PP --> CONS["consumers of one decision<br/>O112 · I231 · O107 · O131 (new)<br/>analyser switch_body_is_selected<br/>static_loops::exec_switch"]
+```
 
 The design closes this with one side-car and one operand rule:
 
@@ -1681,8 +1797,7 @@ named; each is independently shippable.
    re-expressing the five
    fold arms, the `Incr` arm, the `foreach` / `lmap` arm, and the `unset`
    scan as resolved transfers. Every existing `evaluate_def_*` and
-   `sccp_with_builtin_folds` test pins byte-identical results. The two
-   stale design-doc sentences are corrected. Exit: `sccp.rs` matches no
+   `sccp_with_builtin_folds` test pins byte-identical results. Exit: `sccp.rs` matches no
    command name; the inventory shows `incr` as `Cell(Increment)` and
    `append` / `lappend` as gaps.
 2. **Cell transfers in the shared lattice.** `cell_fold.rs` with
