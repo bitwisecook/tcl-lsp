@@ -2013,7 +2013,7 @@ fn an_inlined_catch_body_substitutes_its_command_name() {
 /// invoked the whole script value as a command name. A trailing separator
 /// (`{error boom;}`) and a leading comment (`{# note\nerror boom}`) each still
 /// segment to one command, but the splitter reads `boom;` as an argument and
-/// `#` as a command name. All three now take the dispatched `catch`.
+/// `#` as a command name. All three take the dispatched `catch`.
 #[test]
 fn the_inline_catch_needs_a_braced_body_that_is_only_one_command() {
     // A dynamic body, single- and multi-command alike.

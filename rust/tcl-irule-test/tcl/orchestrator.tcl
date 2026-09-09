@@ -807,12 +807,11 @@ namespace eval ::orch {
         set value [lindex $rest 3]
 
         set decisions [::itest::get_decisions $category]
-        # Collect EVERY decision with the matching action, not just the first.
-        # Breaking on the first match made `was_called_with` order-dependent:
-        # `pool a` then `pool b` would fail `was_called_with "b"` because only
-        # the leading `pool a` was inspected. This mirrors the
-        # classic `assert_decision`, which passes if ANY matching call carries
-        # the expected value.
+        # Collect every decision with the matching action, not just the first,
+        # so `was_called_with` finds a match regardless of call order (e.g.
+        # `pool a` then `pool b` still satisfies `was_called_with "b"`). This
+        # mirrors the classic `assert_decision`, which passes if any matching
+        # call carries the expected value.
         set found 0
         set found_args {}
         foreach d $decisions {
@@ -1500,8 +1499,8 @@ namespace eval ::orch {
     # hash.  An IPv4 dotted-quad keeps its decimal octets (so the existing
     # IPv4 hash is unchanged); an IPv6 address is split on ':' with each hextet
     # read as hex (empty groups from '::' contribute 0).  Splitting only on '.'
-    # left an IPv6 client_addr as a single non-numeric token, which threw an
-    # `expr` error in auto mode instead of selecting a TMM (issue 192).
+    # would treat an IPv6 client_addr as a single non-numeric token, causing an
+    # `expr` error in auto mode instead of selecting a TMM.
     proc _fakecmp_addr_parts {addr} {
         if {[string first : $addr] >= 0} {
             set parts {}

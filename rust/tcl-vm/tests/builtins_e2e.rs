@@ -285,9 +285,9 @@ fn lsort_shared_core() {
     assert_eq!(msg, "element 5 missing from sublist \"a b\"");
 }
 
-/// `namespace exists`/`parent`/`children` now route through the shared core over
-/// the `Namespaces` handle trait (the VM's String model honouring `NsId`).
-/// Sharing gave `children` its `?pattern?` filter and the missing-namespace
+/// `namespace exists`/`parent`/`children` route through the shared core over
+/// the `Namespaces` handle trait (the VM's String model honouring `NsId`),
+/// which gives `children` its `?pattern?` filter and the missing-namespace
 /// error. Pinned to tclsh 9.0.
 #[test]
 fn namespace_nav_shared() {
@@ -347,7 +347,7 @@ fn arrays() {
     out_eq("puts [array exists nope]\n", "0\n");
 }
 
-/// `array` exists/size/names/get/unset now route through the shared
+/// `array` exists/size/names/get/unset route through the shared
 /// `tcl_cmd_core::array` core (over the VM's `VarStore`). Pinned to tclsh 9.0.
 #[test]
 fn array_shared_core() {

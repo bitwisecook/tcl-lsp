@@ -16,8 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! EXPERIMENT (throwaway): how to do char-indexed access on a UTF-8 Tcl string,
-//! and how to append, without an O(n^2) cliff (the low-O() tenet).
+//! Benchmark: how to do char-indexed access on a UTF-8 Tcl string, and how to
+//! append, without an O(n^2) cliff.
 //!
 //! `string index`/`length`/`range` are CHARACTER-indexed; UTF-8 makes naive
 //! char access O(n). But most Tcl strings are ASCII (byte index == char index).

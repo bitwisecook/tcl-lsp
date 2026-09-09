@@ -20,7 +20,7 @@
 //!
 //! "A repeated key keeps its **first-occurrence position** and its **last
 //! value**" (`SetDictFromAny`, `tmp/tcl9.0.4/generic/tclDictObj.c:589`, over
-//! `Tcl_DictObjPut`'s hash overwrite) is one rule, and it now has one
+//! `Tcl_DictObjPut`'s hash overwrite) is one rule, with one
 //! implementation — [`tcl_syntax::value::canonical_dict_slots`] — which three
 //! layers bind:
 //!

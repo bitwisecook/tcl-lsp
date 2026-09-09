@@ -1580,12 +1580,12 @@ fn test_w001_offers_subcommand_did_you_mean_replacement() {
     );
 }
 
-/// W123 FP guard, issue #923 idx 105: `exists`/`get` called bare from inside
+/// W123 FP guard: `exists`/`get` called bare from inside
 /// a proc lexically defined under `::tcl::dict` are the real, separately
 /// -callable `::tcl::dict::exists` / `::tcl::dict::get` builtins, not unknown
 /// commands — no diagnostic, and critically no "Replace with 'exit'"
-/// quickfix either. Before the fix this quickfix was offered and, if
-/// applied, would have silently turned `if {[exists $d $k]} {...}` into
+/// quickfix either. Offering that quickfix here would, if applied,
+/// silently turn `if {[exists $d $k]} {...}` into
 /// `if {[exit $d $k]} {...}` — terminating the process instead of testing
 /// dict membership.
 #[test]
@@ -1900,13 +1900,13 @@ fn test_w201_no_rewrite_for_mixed_segment() {
     );
 }
 
-/// Issue #1000: refactor code actions must reach control flow inside an
+/// Refactor code actions must reach control flow inside an
 /// `apply` lambda body.  `apply`'s literal is `ArgRole::LambdaLiteral`, so
 /// the refactor descent has to split it and walk element 1; re-segmenting
-/// the whole `{argList body}` blob read `{m}` as a command name and left
-/// every `body_words`-backed action (if-to-switch, switch-to-dict,
-/// brace-expr, inline-variable, extract-to-datagroup) silently unavailable
-/// in there.  tclsh8.6/9.0-verified that this lambda really does run the
+/// the whole `{argList body}` blob would read `{m}` as a command name and
+/// leave every `body_words`-backed action (if-to-switch, switch-to-dict,
+/// brace-expr, inline-variable, extract-to-datagroup) unavailable
+/// in there.  tclsh 8.6/9.0 confirm this lambda really does run the
 /// `if` it wraps.
 #[test]
 fn test_if_to_switch_offered_inside_an_apply_lambda_body() {
@@ -1924,7 +1924,7 @@ fn test_if_to_switch_offered_inside_an_apply_lambda_body() {
     );
 }
 
-/// TN (Codex review on #1047): a lambda body written as a **quoted** list
+/// TN: a lambda body written as a **quoted** list
 /// element with escapes is backslash-decoded before `apply` evaluates it,
 /// so its source slice is not the script that runs — the source says `$m eq
 /// \"GET\"` where the real body says `$m eq "GET"` (tclsh 8.6 / 9.0.4 both

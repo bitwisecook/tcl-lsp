@@ -392,7 +392,7 @@ pub mod conformance {
 }
 
 /// The `num-bigint` backend adapter (feature `num-bigint`) — shared by the
-/// pure-Rust adopters (the compiler's const-folder today, the VM next). The
+/// pure-Rust adopters (the compiler's const-folder and the VM). The
 /// faithful runtime implements [`BigIntOps`] over the real libtommath
 /// `mp_int` instead; both backends run these identical semantics.
 #[cfg(feature = "num-bigint")]

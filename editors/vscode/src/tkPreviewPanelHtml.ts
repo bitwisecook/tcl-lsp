@@ -43,7 +43,7 @@ export function getTkPreviewHtml(cspSource: string, nonce: string): string {
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';" />
 <title>Tk Preview</title>
 <style>
-  /* ── Reset & base ──────────────────────────────────────────────── */
+  /* Reset & base */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
@@ -55,7 +55,7 @@ export function getTkPreviewHtml(cspSource: string, nonce: string): string {
     overflow: auto;
   }
 
-  /* ── Tab bar ───────────────────────────────────────────────────── */
+  /* Tab bar */
   .tab-bar {
     display: flex;
     border-bottom: 1px solid var(--vscode-panel-border, #ccc);
@@ -79,11 +79,11 @@ export function getTkPreviewHtml(cspSource: string, nonce: string): string {
     background: var(--vscode-list-hoverBackground, #e8e8e8);
   }
 
-  /* ── Tab content ───────────────────────────────────────────────── */
+  /* Tab content */
   .tab-content { display: none; padding: 12px; }
   .tab-content.active { display: block; }
 
-  /* ── Status / error overlays ───────────────────────────────────── */
+  /* Status / error overlays */
   #overlay {
     display: none;
     padding: 24px;
@@ -93,7 +93,7 @@ export function getTkPreviewHtml(cspSource: string, nonce: string): string {
   #overlay.visible { display: block; }
   #overlay.error { color: var(--vscode-errorForeground, #f44); }
 
-  /* ── Visual preview: Tk widget styles ──────────────────────────── */
+  /* Visual preview: Tk widget styles */
   .tk-toplevel {
     border: 1px solid #999;
     background: #d9d9d9;
@@ -388,13 +388,13 @@ export function getTkPreviewHtml(cspSource: string, nonce: string): string {
     color: #fff;
   }
 
-  /* ── Geometry: grid container ──────────────────────────────────── */
+  /* Geometry: grid container */
   .geo-grid {
     display: grid;
     gap: 2px;
   }
 
-  /* ── Geometry: pack container ──────────────────────────────────── */
+  /* Geometry: pack container */
   .geo-pack {
     display: flex;
     gap: 2px;
@@ -404,7 +404,7 @@ export function getTkPreviewHtml(cspSource: string, nonce: string): string {
   .geo-pack.pack-left   { flex-direction: row; }
   .geo-pack.pack-right  { flex-direction: row-reverse; }
 
-  /* ── Geometry: place container ──────────────────────────────────── */
+  /* Geometry: place container */
   .geo-place {
     position: relative;
   }
@@ -412,7 +412,7 @@ export function getTkPreviewHtml(cspSource: string, nonce: string): string {
     position: absolute;
   }
 
-  /* ── Widget Tree tab ───────────────────────────────────────────── */
+  /* Widget Tree tab */
   .tree-node {
     margin-left: 16px;
     border-left: 1px solid var(--vscode-panel-border, #ccc);
@@ -480,7 +480,7 @@ export function getTkPreviewHtml(cspSource: string, nonce: string): string {
 (function () {
   const vscode = acquireVsCodeApi();
 
-  /* ── Tab switching ─────────────────────────────────────────────── */
+  /* Tab switching */
   const tabBar = document.querySelector('.tab-bar');
   const tabs = document.querySelectorAll('.tab-content');
 
@@ -516,7 +516,7 @@ export function getTkPreviewHtml(cspSource: string, nonce: string): string {
     activateTab(buttons[next]);
   });
 
-  /* ── Overlay helpers ───────────────────────────────────────────── */
+  /* Overlay helpers */
   const overlay = document.getElementById('overlay');
 
   function showOverlay(text, isError) {
@@ -531,7 +531,7 @@ export function getTkPreviewHtml(cspSource: string, nonce: string): string {
     overlay.className = '';
   }
 
-  /* ── Normalise widget type to a CSS class suffix ───────────────── */
+  /* Normalise widget type to a CSS class suffix */
   function normaliseCssType(type) {
     const text = typeof type === 'string' ? type : '';
     return text.replace(/::/g, '-').toLowerCase().replace(/[^a-z0-9_-]/g, '-');
@@ -616,12 +616,12 @@ export function getTkPreviewHtml(cspSource: string, nonce: string): string {
     return html;
   }
 
-  /* ── Determine the display text for a widget ───────────────────── */
+  /* Determine the display text for a widget */
   function widgetText(widget) {
     return optionValue(widget.options, '-text', optionValue(widget.options, 'text', ''));
   }
 
-  /* ── Build styled HTML for a single widget (no children yet) ──── */
+  /* Build styled HTML for a single widget (no children yet) */
   function renderWidgetContent(widget) {
     const type = (widget.constructor || '').toLowerCase();
     const text = widgetText(widget);
@@ -712,7 +712,7 @@ export function getTkPreviewHtml(cspSource: string, nonce: string): string {
     }
   }
 
-  /* ── Build sticky / alignment style string for grid items ──────── */
+  /* Build sticky / alignment style string for grid items */
   function stickyStyle(sticky) {
     if (!sticky) return '';
     const s = sticky.toLowerCase();
@@ -739,7 +739,7 @@ export function getTkPreviewHtml(cspSource: string, nonce: string): string {
     return styles.join(';');
   }
 
-  /* ── Compute inline style for a child based on geometry ────────── */
+  /* Compute inline style for a child based on geometry */
   function childStyle(widget, parentPath) {
     const parts = [];
     if (!placementAppliesIn(widget, parentPath)) return '';
@@ -836,7 +836,7 @@ export function getTkPreviewHtml(cspSource: string, nonce: string): string {
       + renderWidget(child, parentPath) + '</div>';
   }
 
-  /* ── Determine the geometry container class for a widget ────────── */
+  /* Determine the geometry container class for a widget */
   function geoContainerClass(widget) {
     const managers = new Set((widget.children || [])
       .filter(child => placementAppliesIn(child, widget.path))
@@ -848,7 +848,7 @@ export function getTkPreviewHtml(cspSource: string, nonce: string): string {
     return '';
   }
 
-  /* ── Determine pack direction class ────────────────────────────── */
+  /* Determine pack direction class */
   function packDirectionClass(widget) {
     const children = (widget.children || []).filter(child => placementAppliesIn(child, widget.path));
     for (const child of children) {
@@ -861,7 +861,7 @@ export function getTkPreviewHtml(cspSource: string, nonce: string): string {
     return 'pack-top';
   }
 
-  /* ── Render a widget and its children recursively ──────────────── */
+  /* Render a widget and its children recursively */
   function renderWidget(widget, parentPath) {
     const type = typeof widget.constructor === 'string' ? widget.constructor.toLowerCase() : '';
     const cssType = normaliseCssType(type);
@@ -941,7 +941,7 @@ export function getTkPreviewHtml(cspSource: string, nonce: string): string {
     return html;
   }
 
-  /* ── Render the widget tree tab (hierarchical text view) ────────── */
+  /* Render the widget tree tab (hierarchical text view) */
   function sourceAttributes(source, label) {
     if (!source || !Number.isSafeInteger(source.start) || !Number.isSafeInteger(source.end)
         || source.start < 0 || source.end <= source.start) return '';
@@ -1013,7 +1013,7 @@ export function getTkPreviewHtml(cspSource: string, nonce: string): string {
     return html;
   }
 
-  /* ── HTML escaping utility ─────────────────────────────────────── */
+  /* HTML escaping utility */
   function escapeHtml(str) {
     if (!str) return '';
     return String(str)
@@ -1048,7 +1048,7 @@ export function getTkPreviewHtml(cspSource: string, nonce: string): string {
     revealSourceTarget(target);
   });
 
-  /* ── Message handler ───────────────────────────────────────────── */
+  /* Message handler */
   window.addEventListener('message', (event) => {
     const msg = event.data;
     if (!msg || !msg.type) return;
@@ -1163,7 +1163,7 @@ export function getTkPreviewHtml(cspSource: string, nonce: string): string {
     }
   });
 
-  /* ── Signal readiness to the extension host ────────────────────── */
+  /* Signal readiness to the extension host */
   vscode.postMessage({ type: 'ready' });
 })();
 </script>

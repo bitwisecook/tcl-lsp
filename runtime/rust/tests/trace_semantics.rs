@@ -257,8 +257,8 @@ fn an_erroring_read_trace_leaves_incr_counting_from_zero() {
 /// "set x 2"
 /// ```
 ///
-/// with `-errorcode TCL WRITE VARNAME`. The runtime used to start a *fresh*
-/// error for `can't set "x": wboom`, discarding the callback's whole chain and
+/// with `-errorcode TCL WRITE VARNAME`. Starting a *fresh*
+/// error for `can't set "x": wboom` would discard the callback's whole chain and
 /// with it the `(write trace on "x")` frame.
 #[test]
 fn a_write_trace_error_keeps_its_chain_and_adds_the_trace_frame() {
@@ -427,8 +427,9 @@ fn a_trace_removed_during_firing_does_not_fire_in_that_pass() {
 /// and `delete`, which run newest-first, and for `leave`, whose reverse scan
 /// reaches the *oldest* first.
 ///
-/// tclsh 8.6.16 and 9.0.4 print exactly the transcript below; these three loops
-/// used to snapshot the callback strings, so `E2`, `D2` and `L1` still fired.
+/// tclsh 8.6.16 and 9.0.4 print exactly the transcript below; a loop that
+/// snapshotted the callback strings up front would still fire `E2`, `D2` and
+/// `L1`.
 #[test]
 fn a_command_or_execution_trace_removed_during_firing_does_not_fire() {
     let got = transcript(
@@ -803,7 +804,7 @@ fn an_array_trace_error_fails_the_subcommand_with_cs_verb() {
     );
 }
 
-/// #1633 row 1: `set`/`incr` must return the variable's value *read back
+/// `set`/`incr` must return the variable's value *read back
 /// after* their own write trace runs, not the value they handed the store —
 /// C's `TclPtrSetVarIdx` (tclVar.c 9.0.4:2050-2065) stores, fires the write
 /// traces, and only then decides what to return: the cell's current value if
@@ -842,8 +843,8 @@ fn a_write_trace_that_mutates_or_unsets_changes_what_set_and_incr_return() {
 // entry, fires the `rename` traces, and only *then* deletes the source one —
 // and the traces hang off the shared `Command` rather than off either entry.
 // So for the callbacks' duration the vacating name **is** the destination
-// command. The runtime used to fire before touching the table, so a callback
-// saw the old name but not yet the new one. Every sheet below is identical on
+// command. Firing the trace before touching the table would let a callback
+// see the old name but not yet the new one. Every sheet below is identical on
 // tclsh 8.6.16 and 9.0.4.
 
 /// Both names resolve, both are callable, and `trace info command` /

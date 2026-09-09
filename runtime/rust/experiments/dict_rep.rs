@@ -16,9 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! EXPERIMENT (throwaway): which Rust structure for the Tcl dict value type?
+//! Benchmark: which Rust structure to use for the Tcl dict value type.
 //!
-//! Question: the dict needs by-key get/set (hot, incl. `dict set` build loops)
+//! The dict needs by-key get/set (hot, incl. `dict set` build loops)
 //! AND **insertion-ordered** iteration (`dict keys`/`dict for`, Tcl 8.5+). Its
 //! internal rep is free-to-choose (the ABI is function-mediated:
 //! Tcl_DictObjFirst/Next), so pick by evidence. Candidates:
@@ -62,7 +62,7 @@ impl Hasher for Fnv {
 }
 type FnvMap = HashMap<Key, (u64, Val), BuildHasherDefault<Fnv>>;
 
-// ---- candidate dict structures ----
+// Candidate dict structures.
 trait Dict {
     fn new() -> Self;
     fn set(&mut self, k: &[u8], v: Val);

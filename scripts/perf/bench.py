@@ -655,7 +655,7 @@ def build_suite(bench: Bench, docs: list[Path], root: Path) -> None:
     bench.check("nav.symbols", "Document symbols + folding", doc_wide)
 
     # 10 — code lens, including resolve, which is where the reference counts
-    # are actually computed (and where #1297 lives).
+    # are actually computed.
     def lenses():
         fails = 0
         for s in state:

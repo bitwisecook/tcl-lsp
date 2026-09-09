@@ -275,7 +275,7 @@ fn expr_operator_set_follows_the_compiled_release() {
 /// A source-identical `expr` must not get two
 /// different release disciplines depending only on whether codegen could inline
 /// it. The interpreted path has always validated against the release's operator
-/// table; this asserts the compiled one now reaches the same verdict.
+/// table; this asserts the compiled one reaches the same verdict.
 #[test]
 fn compiled_and_interpreted_expr_agree_on_every_release() {
     for v in VECTORS {
