@@ -81,9 +81,10 @@ suite("Multi-folder workspace configuration (#230)", () => {
     // Wait for the extension to activate so the LSP client is ready.
     const ext = vscode.extensions.getExtension("bitwisecook.tcl-lsp");
     assert.ok(ext, "tcl-lsp extension not found");
-    if (!ext.isActive) {
-      await ext.activate();
-    }
+    // Automatic workspace activation can already be in flight when Mocha
+    // starts. `isActive` may have flipped before the activation promise has
+    // registered the server-advertised commands, so always await that promise.
+    await ext.activate();
     // Poll the server for its resolved per-folder dialect rather than
     // sleeping on wall-clock time -- the previous setTimeout(3000) masked
     // the race that issue #407 actually reports.
