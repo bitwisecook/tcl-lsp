@@ -172,6 +172,21 @@ redefinition.
     `distrust_all()` is the sound stand-in for a consumer with no
     whole-module view at all, and `CommandTrustSnapshot` is the canonical
     hashable form so the fact can ride inside a memoisation key.
+  * **Frame opacity is scoped, name opacity is not.** A body that runs in a
+    namespace chosen at run time — a `TclOO` method, whose receiver namespace
+    is not known until dispatch — and that names any command relatively can
+    reach an implementation this module does not contain. That is a fact
+    about the *frame*: `has_runtime_selected_frames()` reports it, and a
+    consumer folding **inside** such a body (the O129 `TclOO` frame constant)
+    must abstain on it, because a receiver-local command can shadow any head
+    the body names. It is deliberately **not** folded into `dynamic`: a
+    receiver namespace cannot change what a name resolves to in a namespace
+    this scan *can* spell, so the top level and every procedure keep their
+    folds. What does carry past the frame is a binding *change* made from it
+    — its subject resolves where the scan cannot look — and that sets
+    `dynamic` in the ordinary way. Widening on the frame alone would let one
+    unremarkable method (`method greet {} { puts hi }`) distrust every name in
+    the compilation unit.
 * **Keep both spellings.** Match optimiser/registry patterns on
   the *canonical* form, but retain the *source* spelling for the eval-fallback:
   the user's bare name resolves through the live scope walk (a namespace-local
