@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Filter README.md for a single-editor distribution (Node port of the former
-// filter_readme.py — the VSIX build is Python-free).
+// Filter README.md for a single-editor distribution. Written in Node so the
+// VSIX build stays Python-free.
 //
 // Produces a per-editor README by keeping only sections relevant to the target
 // editor and stripping references to other editors. A line-by-line markdown
@@ -85,8 +85,8 @@ function filterReadme(text, editor) {
         }
       }
 
-      // The section holding the per-editor subsections. Named "Install"
-      // since the README restructure; "Editor support" is the older name.
+      // The section holding the per-editor subsections: "Install" is the
+      // current heading name, "Editor support" the other one recognised here.
       if (level === 2) inEditorSupport = title === "Install" || title === "Editor support";
 
       // Rule 3: `### All editors` under `## Editor support` — strip entirely.

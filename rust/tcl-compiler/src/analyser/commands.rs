@@ -474,7 +474,7 @@ impl Analyser {
         Some((ctx.base_hidden, hidden_extra, exposed))
     }
 
-    /// Issue #1001's two `process_command`-level extensions to
+    /// Two `process_command`-level extensions to
     /// [`Self::safe_interp_visibility_gate`], combined into one call so
     /// `process_command` stays within its line budget:
     ///
@@ -4014,10 +4014,10 @@ impl Analyser {
                 // prove (or soundly refuse to prove) the finite set of
                 // command names reaching this exact program point —
                 // never the walk's lexical constant map, whose
-                // last-write-wins view collapses `if`/loop joins (issue
-                // #945 fault 2).  A braced composite head (`${ns}::tail
-                // …`) is the W307 ensemble shape, not a whole-command
-                // variable, so it is skipped.
+                // last-write-wins view collapses `if`/loop joins.  A
+                // braced composite head (`${ns}::tail …`) is the W307
+                // ensemble shape, not a whole-command variable, so it is
+                // skipped.
                 if var_name == raw {
                     let ns = self.command_resolution_namespace(scope_path);
                     self.pending_const_dispatches
@@ -4498,8 +4498,8 @@ impl Analyser {
     /// factories) — unlike `instance_classes`' general last-write-wins
     /// contract, a name seen bound to two *different* registry classes
     /// anywhere in the file is dropped and never re-added, so a consumer
-    /// that needs soundness (`widget_command.rs`'s W001/E002/E003 — issue
-    /// #927) can trust a present entry unconditionally. Scoped to these two
+    /// that needs soundness (`widget_command.rs`'s W001/E002/E003) can
+    /// trust a present entry unconditionally. Scoped to these two
     /// call sites only: the `TclOO` user-class paths in
     /// `record_instance_creation` keep their existing documented
     /// best-effort behaviour unchanged.
@@ -4581,7 +4581,7 @@ impl Analyser {
             return Some(name.to_string());
         }
         // The same canonical global-qualified spelling the shared resolver
-        // tries (colon-run rule, #934).
+        // tries (colon-run rule).
         let canonical = crate::naming::canonical_written_command(name);
         let qualified = if canonical.starts_with("::") {
             canonical

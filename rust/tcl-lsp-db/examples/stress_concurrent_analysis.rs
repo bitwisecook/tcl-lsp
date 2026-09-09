@@ -293,8 +293,8 @@ fn reader_loop(
 /// `Backend::db_set_source` goes through on every `didChange`. If any reader
 /// were holding a clone across a query in a way that violates salsa's
 /// cancellation contract, `set_text` would hang rather than return promptly,
-/// and this loop would blow past `timeout` — the exact deadlock issue #829's
-/// fix must prevent, so a timeout dumps the last successfully-written
+/// and this loop would blow past `timeout` — the exact deadlock this crate
+/// must prevent, so a timeout dumps the last successfully-written
 /// revision as a reproduction bundle before returning. Returns the number of
 /// writes actually completed.
 fn writer_loop(

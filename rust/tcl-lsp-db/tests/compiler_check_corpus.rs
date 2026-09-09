@@ -24,13 +24,13 @@
 //! (`build_for_with_config`) — they are the two halves of the salsa-native
 //! lattice graph.
 //!
-//! This previously diverged for ~30% of the `tmp/` corpus, but the divergence
-//! was *nondeterminism*, not an offset-0-vs-whole-module analysis difference:
-//! several diagnostic producers folded over `HashMap`s in iteration order
+//! The risk is *nondeterminism*, not an offset-0-vs-whole-module analysis
+//! difference: several diagnostic producers fold over `HashMap`s, so their
+//! iteration order must be pinned deterministic
 //! (phi-span resolution, `run_all_checks` output order, the optimiser's group-id
 //! allocation, W313's "first offending path variable", and the order-sensitive
-//! `type_join` fold over a phi's predecessors).  Each is now deterministic, so
-//! the memo and whole-module builds agree byte-for-byte.  See
+//! `type_join` fold over a phi's predecessors), or
+//! the memo and whole-module builds would disagree byte-for-byte.  See
 //! `docs/design/rust/incremental-analysis.md` ("Memo byte-identity").
 
 use std::path::{Path, PathBuf};

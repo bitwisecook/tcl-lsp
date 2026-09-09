@@ -105,8 +105,8 @@ fn group_template(group: &str) -> Option<Example> {
 ///
 /// Exhaustive by test: `every_group_and_field_has_a_valid_example` fails by
 /// name for a field with no entry. There is deliberately no group-level
-/// fallback — inheriting the group's snippet is how a hundred settings shipped
-/// showing something other than themselves (#1714).
+/// fallback — inheriting the group's snippet would let a field ship
+/// showing something other than itself.
 fn field_template(key: &str) -> Option<Example> {
     if key == "arg_role_resolver_roles" {
         return Some(FIELD_ARG_ROLE_RESOLVER_ROLES);
@@ -328,8 +328,8 @@ mod tests {
     }
 
     /// Arrows are numbered by their position in the array and drawn as
-    /// numbered steps, so their order is a claim about *when things happen*
-    /// (#1714). Three rules follow, all checkable against the source:
+    /// numbered steps, so their order is a claim about *when things happen*.
+    /// Three rules follow, all checkable against the source:
     ///
     /// 1. **Numbering runs forwards through the program.** An arrow on an
     ///    earlier line may not be numbered after one on a later line — that
