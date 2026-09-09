@@ -26,14 +26,14 @@ for partition in 1 2 3; do
 done
 test "$(jq '[.partitions[][]] | length' "$manifest")" -eq 106
 test "$(jq '[.partitions[][]] | unique | length' "$manifest")" -eq 106
-test "$(jq '.expected_tests.single_root.identities' "$manifest")" -eq 976
-test "$(jq '.expected_tests.single_root.passed' "$manifest")" -eq 975
+test "$(jq '.expected_tests.single_root.identities' "$manifest")" -eq 977
+test "$(jq '.expected_tests.single_root.passed' "$manifest")" -eq 976
 test "$(jq '.expected_tests.single_root.pending' "$manifest")" -eq 1
 test "$(jq '.expected_tests.multi_folder.identities' "$manifest")" -eq 14
 test "$(jq '.expected_tests.multi_folder.passed' "$manifest")" -eq 14
 test "$(jq '.expected_tests.multi_folder.pending' "$manifest")" -eq 0
 test "$(jq -r '.multi_folder_files | join(",")' "$manifest")" = "multiFolderConfig.test.js"
-echo "VS Code test partitions: exact-once proof passed (106 files, 975 passed + 1 pending single-root identities, 14 multi-folder tests, 3 partitions)"
+echo "VS Code test partitions: exact-once proof passed (106 files, 976 passed + 1 pending single-root identities, 14 multi-folder tests, 3 partitions)"
 
 workflow="${root}/.github/workflows/ci.yml"
 check_workflow() {
