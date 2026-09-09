@@ -194,6 +194,24 @@ fn dispatch_block(
     };
     use crate::model::r#gen::parsers::*;
 
+    // `apm policy agent <subtype>` is an open family — the strict header
+    // inventory only lists the subtypes the registry carries, so classify it
+    // from the generic header and keep the subtype as the agent's type.
+    if generic_module == "apm"
+        && let Some(agent_type) = generic_type.strip_prefix("policy agent ")
+    {
+        return Some(placed(
+            "apm_policy_agents",
+            generic_identifier,
+            ModelObject::ApmPolicyAgent(super::bespoke::parse_apm_policy_agent(
+                generic_identifier,
+                body,
+                agent_type,
+                range,
+            )),
+        ));
+    }
+
     let parsed = parse_header_strict(header).map(|(m, o, fp)| {
         let fp = if !fp.is_empty()
             && !fp.starts_with('/')
@@ -255,13 +273,6 @@ fn dispatch_block(
     }
 
     // Family parsers with a sub-type argument + the ltm/gtm match block.
-    if module == "apm" && object_type.starts_with("policy agent ") {
-        return Some(placed(
-            "apm_policy_agents",
-            fp,
-            ModelObject::ApmPolicyAgent(parse_bigip_apm_policy_agent(fp, body, range)),
-        ));
-    }
     if module == "gtm" && object_type.starts_with("pool ") {
         let record_type = object_type.strip_prefix("pool ").unwrap_or("");
         return Some(placed(

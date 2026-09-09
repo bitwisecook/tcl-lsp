@@ -1,0 +1,25 @@
+# Local package source roots in the locked bigip-report-gen-py dependency
+# closure. The report root deliberately covers its Rust/Python packages and
+# the templates, generated front-end, and WASM assets embedded by the Rust
+# report library. scripts/dev/test-python-ci-paths.sh derives the package
+# closure from rust/bigip-report-gen/python/Cargo.lock and rejects drift.
+rust/bigip-report-gen
+rust/tcl-bigip
+rust/tcl-bigip-io
+rust/tcl-bigip-query
+rust/tcl-bytecode
+rust/tcl-cmd-core
+rust/tcl-compiler
+rust/tcl-core-types
+rust/tcl-diagram
+rust/tcl-dialect
+rust/tcl-f5mku
+rust/tcl-irules
+rust/tcl-lexer
+rust/tcl-platform
+rust/tcl-regex
+rust/tcl-registry
+rust/tcl-runtime-api
+rust/tcl-sslictcl
+rust/tcl-syntax
+rust/tcl-version

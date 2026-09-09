@@ -219,9 +219,9 @@ value per line versus a single JSON array.
 ## Tree shape
 
 The DSL exposes the parsed `BigipConfig` as a nested mapping, with one
-top-level child per recognised module. Only `ltm`, `gtm`, and
-`security` currently have a **typed** projection (see the coverage
-note below); their shape is:
+top-level child per recognised module. `ltm`, `net`, `sys`, `cm`,
+`gtm`, `apm`, and `security` have a **typed** projection (see the
+coverage note below); their shape is:
 
 ```
 .ltm
@@ -258,6 +258,65 @@ note below); their shape is:
                                 .actions[].target
                                            .verb
                                            .pool   (path-ref → ltm pool)
+  .snat-translation["/Common/snat_xlat_1"].address
+                                          .traffic-group  (path-ref → cm traffic-group)
+.net
+  .self["/Common/10.1.0.5"].address
+                           .vlan            (path-ref → net vlan)
+                           .allow-service[]
+                           .traffic-group   (path-ref → cm traffic-group)
+  .vlan["/Common/internal"].tag
+                           .interfaces[]    (path-refs → net interface)
+  .route["/Common/default"].network
+                           .gw
+                           .is-default-route
+                           .pool            (path-ref → ltm pool)
+  .route-domain["/Common/0"].id
+                            .vlans[]        (path-refs → net vlan)
+  .port-list   .interface   .dns-resolver   .tunnel   .stp
+.sys
+  .file-ssl-cert["/Common/app.crt"].subject
+                                   .issuer
+                                   .expiration-string
+                                   .fingerprint
+                                   .cache-path       (ucs_cert reads the PEM by this)
+  .file-ssl-key["/Common/app.key"].key-size
+                                  .key-type
+  .dns[].name-servers[]            (singleton — one entry, keyed "")
+  .ntp[].servers[]                 (singleton)
+  .snmp[].communities[]            (singleton)
+  .global-settings[].hostname      (singleton)
+  .provision["ltm"].level
+  .folder["/Common"].device-group  (path-ref → cm device-group)
+  .management-route["/Common/default"].gateway
+.cm
+  .device["/Common/lab-a"].hostname
+                          .management-ip
+                          .cert             (path-ref → cm cert)
+                          .key              (path-ref → cm key)
+  .device-group["/Common/failover"].type
+                                   .devices[]  (path-refs → cm device)
+  .traffic-group["/Common/traffic-group-1"].default-device (path-ref → cm device)
+                                           .ha-order[]     (path-refs → cm device)
+                                           .ha-group       (path-ref → cm ha-group)
+  .trust-domain["/Common/Root"].ca-cert     (path-ref → cm cert)
+                               .ca-devices[]
+                               .trust-group (path-ref → cm device-group)
+  .cert["/Common/dtdi.crt"].subject         (same x509 metadata as sys file ssl-cert)
+  .key["/Common/dtdi.key"].key-size
+  .ha-group["/Common/lab-ha"].enabled-state
+                             .pools[]       (path-refs → ltm pool)
+.apm
+  .access-policy["/Common/employee_login"].start-item     (path-ref → apm policy-item)
+                                          .default-ending (path-ref → apm policy-item)
+                                          .items[]        (path-refs → apm policy-item)
+  .policy-item["/Common/employee_login_ent"].caption
+                                            .type
+                                            .agents[]     (path-refs → apm policy-agent)
+  .policy-agent["/Common/logon_page_ag"].type
+                                        .customization-group
+  .customization-source   .oauth-db-instance
+  .ssh-security-config    .default-report   (singleton)
 .gtm
   .datacenter["/Common/dc1"].contact
                             .location
@@ -312,22 +371,32 @@ the DNS record kind.  PathRefs from ``wideip.pools[]`` /
 auto-deref on field access whenever the target kind is itself
 projected.
 
-`ltm.*`, `gtm.*`, and `security.*` are projected and navigable — the
-`LTM_KINDS` / `GTM_KINDS` / `SECURITY_KINDS` tables (looked up via
-`module_kinds()`) in
+`ltm.*`, `net.*`, `sys.*`, `cm.*`, `gtm.*`, `apm.*`, and `security.*`
+are projected and navigable — the `LTM_KINDS` / `NET_KINDS` /
+`SYS_KINDS` / `CM_KINDS` / `GTM_KINDS` / `APM_KINDS` /
+`SECURITY_KINDS` tables (looked up via `module_kinds()`) in
 [`projection.rs`](../../../rust/tcl-bigip-query/src/projection.rs)
-enumerate the exact set of kinds covered per module (e.g. `gtm`
-covers `datacenter` / `server` / `pool` / `wideip` / `listener` —
-notably **not** `prober-pool`, `region`, or `rule`). Any TMSH stanza
-the parser sees but no typed projection covers still lands in the
-source's generic-object fallback with full byte ranges and is
-reachable via source-level operations (`rename_partition` cascades,
-`--scf` selection through grep / a real SCF concatenation), but is
-not navigable from the DSL. `net.*`, `sys.*`, `apm.*`, `cm.*`,
+enumerate the exact set of kinds covered per module, and the tree
+above lists them all. The tables are the contract: a kind that is
+absent is not navigable, so `gtm` covers `datacenter` / `server` /
+`pool` / `wideip` / `listener` — notably **not** `prober-pool`,
+`region`, or `rule` — and `security` covers the firewall + NAT kinds
+only.
+
 `pem.*`, `auth.*`, `vcmp.*`, `cli.*`, `api-protection.*`, `asm.*`,
 `ilx.*`, `wom.*`, and `analytics.*` have **no** typed projection:
-`.net.self[]`, `.sys.dns`, `.apm.access-policy` and `.cm.device` are
-not reachable.
+they appear at the root but hold no kinds, so `.pem.policy[]` raises
+`pem: no entry 'policy'`. Any TMSH stanza the parser sees but no
+typed projection covers still lands in the source's generic-object
+fallback with full byte ranges and is reachable via source-level
+operations (`rename_partition` cascades, `--scf` selection through
+grep / a real SCF concatenation), but is not navigable from the DSL.
+
+`sys dns` / `sys ntp` / `sys snmp` / `sys global-settings` and
+`apm report default-report` are TMSH **singletons**: they parse with
+an empty full-path, so their container holds exactly one entry under
+the `""` key. Read them by streaming — `.sys.dns[].name-servers[]` —
+rather than by subscript.
 
 The per-kind field construction lives in `project_fields()` and its
 per-kind helpers (`project_virtual`, `project_pool`, …) in the same
