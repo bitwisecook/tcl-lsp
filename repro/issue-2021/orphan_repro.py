@@ -385,7 +385,7 @@ def run_session(args) -> dict:
 
     # Open a real, moderately large document so the diagnostics worker and
     # semantic-token convergence have work.
-    doc = pick_document(workspace)
+    doc = Path(args.document).resolve() if getattr(args, "document", "") else pick_document(workspace)
     text = doc.read_text(encoding="utf-8", errors="replace")
     uri = doc.as_uri()
     print(f"didOpen: {doc}  ({len(text.splitlines())} lines, {len(text)} bytes)")
@@ -569,6 +569,7 @@ def main():
                     help="leave a surviving server alive for inspection")
     ap.add_argument("--outdir", default=str(Path(__file__).resolve().parent))
     ap.add_argument("--tag", default="", help="extra suffix for output filenames")
+    ap.add_argument("--document", default="", help="file to open instead of the auto-picked largest .tcl")
     ap.add_argument("--json", default="", help="append the run result as JSON to this file")
     args = ap.parse_args()
 
