@@ -163,19 +163,17 @@ fn dns_is_ungated() {
 
 #[test]
 fn ucs_cert_rejects_a_plain_object() {
-    // `ucs_cert` needs a projected `sys file ssl-cert` / `cm cert`
-    // `Value::ObjectRef`, and `ObjectRef`s are only ever built by
-    // `projection.rs` for the ltm / gtm / security kinds. A stanza handed in
-    // with `--input-json` arrives as a plain `Value::Object` and so cannot
-    // reach the builtin either — the error must say so rather than point at a
-    // pipeline that would work.
+    // `ucs_cert` reads the archive by the source URI its argument was loaded
+    // from, which only a projected `Value::ObjectRef` carries. A stanza handed
+    // in with `--input-json` arrives as a plain `Value::Object` with no such
+    // URI, so the error names the containers that do supply one.
     let err = run_disabled(
         "ucs_cert({\"full-path\": \"/Common/app.crt\", \
          \"cache-path\": \"/config/filestore/files_d/Common_d/app.crt_1_1\"})",
     )
     .expect_err("a plain object is not a projected cert object");
     assert!(
-        err.contains("not reachable from `f5 query`"),
-        "expected the unreachable-from-f5-query wording, got {err:?}"
+        err.contains(".sys[\"file-ssl-cert\"][]") && err.contains(".cm.cert[]"),
+        "the error must name the projected containers to pipe from, got {err:?}"
     );
 }

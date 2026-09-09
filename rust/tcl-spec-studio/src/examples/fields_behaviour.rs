@@ -864,6 +864,24 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
         },
     ),
     (
+        "taint_transform_when",
+        Example {
+            code: "puts [string map {\"\\n\" \"\" \"\\r\" \"\"} $line]\nputs [string map {a b} $line]",
+            focuses: &[
+                focus(
+                    0,
+                    "{\"\\n\" \"\" \"\\r\" \"\"}",
+                    "the mapping deletes CR and LF, so this call proves CRLF_FREE and T101 stays quiet",
+                ),
+                focus(
+                    1,
+                    "{a b}",
+                    "any other mapping proves nothing: the condition fails and T101 still reports",
+                ),
+            ],
+        },
+    ),
+    (
         "taint_double_encode_colour",
         Example {
             code: "set once [URI::encode $q]\nset twice [URI::encode $once]",

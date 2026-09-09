@@ -112,6 +112,17 @@ def test_merge_refuses_colliding_identities():
         f5report.query(".ltm.pool[]", [a, b], merge=True)
 
 
+def test_unresolved_reference_is_none():
+    sources = [
+        (
+            "virtual.conf",
+            "ltm virtual /Common/app { pool /Common/missing_pool }\n",
+        )
+    ]
+    rows = f5report.query(".ltm.virtual[] | .pool | .members", sources)
+    assert rows == [None]
+
+
 def test_bad_query_raises_queryerror():
     sources = f5report.load_paths([UCS1])
     with pytest.raises(f5report._engine.QueryError):

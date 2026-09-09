@@ -65,10 +65,10 @@ create_exception!(
 /// * `Stream`   → `list` (top-level streams are flattened by [`query`]);
 /// * `ObjectRef`→ `{"kind", "full-path", "fields": {…}}`;
 /// * `Container`→ `"container(<kind>)"` (matching the JSON fallback);
-/// * `Drop`/`Null` → `None`.
+/// * `Drop`/`Null`/`Unresolved` → `None`.
 fn value_to_py(py: Python<'_>, value: &Value) -> PyResult<Py<PyAny>> {
     let obj = match value {
-        Value::Null | Value::Drop => py.None(),
+        Value::Null | Value::Unresolved(_) | Value::Drop => py.None(),
         Value::Bool(b) => pyo3::types::PyBool::new(py, *b)
             .to_owned()
             .into_any()

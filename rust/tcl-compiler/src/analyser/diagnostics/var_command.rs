@@ -1469,7 +1469,7 @@ impl Analyser {
             crate::analyser::types::Diagnostic::new(
                 DiagCode::W307,
                 site.cmd_span,
-                "Non-literal command name — cannot statically analyze".to_string(),
+                "Non-literal command name — cannot statically analyse".to_string(),
                 Severity::Warning,
             )
         })
@@ -1581,7 +1581,7 @@ impl Analyser {
                         .push(crate::analyser::types::Diagnostic::new(
                             DiagCode::W307,
                             site.cmd_span,
-                            "Non-literal command name — cannot statically analyze".to_string(),
+                            "Non-literal command name — cannot statically analyse".to_string(),
                             Severity::Warning,
                         ));
                     continue;
@@ -1660,7 +1660,7 @@ impl Analyser {
                 .push(crate::analyser::types::Diagnostic::new(
                     DiagCode::W307,
                     site.cmd_span,
-                    "Non-literal command name — cannot statically analyze".to_string(),
+                    "Non-literal command name — cannot statically analyse".to_string(),
                     Severity::Warning,
                 ));
         }
