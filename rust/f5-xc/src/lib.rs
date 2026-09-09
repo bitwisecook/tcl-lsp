@@ -50,7 +50,7 @@ pub mod terraform;
 pub mod translator;
 
 pub use diagnostics::{XcDiagnostic, XcSeverity, get_xc_diagnostics};
-pub use json_api::render_json;
+pub use json_api::{ConsoleObject, render_console_objects, render_json};
 pub use model::{TranslateStatus, XCConstructKind, XCTranslationResult};
 pub use report::{DEFAULT_LB_NAME, DEFAULT_NAMESPACE, OutputFormat, translation_payload};
 pub use terraform::render_terraform;

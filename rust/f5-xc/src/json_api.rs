@@ -404,6 +404,85 @@ fn render_load_balancer(result: &XCTranslationResult, namespace: &str, name: &st
     })
 }
 
+/// One object rendered the way the F5 XC Console's configuration editor
+/// takes it: a single document, ready to paste.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConsoleObject {
+    /// ves.io object type — `origin_pool`, `service_policy`,
+    /// `http_loadbalancer` — which names the Console screen the document
+    /// belongs on.
+    pub object_type: &'static str,
+    /// The object's name, as the document's metadata carries it.
+    pub name: String,
+    /// The namespace the document is written for.
+    pub namespace: String,
+    /// The document to paste.
+    pub document: Value,
+}
+
+/// Re-envelope one rendered object as a Console document.
+///
+/// The spec is the same one [`render_json`] emits. The metadata is the
+/// `ves.io.schema.ObjectCreateMetaType` block a create takes — `name`,
+/// `namespace`, `labels`, `annotations`, `description`, `disable`, and
+/// nothing else. None of them are required, so the empty ones are written
+/// out for the reader to fill in rather than left off.
+fn console_document(rendered: &Value, name: &str, namespace: &str) -> Value {
+    json!({
+        "metadata": {
+            "name": name,
+            "namespace": namespace,
+            "labels": {},
+            "annotations": {},
+            "description": "",
+            "disable": false,
+        },
+        "spec": rendered.get("spec").cloned().unwrap_or(Value::Null),
+    })
+}
+
+/// Render the translation as one pasteable Console document per object.
+///
+/// [`render_json`] bundles every object and the coverage summary into a
+/// single value, which is what an automated caller wants and what no
+/// Console screen accepts. This is the other half: each object on its own,
+/// shaped as the `CreateRequest` its schema defines — `{metadata, spec}`
+/// and nothing more — so it pastes into the Console's JSON editor as-is.
+#[must_use]
+pub fn render_console_objects(
+    result: &XCTranslationResult,
+    namespace: &str,
+    lb_name: &str,
+) -> Vec<ConsoleObject> {
+    let mut objects = Vec::new();
+    for pool in &result.origin_pools {
+        let rendered = render_origin_pool(pool, namespace);
+        objects.push(ConsoleObject {
+            object_type: "origin_pool",
+            name: pool.name.clone(),
+            namespace: namespace.to_owned(),
+            document: console_document(&rendered, &pool.name, namespace),
+        });
+    }
+    for policy in &result.service_policies {
+        let rendered = render_service_policy(policy, namespace);
+        objects.push(ConsoleObject {
+            object_type: "service_policy",
+            name: policy.name.clone(),
+            namespace: namespace.to_owned(),
+            document: console_document(&rendered, &policy.name, namespace),
+        });
+    }
+    let lb = render_load_balancer(result, namespace, lb_name);
+    objects.push(ConsoleObject {
+        object_type: "http_loadbalancer",
+        name: lb_name.to_owned(),
+        namespace: namespace.to_owned(),
+        document: console_document(&lb, lb_name, namespace),
+    });
+    objects
+}
+
 /// Render an XC translation result as ves.io JSON-API objects: an object with
 /// `origin_pools`, `service_policies`, `http_loadbalancer`, and `summary`.
 #[must_use]

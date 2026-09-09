@@ -552,6 +552,11 @@
         "category": "Tcl"
       },
       {
+        "command": "tclLsp.translateXcConsole",
+        "title": "Translate iRule to F5 XC (Console JSON)",
+        "category": "Tcl"
+      },
+      {
         "command": "tclLsp.extractRule",
         "title": "Open iRule in Editor",
         "category": "Tcl"
@@ -840,6 +845,10 @@
           "when": "editorLangId =~ /^tcl/ && tclLsp.isIruleDialect"
         },
         {
+          "command": "tclLsp.translateXcConsole",
+          "when": "editorLangId =~ /^tcl/ && tclLsp.isIruleDialect"
+        },
+        {
           "command": "tclLsp.extractRule",
           "when": "editorLangId =~ /^tcl/"
         },
@@ -949,6 +958,11 @@
         },
         {
           "command": "tclLsp.translateXc",
+          "when": "editorLangId =~ /^tcl/ && tclLsp.isIruleDialect",
+          "group": "4_tools"
+        },
+        {
+          "command": "tclLsp.translateXcConsole",
           "when": "editorLangId =~ /^tcl/ && tclLsp.isIruleDialect",
           "group": "4_tools"
         },
