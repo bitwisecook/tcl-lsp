@@ -1892,6 +1892,18 @@ mod binary_format_modifiers {
     fn no_modifier_clean() {
         assert!(!fires("binary format s $val", "tcl8.4", "W200"));
     }
+
+    // TIP 275 added only the `u` suffix. `s` is the short-integer specifier,
+    // so `ss` is two 2-byte fields on every release — verified on tclsh
+    // 8.4.20, 8.5.19, 8.6.18 and 9.0.4 — and never a signedness modifier.
+    #[test]
+    fn short_specifier_is_not_a_modifier() {
+        assert!(!fires("binary format ss 1 2", "tcl8.4", "W200"));
+        assert!(!fires("binary scan $x ss a b", "tcl8.4", "W200"));
+        assert!(!fires("binary format is $val $v2", "tcl8.4", "W200"));
+        // The real `u` modifier is unaffected.
+        assert_eq!(count("binary format su 1", "tcl8.4", "W200"), 1);
+    }
 }
 
 // W310 — hardcoded credentials.

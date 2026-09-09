@@ -87,7 +87,7 @@ object DiagnosticCatalog {
         DiagnosticDef("W150", "warning", "W150: Not available across the project's declared version-...", true),
         DiagnosticDef("W151", "warning", "W151: Numeral changes meaning or validity across the proje...", true),
         DiagnosticDef("W152", "warning", "W152: A registry-declared option relation is unmet", true),
-        DiagnosticDef("W200", "warning", "W200: Signed/unsigned modifier on a binary format/binary s...", true),
+        DiagnosticDef("W200", "warning", "W200: Unsigned (u) modifier on a binary format/binary scan...", true),
         DiagnosticDef("W201", "warning", "W201: Manual path concatenation", true),
         DiagnosticDef("W230", "warning", "W230: Constant list index out of range", true),
         DiagnosticDef("W231", "warning", "W231: Constant list index out of range", true),

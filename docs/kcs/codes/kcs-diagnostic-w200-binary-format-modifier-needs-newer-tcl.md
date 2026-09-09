@@ -24,14 +24,12 @@ rejected at run time with `bad field specifier "u"`. The analyser reads the
 literal format string and compares each modifier against the file's effective
 Tcl version: the dialect profile, raised by any `package require Tcl`.
 
-Known issue: the analyser also reports an `s` that follows an integer
-specifier (`ss`, `is`) as if it were a modifier. Tcl has no `s` modifier — that
-is a second short-integer field on every release — so that report is a false
-positive.
+Tcl has no `s` modifier: an `s` after an integer specifier (`ss`, `is`) is a
+second short-integer field on every release, so the analyser leaves it alone.
 
 ## Symptoms
 
-- A yellow squiggle under the format string, with the message "signed/unsigned
+- A yellow squiggle under the format string, with the message "unsigned
   modifier 'u' on binary format specifier requires Tcl 8.5 but tcl8.4 provides
   8.4."
 - One diagnostic per gated modifier in the string.

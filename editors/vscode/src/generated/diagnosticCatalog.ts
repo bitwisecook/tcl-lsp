@@ -371,7 +371,7 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     code: "W200",
     section: "warning",
     description:
-      "Signed/unsigned modifier on a `binary format`/`binary scan` specifier requires a newer Tcl release.",
+      "Unsigned (`u`) modifier on a `binary format`/`binary scan` integer specifier requires a newer Tcl release.",
     defaultEnabled: true,
   },
   {

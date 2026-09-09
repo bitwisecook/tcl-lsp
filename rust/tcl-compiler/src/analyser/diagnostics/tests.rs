@@ -143,6 +143,13 @@ fn w200_binary_modifier_is_dialect_gated() {
     assert!(!has_code("binary format cu1 $x\n", "tcl8.6", "W200"));
     // No modifier — never flagged.
     assert!(!has_code("binary format c1 $x\n", "tcl8.4", "W200"));
+    // `s` is the short-integer specifier, not a signedness modifier: TIP 275
+    // added only `u`. `ss` is two short fields on every release (verified on
+    // tclsh 8.4.20, 8.5.19, 8.6.18 and 9.0.4), so it must stay clean even
+    // under an 8.4 target, while a genuine `u` still fires.
+    assert!(!has_code("binary format ss 1 2\n", "tcl8.4", "W200"));
+    assert!(!has_code("binary scan $x ss a b\n", "tcl8.4", "W200"));
+    assert!(has_code("binary format su 1\n", "tcl8.4", "W200"));
 }
 
 #[test]

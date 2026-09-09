@@ -350,12 +350,15 @@ Use braces: {{ \u{2026} }}"
         }
     }
 
-    /// W200: a `u` / `s` modifier on a `binary format` / `binary
-    /// scan` integer specifier requires Tcl 8.5+ (TIP 275). Sites are
-    /// buffered and decided post-walk against the effective Tcl version
-    /// (§6 argument-DSL rung) — the old hardcoded dialect list wrongly
-    /// included f5-iapps, whose host embeds a real Tcl 8.5.13 where the
-    /// modifiers work.
+    /// W200: a `u` modifier on a `binary format` / `binary scan`
+    /// integer specifier requires Tcl 8.5+ (TIP 275). `u` is the only
+    /// modifier TIP 275 added: an `s` following an integer specifier is
+    /// a second short-integer field on every release (`ss` is two
+    /// fields on 8.4 through 9.0), never a signedness modifier. Sites
+    /// are buffered and decided post-walk against the effective Tcl
+    /// version (§6 argument-DSL rung) — the old hardcoded dialect list
+    /// wrongly included f5-iapps, whose host embeds a real Tcl 8.5.13
+    /// where the modifier works.
     pub(in crate::analyser) fn emit_w200_binary_format_modifiers(
         &mut self,
         cmd_name: &str,
@@ -388,17 +391,11 @@ Use braces: {{ \u{2026} }}"
             }
             let spec = fmt[i];
             i += 1;
-            if BINARY_INT_SPECIFIERS.contains(&spec)
-                && i < fmt.len()
-                && (fmt[i] == b'u' || fmt[i] == b's')
-            {
-                let modifier = fmt[i] as char;
+            if BINARY_INT_SPECIFIERS.contains(&spec) && i < fmt.len() && fmt[i] == b'u' {
                 self.dsl_gate_sites.push(super::version_gate::DslGateSite {
                     span: fmt_tok.span,
                     code: DiagCode::W200,
-                    what: format!(
-                        "signed/unsigned modifier '{modifier}' on binary format specifier"
-                    ),
+                    what: "unsigned modifier 'u' on binary format specifier".to_string(),
                     min: tcl_dialect::TclVersion::V8_5,
                 });
                 i += 1;

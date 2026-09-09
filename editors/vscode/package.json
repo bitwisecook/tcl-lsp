@@ -5554,7 +5554,7 @@
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**W200:** Signed/unsigned modifier on a `binary format`/`binary scan` specifier requires a newer Tcl release.",
+            "markdownDescription": "**W200:** Unsigned (`u`) modifier on a `binary format`/`binary scan` integer specifier requires a newer Tcl release.",
             "order": 46
           },
           "tclLsp.diagnosticSeverity.W200": {
@@ -5575,7 +5575,7 @@
               "Report as information",
               "Report as a hint (faded)"
             ],
-            "markdownDescription": "Display severity for **W200:** Signed/unsigned modifier on a `binary format`/`binary scan` specifier requires a newer Tcl release.",
+            "markdownDescription": "Display severity for **W200:** Unsigned (`u`) modifier on a `binary format`/`binary scan` integer specifier requires a newer Tcl release.",
             "order": 46
           },
           "tclLsp.diagnostics.W201": {

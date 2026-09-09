@@ -263,7 +263,7 @@ class TclLspSettingsPanel {
     private val diagW150 = JBCheckBox("W150: Not available across the project's declared version-...")
     private val diagW151 = JBCheckBox("W151: Numeral changes meaning or validity across the proje...")
     private val diagW152 = JBCheckBox("W152: A registry-declared option relation is unmet")
-    private val diagW200 = JBCheckBox("W200: Signed/unsigned modifier on a binary format/binary s...")
+    private val diagW200 = JBCheckBox("W200: Unsigned (u) modifier on a binary format/binary scan...")
     private val diagW201 = JBCheckBox("W201: Manual path concatenation")
     private val diagW230 = JBCheckBox("W230: Constant list index out of range")
     private val diagW231 = JBCheckBox("W231: Constant list index out of range")
