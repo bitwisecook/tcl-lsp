@@ -100,7 +100,7 @@ fn run_tclsh(script: &str) -> Option<String> {
     Some(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
-// -- faults 1–2: flow-sensitive constant dispatch with provenance --------
+// Faults 1–2: flow-sensitive constant dispatch with provenance.
 
 #[test]
 fn const_dispatch_rename_rewrites_the_defining_literal_and_executes_945() {
@@ -120,9 +120,8 @@ fn const_dispatch_rename_rewrites_the_defining_literal_and_executes_945() {
         renamed_src.contains("$cmd"),
         "the `$cmd` head is never rewritten:\n{renamed_src}"
     );
-    // The issue's validation bar: the transformed output must EXECUTE —
-    // the old edit set left `set cmd target` stale and died with
-    // `invalid command name "target"` under tclsh 9.0.4.
+    // The transformed output must EXECUTE — a stale `set cmd target` edit
+    // would die with `invalid command name "target"` under tclsh 9.0.4.
     let script = format!("{renamed_src}puts [$cmd]\n");
     if let Some(out) = run_tclsh(&script) {
         assert_eq!(out, "hi", "the dispatch still reaches the renamed proc");
@@ -131,12 +130,11 @@ fn const_dispatch_rename_rewrites_the_defining_literal_and_executes_945() {
     }
 }
 
-// Issue #1009 — the constant-`$cmd` dispatch settlement resolved through a
+// The constant-`$cmd` dispatch settlement must resolve through a
 // proc/class/alias/rename target renamed or deleted away with no later
-// re-establishment, the same root cause #973/#1006/#1007 fixed for the
-// bareword-call paths. Confirmed against tclsh 8.6.14 that a deleted
-// proc's dispatch fails "invalid command name" — the LSP must not still
-// treat the dead name as a live reference.
+// re-establishment, the same as the bareword-call paths. Confirmed against
+// tclsh 8.6.14 that a deleted proc's dispatch fails "invalid command
+// name" — the LSP must not still treat the dead name as a live reference.
 
 #[test]
 fn const_dispatch_draws_no_reference_to_a_deleted_proc_1009() {

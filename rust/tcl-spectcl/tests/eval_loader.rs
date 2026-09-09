@@ -396,7 +396,7 @@ fn a_variable_substitutes_into_rows_at_every_scope() {
 /// body is: a `foreach` inside it registers one row per iteration, and an
 /// `if` decides whether a row is registered at all.
 ///
-/// This is what makes the block the answer to #1643 rather than a second
+/// This is what makes the block a program rather than a second
 /// declarative dialect — the author writes ordinary Tcl, and the block
 /// reader still owns what every row it produced means.
 #[test]
@@ -498,9 +498,9 @@ fn the_block_readers_still_report_from_the_evaluated_path() {
 ///
 /// Evaluation hands the handler values, not words, so a one-word body
 /// (`{emit}`) is the same string a flag would be. Picking the body out by
-/// whitespace therefore missed it, staged the declaration with no body at
-/// all, and rejected `environment one-word {emit}` for its formatting
-/// rather than its content (issue #1643).
+/// whitespace would therefore miss it, stage the declaration with no body at
+/// all, and reject `environment one-word {emit}` for its formatting
+/// rather than its content.
 #[test]
 fn a_block_body_is_located_by_position_not_by_whitespace() {
     // `emit` is a pack-defined proc, so both bodies are a single bare
@@ -570,10 +570,10 @@ fn a_block_body_is_located_by_position_not_by_whitespace() {
 
 /// A braced name is refused on the evaluated path too.
 ///
-/// `environment {custom} { … }` is the issue-#1638 mistake the block
+/// `environment {custom} { … }` is the mistake the block
 /// readers reject, but evaluation loses per-word braced-ness: rebuilding
-/// the header from values alone made the name look bare, and the
-/// declaration was accepted whenever the pack happened to need the
+/// the header from values alone would make the name look bare, and the
+/// declaration would be accepted whenever the pack happened to need the
 /// interpreter.
 #[test]
 fn a_braced_block_name_is_rejected_on_both_paths() {
