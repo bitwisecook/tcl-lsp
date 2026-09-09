@@ -183,7 +183,8 @@ MODULES
                           by: ``.sys["file-ssl-cert"][] | ucs_cert(.)``.
   .cm.<kind>              Cluster Manager: ``cert``, ``key``,
                           ``device``, ``device-group``,
-                          ``traffic-group``, ``trust-domain``.
+                          ``traffic-group``, ``trust-domain``,
+                          ``ha-group``.
                           PathRefs from ``device.cert`` /
                           ``device.key`` and ``trust-domain.ca-cert``
                           / ``ca-key`` / ``ca-devices[]`` /

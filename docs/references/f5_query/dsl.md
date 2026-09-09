@@ -273,11 +273,14 @@ coverage note below); their shape is:
                                    .devices[]  (path-refs → cm device)
   .traffic-group["/Common/traffic-group-1"].default-device (path-ref → cm device)
                                            .ha-order[]     (path-refs → cm device)
+                                           .ha-group       (path-ref → cm ha-group)
   .trust-domain["/Common/Root"].ca-cert     (path-ref → cm cert)
                                .ca-devices[]
                                .trust-group (path-ref → cm device-group)
   .cert["/Common/dtdi.crt"].subject         (same x509 metadata as sys file ssl-cert)
   .key["/Common/dtdi.key"].key-size
+  .ha-group["/Common/lab-ha"].enabled-state
+                             .pools[]       (path-refs → ltm pool)
 .apm
   .access-policy["/Common/employee_login"].start-item     (path-ref → apm policy-item)
                                           .default-ending (path-ref → apm policy-item)

@@ -48,13 +48,13 @@ use tcl_bigip::model::BigipDataGroup;
 use tcl_bigip::model::{
     BigipApmEphemeralAuthSshSecurityConfig, BigipApmOauthDbInstance, BigipApmPolicyAccessPolicy,
     BigipApmPolicyAgent, BigipApmPolicyCustomizationSource, BigipApmPolicyItem,
-    BigipApmReportDefaultReport, BigipCmCert, BigipCmDevice, BigipCmDeviceGroup, BigipCmKey,
-    BigipCmTrafficGroup, BigipCmTrustDomain, BigipGtmDatacenter, BigipGtmListener, BigipGtmPool,
-    BigipGtmPoolMember, BigipGtmServer, BigipGtmWideip, BigipLtmSnatTranslation, BigipMonitor,
-    BigipNetDnsResolver, BigipNetInterface, BigipNetPortList, BigipNetRoute, BigipNetRouteDomain,
-    BigipNetSelf, BigipNetStp, BigipNetTunnel, BigipNetVlan, BigipNode, BigipPersistence,
-    BigipPolicy, BigipPolicyAction, BigipPolicyCondition, BigipPolicyRule, BigipPool,
-    BigipPoolMember, BigipProfile, BigipRule, BigipSecurityFirewallAddressList,
+    BigipApmReportDefaultReport, BigipCmCert, BigipCmDevice, BigipCmDeviceGroup, BigipCmHaGroup,
+    BigipCmKey, BigipCmTrafficGroup, BigipCmTrustDomain, BigipGtmDatacenter, BigipGtmListener,
+    BigipGtmPool, BigipGtmPoolMember, BigipGtmServer, BigipGtmWideip, BigipLtmSnatTranslation,
+    BigipMonitor, BigipNetDnsResolver, BigipNetInterface, BigipNetPortList, BigipNetRoute,
+    BigipNetRouteDomain, BigipNetSelf, BigipNetStp, BigipNetTunnel, BigipNetVlan, BigipNode,
+    BigipPersistence, BigipPolicy, BigipPolicyAction, BigipPolicyCondition, BigipPolicyRule,
+    BigipPool, BigipPoolMember, BigipProfile, BigipRule, BigipSecurityFirewallAddressList,
     BigipSecurityFirewallPolicy, BigipSecurityFirewallPortList, BigipSecurityFirewallRuleList,
     BigipSecurityNatDestinationTranslation, BigipSecurityNatPolicy,
     BigipSecurityNatSourceTranslation, BigipSnatPool, BigipSysDns, BigipSysFileSslCert,
@@ -295,6 +295,7 @@ const CM_KINDS: &[(&str, &str)] = &[
     ("device-group", "cm device-group"),
     ("traffic-group", "cm traffic-group"),
     ("trust-domain", "cm trust-domain"),
+    ("ha-group", "cm ha-group"),
 ];
 
 /// `(label, tmsh_kind)` for the APM kinds. An `apm policy access-policy`'s
@@ -441,6 +442,7 @@ fn placed_kind(placed: &Placed) -> Option<&'static str> {
         ModelObject::CmDeviceGroup(_) => Some("cm device-group"),
         ModelObject::CmTrafficGroup(_) => Some("cm traffic-group"),
         ModelObject::CmTrustDomain(_) => Some("cm trust-domain"),
+        ModelObject::CmHaGroup(_) => Some("cm ha-group"),
         ModelObject::ApmPolicyAccessPolicy(_) => Some("apm policy access-policy"),
         ModelObject::ApmPolicyItem(_) => Some("apm policy policy-item"),
         ModelObject::ApmPolicyAgent(_) => Some("apm policy agent"),
@@ -557,6 +559,7 @@ fn model_range(obj: &ModelObject) -> Option<tcl_bigip::range::Range> {
         ModelObject::CmDeviceGroup(o) => o.range,
         ModelObject::CmTrafficGroup(o) => o.range,
         ModelObject::CmTrustDomain(o) => o.range,
+        ModelObject::CmHaGroup(o) => o.range,
         ModelObject::ApmPolicyAccessPolicy(o) => o.range,
         ModelObject::ApmPolicyItem(o) => o.range,
         ModelObject::ApmPolicyAgent(o) => o.range,
@@ -768,6 +771,7 @@ fn project_fields(kind: &str, obj: &ModelObject, root: &Rc<Root>) -> IndexMap<St
         ("cm device-group", ModelObject::CmDeviceGroup(o)) => project_cm_device_group(o),
         ("cm traffic-group", ModelObject::CmTrafficGroup(o)) => project_cm_traffic_group(o),
         ("cm trust-domain", ModelObject::CmTrustDomain(o)) => project_cm_trust_domain(o),
+        ("cm ha-group", ModelObject::CmHaGroup(o)) => project_cm_ha_group(o),
         ("apm policy access-policy", ModelObject::ApmPolicyAccessPolicy(o)) => {
             project_apm_access_policy(o)
         }
@@ -1541,6 +1545,9 @@ fn project_net_route(o: &BigipNetRoute) -> IndexMap<String, Value> {
         .b("is-default-route", o.is_default_route)
         .v("gw", typed_str(o.gw.as_ref()))
         .v("pool", path_ref(&o.pool, "ltm pool"))
+        // A route's `interface` carries a VLAN or tunnel path, not a physical
+        // interface name — the same target set as `ltm virtual`'s
+        // `transparent-nexthop`, which resolves against `net vlan` too.
         .v("interface", path_ref(&o.interface, "net vlan"))
         .b("blackhole", o.blackhole)
         .s("mtu", &o.mtu)
@@ -1974,7 +1981,7 @@ fn project_sys_management_route(o: &BigipSysManagementRoute) -> IndexMap<String,
         .done()
 }
 
-// Cm (device cluster) projections
+// CM (device cluster) projections
 
 /// `cm cert` — the device-trust cert. Same x509 metadata spelling as
 /// `sys file ssl-cert`, so `x509_from_config` projects either one.
@@ -2089,10 +2096,22 @@ fn project_cm_traffic_group(o: &BigipCmTrafficGroup) -> IndexMap<String, Value> 
         .v("default-device", path_ref(&o.default_device, "cm device"))
         .s("ha-load-factor", &o.ha_load_factor)
         .v("ha-order", path_ref_list_strs(&o.ha_order, "cm device"))
-        .s("ha-group", &o.ha_group)
+        .v("ha-group", path_ref(&o.ha_group, "cm ha-group"))
         .s("auto-failback-enabled", &o.auto_failback_enabled)
         .s("auto-failback-time", &o.auto_failback_time)
         .s("mac", &o.mac)
+        .done()
+}
+
+fn project_cm_ha_group(o: &BigipCmHaGroup) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("description", &o.description)
+        .s("enabled-state", &o.enabled_state)
+        .s("active-bonus", &o.active_bonus)
+        .v("pools", path_ref_list_strs(&o.pools, "ltm pool"))
+        .v("trunks", str_list(&o.trunks))
         .done()
 }
 
@@ -2110,7 +2129,7 @@ fn project_cm_trust_domain(o: &BigipCmTrustDomain) -> IndexMap<String, Value> {
         .done()
 }
 
-// Apm projections
+// APM projections
 
 /// `apm policy access-policy` — the VPN / webtop policy graph's root.
 ///

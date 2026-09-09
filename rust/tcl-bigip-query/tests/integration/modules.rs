@@ -121,6 +121,24 @@ fn net_route_and_route_domain_project() {
 }
 
 #[test]
+fn net_vlan_interfaces_and_route_interface_deref() {
+    // `vlan.interfaces[]` resolves against `net interface`, and a route's
+    // `interface` against the VLAN it names.
+    raw_eq(
+        LAB_PLATFORM,
+        "lab_platform.conf",
+        r#".net.vlan[] | tsv(.name, .tag, join([.interfaces[].mtu], ","))"#,
+        "mgmt\t10\t9198",
+    );
+    raw_eq(
+        LAB_PLATFORM,
+        "lab_platform.conf",
+        r".net.route[] | tsv(.name, .network, .interface, .interface.tag)",
+        "mgmt_default\t198.18.0.0/15\t/Common/mgmt\t10",
+    );
+}
+
+#[test]
 fn net_platform_kinds_project() {
     raw_eq(
         LAB_PLATFORM,
@@ -276,6 +294,19 @@ fn cm_cert_key_traffic_group_and_trust_domain_project() {
         "lab_platform.conf",
         r#".cm["traffic-group"][] | tsv(.name, ."default-device".hostname, ."unit-id")"#,
         "traffic-group-1\tlab-a.example.test\t1",
+    );
+    // `traffic-group.ha-group` derefs into `cm ha-group`.
+    raw_eq(
+        LAB_PLATFORM,
+        "lab_platform.conf",
+        r#".cm["traffic-group"][] | tsv(.name, ."ha-group".name, ."ha-group"."active-bonus")"#,
+        "traffic-group-1\tlab-ha\t10",
+    );
+    raw_eq(
+        LAB_PLATFORM,
+        "lab_platform.conf",
+        r#".cm["ha-group"][] | tsv(.name, ."enabled-state", join([.pools[]], ","))"#,
+        "lab-ha\tenabled\t/Common/web_pool",
     );
     // `trust-domain.ca-cert` / `.ca-devices[]` deref too.
     raw_eq(
