@@ -70,6 +70,7 @@ import threading
 import time
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote
 
 #: Default budget for one write to the server's stdin (see `_send`). Not the
 #: same knob as a request's response timeout (`send_request(timeout=...)`
@@ -676,11 +677,12 @@ class LspClient:
 def default_scan_timeout(server_bin: str) -> float:
     """Pick the workspace-scan ceiling for the server binary at *server_bin*.
 
-    Cargo puts the profile in the path (`target/release/`, `target/debug/`),
-    which is the only profile signal a client has.
+    Cargo names the directory holding the binary after the profile
+    (`target/release/`, `target/debug/`), which is the only profile signal a
+    client has. Only that directory counts: an ancestor named `release` is
+    someone's build root, not a statement about this binary.
     """
-    parts = {part.lower() for part in Path(server_bin).parts}
-    if "release" in parts:
+    if Path(server_bin).parent.name.lower() == "release":
         return SCAN_TIMEOUT_RELEASE_S
     return SCAN_TIMEOUT_DEBUG_S
 
@@ -735,6 +737,17 @@ def initialize(client: LspClient) -> dict:
     return result
 
 
+def document_uri(path: str) -> str:
+    """The `file:` URI for *path*, spelled as the server spells it.
+
+    The server percent-encodes the URIs it stores and republishes, so a
+    client that concatenates the raw path instead never matches its own
+    document's publish — the reserved characters, a space or non-ASCII byte
+    among them, differ on the two sides.
+    """
+    return Path(path).as_uri()
+
+
 def open_document(client: LspClient, file_path: str) -> tuple[str, str]:
     """Read a file, send textDocument/didOpen, return (uri, content)."""
     abs_path = os.path.abspath(file_path)
@@ -742,7 +755,7 @@ def open_document(client: LspClient, file_path: str) -> tuple[str, str]:
         raise FileNotFoundError(f"File not found: {abs_path}")
     with open(abs_path) as f:
         content = f.read()
-    uri = f"file://{abs_path}"
+    uri = document_uri(abs_path)
     client.send_notification(
         "textDocument/didOpen",
         {
@@ -945,7 +958,7 @@ def print_locations(locations: list[dict] | None, label: str) -> None:
         uri = loc.get("uri", "")
         # Shorten the URI for display
         if uri.startswith("file://"):
-            path = uri[7:]
+            path = unquote(uri[7:])
             # Show just the filename
             short = os.path.basename(path)
         else:
@@ -1442,7 +1455,7 @@ def cmd_context(client: LspClient, uri: str, content: str) -> None:
 
     Mirrors the context enrichment from the VS Code extension's contextPack.ts.
     """
-    file_path = uri.replace("file://", "")
+    file_path = unquote(uri.replace("file://", ""))
     basename = os.path.basename(file_path)
     line_count = len(content.split("\n"))
 

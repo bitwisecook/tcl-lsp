@@ -23,6 +23,7 @@ from lsp_client import (
     SCAN_TIMEOUT_RELEASE_S,
     LspClient,
     default_scan_timeout,
+    document_uri,
 )
 
 
@@ -111,6 +112,10 @@ def test_launch_cmd_is_required():
         ("/repo/target/release/tcl-lsp-server", SCAN_TIMEOUT_RELEASE_S),
         ("/repo/target/debug/tcl-lsp-server", SCAN_TIMEOUT_DEBUG_S),
         ("/usr/local/bin/tcl-lsp-server", SCAN_TIMEOUT_DEBUG_S),
+        # An ancestor named "release" is someone's build root, not this
+        # binary's profile.
+        ("/build/release/proj/target/debug/tcl-lsp-server", SCAN_TIMEOUT_DEBUG_S),
+        ("/build/debug/proj/target/release/tcl-lsp-server", SCAN_TIMEOUT_RELEASE_S),
     ],
 )
 def test_scan_timeout_follows_build_profile(server_bin: str, expected: float):
@@ -160,3 +165,16 @@ def test_diagnostics_wait_takes_the_newest_publish():
 
     assert params is not None
     assert params["diagnostics"] == []
+
+
+@pytest.mark.parametrize(
+    ("path", "expected"),
+    [
+        ("/tmp/plain.tcl", "file:///tmp/plain.tcl"),
+        ("/tmp/has space.tcl", "file:///tmp/has%20space.tcl"),
+        ("/tmp/caf\u00e9.tcl", "file:///tmp/caf%C3%A9.tcl"),
+    ],
+)
+def test_document_uri_is_percent_encoded(path: str, expected: str):
+    """The server percent-encodes; a raw spelling never matches its publish."""
+    assert document_uri(path) == expected
