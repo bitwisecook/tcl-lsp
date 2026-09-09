@@ -178,7 +178,7 @@ pub enum VarWriteTyping {
 
 /// How a command's *result value* relates to container element structure —
 /// the registry fact behind per-element type inference
-/// (`docs/design/compiler/type-tracking.md`, P3). Read by the compiler's
+/// (`docs/design/compiler/type-tracking.md`). Read by the compiler's
 /// type-propagation pass; never keyed on command names in the compiler.
 ///
 /// Faithful to the runtime: container elements are shared `Tcl_Obj`s, so a

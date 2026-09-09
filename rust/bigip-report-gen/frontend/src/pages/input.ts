@@ -4,8 +4,7 @@
 // The BIG-IP report *builder* / input page controller. Collects config files +
 // options + the architecture/topology manifest, then hands them to a
 // ReportBackend (in-browser wasm, or the f5report web server) to generate the
-// self-contained report. Ported from the wasm app's inline page; the
-// generation pipeline now lives behind ./report-backend.
+// self-contained report. The generation pipeline lives behind ./report-backend.
 //
 // prettier-ignore-file is not used — this is hand-maintained typed code.
 

@@ -19,9 +19,9 @@
 //! Remote-access helpers for the `f5` CLI.
 //!
 //! Hosts the credential resolver (`auth`), the iControl REST transport (`rest`),
-//! the single-object pull/push request shaping (`object_io`), Python-`json`-
-//! compatible JSON rendering (`json_compat`), and the SSH/scp transport (`ssh`)
-//! shared by the `fetch` / `push` / `pull` verbs.
+//! the single-object pull/push request shaping (`object_io`), ASCII-safe
+//! pretty-printed JSON rendering (`json_compat`), and the SSH/scp transport
+//! (`ssh`) shared by the `fetch` / `push` / `pull` verbs.
 
 pub mod auth;
 pub mod json_compat;

@@ -219,7 +219,7 @@ fn var_write_typing_declares_destructuring_writers() {
             .var_write_typing()
     };
 
-    // `lassign` writes its container's *elements* positionally — the P3
+    // `lassign` writes its container's *elements* positionally — the
     // element-inference fact, so a committed `[list ...]` source types each
     // target from its element shape.
     assert_eq!(

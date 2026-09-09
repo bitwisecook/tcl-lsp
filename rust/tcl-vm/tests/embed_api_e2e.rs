@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The embedder surface (`tcl_vm::embed`), which is issue #1373 closed in the
+//! The embedder surface (`tcl_vm::embed`), closed in the
 //! VM: a public call-a-command path, invoke-by-handle with no per-call
 //! bytecode clone, an enforced `commands` limit, embedder-registered stateful
 //! commands, and a whitelist-reduced command table.

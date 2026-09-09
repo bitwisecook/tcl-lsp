@@ -191,11 +191,10 @@ const MODULE_NAMES: &[&str] = &[
     "analytics",
 ];
 
-/// `(label, tmsh_kind)` for the LTM kinds the projection covers. The
-/// order matches the tail of `_MODULE_KINDS["ltm"]`. Labels not listed
-/// here (the long-tail LTM kinds the Rust model doesn't carry) are simply
-/// absent — navigating into them yields an empty container, matching the
-/// "no entry" surface produced for a config that has no such objects.
+/// `(label, tmsh_kind)` for the LTM kinds the projection covers. Labels not
+/// listed here (the long-tail LTM kinds the Rust model doesn't carry) are
+/// simply absent — navigating into them yields an empty container, matching
+/// the "no entry" surface produced for a config that has no such objects.
 const LTM_KINDS: &[(&str, &str)] = &[
     ("virtual", "ltm virtual"),
     ("virtual-address", "ltm virtual-address"),
@@ -648,8 +647,8 @@ fn path_ref(full_path: &str, expected_kind: &str) -> Value {
     Value::PathRef(Rc::new(PathRef::new(full_path, expected_kind)))
 }
 
-/// A list of `PathRef`s for a via-legacy ref+list field — iterate the
-/// `BigipList`'s item values as `for p in raw` does.
+/// A list of `PathRef`s for a plain ref+list field — one `PathRef` per item
+/// in the `BigipList`, in list order.
 fn path_ref_list(list: &BigipList, expected_kind: &str) -> Value {
     let mut out = Vec::with_capacity(list.items.len());
     for item in &list.items {
@@ -675,8 +674,9 @@ fn list_str_values(list: &BigipList) -> Value {
     )
 }
 
-/// The string a `ListItemValue` projects to when read as a path (iterating
-/// `item.value`, where `PathRef(full_path=p)` coerces via string conversion).
+/// The string a `ListItemValue` projects to when read as a path: `Profile`
+/// and `Persistence` items give their `path`; everything else falls back to
+/// the full display rendering.
 fn list_item_string(value: &ListItemValue) -> String {
     match value {
         ListItemValue::Str(s) => s.clone(),
@@ -937,9 +937,9 @@ fn member_object_ref(member: &BigipPoolMember, root: &Rc<Root>) -> Value {
         .s("connection-limit", &member.connection_limit)
         .s("rate-limit", &member.rate_limit)
         .done();
-    // Port of `_member_object_ref`'s slot wiring: each captured field offset
-    // becomes a `FieldSlot` over the value span so member properties
-    // (`address`, `description`, …) are individually editable.
+    // Each captured field offset becomes a `FieldSlot` over the value span so
+    // member properties (`address`, `description`, …) are individually
+    // editable.
     let mut field_slots: IndexMap<String, FieldSlot> = IndexMap::new();
     for (key, (start, end)) in &member.field_offsets {
         if let Some(raw_text) = root.source.get(*start..*end) {

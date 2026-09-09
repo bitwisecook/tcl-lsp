@@ -84,7 +84,7 @@ fn graph() {
 
 /// `references_to` must consult the *merged* graph under `--merge`, so a
 /// cross-file referrer resolves — not the single originating root, which would
-/// miss it (issue 195).
+/// miss it.
 #[test]
 fn references_to_uses_merged_graph_in_merge_mode() {
     let conf_a = "ltm virtual /Common/vsA {\n    destination /Common/1.2.3.4:80\n    pool /Common/poolB\n}\n";

@@ -191,9 +191,8 @@ fn lmap_writes_loop_var_as_array_element_too() {
 
 /// The zero-length-array-name spelling `(k)` — base name `""` — routes
 /// through the same `split_array_ref` owner as every other element write, so
-/// it comes along for free (tracked separately as #1458 for whether the
-/// *owner itself* handles every edge of that spelling; this only pins that
-/// these six sites don't bypass it).
+/// it comes along for free; this pins only that these six sites don't
+/// bypass that owner.
 #[test]
 fn zero_length_array_name_spelling_routes_through_the_same_owner() {
     let (code, result, _) = run("lassign {v} (k)\narray get {}");
@@ -251,8 +250,8 @@ fn subst_reports_the_missing_bracket_after_running_the_earlier_one() {
 }
 
 /// An unterminated `$name(` array index is C's `missing )` — the third
-/// delimiter failure the same owner now spells, previously read as a scalar
-/// literally named `x(`.
+/// delimiter failure the same owner spells, rather than being read as a
+/// scalar literally named `x(`.
 ///
 /// Oracle: `eval {list a $x(}` and `subst {$x(}` both give `missing )`.
 #[test]
@@ -286,8 +285,7 @@ fn well_formed_quoted_and_bracketed_words_still_parse() {
     }
 }
 
-// r5b-leftovers follow-up — `regsub`'s target variable has the identical
-// #1577 shape (flagged, not fixed, by r4-parser-gaps): `arr(k)` must write
+// `regsub`'s target variable has the identical shape: `arr(k)` must write
 // the array *element*, not a literal scalar named `arr(k)`. Oracle: tclsh
 // 8.6.16/9.0.4 both give `array get arr` => `k xbx` after `regsub -all a $s
 // b arr(k)` on `s = xax`.

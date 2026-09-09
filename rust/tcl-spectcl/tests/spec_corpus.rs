@@ -808,7 +808,7 @@ fn analyse_with_mode(
     }
 }
 
-/// Keep the old and shared pipelines permanently equivalent on a small,
+/// Keep the legacy and shared pipelines permanently equivalent on a small,
 /// deterministic set of inputs. The full-corpus report comparison remains
 /// opt-in (`SPECTCL_CORPUS_DIFF=1`) so the normal performance gate still builds
 /// one unit per document, while this always-run test covers the profile seams

@@ -5398,7 +5398,7 @@ impl Analyser {
         // both the vacated key and any interpreter the rename overwrites at
         // `NEW` mirrors `handle_interp_delete_command`, so a later
         // `interp create` recreating either name never merges with the
-        // interpreter that used to be tracked there.
+        // interpreter tracked under that name before.
         // Keyed off the *resolved* text (identical to `args[N]` for an
         // already-static rename) so a resolvable dynamic handle
         // (`set h sandbox; rename $h moved`) migrates the tracked state
@@ -12290,7 +12290,8 @@ mod tests {
     #[test]
     fn deleted_and_recreated_interp_is_a_fresh_domain_945() {
         // C: `interp delete s; interp create s` starts with an empty
-        // command table — the old definitions are gone.  The epoch-stamped
+        // command table — the first lifetime's definitions are gone.  The
+        // epoch-stamped
         // domain keeps the two lifetimes apart: the first eval's `foo`
         // homes under `@interp@s`, the recreated interpreter's under
         // `@interp@s#1`, and they never merge.
@@ -13014,7 +13015,7 @@ mod tests {
     #[test]
     fn handle_namespace_eval_literal_target_keeps_its_written_name() {
         // FN guard — a literal (non-dynamic) target must still use its own
-        // written text verbatim, exactly as before the fix.
+        // written text verbatim.
         let mut a = Analyser::new();
         a.handle_namespace_eval_command(
             &["eval".to_string(), "ns1".to_string(), String::new()],

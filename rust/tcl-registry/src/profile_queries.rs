@@ -237,11 +237,11 @@ impl ProfileQueries for DialectProfile {
 }
 
 /// The retired per-profile query rules the equivalence sweeps still need
-/// as their **oracle** (`model::context`'s P1-F parity sweeps): the
+/// as their **oracle** (`model::context`'s parity sweeps): the
 /// production surface for each of these questions is
 /// [`crate::model::ResolvedContext`], and the trait methods here exist
 /// only so the sweeps can keep pinning the context answers against the
-/// exact old rules after the old API's deletion (P1-G).
+/// exact old rules after the old API's deletion.
 #[cfg(test)]
 pub(crate) trait LegacyProfileOracle {
     /// Whether `sub` (of `spec`) is available under this profile: the

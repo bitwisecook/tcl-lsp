@@ -1940,7 +1940,7 @@ mod tests {
     #[test]
     fn regsub_command_switch_is_skipped_to_output_var() {
         // Tcl 9 `regsub -command exp string cmdPrefix varName` — `-command`
-        // is a spec-declared flag the old hardcoded switch list missed, so
+        // is a spec-declared flag (one a hardcoded switch list misses), so
         // the output var must still resolve at exp + 3.
         let traits = infer(&["out"], "regsub -command {x+} $s myCb $out");
         assert_trait(&traits, "out", ProcArgTrait::DynamicNameLocal);
@@ -2047,20 +2047,18 @@ mod tests {
         );
     }
 
-    /// Same-bug-class regression as issue #996's own fix, in the sibling
-    /// walker the issue explicitly calls out (`param_traits.rs`): before
-    /// this fix, `scan_deep`'s `apply` (`ArgRole::LambdaLiteral`) handling
-    /// re-entered `infer_param_traits_deep_with_config` — the *public*,
-    /// depth-0 entry point — instead of threading its own `depth + 1`
-    /// through. Alternating `if {1} { apply {x {…}} … }` nesting therefore
-    /// reset the *logical* [`MAX_DEPTH`] counter back to 0 on every `apply`
-    /// boundary while the *native* Rust call stack (`scan_deep` ↔
-    /// `infer_param_traits_deep_at_depth`) kept growing one frame group per
-    /// level regardless of the reset — unboundedly, for however deep the
-    /// input alternates. `MAX_DEPTH` (8) never actually bit.
+    /// Depth coverage for the `apply` seam: `scan_deep`'s `apply`
+    /// (`ArgRole::LambdaLiteral`) handling must thread its own `depth + 1`
+    /// rather than re-enter `infer_param_traits_deep_with_config` — the
+    /// *public*, depth-0 entry point. Re-entering resets the *logical*
+    /// [`MAX_DEPTH`] counter to 0 on every `apply` boundary while the
+    /// *native* Rust call stack (`scan_deep` ↔
+    /// `infer_param_traits_deep_at_depth`) keeps growing one frame group per
+    /// level regardless — unboundedly, for however deep the input
+    /// alternates, so `MAX_DEPTH` (8) never bites.
     ///
     /// 2000 alternating pairs (4000 real nesting levels) is far beyond
-    /// anything the old bypass would have tolerated on a small-stack
+    /// anything such a bypass would survive on a small-stack
     /// thread; this must terminate cleanly, not hang or overflow the
     /// stack — the same rationale as the big-stack helpers in
     /// `analyser::commands::tests` / `lowering::tests` (`cargo test`'s

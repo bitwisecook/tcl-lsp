@@ -1723,8 +1723,8 @@ impl Analyser {
             // snit / itcl seed vars are mostly grammar-injected implicits with no
             // source declaration token; an empty span map makes `walk_method_body`
             // fall back to a safe zero-width span (never the body span), so a
-            // rename can't overwrite the body.  (Precise snit declaration spans
-            // are a follow-up.)
+            // rename can't overwrite the body.  Precise snit declaration spans
+            // are not modelled.
             let no_var_spans = std::collections::HashMap::new();
             self.walk_method_body(
                 seed_vars,
@@ -3919,10 +3919,10 @@ mod tests {
 
     #[test]
     fn self_block_form_is_a_silent_noop_not_a_crash() {
-        // FN guard — the `self { method NAME ARGS BODY }` *block* form is a
-        // documented, symmetric (private shares the same gap) follow-up,
-        // not fixed here. Must decline cleanly, never panic on the whole
-        // braced blob standing in for an inner keyword.
+        // FN guard — this helper does not read the `self { method NAME ARGS
+        // BODY }` *block* form (nor the symmetric `private` one). It must
+        // decline cleanly, never panic on the whole braced blob standing in
+        // for an inner keyword.
         let mut cd = class();
         let texts: Vec<String> = ["self", "{ method make {n} { return made } }"]
             .iter()

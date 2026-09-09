@@ -20,10 +20,10 @@
 //!
 //! * `src/formatting/engine.rs` — the token-aware reformatter: UTF-8
 //!   reconstruction, command-substitution rebuild, switch-body pattern/body
-//!   layout, `&&`/`||` expression wrapping, long-line
-//!   backslash splitting (bare-word *and* inside-quoted-string), commented-out
-//!   code splitting, blank-line policy, the `for` special case, and every
-//!   `FormatterConfig` toggle.
+//!   layout, `&&`/`||` expression wrapping, long-line backslash splitting
+//!   (bare-word *and* inside-quoted-string), commented-out code splitting,
+//!   blank-line policy, `for` argument layout, and every `FormatterConfig`
+//!   toggle.
 //! * `src/formatting/config.rs` — the `Tabs` indent branch of `make_indent`.
 //! * `src/formatting/mod.rs` — `formatting` / `formatting_with` edit
 //!   construction, `range_formatting` (prefix-depth walk, EOF clamp, CRLF

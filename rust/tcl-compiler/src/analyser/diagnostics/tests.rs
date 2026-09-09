@@ -6310,7 +6310,7 @@ fn w210_uses_registry_owned_startup_lifecycle_facts() {
 
 #[test]
 fn i230_existence_fold_abstains_on_interpreter_globals_at_top_level() {
-    // #1557 follow-up: the `[info exists X]` / `[array exists X]` fold decided
+    // The `[info exists X]` / `[array exists X]` fold would otherwise decide
     // "never assigned in this body, therefore absent".  In the initial global
     // frame that body *is* the interpreter's global namespace, so every name
     // the special-variable registry owns there is out-of-frame runtime state:
@@ -11055,7 +11055,7 @@ fn w101_gate_trait_pair_keeps_eval_only() {
 fn w309_inner_subst_head_resolves_through_registry() {
     // The `[subst …]` head check is a registry PERFORMS_SUBSTITUTION
     // lookup, so the fully-qualified spelling is caught too (`get`
-    // resolves a leading `::`) — previously a literal-prefix miss.
+    // resolves a leading `::`), where a literal-prefix match would miss it.
     assert_eq!(sec_codes("eval [::subst $template]\n", "W309"), 1);
     // A non-substituting inner head stays silent.
     assert_eq!(sec_codes("eval [format %s $x]\n", "W309"), 0);
@@ -12639,9 +12639,8 @@ fn catch_and_try_body_writes_abstain_never_last_write_945() {
     // summarised variable defs (`emit_opaque_catch`) — the body's writes
     // have no per-branch structure to join.  The provenance walk sees a
     // non-literal defining statement and **abstains**: no indirect
-    // reference at all, and in particular never the old lexical map's
-    // answer (the body's `set cmd risky` presented as the unconditional
-    // value).  Sound abstention is the contract:
+    // reference at all, and in particular never a lexical map's answer (the
+    // body's `set cmd risky` presented as the unconditional value).  Sound abstention is the contract:
     // no false single-target definition, no destructive rename edit.
     let mut a = Analyser::new();
     let src = "proc safe {} {}\nproc risky {} {}\nset cmd safe\n\
