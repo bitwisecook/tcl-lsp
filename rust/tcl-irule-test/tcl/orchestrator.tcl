@@ -32,7 +32,7 @@ unset _orch_event_file
 
 namespace eval ::orch {
 
-    # ── Configuration ─────────────────────────────────────────────────
+    # Configuration
 
     variable config
     array set config {
@@ -82,7 +82,7 @@ namespace eval ::orch {
         ::state::datagroup::add $name $type $records
     }
 
-    # ── Flow chain selection ──────────────────────────────────────────
+    # Flow chain selection
 
     proc _select_chain {} {
         variable config
@@ -141,7 +141,7 @@ namespace eval ::orch {
         return $events
     }
 
-    # ── Event gate check ──────────────────────────────────────────────
+    # Event gate check
     #
     # Check if an event should fire given the current profile set.
 
@@ -173,7 +173,7 @@ namespace eval ::orch {
         return 1  ;# unknown event
     }
 
-    # ── State setup helpers ───────────────────────────────────────────
+    # State setup helpers
 
     proc _setup_connection {} {
         variable config
@@ -201,7 +201,7 @@ namespace eval ::orch {
         eval [list ::state::http::response::configure] $args
     }
 
-    # ── Core event firing ─────────────────────────────────────────────
+    # Core event firing
 
     proc fire {event_name args} {
         # Set up state for the event if provided
@@ -230,7 +230,7 @@ namespace eval ::orch {
         return $results
     }
 
-    # ── High-level test scenarios ─────────────────────────────────────
+    # High-level test scenarios
 
     # Run a complete connection lifecycle with one HTTP request/response
     proc run_http_request {args} {
@@ -503,7 +503,7 @@ namespace eval ::orch {
         ::state::reset_connection_state
     }
 
-    # ── Assertion engine ─────────────────────────────────────────────
+    # Assertion engine
     #
     # Two APIs:
     #   1. Classic: assert_pool_selected, assert_decision, etc.
@@ -514,7 +514,7 @@ namespace eval ::orch {
     variable _assert_count 0
     variable _assert_failures [list]
 
-    # ── Internal: record pass/fail ────────────────────────────────
+    # Internal: record pass/fail
 
     proc _assert_pass {} {
         variable _assert_count
@@ -532,7 +532,7 @@ namespace eval ::orch {
         return 0
     }
 
-    # ── Classic assertion helpers ─────────────────────────────────
+    # Classic assertion helpers
 
     proc assert {condition message} {
         if {![uplevel 1 [list expr $condition]]} {
@@ -647,7 +647,7 @@ namespace eval ::orch {
         return [_assert_pass]
     }
 
-    # ── Fluent assertion DSL ──────────────────────────────────────
+    # Fluent assertion DSL
     #
     # Usage:
     #   assert that pool_selected equals "api_pool"
@@ -696,7 +696,7 @@ namespace eval ::orch {
         }
     }
 
-    # ── Fluent: state properties ──────────────────────────────────
+    # Fluent: state properties
     #
     # Maps readable names to state variable values.
 
@@ -734,7 +734,7 @@ namespace eval ::orch {
         return [_fluent_compare $prop_name $actual $rest]
     }
 
-    # ── Fluent: comparison verbs ──────────────────────────────────
+    # Fluent: comparison verbs
 
     proc _fluent_compare {label actual rest} {
         set verb [lindex $rest 0]
@@ -798,7 +798,7 @@ namespace eval ::orch {
         }
     }
 
-    # ── Fluent: decisions ─────────────────────────────────────────
+    # Fluent: decisions
 
     proc _fluent_decision {rest} {
         set category [lindex $rest 0]
@@ -854,7 +854,7 @@ namespace eval ::orch {
         }
     }
 
-    # ── Fluent: log ───────────────────────────────────────────────
+    # Fluent: log
 
     proc _fluent_log {rest} {
         set verb [lindex $rest 0]
@@ -889,7 +889,7 @@ namespace eval ::orch {
         }
     }
 
-    # ── Fluent: events ────────────────────────────────────────────
+    # Fluent: events
 
     proc _fluent_event {rest} {
         set event_name [lindex $rest 0]
@@ -934,7 +934,7 @@ namespace eval ::orch {
         }
     }
 
-    # ── Fluent: HTTP headers ──────────────────────────────────────
+    # Fluent: HTTP headers
 
     proc _fluent_http_header {rest} {
         set header_name [lindex $rest 0]
@@ -948,7 +948,7 @@ namespace eval ::orch {
         return [_fluent_compare "response_header($header_name)" $actual [lrange $rest 1 end]]
     }
 
-    # ── Fluent: variables ─────────────────────────────────────────
+    # Fluent: variables
 
     proc _fluent_var {rest} {
         set var_name [lindex $rest 0]
@@ -969,7 +969,7 @@ namespace eval ::orch {
         return [_fluent_compare "var($var_name)" $actual [lrange $rest 1 end]]
     }
 
-    # ── Fluent: TMM-specific variables ──────────────────────────────
+    # Fluent: TMM-specific variables
     #
     # Usage: assert_that tmm_var <tmm_id> <varname> <verb> <expected>
     # Reads a static variable from a specific TMM slot.
@@ -1037,9 +1037,7 @@ namespace eval ::orch {
         }
     }
 
-    # ══════════════════════════════════════════════════════════════════
     # Test runner -- tcltest-style named test cases
-    # ══════════════════════════════════════════════════════════════════
     #
     # Usage:
     #   ::orch::test "routing-1.0" "routes API traffic to api_pool" -body {
@@ -1271,9 +1269,7 @@ namespace eval ::orch {
         ::tmm::_orig_exit $failed
     }
 
-    # ══════════════════════════════════════════════════════════════════
     # Multi-TMM simulation
-    # ══════════════════════════════════════════════════════════════════
     #
     # On real BIG-IP, each TMM core has its own copy of static::
     # variables (RULE_INIT fires independently per TMM).  The table
@@ -1474,7 +1470,7 @@ namespace eval ::orch {
     # Usage: ::orch::assert_that tmm_var <tmm_id> <varname> <verb> <expected>
     # (Registered as a fluent subject in assert_that)
 
-    # ── fakeCMP: simulated CMP hash for TMM selection ─────────────
+    # fakeCMP: simulated CMP hash for TMM selection
     #
     # Real BIG-IP TMOS uses a hardware CMP hash on (src_ip, src_port,
     # dst_ip, dst_port) to select which TMM handles a connection.
@@ -1552,7 +1548,7 @@ namespace eval ::orch {
         tmm_select $tmm_id
     }
 
-    # ── fakeCMP tools: query and plan TMM distribution ────────────
+    # fakeCMP tools: query and plan TMM distribution
 
     # fakecmp_which_tmm -- look up which TMM a connection tuple maps to.
     #
@@ -1657,7 +1653,7 @@ namespace eval ::orch {
     }
 }
 
-# ── Convenience: init everything ──────────────────────────────────
+# Convenience: init everything
 
 proc ::orch::init {args} {
     # Parse optional tmos_version

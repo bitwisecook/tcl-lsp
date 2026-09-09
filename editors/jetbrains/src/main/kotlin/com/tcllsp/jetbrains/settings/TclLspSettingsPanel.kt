@@ -53,14 +53,6 @@ private const val COMMENT_WIDTH = 440
 private const val SCROLL_UNIT = 16
 
 /**
- * A wrapping hint under a setting.
- *
- * `FormBuilder.addTooltip` builds a plain `JBLabel` straight from the string,
- * and a `JLabel` never wraps: the longest hint on this page is 180 characters,
- * so on a single line it alone asked the settings pane for about 1200px and
- * ran off the right-hand edge.
- */
-/**
  * The stored value a tri-state optimiser box currently represents.
  *
  * `null` is the third state, and it is the important one: it means "inherit
@@ -82,6 +74,14 @@ private fun threeState(value: Boolean?): ThreeStateCheckBox.State = when (value)
     null -> ThreeStateCheckBox.State.DONT_CARE
 }
 
+/**
+ * A wrapping hint under a setting.
+ *
+ * `FormBuilder.addTooltip` builds a plain `JBLabel` straight from the string,
+ * and a `JLabel` never wraps: the longest hint on this page is 180 characters,
+ * so on a single line it alone asked the settings pane for about 1200px and
+ * ran off the right-hand edge.
+ */
 private fun FormBuilder.addWrappedComment(text: String): FormBuilder =
     addComponentToRightColumn(
         JBLabel(
@@ -1292,14 +1292,6 @@ class TclLspSettingsPanel {
         }
     }
 
-    /**
-     * Restart the Tcl LSP server in every open project. Called after
-     * launch-affecting settings change (server path) so
-     * the user picks up the new command line without restarting the
-     * IDE. Non-launch settings (features, formatting, diagnostics, …)
-     * are sent to the running server via workspace/configuration and
-     * don't need a restart.
-     */
     @Suppress("UnstableApiUsage")
     /**
      * The profile selector, with the link that clears every per-code override
@@ -1331,6 +1323,14 @@ class TclLspSettingsPanel {
         optCodeBoxes.forEach { it.state = ThreeStateCheckBox.State.DONT_CARE }
     }
 
+    /**
+     * Restart the Tcl LSP server in every open project. Called after
+     * launch-affecting settings change (server path) so
+     * the user picks up the new command line without restarting the
+     * IDE. Non-launch settings (features, formatting, diagnostics, …)
+     * are sent to the running server via workspace/configuration and
+     * don't need a restart.
+     */
     private fun restartLspServers() {
         for (project in ProjectManager.getInstance().openProjects) {
             if (project.isDisposed) continue

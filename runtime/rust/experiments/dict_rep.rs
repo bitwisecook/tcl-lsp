@@ -44,7 +44,7 @@ use std::time::Instant;
 type Key = Vec<u8>;
 type Val = u64;
 
-// ---- a deterministic FNV-1a hasher (no RandomState nondeterminism) ----
+// A deterministic FNV-1a hasher (no RandomState nondeterminism).
 #[derive(Default)]
 struct Fnv(u64);
 impl Hasher for Fnv {

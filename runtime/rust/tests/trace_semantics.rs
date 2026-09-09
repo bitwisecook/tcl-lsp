@@ -16,12 +16,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Oracle-pinned trace semantics — the R5 bucket of the WASM native-lowering
-//! plan (#1633, #1574, #1575, #1569).
+//! Oracle-pinned trace semantics.
 //!
 //! Every expectation in this file is a *transcript*, and every transcript was
 //! produced by running the same sheet through `tclsh9.0` (9.0.4) — and through
-//! `tclsh8.6` (8.6.16) as well wherever the issue says the releases differ.
+//! `tclsh8.6` (8.6.16) as well wherever the releases differ.
 //! The sheets are plain Tcl and are quoted verbatim in the test bodies, so a
 //! reader can paste one into a real `tclsh` and re-derive the expectation
 //! without any harness of ours in the way.
@@ -58,7 +57,7 @@ fn transcript_at(sheet: &str, version: Option<tcl_dialect::TclVersion>) -> Strin
 /// the *exact* argument list the callback received.
 const RECORDER: &str = "set ::log {}\nproc R {n1 n2 op} { lappend ::log [list $n1 $n2 $op] }\n";
 
-// #1633's `upvar` row: firing follows the cell, not the spelling
+// The `upvar` row: firing follows the cell, not the spelling
 
 /// ```tcl
 /// proc P {} {
@@ -73,7 +72,7 @@ const RECORDER: &str = "set ::log {}\nproc R {n1 n2 op} { lappend ::log [list $n
 /// tclsh 8.6.16 and 9.0.4 both fire twice — `alias` then `loc` — because the
 /// alias and its target are one `Var` in C and the trace list hangs off that
 /// `Var`. Resolving the trace identity from the *access spelling* instead
-/// fires only once (the defect P1 recorded).
+/// would fire only once.
 #[test]
 fn a_write_through_an_upvar_alias_fires_the_targets_trace() {
     let got = transcript(&format!(
@@ -170,7 +169,7 @@ fn the_access_spelling_rule_holds_at_8_6() {
     assert_eq!(got, "::a2 {} write");
 }
 
-// -- #1633's `incr` row: a read-modify-write command fires `read` then `write`
+// The `incr` row: a read-modify-write command fires `read` then `write`
 
 /// ```tcl
 /// set x 1
@@ -235,7 +234,7 @@ fn an_erroring_read_trace_leaves_incr_counting_from_zero() {
     );
 }
 
-// -- #1633's errorInfo row: the trace's own trace survives the access failure
+// The errorInfo row: the trace's own trace survives the access failure
 
 /// ```tcl
 /// proc WE {n1 n2 op} { error "wboom" }
@@ -300,7 +299,7 @@ fn a_read_trace_error_names_the_element_in_its_frame() {
     );
 }
 
-// #1633's two array-element rows, which differ by release
+// Two array-element rows, which differ by release
 
 /// The recording sheet both element rows share: an array with a whole-array
 /// trace (`A`) and an element trace (`E`), exercised through the `a(k)`
@@ -380,16 +379,16 @@ fn a_trace_added_through_an_element_alias_lands_on_the_element() {
     );
 }
 
-// #1633's re-entrancy rows: what a callback changes mid-firing
+// Re-entrancy rows: what a callback changes mid-firing
 
 /// A callback that removes a *later* trace stops it firing in the same pass —
 /// C's firing loop follows `active.nextTracePtr`, which `Tcl_UntraceVar2`
 /// rewrites — while one it *adds* is not picked up until the next access.
 /// `trace info` sees each change immediately, from inside the callback.
 ///
-/// tclsh 8.6.16 and 9.0.4 print exactly the transcript below; the runtime used
-/// to fire `B` after `M` had removed it, because the firing loop snapshotted
-/// the callbacks up front.
+/// tclsh 8.6.16 and 9.0.4 print exactly the transcript below; a firing loop
+/// that snapshotted the callbacks up front, rather than following the live
+/// list, would fire `B` after `M` had removed it.
 #[test]
 fn a_trace_removed_during_firing_does_not_fire_in_that_pass() {
     let got = transcript(
@@ -571,7 +570,7 @@ fn a_delete_trace_that_recreates_the_command_leaves_it_alive() {
     assert_eq!(got, "D ::foo {} delete\nexists: 1\ncall: FOO2\ntraces: ");
 }
 
-// #1574: re-entrancy suppression is per `Var` cell, not per array
+// Re-entrancy suppression is per `Var` cell, not per array
 
 /// C sets `VAR_TRACE_ACTIVE` on the `Var` an access reached, and an array
 /// element is a `Var` of its own. So a whole-array write trace whose callback
@@ -630,7 +629,7 @@ fn the_arrays_own_cell_gates_the_whole_array_traces() {
     assert_eq!(got, "S g {} unset\nexists: 1");
 }
 
-// #1575: the unset-trace firing sites that were missing
+// Unset-trace firing sites
 
 /// A proc's locals are unset when its frame goes, and C's `TclDeleteVars` fires
 /// each one's unset traces — newest-first within a variable. runtime/rust fired
@@ -719,7 +718,7 @@ fn a_whole_array_unset_fires_each_elements_own_traces_too() {
     );
 }
 
-// #1569: `array` traces, which neither engine ever dispatched
+// `array` traces
 
 /// C's `LocateArray` fires `TclCheckArrayTraces` at the top of every `array`
 /// subcommand, so each one invokes the callback exactly once as

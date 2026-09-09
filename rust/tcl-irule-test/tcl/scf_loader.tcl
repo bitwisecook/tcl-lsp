@@ -19,7 +19,7 @@
 
 namespace eval ::scf {
 
-    # ── Parsed configuration storage ──────────────────────────────────
+    # Parsed configuration storage
 
     # vs_path -> {destination pool profiles rules persist snat_type snatpool}
     variable virtual_servers
@@ -45,7 +45,7 @@ namespace eval ::scf {
     variable profiles
     array set profiles {}
 
-    # ── SCF parser ────────────────────────────────────────────────────
+    # SCF parser
     #
     # Parses the brace-delimited BIG-IP config format.
 
@@ -109,7 +109,7 @@ namespace eval ::scf {
         }
     }
 
-    # ── Block extraction ──────────────────────────────────────────────
+    # Block extraction
 
     proc _extract_blocks {source} {
         set blocks [list]
@@ -180,7 +180,7 @@ namespace eval ::scf {
         return $blocks
     }
 
-    # ── Header parsing ────────────────────────────────────────────────
+    # Header parsing
 
     # Two-word types we recognise
     variable _two_word_types {
@@ -220,7 +220,7 @@ namespace eval ::scf {
         return [list $module [lindex $parts 1] [lindex $parts 2]]
     }
 
-    # ── Property parser ───────────────────────────────────────────────
+    # Property parser
 
     proc _parse_properties {body} {
         set props [list]
@@ -295,7 +295,7 @@ namespace eval ::scf {
         return $props
     }
 
-    # ── List block parser ─────────────────────────────────────────────
+    # List block parser
 
     proc _parse_list_block {braced} {
         set inner [string trim $braced]
@@ -356,7 +356,7 @@ namespace eval ::scf {
         return $items
     }
 
-    # ── Object parsers ────────────────────────────────────────────────
+    # Object parsers
 
     # Profile type classification
     variable _profile_type_map
@@ -581,7 +581,7 @@ namespace eval ::scf {
         set profiles($full_path) [list type $mapped_type subtype $subtype]
     }
 
-    # ── Resolve names ─────────────────────────────────────────────────
+    # Resolve names
 
     proc _resolve_name {name arr_name} {
         upvar 1 $arr_name arr
@@ -597,7 +597,7 @@ namespace eval ::scf {
         return ""
     }
 
-    # ── Apply a virtual server config to the test framework ───────────
+    # Apply a virtual server config to the test framework
     #
     # This is the key function: given a VS name from the SCF, it:
     #   1. Determines the profile set
@@ -778,7 +778,7 @@ namespace eval ::scf {
         return ""
     }
 
-    # ── Reset ─────────────────────────────────────────────────────────
+    # Reset
 
     proc reset {} {
         variable virtual_servers
@@ -796,7 +796,7 @@ namespace eval ::scf {
         array unset profiles
     }
 
-    # ── Query helpers ─────────────────────────────────────────────────
+    # Query helpers
 
     proc list_virtual_servers {} {
         variable virtual_servers

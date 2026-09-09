@@ -255,7 +255,7 @@ fn the_loaded_specs_carry_their_analysis_facts() {
     assert_eq!(append.arg_roles, &[(0, ArgRole::VarWrite)]);
 
     let compile = reg.get("compile_ultra").expect("a Synopsys command");
-    let hover = compile.hover.expect("hover survives the pack round trip");
+    let hover = compile.hover.expect("hover survives the migration");
     assert_eq!(hover.summary, "Compile with advanced optimizations.");
     assert_eq!(
         compile.primary_synopsis(None),

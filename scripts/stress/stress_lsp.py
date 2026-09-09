@@ -16,7 +16,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""LSP-API-driven stress suite for tcl-lsp-server — issue #829 robustness suite,
+"""LSP-API-driven stress suite for tcl-lsp-server — robustness suite,
 "through the front end" half.
 
 Drives the *real* `tcl-lsp-server` binary over stdio JSON-RPC — exactly what an
@@ -39,9 +39,9 @@ Usage:
 Scenarios:
     tokens   Many large documents, concurrent rapid-edit + immediate
              semanticTokens/full bursts. Asserts every response arrives within
-             a hard ceiling (never starved — issue #829's core complaint) and
+             a hard ceiling (never starved) and
              that responses are always well-formed.
-    startup  Reproduces the exact race from issue #829's screenshots: a
+    startup  Reproduces the exact startup race: a
              workspace with a `source`-ancestor file that requires a package,
              and a module using that package with no local `package require`.
              Opens the module immediately (racing the server's own workspace
@@ -347,7 +347,7 @@ class LspClient:
         except (BrokenPipeError, OSError) as exc:
             # The server process died (or its stdin closed) between the last
             # successful write and this one — a genuine, expected failure
-            # mode under stress (issue #829 robustness suite), not a bug in
+            # mode under stress, not a bug in
             # this harness. Mark dead and surface it the same way a timed-out
             # request does, rather than letting a raw `BrokenPipeError`
             # propagate out of a worker thread as an unhandled exception and

@@ -253,13 +253,13 @@ fn w302_actions(lsp: &mut Lsp, uri: &str, source: &str) -> Value {
 
 #[test]
 fn test_w302_result_capture_action_applies_after_the_body() {
-    // Issue #1190: the actions used to insert the right text at the wrong
-    // place, producing `catch result {error oops}` — C Tcl then evaluates
-    // the script `result` (completion code 1, `invalid command name
-    // "result"`) and stores it in a variable named `error oops`.  Asserting
-    // the *applied document* is what catches that; the old assertions
-    // checked only the inserted string and that the range was zero-width,
-    // both of which the broken fix satisfied.
+    // The action must insert the right text at the right place — inserting
+    // it wrongly would produce `catch result {error oops}`, and C Tcl would
+    // then evaluate the script `result` (completion code 1, `invalid
+    // command name "result"`) and store it in a variable named `error
+    // oops`. Asserting the *applied document* is what catches that;
+    // checking only the inserted string and that the range was zero-width
+    // would not.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let source = "catch {error oops}\n";
@@ -539,10 +539,10 @@ fn extract_proc_actions(lsp: &mut Lsp, uri: &str, from: (u32, u32), to: (u32, u3
 
 #[test]
 fn test_extract_proc_carries_a_caller_write_through_upvar() {
-    // Issue #1201's reproducer.  The original prints `1` then `after=1`; the
-    // old shape moved the `set x 1` into a proc *local*, so the caller kept
-    // its old value and printed `after=0`.  The generated proc now takes the
-    // variable by name and re-binds it with `upvar 1`, so the assignment
+    // The original prints `1` then `after=1`. Moving the `set x 1` into a
+    // proc *local* would leave the caller with its old value, printing
+    // `after=0`. The generated proc must take the
+    // variable by name and re-bind it with `upvar 1`, so the assignment
     // lands back in the caller's frame.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
@@ -597,8 +597,8 @@ fn test_extract_proc_refuses_a_selection_inside_a_namespace_eval() {
 #[test]
 fn test_inline_proc_binds_a_declared_default() {
     // C Tcl 9 prints `hello world`: the omitted argument takes the parameter's
-    // declared default.  The old textual splice emitted `puts "hello $name"`,
-    // which errors on an unset variable (issue #1199).
+    // declared default.  A textual splice must not emit `puts "hello $name"`,
+    // which errors on an unset variable.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let source = "proc greet {{name world}} { puts $name }\ngreet\n";
@@ -680,7 +680,7 @@ fn test_extract_proc_attaches_rename_command() {
     let end = args[2].as_i64().unwrap();
     // The definition is inserted above the selection (line 1), not at line 0:
     // placing it at the top of the file would put it before any `package
-    // require` / `namespace` prologue (issue #1201).
+    // require` / `namespace` prologue.
     assert_eq!(line, 1);
     assert_eq!(start, i64::try_from("proc ".len()).unwrap());
     assert_eq!(end, start + i64::try_from("extracted_proc".len()).unwrap());
@@ -712,8 +712,7 @@ fn test_inline_proc_refuses_a_returning_proc_with_a_reason() {
     // `return` acts on the call frame: inlined into the caller it would
     // return from the *caller*, not from the proc.  The action is surfaced
     // greyed out with LSP's `disabled.reason` rather than silently omitted,
-    // so the user can tell "cannot be done here" from "is broken"
-    // (issue #1199).
+    // so the user can tell "cannot be done here" from "is broken".
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, "proc wrap {x} { return $x }\nwrap value\n");
@@ -994,7 +993,7 @@ fn test_cursor_past_last_line_does_not_crash() {
 
 //
 // The generate-docstring source action is gated by the resolved
-// `tclLsp.formatting.docstringStyle` setting (#1314). Its documented
+// `tclLsp.formatting.docstringStyle` setting. Its documented
 // default is `"none"` — "do not generate or reformat docstrings" — which
 // `Lsp::tcl()` reproduces (it sends no `formatting` section at all, so the
 // server falls back to that default). Tests that exercise the *generation*
@@ -1451,11 +1450,11 @@ fn test_w120_no_insert_fix_when_require_present() {
     );
 }
 
-// The evidence-gated fuzzy package suggestion (issue #1191).
+// The evidence-gated fuzzy package suggestion.
 //
 // This action changes what the interpreter loads and runs the package's
 // initialisation code, so the server must offer it only over a *command
-// head* that resolution could not satisfy. It used to fire on any
+// head* that resolution could not satisfy — never merely any
 // identifier-shaped word under the cursor, including one inside a comment or
 // a string.
 

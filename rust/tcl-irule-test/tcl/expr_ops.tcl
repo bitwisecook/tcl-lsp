@@ -29,7 +29,7 @@
 
 namespace eval ::tmm::expr_ops {
 
-    # ── Expression rewriter ───────────────────────────────────────────
+    # Expression rewriter
     #
     # The approach: override [expr] and [if]/[while]/[for] to pre-process
     # their expression arguments, rewriting TMM infix operators into
@@ -45,7 +45,7 @@ namespace eval ::tmm::expr_ops {
     # Operator list from generated registry data (_registry_data.tcl).
     variable _tmm_operators $_gen_operators
 
-    # ── Operator implementations ──────────────────────────────────────
+    # Operator implementations
 
     proc _contains {haystack needle} {
         return [expr {[string first $needle $haystack] >= 0}]
@@ -76,7 +76,7 @@ namespace eval ::tmm::expr_ops {
         return [string match $pattern $str]
     }
 
-    # ── Expression pre-processor ──────────────────────────────────────
+    # Expression pre-processor
     #
     # Rewrites a TMM expression string to replace infix operators with
     # function calls that standard Tcl [expr] can evaluate.
@@ -232,7 +232,7 @@ namespace eval ::tmm::expr_ops {
         return $tokens
     }
 
-    # ── Install expr/if/while/for overrides ───────────────────────────
+    # Install expr/if/while/for overrides
     #
     # We wrap the builtins to pre-process expressions before evaluation.
 
@@ -283,7 +283,7 @@ namespace eval ::tmm::expr_ops {
         }
     }
 
-    # ── Source-level rewriting ─────────────────────────────────────────
+    # Source-level rewriting
     #
     # Preprocess iRule source text to rewrite TMM custom operators in
     # expression contexts (if/while/expr conditions).  This avoids

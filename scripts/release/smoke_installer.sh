@@ -99,7 +99,7 @@ fi
 # explicit pin makes this harness catch a broken or missing release stamp.
 # HOME, XDG_CONFIG_HOME, ZDOTDIR, PATH, and every other AI-client switch
 # isolate the affirmative MCP/skills path from real user registrations, shell
-# startup files, and binaries (#1686).
+# startup files, and binaries.
 # shellcheck disable=SC2086
 if (
     cd "$SMOKE_ROOT" || exit 1

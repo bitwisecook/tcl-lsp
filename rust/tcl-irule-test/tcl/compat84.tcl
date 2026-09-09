@@ -24,7 +24,7 @@ if {[info tclversion] ne "8.4" && [package vcompare [info patchlevel] 8.5.0] >= 
     return
 }
 
-# ── dict command (Tcl 8.4 polyfill) ──────────────────────────────
+# dict command (Tcl 8.4 polyfill)
 #
 # Implements dict using arrays internally.  This is the framework's
 # internal dict, not exposed to the iRule.
@@ -274,7 +274,7 @@ if {[llength [info commands ::dict]] == 0} {
     }
 }
 
-# ── lassign (Tcl 8.4 polyfill) ───────────────────────────────────
+# lassign (Tcl 8.4 polyfill)
 
 if {[llength [info commands ::lassign]] == 0} {
     proc ::lassign {list args} {
@@ -288,7 +288,7 @@ if {[llength [info commands ::lassign]] == 0} {
     }
 }
 
-# ── lrepeat (Tcl 8.4 polyfill) ───────────────────────────────────
+# lrepeat (Tcl 8.4 polyfill)
 
 if {[llength [info commands ::lrepeat]] == 0} {
     proc ::lrepeat {count args} {
@@ -302,7 +302,7 @@ if {[llength [info commands ::lrepeat]] == 0} {
     }
 }
 
-# ── lreverse (Tcl 8.4 polyfill) ──────────────────────────────────
+# lreverse (Tcl 8.4 polyfill)
 
 if {[llength [info commands ::lreverse]] == 0} {
     proc ::lreverse {list} {
@@ -315,7 +315,7 @@ if {[llength [info commands ::lreverse]] == 0} {
     }
 }
 
-# ── ni / in operators ─────────────────────────────────────────────
+# ni / in operators
 #
 # 8.4 lacks "in" and "ni" operators in [expr].
 # These are provided as math functions for framework use.

@@ -28,8 +28,8 @@
 //! real Tcl 9 Henry-Spencer ARE engine (so it is byte-for-byte tclsh), while the
 //! bytecode VM drives the Rust `regex` crate (approximate — full ARE syntax like
 //! `\m`/`\M`/`[[:<:]]` is out of scope there). This module is everything *except*
-//! the engine: written once, run by both, so the VM inherits the runtime's full
-//! option set and the correct char-offset semantics it lacked.
+//! the engine: written once, run by both, so both runtimes share one option set
+//! and the same char-offset semantics.
 //!
 //! All offsets here are **character** (codepoint) offsets, matching Tcl's index
 //! model; [`decode_utf8`] maps the subject to codepoints plus a char→byte table
@@ -37,14 +37,12 @@
 //! char offsets too (the FFI engine is natively codepoint-based; the VM's
 //! crate-based engine translates byte↔char behind the seam).
 //!
-//! Semantics verified against tclsh 9.0; `runtime/rust`'s linked ARE engine is
-//! the behavioural oracle for the loop.
+//! Semantics follow tclsh 9.0, which `runtime/rust`'s linked ARE engine
+//! reproduces exactly.
 
 use tcl_syntax::value::ValueOps;
 
 use crate::prefix::OptionTable;
-
-// the engine seam
 
 /// The "did not participate" sentinel for a subexpression's offset (mirrors the
 /// engine's `(size_t)-1`).
@@ -104,8 +102,6 @@ pub trait RegexEngine {
     ) -> Option<Vec<RegMatch>>;
 }
 
-// shared error & result shapes
-
 /// A `regexp`/`regsub` failure: the full, ready-to-report message bytes.
 #[derive(Debug)]
 pub struct RegexError(pub Vec<u8>);
@@ -133,8 +129,6 @@ pub struct RegsubResult {
     pub count: i64,
     pub var: Option<Vec<u8>>,
 }
-
-// pure helpers
 
 /// Decode UTF-8 `bytes` into codepoints plus a parallel byte-offset table. The
 /// returned `offsets` has length `codepoints.len() + 1`: `offsets[i]` is the
@@ -241,8 +235,6 @@ fn compile_error(detail: &[u8]) -> RegexError {
     m.extend_from_slice(detail);
     RegexError(m)
 }
-
-// regexp
 
 const REGEXP_USAGE: &[u8] = b"regexp ?-option ...? exp string ?matchVar? ?subMatchVar ...?";
 
@@ -425,9 +417,9 @@ pub fn regexp<O: ValueOps, E: RegexEngine>(
 
 /// Slice the original bytes for the character range `[so, eo)` via the char→byte
 /// table, **guarding every index**. `byteoff` has one entry per character plus a
-/// final `bytes.len()`, so `so`/`eo` must be `<= char_len`; the FFI ARE engine is
-/// the behavioural oracle and should always honour that, but it is foreign code,
-/// so an out-of-range or inverted `[so, eo)` must not index-panic here. Anything
+/// final `bytes.len()`, so `so`/`eo` must be `<= char_len`; the FFI ARE engine
+/// always honours that, but it is foreign code, so an out-of-range or inverted
+/// `[so, eo)` must not index-panic here. Anything
 /// off the table or backwards yields an empty slice rather than aborting.
 fn slice_match<'a>(str_bytes: &'a [u8], byteoff: &[usize], so: usize, eo: usize) -> &'a [u8] {
     match (byteoff.get(so), byteoff.get(eo)) {
@@ -473,8 +465,6 @@ fn build_match_item<O: ValueOps>(
         }
     }
 }
-
-// regsub
 
 const REGSUB_USAGE: &[u8] = b"regsub ?-option ...? exp string subSpec ?varName?";
 
@@ -680,8 +670,8 @@ mod tests {
 
     #[test]
     fn resolve_start_handles_integer_and_end_forms() {
-        // regexp `-start` index (cmd-core regex.rs had no unit coverage):
-        // integer / end / end±N against char length, clamped to 0.
+        // regexp `-start` index: integer / end / end±N against the char
+        // length, clamped to 0.
         assert_eq!(resolve_start_checked(b"5", 10).unwrap(), 5);
         assert_eq!(resolve_start_checked(b"0", 10).unwrap(), 0);
         assert_eq!(resolve_start_checked(b"end", 10).unwrap(), 9);

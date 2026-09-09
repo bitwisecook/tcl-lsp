@@ -1912,10 +1912,10 @@ fn channel_io() {
 
 /// `glob`'s option words are a
 /// `Tcl_GetIndexFromObj(…, "option", 0)` table (`globOptions[]`,
-/// `tclFileName.c`). This engine used to *skip* an unrecognised `-word`
-/// silently — `glob -x a` ran, and `-types d` leaked its value into the
-/// pattern list. Rejecting an unknown option is a deliberate behaviour change,
-/// ruled on for this sweep, so the new rejection is pinned byte for byte.
+/// `tclFileName.c`). Silently *skip*ping an unrecognised `-word` would let
+/// `glob -x a` run, and `-types d` leak its value into the
+/// pattern list. Rejecting an unknown option is a deliberate behaviour choice,
+/// pinned byte for byte.
 ///
 /// tclsh 8.6.16 and 9.0.4 agree on every row (no dialect split):
 ///   glob -x a  -> bad option "-x": must be -directory, -join, -nocomplain,
@@ -2012,10 +2012,11 @@ fn seek_origin_resolves_like_tcl_get_index_from_obj() {
 }
 
 /// `-failindex` must be written. The inline `string is` codegen gates on arity
-/// alone, so it used to accept `CLASS -failindex var value`, take the last word
-/// as the value, and silently drop the option — the class answer was right and
-/// the variable was never assigned. Pinned against tclsh 8.6.16 / 9.0.4, which
-/// report index 1 here.
+/// alone, so gating on arity without checking the option name would accept
+/// `CLASS -failindex var value`, take the last word as the value, and
+/// silently drop the option — the class answer would be right but the
+/// variable would never be assigned. Pinned against tclsh 8.6.16 / 9.0.4,
+/// which report index 1 here.
 #[test]
 fn string_is_failindex_is_written() {
     out_eq(

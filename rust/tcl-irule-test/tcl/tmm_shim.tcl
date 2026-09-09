@@ -32,7 +32,7 @@ unset _tmm_registry_file
 
 namespace eval ::tmm {
 
-    # ── Configuration ─────────────────────────────────────────────────
+    # Configuration
 
     variable tmos_version "16.1.0"
     variable hostname     "bigip1.local"
@@ -48,7 +48,7 @@ namespace eval ::tmm {
     # Commands that exist in 8.5+ but not in 8.4 TMM -- from generated registry data.
     variable post84_commands $_gen_post84_commands
 
-    # ── Helpers ────────────────────────────────────────────────────────
+    # Helpers
 
     # Escape glob-special characters so operator-named commands like *,
     # ?, [, ] are not treated as patterns by [info commands].
@@ -56,7 +56,7 @@ namespace eval ::tmm {
         string map {* \\* ? \\? [ \\[ ] \\] \\ \\\\} $s
     }
 
-    # ── Initialisation ────────────────────────────────────────────────
+    # Initialisation
 
     proc init {args} {
         variable tmos_version
@@ -84,7 +84,7 @@ namespace eval ::tmm {
         return
     }
 
-    # ── Disabled commands ─────────────────────────────────────────────
+    # Disabled commands
 
     proc _install_disabled_commands {} {
         variable disabled_commands
@@ -126,7 +126,7 @@ namespace eval ::tmm {
         proc ::rename {args} $body
     }
 
-    # ── Block Tcl 8.5+ commands ───────────────────────────────────────
+    # Block Tcl 8.5+ commands
     #
     # If running on 8.5/8.6/9.0, remove commands that TMM 8.4 wouldn't have.
     # Blockers are namespace-aware: framework namespaces (::tmm::, ::itest::,
@@ -163,7 +163,7 @@ namespace eval ::tmm {
         }
     }
 
-    # ── info override ─────────────────────────────────────────────────
+    # info override
 
     proc _install_info_override {} {
         # Only rename once
@@ -253,7 +253,7 @@ namespace eval ::tmm {
         }
     }
 
-    # ── namespace restriction ─────────────────────────────────────────
+    # namespace restriction
 
     proc _install_namespace_restriction {} {
         if {![llength [::tmm::_orig_info commands ::tmm::_orig_namespace]]} {
@@ -302,7 +302,7 @@ namespace eval ::tmm {
         }
     }
 
-    # ── Guard _orig_* commands from direct iRule access ────────────────
+    # Guard _orig_* commands from direct iRule access
     #
     # iRule code could bypass the sandbox by calling ::tmm::_orig_exec etc.
     # After init, wrap each _orig_* so only framework namespaces (::tmm::,
@@ -317,7 +317,7 @@ namespace eval ::tmm {
     # BIG-IP TMM's security model where the interpreter is not a
     # security boundary — iRules are trusted code.
 
-    # ── Framework-internal access to disabled commands ─────────────────
+    # Framework-internal access to disabled commands
     #
     # The framework itself needs to read/write files, use dicts, etc.
     # These are only accessible from ::tmm:: and ::itest:: namespaces.
@@ -354,7 +354,7 @@ namespace eval ::tmm {
         eval [list ::tmm::_orig_source] $args
     }
 
-    # ── Restore original environment ──────────────────────────────────
+    # Restore original environment
 
     proc restore {} {
         variable disabled_commands

@@ -43,7 +43,7 @@ if {[file exists [file join $_runner_dir _mock_stubs.tcl]]} {
 source [file join $_runner_dir itest_core.tcl]
 source [file join $_runner_dir orchestrator.tcl]
 
-# ── Minimal JSON parser/emitter ───────────────────────────────────
+# Minimal JSON parser/emitter
 #
 # We need JSON for the protocol but can't require external packages.
 # This is deliberately minimal -- handles the protocol's needs only.
@@ -276,7 +276,7 @@ namespace eval ::proto {
     }
 }
 
-# ── Main command loop ─────────────────────────────────────────────
+# Main command loop
 
 proc main_loop {} {
     # Signal ready

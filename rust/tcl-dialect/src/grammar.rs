@@ -121,7 +121,7 @@ impl BracedVarStyle {
     /// [`NumberSyntax::of_dialect_name`] and
     /// [`EscapeSyntax::of_dialect_name`], for the same reason: the compiler
     /// threads a dialect *name* from `IrModule::dialect` and needs one way to
-    /// turn it into this grammar fact (issue #1568).
+    /// turn it into this grammar fact.
     #[must_use]
     pub fn of_dialect_name(name: Option<&str>) -> Self {
         grammar_of_dialect_name(name).braced_var
@@ -132,8 +132,8 @@ impl BracedVarStyle {
     ///
     /// The compiler layers that carry an `Option<&DialectProfile>` — the
     /// optimiser's `PassContext`, GVN's per-function `dialect`, the taint
-    /// context, the W313 scan — each need exactly this mapping, and each grew
-    /// its own copy of it during the issue-#1604 sweep. One copy lives here,
+    /// context, the W313 scan — each need exactly this mapping, and growing
+    /// separate copies of it would let them drift. One copy lives here,
     /// beside [`Self::of_dialect_name`], so "no dialect means the default
     /// rule" is stated once: a layer that answered differently would read the
     /// same bytes under a rule the document was not lexed with.
@@ -151,12 +151,13 @@ impl BracedVarStyle {
 /// `PassContext`, taint) reads the same grammar the document was lexed with
 /// rather than a per-axis approximation of it.
 ///
-/// It resolves through [`crate::model::DialectPoint`], which is where P6 put
+/// It resolves through [`crate::model::DialectPoint`], which holds
 /// the truth: a grammar is a function of `(family, release, build)`, so an
 /// environment names its family and ladder and needs no resolved-grammar row.
 /// That is why `jim` works at all — it is an environment with no catalogue
-/// profile, so every axis constructor used to answer `Tcl90` for a Jim
-/// document. `tk` had the same hole.
+/// profile, so an axis constructor that skipped `DialectPoint` and fell
+/// straight to the catalogue would answer `Tcl90` for a Jim document
+/// instead. `tk` has the same shape.
 ///
 /// A name carries only the environment's *default* release, so this cannot
 /// tell jim 0.79 from 0.84 or tcl8.5 from 8.6. A caller that knows the
