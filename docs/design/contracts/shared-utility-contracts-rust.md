@@ -82,7 +82,9 @@ entry point, or gate moves without this contract being updated.
   facts from it at build time; `tcl-test-support` reuses those APIs for oracle
   provenance, while the POSIX shell adapter under `scripts/dev` supplies the
   same rows to ensure-test-deps, the source-fetch skill, and remote-session
-  bootstrap.
+  bootstrap. `tcl-pkg` reads the same pins for the source-build layers of a
+  generated Dockerfile, so a pin bump reaches user-facing output and not only
+  test oracles and dev-host bootstrap.
 - Default/PATH oracle resolution requires the exact pinned patchlevel and
   records the interpreter's reported value as provenance. An explicitly
   paired source-tree interpreter may name another patchlevel on the same
