@@ -51,7 +51,7 @@ use crate::representation::RepresentationEffect;
 use crate::side_effects::{SideEffect, StorageType};
 use crate::state_transition::StateTransitionDescriptor;
 use crate::symbol_def::SymbolDef;
-use crate::taint::{SetterConstraint, TaintColour};
+use crate::taint::{SetterConstraint, TaintColour, TaintTransformCondition};
 use crate::traits::Traits;
 use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 use crate::world_effect::WorldEffectDescriptor;
@@ -1832,6 +1832,18 @@ pub struct CommandSpec {
     /// `file join` ⇒ `PATH_JOINED`). `None` = no transform.
     pub taint_transform: Option<TaintColour>,
 
+    /// Condition on a call's own argument words that must hold before
+    /// [`Self::taint_transform`] is claimed for *that* call. `None` = the
+    /// colour always applies (the common case: an encoder guarantees its
+    /// colour whatever it is handed).
+    ///
+    /// The mirror of [`Self::taint_sink_gate`] on the transform side, for a
+    /// command whose sanitising effect is a property of the *literal it was
+    /// given* rather than of the command itself — `string map` with a mapping
+    /// that provably deletes CR and LF proves `CRLF_FREE`, while the same
+    /// command with any other mapping proves nothing.
+    pub taint_transform_when: Option<TaintTransformCondition>,
+
     /// Colour whose presence on the *input* means this command would
     /// double-encode the value (T106). `None` = no double-encode
     /// detection.
@@ -2347,6 +2359,7 @@ impl CommandSpec {
         taint_interp_eval_subcommands: &[],
         taint_source: None,
         taint_transform: None,
+        taint_transform_when: None,
         taint_double_encode_colour: None,
         taint_sink_safe_colour: None,
         taint_sink_gate: None,
@@ -3374,6 +3387,11 @@ pub struct SubCommand {
     /// `PATH_NORMALISED`). `None` = no transform.
     pub taint_transform: Option<TaintColour>,
 
+    /// Condition on a call's own argument words that must hold before
+    /// [`Self::taint_transform`] is claimed — the subcommand-level
+    /// [`CommandSpec::taint_transform_when`]. `None` = always claimed.
+    pub taint_transform_when: Option<TaintTransformCondition>,
+
     /// Colour whose presence on the input means this subcommand would
     /// double-encode the value (T106). `None` = none.
     pub taint_double_encode_colour: Option<TaintColour>,
@@ -3641,6 +3659,7 @@ impl SubCommand {
         arg_values_accept_prefix: false,
         body_arg_implicit_args: 0,
         taint_transform: None,
+        taint_transform_when: None,
         taint_double_encode_colour: None,
         taint_output_sink: None,
         credential_arg: None,

@@ -663,6 +663,12 @@ Declares the command's *result* as attacker-influenced — the way `HTTP::header
 
 Declares the command a *sanitiser* or encoder: the colours it adds to a value passing through. An HTML-escaper adds `HTML_ESCAPED`; `file join` adds path colours; a validator that proves "this is an IP address" adds `IP_ADDRESS`. A sink that requires a given colour then accepts the cleaned value — this is how "escaped before output" is recognised.
 
+### `taint_transform_when` — Transform condition
+
+*command and subcommand* — Argument-shape proof a call must pass before the transform colour is claimed.
+
+For a command whose sanitising effect comes from the *literal it was given* rather than from the command itself: the argument-shape proof a call must pass before the transform colour is claimed. `string map` with a mapping that deletes CR and LF proves `CRLF_FREE`; the same command with any other mapping proves nothing, so the colour is claimed per call, not per command.
+
 ### `taint_double_encode_colour` — Double-encode colour
 
 *command and subcommand* — Input colour whose presence means this command would double-encode (T106).
@@ -1497,6 +1503,14 @@ The registry's behavioural vocabulary — one flag per fact a consumer might nee
 | `TK_GEOMETRY_MANAGER` | a Tk geometry manager |
 | `DEFERS_BODY` | stores its script argument instead of running it; unset means the body is treated as executed |
 | `DEFINITION_BODY_MEMBER_ONLY` | legal only inside a definition body that declares it as a member |
+
+### Transform conditions
+
+The argument-shape proofs a command can require before its taint transform colour is claimed. A command whose sanitising effect comes from the literal it was given — `string map` with a mapping that deletes CR and LF — earns its colour call by call, not once for the command.
+
+| Value | Meaning |
+|---|---|
+| `MappingDeletesCrlf` | the call's braced mapping provably deletes every CR and LF (`string map`) |
 
 ### Value types
 

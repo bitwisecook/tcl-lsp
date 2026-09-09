@@ -133,6 +133,7 @@ pub const CLUSTERS: &[Cluster] = &[
         members: &[
             "taint_source",
             "taint_transform",
+            "taint_transform_when",
             "taint_double_encode_colour",
             "taints_var_write",
             "is_unescape",

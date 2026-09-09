@@ -3,7 +3,8 @@
 ## Summary
 
 The TclOO subsystem provides class hierarchy analysis for the LSP and runtime
-execution in the bytecode VM.  It covers `oo::class create`, `oo::define`,
+execution in both the bytecode VM and standalone runtime. It covers
+`oo::class create`, `oo::define`,
 `oo::objdefine`, constructors, destructors, methods, mixins, filters, private
 variables/methods (TIP 500), properties (TIP 558), and configurable support.
 
@@ -220,23 +221,46 @@ call-site rule), not the `::oo::define` evaluation namespace.
 ### Runtime object identity
 
 `tcl_core_types::OoId` is the shared, authoritative interpreter-local identity
-of an object or class. The native runtime carries class, superclass,
-mixin, method-provider, and active-call relationships with this token. The
-standalone migration is tracked by #1764 and must consume the same owner when
-it lands. A command-table slot and fully-qualified name are mutable
-projections: rename, hide, expose, and deferred namespace deletion must never
-recover OO identity by comparing or reparsing their display strings.
+of an object or class. Both runtimes carry that identity through class,
+superclass, mixin, method-provider, and active-call relationships; a
+fully-qualified command name
+is only a Tcl-facing display projection. The command-table variant carries the
+same identity so rename, import resolution, and dispatch never recover an
+object by spelling.
 
-Native command mutation keeps the exact `OoId` attached to the command
-generation through ordinary rename, replacement, and deletion. Callback-
-bearing lifecycle phases re-resolve that command generation before unlinking,
-so a moved old object is still destroyed while a newer replacement at the same
-spelling survives.
+This separation matters while deleting an active namespace. Tcl unpublishes
+the namespace immediately but retains its exact namespace and command
+generation until the last active frame returns. A newly created namespace may
+therefore publish an object at the same fully-qualified spelling while a
+relative call in the retained frame still reaches the old object. OO cleanup
+runs only after each exact namespace token passes its own activation check.
+Commands and default object namespaces created by a delete-trace callback join
+the dying command-home token and its fixed-point teardown; they do not recreate
+the visible namespace tree.
+
+Command retirement is likewise identity-based. One runtime-owned seam removes
+every public, retained-generation, or hidden command variant carrying an
+`OoId`, including the private `my` and `myclass` dispatchers, without touching a
+same-named replacement. Unknown-method scope and registry-installed root
+classification also carry `OoId`; the root's original registry spelling is
+retained only as its dialect-availability key. `OoId` has no universal missing
+or default value because allocation policy belongs to each runtime.
+
+Command mutation keeps the exact `OoId` and command generation together across
+visible, retained-generation, and hidden tables, including rename, hide,
+expose, replacement, and deletion. Trace sidecars carry the same generation.
+Callback-bearing lifecycle phases re-resolve that generation before unlinking,
+and discard only its sidecars, so a moved old object is still destroyed while a
+newer replacement at the same spelling and its traces survive. The standalone
+implementation lives in `runtime/rust/src/cmd_oo.rs`; its namespace-generation
+lifecycle is owned by `runtime/rust/src/interp.rs` and
+`runtime/rust/src/namespace.rs`.
 
 ## Test conformance
 
-The behavioural suites live in `rust/tcl-vm/tests/cmd_oo_e2e.rs` (tclsh-pinned
-end-to-end vectors) and the analyser's OO suites
+The behavioural suites live in `rust/tcl-vm/tests/cmd_oo_e2e.rs` and
+`runtime/rust/src/cmd_oo.rs` / `cmd_namespace.rs` (tclsh-pinned end-to-end
+vectors), plus the analyser's OO suites
 (`rust/tcl-compiler` `analyser`/`oo` tests, `mro_lattice_adversarial.rs`).
 Reference results captured from real tclsh 8.4–9.0 are queryable via the
 `test-results` skill (`tests/test_reference/<version>/`, written by
@@ -248,6 +272,8 @@ Reference results captured from real tclsh 8.4–9.0 are queryable via the
 |------|------|
 | `rust/tcl-vm/src/cmd_oo.rs` | OO runtime (object/class registry, dispatch, define body parsing) |
 | `rust/tcl-vm/src/cmd_info.rs` | `info object` / `info class` introspection |
+| `runtime/rust/src/cmd_oo.rs` | Standalone OO registry, lifecycle, dispatch, and introspection |
+| `runtime/rust/src/interp.rs` | Standalone command identity and namespace-finalisation integration |
 | `rust/tcl-syntax/src/mro.rs` | MRO linearisation (shared analyser ↔ VM; also each mixin-free branch spine) |
 | `rust/tcl-lsp-core/src/oo_dispatch.rs` | In-document dispatch entry + effective export state |
 | `rust/tcl-lsp-core/src/workspace_index.rs` | Cross-file dispatch chain (same fold, workspace records) |
