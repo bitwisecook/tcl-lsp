@@ -35,7 +35,7 @@ puts "after=$x"
 into a proc that takes `x` as an ordinary parameter prints `after=0` instead
 of `after=1`: a parameter is a *copy*, and the caller never sees it change.
 
-The extraction now classifies each variable the selection touches:
+The extraction classifies each variable the selection touches:
 
 | Variable | Becomes |
 |---|---|
@@ -108,11 +108,10 @@ descending registry-resolved `ArgRole::Body` arguments.
 
 Both the selection's own classification and that after-the-selection question
 walk the statement tree through `nested_dispatch_regions`, the shared
-same-frame walker Find All References and the caller-frame scan already use.
-It is registry-driven throughout: `Plain` body arguments, `switch`-style
-clause arms via the registry's own `CaseListSpec`, and `[…]` command
-substitutions are descended, while `Structural` bodies and `apply` lambdas are
-not.
+same-frame walker Find All References and the caller-frame scan use. It is
+registry-driven throughout: `Plain` body arguments, `switch`-style clause arms
+via the registry's own `CaseListSpec`, and `[…]` command substitutions are
+descended, while `Structural` bodies and `apply` lambdas are not.
 
 ## Failure modes
 

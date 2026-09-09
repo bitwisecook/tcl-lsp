@@ -47,7 +47,7 @@
 //! from inside the loop body, and a top-level-only reading of it hands back a
 //! proc that silently drops the assignment.  Which nested words are part of
 //! that tree is [`crate::references::nested_dispatch_regions`]'s answer — the
-//! same same-frame walker Find-References uses — so a `proc` body or an
+//! same-frame walker Find-References uses — so a `proc` body or an
 //! `apply` lambda inside the selection, which opens a frame of its own, stays
 //! out of it.  The three outcomes are:
 //!
@@ -398,7 +398,7 @@ fn nested_same_frame_commands(
 /// still the caller's write, and reading it as anything else hands back a
 /// proc that silently drops the assignment — `foreach n {1 2 3} {set total …}`
 /// extracted with `total` as a value parameter never updates the caller's
-/// `total` (issue #1201's second half).  [`nested_same_frame_commands`]
+/// `total` (issue #1201).  [`nested_same_frame_commands`]
 /// decides what "nested" means, so a body that opens its own frame stays out.
 fn classify_variables(
     source: &str,
@@ -993,18 +993,18 @@ mod tests {
 
     /// A write nested in a control-flow body is still the caller's write.
     ///
-    /// The classification used to look only at the selection's *top-level*
-    /// commands, so the `set total` inside the `foreach` body was invisible:
-    /// `total` was read but never seen written, and it left as an ordinary
-    /// value parameter whose assignment the caller never saw.  The loop
-    /// variable was invisible for the mirror reason — a `LoopVarList`
-    /// binding is not a `VarWrite` — so it left as a second value parameter
-    /// and the generated call read a `$n` the caller does not have.
+    /// Classifying only the selection's *top-level* commands hides the `set
+    /// total` inside the `foreach` body: `total` reads as never written and
+    /// leaves as an ordinary value parameter whose assignment the caller
+    /// never sees.  The loop variable is the mirror case — a `LoopVarList`
+    /// binding is not a `VarWrite` — and would leave as a second value
+    /// parameter, making the generated call read a `$n` the caller does not
+    /// have.
     ///
-    /// Oracle (tclsh 8.6.18 and 9.0.4 alike): the original prints `6`, the
-    /// extraction below prints `6`, and the pre-fix `proc extracted_proc {n
-    /// total}` / `extracted_proc $n $total` dies with `can't read "n": no
-    /// such variable`.
+    /// Oracle (tclsh 8.6.18 and 9.0.4 alike): the original prints `6` and so
+    /// does the extraction below, while `proc extracted_proc {n total}` /
+    /// `extracted_proc $n $total` dies with `can't read "n": no such
+    /// variable`.
     #[test]
     fn tp_a_write_nested_in_a_loop_body_is_carried_by_upvar() {
         let src = "set total 0\nforeach n {1 2 3} {\n    set total [expr {$total + $n}]\n}\nputs $total\n";
@@ -1081,7 +1081,7 @@ mod tests {
     /// The mirror question — "is this variable read *after* the selection?" —
     /// is asked over the tail's statement tree too.  `incr total` carries no
     /// `$total` for the text scan to find, so a top-level-only tail scan
-    /// missed it and turned the write into a proc local, losing the caller's
+    /// would classify the write as a proc local and lose the caller's
     /// value.
     #[test]
     fn tp_a_role_named_read_nested_after_the_selection_keeps_the_upvar() {
