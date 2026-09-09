@@ -387,7 +387,7 @@ fn test_folding_toggle_suppresses_ranges() {
     lsp.apply_configuration_settle(json!({ "features": { "folding": false } }), &uri, |c| {
         c.get("features").and_then(|f| f.get("folding")) == Some(&Value::Bool(false))
     });
-    // `null`, never an empty array (issue #1122): VS Code's sticky-scroll
+    // `null`, never an empty array: VS Code's sticky-scroll
     // model provider accepts a non-null folding model as valid and terminal,
     // so an authoritative empty set would leave sticky scroll permanently
     // blank instead of falling through to its indentation model.
@@ -404,7 +404,7 @@ fn test_optimiser_toggle_suppresses_o_codes() {
     lsp.clear_notifications();
     lsp.apply_configuration(json!({ "optimiser": { "enabled": false } }));
     // Await convergence, not the first version-1 republish: the coalesced
-    // config reload (#1213) may reschedule once on the inline settings before
+    // config reload may reschedule once on the inline settings before
     // the pulled config lands, so an early republish can still carry the old
     // profile's O-codes. The toggle is proven by the *latest* publish going
     // O-free within the window; a broken toggle times out here instead.
@@ -464,8 +464,8 @@ fn test_diagnostics_master_switch_clears_all() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     assert!(!lsp.open_ready(&uri, "catch {error e}\n").is_empty()); // non-empty by default
-    // A version-tagged `await_diagnostics_version` races here (issue #1135):
-    // the just-opened document's own analysis can still have a later publish
+    // A version-tagged `await_diagnostics_version` races here: the
+    // just-opened document's own analysis can still have a later publish
     // for version 1 in flight (e.g. a converged correction), and a config
     // change never bumps the document version, so that stale non-empty
     // publish and the master-off empty one are indistinguishable by
@@ -641,8 +641,8 @@ fn test_brace_expr_refactor_offered() {
     );
 }
 
-// ── follow-ups from PR #733 review (Codex bot) ───────────────────────────────
-
+// Completion edge cases: local shadowing, command-substitution var binders,
+// and dialect re-resolution after an edit.
 
 #[test]
 fn test_local_shadowing_global_stays_bare() {
