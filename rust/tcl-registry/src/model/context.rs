@@ -207,7 +207,7 @@ impl FloorMap {
 
 /// A resolved context: the environment a document works against plus the
 /// per-axis floors derived from it (§5.2 step 1; steps 2–3 — workspace and
-/// document facts — join in P2 through [`ResolvedContext::require_package`]).
+/// document facts — join through [`ResolvedContext::require_package`]).
 #[derive(Debug, Clone)]
 pub struct ResolvedContext {
     /// The environment definition.
@@ -665,7 +665,7 @@ impl ResolvedContext {
     ///   the environment's ambient closure, plus (outside a closed world)
     ///   the lenient hosted rule and this document's own requires.
     ///
-    /// **P3 (the Tk pilot)**: `Tk` moves from the first class into the
+    /// **The Tk pilot**: `Tk` moves from the first class into the
     /// second, because `wish` runs it ambiently. The single enumerated
     /// consequence is that a **closed** world stops resolving Tk: a `.bpf`
     /// or `.tclspec` document can no longer call `wm` (`package require`
@@ -1042,9 +1042,9 @@ impl ResolvedContext {
         Some((lifecycle.introduced, lifecycle.retired))
     }
 
-    // --- §5.4 range targeting: declared target sets --------------------
+    // §5.4 range targeting: declared target sets.
     //
-    // The additive range-mode queries (P1b). A document/project that
+    // The additive range-mode queries. A document/project that
     // *declares* a multi-version target set — `tclLsp.targets`, the
     // `# tcl-lsp: supports NAME RANGE` directive (ruling R6) — records
     // it here, and the compatibility checks ask whether an item holds at
@@ -1813,7 +1813,7 @@ mod tests {
         );
     }
 
-    // --- P3: the Tk pilot's placement model ---------------------------
+    // The Tk pilot's placement model.
 
     /// The pilot's central claim, stated as one table: `Tk` is one
     /// package whose availability is decided by **placement plus policy**,
@@ -2203,7 +2203,7 @@ mod tests {
         // 5 Tcl releases + 1 f5-tcl + 1 f5-irules + 9 jim + 8 vendor
         // packages — the `f5-tcl` trunk family (measurements §4a) added
         // its row in the F5 reclassification, and `sslictcl` added its
-        // vendor package with the `.sslictcl` authoring dialect (#1543).
+        // vendor package with the `.sslictcl` authoring dialect.
         assert_eq!(specificity_breadth(&rows(None)), 24);
         // A hosted attribution row adds no specificity, mirroring the old
         // specificity, which never counted `required_package`.

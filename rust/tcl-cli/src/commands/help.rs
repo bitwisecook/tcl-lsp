@@ -45,8 +45,8 @@ use tcl_dialect::DialectProfile;
 static KCS_DB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/kcs_help.db"));
 
 /// Per-dialect substring terms used to filter help entries — the
-/// profile catalog's `help_terms` (dialect-profile model §5.4), so alias
-/// spellings (`irules` → `f5-irules`) filter like the canonical name and
+/// profile catalog's `help_terms`, so alias spellings (`irules` →
+/// `f5-irules`) filter like the canonical name and
 /// the term sets can never drift from the dialect model. `all` (and any
 /// unknown dialect, via the permissive fallback's empty set) yields no
 /// terms, meaning "no filtering".

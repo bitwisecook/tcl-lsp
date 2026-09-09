@@ -438,8 +438,8 @@ fn scan_deep<'p>(
         // {eval $body}} 1 }`) would wrongly mark `f`'s `body` param as
         // evaluated, while the real forwarding case (`apply {x {eval $x}}
         // $body`) would be missed entirely. Instead: infer the lambda's own
-        // traits in complete
-        // isolation — as if it were its own tiny proc — then propagate a
+        // traits in complete isolation — as if it were its own tiny proc —
+        // then propagate a
         // lambda param's trait back onto an enclosing param only when the
         // corresponding actual argument is a bare, unadorned reference to
         // that enclosing param, i.e. only when the value genuinely flows

@@ -20105,14 +20105,14 @@ impl Backend {
 
         // The settings that promise *no* diagnostics for a file —
         // `tclLsp.features.diagnostics = false` and a `tclLsp.diagnostics.exclude`
-        // match (#1556) — are honoured here, where the notice layer is set,
+        // match — are honoured here, where the notice layer is set,
         // rather than at the two sites that union it in
         // ([`DiagnosticPublisher::with_pack_notices`], reached from both the
         // pull report and every push). A layer that does not stand cannot be
         // unioned back by either, so the pulled report and the pushed set agree
         // by construction instead of by two checks that have to be kept in
-        // step; the alternative — gating the unions — left whichever site was
-        // missed republishing the squiggles the switch had just cleared.
+        // step; gating the unions instead leaves whichever site is missed
+        // republishing the squiggles the switch has just cleared.
         //
         // A URI a setting now silences drops out of `by_uri`, joins the stale
         // set below and has its standing notices cleared on this pass; either
@@ -20173,19 +20173,19 @@ impl Backend {
     /// possibly unsaved) editor buffer.  The walk is capped at
     /// [`WORKSPACE_SCAN_FILE_CAP`] files so a large tree can't
     /// stall start-up.
-    /// M9: bring the index's per-document views in line with the *source
+    /// Bring the index's per-document views in line with the *source
     /// graph* — `source` evaluates a file in the caller's namespace, so a
     /// document sourced from `namespace eval ::x` must be indexed under a
     /// `::x`-seeded analysis (its bare `proc helper` is really
     /// `::x::helper`).  Computes the desired seed set per sourced document
-    /// (literal paths, plus statically-foldable `[file join …]` forms —
-    /// stage 9.2), re-analyses documents whose applied seeds differ, and
+    /// (literal paths, plus statically-foldable `[file join …]` forms),
+    /// re-analyses documents whose applied seeds differ, and
     /// merges each seeded view into the index (one document may carry
     /// several views when sourced from several namespaces — all true at
     /// run time).  Iterates to a fixpoint (bounded) because a seeded parent
     /// records *composed* namespaces for its own nested `source` calls.
     ///
-    /// Serialised by [`Self::rehoming_gate`] (issue #1158): a caller that
+    /// Serialised by [`Self::rehoming_gate`]: a caller that
     /// lands while another pass (a peer request, or `scan_workspace_folders`'
     /// own call after a merge) is already reconciling waits for it instead of
     /// running its own redundant copy of the loop below — the early return a
@@ -20294,8 +20294,8 @@ impl Backend {
     /// whatever collection it holds: the desired set arrives from
     /// `WorkspaceIndex::source_seed_map` as a `BTreeSet`, the recorded and
     /// applied ones as a `Vec`.  Spelling the test twice — once per collection
-    /// type — is how the queue and the store came to disagree in the first
-    /// place (#1297), so there is deliberately nowhere else to state it.
+    /// type — is how the queue and the store come to disagree, so there is
+    /// deliberately nowhere else to state it.
     fn is_standalone_view<'s>(seeds: impl IntoIterator<Item = &'s String>) -> bool {
         let mut seeds = seeds.into_iter();
         seeds
@@ -20315,13 +20315,12 @@ impl Backend {
                 // Documents whose only source site is the global namespace are
                 // dropped here: their desired view *is* the standalone analysis
                 // the index already holds, and [`Self::rehomed_source_seeds`]
-                // records that as absence.  Leaving them in is what stopped an
-                // ordinary top-level `source b.tcl` from ever converging — the
-                // queue below compared `recorded.get(uri)` against `Some(["::"])`
-                // while the store *removes* such an entry, so the same document
-                // was re-analysed and re-indexed on every round of every call,
-                // for ever, invalidating every index-generation memo with it
-                // (issue #1297).
+                // records that as absence.  Leaving them in stops an ordinary
+                // top-level `source b.tcl` from ever converging: the queue below
+                // would compare `recorded.get(uri)` against `Some(["::"])` while
+                // the store *removes* such an entry, so the same document is
+                // re-analysed and re-indexed on every round of every call, for
+                // ever, invalidating every index-generation memo with it.
                 index
                     .source_seed_map(resolve_source_edge)
                     .into_iter()
@@ -20376,7 +20375,7 @@ impl Backend {
                         .map(|seed| {
                             // Re-homing overwrites the document's index entry,
                             // so it must not re-drop the implied requires the
-                            // scan put there (issue #1813 review).
+                            // scan put there.
                             let mut analyser = resource_for_worker.clone().apply(Analyser::new());
                             if seed == Self::STANDALONE_SEED {
                                 analyser.analyse(&text, &dialect)
@@ -20412,8 +20411,8 @@ impl Backend {
     /// runtime identities (`namespace eval ::x {source b.tcl}` +
     /// `namespace eval ::y {source b.tcl}` creates both `::x::helper`
     /// and `::y::helper` — tclsh 9.0.4), so the mapping returns the
-    /// **full identity set**, never an arbitrary first seed (issue #945
-    /// fault 3): references union every view's call sites, and a rename
+    /// **full identity set**, never an arbitrary first seed: references union
+    /// every view's call sites, and a rename
     /// of the one physical token is explicitly a multi-symbol edit.
     async fn seed_mapped_symbols(&self, uri: &Uri, qualified: String) -> Vec<String> {
         let seeds = self
@@ -20495,7 +20494,7 @@ impl Backend {
     /// records stop being authoritative the moment a live buffer exists — and
     /// the debounced diagnostics publish is what re-adds it.  Between the two
     /// the file is invisible to the picker, which is exactly the moment a user
-    /// (or a test) searches for something they just opened (#1179).  A new
+    /// (or a test) searches for something they just opened.  A new
     /// untitled buffer has the same gap until its first publish.
     ///
     /// Bounded by the open-document set and empty in steady state. Once Salsa
@@ -20506,16 +20505,15 @@ impl Backend {
     /// A **cancelled** memo read must not be read as "this document has no
     /// symbols".  [`Self::cached_analysis`] answers `None` for two unrelated
     /// facts — "there is no salsa input for this URI" and "the read was
-    /// cancelled" — and this function used to act on both by silently
-    /// dropping the document.  The second is not a fact about the document at
+    /// cancelled" — and acting on both by silently dropping the document is
+    /// wrong.  The second is not a fact about the document at
     /// all, and the write that causes it is the very publish this window
     /// exists because of: `did_open` schedules the debounced diagnostics run,
     /// that run's `sync_workspace_call_site_evidence` writes
     /// `SourceFile::external_call_sites` for the file just opened, and a
     /// salsa write unwinds every in-flight read.  Lose that race and the
-    /// picker answered *nothing* for the file the user had just opened —
-    /// intermittently, and precisely the #1179 symptom this path was added to
-    /// remove.  So a URI that **has** an input falls back to analysis of its
+    /// picker would intermittently answer *nothing* for the file the user had
+    /// just opened.  So a URI that **has** an input falls back to analysis of its
     /// own buffer, which no concurrent write can cancel. Before live Salsa
     /// publication it uses [`Self::fresh_analysis_for`] directly; afterwards
     /// [`Self::analysis_for`] provides the same off-database fallback on a

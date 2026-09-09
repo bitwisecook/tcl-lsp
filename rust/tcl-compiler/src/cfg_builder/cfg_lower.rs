@@ -50,7 +50,7 @@ struct SwitchEscape<'a> {
 /// nothing, while `foreach n "a $b c" …` substitutes `$b` (tclsh 8.6.14 — the
 /// braced loop prints `a`, `$b`, `c` with `b` undefined throughout).  Both
 /// lower to the same `list_arg` *text*, so without this the read harvest saw a
-/// substitution in the braced word and drew a false `W210` (issue #1260).
+/// substitution in the braced word and draw a false `W210`.
 ///
 /// Every span is the whole-command `span`: the iterator carries no per-word
 /// span, and the command span is exactly what the span-less consumers
@@ -101,21 +101,21 @@ fn literal_true_expr() -> ExprNode {
 /// is the operand shape that says exactly that, carrying the word's value and
 /// whether it was braced.
 ///
-/// It used to be `ExprNode::String`, whose text is *source including
-/// delimiters* — a contract a value cannot honour. A subject whose value
-/// merely looks like a braced word was read back as one and stripped, so
-/// `switch -- "{abc}"` matched the arm `abc` rather than `{abc}`, and
-/// re-bracketing a genuinely braced subject to escape that only made the two
-/// spellings collide on one text. Values and source need different shapes,
-/// which is what this variant is.
+/// Not `ExprNode::String`, whose text is *source including delimiters* — a
+/// contract a value cannot honour. A subject whose value merely looks like a
+/// braced word would be read back as one and stripped, so `switch -- "{abc}"`
+/// would match the arm `abc` rather than `{abc}`, and re-bracketing a
+/// genuinely braced subject to escape that only makes the two spellings
+/// collide on one text. Values and source need different shapes, which is what
+/// this variant is.
 ///
-/// The `ExprNode::Raw` shape this used to use lowered instead to `push` +
-/// `exprStk`, making the subject an expression — `switch -- abc …` evaluated
-/// `expr {abc}`, which "worked" only while `exprStk` returned an unparsable
-/// expression's own source text, and mis-matched outright where the subject *was*
-/// parsable (`switch -- 1+1 {2 …}` took the `2` arm). A normalised variable
-/// reference keeps the `Raw` form, whose codegen has dedicated scalar-load arms
-/// and so never involved `exprStk` in the first place.
+/// Not `ExprNode::Raw` either: it lowers to `push` + `exprStk`, making the
+/// subject an expression — `switch -- abc …` would evaluate `expr {abc}`,
+/// which "works" only while `exprStk` returns an unparsable expression's own
+/// source text, and mis-matches outright where the subject *is* parsable
+/// (`switch -- 1+1 {2 …}` takes the `2` arm). A normalised variable reference
+/// keeps the `Raw` form, whose codegen has dedicated scalar-load arms and so
+/// never involves `exprStk`.
 ///
 /// `String` folds where `Raw` did not, but not *here*: branch folding skips any
 /// `StrEq` terminator as a switch dispatch
@@ -128,8 +128,8 @@ fn switch_subject_operand(subject: &str, braced: bool) -> ExprNode {
     // carries *source text including delimiters* — that is its documented
     // contract — so the braces go back on and `emit_expr_string` recognises the
     // word through the shared `whole_braced_word` owner and pushes its content
-    // verbatim. Handing over the bare value instead made it indistinguishable
-    // from an unbraced word, and `switch -- {a[nosuchcmd]}` ran the command
+    // verbatim. Handing over the bare value instead makes it indistinguishable
+    // from an unbraced word, so `switch -- {a[nosuchcmd]}` runs the command
     // where both oracles match the literal and take the default arm.
     //
     // Re-bracing is lossless here, and only here: a braced word's content is
@@ -157,7 +157,7 @@ fn switch_subject_operand(subject: &str, braced: bool) -> ExprNode {
 ///
 /// # This gate must accept under either rule — do not "simplify" it
 ///
-/// The `${…}` close rule is release-dependent (issue #1568) and CFG lowering
+/// The `${…}` close rule is release-dependent and CFG lowering
 /// has no dialect in hand: it runs before the target release reaches codegen.
 /// Every narrower gate is wrong, and each has its own distinguishing program.
 ///
@@ -169,9 +169,8 @@ fn switch_subject_operand(subject: &str, braced: bool) -> ExprNode {
 /// makes an accepting gate the safe direction and abstention the risky one,
 /// which is the opposite of the usual intuition about optimisation gates.
 ///
-/// **Pinning to [`BracedVarStyle::Tcl9Nesting`]** (the `default()`, and what
-/// this gate did until the vector below was reported on #1615) loses a subject
-/// that is whole under the 8.x rule only:
+/// **Pinning to [`BracedVarStyle::Tcl9Nesting`]** (the `default()`) loses a
+/// subject that is whole under the 8.x rule only:
 ///
 /// ```tcl
 /// set "a\\" K
@@ -239,8 +238,8 @@ impl CfgBuilder<'_> {
             // boundary.
             if expr_has_command(&clause.condition) {
                 // A `catch`/`regexp`/`scan` substitution — or a call to a
-                // known upvar / global-writing user proc (issue #923 idx
-                // 122) — in the condition writes result variables; record
+                // known upvar / global-writing user proc — in the condition
+                // writes result variables; record
                 // them as defs so a read in the guarded body is not
                 // flagged read-before-set (W210).
                 let (cond_defs, opaque_global) = self.condition_out_vars(&clause.condition);
@@ -259,7 +258,7 @@ impl CfgBuilder<'_> {
                     foreach_groups: None,
                 });
                 // A condition-embedded callee that runs an unreadable
-                // script at the global frame (issue #1198) clobbers names
+                // script at the global frame clobbers names
                 // no def list can enumerate — widen with a barrier.
                 if opaque_global {
                     self.block_mut(&dispatch)
@@ -463,8 +462,8 @@ impl CfgBuilder<'_> {
         self.ensure_goto(block_name, &header, Some(*condition_span));
 
         // A `catch`/`regexp`/`scan` substitution — or a call to a known
-        // upvar / global-writing user proc (issue #923 idx 122) — in the
-        // loop condition writes result variables each iteration; record
+        // upvar / global-writing user proc — in the loop condition writes
+        // result variables each iteration; record
         // them as defs in the header so a read in the body is not flagged
         // read-before-set (W210).
         if expr_has_command(condition) {
@@ -484,7 +483,7 @@ impl CfgBuilder<'_> {
                 foreach_groups: None,
             });
             // See `lower_if`: an unreadable global-frame script in the
-            // condition (issue #1198) widens with a barrier.
+            // condition widens with a barrier.
             if opaque_global {
                 self.block_mut(&header).statements.push(Statement::Barrier {
                     span: *condition_span,
@@ -1054,7 +1053,7 @@ impl CfgBuilder<'_> {
         // A `-` (fallthrough) handler shares the next non-`-` handler's body.
         // Tcl binds the *matching* handler's variables when running that shared
         // body in the byte-compiled form, but the *target* handler's variables
-        // in the interpreted form (the two diverge — see issue #703).
+        // in the interpreted form (the two diverge).
         // Statically we can't know which handler matched, so the shared body is
         // analysed with the whole group's variables treated as defined: the
         // precise over-approximation that avoids a read-before-set false

@@ -403,7 +403,8 @@ fn run() -> Result<(), (u8, String)> {
 /// `tcl-bigip-query` DSL parser/evaluator, `tcl-bigip` config parser, and
 /// `tcl_diagram::irule_flowchart_graph` (IR/CFG-based) for every iRule body
 /// in the report — the same depth-capped-but-stack-hungry recursion chain
-/// that crashed `tcl-lsp-server` in issue #996. The OS-provided main-thread
+/// that crashed `tcl-lsp-server` on deeply nested input. The OS-provided
+/// main-thread
 /// stack this binary would otherwise inherit is outside this crate's
 /// control (8 MiB by default on Linux, far less guaranteed elsewhere), so
 /// the CLI runs on an explicitly-sized thread instead.

@@ -1430,7 +1430,7 @@ fn test_foreach_loop_variables_are_variables() {
 #[test]
 fn test_proc_and_lambda_parameters_are_parameters() {
     // Procedure / apply-lambda parameter names carry the standard LSP
-    // `parameter` type (#898 §4) — distinguishable from an ordinary local — while
+    // `parameter` type — distinguishable from an ordinary local — while
     // `dict map`'s loop variables stay plain variable declarations.
     let mut lsp = Lsp::tcl();
     let lg = legend(&lsp);
@@ -1497,8 +1497,8 @@ fn test_snit_type_body_members_highlight() {
                }\n";
     let uri = open_doc(&mut lsp, src);
     let tokens = typed(&mut lsp, &lg, &uri);
-    // `barks` is a declared variable; `volume` is a method *parameter* and now
-    // carries the standard LSP `parameter` type (#898 §4).
+    // `barks` is a declared variable; `volume` is a method *parameter* and
+    // carries the standard LSP `parameter` type.
     assert!(
         tokens
             .iter()
@@ -1511,8 +1511,7 @@ fn test_snit_type_body_members_highlight() {
             .any(|t| covered(src, t) == "volume" && t.ttype == "parameter"),
         "snit `volume` must be a parameter: {tokens:?}",
     );
-    // The type name and the member names are `class` / `method`, not strings
-    // (#898 §2).
+    // The type name and the member names are `class` / `method`, not strings.
     assert!(
         tokens
             .iter()
@@ -1566,21 +1565,21 @@ fn test_itcl_class_body_members_highlight() {
         );
     }
     // A method's *parameter* carries the standard LSP `parameter` type, so a
-    // theme can tell an argument from an ordinary local (#898 §4).
+    // theme can tell an argument from an ordinary local.
     assert!(
         tokens
             .iter()
             .any(|t| covered(src, t) == "volume" && t.ttype == "parameter"),
         "itcl `volume` must be a parameter: {tokens:?}",
     );
-    // The class name is a `class`, not a bare string (#898 §2).
+    // The class name is a `class`, not a bare string.
     assert!(
         tokens
             .iter()
             .any(|t| covered(src, t) == "Dog" && t.ttype == "class"),
         "itcl `Dog` must be a class: {tokens:?}",
     );
-    // The method's declared name is a `method`, not a bare string (#898 §2).
+    // The method's declared name is a `method`, not a bare string.
     assert!(
         tokens
             .iter()
@@ -1786,7 +1785,7 @@ fn test_bigip_conf_uses_the_bigip_token_set() {
     }
 }
 
-/// Issue #898 — the semantic-token correctness audit against 1.11.4.
+/// Semantic-token correctness, checked section by section against 1.11.4.
 ///
 /// One test per section, so a regression names the section it broke.
 #[test]

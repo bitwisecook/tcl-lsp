@@ -143,7 +143,7 @@ fn classify(frames: &FrameStack, ns: &Namespaces, current_ns: NsId, name: &[u8])
     })
 }
 
-/// M11: the Tcl 8.x namespace-scope fallback.  An unqualified name whose home
+/// The Tcl 8.x namespace-scope fallback.  An unqualified name whose home
 /// is a non-global namespace with **no such cell** — a `variable` declaration
 /// installs a link cell, so declared names never fall through — resolves to
 /// the GLOBAL namespace when it holds one, for reads and writes alike; under
@@ -1099,7 +1099,7 @@ fn make_variable_mapped_with_origin(
     // namespace variable itself as an *undefined Var* before any value is
     // set.  The self-link cell is our stand-in: persistent in the namespace
     // table, it reads / `info exists` as missing, a write replaces it — and,
-    // under the 8.x semantics, it blocks the M11 namespace-scope global
+    // under the 8.x semantics, it blocks the namespace-scope global
     // fallback exactly as C's undefined Var does.  An existing value is
     // never clobbered.
     if ns.var_table(target_ns).cell(target).is_none() {

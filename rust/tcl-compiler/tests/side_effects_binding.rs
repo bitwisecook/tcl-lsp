@@ -464,7 +464,7 @@ fn classify_table_lookup() {
     assert_eq!(e.scope, StorageScope::Unknown);
 }
 
-// --- TestClassifyF5Commands ------------------------------------------------
+// Classify F5 commands.
 
 #[test]
 fn classify_pool_selection() {
@@ -711,7 +711,7 @@ fn classify_hint_with_unspecified_dialect_preserves_shape() {
 // has no separate `subcommand` parameter — the effective subcommand is always
 // `args[0]` — so there is no override to exercise.
 
-// Dialect specific hints.
+// Dialect-specific hints.
 
 #[test]
 fn classify_close_in_tcl_is_file_io() {
@@ -840,7 +840,7 @@ fn conformance_tcl_core_targets() {
     }
 }
 
-// Hint coverage not dead.
+// Hint coverage is not dead.
 
 #[test]
 fn hinted_irules_commands_return_non_unknown_effects() {
@@ -1016,7 +1016,7 @@ fn binding_undefined_name_is_opaque() {
     );
 }
 
-// Flow sensitive rename.
+// Flow-sensitive rename.
 
 #[test]
 fn binding_proc_call_rename_call() {

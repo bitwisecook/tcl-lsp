@@ -2904,9 +2904,9 @@ fn definer_class_name<'s>(
 /// definer *declares* the class (`oo::class create Shape`, `snit::type Name`)
 /// rather than merely referencing it (`oo::define Shape`).
 ///
-/// Split out of [`definer_class_name`] so the token walk can type the name —
-/// it was falling through to the default literal classification and painting as
-/// a plain `string` in *both* 1.11.4 and 2.1.6 (#898 §2).
+/// Split out of [`definer_class_name`] so the token walk can type the name
+/// rather than letting it fall through to the default literal classification
+/// and paint as a plain `string`.
 fn definer_class_name_idx(
     head: &str,
     seg: &tcl_compiler::segmenter::SegmentedCommand,
@@ -2943,7 +2943,7 @@ fn definer_class_name_idx(
 }
 
 /// Mark the class name at a definer head so it emits as `Class` rather than a
-/// bare literal (#898 §2).
+/// bare literal.
 fn insert_definer_class_name_override(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
@@ -2968,15 +2968,15 @@ fn insert_definer_class_name_override(
 /// resort — the unique class sharing its tail name.  `None` when unresolved or
 /// the tail is ambiguous (no wrong-resolution from a homonym).
 fn resolve_class_in_hierarchy(hierarchy: &ClassHierarchy, name: &str) -> Option<String> {
-    // The shared call-site resolver (M4.2 dedup) — exact, canonical
-    // global-qualified (#934 colon-run rule), then unique-tail.
+    // The shared call-site resolver — exact, canonical global-qualified (the
+    // colon-run rule), then unique-tail.
     tcl_compiler::analyser::class_hierarchy::resolve_written_class_name(name, &hierarchy.classes)
 }
 
 /// Resolve a self-call inside a class body against the enclosing class's MRO:
 /// colour the method a callable, and — for `configure` / `cget` on an
 /// `oo::configurable` class — its `-property` options.  The self-receiver is
-/// `my` (`TclOO`), `[self]`/`[self object]` (`TclOO`, issue #1322), `$self`
+/// `my` (`TclOO`), `[self]`/`[self object]` (`TclOO`), `$self`
 /// (snit), or `$this` (itcl) — each of which dispatches on the enclosing
 /// object.  No-op outside a class body, without a hierarchy, or for any
 /// other head.
@@ -2998,11 +2998,11 @@ fn insert_self_method_overrides(
     // Three different axes, deliberately kept apart. `my` is the `TclOO`
     // self-dispatch *command keyword* — registry data, queried through
     // `method_dispatch_keyword` so a dialect that gains or loses it
-    // propagates through its `CommandSpec` (issue #1050). `[self]`/`[self
+    // propagates through its `CommandSpec`. `[self]`/`[self
     // object]` is a bracketed *command substitution* whose result is the
     // receiver, not a dispatch keyword — registry data via
     // `is_self_receiver_call`, keyed on the substitution's own head and
-    // argument rather than matching `"self"` here (issue #1322). `$self` /
+    // argument rather than matching `"self"` here. `$self` /
     // `$this` are snit / itcl *object-handle variable names*, a naming
     // convention of those class systems rather than a command at all, so
     // they stay matched by name here.
@@ -3086,7 +3086,7 @@ fn insert_enum_value_overrides(
     // declared value and the loop sense-word — is highlighted as a keyword by
     // `insert_role_overrides`, which is the more specific classification.  Skip
     // those command-level positions so the enum override does not claim the
-    // token first (issue #760).
+    // token first.
     let arg_texts: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
     let keyword_positions: rustc_hash::FxHashSet<usize> = registry
         .arg_indices_for_role(head, &arg_texts, tcl_registry::ArgRole::Keyword)
@@ -3183,7 +3183,7 @@ fn insert_oo_define_keyword_overrides(
     // puts a class name at that position, not a member keyword). The
     // registry already draws exactly that line with the `OoDefine` /
     // `OoObjdefine` analyser hooks, so this dispatches on them rather than
-    // comparing spellings (issue #1185) — which also means the
+    // comparing spellings — which also means the
     // explicitly-global `::oo::define` resolves like the bare form.
     if !matches!(
         spec.analyser_hook,
@@ -3224,9 +3224,9 @@ fn insert_oo_define_keyword_overrides(
     // The one-liner definer form carries a whole member call inline —
     // `oo::define C method m {a} {…}` / `oo::objdefine $obj method m {} {…}` —
     // so run the *same* member handling the body form gets, anchored at the
-    // member keyword (argv 2).  Marking only the keyword left the method's name,
-    // parameters and body untouched: the name painted as a plain string and the
-    // body was never recursed.
+    // member keyword (argv 2).  Marking only the keyword would leave the
+    // method's name, parameters and body untouched: the name painting as a
+    // plain string and the body never recursed.
     let member_args: Vec<&str> = seg.texts[3..].iter().map(String::as_str).collect();
     let first = first.clone();
     insert_oo_member_overrides(seg, grammar, &first, &member_args, 2, dialect, overrides);
@@ -3249,7 +3249,7 @@ fn insert_oo_define_keyword_overrides(
 ///   (`list`) — the idiomatic way to build a deferred command around a
 ///   dynamic value, e.g. a pkgIndex.tcl entry capturing the install
 ///   directory: `package ifneeded name ver [list apply {dir {…}} $dir]`
-///   (issue #954). `list`'s own first *argument*, if a literal bareword, is
+///   `list`'s own first *argument*, if a literal bareword, is
 ///   resolved the same way any other command head is (registry `get`, which
 ///   strips a leading `::`); if that resolves to a `LambdaLiteral`-bearing
 ///   spec, the token at `argv[K + 2]` (shifted by one for `list` itself) is
@@ -3262,8 +3262,8 @@ fn insert_oo_define_keyword_overrides(
 /// *its own* enclosing argument slot is one that's later invoked/sourced
 /// (`Body` / `LambdaLiteral` / `CommandPrefix`), e.g. `package ifneeded`'s
 /// script argument. Plain data such as `set data [list apply {x {puts $x}}
-/// value]` must not paint `x`/`puts`/`apply` as executable (codex review of
-/// #954's follow-up) — `deferred_role` carries that enclosing-role check in
+/// value]` must not paint `x`/`puts`/`apply` as executable —
+/// `deferred_role` carries that enclosing-role check in
 /// from [`collect_script`], computed once per `[…]` substitution. The direct
 /// case needs no such gate: writing `apply {…}` literally *always* invokes
 /// `apply` when reached, regardless of what its caller does with the result.
@@ -3359,7 +3359,7 @@ fn insert_lambda_literal_overrides(
 /// geometry.  A word that lexes as a single unquoted [`TokenType::Esc`] token —
 /// a scalar (`x`), a literal array element (`arr(key)`), or a namespaced name
 /// (`::ns::arr(key)`) — is retagged as one whole-word token, matching how the
-/// `$arr(key)` read highlights (issue #813).  A word with an inner substitution
+/// `$arr(key)` read highlights.  A word with an inner substitution
 /// (`arr($i)`, `$dynamic`) is multi-token (`single_token_word` is `false`), so
 /// it is left to the default classifier and its inner `$var` sub-tokens survive.
 fn insert_var_role_overrides(
@@ -3384,9 +3384,9 @@ fn insert_var_role_overrides(
             // much as a bareword is: braces suppress every substitution, so
             // `set {$n} 1` declares the variable literally called `$n` and
             // `[set {$n}]` reads it (tclsh 9.0.4 / 8.6.14: `info exists {$n}`
-            // → 1 while `info exists n` → 0).  Falling through painted the
+            // → 1 while `info exists n` → 0).  Falling through would paint the
             // word as a plain `string`, hiding a declaration and inviting the
-            // reader to see the `$n` inside as a substitution (issue #1078).
+            // reader to see the `$n` inside as a substitution.
             // It is the quoting that makes such a name writable at all, so
             // this is the *only* spelling those variables ever have.
             if matches!(word.kind, TokenType::Esc | TokenType::Str) && !word.in_quote {
@@ -3398,9 +3398,9 @@ fn insert_var_role_overrides(
         // whose index is a substitution** — `set env($lo)`, `unset
         // UnknownPending($name)`, `set auto_index([foo])`.  A literal index
         // (`env(PATH)`) is a single token and took the branch above; this one
-        // stays multi-token, and used to be skipped entirely, so its literal
-        // fragments fell through to the default classification and painted as
-        // `string` (#898 §3) — pervasive in Tcl's own `init.tcl` / `package.tcl`.
+        // stays multi-token, and skipping it would let its literal fragments
+        // fall through to the default classification and paint as `string` —
+        // pervasive in Tcl's own `init.tcl` / `package.tcl`.
         //
         // The representative `argv` token spans the whole word (segmenter:
         // `multi_token_word_argv_spans_full_word`), so paint every *literal*
@@ -3603,7 +3603,7 @@ fn insert_role_overrides(
     }
     // Note: recursing the body of a `method` / `constructor` / … keyword used
     // as a command head inside a class-definition script is handled
-    // context-sensitively by `insert_oo_body_overrides` (issue #747), which
+    // context-sensitively by `insert_oo_body_overrides`, which
     // only fires inside an actual OO definition body — so a same-named user
     // proc is never misclassified.
 }
