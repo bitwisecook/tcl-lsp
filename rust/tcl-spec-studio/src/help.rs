@@ -186,7 +186,7 @@ For Tk validation, `%P`, `%s`, and `%S` carry editable text; for key bindings, \
 `%A` and `%K` carry the typed character or keysym. Do not declare widget paths, \
 indices, validation actions, or reasons (`%W`, `%i`, `%d`, `%V`) here: those are \
 framework metadata, not taint sources. The callback must be deferred; dynamic \
-script construction remains intentionally unanalyzed. In SpecTcl, write an \
+script construction remains intentionally unanalysed. In SpecTcl, write an \
 option's `-callback-taint-inputs {%P %S}` or the positional \
 `callback_taint_inputs {{INDEX {%A %K}}}` table.",
     ),
@@ -799,6 +799,14 @@ adds `IP_ADDRESS`. A sink that requires a given colour then accepts the \
 cleaned value — this is how \"escaped before output\" is recognised.",
     ),
     (
+        "taint_transform_when",
+        "For a command whose sanitising effect comes from the *literal it was \
+given* rather than from the command itself: the argument-shape proof a call \
+must pass before the transform colour is claimed. `string map` with a mapping \
+that deletes CR and LF proves `CRLF_FREE`; the same command with any other \
+mapping proves nothing, so the colour is claimed per call, not per command.",
+    ),
+    (
         "taint_double_encode_colour",
         "The colour that means the input is *already* encoded the way this \
 command encodes. Feeding an HTML-escaped value through the HTML escaper \
@@ -1379,6 +1387,14 @@ command\" honest after such calls.",
 (`string match`) and regular expressions (`regexp`). A `*` means \
 something different in each, so the right label matters for validation \
 and highlighting.",
+    ),
+    (
+        "taintTransformCondition",
+        "Transform conditions",
+        "The argument-shape proofs a command can require before its taint \
+transform colour is claimed. A command whose sanitising effect comes from \
+the literal it was given — `string map` with a mapping that deletes CR and \
+LF — earns its colour call by call, not once for the command.",
     ),
     (
         "formatType",

@@ -26,10 +26,18 @@
 //! optimisations:
 //!
 //! 1. A deletion of the original `set` (replacement = empty
-//!    string over the `set` statement's span).
+//!    string over the `set` statement's whole written span plus
+//!    the separator that followed it).
 //! 2. An insertion at the target body — the first statement of
 //!    the branch that uses the variable — prepending the
 //!    original set's source text plus a separator.
+//!
+//! An IR statement span follows the lexer's inner-end convention,
+//! so a statement whose last word is quoted / braced / bracketed
+//! stops *on* its closer. Every span this pass replays or
+//! rewrites is therefore widened through
+//! [`full_rewrite_span`](super::helpers::spans::full_rewrite_span),
+//! without which the emitted script does not re-parse.
 //!
 //! Both emissions share a group id (via
 //! [`PassContext::alloc_group`]) so downstream consumers apply
@@ -51,6 +59,8 @@ use crate::ir::{Script, Statement};
 use tcl_core_types::DiagCode;
 
 use super::helpers::expr_simplify::expr_has_command_subst;
+use super::helpers::spans::{full_rewrite_span, statement_delete_rewrite_range};
+use super::helpers::var_refs::bareword_occurrences;
 use super::{Optimisation, PassContext};
 
 /// Run the code-sinking pass.
@@ -210,7 +220,7 @@ fn consider_sink_at(ctx: &mut PassContext<'_>, stmts: &[Statement], i: usize, de
     {
         return;
     }
-    emit_sink(ctx, stmt, span, &targets, &var);
+    emit_sink(ctx, span, decision.span().start(), &targets, &var);
 }
 
 /// Emit the O125 sink. The assignment is sunk into the **deepest** branch
@@ -221,13 +231,20 @@ fn consider_sink_at(ctx: &mut PassContext<'_>, stmts: &[Statement], i: usize, de
 /// diagnostic.
 fn emit_sink(
     ctx: &mut PassContext<'_>,
-    original: &Statement,
     original_span: tcl_lexer::Span,
+    decision_start: u32,
     targets: &[&Statement],
     var: &str,
 ) {
-    let _ = original;
-    let target_spans: Vec<tcl_lexer::Span> = targets.iter().map(|s| s.span()).collect();
+    // Widen past the inner-end convention so the replayed text and the
+    // rewritten extents cover whole written statements: replaying the raw span
+    // of `set msg "error"` would emit `set msg "error`, and the closing quote
+    // left behind would swallow the rest of the line.
+    let original_span = full_rewrite_span(ctx.source, original_span);
+    let target_spans: Vec<tcl_lexer::Span> = targets
+        .iter()
+        .map(|s| full_rewrite_span(ctx.source, s.span()))
+        .collect();
 
     if let Some(set_text) = extract_source(ctx.source, original_span)
         && !target_spans.is_empty()
@@ -235,11 +252,18 @@ fn emit_sink(
             .iter()
             .all(|s| extract_source(ctx.source, *s).is_some())
     {
+        // Take the separator between the assignment and the decision with it,
+        // so the surviving text closes up instead of keeping a blank line.
+        let delete_span = statement_delete_rewrite_range(
+            ctx.source,
+            original_span,
+            Some(decision_start as usize),
+        );
         let group = ctx.alloc_group();
         let mut del = Optimisation::new(
             DiagCode::O125,
             format!("Sink '{var}' into the branch(es) that use it — delete original"),
-            original_span,
+            delete_span,
             "",
         );
         del.group = Some(group);
@@ -638,6 +662,33 @@ fn any_decision_body_uses_var(
     }
 }
 
+/// Whether a `Call` statement uses `var`.
+///
+/// A use spelled as a bare name — `info exists b`, `append b x`,
+/// `puts [set b]` — is invisible to the `$`-reference scan. `reads` and `defs`
+/// carry the registry's `ArgRole::VarRead` / `VarWrite` positions the lowerer
+/// resolved for this command; an argument holding a nested command
+/// substitution is not decomposed into statements, so the bareword scan covers
+/// its words instead.
+fn call_uses_var(stmt: &Statement, var: &str, braced_var: tcl_dialect::BracedVarStyle) -> bool {
+    let Statement::Call {
+        args,
+        reads,
+        defs,
+        reads_own_defs,
+        ..
+    } = stmt
+    else {
+        return false;
+    };
+    args.iter().any(|a| text_references_var(a, var, braced_var))
+        || reads.iter().any(|r| r == var)
+        || (*reads_own_defs && defs.iter().any(|d| d == var))
+        || args
+            .iter()
+            .any(|a| a.contains('[') && bareword_occurrences(a, var) > 0)
+}
+
 fn script_uses_var(
     script: &Script,
     var: &str,
@@ -685,18 +736,21 @@ fn statement_uses_var(
         Statement::AssignExpr { expr, .. } | Statement::ExprEval { expr, .. } => {
             expr_references_var(expr, var)
         }
-        Statement::Incr { amount, .. } => amount
-            .as_deref()
-            .is_some_and(|a| text_references_var(a, var, braced_var)),
+        // `incr b` reads `b` before writing it, so the name word is a use in
+        // its own right, not only the `$`-references in the amount.
+        Statement::Incr { name, amount, .. } => {
+            name == var
+                || amount
+                    .as_deref()
+                    .is_some_and(|a| text_references_var(a, var, braced_var))
+        }
         Statement::Return { value, expr, .. } => {
             value
                 .as_deref()
                 .is_some_and(|v| text_references_var(v, var, braced_var))
                 || expr.as_ref().is_some_and(|e| expr_references_var(e, var))
         }
-        Statement::Call { args, .. } => {
-            args.iter().any(|a| text_references_var(a, var, braced_var))
-        }
+        Statement::Call { .. } => call_uses_var(stmt, var, braced_var),
         Statement::If {
             clauses, else_body, ..
         } => {

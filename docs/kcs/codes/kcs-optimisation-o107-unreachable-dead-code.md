@@ -56,6 +56,21 @@ return $x
   Here `puts no` survives even though `$x` is `1` at every call —
   eliding it would silently drop the read that fires the trace.
 
+- Never fires inside a `TclOO` method body that names any command relatively.
+  A method runs in the receiver's namespace, which is picked at run time and
+  can shadow an unqualified command name, so the compiler does not analyse
+  such a body deeply and has no reachability answer for it:
+
+  ```tcl
+  oo::class create Greeter {
+      method whoami {} { return [self class] }
+  }
+  ```
+
+  The body is left exactly as written. Qualifying every head — `::return`,
+  `::puts`, `::oo::Helpers::self` — restores deep analysis and O107 along
+  with it.
+
 ## How to disable
 
 Toggle the optimiser profile in your editor settings. See the [optimiser feature](../features/kcs-feature-optimiser.md) for profile options.

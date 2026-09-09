@@ -48,6 +48,9 @@
 //! soundly less aggressive in a way that looks like a shortcoming are omitted
 //! rather than `#[ignore]`-d.
 
+use tcl_compiler::analyser::{Analyser, Severity};
+use tcl_compiler::compilation_unit::CompilationUnit;
+use tcl_compiler::compiler_checks::run_all_checks;
 use tcl_compiler::optimiser::manager::{
     apply_optimisations, optimise_source_multipass, optimise_with_dialect,
 };
@@ -98,6 +101,30 @@ fn opt_count(src: &str, dialect: &str, code: &str) -> usize {
         .iter()
         .filter(|c| *c == code)
         .count()
+}
+
+/// Error-severity diagnostic codes the user-facing `tcl diag` surface reports
+/// for `src` — the analyser pass plus `run_all_checks`, optimisation codes
+/// dropped, mirroring `checks.rs::codes`. Empty means the source re-parses;
+/// a rewrite that emits unbalanced text surfaces here as an `E2xx`.
+fn reparse_errors(src: &str, dialect: &str) -> Vec<String> {
+    let mut out: Vec<String> = Analyser::new()
+        .analyse(src, dialect)
+        .diagnostics
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .map(|d| d.code.to_string())
+        .collect();
+    let registry = static_context_for(dialect).commands();
+    let cu = CompilationUnit::build_for(src, registry, false);
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
+    for diag in run_all_checks(&cu, registry, d) {
+        if !diag.code.is_optimisation() && diag.severity == Severity::Error {
+            out.push(diag.code.to_string());
+        }
+    }
+    out
 }
 
 /// Wraps `body` in a loop where `$x` is an SCCP-typed INT loop counter (the
@@ -1305,13 +1332,20 @@ fn tail_call_loop_conversion_o122() {
     // O122 rewrites tail recursion to a `while {1}` loop. tclsh proved factorial
     // and gcd loop-forms equal the recursive originals.
     let fac = "proc factorial {n acc} {\n    if {$n <= 1} {\n        return $acc\n    }\n    return [factorial [expr {$n - 1}] [expr {$n * $acc}]]\n}\n";
-    // The overlap selection prefers the per-site O121 `tailcall` rewrite for this
-    // body and emits O121, not the whole-proc O122 loop conversion. Both are
-    // semantically faithful (tclsh: tailcall factorial form == 120). Assert the
-    // applied rewrite is a sound tail-call form (tailcall OR while-loop).
+    // Both arguments are bracketed words, so the call passes one argument per
+    // parameter and O122 takes the whole proc; overlap selection prefers it
+    // over the per-site O121 `tailcall` covering the same range. tclsh proved
+    // the loop form equals the recursive original for n in 0..20.
     let fo = optimised(fac, TCL);
-    assert!(fo.contains("tailcall factorial") || fo.contains("while {1}"));
-    assert!(opt_fires(fac, TCL, "O121") || opt_fires(fac, TCL, "O122"));
+    assert!(
+        fo.contains("while {1}"),
+        "expected the loop conversion: {fo}"
+    );
+    assert!(
+        fo.contains("lassign [list [expr {$n - 1}] [expr {$n * $acc}]] n acc"),
+        "each bracketed argument must stay one word: {fo}",
+    );
+    assert!(opt_fires(fac, TCL, "O122"));
 
     // The bare self-call `loop` body DOES take the O122 loop conversion.
     let bare = "proc loop {items} {\n    if {[llength $items] == 0} {\n        return\n    }\n    puts [lindex $items 0]\n    loop [lrange $items 1 end]\n}\n";
@@ -1538,6 +1572,17 @@ fn code_sinking_o125_negatives() {
         "set b $x\nif {$b} {\n    puts hello\n}", // var in condition
         "set b foo\nif {$a} {\n    puts $b\n}\nputs $b", // used after ($-form)
         "set b [clock seconds]\nif {$a} {\n    puts $b\n}", // cmd-sub RHS
+        // Used after by *name* rather than by substitution. `set b foo` must
+        // stay put: on the false path the sunk form leaves `b` undefined, so
+        // the later read errors where the original printed nothing. The
+        // registry's VarRead / VarWrite positions answer for a command the
+        // lowerer resolved, and the bareword scan covers a name inside a
+        // nested command substitution.
+        "set b foo\nif {$a} {\n    puts $b\n}\ninfo exists b", // VarRead position
+        "set b foo\nif {$a} {\n    puts $b\n}\nappend b tail", // read-before-write
+        "set b foo\nif {$a} {\n    puts $b\n}\nincr b",        // read-modify-write
+        "set b foo\nif {$a} {\n    puts $b\n}\nputs [set b]",  // nested substitution
+        "set b foo\nif {$a} {\n    puts $b\n}\nif {$c} {\n    puts [set b]\n}", // nested, in a body
     ];
     for src in neg {
         assert!(!opt_fires(src, TCL, "O125"), "O125 must not fire: {src}");
@@ -1547,7 +1592,6 @@ fn code_sinking_o125_negatives() {
     // PREPENDS `set b foo` into the branch while KEEPING the outer assignment,
     // so a tclsh run is unaffected) — omitted:
     //  - var not used in the branch at all (`puts hello`).
-    //  - var used after via a bare name (`incr b`) / set-read-form (`set b`).
     //  - numeric constant `set b 42` (handled by O100/O109, not O125).
     //  - cross-event shared var (excluded from sinking).
     //  - `if {0}` block (O112 drops the block AND all O125 parts).
@@ -1558,6 +1602,55 @@ fn code_sinking_o125_negatives() {
     //   set b $x ; if {[incr x] > 0} { set b $x; puts $b }
     // re-reads $x AFTER the incr — tclsh (x=5) ORIG prints 5, REWRITTEN prints 6.
     // A real miscompile, so it is reported rather than asserted.
+}
+
+#[test]
+fn code_sinking_o125_applies_both_grouped_edits_and_reparses() {
+    // The KCS O125 page's Before snippet, in its braced and quoted spellings.
+    // Two properties the pair of grouped edits must hold, which either spelling
+    // alone would let slip:
+    //
+    //  1. The deletion and the insertion both survive the manager's
+    //     resurrected-reference guard, so the assignment moves rather than
+    //     being copied. The insertion's replacement holds the sunk `set msg …`
+    //     and the `$msg` consuming it, which reads as a resurrection of the
+    //     variable the deletion removes unless group-mates are exempt.
+    //  2. The quoted spelling survives the inner-end convention, under which
+    //     the assignment's IR statement span stops *on* its closing `"`.
+    //     Replaying that span emits `set msg "error`, whose unterminated quote
+    //     swallows the rest of the line.
+    //
+    // tclsh: for either spelling, `set msg V; if {$ok} {return} else {log $msg}`
+    // and the sunk `if {$ok} {return} else {set msg V; log $msg}` are
+    // observationally identical — `msg` is read in exactly one branch and
+    // nowhere after the decision.
+    for (before, after) in [
+        (
+            "set msg {error}\nif {$ok} { return } else { log $msg }",
+            "if {$ok} { return } else { set msg {error}; log $msg }",
+        ),
+        (
+            "set msg \"error\"\nif {$ok} { return } else { log $msg }",
+            "if {$ok} { return } else { set msg \"error\"; log $msg }",
+        ),
+    ] {
+        assert_eq!(
+            opt_count(before, TCL, "O125"),
+            2,
+            "both grouped O125 edits must survive selection: {before}"
+        );
+        assert_eq!(optimised(before, TCL), after, "sunk output for: {before}");
+        assert_eq!(
+            optimised(before, TCL).matches("set msg").count(),
+            1,
+            "the original assignment must be deleted, not duplicated: {before}"
+        );
+        assert!(
+            reparse_errors(&optimised(before, TCL), TCL).is_empty(),
+            "the sunk output must re-parse: {}",
+            optimised(before, TCL)
+        );
+    }
 }
 
 // Load forwarding — O127 (single-use store-to-load forwarding)
@@ -1904,4 +1997,76 @@ fn production_gvn_entries_read_the_sccp_executable_fact_issue_1385() {
         .is_empty(),
         "O105-PRE must not fire inside SCCP-dead code"
     );
+}
+
+// O107 inside a command-resolution-guarded `TclOO` method body.
+//
+// A method runs in the receiver's namespace, which is chosen at run time and
+// can shadow any relative command name, so one unqualified head anywhere in
+// the body excludes the method from deep analysis
+// (`ir_helpers::requires_runtime_command_namespace`). Such a unit carries an
+// empty SCCP executable-block set — no facts, rather than the fact that every
+// block is dead — and O107 is the report that would otherwise read that
+// absence as proof and delete the whole body.
+//
+// Structural rather than Tcl-observable: the assertion is that the optimiser
+// leaves the source alone, which is trivially semantics-preserving. Deleting
+// the body is what is not — `[Greeter new] whoami` answers `::Greeter`
+// intact and the empty string once emptied.
+
+/// A one-method class whose method body is `body`.
+fn method_body(body: &str) -> String {
+    format!("oo::class create Greeter {{\n    method whoami {{}} {{ {body} }}\n}}\n")
+}
+
+#[test]
+fn tcloo_method_body_survives_the_command_resolution_guard() {
+    // Every `self` spelling that carries a value: the defining class, a bare
+    // `[self]` (equivalent to `self object`), and the instance namespace.
+    for body in [
+        "return [self class]",
+        "return [self]",
+        "return [self namespace]",
+    ] {
+        let src = method_body(body);
+        assert!(
+            !opt_fires(&src, TCL, "O107"),
+            "{body}: a live method body must not be reported unreachable"
+        );
+        assert_eq!(
+            optimised(&src, TCL),
+            src,
+            "{body}: the method body must survive the optimiser intact"
+        );
+    }
+}
+
+#[test]
+fn a_guarded_method_body_keeps_every_relative_head() {
+    // The guard is about command resolution, not `TclOO` introspection: an
+    // ordinary builtin, a `my` dispatch, and a `set` whose value is a nested
+    // call each name a command relatively, so each method is guarded.
+    for body in ["puts hello", "my helper", "set x [string length abc]"] {
+        let src = method_body(body);
+        assert!(
+            !opt_fires(&src, TCL, "O107"),
+            "{body}: a guarded body must not be reported unreachable"
+        );
+        assert_eq!(optimised(&src, TCL), src, "{body}: body must survive");
+    }
+}
+
+#[test]
+fn o107_still_fires_on_genuinely_unreachable_method_code() {
+    // Control: O107 is suppressed only where the lattice is absent. Every head
+    // here is `::`-qualified, so the method gets deep analysis and the `if {0}`
+    // body is provably dead. tclsh: `[Greeter new] whoami` prints `live` with
+    // or without the rewrite.
+    let src = "oo::class create Greeter {\n    method whoami {} {\n        ::if {0} { ::puts never }\n        ::puts live\n    }\n}\n";
+    let out = optimised(src, TCL);
+    assert!(
+        !out.contains("puts never"),
+        "dead branch must still be eliminated: {out}"
+    );
+    assert!(out.contains("::puts live"), "live code must survive: {out}");
 }

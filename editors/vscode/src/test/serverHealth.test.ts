@@ -30,30 +30,8 @@ function getApi(): TclLspApi {
   return ext.exports as TclLspApi;
 }
 
-// Root-level hooks bracket the entire test run.
-
-// Runs before ALL test suites.  If the native tcl-lsp-server binary is
-// missing or crashes on startup then ext.activate() rejects because
-// client.start() fails, and the whole test run aborts with a clear message.
-suiteSetup(async function () {
-  this.timeout(scaledTimeout(60_000));
-  const ext = vscode.extensions.getExtension("bitwisecook.tcl-lsp")!;
-  await ext.activate();
-  assert.ok(ext.isActive, "Extension failed to activate – server may have crashed on startup");
-});
-
-// Runs after ALL test suites.  Catches server crashes that happen mid-run.
-suiteTeardown(async function () {
-  this.timeout(scaledTimeout(30_000));
-  const client = getApi().getClient();
-  assert.strictEqual(
-    client.state,
-    State.Running,
-    `Server should still be Running at end of tests, got state ${client.state}`,
-  );
-});
-
-// Explicit health-check suite with named tests.
+// The runner owns the root lifecycle health hooks so every isolated partition
+// checks activation and final server state. These named checks run once.
 
 suite("Server Health", () => {
   test("language client is in Running state", () => {

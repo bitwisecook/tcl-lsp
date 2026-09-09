@@ -207,6 +207,13 @@ pub const PATTERN_TYPES: &[Variant] = &[
     v("Regex", "regular expression (`regexp`, `regsub`)"),
 ];
 
+/// [`TaintTransformCondition`] — the argument-shape proof a command must pass
+/// before its `taint_transform` colour is claimed for a call.
+pub const TAINT_TRANSFORM_CONDITIONS: &[Variant] = &[v(
+    "MappingDeletesCrlf",
+    "the call's braced mapping provably deletes every CR and LF (`string map`)",
+)];
+
 /// [`FormatType`] — the format-string language a format argument uses.
 pub const FORMAT_TYPES: &[Variant] = &[
     v("Sprintf", "printf-style template (`format`, `scan`)"),
@@ -571,6 +578,7 @@ mod tests {
     use tcl_registry::patterns::{FormatType, PatternType};
     use tcl_registry::side_effects::{ConnectionSide, SideEffectTarget, StorageType};
     use tcl_registry::symbol_def::DefinedSymbolKind;
+    use tcl_registry::taint::TaintTransformCondition;
     use tcl_registry::types::TclType;
 
     /// Witness that [`ARG_ROLES`] covers every [`ArgRole`].
@@ -718,6 +726,11 @@ mod tests {
                 PatternType::Glob | PatternType::Regex => true,
             }
         }
+        fn transform_condition(k: TaintTransformCondition) -> bool {
+            match k {
+                TaintTransformCondition::MappingDeletesCrlf => true,
+            }
+        }
         fn format(k: FormatType) -> bool {
             match k {
                 FormatType::Sprintf
@@ -755,6 +768,7 @@ mod tests {
             && byte_array(ByteArrayEffect::None)
             && command_table(CommandTableEffect::DefinesProcedure)
             && pattern(PatternType::Glob)
+            && transform_condition(TaintTransformCondition::MappingDeletesCrlf)
             && format(FormatType::Sprintf)
             && form(FormKind::Default)
             && symbol(DefinedSymbolKind::Test)
@@ -917,6 +931,7 @@ mod tests {
             BYTE_ARRAY_EFFECTS,
             COMMAND_TABLE_EFFECTS,
             PATTERN_TYPES,
+            TAINT_TRANSFORM_CONDITIONS,
             FORMAT_TYPES,
             FORM_KINDS,
             DEFINED_SYMBOL_KINDS,
