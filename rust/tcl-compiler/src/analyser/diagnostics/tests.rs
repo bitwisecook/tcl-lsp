@@ -153,6 +153,44 @@ fn w200_binary_modifier_is_dialect_gated() {
 }
 
 #[test]
+fn w202_binary_field_letters_are_dialect_gated() {
+    // `t n m r R q Q` are `bad field specifier` on tclsh 8.4.20 and accepted
+    // from 8.5.19 on, for both `format` and `scan`.
+    for letter in ["t", "n", "m", "r", "R", "q", "Q"] {
+        assert!(
+            has_code(&format!("binary format {letter} 1\n"), "tcl8.4", "W202"),
+            "{letter} should be gated on 8.4",
+        );
+        assert!(
+            !has_code(&format!("binary format {letter} 1\n"), "tcl8.5", "W202"),
+            "{letter} should be clean on 8.5",
+        );
+    }
+    assert!(has_code("binary scan $d q v\n", "tcl8.4", "W202"));
+    // Letters that exist on every release are never gated.
+    for letter in [
+        "a", "A", "b", "B", "h", "H", "c", "s", "S", "i", "I", "w", "W", "f", "d",
+    ] {
+        assert!(
+            !has_code(&format!("binary format {letter} 1\n"), "tcl8.4", "W202"),
+            "{letter} exists on 8.4 and must stay clean",
+        );
+    }
+    // One diagnostic per format string even with several gated letters, and
+    // the two codes stay independent: a gated letter is not a W200, a gated
+    // suffix is not a W202.
+    assert_eq!(
+        count_code_in("binary format qrm 1 2 3\n", "W202", "tcl8.4"),
+        1
+    );
+    assert!(!has_code("binary format q 1\n", "tcl8.4", "W200"));
+    assert!(!has_code("binary format cu 1\n", "tcl8.4", "W202"));
+    // A gated letter carrying a gated suffix earns both, once each.
+    assert_eq!(count_code_in("binary format qu 1\n", "W200", "tcl8.4"), 1);
+    assert_eq!(count_code_in("binary format qu 1\n", "W202", "tcl8.4"), 1);
+}
+
+#[test]
 fn w121_flags_noncontiguous_subnet_mask() {
     assert!(has_code("set m 255.255.255.1\n", "tcl8.6", "W121"));
     assert!(has_code("set m 255.0.255.0\n", "tcl8.6", "W121"));

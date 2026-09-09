@@ -350,16 +350,26 @@ Use braces: {{ \u{2026} }}"
         }
     }
 
-    /// W200: a `u` suffix on a `binary format` / `binary scan` field
-    /// requires Tcl 8.5+ (TIP 275). The field grammar comes from the
-    /// binary owner (`tcl_cmd_core::binary::specifiers`), parsed with
-    /// the suffix admitted so the gate — not the parse — decides; sites
-    /// are buffered and settled post-walk against the effective Tcl
-    /// version (§6 argument-DSL rung). The old hardcoded dialect list
-    /// wrongly included f5-iapps, whose host embeds a real Tcl 8.5.13
-    /// where the suffix works. One site per format string: the gate
-    /// dedupes by span and every field shares the format token's.
-    pub(in crate::analyser) fn emit_w200_binary_format_modifiers(
+    /// W200/W202: version gates on a literal `binary format` /
+    /// `binary scan` template. The field grammar comes from the binary
+    /// owner (`tcl_cmd_core::binary::specifiers`), parsed with the
+    /// suffix admitted so the gate — not the parse — decides; sites are
+    /// buffered and settled post-walk against the effective Tcl version
+    /// (§6 argument-DSL rung).
+    ///
+    /// W200 is the `u` suffix (TIP 275, Tcl 8.5). W202 is a field
+    /// letter that does not exist on the target at all (`t n m r R q
+    /// Q`, also 8.5); its floor comes from
+    /// `tcl_cmd_core::binary::specifier_min_version`. They are separate
+    /// codes because the fixes differ: a suffix can be dropped, an
+    /// absent letter needs a different field.
+    ///
+    /// One site per code per format string: every field shares the
+    /// format token's span, so several gated fields give one squiggle
+    /// each, not one per field. The old hardcoded dialect list wrongly
+    /// included f5-iapps, whose host embeds a real Tcl 8.5.13 where the
+    /// suffix works.
+    pub(in crate::analyser) fn emit_binary_field_version_gates(
         &mut self,
         cmd_name: &str,
         args: &[String],
@@ -376,6 +386,16 @@ Use braces: {{ \u{2026} }}"
         let Some(fmt_tok) = arg_tokens.get(fmt_idx) else {
             return;
         };
+        // A substituted word's text is not the template. Without this the
+        // scanner reads the *variable name*: `$fmt` carries the field
+        // letters `f`, `m` and `t`, and `$au` reads as a field plus the
+        // gated `u` suffix.
+        if matches!(
+            fmt_tok.kind,
+            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+        ) {
+            return;
+        }
         let fields = tcl_cmd_core::binary::specifiers(args[fmt_idx].as_bytes(), true);
         if fields.iter().any(|f| f.modifier == Some(b'u')) {
             self.dsl_gate_sites.push(super::version_gate::DslGateSite {
@@ -383,6 +403,35 @@ Use braces: {{ \u{2026} }}"
                 code: DiagCode::W200,
                 what: "unsigned modifier 'u' on binary format specifier".to_string(),
                 min: tcl_dialect::TclVersion::V8_5,
+            });
+        }
+
+        // Gated field letters, deduped and reported in template order so
+        // the message is stable regardless of how often each appears.
+        let mut gated: Vec<(u8, tcl_dialect::TclVersion)> = Vec::new();
+        for f in &fields {
+            if let Some(min) = tcl_cmd_core::binary::specifier_min_version(f.letter)
+                && !gated.iter().any(|(l, _)| *l == f.letter)
+            {
+                gated.push((f.letter, min));
+            }
+        }
+        if let Some(min) = gated.iter().map(|(_, m)| *m).max() {
+            let letters = gated
+                .iter()
+                .map(|(l, _)| format!("'{}'", char::from(*l)))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let noun = if gated.len() == 1 {
+                "binary field specifier"
+            } else {
+                "binary field specifiers"
+            };
+            self.dsl_gate_sites.push(super::version_gate::DslGateSite {
+                span: fmt_tok.span,
+                code: DiagCode::W202,
+                what: format!("{noun} {letters}"),
+                min,
             });
         }
     }

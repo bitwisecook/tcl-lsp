@@ -29,6 +29,12 @@ Tcl accepts the `u` after *any* field letter, not only the integer ones, so
 after another specifier (`ss`, `is`) is a second short-integer field on every
 release, so the analyser leaves it alone.
 
+The field letters themselves can also postdate the target — `t`, `n`, `m`,
+`r`, `R`, `q` and `Q` arrive in 8.5 too. That is
+[`W202`](kcs-diagnostic-w202-binary-field-letter-needs-newer-tcl.md), a
+separate code because the fix differs: a suffix can be dropped, an absent
+letter needs a different field.
+
 ## Symptoms
 
 - A yellow squiggle under the format string, with the message "unsigned
@@ -78,4 +84,4 @@ in `.tcl-lsp.ini`, or in your editor with `tclLsp.diagnostics.W200` set to
 - [KCS codes index](README.md)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)
 - [command walk](../../GLOSSARY.md#command-walk)
-- Related codes: `W137`, `W138`, `W148`
+- Related codes: `W202`, `W137`, `W138`, `W148`

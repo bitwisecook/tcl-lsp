@@ -1936,6 +1936,84 @@ mod binary_format_modifiers {
     }
 }
 
+// W202 — a `binary format` / `binary scan` field letter that postdates the
+// target. `t n m r R q Q` arrive in Tcl 8.5 and are `bad field specifier` on
+// tclsh 8.4.20, for both subcommands (they share `GetFormatSpec`). Separate
+// from W200 because the fix differs: a suffix can be dropped, an absent
+// letter needs a different field.
+mod binary_field_letters {
+    use super::*;
+
+    #[test]
+    fn tcl85_only_letters_warn_under_old_dialects() {
+        for letter in ["t", "n", "m", "r", "R", "q", "Q"] {
+            let src = format!("binary format {letter} 1");
+            let ds = of_code(&src, "tcl8.4", "W202");
+            assert_eq!(ds.len(), 1, "{letter} should be gated on 8.4");
+            assert_eq!(ds[0].1, Severity::Warning);
+            assert!(ds[0].0.contains(letter), "{letter}: {}", ds[0].0);
+        }
+        assert_eq!(count("binary scan $d q v", "tcl8.4", "W202"), 1);
+        // The F5 trunk forks Tcl at 8.4.6, so it gates too.
+        assert_eq!(count("binary format q 1.0", IR, "W202"), 1);
+        assert_eq!(count("binary format q 1.0", "f5-iapps", "W202"), 1);
+    }
+
+    #[test]
+    fn tcl85_only_letters_clean_from_85_up() {
+        for dialect in ["tcl8.5", "tcl8.6", "tcl9.0"] {
+            assert!(!fires("binary format q 1.0", dialect, "W202"));
+        }
+    }
+
+    #[test]
+    fn letters_on_every_release_stay_clean() {
+        for letter in [
+            "a", "A", "b", "B", "h", "H", "c", "s", "S", "i", "I", "w", "W", "f", "d", "x", "X",
+        ] {
+            let src = format!("binary format {letter} 1");
+            assert!(!fires(&src, "tcl8.4", "W202"), "{letter} exists on 8.4");
+        }
+    }
+
+    // A `package require Tcl 8.5` raises the effective version, which is the
+    // documented fix.
+    #[test]
+    fn package_require_raises_the_floor() {
+        assert!(!fires(
+            "package require Tcl 8.5\nbinary format q 1.0",
+            "tcl8.4",
+            "W202",
+        ));
+    }
+
+    // One squiggle per template per code, and the two codes are independent.
+    #[test]
+    fn one_diagnostic_per_template_and_codes_are_independent() {
+        assert_eq!(count("binary format qrm 1 2 3", "tcl8.4", "W202"), 1);
+        assert!(!fires("binary format q 1.0", "tcl8.4", "W200"));
+        assert!(!fires("binary format cu 1", "tcl8.4", "W202"));
+        // A gated letter carrying a gated suffix earns both, once each.
+        assert_eq!(count("binary format qu 1.0", "tcl8.4", "W200"), 1);
+        assert_eq!(count("binary format qu 1.0", "tcl8.4", "W202"), 1);
+    }
+
+    // A dynamic template has no literal text to read. Without the guard the
+    // scanner reads the *variable name*: `$fmt` carries `f`, `m` and `t`, so
+    // the gated `m`/`t` fired on every `binary format $fmt ...` under 8.4.
+    #[test]
+    fn dynamic_template_is_not_checked() {
+        assert!(!fires("binary format $fmt 1", "tcl8.4", "W202"));
+        assert!(!fires("binary scan $d $fmt v", "tcl8.4", "W202"));
+        assert!(!fires("binary format [get_fmt] 1", "tcl8.4", "W202"));
+        // Same guard, W200's side: `$au` read as a field plus a gated `u`.
+        assert!(!fires("binary format $au 1", "tcl8.4", "W200"));
+        assert!(!fires("binary format $fmt 1", "tcl8.4", "W200"));
+        // A braced literal is still a literal and still checked.
+        assert_eq!(count("binary format {q} 1.0", "tcl8.4", "W202"), 1);
+    }
+}
+
 // W310 — hardcoded credentials.
 //
 // Heuristic: a literal value after a credential-bearing flag (`-password`,

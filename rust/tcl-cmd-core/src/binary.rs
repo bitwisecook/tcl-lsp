@@ -336,6 +336,21 @@ pub fn is_specifier(letter: u8) -> bool {
 
 use tcl_dialect::model::{SpecSurface, surface_admits};
 
+/// The lowest Tcl release that accepts `letter` as a binary field, or
+/// `None` when every modelled release accepts it.
+///
+/// `t n m r R q Q` arrive in Tcl 8.5 and are `bad field specifier` on
+/// 8.4 — checked against tclsh 8.4.20 and 8.5.19 for both `binary
+/// format` and `binary scan`, which share `GetFormatSpec`. Keep the
+/// floor with the binary owner so no consumer re-derives it; this is
+/// the field-letter sibling of [`signedness_available`], which gates
+/// the `u` suffix.
+#[must_use]
+pub fn specifier_min_version(letter: u8) -> Option<tcl_dialect::TclVersion> {
+    matches!(letter, b't' | b'n' | b'm' | b'r' | b'R' | b'q' | b'Q')
+        .then_some(tcl_dialect::TclVersion::V8_5)
+}
+
 /// Whether Tcl's unsigned suffix (`u`) is part of the resolved
 /// binary-field grammar.  Keep this decision with the binary owner so LSP
 /// surfaces cannot drift or re-derive a release comparison independently.
@@ -990,6 +1005,33 @@ fn scan_field_result(count: &Count, vals: Vec<Vec<u8>>) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
+
+    // Measured on tclsh 8.4.20 and 8.5.19: these seven are `bad field
+    // specifier` on 8.4 and accepted from 8.5, for both `binary format` and
+    // `binary scan`. Every other field letter exists on both.
+    #[test]
+    fn specifier_min_version_matches_measured_releases() {
+        for letter in b"tnmrRqQ" {
+            assert_eq!(
+                specifier_min_version(*letter),
+                Some(tcl_dialect::TclVersion::V8_5),
+                "{} should be 8.5+",
+                char::from(*letter)
+            );
+        }
+        for letter in b"aAbBhHcsSiIwWfdxX@" {
+            assert_eq!(
+                specifier_min_version(*letter),
+                None,
+                "{} exists on every release",
+                char::from(*letter)
+            );
+        }
+        // Every gated letter is a real field letter in the shared grammar.
+        for letter in b"tnmrRqQ" {
+            assert!(is_specifier(*letter), "{}", char::from(*letter));
+        }
+    }
     use super::*;
 
     #[test]
