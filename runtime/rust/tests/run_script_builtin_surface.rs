@@ -74,7 +74,7 @@ fn the_default_interp_carries_the_control_flow_builtins() {
         assert_eq!(
             result, command,
             "`{command}` is not registered on a default interp — \
-             examples/run_script would reject any sheet that uses it"
+             examples/run_script would reject any sheet that uses it (issue #1589)"
         );
     }
 }
@@ -114,13 +114,13 @@ fn the_example_bootstraps_through_the_full_builtin_constructor() {
         source.contains("Interp::new()"),
         "{} must build its interpreter with `Interp::new()` — the constructor that \
          runs `builtins::install` — so the harness always presents the engine's \
-         complete command surface",
+         complete command surface (issue #1589)",
         example.display()
     );
     assert!(
         !source.contains("register_builtin"),
         "{} must not register commands by hand: a private list in the harness is \
-         how the surface silently diverges from the engine's",
+         how the surface silently diverges from the engine's (issue #1589)",
         example.display()
     );
 }

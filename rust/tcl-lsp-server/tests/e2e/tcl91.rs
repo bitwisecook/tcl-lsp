@@ -90,8 +90,8 @@ fn commands_90_still_offered_in_91() {
     assert!(complete_cmd(&mut lsp, "tcl9.1", "lseq").contains("lseq"));
 }
 
-// `oo::Helpers::link` version-gating (issue #923, Codex review on PR
-// #1020): a genuine core TclOO builtin only since 9.0 (confirmed against
+// `oo::Helpers::link` version-gating: a genuine core TclOO builtin only
+// since 9.0 (confirmed against
 // tclsh 9.0.4 — no package needed); under 8.6/8.7 it exists only via the
 // Tcllib `ooutil` package (confirmed against tclsh 8.6.14 — bare `link`
 // with no `package require` is `invalid command name "link"`).
@@ -141,7 +141,7 @@ fn link_stays_silent_in_86_once_ooutil_is_required() {
     );
 }
 
-// The whole `oo::Helpers` family is method-context-scoped (issue #1026).
+// The whole `oo::Helpers` family is method-context-scoped.
 //
 // tclsh 9.0.4 at the top level answers `invalid command name` for every one
 // of `link` / `my` / `next` / `nextto` / `self` / `classvariable`, and
@@ -150,14 +150,14 @@ fn link_stays_silent_in_86_once_ooutil_is_required() {
 // `… my` answers `::oo::ObjN::my`, an object-namespace command rather than
 // a helper). tclsh 8.6.14 agrees for the four members it ships.
 
-/// The `# tcl-dialect: tcl9.0` document the repro in issue #1026 uses.
+/// The `# tcl-dialect: tcl9.0` document the repro below uses.
 fn scoped_family_doc(body: &str) -> String {
     format!("# tcl-dialect: tcl9.0\n{body}")
 }
 
 #[test]
 fn top_level_link_draws_w123() {
-    // Issue #1026's own repro: `link foo` at the top level under tcl9.0.
+    // `link foo` at the top level under tcl9.0.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(&uri, &scoped_family_doc("link foo\n"));
@@ -272,8 +272,8 @@ fn the_qualified_oo_helpers_spelling_resolves_at_the_top_level() {
     );
 }
 
-// `callback` / `mymethod` version gating (issue #923 audit, `ticklecharts`
-// idx 51): both are genuine core `::oo::Helpers` members from 9.0 onward and
+// `callback` / `mymethod` version gating (the `ticklecharts` idiom): both
+// are genuine core `::oo::Helpers` members from 9.0 onward and
 // exist nowhere in 8.6 core, so a bare call inside a method body must be
 // silent on 9.0 and reported on 8.6.
 //

@@ -920,7 +920,7 @@ fn parameter_default_literal_does_not_hover_923_idx104() {
     assert!(text.contains("destroy"), "hover: {text:?}");
 }
 
-/// Issue #923 differential-audit findings idx 3 / idx 4 — tcllib's
+/// tcllib's
 /// `textutil::adjust` submodule. `package require textutil::adjust` followed
 /// by `namespace import textutil::adjust::*` makes bare `adjust` / `indent`
 /// callable, and they are the *three*-segment commands
@@ -928,14 +928,14 @@ fn parameter_default_literal_does_not_hover_923_idx104() {
 /// from the two-segment `textutil::adjust` / `textutil::indent` flattened
 /// aliases the umbrella `textutil` package creates.
 ///
-/// Oracle (tclsh 8.6.16 and 9.0.4, tcllib 2.0 on `auto_path`):
+/// tclsh 8.6.16 and 9.0.4 agree (tcllib 2.0 on `auto_path`):
 /// `namespace origin adjust` → `::textutil::adjust::adjust` and
 /// `namespace origin indent` → `::textutil::adjust::indent`.
 ///
-/// Coverage was split between registry-table unit tests (naming and gating)
-/// and a generic `resolve_imported_command` e2e test using `tcltest`; nothing
-/// tied the two together for this pair, so a regression in either layer's
-/// interaction would have gone unseen. The idiom is real corpus code
+/// Coverage is split between registry-table unit tests (naming and gating)
+/// and a generic `resolve_imported_command` e2e test using `tcltest`; this
+/// ties the two together for this pair, so a regression in either layer's
+/// interaction is caught. The idiom is real corpus code
 /// (`argparse.tcl` buries both inside an `if`, as here).
 #[test]
 fn a_wildcard_imported_textutil_submodule_command_hovers_qualified_923_idx3_idx4() {
@@ -971,18 +971,18 @@ fn a_wildcard_imported_textutil_submodule_command_hovers_qualified_923_idx3_idx4
     );
 }
 
-/// Issue #923 differential-audit finding idx 102, its *secondary* claim —
-/// hover on the `{file}` **parameter declaration** token must report a
+/// Hover on the `{file}` **parameter declaration** token must report a
 /// variable, never the built-in `file` command's documentation.
 ///
-/// The primary claim (the `$file` read inside the `[list source [file join
+/// The related claim (the `$file` read inside the `[list source [file join
 /// …]]` body resolving at all) is pinned by
 /// `references_reach_a_parameter_read_inside_a_list_built_namespace_body`;
-/// nothing guarded this half, which is fixed only as a by-product of the
-/// read being classified as a variable reference before any registry lookup
-/// happens — precisely the kind of thing a later refactor reintroduces.
+/// this half holds only as a consequence of the read being classified as a
+/// variable reference before any registry lookup happens — precisely the
+/// kind of thing a later refactor could reintroduce, so it is pinned here
+/// separately.
 ///
-/// Oracle (tclsh 8.6.16 and 9.0.4): the parameter genuinely drives which file
+/// tclsh 8.6.16 and 9.0.4 confirm: the parameter genuinely drives which file
 /// is sourced, so it is a variable at both ends.
 #[test]
 fn hover_on_a_parameter_named_after_a_builtin_is_a_variable_923_idx102() {

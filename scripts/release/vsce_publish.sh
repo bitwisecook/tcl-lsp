@@ -39,8 +39,7 @@
 #               again — see "Platform-specific extensions" in the VS Code
 #               publishing docs.
 #
-# Authenticates via VSCE_PAT, which `vsce publish` reads from the environment
-# (the keyless Azure/OIDC path was rolled back after it proved unreliable).
+# Authenticates via VSCE_PAT, which `vsce publish` reads from the environment.
 #
 # Channel (scripts/release/prerelease.sh is the single source of truth): an
 # odd-minor 2.x tag (v2.1.x) publishes with --pre-release so it lands on the

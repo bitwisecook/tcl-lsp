@@ -88,13 +88,13 @@ struct RetiredPattern {
 }
 
 /// The retired spellings. Every entry names a mechanism the §3 ledger
-/// retired in P1-G; the seam replacements are
+/// retired; the seam replacements are
 /// `tcl_registry::model::ingress::{resolve_environment,
 /// resolve_known_environment, static_context_for, static_context_for_profile,
 /// static_document_context_for, static_document_context_for_profile}` and
 /// `ResolvedContext`'s query surface.
 const RETIRED: &[RetiredPattern] = &[
-    // Q13: the availability bitmask, and every projection that only made
+    // The availability bitmask, and every projection that only made
     // sense as bits. Availability is stated as `SpecSurface` rows and asked
     // as a `SurfaceQuery` point.
     RetiredPattern {
@@ -165,7 +165,7 @@ const RETIRED: &[RetiredPattern] = &[
         needle: "special_vars::resolve_dialect",
         outside_registry_only: false,
     },
-    // Ledger C4 (P1a): the parallel offset-keyed head-identity binding
+    // The parallel offset-keyed head-identity binding
     // table is retired wholesale onto the realm command-binding state
     // (`tcl_compiler::realm`, answering `BindingKnowledge`).
     RetiredPattern {
@@ -184,7 +184,7 @@ const RETIRED: &[RetiredPattern] = &[
         needle: "command_head_identities",
         outside_registry_only: false,
     },
-    // Ledger O2 (redesign §11.1, owner ruling 2026-08-27): the M9 dead axes.
+    // The dead axes (redesign §11.1).
     // Each was declared-and-unpopulated model surface — a word no data used,
     // inviting packs to guess at semantics the engine never implemented.
     // Principle P-C: anything genuinely needed later comes back *with* its

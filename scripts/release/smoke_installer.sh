@@ -183,8 +183,8 @@ if [ ! -x "$mcp" ]; then
 else
     # Speak MCP to it rather than asking it for a banner. The native 2.x server
     # takes no flags at all — `--help` just starts the server, which then dies on
-    # the closed stdin — so the old banner check could only ever fail once the
-    # smoke test was pinned to a 2.x tag. Driving one `initialize` request is a
+    # the closed stdin — so a `--help`/banner check cannot reliably fail closed.
+    # Driving one `initialize` request is a
     # stronger check anyway: it proves the server runs, speaks the protocol, and
     # reports the version we just released, rather than that it can print text.
     init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}'

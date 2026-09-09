@@ -20,9 +20,8 @@
 //! through the bytecode VM and reference `tclsh`, per file, and (re)generate the
 //! VM-vs-C parity scoreboard `docs/design/runtime/rust-vm-tier-parity.md`.
 //!
-//! This is the Rust-native replacement for the retired `scripts/tcltest_sweep/`
-//! Python sweep. Each backend runs a `.test` file under a `timeout` (so a hang
-//! or native-stack overflow can't stall the sweep), and `tcltest` itself prints
+//! Each backend runs a `.test` file under a `timeout` (so a hang or
+//! native-stack overflow can't stall the sweep), and `tcltest` itself prints
 //! the `Total N Passed X Skipped Y Failed Z` summary the sweeper parses.
 //!
 //! - VM backend = the `run_test` example (`rust/tcl-vm/examples/run_test.rs`),
