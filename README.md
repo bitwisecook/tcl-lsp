@@ -958,7 +958,7 @@ treats it accordingly:
 A step-by-step walkthrough is in
 [docs/kcs/kcs-howto-author-a-sslictcl-declaration.md](docs/kcs/kcs-howto-author-a-sslictcl-declaration.md);
 the vocabulary, the open/closed block rule, and the value domains are in
-[docs/design/sslictcl-vocabulary.md](docs/design/sslictcl-vocabulary.md).
+[docs/design/f5/sslictcl-vocabulary.md](docs/design/f5/sslictcl-vocabulary.md).
 
 ### Every package in the registry
 
@@ -1315,8 +1315,8 @@ import` on the command line.
 Browse the list to pick a command, or type a name you already know and press
 **Load** (Enter works too, and the box suggests matching names as you type).
 
-The **Pack DSL** tab holds a [SpecTcl pack](docs/design/spec-packs.md)'s
-`.tclspec` source directly as its own authoritative document — edit the
+The **Pack DSL** tab holds a
+[SpecTcl pack](docs/design/registry/spec-packs.md)'s `.tclspec` source directly as its own authoritative document — edit the
 form and the text follows, edit the text and the form follows.  It is a
 Monaco editor driven by **the actual Tcl language server**, compiled to
 WebAssembly and running in a Web Worker in your browser: the same server
@@ -1415,7 +1415,7 @@ the `tcl-cshim` crate: compile the extension against `rust/tcl-cshim/include/tcl
 instead of `tcl.h` and load its `<Pkg>_Init` from Rust. Shimmed extensions are
 trusted native code loaded only by host configuration — a spec pack cannot
 reference one. See
-[docs/design/c-extension-shim.md](docs/design/c-extension-shim.md).
+[docs/design/runtime/c-extension-shim.md](docs/design/runtime/c-extension-shim.md).
 
 ### eBPF (BPF-Tcl)
 

@@ -173,7 +173,7 @@ pub fn spec() -> CommandSpec {
             summary: "Declare one option of the enclosing command or subcommand.",
             synopsis: &["option -name ?-takes hint? ?flags…?"],
             snippet: "`-takes HINT` is what makes an option a value option; without it the option is a flag. `-arity` takes the static shapes only — the dynamic variant is `-arity-hook`, which is spelled separately because a hook is *two* words (a parameter list and a body) where every other flag value is one.",
-            source: "SpecTcl (docs/design/spec-packs.md)",
+            source: "SpecTcl (docs/design/registry/spec-packs.md)",
             examples: "option -stride -takes strideLength -integer {Range 2 max} -dialects tcl8.6+ -detail {Treat list as consecutive groups of strideLength elements.}",
             return_value: "",
         }),

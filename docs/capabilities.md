@@ -34,7 +34,7 @@ maps in one place — see `rust/tcl-bigip-query/src/architecture.rs`.
 
 Reference: **[docs/references/f5_query/](references/f5_query/)** (`manual.md`, `dsl.md`,
 `builtins.md`), how-tos in **[docs/kcs/](kcs/)** (`kcs-howto-*query*`), internals in
-`docs/design/f5-query-engine-internals.md`. Crate: `rust/tcl-bigip-query`.
+`docs/design/f5/f5-query-engine-internals.md`. Crate: `rust/tcl-bigip-query`.
 
 ---
 
@@ -50,7 +50,7 @@ powers iRule analysis, diagnostics, and the compiler explorer.
 | **Web** | the compiler explorer (above), the analysis core compiled to WASM, client-side. |
 | **MCP** | `tcl-mcp` exposes the analysis surface as tools (`analyze`, `validate`, `review`, `optimize`, `call_graph`, `dataflow_graph`, `goto_definition`, refactors, …). |
 
-Reference: `docs/design/compiler-architecture.md` (+ `docs/design/compiler/`), how-tos in
+Reference: `docs/design/compiler/architecture.md` (+ `docs/design/compiler/`), how-tos in
 `docs/kcs/`, generated tables in
 `docs/generated/`. Crates: `rust/tcl-lexer`, `rust/tcl-syntax`, `rust/tcl-compiler`,
 `rust/tcl-lsp-core`, `rust/tcl-explorer`.
@@ -68,7 +68,7 @@ event-validity diagnostics, and iRule event ordering.
 | **MCP** | `event_info` and `command_info` tools (`tcl-mcp`). |
 | **LSP** | drives hover, completion, signature help, and event-validity diagnostics in every editor. |
 
-Reference: `docs/design/bigip-registry-architecture.md`, contracts in
+Reference: `docs/design/f5/bigip-registry-architecture.md`, contracts in
 `docs/design/contracts/command-registry-event-model.md`, features in
 `docs/kcs/features/kcs-feature-bigip-registry.md` / `kcs-feature-event-registry.md`.
 Crates: `rust/tcl-registry`, `rust/tcl-irules`.

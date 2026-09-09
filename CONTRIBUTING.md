@@ -135,7 +135,7 @@ When you document compiler behaviour or diagnostics contracts:
 - If a contributor workflow or troubleshooting story needs documenting,
   write it as a KCS how-to or issue note under `docs/kcs/` and link it
   from [`docs/kcs/README.md`](docs/kcs/README.md).
-- Keep [`docs/design/compiler-architecture.md`](docs/design/compiler-architecture.md)
+- Keep [`docs/design/compiler/architecture.md`](docs/design/compiler/architecture.md)
   as orientation, diagrams, and links — not deep implementation policy.
 
 If a PR changes compiler fact contracts, update at least one relevant

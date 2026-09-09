@@ -103,4 +103,4 @@ is a different algorithm with its own version differences (notably the 8.5
 - [KCS index](README.md)
 - [Glossary](../GLOSSARY.md)
 - [kcs-qa-how-are-command-names-resolved.md](kcs-qa-how-are-command-names-resolved.md)
-- [Name resolution: the C algorithm and the 8.4→9.1 version matrix](../design/name-resolution-c-conformance.md)
+- [Name resolution: the C algorithm and the 8.4→9.1 version matrix](../design/analysis/name-resolution-c-conformance.md)

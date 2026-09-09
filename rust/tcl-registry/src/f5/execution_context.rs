@@ -25,7 +25,7 @@
 //! execution engines. This is that key.
 //!
 //! The live run
-//! (`docs/design/bigip-irule-parser-measurements.md` §4a) then *refined*
+//! (`docs/design/f5/bigip-irule-parser-measurements.md` §4a) then *refined*
 //! F1 in one important way: the three BIG-IP-hosted Tcl contexts are **one
 //! parser** — every grammar and newline case in a single 34-case list is
 //! byte-identical across `TmmIRule`, `TmshCliScript` and

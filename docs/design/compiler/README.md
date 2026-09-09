@@ -10,6 +10,8 @@ User-facing compiler troubleshooting and how-tos live in
 
 ## Start here
 
+- [architecture.md](architecture.md) — the high-level map of the
+  multi-pass pipeline, with diagrams and cross-links to the stage docs.
 - [common-semantic-compiler.md](common-semantic-compiler.md) — implementation
   contract for the shared semantic IR, value/cell/world SSA, registry
   boundaries, exact completion and trace flow, target-family lowering, and
@@ -51,6 +53,8 @@ User-facing compiler troubleshooting and how-tos live in
   command classification.
 - [full-pipeline-walkthrough.md](full-pipeline-walkthrough.md) —
   end-to-end source to bytecode walkthrough.
+- [example-walkthroughs.md](example-walkthroughs.md) — full pipeline
+  traces for progressively complex Tcl scripts.
 - [control-flow-patterns.md](control-flow-patterns.md) — if, while,
   for, foreach, and proc compilation.
 - [error-recovery.md](error-recovery.md) — ghost delimiter injection for

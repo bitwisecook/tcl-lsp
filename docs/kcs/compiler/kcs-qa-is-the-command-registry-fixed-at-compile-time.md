@@ -67,7 +67,7 @@ plain per-profile registries stay process-lifetime data.
 
 ## Related
 
-- [SpecTcl pack design](../../design/spec-packs.md) — the registry-layering
+- [SpecTcl pack design](../../design/registry/spec-packs.md) — the registry-layering
   rule, discovery tiers, and collision policy this note summarises.
 - [Command registry](../../design/compiler/command-registry.md) — the full
   registry contract and pack integration.

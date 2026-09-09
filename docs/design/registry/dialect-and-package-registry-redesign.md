@@ -12,9 +12,9 @@
 > [dialect-profile-model.md](dialect-profile-model.md) (the interned
 > catalogue the lexer is still keyed on),
 > [eda-library-packages.md](eda-library-packages.md),
-> [contracts/dialect-detection.md](contracts/dialect-detection.md),
-> [contracts/package-loading.md](contracts/package-loading.md),
-> [bigip-irule-parser-measurements.md](bigip-irule-parser-measurements.md)
+> [contracts/dialect-detection.md](../contracts/dialect-detection.md),
+> [contracts/package-loading.md](../contracts/package-loading.md),
+> [bigip-irule-parser-measurements.md](../f5/bigip-irule-parser-measurements.md)
 > (the live F5 evidence).
 
 ## 0. The ruling, and the model in four layers
@@ -136,7 +136,7 @@ APL, and `promotes_facts_to` refuses every cross-context substitution.
 APL's Tcl callbacks, iRules, tmsh scripts, iApp implementation Tcl, and
 host Tcl are independently routed surfaces.
 
-The measured facts ([measurements](bigip-irule-parser-measurements.md)):
+The measured facts ([measurements](../f5/bigip-irule-parser-measurements.md)):
 
 - **The fork.** iRules, tmsh `cli script` and iApp implementation Tcl are
   **one parser**, a fork of Tcl 8.4.6 (`info patchlevel` 8.4.6 in all
@@ -320,7 +320,7 @@ the model rejects explicitly rather than misdescribes.
 | `expect` | environment = tcl@8.6 + expect pack (ambient) | `expect`'s clause grammar is registry `CaseListSpec` descriptor data shared with `switch` |
 | the six EDA shells | pack-declared environments (`specs/eda_*.tclspec`) | identity, extensions, keyed tool pins and `help_terms` are `environment` blocks; a generated seed (`rust/tcl-dialect/src/model/bundled_environments.rs`, `cargo xtask gen-bundled-environments`) lets them resolve before any pack is published |
 | `spectcl`, `bpf` | environments over tcl@9.0, compiled as Rust catalogue profiles | grammar is `GRAMMAR_TCL9X` verbatim; each is a closed-world command surface (`rust/tcl-registry/src/commands/spectcl/`, `commands/bpf/`) |
-| `sslictcl` | environment = tcl@9.0 + sslictcl pack (package surface) | `GRAMMAR_TCL9X` verbatim; the declaration vocabulary (`rust/tcl-registry/src/commands/sslictcl/`) exists inside a `.sslictcl` document and nowhere else, and evaluates nothing — [sslictcl-vocabulary.md](sslictcl-vocabulary.md) |
+| `sslictcl` | environment = tcl@9.0 + sslictcl pack (package surface) | `GRAMMAR_TCL9X` verbatim; the declaration vocabulary (`rust/tcl-registry/src/commands/sslictcl/`) exists inside a `.sslictcl` document and nowhere else, and evaluates nothing — [sslictcl-vocabulary.md](../f5/sslictcl-vocabulary.md) |
 | `f5-bigip` | **neither** — a separate language surface | own tokeniser (`rust/tcl-bigip/src/conf_tokens.rs`), own tree-sitter grammar; keeps its identity/routing entry and stays off the Tcl availability axis (`f5-bigip` in an `available` row is an error) |
 
 ## 3. The three concepts
@@ -841,7 +841,7 @@ unknown *minor* within a supported major keeps loading maximally.
 
 `KNOWN_VOCABULARY_VERSIONS` / `NEWEST_VOCABULARY_VERSION` name what the
 loader speaks (2.1 is newest); the spelling tables are
-[`spec-dsl-examples/README.md`](spec-dsl-examples/README.md).
+[`spec-dsl-examples/README.md`](../spec-dsl-examples/README.md).
 
 | Word | Purpose |
 |---|---|

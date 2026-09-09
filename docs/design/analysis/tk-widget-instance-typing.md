@@ -449,7 +449,7 @@ following are explicit non-goals, not accidental gaps:
 
 Builds directly on [`tcloo-object-typing.md`](tcloo-object-typing.md) (VTA,
 Sundaresan et al. OOPSLA'00) and the command-resolution contract at
-[`docs/design/contracts/command-resolution.md`](contracts/command-resolution.md)
+[`docs/design/contracts/command-resolution.md`](../contracts/command-resolution.md)
 for the namespace/alias/rename/trace boundary rules reused as-is for
 constructor-command-name resolution.
 

@@ -1,15 +1,15 @@
 # BIG-IP iRule parser measurements ([#1631](https://github.com/bitwisecook/tcl-lsp/issues/1631))
 
 > **Purpose.** The appliance transcript behind the F5 rows of
-> [`dialect-and-package-registry-redesign.md`](dialect-and-package-registry-redesign.md),
+> [`dialect-and-package-registry-redesign.md`](../registry/dialect-and-package-registry-redesign.md),
 > including the answer to its F3 discriminating matrix.
 >
-> **Probe corpus:** [`scripts/dev/bigip-probes/`](../../scripts/dev/bigip-probes/)
+> **Probe corpus:** [`scripts/dev/bigip-probes/`](../../../scripts/dev/bigip-probes/)
 > — 378 iRules, the drivers that ran them, the stock-Tcl controls, and the raw
 > result files.
 >
 > **Methodology caveat up front:** only §3 and §4a were run under the E4 probe
-> contract ([`dialect-and-package-registry-redesign.md`](dialect-and-package-registry-redesign.md)
+> contract ([`dialect-and-package-registry-redesign.md`](../registry/dialect-and-package-registry-redesign.md)
 > §0.2). See [§11](#11-what-the-model-takes-from-this-run) for the exact delta
 > before relying on any other row as E4-conforming evidence.
 
@@ -246,7 +246,7 @@ The evidence review asks six specific questions and says the dialect-level
 separator should be retained **only if the live generic cases establish it**.
 They do. Run with the `__tcl_lsp_probe_*` prefix, a collision check before each
 create and an absence proof after each delete
-([`irules/f3-matrix/`](../../scripts/dev/bigip-probes/irules/f3-matrix/)):
+([`irules/f3-matrix/`](../../../scripts/dev/bigip-probes/irules/f3-matrix/)):
 
 | Case | Stock 8.6.18 / 9.0.4 | **TMM 21.1.0.1** | What it settles |
 | --- | --- | --- | --- |
@@ -327,13 +327,13 @@ rather than real expansion.
 contexts are one parser; they differ only in command surface and environment.
 
 A single 34-case list
-([`suites/10-context-parity.cases`](../../scripts/dev/bigip-probes/suites/10-context-parity.cases))
+([`suites/10-context-parity.cases`](../../../scripts/dev/bigip-probes/suites/10-context-parity.cases))
 is compiled into four wrappers by
-[`gen-context-parity.py`](../../scripts/dev/bigip-probes/lib/gen-context-parity.py)
+[`gen-context-parity.py`](../../../scripts/dev/bigip-probes/lib/gen-context-parity.py)
 — an iRule, a `cli script`, an iApp template+service, and a plain `tclsh`
 script — so any difference in the transcripts is a real context difference and
 not a difference in what was asked. Raw output:
-[`results/10-context-parity.txt`](../../scripts/dev/bigip-probes/results/10-context-parity.txt).
+[`results/10-context-parity.txt`](../../../scripts/dev/bigip-probes/results/10-context-parity.txt).
 
 ### Parser behaviour — identical across all three F5 contexts
 
@@ -407,7 +407,7 @@ editor this is the difference between a warning and a hard error: in iRules an
 unknown command is a load-time failure that `catch` cannot soften, so
 "unknown command" is safe to surface as an error rather than a hint. The
 standalone case is
-[`ctx_unknown_cmd.conf`](../../scripts/dev/bigip-probes/irules/context-parity/ctx_unknown_cmd.conf).
+[`ctx_unknown_cmd.conf`](../../../scripts/dev/bigip-probes/irules/context-parity/ctx_unknown_cmd.conf).
 
 This is also why the `s_exec` row above reads `invalid command name "exec"` for
 `TmmIRule` rather than `command is disabled: "exec"`: reached through `eval` at
@@ -421,8 +421,8 @@ rejected at load with the "disabled" wording (§5).
 ### Ordinary procs work everywhere, including iRules
 
 Fifteen proc cases run through the same four-wrapper harness
-([`suites/11-proc-semantics.cases`](../../scripts/dev/bigip-probes/suites/11-proc-semantics.cases),
-transcript [`results/11-proc-semantics.txt`](../../scripts/dev/bigip-probes/results/11-proc-semantics.txt)).
+([`suites/11-proc-semantics.cases`](../../../scripts/dev/bigip-probes/suites/11-proc-semantics.cases),
+transcript [`results/11-proc-semantics.txt`](../../../scripts/dev/bigip-probes/results/11-proc-semantics.txt)).
 Fourteen of fifteen are **identical in all three F5 contexts**:
 
 | Case | TmmIRule | TmshCliScript | IAppImplementation |
@@ -454,7 +454,7 @@ resolves *rule* procs, not runtime-defined ones — hence
 ### The 31 "disabled" commands are two mechanisms, not one
 
 Re-probing each of the 31 through `eval` at runtime splits them exactly
-([`ctx_disabled_runtime.conf`](../../scripts/dev/bigip-probes/irules/proc-semantics/ctx_disabled_runtime.conf)):
+([`ctx_disabled_runtime.conf`](../../../scripts/dev/bigip-probes/irules/proc-semantics/ctx_disabled_runtime.conf)):
 
 **Absent from TMM's interpreter (16)** — `invalid command name` even via `eval`:
 
@@ -515,8 +515,8 @@ it puts each measured fact at the level where it was actually observed.
 
 §4b established that ordinary procs work in all three contexts. This section
 draws the line iRules actually enforce, because it is not where it first
-appears. Probes: [`irules/dynamic-code/`](../../scripts/dev/bigip-probes/irules/dynamic-code/),
-transcript [`results/12-dynamic-code.txt`](../../scripts/dev/bigip-probes/results/12-dynamic-code.txt).
+appears. Probes: [`irules/dynamic-code/`](../../../scripts/dev/bigip-probes/irules/dynamic-code/),
+transcript [`results/12-dynamic-code.txt`](../../../scripts/dev/bigip-probes/results/12-dynamic-code.txt).
 
 ### `proc` is banned inside a `when` body — and the ban is *lexical*
 
@@ -924,7 +924,7 @@ claims because they differ only through this asymmetry.
 | **F3** — `}{` overfits one command, overclaims all | The full six-row matrix, run on TMM (§3). | **Retain the dialect-level separator.** Gate it on the word having started with `{` or `"`. Do not implement `{*}` in the iRules dialect. |
 | **F4** — tmsh policy is not core Tcl availability | All 85 stock 8.4 builtins probed individually against the iRule compiler: 31 disabled, 2 absent, 52 present (§5). Cross-context: `exec` absent in `TmmIRule`, working in `TmshCliScript` and `IAppImplementation` (§4a). | Supplies the `TmmIRule` **rule-load** surface as data and proves it does **not** generalise. Also separates two mechanisms that look alike: a literal disabled command is refused at load with `command is disabled`, while the same command reached through `eval` at runtime is simply `invalid command name`. **Consumed by the model** (2026-08-27): the 31 rows are `rust/tcl-registry/src/irules_policy.rs`'s two classes *and* 31 corpus vectors + 31 evidence records; `exec` carries a per-context presence row proving it does not generalise. The role/policy half of F4 is still unwired. |
 | **F5** — `tcl_platform` has iRules-specific semantics | Measured in all three F5 contexts (§4): TMM fabricates it (`machine` = hostname, `os BIG-IP`, `tmmVersion 26`, `wordSize 8`), iApp reports a real-ish Linux with `wordSize 4`, and a tmsh cli script's array is **empty**. | Confirms F5, and shows the divergence is three-way, not two-way. **Consumed by the model** (2026-08-27): all three shapes are `RuntimeFact::TclPlatform` records (`FabricatedBigIp`/`Empty`/`RealHost` with key counts 7/0/7 and word sizes 8/–/4), cross-checked against the §4a environment table by test; TMM's seven fabricated keys are pinned against `special_vars.rs`'s iRules column. The CMP-effect overlay itself is still unwired. |
-| **F8** — one build must become a fixture | [`scripts/dev/bigip-probes/`](../../scripts/dev/bigip-probes/) — 378 iRules, drivers, controls, raw transcripts. | Partially discharges F8: it is a re-runnable fixture, but see the delta below before treating it as the E4 artefact. **Consumed by the model** (2026-08-27): 205 hermetic vectors in `rust/tcl-registry/src/f5/corpus.rs` derived from these transcripts — §4a parity (21), §4a environment differences (9), the 16 discriminators, §4b's 31 classes, §8's 120 event cells, §6/§8 priority (8) — each citing its section and asserted against the model. Rows record whether the model agrees, diverges (with a reason), or has no comparable answer, so closing a gap fails a row deliberately. **The corpus paid for itself on its first run** (2026-08-27, #27): it found sixteen real model defects — eight over-permissive event cells, seven over-strict ones, and the missing bare `matches` operator — and all sixteen were fixed by moving the model to the measurement (§8's model-status table; §4a `e_matches`). The event-context divergence count is 21 → 6, and the six are the deliberate `RULE_INIT` compile acceptances. Still owed: corpus-*generated* rows and the transcript-schema validator. |
+| **F8** — one build must become a fixture | [`scripts/dev/bigip-probes/`](../../../scripts/dev/bigip-probes/) — 378 iRules, drivers, controls, raw transcripts. | Partially discharges F8: it is a re-runnable fixture, but see the delta below before treating it as the E4 artefact. **Consumed by the model** (2026-08-27): 205 hermetic vectors in `rust/tcl-registry/src/f5/corpus.rs` derived from these transcripts — §4a parity (21), §4a environment differences (9), the 16 discriminators, §4b's 31 classes, §8's 120 event cells, §6/§8 priority (8) — each citing its section and asserted against the model. Rows record whether the model agrees, diverges (with a reason), or has no comparable answer, so closing a gap fails a row deliberately. **The corpus paid for itself on its first run** (2026-08-27, #27): it found sixteen real model defects — eight over-permissive event cells, seven over-strict ones, and the missing bare `matches` operator — and all sixteen were fixed by moving the model to the measurement (§8's model-status table; §4a `e_matches`). The event-context divergence count is 21 → 6, and the six are the deliberate `RULE_INIT` compile acceptances. Still owed: corpus-*generated* rows and the transcript-schema validator. |
 
 **F6** (BIG-IP release vs tmsh syntax release) and **F7** (iApp target and
 execution policy as action-local data) were not addressed by this run; nothing
@@ -943,12 +943,12 @@ appliance measurement it does not have.
 
 Two runs are described here and they differ in rigour. The **§3 F3 matrix** and
 the **§4a four-context parity probe** were run under the E4 contract
-([`dialect-and-package-registry-redesign.md`](dialect-and-package-registry-redesign.md)
+([`dialect-and-package-registry-redesign.md`](../registry/dialect-and-package-registry-redesign.md)
 §0.2) — `__tcl_lsp_probe_*` names, an exact-name absence check before every create, an
 `EXIT` trap deleting only those names, an absence proof after every delete, an
 explicit "attached to a virtual server?" check, and the APL contexts recorded as
 `Unknown` rather than inferred. The driver is
-[`lib/e4-context-probe.sh`](../../scripts/dev/bigip-probes/lib/e4-context-probe.sh).
+[`lib/e4-context-probe.sh`](../../../scripts/dev/bigip-probes/lib/e4-context-probe.sh).
 
 The **earlier bulk run** (§5–§9) answered the same questions under a looser
 procedure. Its differences, in full:

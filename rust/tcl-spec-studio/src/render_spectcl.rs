@@ -443,7 +443,7 @@ fn str_list_word(value: &Value) -> Option<String> {
 /// The `SpecTcl` 2.0 availability algebra, as the rows of an `available`
 /// word — the canonical spelling of what 1.x said with `dialects`.
 ///
-/// `docs/design/dialect-and-package-registry-redesign.md` §6.2 gives every
+/// `docs/design/registry/dialect-and-package-registry-redesign.md` §6.2 gives every
 /// scope that accepts `dialects` a second spelling, and the loader projects
 /// the two onto exactly the same fields (`tcl_spectcl::loader::available`),
 /// so this is a **rewording, not a re-meaning**: the round trip cannot tell

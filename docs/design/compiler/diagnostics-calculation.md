@@ -62,6 +62,6 @@ action.
 
 ## Related docs
 
-- [Diagnostics section in walkthroughs](../example-script-walkthroughs.md#how-diagnostics-are-calculated)
+- [Diagnostics section in walkthroughs](example-walkthroughs.md#how-diagnostics-are-calculated)
 - [async-diagnostics-tiering.md](async-diagnostics-tiering.md)
 - [diagnostics-integration.md](diagnostics-integration.md)

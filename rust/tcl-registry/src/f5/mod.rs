@@ -21,9 +21,9 @@
 //! conformance corpus that keeps the model honest about it.
 //!
 //! The model this implements is the F5 evidence layer and probe contract in
-//! `docs/design/dialect-and-package-registry-redesign.md`, its resolution
+//! `docs/design/registry/dialect-and-package-registry-redesign.md`, its resolution
 //! rulings in `dialect-and-package-registry-centralisation.md`, and the live
-//! transcript in `docs/design/bigip-irule-parser-measurements.md`. Section
+//! transcript in `docs/design/f5/bigip-irule-parser-measurements.md`. Section
 //! references in this module (`§4a`, `§4b`, `§8`, …) are that measurements
 //! document unless said otherwise.
 //!

@@ -3384,7 +3384,7 @@
             "items": {
               "type": "string"
             },
-            "markdownDescription": "Extra SpecTcl spec packs (`.tclspec` files, or directories of them) to load for this workspace. Relative paths resolve against each workspace folder. Packs under a `.tcl-lsp/` directory, or beside a `tclpkg.tcl` manifest, are found without configuring anything; this setting is for packs that live somewhere else. See docs/design/spec-packs.md.",
+            "markdownDescription": "Extra SpecTcl spec packs (`.tclspec` files, or directories of them) to load for this workspace. Relative paths resolve against each workspace folder. Packs under a `.tcl-lsp/` directory, or beside a `tclpkg.tcl` manifest, are found without configuring anything; this setting is for packs that live somewhere else. See docs/design/registry/spec-packs.md.",
             "order": 8
           },
           "tclLsp.iruleslx": {
@@ -3411,7 +3411,7 @@
               }
             },
             "additionalProperties": false,
-            "markdownDescription": "iRulesLX plugin associations, so `ILX::call` / `ILX::notify` can navigate to the `ILXServer.addMethod` that implements a method. Also settable per project in `.tcl-lsp.ini` as `[iruleslx.plugins]` / `[iruleslx.rules]`. See docs/design/iruleslx-remote-methods.md.",
+            "markdownDescription": "iRulesLX plugin associations, so `ILX::call` / `ILX::notify` can navigate to the `ILXServer.addMethod` that implements a method. Also settable per project in `.tcl-lsp.ini` as `[iruleslx.plugins]` / `[iruleslx.rules]`. See docs/design/f5/iruleslx-remote-methods.md.",
             "order": 9
           },
           "tclLsp.bigipVersion": {

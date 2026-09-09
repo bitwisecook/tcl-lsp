@@ -394,7 +394,7 @@ SCCP determines `x₁ = Const(Int(5))`:
 
 ## Related docs
 
-- [Examples 3–7 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-3-expr-2--3)
+- [Examples 3–7 in walkthroughs](../../../docs/design/compiler/example-walkthroughs.md#example-3-expr-2--3)
 - [GLOSSARY.md — SCCP, Lattice, Liveness](../../GLOSSARY.md#sccp)
 - [cfg-ssa-fact-model.md](cfg-ssa-fact-model.md)
 - [downstream-pass-contracts.md](downstream-pass-contracts.md)

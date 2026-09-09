@@ -56,5 +56,5 @@ end-to-end diagnostic suites in `rust/tcl-lsp-server/tests/e2e/`.
 
 ## See also
 
-- [compiler architecture overview](../compiler-architecture.md)
+- [compiler architecture overview](architecture.md)
 - [shared utility contracts](../contracts/shared-utility-contracts-rust.md)

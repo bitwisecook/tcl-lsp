@@ -9,7 +9,7 @@ Three documents cover this surface, and they do not overlap:
 
 | Document | Answers |
 |---|---|
-| [contracts/command-resolution.md](contracts/command-resolution.md) | *The rule.* The candidate order, its single Rust home, every consumer, and the conformance gates that stop them drifting. |
+| [contracts/command-resolution.md](../contracts/command-resolution.md) | *The rule.* The candidate order, its single Rust home, every consumer, and the conformance gates that stop them drifting. |
 | [name-resolution-c-conformance.md](name-resolution-c-conformance.md) | *The ground truth.* The algorithm as extracted from C Tcl, and what changed 8.4 → 9.1, pinned to source permalinks. |
 | **This document** | *The model.* What we build on top of the rule: written-name parsing, the link graph, workspace and library tiers, value provenance, TclOO dispatch, interpreter domains, and every place we deliberately abstain. |
 
@@ -602,7 +602,7 @@ collision.
 **What the lattice half is measured to be worth.** The prototype
 (`class_lattice.rs`, not wired into shipping diagnostics) was ablated over
 1,803 real `$obj method` sites in 154 files — see
-[`experiments/mro_eval/RESULTS.md`](../../experiments/mro_eval/RESULTS.md).
+[`experiments/mro_eval/RESULTS.md`](../../../experiments/mro_eval/RESULTS.md).
 Intraprocedurally it binds a class at **0.2 %** of sites: adding the CFG-merge
 join resolved **zero** additional sites, and adding mixins and filters
 resolved **zero**. All of the resolving power — 0.2 % → 18.7 % — came from
@@ -852,19 +852,19 @@ Two known asymmetries worth naming because they look like bugs and are not:
 
 ## Related
 
-- [contracts/command-resolution.md](contracts/command-resolution.md) — the
+- [contracts/command-resolution.md](../contracts/command-resolution.md) — the
   resolution rule, its consumers, and the conformance gates.
 - [name-resolution-c-conformance.md](name-resolution-c-conformance.md) — the
   C algorithm and the 8.4 → 9.1 version matrix.
-- [contracts/cross-file-diagnostics.md](contracts/cross-file-diagnostics.md)
+- [contracts/cross-file-diagnostics.md](../contracts/cross-file-diagnostics.md)
   — the shared cross-document settlement lookup and its abstention gates.
 - [import-order-source-graph.md](import-order-source-graph.md) — the run
   order both wildcard-import tiers rank cross-document events with.
 - [tcloo-object-typing.md](tcloo-object-typing.md) — the object-handle typing
   model feeding §5.6.
-- [contracts/runtime-variable-frame-model.md](contracts/runtime-variable-frame-model.md)
+- [contracts/runtime-variable-frame-model.md](../contracts/runtime-variable-frame-model.md)
   — the variable / call-frame contract.
-- [workspace-indexing.md](contracts/workspace-indexing.md) — how the index
+- [workspace-indexing.md](../contracts/workspace-indexing.md) — how the index
   that backs the workspace tier is built.
-- KCS: [W314](../kcs/codes/kcs-diagnostic-w314-no-absolute-name.md),
-  [rename](../kcs/features/kcs-feature-rename.md).
+- KCS: [W314](../../kcs/codes/kcs-diagnostic-w314-no-absolute-name.md),
+  [rename](../../kcs/features/kcs-feature-rename.md).

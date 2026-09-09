@@ -4,7 +4,7 @@ Architecture, invariants, and data-flow for the `f5 query` engine.
 This is the contributor doc — what you need to know to extend or
 debug the query DSL.  The user-facing surface (every function,
 operator, flag, behaviour) lives in
-[`docs/references/f5_query/`](../references/f5_query/).
+[`docs/references/f5_query/`](../../references/f5_query/).
 
 Symbol names below are quoted verbatim from the source so the doc
 is grep-able against the codebase.
@@ -174,7 +174,7 @@ the `TokenKind`, its `as_str` spelling, the two-char lookahead in
 ### `parser.rs` — Recursive-descent parser
 
 Hand-written, no parser generator.  Grammar in
-[`docs/references/f5_query/dsl.md`](../references/f5_query/dsl.md).
+[`docs/references/f5_query/dsl.md`](../../references/f5_query/dsl.md).
 
 - The parser is stateful: the module-private `Parser` struct holds the
   token stream and a position index. Most of its methods are private
@@ -785,7 +785,7 @@ Backs the `refs(obj)` / `referenced_by(obj)` builtins.
   use so repeated per-object queries do not rebuild the whole graph.
 
 The actual reference index lives in
-[`docs/design/bigip-registry-architecture.md`](bigip-registry-architecture.md)
+[`docs/design/f5/bigip-registry-architecture.md`](bigip-registry-architecture.md)
 — `compute_grep` consults the registry's reference table.
 
 ## Cross-cutting invariants

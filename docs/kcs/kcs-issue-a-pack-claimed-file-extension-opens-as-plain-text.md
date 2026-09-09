@@ -87,6 +87,6 @@ built-in extension.
 
 - [How do I write a SpecTcl pack?](kcs-howto-write-a-tclspec-pack.md)
 - [Dialect selection](features/kcs-feature-dialect-selection.md)
-- [SpecTcl pack design](../design/spec-packs.md)
+- [SpecTcl pack design](../design/registry/spec-packs.md)
 - [KCS index](README.md)
 - [Glossary](../GLOSSARY.md)

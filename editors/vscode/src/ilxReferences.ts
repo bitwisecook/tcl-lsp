@@ -144,7 +144,7 @@ export function createIlxReferenceProvider(
  * every server tier begins by turning the URI into a path, and abstains for the
  * `vscode-vfs:`-style URIs a web host uses. Registering there would send a
  * request the server cannot answer. See
- * `docs/design/iruleslx-remote-methods.md`.
+ * `docs/design/f5/iruleslx-remote-methods.md`.
  */
 export function registerIlxReferenceProvider(
   getClient: () => IlxReferenceClient | undefined,

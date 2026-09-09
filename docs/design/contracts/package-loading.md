@@ -417,7 +417,7 @@ per-dialect spec packs, never as name-matching in a consumer (see
 ## Cross-reference: tclpkg
 
 For project-local package management (manifests, lockfiles, CAS, virtual
-environments), see [tclpkg architecture](../tclpkg-architecture.md) and
+environments), see [tclpkg architecture](../tclpkg/architecture.md) and
 the [how-to guide](../../kcs/kcs-howto-manage-tcl-packages.md).
 
 ## Discoverability
@@ -427,4 +427,4 @@ the [how-to guide](../../kcs/kcs-howto-manage-tcl-packages.md).
 - [Command registry and event model](command-registry-event-model.md)
 - [LSP feature providers](lsp-feature-providers.md)
 - [LSP diagnostics publication](lsp-diagnostics-publication.md)
-- [tclpkg architecture](../tclpkg-architecture.md)
+- [tclpkg architecture](../tclpkg/architecture.md)

@@ -5,7 +5,7 @@ name-resolution algorithm from the C Tcl sources for all four name kinds —
 command, variable, class/method, and expr function — and states what actually
 changed for resolution across 8.4 → 8.5 → 8.6 → 9.0 → 9.1. It is the
 ground-truth companion to [name-resolution.md](name-resolution.md) (what we
-build on top) and [contracts/command-resolution.md](contracts/command-resolution.md)
+build on top) and [contracts/command-resolution.md](../contracts/command-resolution.md)
 (the rule and its conformance gates).
 
 Every claim carries a `file:line` citation into the C tree. Read this
@@ -302,6 +302,6 @@ anything here.
 
 - [name-resolution.md](name-resolution.md) — the model built on top of this
   algorithm.
-- [contracts/command-resolution.md](contracts/command-resolution.md) — the
+- [contracts/command-resolution.md](../contracts/command-resolution.md) — the
   rule, its single Rust home, and its consumers.
-- KCS: [Why does a namespace variable behave differently on Tcl 8 and 9?](../kcs/kcs-qa-why-does-a-namespace-variable-behave-differently-on-tcl-8-and-9.md)
+- KCS: [Why does a namespace variable behave differently on Tcl 8 and 9?](../../kcs/kcs-qa-why-does-a-namespace-variable-behave-differently-on-tcl-8-and-9.md)

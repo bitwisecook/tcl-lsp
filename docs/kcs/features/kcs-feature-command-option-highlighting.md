@@ -124,5 +124,5 @@ words after the head are still highlighted by the passes above.
 - [KCS feature index](README.md)
 - [Command registry](../../../docs/design/compiler/command-registry.md)
 - [Semantic tokens](kcs-feature-semantic-tokens.md)
-- [TclOO object-type tracking — design](../../design/tcloo-object-typing.md)
-- [Tk widget instance-command typing — design](../../design/tk-widget-instance-typing.md)
+- [TclOO object-type tracking — design](../../design/analysis/tcloo-object-typing.md)
+- [Tk widget instance-command typing — design](../../design/analysis/tk-widget-instance-typing.md)

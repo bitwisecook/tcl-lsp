@@ -73,7 +73,7 @@ Pratt parsing:
 | `matches_regex` | regexp | (14, 15) |
 
 The bare `matches` is measured *present* only
-(`docs/design/bigip-irule-parser-measurements.md` §4a `e_matches`:
+(`docs/design/f5/bigip-irule-parser-measurements.md` §4a `e_matches`:
 `expr {"abc" matches "abc"}` answers `1` in all three F5 contexts and
 fails on both host builds). That probe is a single-operator,
 exact-equality expression, so it pins neither the operator's binding
@@ -133,6 +133,6 @@ as plain Tcl.
 
 ## Related docs
 
-- [Example 21 in walkthroughs](../example-script-walkthroughs.md#example-21-expression-parsing--braced-vs-unbraced)
+- [Example 21 in walkthroughs](example-walkthroughs.md#example-21-expression-parsing--braced-vs-unbraced)
 - [GLOSSARY.md — AST](../../GLOSSARY.md#ast)
 - [compiler-pipeline-overview.md](compiler-pipeline-overview.md)

@@ -5,7 +5,7 @@ Tcl scripts, from a single `set` command through control flow with
 optimisation opportunities.  Each example shows the concrete data structures
 produced at every stage, with field-level detail.
 
-> **Prerequisite reading:** [compiler-architecture.md](compiler-architecture.md)
+> **Prerequisite reading:** [architecture.md](architecture.md)
 > for the pipeline overview and stage diagrams.
 
 ---
@@ -137,7 +137,7 @@ pub struct Token {
 
 > `segment_commands()` builds the canonical lossless **red-green concrete syntax
 > tree** (`rust/tcl-compiler/src/parsing/syntax/`, see
-> [syntax-tree.md](compiler/syntax-tree.md)) and derives the `SegmentedCommand`
+> [syntax-tree.md](syntax-tree.md)) and derives the `SegmentedCommand`
 > list from it.  The tree is the *backing* for the parallel-array view below,
 > not a different shape: every example's Stage 2 data structure is exactly what
 > a token-level walk of the same command yields.
@@ -3957,7 +3957,7 @@ workspace-independent subset first and the deep pass replaces it for the same
 document version.  Documents under `DIAGNOSTICS_FAST_TIER_MIN_LINES` (500)
 skip the race entirely.  The currency, cancellation and push-only rules are
 owned by
-[async-diagnostics-tiering.md](compiler/async-diagnostics-tiering.md).
+[async-diagnostics-tiering.md](async-diagnostics-tiering.md).
 
 ### The fast tier
 

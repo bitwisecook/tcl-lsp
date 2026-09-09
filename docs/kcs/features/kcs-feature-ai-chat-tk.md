@@ -70,10 +70,10 @@ option, or value leaves the hierarchy uncertain and the participant says so.
 Fonts, themes, DPI, window-manager behaviour, keyboard conventions, and
 accessibility are platform-dependent and outside the model. The preview is a
 structural aid, not a native Tk rendering oracle — see
-[Static Tk UI model](../../design/tk-static-ui-model.md).
+[Static Tk UI model](../../design/analysis/tk-static-ui-model.md).
 
 ## Discoverability
 
 - [KCS feature index](README.md)
 - [Tk Preview](kcs-feature-tk-preview.md)
-- [Static Tk UI model](../../design/tk-static-ui-model.md)
+- [Static Tk UI model](../../design/analysis/tk-static-ui-model.md)

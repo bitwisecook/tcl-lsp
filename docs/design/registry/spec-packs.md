@@ -15,9 +15,9 @@ published as diagnostics on the pack file. All of it lives in
 and the six vendor packs) are bundled `.tclspec` packs read by the same
 loader; `tcl_spectcl::bundled` is what puts them into a profile registry.
 The Spec Studio is the DSL's IDE
-([`contracts/command-spec-studio.md`](contracts/command-spec-studio.md));
+([`contracts/command-spec-studio.md`](../contracts/command-spec-studio.md));
 the frozen syntax is
-[`spec-dsl-examples/README.md`](spec-dsl-examples/README.md).
+[`spec-dsl-examples/README.md`](../spec-dsl-examples/README.md).
 
 **Known gap.** The studio has no skill-in-studio tab: the page reaches
 nothing but GitHub's two hosts, for the release fetcher.
@@ -212,7 +212,7 @@ interp pointers — playing the role Tcl's C API plays for C Tcl. `tcl-vm`
 and the Tcl→WASM codegen runtime implement it (selecting one must not
 require the other), and it is designed against exactly **two consumers**:
 the hook framework, written in Rust on top of it; and the C-Tcl shim
-(`tcl-cshim`, [c-extension-shim.md](c-extension-shim.md)), which lets
+(`tcl-cshim`, [c-extension-shim.md](../runtime/c-extension-shim.md)), which lets
 users compile existing C Tcl extensions to run on our tclvm or in wasm
 through the same surface. The interface is **stable and common to the
 backends** — tclvm and the wasm codegen runtime, explicitly *not* the BPF
@@ -276,7 +276,7 @@ is 16.6 µs; pack load by the static fast path is **4.28 ms** for a
 | `tcl-engine-api` | bottom | The **Tcl extension interface**: `CompileUnit` → engine handle, invoked with owned structured `Value`s (list and dict are first-class, so `words`/`ctx` never round-trip through text); `HostCommand` for embedder-registered commands; `Budget` the engine must enforce; `EngineError` distinguishing a script error, a budget blowout, and a crash. No dependencies at all. |
 | `tcl-engine-tclvm` | bottom | The `tcl-vm` implementation: `Vm::define_procedure` (compile once), `Vm::invoke_command`, `Vm::register_native_command` (stateful host commands), `Vm::retain_commands` (a closed whitelist), and the enforced `commands` limit + wall-clock cap. |
 | `tcl-spec-hooks` | top | The **hook host**: emitter verbs as native commands, the per-family calling conventions and the literal-only precondition, abstention and error policy, per-pack engines, `catch_unwind`, quarantine-on-first-crash with a structured crash record, and the sandbox whitelist plus `foldlist`. Also the pack evaluator (`pack_eval`) that runs a whole pack file under the same sandbox. |
-| `tcl-cshim` | consumer 2 | The **C-Tcl shim** ([c-extension-shim.md](c-extension-shim.md)): a C extension compiled against `include/tclshim.h` registers its commands through `Engine::define_command`, with `Tcl_Obj` crossing as typed values. |
+| `tcl-cshim` | consumer 2 | The **C-Tcl shim** ([c-extension-shim.md](../runtime/c-extension-shim.md)): a C extension compiled against `include/tclshim.h` registers its commands through `Engine::define_command`, with `Tcl_Obj` crossing as typed values. |
 | `tcl-registry::pack_hooks` | seam | Slots, per-family thunk tables, the thread-local host, and the **shape-keyed cache**. A pack hook is a plain function pointer of the family's shipped type, so `run_const_fold` and every other consumer is unchanged and unaware. |
 
 - **The two budgets bound different things.** The command limit counts
@@ -294,7 +294,7 @@ is 16.6 µs; pack load by the static fast path is **4.28 ms** for a
 `rust/tcl-spectcl/tests/spec_corpus.rs` is the gate over **every
 `.tclspec` the repository ships** — the eight bundled loadables under
 `specs/`, the eleven ports and the five external drafts under
-[`spec-dsl-examples/`](spec-dsl-examples/). Per pack it loads through the
+[`spec-dsl-examples/`](../spec-dsl-examples/). Per pack it loads through the
 real loader, installs into a real per-profile registry, runs the analyser
 and the optimiser over the corpus files in `samples/` that call the pack's
 commands (synthesising an exercising call from a command's own arity and
@@ -333,7 +333,7 @@ let packs survive releases without rebuilds:
   that `CommandSpec::has_switch_body` is the derived answer. The table is
   `RETIRED_TRAITS` in `rust/tcl-registry/src/traits.rs`; the rule for
   retiring a trait is in
-  [command-registry.md](compiler/command-registry.md#retiring-a-trait).
+  [command-registry.md](../compiler/command-registry.md#retiring-a-trait).
 - **Except where dropping the word would strengthen the answer.** An
   unknown word in a pack declaring a vocabulary this build postdates is
   classified by its compatibility effect (`VocabularyClass`):
@@ -353,7 +353,7 @@ let packs survive releases without rebuilds:
   compiled-cache key) bumps only when a word's meaning changes — once, for
   2.0, because the legacy `dialects` word's translation output changed.
   The vocabulary ladder and every word each revision added are in
-  [`spec-dsl-examples/README.md`](spec-dsl-examples/README.md); this
+  [`spec-dsl-examples/README.md`](../spec-dsl-examples/README.md); this
   document does not duplicate the spelling tables.
 - The studio schema-coverage gates force every new `CommandSpec` field to
   a named key; that key is the DSL property name, so the format cannot
@@ -430,7 +430,7 @@ plain retirement check would, but hedged:
 
 The straddle diagnostic only fires while the floor's own verdict is
 `Available`; a floor that already fails keeps its own, more specific
-message. See [W139](../kcs/codes/kcs-diagnostic-w139-retired-at-resolved-version.md).
+message. See [W139](../../kcs/codes/kcs-diagnostic-w139-retired-at-resolved-version.md).
 
 ### Versioned signatures and ambient packages
 
@@ -448,7 +448,7 @@ message. See [W139](../kcs/codes/kcs-diagnostic-w139-retired-at-resolved-version
   The window covering the document's resolved floor is the shape a call is
   checked against. A call whose count fails the selected shape but fits
   *another* declared window draws
-  [W149](../kcs/codes/kcs-diagnostic-w149-arity-matches-other-version.md)
+  [W149](../../kcs/codes/kcs-diagnostic-w149-arity-matches-other-version.md)
   rather than a bare "too many arguments"; a count fitting no window stays
   an ordinary E002/E003.
 
@@ -521,7 +521,7 @@ message. See [W139](../kcs/codes/kcs-diagnostic-w139-retired-at-resolved-version
   upserts its own packs additively, keyed by file name; the shipped
   loadables are compiled into the server as the fallback for any name the
   host did not mount. See
-  [contracts/lsp-source-store.md](contracts/lsp-source-store.md), "The
+  [contracts/lsp-source-store.md](../contracts/lsp-source-store.md), "The
   virtual spec-pack mount".
 - **Compiled-pack cache in the OS cache directory**
   (`$XDG_CACHE_HOME/tcl-lsp/spectcl/` and platform equivalents): a pack's
@@ -793,7 +793,7 @@ wrong for a core surface.
 
 ## The acceptance rubric
 
-[`spec-dsl-examples/tricky-surfaces.md`](spec-dsl-examples/tricky-surfaces.md)
+[`spec-dsl-examples/tricky-surfaces.md`](../spec-dsl-examples/tricky-surfaces.md)
 is the checklist the DSL is held to: the `::tcl::mathop` /
 `::tcl::mathfunc` operator-command aliasing and the ensemble implementation
 namespaces, every TclOO corner, options as really used, paired and
@@ -805,7 +805,7 @@ ticked against a ported example, not against intent.
 
 The `.tclspec` document is the studio's one authoritative document, with
 the form and the Pack DSL pane as projections of it; the contract is
-[`contracts/command-spec-studio.md`](contracts/command-spec-studio.md).
+[`contracts/command-spec-studio.md`](../contracts/command-spec-studio.md).
 
 ## What a pack still cannot say
 
@@ -816,5 +816,5 @@ documented vocabulary the loader does not yet read (dropped with a
 notice), a library-defined completion code scoped to one command's body
 has no spelling, and a method-scoped taint sink is a registry change
 rather than a DSL one — the register is in
-[`spec-dsl-examples/README.md`](spec-dsl-examples/README.md), "Known
+[`spec-dsl-examples/README.md`](../spec-dsl-examples/README.md), "Known
 limits carried forward".

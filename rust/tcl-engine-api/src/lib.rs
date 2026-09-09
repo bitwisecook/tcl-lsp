@@ -18,7 +18,7 @@
 
 //! `tcl-engine-api` — the **Tcl extension interface**.
 //!
-//! The bottom of the two layers `docs/design/spec-packs.md` describes: the
+//! The bottom of the two layers `docs/design/registry/spec-packs.md` describes: the
 //! surface that plays, for our engines, the role Tcl's C API plays for C Tcl —
 //! in modern idiomatic Rust, with traits and owned structured values, no raw
 //! interp pointers, and no C-shaped warts.

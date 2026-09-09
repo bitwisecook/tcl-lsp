@@ -79,7 +79,7 @@ mount at startup. The WASI rung has no executable path either: its copy is a
 directory mounted into the guest and named by `TCL_LSP_SPEC_PACK_DIR`. Three
 rungs, three ways of reaching a file, one set of packs — see
 [`lsp-runtime-and-transports.md`](../design/rust/lsp-runtime-and-transports.md)
-Part 6 and [`spec-packs.md`](../design/spec-packs.md).
+Part 6 and [`spec-packs.md`](../design/registry/spec-packs.md).
 
 (Sizes measured on an x86-64 Linux build; other triples differ by a few MiB.)
 

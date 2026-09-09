@@ -16,9 +16,9 @@ home, and a conformance-vector gate:
 - [command-resolution.md](command-resolution.md) — the `Tcl_FindCommand` rule,
   its single implementation (`tcl_syntax::naming::resolve_command_with`), every
   consumer, and the anti-drift gates.
-- [../name-resolution.md](../name-resolution.md) — the model across all four
+- [../analysis/name-resolution.md](../analysis/name-resolution.md) — the model across all four
   name kinds, and its deliberate abstentions.
-- [../name-resolution-c-conformance.md](../name-resolution-c-conformance.md) —
+- [../analysis/name-resolution-c-conformance.md](../analysis/name-resolution-c-conformance.md) —
   the C ground truth, pinned per release.
 - [runtime-variable-frame-model.md](runtime-variable-frame-model.md) — the
   *variable* side, which deliberately does not follow the command rule.

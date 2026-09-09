@@ -119,7 +119,7 @@ pub fn spec() -> CommandSpec {
                 "arg index ?-role R? ?-type T? ?-values {…}? ?-closed? ?-layout L? ?-appends {Exactly N}?",
             ],
             snippet: "Indices are 0-based after the command name, or after the subcommand word inside a `subcommand` block — the same coordinates the registry uses. An index above 255 is dropped with a notice, matching the u8 tables. There is deliberately no `-detail`: no per-argument prose field exists, and argument documentation reaches the user through `synopsis` and `hover`'s `description`.",
-            source: "SpecTcl (docs/design/spec-packs.md)",
+            source: "SpecTcl (docs/design/registry/spec-packs.md)",
             examples: "arg 0 -type String -shimmers -transparent {ByteArray} -values-from is-classes -closed\narg 1 -role Body -layout InlineScript\narg 2 -appends {Exactly 2}",
             return_value: "",
         }),

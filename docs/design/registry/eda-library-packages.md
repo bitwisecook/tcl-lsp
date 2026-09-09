@@ -23,7 +23,7 @@ carries: the command packs it loads and the ambient library pins it
 declares. A dedicated family would cost a family every command spec must
 then be tagged for, and add nothing either does not already say.
 
-The tools work that way themselves ([contracts/dialect-detection.md](contracts/dialect-detection.md)):
+The tools work that way themselves ([contracts/dialect-detection.md](../contracts/dialect-detection.md)):
 
 - **Quartus literally uses Tcl packages** — `package require ::quartus::project`
   / `load_package flow`; Intel even splits `::quartus::sdc` (industry SDC)

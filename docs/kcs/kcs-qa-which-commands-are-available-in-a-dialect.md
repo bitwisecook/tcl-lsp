@@ -75,13 +75,13 @@ accepts every standard Tcl version, so a typo in configuration never
 floods a file with false warnings.
 
 The same profile drives the analyser, the [command-line
-tools](../design/dialect-profile-model.md) (`tcl registry-dump --dialect`,
+tools](../design/registry/dialect-profile-model.md) (`tcl registry-dump --dialect`,
 `tcl command-info`), and editor highlighting, so they can never disagree
 about availability.
 
 ## See also
 
-- [`docs/design/dialect-profile-model.md`](../design/dialect-profile-model.md)
+- [`docs/design/registry/dialect-profile-model.md`](../design/registry/dialect-profile-model.md)
   — the compositional profile model (design doc).
 - [`docs/design/compiler/dialects-events.md`](../design/compiler/dialects-events.md)
   — per-dialect base versions and the iRules event model.

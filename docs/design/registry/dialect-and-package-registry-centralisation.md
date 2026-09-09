@@ -688,7 +688,7 @@ implementation of that domain.
   Never wired into CI.
 - **Appliance tier (owner-run, checked-in transcripts)**: the BIG-IP probe
   corpus at `scripts/dev/bigip-probes/` with its results
-  ([measurements](bigip-irule-parser-measurements.md)) — re-runnable
+  ([measurements](../f5/bigip-irule-parser-measurements.md)) — re-runnable
   against a real appliance, never CI. The **appliance tier produces
   transcripts** and the **hermetic tier consumes them**:
   `rust/tcl-registry/src/f5/corpus.rs` holds 205 vectors derived from

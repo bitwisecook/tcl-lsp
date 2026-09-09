@@ -148,4 +148,4 @@ and `COPY` the result in.
   declare, resolve, and lock the dependencies this image installs.
 - [tcl pkg feature page](features/kcs-feature-tcl-pkg.md)
 - [tcl venv feature page](features/kcs-feature-tcl-venv.md)
-- [Design: tclpkg architecture](../design/tclpkg-architecture.md)
+- [Design: tclpkg architecture](../design/tclpkg/architecture.md)

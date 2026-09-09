@@ -327,7 +327,7 @@ not change the rule, and must not grow bespoke resolution logic. Every
   rename edit. Anything unprovable — a computed value, a parameter, an
   `upvar`/trace write, an opaque `catch` body — abstains, and a contributor
   with no writable span refuses the whole rename. See
-  [name-resolution.md](../name-resolution.md) §3.4.
+  [name-resolution.md](../analysis/name-resolution.md) §3.4.
 - **`interp eval` bodies** get their own synthetic
   `@interp@<path>[#<epoch>]` scope domain, so definitions made inside one
   (`proc`, `oo::class`, variables) never merge into the parent namespace
@@ -351,7 +351,7 @@ not change the rule, and must not grow bespoke resolution logic. Every
   cross-document query, and a document sourced under several namespaces
   carries one runtime identity per seed. A `source` path the folder cannot
   prove abstains rather than guessing. See
-  [name-resolution.md](../name-resolution.md) §3.2.
+  [name-resolution.md](../analysis/name-resolution.md) §3.2.
 - **`expr` function names** are routed through command resolution: each
   `f(…)` application is recorded as an invocation carrying
   `is_mathfunc_call`, settled with the `namespace path`-aware candidate
@@ -359,4 +359,4 @@ not change the rule, and must not grow bespoke resolution logic. Every
   namespace-local override included — is linked to its `expr` uses. The
   per-release function set is gated by
   `tcl_syntax::expr::mathfunc::added_in`. See
-  [name-resolution.md](../name-resolution.md) §7.
+  [name-resolution.md](../analysis/name-resolution.md) §7.

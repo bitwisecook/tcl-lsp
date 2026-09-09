@@ -39,7 +39,7 @@ codegen decodes text — literal words, normalised word spellings, expression
 source — and the grammar that text obeys is dialect-dependent. That they are
 one value is the invariant: numerals and re-parsed `expr` text resolved under
 two grammars disagree about `010` for `tk` inside a single compile. See
-[dialect-profile-model.md](../dialect-profile-model.md) §2.5 for how the name
+[dialect-profile-model.md](../registry/dialect-profile-model.md) §2.5 for how the name
 reaches codegen and why it is the document's own.
 
 **Scope, stated deliberately.** The grammar codegen *decodes under* is the

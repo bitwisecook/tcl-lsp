@@ -108,6 +108,6 @@ All procedure names in the IR module are fully qualified.
 
 ## Related docs
 
-- [Example 26 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-26-namespace-resolution)
+- [Example 26 in walkthroughs](../../../docs/design/compiler/example-walkthroughs.md#example-26-namespace-resolution)
 - [compiler-pipeline-overview.md](compiler-pipeline-overview.md)
 - [interprocedural-analysis.md](interprocedural-analysis.md)

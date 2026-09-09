@@ -48,7 +48,7 @@ tclpkg.tcl (manifest)
    and a repeated `package` or `version` is an error.
 4. The `tcl` constraint defaults to `>=8.6` when omitted.
 5. `build` declares a build script but never causes one to run — see
-   [`tclpkg-security.md`](tclpkg-security.md).
+   [`security.md`](security.md).
 
 ### Lockfile (`tclpkg.lock`)
 
@@ -129,7 +129,7 @@ tclpkg.tcl (manifest)
 `verify`, `info`, `add`, `remove`, `update`, `sync`, `outdated`, `why`,
 `vendor`, `run`, `freeze`, `search`, plus the security verbs `policy`,
 `hooks`, `audit`, `trust`, and `build` documented in
-[`tclpkg-security.md`](tclpkg-security.md).
+[`security.md`](security.md).
 
 `tcl venv` — `create`, `delete`, `info`, `activate`, `deactivate`, `list`,
 `update`, `run`.
@@ -175,11 +175,11 @@ of the contract.
 
 ## Discoverability
 
-- [tclpkg security architecture](tclpkg-security.md) — the sandbox,
+- [tclpkg security architecture](security.md) — the sandbox,
   operator hooks, and locked-down policy layered over this engine.
-- [package-loading contract](contracts/package-loading.md) — the
+- [package-loading contract](../contracts/package-loading.md) — the
   pre-existing `pkgIndex.tcl` loading path.
-- [xdg-config contract](contracts/xdg-config.md) — the XDG config and cache
+- [xdg-config contract](../contracts/xdg-config.md) — the XDG config and cache
   paths.
-- [tcl verb CLI feature](../kcs/features/kcs-feature-tcl-verb-cli.md) — the
+- [tcl verb CLI feature](../../kcs/features/kcs-feature-tcl-verb-cli.md) — the
   `tcl` CLI contracts.

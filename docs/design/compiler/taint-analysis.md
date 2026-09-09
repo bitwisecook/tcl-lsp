@@ -251,6 +251,6 @@ Every code below is a `DiagCode` variant in
 
 ## Related docs
 
-- [Example 12 in walkthroughs](../../../docs/design/example-script-walkthroughs.md#example-12-taint-analysis--httpheader-to-httprespond-subcommand-flow-and-spec)
+- [Example 12 in walkthroughs](../../../docs/design/compiler/example-walkthroughs.md#example-12-taint-analysis--httpheader-to-httprespond-subcommand-flow-and-spec)
 - [GLOSSARY.md — Taint analysis](../../GLOSSARY.md#taint-analysis)
 - [compiler-pipeline-overview.md](compiler-pipeline-overview.md)

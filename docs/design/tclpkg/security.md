@@ -1,6 +1,6 @@
 # `tcl pkg` security architecture: sandboxing, operator hooks, locked-down policy
 
-Companion to [`tclpkg-architecture.md`](tclpkg-architecture.md). This document
+Companion to [`architecture.md`](architecture.md). This document
 describes the security model of the package manager — `rust/tcl-pkg`,
 `rust/tcl-cli`, and `rust/tcl-sandbox`.
 
@@ -244,5 +244,5 @@ reasoning about a threat:
   hooks run in the language server, not in `tcl pkg`, under their own
   closed-whitelist VM and budgets. That model — and why the workspace pack
   tier loads in an untrusted workspace while `tclLsp.specPacks` does not —
-  is in [`spec-packs.md`](spec-packs.md), "Covering the hooks" and
+  is in [`spec-packs.md`](../registry/spec-packs.md), "Covering the hooks" and
   "Workspace trust".

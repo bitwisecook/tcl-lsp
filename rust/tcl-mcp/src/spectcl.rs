@@ -20,7 +20,7 @@
 //! `.tclspec` spec pack (design E §15.3, E-R13).
 //!
 //! The CLI-side `tcl spec check` / `tcl spec export` of
-//! `docs/design/spec-packs.md`, exposed to an agent instead of a terminal: a
+//! `docs/design/registry/spec-packs.md`, exposed to an agent instead of a terminal: a
 //! pack's source text in, a machine-readable account of what the loader made
 //! of it out, and — for a pack written as a *program* — its expansion back
 //! out as canonical source. They are what the `spec-author` skill calls to
@@ -447,7 +447,7 @@ impl CtxScan {
 }
 
 /// Whether a hook's answer can be memoised by `(command, word-shape)` — the
-/// **declared-inputs rule** of `docs/design/spec-packs.md`'s hot-path budget.
+/// **declared-inputs rule** of `docs/design/registry/spec-packs.md`'s hot-path budget.
 ///
 /// A hook that depends only on its declared inputs and answers the whole call
 /// site in one invocation is cacheable at 24.5 ns/call, indistinguishable from
@@ -655,7 +655,7 @@ fn shipped<'r>(
 /// command name.
 ///
 /// Shipped wins unless the declaration says `-override`
-/// (`docs/design/spec-packs.md`, "Loading and tooling"), so a collision without
+/// (`docs/design/registry/spec-packs.md`, "Loading and tooling"), so a collision without
 /// `-override` means the pack's command never reaches a query — the failure
 /// worth catching before a user reports "my spec does nothing".
 fn collision_json(cmd: &PackCommand, registry: &CommandRegistry, dialect: &str) -> Option<Value> {

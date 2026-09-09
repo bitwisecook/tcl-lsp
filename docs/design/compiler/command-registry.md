@@ -16,7 +16,7 @@ stdlib, tcllib, argparse, ticklecharts, itcl, and Tk) are built in by
 tmsh, Expect, BPF) load on demand through `load_surface`. The EDA shells are
 **not** Rust modules at all — `sdc_base` and the five vendor packs ship as
 bundled `.tclspec` loadables under `specs/` and reach a registry only through
-the `tcl-spectcl` loader (see [`../spec-packs.md`](../spec-packs.md)).
+the `tcl-spectcl` loader (see [`../registry/spec-packs.md`](../registry/spec-packs.md)).
 Registry metadata drives IR lowering, SCCP, GVN, taint, side-effects,
 diagnostics, and code completion.
 
@@ -516,7 +516,7 @@ The class's `new` / `create` constructor returns an object handle of
   instance of `class_name`; it follows scalar and array-element handles across
   the top level, procedures, and method bodies.  This is *provenance*, not the
   object→class dispatch *lattice* described in
-  [`../name-resolution.md`](../name-resolution.md) §5.6, which measured as a
+  [`../analysis/name-resolution.md`](../analysis/name-resolution.md) §5.6, which measured as a
   negative on real `TclOO` corpora (factory-return receivers dominate the ⊤
   bucket); an un-provenanced (proc-parameter) receiver is deliberately left to
   the generic shape-based option highlighting rather than resolved unsoundly.
@@ -1425,7 +1425,7 @@ The remaining packs load on demand:
    shells, which are modelled as a base Tcl version plus
    `required_package`-gated libraries rather than a surface of their own — and whose
    libraries are **bundled `.tclspec` loadables**, not compiled-in Rust
-   (`docs/design/spec-packs.md`). It installs the shared `sdc_base` library
+   (`docs/design/registry/spec-packs.md`). It installs the shared `sdc_base` library
    plus the vendor's own pack, filtered to the packages the profile ships
    ambient. Any consumer that may be handed an EDA dialect name goes through
    this door rather than the one below; the CLI, the MCP server, and the LSP
@@ -1676,7 +1676,7 @@ gap for itself.
   An EDA/vendor *library* is not a Rust module: add or edit its `.tclspec`
   under `specs/` instead — those packs are the source of truth for their
   commands and there is no generator to re-run (see
-  [`../spec-packs.md`](../spec-packs.md)).
+  [`../registry/spec-packs.md`](../registry/spec-packs.md)).
 - To add taint tracking: set `taint_source` / `taint_transform` / the
   `taint_*_sink*` fields on the spec, and the `TAINT_SOURCE` / `TAINT_SINK`
   trait bits that go with them.
@@ -1720,7 +1720,7 @@ file gets full editor support — highlighting, completion, and diagnostics
 for a misspelled trait or role — with no extra tooling. The frozen syntax
 is [`spec-dsl-examples/README.md`](../spec-dsl-examples/README.md); the
 architecture, discovery tiers, and crash-containment guarantee are
-[`spec-packs.md`](../spec-packs.md).
+[`spec-packs.md`](../registry/spec-packs.md).
 
 `tcl-spectcl` owns the parser (`loader`), the tiered discovery
 (`discovery`: studio override, workspace, user directory, bundled), pack
@@ -1746,7 +1746,7 @@ a SpecTcl pack](../../kcs/kcs-howto-write-a-tclspec-pack.md).
 
 ## Related docs
 
-- [Command infrastructure in walkthroughs](../example-script-walkthroughs.md#command-infrastructure)
+- [Command infrastructure in walkthroughs](example-walkthroughs.md#command-infrastructure)
 - [lowering-dispatch.md](lowering-dispatch.md)
 - [taint-analysis.md](taint-analysis.md)
 - [side-effects-system.md](side-effects-system.md)

@@ -360,7 +360,7 @@ a link, copies the issue body for you to paste.
 ### The Pack DSL tab
 
 Beside the form and the **Export** tab, the **Pack DSL** tab holds the
-[SpecTcl pack](../../design/spec-packs.md)'s `.tclspec` source directly —
+[SpecTcl pack](../../design/registry/spec-packs.md)'s `.tclspec` source directly —
 the studio's one authoritative document for a pack you are building.
 Edit a field in the form and the DSL text updates; edit the text and the
 form, the pack's section of the browser, and the collision report all
@@ -633,7 +633,7 @@ reasoning that produced it.
   how the schema, draft model, and renderers fit together.
 - [Dialect command stubs](../../design/contracts/dialect-stubs.md) — the stub
   language the studio emits.
-- [SpecTcl pack design](../../design/spec-packs.md) — the `.tclspec`
+- [SpecTcl pack design](../../design/registry/spec-packs.md) — the `.tclspec`
   authoring format the studio's Pack DSL tab reads and writes.
 - [How to write a SpecTcl pack](../kcs-howto-write-a-tclspec-pack.md) —
   write one by hand today.

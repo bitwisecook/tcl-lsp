@@ -1,7 +1,7 @@
 # SpecTcl — syntax specification
 
 > **Status:** implemented syntax reference for
-> [spec-packs.md](../spec-packs.md). The syntax was **designed by
+> [spec-packs.md](../registry/spec-packs.md). The syntax was **designed by
 > porting**: every construct exists because one of the eleven
 > `*.tclspec` files beside this page needed it to say something a
 > shipped spec already says.
@@ -403,7 +403,7 @@ and share a version between environments with an ordinary Tcl variable.
 `ambient_package NAME VERSION -dialects {…}` is not vocabulary; the row
 is dropped whole rather than applied everywhere, because dropping only
 the flag would leave the wider claim standing. See
-[`spec-packs.md`](../spec-packs.md), "Scoping an ambient package".
+[`spec-packs.md`](../registry/spec-packs.md), "Scoping an ambient package".
 
 ### Block statements
 

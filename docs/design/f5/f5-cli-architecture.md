@@ -37,9 +37,9 @@ separate top-level binary from the `tcl` binary.  It is a pure-Rust,
    (`src/stats.rs`), and the graph-driven analyses `src/cleanup.rs` /
    `src/grep.rs`.  The `f5 query` DSL lives in its own crate,
    `rust/tcl-bigip-query` (see
-   [`f5-query-dsl.md`](../references/f5_query/dsl.md) for grammar, value
+   [`f5-query-dsl.md`](../../references/f5_query/dsl.md) for grammar, value
    model, edit pipeline, and jq-compatibility notes, and
-   [`f5-query-dsl-builtins.md`](../references/f5_query/builtins.md) for the
+   [`f5-query-dsl-builtins.md`](../../references/f5_query/builtins.md) for the
    auto-generated per-function reference).  The verb handlers in
    `rust/f5-cli/src/commands/` are thin shells over these two crates —
    they do file I/O and argument shaping, then hand the parsed
@@ -94,7 +94,7 @@ one rewrite path.
 `IruleCommand` sub-enum in `rust/f5-cli/src/cli.rs` hosts its sub-verbs
 (`event-order`, `event-info`, `lint`, `trace`, `extract`,
 `format`, `minify`, `context`), dispatched by
-[`commands::irule::run_irule`](../../rust/f5-cli/src/commands/irule.rs);
+[`commands::irule::run_irule`](../../../rust/f5-cli/src/commands/irule.rs);
 new sub-groups follow the same nested-`Subcommand` shape. `pgo`
 (profile-guided branch-reorder suggestions) is deliberately not a
 sub-verb here — the module doc on `commands::irule` says why.
@@ -141,7 +141,7 @@ Internal layering:
 ## Reference graph
 
 Every verb that walks references uses one builder in
-[`rust/tcl-bigip/src/graph.rs`](../../rust/tcl-bigip/src/graph.rs).
+[`rust/tcl-bigip/src/graph.rs`](../../../rust/tcl-bigip/src/graph.rs).
 It returns nodes-by-URI plus edges covering both
 configuration-property references (a virtual's `pool`, a pool member's
 `monitor`, etc.) and iRule body references (`pool`,
@@ -192,7 +192,7 @@ persistence → pools → iRules → virtuals) and renders each object as a
 single `tmsh create` (or `--modify`) command.  Properties not modelled
 by `BigipConfig` are recovered from the original SCF stanza text via the
 canonical block emitter in
-[`rust/tcl-bigip/src/canonical.rs`](../../rust/tcl-bigip/src/canonical.rs),
+[`rust/tcl-bigip/src/canonical.rs`](../../../rust/tcl-bigip/src/canonical.rs),
 so iRule bodies, monitor send/recv strings, and similar arbitrary
 content survive the round-trip verbatim.
 

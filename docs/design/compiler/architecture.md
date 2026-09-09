@@ -12,17 +12,17 @@ produces Tcl-compatible assembly for identity testing against reference
 
 For targeted maintenance tasks, prefer these focused KCS notes before editing this file:
 
-- [compiler design index](compiler/README.md)
+- [compiler design index](README.md)
 
-- [compiler-pipeline-overview.md](compiler/compiler-pipeline-overview.md)
-- [lowering-contracts.md](compiler/lowering-contracts.md)
-- [cfg-ssa-fact-model.md](compiler/cfg-ssa-fact-model.md)
-- [diagnostics-integration.md](compiler/diagnostics-integration.md)
-- [compilation-unit-contracts.md](compiler/compilation-unit-contracts.md)
-- [downstream-pass-contracts.md](compiler/downstream-pass-contracts.md)
-- [async-diagnostics-tiering.md](compiler/async-diagnostics-tiering.md)
-- [bytecode-boundary.md](compiler/bytecode-boundary.md)
-- [kcs-howto-add-compiler-pass.md](../kcs/kcs-howto-add-compiler-pass.md)
+- [compiler-pipeline-overview.md](compiler-pipeline-overview.md)
+- [lowering-contracts.md](lowering-contracts.md)
+- [cfg-ssa-fact-model.md](cfg-ssa-fact-model.md)
+- [diagnostics-integration.md](diagnostics-integration.md)
+- [compilation-unit-contracts.md](compilation-unit-contracts.md)
+- [downstream-pass-contracts.md](downstream-pass-contracts.md)
+- [async-diagnostics-tiering.md](async-diagnostics-tiering.md)
+- [bytecode-boundary.md](bytecode-boundary.md)
+- [kcs-howto-add-compiler-pass.md](../../kcs/kcs-howto-add-compiler-pass.md)
 
 ## Pipeline overview
 
@@ -131,7 +131,7 @@ semicolon.  The segmenter groups the flat token stream into per-command
 structures.
 
 `segment_commands()` builds the canonical lossless
-[red-green concrete syntax tree](compiler/syntax-tree.md) for the region and
+[red-green concrete syntax tree](syntax-tree.md) for the region and
 *derives* the `SegmentedCommand` list from it.  The tree is the single
 representation the formatter, minifier, AOT lowering, and per-command tooling
 are migrating onto.
@@ -523,8 +523,8 @@ Key types:
 - `SsaStatement` — an `ir::Statement` plus its `uses` and `defs` version maps,
   with two refinement sets over them, `may_defs` and `quoted_uses`.  What each
   refines and which pass may read it is specified in
-  [ssa-construction.md](compiler/ssa-construction.md) and
-  [def-use-chains.md](compiler/def-use-chains.md).
+  [ssa-construction.md](ssa-construction.md) and
+  [def-use-chains.md](def-use-chains.md).
 
 ### 8. Core Analyses
 
@@ -568,7 +568,7 @@ flowchart BT
 `ConstSet` is the union of two or more distinct `Const`s — the shape a phi at
 a merge of `if` / `switch` arms produces.  The cap, the widening rule and the
 propagation table are in
-[sccp-core-analyses.md](compiler/sccp-core-analyses.md).
+[sccp-core-analyses.md](sccp-core-analyses.md).
 
 Branch conditions are evaluated against the lattice.  If a branch condition
 is `Const`, only the taken edge is added to `SccpResult::executable_edges` —
@@ -628,7 +628,7 @@ Summaries describe:
 - **Opacity** — `has_barrier` and `has_unknown_calls`, the two reasons a
   summary must be read as conservative rather than complete
 - **Argument traits** — `param_traits`, the per-parameter `ProcArgTrait` sets
-  that [proc-arg-traits.md](contracts/proc-arg-traits.md) specifies
+  that [proc-arg-traits.md](../contracts/proc-arg-traits.md) specifies
 
 `InterproceduralAnalysis` holds `procedures` and `methods` side by side; a
 `MethodSummary` embeds a whole `ProcSummary` as `base` and adds the `TclOO`
@@ -646,7 +646,7 @@ and the taint analysis uses them for cross-procedure taint propagation.
 facts consumed across diagnostics and downstream passes. For operational contracts,
 cache semantics, and regression anchors, use:
 
-- [compilation-unit-contracts.md](compiler/compilation-unit-contracts.md)
+- [compilation-unit-contracts.md](compilation-unit-contracts.md)
 
 ```mermaid
 flowchart TD
@@ -704,8 +704,8 @@ All downstream passes consume the `CompilationUnit` and produce typed warnings
 converted by the diagnostics provider. Contract details, ownership guidance,
 and pass/test anchors are tracked in:
 
-- [downstream-pass-contracts.md](compiler/downstream-pass-contracts.md)
-- [kcs-howto-add-compiler-pass.md](../kcs/kcs-howto-add-compiler-pass.md)
+- [downstream-pass-contracts.md](downstream-pass-contracts.md)
+- [kcs-howto-add-compiler-pass.md](../../kcs/kcs-howto-add-compiler-pass.md)
 
 ```mermaid
 flowchart LR
@@ -732,8 +732,8 @@ The aggregation layer is the policy boundary that merges analyser and pass
 findings, applies suppression / disable rules, and converts to LSP
 diagnostics. Integration contracts live in:
 
-- [diagnostics-integration.md](compiler/diagnostics-integration.md)
-- [async-diagnostics-tiering.md](compiler/async-diagnostics-tiering.md)
+- [diagnostics-integration.md](diagnostics-integration.md)
+- [async-diagnostics-tiering.md](async-diagnostics-tiering.md)
 
 ```mermaid
 flowchart TD
@@ -796,7 +796,7 @@ implementation.
 
 Tiered publishing and cancellation rules are maintained in:
 
-- [async-diagnostics-tiering.md](compiler/async-diagnostics-tiering.md)
+- [async-diagnostics-tiering.md](async-diagnostics-tiering.md)
 
 ```mermaid
 flowchart TD

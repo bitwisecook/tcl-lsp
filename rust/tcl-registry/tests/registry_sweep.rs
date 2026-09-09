@@ -83,7 +83,7 @@ use tcl_registry::{
 /// installed** — the sweep's stand-in for [`tcl_registry::registry_for_dialect`].
 ///
 /// The EDA vendor libraries are bundled loadables now (`sdc_base` and the five
-/// vendor packs have no Rust modules; `docs/design/spec-packs.md`), so the
+/// vendor packs have no Rust modules; `docs/design/registry/spec-packs.md`), so the
 /// plain per-profile registry no longer carries a `get_cells` or a
 /// `synth_design` at all. Routing the sweep through the pack loader is what
 /// keeps those ~350 specs under every accessor assertion below — and it means
@@ -228,7 +228,7 @@ fn assert_arity_consistent(a: Arity, what: &str) {
 /// Assert the invariants of a versioned-arity window list (issue #1627).
 ///
 /// Windows are a *shipped-spec hard gate* here, matching every other lifecycle
-/// (`docs/design/spec-packs.md`, "Ordering and containment"): a pack degrades
+/// (`docs/design/registry/spec-packs.md`, "Ordering and containment"): a pack degrades
 /// with a notice, a compiled-in spec fails the suite.
 ///
 /// Four properties, each a way a window set can be meaningless rather than

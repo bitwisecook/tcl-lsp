@@ -1206,7 +1206,7 @@ mod tests {
 
     /// The word-form operators are an `f5-tcl` **trunk** fact — measured
     /// valid in tmsh and iApp `expr` too, not iRules-only
-    /// (`docs/design/bigip-irule-parser-measurements.md` §4a) — so any
+    /// (`docs/design/f5/bigip-irule-parser-measurements.md` §4a) — so any
     /// F5Tcl-cored profile parses them, while plain Tcl stays byte-identical
     /// (the same source degrades to `Raw`, exactly as before).
     #[test]
