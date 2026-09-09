@@ -442,7 +442,7 @@ pub fn collect_forensics(files: &[J], rules: &[J]) -> J {
         }));
     }
 
-    // ---- Checklist findings (most severe first is applied in the UI) -------
+    // Checklist findings; most severe first is applied in the UI.
     let mut checklist: Vec<J> = Vec::new();
 
     // SSH authorized_keys — key-based persistence.

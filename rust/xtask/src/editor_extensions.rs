@@ -234,14 +234,14 @@ fn languages() -> Result<Vec<Language>> {
 /// The basename axis is contributed **twice**, on purpose. `filenames` is an
 /// exact, case-*sensitive* match on a case-sensitive filesystem, while the
 /// catalogue and the server deliberately compare basenames case-insensitively
-/// — so a `BIGIP.CONF` matched nothing, opened as plaintext, and never even
-/// activated the extension, leaving the client's own case-insensitive lookup
-/// unreachable (issue #1625, review finding P2-2).
+/// — so on `filenames` alone a `BIGIP.CONF` would match nothing, open as
+/// plaintext, and never even activate the extension, leaving the client's
+/// own case-insensitive lookup unreachable.
 ///
-/// `filenamePatterns` is the fix, folding case per character rather than by
+/// `filenamePatterns` folds case per character rather than
 /// listing variants: `bigip.conf` has 2^9 casings, and the `[bB]` class
 /// matches all of them exactly with no extra matches. It is the same trick the
-/// `workspaceContains` activation glob uses for the same reason (issue #1215),
+/// `workspaceContains` activation glob uses for the same reason,
 /// from the same registry helper, so the two can never disagree.
 ///
 /// `filenames` stays beside it because it is the axis VS Code shows in
@@ -377,12 +377,12 @@ fn render_vscode_package(original: &str, langs: &[Language]) -> Result<String> {
 /// (`onChatParticipant:`, the generated `workspaceContains:` glob that
 /// `gen-vscode-package` owns) untouched and in place.
 ///
-/// Hand-written, this list carried 16 of the 19 contributed languages: a lone
-/// `.tmsh` or `.tclspec` file activated nothing at all, because `onLanguage:`
+/// A hand-written list can silently drop languages: `onLanguage:`
 /// is the only activation path an opened file takes — `workspaceContains:`
 /// covers the workspace-*scan* path and, for `.tmsh`, does not even list the
-/// extension (issue #1625). A language contributed but never named here is
-/// exactly the failure the drift gate now catches.
+/// extension. A lone `.tmsh` or `.tclspec` file with no `onLanguage:` entry
+/// activates nothing at all, which is exactly the failure the drift gate
+/// catches.
 fn set_on_language_events(manifest: &mut Value, all_ids: &[&str]) -> Result<()> {
     let events = manifest
         .get_mut("activationEvents")
@@ -684,8 +684,8 @@ fn render_zed(original: &str, langs: &[Language]) -> Result<String> {
 /// Helix has no extension of its own: its support is a block of `languages.toml`
 /// users copy out of the README, one `[[language]]` entry per dialect. So the
 /// README *is* the configuration surface, and a stale `file-types` line there
-/// is a real routing bug rather than a documentation nit — it was missing
-/// `scf` and `test` (issue #1625).
+/// is a real routing bug rather than a documentation nit: a missing
+/// extension there is a file Helix never opens as Tcl.
 ///
 /// Every `[[language]]` block whose `name` is a catalog dialect (or plain
 /// `tcl`) has its `file-types` rewritten from the catalog; a dialect that owns
@@ -737,7 +737,7 @@ fn render_helix_readme(original: &str, langs: &[Language]) -> Result<String> {
 /// The generic-client extension lists in the installation guide — Vim/Neovim
 /// `au BufRead`, coc-settings' `fileExtensions`, and the Lua `file_patterns`.
 ///
-/// Four identical stale nine-item lists, hand-maintained (issue #1625). They
+/// Four identical nine-item lists, hand-maintained. They
 /// are configuration users paste, so a missing entry is a client that never
 /// attaches, not a documentation nit.
 ///

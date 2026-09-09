@@ -23,7 +23,7 @@
 //! (see [`Vm::qualify_name`]/[`Vm::lookup_command`]). The introspection
 //! subcommands (`current`, `qualifiers`, `tail`, `parent`, `children`,
 //! `exists`) operate on canonical names; `export`/`import` are accepted as
-//! no-ops for now (the codegen already records export/import metadata).
+//! no-ops (the codegen already records export/import metadata).
 
 use tcl_dialect::model::SurfaceQuery;
 use tcl_runtime_api::completion_options::ControlOptionPolicy;
@@ -219,8 +219,8 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             let name = words[name_index].clone();
             if kind == tcl_cmd_core::namespace::WhichKind::Variable {
                 // `Tcl_FindNamespaceVar` semantics via the shared core: the
-                // namespace variable tables only, never the call frame (the VM
-                // used to gate on `exists_var`, which walks proc locals).
+                // namespace variable tables only, never the call frame. Gating
+                // on `exists_var` instead would walk proc locals too.
                 ok(tcl_cmd_core::namespace::which_variable(vm, &name, profile))
             } else {
                 ok(tcl_cmd_core::namespace::which_command(vm, &name))
@@ -813,8 +813,7 @@ fn ns_inscope(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 /// (`namespace eval`'s plain space-join is right for *its* concat semantics;
 /// `inscope` is the one family member that list-quotes — the registry models
 /// the split as `SCRIPT_APPENDS_LIST_ARGS` refining `SCRIPT_CONCATENATES_ARGS`.
-/// Issue #1056: the VM used to space-join here too, so `{x y}` became two
-/// arguments.)
+/// Space-joining here too would turn `{x y}` into two arguments.)
 ///
 /// Both halves reuse the canonical implementations rather than re-deriving
 /// them: the list's string rep comes from `Value::list`'s

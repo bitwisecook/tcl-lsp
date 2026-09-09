@@ -599,15 +599,14 @@ fn my_dispatch_resolves_when_class_extended_via_separate_oo_define() {
     );
 }
 
-/// idx 70 (differential-audit main audit wave, high severity, pix corpus):
-/// the real, unmodified `docs/pixdoc.tcl` shape — a parallel/lock-step
+/// The real, unmodified `docs/pixdoc.tcl` shape — a parallel/lock-step
 /// multi-list `foreach dirName {...} name {...} {...}` followed, ~300
 /// lines later, by a wholly unrelated `foreach name {...}` reusing the
-/// same bare name. `handle_foreach_command` only ever bound the *first*
-/// varList, so the first loop's own `name` was never a tracked variable at
-/// all — go-to-definition on any `$name` use inside the first loop's body
-/// silently resolved to the coincidentally same-named second loop instead,
-/// ~300 lines away in the wrong part of the file.
+/// same bare name. `handle_foreach_command` must bind every varList, not
+/// just the first, or the first loop's own `name` is never a tracked
+/// variable and go-to-definition on any `$name` use inside the first
+/// loop's body silently resolves to the coincidentally same-named second
+/// loop instead, ~300 lines away in the wrong part of the file.
 #[test]
 fn multi_list_foreach_name_resolves_to_its_own_loop_not_a_later_unrelated_one() {
     let mut lsp = Lsp::tcl();
@@ -628,15 +627,14 @@ fn multi_list_foreach_name_resolves_to_its_own_loop_not_a_later_unrelated_one() 
     );
 }
 
-/// idx 84 (differential-audit main audit wave, high severity, tk corpus):
-/// the real `tk/library/systray.tcl` (and `print.tcl`, `fileicon.tcl`,
+/// The real `tk/library/systray.tcl` (and `print.tcl`, `fileicon.tcl`,
 /// `accessibility.tcl`) idiom splices `systray` into the pre-existing,
 /// registry-builtin `tk` ensemble at runtime via `namespace ensemble
 /// configure tk -map [dict merge [namespace ensemble configure tk -map]
 /// {systray ::tk::systray}]` — a `CONFIGURE`, not `CREATE`, statement,
-/// previously invisible to the analyser. tclsh9.0/8.6 both proved `tk
-/// systray create` really calls `::tk::systray`; the LSP instead fell
-/// through to `fallback_proc_by_simple_name` and wrongly resolved to a
+/// which the analyser must not treat as invisible. tclsh 9.0/8.6 both
+/// prove `tk systray create` really calls `::tk::systray`; falling
+/// through to `fallback_proc_by_simple_name` would wrongly resolve to a
 /// same-tail-name decoy proc in an unrelated namespace.
 #[test]
 fn tk_ensemble_configure_splice_resolves_to_the_real_target_not_a_decoy() {
@@ -657,18 +655,17 @@ fn tk_ensemble_configure_splice_resolves_to_the_real_target_not_a_decoy() {
     );
 }
 
-/// idx 86 (differential-audit main audit wave, high severity, tk corpus):
-/// the real `tk/library/accessibility.tcl` idiom renames each classic
+/// The real `tk/library/accessibility.tcl` idiom renames each classic
 /// widget command away and reinstalls a wrapper proc under the same
 /// original name, once per element of a literal `foreach` list —
 /// `foreach wtype {button entry ...} { rename ::$wtype ::tk::accessible::
-/// orig_$wtype ; proc ::$wtype {args} {...} }`. tclsh9.0/8.6 both prove
+/// orig_$wtype ; proc ::$wtype {args} {...} }`. tclsh 9.0/8.6 both prove
 /// `button` is the *new* wrapper afterwards; the old body survives only as
-/// `::tk::accessible::orig_button`. The dynamic `$wtype` name previously
-/// never attempted constant-folding at all (unlike `rename`'s own operands,
-/// fixed for idx 3), so both `rename` and `proc` registered under garbled
-/// literal text instead — go-to-definition on a `button` call site fell
-/// through to the stale, pre-rename `proc button` declaration.
+/// `::tk::accessible::orig_button`. The dynamic `$wtype` name must be
+/// constant-folded the same as `rename`'s own operands, or both `rename`
+/// and `proc` register under garbled literal text and go-to-definition on
+/// a `button` call site falls through to the stale, pre-rename `proc
+/// button` declaration.
 #[test]
 fn foreach_rename_reinstall_idiom_resolves_to_the_wrapper_not_the_stale_original() {
     let mut lsp = Lsp::tcl();
@@ -688,7 +685,7 @@ fn foreach_rename_reinstall_idiom_resolves_to_the_wrapper_not_the_stale_original
     );
 }
 
-/// Issue #1064 / #1062's deferred B1: go-to-definition follows a `rename`.
+/// Go-to-definition follows a `rename`.
 /// tclsh 9.0.4 and 8.6.16 both prove `hello` runs `greet`'s body after
 /// `rename greet hello` (and that `greet` is then `invalid command name`),
 /// so the call site's declaration is the original `proc greet` header.
@@ -729,7 +726,7 @@ fn definition_declines_a_rename_written_after_the_call_end_to_end() {
     );
 }
 
-/// idx 89 (differential-audit main audit wave): `interp alias {} NAME {}
+/// `interp alias {} NAME {}
 /// TARGET` silently *replaces* an existing command of that name — the real
 /// `tk/library/accessibility.tcl` `interp alias {} ::ttk::spinbox {}
 /// ::tk::spinbox` trick. tclsh 9.0.4 and 8.6.16 both print `classic
@@ -753,7 +750,7 @@ fn definition_prefers_an_alias_over_the_proc_it_replaced_end_to_end() {
     );
 }
 
-/// idx 45 (differential-audit main audit wave): a proc redefined later in the
+/// A proc redefined later in the
 /// same document is two definitions sharing one name. tclsh 9.0.4 and 8.6.16
 /// both prove the call *between* them runs the first body, so it must
 /// resolve to the first header even though the map keeps only the second.
@@ -781,10 +778,9 @@ fn definition_between_two_declarations_reaches_the_first_end_to_end() {
     );
 }
 
-/// idx 90 (differential-audit main audit wave, high severity): `tcl::OptProc`
-/// had no `AnalyserHookId` at all, so go-to-definition from a real call
-/// site fell through to nothing (the stub proc's stale, unresolved
-/// `ProcDef` never got overwritten).
+/// `tcl::OptProc` needs its own `AnalyserHookId` — without one,
+/// go-to-definition from a real call site falls through to nothing (the
+/// stub proc's stale, unresolved `ProcDef` is never overwritten).
 #[test]
 fn opt_proc_call_site_resolves_to_its_declaration_end_to_end() {
     let mut lsp = Lsp::tcl();
@@ -804,8 +800,7 @@ fn opt_proc_call_site_resolves_to_its_declaration_end_to_end() {
     );
 }
 
-// -- the `source` graph orders what the file boundary did not (issue #1104
-//    item 3, #1116 item 6) --
+// The `source` graph orders what the file boundary did not.
 //
 // Sourcing a file inlines its whole body at the `source` statement's
 // position, so the DFS of the `source` forest *is* the run order and an
@@ -938,8 +933,8 @@ fn find_references_agrees_with_the_source_order() {
 fn a_computed_source_path_keeps_the_pre_graph_abstention_end_to_end() {
     // TN for the deliberate abstention: `source $dir/exp.tcl` names no
     // document statically, so no edge is built and the export goes back to
-    // being unrankable — which keeps answering, the pre-#1104-item-3
-    // behaviour. Same document text as the FP guard above otherwise.
+    // being unrankable — the same as when no `source` graph exists at all.
+    // Same document text as the FP guard above otherwise.
     let mut lsp = Lsp::tcl();
     let (mod_uri, exp_uri, imp_uri, app_uri) = source_order_uris("computed");
     lsp.open_ready(
@@ -964,7 +959,7 @@ fn a_computed_source_path_keeps_the_pre_graph_abstention_end_to_end() {
     assert_eq!(locs[0].uri, mod_uri);
 }
 
-// Issue #1116 item 1 — the in-document `-force` shadow needs whole-program
+// The in-document `-force` shadow needs whole-program
 // export knowledge.
 //
 // `PARTLY_OBSERVABLE_MAIN` below is one document, byte-for-byte identical in
@@ -1081,7 +1076,7 @@ fn a_forced_import_from_a_wholly_foreign_namespace_shadows_end_to_end() {
     assert_eq!(start_line(&locs[0]), 1);
 }
 
-// Issue #1116 item 1 — every provider the export oracle was threaded through,
+// Every provider the export oracle was threaded through,
 // end to end over the packaged server.
 //
 // `SHADOW_MAIN` is byte-identical in both directions; only the sibling
@@ -1227,19 +1222,18 @@ fn the_server_hands_code_actions_the_shadow_answer() {
     );
 }
 
-/// Issue #923 differential-audit finding idx 43 — `ticklecharts`' `etypes.tcl`
+/// `ticklecharts`' `etypes.tcl`
 /// shape: a `namespace ensemble create -command ::new -subcommands {…}` whose
 /// implementing procs are installed by a `foreach` loop through a substituted
 /// name (`proc ticklecharts::${ptype} …`).
 ///
-/// Oracle (tclsh 9.0.4 and 8.6.16, identical): `new elist {1 2 3}` prints
+/// tclsh 9.0.4 and 8.6.16 agree: `new elist {1 2 3}` prints
 /// `elist {1 2 3}` and `new edict {k v}` prints `edict {k v}`, so every
 /// literal loop element really does become a callable command.
 ///
-/// The analyser's `all_procs` table is pinned by a unit test; nothing checked
-/// that the LSP-facing consumers (go-to-definition, diagnostics, the outline)
-/// read it correctly for a loop-generated name — which is where all three of
-/// the finding's reported symptoms lived.
+/// The analyser's `all_procs` table is pinned by a unit test; this checks
+/// that the LSP-facing consumers (go-to-definition, diagnostics, the
+/// outline) also read it correctly for a loop-generated name.
 #[test]
 fn foreach_generated_ensemble_subcommands_navigate_and_outline_923_idx43() {
     let mut lsp = Lsp::tcl();

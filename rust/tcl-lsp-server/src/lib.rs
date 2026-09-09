@@ -32802,7 +32802,7 @@ mod tests {
         );
     }
 
-    /// Issue #923 idx 80 — TP + TN: a `tcl::mathfunc` proc declared in a
+    /// TP + TN: a `tcl::mathfunc` proc declared in a
     /// sibling document makes a bare `Pi()` inside `expr` resolvable
     /// cross-file, so W123 must not fire on it — **with the toggle at its
     /// default (off) as well as on**, because `::tcl::mathfunc::Pi` is one
@@ -32875,7 +32875,7 @@ mod tests {
         );
     }
 
-    /// Issue #923 idx 80, the precision control for the always-on tier: it
+    /// The precision control for the always-on tier: it
     /// matches the call site's own `Tcl_FindCommand` candidates, never a bare
     /// tail.  A sibling `proc ::helpers::Pi` puts the tail `Pi` into the
     /// workspace index without putting `::tcl::mathfunc::Pi` there, and
@@ -33000,7 +33000,7 @@ mod tests {
         );
     }
 
-    /// Fix #2: the pull path must apply the #723 W120 package refinement that the
+    /// The pull path must apply the same W120 package refinement the
     /// push path applies, so a workspace whose package database proves a required
     /// package transitively provides the flagged package suppresses the false
     /// W120.  POSITIVE: with a resolver proving `http` is transitively available,
@@ -33080,7 +33080,7 @@ mod tests {
         );
     }
 
-    /// Issue #832 (the reported bug): a command defined in a library on the
+    /// A command defined in a library on the
     /// `auto_path` — a `tclIndex` auto-loads it by bare name, the BLT/Rbc idiom —
     /// must NOT be flagged "Unknown command" (W123), *with `xcDiagnostics` and
     /// `crossFileResolution` both left off* (their default), because the
@@ -33151,7 +33151,7 @@ mod tests {
         );
     }
 
-    /// Issue #832 secondary path: a `pkgIndex`-only package (no `tclIndex`) whose
+    /// Secondary path: a `pkgIndex`-only package (no `tclIndex`) whose
     /// implementation defines the command, made available to a sourced module by
     /// an entry file's `package require`, suppresses the module's W123. The
     /// package's source files are consulted through the analyser's
@@ -33217,7 +33217,7 @@ mod tests {
         );
     }
 
-    /// #804: a module `source`d by an entry file that ran `package require`
+    /// A module `source`d by an entry file that ran `package require`
     /// inherits that require, so the sourced module's W120 for the same package
     /// is suppressed by the automatic workspace `source` graph — no config.
     #[tokio::test]
@@ -33276,7 +33276,7 @@ mod tests {
         );
     }
 
-    /// #804: an explicitly configured `[project] entryPoints` makes that entry
+    /// An explicitly configured `[project] entryPoints` makes that entry
     /// file's requires available project-wide even when it does NOT `source` the
     /// module — and it disables the automatic source-graph path.
     #[tokio::test]
@@ -33378,7 +33378,7 @@ mod tests {
         );
     }
 
-    /// Issue #923 idx 73 — TP: a file's own `lappend auto_path [file dirname
+    /// TP: a file's own `lappend auto_path [file dirname
     /// [file dirname [info script]]]` must feed the package database, so the
     /// repo-local package it points at resolves even when the workspace root
     /// is the `examples/` subfolder that does **not** enclose it.
@@ -33441,7 +33441,7 @@ mod tests {
         );
     }
 
-    /// Issue #923 idx 73 — TP end to end: with the package directory outside
+    /// TP end to end: with the package directory outside
     /// the workspace root, go-to-definition on a command the required package
     /// provides resolves through the package tier
     /// (`ensure_required_packages_indexed`) seeded by the file's own
@@ -33492,10 +33492,10 @@ mod tests {
         );
     }
 
-    /// Issue #923 idx 73 — the depth `pix` itself writes: **three** nested
-    /// `file dirname`s, reaching two directories above the analysed file.
-    /// The committed tests are one level shallower, and the evaluator is
-    /// recursive, so this is about the layout rather than the arithmetic: a
+    /// The depth a real project writes: **three** nested `file dirname`s,
+    /// reaching two directories above the analysed file.  The other tests are
+    /// one level shallower, and the evaluator is recursive, so this is about
+    /// the layout rather than the arithmetic: a
     /// deeply-nested `examples/subdir/user.tcl` whose package lives at the
     /// repo root, with the workspace root scoped to the leaf directory.
     ///
@@ -33531,7 +33531,7 @@ mod tests {
         );
     }
 
-    /// Issue #923 idx 41's incidental finding: a *relative* `auto_path` entry
+    /// A *relative* `auto_path` entry
     /// (`lappend auto_path lib`) resolves against the interpreter's working
     /// directory at run time, which no static analysis knows — so it must be
     /// anchored on the analysed document's own directory, never on the
@@ -33583,7 +33583,7 @@ mod tests {
         );
     }
 
-    /// Issue #1090 — end to end across documents: which *release* of a
+    /// End to end across documents: which *release* of a
     /// multi-version package go-to-definition lands in.
     ///
     /// Three providers of `widget` (2.0, 2.3 and 1.5) each define
@@ -33673,7 +33673,7 @@ mod tests {
         }
     }
 
-    /// PR #1086 finding 2 — TP: `set auto_path` assigns a **list**, so every
+    /// TP: `set auto_path` assigns a **list**, so every
     /// element becomes a search directory; TN: a brace-quoted element holding
     /// a space stays exactly one directory.
     ///
@@ -33726,7 +33726,7 @@ mod tests {
         );
     }
 
-    /// PR #1086 finding 3 — TP: with two releases of one package on the search
+    /// TP: with two releases of one package on the search
     /// path, the document's own `package require NAME VERSION` decides which
     /// one go-to-definition navigates into.
     ///
@@ -33787,10 +33787,9 @@ mod tests {
         );
     }
 
-    /// Issue #923 idx 72 — TP: a `load`-only `pkgIndex.tcl` whose directory
-    /// holds no companion `.tcl` is still a declared package, so `provides`
-    /// answers `true` and requiring it no longer erases every other W120 in
-    /// the document.
+    /// TP: a `load`-only `pkgIndex.tcl` whose directory holds no companion
+    /// `.tcl` is still a declared package, so `provides` answers `true` and
+    /// requiring it does not erase every other W120 in the document.
     #[test]
     fn load_only_pkg_index_declares_a_known_package() {
         let dir = Path::new("/pkg");
@@ -33824,8 +33823,8 @@ mod tests {
         );
     }
 
-    /// Issue #923 idx 72 — TN: requiring a `load`-only package must no longer
-    /// suppress an unrelated W120 elsewhere in the same document.
+    /// TN: requiring a `load`-only package must not suppress an unrelated
+    /// W120 elsewhere in the same document.
     #[test]
     fn requiring_a_load_only_package_keeps_other_w120s() {
         let ws = TmpWs::new("loadonly");
@@ -33907,7 +33906,7 @@ mod tests {
 
     /// The `VS Code` extension contributes *undotted* version-pinned language
     /// ids (`tcl84` … `tcl91`) because a dotted id cannot carry a
-    /// `configurationDefaults` override (issue #1122). Every other editor
+    /// `configurationDefaults` override. Every other editor
     /// integration still sends the dotted form, so both spellings must resolve
     /// to the same dialect.
     #[test]
@@ -33954,10 +33953,10 @@ mod tests {
         }
     }
 
-    /// The full input set the hand-maintained language-id table used to accept,
-    /// with the dialect each input resolved to. The table is now catalog-driven
-    /// (plus a fallback for the spellings the catalog has no field for), and
-    /// every one of these inputs must still resolve identically.
+    /// The full input set the language-id table accepts, with the dialect each
+    /// input resolves to. The table is catalog-driven (plus a fallback for the
+    /// spellings the catalog has no field for), and every one of these inputs
+    /// must resolve exactly as listed.
     #[test]
     fn dialect_from_language_id_accepts_every_legacy_spelling() {
         for (language_id, dialect) in [
@@ -34347,11 +34346,10 @@ mod tests {
         }
     }
 
-    // ---- Document-lifecycle + diagnostic-core internals -------------------
-    // These exercise the previously-untested lifecycle path: the
+    // Document-lifecycle + diagnostic-core internals: the
     // `did_open` / `did_change` / `did_close` handlers and the synchronous
-    // diagnostic driver `publish_analyser_diagnostics` → `run_diagnostics_core`
-    // (the biggest untested function), asserting on observable state
+    // diagnostic driver `publish_analyser_diagnostics` → `run_diagnostics_core`,
+    // asserting on observable state
     // (`documents`, `pull_diag_cache`) since the test client's socket is
     // detached so published notifications are no-ops.
 
@@ -34607,7 +34605,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn did_close_removes_document_and_clears_pull_cache() {
-        // `file:///close.tcl` has no on-disk source, so #865's closed-file
+        // `file:///close.tcl` has no on-disk source, so the closed-file
         // republish finds nothing to analyse and falls back to clearing the
         // badge — the untitled / deleted-file path.
         let backend = test_backend();
@@ -34636,11 +34634,11 @@ mod tests {
         );
     }
 
-    /// #1144: `diag_slots` must shrink when a document closes.  Every URI ever
-    /// scheduled used to keep its slot — and with it a [`DiagInputs`] holding
-    /// per-URI clones of the disabled / extra-command / severity-override /
-    /// entry-point sets — for the process's life, so browsing a workspace grew
-    /// the map without bound.
+    /// `diag_slots` must shrink when a document closes.  Keeping the slot for
+    /// every URI ever scheduled would retain a [`DiagInputs`] — per-URI clones
+    /// of the disabled / extra-command / severity-override / entry-point sets —
+    /// for the process's life, so browsing a workspace would grow the map
+    /// without bound.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn did_close_drops_the_diagnostics_slot() {
         let backend = test_backend();
@@ -34675,10 +34673,10 @@ mod tests {
         );
     }
 
-    /// #1144: the closed-file badge cache is bounded.  #865 keeps a closed
-    /// file's diagnostics, but every entry used to live for the process's life,
-    /// so browsing a large tree retained a `Vec<Diagnostic>` per file ever
-    /// opened.  Past [`CLOSED_DIAG_BADGE_CAP`] the least-recently-published
+    /// The closed-file badge cache is bounded.  A closed file keeps its
+    /// diagnostics, so without a cap browsing a large tree would retain a
+    /// `Vec<Diagnostic>` per file ever opened for the process's life.  Past
+    /// [`CLOSED_DIAG_BADGE_CAP`] the least-recently-published
     /// closed entry is evicted from both `pull_diag_cache` and `closed_diag_gen`.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn closed_diag_badge_cache_is_capped() {
@@ -34718,14 +34716,14 @@ mod tests {
         assert!(cache.contains_key(&uri_at(total - 1)), "newest badge kept");
     }
 
-    /// #1144: the inline closed-file republish must not memoise the deep
-    /// compiler tier.  `did_close` runs `run_diagnostics_core` synchronously for
-    /// every file the editor ever opened; routing that through the salsa
-    /// `SourceFile` pinned the file's `compilation_unit` (IR/CFG/SSA) and
+    /// The inline closed-file republish must not memoise the deep compiler
+    /// tier.  `did_close` runs `run_diagnostics_core` synchronously for every
+    /// file the editor ever opened; routing that through the salsa `SourceFile`
+    /// would pin the file's `compilation_unit` (IR/CFG/SSA) and
     /// `compiler_check_diagnostics` memos, which salsa cannot evict — the
-    /// unbounded term that OOM-killed the server on a workspace browse.  The
-    /// badge itself (#865) is unchanged: the same diagnostics, computed
-    /// uncached and thrown away.
+    /// unbounded term that exhausts memory on a workspace browse.  The badge
+    /// itself is unaffected: the same diagnostics, computed uncached and thrown
+    /// away.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn closed_file_republish_does_not_memoise_the_deep_compiler_tier() {
         let root = unique_scratch_dir("close-no-deep-memo");
@@ -34768,7 +34766,7 @@ mod tests {
             deep.is_empty(),
             "a closed file's republish must not build memoised deep-tier queries: {deep:?}",
         );
-        // …and it still produces the badge #865 promises.
+        // …and it still produces the closed-file badge.
         let cache = backend.pull_diag_cache.lock().await;
         let entry = cache.get(&uri).expect("closed on-disk file keeps a badge");
         assert!(
@@ -34783,7 +34781,7 @@ mod tests {
         std::fs::remove_dir_all(&root).ok();
     }
 
-    /// #1144: an **open** document is exempt from the closed-badge cap — its
+    /// An **open** document is exempt from the closed-badge cap — its
     /// cache entry is owned by the open pipeline and must survive an eviction
     /// sweep that happens to reach its URI.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -34815,23 +34813,19 @@ mod tests {
         );
     }
 
-    /// #104 regression: reopening a document after the diagnostics master
-    /// switch (`tclLsp.features.diagnostics`) was turned off *while the file
-    /// was closed* must analyse under the current (off) switch and clear the
+    /// Reopening a document after the diagnostics master switch
+    /// (`tclLsp.features.diagnostics`) was turned off *while the file was
+    /// closed* must analyse under the current (off) switch and clear the
     /// squiggles — not republish the file's pre-toggle diagnostics.
     ///
-    /// Root cause: `did_close` used to retain the URI's [`DiagSlot`] (only the
-    /// live document and index entry were dropped), so `slot.latest_inputs` kept
-    /// the `diagnostics_enabled = true` captured on the pre-close analysis.
-    /// `did_open` used to take the reuse-cached-inputs fast path
-    /// (`schedule_diagnostics`, `force_refresh = false`), so the reopen's worker
-    /// drained under those stale on-switch inputs and republished the diagnostics
-    /// even though the master switch was now off (the `test-ext` `#104` flake,
-    /// which only lined up under full-suite load). Opening a document is a
-    /// config-context boundary, so it now force-refreshes the inputs; the slot's
-    /// post-reopen `diagnostics_enabled` reflecting the *current* toggle proves
-    /// it.  (#1144 additionally releases the slot on close, so the stale inputs
-    /// are gone by then too — belt and braces for the same bug.)
+    /// A retained [`DiagSlot`] keeps the `diagnostics_enabled = true` captured
+    /// on the pre-close analysis, and the reuse-cached-inputs fast path
+    /// (`schedule_diagnostics`, `force_refresh = false`) would drain the
+    /// reopen's worker under those stale on-switch inputs.  Opening a document
+    /// is a config-context boundary, so it force-refreshes the inputs; the
+    /// slot's post-reopen `diagnostics_enabled` reflecting the *current* toggle
+    /// proves it.  Closing also releases the slot, so the stale inputs are gone
+    /// by then too.
     ///
     /// Asserted on the slot's captured inputs (set synchronously by
     /// `schedule_diagnostics_impl` before the worker spawns) rather than a
@@ -34867,7 +34861,7 @@ mod tests {
             "sanity: the initial open captures the master switch as on",
         );
 
-        // 2. Close the tab. The slot's captured inputs are released (#1144) —
+        // 2. Close the tab. The slot's captured inputs are released —
         //    either with the slot itself or, if its worker is still draining,
         //    as a cleared `latest_inputs`. Nothing stale survives to be reused.
         backend
@@ -34903,10 +34897,10 @@ mod tests {
         );
     }
 
-    // #865 — a workspace file that was opened and then had its editor tab closed
+    // A workspace file that was opened and then had its editor tab closed
     // must keep its Problems / File-Explorer badge (the diagnostics computed from
-    // its on-disk contents), instead of the old unconditional empty publish that
-    // dropped the badge until the file was reopened.  Observed through the
+    // its on-disk contents), rather than an unconditional empty publish that
+    // would drop the badge until the file was reopened.  Observed through the
     // pull-cache the push path keeps in lock-step (the test client's socket is
     // detached, so the notification itself is a no-op).
 
@@ -35100,7 +35094,7 @@ mod tests {
         std::fs::remove_dir_all(&root).ok();
     }
 
-    /// Codex #3: a closed file's dialect is resolved from its on-disk source the
+    /// A closed file's dialect is resolved from its on-disk source the
     /// way `did_open` would — an in-source directive, a BIG-IP basename, and a
     /// dialect-specific extension all survive the close instead of defaulting to
     /// generic Tcl.
@@ -35139,7 +35133,7 @@ mod tests {
         );
     }
 
-    /// Codex #3 end-to-end: `reindex_index_from_disk` (run on close) must store
+    /// End to end: `reindex_index_from_disk` (run on close) must store
     /// the source-directed dialect on the salsa `SourceFile`, since the cached
     /// base analysis reads its dialect from there — not the folder/default alone.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -35174,7 +35168,7 @@ mod tests {
         std::fs::remove_dir_all(&root).ok();
     }
 
-    /// Issue #1154: the recovery path's widened known-command set must be
+    /// The recovery path's widened known-command set must be
     /// rebuilt only when the workspace index (or the package database, or the
     /// configured extra commands) actually changes — not on every keystroke
     /// inside an unterminated block.
@@ -35263,7 +35257,7 @@ mod tests {
 
     /// A `PackageResolver` mutation must move its revision, and an unmutated
     /// resolver must keep it — the signal the recovery memo keys on for the
-    /// package half of the widened set (issue #1154).
+    /// package half of the widened set.
     #[test]
     fn package_resolver_revision_tracks_mutations() {
         let mut resolver = PackageResolver::new();
@@ -35286,7 +35280,7 @@ mod tests {
         );
     }
 
-    /// Codex #2: a closed run whose generation has been superseded by a newer
+    /// A closed run whose generation has been superseded by a newer
     /// close / watched-change refresh must not publish — so an older run
     /// finishing late cannot overwrite the current set with stale diagnostics.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -35454,9 +35448,9 @@ mod tests {
         std::fs::remove_dir_all(&root).ok();
     }
 
-    /// #1161: a single `did_change_watched_files` event batch carrying a
-    /// CREATED, a CHANGED and a DELETED file together must land on the same
-    /// end state the old one-file-at-a-time serial path produced — the
+    /// A single `did_change_watched_files` event batch carrying a CREATED, a
+    /// CHANGED and a DELETED file together must land on the same end state a
+    /// one-file-at-a-time serial path would produce — the
     /// `workspace_index` and salsa db reflecting exactly the final on-disk
     /// population, in one batched pass rather than three sequential full
     /// analyses.
@@ -35563,7 +35557,7 @@ mod tests {
         std::fs::remove_dir_all(&root).ok();
     }
 
-    /// #1145: removing a source retires its salsa input with an emptied payload
+    /// Removing a source retires its salsa input with an emptied payload
     /// instead of dropping it, and re-creating the same URI revives that handle
     /// rather than allocating a second one salsa can never free.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -35636,8 +35630,8 @@ mod tests {
         }
     }
 
-    /// #1148: the project-wide evidence read now runs on a cloned salsa
-    /// snapshot off the `db` mutex, so the write section has to re-check
+    /// The project-wide evidence read runs on a cloned salsa snapshot off the
+    /// `db` mutex, so the write section has to re-check
     /// currency against the live database rather than trusting the snapshot's
     /// view.  A second pass over an unchanged project must therefore write
     /// nothing — no input moves, nothing downstream is invalidated, and no peer
@@ -35697,7 +35691,7 @@ mod tests {
         );
     }
 
-    /// Exact-head review of #1854: coverage and cross-file evidence must read
+    /// Coverage and cross-file evidence must read
     /// the same Salsa revision. Ordinary edits intentionally retain the prior
     /// workspace-index slot until diagnostics republishes it, so an old
     /// literal target there must not hide a new external target in Salsa.
@@ -35756,8 +35750,8 @@ mod tests {
         );
     }
 
-    /// Exact-head review of #1854: diagnostics for the driving document were
-    /// computed before evidence refresh. If its new text turns a covered
+    /// Diagnostics for the driving document are computed before evidence
+    /// refresh. If its new text turns a covered
     /// `source` into an external one, losing `Some(evidence)` must schedule the
     /// second pass that withdraws any fold made from that stale closed world.
     #[tokio::test]
@@ -35811,7 +35805,7 @@ mod tests {
         );
     }
 
-    /// Fresh exact-head review of #1854: an edited orphan keeps a local Salsa
+    /// An edited orphan keeps a local Salsa
     /// handle in `db_files`, but must lose the workspace evidence it carried
     /// before leaving the admitted project set.
     #[tokio::test]
@@ -35870,7 +35864,7 @@ mod tests {
         );
     }
 
-    /// Exact-head review of #1854: the off-lock project read may finish after
+    /// The off-lock project read may finish after
     /// a newer publication has retired one of its handles. Its stale result
     /// must not restore evidence onto that tombstone.
     #[tokio::test]
@@ -35936,7 +35930,7 @@ mod tests {
         );
     }
 
-    /// Exact-head review of #1854: membership, project, and source text must
+    /// Membership, project, and source text must
     /// come from one Salsa snapshot. A live orphan publication can change all
     /// three while the evidence reader waits for `db`.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -36026,7 +36020,7 @@ mod tests {
         );
     }
 
-    /// Exact-head automated review of #1854: coverage membership and the
+    /// Coverage membership and the
     /// Salsa project must come from one live-publication generation. An orphan
     /// edit removes its URI from both, so the evidence snapshot cannot retain
     /// the old covered set while observing the new project.
@@ -36110,7 +36104,7 @@ mod tests {
         );
     }
 
-    /// #1145: a watched `DELETED` → `CREATED` pair — what a `git checkout` or
+    /// A watched `DELETED` → `CREATED` pair — what a `git checkout` or
     /// branch switch fires for every changed file — must not allocate a second
     /// salsa input per cycle.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -36167,7 +36161,7 @@ mod tests {
         std::fs::remove_dir_all(&root).ok();
     }
 
-    /// #1145: a folder whose override set empties retires its `AnalyserConfig`
+    /// A folder whose override set empties retires its `AnalyserConfig`
     /// handle (payload cleared) and revives it when the override comes back —
     /// `.tcl-lsp.ini` churn must not allocate a config input per save.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -36330,7 +36324,7 @@ mod tests {
         );
     }
 
-    /// Issue #1213: a burst of `didChangeConfiguration` notifications must
+    /// A burst of `didChangeConfiguration` notifications must
     /// coalesce into a single reload.  The leader is the only handler that runs
     /// the pipeline; every other notification in the window returns straight
     /// away after applying its inline settings.
@@ -36407,8 +36401,7 @@ mod tests {
         assert_eq!(*backend.default_dialect.lock().await, "tcl9.0");
     }
 
-    /// Issue #1217: a deliberate session override outranks the configured
-    /// default and — unlike the `didChangeConfiguration` push it replaces —
+    /// A deliberate session override outranks the configured default and
     /// survives a configuration pull.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_session_dialect_override_survives_a_config_pull() {
@@ -36476,7 +36469,7 @@ mod tests {
         );
     }
 
-    /// Issue #1931: a per-document override is the strongest tier — stronger
+    /// A per-document override is the strongest tier — stronger
     /// than an explicit language id and than the in-source directive — and it
     /// reaches only the document it names.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -36606,7 +36599,7 @@ mod tests {
         assert_eq!(*backend.default_dialect.lock().await, "tcl9.0");
         assert_eq!(*backend.non_ascii_mode.lock().await, NonAsciiMode::Strict);
         assert!(backend.disabled_diagnostics.lock().await.contains("W211"));
-        // Issue #1253 item 2 — the interpreter's starting `package prefer`
+        // The interpreter's starting `package prefer`
         // mode is a setting, since neither `TCL_PKG_PREFER_LATEST` nor an
         // unstable 9.0+ build is visible in the source tree.
         assert_eq!(
@@ -36618,7 +36611,7 @@ mod tests {
             test_backend().default_package_prefer().await,
             tcl_lsp_core::package_resolver::PackagePrefer::Stable,
         );
-        // Issue #1813 — declared "this package also loads that one" edges,
+        // Declared "this package also loads that one" edges,
         // in a stable order and accepting a bare string for a single name.
         assert_eq!(
             *backend.package_provides.lock().await,
@@ -36629,7 +36622,7 @@ mod tests {
         );
     }
 
-    /// Issue #1813: the declared edge has to reach the *analyser*, not just
+    /// The declared edge has to reach the *analyser*, not just
     /// the backend field. A binary extension loads Tk with nothing in any Tcl
     /// source to say so, and the Tk checks are gated on the document being Tk
     /// — so TK1002 (a widget path whose parent was never created) is the
@@ -36637,7 +36630,7 @@ mod tests {
     ///
     /// W120 is the wrong probe here: `myExtension` is unresolvable in an
     /// empty workspace, and the server already drops every W120 for a
-    /// document requiring a package it cannot resolve (#723's conservative
+    /// document requiring a package it cannot resolve (the conservative
     /// rule). The gap this closes is everything W120's abstention does not
     /// cover — the Tk checks, completions, and hover.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -36677,10 +36670,10 @@ mod tests {
         );
     }
 
-    /// Review follow-up on #1813: the declared edges must survive an
-    /// incomplete buffer. `compute_base_analysis` switches to
-    /// `recovery_analyser` on an unclosed delimiter, and that analysis is
-    /// published *and* indexed — so dropping the edges there made the Tk
+    /// The declared edges must survive an incomplete buffer.
+    /// `compute_base_analysis` switches to `recovery_analyser` on an unclosed
+    /// delimiter, and that analysis is published *and* indexed — so dropping
+    /// the edges there makes the Tk
     /// checks and W120/H301 flicker for every keystroke between an opening
     /// brace and its match, and republished an index entry without the
     /// implied requires.
@@ -36891,11 +36884,11 @@ proc p {} {
         );
     }
 
-    /// Review follow-up on #1813: `tclLsp.packages.provides` is
+    /// `tclLsp.packages.provides` is
     /// `"scope": "resource"`, so a folder override must win for documents
     /// under it — and, just as importantly, a folder that overrides some
     /// *other* analyser input must not silently lose the global edges (the
-    /// folder handle used to be constructed with an empty provides list).
+    /// folder handle must not be constructed with an empty provides list).
     #[tokio::test]
     async fn declared_package_provides_resolve_per_folder() {
         let backend = test_backend();
@@ -36957,8 +36950,8 @@ proc p {} {
         );
     }
 
-    /// Fix #4 regression guard: the retired `features.inlayHints` alias must
-    /// survive the *whole* config-apply → effective-config wiring, not just the
+    /// The legacy `features.inlayHints` alias must survive the *whole*
+    /// config-apply → effective-config wiring, not just the
     /// `FeatureToggles::apply` unit. This mirrors the `lsp-e2e`
     /// `test_legacy_inlay_hints_alias_enables_type_only` flow without a live
     /// editor: apply `{"features": {"inlayHints": true}}` through
@@ -37059,7 +37052,7 @@ proc p {} {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn pull_diagnostics_include_compiler_and_optimiser_codes() {
-        // Regression: the pull handler (`textDocument/diagnostic`) must return
+        // The pull handler (`textDocument/diagnostic`) must return
         // the same full set as the push path — analyser + compiler/optimiser +
         // source-style — so editors on the pull path don't lose O-codes.
         let backend = test_backend();
@@ -37331,14 +37324,13 @@ proc p {} {
         );
     }
 
-    /// Issue #829 regression: the always-on W120/W123 workspace refinement
+    /// The always-on W120/W123 workspace refinement
     /// (`refine_workspace_w120`/`refine_workspace_w123`) is not gated by
     /// `crossFileResolution`, so a watched-file domain change must reschedule
     /// *every* open document — not just `crossFileResolution`-enabled ones.
-    /// Before the fix, `did_change_watched_files` rescheduled only the
-    /// narrower cross-file subset, leaving a plain document's stale W120
-    /// (e.g. from a `source` ancestor that only just appeared on disk)
-    /// unrefreshed.
+    /// Rescheduling only the narrower cross-file subset leaves a plain
+    /// document's stale W120 (e.g. from a `source` ancestor that only just
+    /// appeared on disk) unrefreshed.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn watched_file_delete_reschedules_non_xc_document_too() {
         let backend = test_backend();
@@ -37367,7 +37359,7 @@ proc p {} {
         );
     }
 
-    /// Issue #829 regression, folder-add variant of the test above: adding a
+    /// Folder-add variant of the test above: adding a
     /// workspace folder scans it into `workspace_index` / `package_resolver`
     /// (the always-on W120/W123 refinement's inputs), so every open document
     /// must be rescheduled — not just `crossFileResolution`-enabled ones.
@@ -37400,18 +37392,17 @@ proc p {} {
         );
     }
 
-    /// Issue #829 root-cause regression test: reproduces the exact race from
-    /// the reported bug. `initialized()` kicks off `scan_workspace_folders`
-    /// (which can take a while on a real workspace) but, before the fix,
-    /// never rescheduled already-open documents once it completed — so a
-    /// document opened at the same time as `initialized` fires (a client's
-    /// normal startup sequence: `initialize` -> `initialized` with
-    /// `didOpen` for restored tabs arriving concurrently, see
-    /// `edit_serialize`'s doc comment) could have its first diagnostics
-    /// published against the still-empty `workspace_index` /
-    /// `package_resolver`, and nothing ever corrected it. Asserting the
-    /// document is rescheduled after `initialized()` proves the fix; that the
-    /// refinement itself is correct once rescheduled is proven separately by
+    /// The startup race: `initialized()` kicks off `scan_workspace_folders`,
+    /// which can take a while on a real workspace, and must reschedule
+    /// already-open documents once it completes.  Otherwise a document opened
+    /// at the same time as `initialized` fires (a client's normal startup
+    /// sequence: `initialize` -> `initialized` with `didOpen` for restored
+    /// tabs arriving concurrently, see `edit_serialize`'s doc comment) has its
+    /// first diagnostics published against the still-empty `workspace_index` /
+    /// `package_resolver` and nothing ever corrects it. Asserting the document
+    /// is rescheduled after `initialized()` is the whole of this test; that
+    /// the refinement itself is correct once rescheduled is proven separately
+    /// by
     /// `source_graph_inheritance_suppresses_w120_in_sourced_module`.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn initialized_reschedules_open_documents_after_workspace_scan() {
@@ -37491,14 +37482,13 @@ proc p {} {
         );
     }
 
-    /// Issue #1300: removing a workspace folder cleared the index, the salsa
-    /// sources, the rehoming seeds and the diagnostics badge of the closed files
-    /// it took with it — but left `last_semantic_tokens`,
-    /// `semantic_tokens_refresh_asked` and `workspace_class_analyses` holding an
-    /// entry per file, for the process's life, even though the file was no
-    /// longer in any workspace folder.  All three are cleared by
-    /// `retire_renamed_uri`, which is the asymmetry
-    /// [`Backend::forget_uri_states`] now makes impossible.
+    /// Removing a workspace folder must clear the index, the salsa sources,
+    /// the rehoming seeds and the diagnostics badge of the closed files it
+    /// takes with it — *and* `last_semantic_tokens`,
+    /// `semantic_tokens_refresh_asked` and `workspace_class_analyses`, which
+    /// would otherwise hold an entry per file for the process's life even
+    /// though the file is no longer in any workspace folder.  That asymmetry
+    /// is what [`Backend::forget_uri_states`] makes impossible.
     ///
     /// The negatives matter as much as the positive: a file under a folder that
     /// stayed keeps everything, and so does an **open** document under the
@@ -37663,10 +37653,10 @@ proc p {} {
         );
     }
 
-    /// Issue #407: the folder-scoped `tclLsp.dialect` must survive the parse.
-    /// It used to have nowhere to land — `FolderConfig` carried no dialect
-    /// field — so the scoped `workspace/configuration` reply's value was
-    /// silently dropped and every folder used the session default.
+    /// The folder-scoped `tclLsp.dialect` must survive the parse.  Without a
+    /// `FolderConfig` dialect field to land in, the scoped
+    /// `workspace/configuration` reply's value is silently dropped and every
+    /// folder uses the session default.
     #[test]
     fn parse_folder_config_reads_and_validates_the_dialect() {
         let fc = parse_folder_config(&serde_json::json!({ "dialect": "f5-irules" }))
@@ -38269,7 +38259,8 @@ proc p {} {
         std::fs::remove_dir_all(&root).ok();
     }
 
-    /// The three-file Tk shape of issue #1276, written to a scratch workspace.
+    /// The three-file Tk cross-file-metaclass shape, written to a scratch
+    /// workspace.
     ///
     /// Ground truth (tclsh 8.6.14 and 9.0.4 agree, `source`ing the three in
     /// order): `::IconList` is a real class, `info class superclasses
@@ -38329,7 +38320,7 @@ proc p {} {
 
     #[tokio::test]
     async fn a_cross_file_metaclass_resolves_after_the_workspace_scan() {
-        // TP — issue #1276, the whole point. `iconlist.tcl` names
+        // TP — the whole point. `iconlist.tcl` names
         // `::tk::Megawidget` and nothing else about it; the scan publishes the
         // factory index and the file's own analysis then records the class the
         // interpreter really makes, superclasses and members included.
@@ -38619,7 +38610,7 @@ proc p {} {
         std::fs::remove_dir_all(&root).ok();
     }
 
-    /// #1151: a workspace scan of unopened files must build only the
+    /// A workspace scan of unopened files must build only the
     /// lightweight tier — `workspace_index` (from the scan's own analyser
     /// pass) and the salsa `SourceFile` inputs — never the deep salsa tier
     /// (`file_analysis_incremental` / `compilation_unit` /
@@ -38686,7 +38677,7 @@ proc p {} {
         std::fs::remove_dir_all(&root).ok();
     }
 
-    /// #1151: [`Backend::warm_open_documents`] (the body
+    /// [`Backend::warm_open_documents`] (the body
     /// [`Backend::spawn_workspace_warm`] detaches) primes the deep salsa tier
     /// for an **open** document but must not touch an unopened one the scan
     /// only fed into `db_files` as a lightweight `SourceFile` input.
@@ -38707,7 +38698,7 @@ proc p {} {
             .db_set_source(&open_uri, "proc open_proc {} {}\n", "tcl8.6".to_owned())
             .await;
         // Never opened, but present in `db_files` — exactly the state a
-        // workspace scan leaves an unopened file in after #1151.
+        // workspace scan leaves an unopened file in.
         backend
             .db_set_source(&closed_uri, "proc closed_proc {} {}\n", "tcl8.6".to_owned())
             .await;
@@ -38848,10 +38839,10 @@ proc p {} {
         std::fs::remove_dir_all(&root).ok();
     }
 
-    /// #1849: a `didOpen` waiting for Salsa must release both global choke
-    /// points: the open-document map *and* the edit-order barrier every request
-    /// crosses. The v2.2.2 release run caught the open holding both while
-    /// suspended at `db_source_matches`.
+    /// A `didOpen` waiting for Salsa must release both global choke points:
+    /// the open-document map *and* the edit-order barrier every request
+    /// crosses.  Holding either while suspended on a Salsa store wedges the
+    /// whole server.
     ///
     /// Construct the `db` edge directly. The live buffer must become visible
     /// and the turn must settle while the deferred Salsa/index publication is
@@ -38947,8 +38938,8 @@ proc p {} {
         );
     }
 
-    /// #1849 review: a future recurrence must identify both the Salsa store
-    /// owner and its queued demand, not stop at "`try_lock` failed".
+    /// A stall report must identify both the Salsa store owner and its queued
+    /// demand, not stop at "`try_lock` failed".
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn salsa_store_contention_names_holder_and_waiter_1849() {
         let store = Arc::new(TrackedMutex::new("db", ()));
@@ -39050,7 +39041,7 @@ proc p {} {
             .expect("didOpen must not panic");
     }
 
-    /// Automated review of #1854: once the live buffer is visible, no request
+    /// Once the live buffer is visible, no request
     /// may still observe facts indexed from the disk copy it superseded. Hold
     /// a real Salsa snapshot so deferred publication cannot finish, then prove
     /// `didOpen` queues stale-slot retirement ahead of a later index reader.
@@ -39202,7 +39193,7 @@ proc p {} {
         drop(snapshot);
     }
 
-    /// #1849 review: the no-wait-under-turn rule applies to edits too. The
+    /// The no-wait-under-turn rule applies to edits too. The
     /// authoritative splice must become visible and release `edits_settled`
     /// while its deferred Salsa publication is pinned on `db`.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -39313,11 +39304,11 @@ proc p {} {
         );
     }
 
-    /// Automated review of #1854: releasing the edit turn is insufficient if
+    /// Releasing the edit turn is insufficient if
     /// a deferred Salsa setter enters `cancel_others` while it owns db/files.
     /// Hold a real tracked snapshot, start an edit, and prove the publication
-    /// waits with the entire bundle released. The pre-fix path blocks inside
-    /// the setter and deterministically times out acquiring both stores here.
+    /// waits with the entire bundle released. A path that blocks inside the
+    /// setter deterministically times out acquiring both stores here.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn did_change_waiting_for_snapshot_releases_salsa_stores_1854() {
         use tower_lsp_server::ls_types::{
@@ -39413,7 +39404,7 @@ proc p {} {
         );
     }
 
-    /// #1849 review: a close blocked on the workspace index must likewise
+    /// A close blocked on the workspace index must likewise
     /// remove the live buffer and release the request barrier first.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn did_close_waiting_for_index_leaves_requests_serviceable_1849() {
@@ -39469,7 +39460,7 @@ proc p {} {
             .expect("didClose must not panic");
     }
 
-    /// #1800: a closed-file disk refresh is background work.  If its
+    /// A closed-file disk refresh is background work.  If its
     /// workspace-index publication is delayed, it must not retain the global
     /// open-document map and stop every diagnostics worker / document-sync
     /// handler behind it.
@@ -39534,7 +39525,7 @@ proc p {} {
         std::fs::remove_dir_all(&root).ok();
     }
 
-    /// The other blocking edge inside the captured #1800 critical section is
+    /// The other blocking edge inside that critical section is
     /// salsa's synchronous `cancel_others`: a setter waits for every database
     /// snapshot to retire. Hold one deliberately and prove background reindex
     /// waits asynchronously without owning `documents`, then finishes after
@@ -40007,12 +39998,11 @@ proc p {} {
 
     #[test]
     fn is_tcl_source_recognises_tcltest_files() {
-        // TP — differential-audit finding idx 10 (main audit wave): the
-        // standard `tcltest` extension (`test/argparse.test`, and every
-        // `.test` file throughout tcllib's own test suite) was omitted from
-        // the background workspace scan's allowlist, so a proc's call sites
-        // living in an un-opened `.test` file were invisible to
-        // cross-document find-references / rename-safety.
+        // TP — the standard `tcltest` extension (`test/argparse.test`, and
+        // every `.test` file throughout tcllib's own test suite). Omitted from
+        // the background workspace scan's allowlist, a proc's call sites
+        // living in an un-opened `.test` file are invisible to cross-document
+        // find-references / rename-safety.
         assert!(is_tcl_source(Path::new("/ws/test/argparse.test")));
     }
 
@@ -40059,11 +40049,10 @@ proc p {} {
     }
 
     /// The file-watcher registration and the `willRename` / `didRename` filter
-    /// must name exactly the extensions the workspace scan indexes.  They used
-    /// to list five of the twelve, so a `.test` / `.iapp` / `.exp` file the
-    /// scan had indexed went stale the moment it changed on disk and kept its
-    /// old `source` references through a rename — the residual half of issue
-    /// #923 differential-audit finding idx 27.
+    /// must name exactly the extensions the workspace scan indexes.  Listing
+    /// fewer leaves a `.test` / `.iapp` / `.exp` file the scan indexed going
+    /// stale the moment it changes on disk, and keeping its old `source`
+    /// references through a rename.
     #[test]
     fn watcher_and_rename_globs_cover_every_indexed_extension() {
         let glob = tcl_source_glob();
@@ -40082,7 +40071,7 @@ proc p {} {
         assert!(!glob.contains("txt"), "{glob}");
     }
 
-    /// Issue #1215: `workspace/didChangeWatchedFiles` carries no `ignoreCase`
+    /// `workspace/didChangeWatchedFiles` carries no `ignoreCase`
     /// option and `VS Code` matches watcher globs case-**sensitively** on Linux,
     /// so the registration folds case per character instead.
     #[test]
@@ -40241,12 +40230,11 @@ proc p {} {
 
     #[test]
     fn collect_tcl_files_picks_up_tcltest_files() {
-        // TP — differential-audit finding idx 10 (main audit wave): a
-        // `.test` file (the standard `tcltest` extension — every mined
+        // TP — a `.test` file (the standard `tcltest` extension; every mined
         // corpus, and tcllib's own test suite, use it throughout, e.g.
-        // `test/argparse.test`) was invisible to the background workspace
-        // scan, so cross-document find-references / rename-safety
-        // silently missed call sites living in an un-opened `.test` file.
+        // `test/argparse.test`). Invisible to the background workspace scan,
+        // cross-document find-references / rename-safety silently miss call
+        // sites living in an un-opened `.test` file.
         let root = unique_scratch_dir("tcltest");
         std::fs::create_dir_all(root.join("test")).unwrap();
         std::fs::write(root.join("lib.tcl"), "proc plain {} { return 1 }\n").unwrap();
@@ -40424,7 +40412,7 @@ proc p {} {
     /// A `dialect =` key in `config.ini` / `.tcl-lsp.ini` sets the session
     /// `default_dialect`; a normally-opened `.tcl` buffer (language id `"tcl"`,
     /// which every editor sends) must resolve to it rather than pinning
-    /// `tcl8.6`. Regression test for issue #805.
+    /// `tcl8.6`.
     #[tokio::test]
     async fn dialect_for_open_respects_config_default_dialect() {
         let backend = test_backend();
@@ -40603,11 +40591,11 @@ proc p {} {
 
     #[tokio::test]
     async fn cross_document_definition_resolves_wildcard_imported_proc() {
-        // issue #923 idx 18 (TP, cross-document): `lib.tcl` defines and
-        // exports `bar`; `main.tcl` wildcard-imports `::Lib::*` and calls
-        // `bar` bare. `main.tcl`'s own in-document resolver can't see
-        // `::Lib::bar` (a different file's proc), so this exercises the
-        // NEW cross-document fallback in `resolve_workspace_symbols`
+        // TP, cross-document: `lib.tcl` defines and exports `bar`;
+        // `main.tcl` wildcard-imports `::Lib::*` and calls `bar` bare.
+        // `main.tcl`'s own in-document resolver can't see `::Lib::bar`
+        // (a different file's proc), so this exercises the cross-document
+        // fallback in `resolve_workspace_symbols`
         // (`WorkspaceIndex::resolve_wildcard_import`). Both documents must
         // be indexed: the `namespace import` itself is recorded in
         // `main.tcl`'s own analysis.
@@ -40730,7 +40718,7 @@ proc p {} {
             serde_json::Value::Bool(true), // compact
             serde_json::Value::Bool(false),
             // isolated — proc names are public command identities, renamed
-            // only under the closed-world assertion (issue #1193).
+            // only under the closed-world assertion.
             serde_json::Value::Bool(true),
         ];
         let result = backend
@@ -40809,7 +40797,7 @@ proc p {} {
         assert_eq!(locs[0].range.start.line, 0);
     }
 
-    // Document-snapshot sharing and revision currency (issue #1184).
+    // Document-snapshot sharing and revision currency.
     //
     // `read_document` hands every in-flight request its own `DocumentState`.
     // Those snapshots must (a) share one allocation of the document text and
@@ -41001,8 +40989,8 @@ proc p {} {
         assert_eq!(text.as_deref(), Some("set x 2\n"));
     }
 
-    /// #1657, the latent half: a ticket whose waiter is dropped *before* its
-    /// turn is granted must not stop the sequence for ever.
+    /// A ticket whose waiter is dropped *before* its turn is granted must not
+    /// stop the sequence for ever.
     ///
     /// [`EditOrder::wait_turn`]'s own docs claim this already holds — "the guard
     /// releases it on drop — including on ... a dropped (cancelled) handler
@@ -41013,8 +41001,7 @@ proc p {} {
     ///
     /// The consequence is total and permanent: every later document-sync
     /// notification blocks in `wait_turn`, and every request handler blocks in
-    /// `edits_settled`, which is exactly the steady state #1657 records — no
-    /// CPU, no output, stdin still draining.
+    /// `edits_settled` — no CPU, no output, stdin still draining.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_dropped_waiter_does_not_wedge_the_edit_order() {
         let order = EditOrder::default();
@@ -43740,7 +43727,7 @@ proc p {} {
         );
     }
 
-    /// Automated review of #1854: reconciliation owns `rehoming_gate`, while
+    /// Reconciliation owns `rehoming_gate`, while
     /// a pending live publication needs that gate to mark its document ready.
     /// Waiting through `read_document` here therefore formed a direct cycle.
     /// A pass that encounters the pending sourced document must retire, release
@@ -43893,7 +43880,7 @@ proc p {} {
         .expect("fix-all must return a result");
     }
 
-    /// Exact-head review of #1854: document-local providers read the live Salsa
+    /// Document-local providers read the live Salsa
     /// source, not the independently seeded workspace index. A cold file can
     /// remain at `Salsa` while its whole-file index analysis runs; formatting,
     /// folding, outlines, linked editing, and selection ranges remain prompt.
@@ -44011,7 +43998,7 @@ proc p {} {
         .expect(failure);
     }
 
-    /// Exact-head review of #1854: a stream of overlapping request snapshots
+    /// A stream of overlapping request snapshots
     /// must not keep a live source publication short of Salsa forever. Once a
     /// publisher announces drain intent, later snapshot requests queue; the
     /// finite pre-existing set retires and the writer runs before readers are
@@ -44105,7 +44092,7 @@ proc p {} {
         );
     }
 
-    /// Exact-head automated review of #1854: disk publication shares the live
+    /// Disk publication shares the live
     /// source gate, so it must also establish writer intent while snapshots
     /// drain. Otherwise an overlapping request stream can keep its census
     /// non-empty forever and strand every later didOpen/didChange behind it.
@@ -44455,7 +44442,7 @@ proc p {} {
         );
     }
 
-    /// Fresh exact-head review of #1854: disk publication must establish
+    /// Disk publication must establish
     /// writer intent before it can acquire `db`. Otherwise a sustained fair
     /// mutex queue can prevent the optimistic publisher from ever reaching
     /// the census check that used to create the drain guard.
@@ -44521,7 +44508,7 @@ proc p {} {
         );
     }
 
-    /// Exact-head review of #1854: publishing the completed open seed may wait
+    /// Publishing the completed open seed may wait
     /// behind a slow workspace-index reader, but must do so without retaining
     /// the global document map. Otherwise the next edit holds its ordered turn
     /// while waiting for that map and restores the whole-server barrier wedge.
@@ -44694,7 +44681,7 @@ proc p {} {
         );
     }
 
-    /// #1907 automated review: if a newer document revision lands after an
+    /// If a newer document revision lands after an
     /// index replacement but before the final currency check, the obsolete
     /// publisher must remove its own records instead of leaving stale spans
     /// visible under the newer buffer.
@@ -44880,7 +44867,7 @@ proc p {} {
         Dialect,
     }
 
-    /// Exact-head automated review of #1854: watched deletion must not wake a
+    /// Watched deletion must not wake a
     /// pending live buffer at Salsa readiness while the database still names
     /// the preceding revision. It becomes locally readable only after the
     /// deletion transaction retires that stale handle.
@@ -44968,7 +44955,7 @@ proc p {} {
         assert_eq!(readable.publication, DocumentPublication::Indexed);
     }
 
-    /// Exact-head automated review of #1854: a watched deletion can overtake
+    /// A watched deletion can overtake
     /// any deferred live-source publisher before its Salsa setter. didOpen,
     /// didChange, and dialect publication must all reject the orphan rather
     /// than recreate its source and move settled readiness back to Salsa.
@@ -45056,7 +45043,7 @@ proc p {} {
         }
     }
 
-    /// Exact-head automated review of #1854: a watched deletion can overtake
+    /// A watched deletion can overtake
     /// the off-Salsa cold-open seed. Its orphan mark must make the queued seed
     /// fail currency instead of resurrecting the dead path in the index.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -45156,7 +45143,7 @@ proc p {} {
         );
     }
 
-    /// Exact-head automated review of #1854: a watched deletion deliberately
+    /// A watched deletion deliberately
     /// settles an open orphan with no cross-document view. If that path is
     /// created again, the authoritative editor buffer must republish both its
     /// Salsa source and index even when diagnostics cannot repair them later.
@@ -45240,7 +45227,7 @@ proc p {} {
         );
     }
 
-    /// Exact-head automated review of #1854: a disk notification for an
+    /// A disk notification for an
     /// already-live open buffer is a no-op because the editor buffer remains
     /// authoritative. It must not retire a contended publisher without
     /// starting a replacement, especially when diagnostics cannot repair it.
@@ -45295,7 +45282,7 @@ proc p {} {
         assert_eq!(doc.publication, DocumentPublication::Pending);
     }
 
-    /// Fresh exact-head review of #1854: orphan filtering must cover indexed
+    /// Orphan filtering must cover indexed
     /// hits during the interval after the watcher marks the buffer deleted but
     /// before its transactional index removal can acquire the rehoming gate.
     #[tokio::test]
@@ -45346,7 +45333,7 @@ proc p {} {
             .expect("the watched deletion task must not panic");
     }
 
-    /// Exact-head automated review of #1854: deleting an open path retires its
+    /// Deleting an open path retires its
     /// cross-document identity, not its editor buffer. A subsequent didChange
     /// must publish the new bytes to Salsa and settle local-provider readiness
     /// while leaving the orphan absent from the workspace index.
@@ -45455,7 +45442,7 @@ proc p {} {
         );
     }
 
-    /// Exact-head automated review of #1854: an orphan remains locally live
+    /// An orphan remains locally live
     /// when an in-source or configuration change re-resolves its dialect. The
     /// new dialect must reach Salsa readiness without restoring any project or
     /// workspace-index identity for the missing path.
@@ -45534,7 +45521,7 @@ proc p {} {
         );
     }
 
-    /// Exact-head automated review of #1854: a watched delete can mark an old
+    /// A watched delete can mark an old
     /// open revision, stall at the disk-publication gate, and then be overtaken
     /// by didClose plus a new didOpen. Its final removal must currency-check the
     /// open identity rather than deleting the reopened Salsa source.
@@ -45646,7 +45633,7 @@ proc p {} {
         );
     }
 
-    /// Exact-head automated review of #1854: watched handlers are concurrent,
+    /// Watched handlers are concurrent,
     /// so an older delete must finish its Salsa/index removal before a later
     /// create republishes the same still-open buffer.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -45753,7 +45740,7 @@ proc p {} {
         );
     }
 
-    /// Exact-head automated review of #1854: a cold seed analysed under an old
+    /// A cold seed analysed under an old
     /// class-factory oracle must be recomputed if the project publishes a new
     /// oracle before its standalone index commit.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -45855,7 +45842,7 @@ proc p {} {
         );
     }
 
-    /// Exact-head automated review of #1854: the class-factory generation is
+    /// The class-factory generation is
     /// only one analyser input. A config or SpecTcl-pack change while a cold
     /// open is being analysed must also reject its seed, even when diagnostics
     /// are disabled or excluded and therefore cannot repair the index later.
@@ -45927,7 +45914,7 @@ proc p {} {
         );
     }
 
-    /// Exact-head automated review of #1854: a live publisher that joins a
+    /// A live publisher that joins a
     /// contended dependency must release the global publication gate first.
     /// Otherwise sustained readers can repeatedly take the acquired fair turn
     /// back and one URI prevents every later live edit from publishing.
@@ -45980,7 +45967,7 @@ proc p {} {
         );
     }
 
-    /// Final automated review of #1854: the periodic fair-queue join must not
+    /// The periodic fair-queue join must not
     /// retain `live_publication_gate` after a newer edit invalidates the
     /// publisher. The authoritative edit must be able to take the gate while
     /// the stale publisher remains queued on `db`, then both retire in order
@@ -46089,7 +46076,7 @@ proc p {} {
         assert_eq!(current.publication, DocumentPublication::Indexed);
     }
 
-    /// Exact-head automated review of #1854: the invalidation generation is
+    /// The invalidation generation is
     /// global, so an edit to another URI may wake a current publisher's fair
     /// queue wait. It must adopt the new generation and join even when the
     /// document map itself is the contended dependency it cannot inspect.
@@ -46162,7 +46149,7 @@ proc p {} {
             .expect("the refreshed fair-queue join must not panic");
     }
 
-    /// Exact-head review of #1854: the independent index seed must consume the
+    /// The independent index seed must consume the
     /// same analysis text as Salsa. A raw old-Mac buffer leaves the proc inside
     /// the preceding comment; normalising lone CRs makes it a real command.
     #[tokio::test]
@@ -46208,7 +46195,7 @@ proc p {} {
         );
     }
 
-    /// Exact-head review of #1854: a closed-file rehoming snapshot must release
+    /// A closed-file rehoming snapshot must release
     /// the global document map before waiting for Salsa and must reject the
     /// captured disk source if the editor opens the URI in that interval.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -46302,7 +46289,7 @@ proc p {} {
         );
     }
 
-    /// Exact-head review of #1854: an index seed is independent of Salsa's
+    /// An index seed is independent of Salsa's
     /// snapshot lifetime, not independent of the source's cross-file inputs.
     /// Carry the current factory oracle so a class made by another file's
     /// metaclass exists in the first published live index.
@@ -46362,7 +46349,7 @@ proc p {} {
         assert!(class.methods.contains_key("GetSpecs"), "{class:?}");
     }
 
-    /// Exact-head review of #1854: while a cold open is pending, Salsa still
+    /// While a cold open is pending, Salsa still
     /// contains the scanned disk source. The workspace-symbol fallback must
     /// analyse the authoritative live bytes instead of accepting that stale
     /// cache hit.
@@ -46403,7 +46390,7 @@ proc p {} {
         );
     }
 
-    /// Exact-head review of #1854: a brand-new or untitled pending buffer has
+    /// A brand-new or untitled pending buffer has
     /// no scanned disk input and may not have created its first Salsa handle.
     /// Its authoritative live declarations must still reach workspace/symbol.
     #[tokio::test]
@@ -46445,7 +46432,7 @@ proc p {} {
         assert_eq!(found[0].location.range.start.character, 5);
     }
 
-    /// Exact-head review of #1854: a pending no-handle buffer still belongs to
+    /// A pending no-handle buffer still belongs to
     /// the project and must consume its published class-factory oracle. Looking
     /// up the oracle through the missing consumer handle would silently omit
     /// the class manufactured by this cross-file metaclass.
@@ -46528,7 +46515,7 @@ proc p {} {
         assert_eq!(found[0].location.uri, consumer_uri);
     }
 
-    /// Exact-head review of #1854: fallback classification and ordinary index
+    /// Fallback classification and ordinary index
     /// hits must describe one snapshot. If the pending URI publishes while its
     /// fresh analysis awaits configuration, a second index read would append
     /// the new hit and map both revisions through the old captured source.
@@ -46608,7 +46595,7 @@ proc p {} {
         assert_eq!(found[0].location.range.start.character, 5);
     }
 
-    /// Exact-head review of #1854: an indexed hit and its open source must be
+    /// An indexed hit and its open source must be
     /// captured together. An unrelated pending document can make fallback
     /// analysis await while the indexed document publishes a newer revision;
     /// the old byte span must still be mapped through the old source.
@@ -46801,7 +46788,7 @@ proc p {} {
         }
     }
 
-    /// Exact-head review of #1854: fallback matches take response priority, so
+    /// Fallback matches take response priority, so
     /// a full fallback result must not read closed indexed sources whose hits
     /// cannot be returned.
     #[tokio::test]
@@ -46849,7 +46836,7 @@ proc p {} {
         );
     }
 
-    /// Exact-head review of #1854: a closed source read must be revalidated
+    /// A closed source read must be revalidated
     /// against the per-document index revision. Otherwise a watcher can
     /// replace both the file and its index entry after the old hit was
     /// captured, and the old byte span is mapped through the new bytes.
@@ -46950,7 +46937,7 @@ proc p {} {
         );
     }
 
-    /// Exact-head review of #1854: a session-default change that snapshots a
+    /// A session-default change that snapshots a
     /// document just before an edit must retry against that edit's current
     /// text/revision instead of silently abandoning the configuration change.
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -47021,7 +47008,7 @@ proc p {} {
         assert!(!current.dialect_resolution_pending());
     }
 
-    /// Exact-head review of #1854: if a hint-changing edit loses deferred
+    /// If a hint-changing edit loses deferred
     /// publication to a later unrelated edit, the later revision must inherit
     /// and resolve the dirty hint rather than leaving the combined buffer on
     /// the old dialect.
@@ -47128,7 +47115,7 @@ proc p {} {
         assert!(!current.dialect_resolution_pending());
     }
 
-    /// Exact-head review of #1854: a diagnostics worker that captured the
+    /// A diagnostics worker that captured the
     /// current text under the old dialect must lose publication authority when
     /// a configuration-only dialect change starts a new analysis generation.
     #[tokio::test]
@@ -47180,7 +47167,7 @@ proc p {} {
         );
     }
 
-    /// Exact-head review of #1854: changing dialect retires facts analysed
+    /// Changing dialect retires facts analysed
     /// under the old grammar. The document may become Salsa-ready immediately,
     /// but it is not Indexed until replacement facts for that same live
     /// revision have been published.
@@ -47221,7 +47208,7 @@ proc p {} {
         );
     }
 
-    /// Exact-head review of #1854: a dialect rebuild first publishes a
+    /// A dialect rebuild first publishes a
     /// standalone index view. Its old source-site seed marker must disappear
     /// atomically with that replacement, or reconciliation mistakes the old
     /// qualified view for the one still present and never reapplies it.
@@ -49457,7 +49444,7 @@ proc p {} {
         );
     }
 
-    /// Exact-head review of #1854: a cancelled pair of Salsa enrichment reads
+    /// A cancelled pair of Salsa enrichment reads
     /// is not a terminal coarse result. It schedules the same bounded,
     /// workspace-wide re-pull used by detached convergence.
     #[tokio::test]

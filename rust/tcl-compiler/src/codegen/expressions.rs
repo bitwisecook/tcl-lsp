@@ -599,7 +599,7 @@ mod tests {
         ctx
     }
 
-    // -- Literal --
+    // Literal.
 
     #[test]
     fn emit_literal() {
@@ -747,7 +747,7 @@ mod tests {
         }
     }
 
-    // -- String --
+    // String.
 
     #[test]
     fn emit_string_quoted() {
@@ -792,7 +792,7 @@ mod tests {
         assert_eq!(ctx.literals.entries()[0], "a\nb");
     }
 
-    // -- Variable --
+    // Variable.
 
     #[test]
     fn emit_var_scalar() {
@@ -825,7 +825,7 @@ mod tests {
         assert_eq!(ctx.instructions.last().unwrap().op, Op::LOAD_ARRAY1);
     }
 
-    // -- Binary ops --
+    // Binary ops.
 
     #[test]
     fn emit_binary_add() {
@@ -950,7 +950,7 @@ mod tests {
         assert!(opcodes(&ctx).contains(&Op::LIST_IN));
     }
 
-    // -- Unary ops --
+    // Unary ops.
 
     #[test]
     fn emit_unary_neg() {
@@ -1005,7 +1005,7 @@ mod tests {
         assert!(opcodes(&ctx).contains(&Op::BITNOT));
     }
 
-    // -- Ternary --
+    // Ternary.
 
     #[test]
     fn emit_ternary() {
@@ -1038,7 +1038,7 @@ mod tests {
         assert!(ops.contains(&Op::JUMP4));
     }
 
-    // -- Raw --
+    // Raw.
 
     #[test]
     fn emit_raw_var_ref() {
@@ -1081,7 +1081,7 @@ mod tests {
         assert_eq!(opcodes(&ctx), vec![Op::PUSH1, Op::EXPR_STK]);
     }
 
-    // -- Call (math functions) --
+    // Call (math functions).
 
     #[test]
     fn emit_call_sin() {
@@ -1142,7 +1142,7 @@ mod tests {
         assert_eq!(invoke.operands[0], Operand::Imm(3));
     }
 
-    // -- Command substitution --
+    // Command substitution.
 
     /// A `[…]` operand is a word: the (non-verbatim) push *is* the substitution,
     /// so the value it leaves is already the operand. No `exprStk` — that would
@@ -1161,7 +1161,7 @@ mod tests {
         assert_eq!(opcodes(&ctx), vec![Op::PUSH1]);
     }
 
-    // -- iRules operators --
+    // IRules operators.
 
     #[test]
     fn emit_irules_contains() {
@@ -1202,7 +1202,7 @@ mod tests {
         assert!(opcodes(&ctx).contains(&Op::IRULE_WORD_NOT));
     }
 
-    // -- Nested expressions --
+    // Nested expressions.
 
     #[test]
     fn emit_nested_binary() {

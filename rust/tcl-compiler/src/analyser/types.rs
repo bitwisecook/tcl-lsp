@@ -141,7 +141,7 @@ impl Diagnostic {
 
 /// One statically recorded `namespace ensemble` subcommand: the command it
 /// dispatches to, plus **how** the ensemble bound the two together
-/// (issue #1281).
+///.
 ///
 /// The value half of
 /// [`AnalysisResult::ensemble_subcommand_targets`]'s inner map. Navigation
@@ -339,7 +339,7 @@ impl VarDef {
     /// A byte span is one source location, so the same location can never be
     /// two reads of the same cell: a repeat means two recorders saw the same
     /// word.  That is expected now that the registry `VarRead` role records
-    /// name words generically (issue #1108) *and* a handful of commands still
+    /// name words generically *and* a handful of commands still
     /// record their own read through a dedicated handler (`set`'s one-argument
     /// form).  Deduping at the sink keeps both recorders honest instead of
     /// making one of them conditional on the other.
@@ -390,7 +390,6 @@ pub enum ProcArgTrait {
     /// the refinement only matters for caller-side dead-store /
     /// unused-variable suppression, which must skip a param that is
     /// `DynamicNameLocal` without also being a genuine `VarWrite`.
-    /// See PR #498 / #499 (deep-review finding 10 / 6).
     DynamicNameLocal,
     /// The parameter's **value** is used as a **command name** — either the
     /// command word of an invocation (``$cmd arg1 arg2``) or a registry / stub
@@ -435,18 +434,18 @@ pub struct ProcDef {
     /// "none" — see that field.
     pub params: Vec<ParamDef>,
     /// The parameter-list word was **computed**, so the proc's formals are
-    /// unmodelled (issue #1079).
+    /// unmodelled.
     ///
     /// `proc p [makeargs] {…}` / `proc q $params {…}` build the formal list at
     /// definition time from a value; which names it declares, and how many,
     /// are run-time facts (tclsh 9.0.4 / 8.6.16: with
     /// `proc makeargs {} {return {a b}}`, `proc p [makeargs] {…}` then
-    /// `info args p` → `a b`, and `p 1 2` runs).  The analyser used to read
-    /// the unresolved word as a one-parameter literal and register a
-    /// `VarDef` whose *name is the source text* (`"[makeargs]"`) — a wrong
-    /// fact that also made the call-site arity checker demand exactly one
-    /// argument.  Now nothing is claimed: no per-parameter `VarDef`, and the
-    /// arity resolvers abstain (`0..unlimited`).
+    /// `info args p` → `a b`, and `p 1 2` runs).  Reading the unresolved word
+    /// as a one-parameter literal would register a `VarDef` whose *name is the
+    /// source text* (`"[makeargs]"`) and make the call-site arity checker
+    /// demand exactly one argument.  Nothing is claimed instead: no
+    /// per-parameter `VarDef`, and the arity resolvers abstain
+    /// (`0..unlimited`).
     pub params_computed: bool,
     /// Source span of the proc-name token.
     pub name_span: Span,
@@ -476,8 +475,8 @@ pub struct ProcDef {
     pub caller_frame_params: std::collections::HashSet<String>,
     /// **Literal** caller-frame names this proc binds in its immediate
     /// caller's frame — spelled in the proc's *own* body (`upvar 1 name
-    /// name`), so no call-site argument word carries them (issue #923 audit
-    /// idx 22 / issue #1139).  `name → written-through-alias`: `true` means
+    /// name`), so no call-site argument word carries them.
+    /// `name → written-through-alias`: `true` means
     /// a call *creates* the variable in the calling frame, `false` that it
     /// only reads it.  Populated by
     /// [`super::param_traits::caller_frame_literal_targets`]; empty when
@@ -488,7 +487,7 @@ pub struct ProcDef {
 impl ProcDef {
     /// The proc's declared argument arity — or the **abstaining**
     /// `0..unlimited` when its parameter list was computed
-    /// ([`Self::params_computed`], issue #1079).
+    /// ([`Self::params_computed`]).
     ///
     /// A computed list declares an unknown number of formals with unknown
     /// names, so no call-site count can be wrong: `proc p [makeargs] {…}` with
@@ -551,7 +550,7 @@ pub struct MethodDef {
     pub params: Vec<ParamDef>,
     /// The method's formals are unmodelled: either the parameter-list word
     /// was itself computed, or — the case this field was added for
-    /// (issue #1277) — the *method* itself was installed by a literal
+    /// — the *method* itself was installed by a literal
     /// loop (`foreach m {alpha beta gamma} { method $m {args} {…} }`)
     /// whose per-iteration name this walk can read off the loop's own
     /// literal list, but whose per-iteration signature it deliberately
@@ -576,7 +575,7 @@ pub struct MethodDef {
     pub kind: String,
     /// `true` only for a `classmethod`-kind entry declared via `TclOO`'s
     /// `self` wrapper (`self method NAME …`) directly on this class
-    /// (issue #923 idx 120). Unlike `ooutil`'s `classmethod` keyword —
+    ///. Unlike `ooutil`'s `classmethod` keyword —
     /// confirmed against tclsh 9.0.4/8.6 to propagate to a subclass's own
     /// bound command via its `Delegate`-mixin machinery, which walks
     /// `info class superclass` — a plain `self method` is visible ONLY on
@@ -606,7 +605,7 @@ pub struct MethodDef {
 impl MethodDef {
     /// The method's declared argument arity — or the **abstaining**
     /// `0..unlimited` when its parameter list is unmodelled
-    /// ([`Self::params_computed`], issue #1277).
+    /// ([`Self::params_computed`]).
     ///
     /// Exactly [`ProcDef::arity`]'s contract, extended to `MethodDef`: every
     /// arity consumer (`$obj method` call-site checking, `next`/`nextto`
@@ -670,8 +669,8 @@ pub fn class_destructor_key(class_qualified: &str) -> String {
     format!("{class_qualified}::destructor")
 }
 
-/// One per-object method added by an `oo::objdefine` (issue #945
-/// fault 5): the method declaration plus the **objdefine site's**
+/// One per-object method added by an `oo::objdefine`: the method declaration
+/// plus the **objdefine site's**
 /// receiver offset, the anchor a consumer resolves to a variable
 /// binding so same-named receivers in different scopes never collide.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -685,7 +684,7 @@ pub struct ObjectMethodDef {
 }
 
 /// Effective **per-object member state** for one receiver binding — the
-/// durable home issue #1170 gives `oo::objdefine` effects, folded in source
+/// durable home for `oo::objdefine` effects, folded in source
 /// order across every block on the same binding (the same binding identity
 /// [`ObjectMethodDef::objdefine_offset`] anchors: the innermost proc / method
 /// body declaring the receiver variable, or the top level).
@@ -703,7 +702,7 @@ pub struct ObjectMemberState {
     pub methods: HashMap<String, MethodDef>,
     /// Names this binding's blocks explicitly `export` — including names the
     /// object's *class* provides, which is exactly the flip that had nowhere
-    /// to live (issue #1119 item 3).  Kept mutually exclusive with
+    /// to live.  Kept mutually exclusive with
     /// [`Self::unexports`], last writer wins, the same contract as the
     /// class-side pairs.
     pub exports: std::collections::HashSet<String>,
@@ -748,9 +747,9 @@ pub struct PropertyDef {
 /// `deletemethod` / `unexport` in a class body acts on the instance side, the
 /// same word under `self` acts on the class-object side, and neither reaches
 /// across.  Naming the side explicitly is what stops a class-side `unexport m`
-/// from also un-exporting an identically-named instance method (issue #1098),
+/// from also un-exporting an identically-named instance method,
 /// and what lets a cross-document retraction record which table it removes from
-/// (issue #1101).
+///.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MemberSide {
     /// [`ClassDef::methods`] — what instances of the class dispatch.
@@ -777,9 +776,9 @@ impl MemberSide {
     /// `apply_visibility_member` has no `if side == Instance` branch: both
     /// sides take the identical last-writer-exclusive update, they just land in
     /// a different pair.  [`ClassDef::exports`] / [`ClassDef::unexports`] are
-    /// the **instance**-side pair by contract (issue #1098) and
+    /// the **instance**-side pair by contract and
     /// [`ClassDef::class_exports`] / [`ClassDef::class_unexports`] the
-    /// class-object-side one (issue #1119).
+    /// class-object-side one.
     #[must_use]
     pub fn visibility_sets(
         self,
@@ -808,7 +807,7 @@ impl MemberSide {
 
 /// A reason one `TclOO` definition body **cannot run at all** — real Tcl
 /// aborts the whole `oo::class create` / `oo::define` and creates no class
-/// (issue #1120).
+///.
 ///
 /// Recorded by the member walker where the retracting word is applied (the one
 /// site that knows the side's table state at that point in the body) and
@@ -852,7 +851,7 @@ pub enum DefinitionAbortKind {
 /// tombstone described on
 /// [`ClassDef::retracted_members`](crate::analyser::ClassDef::retracted_members).
 ///
-/// Carries a *destination* (issue #1167): a `renamemethod old new` in a
+/// Carries a *destination*: a `renamemethod old new` in a
 /// cross-file `oo::define` stub does not merely delete `old`, it moves the
 /// member to `new`, and the stub has no [`MethodDef`] of its own to move — the
 /// member's params / body / visibility live in the defining file's record.
@@ -892,7 +891,7 @@ impl MemberRetractionRecord {
 }
 
 /// One `renamemethod` that successfully **moved** a member, with the member
-/// state the move ran against (issue #1121 review).
+/// state the move ran against.
 ///
 /// Recording the move is what lets a *rename* of the arrived member be checked:
 /// its declaration site is the `renamemethod`'s destination word, so renaming
@@ -1022,7 +1021,7 @@ impl DefinitionAbort {
 /// derived once, where the metaclass is written, and then resolved against
 /// each `Meta create …` call — including one in a different file, which is
 /// the only way the per-file walk can classify such a call at all
-/// (issue #1276).
+///.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FactoryWord {
     /// A word the manufacturer writes literally in its own body
@@ -1065,11 +1064,11 @@ pub struct ManufacturerSpec {
 
 /// Workspace-wide class factories, keyed by fully-qualified metaclass name —
 /// what a host hands the analyser so a `Meta create …` call can be classified
-/// when `Meta` is written in another document (issue #1276).
+/// when `Meta` is written in another document.
 pub type ClassFactoryIndex = BTreeMap<String, ClassFactory>;
 
 /// A creation call the walk could not classify, kept for a **second verdict**
-/// once the parameterised-class observation join has settled (issue #1660).
+/// once the parameterised-class observation join has settled.
 ///
 /// A metaclass proved only by that post-pass does not exist while the walk
 /// runs: `::T::D::class create ::T::W { … }` in the same document reads as a
@@ -1098,7 +1097,7 @@ pub struct DeferredClassCreation {
 
 /// Instance methods dispatchable on some workspace **descendant** of each
 /// class, keyed by the ancestor's fully-qualified name — what a host hands
-/// the analyser so the template-method abstention (issue #1367) can see a
+/// the analyser so the template-method abstention can see a
 /// subclass written in another document.
 ///
 /// `map["::Formatter"]` holds every instance-side member name reachable on
@@ -1115,7 +1114,7 @@ pub type SubclassProvidedMethods = BTreeMap<String, std::collections::BTreeSet<S
 /// Recorded on the metaclass's own [`ClassDef`] when it is written, so a
 /// `Meta create Name …` call anywhere — same file or, through the workspace
 /// factory index, another one — is classified from a fact that was *proved*
-/// at the definition rather than guessed from the call's shape (issue #1276).
+/// at the definition rather than guessed from the call's shape.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct ClassFactory {
     /// The registry metaclass command at the root of this factory's
@@ -1133,7 +1132,7 @@ pub struct ClassFactory {
     pub exported_manufacturers: std::collections::BTreeSet<String>,
     /// Whether calling one of the classes this factory makes with a **bare
     /// unrecognised word** both constructs an object and returns that word —
-    /// Tk's `::tk::IconList .il` idiom (issue #1303).
+    /// Tk's `::tk::IconList .il` idiom.
     ///
     /// Proved where the metaclass is written, from its unrecognised-word
     /// fallback member (`TclOO`'s `unknown`), and `false` whenever the proof
@@ -1221,7 +1220,7 @@ fn rehome_member(
     })
 }
 
-/// Where a [`ClassDef::metaclass`] value came from — issue #1653.
+/// Where a [`ClassDef::metaclass`] value came from.
 ///
 /// An enum rather than a bare flag because the interesting half is what the
 /// *default* means: `"oo::class"` sitting in a record no creation command
@@ -1282,7 +1281,7 @@ pub struct ClassDef {
     /// reads as a walk having *proved* `oo::class`; a `via_define` stub for
     /// a computed-name class made by `::T::Mother` then looked like two
     /// walks disagreeing about the metaclass, and the record abstained down
-    /// to no factory and no superclasses (issue #1653).
+    /// to no factory and no superclasses.
     pub metaclass_provenance: MetaclassProvenance,
     /// Direct superclasses in declaration order.  Each entry
     /// is a fully-qualified class name with leading ``::``.
@@ -1308,7 +1307,7 @@ pub struct ClassDef {
     /// They intercept dispatches on *instances* of the class.
     ///
     /// Sided because `TclOO` keeps two independent filter slots, exactly as it
-    /// keeps two method tables (issue #1119). Oracle, byte-identical on tclsh
+    /// keeps two method tables. Oracle, byte-identical on tclsh
     /// 9.0.4 and 8.6.14:
     ///
     /// ```tcl
@@ -1355,10 +1354,10 @@ pub struct ClassDef {
     /// `exports`/`unexports` are the instance-side record *by contract*: the
     /// workspace effective-export union and `rename_safety` both read them that
     /// way, so a class-side flip landing there would silently re-state an
-    /// unrelated instance method's export bit (issue #1098). Without this pair a
+    /// unrelated instance method's export bit. Without this pair a
     /// `self unexport m` in one file never reached another file's class-command
     /// dispatch, which went on advertising a member `::C m` rejects with
-    /// `unknown method "m"` (issue #1119).
+    /// `unknown method "m"`.
     ///
     /// Rides the same cross-file channel as [`Self::retracted_members`] — a
     /// `via_define` stub carries it — and shares that channel's documented
@@ -1380,7 +1379,7 @@ pub struct ClassDef {
     /// `oo::define ::C { deletemethod m }` in another: the second file's
     /// [`Self::via_define`] stub finds nothing to remove, so without this the
     /// workspace goes on advertising and resolving `m` even though sourcing the
-    /// extension deletes it (issue #1101 review). Cross-file *order* is
+    /// extension deletes it. Cross-file *order* is
     /// unprovable, so the tombstone is unordered — exactly as a cross-file
     /// `oo::define ::C { method extra … }` is an unordered addition today.
     pub retracted_members: Vec<MemberRetractionRecord>,
@@ -1401,7 +1400,7 @@ pub struct ClassDef {
     /// the same judgement parse errors already get.
     pub definition_aborts: Vec<DefinitionAbort>,
     /// Every `renamemethod` in this record's body that **moved** a member, with
-    /// the member state the move ran against (issue #1121 review).
+    /// the member state the move ran against.
     ///
     /// The moved member's declaration site is the `renamemethod`'s destination
     /// word, so a rename of it rewrites that word — and some new names turn the
@@ -1417,7 +1416,7 @@ pub struct ClassDef {
     /// target for the plain ``link NAME`` form). In contrast, a bareword
     /// matching an un-linked sibling method/classmethod/property name is
     /// **not** reachable that way and errors "invalid command name" at
-    /// runtime (issue #923 idx 113).
+    /// runtime.
     pub linked_members: HashMap<String, String>,
     /// Doc-comment text harvested from the line(s) above the
     /// ``oo::class create`` / ``oo::define`` statement.
@@ -1436,11 +1435,11 @@ pub struct ClassDef {
     /// and its own body is fully modelled; only its inheritance is opaque.
     /// Method-existence checks (W308) must abstain on such a class exactly as
     /// they do for one whose superclass lives outside the workspace index —
-    /// a method it inherits is not one it is missing (issue #923 idx 96/97).
+    /// a method it inherits is not one it is missing.
     pub inheritance_unknown: bool,
     /// `true` when calling **this class's own command** with a bare,
     /// unrecognised first word constructs an instance and yields its name —
-    /// Tk's `::tk::IconList .il` (issue #1303).
+    /// Tk's `::tk::IconList .il`.
     ///
     /// Proved where the class is written, from its metaclass's
     /// unrecognised-word fallback member
@@ -1456,7 +1455,7 @@ pub struct ClassDef {
     pub class_command_fallback: ClassCommandFallback,
     /// `true` when the class's definition body installs members the analyser
     /// could not read, so the recorded member tables are a **lower bound**
-    /// on what the class really has (issue #923 idx 53).
+    /// on what the class really has.
     ///
     /// Two shapes set it, both registry-driven rather than keyword-matched:
     ///
@@ -1489,7 +1488,7 @@ pub struct ClassDef {
     /// into every body), derived once here rather than re-derived at each
     /// `Meta create …` call.  Publishing it on the `ClassDef` is what lets a
     /// *different file*'s walk classify `::tk::Megawidget create IconList …`
-    /// at all (issue #1276): without it, that call is indistinguishable from
+    /// at all: without it, that call is indistinguishable from
     /// `interp create` or `image create`.
     pub factory: Option<ClassFactory>,
 }
@@ -1552,7 +1551,7 @@ impl ClassDef {
     /// reading of the same body. A join that simply picked the more
     /// complete record therefore silently dropped the other's members,
     /// which is how a stub's `method m` disappeared the moment the join
-    /// stopped abstaining (issue #1653).
+    /// stopped abstaining.
     ///
     /// **This join knows the order.** An `oo::define` extending a class
     /// necessarily runs after the creation it extends, so
@@ -1895,7 +1894,7 @@ pub struct Scope {
     /// eval NAME { … }`.
     ///
     /// `None` for scopes with no written name word: the global scope, an
-    /// `interp eval` domain, a synthesised M9 source-seed frame, and proc /
+    /// `interp eval` domain, a synthesised source-seed frame, and proc /
     /// method scopes (whose name span already travels on the richer
     /// [`ProcDef::name_span`] / [`MethodDef`] records).
     ///
@@ -1903,7 +1902,7 @@ pub struct Scope {
     /// this: the outline's `selectionRange` ("the range that should be
     /// selected and revealed when this symbol is picked") is the name token
     /// for every other symbol kind, and a namespace that answered its whole
-    /// body there selected the entire block when clicked (issue #1218).
+    /// body there selected the entire block when clicked.
     pub name_span: Option<Span>,
     /// Variables defined directly in this scope.
     pub variables: HashMap<String, VarDef>,
@@ -1932,7 +1931,7 @@ pub struct Scope {
     /// merely a frame whose namespace path reaches `::oo::Helpers`.
     ///
     /// The pair encodes two facts real Tcl keeps separate, and conflating
-    /// them is a live defect (Codex review of PR #1084). A Tcl 9 class
+    /// them is a live defect. A Tcl 9 class
     /// `initialise` / `initialize` body runs in the class object's own
     /// namespace with `namespace path` = `::oo::Helpers ::oo`, so it sets
     /// `oo_global_resolution` — the helpers genuinely **resolve** there —
@@ -1963,7 +1962,7 @@ pub struct Scope {
     /// (not `TclOO`; `self` has different meaning),
     /// for class-level `initialise` scripts, and for `oo::objdefine`'s
     /// synthetic per-object records. Consumed by the analyser's constant
-    /// command-substitution fold (issue #1132) so `set ns [namespace
+    /// command-substitution fold so `set ns [namespace
     /// qualifiers [self class]]` folds only where real Tcl produces that
     /// value.
     pub oo_defining_class: Option<String>,
@@ -2111,8 +2110,8 @@ pub struct AnalysisResult {
     /// one. Exists purely so a query landing on a shadowed declaration's own
     /// name token can still be recognised as declaring that qualified name
     /// and re-resolved to whichever `ProcDef` currently wins in `all_procs`
-    /// (issue #923 idx 31, main audit wave) — `all_procs`' own span alone
-    /// can never satisfy that lookup, since it only ever holds the winner's.
+    /// — `all_procs`' own span alone can never satisfy that lookup, since it
+    /// only ever holds the winner's.
     pub proc_declaration_sites: Vec<(String, Span)>,
     /// The `ProcDef`s a later same-named `proc` displaced from
     /// [`Self::all_procs`], keyed by qualified name, in source order —
@@ -2125,13 +2124,11 @@ pub struct AnalysisResult {
     /// list. This is the order-gated companion the map cannot express —
     /// the `proc` analogue of [`Self::rename_offsets`] /
     /// [`Self::alias_offsets`] — and
-    /// [`Self::proc_def_in_effect_at`] is how consumers ask it (issue #923
-    /// idx 45).
+    /// [`Self::proc_def_in_effect_at`] is how consumers ask it.
     ///
     /// Distinct from [`Self::proc_declaration_sites`], which records only
-    /// *spans* (enough to recognise a shadowed declaration's own name token,
-    /// issue #923 idx 31) and so cannot answer what the displaced definition's
-    /// parameters were.
+    /// *spans* (enough to recognise a shadowed declaration's own name token)
+    /// and so cannot answer what the displaced definition's parameters were.
     pub superseded_procs: HashMap<String, Vec<ProcDef>>,
     /// Classes keyed by qualified name.
     pub all_classes: HashMap<String, ClassDef>,
@@ -2146,7 +2143,7 @@ pub struct AnalysisResult {
     /// disjoint body spans, not one contiguous range, so any consumer
     /// asking "which class's body lexically contains this offset" for
     /// `my`-dispatch resolution must check every entry here rather than
-    /// just `ClassDef::body_span` (issue #923 idx 52, main audit wave).
+    /// just `ClassDef::body_span`.
     pub class_body_spans: Vec<(String, Span)>,
     /// Free variables (vars defined outside any proc scope) keyed
     /// by qualified name.
@@ -2173,8 +2170,8 @@ pub struct AnalysisResult {
     /// as not statically known.
     pub package_ifneededs: Vec<PackageIfneeded>,
     /// ``package prefer latest`` records — the interpreter-global
-    /// version-selection mode raises, in source order (issue #1126
-    /// item 1).  See [`SignaturePackagePrefer`] for why only the
+    /// version-selection mode raises, in source order.  See
+    /// [`SignaturePackagePrefer`] for why only the
     /// raise to `latest` is a record.
     pub package_prefer_latest: Vec<SignaturePackagePrefer>,
     /// True when a non-literal ``package require`` / ``load`` /
@@ -2218,7 +2215,7 @@ pub struct AnalysisResult {
     /// to the command it names, exactly like `info body PROC` — so
     /// find-references / go-to-definition / rename reach it through the
     /// same path as any other reference, covering a deleting `rename OLD
-    /// {}` too (issue #923 idx 39, main audit wave).
+    /// {}` too.
     pub renamed_commands: HashMap<String, String>,
     /// Byte offset of the `rename` command token that established each
     /// [`Self::renamed_commands`] entry, keyed the same way (by qualified
@@ -2236,14 +2233,14 @@ pub struct AnalysisResult {
     /// name is (only the pair `widget make` dispatches), and two different
     /// ensembles may share a subcommand spelling. Lets `definition`/`hover`/
     /// `references` in `tcl-lsp-core` resolve `widget make` to `::widget::Make`
-    /// (issue #923 idx 106) the same way they already resolve an alias name
+    /// the same way they already resolve an alias name
     /// to its target. Only ever populated from a *literal* `-map`/
     /// `-subcommands` list — a dynamic value (`-map $var`) leaves the
     /// ensemble's entry absent entirely, so a lookup against it correctly
     /// abstains rather than guessing.
     ///
     /// Each entry carries the **provenance** of its mapping
-    /// ([`EnsembleSubcommandTarget::provenance`], issue #1281) — `-map` binds
+    /// ([`EnsembleSubcommandTarget::provenance`]) — `-map` binds
     /// an arbitrary key to a target, `-subcommands` derives the target from
     /// the name — because a consumer that rewrites the subcommand word
     /// (rename) is only correct for one of the two.
@@ -2261,7 +2258,7 @@ pub struct AnalysisResult {
     /// Namespace import records.
     pub namespace_imports: Vec<SignatureNamespaceImport>,
     /// Namespace `forget` records — the removal half of the import edge's
-    /// ordered lifecycle log (issue #1103). See
+    /// ordered lifecycle log. See
     /// [`SignatureNamespaceForget`] for the oracle: an import installs an
     /// alias, `namespace forget` takes it away again, and a bare call after
     /// the forget is `invalid command name`. Consumed together with
@@ -2297,8 +2294,7 @@ pub struct AnalysisResult {
     /// ([`super::state::Analyser::publish_load_level_destructions`]).
     pub destroyed_commands: HashMap<String, u32>,
     /// Namespace `export` records — see [`SignatureNamespaceExport`] for why
-    /// they exist (gating wildcard-import bareword resolution, issue #923
-    /// idx 18).
+    /// they exist (gating wildcard-import bareword resolution).
     pub namespace_exports: Vec<SignatureNamespaceExport>,
     /// Recorded `namespace path {…}` declarations, keyed by the declaring
     /// namespace's fully-qualified name (`::` for global).  Each entry is the
@@ -2316,11 +2312,11 @@ pub struct AnalysisResult {
     /// consumer that must be exhaustive about namespace occurrences — the
     /// namespace rename tier, which rewrites each literal entry through the
     /// per-element [`NamespaceRef`] rows — needs the difference: an entry it
-    /// cannot see is an entry it cannot rewrite (issue #1261).
+    /// cannot see is an entry it cannot rewrite.
     ///
     /// A *braced* word is not dynamic: braces suppress substitution, so
     /// `namespace path {::$ns ::a}` names a namespace literally called
-    /// `::$ns` and is recorded as an ordinary literal path (issue #1245).
+    /// `::$ns` and is recorded as an ordinary literal path.
     pub namespace_path_computed: Vec<Span>,
     /// `auto_path` mutations (``lappend auto_path …`` / ``set auto_path …``).
     pub auto_path_entries: Vec<AutoPathEntry>,
@@ -2332,15 +2328,15 @@ pub struct AnalysisResult {
     /// Both the declaring `namespace eval` name tokens (`declares: true`) and
     /// every other spelling of the same namespace, so go-to-definition /
     /// hover / find-references treat a namespace as a first-class symbol
-    /// (issue #1088).
+    ///.
     pub namespace_refs: Vec<NamespaceRef>,
     /// Variable-name argument words computed at run time, in source order —
     /// see [`DynamicVariableNameSite`].  The per-site provenance a
     /// post-analysis consumer needs to ask what a `$n` in a name position can
-    /// actually spell (issue #1262).
+    /// actually spell.
     pub dynamic_variable_names: Vec<DynamicVariableNameSite>,
     /// Byte spans where command resolution is pinned to a namespace by
-    /// runtime context rather than lexical nesting (issue #923 idx 116):
+    /// runtime context rather than lexical nesting:
     /// `apply {{params} body ns}` runs `body` in `ns`, not the namespace
     /// the lambda is lexically written inside. Each entry is `(body_span,
     /// "::"-qualified namespace)`; consulted by `tcl-lsp-core`'s
@@ -2376,7 +2372,7 @@ pub struct AnalysisResult {
     pub instance_classes: HashMap<String, String>,
     /// Owner-attributed object-handle provenance from the compilation unit's
     /// VTA-lite lattice ([`crate::object_types::object_handle_facts`]) — the
-    /// carrier issue #994's unification is built on.
+    /// carrier the object-handle unification is built on.
     ///
     /// **Contract.** Best-effort, exactly like [`Self::instance_classes`]: an
     /// absent key means *no evidence was found in this document*, never *proof
@@ -2422,8 +2418,8 @@ pub struct AnalysisResult {
     /// `rex make` inside `::a` against `::a::rex` and inside `::b` against
     /// `::b::rex`, and both object commands coexist), but a bare-name set
     /// cannot tell them apart — so find-references and rename cross-linked the
-    /// two, and a rename of one class's method rewrote the other's call site
-    /// (issue #981, object-command half).
+    /// two, and a rename of one class's method would rewrite the other's call
+    /// site.
     ///
     /// Each record carries the qualified command name the creation site's own
     /// namespace produces and the qualified name of the creating class, so the
@@ -2441,7 +2437,7 @@ pub struct AnalysisResult {
     /// different procs. `instance_classes` itself stays last-write-wins for
     /// every other producer (its long-documented, best-effort contract);
     /// this set exists only so a consumer that needs a *sound* answer
-    /// (`widget_command.rs`'s W001/E002/E003 — issue #927) can tell "no
+    /// (`widget_command.rs`'s W001/E002/E003) can tell "no
     /// binding" apart from "binding, but two different ones, so
     /// unknowable" and abstain on the latter rather than trust whichever
     /// write happened to run last.  Populated only by
@@ -2461,12 +2457,12 @@ pub struct AnalysisResult {
     /// keys the record by the receiver's *binding identity* — the scope
     /// declaring the variable — never by the textual tail alone (two
     /// unrelated locals both named `o` in different procs are different
-    /// objects; issue #945 fault 5).
+    /// objects).
     pub object_methods: HashMap<String, Vec<ObjectMethodDef>>,
     /// Folded per-object member state, keyed like [`Self::object_methods`]
     /// (receiver variable simple name, plus the resolved object name when the
     /// receiver word folds to a constant), one entry per distinct receiver
-    /// **binding** — see [`ObjectMemberState`] (issue #1170).
+    /// **binding** — see [`ObjectMemberState`].
     pub object_member_state: HashMap<String, Vec<ObjectMemberState>>,
     /// Call sites of unresolved (unknown) commands — `(span, bare name)`, the
     /// same set the W123 diagnostic is emitted for, but recorded **regardless of
@@ -2532,7 +2528,7 @@ impl AnalysisResult {
     /// dispatch through, so navigation follows exactly the subcommand real
     /// Tcl would run. An *ambiguous* prefix resolves to nothing and the
     /// caller keeps abstaining — the ensemble would error there, so there is
-    /// no target to point at (issue #1611).
+    /// no target to point at.
     ///
     /// `None` when the ensemble is unknown to this document, its `-map` was
     /// dynamic (nothing is ever recorded for it), or `sub` matches nothing.
@@ -2562,7 +2558,7 @@ impl AnalysisResult {
     /// name — the slice a host merges into the workspace factory index it
     /// feeds back through
     /// [`Analyser::with_workspace_class_factories`](super::Analyser::with_workspace_class_factories)
-    /// (issue #1276).
+    ///.
     ///
     /// A document that declares no user metaclass — nearly all of them —
     /// contributes an empty map, so the merged index stays empty and every
@@ -2766,7 +2762,7 @@ pub struct PackageProvide {
 /// asking "which statements does a `package require NAME` run?" therefore
 /// cannot answer it from here; what this record supplies is the *fact that the
 /// question is open*, which is exactly the abstention a package-derived load
-/// order needs (issue #1279, uncertainty 3).
+/// order needs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageIfneeded {
     /// Package the load script is registered for.
@@ -2787,7 +2783,7 @@ pub struct PackageIfneeded {
 /// to nothing locally and leaves no trace in the scope tree
 /// ([`Scope::variables`] / [`VarDef::references`] only ever record a *resolved*
 /// use).  The workspace index lifts these into the cross-document variable
-/// reference set (issue #923 differential-audit findings idx 65 / 75 / 78).
+/// reference set.
 ///
 /// Deliberately **qualified-only**: an unqualified `$v` names whichever cell
 /// the local scope chain supplies, which is a per-document question, so
@@ -2815,7 +2811,7 @@ pub struct QualifiedVarRef {
 /// another block in the same file, or a sibling document — so the occurrence
 /// leaves no trace in the scope tree, which only records a namespace as a
 /// *container* ([`Scope`] with [`ScopeKind::Namespace`]) and never as a
-/// referenceable symbol (issue #1088).
+/// referenceable symbol.
 ///
 /// Unlike the variable table this one records **relative** names too, because
 /// there is nothing per-document about them: a namespace word roots against
@@ -2842,7 +2838,7 @@ pub struct NamespaceRef {
 /// registry [`tcl_registry::ArgRole::VarWrite`] / [`tcl_registry::ArgRole::VarRead`]
 /// position holding a `$`/`[…]` substitution (`set $n 2`, `variable $n`,
 /// `namespace upvar ::ns $n local`) — together with what the analyser could
-/// prove about the value (issue #1262).
+/// prove about the value.
 ///
 /// The proof is analyser *state*: `Scope::lookup_dominating_const_string`
 /// knows, while the walk is in progress, that the `$n` in `set n other; set
@@ -3135,7 +3131,7 @@ mod tests {
         // the analyser depends on.
         let c = ClassDef::default();
         assert_eq!(c.metaclass, "oo::class");
-        // …and it is a stand-in, not an observation (issue #1653).
+        // …and it is a stand-in, not an observation.
         assert_eq!(c.metaclass_provenance, MetaclassProvenance::StandIn);
         assert!(c.constructors.is_empty());
         assert!(c.destructor.is_none());
@@ -3191,7 +3187,7 @@ mod tests {
 
     #[test]
     fn absorb_declarations_lets_the_later_definition_set_visibility() {
-        // Issue #1653 review (thread r3820723173). `export` / `unexport`
+        // `export` / `unexport`
         // are one bit per member, not two sets: on 8.6.16 and 9.0.4,
         // `oo::class create E1 { method m {} {}; export m }` then
         // `oo::define E1 { unexport m }` leaves `info class methods E1`
@@ -3263,7 +3259,7 @@ mod tests {
 
     #[test]
     fn absorb_declarations_replaces_mixins_but_appends_variables_and_filters() {
-        // Issue #1653 review (thread r3820723184). The ordered slots are
+        // The ordered slots are
         // *not* uniform, which is why each was measured rather than
         // assumed. On 8.6.16 and 9.0.4, a class created with
         // `mixin ::FH ::A; filter f; variable x` and then
@@ -3327,7 +3323,7 @@ mod tests {
 
     #[test]
     fn absorb_declarations_applies_a_later_retraction_to_the_member_table() {
-        // Issue #1653 review (thread r3820723192). A stub records
+        // A stub records
         // `deletemethod m` as a tombstone because it has no table to remove
         // from; the join is where the ordering is known, and compiler-side
         // consumers of `all_classes` never run the workspace fold. On

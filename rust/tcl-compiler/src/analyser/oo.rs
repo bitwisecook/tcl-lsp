@@ -29,7 +29,7 @@
 //! Subcommand coverage:
 //!
 //! - ``superclass ?-op? <names>`` — folds into ``ClassDef::superclasses``
-//!   through the registry slot spec (default ``-set``; issue #1169).
+//!   through the registry slot spec (default ``-set``).
 //! - ``mixin ?-op? <names>`` — folds into ``ClassDef::mixins`` the same
 //!   way (default ``-set``).
 //! - ``method NAME PARAMS BODY`` — adds to ``ClassDef::methods``.
@@ -41,7 +41,7 @@
 //! - ``forward NAME ?TARGET ARGS?`` — adds to ``methods`` with
 //!   ``kind = "forward"``.
 //! - ``variable ?-op? <names>`` — folds into ``ClassDef::variables``
-//!   (slot default ``-append`` with dedup; issue #1169).
+//!   (slot default ``-append`` with dedup).
 //! - ``filter ?-op? <names>`` — folds into ``ClassDef::filters``
 //!   (slot default ``-append``, duplicates kept).
 //! - ``export <names>`` / ``unexport <names>`` — extends the
@@ -74,8 +74,8 @@ use crate::signature_scan::types::ParamDef;
 /// The names by which a user handler conventionally keeps the original
 /// `unknown` it displaced (`rename unknown _original_unknown`).
 ///
-/// This is the irreducible residue of the old `CHAIN_TARGETS` list: the saved
-/// name is *chosen by the script author*, so no registry can know it — only
+/// The saved name is *chosen by the script author*, so no registry can know
+/// it — only
 /// the convention can be recognised.  The handler's own spellings are **not**
 /// here; they come from [`tcl_registry::Traits::UNRESOLVED_COMMAND_HANDLER`]
 /// via [`chains_original_unknown`], which is how `analyser::handlers` and
@@ -547,7 +547,7 @@ impl Analyser {
     /// dynamic word (`superclass $base`) names no static command and is skipped.
     /// Whether one command of a definition body installs members this walk
     /// cannot read, making the class's recorded member tables a lower bound
-    /// ([`super::types::ClassDef::member_set_incomplete`], the audit).
+    /// ([`super::types::ClassDef::member_set_incomplete`]).
     ///
     /// Two shapes qualify, neither matched by keyword:
     ///
@@ -856,13 +856,14 @@ impl Analyser {
             scope_path,
             definer_disabled,
         );
-        // A bareword-callable-from-this-class fact, gathered before Phase 2
-        // starts (so it's already populated by the time member-lookup
+        // A bareword-callable-from-this-class fact, gathered before the
+        // per-method body walk below starts (so it's already populated by the
+        // time member-lookup
         // consumers — go-to-definition / hover — read `class_def`, and
         // regardless of *which* method body called `link`).
         self.collect_oo_links(&method_bodies, class_def);
 
-        // Phase 2: walk each method / accessor / class-init body in its own
+        // Walk each method / accessor / class-init body in its own
         // `Method` scope with the formal parameters and the class's instance
         // variables pre-bound.
         let class_variables = class_def.variables.clone();
@@ -1077,7 +1078,7 @@ impl Analyser {
                 // and the class's *defining* namespace is not searched.
                 child.oo_global_resolution = true;
                 // ...but it is NOT a method invocation, so `oo_method_frame`
-                // stays false (Codex review of PR #1084). The two facts
+                // stays false. The two facts
                 // diverge here and nowhere else: the family *resolves*
                 // (`namespace which -command link` → `::oo::Helpers::link`,
                 // so W123 must stay silent) yet all but `my` raise `… may
@@ -1143,7 +1144,7 @@ impl Analyser {
     /// and a name/target built from a variable or command substitution is
     /// skipped (mirrors [`crate::alias::detect_interp_alias`]'s
     /// literal-only requirement — no lattice lookup here, this runs
-    /// before Phase 2's per-method scope walk even exists).
+    /// before the per-method scope walk even exists).
     ///
     /// Deliberately shallow: only a `link` call written directly at a
     /// body's own top level is recognised, not one nested inside an
@@ -2068,7 +2069,7 @@ pub(super) fn parse_oo_define_inline_in(
 
 /// Depth cap for [`walk_unknown_stmt`]'s recursion over nested `if`/`for`/
 /// `while`/`foreach`/`catch`/`try`/`switch`/`Block`/`UpFrame` bodies —
-/// issue #996. Transitively bounded today via `MAX_LOWER_NEST_DEPTH`
+/// Transitively bounded today via `MAX_LOWER_NEST_DEPTH`
 /// (every `Script` this walk sees was built by `crate::lowering`, which
 /// already caps its own construction at 256), capped here independently
 /// for defence-in-depth and consistency with every other full-tree walker
@@ -2202,7 +2203,8 @@ fn walk_unknown_stmt(
 ///
 /// Neither is a method frame, so [`collect_method_body`] — restricted to the
 /// four real method-bearing members — does not see them, yet each needs its
-/// own scope in phase 2. Split out of `parse_oo_definition_body` purely to
+/// own scope in the per-body walk. Split out of `parse_oo_definition_body`
+/// purely to
 /// keep that walker within its line budget.
 fn collect_class_level_bodies(
     grammar: &DefinitionBodyGrammar,
@@ -2462,8 +2464,8 @@ fn collect_method_body(
     dialect: Option<SurfaceQuery<'_>>,
     rules: WordValueRules,
 ) -> Option<CollectedMethodBody> {
-    // Unwrap a leading `self`/`private` modifier first (issue #923 idx
-    // 120): its body would otherwise never be walked at all (no internal
+    // Unwrap a leading `self`/`private` modifier first: its body would
+    // otherwise never be walked at all (no internal
     // diagnostics inside a `self method`/`private method` body — confirmed
     // empirically, a deliberately-wrong-arity call inside one drew
     // nothing, while the identical call in a plain `method` body correctly
@@ -2665,8 +2667,8 @@ fn apply_oo_private(
 /// `oo::class create ::C { method m … }` in one file, `oo::define ::C {
 /// deletemethod m }` in another — where the second file's `via_define` stub has
 /// nothing local to remove, and dropping the retraction on the floor leaves the
-/// workspace advertising a method that sourcing the extension deletes (issue
-/// #1101 review). A retraction of a member the same document declares needs no
+/// workspace advertising a method that sourcing the extension deletes.
+/// A retraction of a member the same document declares needs no
 /// tombstone: it removed the entry outright, the order within one body is known,
 /// and exporting it would wrongly cancel a *different* document's redeclaration
 /// of the name, which no ordering evidence supports.
@@ -2945,8 +2947,8 @@ fn apply_oo_self(
     // Every effect this word has on the members it names lands on the
     // class-object side — the wrapper's own — and nowhere else. `self
     // deletemethod m` / `self renamemethod old new` remove (or move) class-side
-    // members, including ones this same block just recorded (issue #1095
-    // review); `self filter f` fills the class object's own filter slot, which
+    // members, including ones this same block just recorded; `self filter f`
+    // fills the class object's own filter slot, which
     // intercepts dispatches on the *class command* (`::B cls`, and even `::B
     // new`) while leaving instances unfiltered — `info object filters ::B` ->
     // `f`, `info class filters ::B` -> empty, on tclsh 9.0.4 and 8.6.14 alike
@@ -3284,7 +3286,7 @@ pub(super) fn apply_oo_subcommand_in(
             // itself would make, just issued once for the whole class
             // rather than per-call). A second `variable` statement in the
             // same class body must not silently discard the names the
-            // first one declared (the audit, main audit wave).
+            // first one declared.
             //
             // "Additive" because the class `variable` word is a slot whose
             // default operation is `-append` (with dedup — tclsh 9.0.4:
@@ -3517,7 +3519,7 @@ mod tests {
     }
 
     /// The `W315` messages an analysis produced, in emission order — the
-    /// "this class definition cannot run" reports of issue #1120.
+    /// "this class definition cannot run" reports.
     fn w315_messages(r: &super::super::types::AnalysisResult) -> Vec<String> {
         r.diagnostics
             .iter()
@@ -3578,12 +3580,12 @@ mod tests {
         }
     }
 
-    // ---- issue #1169: slot semantics for filter / superclass / mixin /
-    //      variable (defaults pinned against tclOODefineCmds.c 9.0.4 and
-    //      confirmed live on tclsh 9.0.4) ----
+    // Slot semantics for filter / superclass / mixin / variable (defaults
+    // pinned against tclOODefineCmds.c 9.0.4 and confirmed live on
+    // tclsh 9.0.4).
 
     // TP: `filter a ; filter b` appends — `info class filters` → `a b`,
-    // NOT `b` (the pre-#1169 last-writer-wins reading).
+    // NOT `b` (which is what a last-writer-wins reading would give).
     #[test]
     fn filter_slot_appends_across_calls() {
         let mut cd = class();
@@ -3664,8 +3666,7 @@ mod tests {
     }
 
     // TP, full pipeline: the fold carries across definition blocks — the
-    // issue #1169 oracle transcript verbatim (tclsh 9.0.4 and 8.6.16,
-    // byte-identical):
+    // oracle transcript verbatim (tclsh 9.0.4 and 8.6.16, byte-identical):
     //   oo::class create C { filter a; filter b } → info class filters → a b
     //   oo::define C { filter -set x }            →                    → x
     //   oo::define C { filter -clear }            →                    → (empty)
@@ -3805,7 +3806,7 @@ mod tests {
         // Name span anchors on the `constructor` keyword token
         // (argv[0] = 0..11), not the default (0, 0).
         assert_eq!(cd.constructors[0].name_span, tcl_lexer::Span::new(0, 11));
-        // Constructors are no longer mirrored into the methods map.
+        // Constructors are not mirrored into the methods map.
         assert!(!cd.methods.contains_key("<constructor>"));
     }
 
@@ -3861,11 +3862,10 @@ mod tests {
 
     #[test]
     fn self_method_subcommand_records_class_method_tagged_is_self_method() {
-        // TP — the audit Part 1: `self method NAME ARGS BODY`
-        // (TclOO's own spelling of a class-level method, the stock
-        // counterpart to ooutil's `classmethod` keyword) previously had no
-        // `apply_oo_subcommand` arm at all — `class_methods` never gained
-        // an entry for it. Recorded with `kind: "classmethod"` (both
+        // TP: `self method NAME ARGS BODY` (TclOO's own spelling of a
+        // class-level method, the stock counterpart to ooutil's `classmethod`
+        // keyword) needs its own `apply_oo_subcommand` arm, or `class_methods`
+        // gains no entry for it. Recorded with `kind: "classmethod"` (both
         // spellings mean "dispatched via the class's own bound command")
         // but tagged `is_self_method` so the class-command MRO walk knows
         // NOT to treat it as inherited the way ooutil's `classmethod` is.
@@ -3960,7 +3960,7 @@ mod tests {
 
     #[test]
     fn a_second_variable_subcommand_accumulates_rather_than_replacing() {
-        // TP — the audit (main audit wave): the real corpus shape
+        // TP — the real corpus shape
         // (georgtree_tclopt's ::tclopt::Mpfit) has TWO separate `variable`
         // statements in the same class body (`variable funct m ftol ...`
         // then, separately, `variable Pars`). tclsh9.0-verified: both
@@ -4353,10 +4353,10 @@ mod tests {
         }
     }
 
-    /// Regression coverage for issue #996: `walk_unknown_stmt` recurses
-    /// once per nested `if`/`for`/`while`/`foreach`/`catch`/`try`/
-    /// `switch`/`Block`/`UpFrame` body, with no depth cap of its own
-    /// before this fix. Transitively bounded to `MAX_LOWER_NEST_DEPTH`
+    /// Depth coverage: `walk_unknown_stmt` recurses once per nested
+    /// `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch`/`Block`/`UpFrame`
+    /// body, with no depth cap of its own. Transitively bounded to
+    /// `MAX_LOWER_NEST_DEPTH`
     /// (256) by the lowering pass today, so this is defence-in-depth /
     /// consistency with every other full-tree walker in this crate, not a
     /// currently-reproducible crash. 1000 levels of *source* nesting is
@@ -4477,7 +4477,7 @@ mod tests {
         assert!(info.dispatch_targets.contains("foo"));
     }
 
-    // ---- issue #1081: the `self { … }` / `private { … }` block forms ----
+    // The `self { … }` / `private { … }` block forms.
 
     #[test]
     fn self_block_form_records_every_member_as_a_class_method() {
@@ -4541,7 +4541,7 @@ mod tests {
 
     #[test]
     fn self_block_scoped_unexport_flips_the_class_side() {
-        // TP, issue #1098. Oracle: `oo::class create ::E { self { method
+        // TP. Oracle: `oo::class create ::E { self { method
         // hidden {} {…} ; unexport hidden } }` leaves `info object methods
         // ::E` empty while `-all -private` still lists `hidden`, and
         // `::E hidden` errors "unknown method" — so the block's `unexport`
@@ -4562,7 +4562,7 @@ mod tests {
 
     #[test]
     fn self_scoped_unexport_leaves_a_same_named_instance_method_alone() {
-        // TN, issue #1098's whole point — block and prefix spellings both.
+        // TN — block and prefix spellings both.
         // Oracle, byte-identical on tclsh 9.0.4 and 8.6.14:
         //   oo::class create C { method m {} {return inst-m}
         //                        self { method m {} {return class-m}
@@ -4772,7 +4772,7 @@ mod tests {
 
     #[test]
     fn self_block_destructive_member_drops_the_member_it_deletes() {
-        // TP — issue #1095 review. Oracle (tclsh 9.0.4 / 8.6.16, identical):
+        // TP. Oracle (tclsh 9.0.4 / 8.6.16, identical):
         //   oo::class create ::C1 {
         //       self { method gone {} {…} ; method kept {} {…} ; deletemethod gone }
         //   }
@@ -4794,7 +4794,7 @@ mod tests {
 
     #[test]
     fn self_block_renamemethod_moves_the_member_on_the_class_side() {
-        // TP, class-side half of issue #1121. Oracle, byte-identical on tclsh
+        // TP, the class-side half. Oracle, byte-identical on tclsh
         // 9.0.4 and 8.6.14:
         //   oo::class create ::R2 { self { method old {} {return CLSOLD}
         //                                  renamemethod old new } }
@@ -4924,7 +4924,7 @@ mod tests {
 
     #[test]
     fn unwrapped_deletemethod_drops_the_instance_side_member() {
-        // TP, issue #1101. An *unwrapped* `deletemethod` — in a class-creation
+        // TP. An *unwrapped* `deletemethod` — in a class-creation
         // body or an `oo::define` body, with no `self` / `private` wrapper —
         // deletes on the instance side. Oracle, byte-identical on tclsh 9.0.4
         // and 8.6.14:
@@ -4956,7 +4956,7 @@ mod tests {
 
     #[test]
     fn unwrapped_renamemethod_moves_the_member_to_the_new_name() {
-        // TP, issue #1121 (the residual #1118 left deliberately). Oracle,
+        // TP. Oracle,
         // byte-identical on tclsh 9.0.4 and 8.6.14:
         //   oo::class create ::I3 { method old {} {return o}; renamemethod old new }
         //   info class methods ::I3        ->  new
@@ -5006,11 +5006,11 @@ mod tests {
         );
     }
 
-    // ---- issue #1119: the class-side visibility + filter channels ----
+    // The class-side visibility + filter channels.
 
     #[test]
     fn self_scoped_visibility_words_fill_the_class_side_sets() {
-        // TP, issue #1119. A `self export` / `self unexport` has to leave a
+        // TP. A `self export` / `self unexport` has to leave a
         // record of its own or the flip never travels to another file's
         // class-command dispatch. Oracle, byte-identical on tclsh 9.0.4/8.6.14:
         //   oo::class create ::X { self { method cm {} { return cm } } }
@@ -5038,7 +5038,7 @@ mod tests {
 
     #[test]
     fn a_rename_carries_the_sources_visibility_not_the_new_names_default() {
-        // CRITICAL pin, issue #1121. A rename is not a (re)declaration, so the
+        // CRITICAL pin. A rename is not a (re)declaration, so the
         // family's name-based export default (`[a-z]*` is exported for `TclOO`)
         // is NOT re-applied to the destination — the source's own visibility
         // travels with the body. Both directions, byte-identical on tclsh 9.0.4
@@ -5123,8 +5123,8 @@ mod tests {
 
     #[test]
     fn filters_are_sided_by_the_wrapper_they_are_written_under() {
-        // TP + TN, issue #1119 item 2 — `filters` was the last un-sided member
-        // table. The two slots are genuinely independent in `TclOO` and
+        // TP + TN — `filters` is sided like every other member table. The two
+        // slots are genuinely independent in `TclOO` and
         // intercept different dispatches. Oracle, byte-identical on tclsh 9.0.4
         // and 8.6.14:
         //   oo::class create ::A { method real {} {…} ; method logit {args} {…}
@@ -5267,7 +5267,7 @@ mod tests {
         assert!(c.retracted_members.is_empty(), "{:?}", c.retracted_members);
     }
 
-    // ---- issue #1120: W315, "this class definition cannot run" ----
+    // W315, "this class definition cannot run".
 
     #[test]
     fn w315_fires_for_every_definition_aborting_retraction() {
@@ -5610,7 +5610,7 @@ mod tests {
 
     #[test]
     fn a_move_records_the_member_state_it_ran_against() {
-        // Issue #1121 review. The moved member's declaration site is the
+        // The moved member's declaration site is the
         // `renamemethod`'s destination word, so a *rename* of it rewrites that
         // word — and the gate that decides whether the result still runs needs
         // the table as it stood at the move. Captured with the source already
@@ -5804,7 +5804,7 @@ mod tests {
 
     #[test]
     fn a_stub_retraction_of_an_undeclared_member_leaves_a_tombstone() {
-        // TP for the cross-document channel (issue #1101 review). This document
+        // TP for the cross-document channel. This document
         // is the `oo::define ::C { deletemethod m }` half of a two-file program:
         // it has no local `m` to remove, so the removal has to travel as a
         // tombstone or the workspace keeps advertising a method that sourcing
@@ -5862,7 +5862,7 @@ mod tests {
 
     #[test]
     fn visibility_sets_keep_only_the_last_writer() {
-        // Issue #1101 review finding 3. `exports` / `unexports` each record the
+        // `exports` / `unexports` each record the
         // *last* explicit writer for a name, and the cross-file consumer
         // (`workspace_index::method_dispatch_chain`) reads any `exports` entry
         // as decisive — so a name must never sit in both. Oracle, identical on
@@ -6218,9 +6218,9 @@ mod tests {
     /// The near variants of the reporter's shape, each **run** on tclsh
     /// 9.0.4 first: a plain `set` instead of `const`, a value-bearing
     /// `variable`, the British `initialise` spelling, the `oo::define`
-    /// form, two names in one `classvariable` call (the second name used to
-    /// be left unbound because only index 0 carried a `VarWrite` role), and
-    /// a write/read split across two methods.
+    /// form, two names in one `classvariable` call (both must bind — a
+    /// `VarWrite` role on index 0 alone leaves the second unbound), and a
+    /// write/read split across two methods.
     ///
     /// The reporter's `variable Pitch` before the `const` is load-bearing,
     /// not noise: an `initialize` script runs in a call frame, so a bare
@@ -6298,7 +6298,7 @@ mod tests {
         }
     }
 
-    /// The other half of issue #1593: the fix must not silence a genuine
+    /// The other half: the classvariable handling must not silence a genuine
     /// unbound read. Without `classvariable`, a method's `$Pitch` is an
     /// *instance* variable that the class-level `initialize` never wrote —
     /// tclsh 9.0.4 raises `can't read "Pitch": no such variable` — so W210

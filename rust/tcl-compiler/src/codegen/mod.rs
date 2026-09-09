@@ -58,7 +58,7 @@ use std::collections::{BTreeSet, HashMap};
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
 
-// -- Emission context --
+// Emission context.
 
 /// Mutable context for bytecode emission.
 ///

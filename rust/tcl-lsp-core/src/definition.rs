@@ -4423,8 +4423,8 @@ mod tests {
         // define `cleanup`; `apply {{} {cleanup done} ::real}` must
         // resolve the bareword `cleanup` inside its body to `::real`'s
         // copy, not `::lexical`'s (tclsh9.0/8.6-verified: prints "real
-        // done"). Before this fix: resolved to `::lexical::cleanup`
-        // purely by lexical-nearest-definition coincidence.
+        // done").  A lexical-nearest-definition guess answers
+        // `::lexical::cleanup` instead.
         let src = "namespace eval real {\n    proc cleanup {tag} { puts \"real $tag\" }\n}\nnamespace eval lexical {\n    proc cleanup {tag} { puts \"lexical $tag\" }\n}\napply {{} {cleanup done} ::real}\n";
         let analysis = analyse(src);
         // Cursor on `cleanup` inside the apply body (line 6, col 11).
@@ -4669,8 +4669,8 @@ mod tests {
         // never-imported decoy
         // (`::decoyns::helper`, "d" < "r") instead of the real,
         // oracle-proven target (`::realns::helper`, tclsh9.0/8.6-verified:
-        // prints `REAL`). The wildcard-import resolution added by idx 18
-        // is tried *before* that fallback, so it must win here.
+        // prints `REAL`). The wildcard-import resolution is tried *before*
+        // that fallback, so it must win here.
         let src = "namespace eval realns {\n    namespace export helper\n    proc helper {} { return REAL }\n}\nnamespace eval decoyns {\n    proc helper {} { return DECOY }\n}\nnamespace eval userns {\n    namespace import ::realns::*\n    proc run {} {\n        return [helper]\n    }\n}\n";
         let analysis = analyse(src);
         // Cursor on the bareword `helper` call inside `userns::run` (line
@@ -5484,7 +5484,7 @@ mod tests {
 
     #[test]
     fn a_forced_import_from_a_second_source_replaces_the_first_alias() {
-        // TP, the other half of finding 4 — with `-force` the second import
+        // TP, the other half of the conflict rule — with `-force` the second import
         // wins (oracle: `::dst::p` → BP, `namespace origin` → `::B::p`).
         let src = "namespace eval A {\n    proc p {} { return AP }\n    namespace export p\n}\nnamespace eval B {\n    proc p {} { return BP }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::A::*\n}\nnamespace eval dst {\n    namespace import -force ::B::*\n}\n";
         let analysis = analyse(src);
@@ -5539,7 +5539,7 @@ mod tests {
 
     #[test]
     fn a_forget_lets_the_next_unforced_import_install() {
-        // FN guard for finding 4 — the conflict is the *live* alias, not the
+        // FN guard for the conflict rule — the conflict is the *live* alias, not the
         // fact that one was ever installed. Oracle: forgetting `::A::p` first
         // makes the unforced `::B::*` import succeed (`origin` → `::B::p`).
         let src = "namespace eval A {\n    proc p {} { return AP }\n    namespace export p\n}\nnamespace eval B {\n    proc p {} { return BP }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::A::*\n}\nnamespace eval dst {\n    namespace forget ::A::p\n}\nnamespace eval dst {\n    namespace import ::B::*\n}\n";
@@ -6988,7 +6988,7 @@ mod tests {
     fn instance_method_at_cursor_still_rejects_a_malformed_bracket_head() {
         // A stray, unmatched `]` with no opening `[` in scope is not a
         // well-formed command substitution and not a bare identifier
-        // either — still rejected exactly as before this change.
+        // either, so it is rejected.
         let src = "x] bark\n";
         assert_eq!(
             instance_method_at_cursor(src, 0, 4, tcl_lexer::LexerConfig::default()),
@@ -7318,9 +7318,8 @@ mod tests {
     fn tp_resolved_indirect_head_wins_over_a_same_named_decoy() {
         // TP — the analyser settles `set ns ::tc;
         // ${ns}::setdef` to `::tc::setdef` and records it as an `indirect`
-        // invocation. Before this fix `definition()` ignored the record and
-        // fell through to the bareword lookup, which answered the unrelated
-        // `::other::setdef`.
+        // invocation.  Ignoring that record and falling through to the
+        // bareword lookup answers the unrelated `::other::setdef` instead.
         let src = "namespace eval ::tc { proc setdef {} { return 1 } }\nnamespace eval ::other { proc setdef {} { return 2 } }\nset ns ::tc\n${ns}::setdef\n";
         let analysis = analyse(src);
         // Line 3, col 7 — inside the `${ns}::setdef` head word.

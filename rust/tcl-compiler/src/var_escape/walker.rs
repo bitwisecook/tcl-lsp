@@ -625,8 +625,8 @@ fn walk_assign_or_incr(stmt: &Statement, state: &mut EscapeState) -> bool {
 }
 
 /// Depth cap for [`walk`]'s recursion over nested `if`/`for`/`while`/
-/// `foreach`/`catch`/`try`/`switch`/`Block` bodies — issue #996.
-/// Transitively bounded today via `MAX_LOWER_NEST_DEPTH` (every `Script`
+/// `foreach`/`catch`/`try`/`switch`/`Block` bodies.
+/// Transitively bounded via `MAX_LOWER_NEST_DEPTH` (every `Script`
 /// this walk sees was built by `crate::lowering`, which already caps its
 /// own construction at 256), capped here independently for
 /// defence-in-depth and consistency with every other full-tree walker in
@@ -839,7 +839,7 @@ mod tests {
         analyse_script(&m.top_level, std::iter::empty::<String>())
     }
 
-    /// Regression coverage for issue #996: `walk` recurses once per
+    /// `walk` recurses once per
     /// nested `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch`/`Block`
     /// body, with no depth cap of its own before this fix. Transitively
     /// bounded to `MAX_LOWER_NEST_DEPTH` (256) by the lowering pass today,

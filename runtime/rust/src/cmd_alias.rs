@@ -362,7 +362,8 @@ const HIDDEN_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
 
 /// `interp create ?-safe? ?--? ?path?` — create a child interpreter, returning
 /// its name (auto-generated `interpN` when omitted). `-safe` hides the
-/// host-touching commands (the Safe Base's re-aliasing is a follow-up).
+/// host-touching commands; it does not re-alias `source`/`load`/`file`
+/// through the Safe Base.
 fn interp_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // C's "weird historical rule": `-safe` is accepted anywhere before `--`
     // (`interp create a -safe` is valid), and the path is the lone non-option
@@ -915,12 +916,12 @@ mod tests {
         assert_eq!(counters::double_free_count(), 0);
     }
 
-    /// Issue #1607: the `interp` ensemble and the child-as-command dispatch
+    /// The `interp` ensemble and the child-as-command dispatch
     /// are `Tcl_GetIndexFromObj(…, "option", 0)` tables (`options[]` in
     /// `Tcl_InterpObjCmd` and `NRChildCmd`, `tclInterp.c`), so subcommands
     /// abbreviate and the empty word — a prefix of every entry — is
     /// `ambiguous option ""`. The `interp` list still names only what this
-    /// runtime dispatches (#1412 item 3); the child list is tclsh's in full.
+    /// runtime dispatches; the child list is tclsh's in full.
     ///
     /// tclsh 8.6.16 / 9.0.4 (the verdicts, not the shortened `interp` list):
     ///   interp {}       -> ambiguous option "": must be …
@@ -985,7 +986,7 @@ mod tests {
         });
     }
 
-    /// Issue #1607: `interp create`'s and `interp invokehidden`'s leading
+    /// `interp create`'s and `interp invokehidden`'s leading
     /// options are `Tcl_GetIndexFromObj(…, "option", 0)` tables
     /// (`createOptions[]` / `hiddenOptions[]`, `tclInterp.c`), so they
     /// abbreviate and the lone `-` — a prefix of every entry — is `ambiguous`.
@@ -1610,13 +1611,13 @@ mod tests {
         });
     }
 
-    /// #934 definition-direction parity: a written trailing separator names
+    /// Definition-direction parity: a written trailing separator names
     /// the empty-string `{}` command inside its full qualifier chain — for
     /// `proc`, `rename`'s NEW name, and dispatch alike (`proc x:: {} {…}`
     /// defines `::x::` and `x::` invokes it; `rename foo x::` / `rename bar
-    /// ::` rebind the `{}` command — all tclsh 8.6.16/9.0.4-pinned).
-    /// Previously the definition split dropped the empty tail, so the proc
-    /// just defined could not be invoked.
+    /// ::` rebind the `{}` command — all tclsh 8.6.16/9.0.4-pinned). The
+    /// definition split must keep the empty tail, or the proc just defined
+    /// could not be invoked.
     #[test]
     fn trailing_separator_definitions_match_resolution() {
         leak_free(|i| {

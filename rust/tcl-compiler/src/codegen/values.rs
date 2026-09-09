@@ -45,7 +45,7 @@ pub(crate) fn is_bare_var_name(name: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
 }
 
-// -- Literal emission --
+// Literal emission.
 
 impl CodegenCtx<'_> {
     /// Registry-owned constant command-substitution folds and the two `list`
@@ -292,7 +292,7 @@ impl CodegenCtx<'_> {
     }
 }
 
-// -- Array reference helpers --
+// Array reference helpers.
 
 /// Split `arr(key)` into `("arr", "key")`, or `None` for scalars.
 ///
@@ -335,7 +335,7 @@ pub fn needs_stk_var_ref(name: &str, compiles_locals: bool) -> bool {
     is_array_ref(name)
 }
 
-// -- Variable load/store --
+// Variable load/store.
 
 impl CodegenCtx<'_> {
     /// Push an array element key onto the stack.
@@ -691,7 +691,7 @@ impl CodegenCtx<'_> {
     }
 }
 
-// -- Reference parsing --
+// Reference parsing.
 
 /// Extract variable name from a normalised `${var}` reference, under the
 /// target release's `${…}` close rule.
@@ -917,7 +917,7 @@ mod tests {
         );
     }
 
-    // -- split_array_ref --
+    // split_array_ref.
 
     #[test]
     fn split_array_ref_basic() {
@@ -948,7 +948,7 @@ mod tests {
         assert!(is_array_ref("(x)"));
     }
 
-    // -- is_array_ref, is_qualified --
+    // is_array_ref, is_qualified.
 
     #[test]
     fn is_array_ref_yes() {
@@ -970,7 +970,7 @@ mod tests {
         assert!(!is_qualified("foo"));
     }
 
-    // -- parse_simple_var_ref --
+    // parse_simple_var_ref.
 
     #[test]
     fn parse_simple_var_ref_basic() {
@@ -1039,7 +1039,7 @@ mod tests {
         );
     }
 
-    // -- is_integer_literal --
+    // is_integer_literal.
 
     #[test]
     fn integer_literal_positive() {
@@ -1057,7 +1057,7 @@ mod tests {
         assert!(!is_integer_literal(""));
     }
 
-    // -- CodegenCtx value emission --
+    // CodegenCtx value emission.
 
     #[test]
     fn push_lit_dedup() {

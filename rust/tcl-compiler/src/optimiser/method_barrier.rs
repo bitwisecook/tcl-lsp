@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The **per-method** method-dispatch propagation barrier (issue #1164).
+//! The **per-method** method-dispatch propagation barrier.
 //!
 //! `my` / `next` / object dispatch never names its callee, so the CFG
 //! builder's per-call-site upvar widening cannot model what a method
@@ -27,7 +27,7 @@
 //! actually **reach** an invalidating fact:
 //!
 //! * A **bad** class is one defining a method (primary or retained
-//!   replacement body — issue #1166) that can reach its caller's frame
+//!   replacement body) that can reach its caller's frame
 //!   ([`crate::cfg_builder::upvar_info::reaches_caller_frame`]), or one the
 //!   lowering flagged unanalysable
 //!   ([`crate::ir::Module::oo_unanalysed_classes`]).

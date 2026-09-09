@@ -39,14 +39,13 @@ use tcl_syntax::value::canonical_dict_slots;
 use crate::error::TclError;
 
 /// Depth cap for [`Value::to_str`]'s descent into nested `IntRep::List`
-/// children — issue #996. A plain `for {set i 0} {$i<N} {incr i} {set v
+/// children. A plain `for {set i 0} {$i<N} {incr i} {set v
 /// [list $v]}` loop builds a value that nests one list inside another N
 /// times; forcing its string form (`string length $v`, `puts $v`, a
-/// comparison, …) used to recurse once per nesting level with no depth cap
+/// comparison, …) with no depth cap would recurse once per nesting level
 /// — no `{*}` tricks needed, `dict`'s printing shares this path (a dict is
-/// represented as a list here too). Empirically (a throwaway
-/// `zzz_probe_depth to_str <depth>` harness, deleted before this fix
-/// landed), unguarded input overflowed the native stack (SIGABRT) between
+/// represented as a list here too). Empirically, unguarded input overflows
+/// the native stack (SIGABRT) between
 /// depth 1200 and 1250 on a 2 MiB thread (`cargo test`'s per-test default).
 /// 256 leaves better than 4x margin under that measured crash floor while
 /// staying far past any realistic nested-list depth. Past the cap, a
@@ -170,7 +169,7 @@ impl Value {
     }
 
     /// [`Value::to_str`]'s recursive engine, with an explicit nesting-depth
-    /// parameter — issue #996 (see [`MAX_LIST_TO_STR_DEPTH`]). `depth` is
+    /// parameter (see [`MAX_LIST_TO_STR_DEPTH`]). `depth` is
     /// this value's nesting level within the *current* top-level `to_str()`
     /// call (0 at the root). Returns the string alongside whether rendering
     /// it anywhere in this subtree hit the depth cap — when it did, the
@@ -540,16 +539,14 @@ mod tests {
         assert!(Value::string("o").as_bool().is_err(), "ambiguous prefix");
     }
 
-    /// Regression coverage for issue #996: `Value::to_str`'s descent into
-    /// `IntRep::List` children recurses once per nesting level, with no
-    /// depth cap before this fix — a plain `for {set i 0} {$i<N} {incr i}
-    /// {set v [list $v]}` loop builds the input, no `{*}` tricks needed.
-    /// Empirically (a throwaway `zzz_probe_depth to_str <depth>` harness,
-    /// deleted before this fix landed), unguarded input overflowed the
-    /// native stack (SIGABRT) between depth 1200 and 1250 on a 2 MiB thread
-    /// (`cargo test`'s per-test default). 2000 is comfortably past both
-    /// that crash range and `MAX_LIST_TO_STR_DEPTH` (256); the assertion is
-    /// that `to_str` returns at all, not what it returns.
+    /// `Value::to_str`'s descent into `IntRep::List` children recursing once
+    /// per nesting level with no depth cap — a plain `for {set i 0} {$i<N}
+    /// {incr i} {set v [list $v]}` loop builds the input, no `{*}` tricks
+    /// needed — empirically overflows the native stack (SIGABRT) between
+    /// depth 1200 and 1250 on a 2 MiB thread (`cargo test`'s per-test
+    /// default). 2000 is comfortably past both that crash range and
+    /// `MAX_LIST_TO_STR_DEPTH` (256); the assertion is that `to_str` returns
+    /// at all, not what it returns.
     ///
     /// Deliberately NOT 50,000+: constructing (and, at the end of this
     /// test, dropping) a `Value::list` chain nested that deep is its own,

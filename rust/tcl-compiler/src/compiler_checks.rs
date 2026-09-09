@@ -565,7 +565,8 @@ fn push_irules_flow_checks(
     out: &mut Vec<Diagnostic>,
 ) {
     // Every iRules security/flow check receives the resolved availability
-    // fact, so a legacy alias cannot be treated differently by a later pass.
+    // fact, so an aliased spelling cannot be treated differently by a later
+    // pass.
     let dialect = dialect.map(tcl_dialect::DialectProfile::surface_query);
     for w in find_unguarded_drop_warnings(cu, dialect) {
         out.push(Diagnostic::from_irules_check(&w));

@@ -200,7 +200,7 @@ pub struct DialectProfile {
     /// (`"irules"` → `f5-irules`). Resolution through [`Self::find`] (and
     /// the environment seam built on it) canonicalises them, so profile
     /// predicates can never disagree with the canonical spelling the way
-    /// the string-keyed tables used to (design doc §2.4).
+    /// separate string-keyed tables would (design doc §2.4).
     pub aliases: &'static [&'static str],
     /// The full human-facing name shown in settings menus and pickers
     /// (`"Synopsys EDA Tcl"`, `"Tcl 8.6"`). The catalog is the single
@@ -215,7 +215,7 @@ pub struct DialectProfile {
     /// The editor language id this dialect's files open under, where the
     /// editors keep a dedicated language (`"tcl-synopsys"`, `"tcl84"`).
     /// Undotted by contract — VS Code splits `configurationDefaults`
-    /// override keys on `.` (issue #1122). `None` = no dedicated editor
+    /// override keys on `.`. `None` = no dedicated editor
     /// language; the dialect's files (if any) ride the plain `tcl`
     /// language and server-side detection routes them.
     pub editor_language_id: Option<&'static str>,
@@ -227,11 +227,11 @@ pub struct DialectProfile {
     /// The second axis of file recognition, and it needs its own field
     /// because the file it names has no useful extension: a bare `.conf`
     /// suffix belongs to every unrelated config file on the machine, so
-    /// `f5-bigip` can only claim `bigip.conf` by *name*. Before this existed
-    /// the set lived in `tcl_lsp_core::bigip`, which the editors could not
-    /// read — so VS Code contributed no `filenames` at all and a `bigip.conf`
-    /// never associated, while the Sublime grammar's comment claimed the
-    /// opposite (issue #1625).
+    /// `f5-bigip` can only claim `bigip.conf` by *name*. Keeping this set
+    /// inside `tcl_lsp_core::bigip` instead, where the editors cannot read
+    /// it, would leave VS Code contributing no `filenames` at all so a
+    /// `bigip.conf` never associates — a hazard the Sublime grammar's own
+    /// comment gets backwards.
     ///
     /// Consumed exactly where `file_extensions` is: `dialect_from_extension`
     /// checks it *before* the extension tier (a basename match is the more
@@ -360,7 +360,7 @@ pub struct DialectProfile {
     /// the KCS help index (`tcl help --dialect`). Empty = no filtering
     /// (the permissive fallback). Resolution through the catalog means
     /// alias spellings (`irules`) filter exactly like the canonical name
-    /// — the old string-keyed table silently applied no filter to them.
+    /// — a plain string-keyed table would silently apply no filter to them.
     pub help_terms: &'static [&'static str],
 }
 
@@ -487,8 +487,8 @@ static CATALOG: [DialectProfile; 19] = [
         ],
     },
     // Expect embeds Tcl 8.6 — including the 8.x first-close `${…}` rule,
-    // which the old string-keyed lexer table missed (it fell through to
-    // the modern-9.x default).
+    // which a plain string-keyed lexer table would miss (falling through
+    // to the modern-9.x default).
     DialectProfile {
         name: "expect",
         aliases: &[],
@@ -962,7 +962,7 @@ static CATALOG: [DialectProfile; 19] = [
         libraries: &[],
         help_terms: &["spectcl", "speclib", "tclspec"],
     },
-    // SslicTcl — the `.sslictcl` TLS-assurance declaration DSL (#1543).
+    // SslicTcl — the `.sslictcl` TLS-assurance declaration DSL.
     // A document is an ordinary Tcl script read from the CST and never
     // executed: the loader evaluates nothing, not even a `predicate` body,
     // which it retains verbatim. Like SpecTcl this is an *environment* over
@@ -1326,10 +1326,10 @@ const fn core_provider(family: Family) -> &'static [SpecProvider] {
 ///
 /// The grammar is the `tk` environment's core (`Release::TCL_8_6`), the
 /// same release its library pins (`LIBS_TCL86_PLUS`) and its version gating
-/// already answer for. It used to say 9.x while everything else about the
-/// row said 8.6, which the centralised resolution then exposed as the lexer
-/// and codegen disagreeing about one document; the agreement test in
-/// `grammar.rs` now includes this row so the two cannot drift again.
+/// already answer for. A grammar naming a different release than the rest
+/// of the row would expose the lexer and codegen disagreeing about one
+/// document once resolution is centralised; the agreement test in
+/// `grammar.rs` includes this row so the two cannot drift.
 /// This is deliberately not part of [`DialectProfile::all`] or
 /// [`DialectProfile::find`].
 static TK_PROFILE: DialectProfile = DialectProfile {
@@ -1560,9 +1560,9 @@ impl DialectProfile {
 
     /// Whether this profile is the permissive unknown-dialect fallback
     /// ([`Self::plain_tcl`]) — i.e. the ingest string named no real
-    /// dialect. Consumers that used to special-case an empty dialect
-    /// string (diagnostic labels, "no specific dialect" paths) key off
-    /// this instead.
+    /// dialect. Consumers needing to distinguish this case
+    /// (diagnostic labels, "no specific dialect" paths) key off
+    /// this instead of special-casing an empty dialect string.
     #[must_use]
     pub fn is_fallback(&self) -> bool {
         std::ptr::eq(self, Self::plain_tcl())
@@ -1587,10 +1587,9 @@ impl DialectProfile {
     /// F5Tcl-cored catalogue profile answers with the family's own
     /// [`ExprGrammar`](crate::model::expr_grammar::ExprGrammar) here and
     /// consumers read the word-operator surface off that table instead of
-    /// duplicating rows (ledger C12/B6). The old-catalogue `f5-tmsh` /
-    /// `f5-iapps` grammar rows themselves are deliberately retained
-    /// (P1-G): only the expr word-operator acceptance follows the family
-    /// fact.
+    /// duplicating rows. The catalogue's own `f5-tmsh` /
+    /// `f5-iapps` grammar rows are deliberately retained: only the expr
+    /// word-operator acceptance follows the family fact.
     ///
     /// `f5-bigip` is excluded by design: it is a config-schema identity
     /// with no Tcl runtime or expr grammar of its own (its embedded iRules
@@ -1875,7 +1874,7 @@ mod tests {
     fn help_terms_cover_every_real_dialect() {
         // §5.4: every catalog profile carries help-filter terms; only the
         // permissive fallback filters nothing. The versioned-Tcl profiles
-        // (tcl9.1 included — the old string table missed it) share the
+        // (tcl9.1 included) share the
         // tcl/tk terms; every vendor profile's terms include a
         // vendor-identifying string.
         for p in DialectProfile::all() {
@@ -1893,8 +1892,8 @@ mod tests {
             "the fallback applies no filter"
         );
         // Alias canonicalisation (§2.4): the legacy `irules` spelling
-        // resolves to the same terms as the canonical profile — the old
-        // string-keyed table silently applied no filter to it.
+        // resolves to the same terms as the canonical profile — a plain
+        // string-keyed table would silently apply no filter to it.
         assert_eq!(
             DialectProfile::find("irules")
                 .expect("catalogue profile")
@@ -1938,8 +1937,8 @@ mod tests {
     #[test]
     fn unknown_and_ingress_only_names_are_not_catalogue_entries() {
         // The catalogue lookup answers `None` for anything that is not a
-        // canonical name or alias — the lenient-sink behaviour every
-        // user-written string used to get from `by_name` now lives in the
+        // canonical name or alias — the lenient-sink behaviour for a
+        // user-written string lives in the
         // environment seam (`tcl_registry::model::ingress`), where its
         // tests pin it.
         for unknown in ["", "nonsense", "tcl8.7", "TCL8.6", "tk", "tcl"] {
@@ -2059,7 +2058,7 @@ mod tests {
 
     #[test]
     fn eda_shells_are_packaged_vendors_with_a_plain_release_point() {
-        // The EDA-as-packages migration: each EDA shell's point is its plain
+        // Each EDA shell's point is its plain
         // base Tcl release, with no vendor surface — the vendor command
         // surface is gated by `required_package` (ambient in the profile).
         // Base versions follow the tools' embedded cores (owner decisions):
@@ -2195,7 +2194,7 @@ mod tests {
 
     #[test]
     fn the_vendor_surface_composes_the_point() {
-        // §2.2 + the EDA-as-packages migration: a profile's point is one of
+        // §2.2: a profile's point is one of
         // - a bare core family (iRules, §9);
         // - a Tcl release plus the vendor package (iApps, Expect, tmsh,
         //   bpf) or the bigip identity; or
@@ -2457,7 +2456,7 @@ mod tests {
 
     #[test]
     fn expect_and_tmsh_lex_braced_vars_with_the_8x_rule() {
-        // The 8.x rule the old string-keyed lexer table missed:
+        // The 8.x rule a plain string-keyed lexer table would miss:
         // expect (8.6) and f5-tmsh (8.5) are 8.x runtimes, so `${a{b}c}`
         // names `a{b` — not the Tcl 9 nesting read.
         for name in ["expect", "f5-tmsh"] {
@@ -2515,7 +2514,7 @@ mod tests {
             assert!(!p.display_name.is_empty(), "{}: display_name", p.name);
             assert!(!p.short_name.is_empty(), "{}: short_name", p.name);
             if let Some(lang) = p.editor_language_id {
-                // Undotted by contract (issue #1122), and unique: two
+                // Undotted by contract, and unique: two
                 // dialects can't claim the same editor language.
                 assert!(
                     !lang.contains('.'),
@@ -2566,7 +2565,7 @@ mod tests {
 
     /// The `filenames` axis obeys the same shape rules as `file_extensions`:
     /// lower-case whole basenames, one owner apiece, and an editor language
-    /// to register them under (issue #1625).
+    /// to register them under.
     #[test]
     fn owned_filenames_follow_the_catalog_shape() {
         let mut seen: Vec<&str> = Vec::new();

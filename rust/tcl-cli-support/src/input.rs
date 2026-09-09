@@ -127,10 +127,10 @@ impl InputDocument {
         if let Some(profile) = explicit {
             return profile;
         }
-        // T4: the `tcl8.6` invocation default stays the detector's own
-        // fallback spelling until the configured default environment
-        // lands (ledger row T4, P1) — resolving it here would change what
-        // an unstated document is analysed as.
+        // The `tcl8.6` invocation default stays the detector's own
+        // fallback spelling rather than the configured default environment:
+        // resolving it here would change what an unstated document is
+        // analysed as.
         crate::environment::profile_for_dialect(tcl_registry::dialects::detect_dialect(
             &self.analysis_source(),
             self.filename(),
@@ -200,7 +200,7 @@ pub fn combined_effective_dialect(
     documents
         .iter()
         .find_map(InputDocument::detected_dialect)
-        // T4: the hardcoded `tcl8.6` invocation default, unchanged — see
+        // The hardcoded `tcl8.6` invocation default — see
         // `InputDocument::effective_dialect`.
         .unwrap_or_else(|| crate::environment::profile_for_dialect("tcl8.6"))
 }
@@ -213,8 +213,8 @@ pub fn combined_effective_dialect(
 /// and the set-only `tk` ingress that has no catalog profile by design —
 /// resolves through the one environment resolver
 /// ([`crate::environment::known_profile_for_dialect`]), which hands back
-/// the typed additive profile for `tk` exactly as the retired
-/// `DialectProfile::resolve_known` did.
+/// the typed additive profile for `tk` the same way it does for a catalog
+/// profile.
 pub fn resolve_dialect(value: Option<&str>) -> Result<Option<&'static DialectProfile>, CliError> {
     value
         .map(|name| {
@@ -235,11 +235,9 @@ fn known_dialect_names() -> String {
     DialectProfile::all()
         .iter()
         .map(|profile| profile.name)
-        // T1: the `+ tk` chain is the *payload* this row retires (ledger
-        // row T1, P1) — the environment enumeration has different
-        // contents, so re-keying it changes this user-facing list rather
-        // than refactoring it. The `tk` name itself now resolves through
-        // the seam.
+        // `tk` has no catalog profile by design, so it is appended
+        // explicitly here rather than coming from the profile catalog
+        // iteration above; it resolves through the same environment seam.
         .chain(std::iter::once(
             crate::environment::profile_for_dialect("tk").name,
         ))

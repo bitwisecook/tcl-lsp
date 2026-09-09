@@ -2627,7 +2627,7 @@ mod tests {
         );
     }
 
-    // --- P3: registry-driven container element inference (type-tracking.md) ---
+    // P3: registry-driven container element inference (type-tracking.md).
 
     /// Helper: the joined lattice of every version of `var` in `func`.
     fn type_of(

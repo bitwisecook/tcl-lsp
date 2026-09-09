@@ -226,8 +226,7 @@ pub fn command_resolution_namespace_at(root: &Scope, byte_offset: u32) -> String
 /// from every method body in the program — this is what lets
 /// [`tcl_lsp_core::references::invocation_references_named`]'s namespace
 /// gate recognise such a call site as a genuine reference to that proc,
-/// alongside the ordinary `call_ns == target_ns` case (the audit,
-/// main audit wave).
+/// alongside the ordinary `call_ns == target_ns` case.
 ///
 /// Same traversal as [`command_resolution_namespace_at`] (so the two can
 /// never disagree about which scope is innermost), tracking whether the
@@ -695,8 +694,8 @@ fn record_known_winner<A>(
 /// node kinds as [`lookup_var_in_namespace`] (a proc-local `set ::x val`
 /// stores under the *proc's* own table, not reachable here — same
 /// documented trade-off `lookup_var_in_scope_chain` already accepts for the
-/// general case; the audit only needs the realistic top-level /
-/// namespace-body shape the audit's own repro exercises). Matches by exact
+/// general case; only the realistic top-level / namespace-body shape is
+/// needed here). Matches by exact
 /// `VarDef::name` equality against `target` rather than a table lookup,
 /// since the stored key can be any literal spelling that *resolves* to
 /// `target`, not necessarily `target`'s own exact text.
@@ -740,8 +739,8 @@ pub fn lookup_var_by_qualified_name<'a>(root: &'a Scope, target: &str) -> Option
 /// Used to check whether a plain declaration with no `link_target` of
 /// its own (`link_target: None` — it isn't an alias, so it was never
 /// given one) is nonetheless the *canonical cell* an alias in another
-/// scope names via its own `link_target` (the audit, main audit
-/// wave: a top-level `set tolComp` / `set ::tolComp`, aliased inside a
+/// scope names via its own `link_target` (a top-level `set tolComp` /
+/// `set ::tolComp`, aliased inside a
 /// proc via `global tolComp`, needs Find-References/Rename queried from
 /// *either* side to reach both — querying from the alias already finds
 /// the cell via [`lookup_var_by_qualified_name`], but the reverse
@@ -2446,7 +2445,7 @@ mod tests {
 
     /// A proc scope resolves in its own **defining** namespace, so a
     /// qualified-name proc declared at the top level still answers `::ns1`
-    /// (the audit — a purely lexical walk answered `::`).
+    /// (a purely lexical walk would answer `::`).
     #[test]
     fn command_resolution_namespace_uses_a_procs_defining_namespace() {
         let mut a = Analyser::new();
@@ -2967,7 +2966,7 @@ mod tests {
         }
     }
 
-    /// TP (the audit / 75 / 78) — a namespace-qualified occurrence is
+    /// TP — a namespace-qualified occurrence is
     /// recorded with the `::`-rooted cell it names, whether it is written
     /// absolutely or relative to the enclosing namespace, so the workspace
     /// index can match it against a declaration in another document.
@@ -3357,7 +3356,7 @@ mod tests {
 
     #[test]
     fn qualified_name_for_var_decl_does_not_double_prefix_a_literal_qualified_name() {
-        // TP — the audit: `handle_set_command`/`define_var` never
+        // TP: `handle_set_command`/`define_var` never
         // re-qualify a name they're given (`normalise_var_name` only strips
         // a `$`/`${…}` wrapper and an array index), so a literal `set
         // ::tolComp val` stores `VarDef::name == "::tolComp"` verbatim, not
@@ -3390,7 +3389,7 @@ mod tests {
 
     #[test]
     fn lookup_var_by_qualified_name_finds_a_literal_qualified_top_level_set() {
-        // TP — the audit's exact repro shape: a plain `set
+        // TP — the corpus repro shape: a plain `set
         // ::tolComp val` at global scope stores its key verbatim
         // (`"::tolComp"`), which the bare-tail lookup alone (`base_name ==
         // "tolComp"`) can never match; the literal-name fallback must.

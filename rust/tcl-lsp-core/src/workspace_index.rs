@@ -7582,14 +7582,11 @@ mod tests {
 
     #[test]
     fn resolve_wildcard_import_resolves_exported_class_cross_document() {
-        // TP — differential-audit finding idx 29 (main audit wave):
-        // the finding's own repro shape (analogous to the real
-        // georgtree_tclopt corpus's `tclopt.tcl` exporting a TclOO class,
-        // `examples/*.tcl` wildcard-importing and instantiating it bare).
-        // Already fixed by idx 18's shared cross-document mechanism
-        // (`workspace_command_exists`/`defined_command_names` cover
-        // classes exactly like procs); pinned here as dedicated coverage
-        // since the idx 18 diff itself only unit-tested the proc case.
+        // TP — the georgtree_tclopt corpus shape: `tclopt.tcl` exports a
+        // TclOO class and `examples/*.tcl` wildcard-imports and instantiates
+        // it bare.  The shared cross-document mechanism
+        // (`workspace_command_exists` / `defined_command_names`) covers
+        // classes exactly like procs; pinned here as class-side coverage.
         let mypkg = analyse(
             "namespace eval ::mypkg {\n    namespace export Widget\n    oo::class create Widget {\n        method run {} { return 42 }\n    }\n}\n",
         );
@@ -8753,7 +8750,7 @@ mod tests {
 
     #[test]
     fn a_same_file_forget_after_the_import_still_revokes() {
-        // TN, the other direction of finding 1 — when the import, the forget
+        // TN, the other direction of the same-document rule — when the import, the forget
         // and the call really do share a document the offsets mean something
         // and the ordering is unchanged.
         let src = "namespace eval ::app {\n    namespace import ::mymod::*\n}\nnamespace eval ::app {\n    namespace forget ::mymod::helper\n}\nhelper\n";
@@ -9327,7 +9324,7 @@ mod tests {
 
     #[test]
     fn an_exact_import_link_ignores_a_forget_in_another_file() {
-        // FP guard — finding 1's rule applied to the link tier: a forget with
+        // FP guard — the same-document ordering rule on the link tier: a forget with
         // no static order against the import revokes nothing.
         let mymod =
             analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
@@ -9439,7 +9436,7 @@ mod tests {
 
     #[test]
     fn a_cross_file_exact_link_conflicts_with_an_earlier_different_source() {
-        // TN — finding 4 on the exact-link tier.
+        // TN — the live-alias conflict on the exact-link tier.
         let a = analyse("namespace eval ::A { proc p {} {}\n namespace export p }\n");
         let b = analyse("namespace eval ::B { proc p {} {}\n namespace export p }\n");
         let dst = analyse(

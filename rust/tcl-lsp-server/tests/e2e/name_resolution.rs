@@ -16,18 +16,18 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! End-to-end TP/FP/TN/FN matrix for preview issues #954-#958, driven over
-//! real JSON-RPC against the packaged server:
+//! End-to-end TP/FP/TN/FN matrix for reference-resolution correctness,
+//! driven over real JSON-RPC against the packaged server:
 //!
-//! * #954 — commands inside an `apply` lambda body highlight as a script, and
+//! * Commands inside an `apply` lambda body highlight as a script, and
 //!   a bare arg-list name is a `parameter` (semantic tokens).
-//! * #955 — a `$dir` read in a `pkgIndex.tcl` is not W210 read-before-set
+//! * A `$dir` read in a `pkgIndex.tcl` is not W210 read-before-set
 //!   (publishDiagnostics), but the suppression is filename-scoped.
-//! * #956 — a `$obj method` dispatch is a reference and is counted by the
+//! * A `$obj method` dispatch is a reference and is counted by the
 //!   member lens.
-//! * #957 — a `my method` dispatch (including nested in `[ … ]`) is a reference
+//! * A `my method` dispatch (including nested in `[ … ]`) is a reference
 //!   and is counted by the member lens.
-//! * #958 — a `::tcl::mathfunc::<fn>` expr-function application is a reference
+//! * A `::tcl::mathfunc::<fn>` expr-function application is a reference
 //!   to the backing proc.
 
 #![allow(clippy::cast_possible_truncation)]

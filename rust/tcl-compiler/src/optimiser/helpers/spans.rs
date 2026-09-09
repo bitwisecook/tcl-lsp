@@ -164,9 +164,9 @@ pub fn statement_delete_rewrite_range(
 /// Returns the input span unchanged when the first byte isn't `"` or
 /// no close quote is found, so a rewrite anchored on the result either
 /// covers the whole string or does not fire. Scanning without the
-/// command-substitution rule stopped `"a[foo "b"]c"` at the quote
-/// opening the inner `"b"`, and O129's auto-fix then replaced that
-/// truncated prefix and left `]c"` behind.
+/// command-substitution rule stops `"a[foo "b"]c"` at the quote
+/// opening the inner `"b"`, so O129's auto-fix replaces that truncated
+/// prefix and leaves `]c"` behind.
 #[must_use]
 pub fn full_quoted_string_span(source: &str, argv_span: Span) -> Span {
     let Some(close) = tcl_lexer::close_quote_offset(source, argv_span.start() as usize) else {

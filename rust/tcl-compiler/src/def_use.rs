@@ -61,7 +61,7 @@ pub enum UseKind {
     /// value really is consumed. A pass that *rewrites* the use must count only
     /// `Operand`, because a name position has nothing to rewrite — forwarding
     /// `a`'s single reaching literal into `incr a` yields `incr` over `1`,
-    /// which is neither an increment nor a command (issue #1934).
+    /// which is neither an increment nor a command.
     VariableName,
     /// Incoming edge of a phi node.
     PhiIncoming,

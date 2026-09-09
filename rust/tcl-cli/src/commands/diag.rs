@@ -295,9 +295,9 @@ fn collect_rows(
     // `compiler_check_diagnostics`. Built once per document; `diag` is a batch
     // verb, not latency-sensitive.
     // The checks pass lowers under the document's own environment grammar,
-    // which is now what the analyser tail above built under too — so the unit
+    // which is what the analyser tail above builds under too — so the unit
     // is always reused, exactly as the server's shared `compilation_unit`
-    // query now shares for every environment (redesign §11.4 row E1).
+    // query shares it for every environment.
     let cu = analysis_cu.as_ref();
     let dialect_opt = Some(dialect);
     for d in run_all_checks(cu, &registry, dialect_opt) {

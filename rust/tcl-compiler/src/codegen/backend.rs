@@ -71,9 +71,8 @@ pub trait Backend {
 
 /// The Tcl 9 bytecode ("TCLVM") backend.
 ///
-/// A zero-sized handle; it implements [`Backend`] by delegating to the existing
-/// `emitter` free functions, which keeps the hot, churn-sensitive emitter body
-/// untouched.
+/// A zero-sized handle; it implements [`Backend`] by delegating to the
+/// `emitter` free functions.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct BytecodeBackend;
 

@@ -40,8 +40,8 @@ function labelOf(item: vscode.CompletionItem): string {
  * language server; it does **not** wait for the server to re-analyse the
  * mutated document.  A completion request fired immediately afterwards can
  * therefore race the re-index and return stale results that omit a
- * newly-in-scope variable — the source of the intermittent failures these
- * probes used to exhibit under parallel ``make test-slow`` load.
+ * newly-in-scope variable — the source of intermittent failures these
+ * probes would otherwise exhibit under parallel ``make test-slow`` load.
  *
  * Rather than sleep for a fixed interval, we re-request completion on a
  * bounded poll (via the shared ``pollUntil`` helper) until the server has

@@ -256,7 +256,7 @@ pub(crate) fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     //
     // The read goes through the read-trace chokepoint: C's `TclPtrIncrObjVar`
     // fetches with `TclPtrGetVarIdx`, so `incr x` on a read-traced `x` fires
-    // `read` and then `write` (issue #1633). A read trace that *errors* leaves
+    // `read` and then `write`. A read trace that *errors* leaves
     // the fetch NULL, which C counts as 0 — so the error is swallowed here too,
     // exactly as `lappend` does.
     let cur = interp.read_for_update(&base, elem.as_deref());
@@ -275,7 +275,7 @@ pub(crate) fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Err(e) => return interp.set_error(e.message().as_bytes()),
     };
 
-    // The protected store (#1633 row 1): a write trace that rewrites or unsets
+    // The protected store: a write trace that rewrites or unsets
     // the cell drops the store's reference to this fresh sum, so a bare
     // `set_result` would read freed memory. `cmd_var::incr_cmd` overrides this
     // command in the table, but the body must be safe on its own — a direct
@@ -322,8 +322,8 @@ pub(crate) fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let obj = obj::new_wide_int_obj(sum); // rc 0
                                           // The protected store, as the tower build's `cmd_var::incr_cmd` uses: a
                                           // write trace that rewrites or unsets the cell drops the store's reference
-                                          // to this fresh sum, and a bare `set_result` would then read freed memory
-                                          // (#1633 row 1). It also publishes the cell's post-trace value, which is
+                                          // to this fresh sum, and a bare `set_result` would then read freed memory.
+                                          // It also publishes the cell's post-trace value, which is
                                           // what C returns.
     match interp.store_var_result(&base, elem.as_deref(), obj) {
         Ok(()) => Code::Ok,
@@ -336,10 +336,10 @@ pub(crate) fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 ///
 /// C's `TclPtrIncrObjVar` fetches with `TclPtrGetVarIdx`, so `incr x` on a
 /// read-traced `x` fires `read` and then `write`, and a read trace that
-/// errors leaves the fetch NULL — which C counts as 0 (#1633, pinned in
+/// errors leaves the fetch NULL — which C counts as 0 (pinned in
 /// `tests/trace_semantics.rs`). Reaching for `var_get`/`var_get_elem`
-/// directly, as this did, skipped the read entirely: `incr` and an array
-/// element fired only their `write`.
+/// directly instead would skip the read entirely: `incr` and an array
+/// element would fire only their `write`.
 #[cfg(not(have_tommath))]
 fn read_cell(interp: &mut Interp, base: &[u8], elem: &Option<Vec<u8>>) -> Option<Vec<u8>> {
     let obj = interp.read_for_update(base, elem.as_deref())?;
@@ -1183,7 +1183,7 @@ mod tests {
         });
     }
 
-    /// Issue #1443 — `subst`'s option words go through the one shared
+    /// `subst`'s option words go through the one shared
     /// `tcl-cmd-core::prefix` matcher, so every miss is worded exactly as
     /// `Tcl_GetIndexFromObj` at flags `0` words it (`TclSubstOptions`,
     /// `tclCmdMZ.c:3341`): the empty word prefixes all three entries and is
@@ -1241,11 +1241,11 @@ mod tests {
     /// `missing close-brace for variable name` — **not** a name that runs to
     /// end-of-input, and not a literal `$`.
     ///
-    /// This engine used to scan the name with `.unwrap_or(len)`, silently
-    /// swallowing the rest of the template (and, for `${a\`, dropping the
-    /// backslash and succeeding where C errors). The scan now reports
-    /// [`tcl_lexer::BracedVarEnd::Unterminated`] and the eval loop raises
-    /// (issue #1457).
+    /// A `.unwrap_or(len)` scan of the name would silently swallow the rest
+    /// of the template (and, for `${a\`, drop the backslash and succeed
+    /// where C errors). The scan reports
+    /// [`tcl_lexer::BracedVarEnd::Unterminated`] instead, and the eval loop
+    /// raises.
     ///
     /// The error is raised in evaluation order, so a `[...]` earlier in the
     /// same template has already run — verified against tclsh 8.6.16 and
@@ -1287,11 +1287,11 @@ mod tests {
         });
     }
 
-    /// Issue #1443's bug repeated in `interp limit`'s option matcher (found by
-    /// the centralisation audit). The hand-rolled `starts_with` filter could
-    /// only say `bad option`, and hand-built its own `", or"` enumeration
-    /// beside the one `prefix::choice_list_bytes` owns. Both now come from
-    /// `OptionTable::abbreviating`.
+    /// A hand-rolled `starts_with` filter for `interp limit`'s option matcher
+    /// could only ever say `bad option` (never `ambiguous`), and would
+    /// hand-build its own `", or"` enumeration beside the one
+    /// `prefix::choice_list_bytes` owns. Both come from
+    /// `OptionTable::abbreviating` instead.
     ///
     /// Byte-checked against tclsh 8.6.16 and 9.0.4.
     #[test]
@@ -1321,7 +1321,7 @@ mod tests {
         });
     }
 
-    /// Issue #1607: `interp debug`'s option word is a `Tcl_GetIndexFromObj`
+    /// `interp debug`'s option word is a `Tcl_GetIndexFromObj`
     /// table whose noun is `debug option` (`debugTypes[]`, `tclInterp.c`), so
     /// `-f`/`-fr` abbreviate and the one-entry table never says `ambiguous`.
     ///
@@ -1351,7 +1351,7 @@ mod tests {
         });
     }
 
-    /// Issue #1607: `interp limit`'s type word is `Tcl_GetIndexFromObj(…,
+    /// `interp limit`'s type word is `Tcl_GetIndexFromObj(…,
     /// "limit type", 0)` (`limitTypes[]`, `tclInterp.c`), so `c`/`t`
     /// abbreviate and the empty word — a prefix of both entries — is
     /// `ambiguous`.

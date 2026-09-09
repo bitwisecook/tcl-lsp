@@ -534,7 +534,7 @@ mod tests {
     fn clause_text_derives_content_bounds_from_the_word_class() {
         // (source, span, base, expected)
         let cases: &[(&str, u32, u32, Option<u32>, &str)] = &[
-            // -- braced word: span excludes the closer --
+            // Braced word: span excludes the closer.
             ("while {${x}} {b}", 6, 11, None, "${x}"),
             // …and with the lowerer's own anchor supplied.
             ("while {${x}} {b}", 6, 11, Some(7), "${x}"),
@@ -544,9 +544,9 @@ mod tests {
             ("while {$x eq {}} {b}", 6, 15, None, "$x eq {}"),
             // Surrounding whitespace inside the braces is trimmed, as before.
             ("while { $x } {b}", 6, 11, None, "$x"),
-            // -- braced word, EMPTY: span *includes* the closer --
+            // Braced word, EMPTY: span *includes* the closer.
             ("while {} {b}", 6, 8, None, ""),
-            // -- quoted word ending in literal text: span EXCLUDES the closer --
+            // Quoted word ending in literal text: span EXCLUDES the closer.
             (r#"if "$x eq lit" {b}"#, 3, 13, None, "$x eq lit"),
             // -- quoted word ending in a SUBSTITUTION: span INCLUDES the
             // closer. This is the shape the universal-convention assumption
@@ -564,17 +564,17 @@ mod tests {
             // trimming breaks one of these two rows.
             (r#"if "$x" {b}"#, 3, 7, None, "$x"), // end past the closer
             (r#"if "$x" {b}"#, 3, 6, None, "$x"), // end before the closer
-            // -- substitution word: the delimiters ARE part of the value --
+            // Substitution word: the delimiters ARE part of the value.
             ("while ${x} {b}", 6, 9, None, "${x}"),
             ("if [foo] {b}", 3, 7, None, "[foo]"),
             // A `}` inside the name does not end the word early under 9.x.
             ("if ${a{b}c} {b}", 3, 10, None, "${a{b}c}"),
-            // -- bare word: no delimiters, the span is the value --
+            // Bare word: no delimiters, the span is the value.
             ("while $c {b}", 6, 8, None, "$c"),
             ("while 1 {b}", 6, 7, None, "1"),
             // A bare word that merely *starts* with `$` is still whole.
             ("while $x+1 {b}", 6, 10, None, "$x+1"),
-            // -- base handling --
+            // Base handling.
             // An out-of-range base is ignored in favour of the class-derived
             // start rather than slicing somewhere unrelated.
             ("while {${x}} {b}", 6, 11, Some(99), "${x}"),
@@ -597,14 +597,14 @@ mod tests {
     fn command_text_restores_only_a_missing_final_quote() {
         // (source, span, expected)
         let cases: &[(&str, u32, u32, &str)] = &[
-            // -- the truncated class: the closer sits at `span.end()` --
+            // The truncated class: the closer sits at `span.end()`.
             (r#""puts hi""#, 0, 8, r#""puts hi""#),
             (r#"catch "puts hi""#, 0, 14, r#"catch "puts hi""#),
             (r#"return "a b""#, 0, 11, r#"return "a b""#),
             // -- quoted final word ending in a substitution: the span already
             // covers the closer, so nothing is added --
             (r#"catch "puts $x""#, 0, 15, r#"catch "puts $x""#),
-            // -- braced / bracketed final words: already widened upstream --
+            // Braced / bracketed final words: already widened upstream.
             (
                 "foreach x {a b} {puts $x}",
                 0,

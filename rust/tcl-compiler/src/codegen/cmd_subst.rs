@@ -1288,7 +1288,7 @@ impl CodegenCtx<'_> {
         self.emit_comment(Op::INVOKE_EXPANDED, vec![], "");
     }
 
-    // -- Private inline helpers for emit_inline_cmd_subst --
+    // Private inline helpers for emit_inline_cmd_subst.
 
     fn emit_inline_incr(&mut self, args: &[(String, bool)]) {
         let var_name = &args[0].0;
@@ -1983,7 +1983,7 @@ mod tests {
         assert!(modern.literals.entries().iter().any(|l| l == "8"));
     }
 
-    // -- unroll_nested_set --
+    // unroll_nested_set.
 
     #[test]
     fn unroll_simple() {
@@ -1996,7 +1996,7 @@ mod tests {
         assert!(unroll_nested_set("hello").is_none());
     }
 
-    // -- is_pure_cmd_subst --
+    // is_pure_cmd_subst.
 
     #[test]
     fn pure_cmd_subst_simple() {
@@ -2015,7 +2015,7 @@ mod tests {
         assert!(!is_pure_cmd_subst("[llength $args]:[join $args ,]"));
     }
 
-    // -- has_command_separator --
+    // has_command_separator.
 
     #[test]
     fn separator_semicolon() {
@@ -2042,7 +2042,7 @@ mod tests {
         assert!(!has_command_separator("set x 1"));
     }
 
-    // -- parse_cmd_parts --
+    // parse_cmd_parts.
 
     #[test]
     fn parse_simple_cmd() {
@@ -2078,7 +2078,7 @@ mod tests {
         assert_eq!(parts[2], ("[expr {1+2}]".into(), false));
     }
 
-    // -- emit_cmd_subst_arg --
+    // emit_cmd_subst_arg.
 
     #[test]
     fn emit_arg_literal() {
@@ -2112,7 +2112,7 @@ mod tests {
         assert_eq!(ctx.instructions[0].op, Op::LOAD_SCALAR1);
     }
 
-    // -- emit_generic_cmd_subst --
+    // emit_generic_cmd_subst.
 
     #[test]
     fn emit_generic_simple() {
@@ -2123,7 +2123,7 @@ mod tests {
         assert_eq!(ops, vec![Op::PUSH1, Op::PUSH1, Op::INVOKE_STK1]);
     }
 
-    // -- emit_inline_cmd_subst --
+    // emit_inline_cmd_subst.
 
     #[test]
     fn inline_expr() {
@@ -2300,7 +2300,7 @@ mod tests {
         assert!(ops.contains(&Op::EVAL_STK));
     }
 
-    // -- regression: label reconstruction in string equal/compare --
+    // Regression: label reconstruction in string equal/compare.
 
     /// `string equal` in non-proc context with a nested command
     /// substitution in one arg. The nested substitution allocates
@@ -2352,7 +2352,7 @@ mod tests {
         }
     }
 
-    // -- specialised value-emission paths --
+    // Specialised value-emission paths.
 
     #[test]
     fn try_list_expand_concat_matches_two_vars() {
@@ -2533,7 +2533,7 @@ mod tests {
         );
     }
 
-    // -- registry drift: inline codegen hook stamping --
+    // Registry drift: inline codegen hook stamping.
 
     /// The registry-stamped inline-hook set must equal the command set
     /// the retired hardcoded `match cmd.as_str()` dispatch (plus the

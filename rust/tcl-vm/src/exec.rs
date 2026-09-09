@@ -3707,7 +3707,7 @@ impl Vm {
                 }));
             }
 
-            // IRules dialect operators.
+            // iRules dialect operators.
             // The F5 word operators (`contains`/`starts_with`/`ends_with`/
             // `equals`/`matches`/`matches_glob`/`matches_regex`/`and`/`or`/
             // `not`), which

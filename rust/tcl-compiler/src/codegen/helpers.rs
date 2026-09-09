@@ -817,7 +817,7 @@ mod tests {
         assert_eq!(lit(r"\400", EscapeSyntax::Tcl90), " 0");
     }
 
-    // -- split_list_simple --
+    // split_list_simple.
 
     #[test]
     fn split_list_simple_basic() {
@@ -856,7 +856,7 @@ mod tests {
         assert_eq!(split_list_simple(r"a\ b c"), vec![r"a\ b", "c"]);
     }
 
-    // -- tcl_string_hash --
+    // tcl_string_hash.
 
     #[test]
     fn tcl_string_hash_empty() {
@@ -875,7 +875,7 @@ mod tests {
         assert_ne!(tcl_string_hash("a"), tcl_string_hash("b"));
     }
 
-    // -- tcl_hash_table_order --
+    // tcl_hash_table_order.
 
     #[test]
     fn hash_table_order_preserves_all() {
@@ -902,7 +902,7 @@ mod tests {
         assert_eq!(ordered.len(), 15);
     }
 
-    // -- tcl_list_element --
+    // tcl_list_element.
 
     #[test]
     fn tcl_list_element_empty() {
@@ -927,7 +927,7 @@ mod tests {
         assert!(!result.starts_with('{'));
     }
 
-    // -- parse_subst_template --
+    // parse_subst_template.
 
     #[test]
     fn subst_template_lit_only() {
@@ -1182,7 +1182,7 @@ mod tests {
         );
     }
 
-    // -- regexp_to_glob --
+    // regexp_to_glob.
 
     #[test]
     fn regexp_to_glob_unanchored() {
@@ -1219,7 +1219,7 @@ mod tests {
         assert_eq!(regexp_to_glob("^abc$"), Some("abc".into()));
     }
 
-    // -- fold_cmd_args / fold_list_cmd / fold_dict_create_cmd --
+    // fold_cmd_args / fold_list_cmd / fold_dict_create_cmd.
 
     /// The two delimiter states gate each other. A brace inside a quoted word
     /// opens no group, and a quote inside a braced word opens no quoted
@@ -1292,7 +1292,7 @@ mod tests {
         );
     }
 
-    // -- try_format_fold --
+    // try_format_fold.
 
     #[test]
     fn format_fold_simple_s() {

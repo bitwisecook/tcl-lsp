@@ -107,7 +107,7 @@ impl WasmCompileOptions {
     ///
     /// `initialise_library` additionally loads the embedded standard library
     /// before entering the compiled program. Standalone bootstrap synthesis is
-    /// not yet represented in executable IR, so this packaging shape records a
+    /// not represented in executable IR, so this packaging shape records a
     /// typed semantic decline on the general plan.
     #[must_use]
     pub const fn standalone(initialise_library: bool) -> Self {
@@ -240,7 +240,7 @@ impl Default for WasmCompileOptions {
     }
 }
 
-/// Stable packaging shapes that common executable IR cannot yet synthesise.
+/// Stable packaging shapes that common executable IR cannot synthesise.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WasmPackagingConstraint {
     /// WASI `_start`, interpreter creation, and optional library initialisation.
@@ -310,7 +310,7 @@ impl WasmExecutableAvailabilityDecline {
 pub enum WasmSemanticDecline {
     /// The caller's isolated host implements only the general evaluation ABI.
     SemanticPlansDisabled,
-    /// The requested package shape is not yet expressed by executable IR.
+    /// The requested package shape is not expressed by executable IR.
     Packaging(WasmPackagingConstraint),
     /// Common executable IR was unavailable with a retained typed reason.
     ExecutableUnavailable(WasmExecutableAvailabilityDecline),

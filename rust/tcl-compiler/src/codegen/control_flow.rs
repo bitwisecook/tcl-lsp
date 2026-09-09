@@ -1142,7 +1142,7 @@ impl CodegenCtx<'_> {
         });
     }
 
-    // -- inline try/on error compilation --
+    // Inline try/on error compilation.
 
     /// Emit the `-during` merge sequence: load saved opts, prepend
     /// the new error opts, dict-set `-during` key, store back to
@@ -1431,7 +1431,7 @@ impl CodegenCtx<'_> {
         self.place_label(&sc_label);
     }
 
-    // -- inline try/finally compilation --
+    // Inline try/finally compilation.
 
     /// Emit inline `try { body } finally { cleanup }` bytecodes.
     pub fn emit_try_finally_inline(
@@ -1941,7 +1941,7 @@ mod tests {
         assert!(detect_const_expr_error(&node).is_none());
     }
 
-    // -- registry drift: catch-body classifications --
+    // Registry drift: catch-body classifications.
 
     /// The registry's `NEEDS_START_CMD` set must equal the set pinned here,
     /// so a stamping change is a conscious decision rather than a silent

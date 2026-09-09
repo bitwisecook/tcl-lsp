@@ -227,13 +227,13 @@ async function removePack(label: string): Promise<void> {
  * The three questions a live server must still answer, asked after each
  * hostile write.
  *
- * Deliberately the same three the harness's own liveness probe asks (helper.ts,
- * issue #1294): a document-free config pull proves the transport is alive, a
+ * Deliberately the same three the harness's own liveness probe asks (helper.ts):
+ * a document-free config pull proves the transport is alive, a
  * hover on an undriven document proves the document pipeline is draining, and a
  * hover on the consumer proves *this* document's queue is not wedged. Asking
  * them here, immediately, is what makes a wedge attributable to the pack that
  * caused it — without this the first symptom would be some later test's
- * timeout, which is exactly the unattributable shape #1600 recorded.
+ * timeout, with no way to attribute it back to this pack.
  */
 async function assertServerAlive(label: string): Promise<void> {
   assert.ok(
@@ -637,9 +637,9 @@ suite("SpecTcl pack torture through the extension host", () => {
   });
 
   test("a pack saved with a UTF-8 BOM still loads its commands (#1635)", async function () {
-    // The user-visible half of #1635. A Windows editor defaulting to "UTF-8
-    // with BOM" used to cost the author their entire pack, with a Problems
-    // entry blaming a missing `speclib` that was plainly there on line 1.
+    // A Windows editor defaulting to "UTF-8
+    // with BOM" must not cost the author their entire pack, with a Problems
+    // entry blaming a missing `speclib` that is plainly there on line 1.
     //
     // Asserting the *hover generation* rather than merely "a pack loaded" is
     // what makes this specific: the BOM'd bytes must produce this exact

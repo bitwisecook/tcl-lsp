@@ -89,12 +89,12 @@ fn set_dialect(args: &Value) -> Value {
     // Aliases (`irules`, `tclspec`, …) resolve here, so the session holds a
     // canonical environment id.
     //
-    // Ledger row F9/T6: the validator is now the one `Environment::resolve`,
-    // exactly as wave 2 made the LSP's `setDialect` — so this accepts every
-    // *declared* name (canonical ids, aliases, and the contributed editor
-    // identities) rather than only those the profile catalogue happened to
-    // hold, and still rejects an unknown spelling. The advertised `enum`
-    // stays the canonical catalogue (its payload is row T6).
+    // The validator is the one `Environment::resolve`, matching the LSP's
+    // `setDialect` — so this accepts every *declared* name (canonical ids,
+    // aliases, and the contributed editor identities) rather than only
+    // those the profile catalogue happens to hold, and still rejects an
+    // unknown spelling. The advertised `enum` stays the canonical
+    // catalogue.
     let Some(profile) = crate::environment::known_profile_for_dialect(requested) else {
         return json!({
             "error": format!(
@@ -771,9 +771,9 @@ fn command_info(args: &Value) -> Value {
     let command = arg_str(args, "command_name").trim();
     let reg = registry(IRULES_DIALECT);
     // The fixed iRules assistance view — the `ResolvedContext` that
-    // replaces `ProfileQueries` (ledger row F1's assistance half). It
-    // answers over the pack-layered store this tool holds rather than its
-    // own generation, which is what `resolve_spec` exists for.
+    // replaces `ProfileQueries`. It answers over the pack-layered store
+    // this tool holds rather than its own generation, which is what
+    // `resolve_spec` exists for.
     let irules = crate::environment::context_for_dialect(IRULES_DIALECT);
     let Some(spec) = irules.resolve_spec(&reg, command) else {
         return json!({ "command": command, "found": false });
@@ -1332,8 +1332,8 @@ fn dialect_names() -> Vec<&'static str> {
 /// `enum`, plus the `name — display_name` pairs appended to `desc` so a model
 /// reading only the description still sees what each name means.
 ///
-/// The `enum` lists canonical names only (its payload is ledger row T6);
-/// the runtime ingress keeps accepting every declared name.
+/// The `enum` lists canonical names only; the runtime ingress keeps
+/// accepting every declared name.
 fn dialect_schema(desc: &str) -> Value {
     let pairs: Vec<String> = DialectProfile::all()
         .iter()

@@ -1861,9 +1861,9 @@ fn source_decline_value(
 
 fn semantic_decline_value(availability: &ExecutableAnalysisAvailability) -> Option<Value> {
     match availability {
-        // The re-keyed sidecar (ledger C1 / §11.2 D1) reaches this state by
-        // carrying no resolved environment at all, so there is no mask left to
-        // name in the payload.
+        // The re-keyed sidecar reaches this state by carrying no resolved
+        // environment at all, so there is no mask left to name in the
+        // payload.
         ExecutableAnalysisAvailability::ContextUnavailable => {
             Some(json!({"kind": "context-unavailable"}))
         }

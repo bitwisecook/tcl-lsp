@@ -290,7 +290,7 @@ fn tip558_configurable_bad_property() {
     assert_eq!(msg, "bad property \"gorp\": must be -x, -y, or -z");
 }
 
-/// Issue #1607: `configure`'s property word is resolved by C's
+/// `configure`'s property word is resolved by C's
 /// `oo::configuresupport` through `tcl::prefix match -message property`, so an
 /// abbreviation resolves and a word prefixing several — `""` and a lone `-`
 /// included — is `ambiguous property`. This matched exactly and hand-joined
@@ -386,7 +386,7 @@ fn info_object_isa_enforces_the_per_category_arity() {
     assert_eq!(run(&format!("{SETUP}info object isa mixin o C")).1, "0");
 }
 
-/// Issue #1607: `info object isa`'s category is a
+/// `info object isa`'s category is a
 /// `Tcl_GetIndexFromObj(…, "category", 0)` table (`tclOOInfo.c`), so `cl`/`ob`/
 /// `t` abbreviate, `m` is ambiguous (metaclass/mixin), and the enumeration
 /// keeps the Oxford comma the *method* lists drop.
@@ -876,7 +876,7 @@ fn rename_preserves_object_and_class_identity() {
 
 #[test]
 fn renamed_object_destroy_removes_the_destination_command() {
-    // Exact #1594 Tcl 9.0.4 acceptance vector.
+    // Exact Tcl 9.0.4 acceptance vector.
     assert_eq!(
         result("oo::object create ::a; rename ::a ::b; ::b destroy; info commands ::b"),
         ""
@@ -905,7 +905,7 @@ fn namespace_teardown_destroys_tcloo_commands() {
 
 #[test]
 fn retained_and_recreated_tcloo_commands_have_distinct_identity() {
-    // Exact #1764 Tcl 9.0.4 oracle: a relative call in the retained frame
+    // Exact Tcl 9.0.4 oracle: a relative call in the retained frame
     // reaches the old object token while an absolute call reaches the live
     // same-spelled recreation; final old teardown leaves only the new object.
     assert_eq!(
@@ -1253,7 +1253,7 @@ fn realistic_stack_object() {
     );
 }
 
-// Recursive method dispatch — issue #996 (native-stack safety).
+// Recursive method dispatch: native-stack safety.
 
 /// A recursive method call (or `next`/mixin chain) is a genuine native Rust
 /// call per level (`TclOO` method dispatch bypasses the proc trampoline that

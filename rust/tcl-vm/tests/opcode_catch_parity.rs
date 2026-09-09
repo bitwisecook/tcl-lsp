@@ -266,7 +266,7 @@ fn decorative_begin_catch_stays_inert() {
     assert_eq!(&*c.result.to_str(), "boom");
 }
 
-// ReturnCodeBranch.
+// `returnCodeBranch`.
 
 /// Build `push <code>; returnCodeBranch; 5×jump1 stubs; landing pushes` and
 /// return the landing literal — pins the `2*code − 1` byte arithmetic.
@@ -324,7 +324,7 @@ fn return_code_branch_rejects_ok_and_junk() {
     assert_eq!(result, "returnCodeBranch: TOS not a return code");
 }
 
-// ReturnStk: C stack order (options under result) + options application.
+// `returnStk`: C stack order (options under result) + options application.
 
 /// `returnStk` with `-code error` in the options raises that error — the
 /// options dict drives the completion (C `Tcl_SetReturnOptions`).

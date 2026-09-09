@@ -2150,8 +2150,8 @@ pub(crate) fn reconstruct_proc_scope(
 /// Does the body `source` a `$var` path?  `handle_source_command` resolves
 /// such a path through the walk-time constant-string lattice, whose scope
 /// chain reaches the *enclosing* scopes on the whole-file walk (`set p
-/// "e.tcl"` at top level, `source $p` inside a proc — the audit's
-/// corpus idiom).  An isolated body has no enclosing chain, so the resolved
+/// "e.tcl"` at top level, `source $p` inside a proc — a corpus idiom).  An
+/// isolated body has no enclosing chain, so the resolved
 /// `source_targets` entry (`raw_path` / `is_literal`) would diverge; fall
 /// back to a full rebuild instead.  A path word containing `[` stays
 /// conservatively dynamic on **both** walks (`resolve_dynamic_word` rejects

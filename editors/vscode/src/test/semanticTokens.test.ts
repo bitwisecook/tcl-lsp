@@ -77,9 +77,9 @@ suite("Semantic Tokens", () => {
     );
   });
 
-  // PR #643 (issue #637): structural keywords (`else`/`elseif`, and `try`'s
+  // Structural keywords (`else`/`elseif`, and `try`'s
   // `on`/`trap`/`finally`) sit at argument positions, not the command-name
-  // slot, and used to render as strings.  They must now emit as keyword
+  // slot.  They must emit as keyword
   // semantic tokens, while a bareword built-in used as a plain argument
   // (`dict set frame proc "x"`) stays a string.
   test("structural keywords highlight as keywords, bareword builtin stays string", async () => {
@@ -132,7 +132,7 @@ suite("Semantic Tokens", () => {
     assert.ok(legend, "expected a legend");
 
     // The retag comes from the enriched, `CompilationUnit`-backed tier, which
-    // races a coarse fast path (issue #829) on this request's first arrival —
+    // races a coarse fast path on this request's first arrival —
     // poll rather than asserting on the first synchronous response, matching
     // the "highlighting eventually converges" test below for the same shape.
     let decoded: DecodedToken[] = [];
@@ -427,7 +427,7 @@ suite("Semantic Tokens", () => {
     );
   });
 
-  // Peer of issue #774: `global a b c` declares every name as a variable, not
+  // `global a b c` declares every name as a variable, not
   // just the first.
   test("'global' declares every name (peer of #774)", async () => {
     const uri = getDocUri("globalMultiName.tcl");
@@ -505,7 +505,7 @@ suite("Semantic Tokens", () => {
     const variableWords = new Set(decoded.filter((t) => t.type === "variable").map(textOf));
     const parameterWords = new Set(decoded.filter((t) => t.type === "parameter").map(textOf));
     // A proc / apply-lambda *parameter* carries the standard LSP `parameter`
-    // type (#898 §4), so a theme can tell an argument from an ordinary local.
+    // type, so a theme can tell an argument from an ordinary local.
     for (const name of ["name", "age", "alpha", "beta"]) {
       assert.ok(
         parameterWords.has(name),
@@ -570,8 +570,8 @@ suite("Semantic Tokens", () => {
     // Declarations + a method parameter are variables.
     const variableWords = new Set(decoded.filter((t) => t.type === "variable").map(textOf));
     const parameterWords = new Set(decoded.filter((t) => t.type === "parameter").map(textOf));
-    // Method / constructor parameters carry the standard LSP `parameter` type
-    // (#898 §4); declared instance variables stay variables.
+    // Method / constructor parameters carry the standard LSP `parameter` type;
+    // declared instance variables stay variables.
     for (const name of ["volume", "args"]) {
       assert.ok(
         parameterWords.has(name),
@@ -615,7 +615,7 @@ suite("Semantic Tokens", () => {
     const variableWords = new Set(decoded.filter((t) => t.type === "variable").map(textOf));
     const parameterWords = new Set(decoded.filter((t) => t.type === "parameter").map(textOf));
     // Method parameters (including those behind an access-modifier wrapper)
-    // carry the standard LSP `parameter` type (#898 §4).
+    // carry the standard LSP `parameter` type.
     for (const name of ["volume", "args"]) {
       assert.ok(
         parameterWords.has(name),
@@ -638,8 +638,8 @@ suite("Semantic Tokens", () => {
     assert.ok(functionWords.has("set"), "expected the recursed method body ('set')");
   });
 
-  // -- issue #829: semantic tokens must not be starved behind whole-file
-  // analysis on a large document ------------------------------------------
+  // Semantic tokens must not be starved behind whole-file
+  // analysis on a large document.
 
   // Mirrors `generate_big_tcl` in
   // rust/tcl-lsp-server/tests/e2e/semantic_tokens_reference_client.rs --
@@ -690,7 +690,7 @@ suite("Semantic Tokens", () => {
       );
       // Generous, environment-tolerant bound.  The point of the server's
       // fast-path/coarse-fallback design (a 40ms race against the enriched
-      // computation, issue #829) is that first-response latency stops scaling
+      // computation) is that first-response latency stops scaling
       // with file size or system load, so this should hold under a debug
       // build / CI contention, not just a tuned release build.
       assert.ok(
@@ -852,7 +852,7 @@ suite("Semantic Tokens", () => {
     assert.ok(legend, "expected a legend");
 
     // The `rename`/alias-aware classification comes from the enriched tier,
-    // which races a coarse fast path on the first request (issue #829) —
+    // which races a coarse fast path on the first request —
     // poll, as the regex-source test above does for the same reason.
     let decoded: DecodedToken[] = [];
     await pollUntil(

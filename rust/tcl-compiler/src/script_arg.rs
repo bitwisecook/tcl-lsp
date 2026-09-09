@@ -32,7 +32,7 @@
 //! then evaluates it deterministically.  A 3-way comparison on tclsh 9.0.4 and
 //! 8.6.16 (direct `upvar`, braced `uplevel {upvar …}`, `uplevel [list upvar
 //! …]`) shows the three are functionally identical — only the `[list …]` form
-//! was invisible to the analyser and the semantic-token walker (issue #1138).
+//! is the one an unaware analyser or semantic-token walker misses.
 //!
 //! [`list_quoted_script_command`] is the one predicate that answers "is this
 //! `[…]` argument a statically known command, and which one?", so the

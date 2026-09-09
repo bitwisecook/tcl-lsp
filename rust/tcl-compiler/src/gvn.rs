@@ -2557,7 +2557,7 @@ mod tests {
         assert_eq!(r.first_span.end(), 5);
     }
 
-    // -- canonicalisation + messages --
+    // Canonicalisation + messages.
 
     /// A bare SSA shell (no blocks) for tests that only need the variable
     /// interner to resolve canonicalisation names.
@@ -2680,7 +2680,7 @@ mod tests {
         assert!(loop_invariant_message("expr {$x + 1}").contains("loop-invariant"));
     }
 
-    // -- statement-level helpers --
+    // Statement-level helpers.
 
     fn call_stmt(cmd: &str, args: &[&str]) -> Statement {
         Statement::Call {
@@ -2898,7 +2898,7 @@ mod tests {
         assert!(!is_worth_reporting(&registry, "__nonexistent"));
     }
 
-    // -- find_redundancies driver --
+    // find_redundancies driver.
 
     use crate::cfg::{Block, Function, Terminator};
     use crate::ssa::{SsaBlock, SsaStatement};
@@ -3121,7 +3121,7 @@ mod tests {
         assert_eq!(results.len(), 1);
     }
 
-    // -- embedded command-substitution scanning --
+    // Embedded command-substitution scanning.
 
     #[test]
     fn scan_bracketed_commands_simple() {
@@ -3228,7 +3228,7 @@ mod tests {
         assert!(results.is_empty());
     }
 
-    // -- loop-invariant detection --
+    // Loop-invariant detection.
 
     #[test]
     fn find_loop_invariants_detects_hoistable_llength() {
@@ -3493,7 +3493,7 @@ mod tests {
         assert!(find_loop_invariants(&registry, &cfg, &ssa, &all_blocks(&cfg), None).is_empty());
     }
 
-    // -- partial-redundancy detection --
+    // Partial-redundancy detection.
 
     #[test]
     fn find_partial_redundancies_if_diamond() {
@@ -3627,7 +3627,7 @@ mod tests {
         assert!(!out.contains(&key));
     }
 
-    // -- intra-module pure-proc analysis --
+    // Intra-module pure-proc analysis.
 
     fn module_with_procs(procs: Vec<(&str, Vec<Statement>)>) -> CfgModule {
         let mut cfg_module = CfgModule {

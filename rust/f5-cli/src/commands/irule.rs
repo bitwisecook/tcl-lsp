@@ -591,7 +591,7 @@ fn run_event_info(
     json: bool,
     output: &str,
 ) -> Result<u8, u8> {
-    // The profile-stamped registry: the §9 operator-head exclusion applies
+    // The profile-stamped registry: its operator-head exclusion applies
     // inside the event/command cross-product, and availability otherwise comes
     // from each spec's own surface — a raw `build_default` registry would
     // re-admit commands that carry no iRules row.

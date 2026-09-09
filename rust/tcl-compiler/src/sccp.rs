@@ -2131,7 +2131,7 @@ mod tests {
         }
     }
 
-    // -- join --
+    // Join.
 
     #[test]
     fn join_unknown_absorbs() {
@@ -2211,7 +2211,7 @@ mod tests {
         ));
     }
 
-    // -- predecessors + cfg_order --
+    // Predecessors + cfg_order.
 
     #[test]
     fn predecessors_simple_chain() {
@@ -2368,7 +2368,7 @@ mod tests {
         }));
     }
 
-    // -- driver --
+    // Driver.
 
     use crate::expr_ast::BinOp;
     use crate::ir::Statement;
@@ -2773,7 +2773,7 @@ mod tests {
         );
     }
 
-    // -- evaluate_def for Incr --
+    // evaluate_def for Incr.
 
     fn incr_stmt(
         ssa: &mut SsaFunction,
@@ -2918,7 +2918,7 @@ mod tests {
         assert_eq!(resolve_simple_var_ref("plain", &uses, &values, &ssa), None);
     }
 
-    // -- foreach constset extraction --
+    // Foreach constset extraction.
 
     fn foreach_stmt(ssa: &mut SsaFunction, var: &str, list: &str, new_ver: u32) -> SsaStatement {
         let mut defs = HashMap::new();
@@ -3142,7 +3142,7 @@ mod tests {
         assert_eq!(result, LatticeValue::Overdefined);
     }
 
-    // -- AssignValue + command-substitution folding --
+    // AssignValue + command-substitution folding.
 
     fn assign_value_stmt(ssa: &mut SsaFunction, name: &str, value: &str, ver: u32) -> SsaStatement {
         let mut defs = HashMap::new();

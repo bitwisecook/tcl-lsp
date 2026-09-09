@@ -2069,7 +2069,7 @@ mod tests {
         );
     }
 
-    // -- matches_regex is never constant-folded --
+    // matches_regex is never constant-folded.
 
     #[test]
     fn irules_matches_regex_is_not_folded() {
@@ -2090,7 +2090,7 @@ mod tests {
         }
     }
 
-    // -- simple iRules string ops --
+    // Simple iRules string ops.
 
     /// `FoldOps::binary_other` must only fold the iRules word operators under
     /// an iRules dialect, and decline (not panic, not silently misfold)
@@ -2176,7 +2176,7 @@ mod tests {
         );
     }
 
-    // -- matches_glob + in/ni --
+    // matches_glob + in/ni.
 
     #[test]
     fn irules_matches_glob_star() {
@@ -2284,7 +2284,7 @@ mod tests {
     // (string-delimiter stripping now lives in the shared `tcl_syntax::expr`
     // walk — `strip_delims` — and is exercised by its tests.)
 
-    // -- Math function dispatch --
+    // Math function dispatch.
 
     #[test]
     fn math_abs_int_and_float() {

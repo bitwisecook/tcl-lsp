@@ -164,7 +164,7 @@ pub(super) fn resolve_factory_defs(ctx: &mut ScanCtx) {
                 // A factory-emitted proc's formals come from the factory's own
                 // run-time arguments, so they are *unknown*, not *none* — an
                 // arity consumer must abstain rather than demand zero
-                // arguments (issue #1107).
+                // arguments.
                 params: Vec::new(),
                 params_computed: true,
                 name_range: cand.name_tok.span,

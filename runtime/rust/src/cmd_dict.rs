@@ -45,7 +45,7 @@ fn dict_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let word = obj_bytes(argv[1]);
     // `dict` is a `TclMakeEnsemble` command: exact match, else a unique
-    // prefix, so `dict k` is `dict keys` (this matched exactly before #1607).
+    // prefix, so `dict k` is `dict keys`.
     // `getdef`/`getwithdefault` are Tcl 9 (TIP 342), so the table is the
     // emulated release's: under an 8.6 pin they must neither resolve nor make
     // `dict g` — a word that has nothing to do with them — ambiguous.
@@ -87,7 +87,7 @@ fn dict_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 // The read path (`size`/`info`/`get`/`keys`/`values`/`exists`/
                 // `merge`/`filter`/`replace`/`remove`/`getdef`) reaches C's
                 // parser only through here, so without the re-wording every
-                // one of them reported the list noun (issue #1573).
+                // one of them would report the list noun.
                 Err(e) => {
                     let (message, portable_code) = e.into_parts();
                     let msg = dict_worded(&message);
@@ -617,15 +617,15 @@ fn unwind_fresh_chain(chain: &[DictPathLevel]) {
 /// `dict`, descending through (and copy-on-write replacing) intermediate
 /// sub-dicts, creating empty ones for missing path segments.
 ///
-/// Iterative, not recursive (issue #996): `dict set d {*}[lrepeat N k] v`
-/// makes `keys.len()` — and so the native recursion depth this used to cost —
-/// trivially attacker-controlled via `{*}` argument expansion, and the
-/// original recursive form (one Rust stack-frame group per key segment) had
-/// no depth cap, so pathologically deep input could abort the process with
-/// an uncatchable native-stack overflow. Rewriting the descend-then-rebind
-/// shape as an explicit loop + stack removes the recursion (and so the whole
-/// crash class) rather than merely bounding it, so there is no `MAX_X_DEPTH`
-/// to calibrate here: an arbitrarily long path now just does more work
+/// Iterative, not recursive: `dict set d {*}[lrepeat N k] v` makes
+/// `keys.len()` — and so the native recursion depth a recursive
+/// implementation would cost — trivially attacker-controlled via `{*}`
+/// argument expansion. A recursive descend-then-rebind shape (one Rust
+/// stack-frame group per key segment) has no depth cap, so pathologically
+/// deep input could abort the process with an uncatchable native-stack
+/// overflow. The explicit loop + stack here removes the recursion (and so
+/// the whole crash class) rather than merely bounding it, so there is no
+/// `MAX_X_DEPTH` to calibrate: an arbitrarily long path just does more work
 /// (heap-bounded, like any other `Vec`-backed loop), not more native stack.
 fn dict_path_set(
     dict: *mut TclObj,
@@ -742,12 +742,12 @@ enum PathErr {
 /// dict `dict`, descending through (and re-binding) intermediate sub-dicts. A
 /// missing intermediate segment errors; a missing final key is a no-op.
 ///
-/// Iterative, not recursive (issue #996) — see [`dict_path_set`]'s doc
-/// comment: the same `{*}`-expansion-controlled path length made the
-/// original recursive form (one Rust stack-frame group per key segment)
-/// capable of an uncatchable native-stack overflow on deep/adversarial input,
-/// and the same descend-then-rebind loop + stack rewrite removes that
-/// recursion entirely rather than bounding it.
+/// Iterative, not recursive — see [`dict_path_set`]'s doc comment: the same
+/// `{*}`-expansion-controlled path length would make a recursive form (one
+/// Rust stack-frame group per key segment) capable of an uncatchable
+/// native-stack overflow on deep/adversarial input, and the same
+/// descend-then-rebind loop + stack removes that recursion entirely rather
+/// than bounding it.
 fn dict_path_unset(dict: *mut TclObj, keys: &[*mut TclObj]) -> Result<(), PathErr> {
     if let [last] = keys {
         dict::dict_unset(dict, &obj_bytes(*last)).map_err(PathErr::Bad)?;
@@ -1168,10 +1168,11 @@ mod tests {
         b
     }
 
-    /// Issue #1607: `dict` is a `TclMakeEnsemble` command — this matched every
-    /// subcommand exactly and spelled the 22-entry list out as a literal beside
-    /// the table. `dict filter`'s type word is a `Tcl_GetIndexFromObj(…,
-    /// "filterType", 0)` table in the shared core.
+    /// `dict` is a `TclMakeEnsemble` command, so its exact-then-unique-prefix
+    /// scan and its whole miss sentence belong to `tcl_cmd_core::ensemble`
+    /// rather than a hand-rolled 22-entry literal. `dict filter`'s type word
+    /// is a `Tcl_GetIndexFromObj(…, "filterType", 0)` table in the shared
+    /// core.
     ///
     /// tclsh 9.0.4:
     ///   dict k {a 1}          -> a       ;  dict si {a 1} -> 1
@@ -1330,13 +1331,13 @@ mod tests {
         assert_eq!(b, b"key \"b\" not known in dictionary");
     }
 
-    /// Regression coverage for issue #996: `dict_path_set`/`dict_path_unset`
-    /// recursed once per key-path segment, with no depth cap before this
-    /// fix — `dict set d {*}[lrepeat N k] v` makes the path length (and so
-    /// the native recursion depth this used to cost) trivially attacker-
-    /// controlled via `{*}` argument expansion. The fix (see
-    /// `dict_path_set`'s doc comment) rewrites the descend-then-rebind shape
-    /// as an explicit loop + stack, removing the recursion — and so the
+    /// Regression coverage for the native-stack recursion hazard
+    /// `dict_path_set`/`dict_path_unset` avoid by being iterative: `dict set
+    /// d {*}[lrepeat N k] v` makes the path length (and so the native
+    /// recursion depth a recursive implementation would cost) trivially
+    /// attacker-controlled via `{*}` argument expansion. The
+    /// descend-then-rebind shape here (see `dict_path_set`'s doc comment) is
+    /// an explicit loop + stack, which removes the recursion — and so the
     /// whole crash class — entirely, rather than merely bounding it.
     ///
     /// Empirically (a throwaway probe temporarily reproducing the exact
@@ -1437,16 +1438,17 @@ mod tests {
             b"b 2 c 3"
         );
     }
-    /// Issue #1573 — the **read-only** dict path reports value-parse failures
+    /// The **read-only** dict path reports value-parse failures
     /// with the dict noun, the junk fragment, and the dict `errorCode`.
     ///
     /// `size`/`info`/`get`/`keys`/`values`/`merge`/`filter`/`replace`/`remove`/
     /// `getdef` reach C's parser only through `dispatch_canon`, which decodes
-    /// with the shared **list** codec. Two things were lost on the way out:
-    /// the shared core's message arrived list-worded and was never translated
-    /// (so `dict size` said `list element in braces …` with `errorCode` `NONE`),
-    /// and `ValueOps::list_elements` reported `ListError::message`'s
-    /// fragment-less prefix rather than the full `TclFindElement` sentence.
+    /// with the shared **list** codec. Two things have to be corrected on the
+    /// way out: the shared core's message arrives list-worded and needs
+    /// translating (otherwise `dict size` would say `list element in braces
+    /// …` with `errorCode` `NONE`), and `ValueOps::list_elements` must report
+    /// the full `TclFindElement` sentence rather than `ListError::message`'s
+    /// fragment-less prefix.
     ///
     /// The mutating path was already correct via `bad_dict`; it is included
     /// here as a regression net. Byte-checked against `tclsh9.0.4`.
@@ -1511,8 +1513,8 @@ mod tests {
         );
     }
 
-    /// Issue #1328 finding (2) — `dict lappend` onto a non-dict "silently
-    /// succeeds" — **does not reproduce**, and this pins why.
+    /// `dict lappend` onto a non-dict does not silently succeed, and this
+    /// pins why.
     ///
     /// The three shapes a value can relate to `dict`, each matching C Tcl
     /// 9.0.4 *and* 8.6.16 byte-for-byte in message text and `errorCode`:
@@ -1564,8 +1566,8 @@ mod tests {
 
     /// The dict-validation answer must come from the *value*, never from
     /// whichever internal representation it happens to be carrying — a
-    /// shimmered list and an identical pure string must agree (issue #1328's
-    /// dual-porting check).  All six pinned against C Tcl 9.0.4 and 8.6.16.
+    /// shimmered list and an identical pure string must agree.  All six
+    /// pinned against C Tcl 9.0.4 and 8.6.16.
     #[test]
     fn dict_lappend_validation_is_unaffected_by_shimmering() {
         // Built as a 3-element list, so it arrives with a list intrep.

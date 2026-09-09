@@ -7899,7 +7899,7 @@ mod tests {
     #[test]
     fn option_command_value_recurses_as_body_script() {
         // `button .b -command {puts $x}` — the `-command` value is a script
-        // body (Phase 3: ArgRole::Body), so it recurses: `$x` inside the braces
+        // body (`ArgRole::Body`), so it recurses: `$x` inside the braces
         // resolves as a Variable rather than one opaque string.
         let toks = decode_full(
             "button .b -command {puts $x}\n",
@@ -7950,7 +7950,7 @@ mod tests {
     #[test]
     fn option_enum_value_is_enum_member() {
         // `button .b -relief raised` — the closed-set option value is coloured
-        // as an EnumMember (Phase 5), not a generic OptionValue.
+        // as an EnumMember, not a generic OptionValue.
         let toks = decode_full(
             "button .b -relief raised\n",
             crate::profile_for_dialect("tk"),
@@ -7966,7 +7966,7 @@ mod tests {
     #[test]
     fn option_textvariable_value_is_variable_declaration() {
         // `entry .e -textvariable myvar` — the value names a variable the widget
-        // reads/writes (Phase 3: ArgRole::VarWrite), so it is a Variable
+        // reads/writes (`ArgRole::VarWrite`), so it is a Variable
         // declaration, not a plain `OptionValue` string.
         let toks = decode_full(
             "entry .e -textvariable myvar\n",
@@ -9162,7 +9162,7 @@ mod tests {
         // substitution is a *computed* (non-static) command name, so it is not
         // painted as a single command token.  Its fragments tokenise
         // individually (`$node` as a variable) and must not overlap each other
-        // (LSP clients reject overlapping semantic tokens) — issue #797.
+        // (LSP clients reject overlapping semantic tokens).
         let toks = decode_full("chartV$node SetOptions -x {}\n", tcl(), &reg());
         for w in toks.windows(2) {
             let (l0, c0, len0, ..) = w[0];
@@ -9194,7 +9194,7 @@ mod tests {
 
     #[test]
     fn command_substitution_head_recurses_not_command_token() {
-        // `[dict get $Pins $pin] configure -node $node` (issue #797) — the head
+        // `[dict get $Pins $pin] configure -node $node` — the head
         // is a `[…]` command substitution, a runtime-computed command name, not
         // a resolvable command.  It must recurse into its inner script (`dict`
         // as a builtin, `get` as its subcommand, `$Pins` / `$pin` as variables)

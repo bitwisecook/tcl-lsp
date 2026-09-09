@@ -4793,7 +4793,7 @@ mod tests {
 
     #[test]
     fn references_drop_a_call_after_a_namespace_forget() {
-        // TN, behaviour 1 — the alias the import installed is
+        // TN, the `namespace forget` behaviour — the alias the import installed is
         // gone by the time the second `p` runs (oracle: `invalid command
         // name "p"`), so that call is not a reference to `::src::p`. The
         // call *before* the forget still is.
@@ -4822,7 +4822,7 @@ mod tests {
 
     #[test]
     fn references_drop_a_conflicting_unforced_imports_call_site() {
-        // FP guard (CRITICAL), behaviour 2 — `::dst` already has
+        // FP guard (CRITICAL), the import-conflict behaviour — `::dst` already has
         // its own `p`, so the non-`-force` import errors and installs
         // nothing (oracle: `can't import command "p": already exists`, and
         // `namespace origin ::dst::p` → `::dst::p`). The bare `p` inside
@@ -4870,7 +4870,7 @@ mod tests {
 
     #[test]
     fn references_include_a_call_through_an_import_chain() {
-        // TP, behaviour 4 — `::A` imports `::B::*`, `::B`
+        // TP, the import-chain behaviour — `::A` imports `::B::*`, `::B`
         // imported `::C::*` and re-exported; the bare `p` in `::A` runs
         // `::C::p` (oracle: `namespace origin ::A::p` → `::C::p`), so it is
         // a reference to it. The middle hop is in no `all_procs`, so a

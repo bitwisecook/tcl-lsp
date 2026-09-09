@@ -771,7 +771,7 @@ Greeter new x
 /// `lambda_literal::split_lambda_literal` and descends only the body
 /// element, so the parameter list is never walked as code and the body is.
 ///
-/// Source is the audit's own repro — the `validateHelper` lambda body
+/// Source is the corpus repro — the `validateHelper` lambda body
 /// verbatim from `georgtree/argparse`'s `argparse.tcl:19-34`, with the outer
 /// `{*}$validateHelper` variable indirection removed so `apply` is called
 /// literally. Oracle: tclsh9.0.4 and tclsh8.6.14 both run it and print
