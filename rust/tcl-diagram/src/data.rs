@@ -21,7 +21,7 @@
 //!
 //! This is the shared, consumer-agnostic home for the diagram shape. The
 //! `tcl diagram` CLI verb, the LSP server, `tcl-mcp` and the BIG-IP report
-//! (through its PyO3 facade) all build the *same* tree from this one
+//! (through its `PyO3` facade) all build the *same* tree from this one
 //! implementation. Callers supply a resolved
 //! [`CommandRegistry`]; the only registry dependency is the `DIAGRAM_ACTION`
 //! trait (`CommandRegistry::is_diagram_action`).
