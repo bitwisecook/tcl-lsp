@@ -190,8 +190,8 @@ impl Analyser {
     pub(super) fn analyse_body(&mut self, body_text: &str, body_tok: Token, scope_path: &[usize]) {
         if body_tok.kind != TokenType::Str {
             // A script argument *built* with `list` rather than written as a
-            // literal `{…}` block is not dynamic — `uplevel #0 [list upvar #0:
-            // :tk::Priv.$disp ::tk::Priv]` (Tk's own `library/tk.tcl`)
+            // literal `{…}` block is not dynamic — `uplevel #0 [list upvar #0
+            // ::tk::Priv.$disp ::tk::Priv]` (Tk's own `library/tk.tcl`)
             // evaluates exactly one deterministic command. Walk it, so its
             // declarations and reads stop being invisible.
             // Everything else keeps the opaque-barrier behaviour.
@@ -524,8 +524,8 @@ impl Analyser {
         false
     }
 
-    /// Resolve a call through a tracked `namespace ensemble create|configure.
-    /// .. -map {sub target ...}` redirect: `cmd_name` isn't itself a hidden
+    /// Resolve a call through a tracked `namespace ensemble create|configure
+    /// ... -map {sub target ...}` redirect: `cmd_name` isn't itself a hidden
     /// registry name — it's
     /// the ensemble's own command name (`myens`) — but if it resolves to a
     /// tracked ensemble (`self.ensemble_command_maps`, populated by
@@ -2905,8 +2905,8 @@ impl Analyser {
     ///
     /// A **relative** name roots against the call site's own
     /// command-resolution namespace, which is what Tcl does — pinned on
-    /// tclsh 9.0.4 and 8.6.16, byte-identically: inside `namespace eval:
-    /// :outer`, `namespace exists inner` answers `1` (it means
+    /// tclsh 9.0.4 and 8.6.16, byte-identically: inside `namespace eval
+    /// ::outer`, `namespace exists inner` answers `1` (it means
     /// `::outer::inner`) while the same words at global scope answer `0`.
     /// A proc body's current namespace is its *defining* namespace, which is
     /// exactly what [`Self::command_resolution_namespace`] reports.

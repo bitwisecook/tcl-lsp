@@ -292,9 +292,10 @@ export async function waitForMasterOffDiagnostics(
 /**
  * Shape of the value returned by ``tcl-lsp.getEffectiveConfig``.
  *
- * Mirrors ``on_get_effective_config`` in ``lsp/commands.py``; covers the
- * fields tests poll on.  Any field the server adds in future is
- * harmlessly ignored by predicates that do not name it.
+ * Mirrors ``get_effective_config_command`` in
+ * ``rust/tcl-lsp-server/src/lib.rs``; covers the fields tests poll on.  Any
+ * field the server adds is harmlessly ignored by predicates that do not name
+ * it.
  */
 export interface EffectiveConfig {
   uri: string;

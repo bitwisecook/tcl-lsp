@@ -1652,10 +1652,10 @@ fn control_runtime_condition_parse_error() {
     );
 }
 
-// Former VM-vs-tclsh divergences: each now asserts the correct tclsh behaviour
-// and passes, guarding the fix against regression.
+// The VM must not diverge from tclsh on the following, each asserting the
+// correct tclsh behaviour.
 
-/// BUG (`Vm::set_var`, surfaced via `cmd_try`'s `bind_handler_vars`): binding a
+/// `Vm::set_var`, via `cmd_try`'s `bind_handler_vars`: binding a
 /// `try` handler's result/options variable into an *array element whose base is
 /// a scalar* (`x(y)` while `x` is a scalar) should fail with
 /// `can't set "x(y)": variable isn't array` (C's `handlerFailed` → the bind
@@ -1714,11 +1714,10 @@ fn shallow_dynamic_if_still_runs() {
 /// `CONTROL_FALLBACK_DEPTH_LIMIT` is scoped to `cmd_control.rs`'s runtime
 /// fallback specifically (see that constant's doc comment) — ordinary
 /// nested `[…]` command substitution, unrelated to this file's fallback
-/// commands, must not be affected by it. An earlier version of this fix
-/// capped `Vm::eval_source` itself (the shared mechanism command
-/// substitution also uses) and broke exactly this: 45 real nested
-/// substitutions is far more than any realistic iRule needs, comfortably
-/// past what the earlier, wrongly-scoped fix would have allowed, and
+/// commands, must not be affected by it. Capping `Vm::eval_source` itself
+/// (the shared mechanism command substitution also uses) would break exactly
+/// this: 45 real nested substitutions is far more than any realistic iRule
+/// needs, comfortably past what a low, uniform cap would allow, and
 /// nowhere near where pure substitution recursion actually becomes
 /// dangerous (empirically safe to at least depth 1000 on a 2 MiB thread).
 #[test]

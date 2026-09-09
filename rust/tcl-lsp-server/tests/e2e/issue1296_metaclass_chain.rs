@@ -16,17 +16,17 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Issue #1296 — a class made by a cross-file metaclass that was itself made
+//! A class made by a cross-file metaclass that is itself made
 //! by *another* file's metaclass.
 //!
-//! The workspace class-factory index (issue #1276) is computed from a query
+//! The workspace class-factory index is computed from a query
 //! that reads the index, so one publish only ever advances the metaclass chain
 //! by one link. Four files — `MetaA`, `MetaA create MetaB`,
 //! `MetaB create Widget`, and a call site on `Widget`'s method — need three
-//! links, and go-to-definition on the method came back with nothing. Collapsing
+//! links for go-to-definition on the method to find an answer. Collapsing
 //! the first two files into one (the same three-level chain, two documents)
-//! resolved fine, which is what pins the fault on publish depth rather than on
-//! the analyser.
+//! resolves fine, which is what pins the hazard on publish depth rather than
+//! on the analyser.
 //!
 //! C-Tcl ground truth (tclsh 8.6.16 and 9.0.4, identical), sourcing the four
 //! files in order:
@@ -42,11 +42,11 @@
 //! so `::MC::Widget` genuinely has `go`, and a definition request on it has a
 //! real answer to find.
 //!
-//! The same suite now covers the related factory facts that have to survive
-//! the workspace boundary: unopened factory files (#1304), a metaclass whose
-//! `unknown` method proves Tk-style bare-word construction (#1303), and a
+//! The same suite covers the related factory facts that have to survive
+//! the workspace boundary: unopened factory files, a metaclass whose
+//! `unknown` method proves Tk-style bare-word construction, and a
 //! metaclass name composed from a proc parameter whose top-level caller passes
-//! a literal (#1306). Dynamic names and unproved factories remain abstentions;
+//! a literal. Dynamic names and unproved factories remain abstentions;
 //! the analyser never invents a class to make navigation succeed.
 //!
 //! Beware when probing it by hand: `.claude/skills/lsp-client/lsp_client.py`
@@ -240,7 +240,7 @@ fn typing_the_middle_link_makes_the_chain_resolve() {
     assert_eq!(found[0].uri, widget, "{found:?}");
 }
 
-/// TP (#1303) — a `TclOO` metaclass can deliberately route an unrecognised
+/// TP — a `TclOO` metaclass can deliberately route an unrecognised
 /// first word through `unknown`, construct an object named by that word, and
 /// return it. The proof is registry-gated and body-sensitive; once published,
 /// a consumer document treats `set w [Widget .w]` as a typed object handle.
@@ -274,7 +274,7 @@ fn unknown_dispatch_factory_result_resolves_its_instance_method() {
     assert_eq!(found[0].uri, widget, "{found:?}");
 }
 
-/// TN/FP (#1303) — returning the requested word without constructing it does
+/// TN/FP — returning the requested word without constructing it does
 /// not prove an object handle. This guards the body proof from degrading into
 /// a name-shape heuristic.
 #[test]
@@ -299,7 +299,7 @@ fn unknown_dispatch_that_only_echoes_the_word_resolves_nothing() {
     );
 }
 
-/// TP (#1306) — the top-level literal call binds the proc parameter used in
+/// TP — the top-level literal call binds the proc parameter used in
 /// the metaclass's computed name. That resolved metaclass then manufactures a
 /// navigable class in another document.
 #[test]
@@ -337,7 +337,7 @@ fn literal_call_resolves_a_computed_metaclass_name() {
     assert_eq!(found[0].uri, widget, "{found:?}");
 }
 
-/// FP (#1306) — a literal call does not make a computed creation
+/// FP — a literal call does not make a computed creation
 /// unconditional.  The registry-selected false `if` path never creates the
 /// metaclass, so navigation must not invent the downstream method.
 #[test]
@@ -366,7 +366,7 @@ fn computed_metaclass_in_a_false_branch_resolves_nothing() {
     );
 }
 
-/// TP (#1304) — the metaclass and the class it manufactures are discovered by
+/// TP — the metaclass and the class it manufactures are discovered by
 /// the startup scan and remain unopened. Opening only the consumer must still
 /// resolve its method through the settled workspace factory index.
 #[test]

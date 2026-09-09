@@ -18,11 +18,9 @@
 
 //! Tcl backslash escape processing.
 //!
-//! Backslash-substitution processing:
-//! zero-copy on the fast path (no backslash in the input), a single
-//! forward scan of `char_indices` for the slow path, and a clean match
-//! table for escape dispatch. The function is callable directly from
-//! Rust and exposed via the `tcl-lsp-rust` binding crate.
+//! Zero-copy on the fast path (no backslash in the input). The slow path
+//! is a single forward scan over the bytes that copies each literal run in
+//! one piece and dispatches every escape through one match.
 
 use std::borrow::Cow;
 
@@ -514,12 +512,11 @@ pub fn backslash_escape_end(text: &str, i: usize) -> usize {
 /// at this parser seam. Every other escape consumes the backslash plus one full
 /// character.
 ///
-/// It lives beside the evaluator because it *is* the same rule.  Separate
-/// hand-rolled copies had drifted — one consumed unbounded hex digits, one
-/// never recognised `\U`, one assumed every escape was two bytes, one missed
-/// the continuation indentation — so `\x41` was tokenised as an escape `\x` plus a
-/// string `41`.  The digits (and the continuation's whitespace) belong to the
-/// escape.
+/// It lives beside the evaluator because it *is* the same rule: the digits of
+/// a `\x` / `\u` / `\U` / octal escape, and the whitespace a continuation
+/// absorbs, all belong to the escape. A hand-rolled width — a fixed two bytes,
+/// or an unbounded digit run — splits `\x41` into an escape `\x` and a string
+/// `41`.
 ///
 /// The escaped character may be multi-byte (`\é`, `\你`, `\€`), so the fallback
 /// advances by its real UTF-8 width: a fixed `+2` would slice inside the

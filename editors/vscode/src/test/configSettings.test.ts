@@ -1323,7 +1323,7 @@ suite("Configuration Settings", () => {
 
       await config.update("enabled", false, undefined);
       // 20s, matching waitForDeepDiagnostics's default: under the full
-      // suite's background load (workspace warm-up, the #844 progressive
+      // suite's background load (workspace warm-up, the progressive
       // diagnostics race, …) this round-trip routinely needs more than the
       // 5s generic default.
       await waitForEffectiveConfig(docUri, (c) => c.optimiser_enabled === false, {
@@ -1356,8 +1356,8 @@ suite("Configuration Settings", () => {
     }
   });
 
-  // ── Regression: #104 — diagnostics master switch must clear all
-  //    diagnostics even for files opened/analysed after the toggle.
+  // The diagnostics master switch must clear all
+  // diagnostics even for files opened/analysed after the toggle.
   test("features.diagnostics=false clears all diagnostics (#104)", async () => {
     // Use a fixture opened by NO other test.  The shared ``diagnostics.tcl``
     // is left open (and mid-re-analysis) by the two preceding tests — nothing

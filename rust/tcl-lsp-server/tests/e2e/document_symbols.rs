@@ -655,13 +655,13 @@ fn event_handler_is_a_workspace_symbol() {
     );
 }
 
-/// Regression (#1179): the **first** `workspace/symbol` of a session must not
+/// The **first** `workspace/symbol` of a session must not
 /// answer out of a still-empty index.
 ///
 /// `initialized` pulls the client config and registers file watchers — two
 /// client round-trips — before it starts the folder scan, so a query issued
-/// straight after the handshake used to find nothing, while the identical
-/// query a moment later found everything.  The VS Code suite reproduced this
+/// straight after the handshake must not find nothing while the identical
+/// query a moment later finds everything.  The VS Code suite reproduced this
 /// as a flaky first test; this is the same race without an editor.
 #[test]
 fn workspace_symbol_waits_out_the_startup_scan() {
@@ -686,7 +686,7 @@ fn workspace_symbol_waits_out_the_startup_scan() {
     std::fs::remove_dir_all(&root).ok();
 }
 
-/// Regression (#1179): a document the editor has **just opened** must stay
+/// A document the editor has **just opened** must stay
 /// searchable.
 ///
 /// `didOpen` drops the document's index entry (its on-disk records stop being

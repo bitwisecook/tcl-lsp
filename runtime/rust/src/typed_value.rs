@@ -204,10 +204,9 @@ fn read_double(obj: *mut TclObj) -> Option<f64> {
         }
         // A parsed `Big` is beyond `i64`, but it still has a real double
         // widening: C answers `1e23` for `99999999999999999999999`, not an
-        // infinity, and only overflows past `f64`'s range. This used to
-        // report ±Inf for every `Big` on the theory that the magnitude was
-        // wanted only for its sign and non-zeroness — true of the boolean
-        // read above, false of this one, which is what
+        // infinity, and only overflows past `f64`'s range. Reporting ±Inf
+        // for every `Big` would be correct for the boolean read above, which
+        // only wants sign and non-zeroness, but wrong here: this is what
         // `tcl_codegen_value_get_double` returns.
         Number::Big {
             negative,

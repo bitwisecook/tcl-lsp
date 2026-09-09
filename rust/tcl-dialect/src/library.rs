@@ -16,9 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The versioned-library axis (design doc §7/§7.1, decision D5): which
-//! library packages a dialect profile ships ambiently, and at what version
-//! floor.
+//! The versioned-library axis (`docs/design/registry/dialect-profile-model.md`
+//! §7/§7.1, decision D5): which library packages a dialect profile ships
+//! ambiently, and at what version floor.
 //!
 //! Command/option specs already carry `required_package` + `min_version`
 //! (the introducing package version) and gate through
@@ -34,10 +34,10 @@ use crate::version::TclVersion;
 /// resolves through: the BIG-IP (TMOS) release for the F5 surfaces, the
 /// EDA tool release, or the SDC standard revision.
 ///
-/// Per **D5** the default for every key is the **oldest supported
-/// version** — the conservative choice: by default only floor-version
-/// commands are offered, and commands introduced later stay hidden until
-/// the file/session pins a newer version. A default of "latest" would
+/// The default for every key is the **oldest supported version** — the
+/// conservative choice: by default only floor-version commands are
+/// offered, and commands introduced later stay hidden until the
+/// file/session pins a newer version. A default of "latest" would
 /// silently mark genuinely-unavailable commands as known on older
 /// targets; "oldest" never over-reports availability.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -55,7 +55,7 @@ pub enum VersionKey {
 
 impl VersionKey {
     /// The **oldest supported** version this key defaults to when nothing
-    /// pins it explicitly (D5).
+    /// pins it explicitly.
     ///
     /// - [`VersionKey::BigipVersion`] → `16.1.0`, the oldest F5-supported
     ///   TMOS release at ratification time. Registry data introduced at or
@@ -82,7 +82,7 @@ impl VersionKey {
     /// older release means every baseline item reports as too new, which
     /// is the honest reading of "we only model 15.0+".
     ///
-    /// Distinct from [`Self::default_version`] (the D5 oldest-supported
+    /// Distinct from [`Self::default_version`] (the oldest-supported
     /// *query* default): the baseline is about what the DATA claims, the
     /// default about what the USER targets when they pin nothing.
     #[must_use]

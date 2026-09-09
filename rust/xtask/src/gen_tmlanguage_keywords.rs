@@ -585,7 +585,7 @@ mod tests {
 
     #[test]
     fn lmap_is_control_not_builtin() {
-        // The bug this generator exists to prevent (issue #862).
+        // The miscategorisation this generator exists to prevent.
         let reg = CommandRegistry::build_default();
         let b = classify(&reg);
         assert!(b.control.contains("lmap"));
@@ -597,7 +597,7 @@ mod tests {
     fn lexical_projection_uses_shared_modern_number_escape_and_name_owners() {
         let lexical = lexical_regexes();
         // Tcl 9's explicit decimal prefix and separator runs must reach every
-        // static fallback grammar; these were absent from all three hand lists.
+        // static fallback grammar.
         assert!(lexical.decimal.contains("0[dD]"));
         assert!(lexical.decimal.contains("_+"));
         // TIP 388's wide unicode form and its first-octal-digit cap are both
@@ -610,8 +610,8 @@ mod tests {
         assert!(lexical.escape.contains("[0-3][0-7]{0,2}"));
         assert!(lexical.escape.contains("[4-7][0-7]?"));
         assert!(lexical.escape.contains("{}()"));
-        // Namespace separator runs use the shared naming fragment, not the
-        // former exactly-two-colon spelling.
+        // Namespace separator runs use the shared naming fragment, matching a
+        // colon run of any length, not only exactly two.
         assert!(lexical.variable.contains("[:]{2,}"));
     }
 

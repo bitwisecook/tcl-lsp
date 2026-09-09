@@ -182,7 +182,7 @@ pub(crate) fn arity(value: Arity) -> Value {
 }
 
 /// One [`tcl_registry::arity::ArityWindow`] as a draft value — the shape the
-/// signature had over one span of the owning package's releases (#1627).
+/// signature had over one span of the owning package's releases.
 pub(crate) fn arity_windows(windows: &[tcl_registry::arity::ArityWindow]) -> Value {
     Value::Array(
         windows
@@ -594,7 +594,7 @@ pub(crate) fn sub_subcommand(sub: &SubSubCommand) -> (Value, bool) {
     let mut lost = Unrecovered::default();
     // `null` — declares nothing, inherits the subcommand's table — is a
     // different draft value from `[]`, which declares that there are no
-    // options here at all (issue #1610).
+    // options here at all.
     d.insert(
         "options".into(),
         sub.options

@@ -1326,9 +1326,9 @@ pub struct ClassDef {
     /// oo::class create ::B { method inst {} {…}
     ///                        self { method cls {} {…} ; method logit {args} {…} ; filter logit } }
     /// info object filters ::B   ;# -> logit
-    /// info class filters ::B    ;# -> (empty)      instances are unfiltered:
-    /// :B cls                   ;# -> logit fires, `self target` is `::B cls`:
-    /// :B new                   ;# -> logit fires, `self target` is `::oo::class new`
+    /// info class filters ::B    ;# -> (empty)      instances are unfiltered
+    /// ::B cls                   ;# -> logit fires, `self target` is `::B cls`
+    /// ::B new                   ;# -> logit fires, `self target` is `::oo::class new`
     /// [::B new] inst            ;# -> logit does NOT fire
     /// ```
     pub class_filters: Vec<String>,
@@ -2277,8 +2277,8 @@ pub struct AnalysisResult {
     /// A **rename** is deliberately absent, which is why this is not
     /// [`super::state::Analyser::deleted_commands`] (whose "`OLD` is no
     /// longer callable under that name" meaning covers both forms, because
-    /// that is what its W123 / arity consumers ask). `rename ::src::p:
-    /// :src::pp` keeps `::dst::p` working and merely moves the origin
+    /// that is what its W123 / arity consumers ask). `rename ::src::p
+    /// ::src::pp` keeps `::dst::p` working and merely moves the origin
     /// (`namespace origin ::dst::p` → `::src::pp`) — the same
     /// rename-captures-object-identity rule
     /// [`super::indirection`] already models.

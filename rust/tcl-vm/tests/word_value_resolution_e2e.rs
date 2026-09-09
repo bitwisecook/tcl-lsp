@@ -350,11 +350,11 @@ switch -- "{}$z" "{}x" { puts B:hit } default { puts B:def }
         want: "5:4",
         since: TclVersion::V8_4,
     },
-    // The paths the first pass at this rule did not reach.
+    // Paths a narrow rule could still miss.
     Vector {
-        // `emit_value`'s default push — the twin of `emit_value_interpolated`'s,
-        // fixed at the same time as its sibling was not. It is the emitter a
-        // proc's `return` value goes through, so the value came back de-braced.
+        // `emit_value`'s default push — the twin of `emit_value_interpolated`'s —
+        // needs the same treatment as its sibling. It is the emitter a
+        // proc's `return` value goes through, so the value must come back de-braced.
         name: "a proc's return value is a value, braces included",
         script: r#"proc pr {} { return "{abc}" }
 proc pe {} { return "{}" }

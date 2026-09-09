@@ -7271,8 +7271,8 @@ fn info_exists_frame_facts_survive_a_proc_method_qname_collision() {
     //                        method m {p} { list method [info exists p] $p $x } }
     //   namespace eval ::C {}
     //   proc ::C::m {q} { list proc [info exists q] $q [info exists x] }
-    //   [C new] m hello   ;# → method 1 hello 42:
-    //   :C::m world      ;# → proc 1 world 0
+    //   [C new] m hello   ;# → method 1 hello 42
+    //   ::C::m world      ;# → proc 1 world 0
     //
     // Both frames are wholly separate: the procedure sees none of the class's
     // instance state. Pre-fix the name probe gave the *method* the

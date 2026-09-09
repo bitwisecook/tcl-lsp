@@ -784,8 +784,8 @@ pub struct Analyser {
     /// command name (`-command NAME`, or the enclosing namespace's own
     /// qualified name when `-command` is absent — Tcl's default). Consulted
     /// by the W129 safe-interpreter gate so a
-    /// hidden command reached only through an ensemble redirect (`myens sub.
-    /// ..` → target) is still flagged, mirroring a literal call to the
+    /// hidden command reached only through an ensemble redirect (`myens sub
+    /// ...` → target) is still flagged, mirroring a literal call to the
     /// target.
     pub ensemble_command_maps: HashMap<String, HashMap<String, String>>,
     /// Vars where ``oo::objdefine`` was applied — the per-instance

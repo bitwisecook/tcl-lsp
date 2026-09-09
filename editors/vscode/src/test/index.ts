@@ -44,7 +44,7 @@ export async function run(): Promise<void> {
     // A per-test backstop, not a budget: every wait a test takes is itself
     // bounded and load-scaled (see `signal.ts`), so a test that reaches this
     // number has stalled somewhere with no bound of its own. Scaled by measured
-    // load for the same reason those waits are — the shimmer tests in #1274 hit
+    // load for the same reason those waits are — the shimmer tests hit
     // a raw 60s each under ~9 concurrent build trees. `runnerWatchdog.ts`'s
     // no-progress window is itself derived from this same constant, so the
     // two cannot drift out of the relationship it depends on.

@@ -24,9 +24,8 @@
 //! `string is dict`, arbitrary-precision `string is integer`) the VM targets
 //! Tcl 9.0, so those cases cite `tclsh9.0` specifically.
 //!
-//! The `bug_*` tests document former VM-vs-tclsh divergences on valid input:
-//! each asserts the *correct* tclsh behaviour and now passes, guarding the
-//! fix against regression.
+//! The `bug_*` tests document valid input where the VM must not diverge from
+//! tclsh, each asserting the *correct* tclsh behaviour.
 
 use std::cell::RefCell;
 use std::io::Write;

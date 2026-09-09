@@ -1610,8 +1610,8 @@ impl Analyser {
     /// which populates [`AnalysisResult::ensemble_subcommand_targets`]) —
     /// the real `tk/library/systray.tcl` idiom:
     /// `namespace ensemble configure tk -map [dict merge [namespace
-    /// ensemble configure tk -map] {systray ::tk::systray sysnotify:
-    /// :tk::sysnotify::sysnotify}]`, which splices `systray`/`sysnotify`
+    /// ensemble configure tk -map] {systray ::tk::systray sysnotify
+    /// ::tk::sysnotify::sysnotify}]`, which splices `systray`/`sysnotify`
     /// onto the pre-existing, registry-builtin `tk` ensemble.
     ///
     /// Complements [`Self::dynamic_ensemble_subcommand_known`] (which needs
@@ -2281,8 +2281,8 @@ impl Analyser {
     /// [`UserResolutionFacts::resolves_to_user`] says the call resolves to a
     /// user definition rather than the builtin the candidate warns about —
     /// the identical resolution rule [`Self::flush_arity_diagnostics`] uses
-    /// to suppress a builtin-arity mismatch, so e.g. a namespace-scoped `proc:
-    /// :ns::dict {...}` correctly suppresses a `dict` call inside `::ns`,
+    /// to suppress a builtin-arity mismatch, so e.g. a namespace-scoped `proc
+    /// ::ns::dict {...}` correctly suppresses a `dict` call inside `::ns`,
     /// and an `interp alias {} dict {} …` / `rename myimpl dict` /
     /// `oo::class create dict {…}` established anywhere in the file
     /// (unconditionally for aliases/classes/ensembles/stubs; only when

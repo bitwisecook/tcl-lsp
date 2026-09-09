@@ -21,9 +21,8 @@
 //! `tcl-compiler` and run through `tcl-vm`. Expected outputs are taken from real
 //! `tclsh` (8.6 and 9.0); each non-obvious assertion cites a `// tclsh:` comment.
 //!
-//! The `bug_*` tests document former VM-vs-tclsh divergences on valid input:
-//! each asserts the *correct* tclsh behaviour and now passes, guarding the fix
-//! against regression.
+//! The `bug_*` tests document valid input where the VM must not diverge from
+//! tclsh, each asserting the *correct* tclsh behaviour.
 //!
 //! Targets: `tcl-vm/src/cmd_math.rs`, `expr.rs`, `cmd_mathop.rs`.
 //!

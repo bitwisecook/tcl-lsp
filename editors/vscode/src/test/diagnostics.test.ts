@@ -119,7 +119,7 @@ suite("Diagnostics", () => {
     const config = vscode.workspace.getConfiguration("tclLsp.diagnosticSeverity");
     try {
       // Default: `set x 1` is an unused variable at hint severity (the faint
-      // underline #941 is about).
+      // underline).
       const base = await waitForDiagnostics(uri, {
         predicate: (d) => d.some((x) => codeOf(x) === "W211"),
       });
@@ -479,7 +479,7 @@ suite("Diagnostics", () => {
       // have applied before analysing.  Kept inside the `try` so a wait
       // timeout still restores the setting in `finally`.  20s, matching
       // waitForDeepDiagnostics's default: under the full suite's background
-      // load (workspace warm-up, the #844 progressive diagnostics race, …)
+      // load (workspace warm-up, the progressive diagnostics race, …)
       // this round-trip routinely needs more than the 5s generic default.
       await waitForEffectiveConfig(cleanUri, (cfg) => cfg.optimiser_enabled === false, {
         label: "optimiser.enabled = false",

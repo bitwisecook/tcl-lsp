@@ -870,9 +870,9 @@ mod tests {
     /// A `rename` carries a live coroutine with its command, as C carries it
     /// with the command *token*: the new name resumes it, `[info coroutine]`
     /// reports the new name from inside the body, `corotype` still finds it,
-    /// and the delete side still tears it down — across namespaces too. The
-    /// runtime used to leave the coroutine undispatchable under either name
-    /// (its registry stayed keyed by the vacated name).
+    /// and the delete side still tears it down — across namespaces too.
+    /// Keeping the registry keyed by the vacated name instead would leave
+    /// the coroutine undispatchable under either name.
     ///
     /// tclsh 8.6.16 and 9.0.4 both produce this sequence.
     #[test]

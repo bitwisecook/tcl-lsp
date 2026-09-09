@@ -3834,8 +3834,8 @@ impl Analyser {
     /// ([`Self::list_word_elements`]'s per-element `is_dynamic_word`), but a
     /// value that is itself one whole dynamic `[...]` substitution is not a
     /// list at all — naively word-splitting
-    /// `[dict merge [namespace ensemble configure tk -map] {systray:
-    /// :tk::systray}]` would misread fragments of the *expression*
+    /// `[dict merge [namespace ensemble configure tk -map] {systray
+    /// ::tk::systray}]` would misread fragments of the *expression*
     /// (`"tk"`, `"configure"`, …) as bogus subcommand/target pairs, which is
     /// worse than abstaining. Falls back to
     /// [`Self::dict_merge_literal_tail`] for the one dynamic shape real code
@@ -4000,8 +4000,8 @@ impl Analyser {
     /// synthetic, interp-domain-rooted) home namespace by real Tcl's own
     /// rule (tclsh 8.6.14-verified: `-map {go source}` inside `namespace
     /// eval myns {…}` really dispatches `go` to `::myns::source`, not the
-    /// global builtin, and raises its own unrelated `invalid command name:
-    /// :myns::source` in every interpreter, safe or not, when no such proc
+    /// global builtin, and raises its own unrelated `invalid command name
+    /// ::myns::source` in every interpreter, safe or not, when no such proc
     /// exists) — using the qualified form here would make the check depend
     /// on the interp-domain namespace model lining up with the registry's
     /// flat, unqualified command-name keying, which it structurally can't.
@@ -6708,8 +6708,8 @@ impl Analyser {
     ///
     /// Replayed in document order, so a chain settles in one pass: a class
     /// this replay records is in the index before the next call is retried,
-    /// which is what lets `Meta create ::A::sub` and then `::A::sub create:
-    /// :A::leaf` both land when `Meta` itself was only proved post-pass.
+    /// which is what lets `Meta create ::A::sub` and then `::A::sub create
+    /// ::A::leaf` both land when `Meta` itself was only proved post-pass.
     ///
     /// Each call goes back through the *same* handler the walk used, so a
     /// replayed creation is recorded by one code path with the walk's own
@@ -9948,8 +9948,8 @@ impl Analyser {
             // the loop: every *later* word is never exported at all. The
             // earlier ones stay — C commits each pattern as it goes.
             // Oracle (tclsh 8.6.16 / 9.0.4): `namespace export one ::bad
-            // three` leaves exactly `one` exported, and `namespace export:
-            // :bad ok` leaves nothing. Recording past the bad word let a
+            // three` leaves exactly `one` exported, and `namespace export
+            // ::bad ok` leaves nothing. Recording past the bad word let a
             // wildcard-import bareword resolve where real Tcl would not.
             if tcl_syntax::naming::is_qualified(pattern.as_bytes()) {
                 break;
@@ -11694,8 +11694,8 @@ mod tests {
         // against `-clear` once, so a *second* `-clear` is an ordinary export
         // pattern. Oracle (tclsh 8.6.14 / 9.0.4): `namespace export -clear
         // -clear p` leaves exactly `-clear p` exported, and a command really
-        // named `-clear` is then importable through `namespace import:
-        // :src::*`. Consuming every matching word instead records two
+        // named `-clear` is then importable through `namespace import
+        // ::src::*`. Consuming every matching word instead records two
         // tombstones and silently drops the `-clear` export.
         let mut a = Analyser::new();
         a.registry = Some(std::sync::Arc::clone(
@@ -11753,8 +11753,8 @@ mod tests {
 
     #[test]
     fn handle_namespace_import_consumes_only_one_force_flag() {
-        // Symmetric to the export case: `namespace import -force -force:
-        // :src::*` reads the second `-force` as an import *pattern* (and
+        // Symmetric to the export case: `namespace import -force -force
+        // ::src::*` reads the second `-force` as an import *pattern* (and
         // aborts with `no namespace specified in import pattern "-force"`,
         // tclsh 8.6.14/9.0.4). Only the first is skipped as a flag, so the
         // second is recorded as the pattern word it is — one whose empty

@@ -2570,8 +2570,8 @@ mod tests {
 
     #[test]
     fn relative_qualified_call_falls_back_to_global_when_local_absent() {
-        // tclsh8.6: `inner::p` inside `outer` dispatches ::inner::p when:
-        // :outer::inner::p does not exist.
+        // tclsh8.6: `inner::p` inside `outer` dispatches ::inner::p when
+        // ::outer::inner::p does not exist.
         let src = "namespace eval ::inner {}\nproc ::inner::p {} {}\nnamespace eval outer { proc caller {} { inner::p } }\n";
         assert_eq!(resolved_for(src, "inner::p").as_deref(), Some("::inner::p"));
     }
@@ -2667,8 +2667,8 @@ mod tests {
     // `${k}` when rendering the word's display text (so an adjacent literal
     // suffix can't run into it), and that reconstruction — not the source,
     // not the runtime name — was what the reachability check inspected.
-    // Confirmed against tclsh 8.6.14: `set k client_addr; set:
-    // :ns::$k hello` writes the perfectly ordinary, `$`-reachable variable
+    // Confirmed against tclsh 8.6.14: `set k client_addr; set
+    // ::ns::$k hello` writes the perfectly ordinary, `$`-reachable variable
     // `::ns::client_addr`; nothing about it is unreachable.
 
     #[test]
@@ -3357,8 +3357,8 @@ mod tests {
     fn qualified_name_for_var_decl_does_not_double_prefix_a_literal_qualified_name() {
         // TP: `handle_set_command`/`define_var` never
         // re-qualify a name they're given (`normalise_var_name` only strips
-        // a `$`/`${…}` wrapper and an array index), so a literal `set:
-        // :tolComp val` stores `VarDef::name == "::tolComp"` verbatim, not
+        // a `$`/`${…}` wrapper and an array index), so a literal `set
+        // ::tolComp val` stores `VarDef::name == "::tolComp"` verbatim, not
         // the bare tail `"tolComp"`. Prefixing that with `ns` again would
         // produce `"::::tolComp"`, matching no alias's `link_target`.
         let mut root = Scope::new(ScopeKind::Global, "::");
@@ -3388,8 +3388,8 @@ mod tests {
 
     #[test]
     fn lookup_var_by_qualified_name_finds_a_literal_qualified_top_level_set() {
-        // TP — the corpus repro shape: a plain `set:
-        // :tolComp val` at global scope stores its key verbatim
+        // TP — the corpus repro shape: a plain `set
+        // ::tolComp val` at global scope stores its key verbatim
         // (`"::tolComp"`), which the bare-tail lookup alone (`base_name ==
         // "tolComp"`) can never match; the literal-name fallback must.
         let mut root = Scope::new(ScopeKind::Global, "::");

@@ -539,8 +539,8 @@ fn fp_rbs_05_namespace_upvar_array_element_silent() {
 
 #[test]
 fn fp_rbs_05_array_element_alias_write_only_silent() {
-    // Adjacent FP guard: a write through the element-source alias lands in:
-    // :ns::arr(k) — observable outside the frame (tclsh: `set l 7` above
+    // Adjacent FP guard: a write through the element-source alias lands in
+    // ::ns::arr(k) — observable outside the frame (tclsh: `set l 7` above
     // creates/overwrites `ns::arr(new)`) — so it is neither a dead store
     // (W220) nor an unused variable (W211).
     let src = "proc t {} {\n    namespace upvar ::ns arr(k) local\n    set local 5\n}\n";

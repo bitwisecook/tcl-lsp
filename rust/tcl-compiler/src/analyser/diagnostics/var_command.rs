@@ -573,8 +573,8 @@ impl Analyser {
     ///
     /// `TclOO`'s per-object command dispatcher requires a method name
     /// before it even attempts method resolution: `set o [C new]; $o`
-    /// fails at run time with `wrong # args: should be "o method ?arg.
-    /// ..?"` regardless of whether the class declares an `unknown`
+    /// fails at run time with `wrong # args: should be "o method ?arg
+    /// ...?"` regardless of whether the class declares an `unknown`
     /// handler, since the argument-count check runs before any method
     /// lookup — `unknown` is itself only reachable as the *result* of a
     /// failed lookup, and there is no name here to look up (confirmed
@@ -628,8 +628,8 @@ impl Analyser {
     /// Same failure and same gates as
     /// [`Self::e001_for_bare_object_dispatch`]: `TclOO`'s per-object
     /// dispatcher rejects a zero-word invocation before any method lookup
-    /// (tclsh 9.0.4: `wrong # args: should be "::oo::Obj… method ?arg.
-    /// ..?"`, `-errorcode {TCL WRONGARGS}`), so an `unknown` handler
+    /// (tclsh 9.0.4: `wrong # args: should be "::oo::Obj… method ?arg
+    /// ...?"`, `-errorcode {TCL WRONGARGS}`), so an `unknown` handler
     /// cannot save it.  Fires only when the produced class is locally
     /// known **and** a genuine `TclOO` metaclass — snit / itcl dispatchers
     /// and external classes abstain, exactly as on the `$var` path.  The
