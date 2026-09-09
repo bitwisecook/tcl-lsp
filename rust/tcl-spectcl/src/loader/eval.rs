@@ -400,8 +400,8 @@ struct StagedCommand {
 ///
 /// A pack is a Tcl program, so these blocks are programs too: a version
 /// shared by several environments is an ordinary variable substituted into
-/// each `ambient` row, and a repetitive ladder is a `foreach` (issue
-/// #1643). Only the rows the body registered are kept — the block's own
+/// each `ambient` row, and a repetitive ladder is a `foreach`. Only the
+/// rows the body registered are kept — the block's own
 /// reader (`environment_block` / `dialect_block`) is still the single
 /// owner of what a row means.
 #[derive(Debug)]
@@ -652,7 +652,7 @@ struct State {
     scopes: Vec<(ScopeKind, Vec<Node>)>,
     speclib: Option<SpeclibDecl>,
     /// `speclib` saw a braced word where its name belongs — the CST
-    /// loader's issue-#1638 refusal, replayed as "nothing loaded".
+    /// loader's refusal, replayed as "nothing loaded".
     refused_braced_name: bool,
     /// Notices the evaluation itself produced (extra `speclib` blocks,
     /// E-R1 target-dependence), appended after the replay's notices.
@@ -713,7 +713,7 @@ impl State {
     /// A row built from a variable or a command substitution has values the
     /// source text does not spell, and replaying `ambient Tk $tkver`
     /// verbatim would hand the reader the dollar sign instead of the
-    /// version (issue #1643).
+    /// version.
     fn source_stmt(&mut self, word: &str, args: &[String], line: u32) -> Option<Stmt> {
         if self.in_include {
             return None;
@@ -1617,8 +1617,8 @@ pub fn evaluate_pack_in(
     options: &EvalOptions,
     include: Option<Rc<super::IncludeContext>>,
 ) -> Pack {
-    // The file entry point treats a leading byte-order mark as a prologue
-    // (issue #1635), exactly as `pack_statements` does.
+    // The file entry point treats a leading byte-order mark as a prologue,
+    // exactly as `pack_statements` does.
     let source = source.strip_prefix('\u{feff}').unwrap_or(source);
 
     // The file-level fast path: a wholly declarative pack — which is what

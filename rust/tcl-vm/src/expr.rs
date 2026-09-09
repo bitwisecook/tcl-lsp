@@ -1215,7 +1215,7 @@ mod tests {
 
     /// The `**` and shift guards of the shared tower, with C's message text:
     /// the exponent limit is `MAX_EXPONENT` (2^28 - 1 — tclsh errors at
-    /// `2**268435456` where the old code computed a 33 MB number), a bignum
+    /// `2**268435456` rather than compute a 33 MB number), a bignum
     /// exponent keeps the `0`/`±1` collapses, and a left-shift count past
     /// `INT_MAX` is C's overflow error rather than an astronomic attempt.
     #[test]

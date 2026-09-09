@@ -351,8 +351,7 @@ impl ClassHierarchy {
     }
 
     /// Whether any known **strict descendant** of `class_name` resolves
-    /// `method` — the template-method abstention for `my` dispatch
-    /// (issue #1367).
+    /// `method` — the template-method abstention for `my` dispatch.
     ///
     /// An abstract base whose method bodies call `my M`, with `M` written
     /// only by concrete subclasses, runs fine: `my` late-binds on the

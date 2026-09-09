@@ -578,7 +578,7 @@ fn lpop_removes_and_returns_element() {
 /// uncompiled command: as the last index `end+N` clamps to the end (keeps
 /// everything), as the first index it is past the end (empty). Regression for
 /// lrange.test's lrange-5 "shared compiled" battery, where `end+N` encodes as
-/// `INDEX_END + N` (above the old `<= INDEX_END` detection) and was misread as a
+/// `INDEX_END + N` (above a `<= INDEX_END` detection) and would be misread as a
 /// huge plain index.
 #[test]
 fn compiled_lrange_handles_end_plus_n() {
@@ -775,8 +775,8 @@ fn namespace_current_which_shared_core() {
 }
 
 /// `file dirname`/`tail`/`extension`/`rootname` run through the shared
-/// `/`-based byte path core (platform-independent), replacing the VM's old
-/// `std::path::Path` versions.
+/// `/`-based byte path core (platform-independent), not `std::path::Path`,
+/// which is not platform-independent.
 #[test]
 fn file_path_ops_shared_core() {
     assert_eq!(run("file tail /a/b/c").1, "c");
@@ -820,8 +820,8 @@ fn incr_and_var_substitution() {
 /// array elements (the name carries `base(key)`; the VM parses it), and the
 /// canonical coercion errors. Crucially, an overflowing `incr` now **promotes**
 /// through the integer tower (`i128`, then an arbitrary-precision bignum),
-/// matching tclsh, rather than silently wrapping as the old hand-rolled
-/// `wrapping_add` did.
+/// matching tclsh, rather than silently wrapping as a hand-rolled
+/// `wrapping_add` would.
 #[test]
 fn incr_shared_core() {
     // Unset variable starts at 0 (no prior `set`).
@@ -1151,8 +1151,8 @@ fn dict_core_helpers() {
         run("puts [dict merge {a 1 b 2} {b 3 c 4}]").2,
         "a 1 b 3 c 4\n"
     );
-    // canonicalisation (last value wins) — the VM's old non-deduping path was
-    // wrong here; the shared core corrects it.
+    // canonicalisation (last value wins) — a non-deduping path would be
+    // wrong here; the shared core handles it correctly.
     assert_eq!(run("puts [dict get [dict create x 1 x 2] x]").2, "2\n");
 }
 

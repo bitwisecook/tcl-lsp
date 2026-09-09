@@ -118,9 +118,9 @@ fn rename_definition_and_calls() {
     assert!(for_uri.iter().all(|e| e["newText"] == "welcome"));
 }
 
-/// idx=9 (differential-audit main wave, high severity): a cursor placed
+/// A cursor placed
 /// directly on a proc parameter's own bareword declaration (not a
-/// `$`-prefixed read) previously produced zero rename edits — an LSP
+/// `$`-prefixed read) must produce rename edits, not zero — an LSP
 /// silently no-oping a rename request is worse than an explicit failure,
 /// since the user has no signal anything went wrong. Both the parameter's
 /// declaration and its `$name` read must be rewritten.
@@ -254,14 +254,13 @@ fn apply_named_edit(edits: &[Value], source: &str, expected_text: &str) -> Strin
 
 #[test]
 fn rename_var_applying_the_braced_reference_edit_does_not_duplicate_the_closing_brace() {
-    // Issue #923 idx 95, applied end-to-end against the packaged server
+    // Applied end-to-end against the packaged server
     // over real JSON-RPC. `rename_var_preserves_braced_form` right above
     // only asserts `newText` in isolation — this actually applies
-    // `(range, newText)` back onto the source, which is exactly what
-    // shipping this bug uncaught required nobody doing.  The `Var`
+    // `(range, newText)` back onto the source.  The `Var`
     // token's own lexer span for a non-degenerate `${name}` form stops
     // one byte short of the closing `}`, so using it verbatim as the
-    // edit range left the source's original `}` behind, corrupting
+    // edit range would leave the source's original `}` behind, corrupting
     // `${x}` into `${y}}`.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
@@ -278,13 +277,13 @@ fn rename_var_applying_the_braced_reference_edit_does_not_duplicate_the_closing_
 
 #[test]
 fn rename_var_applying_the_dir_view_idiom_reference_edit_does_not_corrupt_the_source() {
-    // The real `tk/library/tk.tcl:594-596` idiom this finding traces
-    // through (`$w ${dir}view scroll ...`, a subcommand synthesized by
+    // The real `tk/library/tk.tcl:594-596` idiom (`$w ${dir}view scroll
+    // ...`, a subcommand synthesized by
     // concatenating `$dir` with literal `view`): applying the LSP's own
-    // rename edit for the `${dir}view` reference previously produced
-    // `$w ${direction}}view ...` — tclsh8.6/9.0 both fail to even parse
-    // the enclosing proc ("extra characters after close-brace") once
-    // that edit is applied, since the stray extra `}` shifts Tcl's own
+    // rename edit for the `${dir}view` reference must not produce
+    // `$w ${direction}}view ...` — tclsh 8.6/9.0 both fail to even parse
+    // the enclosing proc ("extra characters after close-brace") if
+    // that edit were applied, since the stray extra `}` shifts Tcl's own
     // brace-counting scan for where the proc body ends.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");

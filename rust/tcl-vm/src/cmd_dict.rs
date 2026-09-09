@@ -201,8 +201,8 @@ fn dict_update(
 /// recursion at all: walk down recording each level's parsed pairs and the
 /// key being set, then rebuild bottom-up. This eliminates the native-stack
 /// risk entirely rather than just capping it, and is byte-for-byte
-/// equivalent to the old recursive version (same `pairs`/`upsert` calls, in
-/// the same order, so error precedence is unchanged too).
+/// equivalent to a naive recursive version (same `pairs`/`upsert` calls, in
+/// the same order, so error precedence is unaffected).
 fn set_path(
     vm: &mut Vm,
     cur: &Value,
@@ -240,9 +240,9 @@ fn set_path(
 /// parsed pairs and the key followed; stop early — without erroring or
 /// descending further — at the first missing intermediate key, matching
 /// `dict unset`'s no-op semantics for that case exactly (the halted level's
-/// pairs are simply re-serialised unchanged, precisely what the old
-/// recursive version did by falling through its `if`/`else if` with neither
-/// arm taken). The final key is removed via `retain`, matching the old
+/// pairs are simply re-serialised unchanged, precisely what a naive
+/// recursive version would do by falling through its `if`/`else if` with
+/// neither arm taken. The final key is removed via `retain`, matching that
 /// leaf case. Rebuild bottom-up via the recorded frames.
 fn unset_path(vm: &mut Vm, cur: &Value, keys: &[Value]) -> Result<Value, Completion<Value>> {
     let mut frames: Vec<DictPathFrame> = Vec::with_capacity(keys.len());

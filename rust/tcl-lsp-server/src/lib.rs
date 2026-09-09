@@ -19,9 +19,9 @@
 //! Native LSP server backend for Tcl.
 //!
 //! Exposes a [`Backend`] that implements [`tower_lsp_server::LanguageServer`]
-//! and is wrapped in an `LspService` by the binary. This crate is one of two
-//! consumers of [`tcl_lsp_core`] (the other is `tcl-lsp-rust`), so the
-//! pure-Rust crate boundary has both production drivers exercising it.
+//! and is wrapped in an `LspService` by the binary. It is one of several
+//! consumers of [`tcl_lsp_core`], alongside the `tcl` and `f5-query` CLIs,
+//! `tcl-mcp` and the WASM hosts.
 //!
 //! LSP methods without a wired provider return
 //! [`tower_lsp_server::jsonrpc::ErrorCode::MethodNotFound`].

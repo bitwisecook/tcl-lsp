@@ -149,7 +149,7 @@ fn canonical_file_sub<'a>(subs: &[&'a str], sub: &str) -> Option<&'a str> {
 /// access): `join`, `dirname`, `tail`, `extension`, `rootname`, `split`,
 /// `normalize`, `nativename`, `pathtype`, `separator`. The `/`-based path text
 /// ops are the shared `tcl_cmd_core::path` core (platform-independent, unlike
-/// the VM's old `std::path::Path` versions). Returns `None` for any other
+/// `std::path::Path`). Returns `None` for any other
 /// subcommand so the caller falls through to the filesystem-backed ops.
 fn file_path_op(vm: &mut Vm, canon: &str, rest: &[Value]) -> Option<Completion<Value>> {
     let s = |v: &Value| v.to_str().to_string();

@@ -12530,8 +12530,8 @@ fn const_cmd_head_abstains_on_unknown_or_dynamic_values_m7() {
 fn const_cmd_head_resolves_through_a_pure_copy_chain_m7() {
     // `set x target; set cmd $x; $cmd` dispatches ::target — the copy
     // chain preserves provenance, so the *ultimate* literal (`target` in
-    // `set x target`) is the writable reference (
-    // renaming must rewrite that literal, keeping the dispatch alive).
+    // `set x target`) is the writable reference: renaming must rewrite that
+    // literal, keeping the dispatch alive.
     let mut a = Analyser::new();
     let src = "proc target {} {}\nset x target\nset cmd $x\n$cmd\n";
     let r = a.analyse(src, "tcl");

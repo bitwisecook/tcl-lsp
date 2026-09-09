@@ -85,11 +85,9 @@ impl Topology {
             .collect()
     }
 
-    /// Generate the `::orch::` setup Tcl for `vs_name`.
-    ///
-    /// Mirrors `TopologyFromSCF.generate_tcl_setup`: configure profiles + VIP,
-    /// register every pool (by full path and short name) with members, register
-    /// data-groups, and load the VS's attached iRules.
+    /// Generate the `::orch::` setup Tcl for `vs_name`: configure profiles +
+    /// VIP, register every pool (by full path and short name) with members,
+    /// register data-groups, and load the VS's attached iRules.
     ///
     /// # Errors
     /// [`TopologyError::VirtualServerNotFound`] when no VS matches `vs_name`.
@@ -244,7 +242,9 @@ impl Topology {
     }
 
     /// Resolve a virtual server by full path, short name, or `/Common/`-prefixed
-    /// name. Mirrors `resolve_name` over the `virtual_servers` table.
+    /// name, in the same spirit as `_resolve_name` in `scf_loader.tcl` over the
+    /// `virtual_servers` table: an exact full-path match wins outright, else
+    /// the first object matching by short name or `/Common/` prefix.
     fn resolve_virtual(&self, name: &str) -> Option<&tcl_bigip::model::BigipVirtualServer> {
         let mut by_short: Option<&tcl_bigip::model::BigipVirtualServer> = None;
         for placed in &self.config.objects {
@@ -266,8 +266,7 @@ impl Topology {
         by_short
     }
 
-    /// Resolve the TMM profile-type tags for a VS, mirroring
-    /// `_resolve_profile_types` (inference path).
+    /// Resolve the TMM profile-type tags for a VS by name inference.
     ///
     /// Name-inference only: the type comes from matching the reference name, not
     /// from resolving the profile *object* in `self.config` and reading its

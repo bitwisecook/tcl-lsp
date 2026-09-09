@@ -158,7 +158,7 @@ suite("Semantic Tokens", () => {
     );
   });
 
-  // Issue #760: tcllib commands that carry a script body (`control::do`,
+  // tcllib commands that carry a script body (`control::do`,
   // `struct::list foreachperm`) or an expression argument (`control::do`'s
   // `while` test, `control::assert`) must recurse into that argument — the
   // inner commands/variables are highlighted rather than emitted as one
@@ -206,7 +206,7 @@ suite("Semantic Tokens", () => {
     );
   });
 
-  // Issue #837: the braced body of `uplevel ?level? {…}` runs in another stack
+  // The braced body of `uplevel ?level? {…}` runs in another stack
   // frame but is still a Tcl script — it must recurse (its inner commands and
   // variables highlight) instead of being emitted as one opaque string.
   test("uplevel bodies recurse and highlight their inner commands (#837)", async () => {
@@ -257,9 +257,9 @@ suite("Semantic Tokens", () => {
     );
   });
 
-  // Issue #757: a braced string literal spanning multiple lines lost its
-  // highlighting (the enclosing multi-line `string` token was dropped).  It
-  // must now carry a `string` token on every covered line, just like the
+  // A braced string literal spanning multiple lines must not lose its
+  // highlighting (the enclosing multi-line `string` token must not be dropped).
+  // It must carry a `string` token on every covered line, just like the
   // quoted form.
   test("multi-line braced string literal is highlighted on every line", async () => {
     const uri = getDocUri("multilineString.tcl");
@@ -297,9 +297,9 @@ suite("Semantic Tokens", () => {
     }
   });
 
-  // Issue #758: the braced case-list form of a plain (non-`-regexp`) `switch`
-  // used to be walked as one opaque body, so the commands inside each case
-  // body received no semantic tokens and appeared unhighlighted.  They must
+  // The braced case-list form of a plain (non-`-regexp`) `switch` must not
+  // be walked as one opaque body, which would leave the commands inside each
+  // case body with no semantic tokens and unhighlighted.  They must
   // now be recursed and highlighted like any other script body.
   test("switch case-list bodies are highlighted", async () => {
     const swUri = getDocUri("switchBodies.tcl");
@@ -336,7 +336,7 @@ suite("Semantic Tokens", () => {
     );
   });
 
-  // Issue #774: `variable a b c` inside a TclOO class body declares every name
+  // `variable a b c` inside a TclOO class body declares every name
   // as an instance variable, not just the first.
   test("TclOO body 'variable' declares every name (issue #774)", async () => {
     const uri = getDocUri("tclooVariable.tcl");
@@ -364,7 +364,7 @@ suite("Semantic Tokens", () => {
     }
   });
 
-  // Issue #776: after `namespace import tcltest::*`, a bare `test` resolves to
+  // After `namespace import tcltest::*`, a bare `test` resolves to
   // the tcltest spec — its `-body`/`-result` are options and the body recurses.
   test("imported tcltest 'test' structure is recognised (issue #776)", async () => {
     const uri = getDocUri("tcltestImport.tcl");
@@ -398,7 +398,7 @@ suite("Semantic Tokens", () => {
     );
   });
 
-  // Issue #775: a command substitution in `source`'s argument is highlighted as
+  // A command substitution in `source`'s argument is highlighted as
   // a command sequence (its head + variables), not one opaque string.
   test("source argument command substitution is tokenised (issue #775)", async () => {
     const uri = getDocUri("sourceArgument.tcl");
@@ -713,7 +713,7 @@ suite("Semantic Tokens", () => {
     }
   });
 
-  // Issue #829's second half: when the fast path serves the cheap coarse
+  // When the fast path serves the cheap coarse
   // tier for a cold/large document, the enriched (SSA/SCCP-informed)
   // computation keeps running in the background and the server asks the
   // client to re-request via `workspace/semanticTokens/refresh` once it
@@ -794,7 +794,7 @@ suite("Semantic Tokens", () => {
     }
   });
 
-  // Issue #967: `return -code error "bad"` highlighted `-code` as a plain
+  // `return -code error "bad"` must not highlight `-code` as a plain
   // string. `-code` is a declared option (decorator) and `error` is its
   // closed-set value (enumMember).
   test("return -code error is highlighted as an option/value pair (issue #967)", async () => {
@@ -835,7 +835,7 @@ suite("Semantic Tokens", () => {
     }
   });
 
-  // Issue #1185: a command head's grammar follows its *effective command
+  // A command head's grammar follows its *effective command
   // identity*, not its spelling — asserted end-to-end through the editor
   // client on the decoded token stream, not just the server's encoder.
   //

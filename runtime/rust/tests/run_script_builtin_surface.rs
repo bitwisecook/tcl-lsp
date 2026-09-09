@@ -16,9 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `examples/run_script` must present the
-//! engine's *full* builtin set, so a differential sheet written in plain Tcl
-//! runs through it unmodified.
+//! `examples/run_script` must present the engine's *full* builtin set, so a
+//! differential sheet written in plain Tcl runs through it unmodified.
 //!
 //! Without that, `if`/`catch` would be unavailable through that
 //! harness: a verification run would have to hand-write an `if`-free
@@ -75,7 +74,7 @@ fn the_default_interp_carries_the_control_flow_builtins() {
         assert_eq!(
             result, command,
             "`{command}` is not registered on a default interp — \
-             examples/run_script would reject any sheet that uses it (issue #1589)"
+             examples/run_script would reject any sheet that uses it"
         );
     }
 }
@@ -87,8 +86,8 @@ fn the_default_interp_carries_the_control_flow_builtins() {
 #[cfg(have_tommath)]
 #[test]
 fn a_plain_if_catch_sheet_runs_through_the_default_interp() {
-    // The shape #1589 could not run: a differential sheet's ordinary control
-    // flow, with the error surface `catch` is normally used to capture.
+    // A differential sheet's ordinary control flow, with the error surface
+    // `catch` is normally used to capture.
     let (code, result) = eval(
         "set out {}\n\
          if {[catch {error boom} message]} {\n\
@@ -115,13 +114,13 @@ fn the_example_bootstraps_through_the_full_builtin_constructor() {
         source.contains("Interp::new()"),
         "{} must build its interpreter with `Interp::new()` — the constructor that \
          runs `builtins::install` — so the harness always presents the engine's \
-         complete command surface (issue #1589)",
+         complete command surface",
         example.display()
     );
     assert!(
         !source.contains("register_builtin"),
         "{} must not register commands by hand: a private list in the harness is \
-         how the surface silently diverges from the engine's (issue #1589)",
+         how the surface silently diverges from the engine's",
         example.display()
     );
 }

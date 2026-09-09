@@ -324,9 +324,8 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
         }
         // A body parse error is a regular runtime error, subject to the same
-        // `on error`/`trap`/`finally` handling as any other body error —
-        // mirrors the old `Vm::eval_source`-based version, whose `Err
-        // (TclError)` became a plain `Completion{Error}` fed through
+        // `on error`/`trap`/`finally` handling as any other body error: its
+        // `Err(TclError)` becomes a plain `Completion{Error}` fed through
         // `advance_after_body`'s handler matching, not returned as a hard
         // failure that skips it (try-body-parse-error tclsh-pinned test).
         Err(e) => match advance_after_body(vm, &plan, err(e.message)) {
@@ -462,9 +461,9 @@ fn finish_body_or_handler(
         let _ = vm.take_error_info();
     }
     // Compiled lazily here rather than in `cmd_try` up front: a `finally`
-    // never runs before this point, matching the old synchronous ordering (a
+    // never runs before this point, so a
     // body/handler compile error is reported before `finally`'s own grammar
-    // is ever touched).
+    // is ever touched.
     let prepared = match vm.prepare_script_commands(&fin.to_str()) {
         Ok(prepared) => prepared,
         // A `finally` parse error is `finally`'s own exception overriding the

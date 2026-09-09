@@ -76,12 +76,12 @@ suite("Progressive diagnostics (#844)", () => {
   test("a large file surfaces the complete deep tier, fast tier first", async function () {
     // A per-test backstop must outlast the sum of the bounded waits inside the
     // test, or it fires first and reports "Timeout of Nms exceeded" — naming
-    // neither the wait that was outstanding nor why, which is the failure shape
-    // issue #1274 set out to remove. This test's waits are `activate` (up to
+    // neither the wait that was outstanding nor why, which is a failure shape
+    // worth avoiding. This test's waits are `activate` (up to
     // 60s for a cold LSP handshake, plus its two 30s didOpen drains) followed
     // by the 50s deep-tier wait below, so 60s could not cover them even on an
     // idle machine. Load-scaled for the same reason every other bound here is:
-    // it used to be a raw `60_000`, and a loaded container turned a correct run
+    // a raw `60_000` would let a loaded container turn a correct run
     // into an unattributable timeout.
     this.timeout(scaledTimeout(MAX_TEST_TIMEOUT_BASE_MS));
 

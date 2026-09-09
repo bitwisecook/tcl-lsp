@@ -2062,8 +2062,7 @@ mod tests {
     /// thread; this must terminate cleanly, not hang or overflow the
     /// stack — the same rationale as the big-stack helpers in
     /// `analyser::commands::tests` / `lowering::tests` (`cargo test`'s
-    /// per-test thread has the same undersized default stack that made
-    /// issue #996 reproduce in production).
+    /// per-test thread has the same undersized default stack production hits).
     #[test]
     fn deep_pass_bounds_alternating_if_apply_nesting() {
         const PAIRS: usize = 2000;

@@ -608,8 +608,8 @@ fn classify_rhs<S: std::hash::BuildHasher + Clone>(
         }
         // Introspection heads whose result is a runtime class handle.
         // `self` is the `TclOO` introspection keyword — registry data
-        // (`Traits::TCLOO_INTROSPECTION`), queried rather than spelled
-        // (issue #1050). Resolved against the dialect-agnostic default
+        // (`Traits::TCLOO_INTROSPECTION`), queried rather than spelled.
+        // Resolved against the dialect-agnostic default
         // registry: this classifier is reached without a dialect in scope,
         // and `TclOO` introspection is core Tcl from 8.6 onwards.
         if tcl_registry::default_registry().method_dispatch_keyword(&head)

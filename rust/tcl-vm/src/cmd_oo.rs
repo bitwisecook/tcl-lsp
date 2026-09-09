@@ -1109,7 +1109,7 @@ impl OoState {
     /// The class-side linearisation, delegated to the compiler's faithful
     /// `TclOO` algorithm ([`tcloo_linearise`]: the two-pass mixin/super split with
     /// late-placement dedup from `tclOOCall.c`, correct for nested mixins and
-    /// diamonds where the old per-class DFS was not). Used for constructor /
+    /// diamonds where a naive per-class DFS is not). Used for constructor /
     /// destructor chains and `info class properties -all`.
     fn class_linear_of(&self, class_key: OoId) -> Vec<Step> {
         let (supers, mixins) = self.linearise_maps();
