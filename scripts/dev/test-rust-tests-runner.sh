@@ -186,6 +186,7 @@ END {
     shard_job = "jobs.rust-tests-shard"
     aggregate_job = "jobs.rust-tests"
     doctest_job = "jobs.rust-tests-doctest"
+    server_job = "jobs.build-tcl-lsp-server"
     need(values[shard_job ".name"] == "rust-tests-shard (${{ matrix.shard }})", "Rust shards must have an explicit matrix job name")
     need(values[shard_job ".if"] == "${{ needs.channel.outputs.rust_tests_changed == '\''true'\'' && !(startsWith(github.ref, '\''refs/tags/'\'') && needs.channel.outputs.already_green == '\''true'\'') }}", "unaffected changes and already-green tags must skip the shard matrix")
     need(values_seen[shard_job ".runs-on"], "rust-tests-shard must define runs-on")
@@ -307,6 +308,24 @@ END {
     contains(shard_job ".steps." stats ".run", "cache write errors", "degraded cache writes must emit a warning")
     contains(shard_job ".steps." stats ".run", "exit 0", "cache-statistics failures must not change correctness")
     for (path in nodes) if (path ~ /^jobs\.rust-tests-shard\.env\./ && path ~ /SCCACHE_BASEDIRS$/) fail("do not claim cross-checkout Rust remapping without pinned-source support")
+
+    need(values[server_job ".env.SCCACHE_GHA_ENABLED"] == "true", "extension server build must enable the GitHub Actions sccache backend")
+    need(!nodes[server_job ".env.RUSTC_WRAPPER"], "extension server compiler cache must not be correctness-critical at job scope")
+    server_sccache = step(server_job, "name", "Set up sccache")
+    need(server_sccache >= 0 && values[server_job ".steps." server_sccache ".id"] == "sccache", "extension server sccache setup must expose its outcome")
+    need(values[server_job ".steps." server_sccache ".if"] == "env.RUN_EXT == '\''true'\''" && values[server_job ".steps." server_sccache ".continue-on-error"] == "true", "extension server sccache setup must be gated and non-fatal")
+    need(index(values[server_job ".steps." server_sccache ".uses"], "mozilla-actions/sccache-action@") == 1 && values[server_job ".steps." server_sccache ".with.version"] == "v0.17.0" && values[server_job ".steps." server_sccache ".with.disable_annotations"] == "true", "extension server build must retain pinned resilient sccache setup")
+    server_enable = step(server_job, "name", "Enable sccache when available")
+    need(server_enable > server_sccache && values[server_job ".steps." server_enable ".if"] == "env.RUN_EXT == '\''true'\''" && values[server_job ".steps." server_enable ".env.SCCACHE_SETUP_OUTCOME"] == "${{ steps.sccache.outcome }}", "extension server wrapper enablement must follow optional setup")
+    contains(server_job ".steps." server_enable ".run", "RUSTC_WRAPPER=sccache", "successful extension server setup must enable compiler cache")
+    contains(server_job ".steps." server_enable ".run", "continuing with uncached compilation", "failed extension server setup must report uncached fallback")
+    server_build = step(server_job, "name", "Build tcl-lsp-server (ci profile)")
+    need(server_build > server_enable && values[server_job ".steps." server_build ".run"] == "cargo build -p tcl-lsp-server --profile ci", "extension server build command and profile must remain unchanged")
+    server_upload = step(server_job, "name", "Upload tcl-lsp-server binary")
+    need(server_upload > server_build && values[server_job ".steps." server_upload ".with.path"] == "target/ci/tcl-lsp-server", "extension tests must receive the unchanged server artefact")
+    server_stats = step(server_job, "name", "Report sccache statistics")
+    need(server_stats > server_upload && values[server_job ".steps." server_stats ".if"] == "always() && env.RUN_EXT == '\''true'\''" && values[server_job ".steps." server_stats ".continue-on-error"] == "true", "extension server cache statistics must be resilient and run after the build")
+    contains(server_job ".steps." server_stats ".run", "sccache --show-stats", "extension server compiler-cache reuse must be observable")
 }
 ' "$WORKFLOW"
 
