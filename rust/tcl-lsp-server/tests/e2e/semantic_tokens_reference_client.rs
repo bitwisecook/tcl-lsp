@@ -547,7 +547,7 @@ fn converge_via_refresh(
         };
         out.settled.push(settled.clone());
         // A cancelled range read schedules a coalesced retry refresh and
-        // re-arms the coarse seam (#1854), so its marker carries
+        // re-arms the coarse seam, so its marker carries
         // `refresh=true`; it is still a retry round, not a convergence
         // decision, and the round that follows makes the real one.
         if matches!(tier, Tier::Range { .. }) && settled.contains("outcome=cancelled") {

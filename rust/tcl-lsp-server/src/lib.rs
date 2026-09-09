@@ -6661,7 +6661,7 @@ async fn publish_diagnostics_result(
         // `did_close` from landing between currency check and publication: a
         // later close replaces the pending state or follows an in-flight state
         // on the single consumer. The actual client await is below, after this
-        // guard and `rehoming_guard` have been released (#1657).
+        // guard and `rehoming_guard` have been released.
         //
         // The index writer is only ever *tried* under the map: a publish
         // parked on the index while holding `documents` stalls the edit turn
@@ -20815,13 +20815,12 @@ impl Backend {
                 // Documents whose only source site is the global namespace are
                 // dropped here: their desired view *is* the standalone analysis
                 // the index already holds, and [`Self::rehomed_source_seeds`]
-                // records that as absence.  Leaving them in is what stopped an
-                // ordinary top-level `source b.tcl` from ever converging — the
-                // queue below compared `recorded.get(uri)` against `Some(["::"])`
-                // while the store *removes* such an entry, so the same document
-                // was re-analysed and re-indexed on every round of every call,
-                // for ever, invalidating every index-generation memo with it
-                // (issue #1297).
+                // records that as absence.  Leaving them in stops an ordinary
+                // top-level `source b.tcl` from ever converging: the queue below
+                // would compare `recorded.get(uri)` against `Some(["::"])` while
+                // the store *removes* such an entry, so the same document is
+                // re-analysed and re-indexed on every round of every call, for
+                // ever, invalidating every index-generation memo with it.
                 index.has_source_edges().then(|| {
                     index
                         .source_seed_map(resolve_source_edge)
