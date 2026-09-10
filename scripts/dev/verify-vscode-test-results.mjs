@@ -34,8 +34,8 @@ if (
 }
 const expected = new Set(Object.values(manifest.partitions).flat());
 if (
-  manifest.expected_tests?.single_root?.identities !== 977 ||
-  manifest.expected_tests?.single_root?.passed !== 976 ||
+  manifest.expected_tests?.single_root?.identities !== 978 ||
+  manifest.expected_tests?.single_root?.passed !== 977 ||
   manifest.expected_tests?.single_root?.pending !== 1 ||
   manifest.expected_tests?.multi_folder?.identities !== 14 ||
   manifest.expected_tests?.multi_folder?.passed !== 14 ||
