@@ -362,6 +362,203 @@ pub(super) fn has_global_startup_binding(
     })
 }
 
+/// Startup facts for one variable name, as [`phi_can_undef`] needs them.
+///
+/// They depend only on `name` (and the registry-owned dialect data), so they
+/// are computed once per name instead of once per phi operand examined.
+#[derive(Clone, Copy)]
+struct StartupFacts {
+    /// The default Tcl host binds this name before user code runs.
+    readable_at_startup: bool,
+    /// A read after `unset` materialises the value again — registry data
+    /// confines this to `tcl_precision` on Tcl 8.x.
+    rematerialises_after_unset: bool,
+}
+
+impl StartupFacts {
+    fn for_name(name: &str, ctx: &PhiUndefCtx<'_>) -> Self {
+        let startup_name = startup_var_name(name);
+        let global_binding =
+            has_global_startup_binding(name, ctx.initial_global, ctx.global_aliases);
+        Self {
+            readable_at_startup: global_binding
+                && tcl_registry::special_vars::is_readable_at_startup(startup_name, ctx.dialect),
+            rematerialises_after_unset: global_binding
+                && tcl_registry::special_vars::is_lazily_readable(startup_name, ctx.dialect),
+        }
+    }
+}
+
+/// A phi version, as the undef trace keys them: the variable's interned SSA
+/// [`Symbol`](crate::ssa::Symbol) rather than its name, so the index and its
+/// worklist hash and copy a pair of `u32`s.
+type VersionKey = (crate::ssa::Symbol, crate::ssa::Version);
+
+/// Answers for [`phi_can_undef`], built once per [`PhiUndefCtx`] and shared by
+/// every query run against it.
+///
+/// The trace used to be a DFS per query whose `seen` set was a *path* (grey)
+/// set with no result reuse, so it enumerated every simple path through the
+/// phi graph: N sibling conditional writes to one variable followed by a read
+/// cost ~2^N visits, and real Quartus sources reach N ≈ 105 (issue #2021).
+/// [`PhiUndefIndex::build`] answers every version at once instead, in one pass
+/// over the phi operands plus a worklist.
+#[derive(Default)]
+pub(super) struct PhiUndefMemo {
+    index: Option<PhiUndefIndex>,
+}
+
+impl PhiUndefMemo {
+    /// The index, built on first use. `ctx` must be the same context on every
+    /// call — a memo is per-context state, not a cache across contexts.
+    fn index(&mut self, ctx: &PhiUndefCtx<'_>) -> &PhiUndefIndex {
+        self.index.get_or_insert_with(|| PhiUndefIndex::build(ctx))
+    }
+}
+
+/// Every version that can be undefined, plus the per-name facts the leaf
+/// answers need.
+struct PhiUndefIndex {
+    /// Phi versions reaching an undef origin on some executable path.
+    undef: FxHashSet<VersionKey>,
+    /// `unset`-killed versions and the answer each gives.
+    killed: FxHashMap<VersionKey, bool>,
+    /// Startup facts per variable, for the version-0 answer.
+    facts: FxHashMap<crate::ssa::Symbol, StartupFacts>,
+}
+
+impl PhiUndefIndex {
+    /// Mark every phi version that can be undefined.
+    ///
+    /// A phi is undef when any of its reachable, non-existence-guarded
+    /// incomings is undef, an incoming being undef when it is the version-0
+    /// origin (and the host does not bind the name at startup), an
+    /// `unset`-killed version (that a read does not materialise again), or
+    /// itself an undef phi. Nothing else in that rule depends on how a version
+    /// was reached, so it is plain reachability over the phi-operand graph:
+    /// this walks the *reverse* graph from the undef origins, which answers
+    /// every version in one pass — the same answers a per-query forward DFS
+    /// gives, without re-deriving them once per path.
+    ///
+    /// Cycles need no special case here, and that keeps the old walk's
+    /// "a back-edge is not undef" rule exactly. That walk's cut only stopped
+    /// it re-entering a version already open on the *current* path, never
+    /// stopping it reaching one by another route, and a query started with an
+    /// empty path — so it still explored every version reachable from the
+    /// query, and answered `true` for exactly the queries that reach an undef
+    /// origin. A loop-header phi is undef only when an origin genuinely
+    /// reaches it: going round the loop offers nothing the entry edge did not,
+    /// so a phi whose only route to an origin is through itself stays
+    /// unmarked, just as the cut answered "not undef" on the back-edge.
+    fn build(ctx: &PhiUndefCtx<'_>) -> Self {
+        let mut facts: FxHashMap<crate::ssa::Symbol, StartupFacts> = FxHashMap::default();
+        let mut killed: FxHashMap<VersionKey, bool> = FxHashMap::default();
+        for (name, version) in ctx.killed {
+            let Some(symbol) = ctx.ssa.var_symbol(name) else {
+                continue;
+            };
+            let name_facts = *facts
+                .entry(symbol)
+                .or_insert_with(|| StartupFacts::for_name(name, ctx));
+            // A Tcl read trace is not an eager startup fact: `unset` removes
+            // the current value, but a later read materialises it again.
+            // Eager bindings such as argv remain genuine W210 reads after
+            // `unset`.
+            killed.insert((symbol, *version), !name_facts.rematerialises_after_unset);
+        }
+
+        let mut undef: FxHashSet<VersionKey> = FxHashSet::default();
+        let mut worklist: Vec<VersionKey> = Vec::new();
+        // Reverse operand edges: an undef version makes every phi that takes
+        // it as an incoming undef too.
+        let mut users: FxHashMap<VersionKey, Vec<crate::ssa::Version>> = FxHashMap::default();
+        for (key, phi) in ctx.phi_def {
+            let (name, version) = (&key.0, key.1);
+            let symbol = phi.name;
+            let node = (symbol, version);
+            let name_facts = *facts
+                .entry(symbol)
+                .or_insert_with(|| StartupFacts::for_name(name, ctx));
+            if killed.contains_key(&node) {
+                // Killed wins over the phi: the version is decided by the kill,
+                // and its incomings never come into it.
+                continue;
+            }
+            // The block this phi lives in — the destination of each incoming
+            // edge.
+            let this_block = ctx.phi_block.get(key).copied();
+            for (&pred, &incoming) in &phi.incoming {
+                if !ctx.considered.contains(&pred) {
+                    continue;
+                }
+                // A phi has one operand per predecessor *edge*; an operand
+                // arriving on a non-executable edge (SCCP proved the edge dead
+                // — e.g. the `cond → exit` edge of `while 1`, which a `break`
+                // makes the loop's only real exit) can never actually be read,
+                // so its version-0 origin must not count as a possible undef.
+                // This filter is only applied when SCCP edge info is available
+                // (a non-empty set).
+                if let Some(block) = this_block
+                    && !ctx.executable_edges.is_empty()
+                    && !ctx.executable_edges.contains(&(pred, block))
+                {
+                    continue;
+                }
+                // A dominating existence guard proves the variable is defined
+                // at the predecessor; that incoming cannot be undef regardless
+                // of its SSA version.
+                if ctx
+                    .exists_guards
+                    .iter()
+                    .any(|(gv, gblk)| gv == name && block_dominated_by(ctx.ssa, pred, *gblk))
+                {
+                    continue;
+                }
+                let operand = (symbol, incoming);
+                let origin = if let Some(&answer) = killed.get(&operand) {
+                    answer
+                } else if incoming == 0 {
+                    // A version-zero incoming normally is the undef origin.
+                    // The default Tcl host, however, binds a
+                    // registry-declared subset before user code, and a
+                    // conditional write would otherwise make a merge with the
+                    // startup version look undefined. Procedure-local frames
+                    // never set `initial_global`.
+                    !name_facts.readable_at_startup
+                } else {
+                    // Another phi (or a concrete definition, which is never
+                    // undef and so never enters `undef`).
+                    if undef.contains(&operand) {
+                        true
+                    } else {
+                        users.entry(operand).or_default().push(version);
+                        continue;
+                    }
+                };
+                if origin && undef.insert(node) {
+                    worklist.push(node);
+                }
+            }
+        }
+        while let Some(node) = worklist.pop() {
+            let Some(users) = users.get(&node) else {
+                continue;
+            };
+            for &user in users {
+                let up = (node.0, user);
+                if undef.insert(up) {
+                    worklist.push(up);
+                }
+            }
+        }
+        Self {
+            undef,
+            killed,
+            facts,
+        }
+    }
+}
+
 /// Phi-from-undef trace.  A use's SSA version > 0 normally proves a prior
 /// definition reached it, but a phi result whose reachable incomings
 /// include an undefined (version-0) or `unset`-killed origin only reaches
@@ -373,92 +570,34 @@ pub(super) fn has_global_startup_binding(
 /// (concrete) definition is never undef; a phi is undef if any of its
 /// reachable, non-existence-guarded incomings is undef.  Cycles
 /// (loop-header phis) conservatively resolve to *not* undef on the cycle.
+///
+/// `memo` holds the [`PhiUndefIndex`] that answers this, built on the first
+/// query and reused by every later one; it must only be shared between
+/// queries whose [`PhiUndefCtx`] is the same.
 pub(super) fn phi_can_undef(
     name: &str,
     version: crate::ssa::Version,
     ctx: &PhiUndefCtx<'_>,
-    seen: &mut FxHashSet<(String, crate::ssa::Version)>,
+    memo: &mut PhiUndefMemo,
 ) -> bool {
-    let PhiUndefCtx {
-        phi_def,
-        phi_block,
-        killed,
-        considered,
-        executable_edges,
-        exists_guards,
-        initial_global,
-        global_aliases,
-        dialect,
-        ssa,
-    } = ctx;
-    let startup_name = startup_var_name(name);
-    let global_binding = has_global_startup_binding(name, *initial_global, global_aliases);
-    let rematerialises_after_unset =
-        global_binding && tcl_registry::special_vars::is_lazily_readable(startup_name, *dialect);
-    let key = (name.to_string(), version);
-    if killed.contains(&key) {
-        // A Tcl read trace is not an eager startup fact: `unset` removes the
-        // current value, but a later read materialises it again.  Registry
-        // data confines this to `tcl_precision` on Tcl 8.x; eager bindings
-        // such as argv remain genuine W210 reads after `unset`.
-        return !rematerialises_after_unset;
+    let Some(symbol) = ctx.ssa.var_symbol(name) else {
+        // No SSA symbol means the function never defines the name, so it has
+        // neither a phi nor a kill: only the startup answer can apply.
+        return version == 0 && !StartupFacts::for_name(name, ctx).readable_at_startup;
+    };
+    let index = memo.index(ctx);
+    if let Some(&answer) = index.killed.get(&(symbol, version)) {
+        return answer;
     }
     if version == 0 {
-        // A version-zero incoming normally is the undef origin.  The default
-        // Tcl host, however, binds a registry-declared subset before user
-        // code.  This must be decided while tracing phi incomings too: a
-        // conditional write otherwise makes a merge with the startup version
-        // look undefined.  `unset` still wins below for real killed versions,
-        // and procedure-local frames never set `initial_global`.
-        return !(global_binding
-            && tcl_registry::special_vars::is_readable_at_startup(startup_name, *dialect));
+        return !index
+            .facts
+            .get(&symbol)
+            .copied()
+            .unwrap_or_else(|| StartupFacts::for_name(name, ctx))
+            .readable_at_startup;
     }
-    if seen.contains(&key) {
-        // Cycle (loop-header phi): the DFS seed already accounted for the
-        // entry path's contribution; treat the back-edge as not-undef to
-        // avoid every loop-header phi self-triggering.
-        return false;
-    }
-    let Some(phi) = phi_def.get(&key) else {
-        // Concrete (non-phi) definition reached this version — safe.
-        return false;
-    };
-    // The block this phi lives in — the destination of each incoming edge.
-    let this_block = phi_block.get(&key).copied();
-    seen.insert(key.clone());
-    let mut result = false;
-    for (&pred, &incoming_ver) in &phi.incoming {
-        if !considered.contains(&pred) {
-            continue;
-        }
-        // A phi has one operand per predecessor *edge*; an operand arriving on
-        // a non-executable edge (SCCP proved the edge dead — e.g. the
-        // `cond → exit` edge of `while 1`, which a `break` makes the loop's
-        // only real exit) can never actually be read, so its version-0 origin
-        // must not count as a possible undef.  This filter is only applied
-        // when SCCP edge info is available (a non-empty set).
-        if let Some(blk) = this_block
-            && !executable_edges.is_empty()
-            && !executable_edges.contains(&(pred, blk))
-        {
-            continue;
-        }
-        // A dominating existence guard proves the variable is defined at
-        // the predecessor; that incoming cannot be undef regardless of
-        // its SSA version.
-        if exists_guards
-            .iter()
-            .any(|(gv, gblk)| gv == name && block_dominated_by(ssa, pred, *gblk))
-        {
-            continue;
-        }
-        if phi_can_undef(name, incoming_ver, ctx, seen) {
-            result = true;
-            break;
-        }
-    }
-    seen.remove(&key);
-    result
+    index.undef.contains(&(symbol, version))
 }
 
 /// `(name, version) → Phi` index used by [`phi_can_undef`].
@@ -928,13 +1067,18 @@ pub(super) fn build_undef_suppression(
         ssa: &fu.ssa,
     };
     let mut can_undef: FxHashSet<(String, crate::ssa::Version)> = FxHashSet::default();
+    // One memo for the whole sweep and the loop-entry fixpoint below: both run
+    // against `undef_ctx` unchanged, so an answer found for one key stands for
+    // every other query (issue #2021 — without it the sweep re-walks every
+    // path through the phi graph).
+    let mut memo = PhiUndefMemo::default();
     for key in phi_def.keys() {
-        let mut seen = FxHashSet::default();
-        if phi_can_undef(&key.0, key.1, &undef_ctx, &mut seen) {
+        if phi_can_undef(&key.0, key.1, &undef_ctx, &mut memo) {
             can_undef.insert(key.clone());
         }
     }
-    let loop_entry_only_undef = build_loop_entry_only_undef(fu, &can_undef, &undef_ctx, rules);
+    let loop_entry_only_undef =
+        build_loop_entry_only_undef(fu, &can_undef, &undef_ctx, rules, &mut memo);
     let mut s = UndefSuppression {
         cmd_sub_writes: collect_expr_cmd_sub_writes(fu, considered),
         script_concat_writes: collect_script_concat_writes(fu, considered),
@@ -988,6 +1132,7 @@ fn build_loop_entry_only_undef(
     can_undef: &FxHashSet<(String, crate::ssa::Version)>,
     ctx: &PhiUndefCtx<'_>,
     rules: tcl_syntax::word_rules::WordValueRules,
+    memo: &mut PhiUndefMemo,
 ) -> FxHashMap<(String, crate::ssa::Version), FxHashSet<String>> {
     let mut out: FxHashMap<(String, crate::ssa::Version), FxHashSet<String>> = FxHashMap::default();
     if can_undef.is_empty() {
@@ -1040,8 +1185,7 @@ fn build_loop_entry_only_undef(
                     if out.contains_key(&(name.clone(), ver_in)) {
                         return true;
                     }
-                    let mut seen = FxHashSet::default();
-                    !phi_can_undef(&name, ver_in, ctx, &mut seen)
+                    !phi_can_undef(&name, ver_in, ctx, memo)
                 });
                 if entry_only {
                     out.insert(key, body_blocks.clone());

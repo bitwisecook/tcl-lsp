@@ -100,6 +100,14 @@ mod issue1331_crossfile_diagnostics;
 /// to their `ILXServer.addMethod` registration in the extension's JavaScript.
 #[path = "e2e/issue1707_ilx_methods.rs"]
 mod issue1707_ilx_methods;
+/// Issue #2021 — the exit watchdog: a session that is over (stdin EOF, or
+/// the `exit` notification) must force the process to terminate within a
+/// bounded grace even while a handler future (the startup workspace scan)
+/// is still running.
+#[path = "e2e/issue2021_exit_watchdog.rs"]
+mod issue2021_exit_watchdog;
+#[path = "e2e/issue2021_workspace_scan_cap.rs"]
+mod issue2021_workspace_scan_cap;
 #[path = "e2e/issue923_class_refs.rs"]
 mod issue923_class_refs;
 #[path = "e2e/issue923_crossdoc.rs"]

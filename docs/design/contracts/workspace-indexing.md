@@ -436,7 +436,16 @@ change another file's answer retains the necessary whole-workspace cost.
    `NativeStore` wrappers over `scan_path_in` / `scan_tree_in` for native
    callers. See
    [lsp-source-store.md](lsp-source-store.md).
-8. Search-path and package facts follow real Tcl arity and version rules, not
+8. The scan's file budget is a **setting**, not a constant.
+   `tclLsp.workspaceScan.maxFiles` (INI `[workspaceScan] max_files`,
+   default `WORKSPACE_SCAN_FILE_CAP` = 2000) bounds
+   `collect_tcl_files` across every root, so a workspace larger than the
+   budget is only partly indexed — deliberately, to bound start-up, and
+   raisable by the user whose tree is bigger than it (issue #2021).  It is
+   session-scoped (one scan serves every folder) and changing it re-runs the
+   scan through the same `apply_global_config` rescan path a `libraryPaths`
+   change uses.  Open documents are indexed regardless of it.
+9. Search-path and package facts follow real Tcl arity and version rules, not
    convenient approximations. `set auto_path` assigns a **list** (each element
    one directory, a braced element with spaces still one) while `lappend`
    appends one directory per argument word; path arithmetic runs in Tcl's

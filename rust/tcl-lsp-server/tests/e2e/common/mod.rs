@@ -1900,6 +1900,21 @@ fn config_reflected(requested: &Value, effective: &Value) -> bool {
                     })
                 })
             }),
+        // `tclLsp.workspaceScan.maxFiles` (#2021) is session-wide and reported
+        // flat.  The barrier matters here as much as anywhere: the budget
+        // decides which files the scan indexes, so a test that pushes one and
+        // then reads the scan must not race the apply.
+        "workspaceScan" => want.as_object().is_none_or(|scan| {
+            scan.iter().all(|(k, v)| {
+                let flat = match k.as_str() {
+                    "maxFiles" => "workspace_scan_max_files",
+                    other => panic!(
+                        "config_reflected: no settle mapping for `workspaceScan.{other}`                          — add one (see getEffectiveConfig) so the config is a real barrier"
+                    ),
+                };
+                effective.get(flat).is_some_and(|got| got == v)
+            })
+        }),
         "dialect" => effective.get("dialect").is_some_and(|got| got == want),
         "lineLength" => effective.get("line_length").is_some_and(|got| got == want),
         other => panic!(

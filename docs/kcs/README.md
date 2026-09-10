@@ -54,6 +54,9 @@ symptom with several possible causes worth telling apart. See rule 13 in
   — the spec studio reports a command written and the Pack DSL pane does not
   change, because the document is a program the studio patches rather than
   rewrites.
+- [kcs-issue-a-tcl-lsp-server-process-outlives-the-editor.md](kcs-issue-a-tcl-lsp-server-process-outlives-the-editor.md)
+  — a `tcl-lsp-server` process is still running, busy on every core, after
+  the editor window that started it has closed.
 - [kcs-issue-parallel-worktree-builds-serve-stale-artefacts.md](kcs-issue-parallel-worktree-builds-serve-stale-artefacts.md)
   — builds in one git worktree fail or pass with artefacts from a
   sibling checkout because the worktrees share one cargo target

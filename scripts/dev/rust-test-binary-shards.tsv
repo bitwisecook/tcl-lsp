@@ -35,6 +35,7 @@
 2	tcl-compiler::entry_contract_abstention	test	tcl-compiler	entry_contract_abstention
 2	tcl-compiler::intervals	test	tcl-compiler	intervals
 2	tcl-compiler::irules_event_context	test	tcl-compiler	irules_event_context
+2	tcl-compiler::phi_undef_memo	test	tcl-compiler	phi_undef_memo
 2	tcl-compiler::regex_source_oracle	test	tcl-compiler	regex_source_oracle
 2	tcl-compiler::var_escape_cfg	test	tcl-compiler	var_escape_cfg
 2	tcl-engine-tclvm	lib	tcl-engine-tclvm	tcl_engine_tclvm

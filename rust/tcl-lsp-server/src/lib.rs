@@ -30,6 +30,11 @@
 #![forbid(unsafe_code)]
 
 pub mod config_ini;
+/// The exit watchdog that backstops `Server::serve` returning promptly once
+/// the session is over. Native only: it wraps `tokio::io::Stdin` and hard
+/// exits the process, neither of which apply to a browser worker.
+#[cfg(not(target_family = "wasm"))]
+pub mod exit_watchdog;
 pub mod path_glob;
 pub mod rt;
 pub mod service;
@@ -2483,11 +2488,58 @@ const DIAGNOSTICS_FAST_TIER_MIN_LINES: usize = 500;
 ///
 /// The transport keeps stdin routing independent of handler progress (see
 /// [`transport_liveness`](crate::transport_liveness)), so this timeout is
-/// defence in depth rather than the session's deadlock breaker. It bounds the
-/// existing configuration pull only; other server-to-client requests retain
-/// their own lifecycle until the dependency provides cancellation-safe pending
-/// request tracking.
+/// defence in depth rather than the session's deadlock breaker for stdin
+/// itself. It bounds every server-to-client request issued through
+/// [`bounded_client_request`] (which is every one of them but notifications —
+/// see that function's doc comment for why bounding all of them matters for
+/// process exit, not just stdin liveness).
 const CLIENT_REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Bound a server-to-client *request* (never a notification — those do not
+/// await a reply) with [`CLIENT_REQUEST_TIMEOUT`], mapping a timed-out
+/// request onto the same `jsonrpc::Error` shape a declined one already
+/// produces, so every existing `Err(..)`/`let _ = ..` call site is unchanged.
+///
+/// `tower-lsp-server` 0.23 resolves a server-to-client request by firing a
+/// `oneshot` held in its pending-response table (see the dependency's
+/// `service::client::pending`) when the matching response arrives on stdin.
+/// If the client is gone — the VS Code extension host exited without ever
+/// sending `shutdown`/`exit`, or exited right after sending them but before a
+/// reply this call happened to be waiting on landed — nothing ever fires that
+/// `oneshot`, and the `.await` here would hang forever. `Server::serve` does
+/// not return while *any* handler future is still pending, `exit`/stdin-EOF
+/// notwithstanding, so one unbounded await like that is enough on its own to
+/// keep the whole process alive indefinitely after the session is over
+/// (issue #2021) — the exit watchdog in `main.rs` is a backstop for exactly
+/// this and the analogous long-running-scan case, but bounding the awaits
+/// themselves is what lets the *normal* `serve`-returns exit path win most of
+/// the time instead of falling through to the watchdog's grace period.
+async fn bounded_client_request<T>(
+    request: impl Future<Output = jsonrpc::Result<T>>,
+) -> jsonrpc::Result<T> {
+    bounded_client_request_with_timeout(CLIENT_REQUEST_TIMEOUT, request).await
+}
+
+/// [`bounded_client_request`]'s body, parameterised on the timeout so tests
+/// can exercise the elapsed-deadline arm in milliseconds rather than the
+/// production 10s.
+async fn bounded_client_request_with_timeout<T>(
+    timeout: std::time::Duration,
+    request: impl Future<Output = jsonrpc::Result<T>>,
+) -> jsonrpc::Result<T> {
+    match crate::rt::timeout(timeout, request).await {
+        Ok(result) => result,
+        Err(_elapsed) => Err(jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!(
+                "tcl-lsp: the editor did not answer a server-to-client request within {}s",
+                timeout.as_secs()
+            )
+            .into(),
+            data: None,
+        }),
+    }
+}
 
 /// The iRules dialect key.  A BIG-IP config's `ltm rule { … }` bodies are iRules
 /// code, so they are tokenised against this registry rather than the config's
@@ -3037,7 +3089,7 @@ impl SemanticTokensRefreshCtx {
             // marker already written.
             let reasons = pending.swap(0, std::sync::atomic::Ordering::AcqRel);
             log_semantic_tokens_refresh_fired(&client, reasons).await;
-            let _ = client.semantic_tokens_refresh().await;
+            let _ = bounded_client_request(client.semantic_tokens_refresh()).await;
         });
     }
 }
@@ -3461,7 +3513,7 @@ async fn deliver_diagnostics(
         // Best-effort: a client that advertised pull support is expected to
         // honour the refresh, but a transport error here must not abort the
         // worker (the primed cache still serves the next manual pull).
-        let _ = client.workspace_diagnostic_refresh().await;
+        let _ = bounded_client_request(client.workspace_diagnostic_refresh()).await;
     } else {
         client
             .publish_diagnostics(uri.clone(), diags, version)
@@ -7209,6 +7261,13 @@ pub struct Backend {
     /// `.tcl-lsp.ini [project]`) and discovery when building the package
     /// database.
     editor_library_paths: Mutex<Vec<String>>,
+    /// `tclLsp.workspaceScan.maxFiles` — how many on-disk files the workspace
+    /// scan reads and indexes, across every folder (issue #2021).  Session
+    /// scoped, not per document: one scan serves the whole session, so there
+    /// is no folder to resolve it through.  Defaults to
+    /// [`WORKSPACE_SCAN_FILE_CAP`]; a change re-runs the scan, exactly as a
+    /// `libraryPaths` change does.
+    workspace_scan_max_files: Mutex<usize>,
     /// `tclLsp.packages.preferLatest` — the interpreter's **starting**
     /// `package prefer` mode.
     ///
@@ -8738,6 +8797,7 @@ impl Backend {
             rehoming_gate: Arc::new(tokio::sync::Mutex::new(())),
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
             editor_library_paths: Mutex::new(Vec::new()),
+            workspace_scan_max_files: Mutex::new(WORKSPACE_SCAN_FILE_CAP),
             package_prefer_latest_default: Mutex::new(false),
             package_provides: Mutex::new(Vec::new()),
             extra_commands: Mutex::new(Vec::new()),
@@ -12532,6 +12592,7 @@ impl Backend {
             rehoming_gate: _,
             discovered_tcl: _,
             editor_library_paths: _,
+            workspace_scan_max_files: _,
             package_prefer_latest_default: _,
             package_provides: _,
             extra_commands: _,
@@ -17731,6 +17792,33 @@ impl Backend {
         chosen
     }
 
+    /// `tclLsp.formatting.docstringStyle` (#1314) as `getEffectiveConfig`
+    /// reports it — the same per-URI fold `resolved_docstring_style` performs,
+    /// except that a folder-only query (no readable document) has no `Uri` to
+    /// resolve *through*, so it reads the process-global settings object
+    /// directly, matching the `dialect` fallback. This is also the settle
+    /// signal a test polls after
+    /// `Lsp::with_config({"formatting": {"docstringStyle": …}})`.
+    async fn reported_docstring_style(&self, uri: Option<&Uri>) -> &'static str {
+        let style = match uri {
+            Some(uri) => self.resolved_docstring_style(uri).await,
+            None => self
+                .formatting_settings
+                .lock()
+                .await
+                .get("docstringStyle")
+                .and_then(serde_json::Value::as_str)
+                .map_or(core_formatting::DocstringStyle::None, |s| {
+                    core_formatting::DocstringStyle::parse(s)
+                }),
+        };
+        match style {
+            core_formatting::DocstringStyle::Preceding => "preceding",
+            core_formatting::DocstringStyle::Body => "body",
+            core_formatting::DocstringStyle::None => "none",
+        }
+    }
+
     /// Handle `tcl-lsp.getEffectiveConfig`: the resolved per-document config —
     /// active dialect, the resolved `features` toggle map, the optimiser
     /// switch, line length, and analyser settings.  Tests poll this command
@@ -17816,31 +17904,15 @@ impl Backend {
         // analysed before or after its config landed.
         let optimiser_profile = self.optimiser_profile.lock().await.name();
         let library_paths = self.editor_library_paths.lock().await.clone();
+        // Session-wide, like `library_paths`: one scan serves every folder, so
+        // there is no per-URI chain to resolve it through.  Reported so a user
+        // tracing "why is this file not in the index?" can see the budget the
+        // scan actually ran under (issue #2021) — and so a test can wait for a
+        // pushed cap to have landed before asserting on the rescan.
+        let workspace_scan_max_files = *self.workspace_scan_max_files.lock().await;
         let (spec_packs, spec_packs_loaded, pack_file_extensions) = self.spec_pack_report().await;
         let line_length = *self.line_length.lock().await;
-        // `tclLsp.formatting.docstringStyle` — same per-URI fold as
-        // `resolved_docstring_style`, but a folder-only query (no readable
-        // document) has no `Uri` to resolve *through*, so it reads the
-        // process-global settings object directly, matching the `dialect`
-        // fallback above. This is also the settle signal a test polls after
-        // `Lsp::with_config({"formatting": {"docstringStyle": …}})`.
-        let docstring_style = match &parsed_uri {
-            Some(uri) => self.resolved_docstring_style(uri).await,
-            None => self
-                .formatting_settings
-                .lock()
-                .await
-                .get("docstringStyle")
-                .and_then(serde_json::Value::as_str)
-                .map_or(core_formatting::DocstringStyle::None, |s| {
-                    core_formatting::DocstringStyle::parse(s)
-                }),
-        };
-        let docstring_style_str = match docstring_style {
-            core_formatting::DocstringStyle::Preceding => "preceding",
-            core_formatting::DocstringStyle::Body => "body",
-            core_formatting::DocstringStyle::None => "none",
-        };
+        let docstring_style_str = self.reported_docstring_style(parsed_uri.as_ref()).await;
         // Report the *per-folder* analyser settings (the same resolver the
         // feature/diagnostics paths use), not the process-global ones: in a
         // multi-root workspace a folder may override the disabled-codes set /
@@ -17881,6 +17953,7 @@ impl Backend {
             "optimiser_enabled": optimiser_enabled,
             "optimiser_profile": optimiser_profile,
             "library_paths": library_paths,
+            "workspace_scan_max_files": workspace_scan_max_files,
             "spec_packs": spec_packs,
             "spec_packs_loaded": spec_packs_loaded,
             "pack_file_extensions": pack_file_extensions,
@@ -18444,11 +18517,9 @@ impl Backend {
         // a client without refresh support rejects the request, which is
         // harmless.  `foldingRange/refresh` (LSP 3.18) is not in ls-types, so it
         // is sent through a locally-defined request type.
-        let _ = self
-            .client
-            .send_request::<FoldingRangeRefreshRequest>(())
+        let _ = bounded_client_request(self.client.send_request::<FoldingRangeRefreshRequest>(()))
             .await;
-        let _ = self.client.code_lens_refresh().await;
+        let _ = bounded_client_request(self.client.code_lens_refresh()).await;
     }
 
     /// Apply the *content* of a pulled `tclLsp` config section (`cfg`) onto the
@@ -18484,7 +18555,8 @@ impl Backend {
         if let Some(features) = cfg.get("features").and_then(serde_json::Value::as_object) {
             self.feature_toggles.lock().await.apply(features);
         }
-        let rescan_workspace = self.apply_global_library_paths(cfg).await;
+        let mut rescan_workspace = self.apply_global_library_paths(cfg).await;
+        rescan_workspace |= self.apply_workspace_scan_budget(cfg).await;
         self.apply_global_toggles(cfg, signature_fallback_cfg).await;
         self.apply_global_formatting(cfg).await;
         self.apply_global_analyser_knobs(cfg).await;
@@ -18566,6 +18638,37 @@ impl Backend {
             }
         }
         rescan_workspace
+    }
+
+    /// `tclLsp.workspaceScan.maxFiles` — how many on-disk files the workspace
+    /// scan indexes (issue #2021).  Returns whether the value moved, so the
+    /// caller re-runs the scan for it exactly as it does for a `libraryPaths`
+    /// change: the cap decides which files are in the index, so a raised cap
+    /// only reaches the user once the tree is walked again.
+    ///
+    /// A value below 1 is ignored rather than obeyed — `0` would mean "index
+    /// nothing", which no user asking for a file budget means, and the editor
+    /// schemas declare `minimum: 1`.  The rescan is suppressed until the first
+    /// scan has completed: before that, `initialized` is about to walk the
+    /// tree anyway and rescanning here would just walk a large workspace
+    /// twice.
+    async fn apply_workspace_scan_budget(&self, cfg: &serde_json::Value) -> bool {
+        let Some(max) = cfg
+            .get("workspaceScan")
+            .and_then(|w| w.get("maxFiles"))
+            .and_then(serde_json::Value::as_u64)
+            .filter(|&max| max > 0)
+        else {
+            return false;
+        };
+        let max = usize::try_from(max).unwrap_or(usize::MAX);
+        let changed = {
+            let mut guard = self.workspace_scan_max_files.lock().await;
+            let changed = *guard != max;
+            *guard = max;
+            changed
+        };
+        changed && self.workspace_scan_ready.is_complete()
     }
 
     /// The interpreter's **starting** `package prefer` mode — the base
@@ -20589,7 +20692,9 @@ impl Backend {
             })
             .ok(),
         };
-        if let Err(err) = self.client.register_capability(vec![registration]).await {
+        if let Err(err) =
+            bounded_client_request(self.client.register_capability(vec![registration])).await
+        {
             self.client
                 .log_message(
                     MessageType::LOG,
@@ -20982,11 +21087,10 @@ impl Backend {
         // Best-effort: a client without refresh support rejects the request.
         if changed {
             self.request_semantic_tokens_retry(SemanticTokensRefreshReason::PackReload);
-            let _ = self
-                .client
-                .send_request::<FoldingRangeRefreshRequest>(())
-                .await;
-            let _ = self.client.code_lens_refresh().await;
+            let _ =
+                bounded_client_request(self.client.send_request::<FoldingRangeRefreshRequest>(()))
+                    .await;
+            let _ = bounded_client_request(self.client.code_lens_refresh()).await;
         }
 
         // Tell the client the reload is finished. A client that reacts to the
@@ -21067,13 +21171,13 @@ impl Backend {
                 (WILL_RENAME_ID, WILL_RENAME_METHOD),
                 (DID_RENAME_ID, DID_RENAME_METHOD),
             ] {
-                let _ = self
-                    .client
-                    .unregister_capability(vec![Unregistration {
+                let _ = bounded_client_request(self.client.unregister_capability(vec![
+                    Unregistration {
                         id: id.to_owned(),
                         method: method.to_owned(),
-                    }])
-                    .await;
+                    },
+                ]))
+                .await;
             }
         }
 
@@ -21132,7 +21236,9 @@ impl Backend {
             });
         }
 
-        if let Err(err) = self.client.register_capability(registrations).await {
+        if let Err(err) =
+            bounded_client_request(self.client.register_capability(registrations)).await
+        {
             // Same contract as every other dynamic registration here: a client
             // that cannot honour one declines it, and the server keeps working
             // with whatever the startup scan seeded.
@@ -21224,13 +21330,13 @@ impl Backend {
             // Unregister before registering: the id is the same, and a client
             // that already holds it would otherwise be left with both sets.
             if !current.is_empty() {
-                let _ = self
-                    .client
-                    .unregister_capability(vec![Unregistration {
+                let _ = bounded_client_request(self.client.unregister_capability(vec![
+                    Unregistration {
                         id: REGISTRATION_ID.to_owned(),
                         method: METHOD.to_owned(),
-                    }])
-                    .await;
+                    },
+                ]))
+                .await;
             }
             current.clone_from(&globs);
         }
@@ -21253,7 +21359,9 @@ impl Backend {
             })
             .ok(),
         };
-        if let Err(err) = self.client.register_capability(vec![registration]).await {
+        if let Err(err) =
+            bounded_client_request(self.client.register_capability(vec![registration])).await
+        {
             self.client
                 .log_message(
                     MessageType::LOG,
@@ -21381,7 +21489,8 @@ impl Backend {
     /// responsive.  URIs already present in `self.documents` are
     /// skipped so the on-disk copy never clobbers a live (and
     /// possibly unsaved) editor buffer.  The walk is capped at
-    /// [`WORKSPACE_SCAN_FILE_CAP`] files so a large tree can't
+    /// `tclLsp.workspaceScan.maxFiles` files (default
+    /// [`WORKSPACE_SCAN_FILE_CAP`]) so a large tree can't
     /// stall start-up.
     /// Bring the index's per-document views in line with the *source
     /// graph* — `source` evaluates a file in the caller's namespace, so a
@@ -22045,6 +22154,11 @@ impl Backend {
         }
         let discovered_cell = Arc::clone(&self.discovered_tcl);
         let scan_store = Arc::clone(&self.store);
+        // `tclLsp.workspaceScan.maxFiles` — the whole-session budget the walk
+        // stops at (shared across roots, so it bounds the scan, not each
+        // folder).  Read here rather than in the worker: the worker holds no
+        // async mutex by design.
+        let max_files = *self.workspace_scan_max_files.lock().await;
         crate::rt::spawn_blocking(move || {
             let discovered = discovered_cell.get_or_init(|| {
                 core_tcl_install::discover(&core_tcl_install::default_search_bases())
@@ -22058,12 +22172,7 @@ impl Backend {
             );
             let mut files: Vec<PathBuf> = Vec::new();
             for root in &roots {
-                collect_tcl_files(
-                    scan_store.as_ref(),
-                    root,
-                    WORKSPACE_SCAN_FILE_CAP,
-                    &mut files,
-                );
+                collect_tcl_files(scan_store.as_ref(), root, max_files, &mut files);
             }
             (resolver, files)
         })
@@ -22948,9 +23057,7 @@ impl LanguageServer for Backend {
         // genuinely live.  Best-effort and idempotent, exactly as in
         // `did_change_configuration`: a client without refresh support
         // rejects the request, which is harmless.
-        let _ = self
-            .client
-            .send_request::<FoldingRangeRefreshRequest>(())
+        let _ = bounded_client_request(self.client.send_request::<FoldingRangeRefreshRequest>(()))
             .await;
     }
 
@@ -29840,10 +29947,17 @@ fn folder_dialect_for(uri: &Uri, folders: &[(Uri, String)]) -> Option<String> {
     best.map(|(_, d)| d.to_owned())
 }
 
-/// Upper bound on the number of files the on-disk workspace scan
+/// Default upper bound on the number of files the on-disk workspace scan
 /// will analyse, so a pathologically large tree can't stall
 /// start-up.  Open documents are always indexed regardless of
 /// this cap (they flow through `publish_analyser_diagnostics`).
+///
+/// Only the **default**: the effective bound is
+/// `tclLsp.workspaceScan.maxFiles` (INI `[workspaceScan] max_files`), held in
+/// `Backend::workspace_scan_max_files` and read per scan.  A workspace larger
+/// than the bound is silently only partly indexed, which is why the bound is
+/// configurable (issue #2021: a 3217-file Quartus `ip/altera` tree lost a
+/// third of itself to the fixed 2000).
 const WORKSPACE_SCAN_FILE_CAP: usize = 2000;
 
 /// Upper bound on the number of directories the package-database tree scan
@@ -30623,6 +30737,30 @@ mod tests {
         Diagnostic, DiagnosticSeverity, NumberOrString, PartialResultParams, Range,
         ReferenceContext, TextDocumentIdentifier, WorkDoneProgressParams,
     };
+
+    /// `bounded_client_request` must turn a request that never resolves into
+    /// an error once its deadline passes — the load-bearing half of issue
+    /// #2021's fix: a server-to-client reply that will never arrive must not
+    /// keep a handler future (and with it, per `Server::serve`'s contract,
+    /// the whole process) alive forever. Goes through the parameterised inner
+    /// helper with a short deadline so the test does not have to wait out the
+    /// production 10s to prove it.
+    #[tokio::test]
+    async fn bounded_client_request_errors_once_its_deadline_elapses() {
+        let never: std::future::Pending<jsonrpc::Result<()>> = std::future::pending();
+        let started = std::time::Instant::now();
+        let result =
+            bounded_client_request_with_timeout(std::time::Duration::from_millis(20), never).await;
+        assert!(
+            result.is_err(),
+            "a request that never resolves must time out as an error, not hang forever"
+        );
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(5),
+            "the timeout must actually bound the wait: took {:?}",
+            started.elapsed()
+        );
+    }
 
     /// A typing burst must reset the diagnostics debounce window on every edit.
     /// A delay fixed from the burst's first edit launches fresh salsa reads
@@ -35596,6 +35734,7 @@ mod tests {
             rehoming_gate: Arc::new(tokio::sync::Mutex::new(())),
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
             editor_library_paths: Mutex::new(Vec::new()),
+            workspace_scan_max_files: Mutex::new(WORKSPACE_SCAN_FILE_CAP),
             package_prefer_latest_default: Mutex::new(false),
             package_provides: Mutex::new(Vec::new()),
             extra_commands: Mutex::new(Vec::new()),
@@ -37881,6 +38020,7 @@ mod tests {
                 "preferLatest": true,
                 "provides": { "myExtension": ["Tk"], "single": "Img" },
             },
+            "workspaceScan": { "maxFiles": 6000 },
         });
         backend.apply_global_config(&cfg).await;
         assert!(!backend.feature_toggles.lock().await.is_enabled("hover"));
@@ -37899,6 +38039,7 @@ mod tests {
             "optimiser.O100=false should record a force-disable override",
         );
         assert_eq!(*backend.line_length.lock().await, 120);
+        assert_eq!(*backend.workspace_scan_max_files.lock().await, 6000);
         assert_eq!(*backend.default_dialect.lock().await, "tcl9.0");
         assert_eq!(*backend.non_ascii_mode.lock().await, NonAsciiMode::Strict);
         assert!(backend.disabled_diagnostics.lock().await.contains("W211"));
@@ -38309,6 +38450,84 @@ proc p {} {
                 .await,
             "parameter hints must stay gated off",
         );
+    }
+
+    /// Issue #2021: the workspace scan's file budget is a setting, and a
+    /// session that configures nothing keeps the built-in 2000 — the value the
+    /// XDG `config.ini` / editor / project layers all start from.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn workspace_scan_budget_defaults_to_the_built_in_cap() {
+        let backend = test_backend();
+        assert_eq!(
+            *backend.workspace_scan_max_files.lock().await,
+            WORKSPACE_SCAN_FILE_CAP,
+        );
+        assert_eq!(WORKSPACE_SCAN_FILE_CAP, 2000);
+        // An empty config file layer — what an absent `config.ini` parses to —
+        // carries no key, so the merged config leaves the default alone.
+        let empty = config_ini::settings_from_ini("", config_ini::Layer::Global);
+        backend.apply_global_config(&empty).await;
+        assert_eq!(*backend.workspace_scan_max_files.lock().await, 2000);
+        let reported = backend
+            .get_effective_config_command(&[serde_json::json!("file:///scan.tcl")])
+            .await
+            .expect("effective config")
+            .expect("config payload");
+        assert_eq!(
+            reported["workspace_scan_max_files"],
+            serde_json::json!(2000)
+        );
+    }
+
+    /// The layered path a real session takes: the project `.tcl-lsp.ini` wins
+    /// over the editor's value, and the merged result is what the scan runs
+    /// under (issue #2021).
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn workspace_scan_budget_takes_the_project_ini_over_the_editor() {
+        let backend = test_backend();
+        let global = config_ini::settings_from_ini(
+            "[workspaceScan]\nmax_files = 100\n",
+            config_ini::Layer::Global,
+        );
+        let editor = serde_json::json!({ "workspaceScan": { "maxFiles": 500 } });
+        let project = config_ini::settings_from_ini(
+            "[workspaceScan]\nmax_files = 9000\n",
+            config_ini::Layer::Project,
+        );
+        let merged =
+            config_ini::merge_settings(&config_ini::merge_settings(&global, &editor), &project);
+        backend.apply_global_config(&merged).await;
+        assert_eq!(*backend.workspace_scan_max_files.lock().await, 9000);
+        let reported = backend
+            .get_effective_config_command(&[serde_json::json!("file:///scan.tcl")])
+            .await
+            .expect("effective config")
+            .expect("config payload");
+        assert_eq!(
+            reported["workspace_scan_max_files"],
+            serde_json::json!(9000)
+        );
+    }
+
+    /// A zero or negative budget would mean "index nothing", which nobody
+    /// setting a file budget means; the editor schemas declare `minimum: 1`
+    /// and the server ignores anything below it rather than obeying it.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn workspace_scan_budget_ignores_a_zero_or_junk_value() {
+        let backend = test_backend();
+        for cfg in [
+            serde_json::json!({ "workspaceScan": { "maxFiles": 0 } }),
+            serde_json::json!({ "workspaceScan": { "maxFiles": -5 } }),
+            serde_json::json!({ "workspaceScan": { "maxFiles": "lots" } }),
+            serde_json::json!({ "workspaceScan": {} }),
+        ] {
+            backend.apply_global_config(&cfg).await;
+            assert_eq!(
+                *backend.workspace_scan_max_files.lock().await,
+                WORKSPACE_SCAN_FILE_CAP,
+                "{cfg} must leave the default budget in place",
+            );
+        }
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
