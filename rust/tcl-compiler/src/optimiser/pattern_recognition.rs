@@ -55,7 +55,7 @@ use super::{Optimisation, PassContext};
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // O119 moves and deletes `set` statements, so a function with a
     // computed variable name (`set $name …`) abstains from packing —
-    // the shared value-motion barrier of issue #1374. O114 (`set`/`expr`
+    // the shared value-motion barrier. O114 (`set`/`expr`
     // → `incr`) rewrites a statement in place and stays on.
     let top_ints = int_var_names(&cu.top_level);
     let top_pack = !cu.top_level.dynamic_barrier_blocks_value_motion();
@@ -459,7 +459,7 @@ mod tests {
 
     // end-to-end tests
 
-    /// Issue #1374 — a computed variable name in the proc means the packed
+    /// A computed variable name in the proc means the packed
     /// `set`s' targets are not provably distinct from whatever `set $name …`
     /// touches, so O119 abstains for the whole function. The in-place O114
     /// rewrite is unaffected (covered by the tests below).

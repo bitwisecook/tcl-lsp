@@ -198,12 +198,12 @@ mod tests {
 
     use super::{classify_verify_kind, client_config, handshake};
 
-    /// `ClientConfig::builder()` panics here ("Could not automatically
-    /// determine the process-level `CryptoProvider`") because two providers
-    /// are linked in — which is what every `tls_handshake` consumer hit in a
-    /// debug build. Naming the provider per config fixes it without touching
-    /// the process default, so building twice must work with no global
-    /// installed and no `AlreadyInstalled` in between.
+    /// `ClientConfig::builder()` panics ("Could not automatically determine
+    /// the process-level `CryptoProvider`") whenever two providers are
+    /// linked in, so the config must always name one explicitly. Naming the
+    /// provider per config avoids touching the process default, so building
+    /// twice must work with no global installed and no `AlreadyInstalled` in
+    /// between.
     #[test]
     fn a_client_config_builds_repeatedly_without_a_process_default() {
         assert!(client_config(None).is_ok(), "first build");
@@ -215,8 +215,7 @@ mod tests {
     }
 
     /// The shared entry point, over a listener that accepts and hangs up: the
-    /// handshake cannot succeed, but it must *fail*, not panic — which is what
-    /// `tls_handshake` did before the provider was installed here. Local-only
+    /// handshake cannot succeed, but it must *fail*, not panic. Local-only
     /// and deterministic; no certificate or network is involved.
     #[test]
     fn a_handshake_against_a_closing_listener_reports_an_error_rather_than_panicking() {

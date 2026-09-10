@@ -29,8 +29,8 @@ authors.workspace = true
 
 [dependencies]
 tcl-bigip = { path = "../tcl-bigip" }
-# The shared native-stack safety-net primitive (issue #996) — see
-# `openpgp.rs`'s `MAX_COMPRESSED_PACKET_DEPTH`. Dependency-free leaf crate.
+# The shared native-stack safety-net primitive — see `openpgp.rs`'s
+# `MAX_COMPRESSED_PACKET_DEPTH`. Dependency-free leaf crate.
 tcl-core-types = { path = "../tcl-core-types" }
 thiserror = "2"
 

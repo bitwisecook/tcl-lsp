@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `spectcl_check` and `spectcl_expand` — the AI author's two views of a
-//! `.tclspec` spec pack (design E §15.3, E-R13).
+//! `.tclspec` spec pack.
 //!
 //! The CLI-side `tcl spec check` / `tcl spec export` of
 //! `docs/design/registry/spec-packs.md`, exposed to an agent instead of a terminal: a
@@ -123,7 +123,7 @@ fn ctx_key_in_shape(key: &str) -> bool {
 
 /// The MCP `spectcl_check` handler.
 ///
-/// The pack is **evaluated** (design E §1), not walked: a program written by
+/// The pack is **evaluated**, not walked: a program written by
 /// a model runs in the deterministic sandbox — no clock, no IO, no network,
 /// hard budgets, transactional registration — so checking an untrusted
 /// generated pack is safe by construction, and a runaway `foreach` comes
@@ -232,8 +232,8 @@ pub fn spectcl_check(args: &Value) -> Value {
 ///
 /// The affordance that makes a *programmed* pack reviewable. A model that
 /// writes a pack as a loop cannot see what the loop registered without
-/// simulating it in its head, which is exactly the opacity design E's frozen
-/// snapshot exists to prevent (§1.1). This evaluates the pack and writes the
+/// simulating it in its head, which is exactly the opacity a frozen
+/// snapshot exists to prevent. This evaluates the pack and writes the
 /// registrations back as straight-line declarations, so the author reads the
 /// expansion as a diff against intent and iterates.
 ///
@@ -636,10 +636,9 @@ fn dict_get_key(body: &str, at: usize, after: usize) -> Option<String> {
 /// depends on the stamp surviving. Same answer: the store handed in here is
 /// the one built for that same name.
 ///
-/// T6 (P2): the *payload* this ledger row retires is the bit test itself —
-/// a collision is properly `targets ⊆ applicable` over the declaration's
-/// version sets, not a mask intersection. That is a model change, not a
-/// port, and stays open.
+/// The collision check here is a bit-mask intersection; properly it should
+/// be `targets ⊆ applicable` over the declaration's version sets, which is
+/// a model change rather than a simple port.
 fn shipped<'r>(
     registry: &'r CommandRegistry,
     name: &str,
@@ -1127,7 +1126,7 @@ speclib mylib 1.0 {
         assert_eq!(hook["declaration_conflict"], Value::Null, "{hook}");
     }
 
-    // ── The evaluation-only classes (design E §15.3) ──────────────────
+    // The evaluation-only classes.
 
     /// A pack that reaches for a clock fails closed, and the report names
     /// the determinism axis rather than describing a half-loaded pack.

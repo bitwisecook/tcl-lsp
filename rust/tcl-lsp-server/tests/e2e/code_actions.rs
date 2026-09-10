@@ -32,7 +32,7 @@ use crate::common::{Lsp, unique_uri};
 
 use serde_json::{Value, json};
 
-// -- local helpers -------------------------------------------------------
+// Local helpers.
 
 /// An LSP `Range` from `(line, char)` tuples.
 fn range(start: (u32, u32), end: (u32, u32)) -> Value {
@@ -170,8 +170,6 @@ fn with_code(diags: &[Value], code: &str) -> Vec<Value> {
         .collect()
 }
 
-// -- TestQuickFixes ------------------------------------------------------
-
 #[test]
 fn test_w100_offers_brace_wrap() {
     let mut lsp = Lsp::tcl();
@@ -254,13 +252,13 @@ fn w302_actions(lsp: &mut Lsp, uri: &str, source: &str) -> Value {
 
 #[test]
 fn test_w302_result_capture_action_applies_after_the_body() {
-    // Issue #1190: the actions used to insert the right text at the wrong
-    // place, producing `catch result {error oops}` — C Tcl then evaluates
-    // the script `result` (completion code 1, `invalid command name
-    // "result"`) and stores it in a variable named `error oops`.  Asserting
-    // the *applied document* is what catches that; the old assertions
-    // checked only the inserted string and that the range was zero-width,
-    // both of which the broken fix satisfied.
+    // The action must insert the right text at the right place — inserting
+    // it wrongly would produce `catch result {error oops}`, and C Tcl would
+    // then evaluate the script `result` (completion code 1, `invalid
+    // command name "result"`) and store it in a variable named `error
+    // oops`. Asserting the *applied document* is what catches that;
+    // checking only the inserted string and that the range was zero-width
+    // would not.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let source = "catch {error oops}\n";
@@ -484,8 +482,6 @@ fn test_t102_fires_for_assign_value_wrapped_call() {
     );
 }
 
-// -- TestRefactorActions -------------------------------------------------
-
 #[test]
 fn test_extract_proc_available_without_diagnostics() {
     let mut lsp = Lsp::tcl();
@@ -504,8 +500,6 @@ fn test_extract_proc_available_without_diagnostics() {
             .any(|t| t.to_lowercase().contains("extract"))
     );
 }
-
-// -- TestRefactorActionsExtended -----------------------------------------
 
 #[test]
 fn test_extract_proc_snippets() {
@@ -542,10 +536,10 @@ fn extract_proc_actions(lsp: &mut Lsp, uri: &str, from: (u32, u32), to: (u32, u3
 
 #[test]
 fn test_extract_proc_carries_a_caller_write_through_upvar() {
-    // Issue #1201's reproducer.  The original prints `1` then `after=1`; the
-    // old shape moved the `set x 1` into a proc *local*, so the caller kept
-    // its old value and printed `after=0`.  The generated proc now takes the
-    // variable by name and re-binds it with `upvar 1`, so the assignment
+    // The original prints `1` then `after=1`. Moving the `set x 1` into a
+    // proc *local* would leave the caller with its old value, printing
+    // `after=0`. The generated proc must take the
+    // variable by name and re-bind it with `upvar 1`, so the assignment
     // lands back in the caller's frame.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
@@ -600,8 +594,8 @@ fn test_extract_proc_refuses_a_selection_inside_a_namespace_eval() {
 #[test]
 fn test_inline_proc_binds_a_declared_default() {
     // C Tcl 9 prints `hello world`: the omitted argument takes the parameter's
-    // declared default.  The old textual splice emitted `puts "hello $name"`,
-    // which errors on an unset variable (issue #1199).
+    // declared default.  A textual splice must not emit `puts "hello $name"`,
+    // which errors on an unset variable.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let source = "proc greet {{name world}} { puts $name }\ngreet\n";
@@ -683,7 +677,7 @@ fn test_extract_proc_attaches_rename_command() {
     let end = args[2].as_i64().unwrap();
     // The definition is inserted above the selection (line 1), not at line 0:
     // placing it at the top of the file would put it before any `package
-    // require` / `namespace` prologue (issue #1201).
+    // require` / `namespace` prologue.
     assert_eq!(line, 1);
     assert_eq!(start, i64::try_from("proc ".len()).unwrap());
     assert_eq!(end, start + i64::try_from("extracted_proc".len()).unwrap());
@@ -715,8 +709,7 @@ fn test_inline_proc_refuses_a_returning_proc_with_a_reason() {
     // `return` acts on the call frame: inlined into the caller it would
     // return from the *caller*, not from the proc.  The action is surfaced
     // greyed out with LSP's `disabled.reason` rather than silently omitted,
-    // so the user can tell "cannot be done here" from "is broken"
-    // (issue #1199).
+    // so the user can tell "cannot be done here" from "is broken".
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, "proc wrap {x} { return $x }\nwrap value\n");
@@ -740,8 +733,6 @@ fn test_inline_proc_refuses_a_returning_proc_with_a_reason() {
         "a refused action carries no edits: {inline:?}"
     );
 }
-
-// -- TestExprRefactorActions ---------------------------------------------
 
 /// The `_rewrite` helper: request `refactor.rewrite`-only actions.
 fn rewrite(lsp: &mut Lsp, uri: &str, start: (u32, u32), end: (u32, u32)) -> Vec<Value> {
@@ -844,8 +835,6 @@ fn test_invert_subexpression_in_compound() {
     assert_eq!(inv.len(), 1);
 }
 
-// -- TestW115CommentContinuation -----------------------------------------
-
 #[test]
 fn test_simple_continuation_fix() {
     let mut lsp = Lsp::tcl();
@@ -907,8 +896,6 @@ fn test_already_commented_continuation_not_doubled() {
     assert_eq!(lines[0], "# line1");
     assert_eq!(lines[1], "# line2");
 }
-
-// -- TestIPConversionActions ---------------------------------------------
 
 #[test]
 fn test_ipv4_offers_ipv6_mapped() {
@@ -998,10 +985,9 @@ fn test_cursor_past_last_line_does_not_crash() {
     assert!(result.is_null() || result.is_array());
 }
 
-// -- TestGenerateDocstringAction -----------------------------------------
 //
 // The generate-docstring source action is gated by the resolved
-// `tclLsp.formatting.docstringStyle` setting (#1314). Its documented
+// `tclLsp.formatting.docstringStyle` setting. Its documented
 // default is `"none"` — "do not generate or reformat docstrings" — which
 // `Lsp::tcl()` reproduces (it sends no `formatting` section at all, so the
 // server falls back to that default). Tests that exercise the *generation*
@@ -1098,8 +1084,6 @@ fn test_body_style_inserts_inside_the_proc_not_on_the_decl_line() {
     );
 }
 
-// -- TestEvalListQuickFix ------------------------------------------------
-
 #[test]
 fn test_eval_string_to_list_action() {
     let mut lsp = Lsp::tcl();
@@ -1115,8 +1099,6 @@ fn test_eval_string_to_list_action() {
     );
 }
 
-// -- TestProfilesNotOfferedForTcl ----------------------------------------
-
 #[test]
 fn test_no_profiles_action_for_tcl_dialect() {
     // On the plain-Tcl server, a proc never gets an F5 "# Profiles:" header
@@ -1128,7 +1110,6 @@ fn test_no_profiles_action_for_tcl_dialect() {
     let sa = kinds(&actions, "source");
     assert!(sa.iter().all(|a| !action_title(a).contains("Profiles")));
 }
-// -- TestE100E102QuickFixes -----------------------------------------------
 
 #[test]
 fn test_e100_offers_insert_bracket_before_known_command() {
@@ -1250,8 +1231,6 @@ fn test_e102_no_fix_offered_for_embedded_brace() {
         titles(&actions)
     );
 }
-
-// -- TestShimmerNoqaSuppressQuickFix --------------------------------------
 
 #[test]
 fn test_s100_offers_noqa_suppress_action() {
@@ -1462,11 +1441,11 @@ fn test_w120_no_insert_fix_when_require_present() {
     );
 }
 
-// The evidence-gated fuzzy package suggestion (issue #1191).
+// The evidence-gated fuzzy package suggestion.
 //
 // This action changes what the interpreter loads and runs the package's
 // initialisation code, so the server must offer it only over a *command
-// head* that resolution could not satisfy. It used to fire on any
+// head* that resolution could not satisfy — never merely any
 // identifier-shaped word under the cursor, including one inside a comment or
 // a string.
 
@@ -1592,12 +1571,12 @@ fn test_w001_offers_subcommand_did_you_mean_replacement() {
     );
 }
 
-/// W123 FP guard, issue #923 idx 105: `exists`/`get` called bare from inside
+/// W123 FP guard: `exists`/`get` called bare from inside
 /// a proc lexically defined under `::tcl::dict` are the real, separately
 /// -callable `::tcl::dict::exists` / `::tcl::dict::get` builtins, not unknown
 /// commands — no diagnostic, and critically no "Replace with 'exit'"
-/// quickfix either. Before the fix this quickfix was offered and, if
-/// applied, would have silently turned `if {[exists $d $k]} {...}` into
+/// quickfix either. Offering that quickfix here would, if applied,
+/// silently turn `if {[exists $d $k]} {...}` into
 /// `if {[exit $d $k]} {...}` — terminating the process instead of testing
 /// dict membership.
 #[test]
@@ -1912,13 +1891,13 @@ fn test_w201_no_rewrite_for_mixed_segment() {
     );
 }
 
-/// Issue #1000: refactor code actions must reach control flow inside an
+/// Refactor code actions must reach control flow inside an
 /// `apply` lambda body.  `apply`'s literal is `ArgRole::LambdaLiteral`, so
 /// the refactor descent has to split it and walk element 1; re-segmenting
-/// the whole `{argList body}` blob read `{m}` as a command name and left
-/// every `body_words`-backed action (if-to-switch, switch-to-dict,
-/// brace-expr, inline-variable, extract-to-datagroup) silently unavailable
-/// in there.  tclsh8.6/9.0-verified that this lambda really does run the
+/// the whole `{argList body}` blob would read `{m}` as a command name and
+/// leave every `body_words`-backed action (if-to-switch, switch-to-dict,
+/// brace-expr, inline-variable, extract-to-datagroup) unavailable
+/// in there.  tclsh 8.6/9.0 confirm this lambda really does run the
 /// `if` it wraps.
 #[test]
 fn test_if_to_switch_offered_inside_an_apply_lambda_body() {
@@ -1936,7 +1915,7 @@ fn test_if_to_switch_offered_inside_an_apply_lambda_body() {
     );
 }
 
-/// TN (Codex review on #1047): a lambda body written as a **quoted** list
+/// TN: a lambda body written as a **quoted** list
 /// element with escapes is backslash-decoded before `apply` evaluates it,
 /// so its source slice is not the script that runs — the source says `$m eq
 /// \"GET\"` where the real body says `$m eq "GET"` (tclsh 8.6 / 9.0.4 both

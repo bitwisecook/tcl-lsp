@@ -194,7 +194,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "binary format formatString ?arg ...?",
         pure: true,
         // The cursor-driven field string: index 0 after the subcommand word,
-        // family `Binary` (#1185).
+        // family `Binary`.
         arg_roles: &[(0, ArgRole::FormatString)],
         format_string_type: Some(FormatType::Binary),
         // S110 binary source: the return type marks the result a byte array —
@@ -239,7 +239,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // `binary scan` writes format-dependent values (`a` → string, `c`/`s`/
         // `i` → int, `f` → double, `@` → none) to its targets while returning
         // the *count* of conversions.  The targets are not the count, so they
-        // must not be typed `Int` (issue #867).
+        // must not be typed `Int`.
         var_write_typing: VarWriteTyping::Destructured,
         arg_types: &[
             (
@@ -277,7 +277,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 fn binary_scan_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     // Index 1 (after the `scan` subcommand word) is the field string itself;
     // marking it `ScanFormat` is what lets the LSP locate it without naming
-    // `binary` (#1185).
+    // `binary`.
     std::iter::once((1u8, ArgRole::ScanFormat))
         .chain((2..args.len()).filter_map(|i| u8::try_from(i).ok().map(|i| (i, ArgRole::VarWrite))))
         .collect()

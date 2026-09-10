@@ -19,10 +19,10 @@
 //! Analysis graph JSON builders — the call graph, symbol graph, and
 //! dataflow/taint graph, each rendered to a `serde_json::Value`.
 //!
-//! This is the shared, consumer-agnostic home for the graph shapes: the
-//! `tcl` CLI (`callgraph` / `symbolgraph` / `dataflow` verbs), the LSP
-//! server, and the `tcl_lsp_py` `PyO3` facades all build the *same* graphs
-//! from this one implementation. Callers supply a resolved
+//! This is the shared, consumer-agnostic home for the graph shapes. Every
+//! consumer — the `tcl` CLI (`callgraph` / `symbolgraph` / `dataflow`
+//! verbs), the LSP server, `tcl-mcp` and the WASM hosts — builds the *same*
+//! graphs from this one implementation. Callers supply a resolved
 //! [`CommandRegistry`] and the dialect string; every position is 0-based
 //! and UTF-16 counted, matching the LSP wire convention.
 
@@ -442,6 +442,36 @@ fn build_nodes(
         .collect()
 }
 
+/// One [`CompilationUnit`] for a graph verb's combined source, built with the
+/// document's own command declarations in force.
+///
+/// The graph verbs take source text, not a path, so only an inline
+/// `# tcl-lsp: stubs-begin` block is reachable here — a sidecar's roles can
+/// only widen the answer, never narrow it. Declaring the surface is what lets
+/// a stubbed command's `body` / `var` argument roles reach lowering and the
+/// interprocedural call scan exactly as a shipped `CommandSpec`'s do, so a
+/// `stub db_eval {sql script:body}` contributes the same call-graph edge a
+/// registry body command does.
+fn document_unit(
+    source: &str,
+    registry: &CommandRegistry,
+    profile: &'static tcl_dialect::DialectProfile,
+) -> CompilationUnit {
+    let declared =
+        tcl_compiler::analyser::utils::document_declared_surface(source, None, profile.name);
+    CompilationUnit::build_with_options(
+        source,
+        tcl_compiler::compilation_unit::UnitBuildOptions {
+            registry,
+            defer_top_level: false,
+            config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+            dialect: Some(profile),
+            external_call_sites: None,
+            declared_commands: Some(&declared),
+        },
+    )
+}
+
 /// Build the full call-graph payload.
 #[must_use]
 pub fn call_graph(
@@ -453,8 +483,7 @@ pub fn call_graph(
     // interprocedural pass sees the same lowered IR — raw `lower_to_ir` alone
     // does not surface nested `[cmd …]` call sites to the call scanner.
     let profile = dialect;
-    let cu = CompilationUnit::build_for_profile(source, registry, false, profile)
-        .with_interprocedural(registry, Some(profile));
+    let cu = document_unit(source, registry, profile).with_interprocedural(registry, Some(profile));
     let ir_module = &cu.ir_module;
     let interproc = cu
         .interproc
@@ -774,8 +803,7 @@ pub fn dataflow_graph(
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Value {
     let profile = dialect;
-    let cu = CompilationUnit::build_for_profile(source, registry, false, profile)
-        .with_interprocedural(registry, Some(profile));
+    let cu = document_unit(source, registry, profile).with_interprocedural(registry, Some(profile));
     let line_index = LineIndex::new(source);
 
     let mut proc_names: Vec<&String> = cu.procedures.keys().collect();
@@ -954,8 +982,7 @@ pub fn def_use_graph(
     }
 
     let profile = dialect;
-    let cu = CompilationUnit::build_for_profile(source, registry, false, profile)
-        .with_interprocedural(registry, Some(profile));
+    let cu = document_unit(source, registry, profile).with_interprocedural(registry, Some(profile));
 
     let mut proc_names: Vec<&String> = cu.procedures.keys().collect();
     proc_names.sort();
@@ -1028,7 +1055,7 @@ pub fn memory_alias_graph(
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Value {
     let profile = dialect;
-    let cu = CompilationUnit::build_for_profile(source, registry, false, profile)
+    let cu = document_unit(source, registry, profile)
         .with_interprocedural(registry, Some(profile))
         .with_memory_ssa(
             registry,
@@ -1074,10 +1101,9 @@ mod tests {
     use super::*;
     use std::fmt::Write as _;
 
-    /// Regression coverage for issue #996: `scope_to_value`,
-    /// `count_variables`, and `count_namespaces` recurse once per nested
-    /// namespace scope, with no depth cap before this fix
-    /// (`MAX_SCOPE_WALK_DEPTH`, `crate::lib`). 80 nested `namespace eval`
+    /// `scope_to_value`, `count_variables`, and `count_namespaces` recurse
+    /// once per nested namespace scope, capped by
+    /// `MAX_SCOPE_WALK_DEPTH` (`crate::lib`). 80 nested `namespace eval`
     /// levels is past the point (confirmed empirically: 100+) where
     /// unguarded namespace-scope recursion overflows `cargo test`'s bare
     /// ~2 MiB per-test default — namespace nesting costs meaningfully more

@@ -16,14 +16,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `f5-query-builtins-doc` — the F5 query DSL builtin-reference coverage gate
-//! (issue #1404 item 1).
+//! `f5-query-builtins-doc` — the F5 query DSL builtin-reference coverage gate.
 //!
 //! `docs/references/f5_query/builtins.md` is the canonical per-function
-//! reference for every builtin `f5 query` exposes. It used to claim to be
-//! *generated* from a Python registry that no longer exists; the header has
-//! since been corrected to say it is hand-maintained, but nothing verified
-//! that by hand meant *current* rather than merely *plausible*.
+//! reference for every builtin `f5 query` exposes, and its header says it is
+//! hand-maintained — but nothing verifies that hand-maintained means
+//! *current* rather than merely *plausible*.
 //!
 //! A full content generator is not on the table: [`tcl_bigip_query::builtins`]
 //! deliberately carries only dispatch metadata (name / category / arity /

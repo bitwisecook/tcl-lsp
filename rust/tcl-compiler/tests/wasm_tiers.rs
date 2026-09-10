@@ -16,14 +16,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! **P0 harness** — every `samples/wasm` tier script compiled, linked against
-//! the real runtime, run under wasmtime, and diffed against its `tclsh9.0`
-//! oracle; plus the committed framing budgets each later phase must reduce.
+//! Every `samples/wasm` tier script, compiled, linked against the real
+//! runtime, run under wasmtime, and diffed against its `tclsh9.0` oracle;
+//! plus the committed framing budgets a compiled sample must stay under.
 //!
-//! This is the acceptance surface for the phased plan in
+//! This is the acceptance surface described in
 //! [`docs/design/compiler/wasm-native-lowering-plan.md`] (§2.2 for today's
-//! divergences, §7 row P0 for what this file owes the programme). It answers
-//! two questions on every commit:
+//! divergences). It answers two questions on every commit:
 //!
 //! 1. **Does the compiled program still mean what Tcl means?** Each
 //!    `samples/wasm/t*/*.tcl` is compiled with
@@ -36,8 +35,8 @@
 //! 2. **How much Tcl framing is left?** [`samples/wasm/budgets.tsv`] records,
 //!    per sample and plan, the number of `call` sites reaching
 //!    `tcl_eval_code` / `tcl_expr_bool` / `tcl_invoke_argv` and the number of
-//!    native 64-bit numeric instructions. Every phase's framing reduction then
-//!    lands as a *reviewed golden diff* rather than an unmeasured claim.
+//!    native 64-bit numeric instructions. A framing reduction lands as a
+//!    *reviewed golden diff* rather than an unmeasured claim.
 //!
 //! # The expected-divergence table is a defect ledger, not a tolerance
 //!
@@ -53,8 +52,7 @@
 //!
 //! Only the second half makes the ledger self-cleaning. An expected-failure
 //! list that silently absorbs a fix rots into a list of things nobody
-//! remembers were ever broken, and the phase that fixed one gets no credit and
-//! no gate.
+//! remembers were ever broken.
 //!
 //! # Running it
 //!
@@ -63,7 +61,7 @@
 //! target, wasi-sdk and the libtommath source must all be present, the skip
 //! names whichever is missing, and **`TCL_REQUIRE_WASM_LINK=1`** turns that
 //! skip into a failure. Set it in CI; a silent skip here is indistinguishable
-//! from a pass (issue #1542).
+//! from a pass.
 //!
 //! The budgets test needs none of that — it only compiles — so framing drift
 //! is caught even on a machine with no wasm toolchain at all.
@@ -96,7 +94,7 @@ enum Plan {
     Default,
     /// The opt-in analysis-derived specialisation tier.
     Analysis,
-    /// The native tier (P3): NLIR lowering, representation inference,
+    /// The native tier: NLIR lowering, representation inference,
     /// trace-barrier elision, and native emission.
     Native,
 }
@@ -144,8 +142,8 @@ struct Sample {
 /// A sample/plan pair that is known not to match tclsh today, with the reason.
 ///
 /// `why` is the *defect*, not a shrug: every entry names the issue or the §2.2
-/// review finding that explains it and the phase that will remove it. An entry
-/// with no such reason does not belong here — it belongs in a bug report.
+/// review finding that explains it. An entry with no such reason does not
+/// belong here — it belongs in a bug report.
 #[derive(Debug, Clone, Copy)]
 struct ExpectedDivergence {
     tier: &'static str,
@@ -161,14 +159,10 @@ struct ExpectedDivergence {
 /// exposes; the one row shared by every plan is the wasm build's missing
 /// `coroutine`.
 ///
-/// §2.2 of the plan document records 29/36 for the analysis plan: its second
-/// defect (`50_catch_error`) closed with the P1 lane's "a compiled activation
-/// is an eval-loop activation" change, and its first — the `puts` fast path
-/// re-parsing compatibility text (issue #1772: `11_while_loop`, `20_lists`,
-/// `24_regex`, `41_upvar`, `70_var_traces`) — closed when P3 retired that path
-/// from `codegen/wasm/backend.rs`. This suite's stale-entry check is what
-/// caught each ledger row going out of date the moment it did. The plan
-/// document's table is the older reading.
+/// This table, not §2.2 of the plan document, is the current reading: the
+/// stale-entry check below catches an entry the moment its defect is fixed,
+/// so an entry here can only be behind in the direction of a defect that is
+/// now closed, never the reverse.
 const EXPECTED_DIVERGENCES: &[ExpectedDivergence] = &[
     ExpectedDivergence {
         tier: "t7-dynamic",
@@ -217,8 +211,8 @@ struct Budget {
 /// would let a budget rise without a single Tcl operation having been lowered.
 ///
 /// Written as a prefix rule over [`WasmOp::wat_name`] rather than an explicit
-/// opcode list so that the `f64.*` arithmetic P3 adds is counted the day it is
-/// emitted, with no second edit here to forget.
+/// opcode list so that any `f64.*` arithmetic the native tier adds is counted
+/// the day it is emitted, with no second edit here to forget.
 fn is_native_numeric(op: WasmOp) -> bool {
     let name = op.wat_name();
     let Some(rest) = name

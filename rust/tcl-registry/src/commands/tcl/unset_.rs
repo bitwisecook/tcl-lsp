@@ -73,7 +73,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// `unset ?-nocomplain? ?--? ?name name name ...?` — every trailing word is a
 /// variable name, not just the first.  Resolve `VarWrite` dynamically (skipping
 /// the leading options) so all names highlight as variables rather than only
-/// the first (issue #774).
+/// the first.
 ///
 /// Mirrors `Tcl_UnsetObjCmd` (generic/tclCmdMZ.c) — *not* the broader,
 /// currently-incorrect leading-option loop in `tcl-compiler`'s `lower_unset`

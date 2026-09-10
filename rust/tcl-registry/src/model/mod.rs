@@ -16,8 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The registry on the new core/environment model (P1-E of the redesign,
-//! `docs/design/registry/dialect-and-package-registry-redesign.md` §4 and
+//! The registry on the new core/environment model
+//! (`docs/design/registry/dialect-and-package-registry-redesign.md` §4 and
 //! `docs/design/registry/dialect-and-package-registry-centralisation.md` §1).
 //!
 //! The submodules are layered exactly as the design's availability
@@ -42,23 +42,23 @@
 //!   ([`resolve_environment`]): every user-written dialect string in the
 //!   toolchain resolves to a [`DocumentEnvironment`] here, and derives its
 //!   registry generation and interop profile from the resolved
-//!   environment (centralisation R-a, ledger C2/F2/F3/F9).
-//! - [`tcllib`] — per-module tcllib package identity (P5): each module's
+//!   environment (centralisation R-a).
+//! - [`tcllib`] — per-module tcllib package identity: each module's
 //!   `package require` name, its parallel version trains, and its
 //!   Tcl-core floor, all read out of the bundled tcllib 2.0 sources. This
 //!   is what makes a tcllib module a package with its own axis rather
 //!   than a name on one undifferentiated "tcllib" blob.
 //! - [`semantic`] — [`SemanticContext`]: the generation-bound handle the
-//!   semantic-analysis and executable-IR path is keyed on (ledger C1,
-//!   redesign §11.2 D1), and
+//!   semantic-analysis and executable-IR path is keyed on (redesign
+//!   §11.2 D1), and
 //!   [`resolve_structured_invocation_in_context`], the structured-words
 //!   face of the C7/I4 selection primitive.
 //! - [`binding`] — the [`BindingKnowledge`] **semantic view** types
 //!   (I3–I5) plus the package realm vocabulary
-//!   ([`PackageStateMap`], [`PackageTransition`]). P1a integrated the
-//!   realm: the compiler's document realm scan produces these values,
-//!   and the [`assembly`] selection primitives enforce the binding-proof
-//!   rule (I4) over the carried context.
+//!   ([`PackageStateMap`], [`PackageTransition`]). The compiler's document
+//!   realm scan produces these values, and the [`assembly`] selection
+//!   primitives enforce the binding-proof rule (I4) over the carried
+//!   context.
 //!
 //! Everything here lands **alongside** the old `SpecSurface`-mask registry:
 //! nothing existing is wrapped or shimmed, and the equivalence sweeps in
@@ -88,6 +88,7 @@ pub use context::{
 };
 pub use declaration::{
     DeclaredArgument, DeclaredCommand, DeclaredSurface, DocumentCommandSurface, role_for_word,
+    role_for_word_checked,
 };
 pub use ingress::{
     DocumentEnvironment, context_for_profile, environments, irules_context,

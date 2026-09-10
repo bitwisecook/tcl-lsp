@@ -16,16 +16,16 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Slice-1 corpus gate: `file_decls` must equal the analyser's own declaration
+//! Corpus gate: `file_decls` must equal the analyser's own declaration
 //! sets (`all_procs` / `all_classes` / `command_aliases` / `ensemble_namespaces`)
 //! over the real-world `tmp/` corpus.
 //!
-//! In slice 1 the `item_tree` query is anchored to `Analyser::analyse`, so this
-//! holds by construction — but the test is the **permanent guard** that bites
-//! when slices 2–3 swap `item_tree` onto a cheap, independent CST extractor.
-//! Any divergence between that extractor and `analyse` shows up here as a
-//! per-file proc/class/alias/ensemble set mismatch. Corpus-gated (`--ignored`),
-//! mirroring `tcl-compiler`'s `differential_incremental`.
+//! The `item_tree` query currently derives from `Analyser::analyse`, so this
+//! holds by construction — but the test is the **permanent guard** against a
+//! future independent, cheap CST extractor for `item_tree` diverging from
+//! `analyse`. Any divergence between that extractor and `analyse` shows up here
+//! as a per-file proc/class/alias/ensemble set mismatch. Corpus-gated
+//! (`--ignored`), mirroring `tcl-compiler`'s `differential_incremental`.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};

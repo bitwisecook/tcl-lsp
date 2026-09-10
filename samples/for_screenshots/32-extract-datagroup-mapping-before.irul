@@ -1,7 +1,7 @@
 when HTTP_REQUEST {
     set uri [HTTP::uri]
-    #   ^--- cursor on switch
     switch -exact -- $uri {
+    #   ^--- cursor on switch
         "/api"    { set target api_pool }
         "/web"    { set target web_pool }
         "/static" { set target cdn_pool }

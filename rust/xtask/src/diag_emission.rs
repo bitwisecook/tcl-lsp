@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `diag-emission-check` — the "every non-reserved code has a producer"
-//! completeness gate (issue #1317).
+//! completeness gate.
 //!
 //! A code that is genuinely specified-but-not-yet-wired (`W130`-`W134`)
 //! declares that state through `DocRow::Diagnostic`'s `reserved` field, so
@@ -27,7 +27,7 @@
 //! everything else, greps [`SEARCH_ROOTS`] for at least one real
 //! construction site.
 //!
-//! This is exactly the class of bug issue #1317 found twice: `W122` had no
+//! This is exactly the class of bug this gate catches: `W122` had no
 //! producer left at all (its check was superseded by `W124` and never
 //! removed), and `W308`'s registry entry had drifted to describe a check
 //! (`subst` without `-nocommands`) no emitter ever implemented. A code that
@@ -256,9 +256,9 @@ mod tests {
     #[test]
     fn every_non_internal_non_reserved_code_has_a_producer() {
         // The gate itself, as a `cargo test`-reachable regression (not just
-        // a `cargo xtask` subcommand) — so a future PR that silently drops
-        // a code's last producer (the W122 / W308 class of bug, issue
-        // #1317) fails `cargo test -p xtask`, not just the drift gate.
+        // a `cargo xtask` subcommand) — so a change that silently drops
+        // a code's last producer (the W122 / W308 class of bug)
+        // fails `cargo test -p xtask`, not just the drift gate.
         assert_eq!(run(), ExitCode::SUCCESS);
     }
 }

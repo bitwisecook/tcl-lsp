@@ -116,8 +116,8 @@ pub fn run_pcap_remap(
         match remap_pcap_with(&input_bytes, &mut rm, reverse, policy, &overlay) {
             Ok(pair) => pair,
             Err(exc @ PcapError::UnknownTrailer { .. }) => {
-                // The output may have been partially written; we never wrote it,
-                // but remove any stale file.
+                // This run never wrote the output; remove any stale file left
+                // at that path by an earlier one.
                 let _ = std::fs::remove_file(output);
                 eprintln!(
                     "error: {exc}\n  -> rerun with --on-unknown=preserve|sweep, or supply a \

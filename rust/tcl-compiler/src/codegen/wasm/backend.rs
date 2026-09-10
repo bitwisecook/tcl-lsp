@@ -171,8 +171,8 @@ struct GuardedIntrinsicImports {
 
 /// Imports used exclusively by a selected native i64-to-boxed boundary.
 ///
-/// Keeping these out of [`AotImports`] preserves the legacy/general WASM
-/// import surface when native proof selection is disabled.
+/// Keeping these out of [`AotImports`] leaves the general WASM import surface
+/// unchanged when native proof selection is disabled.
 #[derive(Clone, Copy)]
 struct NativeI64AddImports {
     value_new_wide_int: u32,
@@ -249,7 +249,7 @@ struct FunctionFacts {
     leaf_declines: HashMap<(u32, u32), WasmLeafInvokeDecline>,
     /// Spans of `proc` definitions that wrote every word out, so this tier may
     /// register the definition itself instead of leaving it to the runtime's
-    /// own `proc` (issue #1896). Decided while planning, where the statement's
+    /// own `proc`. Decided while planning, where the statement's
     /// structured words are still to hand.
     literal_proc_definitions: HashSet<(u32, u32)>,
 }
@@ -616,7 +616,7 @@ impl WasmEmitter {
                 // compiled from a value this tier materialised, and registering
                 // that word reports the wrong `info body` and leaves any later
                 // run of the source body evaluating a substitution in the
-                // procedure's own frame (issue #1896). The generic invocation
+                // procedure's own frame. The generic invocation
                 // below hands the word to the runtime's `proc`, which evaluates
                 // it at the call site as Tcl does.
                 if !self
@@ -639,10 +639,9 @@ impl WasmEmitter {
                 self.emit_completion_dispatch();
                 true
             }
-            // The `puts` fast path that reparsed compatibility text is
-            // retired (issue #1772): the leaf-invocation path below evaluates
-            // its words structurally, and the native tier owns the
-            // channel-write intrinsic.
+            // There is no `puts` fast path reparsing compatibility text: the
+            // leaf-invocation path below evaluates its words structurally, and
+            // the native tier owns the channel-write intrinsic.
             SemanticOperationId::Invoke
             | SemanticOperationId::Intrinsic(_)
             | SemanticOperationId::StructuredLowering(_) => false,
@@ -1652,7 +1651,7 @@ fn record_operation(
 ///
 /// The general tier's half of the rule the native tier applies in
 /// `native_lowering::lower::lower_definition`; both call the same predicate so
-/// the two cannot drift (issue #1896).
+/// the two cannot drift.
 fn proc_definition_is_written_out(
     module: &crate::ir::Module,
     span: Span,
@@ -2478,10 +2477,10 @@ mod tests {
         found
     }
 
-    /// Issue #1896 — a definition whose body word is a substitution must not be
-    /// registered by this tier.
+    /// A definition whose body word is a substitution must not be registered
+    /// by this tier.
     ///
-    /// The reproducer from the issue. `Procedure` records the *written* word
+    /// `Procedure` records the *written* word
     /// `${body}` while the body this module compiled came from `return hello`,
     /// so registering it would report that word as `info body`, and any later
     /// run of the source body would evaluate the substitution in `p`'s own

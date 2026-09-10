@@ -21,9 +21,8 @@
 //! `tcl-compiler` and run through `tcl-vm`. Expected outputs are taken from real
 //! `tclsh` (8.6 and 9.0); each non-obvious assertion cites a `// tclsh:` comment.
 //!
-//! The `bug_*` tests document former VM-vs-tclsh divergences on valid input:
-//! each asserts the *correct* tclsh behaviour and now passes, guarding the fix
-//! against regression.
+//! The `bug_*` tests document valid input where the VM must not diverge from
+//! tclsh, each asserting the *correct* tclsh behaviour.
 //!
 //! Targets: `tcl-vm/src/cmd_math.rs`, `expr.rs`, `cmd_mathop.rs`.
 //!
@@ -125,8 +124,8 @@ fn expr_stk_dynamic_evaluation() {
     cmd_eq("set e {\"x\" eq \"y\"}; expr $e", "0"); // compare_string
     cmd_eq("set e {1 ? 2 : 3}; expr $e", "2"); // ternary / to_bool
     cmd_eq("set e {true && false}; expr $e", "0"); // bool_value
-    // The runtime literal/var paths DO normalize (unlike the braced bare form).
-    cmd_eq("set e {1e3}; expr $e", "1000.0"); // literal normalization
+    // The runtime literal/var paths DO normalise (unlike the braced bare form).
+    cmd_eq("set e {1e3}; expr $e", "1000.0"); // literal normalisation
     cmd_eq("set e {0xff}; expr $e", "255");
     cmd_eq("set x 5; set e {\"v$x\"}; expr $e", "v5"); // quoted-string operand
 }
@@ -183,9 +182,9 @@ fn expr_stk_dynamic_errors() {
 /// of its own — inserts the `_@_` mark. Each expectation is a `tclsh` result
 /// transcribed from C's own suite, `tests/parseExpr.test`.
 ///
-/// These all used to succeed, yielding the expression's own source text: an
-/// unparsable expression short-circuited `Vm::eval_expr` before the shared
-/// walker's `syntax error in expression` could fire.
+/// An unparsable expression that short-circuits `Vm::eval_expr` before the
+/// shared walker's `syntax error in expression` can fire would succeed
+/// instead, yielding the expression's own source text.
 #[test]
 fn expr_command_rejects_an_unparsable_expression() {
     // A dangling operator. tclsh: `missing operand at _@_` (`tclCompExpr.c:1151`)
@@ -361,10 +360,10 @@ fn a_comment_does_not_raise_the_unparsable_expression_error() {
 /// A `switch` subject and a `[…]` expression operand are *words*, not
 /// expressions — neither may be re-parsed as one.
 ///
-/// Both used to be lowered through `exprStk`, so both depended on an unparsable
-/// expression evaluating to its own text: `switch -- abc …` ran `expr {abc}`, and
-/// `[…]` was pushed (which substitutes it) and then evaluated a second time.
-/// Where the intermediate text *was* parsable the double evaluation gave a wrong
+/// Lowering both through `exprStk` would depend on an unparsable
+/// expression evaluating to its own text: `switch -- abc …` would run `expr {abc}`, and
+/// `[…]` would be pushed (which substitutes it) and then evaluated a second time.
+/// Where the intermediate text *is* parsable the double evaluation gives a wrong
 /// answer outright, which is what the `1+1` / `1+2` vectors pin.
 #[test]
 fn a_word_operand_is_not_re_parsed_as_an_expression() {
@@ -486,9 +485,9 @@ fn expr_double_default_formatting() {
     expr_eq("1.0 * 1000000000000000.0", "1000000000000000.0");
 }
 
-// BUG: a *bare* literal (or bare `$var`) that is the entire `expr` is returned
+// A *bare* literal (or bare `$var`) that is the entire `expr` is returned
 // verbatim instead of being coerced to its canonical numeric string. tclsh
-// normalizes the single operand to its number form. The VM only normalizes when
+// normalises the single operand to its number form. The VM only normalises when
 // the literal participates in an operation (the dynamic `expr $v` form, which
 // recompiles, is also correct — the divergence is specific to a single-operand
 // braced `expr {…}`).
@@ -504,13 +503,13 @@ fn bug_bare_literal_operand_not_normalized() {
     expr_eq("0xff", "255"); // tclsh: 255
     expr_eq("0o17", "15"); // tclsh: 15
     expr_eq("0b1010", "10"); // tclsh: 10
-    // A bare `$var` operand whose value is an un-normalized number, likewise.
+    // A bare `$var` operand whose value is an un-normalised number, likewise.
     let (ok, result, _) = run("set v 1e3; expr {$v}");
     assert!(ok, "expr {{$v}} should evaluate: {result}");
     assert_eq!(result, "1000.0"); // tclsh: 1000.0
 }
 
-// BUG: a double operation that produces NaN from non-NaN operands is a
+// A double operation that produces NaN from non-NaN operands is a
 // "domain error" in tclsh (tclExecute.c checks the result), but the VM's
 // `dbl_arith` returns the NaN silently and stringifies it as "NaN".
 //   script:        expr {0.0 / 0.0}
@@ -700,7 +699,7 @@ fn expr_binary_operand_errors() {
 #[test]
 fn expr_radix_literals() {
     // Radix prefixes parsed in an arithmetic context (a bare literal hits the
-    // not-normalized bug, covered separately).  tclsh: shared 8.6/9.0 (avoiding
+    // not-normalised case, covered separately).  tclsh: shared 8.6/9.0 (avoiding
     // bare 0NNN octal, which 8.6/9.0 disagree on).
     expr_eq("0xff + 0", "255");
     expr_eq("0xFF * 1", "255");
@@ -1009,7 +1008,7 @@ fn expr_runtime_unary_list_operand_error() {
     assert_eq!(result, "cannot use a list as operand of \"-\"");
 }
 
-// BUG: a negative shift count reports "negative shift count" in the VM, but
+// A negative shift count reports "negative shift count" in the VM, but
 // tclsh (8.6 and 9.0) reports "negative shift argument".
 //   script:        set a 1; set b -1; expr {$a << $b}
 //   tclsh 8.6/9.0: negative shift argument
@@ -1068,7 +1067,7 @@ fn mathfunc_abs() {
     expr_eq("abs(3.0)", "3.0");
 }
 
-// BUG: abs() of the most-negative wide overflows. tclsh promotes to a bignum
+// Abs() of the most-negative wide overflows. tclsh promotes to a bignum
 // and returns the positive magnitude; the VM uses `i64::wrapping_abs`, which
 // leaves the most-negative wide unchanged (negative).
 //   script:        expr {abs(-9223372036854775808)}
@@ -1108,7 +1107,7 @@ fn mathfunc_int_wide_are_the_64bit_window() {
     // then wraps the same way (variable args defeat const folding).
     //
     // `int()` is **not** the same function at 9.0 — TIP 237's unbounded
-    // `ExprIntFunc` (issue #1382). This suite runs the VM at its default 9.0
+    // `ExprIntFunc`. This suite runs the VM at its default 9.0
     // release, so `int()` here is `entier()`; the 8.6 window is pinned
     // separately (`tcl-vm/tests/numeric_tower_e2e.rs`
     // `int_follows_the_vms_release`, which drives both releases).
@@ -1399,7 +1398,7 @@ fn mathfunc_bool_nonboolean_argument_error() {
     assert_eq!(result, "expected boolean value but got \"abc\"");
 }
 
-// BUG: the integer-ish functions (abs/int/round/entier/isqrt/max/min) funnel a
+// The integer-ish functions (abs/int/round/entier/isqrt/max/min) funnel a
 // non-numeric argument through `as_double()`, so they report "expected
 // floating-point number" where tclsh 9.0 reports the integer-flavoured
 // "expected number" (the function never accepts a fractional value here).
@@ -1418,7 +1417,7 @@ fn bug_integer_mathfunc_nonnumeric_error_wording() {
     assert_eq!(result, "expected number but got \"abc\"");
 }
 
-// BUG: the classification predicates reject the literal `NaN` value. tclsh 9.0
+// The classification predicates reject the literal `NaN` value. tclsh 9.0
 // accepts `NaN`/`Inf` as floating-point values for `isnan`/`isunordered`/… (the
 // whole point of `isnan` is to detect one), but the VM's `pred_fn`/`pred_fn2`
 // coerce via `as_double()`, which parses `Inf` yet errors on `NaN`.
@@ -1455,7 +1454,7 @@ fn mathfunc_max_min_double() {
     expr_eq("min(1.0,2,3)", "1.0"); // winner 1.0 is a double
 }
 
-// BUG: max()/min() over a mix of integers and doubles returns the *winning
+// Max()/min() over a mix of integers and doubles returns the *winning
 // element with its own type* in tclsh. The VM's `min_max` coerces every
 // argument to f64 and returns a double whenever any argument is non-integer,
 // so it prints the integer winner as a double.
@@ -1474,7 +1473,7 @@ fn bug_max_min_mixed_preserves_winner_type() {
 
 // tcl::mathfunc: arg-count and bad-argument errors
 
-// BUG: the math-function arity error wording diverges across every function.
+// The math-function arity error wording diverges across every function.
 // tclsh 9.0 says "not enough arguments for math function \"X\"" (too few) and
 // "too many arguments for math function \"X\"" (too many); the VM emits the
 // single phrasing "too many/few args to math function \"X\"" (and "too few args
@@ -1524,7 +1523,7 @@ fn bug_mathfunc_arity_error_wording() {
     );
 }
 
-// tcl::mathfunc: rand / srand — the shared Park-Miller generator (#1432)
+// tcl::mathfunc: rand / srand — the shared Park-Miller generator
 
 /// `srand(N)` seeds the generator and returns its first draw, so it is
 /// deterministic: tclsh 8.6.16 and 9.0.4 both answer `srand(1)` with
@@ -1621,7 +1620,7 @@ fn mathop_string_comparisons() {
 
 #[test]
 fn mathop_lt_le_gt_ge_are_lexicographic_not_numeric() {
-    // Adversarial-review finding (issue #984): every existing lt/le/gt/ge
+    // Every existing lt/le/gt/ge
     // case above (`a`/`b`, `1`/`1`, `2`/`1`, `2`/`2`) happens to agree
     // whether compared as strings or as numbers, so none of them would
     // catch a regression that silently flipped these operators to numeric
@@ -1699,13 +1698,12 @@ fn mathop_namespace_import() {
     assert_eq!(result, "60");
 }
 
-// -- radix-invalid numerals are barewords, not their own text (found by the
-//    differential fuzzer's malformed-expression campaigns) --
+// Radix-invalid numerals are barewords, not their own text.
 
 /// A numeral whose digits are invalid for its radix is not a number: C's
 /// `ParseLexeme` fails to consume it with `TclParseNumber` and classifies the
-/// text as a bareword (`tclCompExpr.c:716-780`). It used to evaluate to its own
-/// source text — `expr {0o8}` returned the string `0o8`.
+/// text as a bareword (`tclCompExpr.c:716-780`). Evaluating it to its own
+/// source text instead would return the string `0o8` for `expr {0o8}`.
 #[test]
 fn radix_invalid_numerals_are_barewords() {
     for (bad, radix) in [("0o8", "octal"), ("0o9", "octal"), ("0b2", "binary")] {

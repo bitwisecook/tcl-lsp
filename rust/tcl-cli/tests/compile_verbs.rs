@@ -68,11 +68,11 @@ fn dis_optimise_folds_constants() {
     );
 }
 
-/// Issue #1048 review follow-up: the compile verbs thread the resolved dialect
-/// into lowering, not just registry selection. An auto-detected iRule's
-/// word-operator condition must reach codegen as a real comparison node and
-/// disassemble to its dedicated opcode — dialect-blind lowering left it an
-/// opaque raw expression on the generic runtime-`expr` path.
+/// The compile verbs thread the resolved dialect into lowering, not just
+/// registry selection. An auto-detected iRule's word-operator condition must
+/// reach codegen as a real comparison node and disassemble to its dedicated
+/// opcode — dialect-blind lowering would leave it an opaque raw expression
+/// on the generic runtime-`expr` path.
 #[test]
 fn dis_lowers_word_operators_for_the_detected_dialect() {
     let input =

@@ -29,8 +29,9 @@
 //! [`OperatorShape`] reifies the fold/chain taxonomy `tcl_cmd_core::mathop`'s
 //! helper functions (`fold`, `left_fold`, `pow_fold`, `binary`, `bool_chain`,
 //! `ne_binary`, `membership`) already implement by hand — one shape per
-//! helper. An operator with no `::tcl::mathop` command form at all (`&&`,
-//! `||`, every iRules word operator) has `mathop_shape: None`: the parser
+//! helper, plus [`OperatorShape::Unary`] for the `~`/`!` commands that module
+//! handles inline. An operator with no `::tcl::mathop` command form at all
+//! (`&&`, `||`, every iRules word operator) has `mathop_shape: None`: the parser
 //! already accepts it as expr grammar, but no bare/`tcl::mathop::`-prefixed
 //! command exists for it (verified against `tclsh` 8.4 through 9.1 — `info
 //! commands ::tcl::mathop::*` never lists `&&`, `||`, `and`, `or`, `not`,
@@ -99,7 +100,7 @@ pub enum OperatorShape {
     /// the same zero-argument identity (`1`) as `Fold` but a different
     /// associativity, so it can't share that variant.
     PowFold,
-    /// A plain two-argument operation with no fold/chain behavior at all
+    /// A plain two-argument operation with no fold/chain behaviour at all
     /// (`%`, `<<`, `>>`) — always exactly 2 arguments.
     Binary,
     /// A plain one-argument operation (`!`, `~`) that shares no command
@@ -191,11 +192,10 @@ type SpecFacts = (
 impl BinOp {
     /// Static metadata for this operator — see the module docs for how
     /// [`OperatorShape`] and dialect gating are derived. Split into one
-    /// helper per operator family (mirroring
-    /// `mathop_generated.rs`'s `specs_0()..specs_19()` split) purely to stay
-    /// under clippy's function-length lint; the dispatch match below is
-    /// still exhaustive with no wildcard arm, so a new `BinOp` variant is a
-    /// compile error here, not a silent gap.
+    /// helper per operator family purely to stay under clippy's
+    /// function-length lint; the dispatch match below is still exhaustive
+    /// with no wildcard arm, so a new `BinOp` variant is a compile error
+    /// here, not a silent gap.
     #[must_use]
     pub const fn spec(self) -> OperatorSpec {
         let (surface, mathop_shape, summary) = match self {
@@ -440,9 +440,9 @@ impl BinOp {
             // `e_matches`: `expr {"abc" matches "abc"}` answers `1` in
             // all three F5 contexts and fails on both host builds); the
             // probe is an exact-equality case, so it discriminates none
-            // of the string-match readings. §12 carries the outstanding
-            // semantic re-probe, and the summary says so rather than
-            // implying a pinned meaning.
+            // of the string-match readings (§12 names the probes that
+            // would). The summary says so rather than implying a pinned
+            // meaning.
             Self::Matches => (
                 Some(SpecSurface::IRULES),
                 None,
@@ -701,11 +701,10 @@ mod tests {
             Binary, BoolChain, Fold, Membership, NeBinary, PowFold, SubtractOrDivide, Unary,
         };
 
-        // Spot-check every shape's derived arity against the `tclsh9.1`
-        // ground truth captured while designing this module: `&`, `|`, `^`,
-        // `+`, `*`, `**`, `==`, `<`, `eq` all accept 0 args; `-`/`/` require
-        // at least 1; `%`/`<<`/`>>`/`!=`/`ne`/`in`/`ni` are always exactly 2;
-        // `!`/`~` are always exactly 1.
+        // Every shape's derived arity, against the `tclsh9.1` ground truth:
+        // `&`, `|`, `^`, `+`, `*`, `**`, `==`, `<`, `eq` all accept 0 args;
+        // `-`/`/` require at least 1; `%`/`<<`/`>>`/`!=`/`ne`/`in`/`ni` are
+        // always exactly 2; `!`/`~` are always exactly 1.
         assert_eq!(
             Fold { identity: 0 }.command_arity(),
             CommandArity::at_least(0)
@@ -740,7 +739,7 @@ mod tests {
         for op in [BinOp::StrLt, BinOp::StrLe, BinOp::StrGt, BinOp::StrGe] {
             assert_eq!(op.spec().surface, Some(SpecSurface::TCL90_PLUS));
         }
-        // Their pre-existing (8.5+) counterparts are ungated.
+        // Their 8.4 counterparts are ungated.
         for op in [BinOp::StrEq, BinOp::StrNe] {
             assert_eq!(op.spec().surface, None);
         }
@@ -960,12 +959,12 @@ mod tests {
         }
     }
 
-    /// Drift guard for `tcl-lexer`'s `math_functions()` — the set
+    /// Drift guard for `tcl-lexer`'s `expr_math_functions()` — the set
     /// `tcl-lsp-core::semantic_tokens` reads to decide which `Function`-kind
-    /// expr tokens get the "known math function" modifier. Found this list
-    /// missing every TIP 521 (9.0) / TIP 745 (9.1) addition (under-
-    /// classifying `expr {gamma(2.5)}`/`expr {isfinite($x)}` in a 9.1
-    /// document) — this guard is what would have caught it at the time.
+    /// expr tokens get the "known math function" modifier. A name missing
+    /// from that set under-classifies its call site: a TIP 521 (9.0) or
+    /// TIP 745 (9.1) addition such as `expr {gamma(2.5)}` or
+    /// `expr {isfinite($x)}` would go unhighlighted in a 9.1 document.
     #[test]
     fn tcl_lexer_recognises_every_mathfunc_name() {
         let known = tcl_lexer::expr_math_functions();

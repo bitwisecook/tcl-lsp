@@ -119,7 +119,7 @@ suite("Web workspace sync", () => {
     const extension = vscode.extensions.getExtension("bitwisecook.tcl-lsp");
     assert.ok(extension, "the extension under test is not installed");
     const globs = deriveSyncGlobs(extension.packageJSON as SyncManifest);
-    // Case-folded per character (issue #1215), which is what makes the sweep
+    // Case-folded per character, which is what makes the sweep
     // pick up `UPPER.TCL` on Linux — the same reason the server's watcher
     // registration folds it.
     const source = globs.find((glob) => glob.startsWith("**/*.{"));

@@ -22,13 +22,13 @@
 //! A `# tcl-lsp: stub NAME {ARGS}` block in the analysed buffer, and a
 //! workspace `<environment>.tcl.stubs` sidecar, both say the same kind of
 //! thing the catalogue says: *this name is a command, and these are its
-//! argument roles*. Until this module they said it in their own vocabulary
-//! — a `StubOverlay` of `StubSig`/`StubArg`/`StubSigFlags` values that
-//! every consumer had to consult **beside** the registry, with its own
-//! role-word parser and its own `arg_indices_for_role` twin, and with no
-//! provenance at all.
+//! argument roles*.
 //!
-//! Here they ingest as ordinary [`SurfaceDeclaration`]s:
+//! Here they ingest as ordinary [`SurfaceDeclaration`]s, in the registry's
+//! own vocabulary — one role-word table and one `arg_indices_for_role`,
+//! with a tracked provenance — rather than a second, parallel
+//! representation every consumer would otherwise have to consult beside
+//! the registry:
 //!
 //! - the **provider** is [`Provider::Document`] — active exactly in the
 //!   buffer that declared it, which is why such a declaration never joins
@@ -68,18 +68,19 @@ use std::collections::BTreeMap;
 
 use tcl_dialect::model::{ItemHistory, Provenance, VersionAxisId, VersionSet};
 
-use crate::arg_role::ArgRole;
+use crate::arg_role::{AppendedArity, ArgRole};
 use crate::model::surface::{CapabilityPredicate, Provider, SurfaceDeclaration};
 
-/// Map a stub directive's role word (`body`, `expr`, `var`, `var_read`,
-/// `name`, `pattern`, `channel`, `command_prefix`) to the registry's own
-/// [`ArgRole`].
+/// Map a stub directive's role word to the registry's own [`ArgRole`], or
+/// `None` when the word names no role.
 ///
-/// An unrecognised word is [`ArgRole::Value`] — the same "value is the
-/// default" rule an argument with no `:role` annotation gets.
+/// **The** stub role vocabulary: the directive parser rejects a declaration
+/// whose role word this does not know, and every other consumer
+/// canonicalises through it. A second list of accepted words beside this one
+/// is how a role gets documented but stays unusable.
 #[must_use]
-pub fn role_for_word(word: &str) -> ArgRole {
-    match word {
+pub fn role_for_word_checked(word: &str) -> Option<ArgRole> {
+    Some(match word {
         "body" => ArgRole::Body,
         "expr" => ArgRole::Expr,
         "var" => ArgRole::VarWrite,
@@ -88,8 +89,16 @@ pub fn role_for_word(word: &str) -> ArgRole {
         "pattern" => ArgRole::Pattern,
         "channel" => ArgRole::Channel,
         "command_prefix" => ArgRole::CommandPrefix,
-        _ => ArgRole::Value,
-    }
+        "value" => ArgRole::Value,
+        _ => return None,
+    })
+}
+
+/// [`role_for_word_checked`] with the "value is the default" fallback an
+/// argument written without a `:role` annotation gets.
+#[must_use]
+pub fn role_for_word(word: &str) -> ArgRole {
+    role_for_word_checked(word).unwrap_or(ArgRole::Value)
 }
 
 /// The full [document axis](VersionAxisId::document) — a declared command
@@ -151,14 +160,44 @@ impl DeclaredCommand {
         self.declaration.provenance
     }
 
-    /// The 0-based argument indices (against the post-head argument list)
-    /// whose declared role is `role`.
-    pub fn arg_indices_for_role(&self, role: ArgRole) -> impl Iterator<Item = usize> + '_ {
-        self.arguments
+    /// The 0-based indices **into a call's own post-head argument list**
+    /// whose declared role is `role`, for a call supplying `supplied` words.
+    ///
+    /// A declared position is not a call position: a declaration is a shape
+    /// with optional slots, so `{?table? row:var}` invoked as `fetch out`
+    /// writes `out` at index 0, not at the declared index 1. Optional slots
+    /// fill left to right, Tcl's own convention, so the number of them
+    /// present is whatever the call carries beyond the required words. A call
+    /// with fewer words than the declaration requires cannot be laid out at
+    /// all and maps to nothing, rather than to positions it does not have.
+    #[must_use]
+    pub fn arg_indices_for_role(&self, role: ArgRole, supplied: usize) -> Vec<usize> {
+        let required = self
+            .arguments
             .iter()
-            .enumerate()
-            .filter(move |(_, argument)| argument.role == role)
-            .map(|(index, _)| index)
+            .filter(|argument| !argument.optional)
+            .count();
+        let Some(mut optionals_present) = supplied.checked_sub(required) else {
+            return Vec::new();
+        };
+        let mut indices = Vec::new();
+        let mut position = 0;
+        for argument in &self.arguments {
+            if argument.optional {
+                if optionals_present == 0 {
+                    continue;
+                }
+                optionals_present -= 1;
+            }
+            if position >= supplied {
+                break;
+            }
+            if argument.role == role {
+                indices.push(position);
+            }
+            position += 1;
+        }
+        indices
     }
 }
 
@@ -192,7 +231,7 @@ impl DeclaredSurface {
     /// onto a document's command surface is
     /// [`DocumentCommandSurface`], which answers the catalogue and the
     /// document together. A consumer that could reach the raw per-document
-    /// table would be building the second lookup R1 just retired.
+    /// table would be building the second lookup path ruling R1 rules out.
     #[must_use]
     pub(crate) fn get(&self, name: &str) -> Option<&DeclaredCommand> {
         self.commands.get(name)
@@ -275,6 +314,28 @@ impl<'a> DocumentCommandSurface<'a> {
             .map(|(name, _)| name)
     }
 
+    /// The command-prefix positions of `name` over the whole surface, each
+    /// with the arity it appends to the callback.
+    ///
+    /// The prefix twin of [`Self::arg_indices_for_role`], and widening in the
+    /// same way. A declaration carries a position but no arity, so it
+    /// contributes [`AppendedArity::Unknown`] — the arity-inert default,
+    /// which names the callback for reference and reachability consumers
+    /// without asserting a count no declaration stated.
+    #[must_use]
+    pub fn command_prefixes(&self, name: &str, args: &[&str]) -> Vec<(usize, AppendedArity)> {
+        let mut prefixes = self.commands.command_prefixes(name, args);
+        if let Some(declared) = self.declared.and_then(|surface| surface.get(name)) {
+            for index in declared.arg_indices_for_role(ArgRole::CommandPrefix, args.len()) {
+                if !prefixes.iter().any(|&(at, _)| at == index) {
+                    prefixes.push((index, AppendedArity::Unknown));
+                }
+            }
+            prefixes.sort_by_key(|&(index, _)| index);
+        }
+        prefixes
+    }
+
     /// The argument indices of `name` carrying `role`, over the whole
     /// surface.
     ///
@@ -288,7 +349,7 @@ impl<'a> DocumentCommandSurface<'a> {
     pub fn arg_indices_for_role(&self, name: &str, args: &[&str], role: ArgRole) -> Vec<usize> {
         let mut indices = self.commands.arg_indices_for_role(name, args, role);
         if let Some(declared) = self.declared.and_then(|surface| surface.get(name)) {
-            for index in declared.arg_indices_for_role(role) {
+            for index in declared.arg_indices_for_role(role, args.len()) {
                 if !indices.contains(&index) {
                     indices.push(index);
                 }
@@ -305,13 +366,23 @@ mod tests {
     use crate::model::ingress::static_context_for_profile;
 
     fn declared(name: &str, args: &[(&str, ArgRole)]) -> DeclaredCommand {
+        declared_with_optionals(
+            name,
+            &args
+                .iter()
+                .map(|(argument, role)| (*argument, *role, false))
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    fn declared_with_optionals(name: &str, args: &[(&str, ArgRole, bool)]) -> DeclaredCommand {
         DeclaredCommand::new(
             name.to_owned(),
             args.iter()
-                .map(|(argument, role)| DeclaredArgument {
+                .map(|(argument, role, optional)| DeclaredArgument {
                     name: (*argument).to_owned(),
                     role: *role,
-                    optional: false,
+                    optional: *optional,
                 })
                 .collect(),
             Provenance::Document,
@@ -364,19 +435,52 @@ mod tests {
                 ("body", ArgRole::Body),
             ],
         );
-        assert_eq!(
-            command
-                .arg_indices_for_role(ArgRole::VarWrite)
-                .collect::<Vec<_>>(),
-            vec![0]
+        assert_eq!(command.arg_indices_for_role(ArgRole::VarWrite, 3), vec![0]);
+        assert_eq!(command.arg_indices_for_role(ArgRole::Body, 3), vec![2]);
+        assert!(command.arg_indices_for_role(ArgRole::Expr, 3).is_empty());
+    }
+
+    /// An optional slot the call omits shifts every later role one position
+    /// left: `{?table? row:var}` called as `fetch out` writes index 0.
+    #[test]
+    fn an_omitted_optional_shifts_the_roles_after_it() {
+        let command = declared_with_optionals(
+            "fetch",
+            &[
+                ("table", ArgRole::Value, true),
+                ("row", ArgRole::VarWrite, false),
+            ],
         );
-        assert_eq!(
-            command
-                .arg_indices_for_role(ArgRole::Body)
-                .collect::<Vec<_>>(),
-            vec![2]
+        assert_eq!(command.arg_indices_for_role(ArgRole::VarWrite, 1), vec![0]);
+        assert_eq!(command.arg_indices_for_role(ArgRole::VarWrite, 2), vec![1]);
+    }
+
+    /// Optional slots fill left to right, so only the leading ones are
+    /// present in a call that supplies some but not all of them.
+    #[test]
+    fn optional_slots_fill_left_to_right() {
+        let command = declared_with_optionals(
+            "visit",
+            &[
+                ("first", ArgRole::Value, true),
+                ("second", ArgRole::Value, true),
+                ("script", ArgRole::Body, false),
+            ],
         );
-        assert!(command.arg_indices_for_role(ArgRole::Expr).next().is_none());
+        assert_eq!(command.arg_indices_for_role(ArgRole::Body, 1), vec![0]);
+        assert_eq!(command.arg_indices_for_role(ArgRole::Body, 2), vec![1]);
+        assert_eq!(command.arg_indices_for_role(ArgRole::Body, 3), vec![2]);
+    }
+
+    /// A call the declaration cannot lay out — fewer words than it requires
+    /// — maps to nothing rather than to positions the call does not have.
+    #[test]
+    fn a_call_shorter_than_the_declaration_maps_to_nothing() {
+        let command = declared(
+            "with_var",
+            &[("varName", ArgRole::VarWrite), ("body", ArgRole::Body)],
+        );
+        assert!(command.arg_indices_for_role(ArgRole::Body, 1).is_empty());
     }
 
     /// The one door answers the catalogue for a shipped name and the

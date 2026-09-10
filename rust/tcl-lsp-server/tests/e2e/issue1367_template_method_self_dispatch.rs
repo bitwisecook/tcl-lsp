@@ -16,11 +16,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Issue #1367 — the template-method pattern across the workspace boundary.
+//! The template-method pattern across the workspace boundary.
 //!
-//! ruff's `::ruff::formatter::Formatter` (the #1181 corpus) is an abstract
-//! base whose bodies call `my AddProgramElementHeading` / `my Escape`,
-//! written only by the concrete formatters in **sibling files**. `my`
+//! ruff's `::ruff::formatter::Formatter` is an abstract base whose bodies
+//! call `my AddProgramElementHeading` / `my Escape`, written only by the
+//! concrete formatters in **sibling files**. `my`
 //! late-binds on the actual receiver — always a subclass instance — and
 //! bypasses export filtering, so the capitalised (unexported) subclass
 //! method is genuinely reachable and the eight W308s the corpus drew were
@@ -30,8 +30,8 @@
 //! `rust/tcl-compiler/tests/analyser.rs` (`issue_1367_…`). This suite pins
 //! the workspace half: the defining subclass lives in a *different
 //! document*, so the abstention only works if the cross-file class index
-//! feeds the base document's re-publish — the issue #977 "converged, not
-//! first, publish" discipline.
+//! feeds the base document's re-publish — the "converged, not first,
+//! publish" discipline.
 
 use crate::common::{Lsp, unique_uri};
 use serde_json::Value;

@@ -24,10 +24,10 @@ import { getDocUri, activate, waitForDiagnostics } from "./helper";
 //   line 2: set x "abcdef"
 //   line 3: if {$x contains "cd"} { HTTP::respond 200 }
 //
-// Issue #1048: the document's dialect never reached the compiler's expression
-// parser, so an iRules word operator lowered to an opaque expression the
-// constant folder could not evaluate — the always-true condition drew no
-// I230 in the editor at all.
+// The document's dialect must reach the compiler's expression parser:
+// without it, an iRules word operator lowers to an opaque expression the
+// constant folder cannot evaluate, so the always-true condition would draw
+// no I230 in the editor at all.
 
 function codeOf(d: vscode.Diagnostic): string | number | undefined {
   return typeof d.code === "object" ? d.code?.value : d.code;

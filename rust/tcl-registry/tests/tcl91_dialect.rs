@@ -192,8 +192,7 @@ fn lfilter_is_a_91_list_loop() {
 fn coroutine_probe_and_inject_run_arbitrary_code() {
     // doc/coroutine.n (9.1): `coroprobe` evaluates a command in the coroutine
     // now; `coroinject` schedules one for the next resume.  Both run arbitrary
-    // code → an Unknown read+write effect (like `eval` / `uplevel`), which was
-    // previously unencoded.
+    // code → an Unknown read+write effect (like `eval` / `uplevel`).
     use tcl_registry::side_effects::SideEffectTarget;
     let r = reg();
     for name in ["coroprobe", "coroinject"] {

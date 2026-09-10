@@ -257,6 +257,7 @@ execution trace is absent.
 | `command_prefix_resolver` | `Option<CommandPrefixResolver>` | `None` | Dynamic command-prefix positions (`trace add …`, `interp alias`) |
 | `script_timing_resolver` | `Option<ScriptTimingResolver>` | `None` | Invocation-sensitive `SameInvocation` / `Deferred` / `ReferenceOnly` timing for positions already classified as executable |
 | `callback_taint_inputs` | `&'static [(u8, &'static [CallbackTaintInput])]` | `&[]` | User-controlled substitutions injected into deferred positional callbacks; generic taint replay never infers framework metadata |
+| `substitution_resolver` | `Option<SubstitutionResolver>` | `None` | Which of backslash / command / variable substitution a `PERFORMS_SUBSTITUTION` call runs over its own argument text, when switches change the answer (`subst -novariables`). The trait says *that* a command substitutes; this says *which kinds*, so a consumer asking "does this argument read a variable?" never matches option spellings itself. Absent means every kind on every call, and an unreadable call answers every kind -- see `tcl_registry::substitution`. |
 | `clause_shape_check` | `Option<ClauseShapeChecker>` | `None` | Validates a clause-chain shape a plain `min..=max` arity can't express (if's `elseif`/`else` chain -- see `tcl_registry::clause_shape`); the compiler dispatches on the hook's presence, not the command name |
 | `frame_effect` | `Option<FrameEffectSpec>` | `None` | How the command crosses stack frames: the level word, the frame-selected variable arguments, and caller-frame scripts |
 | `option_relations` | `&'static [OptionRelation]` | `&[]` | Typed relations between the invocation's options and arguments: mutual exclusion, directional requires, requires-one-of, forbids — over terms naming an option, an option *value*, a positional argument, or a positional value. Evaluated natively by `OptionRelation::evaluate`, driving generic W147 / W152 without naming the command. |
@@ -1150,6 +1151,23 @@ driven by `CONTROL_FLOW`) and `conditional_depth` (domination, driven by this
 trait) stay separate. Also distinct from `HAS_BOOLEAN_COND`, which is about
 an argument being *read* as a boolean expression rather than about which
 bodies run.
+
+A third `CONTROL_FLOW` consumer asks a narrower question: *what* the command
+selects on. The analyser's `irules_debug_gate_depth` reads the words a
+branch-selecting command evaluates rather than executes — every argument
+outside its `ArgRole::Body` positions — and rises when one of them reads a
+debug flag, which is what lets IRULE5001 stay quiet for a `log` already gated
+the way its own message prescribes.
+
+Two exclusions keep that depth off a body which runs regardless. It pairs
+`CONTROL_FLOW` with the absence of `HAS_LOOP_BODY`, because a loop's selector
+is a sequence rather than a decision: `foreach ip $static::allowlist`
+iterates a `static::` list without saying anything about debugging. And it
+drops the `ArgRole::VarWrite` words, which is what excludes `catch` — its
+body is unconditional and its remaining arguments are variable names it
+writes, so `catch { … } static::err` names a `static::` variable without any
+decision reading one. What survives both is `if`, `switch`, and `case`,
+each of which selects every body it has.
 
 ### Resolution priority
 

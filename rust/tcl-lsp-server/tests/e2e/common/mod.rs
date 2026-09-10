@@ -53,7 +53,7 @@
 //! constants: the constants stay honest, and a quiet machine keeps the tight
 //! bound.
 //!
-//! Genuine latency *guarantees* (issue #829's fast-tier promises) are a
+//! Genuine latency *guarantees* (the fast-tier promises) are a
 //! different matter and use [`LatencyBudget`], which additionally measures the
 //! server's own no-op round-trip so the guarantee is expressed relative to the
 //! machine's demonstrated capacity rather than a wall-clock absolute.
@@ -251,7 +251,7 @@ pub fn scaled_timeout(base: Duration) -> Duration {
 /// deterministic on a loaded one.
 ///
 /// Some e2e assertions are not content checks with a hang backstop but genuine
-/// **latency guarantees** — issue #829's promise that the first
+/// **latency guarantees** — the promise that the first
 /// `semanticTokens/full` (or `/range`) response is never starved behind the
 /// whole-file analysis. Deleting them, or widening them until they cannot fail,
 /// would retire the guarantee. Keeping them as wall-clock absolutes makes them
@@ -264,9 +264,9 @@ pub fn scaled_timeout(base: Duration) -> Duration {
 /// * `NOOP_ROUND_TRIPS × noop` — where `noop` is this very server's measured
 ///   round-trip for a request that does no analysis. That expresses the
 ///   guarantee in the machine's own currency: "answering a cold viewport may
-///   cost at most N trivial round-trips", which is exactly the property #829 is
-///   about (the token path must not scale with the analysis) and is meaningful
-///   whatever the host's absolute speed.
+///   cost at most N trivial round-trips", which is exactly the property this
+///   guarantee is about (the token path must not scale with the analysis)
+///   and is meaningful whatever the host's absolute speed.
 ///
 /// The no-op sample is taken **before** the measured operation (so it reflects
 /// a server that is up and idle, not one mid-analysis); the scheduling factor
@@ -666,8 +666,6 @@ impl Lsp {
         }
     }
 
-    // -- lifecycle --------------------------------------------------------
-
     /// Run the `initialize` handshake and send `initialized`.
     pub fn initialize(&mut self) -> Value {
         let root = format!("file:///e2e/root-{}", std::process::id());
@@ -795,7 +793,7 @@ impl Lsp {
         self.initialize_result.get("serverInfo")
     }
 
-    // -- requests / notifications ----------------------------------------
+    // Requests / notifications.
 
     /// Send a request and return its result, panicking on error or timeout.
     pub fn request(&mut self, method: &str, params: Value) -> Value {
@@ -871,7 +869,7 @@ impl Lsp {
         stdin.flush().expect("flush");
     }
 
-    // -- document lifecycle ----------------------------------------------
+    // Document lifecycle.
 
     pub fn open_document(&mut self, uri: &str, text: &str) {
         self.open_document_lang(uri, text, "tcl", 1);
@@ -993,8 +991,6 @@ impl Lsp {
             .unwrap_or_default()
     }
 
-    // -- awaiting --------------------------------------------------------
-
     /// A marker into the notification log for `await_log(..., since)`.
     pub fn notification_cursor(&self) -> usize {
         self.shared.notifications.lock().unwrap().len()
@@ -1010,7 +1006,7 @@ impl Lsp {
     /// `settled`, returning it.
     ///
     /// For facts the server publishes **progressively**: a cross-file
-    /// correction (issue #977) lands on a later publish than the document's
+    /// correction lands on a later publish than the document's
     /// own first result, because the project-wide call-site evidence is
     /// refreshed after publishing rather than in front of it — putting it in
     /// front delayed the semantic-token enrichment tier on a large document.
@@ -1146,7 +1142,7 @@ impl Lsp {
     /// (e.g. a converged/cross-file correction) when the config flips off;
     /// if that stale publish lands in the buffer before the master-off one,
     /// `await_diagnostics_version` returns the stale non-empty result
-    /// instead of waiting for the clear (issue #1135). Keying on the
+    /// instead of waiting for the clear. Keying on the
     /// marker — and reading only the publish that precedes it — closes that
     /// window: this scans in one pass under the same lock used by the
     /// condvar wait, so there is no gap between "the marker was observed"
@@ -1164,7 +1160,7 @@ impl Lsp {
     /// Block until the server's `[timing] diagnostics excluded` marker for
     /// `uri` is logged, then return the diagnostics from the
     /// `publishDiagnostics` immediately preceding it — the
-    /// `tclLsp.diagnostics.exclude` (#1556) analogue of
+    /// `tclLsp.diagnostics.exclude` analogue of
     /// [`Self::await_diagnostics_master_off`], with the same rationale: the
     /// marker (`run_diagnostics_excluded` in `tcl-lsp-server/src/lib.rs`) is
     /// logged only after the exclusion's empty publish landed, so keying on it
@@ -1450,7 +1446,7 @@ impl Lsp {
         self.shared.stderr.lock().unwrap().clone()
     }
 
-    // -- feature requests ------------------------------------------------
+    // Feature requests.
 
     fn doc_pos(uri: &str, line: u32, ch: u32) -> Value {
         json!({
@@ -1515,7 +1511,7 @@ impl Lsp {
     /// method resolved) and reads only the first response is asserting on
     /// whichever tier happened to win, i.e. on how much CPU the machine had.
     /// Those tests pass on a quiet box and fail under parallel load, which is
-    /// not a server defect (issue #1082).
+    /// not a server defect.
     ///
     /// So this converges the way the client contract says to, driven by the
     /// server's own settled marker rather than by sleeps: request, wait for the
@@ -1753,8 +1749,6 @@ impl Lsp {
         self.request("workspace/executeCommand", params)
     }
 
-    // -- configuration ---------------------------------------------------
-
     /// The server's *resolved* config for `uri` (`tcl-lsp.getEffectiveConfig`) —
     /// the view the analyser/formatter actually applies.
     pub fn effective_config(&mut self, uri: &str) -> Value {
@@ -1889,7 +1883,7 @@ fn config_reflected(requested: &Value, effective: &Value) -> bool {
                 effective.get(flat).is_some_and(|got| got == v)
             })
         }),
-        // `tclLsp.iruleslx` (#1707) is folder-scoped and reported resolved —
+        // `tclLsp.iruleslx` is folder-scoped and reported resolved —
         // absolute paths, which the request does not carry — so the barrier is
         // that every declared plugin *name* has reached the applied config.
         // That is the thing a test then depends on: an unapplied declaration

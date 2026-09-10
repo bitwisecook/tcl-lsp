@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `cargo xtask fp-sweep` — the false-positive audit harness (issue #1316).
+//! `cargo xtask fp-sweep` — the false-positive audit harness.
 //!
 //! It implements the method documented in `docs/design/compiler/fp-sweep.md`:
 //! dump every firing of a code across the corpus, dialect-aware, grouped by
@@ -41,7 +41,7 @@
 //!   workflow `fp-sweep.md` describes.
 //!
 //! Corpus discovery accepts the normal Tcl-family extensions plus two
-//! corpus-only publication formats common in the #1181 iRules sources:
+//! corpus-only publication formats common in the pinned public iRules corpus:
 //!
 //! - a `.txt` file containing a top-level `when EVENT ... {` handler is swept
 //!   as one iRules document;
@@ -52,7 +52,7 @@
 //! The strong event-handler signal keeps arbitrary prose and console blocks
 //! out of the analyser. Normal source files are still decoded by
 //! [`tcl_cli_support::read_input_documents`], the same reader as `tcl diag` /
-//! `tcl opt`. The seven `.tmsh` files in the pinned public #1181 corpus are
+//! `tcl opt`. The seven `.tmsh` files in the pinned public corpus are
 //! BIG-IP configuration/data-group or iCall artefacts, not iRules (none has a
 //! `when EVENT` handler), so they remain outside this iRules diagnostic sweep.
 
@@ -507,6 +507,15 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
     // checks pass below uses (redesign §11.4 row E1: all four hosts used to
     // agree on `LexerConfig::default()`, which was wrong for every non-9.x
     // dialect).
+    //
+    // The document's own stub declarations, ingested exactly as the analyser
+    // does, so both units below declare what the analyser's own unit would.
+    let doc_path = doc.input.path.as_ref().map(|p| p.display().to_string());
+    let declared = tcl_compiler::analyser::utils::document_declared_surface(
+        &doc.input.source,
+        doc_path.as_deref(),
+        dialect,
+    );
     let analysis_cu = Arc::new(CompilationUnit::build_with_options(
         &doc.input.source,
         UnitBuildOptions {
@@ -517,10 +526,10 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
             ),
             dialect: tcl_lsp_core::optional_profile_for_dialect(dialect),
             external_call_sites: None,
+            declared_commands: Some(&declared),
         },
     ));
-    let mut analyser =
-        Analyser::new().with_file_path(doc.input.path.as_ref().map(|p| p.display().to_string()));
+    let mut analyser = Analyser::new().with_file_path(doc_path.clone());
     analyser.set_cu_override(Arc::clone(&analysis_cu));
     let result = analyser.analyse(&doc.input.source, dialect);
     for d in &result.diagnostics {
@@ -539,6 +548,7 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
             ),
             dialect: tcl_lsp_core::optional_profile_for_dialect(dialect),
             external_call_sites: None,
+            declared_commands: Some(&declared),
         },
     )
     .with_interprocedural(registry, dialect_opt);
@@ -554,7 +564,7 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
     // analyser producer in (1). No suppression / user-disabled set, since the
     // sweep wants every firing regardless of what a hypothetical editor config
     // would silence. Native documents carry the byte-level decode report and
-    // therefore produce encoding findings at full precision (issue #1326).
+    // therefore produce encoding findings at full precision.
     // Extracted RST blocks use a faithful empty report because their offsets no
     // longer refer to the containing file's byte stream.
     let no_disabled: std::collections::HashSet<String> = std::collections::HashSet::new();

@@ -85,7 +85,7 @@ use crate::definition::LspRange;
 /// rule while the document is another's changes what the edit means: on a
 /// Tcl 9 document `${a{b}c}` is one variable named `a{b}c`, but the 8.x
 /// first-`}` rule reads `a{b` and leaves `c}` looking like ordinary word
-/// text (issue #1605).
+/// text.
 pub(crate) fn braced_var_style(
     analysis: &tcl_compiler::analyser::AnalysisResult,
 ) -> BracedVarStyle {
@@ -278,6 +278,277 @@ pub fn token_end_offset(source: &str, tok: Token) -> u32 {
     }
 }
 
+/// The document facts a same-frame statement walk needs, built once per
+/// refactoring.
+///
+/// `nesting` is deliberately the **document's own** registry rather than the
+/// caller's: which nested words are same-frame scripts is a question
+/// [`crate::references::nested_dispatch_regions`] answers from the dialect
+/// profile's registry (a `switch` clause list reaches its arm bodies only
+/// through that registry's `CaseListSpec`), whereas the argument roles a
+/// refactoring classifies stay its own to decide.
+///
+/// `source` is whatever text the walk will address — a whole document for a
+/// transform that works in document coordinates, a proc body for one that has
+/// re-segmented that body on its own.
+pub(crate) struct FrameWalk {
+    dialect: &'static tcl_dialect::DialectProfile,
+    nesting: &'static CommandRegistry,
+    identities: tcl_compiler::realm::CommandBindingRealm,
+    config: LexerConfig,
+    expr_surface: tcl_registry::expr_surface::RuntimeExprSurface,
+}
+
+impl FrameWalk {
+    pub(crate) fn new(source: &str, analysis: &tcl_compiler::analyser::AnalysisResult) -> Self {
+        let dialect = crate::profile_for_dialect(&analysis.dialect);
+        let nesting = crate::registry_for_dialect_profile(dialect);
+        Self {
+            dialect,
+            nesting,
+            identities: tcl_compiler::realm::document_realm_bindings(source, dialect, nesting),
+            config: LexerConfig::from_grammar(dialect.grammar),
+            expr_surface: tcl_registry::expr_surface::RuntimeExprSurface::for_profile(dialect),
+        }
+    }
+
+    /// Every command nested inside `command` that still runs in `command`'s
+    /// own variable frame, appended to `out` innermost-first.
+    ///
+    /// The nesting is [`crate::references::nested_dispatch_regions`]'s answer
+    /// — the same walker Find All References and the caller-frame scan use for
+    /// "which nested scripts run in this frame": an [`ArgRole::Body`] argument
+    /// with a `Plain` body kind (`if`, `while`, `foreach`, `try`, `catch`, …),
+    /// a `switch`-style clause list flattened through the registry's own
+    /// `CaseListSpec`, and every `[…]` command substitution.  A `Structural`
+    /// body — `proc`, `namespace eval`, `uplevel`, `oo::define` — and `apply`'s
+    /// lambda are deliberately *not* descended: what they read and write are
+    /// their own frame's variables, so counting them would put a stranger's
+    /// name in a generated parameter list or an `upvar` against a variable the
+    /// moved code never touches.
+    pub(crate) fn nested_same_frame_commands(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+        out: &mut Vec<SegmentedCommand>,
+    ) {
+        self.walk_same_frame(source, command, 0, out);
+    }
+
+    fn walk_same_frame(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+        depth: u32,
+        out: &mut Vec<SegmentedCommand>,
+    ) {
+        if crate::references::MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
+            return;
+        }
+        for (start, end) in self.same_frame_regions(source, command) {
+            let Some(text) = source.get(start..end) else {
+                continue;
+            };
+            for nested in segment_commands_with_offset_and_config(
+                text,
+                u32::try_from(start).unwrap_or(0),
+                self.config,
+            ) {
+                if nested.name().is_empty() {
+                    continue;
+                }
+                self.walk_same_frame(source, &nested, depth + 1, out);
+                out.push(nested);
+            }
+        }
+    }
+
+    /// `text`, segmented at its real offset in the walked source.
+    pub(crate) fn segment(&self, text: &str, offset: u32) -> Vec<SegmentedCommand> {
+        segment_commands_with_offset_and_config(text, offset, self.config)
+    }
+
+    /// The regions of `command` that run in `command`'s own variable frame.
+    ///
+    /// [`crate::references::nested_dispatch_regions`] owns the script ones. It
+    /// cannot see inside a *braced* expression argument, which the script
+    /// lexer treats as one opaque word and `expr` substitutes itself, so
+    /// `if {[set x 1]} …` would hide a write to the caller's `x`.  Those spans
+    /// come from [`tcl_syntax::expr::substitution::command_substitution_spans`],
+    /// the expression owner's own script bridge, gated on the dialect's
+    /// runtime expression surface: an expression the release would reject at
+    /// run time substitutes nothing.
+    pub(crate) fn same_frame_regions(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+    ) -> Vec<(usize, usize)> {
+        let mut regions = crate::references::nested_dispatch_regions_with_identities(
+            source,
+            self.dialect,
+            self.nesting,
+            &self.identities,
+            command,
+        );
+        self.push_expression_substitutions(source, command, &mut regions);
+        self.push_substituted_commands(source, command, &mut regions);
+        regions
+    }
+
+    /// The `[…]` a substituting command runs out of its own argument text.
+    ///
+    /// `subst {a[set x 1]b}` evaluates that bracket in the caller's frame, but
+    /// the argument is one braced word to the script lexer, so the dispatch
+    /// walker cannot see inside it. Whether the brackets run at all is the
+    /// registry's per-call answer (`subst -nocommands` leaves them as text),
+    /// and the closer is [`tcl_lexer::command_substitution_end`]'s, so nothing
+    /// here re-derives either fact.
+    fn push_substituted_commands(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+        out: &mut Vec<(usize, usize)>,
+    ) {
+        let head = command.name();
+        let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
+        if !self
+            .nesting
+            .substitutions_performed(head, &args)
+            .is_some_and(|kinds| kinds.commands)
+        {
+            return;
+        }
+        for token in command.argv.iter().skip(1) {
+            // Only a braced literal hides its brackets from the script lexer;
+            // an unbraced or quoted word has already been substituted, so its
+            // brackets are dispatch regions already.
+            if token.kind != TokenType::Str
+                || token.content_offset != 1
+                || source.as_bytes().get(token.span.start() as usize) != Some(&b'{')
+            {
+                continue;
+            }
+            let start = token.span.start() as usize + token.content_offset as usize;
+            let end = token.span.end() as usize;
+            let Some(text) = source.get(start..end) else {
+                continue;
+            };
+            let mut at = 0;
+            // An unterminated `[` closes at end-of-text, so the cursor is
+            // clamped rather than stepped past the closer.
+            while let Some(offset) = text.get(at..).and_then(|rest| rest.find('[')) {
+                let open = at + offset;
+                // The closer reports one byte past the `]`; the script inside
+                // the brackets is what runs.
+                let Some(after) = tcl_lexer::command_substitution_end(text, open) else {
+                    break;
+                };
+                let inner_end = if text.as_bytes().get(after - 1) == Some(&b']') {
+                    after - 1
+                } else {
+                    after
+                };
+                if open + 1 < inner_end {
+                    out.push((start + open + 1, start + inner_end));
+                }
+                at = after.min(text.len());
+                if at >= text.len() {
+                    break;
+                }
+            }
+        }
+    }
+
+    fn push_expression_substitutions(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+        out: &mut Vec<(usize, usize)>,
+    ) {
+        let head = command.name();
+        let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
+        for index in self
+            .nesting
+            .arg_indices_for_role(head, &args, ArgRole::Expr)
+        {
+            let Some(token) = command.argv.get(index + 1) else {
+                continue;
+            };
+            // An unbraced or quoted expression word is substituted by the
+            // script lexer before `expr` ever parses it, so its `[…]` are
+            // already among the dispatch regions; only a braced one needs the
+            // expression parser to find them.
+            if source.as_bytes().get(token.span.start() as usize) != Some(&b'{')
+                || token.content_offset != 1
+            {
+                continue;
+            }
+            let start = token.span.start() as usize + token.content_offset as usize;
+            let end = token.span.end() as usize;
+            let Some(expression) = source.get(start..end) else {
+                continue;
+            };
+            for span in tcl_syntax::expr::substitution::command_substitution_spans(
+                expression,
+                self.dialect,
+                self.config,
+                |parsed| self.expr_surface.validate(parsed).is_ok(),
+            ) {
+                // The span carries the `[` and `]`; the script inside them is
+                // what runs.
+                let (Some(inner_start), Some(inner_end)) = (
+                    start.checked_add(span.start() as usize + 1),
+                    start
+                        .checked_add(span.end() as usize)
+                        .and_then(|end| end.checked_sub(1)),
+                ) else {
+                    continue;
+                };
+                if inner_start < inner_end {
+                    out.push((inner_start, inner_end));
+                }
+            }
+        }
+    }
+
+    /// The regions of `command` that open a variable frame of their own — the
+    /// exact complement of [`Self::same_frame_regions`].
+    pub(crate) fn frame_shifted_regions(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+    ) -> Vec<(usize, usize)> {
+        crate::references::frame_shifted_dispatch_regions(source, self.dialect, command)
+    }
+
+    /// Every region inside `command`, at any same-frame depth, that runs in a
+    /// variable frame of its own, appended to `out`.
+    ///
+    /// A `proc` nested in an `if` branch is found as readily as one at
+    /// `command`'s own top level.
+    pub(crate) fn frame_shifted_regions_within(
+        &self,
+        source: &str,
+        command: &SegmentedCommand,
+        out: &mut Vec<(u32, u32)>,
+    ) {
+        let mut push = |regions: Vec<(usize, usize)>| {
+            for (start, end) in regions {
+                let (Ok(start), Ok(end)) = (u32::try_from(start), u32::try_from(end)) else {
+                    continue;
+                };
+                out.push((start, end));
+            }
+        };
+        push(self.frame_shifted_regions(source, command));
+        let mut nested = Vec::new();
+        self.nested_same_frame_commands(source, command, &mut nested);
+        for inner in &nested {
+            push(self.frame_shifted_regions(source, inner));
+        }
+    }
+}
+
 fn byte_len(source: &str) -> u32 {
     u32::try_from(source.len()).unwrap_or(u32::MAX)
 }
@@ -456,7 +727,7 @@ struct BodyWord {
 /// * [`ArgRole::LambdaLiteral`] — `apply`'s `{argList body ?ns?}` two- or
 ///   three-element list, where only element 1 is code.  It is split with
 ///   [`tcl_compiler::lambda_literal::split_lambda_literal`], the same
-///   splitter every other consumer uses (issue #1000).  Treating
+///   splitter every other consumer uses.  Treating
 ///   the whole literal as one body instead reads `argList` as a command
 ///   name and swallows the real body, which is why no refactor code action
 ///   fired inside an `apply` lambda.  Only a `{braced}` body element is
@@ -464,8 +735,7 @@ struct BodyWord {
 ///   ([`LambdaLiteralElements::braced_body`](tcl_compiler::lambda_literal::LambdaLiteralElements::braced_body)):
 ///   a bare / double-quoted one is backslash-decoded before `apply`
 ///   evaluates it, so its source slice is not the script that runs and the
-///   spans a code action derived from it would edit the wrong bytes (Codex
-///   review on #1047).
+///   spans a code action derived from it would edit the wrong bytes.
 fn body_words(source: &str, cmd: &SegmentedCommand, registry: &CommandRegistry) -> Vec<BodyWord> {
     let name = cmd.name();
     if name.is_empty() {
@@ -664,7 +934,7 @@ mod tests {
     }
 
     /// Parity with [`find_command_descends_into_proc_body`] for `apply`'s
-    /// lambda literal (issue #1000).  `apply`'s first argument is
+    /// lambda literal.  `apply`'s first argument is
     /// `ArgRole::LambdaLiteral`, not `Body`: the whole `{argList body}`
     /// blob is not a script, so descending into it verbatim reads
     /// `argList` as a command name and swallows the real body.  Splitting

@@ -26,8 +26,8 @@ pipeline:
 
 * ``slices`` — every IR statement's source range *and the literal source slice
   it covers*.  A statement whose slice reads ``return {}}`` instead of
-  ``return {}`` makes a one-byte range overshoot obvious at a glance (this is
-  exactly how issue #527 was found).
+  ``return {}`` makes a one-byte range overshoot obvious at a glance —
+  exactly the kind of bug this view is designed to catch.
 * ``tokens`` — the CST's terminal nodes with absolute offsets and per-node
   source slices, so a mis-placed ``endOffset`` shows up directly.
 * ``cst`` — the parse tree as an indented tree with offsets.
@@ -56,7 +56,7 @@ Usage (run from the repo root)::
 
 Examples::
 
-    # The issue #527 reproducer — slice shows the overshoot instantly
+    # A one-byte-overshoot reproducer — slice shows the overshoot instantly
     python .claude/skills/compiler-explorer/explore.py slices --source 'if {1} {return {}}'
 
     # CST leaf spans with offsets + slices

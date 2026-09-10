@@ -161,7 +161,7 @@ fn summary_for<'a>(
 
 // Proc classification
 
-// --- TestStatementCount ----------------------------------------------------
+// Statement count.
 
 #[test]
 fn statement_count_empty_body_is_zero() {
@@ -186,7 +186,7 @@ fn statement_count_nested_if_counts_inner() {
     assert!(count_statements(&proc.body) >= 1);
 }
 
-// --- TestStaticCallCount (re-expressed through classify_proc) ---------------
+// Static call count (re-expressed through classify_proc).
 //
 // `count_static_calls` is not part of the public surface, so its three cases
 // are asserted through `classify_proc`, which consumes the static call count
@@ -209,7 +209,7 @@ fn static_call_count_drives_large_proc_decision() {
     assert_eq!(classify_proc(proc, s, 2), InlineDecision::Never);
 }
 
-// --- TestClassify ----------------------------------------------------------
+// Classify.
 
 #[test]
 fn classify_small_pure_leaf_is_always() {
@@ -292,7 +292,7 @@ fn classify_missing_summary_is_never() {
 
 // The inline transform
 
-// --- TestEmptyBodySplice ---------------------------------------------------
+// Empty body splice.
 
 #[test]
 fn empty_body_call_is_dropped() {
@@ -321,7 +321,7 @@ fn non_pure_leaf_is_not_inlined() {
     assert_eq!(top_calls_to(&out, "skip_me"), 1);
 }
 
-// --- TestNestedSites -------------------------------------------------------
+// Nested sites.
 
 #[test]
 fn call_inside_if_clause_dropped() {
@@ -353,7 +353,7 @@ fn call_inside_for_body_dropped() {
     assert_eq!(calls_to(&body.statements, "noop"), 0);
 }
 
-// --- TestPurity ------------------------------------------------------------
+// Purity.
 
 #[test]
 fn input_module_unchanged_by_inlining() {
@@ -376,7 +376,7 @@ fn inlining_is_idempotent() {
     assert_eq!(once, twice);
 }
 
-// --- TestMultiStatementWrapperSplice ---------------------------------------
+// Multi-statement wrapper splice.
 
 #[test]
 fn two_call_wrapper_inlines_both() {
@@ -414,7 +414,7 @@ fn set_in_wrapper_body_v3_inlines_with_alpha_rename() {
     );
 }
 
-// --- TestParameterisedInline (v3) ------------------------------------------
+// Parameterised inline (v3).
 
 #[test]
 fn proc_with_one_param_inlines() {
@@ -789,7 +789,7 @@ fn two_call_sites_get_distinct_mangling() {
     assert_ne!(param_writes[0], param_writes[1]);
 }
 
-// --- TestDeadProcElimination -----------------------------------------------
+// Dead proc elimination.
 
 #[test]
 fn inlinable_proc_kept_after_inlining() {
@@ -815,7 +815,7 @@ fn non_inlinable_proc_kept_even_if_unreferenced() {
 //  `compiler_synthetic` flag, so dead-proc elimination is documented as omitted
 //  in `inline_module`'s doc-comment. There is no gate to exercise.)
 
-// --- TestSingleCallWrapperSplice (v1) --------------------------------------
+// Single-call wrapper splice (v1).
 
 #[test]
 fn wrapper_call_is_replaced_with_inner() {
@@ -871,7 +871,7 @@ fn qualified_registry_command_body_is_inlined_without_rewriting_the_head() {
     assert_eq!(top_calls_to(&out, "puts"), 0);
 }
 
-// --- TestResolution --------------------------------------------------------
+// Resolution.
 
 #[test]
 fn unqualified_call_in_namespace() {
@@ -951,7 +951,7 @@ fn gvn_shared_allowlist_user_call_is_opaque() {
 
 // Whole-callee uplevel-passthrough inlining
 
-// --- TestPassthroughRecognition --------------------------------------------
+// Passthrough recognition.
 
 #[test]
 fn zero_param_single_uplevel_is_candidate() {
@@ -1046,7 +1046,7 @@ fn args_at_callsite_prevents_inline() {
     ));
 }
 
-// --- detection-only helpers (detect_static_passthrough / body_has_frame_reach) ---
+// Detection-only helpers (detect_static_passthrough / body_has_frame_reach).
 
 #[test]
 fn detect_static_passthrough_recognises_zero_param() {
@@ -1081,7 +1081,7 @@ fn body_has_frame_reach_flags_uplevel_and_upvar() {
     assert!(body_has_frame_reach(&upvar.top_level, &reg()));
 }
 
-// --- TestInliningIdempotence -----------------------------------------------
+// Inlining idempotence.
 
 #[test]
 fn uplevel_running_twice_is_noop() {
@@ -1094,7 +1094,7 @@ fn uplevel_running_twice_is_noop() {
     assert_eq!(&first, second, "second pass is structurally a no-op");
 }
 
-// --- TestParamBodyPassthrough ----------------------------------------------
+// Param-body passthrough.
 
 #[test]
 fn param_body_explicit_level_one_call_site_inlined() {

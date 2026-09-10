@@ -742,10 +742,9 @@ fn first_unescaped_delim(text: &str, delim: u8) -> Option<usize> {
 /// Built on the same escape/quote primitives as the E100 diagnostic
 /// scan in [`stray_closer_diagnostics`] (`classify_quoted_contexts`,
 /// `first_unescaped_delim`) so the two can never disagree about what
-/// counts as a stray bracket — a prior version kept an independent,
-/// escape-unaware detector here and it drifted, letting the repair fire
-/// (and corrupt downstream command-invocation recording) for brackets
-/// the diagnostic correctly treated as escaped.
+/// counts as a stray bracket — an independent, escape-unaware detector here
+/// would drift and let the repair fire (and corrupt downstream
+/// command-invocation recording) for brackets the diagnostic treats as escaped.
 pub(crate) fn find_first_stray_bracket(tokens: &[Token], source: &str) -> Option<(usize, usize)> {
     let in_quoted = classify_quoted_contexts(tokens);
     for (idx, tok) in tokens.iter().enumerate() {
@@ -1293,9 +1292,8 @@ mod tests {
     #[test]
     fn e203_data_brace_keeps_conservative_deindent() {
         // A non-EXPR (data) brace must NOT recover aggressively: a
-        // *non-de-indented* following known command does not trigger a
-        // fix (only the conservative de-indent heuristic applies), so the
-        // recovery behaviour is unchanged for data braces.
+        // *non-de-indented* following known command does not trigger a fix —
+        // only the conservative de-indent heuristic applies to data braces.
         // `set x {` — arg 1 of `set` is data, not expr.
         let src = "set x {\nputs hi\n";
         assert!(
@@ -1303,7 +1301,7 @@ mod tests {
             "data brace should not aggressively recover: {:?}",
             e203_fix_offsets(src),
         );
-        // But a *de-indented* known command still recovers (unchanged).
+        // But a *de-indented* known command still recovers.
         let deindented = "set x {\n    aaa\nputs done\n";
         assert_eq!(e203_fix_offsets(deindented).len(), 1);
     }
@@ -1369,12 +1367,11 @@ mod tests {
         );
     }
 
-    // E200/E201/E202/E203 deep-review regression suite — TP/FP/TN/FN cases
-    // for the "known command" generality fix (procs/classes/aliases as
-    // recovery signals), the E202/E203 line-count false-negative fix, and
-    // the E200 fallback's tight-highlighting fix. Each case is checked
-    // against the C-Tcl `info complete` oracle in the comment (verified
-    // manually against tclsh8.6/tclsh9.0; see the review notes).
+    // E200/E201/E202/E203 recovery suite — TP/FP/TN/FN cases for the
+    // "known command" generality (procs/classes/aliases as recovery signals),
+    // short/single-line unterminated delimiters, and the E200 fallback's tight
+    // highlighting. Each case is checked against the C-Tcl `info complete`
+    // oracle in the comment (verified against tclsh8.6/tclsh9.0).
 
     fn e20x_span(src: &str, code: &str) -> Option<(u32, u32)> {
         let mut a = Analyser::new();
@@ -1385,7 +1382,7 @@ mod tests {
             .map(|d| (d.span.start(), d.span.end()))
     }
 
-    // --- Known-command generality: user procs / classes / aliases ---------
+    // Known-command generality: user procs / classes / aliases
 
     #[test]
     fn tp_e201_fix_recognises_user_defined_proc() {
@@ -1439,10 +1436,9 @@ mod tests {
     #[test]
     fn tp_scan_to_next_recovers_document_analysis_past_user_proc() {
         // The segmenter-level scan-to-next recovery (not just the E20x fix)
-        // must also recognise a user proc: previously, when nothing but
-        // user-defined calls followed a break, the whole tail was silently
-        // dropped from analysis (no E002 for a genuinely bad call). This is
-        // the true positive for that generality gap, pinned end-to-end.
+        // must also recognise a user proc: when nothing but user-defined calls
+        // follow a break, the whole tail must not be dropped from analysis (no
+        // E002 for a genuinely bad call). Pinned end-to-end.
         let src = "proc my_helper {x} {puts $x}\n\nset q {\n  aaa\nmy_helper\n";
         let mut a = Analyser::new();
         let r = a.analyse(src, "tcl8.6");
@@ -1457,14 +1453,12 @@ mod tests {
         );
     }
 
-    // --- E202/E203: short / single-line unterminated delimiters ------------
+    // E202/E203: short / single-line unterminated delimiters
     //
-    // Previously `is_suspicious_quote` required the token's inner text to
-    // *start* with a newline, and `is_suspicious_str` required at least two
-    // newlines — so the overwhelmingly common real-world shape (content on
-    // the same line as the opener, then EOF or one line break) went
-    // completely unflagged: no E202/E203, not even the generic E200
-    // fallback. `info complete` on each of these (tclsh 8.6/9.0) is `0`.
+    // Detection is not gated on line count: the common real-world shape
+    // (content on the same line as the opener, then EOF or one line break) is
+    // just as unterminated as a long multi-line run. `info complete` on each of
+    // these (tclsh 8.6/9.0) is `0`.
 
     #[test]
     fn tp_e202_fires_for_single_line_unterminated_quote_no_newline() {
@@ -1495,9 +1489,7 @@ mod tests {
 
     #[test]
     fn tp_e203_fires_when_content_precedes_the_break() {
-        // `set x {hello\nworld` — content on the opening line, one break —
-        // previously silent because it fell one newline short of the old
-        // ">= 2 newlines" gate.
+        // `set x {hello\nworld` — content on the opening line, one break.
         assert_eq!(
             recovery_diags("set x {hello\nworld\n", "E203"),
             vec![("missing close-brace".to_string(), 0)]
@@ -1506,9 +1498,8 @@ mod tests {
 
     #[test]
     fn tn_well_formed_empty_and_short_delimiters_are_silent() {
-        // Regression guard for the empty-`{}`/`""` special case: removing
-        // the line-count gate must not turn well-formed short/empty
-        // delimiters into false positives.
+        // The empty-`{}` / `""` special case must not become a false
+        // positive: well-formed short or empty delimiters stay silent.
         for src in [
             "set x \"\"\n",
             "set x {}\n",
@@ -1531,11 +1522,9 @@ mod tests {
 
     #[test]
     fn tn_closed_multiline_quote_inside_body_stays_silent_when_short() {
-        // A closed multi-line quote at a body's end (the fix's target
-        // scenario for `e202_not_emitted_for_closed_multiline_quote_at_body_end`)
-        // must remain silent even with the line-count gate removed —
-        // "properly closed" is still detected purely from the closing
-        // delimiter, never from line count.
+        // A closed multi-line quote at a body's end must remain silent:
+        // "properly closed" is detected purely from the closing delimiter,
+        // never from line count.
         assert!(recovery_diags("proc p {} {set x \"\nhello\"}\n", "E202").is_empty());
     }
 
@@ -1571,7 +1560,7 @@ mod tests {
         );
     }
 
-    // --- E200: tight highlighting -------------------------------------
+    // E200: tight highlighting
 
     #[test]
     fn tp_e200_anchors_at_the_unclosed_delimiter_not_the_whole_command() {
@@ -1773,17 +1762,16 @@ mod tests {
     }
 
     // Recovery/diagnostic unification: the repair must never fire (and
-    // corrupt downstream command-invocation recording) where E100 does
-    // not — regression coverage for the drift between the old
-    // independent `find_stray_close_bracket` and the escape-aware E100
-    // scan.
+    // corrupt downstream command-invocation recording) where E100 does not.
+    // The repair and the E100 scan share one escape-aware detector; two
+    // independent ones would drift.
 
     #[test]
     fn escaped_bracket_with_arity_overflow_neither_fires_nor_repairs() {
         // `set` only takes 1-2 args; the third + a *genuinely escaped*
-        // trailing `]` used to still trigger the old recovery's arity
-        // fallback (which ignored escaping entirely), silently
-        // "repairing" a bracket E100 correctly treats as a literal.
+        // trailing `]` must not trigger the arity fallback: ignoring escaping
+        // there would silently "repair" a bracket E100 correctly treats as a
+        // literal.
         let src = r"set y bar baz\]";
         let mut a = Analyser::new();
         let r = a.analyse(src, "tcl8.6");

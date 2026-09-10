@@ -47,7 +47,7 @@ pub fn try_lower_incr(cmd: &LoweringCommand<'_>, safe_on_uninit: bool) -> Statem
     // below cannot see it: only the word's representative token is
     // consulted, so under a grammar with no `{*}` expansion (8.4, iRules)
     // `incr {*}$n` reads as a `Str` word while its value is the literal `*`
-    // welded to whatever `$n` holds — the same #1484 hole `lower_set` closed.
+    // welded to whatever `$n` holds — the same hazard `lower_set` guards.
     // `Statement::Incr`'s `name` is static by contract and
     // `dynamic_names::scan_statement` never inspects it, so a computed name
     // must stay a generic `Call`, the form `scan_command` does inspect and
@@ -170,7 +170,7 @@ mod tests {
         m.top_level.statements[0].clone()
     }
 
-    /// Issue #1487 — a computed name may not wear a static `Incr` shape.
+    /// A computed name may not wear a static `Incr` shape.
     ///
     /// Under a grammar with no `{*}` expansion the word `{*}$n` is the
     /// literal `*` welded to `$n`, whose *representative* token is the
@@ -224,8 +224,8 @@ mod tests {
         }
     }
 
-    /// Under 9.0/8.6 `{*}$n` is a real expansion, which `has_expansion` has
-    /// always rejected — the #1487 gate must not be what decides this case.
+    /// Under 9.0/8.6 `{*}$n` is a real expansion, which `has_expansion`
+    /// rejects — the computed-name gate must not be what decides this case.
     #[test]
     fn try_lower_incr_leaves_the_expanded_name_word_on_its_existing_path() {
         for dialect in ["tcl9.0", "tcl8.6"] {

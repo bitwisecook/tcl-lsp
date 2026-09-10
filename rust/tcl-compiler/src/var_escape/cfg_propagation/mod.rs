@@ -20,12 +20,12 @@
 //!
 //! Components:
 //!
-//! * [`state`]: `CfgEscapeResult` + `CfgState`.
-//! * `collect_known_names_from_cfg`.
-//! * per-call handlers (cfg variants).
-//! * barrier handlers + `escape_every_name_touched_tree`.
-//! * `handle_call` dispatcher + value/expr scans.
-//! * `handle_statement` + `walk_block` + `block_order` +
+//! * [`state`][]: `CfgEscapeResult` + `CfgState`.
+//! * [`known_names`][]: `collect_known_names_from_cfg`.
+//! * [`handlers`][]: the per-call handlers (cfg variants).
+//! * [`walker`][]: barrier handling and `escape_every_name_touched_tree`, the
+//!   `handle_call` dispatcher with its value/expr scans, and
+//!   `handle_statement` + `walk_block` + `block_order` + the
 //!   `analyse_cfg_function` entry point.
 
 pub mod handlers;

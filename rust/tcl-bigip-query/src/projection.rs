@@ -879,8 +879,9 @@ fn list_str_values(list: &BigipList) -> Value {
     )
 }
 
-/// The string a `ListItemValue` projects to when read as a path (iterating
-/// `item.value`, where `PathRef(full_path=p)` coerces via string conversion).
+/// The string a `ListItemValue` projects to when read as a path: `Profile`
+/// and `Persistence` items give their `path`; everything else falls back to
+/// the full display rendering.
 fn list_item_string(value: &ListItemValue) -> String {
     match value {
         ListItemValue::Str(s) => s.clone(),

@@ -19,7 +19,7 @@
 
 # gen-package-version-oracle.tcl — regenerate the pinned package-version
 # corpora that `rust/tcl-dialect/tests/package_version_oracle.rs` checks the
-# comparator port against (issue #1090).
+# comparator port against.
 #
 # Usage:
 #   tclsh8.6 scripts/dev/gen-package-version-oracle.tcl version \

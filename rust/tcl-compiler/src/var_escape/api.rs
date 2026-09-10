@@ -25,11 +25,12 @@
 //! ([`populate_local_slots`]) — into per-proc [`ProcEscapeSummary`]s keyed
 //! by qualified name.
 //!
-//! Two entry points cover the two source modes:
+//! Two source modes:
 //!
 //! * [`analyse_var_escape`] — the **IR-only tree walk**. This is the path
 //!   the inliner consumes (`pure_leaf` is computed here); it needs only the
-//!   lowered [`Module`].
+//!   lowered [`Module`]. [`analyse_var_escape_with_registry`] is the same
+//!   walk with a dialect/profile registry threaded through.
 //! * [`analyse_var_escape_cu`] — the **flow-sensitive CFG + SSA** path,
 //!   driven from a [`CompilationUnit`]. Used by codegen for the per-SSA
 //!   frame analysis; it leaves `pure_leaf` at its default (the inlining

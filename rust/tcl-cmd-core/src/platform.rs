@@ -18,10 +18,10 @@
 
 //! Platform-backed command helpers (`exec`, `pwd`, `cd`, …).
 //!
-//! These are the P1/P2 bodies: the portable Tcl semantics (argument parsing,
-//! the error catalogue, result building) live here once, while the actual host
-//! syscalls are reached through the [`tcl_platform`] capability traits and live
-//! per-target. A **platform-conditional** capability (subprocess, sockets) that
+//! The portable Tcl semantics (argument parsing, the error catalogue, result
+//! building) live here once, while the actual host syscalls are reached through
+//! the [`tcl_platform`] capability traits and live per-target. A
+//! **platform-conditional** capability (subprocess, sockets) that
 //! a host lacks — every WASM target lacks subprocess — surfaces as the faithful
 //! Tcl "unsupported" error rather than a panic, exactly as the capability model
 //! intends.
@@ -32,13 +32,16 @@ use tcl_syntax::value::ValueOps;
 use crate::error::CmdError;
 
 /// `exec arg ?arg ...?` — run a command and capture its standard output (with
-/// trailing newlines trimmed), the minimal form.
+/// trailing newlines trimmed).
+///
+/// Only the minimal form is handled: every argument is passed through as a word
+/// of the command line, so redirections, pipelines and `-keepnewline` have no
+/// effect here.
 ///
 /// Subprocess execution is a *platform-conditional* capability: when the host
 /// provides no [`Process`](tcl_platform::Process) (every WASM target, a sandbox),
 /// this yields the faithful unsupported error instead of running — the same
-/// shared body, a different host. Redirections / pipelines / `-keepnewline`
-/// land as the command fills in.
+/// shared body, a different host.
 pub fn exec<O: ValueOps>(
     ops: &mut O,
     host: &dyn Host,

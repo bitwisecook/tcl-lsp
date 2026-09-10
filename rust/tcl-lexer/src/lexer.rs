@@ -40,7 +40,7 @@
 //!   and `$arr(idx)` (array index with nested parens and embedded
 //!   `${...}` support). A bare `$` with no name following is emitted
 //!   as an `STR` token whose span covers just the `$`. Unterminated
-//!   `${` and `$arr(` tokenize best-effort (warning collection reports
+//!   `${` and `$arr(` tokenise best-effort (warning collection reports
 //!   them as diagnostics).
 //! - **CMD** — command substitution `[…]`. The scanner tracks four
 //!   pieces of state while inside the command body: outer bracket
@@ -53,7 +53,7 @@
 //!   raw-parser width after the document source-channel seam (CRLF is one
 //!   logical newline); `${…}`
 //!   sub-scans exist to stop a `)` or `}` inside a braced variable
-//!   name from fooling the counter. Unterminated `[` tokenizes
+//!   name from fooling the counter. Unterminated `[` tokenises
 //!   best-effort.
 //! - **STR** — braced strings `{…}`. Emitted when a `{` appears
 //!   at a word boundary (the previous token was `EOL` / `SEP` / `STR`
@@ -62,7 +62,7 @@
 //!   inert inside braces — the backslash and the following character
 //!   are retained literally in the token text). A `{` that is NOT at a
 //!   word boundary is a regular word character in the enclosing `ESC`
-//!   token. Unterminated `{` tokenizes best-effort.
+//!   token. Unterminated `{` tokenises best-effort.
 //! - **Quoted ESC** — `"…"` quoted strings emit `ESC` tokens
 //!   carrying the `in_quote = true` flag for the duration of the
 //!   quoted run. The lexer keeps an `in_quote: bool` field that is
@@ -229,7 +229,7 @@ pub struct LexerConfig {
 /// *file*-analysis entry point may choose [`LeadingBom::Skip`], and only when
 /// the dialect's script reader does the same
 /// (`tcl_dialect::LexerGrammar::script_skips_leading_bom` — Tcl 9's `source`
-/// skips it, Tcl 8.x's does not). See issue #1218.
+/// skips it, Tcl 8.x's does not).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum LeadingBom {
     /// Lex the mark as the first word's opening characters, like any other
@@ -317,9 +317,9 @@ impl LexerConfig {
     ///   embed one (Expect, the EDA flavours, `bpf`, `spectcl`). False for
     ///   Tcl 8.4 and for **every** F5 dialect: measurement
     ///   (`docs/design/f5/bigip-irule-parser-measurements.md` §4a) showed
-    ///   `f5-tmsh` and `f5-iapps` are 8.4.6 forks like `f5-irules`, not the
-    ///   8.5 embeds the pre-#1631 catalogue assumed, and on all three
-    ///   `{*}$l` lexes as a literal `*` plus the unexpanded word.
+    ///   `f5-tmsh` and `f5-iapps` are 8.4.6 forks like `f5-irules`, not 8.5
+    ///   embeds, and on all three `{*}$l` lexes as a literal `*` plus the
+    ///   unexpanded word.
     /// * `irules_brace_separator` — true for every dialect on the `f5-tcl`
     ///   trunk: `f5-irules`, `f5-tmsh` and `f5-iapps` all select
     ///   `GRAMMAR_F5_TCL`, and §4a measured the implicit word break
@@ -381,7 +381,7 @@ impl LexerConfig {
     /// [`Self::for_dialect`]: otherwise a leading mark lexes into the first
     /// word, so the first command's semantic token spans the mark, its body
     /// fold is lost (the marked name resolves to no registry command), and its
-    /// document links / inlay hints / references miss (issue #1243).
+    /// document links / inlay hints / references miss.
     #[must_use]
     pub fn for_file_dialect(dialect: &str) -> Self {
         Self::for_file_grammar(tcl_dialect::grammar_of_dialect_name(Some(dialect)))
@@ -394,7 +394,7 @@ impl LexerConfig {
     /// script's prologue; a mark at the head of a nested body slice, an `eval`
     /// argument, or a VM string is data. A provider that threads one config
     /// through its own body recursion calls this below the top level, so the
-    /// file rule cannot leak into a nested slice (issue #1243).
+    /// file rule cannot leak into a nested slice.
     #[must_use]
     pub fn nested(self) -> Self {
         Self {
@@ -497,7 +497,7 @@ impl<'src> Lexer<'src> {
     #[must_use]
     pub fn with_source_map(source_map: SourceMap<'src>, config: LexerConfig) -> Self {
         // A leading byte-order mark is skipped by *starting past it*, so every
-        // token keeps its true byte offset (issue #1218). Guarded on the flag
+        // token keeps its true byte offset. Guarded on the flag
         // as well as the bytes: the same lexer serves the VM's `eval`, where a
         // BOM at the head of a string is ordinary data.
         let pos = if config.leading_bom == LeadingBom::Skip
@@ -872,7 +872,7 @@ impl<'src> Lexer<'src> {
     /// without the leading `$` or `${`) is accessed via
     /// [`SourceMap::token_text`] rather than `SourceMap::text(span)`.
     ///
-    /// Never fails. Unterminated `${` and `$arr(` tokenize
+    /// Never fails. Unterminated `${` and `$arr(` tokenise
     /// best-effort, emitting non-fatal warnings once warning
     /// collection is in place.
     fn parse_var(&mut self) -> Result<Token, LexError> {
@@ -1131,7 +1131,7 @@ impl<'src> Lexer<'src> {
     ///   VAR) — stop char is the closing `"`. Span covers `"`;
     ///   `token_text` returns `""`.
     ///
-    /// Never fails. An unterminated quoted string tokenizes
+    /// Never fails. An unterminated quoted string tokenises
     /// best-effort — the scanner consumes everything up to EOF
     /// and returns an `ESC` with `in_quote = true` still set, so
     /// the trailing synthetic EOL inherits the `true` flag too.
@@ -1223,7 +1223,7 @@ impl<'src> Lexer<'src> {
             // zero-content token, so `content_offset == 1` makes
             // `SourceMap::token_text` yield `""`. This distinguishes it from a
             // *literal* trailing `"` in a bare word, which `parse_esc` emits
-            // with `content_offset == 0` and `in_quote == false` (issue 160).
+            // with `content_offset == 0` and `in_quote == false`.
             // The opening / mid-string cases keep `opening.into()` so the
             // semantic-tokens fragment logic (which trims an extended `$`/`[`
             // introducer keyed on `content_offset`) is unaffected.
@@ -1308,7 +1308,7 @@ impl<'src> Lexer<'src> {
     /// trailing `}` for the degenerate `{}` case) so callers
     /// see just the inside of the braces.
     ///
-    /// Never fails. Unterminated `{` tokenizes best-effort. Under the F5
+    /// Never fails. Unterminated `{` tokenises best-effort. Under the F5
     /// word-break axis (`irules_brace_separator`), a non-separator after
     /// the close brace injects a ghost SEP instead of the "extra
     /// characters after close-brace" warning — see the R2 comment below.
@@ -1429,14 +1429,14 @@ impl<'src> Lexer<'src> {
     /// trailing `]` from the degenerate case) so callers see just the
     /// command body.
     ///
-    /// Never fails. An unterminated `[` tokenizes best-effort; the
+    /// Never fails. An unterminated `[` tokenises best-effort; the
     /// `missing close-bracket` warning is not yet emitted.
     /// Advance `self.pos` past a `${…}` braced variable name beginning at the
     /// current `$` (whose next byte is `{`), using the same brace-nesting +
     /// backslash-pair rules as [`Self::parse_var`]'s braced branch: `\X` is a
     /// literal pair (so `\}` does not close) and inner `{`/`}` nest. Shared by
     /// the command-substitution scanner so an inner `}`/`]`/`)` in a braced
-    /// name does not fool its delimiter counter (issue 163).
+    /// name does not fool its delimiter counter.
     fn skip_braced_var_name(&mut self) {
         self.pos += 2; // skip '${'
         self.skip_braced_var_name_body();
@@ -1451,10 +1451,10 @@ impl<'src> Lexer<'src> {
     ///
     /// The release-aware close rule itself lives in
     /// [`crate::ranges::braced_var_name_end`], the one owner both `subst`
-    /// engines resolve `${…}` through as well (issue #1457).
+    /// engines resolve `${…}` through as well.
     ///
     /// An unterminated form is C's `missing close-brace for variable name`
-    /// error, but this lexer is the *tokenizer* — it must keep producing tokens
+    /// error, but this lexer is the *tokeniser* — it must keep producing tokens
     /// for half-typed source, so it takes the documented lenient recovery and
     /// runs the name to end-of-input. The evaluating engines raise instead.
     fn skip_braced_var_name_body(&mut self) {
@@ -1550,7 +1550,7 @@ impl<'src> Lexer<'src> {
         // A command substitution contains a Tcl script, so its command
         // position is independent of the outer lexer.  Keep this pair with
         // the delimiter counters: a `#` is a comment only outside quotes /
-        // braces, after the `[` or a top-level `;` / newline (issue #1483).
+        // braces, after the `[` or a top-level `;` / newline.
         let mut in_comment = false;
         let mut at_command_start = true;
 
@@ -2037,8 +2037,8 @@ mod tests {
 
     #[test]
     fn dollar_is_no_longer_an_unsupported_character() {
-        // Regression guard: `$` is no longer in the deferred set.
-        // The lexer should accept `$bar` as a VAR token, not error.
+        // `$` is an ordinary lexable character: the lexer accepts `$bar`
+        // as a VAR token, not an error.
         let tokens = Lexer::new("foo $bar").tokenise_all().unwrap();
         let kinds: Vec<TokenType> = tokens.iter().map(|t| t.kind).collect();
         assert_eq!(
@@ -2054,8 +2054,8 @@ mod tests {
 
     #[test]
     fn brace_is_no_longer_an_unsupported_character() {
-        // Regression guard: `{` and `}` are no longer in the deferred
-        // set. `foo {bar}` should now lex as ESC + SEP + STR + EOL.
+        // `{` and `}` are ordinary lexable characters: `foo {bar}` lexes
+        // as ESC + SEP + STR + EOL.
         let tokens = Lexer::new("foo {bar}").tokenise_all().unwrap();
         let kinds: Vec<TokenType> = tokens.iter().map(|t| t.kind).collect();
         assert_eq!(
@@ -2071,8 +2071,8 @@ mod tests {
 
     #[test]
     fn bracket_is_no_longer_an_unsupported_character() {
-        // Regression guard: `[` is no longer in the deferred set.
-        // `[cmd]` should now lex as a CMD token, not error.
+        // `[` is an ordinary lexable character: `[cmd]` lexes as a CMD
+        // token, not an error.
         let tokens = Lexer::new("[cmd]").tokenise_all().unwrap();
         let kinds: Vec<TokenType> = tokens.iter().map(|t| t.kind).collect();
         assert_eq!(kinds, vec![TokenType::Cmd, TokenType::Eol]);
@@ -2100,7 +2100,7 @@ mod tests {
 
     #[test]
     fn backslash_in_bare_word_does_not_error() {
-        // Regression guard: `\` is no longer in the deferred set.
+        // `\` is an ordinary lexable character inside a bare word.
         let lexed = Lexed::run(r"foo\nbar");
         assert_eq!(lexed.kinds(), vec![TokenType::Esc, TokenType::Eol]);
     }
@@ -2198,8 +2198,7 @@ mod tests {
     #[test]
     fn var_consumes_entire_colon_run() {
         // `$a:::b` — C Tcl's `Tcl_ParseVarName` consumes the whole colon run
-        // once a `::` starts it, so the variable is `a:::b`, not `a::` + `:b`
-        // (issue 162).
+        // once a `::` starts it, so the variable is `a:::b`, not `a::` + `:b`.
         let (rows, _) = var_token_text("$a:::b");
         assert_eq!(rows[0], (TokenType::Var, "a:::b".into()));
         // Four colons likewise stay in the name.
@@ -2290,8 +2289,8 @@ mod tests {
     fn var_braced_name_ending_in_brace() {
         // `${a{b}}` — the inner `{b}` balances, so the name is `a{b}` and it
         // *ends* with the inner `}`; the outer `}` is the closer.
-        // `token_text` must keep that trailing `}` (regression: it used to be
-        // stripped unconditionally, yielding `a{b`). Verified against tclsh
+        // `token_text` must keep that trailing `}`; stripping it
+        // unconditionally would yield `a{b`. Verified against tclsh
         // 9.0.3 (`${a{b}}` reads var `a{b}`).
         let (rows, _) = var_token_text("${a{b}}");
         assert_eq!(rows[0], (TokenType::Var, "a{b}".into()));
@@ -2394,7 +2393,7 @@ mod tests {
         assert_eq!(rows[0], (TokenType::Var, "arr(idx".into()));
     }
 
-    /// Issue #1732 — Tcl 9 rejects a literal brace in an array-index source,
+    /// Tcl 9 rejects a literal brace in an array-index source,
     /// while the 8.x grammar retains it as ordinary index text. The recovery
     /// token is intentionally identical on both paths; only the modern path
     /// carries the fatal compiler-facing warning.
@@ -2582,7 +2581,7 @@ mod tests {
         // (the `\}` is a literal pair, the `]` is inside the name). The
         // command-sub scan must sub-scan `${…}` with the same brace-nesting +
         // backslash-pair rules as `parse_var`, so the inner `]` does not close
-        // the command early (issue 163). One CMD token spans the whole thing.
+        // the command early. One CMD token spans the whole thing.
         let (rows, _) = cmd_token_rows(r"[set ${a\}] x}]");
         assert_eq!(rows[0], (TokenType::Cmd, r"set ${a\}] x}".into()));
         assert_eq!(rows[1], (TokenType::Eol, String::new()));
@@ -2697,7 +2696,7 @@ mod tests {
     fn cmd_comment_hides_closing_bracket() {
         // The `]` after `#` is in a command-position comment.  The command
         // token must therefore extend through the following command and end
-        // at the final `]` (issue #1483).
+        // at the final `]`.
         let (rows, _) = cmd_token_rows("[\n# ] hidden\nset y \"b\"\n]");
         assert_eq!(
             rows[0],
@@ -3327,8 +3326,9 @@ mod tests {
     fn for_dialect_braced_var_follows_the_embedded_runtime() {
         // 8.x runtimes — plain, F5 (tmsh included), EDA, and Expect (an
         // embedded Tcl 8.6) — use the first-close `${…}` rule. Expect and
-        // f5-tmsh are the dialect-profile fix: the old string-keyed table
-        // missed them and fell through to the modern nesting rule.
+        // f5-tmsh must resolve through the dialect profile: a lookup keyed
+        // only on a fixed string set would miss them and fall through to the
+        // modern nesting rule.
         for d in [
             "tcl8.4",
             "tcl8.5",
@@ -3478,14 +3478,13 @@ mod tests {
         assert_eq!(plain, with_empty);
     }
 
-    /// Regression coverage for issue #996: `scan_array_index_body` and
+    /// `scan_array_index_body` and
     /// `skip_var_in_index` are mutually recursive on nested `$a($b($c(…)))`
-    /// array-index references, with no depth cap before this fix.
-    /// Empirically, unguarded input overflowed the native stack (SIGABRT)
-    /// around depth 20,000-25,000 on a 2 MiB thread (`cargo test`'s
-    /// per-test default). 5000 is comfortably past both that crash range
-    /// and `MAX_ARRAY_INDEX_DEPTH` (64); the assertion is that lexing
-    /// returns at all, not what it returns.
+    /// array-index references, so a depth cap is required: unguarded input
+    /// overflows the native stack (SIGABRT) around depth 20,000-25,000 on a
+    /// 2 MiB thread (`cargo test`'s per-test default). 5000 is comfortably
+    /// past both that crash range and `MAX_ARRAY_INDEX_DEPTH` (64); the
+    /// assertion is that lexing returns at all, not what it returns.
     #[test]
     fn deeply_nested_array_index_survives_lexing() {
         const DEPTH: usize = 5000;
@@ -3517,8 +3516,6 @@ mod tests {
             .expect("expected a Var token");
         assert_eq!(var.1, "$a($b($c(1)))");
     }
-
-    // `Lexer::as_quoted_body` — issue #923 idx 125.
 
     #[test]
     fn as_quoted_body_treats_embedded_braces_as_literal_content() {

@@ -129,7 +129,7 @@ const FORMS: &[FormSpec] = &[
 /// only in NAME-line capitalisation and doc-anchor formatting; Tcl 9.1's is
 /// byte-for-byte identical to 9.0's.
 /// `variable name ?value name value ...?` — the *name* sits at every even
-/// argument; the interleaved values are ordinary data (issue #1185).
+/// argument; the interleaved values are ordinary data.
 static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout::strided(ArgRole::VarWrite, 0, 2)];
 
 pub fn spec() -> CommandSpec {

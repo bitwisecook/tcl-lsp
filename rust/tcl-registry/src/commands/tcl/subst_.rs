@@ -160,36 +160,16 @@ fn fold_subst(args: &[&str]) -> Option<String> {
 /// warns about for this command (variable and backslash substitution alone
 /// cannot execute anything). Drives `CommandSpec::taint_sink_gate`, so
 /// `subst -nocommands $tainted` — the exact mitigation this command's own
-/// hover snippet recommends — no longer trips the code-injection sink it
-/// was written to avoid.
+/// hover snippet recommends — correctly does not trip the code-injection
+/// sink it exists to avoid.
 ///
-/// The legacy negative options (`-nobackslashes`/`-nocommands`/
-/// `-novariables`) default every substitution *on*, each disabling one;
-/// `-nocommands` anywhere disables command substitution outright. Tcl
-/// 9.1's positive options (`-backslashes`/`-commands`/`-variables`) invert
-/// that: default every substitution *off*, each enabling one, so command
-/// substitution then runs only when `-commands` is itself present. Tcl
-/// rejects mixing the two families in one call, so seeing any positive
-/// flag switches this scan to positive mode; option scanning stops at the
-/// first non-flag word (the `string` operand).
+/// One projection of [`crate::substitution::subst_substitutions`], which
+/// owns both switch families and the unreadable-call answer: this is that
+/// answer's `commands` field and nothing more, so the taint gate and the
+/// consumers of [`crate::CommandRegistry::substitutions_performed`] can
+/// never disagree about the same call.
 fn subst_evaluates_commands(args: &[&str]) -> bool {
-    let mut positive_mode = false;
-    let mut nocommands = false;
-    let mut commands = false;
-    for &a in args {
-        match a {
-            "-commands" => {
-                commands = true;
-                positive_mode = true;
-            }
-            "-backslashes" | "-variables" => positive_mode = true,
-            "-nocommands" => nocommands = true,
-            "--" => break,
-            _ if a.starts_with('-') => {}
-            _ => break,
-        }
-    }
-    if positive_mode { commands } else { !nocommands }
+    crate::substitution::subst_substitutions(args).commands
 }
 
 pub fn spec() -> CommandSpec {
@@ -210,6 +190,10 @@ pub fn spec() -> CommandSpec {
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         byte_array_effect: ByteArrayEffect::Coerces,
         traits: Traits::TAINT_SINK | Traits::IS_UNESCAPE | Traits::PERFORMS_SUBSTITUTION,
+        // Which of the three substitutions a call actually runs is decided by
+        // the switches above, so the trait alone would tell a consumer only
+        // that *some* substitution happens.
+        substitution_resolver: Some(crate::substitution::subst_substitutions),
         // Exactly one trailing `string` is mandatory; 0 or more recognised
         // switch words may precede it with no fixed ceiling (a switch may
         // legally repeat — `subst -nocommands -nocommands $s` is valid,
@@ -285,6 +269,14 @@ mod tests {
         // argument's own trailing content, not a switch, and must not
         // suppress the sink.
         assert!(subst_evaluates_commands(&["$x", "-nocommands"]));
+    }
+
+    /// A call with no operand at all is an arity error, and one the resolver
+    /// cannot read: its conservative "every kind" answer keeps the sink live
+    /// rather than letting a malformed call suppress T100.
+    #[test]
+    fn subst_evaluates_commands_stays_on_for_an_operand_less_call() {
+        assert!(subst_evaluates_commands(&["-nocommands"]));
     }
 
     #[test]

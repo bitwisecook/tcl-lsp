@@ -36,9 +36,9 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
 
     // General
 
-    // Kept for XML deserialization of old settings; the server is now a
-    // bundled native binary launched directly, so no Python interpreter is
-    // discovered or used.
+    // Kept only so XML deserialization of previously saved settings does not
+    // fail; the bundled native server is launched directly, so no Python
+    // interpreter is discovered or used.
     var pythonPath: String = "auto"
     var serverPath: String = ""
     var dialect: String = "tcl8.6"
@@ -53,7 +53,8 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var featureHover: Boolean = true
     var featureCompletion: Boolean = true
     var featureDiagnostics: Boolean = true
-    // Kept for XML deserialization of old settings; no longer sent to server.
+    // Kept only so XML deserialization of previously saved settings does not
+    // fail; not sent to the server.
     var featureFormatting: Boolean = true
     var featureSemanticTokens: Boolean = true
     var featureCodeActions: Boolean = true
@@ -69,7 +70,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var featureCallHierarchy: Boolean = true
     var featureDocumentLinks: Boolean = true
     var featureSelectionRange: Boolean = true
-    // New in 1.6.x — see editors/vscode/package.json for matching defaults.
+    // See editors/vscode/package.json for matching defaults.
     var featureDocumentHighlight: Boolean = true
     var featureCodeLens: Boolean = true
     var featureWorkspaceFileOps: Boolean = true
@@ -162,6 +163,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticW152: Boolean = true
     var diagnosticW200: Boolean = true
     var diagnosticW201: Boolean = true
+    var diagnosticW202: Boolean = true
     var diagnosticW230: Boolean = true
     var diagnosticW231: Boolean = true
     var diagnosticW232: Boolean = true
@@ -342,7 +344,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     // Diagnostic patterns
 
     var diagnosticsGenericVariablePatterns: String = ""  // newline-separated regexes
-    var diagnosticsExclude: String = ""  // newline-separated file globs (#1556)
+    var diagnosticsExclude: String = ""  // newline-separated file globs
 
     override fun getState(): TclLspSettings = this
 
@@ -474,6 +476,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "W152" to diagnosticW152,
                 "W200" to diagnosticW200,
                 "W201" to diagnosticW201,
+                "W202" to diagnosticW202,
                 "W230" to diagnosticW230,
                 "W231" to diagnosticW231,
                 "W232" to diagnosticW232,

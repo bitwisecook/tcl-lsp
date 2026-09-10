@@ -307,10 +307,21 @@ fn terraform_pool_name_with_slashes_is_sanitised() {
         !tf.contains("volterra_origin_pool\" \"/Common/web-pool\""),
         "raw slashed name leaked into resource label:\n{tf}"
     );
-    // The real object name is preserved as the `name` attribute.
+    // The `name` attribute is the XC object name, which must be DNS-1035:
+    // the BIG-IP path is not a legal one, so it cannot be passed through.
     assert!(
-        tf.contains("name      = \"/Common/web-pool\""),
-        "TF dropped the real pool name:\n{tf}"
+        !tf.contains("name      = \"/Common/web-pool\""),
+        "raw BIG-IP path used as the XC object name:\n{tf}"
+    );
+    let xc_name = f5_xc::xc_object_name("/Common/web-pool");
+    assert!(
+        tf.contains(&format!("name      = \"{xc_name}\"")),
+        "TF does not carry the derived XC name {xc_name:?}:\n{tf}"
+    );
+    // The real path is not lost — it travels in the description.
+    assert!(
+        tf.contains("Translated from BIG-IP /Common/web-pool"),
+        "TF dropped the source path:\n{tf}"
     );
     // The label and the route reference must agree. Extract the label from the
     // resource header and confirm the reference uses it verbatim.

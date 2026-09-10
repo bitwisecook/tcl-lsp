@@ -20,7 +20,7 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import { getDocUri, activate, setTestContent, pollUntil, waitForDiagnostics } from "./helper";
 
-// Issue #923 differential audit — the namespaces and packages/autoindex/source
+// Differential audit — the namespaces and packages/autoindex/source
 // findings, at the editor tier. Every case below was verified against real
 // tclsh (8.6.16 and 9.0.4) before it was written; the oracle transcript is
 // quoted on each test. The tier matters because everything else about these

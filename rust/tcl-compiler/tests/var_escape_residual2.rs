@@ -79,7 +79,7 @@ use tcl_compiler::var_escape::{
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::ingress::static_context_for;
 
-// ── Shared helpers ──────────────────────────────────────────────────────────
+// Shared helpers.
 
 const TCL: &str = "tcl8.6";
 
@@ -130,8 +130,8 @@ fn ssa_frame(p: &ProcEscapeSummary, name: &str, version: Version) -> bool {
     p.ssa_tags.get(&(name.to_string(), version)) == Some(&EscapeTag::Frame)
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// PART 1 — CFG path: literal `eval {control-flow}` body → escape_every_name_touched_tree
+// CFG path: literal `eval {control-flow}` body →
+// escape_every_name_touched_tree.
 //
 // On the CFG path a literal `eval {…}` body that contains control flow is routed
 // through `is_eval_block` → `handle_barrier("eval")` → `handle_eval` →
@@ -140,7 +140,6 @@ fn ssa_frame(p: &ProcEscapeSummary, name: &str, version: Version) -> bool {
 // test below drives a distinct `tree_structural` arm with a frame-crossing
 // command inside it. No prior port reaches the CFG eval-body walker (the IR-walk
 // ports use `var_escape/walker.rs`; the CFG ports use direct statements).
-// ════════════════════════════════════════════════════════════════════════════
 
 #[test]
 fn cu_eval_if_body_global_escapes() {
@@ -346,15 +345,13 @@ fn cu_eval_incr_amount_does_not_escape_name() {
     assert!(!p.dynamic_barrier());
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// PART 2 — CFG path: multi-arg `eval` (handle_eval direct), uplevel level gates
+// CFG path: multi-arg `eval` (handle_eval direct), uplevel level gates.
 //
 // A multi-word `eval set out $inval` is NOT a brace-block; it reaches `handle_eval`
 // directly, which joins the args and either scans a literal body or marks the proc
 // pessimistic on a dynamic join. The `handle_uplevel` level-literal gates
 // (`#0`/`0`-only, empty body, dynamic body, multi-part body join) are the sibling
 // early-returns.
-// ════════════════════════════════════════════════════════════════════════════
 
 #[test]
 fn cu_eval_multiarg_literal_escapes_name() {
@@ -430,8 +427,7 @@ fn cu_uplevel_zero_dynamic_body_is_pessimistic() {
     );
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// PART 3 — CFG path: handle_catch literal-body re-walk + dynamic-body early-return
+// CFG path: handle_catch literal-body re-walk + dynamic-body early-return.
 //
 // The CFG builder lowers `catch {body}` to an opaque Call whose first raw arg is
 // the brace-stripped body. handle_catch mirrors handle_eval: a *literal* body is
@@ -439,7 +435,6 @@ fn cu_uplevel_zero_dynamic_body_is_pessimistic() {
 // `$`/`[` in the body text) early-returns, keeping only the call fallback.
 // (`compiler_residual.rs` covers a simple literal catch upvar; the dynamic
 // early-return and the $-reference re-scan are uncovered.)
-// ════════════════════════════════════════════════════════════════════════════
 
 #[test]
 fn cu_catch_dynamic_body_arg_is_pessimistic() {
@@ -484,17 +479,16 @@ fn cu_catch_literal_body_with_dynamic_value_early_returns() {
     assert!(p.has_fallback(), "the catch still records the fallback");
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// PART 4 — IR path (var_escape/walker.rs): escape_every_name_touched structural arms
+// IR path (var_escape/walker.rs): escape_every_name_touched structural arms.
 //
-// The IR-walk twin of Part 1. A literal `eval {…}` body is walked by
-// `escape_every_name_touched`, which escapes EVERY name touched. These drive each
-// `escape_structural` arm (For / While / Foreach / Switch / Try / Catch / Block /
-// UpFrame) with a frame-crossing command inside — arms `compiler_residual.rs`
-// (which only does the IR `Return`/`ExprEval`/`namespace upvar` scans) and
-// `var_escape_cfg.rs` (which does the IR `walk` if/for/switch/try, NOT the
-// eval-body `escape_*` arms) both skip.
-// ════════════════════════════════════════════════════════════════════════════
+// The IR-walk twin of the CFG literal-eval-body coverage above. A literal
+// `eval {…}` body is walked by `escape_every_name_touched`, which escapes
+// EVERY name touched. These drive each `escape_structural` arm (For / While /
+// Foreach / Switch / Try / Catch / Block / UpFrame) with a frame-crossing
+// command inside — arms `compiler_residual.rs` (which only does the IR
+// `Return`/`ExprEval`/`namespace upvar` scans) and `var_escape_cfg.rs` (which
+// does the IR `walk` if/for/switch/try, NOT the eval-body `escape_*` arms)
+// both skip.
 
 #[test]
 fn ir_eval_for_body_global_escapes_and_escapes_locals() {
@@ -625,14 +619,12 @@ fn ir_eval_uplevel_zero_block_inside_needs_fallback_only() {
     assert!(p.has_fallback());
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// PART 5 — IR path: escape_assign_or_incr dynamic-name pessimism inside eval body
+// IR path: escape_assign_or_incr dynamic-name pessimism inside eval body.
 //
 // Inside a literal eval body, an assignment / increment to a *dynamic* name
 // (`set $dyn …`) can't be bounded, so `escape_assign_or_incr` marks the whole proc
 // pessimistic (the mark_pessimistic early-return). This is distinct from the
 // top-level `walk_dynamic_name_escape` spill (which resolves or escape_all_known).
-// ════════════════════════════════════════════════════════════════════════════
 
 #[test]
 fn ir_eval_body_dynamic_assign_name_is_pessimistic() {
@@ -659,14 +651,12 @@ fn ir_eval_body_dynamic_incr_name_is_pessimistic() {
     );
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// PART 6 — IR path: handle_uplevel level-literal gates + handle_eval no-args
+// IR path: handle_uplevel level-literal gates + handle_eval no-args.
 //
 // `var_escape/walker.rs::handle_uplevel` has several early-returns the prior ports
 // skip: a non-`#0`/`0` literal level (`uplevel 2`), a negative-looking level
 // (`uplevel -1`, where the `-` is trimmed then digit-checked), and `uplevel 1`
 // with no body. `handle_eval` with no args records an Eval barrier.
-// ════════════════════════════════════════════════════════════════════════════
 
 #[test]
 fn ir_uplevel_level_two_is_upvar_barrier() {
@@ -771,9 +761,8 @@ fn ir_generic_barrier_records_unknown_barrier() {
     }
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// PART 7 — apply_value_scan pessimistic short-circuit + non-frameless head in a
-//          value, reached *inside* a literal eval body (CFG + IR)
+// apply_value_scan pessimistic short-circuit + non-frameless head in a value,
+// reached *inside* a literal eval body (CFG + IR).
 //
 // `apply_value_scan` (both walkers) records a fallback for a non-frameless `[cmd]`
 // substitution head and marks the proc pessimistic when an embedded `[info level]`
@@ -781,7 +770,6 @@ fn ir_generic_barrier_records_unknown_barrier() {
 // fallback for a top-level `set x [myproc a]`; the *eval-body* re-entry of these
 // scans (via the tree walker's value/expr scans) and the pessimistic short-circuit
 // are uncovered.
-// ════════════════════════════════════════════════════════════════════════════
 
 #[test]
 fn cu_value_with_info_level_marks_pessimistic() {
@@ -825,15 +813,13 @@ fn cu_eval_body_value_nonframeless_head_records_fallback_via_cfg_result() {
     );
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// PART 8 — low-level analyse_cfg_function on top-level eval bodies
+// Low-level analyse_cfg_function on top-level eval bodies.
 //
 // Drive `analyse_cfg_function` directly on a *top-level* literal eval body and
 // inspect the raw `CfgEscapeResult`: the per-name collapse, the recorded upvar
 // source, the tag_reasons map, and the direct_callees the tree walk records.
 // (`var_escape_cfg.rs` drives cfg_result only on flat statements, not eval
 // bodies.)
-// ════════════════════════════════════════════════════════════════════════════
 
 #[test]
 fn cfg_result_eval_body_global_collapses_and_records_callee() {
@@ -873,16 +859,14 @@ fn cfg_result_eval_body_upvar_records_source_and_reason() {
     );
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// PART 9 — CFG handle_statement: dynamic-name AssignExpr / Incr arms
+// CFG handle_statement: dynamic-name AssignExpr / Incr arms.
 //
 // `handle_stmt_assign_or_incr`'s AssignExpr arm with a *dynamic* name runs
 // `dynamic_name_escape` (resolve-literal-or-spill). `var_escape_cfg.rs`
 // covers `set $n …` (AssignConst/AssignValue); the AssignExpr (`set $n [expr …]`)
-// dynamic-name arm is uncovered here. Since issue #1487 the lowering never
-// emits `Statement::Incr` with a computed name (it declines to the generic
-// Call), so the Incr test below pins the Call-form contract instead.
-// ════════════════════════════════════════════════════════════════════════════
+// dynamic-name arm is uncovered here. The lowering never emits
+// `Statement::Incr` with a computed name (it declines to the generic Call),
+// so the Incr test below pins the Call-form contract instead.
 
 #[test]
 fn cu_dynamic_assignexpr_name_spills_all_known() {
@@ -911,12 +895,12 @@ fn cu_dynamic_incr_name_spills_all_known() {
     // local `$n` names, so every local is frame-resident:
     //   proc f {n} { set a 1; incr $n; return $a }
     //   f a -> 2 (incremented a) ;  f b -> 1 (a untouched)
-    // Since issue #1487 the lowering declines the `Statement::Incr`
-    // specialisation for a computed name and emits the generic Call — the same
-    // path as `set $n …` — so the dynamic-name barrier rises for the whole
-    // proc, exactly as the `set` form does. The old name-precise Incr arm was
-    // invisible to `dynamic_names::scan_statement`, which is what #1487 fixed;
-    // the precision loss is the deliberate trade.
+    // The lowering declines the `Statement::Incr` specialisation for a
+    // computed name and emits the generic Call — the same path as `set $n …`
+    // — so the dynamic-name barrier rises for the whole proc, exactly as the
+    // `set` form does. A name-precise Incr arm would be invisible to
+    // `dynamic_names::scan_statement`, so the precision loss is the
+    // deliberate trade.
     let s = escape_cu("proc ::p {n} { set a 1\n incr $n }");
     let p = summary(&s, "::p");
     assert!(p.is_frame("a"), "a is spilled by the dynamic incr name");
@@ -947,9 +931,8 @@ fn cu_assignexpr_literal_name_invalidates_then_dynamic_spills() {
     assert!(p.is_frame("x"), "x is spilled");
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// PART 10 — CFG handle_call command-word classification (record_fallback vs
-//          record_call_fallback) + recorded callees for info / namespace
+// CFG handle_call command-word classification (record_fallback vs
+// record_call_fallback) + recorded callees for info / namespace.
 //
 // `handle_call` classifies the command word: an empty / dynamic head →
 // record_fallback (eval fallback); a static non-frameless head →
@@ -957,7 +940,6 @@ fn cu_assignexpr_literal_name_invalidates_then_dynamic_spills() {
 // `compiler_residual.rs` covers user/qualified callees + the `$cmd` head;
 // the `info`/`namespace` recorded-callee cases and the call-fallback-vs-fallback
 // split for a frameless-command value are exercised here.
-// ════════════════════════════════════════════════════════════════════════════
 
 #[test]
 fn cu_assignvalue_info_exists_escapes_via_value_scan() {
@@ -1017,10 +999,8 @@ fn cu_eval_after_barrier_records_inner_callees_not_eval() {
     );
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// PART 11 — per-SSA-version surface for eval-body escapes (the flow-sensitive
-//          payload the CU path adds over the IR walk)
-// ════════════════════════════════════════════════════════════════════════════
+// Per-SSA-version surface for eval-body escapes (the flow-sensitive payload
+// the CU path adds over the IR walk).
 
 #[test]
 fn cu_eval_body_global_tags_concrete_ssa_version() {
@@ -1064,13 +1044,11 @@ fn cu_top_level_eval_body_escapes_via_cu_map() {
     );
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// PART 12 — interprocedural fold over an eval-body upvar source (CFG path)
+// Interprocedural fold over an eval-body upvar source (CFG path).
 //
 // An eval-body `upvar` records a named caller source; with the CU fixpoint on, a
 // caller whose matching local shares that name becomes Frame. Mirrors the
 // interprocedural eval-source propagation through the CFG eval-body walker.
-// ════════════════════════════════════════════════════════════════════════════
 
 #[test]
 fn cu_eval_body_named_upvar_source_flows_to_caller() {

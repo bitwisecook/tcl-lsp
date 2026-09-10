@@ -20,7 +20,7 @@
 //!
 //! Runs the built binary on committed fixtures and asserts stdout matches the
 //! captured golden output. Only verbs whose engine is implemented
-//! (file-I/O-only for now) are asserted byte-for-byte.
+//! (currently file-I/O only) are asserted byte-for-byte.
 
 use std::path::PathBuf;
 use std::process::Command;

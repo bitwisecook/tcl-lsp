@@ -17,8 +17,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Token-bounded source rewriter — the **rename** half of the BIG-IP source
-//! rewriter (`rename_object` + its helpers `_build_name_pattern` /
-//! `_other_kind_header_spans`, and [`RenameReport`]).
+//! rewriter (`rename_object` + its helpers `find_name_matches` /
+//! `other_kind_header_spans`, and [`RenameReport`]).
 //!
 //! `rename_object` rewrites every token-bounded occurrence of an object's
 //! full-path — the stanza header, every property-value reference, and iRule
@@ -140,8 +140,7 @@ fn other_kind_header_spans(source: &str, old: &str, kind_scope: &str) -> Vec<(us
 /// global rewrite used by the `rename()` builtin / `f5 rename`.
 ///
 /// # Errors
-/// Returns an error message when `old` or `new` is empty, matching the
-/// reference `ValueError`.
+/// Returns an error message when `old` or `new` is empty.
 pub fn rename_object(
     source: &str,
     old: &str,
@@ -181,9 +180,8 @@ pub fn rename_object(
     }
     out.push_str(&source[cursor..]);
 
-    // The reference re-parses the rewritten SCF as a sanity check and raises on
-    // failure; the Rust `parse_bigip_conf` is infallible, so the field-edit
-    // path likewise omits the reparse. Nothing to validate here.
+    // `parse_bigip_conf` is infallible, so there is no reparse step needed to
+    // validate the rewritten SCF.
 
     Ok(RenameReport {
         old: old.to_owned(),

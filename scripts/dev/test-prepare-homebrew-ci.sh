@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# Hermetic regression for the macOS runner cleanup in issue #1684. The fake
+# Hermetic regression for the macOS runner cleanup. The fake
 # brew records every call, so the test proves exact-match removal, preservation
 # of unrelated taps, and idempotence without mutating a developer machine.
 

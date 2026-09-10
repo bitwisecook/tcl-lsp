@@ -83,9 +83,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-# --------------------------------------------------------------------------
-# Constants
-# --------------------------------------------------------------------------
+# Constants.
 
 #: Directory this script lives in. Defaults are resolved against it (matching
 #: the sibling `bench.py`) so the tool behaves the same from any cwd.
@@ -166,9 +164,7 @@ LEGEND_COLS = 4
 FOOTNOTE_H = 20
 
 
-# --------------------------------------------------------------------------
-# Input model
-# --------------------------------------------------------------------------
+# Input model.
 
 
 @dataclass(frozen=True)
@@ -400,9 +396,7 @@ def rss_series(run: Run) -> list[tuple[float, float]]:
     return [(s.t_s, s.rss_kib / KIB_PER_MIB) for s in run.timeline]
 
 
-# --------------------------------------------------------------------------
-# Number and text formatting
-# --------------------------------------------------------------------------
+# Number and text formatting.
 
 
 def fnum(value: float) -> str:
@@ -438,9 +432,7 @@ def esc(text: str) -> str:
     )
 
 
-# --------------------------------------------------------------------------
-# Scales
-# --------------------------------------------------------------------------
+# Scales.
 
 
 def nice_ticks(
@@ -538,9 +530,7 @@ def make_scale(
     return scale_lin
 
 
-# --------------------------------------------------------------------------
-# SVG scaffolding
-# --------------------------------------------------------------------------
+# SVG scaffolding.
 
 
 def _rgb(value: str) -> tuple[int, int, int]:
@@ -873,9 +863,7 @@ def _empty_note(x0: float, y0: float, x1: float, y1: float, message: str) -> lis
     ]
 
 
-# --------------------------------------------------------------------------
-# Charts
-# --------------------------------------------------------------------------
+# Charts.
 
 
 def line_chart(
@@ -1114,9 +1102,7 @@ def grouped_bar_chart(
     return "\n".join(out) + "\n"
 
 
-# --------------------------------------------------------------------------
-# Chart assembly
-# --------------------------------------------------------------------------
+# Chart assembly.
 
 
 def _highlight_note(runs: Sequence[Run], highlight: int | None) -> str:
@@ -1199,9 +1185,7 @@ def build_walltime_svg(
     )
 
 
-# --------------------------------------------------------------------------
-# Markdown fragment
-# --------------------------------------------------------------------------
+# Markdown fragment.
 
 
 def _md_cell(value: float) -> str:
@@ -1353,9 +1337,7 @@ def build_summary_md(
     return "\n".join(lines)
 
 
-# --------------------------------------------------------------------------
-# CLI
-# --------------------------------------------------------------------------
+# CLI.
 
 
 def write_text(path: Path, content: str) -> Path:

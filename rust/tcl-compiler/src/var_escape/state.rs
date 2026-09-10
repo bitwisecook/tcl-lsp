@@ -29,8 +29,8 @@ use crate::var_escape::types::{Barrier, EscapeFlags, EscapeReason, EscapeTag};
 
 /// Tracked literal binding for the alias-inference path.
 ///
-/// `Set(name, value)` records the most recent literal a variable
-/// was assigned. `Invalidated` marks the binding as untrustworthy
+/// `Set(value)` records the literal a variable's first writer
+/// assigned. `Invalidated` marks the binding as untrustworthy
 /// once a second writer or a non-literal value appears — only the
 /// single-writer case is trusted.
 #[derive(Debug, Clone)]

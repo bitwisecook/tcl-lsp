@@ -42,22 +42,19 @@ use tcl_lexer::Span;
 use crate::codegen::emit::Emit;
 use crate::ir::{IfClause, Script, Statement};
 
-/// Depth cap for this walk's recursion over nested `if`/`while`/`for` —
-/// issue #996. Unlike `loop_depth` (which tracks *loop* nesting only, for
+/// Depth cap for this walk's recursion over nested `if`/`while`/`for`.
+/// Unlike `loop_depth` (which tracks *loop* nesting only, for
 /// `break`/`continue` validity, and never increments for `if`), this counts
 /// **every** structurally-recursive level so purely `if`-nested input is
 /// bounded too. This walk **is** on a wired-up production path — the WASM
 /// backend drives it for the top level and for every proc body
 /// (`codegen::wasm::backend::codegen`, `backend.rs:1919` and `:1961`) — and it
 /// is guarded the same way as every other recursive-descent walker in this
-/// crate. (A stale claim that `structured::walk` "has no caller yet" stood
-/// here until issue #1376; it is plausibly why neither `slice` nor the clause
-/// text helper was hardened.) 256 matches the convention used elsewhere in
+/// crate. 256 matches the convention used elsewhere in
 /// this crate (`analyser::commands::MAX_BODY_DEPTH`,
 /// `lowering::MAX_LOWER_NEST_DEPTH`, `optimiser::MAX_OPTIMISER_WALK_DEPTH`):
 /// this runs on the native compiler's side (emitting WASM, not executing
-/// inside it) — the same big-stack entry points already fixed for issue #996
-/// apply.
+/// inside it), so the same big-stack entry points apply.
 const MAX_STRUCTURED_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
 
 /// Whether straight-line control falls through to the next statement, or the
@@ -97,8 +94,8 @@ fn walk_stmt<E: Emit>(
     loop_depth: u32,
     depth: u32,
 ) -> Flow {
-    // Native-stack safety net — see `MAX_STRUCTURED_DEPTH`'s doc comment
-    // (issue #996). Past the cap, an `if`/`while`/`for` degrades to the
+    // Native-stack safety net — see `MAX_STRUCTURED_DEPTH`'s doc comment.
+    // Past the cap, an `if`/`while`/`for` degrades to the
     // same whole-construct eval-fallback every other unstructured
     // statement kind already uses below, instead of recursing further.
     if MAX_STRUCTURED_DEPTH.exceeded(depth)
@@ -173,7 +170,7 @@ fn walk_stmt<E: Emit>(
             // The init clause runs once, in the enclosing scope.
             walk_script(emit, init, source, loop_depth, depth);
             let cond = clause_text(source, *condition_span, *condition_base);
-            // Issue #1376 residual: `Statement::For` carries `condition_base`
+            // `Statement::For` carries `condition_base`
             // but no `next_base`, so the step clause takes the lowerer's own
             // de-braced word text (`raw_args[2]` — `for init cond next body`)
             // when it is present, which is the IR fact that corresponds to
@@ -250,7 +247,7 @@ fn emit_if<E: Emit>(
         emit.begin_else();
         if MAX_STRUCTURED_DEPTH.exceeded(depth + 1) {
             // Native-stack safety net — see `MAX_STRUCTURED_DEPTH`'s doc
-            // comment (issue #996). Re-running the *whole* original
+            // comment. Re-running the *whole* original
             // if/elseif/else construct as one eval-fallback here (rather
             // than recursing into `emit_if` for `rest`) is semantically
             // correct: by construction this branch only runs when every
@@ -310,7 +307,7 @@ fn emit_loop<E: Emit>(
 /// Slice `source` to a span's byte range. A span past the end of `source`
 /// or landing off a UTF-8 character boundary degrades to an empty slice
 /// rather than panicking — a bad IR span (e.g. from a mis-lowered
-/// dynamic body, issue #1375) must not abort the compiler.
+/// dynamic body) must not abort the compiler.
 fn slice(source: &str, span: Span) -> &str {
     source
         .get(span.start() as usize..span.end() as usize)
@@ -340,7 +337,7 @@ fn slice(source: &str, span: Span) -> &str {
 ///
 /// The runtime then raises `missing "` where real Tcl raises
 /// `invalid command name "puts hi"` — a parse error on code the user wrote
-/// correctly (issue #1595, the whole-command sibling of #1376).
+/// correctly.
 ///
 /// # Deciding it from an authority, not a guess
 ///
@@ -350,8 +347,8 @@ fn slice(source: &str, span: Span) -> &str {
 /// thing known here is that the closer, if one is missing, sits exactly at
 /// `span.end()`.
 ///
-/// Rather than re-deriving where the final word began — the hand-rolled scan
-/// whose copies keep drifting (issues #1423, #1424) — the question is put to
+/// Rather than re-deriving where the final word began — a hand-rolled scan
+/// whose copies drift — the question is put to
 /// [`tcl_lexer::script_is_complete`], the crate's `Tcl_CommandComplete` port
 /// (`info complete`, verified against C Tcl 9.0.3): a truncated command is
 /// *exactly* a script that needs more input, and restoring its closer is
@@ -382,9 +379,9 @@ pub(crate) fn command_text(source: &str, span: Span) -> &str {
 ///
 /// # There is no universal span convention — classify by delimiter
 ///
-/// Issue #1376's first fix assumed one: "the token span starts at the opener
-/// and always excludes the closer". That is false, and the counter-examples
-/// are ordinary code. The lexer's span geometry differs **per word class**,
+/// "The token span starts at the opener and always excludes the closer" is
+/// false, and the counter-examples are ordinary code. The lexer's span
+/// geometry differs **per word class**,
 /// verified against the segmenter:
 ///
 /// | source | kind | span covers | the value |
@@ -447,7 +444,7 @@ fn clause_text(source: &str, span: Span, base: Option<u32>) -> &str {
         ),
         // Braced word: the span excludes the closer except for an empty `{}`,
         // which is the one case `word_closer_offset_at` exists to get right
-        // (the same trap #1423 found in `branch_folding`).
+        // (the same trap `branch_folding` has to avoid).
         b'{' => {
             let end = tcl_lexer::word_closer_offset_at(source, span)
                 .map_or(span_end, |closer| closer as usize);
@@ -529,29 +526,27 @@ mod tests {
         }
     }
 
-    /// Issue #1376 — [`clause_text`] unit contract, one vector per **word
-    /// class**. Every span below is the lexer's real span for that source,
-    /// taken from the segmenter, not from an assumed convention: the first fix
-    /// for #1376 assumed a universal "the span excludes the closer" rule, and
-    /// the quoted rows here are exactly the shapes that disprove it.
+    /// [`clause_text`] unit contract, one vector per **word class**. Every
+    /// span below is the lexer's real span for that source, taken from the
+    /// segmenter, not from an assumed convention: the quoted rows are the
+    /// shapes that disprove a universal "the span excludes the closer" rule.
     #[test]
     fn clause_text_derives_content_bounds_from_the_word_class() {
         // (source, span, base, expected)
         let cases: &[(&str, u32, u32, Option<u32>, &str)] = &[
-            // -- braced word: span excludes the closer --
+            // Braced word: span excludes the closer.
             ("while {${x}} {b}", 6, 11, None, "${x}"),
             // …and with the lowerer's own anchor supplied.
             ("while {${x}} {b}", 6, 11, Some(7), "${x}"),
             ("if {$x eq {a}} {b}", 3, 13, None, "$x eq {a}"),
             // A *nested* empty pair at the tail is not the empty-word case —
-            // the outer word's own closer still sits one byte past the span
-            // (issue #1423's shape).
+            // the outer word's own closer still sits one byte past the span.
             ("while {$x eq {}} {b}", 6, 15, None, "$x eq {}"),
             // Surrounding whitespace inside the braces is trimmed, as before.
             ("while { $x } {b}", 6, 11, None, "$x"),
-            // -- braced word, EMPTY: span *includes* the closer --
+            // Braced word, EMPTY: span *includes* the closer.
             ("while {} {b}", 6, 8, None, ""),
-            // -- quoted word ending in literal text: span EXCLUDES the closer --
+            // Quoted word ending in literal text: span EXCLUDES the closer.
             (r#"if "$x eq lit" {b}"#, 3, 13, None, "$x eq lit"),
             // -- quoted word ending in a SUBSTITUTION: span INCLUDES the
             // closer. This is the shape the universal-convention assumption
@@ -569,17 +564,17 @@ mod tests {
             // trimming breaks one of these two rows.
             (r#"if "$x" {b}"#, 3, 7, None, "$x"), // end past the closer
             (r#"if "$x" {b}"#, 3, 6, None, "$x"), // end before the closer
-            // -- substitution word: the delimiters ARE part of the value --
+            // Substitution word: the delimiters ARE part of the value.
             ("while ${x} {b}", 6, 9, None, "${x}"),
             ("if [foo] {b}", 3, 7, None, "[foo]"),
             // A `}` inside the name does not end the word early under 9.x.
             ("if ${a{b}c} {b}", 3, 10, None, "${a{b}c}"),
-            // -- bare word: no delimiters, the span is the value --
+            // Bare word: no delimiters, the span is the value.
             ("while $c {b}", 6, 8, None, "$c"),
             ("while 1 {b}", 6, 7, None, "1"),
             // A bare word that merely *starts* with `$` is still whole.
             ("while $x+1 {b}", 6, 10, None, "$x+1"),
-            // -- base handling --
+            // Base handling.
             // An out-of-range base is ignored in favour of the class-derived
             // start rather than slicing somewhere unrelated.
             ("while {${x}} {b}", 6, 11, Some(99), "${x}"),
@@ -594,7 +589,7 @@ mod tests {
         }
     }
 
-    /// Issue #1595 — [`command_text`] unit contract. The rows split into the
+    /// [`command_text`] unit contract. The rows split into the
     /// truncated class (a final quoted word ending in literal text, which the
     /// segmenter's type gate leaves one byte short) and the majority that must
     /// come back byte-identical.
@@ -602,14 +597,14 @@ mod tests {
     fn command_text_restores_only_a_missing_final_quote() {
         // (source, span, expected)
         let cases: &[(&str, u32, u32, &str)] = &[
-            // -- the truncated class: the closer sits at `span.end()` --
+            // The truncated class: the closer sits at `span.end()`.
             (r#""puts hi""#, 0, 8, r#""puts hi""#),
             (r#"catch "puts hi""#, 0, 14, r#"catch "puts hi""#),
             (r#"return "a b""#, 0, 11, r#"return "a b""#),
             // -- quoted final word ending in a substitution: the span already
             // covers the closer, so nothing is added --
             (r#"catch "puts $x""#, 0, 15, r#"catch "puts $x""#),
-            // -- braced / bracketed final words: already widened upstream --
+            // Braced / bracketed final words: already widened upstream.
             (
                 "foreach x {a b} {puts $x}",
                 0,
@@ -685,9 +680,9 @@ mod tests {
         rec.0
     }
 
-    /// Regression coverage for issue #996: `walk_stmt`/`emit_if`/`emit_loop`'s
+    /// `walk_stmt`/`emit_if`/`emit_loop`'s
     /// recursion over nested `if`/`while`/`for` (and `emit_if`'s own
-    /// self-recursive `elseif`-chain walk) is now capped at
+    /// self-recursive `elseif`-chain walk) is capped at
     /// `MAX_STRUCTURED_DEPTH` (256). `lower_to_ir` (called by `events`) has
     /// its own matching cap and barriers past it first in this end-to-end
     /// path, so this proves the *whole* pipeline survives deep nesting
@@ -723,8 +718,8 @@ mod tests {
     /// bodies: `emit_if` recurses once per `elseif` link via a self-call,
     /// independently of `MAX_LOWER_NEST_DEPTH` (which bounds source
     /// *nesting* depth, not chain *length* — `lowering` does not barrier
-    /// this). Confirms `emit_if`'s own chain-position depth budget (issue
-    /// #996) catches this shape too, not just nested bodies.
+    /// this). Confirms `emit_if`'s own chain-position depth budget catches
+    /// this shape too, not just nested bodies.
     #[test]
     fn very_long_elseif_chain_survives_structured_walk() {
         const LINKS: usize = 2000;

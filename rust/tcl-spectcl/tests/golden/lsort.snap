@@ -11,4 +11,4 @@ dialects []
 registrations 1
 notices 0
 commands 1
-command lsort line 9 overrides false degraded false spec ef71204e2642ce76 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command lsort line 9 overrides false degraded false spec 1c85c00f5a8eb499 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9

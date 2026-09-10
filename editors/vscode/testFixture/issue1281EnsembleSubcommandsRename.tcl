@@ -1,4 +1,4 @@
-# Issue #1281 — the `-subcommands` entry IS the target's tail, so renaming
+# The `-subcommands` entry IS the target's tail, so renaming
 # `alpha` must rewrite the declaration, the `-subcommands` entry and the
 # dispatch word together.
 #

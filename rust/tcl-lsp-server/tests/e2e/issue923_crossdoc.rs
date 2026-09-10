@@ -16,8 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Issue #923 differential audit — cross-document resolution tiers
-//! (findings idx 19 / 65 / 72 / 73 / 75 / 78 / 80).
+//! Cross-document resolution tiers (idx 19 / 65 / 72 / 73 / 75 / 78 / 80).
 //!
 //! Two gaps, both "the answer is in another file":
 //!
@@ -246,7 +245,7 @@ fn tn_plain_argument_word_does_not_resolve_to_a_sibling_class() {
 // proc declared in a **sibling document**. Absolute spelling is essential:
 // Tcl 9 resolves relative method-body heads in the receiver namespace.
 //
-// The same mechanic is already pinned single-file (issue #1132), but idx 44's
+// The same mechanic is already pinned single-file, but idx 44's
 // real corpus (`ticklecharts`) splits it across files — the utility proc in
 // `utils.tcl`, the class in `dataset.tcl` — which is the tier a
 // workspace-index regression would break without touching the single-file

@@ -30,7 +30,7 @@
 //! * `$var` references resolve to the `definition_span` of the
 //!   matching `VarDef` in the global scope.  Scope-chain
 //!   descent is not done — the analyser's body-span line index
-//!   isn't currently threaded into the search path.
+//!   is not threaded into the search path.
 //! * Bare-word references resolve to a user-defined `proc` or
 //!   `TclOO` class via `name_span`.  Proc resolution follows C
 //!   Tcl's command lookup (`Tcl_FindCommand`, `tclNamesp.c`):
@@ -77,7 +77,7 @@
 //! `Cls create obj` site), the provider jumps to the method
 //! declaration on that class.
 //!
-//! `apply` namespace override (issue #923 idx 116): a bareword call
+//! `apply` namespace override: a bareword call
 //! inside `apply {{params} body ns}`'s body resolves against `ns`, not
 //! wherever the `apply` call is lexically written — `namespace_context_at`
 //! / `innermost_namespace_at` consult `analysis.namespace_overrides`
@@ -103,8 +103,7 @@
 //!   reachability, never re-dispatched through `AnalyserHookId::Apply`.
 //!   Nor is a proc that re-injects its own arguments as a script via a
 //!   captured `uplevel`-namespace + trace/callback (tcllib generator.tcl's
-//!   `finally`, the exact idiom issue #923 idx 116's confirmed finding
-//!   traces through) — there is no static/lexical connection between such
+//!   `finally`) — there is no static/lexical connection between such
 //!   a call and the token it eventually invokes, so this is a considered,
 //!   permanent limitation rather than an oversight. Deeper `$var`-to-`$var`
 //!   indirection beyond one hop (`set a $lambda; apply $a`) is the same
@@ -128,8 +127,8 @@ use crate::source_graph::{RunOrder, RunPoint};
 /// URI — or the placeholder one the document-only tier uses — an export
 /// written **after** the import in this very file becomes unrankable, which
 /// [`crate::namespace_import::exported_at_import_site`] reads as "in effect",
-/// silently reversing issue #1027's Direction B. Pairing them structurally
-/// makes that unrepresentable.
+/// silently reversing the per-import-site export rule. Pairing them
+/// structurally makes that unrepresentable.
 #[derive(Clone, Copy)]
 pub struct ProgramExports<'a> {
     /// The document being resolved, spelled as the workspace index knows it.
@@ -150,8 +149,8 @@ pub struct ProgramExports<'a> {
 ///   no builtin to protect.
 /// * [`program`](Self::program) — the whole-program export oracle. A caller
 ///   without one (a single-document unit test, the `tcl` CLI, a buffer the
-///   workspace has not indexed) gets exactly the behaviour this tier had
-///   before issue #1116 item 1: an in-document export record decides, and its
+///   workspace has not indexed) falls back to the document-only rule: an
+///   in-document export record decides, and its
 ///   absence is read as evidence only where this document holds *some* export
 ///   for the namespace.
 ///
@@ -324,7 +323,7 @@ pub fn definition_with(
         return result;
     }
     // `<ensemble> <subcommand>` — a static `namespace ensemble create
-    // -map`/`-subcommands` mapping (issue #923 idx 106).  Checked before the
+    // -map`/`-subcommands` mapping.  Checked before the
     // generic "otherwise it is a CALL" resolution below: real Tcl never
     // independently looks up `make` as a command (only the pair `widget make`
     // dispatches), so a coincidental same-named proc elsewhere in the
@@ -360,11 +359,11 @@ pub fn definition_with(
     }
     // Prefer the declaration whose own name span covers the cursor (so a
     // same-named proc in another namespace's own decl resolves to *that*
-    // one — mirrors `references::proc_references` / `rename::rename_proc`;
-    // #924).  `proc_declaration_sites` rather than `all_procs`, so a
-    // declaration a later same-named `proc` displaced still resolves to
-    // itself instead of silently jumping to its own successor (issue #923
-    // idx 45) — the map only ever keeps the winner's span.
+    // one — mirrors `references::proc_references` / `rename::rename_proc`).
+    // `proc_declaration_sites` rather than `all_procs`, so a declaration a
+    // later same-named `proc` displaced still resolves to itself instead of
+    // silently jumping to its own successor — `all_procs` only ever keeps the
+    // winner's span.
     let cursor_offset = byte_offset_at(&line_index, source, line, character);
     if let Some((_, span)) = analysis
         .proc_declaration_sites
@@ -377,7 +376,7 @@ pub fn definition_with(
     // `${ns}::setdef` whose `$ns` is a constant, a constant `$cmd` dispatch —
     // is asked before every name-based path below: the span does not carry
     // the written command name, so the bareword lookup can only ever answer
-    // with a coincidentally same-named decoy (issue #1133).
+    // with a coincidentally same-named decoy.
     if let Some(span) = resolved_indirect_head_target(analysis, cursor_offset) {
         return vec![span_to_range(source, &line_index, span)];
     }
@@ -399,7 +398,7 @@ pub fn definition_with(
     // alias` installed (or silently replaced) it. That is what the call
     // actually reaches, so it is asked ahead of the ordinary resolution
     // below — which would otherwise answer with a same-named `proc` the
-    // alias has already displaced (issue #923 idx 89; tclsh 8.6.16/9.0.4:
+    // alias has already displaced (tclsh 8.6.16/9.0.4:
     // after `interp alias {} ::ttk::spinbox {} ::tk::spinbox`, calling
     // `::ttk::spinbox` runs `::tk::spinbox`'s body, and the original proc is
     // unreachable under that name). The hop is order-gated, so a rename or
@@ -410,7 +409,7 @@ pub fn definition_with(
         return vec![span_to_range(source, &line_index, span)];
     }
     // `Factory::make` — [incr Tcl]'s colon-qualified class-proc dispatch
-    // (issue #990).  Asked **before** the stock proc resolution below, because
+    // Asked **before** the stock proc resolution below, because
     // itcl installs a custom command resolver on every class namespace and Tcl
     // consults it ahead of the ordinary lookup: inside a class's own bodies the
     // class proc wins even when a real `::Factory::make` proc exists (oracle in
@@ -423,8 +422,8 @@ pub fn definition_with(
         return vec![span_to_range(source, &line_index, span)];
     }
     // …and only when the cursor's word really is the enclosing command's
-    // head. Without this the pure text scan let an ordinary *argument*
-    // resolve as a command name (issue #1137 idx 50) — see
+    // head. Without this the pure text scan lets an ordinary *argument*
+    // resolve as a command name — see
     // [`offset_is_command_head`] for the gate and its one documented limit.
     if offset_is_command_head(analysis, cursor_offset)
         && let Some(proc_def) = resolve_called_proc(
@@ -438,7 +437,7 @@ pub fn definition_with(
     {
         // A proc redefined later in the document is two definitions sharing
         // one name; the call reaches whichever was in effect where it is
-        // written, not unconditionally the last (issue #923 idx 45).
+        // written, not unconditionally the last.
         let in_effect = analysis
             .proc_def_in_effect_at(&proc_def.qualified_name, cursor_offset)
             .unwrap_or(proc_def);
@@ -514,8 +513,7 @@ fn next_dispatch_definition(
 /// (`Indirection::resolve_at`), not whichever declaration ends up winning the
 /// name.  Oracle (tclsh 8.6.14/9.0.4): `proc p {} {return first}; rename p
 /// oldp; proc p {} {return second}` leaves `oldp` running `first` — so `oldp`
-/// jumps to the *first* header while `p` jumps to the second (PR #1075
-/// review, P2).
+/// jumps to the *first* header while `p` jumps to the second.
 fn indirect_definition_target(
     analysis: &AnalysisResult,
     ctx: CallResolution<'_>,
@@ -550,8 +548,8 @@ struct DefCtx<'a> {
     /// The request's whole-program view, carried this far because the
     /// caller-frame path resolves *call sites* to find the callee that
     /// `upvar`s the name — a resolution the `-force` shadow can change
-    /// (issue #1116 item 1). Hover already threads it; dropping it here is
-    /// what made the two providers disagree on one cursor.
+    /// Hover threads the same view, so dropping it here would make the two
+    /// providers disagree on one cursor.
     resolution: CallResolution<'a>,
 }
 
@@ -565,22 +563,22 @@ struct DefCtx<'a> {
 /// 1. **A `$var` read** — the scope chain inward from the global scope to the
 ///    innermost scope whose body span contains the offset, then outward
 ///    looking for the name; gated on the occurrence being one Tcl actually
-///    substitutes ([`lookup_var_read_at`], issue #923 idx 24).
+///    substitutes ([`lookup_var_read_at`]).
 /// 2. **A bareword variable declaration / same-cell write site** — a `set x` /
 ///    `variable x` target, a proc/method parameter, a `catch` result-var. See
 ///    [`var_def_at_declaration_offset`] for why this can't reuse the ordinary
-///    scope-chain walk (issue #923 idx 9).
+///    scope-chain walk.
 /// 3. **An `expr` math-function call** — inside an expression a `NAME(` word is
 ///    a function-call production resolved through `{ns}::tcl::mathfunc::NAME`
-///    then `::tcl::mathfunc::NAME`, not an ordinary command lookup (issue #923
-///    idx 30 / issue #974). Asked before the bareword paths because the
+///    then `::tcl::mathfunc::NAME`, not an ordinary command lookup. Asked
+///    before the bareword paths because the
 ///    word-span scan would hand them `sin(1.0)` / `li(` — the function-call
 ///    syntax glued on — and because a coincidentally same-named proc elsewhere
 ///    must never win. A built-in resolves to no Tcl source, so an empty result
 ///    is the right answer there.
 /// 4. **A word inside an enclosing proc/method's own parameter list** — a
 ///    parameter name (answered at 2) or a default value, never a command
-///    reference (issue #923 idx 104).
+///    reference.
 fn position_definition(
     source: &str,
     line_index: &LineIndex,
@@ -596,7 +594,7 @@ fn position_definition(
     // Resolved through the shared gate, not the raw character scan: a cursor
     // inside a brace-quoted variable-name word (`set {$n} 1`) is not a `$n`
     // reference, and must fall through to the declaration-span search below
-    // so it answers the *literal* cell (PR #1106 review, P2).
+    // so it answers the *literal* cell.
     if let Some(var_name) = substituting_var_at_position(
         source,
         crate::profile_for_dialect(""),
@@ -621,16 +619,15 @@ fn position_definition(
         // Nothing in this frame assigns it — a callee may create it here
         // through `upvar`, and then the call-site word that names it *is*
         // the creating write, the nearest thing the frame has to a
-        // declaration (issue #923 audit idx 58).
+        // declaration.
         return Some(caller_frame_definition(
             source, line_index, analysis, resolution, cursor_off, &var_name,
         ));
     }
     let param_position = parameter_list_position_at(analysis, source, cursor_off);
-    // No `Computed` guard is needed here any more: since #1079 a computed
-    // parameter list registers no per-parameter `VarDef` at all, so there is
-    // no stub named `"[makeargs]"` for this lookup to land on. (#1073 added
-    // the guard while the stub still existed.)
+    // No `Computed` guard is needed here: a computed parameter list registers
+    // no per-parameter `VarDef` at all, so there is no stub named
+    // `"[makeargs]"` for this lookup to land on.
     if let Some(var_def) = var_def_at_declaration_offset(&analysis.global_scope, cursor_off) {
         return Some(vec![span_to_range(
             source,
@@ -639,7 +636,7 @@ fn position_definition(
         )]);
     }
     // A word naming a namespace (`namespace children ::tomato`, and the
-    // `::tomato` of `namespace eval ::tomato { … }` itself) — issue #1088.
+    // `::tomato` of `namespace eval ::tomato { … }` itself).
     // Definitive: the position is inside a registry-declared
     // `ArgRole::NamespaceName` word, so it is about a namespace and nothing
     // else.  Every declaring `namespace eval` block answers, in source order,
@@ -655,7 +652,7 @@ fn position_definition(
             // as a parent (`namespace eval ::p::q::r {}` really creates
             // `::p::q`).  The answer is that word's covering prefix — the
             // sub-range spelling exactly this namespace — never the whole
-            // word, which names a different one (issue #1113 item 1).
+            // word, which names a different one.
             spans =
                 crate::namespace_symbol::namespace_implicit_parent_spans(source, analysis, &cell);
         }
@@ -682,8 +679,8 @@ fn position_definition(
 /// word whose callee creates the variable here through `upvar`.
 ///
 /// Empty when no call site binds the name — the `$`-led read then abstains
-/// rather than falling through to bareword resolution, which is what made an
-/// unrelated same-named method look like the answer (issue #923 audit idx 58).
+/// rather than falling through to bareword resolution, which would let an
+/// unrelated same-named method look like the answer.
 fn caller_frame_definition(
     source: &str,
     line_index: &LineIndex,
@@ -713,8 +710,7 @@ fn caller_frame_definition(
 /// caller falls through to the remaining checks (proc / class / alias).
 /// `Some` is definitive: once the receiver's per-object override or class
 /// is resolved, the call reaches exactly what this returns (possibly an
-/// empty vector for an unexported/undefined method — issue #945 faults 4
-/// + 5 + 6), never a same-named proc.
+/// empty vector for an unexported/undefined method), never a same-named proc.
 fn instance_method_definition(
     analysis: &AnalysisResult,
     source: &str,
@@ -725,20 +721,20 @@ fn instance_method_definition(
     let (inst, method, is_dollar) =
         instance_method_at_cursor(source, line, character, dialect_config(analysis))?;
     // The folded per-object member state for this receiver binding, when
-    // `oo::objdefine` gave it one (issue #1170) — carries the per-object
-    // visibility flips the throwaway walk used to drop.
+    // `oo::objdefine` gave it one — it carries the per-object visibility
+    // flips.
     let object_state = object_member_state_at(analysis, source, &inst, line, character);
     // A per-object method (`oo::objdefine $obj { method m … }`) is layered
     // ahead of the object's class methods, so resolve it first — `$obj m`
     // must reach the per-object override, not a same-named class method.
-    // Binding-identity keyed (issue #945 fault 5): the lookup honours the
+    // Binding-identity keyed: the lookup honours the
     // receiver's scope, not just its textual tail.
     if let Some(span) = lookup_object_method(analysis, source, &inst, &method, line, character) {
         // An unexported per-object member masks the name for an external
         // dispatch outright — oracle, tclsh 9.0.4 / 8.6.14: after
         // `oo::objdefine $o { method M {} {…} }` (name-rule unexported) or
         // `… { method m {} {…}; unexport m }`, `$o M` / `$o m` answer
-        // `unknown method`, the class chain notwithstanding (issue #1170).
+        // `unknown method`, the class chain notwithstanding.
         if let Some(st) = object_state
             && let Some(md) = st.methods.get(&method)
             && md.visibility != "public"
@@ -749,7 +745,7 @@ fn instance_method_definition(
     }
     // `my m` / `[self] m` / `[self object] m` — an internal call: dispatch
     // starts at the *enclosing* class and reaches unexported methods too
-    // (issue #945 fault 4; issue #1322 for the `[self]` spellings).
+    // (including the `[self]` spellings).
     if is_self_dispatch_keyword(&inst)
         || is_self_receiver_call(
             &inst,
@@ -775,8 +771,8 @@ fn instance_method_definition(
     let class_q = receiver_instance_class_at(analysis, &inst, is_dollar, cursor)?;
     let bucket = receiver_method_bucket(analysis, &inst, is_dollar);
     let class_q = class_q.clone();
-    // Per-object visibility flips on a *class*-provided member (issue
-    // #1170): `oo::objdefine $o { unexport m }` masks the member for this
+    // Per-object visibility flips on a *class*-provided member:
+    // `oo::objdefine $o { unexport m }` masks the member for this
     // object's external dispatch even though the class exports it (`$o m` →
     // `unknown method`, tclsh 9.0.4 / 8.6.14), and `… { export m }` revives
     // an unexported one — the dispatch then enters the first implementation
@@ -802,8 +798,8 @@ fn instance_method_definition(
     }
     // External `$obj m` / `CLASS m`: the C-faithful dispatch entry — the
     // first exported implementation on the receiver's linearisation
-    // (mixins before the class, subclasses before bases; issue #945
-    // faults 4 + 6).  A resolved receiver is a definitive answer either
+    // (mixins before the class, subclasses before bases).  A resolved
+    // receiver is a definitive answer either
     // way: an unexported/undefined method yields *nothing* rather than
     // falling through to a same-named proc.
     let dispatch = method_dispatch_definition(
@@ -830,7 +826,7 @@ fn instance_method_definition(
 /// itself genuinely bareword-callable from a method body of
 /// this class: a bareword sibling call only actually dispatches
 /// when `link` (`oo::Helpers::link`) exposed it that way
-/// (`ClassDef::linked_members`, issue #923 idx 113); an
+/// (`ClassDef::linked_members`); an
 /// un-linked member of the same name errors "invalid command
 /// name" at runtime, so it must not resolve here either. Also
 /// checks constructors/destructor, unconditionally (a distinct,
@@ -888,8 +884,8 @@ fn lookup_class_member(
 /// per-object override `TclOO` layers ahead of the object's class methods.
 /// Returns the declaration's `name_span`.
 ///
-/// Keyed by **binding identity**, not the receiver's textual tail (issue
-/// #945 fault 5): two unrelated locals both named `o` in different procs
+/// Keyed by **binding identity**, not the receiver's textual tail: two
+/// unrelated locals both named `o` in different procs
 /// are different objects with different per-object methods, so the
 /// candidate set is scoped to the `oo::objdefine` sites whose receiver
 /// resolves to the *same variable binding* as the call site's receiver —
@@ -923,7 +919,7 @@ fn lookup_object_method(
 }
 
 /// The folded per-object member state for the receiver binding at the call
-/// site (issue #1170): the [`tcl_compiler::analyser::ObjectMemberState`]
+/// site: the [`tcl_compiler::analyser::ObjectMemberState`]
 /// whose anchor resolves to the same variable binding as the call — the
 /// same binding-identity rule [`lookup_object_method`] applies.  `None`
 /// when no `oo::objdefine` touched the receiver, or when the binding is
@@ -950,7 +946,7 @@ pub(crate) fn object_member_state_at<'a>(
 }
 
 /// Whether the cursor sits on an **external** instance-method call whose
-/// receiver's per-object member state masks the method name (issue #1170):
+/// receiver's per-object member state masks the method name:
 /// an `oo::objdefine` unexport of the name, or an unexported per-object
 /// member — either makes `$obj m` answer `unknown method` (tclsh 9.0.4 /
 /// 8.6.14) regardless of what the class chain provides.
@@ -1047,13 +1043,12 @@ fn variable_scope_extent(
 /// `ticklecharts::chart`'s `oo::class create` at one line, every method
 /// added via a later, separate `oo::define` block) has textually disjoint
 /// body spans, not one contiguous range — `body_span` alone only ever
-/// covers the *first* one recorded (issue #923 idx 52, main audit wave).
-/// Ties (nested definitions) resolve to the narrowest containing span,
-/// same tie-break the single-span version always used.
+/// covers the *first* one recorded.  Ties (nested definitions) resolve to
+/// the narrowest containing span.
 ///
-/// The single canonical implementation of this check — every other
-/// module in this crate that used to keep its own copy now calls this
-/// one instead, so the multi-span fix applies everywhere uniformly.
+/// The single canonical implementation of this check: every other module in
+/// this crate calls it rather than keeping its own copy, so the multi-span
+/// rule applies everywhere uniformly.
 pub(crate) fn enclosing_class_at(analysis: &AnalysisResult, offset: u32) -> Option<&str> {
     analysis
         .class_body_spans
@@ -1063,8 +1058,8 @@ pub(crate) fn enclosing_class_at(analysis: &AnalysisResult, offset: u32) -> Opti
         .map(|(name, _)| name.as_str())
 }
 
-/// Which of a class's two method buckets a dispatch receiver reaches
-/// (issue #923 idx 120), consulted by [`method_dispatch_definition`] and,
+/// Which of a class's two method buckets a dispatch receiver reaches,
+/// consulted by [`method_dispatch_definition`] and,
 /// via [`receiver_method_bucket`], by every other consumer of
 /// [`receiver_instance_class`] that also needs its own method lookup
 /// restricted to the matching bucket (`completion.rs`'s `method_items`).
@@ -1073,13 +1068,11 @@ pub(crate) enum MethodBucket {
     /// `$obj method` / `my method` — dispatch on an *instance*:
     /// `methods` only, never `class_methods` (a class-side method is
     /// never itself instance-callable — real tclsh raises `unknown
-    /// method` for it; this closes a pre-existing false-positive
-    /// go-to-definition on e.g. `ActiveRecord create rec1; rec1 find`,
-    /// bundled alongside idx 120 since this function's signature was
-    /// already changing here).
+    /// method` for it, so `ActiveRecord create rec1; rec1 find` must not
+    /// resolve to the class-side `find`).
     Instance,
-    /// `CLASS method` — dispatch on the class's own bound command (issue
-    /// #923 idx 120): `class_methods` only (a class-side method is never
+    /// `CLASS method` — dispatch on the class's own bound command:
+    /// `class_methods` only (a class-side method is never
     /// itself instance-callable — `completion.rs`'s `method_items` already
     /// documents and implements this same exclusion for its instance-side
     /// suggestions). An ancestor-provided entry is accepted only when it
@@ -1095,8 +1088,8 @@ pub(crate) enum MethodBucket {
 
 /// Go-to-definition for a method call dispatched on an instance of
 /// `class_q`: the **first applicable implementation** on the class's
-/// `TclOO` linearisation (the entry `$obj m` / `my m` actually runs —
-/// issue #945 fault 6), visibility-filtered (issue #945 fault 4):
+/// `TclOO` linearisation (the entry `$obj m` / `my m` actually runs),
+/// visibility-filtered:
 /// `external` keeps exported implementations only; an internal (`my`)
 /// dispatch reaches unexported ones, and `private` ones only in the
 /// receiver's own class.  Empty when no implementation is callable in
@@ -1111,34 +1104,27 @@ fn method_dispatch_definition(
     bucket: MethodBucket,
 ) -> Vec<LspRange> {
     // The walk itself lives in `crate::oo_dispatch` so hover and
-    // find-references answer from the same linearisation (issue #923 idx
-    // 28/34/35 — they each used to do a direct-only lookup on the
-    // receiver's own class and silently disagree with this function).
+    // find-references answer from the same linearisation; a direct-only
+    // lookup on the receiver's own class silently disagrees with this
+    // function.
     crate::oo_dispatch::method_dispatch_provider(analysis, class_q, method, external, bucket)
         .map(|(_, md)| vec![span_to_range(source, line_index, md.name_span)])
         .unwrap_or_default()
 }
 
-/// Resolve `TclOO` `next` / `nextto` at the cursor to the super-method's
-/// `name_span`.
-///
-/// `next` inside `method m` of class `C` dispatches `m` one step further
-/// down the object's MRO — statically we resolve it in `C`'s own MRO (the
-/// sound single-dispatch approximation): the next class after `C` that
-/// provides `m`.  `nextto Base` restarts the search at `Base`.  The
 /// The `TclOO` method-context keyword `word` is under `dialect`, or `None`.
 ///
 /// The crate's single entry to
 /// [`tcl_registry::CommandRegistry::method_dispatch_keyword`], so every
-/// provider that used to carry a `head == "my"` /
-/// `matches!(head, "my" | "next" | "nextto")` literal now asks the registry
-/// through one place (issue #1050). A dialect that gains or loses one of
+/// provider asks the registry through one place rather than carrying a
+/// `head == "my"` / `matches!(head, "my" | "next" | "nextto")` literal.
+/// A dialect that gains or loses one of
 /// these keywords propagates through its `CommandSpec`, never through a
 /// walker edit.
 ///
 /// `definition` threads `AnalysisResult::dialect` — the dialect the document
-/// was actually analysed under — through its own registry lookups (issue
-/// #1064). The remaining `""` callers are the ones with no analysis in scope;
+/// was actually analysed under — through its own registry lookups.
+/// The remaining `""` callers are the ones with no analysis in scope;
 /// `""` resolves to the permissive plain-Tcl profile (availability mask
 /// `ALL_TCL`), so every 8.6+ `TclOO` keyword still resolves there.
 pub(crate) fn method_dispatch_keyword_in(
@@ -1159,7 +1145,7 @@ pub(crate) fn is_self_dispatch_keyword(word: &str) -> bool {
 /// Whether `receiver` (as returned by [`instance_method_at_cursor`]) is a
 /// `TclOO` self-receiver command substitution — `[self]` / `[self
 /// object]` — which dispatches exactly like `my`: the word after it names
-/// a method on the *enclosing* class, not an inferred type (issue #1322).
+/// a method on the *enclosing* class, not an inferred type.
 ///
 /// Registry data via [`tcl_registry::CommandRegistry::is_self_receiver_call`]
 /// (same `""`-dialect convention as [`is_self_dispatch_keyword`]) rather
@@ -1202,7 +1188,14 @@ fn next_chain_names_a_target(word: &str) -> bool {
     next_chain_names_a_target_in(crate::profile_for_dialect(""), word)
 }
 
-/// enclosing class + method are found from the cursor's byte offset.
+/// Resolve `TclOO` `next` / `nextto` at the cursor to the super-method's
+/// `name_span`.
+///
+/// `next` inside `method m` of class `C` dispatches `m` one step further
+/// down the object's MRO, resolved in `C`'s own MRO (the sound
+/// single-dispatch approximation): the next class after `C` that provides
+/// `m`.  `nextto Base` restarts the search at `Base`.  The enclosing class
+/// and method are found from the cursor's byte offset.
 fn next_dispatch_target(
     analysis: &AnalysisResult,
     source: &str,
@@ -1242,10 +1235,10 @@ fn next_dispatch_target(
 /// / `destructor` body reports the synthetic
 /// `<constructor>` / `<destructor>` label
 /// (`tcl_compiler::analyser::class_hierarchy::CONSTRUCTOR_MEMBER`), which
-/// `member_next_provider` routes to the matching provider. Before that a
-/// cursor inside a constructor matched nothing here, so `next` — the
+/// `member_next_provider` routes to the matching provider. Without them a
+/// cursor inside a constructor matches nothing here, and `next` — the
 /// ordinary way a subclass forwards to its superclass's constructor —
-/// resolved to no location at all (issue #923 idx 37).
+/// resolves to no location at all.
 fn enclosing_method(analysis: &AnalysisResult, cursor: u32) -> Option<(String, String)> {
     use tcl_compiler::analyser::class_hierarchy::{CONSTRUCTOR_MEMBER, DESTRUCTOR_MEMBER};
     let cd = analysis
@@ -1347,17 +1340,16 @@ fn canonicalise_class(analysis: &AnalysisResult, owner: &str, name: &str) -> Str
 /// `$obj with-dash`, `$obj a.b`, and TIP 558's generated property accessors
 /// (`my <ReadProp-x>` / `my <WriteProp-x>`, produced by `oo::configurable`'s
 /// `property`) all dispatch for real (verified against tclsh 8.6.14 and
-/// 9.0.4), and an identifier rule that stopped at `-` / `<` / `>` silently
-/// truncated those names to something no class declares (issue #1019 idx
-/// 16).
+/// 9.0.4), and an identifier rule stopping at `-` / `<` / `>` would silently
+/// truncate those names to something no class declares.
 ///
 /// A word carrying no alphanumeric / `_` content at all — `<`, `<=`, `-`,
 /// `::` — is rejected: those are expression operators and separators, so
 /// `expr {$a < $b}` must not read as `$a` dispatching a method named `<`.
 /// Tcl *would* let a class declare a method literally named `+` or `<`, and
 /// this deliberately does not resolve those: `expr` bodies are far more
-/// common than operator-named methods, and rejecting them keeps the
-/// pre-existing behaviour rather than trading one gap for a false positive.
+/// common than operator-named methods, so rejecting them trades a rare gap
+/// for no false positives.
 pub(crate) fn instance_method_at_cursor(
     source: &str,
     line: u32,
@@ -1376,7 +1368,7 @@ pub(crate) fn instance_method_at_cursor(
     }
 
     // Command-segment start: nearest *unmatched* `;` / `[` / `{` to the
-    // left, else the line start. Depth-tracked (issue #1322) — a `]`/`}`
+    // left, else the line start. Depth-tracked — a `]`/`}`
     // seen first means the following `[`/`{` closes a balanced
     // substitution that is itself part of the head (`[self] m`'s own
     // brackets), not a boundary to stop at; only a `[`/`{` with no
@@ -1401,8 +1393,8 @@ pub(crate) fn instance_method_at_cursor(
     // The head must be exactly one whitespace-delimited token (the
     // receiver), so the method is word-index 1 — *except* a command
     // substitution, which is one token by Tcl's own quoting rules even
-    // though it can contain internal whitespace (`[self object]`, issue
-    // #1322): checked as a whole before falling back to
+    // though it can contain internal whitespace (`[self object]`):
+    // checked as a whole before falling back to
     // `split_whitespace`, which would otherwise split it in two.
     let prefix: String = chars[seg_start..wstart].iter().collect();
     let trimmed = prefix.trim();
@@ -1433,7 +1425,7 @@ pub(crate) fn instance_method_at_cursor(
         // A well-formed single command substitution (`[cmd ?args?]`) — e.g.
         // `TclOO`'s `[self]`/`[self object]`, a receiver the registry
         // resolves at compile time regardless of the object's runtime name
-        // (issue #1322). This function only extracts the receiver text;
+        // This function only extracts the receiver text;
         // whether `head` names anything real is answered downstream by the
         // registry (`is_self_dispatch_keyword` / `is_self_receiver_call`)
         // exactly as for a bareword receiver below — most substitutions
@@ -1463,8 +1455,8 @@ pub(crate) fn instance_method_at_cursor(
 /// `created_instance_commands`.
 ///
 /// A bare receiver that instead names a class *directly* (`ActiveRecord
-/// find`, `TclOO`'s and `ooutil`'s class-command dispatch — issue #923 idx
-/// 120) resolves too: `oo::class create NAME` always binds `NAME` as the
+/// find`, `TclOO`'s and `ooutil`'s class-command dispatch) resolves too:
+/// `oo::class create NAME` always binds `NAME` as the
 /// class's own command, so any class name written in the source is
 /// unconditionally dispatchable this way. A `$var` can't textually denote
 /// a class — it holds an object handle read from a variable, never the
@@ -1497,15 +1489,15 @@ pub(crate) fn receiver_instance_class<'a>(
 }
 
 /// [`receiver_instance_class`] plus the compiler's object-type lattice as the
-/// fallback for a `$var` receiver — issue #994's consumer unification (C5b).
+/// fallback for a `$var` receiver.
 ///
-/// `instance_classes` answers first, exactly as before.  When it has no
+/// `instance_classes` answers first.  When it has no
 /// binding, a **singleton** class in the lattice's scope-keyed map
 /// ([`ObjectHandleFacts::by_scope`], read through `classes_in_scope` at the
 /// dispatch site's own `offset`) resolves the receiver — the same sound map
 /// the compiler's W307 / W308 / E001 emitters consult, so definition,
-/// references, rename, hover, completion, and the code lens can no longer
-/// disagree with the diagnostics (or with each other) about one document.
+/// references, rename, hover, completion, and the code lens cannot disagree
+/// with the diagnostics (or with each other) about one document.
 /// A multi-class binding abstains: every consumer of this accessor edits or
 /// navigates, and a guess there is a wrong edit, not a missed one.
 ///
@@ -1544,8 +1536,8 @@ pub(crate) fn lattice_singleton_class<'a>(
 }
 
 /// Which [`MethodBucket`] `receiver` reaches, given how
-/// [`receiver_instance_class`] resolved it (issue #923 idx 120):
-/// recomputes that function's own first condition (the *instance* path —
+/// [`receiver_instance_class`] resolved it: recomputes that function's own
+/// first condition (the *instance* path —
 /// an object handle, `$var`, or a bound `CLASS create NAME` command)
 /// rather than inferring it from the outside (e.g. merely checking
 /// `instance_classes.contains_key`), so a same-named instance-command /
@@ -1608,9 +1600,9 @@ pub(crate) fn classmethod_dispatch_class(
 /// server's workspace-class oracle reanalysis does not help: it supplies class
 /// **names** only (`Analyser::with_workspace_classes`, which exists to let
 /// instance inference resolve `[Cls new]`), never their `class_methods`. So
-/// classification fell through both receiver branches and definition /
-/// references / rename from a consumer answered nothing, even though the
-/// workspace index held the fact all along (issue #1119 review).
+/// without a workspace tier, classification falls through both receiver
+/// branches and definition / references / rename from a consumer answers
+/// nothing, even though the workspace index holds the fact.
 ///
 /// `index` closes that gap by consulting the same class-side dispatch chain
 /// the cross-file resolvers use — [`WorkspaceIndex::class_method_dispatch_chain`],
@@ -1674,7 +1666,7 @@ fn local_inherited_classmethod(
         // receiver bucket but does propagate, which is what
         // [`MethodDef::is_self_method`] distinguishes. Same rule
         // [`crate::oo_dispatch::method_dispatch_provider`] applies for the
-        // in-document answer; without it here an inherited `self method` was
+        // in-document answer; without it here an inherited `self method` is
         // reported as the receiver's dispatch target.
         .filter(|md| !md.is_self_method)
         .map(|_| provider_q.to_string())
@@ -1704,8 +1696,8 @@ pub(crate) struct WorkspaceReceiver<'a> {
 /// the canonical encoding of `Tcl_FindCommand`'s order (current namespace
 /// first, then the global one), so `namespace eval ::a { C cm }` reaches
 /// `::a::C` and — when only a global `::C` exists — falls through to it. A
-/// literal `C`/`::C` check missed the relative spelling entirely, which is the
-/// shape a namespaced class is normally *called* in (issue #1178 review).
+/// literal `C`/`::C` check would miss the relative spelling entirely, which is
+/// the shape a namespaced class is normally *called* in.
 ///
 /// Two tiers, in Tcl's own order:
 ///
@@ -1722,7 +1714,7 @@ pub(crate) struct WorkspaceReceiver<'a> {
 ///    this call's site does not resolve.
 ///
 /// The two-classes-one-name abstention applies at each tier: guessing between
-/// them is the namespace-blind match issue #981 removed.
+/// them is a namespace-blind match.
 fn workspace_classmethod_class(
     workspace: &WorkspaceReceiver<'_>,
     receiver: &str,
@@ -1776,8 +1768,8 @@ fn class_side_member_owner(
         .collect::<std::collections::BTreeSet<_>>()
         .into_iter();
     // Exactly one indexed class may answer: two same-named classes leave the
-    // receiver genuinely ambiguous, and guessing one is the namespace-blind
-    // match issue #981 removed.
+    // receiver genuinely ambiguous, and guessing one is a namespace-blind
+    // match.
     let class_q = named.next()?;
     if named.next().is_some() {
         return None;
@@ -1801,7 +1793,7 @@ fn class_side_member_owner(
 /// constructor typing already uses — order-gated, hop-capped, and declining an
 /// argument-prepending alias, all decided in one place so a class that W307
 /// resolves through a rename and a class go-to-definition resolves through the
-/// same rename can never disagree (issues #1062 B1/B2, #1064).
+/// same rename can never disagree.
 ///
 /// Navigation asks only "which name does this reach"; whether that name has a
 /// user `proc` / class to jump to is the caller's own question, so no liveness
@@ -1845,13 +1837,13 @@ pub(crate) fn command_indirection_target(
 /// own text is not, and following it would resolve a call tclsh answers with
 /// `invalid command name`. The cross-document resolver
 /// (`tcl-lsp-server::resolve_workspace_symbols`) asks this before chasing a
-/// link so its ordering matches the in-document provider's (issue #1064).
+/// link so its ordering matches the in-document provider's.
 ///
 /// A name can carry both a `rename` and an `interp alias` record; the document
 /// gains the name as soon as the *first* of them runs, so the question is
 /// asked of the earliest — reading one map ahead of the other would call a
 /// name pending on the strength of a mutation that is not the one that
-/// introduced it (PR #1075 review, P2).
+/// introduced it.
 #[must_use]
 pub fn indirection_pending_at(analysis: &AnalysisResult, qualified: &str, cursor_off: u32) -> bool {
     let key = tcl_syntax::naming::normalise_qualified_name(qualified);
@@ -1870,14 +1862,14 @@ pub fn indirection_pending_at(analysis: &AnalysisResult, qualified: &str, cursor
 /// `is_dollar == false`) to the target command it dispatches to, when
 /// `head` names a known `namespace ensemble create -map`/`-subcommands`
 /// ensemble and `sub` resolves against its literal, statically-recorded
-/// subcommands (issue #923 idx 106) — `namespace` is the call site's own
+/// subcommands — `namespace` is the call site's own
 /// command-resolution namespace, so a relative `head` (the overwhelmingly
 /// common case: an ensemble dispatches through its own short name) resolves
 /// the same way an ordinary bare command call would.
 ///
 /// `sub` need not be written in full: a real ensemble abbreviates, so
 /// `e fo` dispatching to `-map {foo ::e::Foo}` is navigable here too
-/// (issue #1611). The rule is
+/// The rule is
 /// [`AnalysisResult::resolve_ensemble_subcommand`]'s — exact first, then a
 /// unique prefix unless the ensemble declared `-prefixes 0` — so navigation
 /// lands on whatever the ensemble itself would dispatch, and abstains
@@ -1901,8 +1893,7 @@ pub(crate) fn ensemble_subcommand_target<'a>(
 /// ([`offset_is_command_head`]) must answer it here instead. Declaration
 /// sites are consulted after `all_procs` so a declaration a later same-named
 /// `proc` displaced still resolves — to whichever definition currently wins
-/// the name, the same rule `resolve_proc_target_at` applies (issue #923
-/// idx 31 / idx 45).
+/// the name, the same rule `resolve_proc_target_at` applies.
 #[must_use]
 pub(crate) fn proc_declaration_at(
     analysis: &AnalysisResult,
@@ -1944,13 +1935,12 @@ pub(crate) fn invocation_head_at(
 /// Whether the word at `cursor_off` occupies its enclosing command's **head**
 /// position — i.e. whether resolving it as a command name can be right at all.
 ///
-/// Issue #1137 idx 50: `definition()` / `hover()` used to hand whatever word
-/// the text scan returned straight to [`resolve_called_proc`], so an ordinary
-/// *argument* that happened to share a proc's name resolved onto that proc —
-/// a wrong answer, not an abstention (`return [$types(callback:$tag) jsondump
-/// $huddle_object]` resolved the ensemble subcommand `jsondump` onto the very
-/// proc containing the call, and the reduced control `anotherproc dump`
-/// reproduces it with no indirection at all).
+/// Handing whatever word the text scan returned straight to
+/// [`resolve_called_proc`] would let an ordinary *argument* that happens to
+/// share a proc's name resolve onto that proc — a wrong answer, not an
+/// abstention (`return [$types(callback:$tag) jsondump $huddle_object]`
+/// resolving the ensemble subcommand `jsondump` onto the very proc containing
+/// the call, which `anotherproc dump` reproduces with no indirection at all).
 ///
 /// The gate is the analyser's recorded invocation set, not a second text
 /// scan, so it agrees with find-references / rename / call-hierarchy by
@@ -1973,11 +1963,10 @@ pub(crate) fn offset_is_command_head(analysis: &AnalysisResult, cursor_off: u32)
 /// The declaration span an **already-resolved indirect** command head at
 /// `cursor_off` reaches, or `None` when no such head covers the cursor.
 ///
-/// Issue #1133: the analyser resolves `set ns ::tc; ${ns}::setdef` to
-/// `::tc::setdef` and records it as a `command_invocations` entry with
-/// `indirect: true`, but `definition()` never consulted the entry and fell
-/// through to the bareword lookup, which answered an unrelated same-named
-/// `::other::setdef`.  The span does not carry the written command name, so
+/// The analyser resolves `set ns ::tc; ${ns}::setdef` to `::tc::setdef` and
+/// records it as a `command_invocations` entry with `indirect: true`.  Falling
+/// through to the bareword lookup instead would answer an unrelated same-named
+/// `::other::setdef`: the span does not carry the written command name, so
 /// there is nothing for a text scan to resolve — the recorded resolution is
 /// the only correct answer, and it must win.  The same record settles a
 /// constant `$cmd` head (`set cmd greet; $cmd`), which the text scan can
@@ -2017,7 +2006,7 @@ fn resolved_indirect_head_name(analysis: &AnalysisResult, cursor_off: u32) -> Op
 }
 
 /// The `ProcDef` an already-resolved indirect head at `cursor_off` reaches —
-/// the hover-side twin of [`resolved_indirect_head_target`] (issue #1133), so
+/// the hover-side twin of [`resolved_indirect_head_target`], so
 /// hover and go-to-definition answer the same indirection from one record.
 #[must_use]
 pub(crate) fn resolved_indirect_head_proc(
@@ -2047,13 +2036,6 @@ pub(crate) fn byte_offset_at(
     line_index.offset_at_utf16(line, Utf16Col::new(character), source)
 }
 
-/// Walk the scope tree to find the variable definition that
-/// the cursor's `byte_offset` would see — the innermost
-/// scope whose body span contains the offset takes precedence
-/// over any enclosing scope.
-///
-/// Descend into the innermost matching child, then walk the
-/// scope chain outward for the var lookup.
 /// Whether an `uplevel` body's frame semantics hide the scope at index `i` of
 /// the resolution `chain` (outermost-first) from the cursor.
 ///
@@ -2078,6 +2060,13 @@ fn uplevel_hides_scope(chain: &[&tcl_compiler::analyser::Scope], i: usize) -> bo
     }
 }
 
+/// Walk the scope tree to find the variable definition that
+/// the cursor's `byte_offset` would see — the innermost
+/// scope whose body span contains the offset takes precedence
+/// over any enclosing scope.
+///
+/// Descend into the innermost matching child, then walk the
+/// scope chain outward for the var lookup.
 pub(crate) fn lookup_var_in_scope_chain<'a>(
     scope: &'a tcl_compiler::analyser::Scope,
     byte_offset: u32,
@@ -2106,11 +2095,10 @@ pub(crate) fn lookup_var_in_scope_chain<'a>(
     // (`set ns::var val`) records its `VarDef` verbatim under the writer's
     // own active scope, with no namespace-tree node to find by path — that
     // shape is only reachable when the cursor's own chain happens to include
-    // the scope that wrote it (`chain[0]`, the global scope, always does),
-    // exactly as before this lookup existed.
+    // the scope that wrote it (`chain[0]`, the global scope, always does).
     if name.contains("::") {
         // Variable ($var) resolution deliberately does not consult
-        // `namespace_overrides` (issue #923 idx 116 scoped this to
+        // `namespace_overrides` (an `apply` namespace override scopes
         // command/bareword resolution only) — `&[]` keeps this call
         // provably unaffected; `scope` alone (no `analysis`) is available
         // here regardless.
@@ -2135,8 +2123,8 @@ pub(crate) fn lookup_var_in_scope_chain<'a>(
     // missed) and proc-like frames (proc / method / uplevel bodies) keep the
     // lenient outward walk below.  (An `interp eval` child scope shares the
     // `Namespace` kind, so under 8.x the global leg can still cross the
-    // interp boundary — a pre-existing leniency this rule already narrows
-    // from "every enclosing scope" to "the global table only".)
+    // interp boundary — a leniency this rule narrows from "every enclosing
+    // scope" to "the global table only".)
     if !name.contains("::")
         && chain.len() > 1
         && chain
@@ -2200,7 +2188,7 @@ pub(crate) fn linked_var_reference_spans(
             // `target`'s own canonical cell (a plain `set` / declaration with
             // no `link_target` of its own) is never found by the alias-only
             // scan above, since that scan only unions records that name
-            // `target` as *their own* link target (issue #923 idx 68): fold
+            // `target` as *their own* link target: fold
             // it in directly.
             if let Some(canonical) =
                 tcl_compiler::analyser::lookup_var_by_qualified_name(scope, target)
@@ -2214,7 +2202,7 @@ pub(crate) fn linked_var_reference_spans(
             collect_shared_span_refs(scope, var_def.definition_span, &mut out, 0);
             // The inverse of the fold-in above: `var_def` might itself BE the
             // canonical cell some `global` / `variable` / `namespace upvar`
-            // alias elsewhere points at (issue #923 idx 68) — its own
+            // alias elsewhere points at — its own
             // `link_target` is `None` precisely because it isn't an alias, so
             // this can only be discovered by finding its own qualified name
             // and searching for aliases of it.
@@ -2298,13 +2286,12 @@ fn collect_shared_span_refs(
 /// `None`: a bare `$v` names whichever cell the local scope chain supplies,
 /// which no other document can know, so widening it to a workspace search
 /// would be a guess.  A `$name`-shaped substring inside a comment or a data
-/// brace answers `None` too — Tcl substitutes nothing there (issue #923
-/// idx 24), and the cross-document tier must not invent a reference the
-/// in-document one correctly refuses.
+/// brace answers `None` too — Tcl substitutes nothing there, and the
+/// cross-document tier must not invent a reference the in-document one
+/// correctly refuses.
 ///
-/// Findings idx 65 / 75 / 78 of the issue #923 differential audit are all
-/// this one gap: `$::NS::var` whose declaring `namespace eval NS { variable
-/// var }` lives in a sibling file.
+/// The gap this closes is `$::NS::var` whose declaring `namespace eval NS {
+/// variable var }` lives in a sibling file.
 #[must_use]
 pub fn qualified_variable_cell_at(
     source: &str,
@@ -2346,11 +2333,10 @@ pub fn qualified_variable_cell_at(
 /// containment walk: a proc/method parameter's own name token sits in the
 /// parameter list, textually *before* that scope's `body_span` even
 /// starts, so a scope-chain lookup keyed on `byte_offset` never reaches
-/// the scope that owns it (issue #923 differential-audit finding idx 9,
-/// main audit wave — go-to-definition/hover/find-references all returned
-/// nothing for a cursor placed directly on a parameter's or a `catch`
+/// the scope that owns it — go-to-definition / hover / find-references would
+/// answer nothing for a cursor placed directly on a parameter's or a `catch`
 /// result-var's own declaring token, even though every `$name` read of the
-/// same variable resolved correctly). Instead this walks every scope in
+/// same variable resolves correctly. Instead this walks every scope in
 /// the whole tree unconditionally, checking each `VarDef`'s own
 /// `definition_span` and every span in `references` for byte-offset
 /// containment. This is safe without any scope-visibility filtering: a
@@ -2383,11 +2369,10 @@ pub(crate) fn var_def_at_declaration_offset(
 /// `$level`-shaped substring inside an inert Tcl comment, or inside a
 /// brace-quoted word Tcl emits byte-for-byte unsubstituted (`set t {plain
 /// $level here}` prints `$level` verbatim on tclsh 8.6 and 9.0) — and hover /
-/// go-to-definition / find-references / rename then confidently resolved it to
-/// a real declaration, contradicting the LSP's own semantic tokens (one opaque
-/// comment / string token, no nested variable) and its own W220
+/// go-to-definition / find-references / rename would then confidently resolve
+/// it to a real declaration, contradicting the LSP's own semantic tokens (one
+/// opaque comment / string token, no nested variable) and its own W220
 /// "assignment is never read" (which correctly treats those as non-reads).
-/// Issue #923 differential-audit finding idx 24.
 ///
 /// [`crate::inert_text`] holds both proofs, and both are conservative — they
 /// answer "inert" only when the position provably is, so abstaining on them
@@ -2435,22 +2420,19 @@ pub(crate) fn offset_is_inert(
 /// nothing inside it, so the `$n` there is not a reference to `n` at all; it
 /// is part of the literal *name* of a different variable (tclsh 9.0.4 /
 /// 8.6.14: `set {$n} v; info exists {$n}` → 1 while `info exists n` → 0).
-/// Answering `n` there made every provider report the unrelated plain cell's
-/// sites — or, once the scope gate rejected it, nothing at all — for a cursor
-/// sitting inside the literal cell's own declaration word (PR #1106 review,
-/// P2; the cursor half of issue #1108).
+/// Answering `n` there makes every provider report the unrelated plain cell's
+/// sites — or, once the scope gate rejects it, nothing at all — for a cursor
+/// sitting inside the literal cell's own declaration word.
 ///
 /// Returning `None` for such a cursor is what lets each provider fall through
 /// to its declaration-span search
 /// ([`var_def_at_declaration_offset`]), which resolves the literal cell
-/// correctly — exactly as it already did for a cursor on the word's opening
-/// `{`, where the character scan happened to find no `$`. The two columns of
-/// the same word now answer alike.
+/// correctly — as it does for a cursor on the word's opening `{`, where the
+/// character scan finds no `$`. Both columns of the same word answer alike.
 ///
-/// The same `None` covers the pre-existing inert cases (`puts {$v}`, a `$v`
-/// inside a `#` comment — issue #923 idx 24), which every caller already
-/// suppressed one layer further down; hoisting the proof here removes the
-/// short-circuit that hid the declaration-span search behind it.
+/// The same `None` covers the inert cases (`puts {$v}`, a `$v` inside a `#`
+/// comment).  Proving it here rather than one layer further down is what keeps
+/// the declaration-span search reachable behind it.
 #[must_use]
 pub(crate) fn substituting_var_at_position(
     source: &str,
@@ -2469,10 +2451,10 @@ pub(crate) fn substituting_var_at_position(
 /// Every word inside a literal parameter list is pure data: a parameter's own
 /// name, or a default value.  Neither is a command reference, so bareword
 /// command resolution must not run on it: `proc ::tk::RestoreFocusGrab {grab
-/// focus {destroy destroy}}` had both the parameter name `destroy` and the
-/// default-value literal `destroy` resolving to Tk's `destroy` **command**
-/// (issue #923 differential-audit finding idx 104 — tclsh proves the bare word
-/// in a parameter list never invokes anything).  A cursor on the parameter
+/// focus {destroy destroy}}` would otherwise have both the parameter name
+/// `destroy` and the default-value literal `destroy` resolve to Tk's `destroy`
+/// **command**, where tclsh proves the bare word in a parameter list never
+/// invokes anything.  A cursor on the parameter
 /// *name* is answered earlier, by [`var_def_at_declaration_offset`]; this
 /// guard is what stops the remaining data words falling through.
 ///
@@ -2584,10 +2566,10 @@ fn param_word_position(
         return ParamListPosition::Outside;
     };
     // The literalness rule is shared with the analyser and the signature-scan
-    // tier (issue #1107) so the three cannot disagree about a word. The local
-    // character scan this replaced called the substitution-free quoted list
-    // `proc r "m n" {…}` computed, while the analyser — correctly, per the
-    // oracle (`info args r` → `m n`) — treated it as literal.
+    // tier so the three cannot disagree about a word. A local character scan
+    // reads the substitution-free quoted list `proc r "m n" {…}` as computed,
+    // while the analyser — correctly, per the oracle (`info args r` → `m n`) —
+    // treats it as literal.
     if tcl_compiler::signature_scan::params::param_word_text_is_literal(word, config) {
         ParamListPosition::LiteralData
     } else {
@@ -2704,22 +2686,22 @@ pub(crate) fn lexical_namespace_chain(
 /// namespace rule, shared with the analyser's own `resolved_qualified_name`
 /// computation (`Analyser::command_resolution_namespace`) so the two can
 /// never disagree.  Correctly accumulates through every enclosing
-/// `namespace eval` (however deeply nested — a bare, non-accumulating
-/// "just the innermost segment" reading previously misidentified a 2+-level
-/// nested namespace, e.g. `::a::b` read back as just `b`) and resets to a
+/// `namespace eval` (however deeply nested — a non-accumulating "just the
+/// innermost segment" reading misidentifies a 2+-level nested namespace, e.g.
+/// `::a::b` read back as just `b`) and resets to a
 /// proc's/method's own defining namespace inside its body, even when that
 /// proc was declared with a fully-qualified name with no enclosing
 /// `namespace eval` at all.
 ///
-/// `overrides` (issue #923 idx 116) is checked *first*: a runtime-context
+/// `overrides` is checked *first*: a runtime-context
 /// namespace pin (`apply {{params} body ns}` runs `body` in `ns`, not its
 /// lexical home) that the ordinary span-containment walk above can never
 /// see, since `handle_apply_command` roots that `Scope` subtree under
 /// fresh, `body_span`-less namespace wrapper nodes. On multiple containing
 /// entries (nested `apply` calls), the smallest span wins — innermost,
 /// mirroring the lexical walk's own innermost-scope preference. Pass `&[]`
-/// to opt out (e.g. variable lookups, which this fix deliberately doesn't
-/// extend — see `lookup_var_in_scope_chain`).
+/// to opt out (e.g. variable lookups, which the override deliberately does
+/// not cover — see `lookup_var_in_scope_chain`).
 pub(crate) fn innermost_namespace_at(
     scope: &tcl_compiler::analyser::Scope,
     byte_offset: u32,
@@ -2824,8 +2806,8 @@ fn proc_visible_from_namespace<'a>(
 /// spelled (verified against tclsh 8.6.14 / 9.0.4).
 ///
 /// This is the single namespace-resolution primitive behind the bare
-/// object-command / classmethod dispatch matcher (issue #981) and the [incr
-/// Tcl] class-proc resolver (issue #990), so those two cannot disagree about
+/// object-command / classmethod dispatch matcher and the [incr Tcl]
+/// class-proc resolver, so those two cannot disagree about
 /// which definition a written word reaches.
 ///
 /// Deliberate limits: `exists` sees only what this document's analysis
@@ -3067,9 +3049,9 @@ pub fn itcl_class_proc_target_at(
 /// same order [`proc_visible_from_namespace`] walks), this checks whether
 /// that candidate's namespace **still holds a live imported alias** for
 /// `word` at `call_off` — see [`live_import_at`] for the lifecycle that
-/// question covers (issue #1103), and
+/// question covers, and
 /// [`crate::namespace_import::exported_at_import_site`] for the export
-/// snapshot each import site is judged by (issue #1027).
+/// snapshot each import site is judged by.
 ///
 /// Only resolves a source namespace defined in **this** document
 /// (`analysis.all_procs`); a source namespace defined in another file is
@@ -3222,9 +3204,9 @@ impl ImportQuery {
 ///    an export is evidence exactly where this document holds *some* export
 ///    record for `source_ns`, and no information otherwise.
 ///
-/// # Why an oracle at all (issue #1116 item 1)
+/// # Why an oracle at all
 ///
-/// Step 3 is the whole problem. It is the in-document twin of
+/// The document-only fallback is the whole problem. It is the in-document twin of
 /// `WorkspaceIndex::observable_namespaces`, and cross-document that framing is
 /// right — the index really does hold every file. In *one* document it is not:
 /// a namespace can be partly visible here (its procs, and some of its exports)
@@ -3233,7 +3215,7 @@ impl ImportQuery {
 /// single-document inputs and opposite correct answers (transcript on
 /// [`NamespaceExportOracle`]), so no rule reading only this document can
 /// separate them — hence the oracle, and hence its optionality: a caller with
-/// no workspace keeps step 3 exactly as it was.
+/// no workspace keeps the document-only fallback.
 fn export_verdict(
     analysis: &AnalysisResult,
     ctx: CallResolution<'_>,
@@ -3259,8 +3241,8 @@ fn export_verdict(
 }
 
 /// Whether this document holds *any* `namespace export` record for
-/// `source_ns` — the document-only fallback [`export_verdict`] step 3 uses
-/// when no whole-program oracle is attached.
+/// `source_ns` — the document-only fallback [`export_verdict`] uses when no
+/// whole-program oracle is attached.
 ///
 /// The proposition being asserted is about the export list, so the evidence
 /// has to be the export list: a document that declares no export at all for
@@ -3289,7 +3271,7 @@ fn namespace_exports_observable(analysis: &AnalysisResult, source_ns: &str) -> b
 ///
 /// Restricted to a genuine bareword `word` (no embedded `::`) — `namespace
 /// import` / `namespace export` patterns only ever name simple command
-/// tails, matching the bug's scope (issue #923 idx 18); a qualified call
+/// tails; a qualified call
 /// (`inner::p`) never goes through an imported alias in real Tcl, so this
 /// abstains rather than risk mismatching a namespace-path segment against
 /// an unrelated import.
@@ -3299,9 +3281,9 @@ fn namespace_exports_observable(analysis: &AnalysisResult, source_ns: &str) -> b
 /// An import edge may land on a name that is *itself* imported: with `::C`
 /// exporting `p`, `::B` importing `::C::*` and re-exporting, and `::A`
 /// importing `::B::*`, `::A::p` runs `::C`'s body and `namespace origin
-/// ::A::p` answers `::C::p` (oracle tclsh 8.6.14 / 9.0.4 — issue #1103).
+/// ::A::p` answers `::C::p` (oracle tclsh 8.6.14 / 9.0.4).
 /// Statically the middle hop is in no `all_procs`, so a single-hop walk
-/// found nothing. This one follows the chain while every hop is provable,
+/// finds nothing. This one follows the chain while every hop is provable,
 /// bounded by [`indirection::MAX_COMMAND_NAME_HOPS`] — the same cap the
 /// `rename` / `interp alias` walk applies to the same kind of chain, so a
 /// mutually-importing pair cannot spin — and abstains otherwise.
@@ -3454,7 +3436,7 @@ fn forget_covers(forget_source: Option<&str>, source_ns: &str) -> bool {
 /// The source namespace of the import alias `importing_ns` holds for `word`
 /// **at `call_off`**, or `None` when it holds none — the same-document
 /// binding of the shared lifecycle decision
-/// [`crate::namespace_import::alias_live_at`] (issue #1103).
+/// [`crate::namespace_import::alias_live_at`].
 ///
 /// An import edge is a link with a lifecycle, not a standing name-visibility
 /// fact. Everything that writes the `<importing_ns>::<word>` slot is an event
@@ -3463,7 +3445,7 @@ fn forget_covers(forget_source: Option<&str>, source_ns: &str) -> bool {
 ///
 /// 1. **The import installs it** — gated by the source namespace's export
 ///    snapshot at the import's own position
-///    ([`exported_at_import`], issue #1027).
+///    ([`exported_at_import`]).
 /// 2. **A conflict makes it install nothing.** Without `-force`, importing
 ///    onto a name the target namespace already holds raises `can't import
 ///    command "p": already exists`; the existing command survives and
@@ -3499,7 +3481,7 @@ fn forget_covers(forget_source: Option<&str>, source_ns: &str) -> bool {
 /// Ordering is [`indirection::in_effect`] — the same "had this statement
 /// run?" primitive the export snapshot and the `rename` / `interp alias`
 /// timeline use, so none of them can disagree about what "already ran" means.
-/// It gates the *installs* as well as the removals (issue #1104 item 1): a
+/// It gates the *installs* as well as the removals: a
 /// bare call written before its own `namespace import` reaches nothing
 /// (oracle on [`crate::namespace_import::alias_live_at`]), and because the
 /// primitive is `in_effect` rather than a raw offset test, a call inside a
@@ -3561,7 +3543,7 @@ fn live_import_at(
                 declared = false;
                 installs.push((at, source_ns));
                 // The latest install *that has already run at the call* wins
-                // the source namespace (issue #1104 item 1). An import the
+                // the source namespace. An import the
                 // call has not reached yet cannot decide which edge the call
                 // takes — the same gate `alias_live_at` then applies to the
                 // edge's own log, so the two cannot pick different imports.
@@ -3635,10 +3617,12 @@ fn live_import_at(
 /// ([`tcl_compiler::analyser::indirection::in_effect_within`]) without
 /// consulting any graph. The cross-document tier passes real URIs to the same
 /// functions, so the two cannot drift.
-/// The order the in-document tier passes with them: **empty**. One document
-/// needs no `source` graph — every point shares [`IN_DOCUMENT_URI`], so
+///
+/// The order passed with those points is **empty**: one document needs no
+/// `source` graph — every point shares this key, so
 /// [`crate::source_graph::RunOrder`] answers from the single-document rule
 /// alone and never looks at an edge. Building it allocates nothing.
+///
 /// With a [`ProgramExports`] view attached the points carry the document's
 /// **real** URI instead, so the workspace's own order can rank a foreign
 /// export against them — and, just as importantly, can rank *this* document's
@@ -3687,12 +3671,12 @@ fn in_document_point<'a>(
 /// namespace origin ::dst::x   ;# → ::A::x   (unchanged)
 /// ```
 ///
-/// Folding that log in raw offset order got *both* halves wrong: it let the
-/// body-local `::B` import install, and then conflicted the top-level `::A`
+/// Folding that log in raw offset order gets *both* halves wrong: it lets the
+/// body-local `::B` import install, and then conflicts the top-level `::A`
 /// one away. Within one tier — all top level, or all inside one body — the
-/// key degenerates to the offset comparison it replaces, so genuinely
-/// sequenced statements are unaffected. Two events in *different* bodies have
-/// no static order either way; they keep their offset order, as before.
+/// key degenerates to a plain offset comparison, so genuinely sequenced
+/// statements are unaffected. Two events in *different* bodies have no static
+/// order either way; they keep their offset order.
 ///
 /// The workspace tier reaches the same answer through
 /// `WildcardImportIndex::conflicting_alias_at`, which asks
@@ -3719,9 +3703,9 @@ fn slot_events<'a>(
         };
         // A pattern rooted at the global namespace (`namespace import ::p`,
         // `namespace import ::*`) splits to an *empty* source namespace, which
-        // both tiers used to read as "no source" and skip — leaving the one
-        // import shape that bypassed the export gate entirely (#1104's review
-        // note). Real Tcl gives it no special treatment: `proc p {}` with no
+        // is easy to read as "no source" and skip — the one import shape that
+        // would then bypass the export gate entirely. Real Tcl gives it no
+        // special treatment: `proc p {}` with no
         // `namespace export p` at global level makes `namespace import ::p` a
         // silent no-op like any other unexported import, and `info commands
         // ::dst::*` stays empty (oracle 8.6.14 / 9.0.4). `::` *is* the source
@@ -3881,8 +3865,8 @@ pub(crate) fn import_chain_target(
 /// (`None` skips it — callers without a registry keep the lenient behaviour,
 /// including the nested-shadow one, since there is no builtin to protect), and
 /// its [`CallResolution::program`], when `Some`, supplies the whole-program
-/// export oracle the `-force` shadow needs (issue #1116 item 1). Both absent
-/// is the document-only behaviour this resolver has always had.
+/// export oracle the `-force` shadow needs. Both absent is the document-only
+/// behaviour.
 pub(crate) fn resolve_called_proc<'a>(
     analysis: &'a AnalysisResult,
     source: &str,
@@ -3936,7 +3920,7 @@ pub(crate) fn resolve_called_proc<'a>(
     }
     let hit = fallback_proc_by_simple_name(analysis, source, word)?;
     // …and the lenient tail match must not smuggle back in the one answer the
-    // import gate has just refused (issue #1104 item 2).
+    // import gate has just refused.
     if only_route_is_a_dead_import(
         analysis,
         ctx,
@@ -3954,10 +3938,9 @@ pub(crate) fn resolve_called_proc<'a>(
 /// `target_qname` is a `namespace import` that this document has already
 /// judged not to be in force — the case where
 /// [`fallback_proc_by_simple_name`]'s tail match would silently overrule the
-/// gate (issue #1104 item 2).
+/// gate.
 ///
-/// The false positive it closes is #1027's Direction B, still visible through
-/// single-file go-to-definition after #1102 gated everything else: with
+/// The false positive it closes is an import whose export runs only after it:
 ///
 /// ```tcl
 /// namespace eval ::src { proc p {} {return P} }
@@ -3966,7 +3949,7 @@ pub(crate) fn resolve_called_proc<'a>(
 /// namespace eval ::dst { p }        ;# → invalid command name "p"
 /// ```
 ///
-/// every ordered route said "no" and the tail match answered `::src::p`
+/// every ordered route says "no", yet the tail match would answer `::src::p`
 /// anyway, because it never asks *how* the name would be reachable.
 ///
 /// # Why this is narrow on purpose
@@ -4051,8 +4034,8 @@ fn same_namespace(a: &str, b: &str) -> bool {
 /// 2. the namespace-aware call-site resolution ([`resolve_called_proc`], C
 ///    Tcl's own rule from the caller's namespace).
 ///
-/// It never falls back to a namespace-blind `p.name == word` scan — the shape
-/// that let a rename triggered from a bareword call site pick an *arbitrary*
+/// It never falls back to a namespace-blind `p.name == word` scan — that would
+/// let a rename triggered from a bareword call site pick an *arbitrary*
 /// same-named proc in an unrelated namespace (`HashMap` order) and rewrite the
 /// wrong definition while leaving the one under the cursor untouched.  The
 /// returned key equals `ProcDef::qualified_name` (the map is keyed by it).
@@ -4074,8 +4057,7 @@ pub(crate) fn resolve_proc_target_at<'a>(
     // token, which `all_procs` (winner-only) can never match; it still
     // declares that qualified name, so resolve through to whichever
     // definition currently wins for it — the same rule
-    // `tcl-lsp-server::resolve_workspace_symbols` applies cross-document
-    // (issue #923 idx 31 / idx 45).
+    // `tcl-lsp-server::resolve_workspace_symbols` applies cross-document.
     if let Some((qualified, _)) = analysis
         .proc_declaration_sites
         .iter()
@@ -4088,9 +4070,8 @@ pub(crate) fn resolve_proc_target_at<'a>(
     // two-candidate mathfunc rule, not the ordinary bareword one — so
     // find-references / rename / call-hierarchy / linked-editing triggered
     // *at a call site* reach the same `proc ::tcl::mathfunc::NAME` a query
-    // from the declaration already did (issue #923 idx 30: the asymmetry was
-    // this resolution being missing here). `word` is unusable at such a
-    // cursor anyway — the word-span scan hands back `li(`.
+    // from the declaration reaches. `word` is unusable at such a cursor
+    // anyway — the word-span scan hands back `li(`.
     if let Some(inv) = crate::expr_context::mathfunc_call_at(analysis, cursor_off) {
         return inv
             .resolved_qualified_name
@@ -4100,7 +4081,7 @@ pub(crate) fn resolve_proc_target_at<'a>(
     // A word the command table has moved onto (a `rename` destination, an
     // `interp alias` name) targets the definition it really reaches, so
     // find-references / rename / call-hierarchy issued from either spelling
-    // converge on one proc (issues #1062 B1/B2, #1064). Order-gated, so a
+    // converge on one proc. Order-gated, so a
     // call written before the mutation still resolves the ordinary way.
     if let Some(target) = command_indirection_target(analysis, word, cursor_off)
         && let Some(hit) = analysis.all_procs.get_key_value(&target)
@@ -4141,7 +4122,7 @@ pub(crate) fn resolve_class_target_at<'a>(
     // (its `ClassDef`, its method table) is unchanged by the move, so the
     // canonical name is what the lookup needs. Order-gated by the shared
     // walk, so `Cat` written before the rename still resolves to nothing here
-    // (issue #1064; the diagnostics side of the same fact is
+    // (the diagnostics side of the same fact is
     // `class_reachable_by_indirection`).
     if let Some(target) = command_indirection_target(analysis, word, cursor_off)
         && let Some(hit) = analysis.all_classes.get_key_value(&target)
@@ -4161,7 +4142,7 @@ pub(crate) fn resolve_class_target_at<'a>(
     }
     // A wildcard `namespace import NS::*` makes an exported class in `NS`
     // callable bare — see [`proc_visible_via_wildcard_import`] for the full
-    // rationale (issue #923 idx 18); classes never consult `namespace path`,
+    // rationale; classes never consult `namespace path`,
     // matching `bareword_resolution_candidates` above.
     let source_ns = wildcard_import_source_namespace(analysis, ctx, &ns, word, cursor_off)?;
     analysis
@@ -4169,7 +4150,7 @@ pub(crate) fn resolve_class_target_at<'a>(
         .get_key_value(&tcl_syntax::naming::qualify(&source_ns, word))
 }
 
-/// Deterministic replacement for the old first-`HashMap`-hit tail match: of
+/// Deterministic tail match, in place of a first-`HashMap`-hit one: of
 /// every proc whose simple name equals `word`, prefer one defined in this
 /// document ([`name_token_in_document`]), then the lexicographically
 /// smallest qualified name.  `HashMap` iteration order never decides the
@@ -4178,9 +4159,9 @@ pub(crate) fn resolve_class_target_at<'a>(
 /// A proc living in a `tcl::mathfunc` namespace is excluded: real Tcl reaches
 /// it only through `expr`'s function-call production or its own fully-
 /// qualified name, never as a bare command word (`li {10 20 30} 1` →
-/// `invalid command name "li"` on tclsh 8.6 and 9.0 — issue #923 idx 30's
-/// secondary false positive, where this lenient tail match resolved a
-/// guaranteed-to-crash bare call to the mathfunc proc).  The namespace fact
+/// `invalid command name "li"` on tclsh 8.6 and 9.0), so without the
+/// exclusion this lenient tail match resolves a guaranteed-to-crash bare call
+/// to the mathfunc proc.  The namespace fact
 /// is the registry's ([`tcl_registry::mathfunc::is_in_mathfunc_namespace`]),
 /// not a name test written here.
 pub(crate) fn fallback_proc_by_simple_name<'a>(
@@ -4320,15 +4301,14 @@ mod tests {
     }
 
     /// The document-only resolution context: no registry, no whole-program
-    /// export oracle. What every caller had before issue #1116 item 1, and
-    /// what a single-document test must keep getting.
+    /// export oracle — what a single-document test resolves against.
     const DOC: CallResolution<'static> = CallResolution::document_only();
 
-    /// Regression coverage for issue #996: `variable_scope_extent`'s
-    /// nested `innermost` fn and `linked_var_reference_spans`'s
+    /// `variable_scope_extent`'s nested `innermost` fn and
+    /// `linked_var_reference_spans`'s
     /// `collect_alias_spans`/`collect_shared_span_refs` all recurse once
-    /// per nested namespace/proc scope, with no depth cap before this fix
-    /// (`MAX_SCOPE_WALK_DEPTH`, `crate::lib`). 80 nested `namespace eval`
+    /// per nested namespace/proc scope, capped by
+    /// `MAX_SCOPE_WALK_DEPTH` (`crate::lib`). 80 nested `namespace eval`
     /// levels is past the point (confirmed empirically: 100+) where
     /// unguarded namespace-scope recursion overflows `cargo test`'s bare
     /// ~2 MiB per-test default. The assertion is that both return at all,
@@ -4364,19 +4344,18 @@ mod tests {
         assert_eq!(locs[0].start_character, 5);
     }
 
-    // foreach multi-list lock-step form (issue #923 idx 70): `foreach
+    // foreach multi-list lock-step form: `foreach
     // varList1 list1 varList2 list2 ... body` binds every varList, not
     // just the first.
 
     #[test]
     fn multi_list_foreach_name_resolves_to_its_own_loop_not_an_unrelated_later_one() {
-        // The finding's own demonstrated in-vivo failure mode on the real,
-        // unmodified pix corpus file (docs/pixdoc.tcl) — a *second*
-        // `foreach` reusing the bare name `name` (a wholly unrelated,
-        // later loop) previously "won" by being the only `VarDef` named
-        // `name` anywhere in the flat top-level scope, since the first
+        // The failure mode on the real pix corpus file (docs/pixdoc.tcl) — a
+        // *second* `foreach` reusing the bare name `name` (a wholly
+        // unrelated, later loop) wins whenever it is the only `VarDef` named
+        // `name` in the flat top-level scope, which happens if the first
         // loop's own `name` (the second varList of a `foreach dirName
-        // {...} name {...} {...}` multi-list form) was never bound at
+        // {...} name {...} {...}` multi-list form) is not bound at
         // all. tclsh9.0/8.6 both prove `name` inside the first loop's body
         // is that loop's own variable, never reaching the second loop.
         let src = "foreach dirName {src src {src core}} name {alpha beta gamma} {\n    puts \"$dirName $name\"\n    if {$name eq \"pixutils\"} { puts skip }\n}\nforeach name {examples color changes} {\n    puts $name.ruff\n}\n";
@@ -4399,11 +4378,10 @@ mod tests {
 
     #[test]
     fn definition_resolves_a_method_return_captured_dispatch() {
-        // Issue #1143's definition half: hover/definition resolved the
-        // producing `[$a make]` call, but go-to-definition on the consuming
-        // `$b greet` answered nothing because `instance_classes` never bound
-        // `b`.  The lattice's scope-keyed singleton now resolves it through
-        // the same accessor every dispatch consumer reads.
+        // `instance_classes` never binds `b` from a method return, so
+        // go-to-definition on the consuming `$b greet` has only the lattice's
+        // scope-keyed singleton to resolve through — the same accessor every
+        // dispatch consumer reads.
         let src = "oo::class create A { method make {} { ::return [::B new] } }\n\
                    oo::class create B { method greet {} { ::return \"hi\" } }\n\
                    set a [A new]\n\
@@ -4435,7 +4413,7 @@ mod tests {
         assert_eq!(locs[0].start_character, 9);
     }
 
-    // apply namespace override (issue #923 idx 116): a bareword called
+    // apply namespace override: a bareword called
     // inside `apply {{params} body ns}`'s body resolves against `ns`, not
     // wherever the `apply` call is lexically written.
 
@@ -4445,8 +4423,8 @@ mod tests {
         // define `cleanup`; `apply {{} {cleanup done} ::real}` must
         // resolve the bareword `cleanup` inside its body to `::real`'s
         // copy, not `::lexical`'s (tclsh9.0/8.6-verified: prints "real
-        // done"). Before this fix: resolved to `::lexical::cleanup`
-        // purely by lexical-nearest-definition coincidence.
+        // done").  A lexical-nearest-definition guess answers
+        // `::lexical::cleanup` instead.
         let src = "namespace eval real {\n    proc cleanup {tag} { puts \"real $tag\" }\n}\nnamespace eval lexical {\n    proc cleanup {tag} { puts \"lexical $tag\" }\n}\napply {{} {cleanup done} ::real}\n";
         let analysis = analyse(src);
         // Cursor on `cleanup` inside the apply body (line 6, col 11).
@@ -4506,8 +4484,7 @@ mod tests {
         // the literal lambda). Two conflicting `cleanup` procs, matching
         // the other scenarios' shape, so a wrong resolution would be
         // visible rather than accidentally right via a single-candidate
-        // fallback. Confirm this stays unresolved after the fix — a
-        // documented depth bound, not a regression.
+        // fallback. It stays unresolved — a documented depth bound.
         let src = "namespace eval real {\n    proc cleanup {tag} { puts \"real $tag\" }\n}\nnamespace eval lexical {\n    proc cleanup {tag} { puts \"lexical $tag\" }\n}\nset lambda {{} {cleanup done} ::real}\nset a $lambda\napply $a\n";
         let analysis = analyse(src);
         // Cursor on `cleanup` inside the `set lambda`'s braced value (line 6, col 16).
@@ -4581,7 +4558,7 @@ mod tests {
         assert_eq!(locs_b[0].start_line, 4);
     }
 
-    // wildcard namespace import bareword resolution (issue #923 idx 18):
+    // wildcard namespace import bareword resolution:
     // `namespace import NS::*` makes every command `NS` has `namespace
     // export`ed callable bare wherever the import is in scope — but real
     // Tcl only imports *exported* names (`Tcl_Export`), so an unexported
@@ -4606,11 +4583,8 @@ mod tests {
     #[test]
     fn wildcard_namespace_import_resolves_exported_proc_alongside_unexported_sibling() {
         // TP — the finding's own headline shape: `Foo` has both an exported
-        // `bar` and an unrelated, unexported `other`. Exhaustive tracing
-        // found the old code blocked *every* route identically regardless
-        // of sibling count — this proves the fix does not regress to some
-        // sibling-count-dependent "ambiguity threshold" that doesn't exist
-        // in real Tcl either.
+        // `bar` and an unrelated, unexported `other`. Sibling count must not
+        // enter into it: there is no "ambiguity threshold" in real Tcl.
         let src = "namespace eval Foo {\n    proc bar {} { return 1 }\n    proc other {} { return 2 }\n    namespace export bar\n}\nnamespace import ::Foo::*\nbar\n";
         let analysis = analyse(src);
         // Cursor on the bareword `bar` call (line 6, col 0).
@@ -4687,17 +4661,16 @@ mod tests {
 
     #[test]
     fn wildcard_namespace_import_wins_over_an_unrelated_decoy_with_the_same_simple_name() {
-        // TP — differential-audit finding idx 29 (main audit wave), its
-        // "cleanest repro": before this fix, a bareword call reached via a
-        // wildcard import never consulted `namespace_imports` at all, so
-        // it fell straight to `fallback_proc_by_simple_name`'s lenient
-        // "any proc with this simple name, prefer lexicographically
-        // smallest qualified name" tie-break — silently resolving (and
-        // hovering) to an entirely unrelated, never-imported decoy
+        // TP — a bareword call reached via a wildcard import must consult
+        // `namespace_imports`: falling straight to
+        // `fallback_proc_by_simple_name`'s lenient "any proc with this simple
+        // name, prefer lexicographically smallest qualified name" tie-break
+        // silently resolves (and hovers) to an entirely unrelated,
+        // never-imported decoy
         // (`::decoyns::helper`, "d" < "r") instead of the real,
         // oracle-proven target (`::realns::helper`, tclsh9.0/8.6-verified:
-        // prints `REAL`). The wildcard-import resolution added by idx 18
-        // is tried *before* that fallback, so it must win here.
+        // prints `REAL`). The wildcard-import resolution is tried *before*
+        // that fallback, so it must win here.
         let src = "namespace eval realns {\n    namespace export helper\n    proc helper {} { return REAL }\n}\nnamespace eval decoyns {\n    proc helper {} { return DECOY }\n}\nnamespace eval userns {\n    namespace import ::realns::*\n    proc run {} {\n        return [helper]\n    }\n}\n";
         let analysis = analyse(src);
         // Cursor on the bareword `helper` call inside `userns::run` (line
@@ -4711,7 +4684,7 @@ mod tests {
         );
     }
 
-    // Per-import-site export snapshots (issue #1027). `namespace import`
+    // Per-import-site export snapshots. `namespace import`
     // binds the names exported *when it runs*; the export list keeps
     // changing afterwards and none of it reaches back. Every case below is
     // oracle-pinned against tclsh 8.6.14 and 9.0.4.
@@ -4724,7 +4697,7 @@ mod tests {
 
     #[test]
     fn import_site_snapshot_survives_a_later_export_clear() {
-        // TP, issue #1027 direction A — `namespace export -clear` after the
+        // TP, direction A — `namespace export -clear` after the
         // import does NOT revoke the alias the import already installed.
         // Oracle: `namespace eval ::src {proc p {} {return P}; namespace
         // export p}; namespace eval ::dst {namespace import ::src::*};
@@ -4741,7 +4714,7 @@ mod tests {
 
     #[test]
     fn import_site_snapshot_ignores_a_later_export() {
-        // FP guard (CRITICAL), issue #1027 direction B — exporting a name
+        // FP guard (CRITICAL), direction B — exporting a name
         // *after* an import does not add it retroactively. Oracle:
         // `namespace eval ::src {proc p {} {return P}}; namespace eval ::dst
         // {namespace import ::src::*}; namespace eval ::src {namespace export
@@ -4757,9 +4730,9 @@ mod tests {
 
     #[test]
     fn a_global_rooted_import_is_export_gated_in_document_too() {
-        // TN / TP pair for #1104's review note — `namespace import ::p` reads
-        // as an *empty* source namespace, which both tiers skipped, leaving
-        // the last import shape that bypassed the gate. Oracle (8.6.14 /
+        // TN / TP pair — `namespace import ::p` reads as an *empty* source
+        // namespace, which is easy to skip and so bypass the gate. Oracle
+        // (8.6.14 /
         // 9.0.4): without `namespace export p` at global level the import is a
         // silent no-op and `info commands ::dst::*` stays empty; with it,
         // `::dst::p` binds.
@@ -4779,19 +4752,16 @@ mod tests {
         );
     }
 
-    // The same gate, as the **provider** answers it (issue #1104 item 2).
-    // Everything above drives `proc_visible_via_wildcard_import` directly
-    // because `resolve_called_proc`'s lenient tail match used to overrule it;
-    // these pin that it no longer does.
+    // The same gate, as the **provider** answers it.  Everything above drives
+    // `proc_visible_via_wildcard_import` directly; these pin that
+    // `resolve_called_proc`'s lenient tail match does not overrule it.
 
     #[test]
     fn single_file_definition_refuses_direction_b_through_the_fallback() {
-        // FP guard (CRITICAL), issue #1104 item 2 — the whole Direction-B
-        // fixture in one document. Oracle (8.6.14 / 9.0.4): the bare call is
-        // `invalid command name "p"` and `info commands ::dst::*` is empty, so
-        // go-to-definition must not answer `::src::p` — which it did, via
-        // `fallback_proc_by_simple_name`, long after #1102 gated every other
-        // route.
+        // FP guard (CRITICAL) — the whole Direction-B fixture in one
+        // document. Oracle (8.6.14 / 9.0.4): the bare call is `invalid command
+        // name "p"` and `info commands ::dst::*` is empty, so go-to-definition
+        // must not answer `::src::p` through `fallback_proc_by_simple_name`.
         let src = "namespace eval src {\n    proc p {} { return P }\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval src {\n    namespace export p\n}\nnamespace eval dst {\n    p\n}\n";
         let analysis = analyse(src);
         let locs = definition(src, 10, 4, &analysis);
@@ -4854,8 +4824,8 @@ mod tests {
 
     #[test]
     fn the_tail_match_refuses_a_call_written_before_its_import() {
-        // TN — and the new call-site ordering (issue #1104 item 1) reaches the
-        // provider through the same door: the call above the import resolves
+        // TN — the call-site ordering reaches the provider through the same
+        // door: the call above the import resolves
         // nowhere, the one below it resolves.
         let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {\n    p\n}\n";
         let analysis = analyse(src);
@@ -4971,14 +4941,14 @@ mod tests {
     #[test]
     fn an_import_inside_a_body_sees_a_later_top_level_export() {
         // TP — the same-document half of the ordering rule the workspace tier
-        // must match (PR #1102 review finding 1, pinned on both sides so they
-        // cannot drift): the import runs only when `setup` is called, by which
+        // must match (pinned on both sides so they cannot drift): the import
+        // runs only when `setup` is called, by which
         // time the whole file — including the `namespace export` written below
         // it — has loaded. Oracle (tclsh 8.6.14 / 9.0.4): `::app::setup;
         // ::app::run` → `HELP`.
         //
-        // `indirection::in_effect` already said so here; the workspace tier's
-        // plain offset compare did not, which is what the review caught.
+        // `indirection::in_effect` states exactly that; a plain offset compare
+        // does not.
         let src = "namespace eval src {\n    proc p {} { return P }\n}\nnamespace eval dst {\n    proc setup {} { namespace import ::src::* }\n}\nnamespace eval src {\n    namespace export p\n}\n";
         let analysis = analyse(src);
         let hit = proc_visible_via_wildcard_import(&analysis, DOC, "dst", "p", u32::MAX);
@@ -5008,12 +4978,12 @@ mod tests {
 
     #[test]
     fn a_command_named_like_the_export_flag_is_exportable() {
-        // TP — the user-visible consequence of consuming only one `-clear`
-        // (PR #1102 review finding 3): `namespace export -clear -clear`
+        // TP — the user-visible consequence of consuming only one `-clear`:
+        // `namespace export -clear -clear`
         // exports a command genuinely *named* `-clear`, and a wildcard import
         // then binds it. Oracle (tclsh 8.6.14 / 9.0.4): `namespace export`
         // returns `-clear`, and `info commands ::dst::*` lists `::dst::-clear`.
-        // Consuming both words as flags dropped the export entirely.
+        // Consuming both words as flags would drop the export entirely.
         let src = "namespace eval src {\n    proc -clear {} { return DC }\n    namespace export -clear -clear\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
         let analysis = analyse(src);
         let hit = proc_visible_via_wildcard_import(&analysis, DOC, "dst", "-clear", u32::MAX);
@@ -5042,13 +5012,13 @@ mod tests {
         );
     }
 
-    // ---- the import edge's own lifecycle (issue #1103) -------------------
+    // The import edge's own lifecycle.
     //
-    // #1102 made the import edge a *snapshot* fact; these pin it as a **link
+    // The import edge is a *snapshot* fact; these pin it as a **link
     // with a lifetime**. Every case is oracle-pinned against tclsh 9.0.4 and
     // 8.6.14, byte-identical on both, and drives
     // `proc_visible_via_wildcard_import` / `proc_visible_via_forced_import`
-    // directly for the same reason the #1027 block above does: the lenient
+    // directly for the same reason the export-snapshot block above does: the lenient
     // `fallback_proc_by_simple_name` in `resolve_called_proc` would answer
     // either way and prove nothing about this gate.
 
@@ -5111,7 +5081,7 @@ mod tests {
         }
     }
 
-    /// FN guard pinning issue #1116 item 5: a **dynamic** forget pattern
+    /// FN guard: a **dynamic** forget pattern
     /// revokes nothing, so the alias keeps resolving.
     ///
     /// `namespace forget ::src::$name` really does remove the alias when
@@ -5146,7 +5116,7 @@ mod tests {
         );
     }
 
-    /// FN guard pinning #1104's dynamic-export note — the export-side twin of
+    /// FN guard for a dynamic export pattern — the export-side twin of
     /// [`a_dynamic_forget_pattern_revokes_nothing`], and the same sign
     /// argument.
     ///
@@ -5184,7 +5154,7 @@ mod tests {
     }
 
     /// TN for the interaction the dynamic-export abstention has with a
-    /// tombstone (#1104's minor note): a `namespace export -clear` written
+    /// tombstone: a `namespace export -clear` written
     /// after a dynamic pattern leaves the snapshot empty either way, so the
     /// unrecorded pattern costs nothing there — the abstention is only ever
     /// visible *before* a clear, which the test above covers.
@@ -5278,7 +5248,7 @@ mod tests {
         );
     }
 
-    // Behaviour 1b — the install is order-gated too (issue #1104 item 1).
+    // Behaviour 1b — the install is order-gated too.
     //
     // Oracle, byte-identical on tclsh 8.6.14 and 9.0.4:
     //
@@ -5297,7 +5267,7 @@ mod tests {
 
     #[test]
     fn a_top_level_call_before_its_own_import_resolves_nothing() {
-        // TN (the leniency #1102 deferred): both statements are top level, so
+        // TN: both statements are top level, so
         // the offsets are in genuine execution order.
         let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\np\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
         let analysis = analyse(src);
@@ -5434,7 +5404,7 @@ mod tests {
 
     #[test]
     fn a_local_defined_after_the_import_is_not_a_conflict_but_does_end_the_alias() {
-        // The three-phase ordering (issue #1116 finding 3). The conflict is
+        // The three-phase ordering. The conflict is
         // judged at the *import's* position, so a `proc` written after it does
         // not retroactively make the import a no-op — a call between the two
         // still reaches `::src::p`. But the `proc` *does* recreate
@@ -5470,10 +5440,9 @@ mod tests {
 
     #[test]
     fn a_redefinition_ends_a_forced_import_shadow() {
-        // TN, issue #1116 finding 3 — the same rule reached through
-        // `forced_import_shadows`, which is what made this a P2: with the
-        // shadow stuck on, `definition` / `hover` / `signature_help` skipped
-        // the valid local definition and answered the import source forever.
+        // TN — the same rule reached through `forced_import_shadows`: with the
+        // shadow stuck on, `definition` / `hover` / `signature_help` would skip
+        // the valid local definition and answer the import source forever.
         // Oracle: `proc ::dst::p` after `namespace import -force ::src::*`
         // returns LOCAL2 with `namespace origin ::dst::p` → `::dst::p`.
         let src = "namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\nnamespace eval dst {\n    namespace import -force ::src::*\n}\nnamespace eval dst {\n    proc p {} { return LOCAL2 }\n}\n";
@@ -5495,7 +5464,7 @@ mod tests {
 
     #[test]
     fn a_live_alias_is_an_import_conflict_for_a_different_source() {
-        // TN, issue #1116 finding 4 (CRITICAL) — with `::dst` already
+        // TN (CRITICAL) — with `::dst` already
         // importing `::A::*`, a later *unforced* `namespace import ::B::*`
         // fails and changes nothing. Oracle (9.0.4 / 8.6.14):
         //   namespace eval ::dst {namespace import ::A::*}   ; origin → ::A::p
@@ -5515,7 +5484,7 @@ mod tests {
 
     #[test]
     fn a_forced_import_from_a_second_source_replaces_the_first_alias() {
-        // TP, the other half of finding 4 — with `-force` the second import
+        // TP, the other half of the conflict rule — with `-force` the second import
         // wins (oracle: `::dst::p` → BP, `namespace origin` → `::B::p`).
         let src = "namespace eval A {\n    proc p {} { return AP }\n    namespace export p\n}\nnamespace eval B {\n    proc p {} { return BP }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::A::*\n}\nnamespace eval dst {\n    namespace import -force ::B::*\n}\n";
         let analysis = analyse(src);
@@ -5570,7 +5539,7 @@ mod tests {
 
     #[test]
     fn a_forget_lets_the_next_unforced_import_install() {
-        // FN guard for finding 4 — the conflict is the *live* alias, not the
+        // FN guard for the conflict rule — the conflict is the *live* alias, not the
         // fact that one was ever installed. Oracle: forgetting `::A::p` first
         // makes the unforced `::B::*` import succeed (`origin` → `::B::p`).
         let src = "namespace eval A {\n    proc p {} { return AP }\n    namespace export p\n}\nnamespace eval B {\n    proc p {} { return BP }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::A::*\n}\nnamespace eval dst {\n    namespace forget ::A::p\n}\nnamespace eval dst {\n    namespace import ::B::*\n}\n";
@@ -5625,14 +5594,13 @@ mod tests {
         );
     }
 
-    // Behaviour 2b — what an *absent* export means for `-force`
-    // (issue #1116 item 1).
+    // Behaviour 2b — what an *absent* export means for `-force`.
 
     #[test]
     fn a_forced_import_shadows_when_this_file_holds_no_export_for_the_source() {
         // TP (CRITICAL) — the partly-observable source. `::src`'s proc is in
-        // this document, its `namespace export` is not, so the old
-        // "does this file hold *anything* of `::src`" test read the gap as
+        // this document, its `namespace export` is not, so a
+        // "does this file hold *anything* of `::src`" test reads the gap as
         // "not exported" and single-file go-to-definition kept answering the
         // local `::app::helper`. Oracle (8.6.14 / 9.0.4) with the export
         // present anywhere in the program: `::app::helper` → SRC and
@@ -5671,7 +5639,7 @@ mod tests {
         );
     }
 
-    // Behaviour 2c — the whole-program export oracle (issue #1116 item 1).
+    // Behaviour 2c — the whole-program export oracle.
     //
     // The single document [`PARTLY_OBSERVABLE`] is the *same bytes* in every
     // test below. Only the program around it changes, and with it the correct
@@ -5743,9 +5711,9 @@ mod tests {
         // the program. The `-force` import therefore *did* delete
         // `::app::helper`, and the call reaches `::src::helper` — which this
         // document happens to hold, so the in-document tier can answer it
-        // outright. Before the oracle, the document-only rule read "this file
-        // has an export record for ::src and none of them covers helper" as a
-        // fact and kept answering the deleted local definition.
+        // outright. The document-only rule reads "this file has an export
+        // record for ::src and none of them covers helper" as a fact and keeps
+        // answering the deleted local definition.
         assert_eq!(
             partly_observable_target(&FakeExports(&[("src", &["other", "helper"])])),
             Some("::src::helper".to_owned()),
@@ -5757,8 +5725,8 @@ mod tests {
         // TN, byte-identical input to the test above — nothing anywhere in the
         // program exports `helper`, so the `-force` import binds only `other`
         // and the local definition survives (oracle: LOCAL / ::app::helper).
-        // This is the case the pre-#1116 rule got right and must keep getting
-        // right; it is also the pinned true negative
+        // The document-only rule gets this one right too; it is the pinned
+        // true negative
         // `a_forced_import_does_not_shadow_when_this_file_holds_the_export_list`
         // covers without an oracle.
         assert_eq!(
@@ -5783,7 +5751,7 @@ mod tests {
         // FP guard on the plumbing itself: the oracle is *optional*. A caller
         // with no workspace index — a single-document unit test, the `tcl`
         // CLI, a buffer the workspace has not indexed — must get exactly the
-        // pre-#1116 answer rather than a panic or the abstention above.
+        // document-only answer rather than a panic or the abstention above.
         let analysis = analyse(PARTLY_OBSERVABLE);
         let call = after_last(PARTLY_OBSERVABLE, "    helper\n");
         assert!(!forced_import_shadows(
@@ -5798,7 +5766,7 @@ mod tests {
 
     #[test]
     fn the_real_oracle_does_not_resurrect_an_export_written_after_the_import() {
-        // FP guard, issue #1027 Direction B under the oracle, and the reason
+        // FP guard, an export written after its import under the oracle, and the reason
         // [`ProgramExports`] pairs the oracle with the document's **real**
         // URI. The export covering the name is in this very document but
         // written *after* the import, so it is not retroactive (oracle:
@@ -6048,10 +6016,9 @@ mod tests {
 
     #[test]
     fn ordinary_nested_proc_still_resolves_when_not_shadowing_a_builtin() {
-        // TN / regression guard — the nested-shadow gate is scoped to names
-        // that collide with a real registry builtin; an ordinary nested
-        // helper proc (no such collision) must keep resolving exactly as
-        // before.
+        // TN — the nested-shadow gate is scoped to names that collide with a
+        // real registry builtin; an ordinary nested helper proc (no such
+        // collision) still resolves.
         let src = "proc outer {} {\n    proc helper {} { return 1 }\n    return [helper]\n}\n";
         let analysis = analyse(src);
         let locs = definition(src, 2, 13, &analysis);
@@ -6096,7 +6063,7 @@ mod tests {
 
     #[test]
     fn jump_to_proc_definition_in_two_level_nested_namespace_via_qualified_call() {
-        // Issue #923: go-to-definition on a fully-qualified call to a proc
+        // Go-to-definition on a fully-qualified call to a proc
         // nested two `namespace eval` levels deep must land on its own decl.
         let src = concat!(
             "namespace eval modelTestVerTool {\n",
@@ -6198,8 +6165,8 @@ mod tests {
     #[test]
     fn jump_to_nextto_namespaced_class_method() {
         // `nextto A` names a namespaced sibling bare from within `::Ns::C`.
-        // Owner-aware canonicalisation resolves it to `::Ns::A` (previously
-        // only a global `::A` would have matched, so this produced nothing).
+        // Owner-aware canonicalisation resolves it to `::Ns::A` (a global-only
+        // `::A` match would produce nothing here).
         let src = "namespace eval Ns {\n    oo::class create A {\n        method greet {} { return hi }\n    }\n    oo::class create B {\n        superclass A\n        method greet {} { next }\n    }\n    oo::class create C {\n        superclass B\n        method greet {} { nextto A }\n    }\n}\n";
         let analysis = analyse(src);
         // Cursor on `nextto` inside C::greet (line 10).
@@ -6238,10 +6205,8 @@ mod tests {
 
     #[test]
     fn jump_to_proc_param_bareword_declaration_resolves_to_itself() {
-        // TP — differential-audit finding idx 9 (main audit wave): a cursor
-        // placed directly on a proc parameter's own bareword name (not a
-        // `$`-prefixed read) previously resolved to nothing at all, even
-        // though every `$name` read of the same parameter resolved fine —
+        // TP — a cursor placed directly on a proc parameter's own bareword
+        // name (not a `$`-prefixed read) must resolve, even though
         // `scope_chain_at` never reaches the proc's own scope for a byte
         // offset inside the parameter list, which sits textually *before*
         // that scope's `body_span` even starts.
@@ -6292,11 +6257,10 @@ mod tests {
 
     #[test]
     fn jump_to_absolutely_qualified_var_definition() {
-        // TP — the exact shape both mined findings (defer.tcl's
-        // `$::defer::idVar`, uri.tcl's namespace-current pattern) reduce to:
-        // a `variable` declared at namespace-eval scope, referenced
-        // elsewhere via its fully `::`-qualified name. Previously empty
-        // (lookup_var_in_scope_chain only special-cased bare names).
+        // TP — the shape defer.tcl's `$::defer::idVar` and uri.tcl's
+        // namespace-current pattern both reduce to: a `variable` declared at
+        // namespace-eval scope, referenced elsewhere via its fully
+        // `::`-qualified name.
         let src = "namespace eval ::simple {\n    variable v \"hello\"\n}\nputs $::simple::v\n";
         let analysis = analyse(src);
         // Cursor on `v` inside `$::simple::v` (line 3, col 16).
@@ -6362,7 +6326,7 @@ mod tests {
         assert!(locs.is_empty(), "{locs:?}");
     }
 
-    /// Issue #727: go-to-definition of a formal-parameter use must resolve to
+    /// Go-to-definition of a formal-parameter use must resolve to
     /// the parameter *name* in the declaration, not the proc name (proc) or the
     /// whole method/constructor body (`TclOO`). The returned range must be a
     /// single-line, name-sized span over `arg1`.
@@ -6473,8 +6437,7 @@ mod tests {
 
     #[test]
     fn ensemble_map_subcommand_jumps_to_target_proc() {
-        // TP — issue #923 idx 106, the confirmed finding's own minimal repro:
-        // `namespace ensemble create -map {foo ::e::Foo}` inside `::e`, then
+        // TP — `namespace ensemble create -map {foo ::e::Foo}` inside `::e`, then
         // `e foo bar` at the call site. Cursor on the call-site "foo" must
         // resolve to ::e::Foo's declaration.
         let src = "namespace eval ::e {\n    namespace ensemble create -map {\n        foo ::e::Foo\n    }\n}\nproc ::e::Foo {args} { return \"foo: $args\" }\n\nputs [e foo bar]\n";
@@ -6555,8 +6518,7 @@ mod tests {
 
     #[test]
     fn ensemble_dynamic_map_mutation_still_abstains() {
-        // TN — must not regress the audit's own explicitly-correct
-        // abstention: a subcommand added only via a runtime
+        // TN — the correct abstention: a subcommand added only via a runtime
         // `namespace ensemble configure -map $var` dict-set mutation (never
         // a literal `-map {...}` list) is not statically resolvable —
         // `ensemble_subcommand_targets` never gets an entry for it.
@@ -6597,10 +6559,9 @@ mod tests {
 
     #[test]
     fn ensemble_abbreviated_subcommand_resolves_like_the_dispatch_does() {
-        // This case used to be an accepted FN: `mak` is an unambiguous
-        // prefix of `make` and `-prefixes` defaults to true, so tclsh
-        // dispatches it (oracle 8.6.16 / 9.0.4) while navigation abstained.
-        // Issue #1611 closed that gap by routing the lookup through
+        // `mak` is an unambiguous prefix of `make` and `-prefixes` defaults to
+        // true, so tclsh dispatches it (oracle 8.6.16 / 9.0.4); navigation
+        // follows by routing the lookup through
         // `tcl_cmd_core::ensemble::resolve_subcommand`.
         let src = "namespace eval ::widget {\n    namespace ensemble create -map {\n        make ::widget::Make\n    }\n}\nproc ::widget::Make {args} {}\nputs [widget mak hello]\n";
         let analysis = analyse(src);
@@ -6611,16 +6572,15 @@ mod tests {
 
     #[test]
     fn tk_ensemble_configure_splice_resolves_the_subcommand_to_its_real_target_not_a_decoy() {
-        // TP — the finding's own repro shape (issue #923 idx 84):
-        // `tk`'s built-in ensemble is extended at runtime via `namespace
+        // TP — `tk`'s built-in ensemble is extended at runtime via `namespace
         // ensemble configure tk -map [dict merge [namespace ensemble
         // configure tk -map] {systray ::tk::systray}]`, the real
         // `tk/library/systray.tcl` idiom. tclsh9.0/8.6 both confirm `tk
         // systray` really dispatches to `::tk::systray`, never a
-        // same-tail-name decoy proc in an unrelated namespace — previously
-        // this fell through to `fallback_proc_by_simple_name` and wrongly
-        // landed on the decoy (or, with no decoy present, abstained despite
-        // `systray -> ::tk::systray` being a literal, static fact).
+        // same-tail-name decoy proc in an unrelated namespace.  Falling
+        // through to `fallback_proc_by_simple_name` here lands on the decoy
+        // (or, with no decoy present, abstains despite `systray ->
+        // ::tk::systray` being a literal, static fact).
         let src = "namespace eval ::decoy {\n    proc systray {args} { return \"DECOY\" }\n}\nproc ::tk::systray {args} { return \"real systray: $args\" }\nnamespace ensemble configure tk -map [dict merge [namespace ensemble configure tk -map] {systray ::tk::systray}]\ntk systray create -image book\n";
         let analysis = analyse(src);
         // Cursor on "systray" in the final `tk systray create ...` call
@@ -6634,7 +6594,7 @@ mod tests {
 
     #[test]
     fn ensemble_wholly_dynamic_map_value_abstains() {
-        // FN (accepted, zero regression) — the whole `-map` value itself is
+        // FN (accepted) — the whole `-map` value itself is
         // a variable, not a literal list; `ensemble_subcommand_targets`
         // never gets an entry for `::widget` at all.
         let src = "namespace eval ::widget {\n    variable dynamicMap {make ::widget::Make}\n    namespace ensemble create -map $dynamicMap\n}\nproc ::widget::Make {args} {}\nputs [widget make hello]\n";
@@ -6709,7 +6669,7 @@ mod tests {
 
     #[test]
     fn definition_bare_sibling_method_call_without_link_abstains() {
-        // FP (issue #923 idx 113) — a bareword sibling method call is NOT
+        // FP — a bareword sibling method call is NOT
         // actually reachable from another method's body unless `link`
         // exposed it that way; real tclsh: "invalid command name". Must
         // abstain rather than falsely resolve.
@@ -6724,10 +6684,9 @@ mod tests {
 
     #[test]
     fn definition_linked_sibling_method_call_resolves() {
-        // TP (issue #923 idx 113) — `link greet` (called from the
-        // constructor) makes `greet` genuinely bareword-callable from
-        // every method body of this class, so the bare call now
-        // correctly resolves to the method's declaration.
+        // TP — `link greet` (called from the constructor) makes `greet`
+        // genuinely bareword-callable from every method body of this class, so
+        // the bare call resolves to the method's declaration.
         let src = "oo::class create C {\n    constructor {} { link greet }\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
         let analysis = analyse(src);
         // Line 3: `    method twice {} { greet ; greet }` — same text/col
@@ -6740,7 +6699,7 @@ mod tests {
 
     #[test]
     fn definition_my_dispatch_resolves_when_class_extended_via_separate_oo_define() {
-        // Issue #923 idx 52 (main audit wave, high severity): `Gadget` is
+        // `Gadget` is
         // created via `oo::class create` with no body, then every method —
         // including the `my Helper` call site itself — is added via a
         // *separate*, later `oo::define Gadget { ... }` block. This is
@@ -6758,7 +6717,7 @@ mod tests {
         assert_eq!(locs[0].start_line, 4);
     }
 
-    /// Issue #1322: `[self] m` / `[self object] m` is `TclOO`'s own
+    /// `[self] m` / `[self object] m` is `TclOO`'s own
     /// same-object dispatch idiom — `self`, called with no argument (or the
     /// explicit `object` word), returns the current object's own command
     /// name. It reaches the enclosing class exactly like `my` does, but
@@ -6787,7 +6746,7 @@ mod tests {
 
     #[test]
     fn definition_bare_sibling_classmethod_call_without_link_abstains() {
-        // FP (issue #923 idx 113) — same shape as the method case above,
+        // FP — same shape as the method case above,
         // for `classmethod`.
         let src = "oo::class create C {\n    classmethod factory {} {}\n    method use {} { factory }\n}\n";
         let analysis = analyse(src);
@@ -6799,7 +6758,7 @@ mod tests {
 
     #[test]
     fn definition_linked_sibling_classmethod_call_resolves() {
-        // TP (issue #923 idx 113) — `link factory` makes the classmethod
+        // TP — `link factory` makes the classmethod
         // call resolve.
         let src = "oo::class create C {\n    constructor {} { link factory }\n    classmethod factory {} {}\n    method use {} { factory }\n}\n";
         let analysis = analyse(src);
@@ -6825,13 +6784,13 @@ mod tests {
         // on the ``constructor`` keyword token (declared on
         // line 1).  The provider keeps a body-span fallback
         // for the empty-span case, but the keyword span is
-        // populated now, so the jump lands on line 1.
+        // populated here, so the jump lands on line 1.
         assert_eq!(locs[0].start_line, 1);
     }
 
     #[test]
     fn definition_bare_sibling_property_call_without_link_abstains() {
-        // FP (issue #923 idx 113) — same rationale as the method/classmethod
+        // FP — same rationale as the method/classmethod
         // cases above, for a Tcl 9.0+ `oo::configurable` `property`
         // accessor bareword call: `[length]` is not actually reachable
         // without a `link`; real tclsh: "invalid command name".
@@ -6873,7 +6832,7 @@ mod tests {
 
     #[test]
     fn definition_resolves_a_literal_foreach_installed_method() {
-        // Issue #1277: `alpha` has no written `method alpha` word anywhere —
+        // `alpha` has no written `method alpha` word anywhere —
         // its only textual appearance is inside the loop's own literal list
         // — but go-to-definition must still land somewhere real rather than
         // finding nothing, exactly as hover/outline/completion do.
@@ -6919,7 +6878,7 @@ mod tests {
 
     #[test]
     fn definition_resolves_bare_created_instance_command_method() {
-        // Codex #881: `Dog create rex` then `rex bark` — cursor on the bare
+        // `Dog create rex` then `rex bark` — cursor on the bare
         // `bark` jumps to the method declaration, mirroring `$obj bark`.
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nDog create rex\nrex bark\n";
         let analysis = analyse(src);
@@ -7003,9 +6962,9 @@ mod tests {
         // command, but this function only extracts the receiver text;
         // whether `[x]` names anything a caller can resolve is a semantic
         // question answered downstream (`is_self_dispatch_keyword` /
-        // `is_self_receiver_call`), not here. Issue #1322: rejecting every
-        // bracketed head outright also rejected `[self]`/`[self object]`,
-        // TclOO's own same-object dispatch spelling.
+        // `is_self_receiver_call`), not here. Rejecting every bracketed head
+        // outright would also reject `[self]` / `[self object]`, TclOO's own
+        // same-object dispatch spelling.
         let src = "[x] bark\n";
         assert_eq!(
             instance_method_at_cursor(src, 0, 5, tcl_lexer::LexerConfig::default()),
@@ -7015,7 +6974,7 @@ mod tests {
 
     #[test]
     fn instance_method_at_cursor_extracts_a_self_receiver_head_with_brackets_intact() {
-        // `[self] m` — issue #1322's exact shape. The brackets must survive
+        // `[self] m`. The brackets must survive
         // extraction: `parse_command_substitution` (and so
         // `is_self_receiver_call`) requires them.
         let src = "[self] mrun\n";
@@ -7029,7 +6988,7 @@ mod tests {
     fn instance_method_at_cursor_still_rejects_a_malformed_bracket_head() {
         // A stray, unmatched `]` with no opening `[` in scope is not a
         // well-formed command substitution and not a bare identifier
-        // either — still rejected exactly as before this change.
+        // either, so it is rejected.
         let src = "x] bark\n";
         assert_eq!(
             instance_method_at_cursor(src, 0, 4, tcl_lexer::LexerConfig::default()),
@@ -7037,7 +6996,7 @@ mod tests {
         );
     }
 
-    // Method names with non-identifier characters (issue #1019 idx 16).
+    // Method names with non-identifier characters.
     // Oracle (tclsh 8.6.14 + 9.0.4): `method with-dash`, `method a.b`, and
     // TIP 558's `<ReadProp-x>` / `<WriteProp-x>` all dispatch for real.
 
@@ -7156,7 +7115,7 @@ mod tests {
         assert!(receiver_instance_class(&analysis, "b", true).is_some());
     }
 
-    // Class-command dispatch (issue #923 idx 120): `CLASS method` for a
+    // Class-command dispatch: `CLASS method` for a
     // classmethod / `self method`, distinct from `$obj method` / `NAME
     // method` instance dispatch above.
 
@@ -7231,10 +7190,10 @@ mod tests {
 
     #[test]
     fn bare_var_receiver_without_a_bound_command_does_not_resolve_class_dispatch() {
-        // TN — regression guard mirroring
+        // TN — mirrors
         // `receiver_instance_class_gates_bare_on_created_commands`: `d` is
         // a plain variable (never bound as a command by `create`), so
-        // neither the existing instance-command branch nor the new
+        // neither the instance-command branch nor the
         // class-command branch may fire for it.
         let src = "oo::class create ActiveRecord {\n    classmethod find {args} {}\n}\nset d [ActiveRecord new]\nd find foo bar\n";
         let analysis = analyse(src);
@@ -7244,8 +7203,8 @@ mod tests {
 
     #[test]
     fn foreach_rename_reinstall_call_site_resolves_to_the_wrapper_not_the_stale_original() {
-        // TP — issue #923 idx 86, the finding's own `tk/library/
-        // accessibility.tcl` repro shape: a literal-list `foreach` renames
+        // TP — the `tk/library/accessibility.tcl` shape: a literal-list
+        // `foreach` renames
         // each classic widget command away and reinstalls a wrapper proc
         // under the same original name. tclsh9.0/8.6 both prove `button`
         // is the *new* wrapper proc after the loop runs — the old body is
@@ -7294,7 +7253,7 @@ mod tests {
     }
 
     // tcl::OptProc — the `opt` package's automatic-option-parsing proc
-    // definer (issue #923 idx 90): a call site must resolve to the real
+    // definer: a call site must resolve to the real
     // `tcl::OptProc` declaration, never a stale stub.
 
     #[test]
@@ -7308,15 +7267,14 @@ mod tests {
         assert_eq!(locs[0].start_character, 15, "{locs:?}");
     }
 
-    // Command-position gate + resolved-indirect-head preference —
-    // issues #1137 idx 50 and #1133. Both land on the same seam: the
-    // "otherwise it is a CALL" fallback, which used to hand whatever word
-    // the text scan returned straight to `resolve_called_proc`.
+    // Command-position gate + resolved-indirect-head preference.  Both land on
+    // the same seam: the "otherwise it is a CALL" fallback, which must not hand
+    // whatever word the text scan returned straight to `resolve_called_proc`.
 
     #[test]
     fn fp_argument_word_sharing_a_procs_name_is_not_resolved_as_a_command() {
-        // FP guard — issue #1137 idx 50, the reduced control with zero
-        // indirection. `dump` is the *first argument* of `anotherproc`, not
+        // FP guard — the reduced control with zero indirection.
+        // `dump` is the *first argument* of `anotherproc`, not
         // a command; tclsh never looks it up as one, so answering with the
         // same-named proc is a wrong answer, not a miss. Must abstain.
         let src = "proc anotherproc {a b} { return $a }\nproc dump {x} { return $x }\nproc caller {} {\n    return [anotherproc dump 5]\n}\n";
@@ -7358,11 +7316,10 @@ mod tests {
 
     #[test]
     fn tp_resolved_indirect_head_wins_over_a_same_named_decoy() {
-        // TP — issue #1133. The analyser settles `set ns ::tc;
+        // TP — the analyser settles `set ns ::tc;
         // ${ns}::setdef` to `::tc::setdef` and records it as an `indirect`
-        // invocation. Before this fix `definition()` ignored the record and
-        // fell through to the bareword lookup, which answered the unrelated
-        // `::other::setdef`.
+        // invocation.  Ignoring that record and falling through to the
+        // bareword lookup answers the unrelated `::other::setdef` instead.
         let src = "namespace eval ::tc { proc setdef {} { return 1 } }\nnamespace eval ::other { proc setdef {} { return 2 } }\nset ns ::tc\n${ns}::setdef\n";
         let analysis = analyse(src);
         // Line 3, col 7 — inside the `${ns}::setdef` head word.
@@ -7419,7 +7376,7 @@ mod tests {
 
     #[test]
     fn tp_definition_on_an_implicit_parent_namespace_answers_the_covering_prefix() {
-        // Issue #1113 item 1 — `namespace eval ::p::q::r {}` really creates
+        // `namespace eval ::p::q::r {}` really creates
         // `::p::q` (tclsh 8.6.16 / 9.0.4: `namespace exists ::p::q` is 1),
         // but the name is written nowhere on its own.  The answer is the
         // prefix of the deeper word that spells exactly it.

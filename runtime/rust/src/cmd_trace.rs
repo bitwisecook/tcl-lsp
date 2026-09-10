@@ -177,7 +177,7 @@ pub struct StepActive {
 ///
 /// So `elem` is part of the identity: a whole-array write trace whose callback
 /// writes a *different* element fires again, because the second element is a
-/// different cell (issue #1574). Only a write to the *same* cell — or, for the
+/// different cell. Only a write to the *same* cell — or, for the
 /// whole-array traces specifically, one reached while the array's own cell is
 /// active — is suppressed.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -343,7 +343,7 @@ fn visible_options(interp: &Interp) -> Vec<&'static str> {
     // The emulated release's name is a dialect *name*: one resolution
     // through the ingress seam yields both the generation whose store the
     // spec is read from and the document authoring mask the option table
-    // is gated on (ledger row B1).
+    // is gated on.
     let profile =
         crate::environment::profile_for_dialect(interp.runtime_version().dialect_profile_name());
     let dialect = Some(crate::environment::surface_point(profile));
@@ -441,7 +441,7 @@ fn trace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-// -- command / execution traces -------------------------------------------
+// command / execution traces
 
 /// Parse an execution-trace op list into a [`ops`] bitset, via the shared core
 /// (split + validation + the catalogue) then folding the canonical names to bits.
@@ -535,7 +535,7 @@ fn cmd_trace_add_remove(
         // Remove the first trace matching exact ops + command string, where
         // "first" is C's `FOREACH_COMMAND_TRACE` head→tail order and its head
         // is the newest registration — so among duplicates the newest goes.
-        // Our Vec is oldest-first, hence `rposition`. Issue #1440.
+        // Our Vec is oldest-first, hence `rposition`.
         let pos = interp.traces.borrow().cmd_traces.iter().rposition(|t| {
             t.name == fqn && t.token == token && t.ops == flags && t.command == command
         });
@@ -614,7 +614,7 @@ fn parse_ops(interp: &mut Interp, spec: &[u8]) -> Result<Vec<Vec<u8>>, Code> {
     }
 }
 
-// -- variable traces -------------------------------------------------------
+// variable traces
 
 /// `trace add|remove variable name ops command`.
 fn trace_var_add_remove(interp: &mut Interp, argv: &[*mut TclObj], is_add: bool) -> Code {
@@ -703,10 +703,10 @@ fn var_trace_apply(
         // used to register it, so `trace add variable ::v write …` fires for a
         // later `set v X` in the same namespace — and, under the 8.x
         // namespace-scope fallback, for a write from inside `namespace eval`
-        // that reaches that same global (issue #1328).  C hangs the trace off
+        // that reaches that same global.  C hangs the trace off
         // the `Var` struct, so every spelling resolving to it fires — including
         // an `upvar` alias, whose home frame is only visible on the resolved
-        // place (issue #1633's `upvar` row).
+        // place.
         //
         // `name` keeps the original spelling for diagnostics only; the
         // `trace info` / `trace remove` match is the same resolved identity,
@@ -739,7 +739,7 @@ fn var_trace_apply(
             // list head→tail, and the head is the newest registration. Our Vec
             // is oldest-first, hence `rposition`. `old_style` is deliberately
             // absent from the match, as C masks `TCL_TRACE_OLD_STYLE` out
-            // here. Issue #1440.
+            // here.
             .rposition(|t| {
                 same_variable(t, &q_base, q_ns, q_level)
                     && t.elem == q_elem
@@ -1356,7 +1356,7 @@ mod tests {
 
     /// Every trace list is prepended in C (`TraceVarEx`, tclTrace.c
     /// 9.0.4:3090-3092) and walked head→tail, so the newest registration fires
-    /// first for `read`/`write`/`unset` alike. Issue #1440; pinned against
+    /// first for `read`/`write`/`unset` alike. Pinned against
     /// tclsh 8.6.16 and 9.0.4.
     #[test]
     fn variable_traces_fire_newest_first() {
@@ -1382,7 +1382,7 @@ mod tests {
 
     /// C walks the containing array's trace list before the element's own
     /// (`TclCallVarTraces`' `arrayPtr` loop precedes its `varPtr` loop), so
-    /// registration order does not decide which fires first. Issue #1440.
+    /// registration order does not decide which fires first.
     #[test]
     fn whole_array_traces_fire_before_element_traces() {
         for script in [
@@ -1402,7 +1402,7 @@ mod tests {
     }
 
     /// `Tcl_TraceCommand` prepends and `CallCommandTraces` walks head→tail, so
-    /// `rename`/`delete` callbacks also run newest-first. Issue #1440.
+    /// `rename`/`delete` callbacks also run newest-first.
     #[test]
     fn command_traces_fire_newest_first() {
         leak_free(|i| {
@@ -1427,7 +1427,7 @@ mod tests {
     /// `trace remove` breaks at the first match walking C's list head→tail, and
     /// that head is the newest registration — so among identical duplicates the
     /// **newest** goes. Observable in the surviving firing order and in
-    /// `trace info`. Issue #1440; pinned against tclsh 8.6.16 and 9.0.4.
+    /// `trace info`. Pinned against tclsh 8.6.16 and 9.0.4.
     #[test]
     fn trace_remove_drops_the_newest_duplicate() {
         leak_free(|i| {
@@ -1459,7 +1459,7 @@ mod tests {
 
     /// Namespace teardown fires each variable's unset traces newest-first, like
     /// every other trace list (the order *across* the namespace's variables is
-    /// C's hash walk and is not pinned). Issue #1440.
+    /// C's hash walk and is not pinned).
     #[test]
     fn namespace_teardown_fires_unset_traces_newest_first() {
         leak_free(|i| {
@@ -1478,7 +1478,7 @@ mod tests {
     }
 
     /// The commands the same teardown deletes fire their `delete` traces
-    /// newest-first too (`CallCommandTraces` walks head→tail). Issue #1440;
+    /// newest-first too (`CallCommandTraces` walks head→tail).
     /// tclsh 8.6.16 and 9.0.4 both report `second first`.
     #[test]
     fn a_delete_callbacks_own_trace_dies_with_the_dying_token() {
@@ -1825,7 +1825,7 @@ mod tests {
     /// variable's whole trace list before the next, so **interleaved**
     /// registrations still fire as contiguous per-variable groups. This is the
     /// shape a flat reverse gets wrong: `A1 B1 A2 B2` must fire `A2 A1 B2 B1`,
-    /// not `B2 A2 B1 A1`. tclsh 8.6.16 and 9.0.4 agree. Issue #1440.
+    /// not `B2 A2 B1 A1`. tclsh 8.6.16 and 9.0.4 agree.
     #[test]
     fn namespace_teardown_groups_interleaved_variable_traces() {
         leak_free(|i| {
@@ -1843,7 +1843,7 @@ mod tests {
     }
 
     /// The same grouping for the command `delete` traces the teardown collects
-    /// alongside them: `X1 Y1 X2 Y2` fires `X2 X1 Y2 Y1`. Issue #1440.
+    /// alongside them: `X1 Y1 X2 Y2` fires `X2 X1 Y2 Y1`.
     #[test]
     fn namespace_teardown_groups_interleaved_command_traces() {
         leak_free(|i| {
@@ -1913,7 +1913,7 @@ mod tests {
         });
     }
 
-    /// The deprecated 8.x forms (issue #1444): `rwua`-only validation with C's
+    /// The deprecated 8.x forms: `rwua`-only validation with C's
     /// error text, duplicate letters collapsed, a set the modern `trace
     /// remove variable` matches (and vice versa), `trace vinfo` rendering the
     /// letters in C's fixed `r`,`w`,`u`,`a` order, and the callback receiving
@@ -1978,7 +1978,7 @@ mod tests {
         });
     }
 
-    /// Where #1444's letter convention meets the teardown path: a trace
+    /// Where the deprecated letter convention meets the teardown path: a trace
     /// installed the deprecated way still receives the `rwua` **letter** when
     /// it is fired by `namespace delete` rather than an explicit `unset`.
     /// Teardown collects callbacks into a reduced list, so the flag has to be
@@ -2053,7 +2053,7 @@ mod tests {
     /// The registry retires the three legacy forms at 9.0, and the runtime
     /// reads that rather than carrying its own list — so the same script is a
     /// working trace at 8.x and `bad option` at 9.x, with the option
-    /// enumeration following too. Issue #1444.
+    /// enumeration following too.
     #[test]
     fn legacy_variable_trace_forms_follow_the_release() {
         leak_free(|i| {

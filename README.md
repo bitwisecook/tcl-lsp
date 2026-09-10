@@ -1594,7 +1594,7 @@ with `make rust-mcp && claude mcp add tcl-lsp -- "$(pwd)/target/release/tcl-mcp"
 | `memory_aliases` | Memory-SSA alias sets (`upvar`/`global`/`variable`) with reasons |
 | `diagram` | Extract control-flow diagram data from IR |
 | `compile_wasm` | Compile source to a WebAssembly module |
-| `xc_translate` | Translate iRule to XC configuration |
+| `xc_translate` | Translate iRule to XC configuration — Terraform, ves.io JSON, or pasteable Console documents |
 | `irule_with_context` | Bundle each iRule in a BIG-IP config with the objects it references |
 | `explain_flow` | Narrate a captured session (pcap) against a BIG-IP config |
 | `tk_layout` | Extract Tk widget tree as JSON |

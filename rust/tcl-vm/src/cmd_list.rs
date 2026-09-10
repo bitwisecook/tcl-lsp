@@ -285,14 +285,14 @@ fn resolve_bounded_index(spec: &str, len: usize) -> Result<usize, Completion<Val
 /// Remove the element at the (possibly nested) `indices` path from `items`,
 /// returning `(removed_element, rebuilt_list)`.
 ///
-/// Issue #996: this used to recurse once per index natively, with no depth
-/// cap — trivially inflated via `lpop v {*}[lrepeat 100000 0]`. Rewritten
-/// iteratively — an explicit work-stack instead of one native call per
-/// index — which eliminates the native-stack risk entirely: walk down every
-/// index but the last, recording each level's element vector and the index
-/// it descends through, remove the final element, then rebuild bottom-up.
-/// Byte-for-byte equivalent to the old recursive version (same index
-/// resolution, in the same order, so error precedence is unchanged too).
+/// Recursing once per index natively has no depth cap and is trivially
+/// inflated via `lpop v {*}[lrepeat 100000 0]`. This walks with an explicit
+/// work-stack instead of one native call per index, which eliminates the
+/// native-stack risk entirely: walk down every index but the last, recording
+/// each level's element vector and the index it descends through, remove
+/// the final element, then rebuild bottom-up — the same index resolution, in
+/// the same order, as a naive recursive version, so error precedence is
+/// unaffected.
 fn lpop_remove(
     items: &[Value],
     indices: &[Value],
@@ -321,9 +321,8 @@ fn lpop_remove(
 
 /// `lsearch ?-option value ...? list pattern` — a thin adapter over the shared
 /// [`tcl_cmd_core::lsearch`] core, driven by the VM's `regex`-crate engine for
-/// `-regexp`. The VM previously had only a `-exact`/`-glob` stub; it now has the
-/// full option set (the Tcl errorCodes the core carries are dropped — the VM has
-/// no errorCode surface).
+/// `-regexp`, with the full option set (the Tcl errorCodes the core carries
+/// are dropped — the VM has no errorCode surface).
 fn cmd_lsearch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match tcl_cmd_core::lsearch::lsearch::<Vm, crate::cmd_regexp::CrateEngine>(vm, args) {
         Ok(v) => ok(v),
@@ -332,9 +331,9 @@ fn cmd_lsearch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 /// `lsort ?-option value ...? list` — a thin adapter over the shared
-/// [`tcl_cmd_core::lsort`] core. The VM previously had only the comparison modes
-/// over a flat option set; it now has `-index`/`-stride`/`-indices` and
-/// `-command` (the comparator evaluates Tcl through `vm.dispatch`).
+/// [`tcl_cmd_core::lsort`] core, with `-index`/`-stride`/`-indices` and
+/// `-command` (the comparator evaluates Tcl through `vm.dispatch`) alongside
+/// the comparison modes.
 fn cmd_lsort(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     use tcl_cmd_core::lsort::{Lsort, build_command, prepare, sort_command};
     let mut job = match prepare(vm, args) {
@@ -407,27 +406,25 @@ fn cmd_split(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 mod tests {
     use super::*;
 
-    /// Regression coverage for issue #996: `lpop_remove` recurses once per
-    /// index in `lpop`'s (possibly nested) index path, with no depth cap
-    /// before this fix — trivially inflated via `lpop v {*}[lrepeat 100000
-    /// 0]`. Empirically (a throwaway `zzz_probe_depth lpop <depth>`
-    /// harness, deleted before this fix landed), unguarded input
-    /// overflowed the native stack (SIGABRT) between depth 1600 and 1800 on
-    /// a 2 MiB thread (`cargo test`'s per-test default). Rewritten
-    /// iteratively (no depth cap at all); 2000 is comfortably past that
-    /// crash range, and the result is checked for exact correctness at
-    /// this depth (the right leaf comes back out, and the trimmed list has
-    /// the same shape as the input), not merely survival.
+    /// `lpop_remove` recursing once per index in `lpop`'s (possibly nested)
+    /// index path natively has no depth cap: an unguarded `lpop v
+    /// {*}[lrepeat 100000 0]` empirically overflows the native stack
+    /// (SIGABRT) between depth 1600 and 1800 on a 2 MiB thread (`cargo
+    /// test`'s per-test default). The iterative implementation has no such
+    /// cap; this test checks the result for exact correctness at depth 2000,
+    /// comfortably past that crash range — the right leaf comes back out,
+    /// and the trimmed list has the same shape as the input, not merely
+    /// survival.
     ///
     /// Deliberately NOT 50,000+: constructing (and, at the end of this
     /// test, dropping) a `Value::list` chain nested that deep is its own,
     /// unrelated native-stack risk — `Value` has no custom `Drop` impl, so
-    /// the compiler-generated recursive drop glue walks the same chain
-    /// `to_str` used to (empirically, SIGABRT between depth 3500 and 4000
+    /// the compiler-generated recursive drop glue walks the same chain a
+    /// naive `to_str` would (empirically, SIGABRT between depth 3500 and 4000
     /// on a 2 MiB thread for construction+drop alone, independent of any
     /// operation performed on the value). That is a separate, genuinely
     /// unbounded-depth concern in `Value`'s representation itself, not in
-    /// `lpop_remove`'s now-iterative logic — out of scope for this fix.
+    /// `lpop_remove`'s iterative logic, and this test does not cover it.
     #[test]
     fn deeply_nested_lpop_survives_and_is_correct() {
         const DEPTH: usize = 2_000;

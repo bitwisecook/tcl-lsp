@@ -96,8 +96,8 @@ pub mod vfs;
 pub mod workspace_index;
 pub mod workspace_symbols;
 
-/// Resolve a document's dialect *name* to its environment — **the** LSP
-/// dialect ingress (centralisation ledger rows F2/F3, P1-F wave 2).
+/// Resolve a document's dialect *name* to its environment — **the** single
+/// LSP dialect ingress point.
 ///
 /// Every dialect string this crate accepts — `analysis.dialect`, a Salsa
 /// `dialect` input, a settings value, an editor language id already mapped
@@ -127,9 +127,8 @@ pub fn environment_for_dialect(name: &str) -> tcl_registry::model::DocumentEnvir
 /// unknown-name sink by `tcl_registry::model::ingress`'s
 /// `unit_profile_reproduces_the_old_lsp_ingress`.
 ///
-/// Post-P1-G (which deleted the name validators): the profile itself
-/// retires with ledger C1's re-type; consumers then move to the
-/// environment and its
+/// The name validators are already gone; the profile itself is retiring in
+/// turn, with consumers moving to the environment and its
 /// [`ResolvedContext`](tcl_registry::model::ResolvedContext) queries.
 ///
 /// [`unit_profile`]: tcl_registry::model::DocumentEnvironment::unit_profile
@@ -154,8 +153,8 @@ pub fn optional_profile_for_dialect(name: &str) -> Option<&'static tcl_dialect::
 /// The profile a **stated** dialect names — `None` when `name` states no
 /// dialect at all (empty, unknown, or the lenient `tcl` spelling).
 ///
-/// The environment-derived replacement for `DialectProfile::resolve_known`
-/// (ledger row C2): the consumers passing an `Option<&DialectProfile>` that
+/// The environment-derived replacement for `DialectProfile::resolve_known`:
+/// the consumers passing an `Option<&DialectProfile>` that
 /// means "the dialect this build selected, if any" — the compiler's
 /// interprocedural, compiler-checks and optimiser entry points — read it
 /// here. Distinct from [`optional_profile_for_dialect`], which answers
@@ -177,7 +176,7 @@ pub fn stated_profile_for_dialect(name: &str) -> Option<&'static tcl_dialect::Di
 /// registry is the generation assembled for it (whose store is the same
 /// plain-Tcl `Arc` a `wish` document has always been analysed against —
 /// `store_profile("tk")` is the fallback profile), and the `TK` fact is the
-/// environment's own **ambient `Tk` placement** (P3) — read as
+/// environment's own **ambient `Tk` placement** — read as
 /// [`ambient_package`](tcl_registry::model::ResolvedContext::ambient_package)
 /// on the generation's context — rather than a re-parsed bit or an
 /// environment name.
@@ -197,10 +196,9 @@ pub fn context_for_dialect(dialect: &str) -> &'static tcl_registry::model::Conte
 
 /// [`context_for_dialect`] for a caller that already holds the resolved
 /// profile — transitional plumbing for the providers whose signatures still
-/// take a `&DialectProfile` (retired with the profile itself under
-/// ledger C1). The
-/// profile's canonical name **is** a canonical environment id, so this is an
-/// id-keyed lookup, not a re-parse of a user string.
+/// take a `&DialectProfile`, which is retiring in turn. The profile's
+/// canonical name **is** a canonical environment id, so this is an id-keyed
+/// lookup, not a re-parse of a user string.
 #[must_use]
 pub fn context_for_dialect_profile(
     dialect: &tcl_dialect::DialectProfile,
@@ -213,9 +211,8 @@ pub fn context_for_dialect_profile(
 /// authoring mask.
 ///
 /// Every availability, option, floor, and subcommand question a provider
-/// asks about a document goes here — the assistance view of centralisation
-/// R-c/R-d, and the replacement for the whole `ProfileQueries` surface
-/// (ledger row F1's assistance half). Deliberately *not*
+/// asks about a document goes here — the replacement for the whole
+/// `ProfileQueries` surface's assistance half. Deliberately *not*
 /// [`context_for_dialect`]'s own `context()`: the two differ for the `tk`
 /// environment by exactly the additive `TK` bit a `tk` document has always
 /// been answered under (see
@@ -231,8 +228,7 @@ pub fn document_context_for_dialect(
 
 /// [`document_context_for_dialect`] for a caller that already holds the
 /// resolved profile — transitional plumbing for the providers whose
-/// signatures still take a `&DialectProfile` (retired with the profile
-/// itself under ledger C1).
+/// signatures still take a `&DialectProfile`, which is retiring in turn.
 #[must_use]
 pub fn document_context_for_profile(
     dialect: &tcl_dialect::DialectProfile,
@@ -275,7 +271,7 @@ pub use tcl_syntax::naming::normalise_qualified_name as normalise_qualified_comm
 #[cfg(test)]
 mod dialect_ingress_tests {
 
-    /// Regression for the `tk` leg of issue #1405.
+    /// The `tk` ingress leg.
     ///
     /// A `wish` document typically carries no `package require Tk`, so the Tk
     /// checks are reachable only through the *dialect*. `tk` is not a

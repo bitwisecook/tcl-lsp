@@ -18,8 +18,8 @@
 
 //! `link` — expose a method as a bareword command in the object's own namespace.
 //!
-//! Version-gated, not just `TCL86_PLUS`-unconditional (issue #923, Codex
-//! review on PR #1020): `oo::Helpers::link` only became a genuine core
+//! Version-gated, not just `TCL86_PLUS`-unconditional:
+//! `oo::Helpers::link` only became a genuine core
 //! `TclOO` builtin in Tcl **9.0** (confirmed against tclsh 9.0.4 — bare
 //! `link` inside a method body works with no `package require` at all,
 //! and `ooutil` is confirmed absent via `package present ooutil`). Under
@@ -32,8 +32,8 @@
 //! bare 8.6 `link` (with no `package require oo::util` anywhere in the
 //! file) as a known, resolvable command.
 //!
-//! Both entries are **method-context-scoped** (issue #1026,
-//! [`Traits::TCLOO_METHOD_CONTEXT`]): `link` lives in `::oo::Helpers`, which
+//! Both entries are **method-context-scoped**
+//! ([`Traits::TCLOO_METHOD_CONTEXT`]): `link` lives in `::oo::Helpers`, which
 //! only a method body's namespace path reaches, so a top-level `link foo`
 //! is `invalid command name "link"` and `info commands ::link` is empty
 //! (tclsh 9.0.4). That holds under 8.6-with-`ooutil` too — installing

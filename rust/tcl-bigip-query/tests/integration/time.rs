@@ -18,10 +18,10 @@
 
 //! End-to-end golden differential test for the time/date-category builtins.
 //!
-//! The pipeline captured in `tests/fixtures/time.json`
-//! from the captured query DSL fixtures: parse → evaluate
-//! against a JSON-backed root → `output::render`. For each `(query, input,
-//! mode)` the Rust output (or `error:` message) must match the expected value exactly.
+//! The pipeline (parse → evaluate against a JSON-backed root →
+//! `output::render`) checked against the query DSL fixtures captured in
+//! `tests/fixtures/time.json`. For each `(query, input, mode)` the Rust
+//! output (or `error:` message) must match the expected value exactly.
 //! Self-contained — no external reference at test time.
 //!
 //! `TZ=UTC` is pinned for every case (via `temp_env`) so the timezone-aware

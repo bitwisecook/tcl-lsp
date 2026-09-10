@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Corpus-scale multi-file `incremental == fresh` differential for the cross-file
-//! diagnostics path (SRV-INCREMENTAL Task 6 verification gate).
+//! diagnostics path.
 //!
 //! The in-crate fuzzers (`project_diagnostics_incremental_matches_fresh_under_edits`
 //! and `…_both_files_edited`) drive a **two-file** synthetic project through 60
@@ -28,7 +28,7 @@
 //! sequence.  After every edit the caller's (and a sampled real file's)
 //! `project_diagnostics` must equal a from-scratch whole-project rebuild — the
 //! gate that catches any untracked read or stale cross-file dependency edge that a
-//! small synthetic project would miss (the heuristic-edge risk the track flags).
+//! small synthetic project would miss.
 //!
 //! `#[ignore]`d for being a slow corpus sweep — run with `--ignored`.
 

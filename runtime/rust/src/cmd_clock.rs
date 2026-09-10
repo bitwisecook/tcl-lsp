@@ -179,7 +179,7 @@ mod tests {
                 i.result_bytes(),
                 b"unable to convert input string: invalid month"
             );
-            // Free-form scan (no -format) is the remaining piece.
+            // Free-form scan (without -format) is not implemented; it errors.
             assert_eq!(i.eval_str(b"clock scan now"), Code::Error);
             assert_eq!(
                 i.result_bytes(),

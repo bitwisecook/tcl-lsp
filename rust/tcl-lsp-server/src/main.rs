@@ -64,9 +64,9 @@ use tower_lsp_server::{LspService, Server};
 /// every time a hot function in the chain gains a local variable. Tokio's
 /// default worker-thread stack is 2 MiB, well under half of what capped
 /// recursion needs even today (measured: a 2 MiB stack overflows around
-/// nesting depth 130-140 — see issue #996). Sizing worker threads
-/// generously here is the load-bearing fix for the crash; the depth caps
-/// alone were never enough on this runtime's actual thread stacks.
+/// nesting depth 130-140). Sizing worker threads generously here is the
+/// load-bearing fix for the crash; the depth caps alone were never enough on
+/// this runtime's actual thread stacks.
 #[cfg(not(target_family = "wasm"))]
 const WORKER_STACK_SIZE: usize = 64 * 1024 * 1024;
 
@@ -89,15 +89,16 @@ async fn serve() {
     // chained by bounded channels, so a client that stops draining stdout
     // seizes the chain all the way back to the only thing reading stdin — and
     // a server that has stopped reading stdin makes the client block in
-    // `write()`, which is why it never resumes draining stdout. That is the
-    // 8h45m hang in issue #1334, and the server-wide unresponsiveness in
-    // #1294. `stdio_pump::pump` decouples the two halves; its module docs
-    // carry the full derivation and the reason the queue has to be unbounded.
+    // `write()`, which is why it never resumes draining stdout. Left
+    // uncoupled, that produces multi-hour hangs and server-wide
+    // unresponsiveness. `stdio_pump::pump` decouples the two halves; its
+    // module docs carry the full derivation and the reason the queue has to
+    // be unbounded.
     let (stdout, stdout_drained) = stdio_pump::pump(tokio::io::stdout());
     let (service, socket) = LspService::new(Backend::new);
-    // Evidence-only #1657 watchdog. The external-spawn experiment falsified
-    // its proposed recovery mechanism (zero true resumptions), so normal
-    // servers do not pay for or rely on it. An evidence run opts in explicitly.
+    // Evidence-only watchdog: external-spawn recovery does not work (zero
+    // true resumptions), so normal servers do not pay for or rely on it. An
+    // evidence run opts in explicitly.
     if std::env::var_os("TCL_LSP_WEDGE_EVIDENCE").is_some() {
         tcl_lsp_server::spawn_unpark_watchdog(service.inner(), tokio::runtime::Handle::current());
     }

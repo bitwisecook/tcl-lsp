@@ -32,22 +32,21 @@
 #   tag X.Y.Z                 check the notes landed, then create + push the tag
 #
 # Why this exists
-# ---------------
-# The tag half of releasing was already deterministic: `tag.sh` derives the
-# channel from the version and refuses the wrong branch, so `v2.1.20` can only
-# mean one thing.  The half before it was not.  The performance figures that go
-# into the notes were produced by hand — build a server, remember the right
-# bench.py incantation, remember to add the tag to the manifest, remember to
-# re-render the graphs, then hand-edit four asset URLs into RELEASE_NOTES.md.
-# Every one of those is silent when skipped, and the failure lands in published
-# release notes: last release's graphs under this release's heading.
 #
-# So the whole sequence is one program, each step idempotent and separately
-# runnable, with `verify` as the gate that says the committed bytes actually
-# agree with each other.
+# `tag.sh` is deterministic: it derives the channel from the version and
+# refuses the wrong branch, so `v2.1.20` can only mean one thing. Producing the
+# performance figures that go into the notes needs several coordinated steps —
+# build a server, run bench.py, add the tag to the manifest, re-render the
+# graphs, and set four asset URLs in RELEASE_NOTES.md — and skipping any one of
+# them is silent: the failure lands in published release notes as last
+# release's graphs under this release's heading.
+#
+# The whole sequence is therefore one program, each step idempotent and
+# separately runnable, with `verify` as the gate that checks the committed
+# bytes actually agree with each other.
 #
 # What it deliberately does not do
-# --------------------------------
+#
 # * Write the prose changelog. That is a judgement about what changed, and a
 #   script that emitted it would emit something nobody would want to read.
 # * Push the notes branch or open the PR. `prepare` stops at a local commit and
@@ -127,9 +126,7 @@ latest_tag() {
     git -C "$ROOT" describe --tags --abbrev=0 2>/dev/null || true
 }
 
-# --------------------------------------------------------------------------
 # next — compute the version a bump produces
-# --------------------------------------------------------------------------
 
 cmd_next() {
     local bump="${1:-patch}"
@@ -149,9 +146,7 @@ EOF
     echo "$major.$minor.$patch"
 }
 
-# --------------------------------------------------------------------------
 # preflight — is this tree releasable as X.Y.Z at all?
-# --------------------------------------------------------------------------
 
 cmd_preflight() {
     local v; v="$(need_version "${1:-}")"
@@ -216,9 +211,7 @@ $(printf '%s\n' "$dirty" | sed 's/^/         /')
     fi
 }
 
-# --------------------------------------------------------------------------
 # perf / notes — the two artefact-producing steps
-# --------------------------------------------------------------------------
 
 cmd_perf() {
     local v; v="$(need_version "${1:-}")"; shift || true
@@ -232,9 +225,7 @@ cmd_notes() {
     python3 "$HERE/perf_notes.py" "$v"
 }
 
-# --------------------------------------------------------------------------
 # verify — do the committed artefacts agree with each other?
-# --------------------------------------------------------------------------
 
 cmd_verify() {
     local v; v="$(need_version "${1:-}")"
@@ -265,9 +256,7 @@ cmd_verify() {
     python3 "$HERE/perf_notes.py" "$v" --check
 }
 
-# --------------------------------------------------------------------------
 # prepare — everything that happens before the tag
-# --------------------------------------------------------------------------
 
 cmd_prepare() {
     local v; v="$(need_version "${1:-}")"; shift || true
@@ -324,9 +313,7 @@ cmd_prepare() {
     echo "                     scripts/release/rust_release.sh tag $v"
 }
 
-# --------------------------------------------------------------------------
 # tag — the point of no return
-# --------------------------------------------------------------------------
 
 cmd_tag() {
     local v; v="$(need_version "${1:-}")"
@@ -347,8 +334,6 @@ cmd_tag() {
 
     bash "$HERE/tag.sh" "$v"
 }
-
-# --------------------------------------------------------------------------
 
 case "${1:-}" in
     next)      shift; cmd_next "$@" ;;

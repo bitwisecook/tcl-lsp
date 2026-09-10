@@ -33,7 +33,7 @@
 //!   path.  The **anchor is the analyser's**, computed from the
 //!   invocation's argument tokens: this provider must not re-derive an
 //!   insertion point from the diagnostic's span, which covers only the
-//!   command head (issue #1190).
+//!   command head.
 //! * `unset -nocomplain` action — W213 (unset on possibly-undefined
 //!   variable) carries an `Add '-nocomplain' to unset` insert `CodeFix`
 //!   (the analyser knows the exact keyword span); the provider lifts it via
@@ -51,7 +51,7 @@
 //!   evidence — the cursor is inside a recorded command-invocation
 //!   head, and an unknown-command (W123) diagnostic covers it — so
 //!   it never fires on a comment, a string, an argument word, or a
-//!   definition's name (issue #1191).
+//!   definition's name.
 //!
 //! * Spec-pack did-you-mean actions ([`spec_pack_quick_fixes`]) — the
 //!   `SpecTcl` loader drops a word it does not know and says so; the
@@ -69,8 +69,11 @@
 //! * Cross-document refactors (move to file, split namespace)
 //!   are not supported.
 
+use std::collections::{HashMap, HashSet};
+use std::hash::BuildHasher;
+
 use rustc_hash::FxHashSet;
-use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::analyser::{AnalysisResult, line_suppressed};
 use tcl_compiler::compiler_checks::DiagCode;
 use tcl_dialect::model::{Family, SurfaceLayer};
 use tcl_lexer::{LineIndex, Utf16Col};
@@ -314,7 +317,7 @@ fn push_brace_expr_refactors(
 /// passes).  It is a separate argument from `analysis` precisely because it is
 /// *not* `analysis.diagnostics`: reading the analyser's raw set here is what
 /// let the server offer a "did you mean 'ni'?" rewrite over a cross-file
-/// `Pi()` call whose diagnostic it had already suppressed (issue #923 idx 80).
+/// `Pi()` call whose diagnostic it had already suppressed.
 /// A host with no workspace knowledge passes `&analysis.diagnostics`, which is
 /// then the same set by definition.
 ///
@@ -347,8 +350,7 @@ pub fn code_actions(
 /// The refactor engine's inline-proc transform substitutes the body of the
 /// proc the call reaches, so a `namespace import -force` whose covering
 /// `namespace export` lives in another file decides whether inlining the
-/// local same-named proc is a refactor or a behaviour change (issue #1116
-/// item 1).
+/// local same-named proc is a refactor or a behaviour change.
 ///
 /// `diagnostics` carries the same published-set meaning as in [`code_actions`]:
 /// the two arguments answer different questions — `program` decides what a call
@@ -356,7 +358,7 @@ pub fn code_actions(
 /// with a workspace index needs to supply both.
 ///
 /// `docstring_style` is the resolved `tclLsp.formatting.docstringStyle`
-/// setting (#1314): it decides where the "Generate docstring" source action
+/// setting: it decides where the "Generate docstring" source action
 /// inserts a new stub (`Preceding` / `Body`), or suppresses the action
 /// entirely (`None`).
 #[must_use]
@@ -389,13 +391,13 @@ pub fn code_actions_in_program(
             continue;
         }
         // W302's catch-result-variable quick-fixes are carried on the
-        // diagnostic, like W213's and W120's below.  This provider used to
-        // synthesise them here from the diagnostic's *end* position, which is
-        // the end of the `catch` **word** — the diagnostic anchors at the
-        // command head, not at the body — so the inserted word landed before
-        // the body and turned `catch {error oops}` into
+        // diagnostic, like W213's and W120's below.  Synthesising them here
+        // from the diagnostic's *end* position would use the end of the
+        // `catch` **word** — the diagnostic anchors at the command head, not
+        // at the body — so the inserted word would land before
+        // the body and turn `catch {error oops}` into
         // `catch result {error oops}`, i.e. a catch of the script `result`
-        // storing its message in a variable named `error` (issue #1190).
+        // storing its message in a variable named `error`.
         // The analyser computes the anchor from the argument tokens instead,
         // and `lift_fixes` below surfaces it unchanged.
         //
@@ -538,17 +540,21 @@ pub fn bigip_code_actions(source: &str, range: LspRange, uri: &str) -> Vec<CodeA
 /// (e.g. `CompilerDiagnostics::checks`).
 ///
 /// `disabled` is the resolved per-check toggle set
-/// (`tclLsp.diagnostics.<CODE> = false`).  A check whose code is disabled has
-/// its diagnostic suppressed from the published set, so its quick-fix must not
-/// be offered either — otherwise the lightbulb would re-surface a hidden
-/// warning.  The analyser path bakes this set into its build; this path is fed
-/// the raw `run_all_checks` output, so it applies the same filter here.
+/// (`tclLsp.diagnostics.<CODE> = false`) and `suppressed` the analyser's
+/// `# noqa` / `# tcl-lsp: disable=…` map.  A check silenced by either has no
+/// diagnostic in the published set, so its quick-fix must not be offered
+/// either — otherwise the lightbulb re-surfaces a hidden warning, and a
+/// shimmer code would offer to add a second `# noqa` above the one already
+/// silencing it.  The analyser path bakes the disabled set into its build and
+/// has its suppression applied by the caller; this path is fed the raw
+/// `run_all_checks` output, so it applies both filters here.
 #[must_use]
-pub fn check_diagnostic_actions<S: std::hash::BuildHasher>(
+pub fn check_diagnostic_actions<S: std::hash::BuildHasher, H: BuildHasher, I: BuildHasher>(
     source: &str,
     range: LspRange,
     checks: &[tcl_compiler::compiler_checks::Diagnostic],
     disabled: &std::collections::HashSet<String, S>,
+    suppressed: &HashMap<i32, HashSet<String, I>, H>,
 ) -> Vec<CodeAction> {
     let line_index = LineIndex::new(source);
     let mut actions = Vec::new();
@@ -557,6 +563,13 @@ pub fn check_diagnostic_actions<S: std::hash::BuildHasher>(
             continue;
         }
         let diag_start = line_index.position_at_utf16(diag.span.start(), source);
+        if line_suppressed(
+            diag.code.as_str(),
+            i32::try_from(diag_start.line).unwrap_or(i32::MAX),
+            suppressed,
+        ) {
+            continue;
+        }
         let diag_end = line_index.position_at_utf16(diag.span.end(), source);
         let diag_range = LspRange {
             start_line: diag_start.line,
@@ -665,10 +678,10 @@ fn ranges_overlap(a: LspRange, b: LspRange) -> bool {
 /// Adding a `package require` is not a harmless suggestion.  Applying it
 /// changes what the interpreter loads and runs the package's initialisation
 /// code, so it must be offered only where there is real evidence a package is
-/// missing.  The provider used to take whichever identifier-like word sat
-/// under the cursor and fuzzy-match its prefix, with no notion of context at
-/// all, so a cursor anywhere on `http::geturl` in *any* of these offered
-/// `package require http` (issue #1191):
+/// missing.  Taking whichever identifier-like word sits under the cursor and
+/// fuzzy-matching its prefix, with no notion of context, would offer
+/// `package require http` for a cursor anywhere on `http::geturl` in *any* of
+/// these:
 ///
 /// ```tcl
 /// # Documentation: http::geturl
@@ -750,7 +763,7 @@ pub fn package_require_actions(
 ///
 /// Gate 4 ("nothing answers to this head") runs the shared call resolver, so
 /// it must run it with the same context go-to-definition uses or the two can
-/// disagree about whether a call is satisfied (issue #1116 item 1).
+/// disagree about whether a call is satisfied.
 ///
 /// In practice the `-force` shadow cannot change this provider's answer: gate
 /// 3 only lets a *package-qualified* head through, and a `-force` import
@@ -1235,11 +1248,10 @@ fn expr_rewrite_actions(source: &str, range: LspRange, _line_index: &LineIndex) 
 
 /// De Morgan: `!(X && Y)` ↔ `!X || !Y`, `!(X || Y)` ↔ `!X && !Y` — plus the
 /// iRules word-operator equivalents (`not`/`and`/`or`, i.e.
-/// `UnaryOp::WordNot`/`BinOp::WordAnd`/`BinOp::WordOr` — issue #983's
-/// unification). This used to only recognise the symbolic forms, so it
-/// silently never offered the rewrite for a selection written in iRules'
-/// word style (`!($a and $b)`) — an inconsistent gap given the sibling
-/// `invert_comparison` rewrite in this same file already handles TIP 461's
+/// `UnaryOp::WordNot`/`BinOp::WordAnd`/`BinOp::WordOr`). Recognising only
+/// the symbolic forms would never offer the rewrite for a selection written
+/// in iRules' word style (`!($a and $b)`) — an inconsistent gap given the
+/// sibling `invert_comparison` rewrite in this same file handles TIP 461's
 /// word operators (`lt`/`le`/`gt`/`ge`).
 fn demorgan_transform(sel: &str) -> Option<String> {
     let t = sel.trim();
@@ -1406,11 +1418,10 @@ fn split_top_logical<'a>(expr: &'a str, op: &str) -> Option<(&'a str, &'a str)> 
 }
 
 /// Every comparison operator spelling paired with its inverse — derived
-/// from `BinOp::inverse()` (`tcl_syntax::expr::operators`, issue #983's
-/// unification) rather than a hand-typed list, which used to be missing
-/// the TIP 461 string-ordering four (`lt`/`le`/`gt`/`ge`) entirely: the
-/// "Invert comparison" quick fix never even offered itself for a selection
-/// containing one of those. Order doesn't matter for correctness — each
+/// from `BinOp::inverse()` (`tcl_syntax::expr::operators`) rather than a
+/// hand-typed list, which would miss the TIP 461 string-ordering four
+/// (`lt`/`le`/`gt`/`ge`) and never offer the "Invert comparison" quick fix
+/// for a selection containing one. Order doesn't matter for correctness — each
 /// needle is matched as a *space-delimited* unit (`find_top_level` looks
 /// for `" op "`), so e.g. `" < "` and `" <= "` can never collide as
 /// substrings of each other regardless of which is tried first.
@@ -1498,7 +1509,7 @@ fn docstring_actions(
             // `Preceding` (and unreachable `None`, filtered above).
             _ => preceding_docstring_edit(decl.line),
         };
-        // The DOXYGEN stub (`# @brief TODO: describe <proc>` + one `# @param`
+        // The DOXYGEN stub (a `# @brief` placeholder plus one `# @param`
         // line per parameter) is rendered by the shared docstring generator.
         let indent = edit.indent;
         let doc = crate::formatting::generate_stub_for_proc(
@@ -1881,8 +1892,17 @@ pub struct ContextDiagnostic {
 
 const HTML_ENCODE_PROC: &str =
     "proc html_encode {str} { string map {& &amp; < &lt; > &gt; \\\" &quot; ' &#39;} $str }";
-const REGEX_QUOTE_PROC: &str =
-    "proc regex::quote {str} { regsub -all {[][{}()*+?.\\\\^$|]} $str {\\\\&} }";
+/// The `regex::quote` helper the T103 fix inserts when the file does not
+/// already define it.
+///
+/// The `namespace eval` line is load-bearing: Tcl does not create a namespace
+/// implicitly for a qualified `proc` name, so without it the definition fails
+/// with `can't create procedure "regex::quote": unknown namespace` on every
+/// supported release, and the fix would leave the file worse than the
+/// diagnostic it silences. Creating a namespace that already exists is a
+/// no-op, so the line is safe wherever the fix lands.
+const REGEX_QUOTE_PROC: &str = "namespace eval regex {}\n\
+    proc regex::quote {str} { regsub -all {[][{}()*+?.\\\\^$|]} $str {\\\\&} }";
 /// `string map` mapping that strips CR/LF — the fix the T101 / IRULE3003 KCS
 /// docs recommend for an output/log sink (`puts $x` / `log ... $x`): a
 /// `string map` element beginning with `"` is itself list-parsed with
@@ -2700,7 +2720,7 @@ mod tests {
     fn fp_inline_refuses_a_braced_argument_that_is_not_a_plain_word() {
         // `f {a b}` passes the *value* `a b`, not the four characters
         // `{a b}`.  Splicing the written word makes the body print the
-        // braces, so the transform declines and says why (issue #1199).
+        // braces, so the transform declines and says why.
         let src = "proc f {p} { puts $p }\nf {a b}\n";
         let reason = inline_outcome(src, 1).unwrap_err();
         assert!(reason.contains("plain word"), "{reason}");
@@ -2798,10 +2818,9 @@ mod tests {
     /// rewritten document.
     ///
     /// Every catch-fix test below asserts the *applied document* rather than
-    /// the inserted string plus a zero-width range: the bug in issue #1190
-    /// inserted exactly the right text at exactly the wrong place, and the
-    /// old assertions (inserted text + "the range is zero-width") passed
-    /// throughout.
+    /// the inserted string plus a zero-width range: an insertion of exactly
+    /// the right text at exactly the wrong place satisfies both of those
+    /// weaker assertions.
     fn apply_single_edit(src: &str, action: &CodeAction) -> String {
         assert_eq!(action.edits.len(), 1, "expected one edit: {action:?}");
         let edit = &action.edits[0];
@@ -2846,10 +2865,10 @@ mod tests {
 
     #[test]
     fn w302_result_action_applies_after_the_body() {
-        // The issue #1190 reproducer: the diagnostic anchors at the `catch`
-        // word, so a provider that reconstructed the insertion point from
-        // the diagnostic's end produced `catch result { puts hi }` — a catch
-        // of the script `result`.
+        // The diagnostic anchors at the `catch` word, so a provider that
+        // reconstructs the insertion point from the diagnostic's end
+        // produces `catch result { puts hi }` — a catch of the script
+        // `result`.
         let src = "catch { puts hi }\n";
         let actions = catch_result_actions(src);
         assert_eq!(actions.len(), 2, "{actions:?}");
@@ -2958,7 +2977,7 @@ mod tests {
         }
     }
 
-    // Fuzzy `package require` suggestions — issue #1191.
+    // Fuzzy `package require` suggestions.
     //
     // Applying one of these mutates package loading and runs the package's
     // initialisation code, so the provider must have evidence a package is
@@ -3003,8 +3022,8 @@ mod tests {
     #[test]
     fn fn_package_require_offered_on_a_fully_qualified_head() {
         // A leading `::` is how library code writes a call unambiguously.
-        // Splitting on `::` without stripping it first yielded an empty
-        // namespace component, so this shape used to match nothing at all.
+        // Splitting on `::` without stripping it first yields an empty
+        // namespace component, which matches nothing at all.
         let titles = package_titles("::http::foo $x\n", at(0, 4));
         assert!(
             titles.iter().any(|t| t == "Add 'package require http'"),
@@ -3161,6 +3180,11 @@ mod tests {
         assert_eq!(package_named_by_namespace("httpget", &catalogue), None);
     }
 
+    /// A document with no `# noqa` and no file-level directive.
+    fn no_suppression() -> HashMap<i32, HashSet<String>> {
+        HashMap::new()
+    }
+
     // check_diagnostic_actions: IRULE5002/5004 flow-warning fixes
 
     #[test]
@@ -3192,8 +3216,13 @@ mod tests {
         );
 
         let none_disabled = std::collections::HashSet::new();
-        let actions =
-            check_diagnostic_actions(src, whole_document_range(src), &checks, &none_disabled);
+        let actions = check_diagnostic_actions(
+            src,
+            whole_document_range(src),
+            &checks,
+            &none_disabled,
+            &no_suppression(),
+        );
         let fix = actions
             .iter()
             .find(|a| a.title == "Add 'event disable all' + 'return'");
@@ -3216,8 +3245,14 @@ mod tests {
         let src = "set x 1\n";
         let none_disabled = std::collections::HashSet::new();
         assert!(
-            check_diagnostic_actions(src, whole_document_range(src), &[], &none_disabled)
-                .is_empty()
+            check_diagnostic_actions(
+                src,
+                whole_document_range(src),
+                &[],
+                &none_disabled,
+                &no_suppression(),
+            )
+            .is_empty()
         );
     }
 
@@ -3245,7 +3280,13 @@ mod tests {
 
         let mut disabled = std::collections::HashSet::new();
         disabled.insert("IRULE5002".to_string());
-        let actions = check_diagnostic_actions(src, whole_document_range(src), &checks, &disabled);
+        let actions = check_diagnostic_actions(
+            src,
+            whole_document_range(src),
+            &checks,
+            &disabled,
+            &no_suppression(),
+        );
         assert!(
             !actions
                 .iter()
@@ -3255,6 +3296,40 @@ mod tests {
     }
 
     // check_diagnostic_actions: shimmer-family noqa-suppress action
+
+    /// A check the document already silences offers nothing: neither its
+    /// quick-fix nor a suppress action for a line that is already suppressed.
+    #[test]
+    fn check_actions_skip_a_diagnostic_a_noqa_already_silences() {
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+        use tcl_compiler::compiler_checks::run_all_checks;
+
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let src = "set x hello\n# noqa: S100\nincr x\n";
+        let cu = CompilationUnit::build_for(src, &registry, false);
+        let checks = run_all_checks(&cu, &registry, None);
+        assert!(
+            checks.iter().any(|d| d.code == DiagCode::S100),
+            "the check itself still fires; only its actions are withheld: {checks:?}"
+        );
+        let suppressed = Analyser::new()
+            .analyse(src, "tcl8.6")
+            .suppressed_lines
+            .clone();
+
+        let actions = check_diagnostic_actions(
+            src,
+            whole_document_range(src),
+            &checks,
+            &std::collections::HashSet::new(),
+            &suppressed,
+        );
+        assert!(
+            actions.is_empty(),
+            "a silenced S100 must leave no action behind: {actions:?}"
+        );
+    }
 
     /// A shimmering `incr` on a String variable fires S100 with no
     /// `CodeFix` attached (there is no generally-safe automatic rewrite —
@@ -3280,8 +3355,13 @@ mod tests {
         );
 
         let none_disabled = std::collections::HashSet::new();
-        let actions =
-            check_diagnostic_actions(src, whole_document_range(src), &checks, &none_disabled);
+        let actions = check_diagnostic_actions(
+            src,
+            whole_document_range(src),
+            &checks,
+            &none_disabled,
+            &no_suppression(),
+        );
         let suppress = actions
             .iter()
             .find(|a| a.title == "Suppress S100 with a noqa comment");
@@ -3321,8 +3401,13 @@ mod tests {
         assert!(checks.iter().any(|d| d.code == DiagCode::S100));
 
         let none_disabled = std::collections::HashSet::new();
-        let actions =
-            check_diagnostic_actions(src, whole_document_range(src), &checks, &none_disabled);
+        let actions = check_diagnostic_actions(
+            src,
+            whole_document_range(src),
+            &checks,
+            &none_disabled,
+            &no_suppression(),
+        );
         let suppress = actions
             .iter()
             .find(|a| a.title == "Suppress S100 with a noqa comment")
@@ -3344,7 +3429,13 @@ mod tests {
 
         let mut disabled = std::collections::HashSet::new();
         disabled.insert("S100".to_string());
-        let actions = check_diagnostic_actions(src, whole_document_range(src), &checks, &disabled);
+        let actions = check_diagnostic_actions(
+            src,
+            whole_document_range(src),
+            &checks,
+            &disabled,
+            &no_suppression(),
+        );
         assert!(
             !actions.iter().any(|a| a.title.starts_with("Suppress S100")),
             "disabled S100 must not offer a suppress action, got {actions:?}",
@@ -3482,7 +3573,7 @@ mod tests {
         );
     }
 
-    /// Issue #1000: the refactor code actions reach control flow inside an
+    /// The refactor code actions reach control flow inside an
     /// `apply` lambda body too.  `apply`'s literal is
     /// `ArgRole::LambdaLiteral`, so the descent has to split it rather than
     /// re-segment the whole `{argList body}` blob — which read `{m}` as a

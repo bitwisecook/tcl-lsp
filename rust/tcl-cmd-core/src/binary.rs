@@ -289,7 +289,10 @@ pub struct Specifier {
     pub end: usize,
     /// Field letter (`a`, `i`, `q`, …).
     pub letter: u8,
-    /// Optional signedness modifier (`u`/`s`) after an integer field.
+    /// The unsigned suffix (`u`) when the field carries one.  Tcl's
+    /// `GetFormatSpec` consumes a `u` after *any* field letter, so this is
+    /// not restricted to the integer types; on the non-integer ones the
+    /// flag is simply never read.
     pub modifier: Option<u8>,
     /// Whether the field uses `*` rather than a numeric count.
     pub star: bool,
@@ -333,7 +336,22 @@ pub fn is_specifier(letter: u8) -> bool {
 
 use tcl_dialect::model::{SpecSurface, surface_admits};
 
-/// Whether Tcl's signedness suffix (`u` / `s`) is part of the resolved
+/// The lowest Tcl release that accepts `letter` as a binary field, or
+/// `None` when every modelled release accepts it.
+///
+/// `t n m r R q Q` arrive in Tcl 8.5 and are `bad field specifier` on
+/// 8.4 — checked against tclsh 8.4.20 and 8.5.19 for both `binary
+/// format` and `binary scan`, which share `GetFormatSpec`. Keep the
+/// floor with the binary owner so no consumer re-derives it; this is
+/// the field-letter sibling of [`signedness_available`], which gates
+/// the `u` suffix.
+#[must_use]
+pub fn specifier_min_version(letter: u8) -> Option<tcl_dialect::TclVersion> {
+    matches!(letter, b't' | b'n' | b'm' | b'r' | b'R' | b'q' | b'Q')
+        .then_some(tcl_dialect::TclVersion::V8_5)
+}
+
+/// Whether Tcl's unsigned suffix (`u`) is part of the resolved
 /// binary-field grammar.  Keep this decision with the binary owner so LSP
 /// surfaces cannot drift or re-derive a release comparison independently.
 #[must_use]
@@ -342,17 +360,16 @@ pub fn signedness_available(profile: &tcl_dialect::DialectProfile) -> bool {
         && surface_admits(SpecSurface::TCL85_PLUS, Some(&profile.surface_query()))
 }
 
-#[must_use]
-fn is_integer_specifier(letter: u8) -> bool {
-    matches!(
-        letter,
-        b'c' | b's' | b'S' | b't' | b'i' | b'I' | b'n' | b'w' | b'W' | b'm'
-    )
-}
-
 /// Parse all recognised binary fields, retaining source positions for editor
 /// consumers.  `allow_modifier` is the resolved dialect decision for Tcl's
-/// 8.5+ `u`/`s` signedness suffix; when false the suffix remains ordinary text.
+/// 8.5+ unsigned suffix; when false the `u` remains ordinary text.
+///
+/// TIP 275 added exactly one suffix, `u`.  `s` is the short-integer field
+/// letter, never a signedness modifier — `ss` is two 2-byte fields on every
+/// release (checked against tclsh 8.4.20, 8.5.19, 8.6.18 and 9.0.4).  The
+/// suffix follows *any* field letter, matching `GetFormatSpec` in
+/// `tclBinary.c`, which consumes a `u` straight after the command character
+/// without consulting the type.
 #[must_use]
 pub fn specifiers(fmt: &[u8], allow_modifier: bool) -> Vec<Specifier> {
     let mut out = Vec::new();
@@ -369,13 +386,9 @@ pub fn specifiers(fmt: &[u8], allow_modifier: bool) -> Vec<Specifier> {
             continue;
         }
         i += 1;
-        let modifier = if allow_modifier
-            && is_integer_specifier(letter)
-            && fmt.get(i).is_some_and(|b| matches!(b, b'u' | b's'))
-        {
-            let m = Some(fmt[i]);
+        let modifier = if allow_modifier && fmt.get(i) == Some(&b'u') {
             i += 1;
-            m
+            Some(b'u')
         } else {
             None
         };
@@ -992,6 +1005,33 @@ fn scan_field_result(count: &Count, vals: Vec<Vec<u8>>) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
+
+    // Measured on tclsh 8.4.20 and 8.5.19: these seven are `bad field
+    // specifier` on 8.4 and accepted from 8.5, for both `binary format` and
+    // `binary scan`. Every other field letter exists on both.
+    #[test]
+    fn specifier_min_version_matches_measured_releases() {
+        for letter in b"tnmrRqQ" {
+            assert_eq!(
+                specifier_min_version(*letter),
+                Some(tcl_dialect::TclVersion::V8_5),
+                "{} should be 8.5+",
+                char::from(*letter)
+            );
+        }
+        for letter in b"aAbBhHcsSiIwWfdxX@" {
+            assert_eq!(
+                specifier_min_version(*letter),
+                None,
+                "{} exists on every release",
+                char::from(*letter)
+            );
+        }
+        // Every gated letter is a real field letter in the shared grammar.
+        for letter in b"tnmrRqQ" {
+            assert!(is_specifier(*letter), "{}", char::from(*letter));
+        }
+    }
     use super::*;
 
     #[test]
@@ -1015,6 +1055,41 @@ mod tests {
             ),
         );
         assert_eq!(old[0].modifier, None);
+    }
+
+    // TIP 275 added only `u`. `s` is the short-integer field letter, so `ss`
+    // is two 2-byte fields on every release — verified against tclsh 8.4.20,
+    // 8.5.19, 8.6.18 and 9.0.4, all of which pack four bytes and scan back
+    // two values.
+    #[test]
+    fn short_specifier_is_a_field_not_a_modifier() {
+        let fields = specifiers(b"ss", true);
+        assert_eq!(
+            fields.iter().map(|f| f.letter).collect::<Vec<_>>(),
+            vec![b's', b's']
+        );
+        assert!(fields.iter().all(|f| f.modifier.is_none()));
+        assert_eq!(fields[1].end, 2);
+        // Two 2-byte fields — the runtime packer agrees with the grammar view.
+        let packed = format(b"ss", &[b"1".as_slice(), b"2".as_slice()]).expect("ss packs");
+        assert_eq!(packed.len(), 4);
+    }
+
+    // `GetFormatSpec` in tclBinary.c consumes a `u` after the command
+    // character without consulting the type, so `au` is one field on 8.5+ —
+    // and `binary format au 1` is a `bad field specifier "u"` error on 8.4.
+    #[test]
+    fn unsigned_suffix_follows_any_field_letter() {
+        let fields = specifiers(b"au", true);
+        assert_eq!(fields.len(), 1);
+        assert_eq!(fields[0].letter, b'a');
+        assert_eq!(fields[0].modifier, Some(b'u'));
+        assert_eq!(fields[0].end, 2);
+        // Gated off, the `u` is ordinary text and the field ends at the letter.
+        let old = specifiers(b"au", false);
+        assert_eq!(old.len(), 1);
+        assert_eq!(old[0].modifier, None);
+        assert_eq!(old[0].end, 1);
     }
 
     #[test]
@@ -1107,9 +1182,10 @@ mod tests {
     #[test]
     fn scan_huge_field_count_does_not_overflow() {
         // A field count from the format string is saturated to `usize::MAX`
-        // by `parse_count`, so `n * size` used to overflow usize and wrap *under*
-        // the bounds check (sneaking past it, then trying to allocate `usize::MAX`).
-        // It must instead stop scanning, exactly like the normal out-of-data path.
+        // by `parse_count`, so `n * size` must not overflow usize and wrap
+        // *under* the bounds check (which would sneak past it, then try to
+        // allocate `usize::MAX`). It must instead stop scanning, exactly
+        // like the normal out-of-data path.
         // Both an integer field (`w`, size 8) and a float field (`d`, size 8):
         let huge = b"w99999999999999999999"; // count saturates to usize::MAX
         assert!(scan(b"only-eight-bytes", huge).unwrap().is_empty());

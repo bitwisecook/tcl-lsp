@@ -18,7 +18,7 @@
 
 //! **`include from SOURCE into TARGET ?-available {WINDOW…}? {names…}`** —
 //! the surface-composition half of `SpecTcl` 2.0's `include`, design
-//! **Q6** (§6.2's optional row, ruled 2026-08-28).
+//! **Q6** (§6.2's optional row).
 //!
 //! `include NAME` composes *files*: it splices another `.tclspec`'s
 //! declarations in. This row composes *surfaces*: it says which of one

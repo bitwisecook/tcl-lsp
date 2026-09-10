@@ -19,8 +19,8 @@
 //! W001 / E002 / E003 for Tk widget *instance* dispatch (`.t instate …`,
 //! `$w tag configure …`) — the receiver-typed sibling of `validity.rs`'s
 //! ordinary registry-command checks and `var_command.rs`'s `TclOO`
-//! `$obj method` checks (issue #927;
-//! `docs/design/analysis/tk-widget-instance-typing.md`).
+//! `$obj method` checks
+//! (`docs/design/analysis/tk-widget-instance-typing.md`).
 //!
 //! Two-phase, mirroring [`super::var_command`]'s cross-function post-pass
 //! (not `tk_checks.rs`'s in-file buffering): a candidate is *recorded*
@@ -157,13 +157,11 @@ impl Analyser {
     /// **W147 / W152 on an object-instance method** (E-R14).
     ///
     /// The instance-dispatch path is where `struct::tree`'s
-    /// `walk -order in -type bfs` lives, and until E-R14 it had no
-    /// option-relation consumer at all — the P5 note in
-    /// `tcl-registry/src/commands/tcllib/data_structures.rs` recorded exactly
-    /// that gap. The evaluation is the same shared, native one the ordinary
-    /// command path uses ([`super::validity::option_relation_diagnostics`]);
-    /// only the walk that finds the words differs, because a method's words
-    /// start after the method name.
+    /// `walk -order in -type bfs` lives, so it needs the same option-relation
+    /// evaluation as the ordinary command path. It uses the same shared, native
+    /// one ([`super::validity::option_relation_diagnostics`]); only the walk
+    /// that finds the words differs, because a method's words start after the
+    /// method name.
     fn emit_instance_option_relations(
         &mut self,
         class: &str,
@@ -242,10 +240,9 @@ impl Analyser {
             // A class whose methods live on an `ObjectClassSpec` (every
             // tcllib factory: `struct::tree`, `struct::graph`, …) declares
             // them there, not in the creator command's own `subcommands`.
-            // Reading only the latter reported every such method as unknown
-            // — a false positive this fallback removes, and the reason the
-            // option-relation check below could not reach an instance method
-            // at all.
+            // Reading only the latter would report every such method as
+            // unknown, and would leave the option-relation check below unable
+            // to reach an instance method at all.
             let object_class = registry.object_class(class);
             let resolved = spec
                 .subcommands

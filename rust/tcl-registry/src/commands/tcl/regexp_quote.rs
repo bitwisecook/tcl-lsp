@@ -31,13 +31,13 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// same regex-metacharacter-quoting idiom (`regexp::quote` / `regex::quote` /
 /// `regex_quote` / `re_quote`). It is not a documented core Tcl command: Tcl
 /// ships no metacharacter-quoting builtin under any of these names.
-/// `re_syntax.n` — the previous, inaccurate `source` citation this spec
-/// carried — documents regexp syntax only and never mentions a quoting command
-/// or utility, confirmed directly against Tcl 8.4, 8.5, 8.6, 9.0, and 9.1
-/// alike; `regexp(n)`'s own `SEE ALSO` lists only `re_syntax`/`regsub` in 8.4,
-/// growing to `re_syntax`/`regsub`/ `string` from 8.5 onward (8.5, 8.6, 9.0,
-/// 9.1 alike), and a dedicated `quote.html`/`.htm` 404s on every tree
-/// (8.4-9.1). `regex::quote` is the canonical spelling and the one the T103
+/// `re_syntax.n` documents regexp syntax only and never mentions a quoting
+/// command or utility, confirmed directly against Tcl 8.4, 8.5, 8.6, 9.0, and
+/// 9.1 alike; `regexp(n)`'s own `SEE ALSO` lists only `re_syntax`/`regsub` in
+/// 8.4, growing to `re_syntax`/`regsub`/ `string` from 8.5 onward (8.5, 8.6,
+/// 9.0, 9.1 alike), and a dedicated `quote.html`/`.htm` 404s on every tree
+/// (8.4-9.1) — hence no `source` citation below. `regex::quote` is the
+/// canonical spelling and the one the T103
 /// (regex-injection) quick fix actually generates and inserts
 /// (`tcl_lsp_core::code_actions::REGEX_QUOTE_PROC`: `proc regex::quote {str} {
 /// regsub -all {[][{}()*+?.\\^$|]} $str {\\&} }`, arity exactly one); this

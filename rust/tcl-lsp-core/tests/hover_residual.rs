@@ -16,17 +16,16 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Residual-coverage port for `tcl-lsp-core`'s hover provider
-//! (`src/hover.rs`).  The sibling `hover_completion.rs` exercises the
-//! common proc / builtin / variable surface; this file drives the
-//! lower-traffic branches that port leaves uncovered:
+//! Residual coverage for `tcl-lsp-core`'s hover provider (`src/hover.rs`).
+//! The sibling `hover_completion.rs` exercises the common proc / builtin /
+//! variable surface; this file drives the lower-traffic branches it does not
+//! reach:
 //!
 //!   * the format-string family — `binary format`/`scan` (byte ruler, `@`
 //!     seek, short-type labels), `regsub` substitution backrefs, `glob`
 //!     patterns (incl. `lsearch -glob`), and `regexp`/`regsub` regex
 //!     patterns;
-//!   * IP-literal hovers (IPv4 class / CIDR, IPv6 loopback / link-local /
-//!     IPv4-mapped);
+//!   * IP-literal hovers (IPv4 class / CIDR, IPv6 link-local / IPv4-mapped);
 //!   * `interp alias` target hovers;
 //!   * `-option` hovers and the `cmd subcommand` fall-through;
 //!   * `TclOO` class hovers carrying superclass / mixin / class-method /

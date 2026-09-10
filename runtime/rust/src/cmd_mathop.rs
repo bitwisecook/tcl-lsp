@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `::tcl::mathop::*` — the `expr` operators as **real commands** (T1.5).
+//! `::tcl::mathop::*` — the `expr` operators as **real commands**.
 //!
 //! C Tcl 9 (`tclMathOp.c`) exposes every `expr` operator as a command in
 //! `::tcl::mathop::` with variadic fold / chained-comparison semantics. These
@@ -37,9 +37,9 @@ use crate::obj::TclObj;
 
 /// Every operator spelling with a `::tcl::mathop` command form — derived from
 /// `tcl_syntax::expr::operators`, the single source of truth for which
-/// operators exist and whether they have a mathop command form at all
-/// (issue #983's registry/runtime convergence: this used to be a hand-typed
-/// list that could silently drift from the operator grammar it mirrors).
+/// operators exist and whether they have a mathop command form at all,
+/// rather than a hand-typed list that could silently drift from the
+/// operator grammar it mirrors.
 ///
 /// `BinOp`/`UnaryOp` share a spelling for `-`/`+` (`Sub`/`Neg`, `Add`/`Pos`) —
 /// one command handles both the fold and the single-argument reading, so the

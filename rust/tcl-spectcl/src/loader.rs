@@ -331,8 +331,8 @@ impl Log {
 
     fn unknown_property(&mut self, stmt: &Stmt) {
         // `word_text(0)` on a braced word is *every byte between the braces*,
-        // so interpolating it raw put whole multi-line bodies into a
-        // Problems-panel message (issue #1634). A diagnostic has to stay one
+        // so interpolating it raw would put whole multi-line bodies into a
+        // Problems-panel message. A diagnostic has to stay one
         // readable line, and a block that reached here is an orphan — the
         // useful thing to say is that it has no preceding declaration, not to
         // quote it back.
@@ -438,7 +438,7 @@ impl Stmt {
 /// A `.tclspec` is a file, and a byte-order mark at the head of a file is a
 /// prologue rather than the first character of the first command word — which
 /// is exactly the distinction `tcl_dialect::LexerGrammar::script_skips_leading_bom`
-/// draws for Tcl 9's `source` (issue #1218). Nested blocks are *not* files:
+/// draws for Tcl 9's `source`. Nested blocks are *not* files:
 /// a U+FEFF at the start of a `hover` summary is a character the author typed,
 /// so only [`pack_statements`] and [`speclib_version_span`] may ask to skip it.
 ///
@@ -559,8 +559,7 @@ pub(crate) fn block(word: &Word) -> Vec<Stmt> {
 /// The one place [`FileBom::Skip`] is right: this is the file entry point, so a
 /// leading byte-order mark is a prologue. A `.tclspec` saved by an editor that
 /// writes "UTF-8 with BOM" otherwise loses its entire `speclib` declaration —
-/// the first word decodes as `\u{feff}speclib`, which matches nothing
-/// (issue #1635).
+/// the first word decodes as `\u{feff}speclib`, which matches nothing.
 pub(crate) fn pack_statements(source: &str) -> Vec<Stmt> {
     statements(source, 1, FileBom::Skip)
 }
@@ -827,7 +826,7 @@ pub struct PackCommand {
     /// The line the `command` statement was declared on.
     ///
     /// Carried so a collision notice can point at the declaration that lost
-    /// rather than at the file's first line (issues #1637, #1638). The loader
+    /// rather than at the file's first line. The loader
     /// knows the line; the *file* is added later by the merge, which is the
     /// only layer that knows which file a command came from.
     pub line: u32,
@@ -859,10 +858,10 @@ pub struct Pack {
     /// order. Commands with no availability default of their own default
     /// their provider (`required_package`) to the first `provides` name.
     pub provides: Vec<PackProvides>,
-    /// `co_provides` relations (`SpecTcl` 2.0, review B11): predicated
+    /// `co_provides` relations (`SpecTcl` 2.0): predicated
     /// "requiring NAME routes to this pack's package" declarations,
     /// carried as data — the loader-alias mechanics that consume them are
-    /// later wire-up (P3+), and carrying them is what keeps an older
+    /// later wire-up, and carrying them is what keeps an older
     /// build from silently flattening a predicated relation.
     pub co_provides: Vec<CoProvides>,
     /// Packages this pack declares **ambient** in its dialect, with the
@@ -875,7 +874,7 @@ pub struct Pack {
     /// This is the pack-authored twin of an ambient
     /// [`tcl_dialect::LibraryPin`], and the axis that lets a package be
     /// modelled as a pack without having to be compiled into `tcl-dialect`
-    /// first (issue #1631).
+    /// first.
     pub ambient_packages: Vec<AmbientPackage>,
     /// The `environment NAME { … }` blocks the pack declares (`SpecTcl`
     /// 2.0, §6.2), in declaration order, with the rejected ones dropped.
@@ -1029,7 +1028,7 @@ pub struct FileExtension {
     /// files, so the row's own path is the only thing that attributes a
     /// collision notice to the file the author must edit — attaching it to the
     /// merged pack's *first* file publishes a squiggle against a line that
-    /// belongs to a different document (found reviewing #1637).
+    /// belongs to a different document.
     pub file: std::path::PathBuf,
 }
 
@@ -1372,12 +1371,12 @@ pub const NEWEST_VOCABULARY_VERSION: &str = "2.1";
 /// safer-looking result" the contract forbids.
 const NEWEST_SUPPORTED_MAJOR: u32 = 2;
 
-/// The scoping flag issue #1643 proposed for `ambient_package`, recognised
+/// A scoping flag for `ambient_package`, recognised
 /// only so it can be **refused**.
 ///
-/// The issue predates `SpecTcl` 2.0. It asked for
-/// `ambient_package NAME VERSION -dialects {…}` so a pack could say a
-/// library is ambient under one of its dialects and not another; 2.0
+/// A pack that wants a library ambient under one of its dialects and not
+/// another might reach for
+/// `ambient_package NAME VERSION -dialects {…}`; `SpecTcl` 2.0 instead
 /// answers the same question with `environment NAME { ambient PACKAGE
 /// VERSION }`, which states the placement *inside* the environment it
 /// belongs to instead of flag-scoping a global claim, and a version shared
@@ -2452,7 +2451,7 @@ const INTRINSICS: &[IntrinsicId] = &[
 ];
 
 /// `arity 3.. -step 2 -also 2` and its five simpler spellings, optionally
-/// gated by the three lifecycle flags (`SpecTcl` 1.2, issue #1627).
+/// gated by the three lifecycle flags (`SpecTcl` 1.2).
 ///
 /// Returns the shape, and the lifecycle when the row carried one. An ungated
 /// row is the command's plain arity exactly as before 1.2; a gated one is one
@@ -5042,7 +5041,7 @@ fn apply_command_stmt(
     let key = stmt.word_text(0).to_owned();
     let value = stmt.word_text(1).to_owned();
     match key.as_str() {
-        // --- identity and availability -----------------------------------
+        // Identity and availability.
         "dialects" => spec.surface = parse_dialects(&value, stmt.line, log),
         "available" => {
             log.v20(stmt.line, "available");
@@ -5146,7 +5145,7 @@ fn apply_command_stmt(
             }
         }
 
-        // --- shape --------------------------------------------------------
+        // Shape.
         "arg" => acc.args.apply(stmt, tables, log),
         "repeat" => {
             if let Some(layout) = repeat_row(stmt, log) {
@@ -5201,7 +5200,7 @@ fn apply_command_stmt(
             spec.arg_role_resolver_roles = arg_role_capabilities(&value, stmt.line, log);
         }
 
-        // --- types --------------------------------------------------------
+        // Types.
         "return_type" => {
             spec.return_type = enum_by_name(TCL_TYPES, &value, "return type", stmt.line, log);
         }
@@ -5261,7 +5260,7 @@ fn apply_command_stmt(
             }
         }
 
-        // --- documentation ------------------------------------------------
+        // Documentation.
         "hover" => {
             if let Some(word) = stmt.arg(1) {
                 spec.hover = Some(hover_block(&block(word), log));
@@ -5275,7 +5274,7 @@ fn apply_command_stmt(
             }
         }
 
-        // --- effects ------------------------------------------------------
+        // Effects.
         "side_effect" => {
             if let Some(effect) = side_effect_row(stmt, log) {
                 acc.side_effects.push(effect);
@@ -5295,7 +5294,7 @@ fn apply_command_stmt(
         "state_transitions" => {
             spec.state_transitions = state_transitions_value(stmt, tables, log);
         }
-        // --- the ratified words (design §6.2, §6.3's blind spot) -----------
+        // The ratified words (design §6.2, §6.3's blind spot).
         "result_stability" => {
             if let Some(stability) = result_stability_row(stmt, log) {
                 spec.result_stability = Some(stability);
@@ -5330,7 +5329,7 @@ fn apply_command_stmt(
             }
         }
 
-        // --- taint --------------------------------------------------------
+        // Taint.
         "taint_source" => spec.taint_source = Some(parse_taint(&value, stmt.line, log)),
         "taint_transform" => spec.taint_transform = Some(parse_taint(&value, stmt.line, log)),
         "taint_transform_when" => {
@@ -5376,10 +5375,10 @@ fn apply_command_stmt(
         "credential_options" => spec.credential_options = leak_strs(&list_words(&value)),
         "sensitive_headers" => spec.sensitive_headers = leak_strs(&list_words(&value)),
 
-        // --- iRules -------------------------------------------------------
+        // iRules.
         "event_requires" => spec.event_requires = event_requires_value(stmt, tables, log),
 
-        // --- options ------------------------------------------------------
+        // Options.
         "option" => {
             let (option, hook) = option_row(stmt, tables, log);
             if let Some((source, option_name)) = hook {
@@ -5426,7 +5425,7 @@ fn apply_command_stmt(
             }
         }
 
-        // --- descriptors --------------------------------------------------
+        // Descriptors.
         "case_list" => spec.case_list = case_list_value(stmt, tables, log),
         "definition_body" => spec.definition_body = definition_body_value(stmt, tables, log),
         "manufacturer" => acc.manufacturers.push(manufacturer_row(stmt, log)),
@@ -5449,14 +5448,14 @@ fn apply_command_stmt(
             }
         }
 
-        // --- subcommands ---------------------------------------------------
+        // Subcommands.
         "subcommand" => {
             if let Some(sub) = load_subcommand(stmt, tables, &mut acc.hooks, "subcommand", log) {
                 acc.subcommands.push(sub);
             }
         }
 
-        // --- named engine hooks -------------------------------------------
+        // Named engine hooks.
         "lowering_hook" => {
             spec.lowering_hook = native_id(stmt, LOWERING_HOOKS, "lowering hook", log);
             if spec.lowering_hook.is_some() {
@@ -5488,7 +5487,7 @@ fn apply_command_stmt(
             spec.semantic_operation = parse_semantic_operation(&value, stmt.line, log);
         }
 
-        // --- Tcl-body hooks -------------------------------------------------
+        // Tcl-body hooks.
         "arg_role_resolver"
         | "command_prefix_resolver"
         | "script_timing_resolver"
@@ -6648,7 +6647,7 @@ fn apply_subcommand_stmt(
 /// operation whose option table genuinely differs from its siblings'
 /// (`namespace ensemble create` has `-command`, `configure` has `-namespace`)
 /// declares its own, and a consumer that can see the dispatch word prefers it
-/// over the owning subcommand's (issue #1610).
+/// over the owning subcommand's.
 ///
 /// **No block and an empty block mean different things.** No block leaves
 /// `options` at `None` — this operation says nothing, so the owning
@@ -6797,7 +6796,7 @@ mod tests {
     /// that matters — a pack that says nothing leaves the trait **unset**.
     ///
     /// The flag tells a static walk that an unreadable body word costs it
-    /// nothing about the call's completion (issue #1571), so the silent
+    /// nothing about the call's completion, so the silent
     /// default has to be the abstaining one: unset means "this body may run
     /// here". Traits resolve by name against the registry's own flag list, so
     /// there is no loader table to keep in step — but there is also nothing
@@ -7682,8 +7681,6 @@ mod tests {
     #[test]
     fn v12_words_under_an_older_declaration_draw_a_per_site_notice() {
         // Two 1.2 sites: the arity window's lifecycle flag and `tk_geometry`.
-        // (The per-argument lifecycle that used to be the second site is gone
-        // with the `arg_rows` machinery — redesign §11.1 O2.)
         let body = "\n command demo {\n \
              arity 1\n \
              arity 2 -introduced 3.0\n \
@@ -7964,9 +7961,8 @@ mod tests {
         );
     }
 
-    /// Issue #1643 asked for `ambient_package NAME VERSION -dialects {…}`.
-    /// The flag is refused, and — the point of the test — it takes the row
-    /// with it.
+    /// `ambient_package NAME VERSION -dialects {…}`'s scoping flag is
+    /// refused, and — the point of the test — it takes the row with it.
     ///
     /// Dropping the flag alone would leave the claim *unscoped*, flooring
     /// the package in every dialect including the ones the pack just said
@@ -8323,8 +8319,8 @@ mod tests {
     }
 
     /// A Jim-only window names the Jim family directly (Q13): the retired
-    /// bitmask had no Jim member, so such a row used to gate the command off
-    /// entirely rather than say what it meant (ledger D17-J).
+    /// bitmask has no Jim member, so relying on it alone would gate the
+    /// command off entirely rather than say what the row meant.
     #[test]
     fn a_jim_only_window_names_the_jim_family() {
         let pack = evaluate_pack(
@@ -8374,9 +8370,9 @@ mod tests {
         );
     }
 
-    /// The seven ratified words the loader had no reader for (§6.2's list,
-    /// §6.3's `DraftOpaque`-masks-`LoaderGap` blind spot): each lands on the
-    /// `CommandSpec` field the design memo's coverage matrix names for it.
+    /// The seven ratified words (§6.2's list) each land on the
+    /// `CommandSpec` field the design memo's coverage matrix names for it,
+    /// closing §6.3's `DraftOpaque`-masks-`LoaderGap` blind spot.
     #[test]
     fn the_ratified_words_reach_their_model_fields() {
         let pack = evaluate_pack(

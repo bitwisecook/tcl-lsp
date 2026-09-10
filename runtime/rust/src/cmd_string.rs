@@ -16,15 +16,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `append` + the `string` ensemble (T1.6), per the EXP-STRING decision:
+//! `append` + the `string` ensemble:
 //! capacity-backed in-place `append` (amortised O(1)), and char-indexed `string`
 //! ops with an **ASCII fast path** (byte index == char index) falling back to a
 //! UTF-8 scan for non-ASCII.
 //!
-//! Subset now: `string length/index/range/equal/compare/cat/repeat/reverse/`
-//! `toupper/tolower/trim/trimleft/trimright/first/last`. (`map`/`match`/`is`/
-//! `replace`/`insert`/`wordstart` follow; Unicode case + a non-ASCII char-offset
-//! cache are deferred per EXP-STRING.)
+//! Implements `string length/index/range/equal/compare/cat/repeat/reverse/`
+//! `toupper/tolower/trim/trimleft/trimright/first/last`. `map`/`match`/`is`/
+//! `replace`/`insert`/`wordstart` are not implemented here, nor is Unicode
+//! case handling or a non-ASCII char-offset cache.
 //!
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -51,7 +51,7 @@ pub fn install(interp: &mut Interp) {
     );
 }
 
-// -- append ----------------------------------------------------------------
+// append
 
 /// `append varName ?value ...?` — append to the string in `varName` (creating
 /// it if unset), growing the buffer in place (amortised O(1)) when the value is
@@ -105,8 +105,8 @@ pub(crate) fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
     // Always store back: rebinds the variable to `result` — a refcount-neutral
     // re-set when it was grown in place — and fires the write trace exactly once
-    // (the in-place path used to skip the store and so fire no trace, diverging
-    // from C; this fixes that). `store_var_result` holds a protective reference
+    // (an in-place path that skipped the store would fire no trace, diverging
+    // from C). `store_var_result` holds a protective reference
     // across the store so a write trace that unsets the variable can't free a
     // fresh `result` before it becomes the result (a use-after-free).
     match interp.store_var_result(&base, elem.as_deref(), result) {
@@ -115,7 +115,7 @@ pub(crate) fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-// -- string ensemble -------------------------------------------------------
+// string ensemble
 
 fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
@@ -378,9 +378,9 @@ const PREFIX_SUBS: &[&[u8]] = &[b"all", b"longest", b"match"];
 /// failing `Code` (used by the `tcl::prefix` subcommands).
 ///
 /// The message comes from [`crate::parse::list_error_message`], which builds it
-/// out of the shared codec. This function used to reach a local re-scan of the
-/// list — a third implementation of `TclFindElement` alongside the owner and
-/// `parse.rs`'s copy — purely to recover the junk fragment (issue #1429).
+/// out of the shared codec, rather than a local re-scan of the list here — a
+/// third implementation of `TclFindElement` alongside the owner and
+/// `parse.rs`'s copy — purely to recover the junk fragment.
 fn split_list_or_error(interp: &mut Interp, s: &[u8]) -> Result<Vec<Vec<u8>>, Code> {
     match crate::parse::split_list(s) {
         Ok(t) => Ok(t),
@@ -1015,7 +1015,7 @@ fn str_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 // (the per-class membership + fail-index logic). `str_is` above is the thin
 // per-runtime wrapper (option parsing + `-failindex` var write) over it.
 
-// -- char helpers (ASCII fast path) ----------------------------------------
+// char helpers (ASCII fast path)
 
 #[inline]
 fn utf8_len(b: u8) -> usize {
@@ -1087,7 +1087,7 @@ fn parse_isize(b: &[u8]) -> Option<isize> {
 // `TclGetIntForIndex` grammar with the list commands — reuse one parser.
 use crate::cmd_list::index_spec;
 
-// -- error helpers ---------------------------------------------------------
+// error helpers
 /// Whether `opt` abbreviates `-nocase` (`strncmp` with `length > 1`), the sole
 /// option of `string map`/`string match`.
 fn is_nocase_opt(opt: &[u8]) -> bool {
@@ -1251,11 +1251,13 @@ mod tests {
         assert_eq!(ok(b"tcl::prefix match -error {} {apple apricot} xy"), b"");
     }
 
-    /// Issue #1607: `string` and `tcl::prefix` are `TclMakeEnsemble` commands,
-    /// so both the scan and the whole miss sentence belong to
-    /// `tcl_cmd_core::ensemble`; `tcl::prefix`'s dispatch matched exactly and
-    /// its enumeration came from `prefix::choice_list_bytes` (the wrong owner —
-    /// the same bytes only because the list has three entries).
+    /// `string` and `tcl::prefix` are `TclMakeEnsemble` commands, so both the
+    /// scan and the whole miss sentence belong to `tcl_cmd_core::ensemble`,
+    /// not `prefix::choice_list_bytes` — the two enumerations happen to
+    /// produce the same bytes here only because this particular list has
+    /// three entries, so relying on the latter for the ensemble miss
+    /// sentence would be a latent bug masked by the current subcommand
+    /// count.
     /// `tcl::prefix match`'s own options and `string is`'s class/option words
     /// are `Tcl_GetIndexFromObj` tables whose sentences were spelled by hand.
     ///

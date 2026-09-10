@@ -16,10 +16,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Issue #968: every built-in `expr` math function (`sin(...)`, `max(...)`,
-// ...) drew a spurious W123 "unknown command" hint — the analyser only ever
-// recognised a same-named user `proc ::tcl::mathfunc::<name>` override, never
-// the built-in function table itself. The deep TP/FP/TN/FN coverage lives in
+// Every built-in `expr` math function (`sin(...)`, `max(...)`,
+// ...) must not draw a spurious W123 "unknown command" hint: the analyser
+// must recognise the built-in function table itself, not only a same-named
+// user `proc ::tcl::mathfunc::<name>` override. The deep TP/FP/TN/FN coverage lives in
 // the analyser and native lsp_e2e suites; this proves the same fix arrives
 // through a real VS Code session.
 

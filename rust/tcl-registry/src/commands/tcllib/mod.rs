@@ -638,7 +638,7 @@ fn tcllib_required_package(name: &str) -> Option<&'static str> {
         // The commands live in `::sha2` but the module the user writes
         // is `package require sha256` — `sha1/sha256.tcl` ends with
         // `package provide sha256 1.0.6`, and no `sha2` package exists
-        // anywhere in tcllib 2.0. Namespace ≠ package identity (P5).
+        // anywhere in tcllib 2.0. Namespace ≠ package identity.
         "sha2" => Some("sha256"),
         "smtp" => Some("smtp"),
         "snit" => Some("snit"),
@@ -689,12 +689,12 @@ mod tests {
         assert_eq!(pkg("struct::queue"), Some("struct::queue"));
         // Versioned sha packages. `::sha2` is the *namespace*; the
         // package `tmp/tcllib-2.0/modules/sha1/sha256.tcl` provides is
-        // `sha256`, and that is what a user writes (P5).
+        // `sha256`, and that is what a user writes.
         assert_eq!(pkg("sha1::sha1"), Some("sha1"));
         assert_eq!(pkg("sha2::sha256"), Some("sha256"));
     }
 
-    /// **P5's identity census.** Every package name the catalogue files a
+    /// **The package-identity census.** Every package name the catalogue files a
     /// tcllib command under is either a module the tcllib 2.0 sources
     /// really provide ([`TCLLIB_MODULES`](crate::model::tcllib::TCLLIB_MODULES))
     /// or a *recorded* gap
@@ -744,8 +744,8 @@ mod tests {
     }
 
     /// The Tcl-core floor is now read per module from the sources, so it
-    /// covers the whole distribution rather than the two names the old
-    /// `match` happened to list (P5).
+    /// covers the whole distribution rather than the two names an
+    /// ordinary `match` would happen to list.
     #[test]
     fn tcl85_plus_packages_are_gated_out_of_tcl84() {
         let specs = tcllib_command_specs();
@@ -948,7 +948,7 @@ mod tests {
     #[test]
     fn control_package_maps_to_control() {
         // The `control` module's control-flow commands are gated on the
-        // `control` package (issue #760).
+        // `control` package.
         let specs = tcllib_command_specs();
         let names = [
             "control::do",
@@ -970,7 +970,7 @@ mod tests {
     fn control_do_recurses_body_expr_and_keyword() {
         // `control::do body ?option test?` — the body is a script, the
         // option word (`while`/`until`) is a keyword, and the test is an
-        // expression.  These roles drive semantic-token recursion (#760).
+        // expression.  These roles drive semantic-token recursion.
         use crate::ArgRole;
         let reg = crate::registry::CommandRegistry::build_default();
         let args = ["{body}", "while", "{$x < 10}"];
@@ -986,7 +986,7 @@ mod tests {
     fn control_do_option_roles_only_apply_to_full_form() {
         // `?option test?` is only meaningful as a complete pair — a lone
         // `option` (the malformed two-word form) must NOT be highlighted as
-        // a keyword just because it sits at that position (PR #763 review).
+        // a keyword just because it sits at that position.
         use crate::ArgRole;
         let reg = crate::registry::CommandRegistry::build_default();
         // body-only form: just the body recurses, no keyword/expr.
@@ -1037,7 +1037,7 @@ mod tests {
     #[test]
     fn struct_list_mapfor_is_body_filterfor_is_expr() {
         // `mapfor`'s third argument is a Tcl script (body); `filterfor`'s
-        // is an expression — they must not be conflated (PR #763 review).
+        // is an expression — they must not be conflated.
         use crate::ArgRole;
         let reg = crate::registry::CommandRegistry::build_default();
         let mapfor = ["mapfor", "x", "{1 2 3}", "{body}"];

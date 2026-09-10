@@ -42,6 +42,9 @@ tcl-registry = { path = "../tcl-registry" }
 tcl-spectcl = { path = "../tcl-spectcl" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-bigip = { path = "../tcl-bigip" }
+# Without `probes`: those builtins pull a socket and TLS stack the server has
+# no use for and the wasm hosts cannot link. The rename rewrite is offline.
+tcl-bigip-query = { path = "../tcl-bigip-query", default-features = false }
 f5-xc = { path = "../f5-xc" }
 tcl-lsp-core = { path = "../tcl-lsp-core" }
 tcl-lsp-db = { path = "../tcl-lsp-db" }
@@ -59,7 +62,7 @@ tcl-diagram = { path = "../tcl-diagram" }
 salsa = { version = "0.28", default-features = false, features = ["macros", "inventory"] }
 serde_json = "1"
 sha2 = "0.11"
-# `FutureExt::shared` (progressive diagnostics, #844): the base per-file analysis
+# `FutureExt::shared` (progressive diagnostics): the base per-file analysis
 # is computed once and awaited by both the deep pass's `join!` and the fast-tier
 # publish, so the coarse tier reuses the in-flight read rather than issuing a
 # second one. Already in the tree via `tower-lsp-server`'s transport.

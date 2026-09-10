@@ -29,8 +29,7 @@
 //!
 //! The `workspaceContains:` activation glob is generated the same way, from
 //! `tcl_registry::dialects::TCL_SOURCE_EXTENSIONS` — the same list the server
-//! indexes and watches — so the manifest cannot drift from the extension set
-//! again (issue #1242).
+//! indexes and watches — so the manifest cannot drift from the extension set.
 
 use std::process::ExitCode;
 
@@ -256,8 +255,8 @@ fn diagnostic_sections() -> Vec<Value> {
             m.insert("order".to_owned(), json!(i));
             props.insert(key.clone(), scoped_prop(&key, m));
             // Per-code severity override — how prominently the editor renders
-            // this diagnostic. `default` keeps the analyser's emitted severity
-            // (issue #941: raise a subtle hint like W211 to a warning/error).
+            // this diagnostic. `default` keeps the analyser's emitted severity;
+            // a user can raise a subtle hint like W211 to a warning/error.
             let sev_key = format!("tclLsp.diagnosticSeverity.{code}");
             let mut sm = Map::new();
             sm.insert("type".to_owned(), json!("string"));
@@ -841,8 +840,8 @@ mod tests {
     }
 
     /// The activation glob names **every** indexed extension, and does so
-    /// case-insensitively — the two ways the hand-written glob had drifted
-    /// (issue #1242: nine of twelve, single-cased).
+    /// case-insensitively — the two ways a hand-written glob could drift
+    /// (missing an extension, or covering only one case).
     #[test]
     fn workspace_contains_event_covers_every_indexed_extension_in_any_case() {
         let event = workspace_contains_event();

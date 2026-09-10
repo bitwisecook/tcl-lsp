@@ -16,15 +16,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The interpreter: `Tcl_Interp` + the eval loop + command dispatch (T1.4).
+//! The interpreter: `Tcl_Interp` + the eval loop + command dispatch.
 //!
-//! Builds on the value model (T1.1), parse/subst (T1.2), and the frame/var
-//! store (T1.3). This is the **interpreter-fallback** path — the AOT compiler
+//! Builds on the value model, parse/subst, and the frame/var
+//! store. This is the **interpreter-fallback** path — the AOT compiler
 //! is the primary route (north star); this runs what isn't (yet) AOT-compiled
 //! and what genuinely needs runtime interpretation (`eval $dynamic`, etc.).
 //!
-//! Closes the **command** half of T1.2's subst seam: a `[cmd]` substitution
-//! recursively evaluates its inner script through this loop.
+//! Closes the **command** half of the substitution engine's seam: a `[cmd]`
+//! substitution recursively evaluates its inner script through this loop.
 //!
 //! ## Why no deferred-free queue
 //!
@@ -770,9 +770,10 @@ fn cmd_trace_owned_by(token: Option<u64>, dying: Option<u64>) -> bool {
 /// The entry point of a natively lowered proc body — a wasm32 function-table
 /// index on the emitted side, an ordinary function pointer here.
 ///
-/// `argv`/`argc` are the bound call arguments. P5-lite bodies do not read them
+/// `argv`/`argc` are the bound call arguments. Bodies do not read them today
 /// (they read their formals as named cells, which `run_proc` has already
-/// bound); they are the reserved seam for P5's native formal binder. `out` is
+/// bound); they are a reserved seam for a future native formal binder that
+/// would read them directly. `out` is
 /// caller-provided, zeroed completion storage — the same [`TclCompletionAbi`]
 /// layout `tcl_invoke_argv` writes in the other direction.
 ///
@@ -851,7 +852,7 @@ struct ArrayOperationTarget {
 pub struct InterpState {
     pub(crate) frames: RefCell<FrameStack>,
     /// The command-table-as-core-service: the namespace tree + the one
-    /// `resolve(currentNs, name)` resolver (T1.5).
+    /// `resolve(currentNs, name)` resolver.
     namespaces: RefCell<Namespaces>,
     /// Exact array bindings retained by nested `array` operations. The public
     /// runtime contract carries only the opaque `VarId`; this stack keeps the
@@ -877,7 +878,7 @@ pub struct InterpState {
     current_ns: Cell<NsId>,
     /// Active proc-call nesting depth — C Tcl's `interp recursionlimit`. Bounds
     /// recursion so an infinite proc loop raises a catchable error instead of
-    /// overflowing the (wasm) stack (the tracked PR #557 follow-up).
+    /// overflowing the (wasm) stack.
     recursion_depth: Cell<usize>,
     /// Per-interp recursion bound (`interp recursionlimit`), default
     /// [`RECURSION_LIMIT`]. Each child carries its own, so raising a child's
@@ -1067,10 +1068,10 @@ pub struct InterpState {
     /// from its parent, exactly as each owns its own global namespace.
     runtime_version: Cell<tcl_dialect::TclVersion>,
     /// The dialect profile this interpreter validates its builtin command
-    /// surface against (issue #1463) and derives its lexing grammar from
-    /// (issue #1462). Defaults to the permissive fallback profile, which
-    /// hides nothing and lexes with the modern grammar;
-    /// [`Interp::set_runtime_version`] pins the matching plain-Tcl profile.
+    /// surface against and derives its lexing grammar from. Defaults to the
+    /// permissive fallback profile, which hides nothing and lexes with the
+    /// modern grammar; [`Interp::set_runtime_version`] pins the matching
+    /// plain-Tcl profile.
     dialect_profile: Cell<&'static tcl_dialect::DialectProfile>,
     /// The availability registry for `dialect_profile` — its environment's
     /// registry generation, resolved once at pin time through the ingress
@@ -1153,7 +1154,7 @@ const RECURSION_LIMIT: usize = 1000;
 /// control-flow bodies (`if`/`while`/`for`/`foreach`/…), proc bodies,
 /// `eval`/`uplevel`/`source`, and command substitution — checked against
 /// [`Interp::eval_depth`] in [`Interp::eval_script_mode`], independently of
-/// [`RECURSION_LIMIT`]/[`Interp::recursion_limit`] (issue #996).
+/// [`RECURSION_LIMIT`]/[`Interp::recursion_limit`].
 ///
 /// This is a genuinely different concern from `recursion_limit`:
 /// `recursion_limit` is the user-configurable, Tcl-visible `interp
@@ -1170,8 +1171,8 @@ const RECURSION_LIMIT: usize = 1000;
 ///
 /// Empirically measured on this crate's native (non-WASM) build, run on a
 /// plain 2 MiB thread stack (`cargo test`'s per-test default — the same
-/// class of ambient stack budget that made issue #996 reproducible for the
-/// analyser): unguarded nested `foreach` bodies overflow the stack (SIGABRT)
+/// class of ambient stack budget the analyser also runs under): unguarded
+/// nested `foreach` bodies overflow the stack (SIGABRT)
 /// between depth 200 and 250, and — more surprisingly — plain unbounded
 /// recursive *proc calls* overflow **before ever reaching the existing
 /// `RECURSION_LIMIT` of 1000**, meaning that pre-existing, purely
@@ -1245,12 +1246,12 @@ fn opt_int(v: Option<i64>) -> Vec<u8> {
 /// Resolve an `interp limit` option by unambiguous prefix against `opts`
 /// (C's `Tcl_GetIndexFromObj`) — through the one shared owner.
 ///
-/// This carried #1443's bug verbatim, in both halves: the hand-rolled
-/// `starts_with` filter could only ever say `bad option`, so the empty word —
-/// a prefix of *every* option — reported `bad option ""` where C reports
-/// `ambiguous option ""`; and the `", or"` enumeration was hand-built beside
-/// `prefix::choice_list_bytes`, which owns it. `OptionTable::abbreviating`
-/// now supplies both.
+/// `OptionTable::abbreviating` is used rather than a hand-rolled
+/// `starts_with` filter: a naive prefix filter can only ever report `bad
+/// option`, but the empty word is a prefix of *every* option and C reports
+/// that case as `ambiguous option ""`, not `bad option ""`. The option
+/// table also owns the `", or"` enumeration in the error message, matching
+/// `prefix::choice_list_bytes` rather than duplicating it.
 fn resolve_limit_opt(arg: &[u8], opts: &[&[u8]]) -> Result<Vec<u8>, Vec<u8>> {
     let table = tcl_cmd_core::prefix::OptionTable::abbreviating("option", opts);
     match table.index_of(arg) {
@@ -1432,7 +1433,7 @@ impl Interp {
         interp
     }
 
-    // -- capability host ------------------------------------------------------
+    // capability host
 
     /// The capability host (filesystem/`env`/`clock`/subprocess seam). Returns an
     /// independent `Rc` handle, not a borrow, so a command can hold the host
@@ -1460,7 +1461,7 @@ impl Interp {
         }
     }
 
-    // -- emulated Tcl release -------------------------------------------------
+    // emulated Tcl release
 
     /// Pin the Tcl release this interpreter emulates.
     ///
@@ -1468,7 +1469,7 @@ impl Interp {
     /// tree-walking runtime: every release-dependent *semantic* is derived
     /// from this one value rather than being set independently, so the two
     /// engines cannot drift apart by having one of them updated and not the
-    /// other (issue #1328). Today that is the numeric-literal grammar (see
+    /// other. Today that is the numeric-literal grammar (see
     /// [`install_number_syntax`]), the namespace-scope variable fallback
     /// (TIP 278), and the release-reporting globals.
     ///
@@ -1479,10 +1480,9 @@ impl Interp {
     pub fn set_runtime_version(&mut self, version: tcl_dialect::TclVersion) {
         // A bare release pin is the matching plain-Tcl profile: the emulated
         // release is one fact carrying the runtime semantics, the lexing
-        // grammar (issue #1462), and the command-surface availability mask
-        // (issue #1463). The release name is a dialect *name*, so it
-        // resolves through the one ingress seam (`crate::environment`)
-        // rather than through `by_name`.
+        // grammar, and the command-surface availability mask. The release
+        // name is a dialect *name*, so it resolves through the one ingress
+        // seam (`crate::environment`) rather than through `by_name`.
         self.set_dialect_profile(crate::environment::profile_for_dialect(
             version.dialect_name(),
         ));
@@ -1524,7 +1524,7 @@ impl Interp {
         self.write_release_globals();
         // `package provide Tcl` is a release fact, not a runtime constant, and
         // the pre-provided entries were written against the *previous* pin —
-        // re-derive them (ledger row B4).
+        // re-derive them.
         self.packages.borrow_mut().provide_core(version);
     }
 
@@ -1555,8 +1555,8 @@ impl Interp {
     }
 
     /// The lexer configuration scripts evaluate under: the pinned profile's
-    /// grammar (issue #1462) — `{*}` expansion off and the first-close `${…}`
-    /// rule on when the interpreter emulates Tcl 8.4.
+    /// grammar — `{*}` expansion off and the first-close `${…}` rule on when
+    /// the interpreter emulates Tcl 8.4.
     pub(crate) fn lexer_config(&self) -> tcl_lexer::LexerConfig {
         tcl_lexer::LexerConfig::from_grammar(self.dialect_profile().grammar)
     }
@@ -1565,7 +1565,7 @@ impl Interp {
     /// runtime surface. The registry recognises versioned builtin entries;
     /// unrecognised names remain available for user-defined commands.
     ///
-    /// Two registry-backed cases (issue #1463): the math-function surface
+    /// Two registry-backed cases: the math-function surface
     /// (`::tcl::mathfunc::*` vs the 8.4 fixed table), and release
     /// availability — a builtin whose registry spec the pinned profile's
     /// availability mask does not admit (`lassign` at 8.4, `lpop` before
@@ -1684,23 +1684,22 @@ impl Interp {
     /// release does not carry resolves to `None`, exactly as if no command of
     /// that name existed.
     ///
-    /// This is the single owner of the gate on the dispatch side (PR #1481
-    /// review of issues #1462/#1463). The gate was originally spelled out at
-    /// the direct-dispatch call site only, so the two other resolve-then-
-    /// [`Self::invoke`] shapes — the alias trampoline
-    /// ([`Self::dispatch_alias`]) and the `namespace import` redirect
-    /// ([`Command::Imported`]) — reached the builtin behind an ungated second
-    /// resolution, making a release-hidden builtin callable through an alias
-    /// or an imported spelling. Every name→`Command` step that feeds `invoke`
-    /// now goes through here, so a new dispatch path cannot silently reopen
-    /// the hole.
+    /// This is the single owner of the gate on the dispatch side. Without it,
+    /// a resolve-then-[`Self::invoke`] shape — the alias trampoline
+    /// ([`Self::dispatch_alias`]) or the `namespace import` redirect
+    /// ([`Command::Imported`]) — could reach the builtin behind an ungated
+    /// second resolution, making a release-hidden builtin callable through an
+    /// alias or an imported spelling. Every name→`Command` step that feeds
+    /// `invoke` goes through here, so a new dispatch path cannot silently
+    /// reopen that hole.
     ///
     /// A gated miss is deliberately indistinguishable from a deleted command:
     /// each caller then reports the miss the way it already reports a target
     /// that genuinely does not exist (`invalid command name "<target>"`,
     /// naming the resolved target rather than the alias — matching real tclsh
     /// 8.6/9.0 for `interp alias {} la {} nosuchcmd; la`), which is precisely
-    /// the "this release does not have that command" contract of #1462.
+    /// the "this release does not have that command" contract this gate
+    /// implements.
     pub(crate) fn resolve_dispatchable(&self, origin: NsId, name: &[u8]) -> Option<Command> {
         let (command, fqn, generation) = {
             let ns = self.namespaces.borrow();
@@ -1775,7 +1774,7 @@ impl Interp {
         }
     }
 
-    // -- command registry -----------------------------------------------------
+    // command registry
 
     /// Register a built-in command (a possibly-qualified `name`, creating
     /// intermediate namespaces; overwrites any existing command of `name`).
@@ -2006,10 +2005,10 @@ impl Interp {
         // C's `TclRenameCommand` checks the destination's hash table before
         // touching `old`'s (tclBasic.c), so an occupied destination — self-
         // rename onto the same slot included — is refused before anything
-        // observable happens, same as the alias-loop guard above (issue
-        // #1412 item 1). A release-gated TclOO root this build hides reads
-        // as free here too (`is_gate_hidden_object_root`), same as every
-        // other "is this name taken?" check.
+        // observable happens, same as the alias-loop guard above. A
+        // release-gated TclOO root this build hides reads as free here too
+        // (`is_gate_hidden_object_root`), same as every other "is this name
+        // taken?" check.
         let occupant_fqn = self
             .namespaces
             .borrow_mut()
@@ -2022,10 +2021,10 @@ impl Interp {
             }
         }
         // A builtin the emulated release does not carry is not there to be
-        // renamed or deleted (#1462/#1463): rebinding it under a name the
-        // registry has no spec for would hand it back ungated, defeating the
-        // availability mask outright. Checked before any observable effect,
-        // like the alias-loop refusal above.
+        // renamed or deleted: rebinding it under a name the registry has no
+        // spec for would hand it back ungated, defeating the availability
+        // mask outright. Checked before any observable effect, like the
+        // alias-loop refusal above.
         let bound = self
             .namespaces
             .borrow()
@@ -2167,7 +2166,7 @@ impl Interp {
         // tclBasic.c) — `foo` still exists, and calls the new body. Deleting
         // "whatever is at the name now" would remove the callback's work
         // instead. This is the command half of the rule the import branch just
-        // above already applies to its own identity. Issue #1633.
+        // above already applies to its own identity.
         let recreated = match (
             &bound_before,
             self.namespaces.borrow().resolve(self.current_ns.get(), old),
@@ -2364,7 +2363,7 @@ impl Interp {
             .borrow_mut()
             .command_home_ns(self.current_ns.get(), name);
         // Written-name tail: empty for a trailing separator run (the `{}`
-        // command, #934) — must match `home_of`'s resolution split.
+        // command) — must match `home_of`'s resolution split.
         let tail = tcl_syntax::naming::written_command_tail(name).to_vec();
         let displaced = self.namespaces.borrow().command_in(ns, &tail);
         let old_token = match displaced.as_ref() {
@@ -2431,7 +2430,7 @@ impl Interp {
             .borrow_mut()
             .command_home_ns(self.current_ns.get(), name);
         // Written-name tail: empty for a trailing separator run (`proc x::`
-        // defines `::x::`, the `{}` command in `::x` — tclsh-pinned, #934);
+        // defines `::x::`, the `{}` command in `::x` — matching tclsh);
         // must match `home_of`'s resolution split or the proc just defined
         // could not be invoked.
         let tail = tcl_syntax::naming::written_command_tail(name).to_vec();
@@ -2889,9 +2888,9 @@ impl Interp {
     /// Set the current namespace context directly, with no frame push and no
     /// restore-on-return of its own — the caller saves/restores
     /// [`Self::current_ns`] around whatever it runs. Used by `interp
-    /// invokehidden`'s `-global`/`-namespace` evaluation-context switch
-    /// (issue #1412 item 5), which invokes one command rather than evaluating
-    /// a script body, so it needs no `namespace eval`-style frame.
+    /// invokehidden`'s `-global`/`-namespace` evaluation-context switch,
+    /// which invokes one command rather than evaluating a script body, so it
+    /// needs no `namespace eval`-style frame.
     pub(crate) fn set_current_ns(&self, ns: NsId) {
         self.current_ns.set(ns);
     }
@@ -3532,7 +3531,7 @@ impl Interp {
         self.exit_code.take()
     }
 
-    // -- variables (the var resolver; `crate::vars`) --------------------------
+    // variables (the var resolver; `crate::vars`)
     //
     // Every variable op routes through the one classification + link walk
     // (frame-local vs namespace, qualified vs not), instead of the old flat
@@ -3549,7 +3548,7 @@ impl Interp {
         )
     }
 
-    // -- frame-addressed access (the `VarStore` `FrameId`-honouring path) -----
+    // frame-addressed access (the `VarStore` `FrameId`-honouring path)
     //
     // Resolve `name` as if `level` were the active frame. Used only for a
     // non-active `FrameId`; the active frame keeps the by-name accessors above.
@@ -3875,9 +3874,9 @@ impl Interp {
     ///
     /// Registration and firing both key on this, so every spelling that
     /// resolves to the one cell shares one trace list — including an `upvar`
-    /// alias, whose level can only be read off the *resolved* place (issue
-    /// #1633's `upvar` row). C gets this for free: there the alias and its
-    /// target are the same `Var`, and the trace list hangs off that `Var`.
+    /// alias, whose level can only be read off the *resolved* place. C gets
+    /// this for free: there the alias and its target are the same `Var`, and
+    /// the trace list hangs off that `Var`.
     pub(crate) fn trace_identity(&self, base: &[u8]) -> crate::vars::TraceHome {
         crate::vars::trace_home(
             &self.frames.borrow(),
@@ -3910,7 +3909,7 @@ impl Interp {
     /// are gone, and an array local's elements with them. Each variable's own
     /// callbacks fire newest-first and contiguously; *which* variable comes
     /// first is C's local-slot / hash walk and is not a pinned property, so the
-    /// frame's own (sorted) name order stands in for it (issue #1575 row 1).
+    /// frame's own (sorted) name order stands in for it.
     fn frame_teardown_unset_traces(&self, level: usize) -> Vec<VarTeardownCallback> {
         if self
             .traces
@@ -4031,8 +4030,8 @@ impl Interp {
         // depend on the cell still existing — the 8.x namespace-scope fallback
         // only reaches the global when the global cell is present — so
         // re-resolving after the removal would silently pick a different
-        // variable and the unset trace would never fire (issue #1328).
-        // C resolves the `Var`, fires its traces, and only then frees it.
+        // variable and the unset trace would never fire. C resolves the
+        // `Var`, fires its traces, and only then frees it.
         let (base, elem) = crate::frame::split_array_ref(name);
         let traced = !self.traces.borrow().traces.is_empty();
         let key = traced.then(|| self.trace_identity(&base));
@@ -4040,7 +4039,7 @@ impl Interp {
         // `DeleteArray` fires each element's own traces — with `arrayPtr` NULL,
         // so only that element's list runs — after the array's own firing
         // (tclVar.c). The elements have to be read while the array is still
-        // there (issue #1575 row 3).
+        // there.
         let elements = if traced && elem.is_none() {
             self.array_names(&base).unwrap_or_default()
         } else {
@@ -4124,8 +4123,7 @@ impl Interp {
     fn fire_var_trace(&mut self, base: &[u8], elem: Option<&[u8]>, op: &[u8]) -> bool {
         // Resolve the access to the same identity registration used, so a trace
         // matches every spelling of the variable it is on (`::v` vs `v`, an
-        // `upvar` alias, and the 8.x namespace-scope fallback) — issues #1328,
-        // #1633.
+        // `upvar` alias, and the 8.x namespace-scope fallback).
         let home = self.trace_identity(base);
         let access = self.trace_access(base, base, elem, &home, false);
         self.fire_var_trace_resolved(&home, &access, op)
@@ -4203,7 +4201,7 @@ impl Interp {
         // variable, don't call them again" — C's early return on
         // `TclIsVarTraceActive(varPtr)` (tclTrace.c 9.0.4:2513). Per *cell*: a
         // callback writing a different element of the same array is a different
-        // `Var` and fires (issue #1574).
+        // `Var` and fires.
         if self.active_var_trace_scopes.borrow().contains(&cell) {
             return false;
         }
@@ -4322,7 +4320,7 @@ impl Interp {
     ///
     /// This is why it is not `set_error`: that starts a *fresh* error and would
     /// throw the callback's trace away, leaving `errorInfo` as the bare
-    /// `can't set "x": …` line (issue #1633's errorInfo row).
+    /// `can't set "x": …` line.
     pub(crate) fn var_trace_error(&mut self, name: &[u8], op: &[u8], reason: &[u8]) -> Code {
         // C's `TclCallVarTraces` verb table (tclTrace.c 9.0.4:2668-2681). The
         // `-errorcode` is *not* set there but by the access that failed, and
@@ -4681,7 +4679,7 @@ impl Interp {
         // C prepends each new command trace (`Tcl_TraceCommand`, tclTrace.c
         // 9.0.4:1016-1018) and `CallCommandTraces` walks the list head→tail
         // (tclBasic.c:3972-3974), so the newest fires first. Our Vec pushes
-        // newest-last. Issue #1440.
+        // newest-last.
         // The callbacks are captured up front, not re-read per step: this walk
         // owns the dying token's list, which a callback's re-creation of the
         // command detaches from the name. See [`Self::cmd_trace_untraced`].
@@ -4764,7 +4762,7 @@ impl Interp {
     /// The callback prefix of the live command/execution trace `id`, or `None`
     /// when a callback has since removed it. C walks the trace list through
     /// `nextPtr` and `Tcl_UntraceCommand` unlinks a record at once, so a trace
-    /// removed mid-firing never fires in that pass. Issue #1633 row 8.
+    /// removed mid-firing never fires in that pass.
     ///
     /// This is the **execution** rule: `TclCheckExecutionTraces` follows the
     /// list of whatever command the name now holds, so a callback that
@@ -5115,9 +5113,9 @@ impl Interp {
     /// Resolve (creating if needed) a namespace by name, anchored at the
     /// **global** namespace regardless of the current one — C's
     /// `TclGetNamespaceForQualName(..., TCL_GLOBAL_ONLY |
-    /// TCL_CREATE_NS_IF_UNKNOWN)`. Used by `interp invokehidden -namespace`
-    /// (issue #1412 item 5): `-namespace bar` names `::bar` even when called
-    /// from inside another namespace (tclsh 9.0.4-pinned).
+    /// TCL_CREATE_NS_IF_UNKNOWN)`. Used by `interp invokehidden -namespace`:
+    /// `-namespace bar` names `::bar` even when called from inside another
+    /// namespace (tclsh 9.0.4-pinned).
     pub(crate) fn ensure_global_namespace(&mut self, name: &[u8]) -> NsId {
         self.invalidate_command_environment();
         self.namespaces.borrow_mut().ensure_namespace(GLOBAL, name)
@@ -5483,7 +5481,7 @@ impl Interp {
             self.invalidate_guard_domain(GuardDomain::VariableTrace);
         }
         // Grouped per variable, newest-first inside each group — see
-        // [`Self::group_newest_first_per_entity`]. Issue #1440.
+        // [`Self::group_newest_first_per_entity`].
         Self::group_newest_first_per_entity(victims, |victim| victim.0.clone())
     }
 
@@ -5579,7 +5577,7 @@ impl Interp {
             .or_else(|| namespaces.dying_namespace(self.current_ns.get(), name))
     }
 
-    // -- introspection (`info` / `array`) -------------------------------------
+    // introspection (`info` / `array`)
 
     /// `info exists name` — whether a scalar/array/element variable is set
     /// (splitting `arr(key)`).
@@ -5744,7 +5742,7 @@ impl Interp {
         );
     }
 
-    // -- result ---------------------------------------------------------------
+    // result
 
     /// `Tcl_SetObjResult`: retain `obj` into the result slot, release the prior.
     ///
@@ -5940,9 +5938,9 @@ impl Interp {
     /// [`make_proc_error`](Self::make_proc_error)) and published to the globals at
     /// the catch / outermost-eval boundary — not stamped here.
     ///
-    /// The `-errorcode` taxonomy is conservative for now: `wrong # args` ⇒ `TCL
-    /// WRONGARGS`, else `NONE` (the full taxonomy is a follow-up). `error`/`throw`
-    /// set a richer code on their own paths.
+    /// The `-errorcode` taxonomy here only distinguishes `wrong # args` (⇒
+    /// `TCL WRONGARGS`) from everything else (⇒ `NONE`); `error`/`throw` set a
+    /// richer code on their own paths.
     pub(crate) fn error(&mut self, msg: &[u8]) -> Code {
         self.set_result_bytes(msg);
         let code: &[u8] = if msg.starts_with(b"wrong # args:") {
@@ -6767,7 +6765,7 @@ impl Interp {
         d
     }
 
-    // -- eval -----------------------------------------------------------------
+    // eval
 
     /// Evaluate through the common outer boundary, projecting the live
     /// completion before applying its publication tail.
@@ -6864,9 +6862,9 @@ impl Interp {
         advance_shared: bool,
     ) -> Code {
         // Native-stack safety net — see `NATIVE_EVAL_DEPTH_LIMIT`'s doc
-        // comment (issue #996). Checked before incrementing / doing any
-        // other setup, so bailing out here needs no unwind: `owned` (not
-        // yet pushed) simply drops normally.
+        // comment. Checked before incrementing / doing any other setup, so
+        // bailing out here needs no unwind: `owned` (not yet pushed) simply
+        // drops normally.
         if NATIVE_EVAL_DEPTH_LIMIT.exceeded(self.eval_depth.get() + 1) {
             return self.error(b"too many nested evaluations (infinite loop?)");
         }
@@ -7288,8 +7286,9 @@ impl Interp {
         // characters after close-brace` with `sfx` never called. Walking the
         // words in order and raising at the first `WordPart::ParseError` (this
         // engine's carrier for those failures — the scanner stays infallible so
-        // the LSP can keep tokenizing) substituted word by word instead, which
-        // ran `sfx`. Issue #1787; the gap #1818's header recorded as pending.
+        // the LSP can keep tokenising) matches that: substituting word by word
+        // without this check would run `sfx` before the later parse error is
+        // seen.
         if let Some(msg) = parse::first_parse_error(words, self.lexer_config()) {
             return self.error(msg.as_bytes());
         }
@@ -7841,9 +7840,8 @@ impl Interp {
     pub(crate) fn rand_next(&self) -> f64 {
         // The generator itself — step, seed nudge and C's reciprocal-multiply
         // scaling — is the shared owner's (`tcl_syntax::expr::rand`), so this
-        // engine and the VM cannot drift on a seeded stream (#1432). What
-        // stays here is the seed *storage* and the nondeterministic
-        // first-seed policy.
+        // engine and the VM cannot drift on a seeded stream. What stays here
+        // is the seed *storage* and the nondeterministic first-seed policy.
         let mut seed = self.rand_seed.get().unwrap_or_else(|| {
             // Nondeterministic first seed, kept in [1, 2^31-2]. The wall clock
             // comes from the host (so the browser/WASI hosts seed it too).
@@ -7919,7 +7917,7 @@ impl Interp {
     /// the empty word is `ambiguous option ""`. The child command object
     /// advertises a *shorter* list than `interp` does (no `children`, `create`,
     /// `delete`, or `exists`: those are only ever spelled `interp <op> path`),
-    /// and this runtime dispatches all thirteen (issue #1412 item 7).
+    /// and this runtime dispatches all thirteen.
     pub(crate) const CHILD_OPTIONS: &[&[u8]] = &[
         b"alias",
         b"aliases",
@@ -8202,10 +8200,10 @@ impl Interp {
         // reports and behaves as its parent's release. Inherited before the
         // globals are written, so the child's `tcl_version`/`tcl_patchLevel`
         // and its namespace-scope variable resolution both agree with the
-        // parent (issue #1328). Resolution still runs against the child's
-        // *own* global namespace: the rule is shared, the variables are not.
-        // The whole profile is inherited, not just the release, so a child's
-        // command-surface availability gate agrees too (issue #1463).
+        // parent. Resolution still runs against the child's *own* global
+        // namespace: the rule is shared, the variables are not. The whole
+        // profile is inherited, not just the release, so a child's
+        // command-surface availability gate agrees too.
         child.set_dialect_profile(self.dialect_profile());
         child
             .channels
@@ -8742,16 +8740,16 @@ impl Interp {
 
     /// Make this interp "safe": hide the commands that touch the host
     /// (filesystem, processes, sockets, the interpreter itself) — the core of
-    /// `interp create -safe`. The Safe Base's re-aliasing of `source`/`load`/
-    /// `file` is a follow-up (needs cross-interp aliases).
+    /// `interp create -safe`. This does not re-alias `source`/`load`/`file`
+    /// through the Safe Base, which would need cross-interp aliases.
     pub(crate) fn make_safe(&mut self) {
         // Variable unsets below can fire callbacks. Stale existing tokens before
         // the first visibility/policy write, not after re-entrant code can run.
         self.invalidate_interpreter_policy();
         // The hide list is the registry's `Traits::SAFE_INTERP_HIDDEN` query,
-        // not a name list this engine keeps (ledger row B2): C's own set is
-        // the `CmdInfo` rows lacking `CMD_IS_SAFE` plus the whole-command rows
-        // of `unsafeEnsembleCommands`, and that is what the trait records.
+        // not a name list this engine keeps: C's own set is the `CmdInfo`
+        // rows lacking `CMD_IS_SAFE` plus the whole-command rows of
+        // `unsafeEnsembleCommands`, and that is what the trait records.
         // `hide_command` returns `false` for a name this interpreter does not
         // carry, which is the per-release narrowing: `unload` (8.5+) and
         // `zipfs` (9.0+) are release-gated and simply are not there under an
@@ -8759,9 +8757,9 @@ impl Interp {
         //
         // `after` / `vwait` are correctly absent from the trait — confirmed
         // present and callable inside a real safe child on tclsh 8.6.14
-        // (`s eval {info commands after}` returns `after`); an earlier
-        // hand-typed list here once hid them, breaking legitimate safe-interp
-        // code using `after idle` / `after cancel`.
+        // (`s eval {info commands after}` returns `after`). A hand-typed hide
+        // list here would risk hiding them by mistake, breaking legitimate
+        // safe-interp code that uses `after idle` / `after cancel`.
         for name in tcl_registry::safe_interp_hidden_commands() {
             self.hide_command(name.as_bytes(), name.as_bytes());
         }
@@ -9865,7 +9863,7 @@ impl Interp {
             None => {
                 // Lazily bound: the target was deleted, never existed, or is
                 // a builtin the emulated release does not carry. Feed the
-                // synthesized target call back through ordinary dispatch so
+                // synthesised target call back through ordinary dispatch so
                 // the global `unknown` handler sees the target name, prefix,
                 // and original arguments exactly as C's `TclInvokeAlias`
                 // does (tclBasic.c / tclNamesp.c). Alias targets are resolved
@@ -10363,9 +10361,7 @@ impl Drop for InterpState {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Object byte helpers.
-// ---------------------------------------------------------------------------
 
 /// A fresh (`rc 0`) string object holding `bytes`.
 pub(crate) fn new_string(bytes: &[u8]) -> *mut TclObj {
@@ -10374,7 +10370,7 @@ pub(crate) fn new_string(bytes: &[u8]) -> *mut TclObj {
 }
 
 /// Collapse every run of two-or-more `:` to a single `::` separator, matching
-/// Tcl's namespace-name normalization (empty namespace components are ignored):
+/// Tcl's namespace-name normalisation (empty namespace components are ignored):
 /// `::::classinstance` → `::classinstance`, `::a:::b` → `::a::b`. A lone `:` is
 /// a legal identifier character and is left untouched.
 fn normalize_colons(name: &[u8]) -> Vec<u8> {
@@ -11023,8 +11019,9 @@ mod tests {
         });
     }
 
-    /// Regression coverage for issue #996 in this runtime specifically: a
-    /// tree-walking interpreter recurses natively (`eval_command` → command
+    /// Regression coverage for the native-stack recursion hazard this
+    /// runtime is exposed to: a tree-walking interpreter recurses natively
+    /// (`eval_command` → command
     /// dispatch → `eval_control_body`/`run_proc` → `eval_script_mode`,
     /// recursively) for every nested control-flow body or proc call, unlike
     /// C Tcl's bytecode-compiled control structures. Empirically, on this
@@ -11056,7 +11053,7 @@ mod tests {
         });
     }
 
-    /// Defence in depth for the alias trampoline (issue #1447). `interp alias`
+    /// Defence in depth for the alias trampoline. `interp alias`
     /// and `rename` both refuse a cycle at definition time, so plant one
     /// straight into the command table — bypassing that gate the way only a
     /// bug could — and confirm the dispatch bound turns what would otherwise be
@@ -11344,8 +11341,7 @@ mod tests {
 
     #[test]
     fn qualified_global_aliases_plain_at_top_level() {
-        // The headline T1.5 fix: `::pinged` and `pinged` are the SAME global
-        // (before, `::pinged` was a literal frame key distinct from `pinged`).
+        // `::pinged` and `pinged` resolve to the SAME global.
         leak_free(|i| {
             assert_eq!(i.eval_str(b"set ::pinged 1"), Code::Ok);
             assert_eq!(i.eval_str(b"set pinged"), Code::Ok);
@@ -11548,8 +11544,8 @@ mod tests {
     }
 
     /// Selecting the release selects the *lexing grammar* scripts parse
-    /// under (issue #1462) and the builtin command surface (issue #1463):
-    /// under an 8.4 pin `{*}` does not expand and the first-close `${…}`
+    /// under and the builtin command surface: under an 8.4 pin `{*}` does
+    /// not expand and the first-close `${…}`
     /// rule applies, and `lassign` (8.5+) resolves to `invalid command
     /// name` — while a user-defined proc of the same name stays callable
     /// (the compat-polyfill pattern).
@@ -11557,7 +11553,7 @@ mod tests {
     fn grammar_and_command_surface_follow_the_selected_release() {
         use tcl_dialect::TclVersion;
 
-        // #1462 — the `{*}` expansion grammar (TIP 157, 8.5+).
+        // The `{*}` expansion grammar (TIP 157, 8.5+).
         leak_free(|i| {
             i.set_runtime_version(TclVersion::V9_0);
             assert_eq!(ok(i, b"llength [list {*}{a b}]"), b"2");
@@ -11568,14 +11564,15 @@ mod tests {
             // braced word `{*}` with `{a b}` welded onto its close-brace —
             // which C rejects. Measured on tclsh8.4.20: `llength [list
             // {*}{a b}]` reports `extra characters after close-brace`, where
-            // 8.5.19/8.6.16/9.0.4/9.1b0 all answer `2`. This engine used to
-            // recover it as one word and answer `1`; the boundary owner's
-            // `welded_after_close` (#1786) closed that residual gap.
+            // 8.5.19/8.6.16/9.0.4/9.1b0 all answer `2`. The boundary owner's
+            // `welded_after_close` enforces this: a braced word directly
+            // followed by another brace-delimited word is rejected rather
+            // than merged into one word.
             assert_eq!(i.eval_str(b"llength [list {*}{a b}]"), Code::Error);
             assert_eq!(i.result_bytes(), b"extra characters after close-brace");
         });
 
-        // #1462 — the `${…}` delimiting rule: 8.x stops at the first `}`
+        // The `${…}` delimiting rule: 8.x stops at the first `}`
         // (its `Tcl_ParseVarName` counts no braces), 9.x nests. Verified
         // against tclsh8.4.20 / tclsh9.0.4.
         leak_free(|i| {
@@ -11591,7 +11588,7 @@ mod tests {
             assert_eq!(ok(i, b"set r ${a{b}c}"), b"9");
         });
 
-        // #1463 — the builtin surface: lassign is 8.5+, lpop is 9.0+.
+        // The builtin surface: lassign is 8.5+, lpop is 9.0+.
         leak_free(|i| {
             i.set_runtime_version(TclVersion::V8_4);
             assert_eq!(i.eval_str(b"lassign {a b} x"), Code::Error);
@@ -11618,13 +11615,12 @@ mod tests {
         });
     }
 
-    /// The #1463 availability gate is a property of the **final resolved
-    /// builtin**, not of the spelling the caller wrote. PR #1481's review
-    /// found the gate spelled out at direct dispatch only, so the two
-    /// resolve-then-`invoke` shapes — the alias trampoline and the `namespace
-    /// import` redirect — reached the builtin through a second, ungated
-    /// resolution and made an 8.4-hidden `lassign` callable as
-    /// `interp alias {} la {} lassign; la {a b} x y`.
+    /// The availability gate is a property of the **final resolved
+    /// builtin**, not of the spelling the caller wrote. Without that, the
+    /// two resolve-then-`invoke` shapes — the alias trampoline and the
+    /// `namespace import` redirect — could reach the builtin through a
+    /// second, ungated resolution and make an 8.4-hidden `lassign` callable
+    /// as `interp alias {} la {} lassign; la {a b} x y`.
     ///
     /// Error identity is oracled against real tclsh 8.6.16 / 9.0.4:
     /// `interp alias {} la {} nosuchcmd; la a b` reports `invalid command
@@ -11668,8 +11664,8 @@ mod tests {
         leak_free(|i| {
             i.set_runtime_version(TclVersion::V9_0);
             assert_eq!(i.eval_str(IMPORT), Code::Ok);
-            // The exact #1493 reproducer is successful without an explicit
-            // export.  Global builtins are not exported by default, so this
+            // This reproducer succeeds without an explicit export.  Global
+            // builtins are not exported by default, so this
             // records no alias; the important contract is that it does not
             // resolve the absolute root as the destination namespace.
             assert_eq!(i.eval_str(b"namespace export lassign"), Code::Ok);
@@ -11734,9 +11730,9 @@ mod tests {
     }
 
     /// The same gate on the two *non*-dispatch shapes that would hand a
-    /// release-hidden builtin back ungated (PR #1481 review): `rename`, which
-    /// would rebind it under a name the registry has no spec for, and `interp
-    /// hide`, which would park it where `interp invokehidden` reaches it.
+    /// release-hidden builtin back ungated: `rename`, which would rebind it
+    /// under a name the registry has no spec for, and `interp hide`, which
+    /// would park it where `interp invokehidden` reaches it.
     ///
     /// `rename`'s refusal is oracled against tclsh 8.6.16 / 9.0.4:
     /// `rename nosuchcmd zz` → `can't rename "nosuchcmd": command doesn't
@@ -12052,8 +12048,8 @@ mod tests {
 
     /// The hidden set under each pinned release is exactly the measured
     /// tclsh set, narrowed to the commands this runtime carries — `make_safe`
-    /// holds no name list any more, only the registry's
-    /// `Traits::SAFE_INTERP_HIDDEN` query (ledger row B2).
+    /// reads that set from the registry's `Traits::SAFE_INTERP_HIDDEN` query
+    /// rather than a hand-kept name list.
     ///
     /// The narrowing *is* the per-release mechanism, not a fudge: `unload`
     /// (8.5+) and `zipfs` (9.0+) are release-gated commands, so "hide what
@@ -12113,8 +12109,8 @@ mod tests {
 
     /// The core packages a bare interpreter pre-provides follow the pinned
     /// release, so `package require Tcl 8.5` fails under a 9.x pin exactly as
-    /// `tclsh9.0` fails it — it used to succeed here, because both engines
-    /// hardcoded `9.0.4`/`Tcl`+`tcl` regardless of the pin (ledger row B4).
+    /// `tclsh9.0` fails it, rather than succeeding the way it would if both
+    /// engines hardcoded `9.0.4`/`Tcl`+`tcl` regardless of the pin.
     ///
     /// Measured (`package provide <name>` in a fresh `tclsh`):
     /// 8.4.20 → `Tcl` = `8.4`, no `tcl`; 8.5.19 → `Tcl` = `8.5.19`;

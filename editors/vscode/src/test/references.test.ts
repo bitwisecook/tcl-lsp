@@ -54,10 +54,9 @@ suite("Find References", () => {
     }
   });
 
-  // Regression for issue #923: a proc nested two `namespace eval` levels
+  // A proc nested two `namespace eval` levels
   // deep, called from a Tk `bind` callback script by its fully-qualified
-  // name, must be found — the reported symptom was that this exact call
-  // shape showed "0 references".
+  // name, must be found.
   test("finds a fully-qualified proc call embedded in a bind callback inside a two-level nested namespace", async () => {
     const nsUri = getDocUri("issue923NestedNamespace.tcl");
     await activate(nsUri);
@@ -111,7 +110,7 @@ suite("Find References", () => {
     );
   });
 
-  // Issue #923: a class named as a `superclass` is a reference to that class.
+  // A class named as a `superclass` is a reference to that class.
   // In `oo-shapes.tcl`, `Animal` is subclassed by both `Dog` and `Cat`, so its
   // reference set must include both `superclass Animal` sites.
   test("finds superclass usages as references to the base class", async () => {

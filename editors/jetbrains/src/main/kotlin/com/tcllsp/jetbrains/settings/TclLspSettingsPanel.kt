@@ -53,14 +53,6 @@ private const val COMMENT_WIDTH = 440
 private const val SCROLL_UNIT = 16
 
 /**
- * A wrapping hint under a setting.
- *
- * `FormBuilder.addTooltip` builds a plain `JBLabel` straight from the string,
- * and a `JLabel` never wraps: the longest hint on this page is 180 characters,
- * so on a single line it alone asked the settings pane for about 1200px and
- * ran off the right-hand edge.
- */
-/**
  * The stored value a tri-state optimiser box currently represents.
  *
  * `null` is the third state, and it is the important one: it means "inherit
@@ -82,6 +74,14 @@ private fun threeState(value: Boolean?): ThreeStateCheckBox.State = when (value)
     null -> ThreeStateCheckBox.State.DONT_CARE
 }
 
+/**
+ * A wrapping hint under a setting.
+ *
+ * `FormBuilder.addTooltip` builds a plain `JBLabel` straight from the string,
+ * and a `JLabel` never wraps: the longest hint on this page is 180 characters,
+ * so on a single line it alone asked the settings pane for about 1200px and
+ * ran off the right-hand edge.
+ */
 private fun FormBuilder.addWrappedComment(text: String): FormBuilder =
     addComponentToRightColumn(
         JBLabel(
@@ -263,8 +263,9 @@ class TclLspSettingsPanel {
     private val diagW150 = JBCheckBox("W150: Not available across the project's declared version-...")
     private val diagW151 = JBCheckBox("W151: Numeral changes meaning or validity across the proje...")
     private val diagW152 = JBCheckBox("W152: A registry-declared option relation is unmet")
-    private val diagW200 = JBCheckBox("W200: Signed/unsigned modifier on a binary format/binary s...")
+    private val diagW200 = JBCheckBox("W200: Unsigned (u) suffix on a binary format/binary scan f...")
     private val diagW201 = JBCheckBox("W201: Manual path concatenation")
+    private val diagW202 = JBCheckBox("W202: binary format/binary scan field letter requires a ne...")
     private val diagW230 = JBCheckBox("W230: Constant list index out of range")
     private val diagW231 = JBCheckBox("W231: Constant list index out of range")
     private val diagW232 = JBCheckBox("W232: Constant string index out of range")
@@ -567,8 +568,8 @@ class TclLspSettingsPanel {
                     diagW137, diagW138, diagW139, diagW140, diagW141, diagW142,
                     diagW143, diagW144, diagW145, diagW146, diagW147, diagW148,
                     diagW149, diagW150, diagW151, diagW152, diagW200, diagW201,
-                    diagW230, diagW231, diagW232, diagW233, diagW240, diagW241,
-                    diagW250, diagW308, diagW314, diagW315,
+                    diagW202, diagW230, diagW231, diagW232, diagW233, diagW240,
+                    diagW241, diagW250, diagW308, diagW314, diagW315,
                 ),
             ),
         )
@@ -829,6 +830,7 @@ class TclLspSettingsPanel {
             diagW152.isSelected != s.diagnosticW152 ||
             diagW200.isSelected != s.diagnosticW200 ||
             diagW201.isSelected != s.diagnosticW201 ||
+            diagW202.isSelected != s.diagnosticW202 ||
             diagW230.isSelected != s.diagnosticW230 ||
             diagW231.isSelected != s.diagnosticW231 ||
             diagW232.isSelected != s.diagnosticW232 ||
@@ -1121,6 +1123,7 @@ class TclLspSettingsPanel {
         s.diagnosticW152 = diagW152.isSelected
         s.diagnosticW200 = diagW200.isSelected
         s.diagnosticW201 = diagW201.isSelected
+        s.diagnosticW202 = diagW202.isSelected
         s.diagnosticW230 = diagW230.isSelected
         s.diagnosticW231 = diagW231.isSelected
         s.diagnosticW232 = diagW232.isSelected
@@ -1292,14 +1295,6 @@ class TclLspSettingsPanel {
         }
     }
 
-    /**
-     * Restart the Tcl LSP server in every open project. Called after
-     * launch-affecting settings change (server path) so
-     * the user picks up the new command line without restarting the
-     * IDE. Non-launch settings (features, formatting, diagnostics, …)
-     * are sent to the running server via workspace/configuration and
-     * don't need a restart.
-     */
     @Suppress("UnstableApiUsage")
     /**
      * The profile selector, with the link that clears every per-code override
@@ -1331,6 +1326,14 @@ class TclLspSettingsPanel {
         optCodeBoxes.forEach { it.state = ThreeStateCheckBox.State.DONT_CARE }
     }
 
+    /**
+     * Restart the Tcl LSP server in every open project. Called after
+     * launch-affecting settings change (server path) so
+     * the user picks up the new command line without restarting the
+     * IDE. Non-launch settings (features, formatting, diagnostics, …)
+     * are sent to the running server via workspace/configuration and
+     * don't need a restart.
+     */
     private fun restartLspServers() {
         for (project in ProjectManager.getInstance().openProjects) {
             if (project.isDisposed) continue
@@ -1459,6 +1462,7 @@ class TclLspSettingsPanel {
         diagW152.isSelected = s.diagnosticW152
         diagW200.isSelected = s.diagnosticW200
         diagW201.isSelected = s.diagnosticW201
+        diagW202.isSelected = s.diagnosticW202
         diagW230.isSelected = s.diagnosticW230
         diagW231.isSelected = s.diagnosticW231
         diagW232.isSelected = s.diagnosticW232

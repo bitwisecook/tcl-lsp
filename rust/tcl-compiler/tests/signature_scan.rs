@@ -51,9 +51,9 @@ fn top_level_proc() {
     assert_eq!(param_names, ["name"]);
 }
 
-/// Issue #1107 — a **computed** parameter-list word records no formals and
-/// marks them unknown, so a cross-file arity consumer abstains instead of
-/// demanding the one bogus argument `"[makeargs]"` used to look like.
+/// A **computed** parameter-list word records no formals and marks them
+/// unknown, so a cross-file arity consumer abstains instead of treating the
+/// literal text `"[makeargs]"` as a bogus argument name.
 ///
 /// tclsh 9.0.4 / 8.6.16: with `proc makeargs {} {return {a b}}`,
 /// `proc p [makeargs] {…}` then `info args p` → `a b`, and `p 1 2` runs.
@@ -85,9 +85,9 @@ fn computed_parameter_list_is_unknown_not_none() {
     }
 }
 
-/// TP / FP control for #1107 — every *literal* spelling still models its
-/// formals and still produces a real arity, including the substitution-free
-/// quoted list the position classifier used to call computed.
+/// TP / FP control: every *literal* spelling still models its formals and
+/// still produces a real arity, including the substitution-free quoted list,
+/// which the position classifier must not call computed.
 #[test]
 fn literal_parameter_lists_still_record_formals() {
     for (src, qname, names) in [

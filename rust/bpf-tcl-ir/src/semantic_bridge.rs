@@ -407,9 +407,8 @@ pub enum EbpfRegionEligibility {
 /// Why the bridge could not seal a candidate region.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EbpfRegionDecline {
-    /// The semantic bundle carried no resolved environment (ledger C1 /
-    /// redesign §11.2 D1: the retired form carried the mask that named no one
-    /// profile; an absent context is the whole of that state now).
+    /// The semantic bundle carried no resolved environment: an absent
+    /// context, rather than a mask naming no profile.
     ContextUnavailable,
     /// The source was outside the current executable semantic subset.
     SourceDeclined(tcl_compiler::executable_ir::SourceCompatibilityDecline),

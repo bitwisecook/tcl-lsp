@@ -105,11 +105,16 @@ until the map assigns it.
 5. **Local gates, in order, before every push:**
 
    ```
-   make rust-check     # fmt + clippy + xtask drift gates; mirrors CI's pr-gate
+   make rust-check     # fmt + clippy + xtask drift gates; mirrors CI's rust-check worker
    make prep-pr        # format + codegen + lint/typecheck + smoke
    ```
 
-   `rust-check` is the minimum for Rust-only changes. `check-all` (lint +
+   `rust-check` is the minimum for Rust-only changes. In CI, the `rust-check`
+   worker starts after `channel` and runs concurrently with `spectcl-compat`
+   and `web-frontends`; the required `pr-gate` status is an `always()` aggregate
+   that explicitly requires all four results. `scripts/dev/test-pr-gate-path.sh`
+   rejects missing needs, job-level skips, weakened tag gates, and serialising
+   the worker behind a prerequisite. `check-all` (lint +
    typecheck across TypeScript, Rust, Python) is the surface to run alone
    after touching TypeScript or Python. Failures are fixed, not skipped;
    tooling-missing skips are deliberate (`SKIP_CHECK_RUST=1`, …). Commit
@@ -298,7 +303,7 @@ Cargo targets so old target-heavy archives cannot be restored; the
 per-registration Cargo target Tank does retain lives outside the checkout and
 is validated on every run
 ([tank-persistent-cargo-target.md](tank-persistent-cargo-target.md)). sccache v0.17 is
-measured across registrations rather than assumed to normalize differing
+measured across registrations rather than assumed to normalise differing
 absolute checkout roots. Its setup, compiler cache, and statistics are
 performance-only: an unavailable cache falls back to direct rustc, while
 failed statistics and non-zero cache-write errors emit workflow warnings
@@ -332,7 +337,9 @@ identity** (tree/SHA, never a label or commit message), and bounded in time.
   ownership used by the no-nextest fallback.
 - `rust/xtask/src/smoke_targets.rs` — fail-closed smoke inventory validation
   and exact Cargo fallback execution.
-- `.github/workflows/ci.yml` — the `channel` and `pr-gate` jobs.
+- `.github/workflows/ci.yml` — the `channel`, `rust-check`, and `pr-gate` jobs.
+- `scripts/dev/test-pr-gate-path.sh` — the independent-worker and fail-closed
+  aggregate contract for issue #2014.
 - `scripts/dev/lsp-e2e-path.sh` — the fail-closed archive/partition classifier.
 - `scripts/dev/rust-test-binary-shard.sh` and
   `scripts/dev/rust-test-binary-shards.tsv` — exact root-suite build/selection

@@ -303,8 +303,8 @@ fn to_num_operand(v: &Value, side: errors::OperandSide, op: BinOp) -> Result<Num
 /// ([`tcl_syntax::expr::errors`]): the *wording* is a release axis (9.0 names
 /// the value and the side and has a list branch; 8.4-8.6 name neither and
 /// have no list branch) while the `-errorcode ARITH DOMAIN <description>` is
-/// invariant. The VM emitted the 9.0 form at every `--tcl-version` and no
-/// `-errorcode` at all before #1581.
+/// invariant. Emitting the 9.0 wording at every `--tcl-version`, with no
+/// `-errorcode` at all, would be wrong on both counts.
 ///
 /// The release comes from the same ambient the numeric grammar already
 /// follows ([`errors::ambient_release`]), because these errors are raised
@@ -331,8 +331,8 @@ fn operand_type_err(v: &Value, side: errors::OperandSide, op: &str) -> TclError 
 /// The boolean-context error C raises for a value that is neither a number
 /// nor a Tcl boolean word (`expected boolean value but got "x"`,
 /// `-errorcode TCL VALUE NUMBER`) or for a NaN there
-/// (`floating point value is Not a Number`, `TCL VALUE DOUBLE NAN`). Both
-/// were `NONE` on the VM before #1581.
+/// (`floating point value is Not a Number`, `TCL VALUE DOUBLE NAN`). Without
+/// this, both would default to `NONE`.
 fn boolean_context_err(message: String) -> TclError {
     let code = if message == errors::NAN_MESSAGE {
         errors::NAN_CODE
@@ -369,8 +369,8 @@ fn zero_to_negative_power() -> TclError {
 /// cannot be used: `cannot use <desc> "<v>" as operand of "<op>"`. `<desc>` is
 /// `floating-point value` (a double handed to `~`), `non-numeric floating-point
 /// value` (NaN), `a list` (a multi-element list — phrased without quotes), or
-/// `non-numeric string`. (`errorCode ARITH DOMAIN <desc>` is not threaded here
-/// yet — tracked by #1581.)
+/// `non-numeric string`. (`errorCode ARITH DOMAIN <desc>` is not threaded
+/// here.)
 fn unary_operand_err(v: &Value, op: &str) -> TclError {
     operand_type_err(v, errors::OperandSide::Unary, op)
 }
@@ -811,9 +811,9 @@ fn word_or(left: &Value, right: &Value) -> Result<bool, TclError> {
 }
 
 /// A math-function command's error completion as an expr error, **keeping the
-/// `-errorcode` it published**. The dynamic `expr $e` path used to rebuild the
-/// error from the message alone, so the same call reported `ARITH DOMAIN` when
-/// compiled as `expr {…}` and `NONE` when evaluated from a variable.
+/// `-errorcode` it published**. Rebuilding the error from the message alone
+/// on the dynamic `expr $e` path would report `ARITH DOMAIN` when
+/// compiled as `expr {…}` but `NONE` when evaluated from a variable.
 fn call_error(c: &tcl_runtime_api::Completion<Value>) -> TclError {
     let message = c.result.to_str().to_string();
     let code = crate::command::resolved_error_code(c).to_str().to_string();
@@ -1215,7 +1215,7 @@ mod tests {
 
     /// The `**` and shift guards of the shared tower, with C's message text:
     /// the exponent limit is `MAX_EXPONENT` (2^28 - 1 — tclsh errors at
-    /// `2**268435456` where the old code computed a 33 MB number), a bignum
+    /// `2**268435456` rather than compute a 33 MB number), a bignum
     /// exponent keeps the `0`/`±1` collapses, and a left-shift count past
     /// `INT_MAX` is C's overflow error rather than an astronomic attempt.
     #[test]

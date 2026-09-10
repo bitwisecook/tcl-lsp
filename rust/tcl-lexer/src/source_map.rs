@@ -29,8 +29,8 @@
 //! Bundling source and line index into one type makes the "threading"
 //! obvious: functions that need to resolve spans take `&SourceMap`,
 //! not two separate parameters. The bundle is cheap: the source is a
-//! borrowed slice (zero-sized to own) and the line index is a
-//! `Box<[u32]>` that clones in one allocation.
+//! borrowed slice and the line index is an `Arc<[u32]>` whose clone is
+//! a refcount bump.
 //!
 //! See `docs/design/rust/engineering-guide.md` for the broader "source map threaded
 //! throughout" design.
@@ -143,15 +143,10 @@ impl<'src> SourceMap<'src> {
     /// For most kinds this is identical to `self.text(tok.span)`.
     /// For `VAR` tokens, the leading `$` (and the `{` of a `${…}`
     /// braced form) is stripped so the result is the variable name
-    /// alone. As more wrapper-style tokens arrive (`STR` braced
-    /// strings in L6, quoted strings in L7), this helper grows
-    /// additional stripping rules; it is the **one place** in the
-    /// codebase that encodes the convention of "position range spans
-    /// the full token, text field is the inner content".
-    ///
-    /// The `PyO3` binding uses this helper when constructing
-    /// `PyToken.text`; Rust consumers that want the same
-    /// inner-content text should use it too.
+    /// alone. Every wrapper-style token's stripping rule lives here:
+    /// this is the **one place** in the codebase that encodes the
+    /// convention of "position range spans the full token, text field
+    /// is the inner content".
     #[must_use]
     pub fn token_text(&self, tok: Token) -> &'src str {
         token_text_in(self.source, tok)
@@ -248,7 +243,7 @@ pub(crate) fn token_text_in(source: &str, tok: Token) -> &str {
             // `"` / `$` / `[` in a bare word is emitted by `parse_esc` with
             // `content_offset == 0` and `in_quote == false`, so it is left
             // as its own text — `set x $a"` resolves the trailing `"`, not
-            // `""` (issue 160).
+            // `""`.
             if (tok.content_offset != 0 || tok.in_quote)
                 && stripped.len() == 1
                 && matches!(stripped.chars().next(), Some('"' | '$' | '['))
@@ -327,7 +322,7 @@ mod tests {
     fn token_text_literal_trailing_quote_is_not_empty_clamped() {
         // `set x $a"` — the trailing `"` lexes as a 1-byte ESC with
         // content_offset == 0 (no opening quote was stripped), so its text is
-        // the literal `"`, not an empty quoted body (issue 160).
+        // the literal `"`, not an empty quoted body.
         let src = "set x $a\"";
         let toks = crate::Lexer::new(src).tokenise_all().unwrap();
         let map = SourceMap::new(src);

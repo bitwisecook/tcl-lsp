@@ -1,4 +1,3 @@
-//! Packet/byte decoding: pcap iteration, L3/L4 parsing, HTTP/TLS peek, F5
 // tcl-lsp — a language server and toolchain for Tcl
 // Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
 //
@@ -17,6 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+//! Packet/byte decoding: pcap iteration, L3/L4 parsing, HTTP/TLS peek, F5
 //! trailer.
 
 use std::net::{Ipv4Addr, Ipv6Addr};

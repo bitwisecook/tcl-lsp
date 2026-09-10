@@ -180,7 +180,7 @@ fn comment_lines(source: &str, dialect: &str) -> std::collections::BTreeSet<u32>
 #[test]
 fn comment_line_continuation_is_comment() {
     // A `#` comment whose line ends in an unescaped backslash continues onto
-    // the next physical line, and that continuation is a comment too (#759).
+    // the next physical line, and that continuation is a comment too.
     let source = "# a comment \\\nstill a comment\nset x 1\n";
     let lines = comment_lines(source, "tcl8.6");
     assert!(lines.contains(&0) && lines.contains(&1), "{lines:?}");
@@ -263,7 +263,7 @@ fn comment_continuation_crlf() {
 #[test]
 fn comment_after_semicolon_is_a_comment() {
     // `#` is a comment at command position, which includes right after a `;`
-    // command separator — `puts hi ;# tail` (issue #759 review).
+    // command separator — `puts hi ;# tail`.
     let source = "puts hi ;# tail comment\n";
     let t = decode(source, "tcl8.6");
     assert!(
@@ -320,7 +320,7 @@ fn if_elseif_else_are_keywords() {
     }
 }
 
-// TclOO definition-body highlighting (issue #747).
+// TclOO definition-body highlighting.
 //
 // C-Tcl proof: `oo::configurable`, `oo::abstract`, and `oo::singleton` are
 // real Tcl 9.0 metaclasses (`info commands oo::*`) that manufacture classes
@@ -331,9 +331,9 @@ fn if_elseif_else_are_keywords() {
 
 #[test]
 fn oo_configurable_body_keywords_are_highlighted() {
-    // Regression for #747: `superclass` / `self` / `property` / `method`
-    // inside an `oo::configurable` body must highlight as keywords, exactly
-    // as they already do inside `oo::class`.
+    // `superclass` / `self` / `property` / `method` inside an
+    // `oo::configurable` body must highlight as keywords, exactly as they do
+    // inside `oo::class`.
     let src = concat!(
         "oo::configurable create Widget {\n",
         "    superclass Base\n",
@@ -374,9 +374,8 @@ fn oo_configurable_method_body_is_recursed() {
 
 #[test]
 fn oo_class_method_body_is_recursed() {
-    // Regression for #747 (comment: "even with oo::class it stops at the
-    // method body"): the `method`/`constructor` body inside an oo::class
-    // block must be recursed, not left as one opaque string.
+    // The `method`/`constructor` body inside an `oo::class` block must be
+    // recursed, not left as one opaque string.
     let src = concat!(
         "oo::class create C {\n",
         "    constructor {} { set y 2 }\n",
@@ -407,8 +406,8 @@ fn oo_wrapper_block_body_keeps_member_grammar() {
     // TclOO's bare wrapper-block form `private { … }` / `self { … }` is a
     // nested *definition* script: the members inside it (`method`, `variable`)
     // must still be recognised as keywords, and their bodies recursed — not
-    // walked as ordinary Tcl (Codex review of #839: the block dropped out of
-    // definition grammar, so `method` inside `private { … }` went unhighlighted).
+    // walked as ordinary Tcl.  A block that drops out of definition grammar
+    // leaves `method` inside `private { … }` unhighlighted.
     for wrapper in ["private", "self"] {
         let src = format!(
             "oo::class create C {{\n    {wrapper} {{\n        method m {{}} {{ set y 2 }}\n        variable secret 0\n    }}\n}}\n",
@@ -546,7 +545,7 @@ fn oo_define_body_form_recurses_method_bodies() {
 
 #[test]
 fn oo_define_member_form_body_is_not_oo_context() {
-    // Issue #747 review (Codex P2): the member form
+    // The member form
     // `oo::define C method m {} { … }` carries an ordinary method body, not
     // a definition script.  A nested `method a b {not code}` inside it must
     // NOT be treated as an OO member definition — its `{not code}` stays an
@@ -631,10 +630,9 @@ fn tcloo_members_are_context_sensitive_like_snit() {
 
 #[test]
 fn multiline_braced_string_literal_is_highlighted_per_line() {
-    // Issue #757: a braced string literal spanning multiple lines lost its
-    // highlighting entirely (the enclosing `string` token was dropped because
-    // it crossed a newline).  It must now emit one `string` token per covered
-    // line, matching the quoted-string case.
+    // A braced string literal spanning multiple lines must emit one `string`
+    // token per covered line, matching the quoted-string case; a single token
+    // crossing a newline is dropped, losing the highlighting entirely.
     let src = "set x {some long\nstring that spans\nmultiple lines}\n";
     let toks = decode(src, "tcl9.0");
     for line in 0..=2 {
@@ -684,7 +682,7 @@ fn multiline_literal_tokens_never_span_a_newline() {
 
 #[test]
 fn hash_inside_multiline_literal_is_string_not_overlapping_comment() {
-    // Issue #757 review (Codex P1): a physical line inside a multi-line literal
+    // A physical line inside a multi-line literal
     // whose first non-whitespace char is `#` is literal text, not a comment.
     // The per-line string entry must be the only token on that line — the
     // comment scanner must not also emit an overlapping `comment` token (which
@@ -736,7 +734,7 @@ fn hash_inside_multiline_literal_is_string_not_overlapping_comment() {
     );
 }
 
-// Issue #774 — `variable a b c` inside a TclOO definition body declares every
+// `variable a b c` inside a TclOO definition body declares every
 // name as an instance variable (the namespace-level `variable name ?value?`
 // pairs only mark the leading name). All names must highlight as variables.
 
@@ -768,7 +766,7 @@ fn plain_variable_command_keeps_pair_classification() {
     );
 }
 
-// Issue #776 — a tcltest command imported into the global scope
+// A tcltest command imported into the global scope
 // (`namespace import tcltest::*`) resolves to its `tcltest::` spec, so bare
 // `test`'s options/body are recognised: `-body`/`-result` become options and
 // the `-body` script is recursed.
@@ -832,10 +830,9 @@ fn import_does_not_retroactively_resolve_earlier_command() {
     );
 }
 
-// Issue #775 — the argument to `source` is still tokenised: a command
+// The argument to `source` is still tokenised: a command
 // substitution `[...]` in the file-name argument is highlighted as a command
-// sequence (its head + args), not left as one opaque string.  (No behaviour
-// change on the rust branch — this locks the already-correct classification.)
+// sequence (its head + args), not left as one opaque string.
 
 #[test]
 fn source_command_substitution_argument_is_tokenised() {
@@ -861,10 +858,9 @@ fn source_command_substitution_argument_is_tokenised() {
     );
 }
 
-// Peer bugs of #774 — other multi-name variable-declaring commands whose
-// trailing names the registry's single leading VarWrite role leaves as
-// strings.  The analyser already tracks these correctly (via lowering hooks);
-// only the highlighting lagged.
+// The other multi-name variable-declaring commands, whose trailing names the
+// registry's single leading `VarWrite` role leaves as strings.  The analyser
+// tracks them through its lowering hooks; the highlighting must agree.
 
 #[test]
 fn global_highlights_every_name() {
@@ -981,8 +977,8 @@ fn non_loop_command_first_arg_stays_string() {
 
 // Parameter-list highlighting — proc / method / constructor / apply-lambda
 // parameters, and the registry `LoopVarList` role for `dict map` (peer of
-// `dict for`).  A *parameter* carries the standard LSP `parameter` type (#898
-// §4), so a theme can tell an argument from an ordinary local; a *loop*
+// `dict for`).  A *parameter* carries the standard LSP `parameter` type,
+// so a theme can tell an argument from an ordinary local; a *loop*
 // variable stays a plain variable declaration.
 
 #[test]
@@ -1167,7 +1163,7 @@ fn snit_type_members_highlight() {
         "snit `variable` name must be a variable: {:?}",
         decode(src, "tcl8.6"),
     );
-    // Method parameter — the standard LSP `parameter` type (#898 §4).
+    // Method parameter — the standard LSP `parameter` type.
     assert_eq!(
         kind_of_word(src, "tcl8.6", "volume").as_deref(),
         Some("parameter"),
@@ -1250,7 +1246,7 @@ fn itcl_class_members_highlight() {
         );
     }
     // The instance variable declaration is a variable; the method's parameter
-    // carries the standard LSP `parameter` type (#898 §4).
+    // carries the standard LSP `parameter` type.
     assert_eq!(
         kind_of_word(src, "tcl8.6", "contents").as_deref(),
         Some("variable")
@@ -1279,7 +1275,7 @@ fn itcl_access_modifier_wraps_inner_member() {
         );
     }
     // The wrapped method's parameter and the wrapped variable's name both
-    // resolve — the parameter as `parameter` (#898 §4), the variable as a
+    // resolve — the parameter as `parameter`, the variable as a
     // variable.
     assert_eq!(
         kind_of_word(src, "tcl8.6", "ww").as_deref(),
@@ -1346,7 +1342,7 @@ fn itcl_body_external_definition_highlights() {
     }
 }
 
-// Issue #806 — report::defstyle scoped command environment.
+// The `report::defstyle` scoped command environment.
 //
 // Inside a report::defstyle style script the report configuration methods
 // (top/data/columns/…) highlight as library functions and their ensemble
@@ -1394,19 +1390,16 @@ fn scoped_report_command_not_highlighted_outside_body() {
     let _ = src;
 }
 
-// Issue #862 — "set"/"lassign"/"incr"/"lappend"/"append"/"expr" (and every
-// other plain builtin) rendered unstyled for users whose theme had no rule
-// for the `support.function.tcl` scope a `semanticTokenScopes` override
-// mapped `function.defaultLibrary` to — shadowing VS Code's built-in
-// cross-theme default instead of supplementing it (fixed in
-// editors/vscode/package.json; see
+// A `semanticTokenScopes` override mapping `function.defaultLibrary` to the
+// `support.function.tcl` scope shadows VS Code's built-in cross-theme default
+// instead of supplementing it, so plain builtins ("set"/"lassign"/"incr"/
+// "lappend"/"append"/"expr" and the rest) render unstyled under a theme with
+// no rule for that scope.  The editor-side guard is
 // `vscode_semantic_token_scopes_do_not_shadow_standard_defaults` in
-// src/semantic_tokens.rs for the editor-side guard).  These tests pin the
-// *classification* side: every reported command — and the same commands used
-// inside a TclOO method body or a tcltest `-body` script — must resolve to
-// `function` with the `defaultLibrary` modifier, so the naming
-// infrastructure that drives the fix stays correct generally, not just for
-// the specific commands the report happened to list.
+// src/semantic_tokens.rs; these tests pin the *classification* side: every
+// builtin — and the same commands used inside a TclOO method body or a
+// tcltest `-body` script — must resolve to `function` with the
+// `defaultLibrary` modifier.
 
 /// The reported commands, plus `lset` (the command bitwisecook's own
 /// investigation on the issue checked) and `puts` as a non-regressed control.
@@ -1551,12 +1544,12 @@ fn bigip_conf_embedded_rule_body_is_tokenised_as_irules() {
     );
 }
 
-// Issue #1078 — a brace-quoted variable-name word is a variable, not a string
+// A brace-quoted variable-name word is a variable, not a string.
 //
 // tclsh 9.0.4 / 8.6.14, byte-identical: `set {$n} v; info exists {$n}` → 1
 // while `info exists n` → 0, so `{$n}` names a real variable — and quoting is
 // the *only* way that variable can ever be written.  Painting the word as a
-// plain `string` hid the declaration and invited the reader to see the `$n`
+// plain `string` hides the declaration and invites the reader to see the `$n`
 // inside as a substitution.
 
 #[test]
@@ -1611,15 +1604,15 @@ fn brace_quoted_variable_name_word_paints_as_a_variable() {
     );
 }
 
-// Issue #1138 — a script argument built with `list` highlights like the
+// A script argument built with `list` highlights like the
 // command it provably is.
 //
 // Tk's `library/tk.tcl:289` is `uplevel #0 [list upvar #0 ::tk::Priv.$disp
 // ::tk::Priv]`, and the very next line declares the same cell as `variable
 // ::tk::Priv`.  A 3-way comparison on tclsh 9.0.4 and 8.6.16 — direct `upvar
 // #0 g l`, braced `uplevel #0 {upvar #0 g l}`, and `uplevel #0 [list upvar #0
-// g l]` — shows the three are functionally identical; only the `[list …]`
-// form, the one Tk actually uses, was painted as a plain namespace word.
+// g l]` — shows the three are functionally identical, so the `[list …]`
+// form Tk uses must not be painted as a plain namespace word.
 
 /// The `declaration` modifier bit, resolved from the legend.
 fn declaration_bit() -> u32 {
@@ -1693,7 +1686,7 @@ fn tn_a_dynamic_list_head_keeps_todays_behaviour() {
     );
 }
 
-/// Issue #1243 — the first command of a BOM'd Tcl 9 file must be tokenised as
+/// The first command of a BOM'd Tcl 9 file must be tokenised as
 /// if the mark were not there: it is the script prologue `source` strips, not
 /// part of the command name.
 ///
@@ -1844,7 +1837,7 @@ fn spectcl_hook_bodies_recurse_as_tcl() {
 // SslicTcl — a `.sslictcl` TLS declaration. Every declaration word below is
 // registry data (the `sslictcl` pack plus the `SSLICTCL_*` definition-body
 // grammars in `tcl_registry::definer`); this walk contains no SslicTcl code
-// at all, which is issue #1543's whole point.
+// at all.
 
 /// The nesting chain, painted: an `endpoint` body's `hostname` is a member
 /// keyword, its nested `hsts` block's `max-age` is one level deeper, and a

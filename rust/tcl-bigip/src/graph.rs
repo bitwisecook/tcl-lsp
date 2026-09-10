@@ -994,9 +994,9 @@ pub const GRAPH_FORMATS: [&str; 3] = [
 
 /// Closed vocabulary of `f5 graph` output formats. `export_graph` takes the
 /// CLI-typed `&str` (the wire spelling users type as `--format dot|json|mermaid`
-/// is preserved unchanged) and parses it to this enum for exhaustive internal
-/// dispatch — the previous `match fmt { "dot" => .., "json" => .., _ => .. }`
-/// let an unrecognised-but-validated string silently fall through to mermaid.
+/// is preserved unchanged) and parses it to this enum so the format dispatch
+/// is exhaustive: an unhandled variant is a compile error rather than a
+/// silent fallback to another format.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum GraphFormat {
     Dot,

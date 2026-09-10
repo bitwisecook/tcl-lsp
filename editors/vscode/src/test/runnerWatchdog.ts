@@ -20,12 +20,11 @@
 //!
 //! # Progress, not elapsed time
 //!
-//! The old bound was a flat wall-clock budget (`DEFAULT_EXIT_TIMEOUT_MS =
-//! 180_000`): the runner gave up 180s after launch, whatever was happening.
-//! Issue #1293 is that the suite's own honest runtime (~190s for 846 tests)
-//! grew past that budget, so a fully green run raced its own successful exit
-//! and lost — reported as "mocha never completed (likely hung)" with zero
-//! failures.
+//! A flat wall-clock budget (give up N ms after launch, whatever is
+//! happening) is fragile: the suite's own honest runtime (~190s for 846
+//! tests) can grow past any fixed budget, so a fully green run would race
+//! its own successful exit and lose — reported as "mocha never completed
+//! (likely hung)" with zero failures.
 //!
 //! The fix is to bound *lack of progress*, not elapsed time: a run that is
 //! still completing tests is not hung however long it has taken; a run whose
@@ -52,9 +51,9 @@ import { loadFactor, scaledTimeout } from "./signal";
  * What the heartbeat file records, so a hang is attributable from outside the
  * extension host.
  *
- * The runner's watchdog used to give up with nothing to say but a process
- * list and "mocha never completed (likely hung)" — which named neither the
- * test that stalled nor whether the server was still alive (issue #1274).
+ * Without this, a hang would report nothing more than a process
+ * list and "mocha never completed (likely hung)" — naming neither the
+ * test that stalled nor whether the server was still alive.
  * The extension host is the only place that knows both, so it writes them
  * down continuously and this module reads the last entry after the fact.
  */
@@ -173,9 +172,9 @@ export const DEFAULT_ABSOLUTE_CEILING_MS = 1_800_000;
  */
 export const DEFAULT_NEVER_STARTED_GRACE_MS = 60_000;
 
-/** Escape hatch that sets the absolute ceiling (base, pre-load-scaling). Was
- *  the *only* budget before issue #1293; now progress detection is primary
- *  and this only stretches (or, at `0`, disables) the backstop. */
+/** Escape hatch that sets the absolute ceiling (base, pre-load-scaling).
+ *  Progress detection is the primary bound; this only stretches (or, at
+ *  `0`, disables) the backstop. */
 export const CEILING_ENV_VAR = "TCL_LSP_VSCODE_TEST_EXIT_TIMEOUT_MS";
 
 /** Escape hatch that sets the no-progress window (base, pre-load-scaling). At
@@ -363,8 +362,8 @@ export function evaluateWatchdog(
 /**
  * The one-line summary of why the watchdog gave up. Written so `failed == 0`
  * and progress that was genuinely advancing never gets called "likely hung" —
- * that flat wording (with no distinction between a stall and a slow-but-live
- * run) is what made issue #1293 need re-run archaeology instead of a log line.
+ * flat wording with no distinction between a stall and a slow-but-live run
+ * would need re-run archaeology instead of a log line to tell the two apart.
  */
 export function describeWatchdogVerdict(verdict: WatchdogVerdict): string {
   switch (verdict.kind) {
@@ -395,8 +394,8 @@ export function describeWatchdogVerdict(verdict: WatchdogVerdict): string {
  * Print the full attributable breakdown behind a verdict — which test was in
  * flight, for how long, whether the language server was still answering, and
  * whether the extension host's own event loop was still turning. Without this
- * the watchdog giving up printed a process list and a guess, which is what
- * made issue #1274 need re-run archaeology rather than reading a log.
+ * the watchdog giving up would print only a process list and a guess, needing
+ * re-run archaeology rather than reading a log.
  */
 export function reportWatchdogVerdict(verdict: WatchdogVerdict): void {
   console.error("--- watchdog report ---");
@@ -473,10 +472,9 @@ export interface HeartbeatWriter {
 }
 
 /**
- * The heartbeat-writing driver shared by `index.ts` and `multiFolder/index.ts`
- * — previously only the former had one, which left a hung multi-folder run
- * with no progress evidence at all and (worse) a runner that treated its own
- * timeout as success.
+ * The heartbeat-writing driver shared by `index.ts` and `multiFolder/index.ts`,
+ * so neither runner is left with no progress evidence for a hung run, or with
+ * a runner that treats its own timeout as success.
  *
  * Removes any stale heartbeat file up front and starts an unref'd refresh
  * interval; the heartbeat must never be the reason the extension host stays
@@ -575,9 +573,8 @@ export interface RunWatchedSuiteOptions {
 /**
  * Launch the suite via `@vscode/test-electron`, race it against the watchdog,
  * and exit the process with an honest status — the "launch/race/exit" logic
- * both runners previously duplicated (and `runMultiFolderTest.ts` got wrong:
- * it treated its own timeout as `process.exit(0)`, which could silently pass
- * a hung multi-folder run).
+ * both runners share rather than each duplicating (a runner that treated its
+ * own timeout as `process.exit(0)` could silently pass a hung run).
  *
  * Every path ends in `process.exit`, matching the shape both runners already
  * had; the `Promise<void>` return is never actually awaited by a caller that
@@ -609,9 +606,9 @@ export async function runWatchedSuite(opts: RunWatchedSuiteOptions): Promise<voi
   // Fetch VS Code *before* the watchdog's clock starts. `runTests` downloads it
   // on demand, so a cold `.vscode-test` would otherwise spend minutes inside
   // the never-started grace period with no heartbeat to show for it — and be
-  // failed for not having started, which is the same "a correct run was killed
-  // by a deadline that isn't about it" mistake issue #1293 records. Nothing is
-  // fetched when the cached build is already present.
+  // failed for not having started, which is exactly the "a correct run was
+  // killed by a deadline that isn't about it" mistake this module exists to
+  // avoid. Nothing is fetched when the cached build is already present.
   let vscodeExecutablePath: string | undefined;
   let prefetched = false;
   try {

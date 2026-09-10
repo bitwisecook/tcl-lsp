@@ -45,13 +45,15 @@ pub mod diagnostics;
 pub mod json_api;
 pub mod mapping;
 pub mod model;
+pub mod names;
 pub mod report;
 pub mod terraform;
 pub mod translator;
 
 pub use diagnostics::{XcDiagnostic, XcSeverity, get_xc_diagnostics};
-pub use json_api::render_json;
+pub use json_api::{ConsoleObject, render_console_objects, render_json};
 pub use model::{TranslateStatus, XCConstructKind, XCTranslationResult};
+pub use names::{GENERATED, derived_from, xc_object_name};
 pub use report::{DEFAULT_LB_NAME, DEFAULT_NAMESPACE, OutputFormat, translation_payload};
 pub use terraform::render_terraform;
 pub use translator::{translate_irule, translate_irule_with_registry};

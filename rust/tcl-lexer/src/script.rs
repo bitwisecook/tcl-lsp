@@ -16,15 +16,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The one owner of Tcl **command and word boundaries** (issue #1786).
+//! The one owner of Tcl **command and word boundaries**.
 //!
-//! Two independent groupers used to answer "where does this command end
-//! and where does each word begin" over the *same* [`Lexer`](crate::Lexer)
-//! stream — `tcl-compiler`'s CST builder
-//! (`parsing/syntax/build.rs`) and `runtime/rust`'s
-//! `parse_script_with_config`.  They disagreed (measurably) on `{*}`
-//! immediately after a braced word, and neither matched C.  This module is
-//! the shared substrate they both fold onto.
+//! `tcl-compiler`'s CST builder (`parsing/syntax/build.rs`) and
+//! `runtime/rust`'s `parse_script_with_config` both answer "where does this
+//! command end and where does each word begin" over the *same*
+//! [`Lexer`](crate::Lexer) stream, and both fold onto this module as the
+//! shared substrate rather than answering it independently: two independent
+//! answers disagree (measurably) on `{*}` immediately after a braced word,
+//! and neither matches C unless they share one owner.
 //!
 //! # What this is, and is not
 //!
@@ -82,10 +82,9 @@
 //!
 //! [`WordSpan::welded_after_close_quote`] is its sibling for the
 //! close-quote weld (`"a"b`, `""b`, `"a$x"b`), C's
-//! [`EXTRA_AFTER_CLOSE_QUOTE`](crate::EXTRA_AFTER_CLOSE_QUOTE) (issue
-//! #1828).  The two are kept apart because C raises different messages and
-//! stops at whichever closer comes first: `{a}"b"c` carries only the brace
-//! flag.
+//! [`EXTRA_AFTER_CLOSE_QUOTE`](crate::EXTRA_AFTER_CLOSE_QUOTE).  The two are
+//! kept apart because C raises different messages and stops at whichever
+//! closer comes first: `{a}"b"c` carries only the brace flag.
 
 use std::ops::Range;
 
@@ -152,7 +151,7 @@ pub struct WordSpan {
     ///
     /// C rejects every one of those with
     /// [`EXTRA_AFTER_CLOSE_QUOTE`](crate::EXTRA_AFTER_CLOSE_QUOTE), the
-    /// sibling of the close-brace flag above (issue #1828).  Like it, this
+    /// sibling of the close-brace flag above.  Like it, this
     /// is advisory — the module never acts on it, the analyser stays
     /// lenient — and `runtime/rust`'s eval-facing parser raises C's error
     /// from it.  It is dialect-blind, as the whole grouper is: under
@@ -405,7 +404,7 @@ impl<'a> Grouper<'a> {
     /// a word that opened with `{` is C's close-*brace* case whatever
     /// follows (`{a}"b"c`).
     ///
-    /// Where the closer sits follows the #527 convention, not
+    /// Where the closer sits follows the empty-content clamp convention, not
     /// `span.end() + 1`: one past the span for a non-empty run (`"a`), but
     /// *inside* the span for the empty-content clamp — `""`, and the bare
     /// closing `"` after a substitution — whose span was extended to cover
@@ -595,10 +594,9 @@ mod tests {
         assert_eq!(cmds[2].span, Span::new(5, 6));
     }
 
-    // ---------------------------------------------------------------
     // `{*}` — the rule this module adopts (the segmenter's), pinned
-    // against the measured behaviour of *both* former groupers.
-    // ---------------------------------------------------------------
+    // against the measured behaviour of both `tcl-compiler`'s CST builder
+    // and `runtime/rust`'s parser.
 
     #[test]
     fn expand_marks_the_following_word() {
@@ -729,9 +727,7 @@ mod tests {
         assert!(cmds[0].words[1].welded_after_close);
     }
 
-    // ---------------------------------------------------------------
     // welded_after_close
-    // ---------------------------------------------------------------
 
     #[test]
     fn weld_shapes() {
@@ -767,18 +763,16 @@ mod tests {
         assert_eq!(flags, [false, true, false, false]);
     }
 
-    // ---------------------------------------------------------------
     // welded_after_close_quote
-    // ---------------------------------------------------------------
 
-    /// Measured on tclsh 8.4.20, 8.5.19, 8.6.16, 9.0.4 and 9.1b0 (#1828):
+    /// Measured on tclsh 8.4.20, 8.5.19, 8.6.16, 9.0.4 and 9.1b0:
     /// every `true` row is `extra characters after close-quote`; every
     /// `false` row is accepted.
     #[test]
     fn quote_weld_shapes() {
         for (src, welded) in [
             ("puts \"a\"b", true),
-            ("puts \"\"b", true), // empty `""`: the #527 clamp, closer inside the span
+            ("puts \"\"b", true), // empty `""`: the empty-content clamp, closer inside the span
             ("puts \"a\"$b", true),
             ("puts \"a\"[b]", true),
             ("puts \"a\"{b}", true),
@@ -851,9 +845,7 @@ mod tests {
         assert!(cmds[0].words.iter().all(|w| !w.welded_after_close_quote));
     }
 
-    // ---------------------------------------------------------------
     // comments
-    // ---------------------------------------------------------------
 
     #[test]
     fn comment_attaches_to_the_following_command() {
@@ -901,9 +893,7 @@ mod tests {
         );
     }
 
-    // ---------------------------------------------------------------
     // shape / degenerate input
-    // ---------------------------------------------------------------
 
     #[test]
     fn empty_and_whitespace_only_sources_produce_nothing() {

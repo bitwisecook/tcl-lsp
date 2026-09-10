@@ -69,11 +69,11 @@
 //!   (`" ?opt?..."`) — the heuristic is coarse and does not suppress these.
 //! - `W307` fires on `$cmd` iterating a `foreach` over *known* commands
 //!   (no "known-command-list" provenance on this surface to suppress it).
-//! - `W210` no longer false-fires when a `catch {set x …}` body defines the
-//!   variable read in the surrounding `if` body (fixed: catch-body + branch-
+//! - `W210` does not false-fire when a `catch {set x …}` body defines the
+//!   variable read in the surrounding `if` body (catch-body + branch-
 //!   condition out-var recovery).
-//! - `W210` now fires when a proc `unset`s (and never sets) a global later read
-//!   at top level, where tclsh errors `can't read` (fixed: `unset` excluded
+//! - `W210` fires when a proc `unset`s (and never sets) a global later read
+//!   at top level, where tclsh errors `can't read` (`unset` is excluded
 //!   from the proc global-write set).
 //! - `W308` is the *`TclOO` unknown-method* code here; it does not cover the
 //!   `subst`-without-`-nocommands` hint (those cases are out-of-surface; the
@@ -556,7 +556,7 @@ mod path_concatenation {
 
     #[test]
     fn file_join_transform_does_not_masquerade_as_normalisation() {
-        // End-to-end registry transform coverage for #1410: `file join`
+        // End-to-end registry transform coverage: `file join`
         // stamps PATH_JOINED on a tainted result, but it does not collapse
         // traversal or otherwise prove the preceding manual concatenation
         // safe. W201 must therefore still report the original assignment.
@@ -971,6 +971,24 @@ mod literal_expected {
         // surface W210 — `$pattern`/`$suffix`/`$text` are all unset.) Pinned to
         // the actual verdict.
         assert!(!fires("regexp -- $pattern$suffix $text", D, "W306"));
+    }
+
+    #[test]
+    fn regex_quoting_substitution_pattern_clean() {
+        // The wrap T103's quick fix produces. Its whole job is to hand the
+        // engine a pattern that matches literally, so it is the remedy rather
+        // than the foot-gun — and braces would defeat it by matching the
+        // substitution's own source text. Both spellings are exempt.
+        assert!(!fires("regexp -- [regex::quote $p] $text", D, "W306"));
+        assert!(!fires("regexp -- \"[regex::quote $p]\" $text", D, "W306"));
+    }
+
+    #[test]
+    fn unproven_command_pattern_still_warns() {
+        // The control for the exemption above: it is keyed on the declared
+        // REGEX_LITERAL colour, not on the shape, so a command that proves
+        // nothing about its result is still flagged.
+        assert_eq!(count("regexp -- [build_pattern $p] $text", D, "W306"), 1);
     }
 
     #[test]
@@ -1564,7 +1582,7 @@ mod invalid_subnet_mask {
 // tclsh: `192.168.1.256` is not a valid IP (octet > 255). The SSA-traced
 // **W124** check covers both halves of what the lexical **W122** used to
 // describe (octet > 255 and a leading-zero octal ambiguity); W122 duplicated
-// it with no independent producer and was retired (issue #1317). `ip_count`
+// it with no independent producer and was retired. `ip_count`
 // keeps summing "W122 OR W124" (W122's contribution is now always 0) rather
 // than being narrowed to W124 alone, so a future accidental reintroduction of
 // a W122 producer would still be counted here rather than silently going
@@ -1820,7 +1838,7 @@ mod builtin_shadow {
         assert!(!fires("proc ::snit::type {name def} {}", D, "W113"));
     }
 
-    // issue #923 idx 11: a bare-name `proc` whose only registry match is a
+    // A bare-name `proc` whose only registry match is a
     // `required_package`-gated third-party command (argparse, a tcllib
     // package, …) must not fire W113 — that command does not exist in a
     // stock interpreter until its package is loaded, so defining a proc of
@@ -1891,6 +1909,162 @@ mod binary_format_modifiers {
     #[test]
     fn no_modifier_clean() {
         assert!(!fires("binary format s $val", "tcl8.4", "W200"));
+    }
+
+    // TIP 275 added only the `u` suffix. `s` is the short-integer specifier,
+    // so `ss` is two 2-byte fields on every release — verified on tclsh
+    // 8.4.20, 8.5.19, 8.6.18 and 9.0.4 — and never a signedness modifier.
+    #[test]
+    fn short_specifier_is_not_a_modifier() {
+        assert!(!fires("binary format ss 1 2", "tcl8.4", "W200"));
+        assert!(!fires("binary scan $x ss a b", "tcl8.4", "W200"));
+        assert!(!fires("binary format is $val $v2", "tcl8.4", "W200"));
+        // The real `u` modifier is unaffected.
+        assert_eq!(count("binary format su 1", "tcl8.4", "W200"), 1);
+    }
+
+    // `GetFormatSpec` in tclBinary.c consumes a `u` after the command
+    // character without consulting the type, so the gate is not restricted to
+    // the integer fields: `binary format au 1` is `bad field specifier "u"` on
+    // tclsh 8.4.20 and clean on 8.5.19.
+    #[test]
+    fn unsigned_modifier_warns_after_any_field_letter() {
+        assert_eq!(count("binary format au 1", "tcl8.4", "W200"), 1);
+        assert_eq!(count("binary format du 1.0", "tcl8.4", "W200"), 1);
+        assert!(!fires("binary format au 1", "tcl8.6", "W200"));
+    }
+
+    // `t` is a real 8.5 field letter and `T` is not a field letter on any
+    // release, so the gate follows the shared grammar rather than a private
+    // table that had them the wrong way round.
+    #[test]
+    fn gate_follows_the_shared_field_letters() {
+        assert_eq!(count("binary format tu 1", "tcl8.4", "W200"), 1);
+        assert!(!fires("binary format Tu 1", "tcl8.4", "W200"));
+    }
+
+    // Every field shares the format token's span and the gate dedupes by
+    // span, so a template with several gated fields is one squiggle.
+    #[test]
+    fn one_diagnostic_per_format_string() {
+        assert_eq!(
+            count("binary format cu1su1iu1 $a $b $c", "tcl8.4", "W200"),
+            1
+        );
+    }
+}
+
+// W202 — a `binary format` / `binary scan` field letter that postdates the
+// target. `t n m r R q Q` arrive in Tcl 8.5 and are `bad field specifier` on
+// tclsh 8.4.20, for both subcommands (they share `GetFormatSpec`). Separate
+// from W200 because the fix differs: a suffix can be dropped, an absent
+// letter needs a different field.
+mod binary_field_letters {
+    use super::*;
+
+    #[test]
+    fn tcl85_only_letters_warn_under_old_dialects() {
+        for letter in ["t", "n", "m", "r", "R", "q", "Q"] {
+            let src = format!("binary format {letter} 1");
+            let ds = of_code(&src, "tcl8.4", "W202");
+            assert_eq!(ds.len(), 1, "{letter} should be gated on 8.4");
+            assert_eq!(ds[0].1, Severity::Warning);
+            assert!(ds[0].0.contains(letter), "{letter}: {}", ds[0].0);
+        }
+        assert_eq!(count("binary scan $d q v", "tcl8.4", "W202"), 1);
+        // The F5 trunk forks Tcl at 8.4.6, so it gates too.
+        assert_eq!(count("binary format q 1.0", IR, "W202"), 1);
+        assert_eq!(count("binary format q 1.0", "f5-iapps", "W202"), 1);
+    }
+
+    #[test]
+    fn tcl85_only_letters_clean_from_85_up() {
+        for dialect in ["tcl8.5", "tcl8.6", "tcl9.0"] {
+            assert!(!fires("binary format q 1.0", dialect, "W202"));
+        }
+    }
+
+    #[test]
+    fn letters_on_every_release_stay_clean() {
+        for letter in [
+            "a", "A", "b", "B", "h", "H", "c", "s", "S", "i", "I", "w", "W", "f", "d", "x", "X",
+        ] {
+            let src = format!("binary format {letter} 1");
+            assert!(!fires(&src, "tcl8.4", "W202"), "{letter} exists on 8.4");
+        }
+    }
+
+    // A `package require Tcl 8.5` raises the effective version, which is the
+    // documented fix.
+    #[test]
+    fn package_require_raises_the_floor() {
+        assert!(!fires(
+            "package require Tcl 8.5\nbinary format q 1.0",
+            "tcl8.4",
+            "W202",
+        ));
+    }
+
+    // One squiggle per template per code, and the two codes are independent.
+    #[test]
+    fn one_diagnostic_per_template_and_codes_are_independent() {
+        assert_eq!(count("binary format qrm 1 2 3", "tcl8.4", "W202"), 1);
+        assert!(!fires("binary format q 1.0", "tcl8.4", "W200"));
+        assert!(!fires("binary format cu 1", "tcl8.4", "W202"));
+        // A gated letter carrying a gated suffix earns both, once each.
+        assert_eq!(count("binary format qu 1.0", "tcl8.4", "W200"), 1);
+        assert_eq!(count("binary format qu 1.0", "tcl8.4", "W202"), 1);
+    }
+
+    // Site selection runs through the registry's `FormatType::Binary`
+    // metadata and the head's effective command identity, not the spelling:
+    // `::binary` is the builtin, and a `proc binary` that takes the name
+    // over is not.
+    #[test]
+    fn site_selection_follows_command_identity() {
+        assert_eq!(count("::binary format q 1.0", "tcl8.4", "W202"), 1);
+        assert_eq!(count("::binary format qu 1.0", "tcl8.4", "W200"), 1);
+        // A user-defined `binary` is not the builtin, so its arguments are
+        // not a binary template.
+        assert!(!fires(
+            "proc binary {a b} {}\nbinary format q 1.0",
+            "tcl8.4",
+            "W202",
+        ));
+    }
+
+    // An expanded word makes the whole argument layout unknown at analysis
+    // time — `{*}$sub` can supply the subcommand, the template, or both — so
+    // the gate abstains rather than reading a fixed position.
+    #[test]
+    fn expanded_words_abstain() {
+        assert!(!fires("binary {*}$sub q 1.0", "tcl8.4", "W202"));
+        assert!(!fires("binary format {*}$w q 1.0", "tcl8.4", "W202"));
+        assert!(!fires("binary {*}[list format] q 1.0", "tcl8.4", "W202"));
+        // The unexpanded form of the same call is still checked.
+        assert_eq!(count("binary format q 1.0", "tcl8.4", "W202"), 1);
+    }
+
+    // A dynamic template has no literal text to read. Without the guard the
+    // scanner reads the *variable name*: `$fmt` carries `f`, `m` and `t`, so
+    // the gated `m`/`t` fired on every `binary format $fmt ...` under 8.4.
+    // A compound word is dynamic too — `"a$fmt"` is several tokens whose
+    // representative is an ordinary `Esc`, so a kind-only check missed it.
+    #[test]
+    fn dynamic_template_is_not_checked() {
+        assert!(!fires("binary format \"a$fmt\" 1", "tcl8.4", "W202"));
+        assert!(!fires("binary format \"a${fmt}b\" 1", "tcl8.4", "W202"));
+        assert!(!fires("binary format \"q$x\" 1", "tcl8.4", "W202"));
+        assert!(!fires("binary format a[fn] 1", "tcl8.4", "W202"));
+        assert!(!fires("binary format \"a$au\" 1", "tcl8.4", "W200"));
+        assert!(!fires("binary format $fmt 1", "tcl8.4", "W202"));
+        assert!(!fires("binary scan $d $fmt v", "tcl8.4", "W202"));
+        assert!(!fires("binary format [get_fmt] 1", "tcl8.4", "W202"));
+        // Same guard, W200's side: `$au` read as a field plus a gated `u`.
+        assert!(!fires("binary format $au 1", "tcl8.4", "W200"));
+        assert!(!fires("binary format $fmt 1", "tcl8.4", "W200"));
+        // A braced literal is still a literal and still checked.
+        assert_eq!(count("binary format {q} 1.0", "tcl8.4", "W202"), 1);
     }
 }
 
@@ -2196,7 +2370,7 @@ mod unused_proc_parameters {
 
     #[test]
     fn nested_proc_is_named_by_its_defining_namespace() {
-        // Issue #1077. Oracle (tclsh 9.0.4 / 8.6.16, identical): a proc body
+        // Oracle (tclsh 9.0.4 / 8.6.16, identical): a proc body
         // runs in the namespace the proc is *defined* in, so `proc a::outer`'s
         // body creates `::a::helper`, not the lexical `::helper`.
         assert_eq!(
@@ -2216,7 +2390,7 @@ mod unused_proc_parameters {
 
     #[test]
     fn unqualified_and_absolute_nested_names_keep_their_fqn() {
-        // TN pair for #1077 — the shapes where lexical and defining namespace
+        // TN pair — the shapes where lexical and defining namespace
         // already agreed must not move.
         assert_eq!(
             w214_procs("proc outer {} { proc inner {unusedq} { return 1 } }\n"),
@@ -2530,7 +2704,7 @@ mod dead_store_and_unused {
     }
 }
 
-// Structural-body scope isolation (issue #250).
+// Structural-body scope isolation.
 //
 // An OO / snit body is STRUCTURAL — it must not contribute reads/writes to the
 // enclosing proc's data flow, otherwise it would silence the proc's own W210 /
@@ -2737,9 +2911,8 @@ mod edge_cases {
 // consume the caller's variable when a literal name is passed (`f x`),
 // so the caller's otherwise-unused `set x 1` stays a dead store
 // (W211 / W220).  Only a genuine `upvar`-aliased write-back suppresses
-// it.  These pin the `DYNAMIC_NAME_LOCAL` refinement (PR #498 / #499
-// findings 10 / 6); the absence of that refinement would re-open the
-// caller-side false negatives (gap #6) it guards against.
+// it.  These pin the `DYNAMIC_NAME_LOCAL` refinement; its absence would
+// re-open the caller-side false negatives it guards against.
 mod call_by_name_dynamic_name_local {
     use super::*;
 
@@ -2803,7 +2976,7 @@ mod call_by_name_dynamic_name_local {
 // tclsh ground truth: `::tcl::dict::create a 1` runs and returns `a 1` under
 // both tclsh8.6 and tclsh9.0 (confirmed live) — the call works, so this is
 // advisory (Warning), not an error. Prefix-level only: no per-subcommand or
-// per-version modelling (issue #988).
+// per-version modelling.
 mod private_tcl_namespace {
     use super::*;
 
@@ -2874,7 +3047,7 @@ mod private_tcl_namespace {
         }
     }
 
-    // …and W120 and W143 can no longer contradict each other: the memchan
+    // W120 and W143 must not contradict each other: the memchan
     // repro asks for a `package require` (W120) without also claiming the
     // command is Tcl-private (W143).
     #[test]
@@ -3018,7 +3191,7 @@ mod private_tcl_namespace {
     }
 }
 
-// The `Tcl_ConcatObj` eval family — issue #1051.
+// The `Tcl_ConcatObj` eval family.
 //
 // `eval`, `uplevel`, `namespace eval`, `namespace inscope`, and `interp eval`
 // evaluate the *concatenation* of every trailing script word, so analysing
@@ -3108,8 +3281,8 @@ mod script_concatenation {
         assert!(fires(src, D, "W210"), "{:?}", codes(src, D));
     }
 
-    /// FP — `namespace eval` concatenates too, and used to drop everything
-    /// past the first script word.
+    /// FP — `namespace eval` concatenates too: dropping everything past the
+    /// first script word would be wrong.
     ///
     /// tclsh8.6.14 / tclsh9.0.4:
     /// `namespace eval ::n set l2 hello; puts $::n::l2` → `hello`.
@@ -3261,7 +3434,7 @@ mod script_concatenation {
     }
 }
 
-// W145 — ambiguous keyword abbreviation (issue #1234).
+// W145 — ambiguous keyword abbreviation.
 //
 // tclsh ground truth (8.6.16):
 //   `string l abc`   → unknown or ambiguous subcommand "l": must be
@@ -3373,7 +3546,7 @@ mod ambiguous_abbreviation {
     }
 }
 
-// Unified event lifecycle (#1210).
+// Unified event lifecycle.
 //
 // The three states are independently reportable: an event deprecated but
 // still present draws IRULE1003 naming its deprecating release, while one
@@ -3421,7 +3594,7 @@ mod event_lifecycle {
         for code in ["IRULE1002", "IRULE1003"] {
             assert!(!fires("when HTTP_REQUEST {puts hi}", IR, code));
             // XML_CONTENT_BASED_ROUTING is *not* part of the retired classic
-            // XML set — the flat boolean used to lump it in with them.
+            // XML set — a flat boolean must not lump it in with them.
             assert!(
                 !fires("when XML_CONTENT_BASED_ROUTING {puts hi}", IR, code),
                 "{code}: {:?}",

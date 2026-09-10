@@ -18,12 +18,12 @@
 
 //! Residual-coverage tests for the Tcl **formatting** subsystem:
 //!
-//! * `src/formatting/engine.rs` — the token-aware reformatter (lowest-coverage
-//!   file in the crate): UTF-8 reconstruction, command-substitution rebuild,
-//!   switch-body pattern/body layout, `&&`/`||` expression wrapping, long-line
-//!   backslash splitting (bare-word *and* inside-quoted-string), commented-out
-//!   code splitting, blank-line policy, the `for` special case, and every
-//!   `FormatterConfig` toggle.
+//! * `src/formatting/engine.rs` — the token-aware reformatter: UTF-8
+//!   reconstruction, command-substitution rebuild, switch-body pattern/body
+//!   layout, `&&`/`||` expression wrapping, long-line backslash splitting
+//!   (bare-word *and* inside-quoted-string), commented-out code splitting,
+//!   blank-line policy, `for` argument layout, and every `FormatterConfig`
+//!   toggle.
 //! * `src/formatting/config.rs` — the `Tabs` indent branch of `make_indent`.
 //! * `src/formatting/mod.rs` — `formatting` / `formatting_with` edit
 //!   construction, `range_formatting` (prefix-depth walk, EOF clamp, CRLF
@@ -33,22 +33,11 @@
 //!
 //! A Tcl formatter must be **layout-only**: the BEFORE and AFTER scripts must
 //! mean the same thing to the interpreter. Every test here that asserts
-//! *semantic equivalence* was verified against real C-Tcl — `tclsh8.6` and
-//! `tclsh9.0` via `scripts/dev/tclsh_check.sh` — and cites the ground truth in
-//! a `// tclsh-proof:` comment. Tests asserting purely *textual* choices
-//! (exact indent width, where a `}` lands, which column a chunk starts) are
-//! structural and need no interpreter proof; where it was cheap to also prove
-//! the reflow inert, those carry a proof too.
-//!
-//! ## Bug found
-//!
-//! `fmt_long_quoted_string_split_must_preserve_string_BUG` documents a real
-//! semantics-changing defect: when `split_long_line` wraps a long line by
-//! breaking at a space **inside a double-quoted string**, the inserted
-//! `\<newline>` + continuation indent adds an extra space to the string's
-//! value (Tcl collapses `\<nl>+ws` to one space but keeps the pre-existing
-//! space). That test asserts the CORRECT (equivalence) behaviour and is left
-//! failing on purpose. See its body for the tclsh proof.
+//! *semantic equivalence* cites its ground truth from real C-Tcl — `tclsh8.6`
+//! and `tclsh9.0`, via `scripts/dev/tclsh_check.sh` — in a `// tclsh-proof:`
+//! comment. Tests asserting purely *textual* choices (exact indent width,
+//! where a `}` lands, which column a chunk starts) are structural and need no
+//! interpreter proof.
 
 use tcl_lsp_core::definition::LspRange;
 use tcl_lsp_core::formatting::{
@@ -69,8 +58,8 @@ fn fmt_with(src: &str, cfg: &FormatterConfig) -> String {
     format_tcl(src, cfg, reg())
 }
 
-// UTF-8 reconstruction — `utf8_len` 2/3/4-byte lead-byte branches and the
-// `normalise_backslash_newline` UTF-8 copy path (engine.rs 83-93, 73-77).
+// UTF-8 reconstruction: 2/3/4-byte characters round-trip byte-for-byte,
+// including across a `normalise_backslash_newline` continuation collapse.
 
 #[test]
 fn fmt_preserves_multibyte_utf8_words() {
@@ -111,7 +100,7 @@ fn fmt_collapses_backslash_newline_around_multibyte_chars() {
 }
 
 // Command-substitution `[...]` reconstruction with an embedded continuation
-// (engine.rs reconstruct_raw Cmd arm, line 99/103).
+// (`reconstruct_raw`'s `Cmd` arm).
 
 #[test]
 fn fmt_collapses_continuation_in_command_substitution() {
@@ -127,13 +116,13 @@ fn fmt_collapses_continuation_in_command_substitution() {
     );
 }
 
-// switch-body layout — `format_switch_body` (engine.rs 403-495): raw bodies,
-// `-` fall-through, braced bodies, empty braced body, dangling final pattern.
+// switch-body layout — `format_case_list_body`: raw bodies, `-` fall-through,
+// braced bodies, empty braced body, dangling final pattern.
 
 #[test]
 fn fmt_switch_raw_unbraced_bodies_reindented() {
-    // Pattern + bare (unbraced) body words are re-emitted on one indented line
-    // (the `else` arm of the body classification). Structural reindent only.
+    // Pattern + bare (unbraced) body words are re-emitted on one indented
+    // line. Structural reindent only.
     assert_eq!(
         fmt("switch $x {\n  a body1\n  b body2\n}\n"),
         "switch $x {\n    a body1\n    b body2\n}\n",
@@ -144,8 +133,8 @@ fn fmt_switch_raw_unbraced_bodies_reindented() {
 fn fmt_switch_multitoken_raw_body_reindented() {
     // A raw (unbraced) switch body that lexes to MULTIPLE tokens — here
     // `$y(z)` (a variable with an array index) — accumulates onto the current
-    // element (the `cur.as_mut()` multi-token append arm of `format_switch_body`)
-    // and is re-emitted verbatim on the pattern line. Structural reindent only:
+    // clause element and is re-emitted verbatim on the pattern line.
+    // Structural reindent only:
     // the reflow does not change which token is the body, so behaviour is
     // identical (and identically erroneous — `$y(z)` is evaluated as a command)
     // before and after per tclsh 8.6 + 9.0.
@@ -158,8 +147,8 @@ fn fmt_switch_multitoken_raw_body_reindented() {
 #[test]
 fn fmt_switch_dash_fallthrough_and_braced_body() {
     // `a -` keeps the fall-through marker on the pattern line; the next
-    // pattern's braced body expands. Exercises the `body.text == "-"` and
-    // `body.is_braced` arms together.
+    // pattern's braced body expands. Exercises the fall-through-body and
+    // braced-body arms together.
     // tclsh-proof (behaviour identical before/after the reflow):
     //   `switch a { a - b {puts two} default {puts d} }` → `two` (8.6 + 9.0)
     //   same with the expanded brace layout                → `two` (8.6 + 9.0)
@@ -172,7 +161,7 @@ fn fmt_switch_dash_fallthrough_and_braced_body() {
 #[test]
 fn fmt_switch_empty_braced_body_stays_inline() {
     // An empty `{}` body collapses to `{}` on the pattern line (the
-    // `formatted.trim().is_empty()` arm of `format_switch_body`).
+    // `formatted.trim().is_empty()` arm of `format_case_list_body`).
     assert_eq!(
         fmt("switch -- $x {\n  a {}\n}\n"),
         "switch -- $x {\n    a {}\n}\n",
@@ -181,17 +170,16 @@ fn fmt_switch_empty_braced_body_stays_inline() {
 
 #[test]
 fn fmt_switch_dangling_final_pattern_emitted_alone() {
-    // A trailing element with no following body hits the `else` (odd-count)
-    // branch: the pattern is emitted on its own indented line.
+    // A trailing element with no following body leaves an unflushed clause
+    // prefix: the pattern is emitted on its own indented line.
     assert_eq!(
         fmt("switch $x {\n  a {puts 1}\n  default\n}\n"),
         "switch $x {\n    a {\n        puts 1\n    }\n    default\n}\n",
     );
 }
 
-// Expression wrapping — `find_expr_break_points` + `wrap_braced_expr`
-// (engine.rs 501-570): split only top-level `&&`/`||`, never inside
-// `() {} [] ""` or after a `\` escape.
+// Expression wrapping — `find_expr_break_points` + `wrap_braced_expr`: split
+// only top-level `&&`/`||`, never inside `() {} [] ""` or after a `\` escape.
 
 #[test]
 fn fmt_expr_wrap_preserves_parens_and_quotes() {
@@ -236,8 +224,8 @@ fn fmt_short_expr_is_not_wrapped() {
 }
 
 // Long-line backslash splitting — `split_long_line` / `greedy_split` /
-// `find_splittable_spaces` (engine.rs 602-795): bare-word splitting (safe) and
-// the commented-out-code split path (`split_commented_code`).
+// `find_splittable_spaces`: bare-word splitting (safe) and the
+// commented-out-code split path (`split_commented_code`).
 
 #[test]
 fn fmt_long_word_line_splits_with_backslash_continuation() {
@@ -274,12 +262,10 @@ fn fmt_short_commented_code_not_split() {
     assert_eq!(fmt("#set x [a \\\n b]\n"), "#set x [a b]\n");
 }
 
-// REGRESSION (was a bug, now fixed) — a long line that can only be split INSIDE
-// a double-quoted string must be left over-length rather than broken, because
-// breaking there changes the string's value. The old `split_long_line` fell
-// back to `find_quoted_string_spaces` and inserted `\<newline>` + indent at a
-// space that is *string data*, adding an extra space; the fix removes that
-// fallback (engine.rs `split_long_line`).
+// A long line that can only be split INSIDE a double-quoted string must be
+// left over-length rather than broken: a `\<newline>` + indent inserted at a
+// space that is *string data* adds an extra space to the string's value, so
+// `split_long_line` has no in-quotes fallback.
 
 #[test]
 fn fmt_long_quoted_string_is_left_unsplit_preserving_value() {
@@ -293,9 +279,9 @@ fn fmt_long_quoted_string_is_left_unsplit_preserving_value() {
     //   set a "x y"; set b "x \<nl>    y";
     //   [string length $a]=3  [string length $b]=4  [string equal $a $b]=0
     //
-    // Fixed behaviour: the splitter does not break inside a double-quoted
-    // string, so the line is emitted over-length with its single-space
-    // separators intact (layout is best effort; the data must never change).
+    // The splitter does not break inside a double-quoted string, so the line
+    // is emitted over-length with its single-space separators intact (layout
+    // is best effort; the data must never change).
     let input = "set s \"aaaaaaaaaa bbbbbbbbbb cccccccccc dddddddddd eeeeeeeeee ffffffffff gggggggggg hhhhhhhhhh iiiiiiiiii jjjjjjjjjj kkkkkkkkkk\"\n";
     let out = fmt(input);
     // The string literal's run of token-separating spaces must remain single
@@ -309,14 +295,13 @@ fn fmt_long_quoted_string_is_left_unsplit_preserving_value() {
     );
 }
 
-// `for` special case (engine.rs 294-299): only the body (arg 4) expands;
-// init/cond/next stay inline. Plus the `is_braced` and arity guards.
+// `for` layout: only the body (arg 4) carries a block presentation and
+// expands; init/cond/next stay inline. Plus the `is_braced` and arity guards.
 
 #[test]
 fn fmt_for_expands_only_the_body() {
-    // The formatter-specific `for` override: init `{set i 0}`, cond `{$i < 10}`
-    // and next `{incr i}` remain inline; only the 4th braced arg (the body)
-    // expands into a K&R block.
+    // Init `{set i 0}`, cond `{$i < 10}` and next `{incr i}` remain inline;
+    // only the 4th braced arg (the body) expands into a K&R block.
     // tclsh-proof (loop runs identically): both forms of
     //   `for {set i 0} {$i < 3} {incr i} {append out $i}` print `012` (8.6+9.0).
     assert_eq!(
@@ -337,13 +322,13 @@ fn fmt_for_with_unbraced_body_is_left_inline() {
 
 #[test]
 fn fmt_for_with_too_few_args_falls_through() {
-    // `for {} {} {}` has only 3 post-name args (< 4), so the special case is
-    // skipped and it goes through the generic registry path without panicking.
+    // `for {} {} {}` has only 3 post-name args (< 4), so no argument carries
+    // the body role and the command is emitted verbatim without panicking.
     assert_eq!(fmt("for {} {} {}\n"), "for {} {} {}\n");
 }
 
-// Body inline vs expand — `body_can_be_inline` / `append_body_no_space`
-// (engine.rs 830-887) and the NEVER_INLINE_BODY trait.
+// Body inline vs expand — `body_can_be_inline` / `append_body_no_space` and
+// the `NEVER_INLINE_BODY` registry trait.
 
 #[test]
 fn fmt_short_catch_body_stays_inline() {
@@ -388,8 +373,8 @@ fn fmt_word_arg_collapsing_to_empty_is_dropped() {
     assert_eq!(fmt("set x \\\n\n"), "set x\n");
 }
 
-// Parameter lists & braced vars — `normalise_param_list` (engine.rs 134-168)
-// and `enforce_braced_variables` reconstruction.
+// Parameter lists & braced vars — `normalise_param_list` and
+// `enforce_braced_variables` reconstruction.
 
 #[test]
 fn fmt_param_list_with_nested_default_braces_normalised() {
@@ -417,7 +402,7 @@ fn fmt_enforce_braced_variables_rewrites_dollar_refs() {
     assert_eq!(fmt_with("puts $x\n", &cfg), "puts ${x}\n");
 }
 
-// `{*}`-expansion identity skip (engine.rs 278-285).
+// `{*}`-expansion identity skip in `identify_body_args`.
 
 #[test]
 fn fmt_expand_command_word_is_not_misclassified() {
@@ -427,7 +412,7 @@ fn fmt_expand_command_word_is_not_misclassified() {
     assert_eq!(fmt("{*}$cmd arg1 arg2\n"), "{*}$cmd arg1 arg2\n");
 }
 
-// Comment normalisation edges — `format_comment` (engine.rs 348-366).
+// Comment normalisation edges — `format_comment`.
 
 #[test]
 fn fmt_bare_hash_comment_preserved() {
@@ -455,8 +440,8 @@ fn fmt_comment_hash_spacing_toggle() {
     assert_eq!(fmt("#   hi   \n"), "#   hi\n");
 }
 
-// Blank-line policy & trailing comments — `compute_blank_lines` (engine.rs
-// 371-390) and `format_body`'s trailing-comment loop (1118-1124).
+// Blank-line policy & trailing comments — `compute_blank_lines` and
+// `format_body`'s trailing-comment loop.
 
 #[test]
 fn fmt_blank_lines_between_proc_and_block() {
@@ -522,7 +507,7 @@ fn fmt_deeply_nested_bodies_indent_by_level() {
     );
 }
 
-// Whole-document config tails — `format_tcl` (engine.rs 1131-1149).
+// Whole-document config tails — `format_tcl`.
 
 #[test]
 fn fmt_ensure_final_newline_disabled() {
@@ -579,7 +564,7 @@ fn fmt_is_idempotent_on_complex_input() {
     );
 }
 
-// config.rs — `make_indent` Tabs branch (config.rs 115).
+// config.rs — the `make_indent` Tabs branch.
 
 #[test]
 fn fmt_tab_indent_style() {
@@ -595,8 +580,8 @@ fn fmt_tab_indent_style() {
     );
 }
 
-// mod.rs — formatting / formatting_with edit construction (mod.rs 61-81),
-// brace_delta, and range_formatting (88-208).
+// mod.rs — `formatting` / `formatting_with` edit construction, `brace_delta`,
+// and `range_formatting`.
 
 #[test]
 fn formatting_returns_single_full_document_edit_when_dirty() {
@@ -759,18 +744,16 @@ fn range_formatting_brace_delta_ignores_string_braces_in_prefix() {
 // Line endings: the `auto` default, and the whole-document / range edit
 // ranges that must be measured on the CLIENT's EOL model.
 //
-// The two data-loss cases below are the ones a live-server audit reproduced
-// against VS Code's own edit application (clamp each position to the client
-// line model, then splice). Both came from `formatting_with` building its
-// replace range with the `\n`-only `LineIndex::new`, which cannot see a lone
-// `\r` as a line break the way the client does.
+// A client clamps each edit position to its own line model and then splices,
+// and it counts a lone `\r` as a line break. A range measured with an
+// `\n`-only line index therefore lands short of where the client expects,
+// which loses or duplicates document text.
 
 #[test]
 fn fmt_auto_line_ending_follows_the_document() {
     // `auto` is the default: an LF file stays LF, a CRLF file stays CRLF, and
-    // an old-Mac file stays CR. Before this, the formatter rewrote every CRLF
-    // document to LF on the first Format Document — a silent whole-file
-    // change no one asked for.
+    // an old-Mac file stays CR. A document must never have its line endings
+    // rewritten wholesale by a Format Document request.
     assert_eq!(
         fmt("proc f {} {\nset x 1\n}\n"),
         "proc f {} {\n    set x 1\n}\n"
@@ -802,10 +785,9 @@ fn fmt_explicit_line_ending_still_overrides_auto() {
 #[test]
 fn formatting_edit_range_spans_a_lone_cr_document() {
     // The client models `a\rb\r` as separate lines; the server must report the
-    // end of its whole-document replace range on the SAME model. With the
-    // `\n`-only index the end landed at 0:39 (one line, the whole file), so
-    // VS Code replaced only line 0 and left the original lines 1..5 behind —
-    // the file doubled.
+    // end of its whole-document replace range on the SAME model. An `\n`-only
+    // index would end it at 0:39 — one line, the whole file — so the client
+    // would replace only line 0 and leave lines 1..5 behind, doubling the file.
     let src = "proc  p {a  b} {\rif {$a} {\rputs $b\r}\r}\r";
     let edits = formatting(src, reg());
     assert_eq!(edits.len(), 1, "{edits:?}");
@@ -823,9 +805,9 @@ fn formatting_edit_range_spans_a_lone_cr_document() {
 
 #[test]
 fn formatting_edit_range_spans_a_mixed_line_ending_document() {
-    // Mixed `\r\n` / `\n` / lone `\r`: the client counts 6 lines, the
-    // `\n`-only model counted 5, so the edit stopped one line short and the
-    // document's last `}` survived the replacement as a stray line.
+    // Mixed `\r\n` / `\n` / lone `\r`: the client counts 6 lines where an
+    // `\n`-only model counts 5, which would stop the edit one line short and
+    // leave the document's last `}` behind as a stray line.
     let src = "proc  p {a  b} {\r\nif {$a} {\nputs $b\r}\n}\n";
     let edits = formatting(src, reg());
     assert_eq!(edits.len(), 1, "{edits:?}");
@@ -835,8 +817,8 @@ fn formatting_edit_range_spans_a_mixed_line_ending_document() {
 
 #[test]
 fn range_formatting_cuts_the_slice_on_the_client_line_model() {
-    // Line 2 of an old-Mac document is `puts $b`; on the `\n`-only model the
-    // whole file was line 0 and any range request re-formatted everything.
+    // Line 2 of an old-Mac document is `puts $b`; on an `\n`-only model the
+    // whole file is line 0, so any range request would re-format everything.
     let src = "proc p {a b} {\rif {$a} {\rputs   $b\r}\r}\r";
     let edits = range_formatting(
         src,

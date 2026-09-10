@@ -130,8 +130,8 @@ def test_build_report_html_self_contained():
     assert html.startswith("<!doctype html>")
     assert "Solo" in html
     # no unrendered Jinja (our template uses spaced delimiters like `{{ x }}`).
-    # (A substring `{{` check is unusable here: the vendored Mermaid bundle
-    # embeds KaTeX strings that legitimately contain `{{`.)
+    # (A bare substring `{{` check is unusable here: other embedded JS/JSON
+    # content can legitimately contain adjacent braces.)
     assert "{{ " not in html and " }}" not in html and "{% " not in html
     # no auto-loaded remote assets (scripts/images via src=, external
     # stylesheets via <link>). Plain <a href> attribution links are fine —
