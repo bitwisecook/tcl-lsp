@@ -1,0 +1,81 @@
+name: Tank maintenance (persistent Cargo target sweep)
+
+# The Tank runner retains one Cargo target per runner registration
+# (scripts/dev/persistent-cargo-target.sh). `prepare` runs the janitor on
+# every job, but with a 14-day retention and a cap of 8 removals per
+# invocation — deliberately gentle, so an ordinary CI job never spends its
+# time reclaiming disk. When the host falls below the 20 GiB floor faster than
+# that reclaims, every Tank job fails before it starts:
+#
+#   persistent-cargo-target: free space 4317692KiB is below 20971520KiB floor
+#
+# This is the manual sweep for that. It calls the same hardened janitor verb —
+# which takes the root lock, refuses symlinked or unowned paths, and skips a
+# target whose Cargo lock is held — with a retention and cap the operator
+# chooses. It never removes an unmarked directory and never touches a target
+# a running job holds.
+on:
+  workflow_dispatch:
+    inputs:
+      retention_days:
+        description: Remove targets whose marker is older than this many days (0 = every unlocked target)
+        default: "0"
+        type: string
+      limit:
+        description: Maximum targets to remove in this sweep
+        default: "64"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  sweep:
+    runs-on: tank
+    # Share the shard job's group so a sweep and a test run never contend for
+    # the same target root; the janitor's own lock is the second line, not the
+    # first.
+    concurrency:
+      group: rust-tests-tank
+      queue: max
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Sweep the persistent Cargo target root
+        shell: bash
+        env:
+          TCL_LSP_TANK_RETENTION_DAYS: ${{ inputs.retention_days }}
+          TCL_LSP_TANK_JANITOR_LIMIT: ${{ inputs.limit }}
+        run: |
+          set -euo pipefail
+          root=${TCL_LSP_TANK_TARGET_ROOT:-/home/runner/.cache/tcl-lsp/cargo-targets}
+          echo "::group::Before"
+          df -Pk -- "$root" || df -Pk -- /
+          du -sh -- "$root" 2>/dev/null || echo "(root absent)"
+          echo "::endgroup::"
+
+          if [ ! -d "$root" ]; then
+            echo "no persistent target root at $root — nothing to sweep"
+            exit 0
+          fi
+          bash scripts/dev/persistent-cargo-target.sh janitor "$root"
+
+          echo "::group::After"
+          df -Pk -- "$root"
+          du -sh -- "$root" 2>/dev/null || true
+          echo "::endgroup::"
+
+      - name: Report free space against the floor
+        shell: bash
+        run: |
+          set -euo pipefail
+          root=${TCL_LSP_TANK_TARGET_ROOT:-/home/runner/.cache/tcl-lsp/cargo-targets}
+          floor=${TCL_LSP_TANK_MIN_FREE_KB:-20971520}
+          free=$(df -Pk -- "$root" | awk 'NR == 2 { print $4 }')
+          printf 'free=%sKiB floor=%sKiB\n' "$free" "$floor"
+          if [ "$free" -lt "$floor" ]; then
+            echo "::warning::still below the floor — the reclaimable targets are gone, so the host needs space freed outside the Cargo target root"
+          fi
