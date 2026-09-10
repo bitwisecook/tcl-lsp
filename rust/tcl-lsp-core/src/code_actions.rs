@@ -1683,7 +1683,9 @@ fn refactor_engine_actions(
     if has_selection {
         let end =
             line_index.offset_at_utf16(range.end_line, Utf16Col::new(range.end_character), source);
-        if let Some(r) = refactor::extract_variable(source, cursor, end, "result", line_index) {
+        if let Some(r) =
+            refactor::extract_variable(source, cursor, end, "result", line_index, config)
+        {
             out.push(refactoring_to_action(&r, source, line_index));
         }
         if let Some(r) = refactor::extract_proc(source, (cursor, end), analysis, registry) {

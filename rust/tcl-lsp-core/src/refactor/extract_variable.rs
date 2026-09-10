@@ -19,7 +19,8 @@
 //! Extract variable — replace a selected expression with a named
 //! variable.
 
-use tcl_lexer::LineIndex;
+use tcl_compiler::segmenter::has_exactly_one_command_with_config;
+use tcl_lexer::{LexerConfig, LineIndex};
 
 use super::{RefactorEdit, Refactoring};
 use crate::code_actions::ActionKind;
@@ -28,16 +29,13 @@ use crate::code_actions::ActionKind;
 /// logical expression which must be wrapped in `[expr { … }]` so the
 /// resulting `set` stays a valid two-argument call.
 ///
-/// Every [`BinOp`](tcl_syntax::expr::ast::BinOp) variant is, by
-/// construction, a genuine infix binary operator — derived from
-/// `tcl_syntax::expr::operators::ALL_BIN_OPS`
-/// rather than a hand-typed list, which would miss the bitwise/
-/// shift symbols (`<<`/`>>`/`&`/`|`/`^`), the TIP 461 string-ordering words
-/// (`lt`/`le`/`gt`/`ge`), and every iRules word operator (`contains`/
-/// `starts_with`/…). That is not just a missed suggestion: selecting
-/// `$a << 2` and extracting it produced `set myvar $a << 2` — a 4-argument
-/// `set` call, which is a Tcl runtime error (`set` takes 1 or 2 args), not
-/// merely a semantic difference.
+/// Derived from `tcl_syntax::expr::operators::ALL_BIN_OPS`, every entry of
+/// which is by construction a genuine infix binary operator, so the set
+/// covers the bitwise / shift symbols (`<<`/`>>`/`&`/`|`/`^`), the TIP 461
+/// string-ordering words (`lt`/`le`/`gt`/`ge`), and the iRules word
+/// operators (`contains`/`starts_with`/…). Missing one is not a missed
+/// suggestion: extracting `$a << 2` unwrapped writes `set myvar $a << 2`,
+/// a four-argument `set`, which is a Tcl runtime error.
 fn expr_op_spellings() -> &'static [&'static str] {
     static OPS: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
     OPS.get_or_init(|| {
@@ -54,11 +52,10 @@ fn expr_op_spellings() -> &'static [&'static str] {
 /// A whitespace-delimited operator has a single whitespace byte on each
 /// side (`\s OP \s`); this scans for ` OP ` with single ASCII spaces,
 /// skipping any byte range inside a `"…"` word or inside nested
-/// brackets/braces/parens. Without the quote check, an ordinary string
-/// selection like `"salt and pepper"` matched the iRules `and` word
-/// operator as if it were a real operator token, wrapping a plain string
-/// in `[expr {…}]` — which then fails at runtime (`"salt"` isn't a valid
-/// `expr` bareword).
+/// brackets/braces/parens. The quote check is what keeps an ordinary
+/// string selection like `"salt and pepper"` from matching the iRules
+/// `and` word operator and being wrapped in `[expr {…}]`, which fails at
+/// runtime because `"salt"` is not a valid `expr` bareword.
 fn looks_like_expr(text: &str) -> bool {
     let bytes = text.as_bytes();
     let mut depth = 0i32;
@@ -90,10 +87,20 @@ fn looks_like_expr(text: &str) -> bool {
     false
 }
 
+/// `true` when `selected` holds more than one command.
+///
+/// A `set` takes a single value word, so extracting two commands would
+/// build `set result set x 1` and drop the rest of the selection into the
+/// assignment. Command boundaries come from the segmenter, which owns
+/// where a Tcl command ends.
+fn spans_multiple_commands(selected: &str, config: LexerConfig) -> bool {
+    !has_exactly_one_command_with_config(selected, config)
+}
+
 /// Extract the selection `[start_off, end_off)` into a `set` assignment.
 ///
-/// Returns `None` when the selection is empty
-/// or only whitespace.  `start_line` / `start_off` / `end_off` are byte
+/// Returns `None` when the selection is empty, only whitespace, or spans
+/// more than one command.  `start_line` / `start_off` / `end_off` are byte
 /// offsets into `source`; `line_index` resolves them to lines for the
 /// indentation lookup.
 #[must_use]
@@ -103,12 +110,13 @@ pub fn extract_variable(
     end_off: u32,
     var_name: &str,
     line_index: &LineIndex,
+    config: LexerConfig,
 ) -> Option<Refactoring> {
     if end_off <= start_off {
         return None;
     }
     let selected = source.get(start_off as usize..end_off as usize)?;
-    if selected.trim().is_empty() {
+    if selected.trim().is_empty() || spans_multiple_commands(selected, config) {
         return None;
     }
 
@@ -168,7 +176,8 @@ mod tests {
 
     fn run(source: &str, start: u32, end: u32, name: &str) -> Option<String> {
         let li = LineIndex::new(source);
-        extract_variable(source, start, end, name, &li).map(|r| r.apply(source))
+        extract_variable(source, start, end, name, &li, LexerConfig::default())
+            .map(|r| r.apply(source))
     }
 
     #[test]
@@ -187,8 +196,21 @@ mod tests {
     fn title_carries_custom_name() {
         let source = "puts [expr {$a + $b}]";
         let li = LineIndex::new(source);
-        let r = extract_variable(source, 5, 20, "total", &li).expect("result");
+        let r =
+            extract_variable(source, 5, 20, "total", &li, LexerConfig::default()).expect("result");
         assert!(r.title.contains("total"));
+    }
+
+    #[test]
+    fn multi_command_selection_returns_none() {
+        let source = "set x 0\nset x 1\nputs $x\nputs \"after=$x\"";
+        assert!(run(source, 8, 23, "result").is_none());
+        // A `;` separator is the same shape on one line.
+        assert!(run("set a 1; set b 2", 0, 16, "result").is_none());
+        // FP-guard: a newline inside a braced word is still one command.
+        assert!(run("puts [expr {1 +\n2}]", 5, 19, "total").is_some());
+        // FP-guard: one command plus its trailing newline is one command.
+        assert!(run("proc f {} {\n    return $x\n}\n", 12, 26, "result").is_some());
     }
 
     #[test]
@@ -206,20 +228,29 @@ mod tests {
     fn bare_expression_is_wrapped_in_expr() {
         let source = "puts $a + $b";
         let li = LineIndex::new(source);
-        let r = extract_variable(source, 5, 12, "sum", &li).expect("result");
+        let r =
+            extract_variable(source, 5, 12, "sum", &li, LexerConfig::default()).expect("result");
         let applied = r.apply(source);
         assert!(applied.contains("set sum [expr {$a + $b}]"), "{applied:?}");
     }
 
-    /// `EXPR_OPS` must not miss the bitwise/shift symbols or the TIP 461
-    /// string-ordering words: leaving one out is a genuinely broken (not just
-    /// suboptimal) output, since the
+    /// Issue #983/#986: `EXPR_OPS` used to be a hand-typed 17-entry list
+    /// missing every bitwise/shift symbol and every TIP 461 string-ordering
+    /// word — a genuinely broken (not just suboptimal) output, since the
     /// unwrapped `set myvar $a << $b` is a 4-argument `set` call (a Tcl
     /// runtime error, `set` takes 1 or 2 args).
     #[test]
     fn bitwise_and_tip461_expressions_are_wrapped_in_expr() {
         let li = LineIndex::new("puts $a << $b");
-        let r = extract_variable("puts $a << $b", 5, 13, "shifted", &li).expect("result");
+        let r = extract_variable(
+            "puts $a << $b",
+            5,
+            13,
+            "shifted",
+            &li,
+            LexerConfig::default(),
+        )
+        .expect("result");
         assert!(
             r.apply("puts $a << $b")
                 .contains("set shifted [expr {$a << $b}]"),
@@ -228,7 +259,15 @@ mod tests {
         );
 
         let li2 = LineIndex::new("puts $a lt $b");
-        let r2 = extract_variable("puts $a lt $b", 5, 13, "ordered", &li2).expect("result");
+        let r2 = extract_variable(
+            "puts $a lt $b",
+            5,
+            13,
+            "ordered",
+            &li2,
+            LexerConfig::default(),
+        )
+        .expect("result");
         assert!(
             r2.apply("puts $a lt $b")
                 .contains("set ordered [expr {$a lt $b}]"),
@@ -237,7 +276,7 @@ mod tests {
         );
     }
 
-    /// `expr_op_spellings()` includes the
+    /// Adversarial-review finding: `expr_op_spellings()` includes the
     /// iRules word operators (`and`/`or`/`contains`/…), and an ordinary
     /// quoted string containing one of those words as English prose must
     /// NOT be mistaken for a real operator token — `set myvar "salt and
@@ -246,7 +285,8 @@ mod tests {
     fn quoted_string_containing_operator_words_is_not_wrapped_in_expr() {
         let source = r#"puts "salt and pepper""#;
         let li = LineIndex::new(source);
-        let r = extract_variable(source, 5, 22, "seasoning", &li).expect("result");
+        let r = extract_variable(source, 5, 22, "seasoning", &li, LexerConfig::default())
+            .expect("result");
         let applied = r.apply(source);
         assert!(
             applied.contains(r#"set seasoning "salt and pepper""#),
@@ -264,7 +304,8 @@ mod tests {
         let source = "puts helper {a and b} $x";
         let li = LineIndex::new(source);
         // selection of `helper {a and b} $x` (cols 5..24).
-        let r = extract_variable(source, 5, 24, "result", &li).expect("result");
+        let r =
+            extract_variable(source, 5, 24, "result", &li, LexerConfig::default()).expect("result");
         let applied = r.apply(source);
         assert!(
             applied.contains("set result helper {a and b} $x"),
