@@ -17,6 +17,12 @@ ROOT=${TCL_LSP_TANK_TARGET_ROOT:-/home/runner/.cache/tcl-lsp/cargo-targets}
 MIN_FREE_KB=${TCL_LSP_TANK_MIN_FREE_KB:-20971520}
 RETENTION_DAYS=${TCL_LSP_TANK_RETENTION_DAYS:-14}
 JANITOR_LIMIT=${TCL_LSP_TANK_JANITOR_LIMIT:-8}
+# Reclaim regardless of marker age. Only an operator sweep sets this: the
+# retention window is what keeps a *warm* target warm, and a target removed
+# here is rebuilt from scratch on its next job. Every other guard still
+# applies — the target must be marked, owned, safe-moded, and its Cargo lock
+# free, so a target a running job holds is still skipped.
+SWEEP_ALL=${TCL_LSP_TANK_SWEEP_ALL:-0}
 MARKER=.tcl-lsp-cargo-target
 LOCK=.tcl-lsp-cargo-target.lock
 ROOT_LOCK=.tcl-lsp-cargo-target.root.lock
@@ -36,6 +42,10 @@ number() {
 number "$MIN_FREE_KB" || die "TCL_LSP_TANK_MIN_FREE_KB must be a non-negative integer"
 number "$RETENTION_DAYS" || die "TCL_LSP_TANK_RETENTION_DAYS must be a non-negative integer"
 number "$JANITOR_LIMIT" || die "TCL_LSP_TANK_JANITOR_LIMIT must be a non-negative integer"
+case "$SWEEP_ALL" in
+    0|1) ;;
+    *) die "TCL_LSP_TANK_SWEEP_ALL must be 0 or 1" ;;
+esac
 
 cleanup() {
     local status=$?
@@ -207,7 +217,8 @@ janitor() {
         # Use the marker age, not the directory age: opening the Cargo lock
         # itself changes the directory mtime and must not make an old target
         # look young.
-        if find "$marker" -maxdepth 0 -mtime +"$RETENTION_DAYS" -print -quit | grep -q .; then
+        if [ "$SWEEP_ALL" = 1 ] ||
+            find "$marker" -maxdepth 0 -mtime +"$RETENTION_DAYS" -print -quit | grep -q .; then
             # Scan every direct child, but cap destructive work per invocation.
             # Fresh/unmarked entries must not starve old targets.
             [ "$removed" -lt "$JANITOR_LIMIT" ] || continue

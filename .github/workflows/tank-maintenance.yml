@@ -25,6 +25,10 @@ on:
         description: Maximum targets to remove in this sweep
         default: "64"
         type: string
+      ignore_age:
+        description: Reclaim every unlocked target regardless of age (cold rebuilds follow)
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -49,6 +53,7 @@ jobs:
         env:
           TCL_LSP_TANK_RETENTION_DAYS: ${{ inputs.retention_days }}
           TCL_LSP_TANK_JANITOR_LIMIT: ${{ inputs.limit }}
+          TCL_LSP_TANK_SWEEP_ALL: ${{ inputs.ignore_age && '1' || '0' }}
         run: |
           set -euo pipefail
           root=${TCL_LSP_TANK_TARGET_ROOT:-/home/runner/.cache/tcl-lsp/cargo-targets}
