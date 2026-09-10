@@ -10998,9 +10998,14 @@ fn w312_message_names_subcommand() {
     );
 }
 
+/// tclsh 9.0.4 and 9.1b0, `set x {[format INJECTED]}`:
+/// `puts [subst $x]` → `INJECTED`, and `puts [subst "$x"]` → `INJECTED`
+/// too — an operand that reaches `subst` already substituted once is
+/// evaluated a second time whichever way it was written.
+/// `puts [subst -nocommands -novariables $x]` → `[format INJECTED]`.
 #[test]
 fn w102_subst_variable_argument() {
-    // Bare `$var` template fires; the message lists both kinds.
+    // Bare `$var` operand fires; the message lists both kinds.
     let mut a = Analyser::new();
     let r = a.analyse("subst $x\n", "tcl8.6");
     let w102 = r
@@ -11016,12 +11021,18 @@ fn w102_subst_variable_argument() {
         w102.message
             .contains("Add -nocommands -novariables to limit")
     );
-    // A braced or quoted template is fine; both flags suppress it.
+    // A braced operand is the template as written — nothing is spliced in.
     assert_eq!(sec_codes("subst {literal $y}\n", "W102"), 0);
-    assert_eq!(sec_codes("subst \"$x\"\n", "W102"), 0);
+    // A quoted operand carrying a substitution is spliced in just as a bare
+    // `$var` one is, and is reported the same way.
+    assert_eq!(sec_codes("subst \"$x\"\n", "W102"), 1);
+    assert_eq!(sec_codes("subst \"literal\"\n", "W102"), 0);
     assert_eq!(sec_codes("subst -nocommands -novariables $x\n", "W102"), 0);
 }
 
+/// tclsh 9.0.4 and 9.1b0, `set secret hunter2; set x {$secret}`:
+/// `puts [subst -nocommands $x]` → `hunter2` — command substitution is off
+/// but the variable read still happens.
 #[test]
 fn w102_message_narrows_with_flags() {
     let mut a = Analyser::new();
@@ -11035,6 +11046,68 @@ fn w102_message_narrows_with_flags() {
     assert!(w102.message.contains("any $var in the string"), "{w102:?}");
     assert!(!w102.message.contains("[cmd]"), "{w102:?}");
     assert!(w102.message.contains("Add -novariables to limit"));
+}
+
+/// A computed word before the operand is a *switch*, not the template.
+///
+/// tclsh 9.0.4 and 9.1b0, `set opt -novariables; set name world`:
+/// `puts [subst $opt {hello $name}]` → `hello $name`. The braced literal is
+/// what is substituted, and nothing can be injected into it; the computed
+/// word decides only which substitutions run.
+#[test]
+fn w102_computed_switch_word_is_not_the_operand() {
+    assert_eq!(
+        sec_codes(
+            "set opt -novariables
+subst $opt {hello $name}
+",
+            "W102"
+        ),
+        0
+    );
+}
+
+/// Tcl 9.1's positive family names the *only* substitutions that run.
+///
+/// tclsh 9.1b0, `set tmpl {hello $name}; set name world`:
+/// `puts [subst -backslashes $tmpl]` → `hello $name` — neither a `[cmd]` nor
+/// a `$var` in the operand is evaluated, so there is nothing to report
+/// On 9.0.4 the same call is
+/// `bad option "-backslashes": must be -nobackslashes, -nocommands, or
+/// -novariables`, which is W004's finding, not this one.
+#[test]
+fn w102_tcl91_positive_family_backslashes_only_is_silent() {
+    let mut a = Analyser::new();
+    let r = a.analyse("subst -backslashes $tmpl\n", "tcl9.1");
+    assert!(
+        !r.diagnostics.iter().any(|d| d.code == DiagCode::W102),
+        "{:?}",
+        r.diagnostics
+    );
+}
+
+/// The advice never mixes the two switch families.
+///
+/// tclsh 9.1b0: `subst -backslashes -nocommands $tmpl` →
+/// `cannot combine positive and negative options`, so a call already using
+/// the positive family gets no switch advice at all — only the templating
+/// alternatives.
+#[test]
+fn w102_advice_never_mixes_switch_families() {
+    let mut a = Analyser::new();
+    let r = a.analyse("subst -commands $x\n", "tcl9.1");
+    let w102 = r
+        .diagnostics
+        .iter()
+        .find(|d| d.code == DiagCode::W102)
+        .unwrap();
+    assert!(w102.message.contains("any [cmd] in the string"), "{w102:?}");
+    assert!(!w102.message.contains("Add "), "{w102:?}");
+    assert!(
+        w102.message
+            .contains("Use [format] / [string map] for safe templating."),
+        "{w102:?}"
+    );
 }
 
 #[test]

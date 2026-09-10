@@ -100,7 +100,7 @@ pub fn specialise_factories_with_cap(module: &mut Module, registry: &CommandRegi
         if module.redefined_procedures.contains(qname) {
             continue;
         }
-        if let Some(shape) = detect_factory_shape(proc, config) {
+        if let Some(shape) = detect_factory_shape(proc, config, registry) {
             factories.insert(qname.clone(), shape);
         }
     }
@@ -199,6 +199,7 @@ fn resolve_target<'a>(
 pub fn detect_factory_shape(
     proc: &Procedure,
     config: tcl_lexer::LexerConfig,
+    registry: &CommandRegistry,
 ) -> Option<FactoryShape> {
     let stmts = &proc.body.statements;
     if stmts.len() != 1 {
@@ -277,7 +278,7 @@ pub fn detect_factory_shape(
         return None;
     }
     let inner = &body_text[1..body_text.len() - 1];
-    let template = extract_subst_nocommands_template(inner, config)?;
+    let template = extract_subst_nocommands_template(inner, config, registry)?;
 
     Some(FactoryShape {
         qualified_name: proc.qualified_name.clone(),
@@ -288,14 +289,21 @@ pub fn detect_factory_shape(
     })
 }
 
-/// Extract the brace-string template from a `subst -nocommands {template}`
-/// command-substitution body. Returns `None` for any other shape, including
-/// one that also passes `-nobackslashes` or `-novariables` — those change
-/// what the template substitutes to, so the materialised body would not
-/// match. Used by [`detect_factory_shape`].
+/// Extract the brace-string template from a `subst` command-substitution
+/// body the registry says performs
+/// [`SUBST_NOCOMMANDS_KINDS`](crate::lowering::SUBST_NOCOMMANDS_KINDS) — the
+/// effect set [`subst_nocommands`] reproduces, whether the call spells it
+/// `-nocommands` or, from Tcl 9.1, `-variables -backslashes`. Returns `None`
+/// for any other shape, including one that also turns backslash or variable
+/// substitution off: those change what the template substitutes to, so the
+/// materialised body would not match. Used by [`detect_factory_shape`].
+///
+/// The registry answers a call it cannot read — a computed switch word —
+/// with every kind, which is not this set, so the shape is refused.
 fn extract_subst_nocommands_template(
     inner: &str,
     config: tcl_lexer::LexerConfig,
+    registry: &CommandRegistry,
 ) -> Option<String> {
     let segments = crate::segmenter::segment_commands_with_offset_and_config(inner, 0, config);
     if segments.len() != 1 {
@@ -305,38 +313,23 @@ fn extract_subst_nocommands_template(
     if cmd.texts.is_empty() || cmd.texts[0] != "subst" {
         return None;
     }
-    let argv = cmd.arg_tokens();
     let texts = cmd.args();
-    let single = &cmd.single_token_word;
-    let mut saw_nocommands = false;
-    let mut template: Option<String> = None;
-    for (i, tok) in argv.iter().enumerate() {
-        let text = &texts[i];
-        if text == "-nocommands" {
-            saw_nocommands = true;
-            continue;
-        }
-        if text == "-nobackslashes" || text == "-novariables" {
-            return None;
-        }
-        if text.starts_with('-') {
-            return None;
-        }
-        if !single.get(i + 1).copied().unwrap_or(false) {
-            return None;
-        }
-        if tok.kind != TokenType::Str {
-            return None;
-        }
-        if template.is_some() {
-            return None;
-        }
-        template = Some(text.clone());
-    }
-    if !saw_nocommands {
+    let arg_refs: Vec<&str> = texts.iter().map(String::as_str).collect();
+    if registry.substitutions_performed(&cmd.texts[0], &arg_refs)
+        != Some(crate::lowering::SUBST_NOCOMMANDS_KINDS)
+    {
         return None;
     }
-    template
+    // The operand is the call's final argument; only a braced literal one is
+    // a template the materialiser can substitute into.
+    let idx = texts.len().checked_sub(1)?;
+    if !cmd.single_token_word.get(idx + 1).copied().unwrap_or(false) {
+        return None;
+    }
+    if cmd.arg_tokens().get(idx)?.kind != TokenType::Str {
+        return None;
+    }
+    Some(texts[idx].clone())
 }
 
 /// Walk *script*, rewriting matching call sites and collecting the
@@ -467,12 +460,43 @@ mod tests {
             &reg(),
         );
         let proc = m.procedures.get("::Configure").expect("registered");
-        let shape = detect_factory_shape(proc, tcl_lexer::LexerConfig::default())
+        let shape = detect_factory_shape(proc, tcl_lexer::LexerConfig::default(), &reg())
             .expect("expected factory");
         assert_eq!(shape.qualified_name, "::Configure");
         assert_eq!(shape.name_param, "name");
         assert_eq!(shape.child_params, "x");
         assert!(shape.child_body_template.contains("return $default"));
+    }
+
+    /// Tcl 9.1's positive family reaches the same effect set the
+    /// materialiser reproduces, so it folds the same way.
+    ///
+    /// tclsh 9.1b0, with `name` set to `world`:
+    /// `subst -variables -backslashes {hello $name\n[format X]}` → `hello
+    /// world`, a newline, then the untouched `[format X]` — variables and
+    /// backslashes substituted, commands not.
+    #[test]
+    fn detects_factory_shape_with_tcl91_positive_switches() {
+        let m = lower_to_ir(
+            "proc Configure {name default description} {\n  proc $name {x} [subst -variables -backslashes {return $default}]\n}",
+            &reg(),
+        );
+        let proc = m.procedures.get("::Configure").expect("registered");
+        let shape = detect_factory_shape(proc, tcl_lexer::LexerConfig::default(), &reg())
+            .expect("expected factory");
+        assert!(shape.child_body_template.contains("return $default"));
+    }
+
+    /// A computed switch word makes the call unreadable, and the registry
+    /// answers every kind — never this materialiser's effect set.
+    #[test]
+    fn rejects_factory_with_computed_subst_switch() {
+        let m = lower_to_ir(
+            "proc Configure {name default opt} {\n  proc $name {x} [subst $opt {return $default}]\n}",
+            &reg(),
+        );
+        let proc = m.procedures.get("::Configure").expect("registered");
+        assert!(detect_factory_shape(proc, tcl_lexer::LexerConfig::default(), &reg()).is_none());
     }
 
     #[test]
@@ -484,7 +508,7 @@ mod tests {
             &reg(),
         );
         let proc = m.procedures.get("::Configure").expect("registered");
-        assert!(detect_factory_shape(proc, tcl_lexer::LexerConfig::default()).is_none());
+        assert!(detect_factory_shape(proc, tcl_lexer::LexerConfig::default(), &reg()).is_none());
     }
 
     #[test]
@@ -496,7 +520,7 @@ mod tests {
             &reg(),
         );
         let proc = m.procedures.get("::Configure").expect("registered");
-        assert!(detect_factory_shape(proc, tcl_lexer::LexerConfig::default()).is_none());
+        assert!(detect_factory_shape(proc, tcl_lexer::LexerConfig::default(), &reg()).is_none());
     }
 
     #[test]

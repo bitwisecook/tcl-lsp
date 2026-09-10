@@ -59,7 +59,7 @@
 |---|---|---|
 | W100 / W105 | Unbraced expression / body | `ArgRole::Expr` / `ArgRole::Body` causes at that position; `EXPR_CONCATENATES_ARGS` widens the anchor |
 | W101 / W301 | String-built script into eval / uplevel | Exactly `SCRIPT_CONCATENATES_ARGS \| TAINT_SINK`, split by `EVALUATES_IN_SHIFTED_FRAME` |
-| W102 / W309 | `subst` risks | `Traits::PERFORMS_SUBSTITUTION` (with its option flags as suppressors); `EVALUATES_CODE \| TAINT_SINK` for the outer half |
+| W102 / W309 | `subst` risks | `Traits::PERFORMS_SUBSTITUTION` gates, and `substitution_resolver` (via `CommandRegistry::substitutions_performed`) says which kinds this call still runs, so a switch never suppresses by spelling; `EVALUATES_CODE \| TAINT_SINK` for the outer half |
 | W103 / W300 | Pipeline `open` / variable `source` | `OPENS_CHANNEL` (adding `TAINT_SOURCE` suppresses, the socket case) / `SOURCES_FILE` |
 | W302 | `catch` without result variable | Trailing `VarWrite` roles drive the fix; `FIRE_AND_FORGET_TEARDOWN` in the body suppresses |
 | W303 / W306 / T103 | Regex ReDoS / substitution in a pattern / tainted pattern | `pattern_type == Regex` |

@@ -11,6 +11,13 @@
 //! and they are independent: `subst -novariables {a$b[c]}` leaves `$b` as
 //! literal text while still evaluating `[c]`, whose *contents* are ordinary
 //! script and substitute normally.
+//!
+//! Consumers, all through
+//! [`CommandRegistry::substitutions_performed`](crate::CommandRegistry::substitutions_performed):
+//! the analyser's W102 `subst`-injection check, and the two compile-time
+//! template folders — `Lowerer::eval_subst_nocommands_body` and
+//! `specialise_factories`'s template extraction — which fold only the call
+//! whose answer is the effect set their evaluator reproduces.
 
 /// The substitutions a call performs over its argument text.
 ///
