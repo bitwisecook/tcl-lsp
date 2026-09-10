@@ -39,12 +39,12 @@ proc greet {name} {
 
 ```tcl
 proc greet {name} {
-    set title [string totitle $name]
-    puts "Hello $title!"
+    set result [string totitle $name]
+    puts "Hello $result!"
 }
 ```
 
-The `[string totitle $name]` expression is extracted into `$title`, and the original site is replaced with the variable reference.
+The `[string totitle $name]` expression is extracted into `$result`, and the original site is replaced with the variable reference. The MCP tool takes an optional `var_name`; the editor code action always uses `result`.
 
 ## Operational context
 
