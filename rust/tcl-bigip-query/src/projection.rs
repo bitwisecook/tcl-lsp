@@ -202,160 +202,137 @@ const MODULE_NAMES: &[&str] = &[
     "analytics",
 ];
 
-/// `(label, tmsh_kind)` for the LTM kinds the projection covers. The
-/// long-tail LTM kinds the Rust model carries no typed struct for are
-/// simply absent, so navigating into them reports `no entry`.
-const LTM_KINDS: &[(&str, &str)] = &[
-    ("virtual", "ltm virtual"),
-    ("virtual-address", "ltm virtual-address"),
-    ("pool", "ltm pool"),
-    ("node", "ltm node"),
-    ("rule", "ltm rule"),
-    ("profile", "ltm profile"),
-    ("monitor", "ltm monitor"),
-    ("persistence", "ltm persistence"),
-    ("snatpool", "ltm snatpool"),
-    ("policy", "ltm policy"),
-    ("data-group", "ltm data-group"),
-    ("snat-translation", "ltm snat-translation"),
-];
-
-/// `(label, tmsh_kind)` for the GTM kinds the projection covers. GTM matters to
-/// the estate report because a GTM (DNS) tier fronts one or more LTM tiers: a
-/// `gtm server`'s `virtual-servers` destinations are the downstream LTM virtual
-/// addresses, which is how the report links a GTM to the LTMs it load-balances.
-const GTM_KINDS: &[(&str, &str)] = &[
-    ("datacenter", "gtm datacenter"),
-    ("server", "gtm server"),
-    ("pool", "gtm pool"),
-    ("wideip", "gtm wideip"),
-    ("listener", "gtm listener"),
-];
-
-/// `(label, tmsh_kind)` for the AFM `security` kinds the projection covers:
-/// firewall policies / rule-lists and the address-/port-lists they reference,
-/// plus the NAT policies and source/destination translations. These let the
-/// report surface the firewall + NAT posture alongside the LTM/GTM estate.
-const SECURITY_KINDS: &[(&str, &str)] = &[
-    ("firewall-policy", "security firewall policy"),
-    ("firewall-rule-list", "security firewall rule-list"),
-    ("firewall-address-list", "security firewall address-list"),
-    ("firewall-port-list", "security firewall port-list"),
-    ("nat-policy", "security nat policy"),
-    ("nat-source-translation", "security nat source-translation"),
+/// Every kind the projection covers, as `(tmsh_kind, label)`.
+///
+/// The TMSH kind is what [`placed_kind`] returns for a parsed object and what
+/// a [`PathRef`] records as its expected target; the label is the identifier
+/// its module container exposes it under (`.net["route-domain"]`). The label
+/// is not derivable from the kind — `apm policy access-policy` is reached as
+/// `access-policy`, not `policy-access-policy`, and `net tunnels tunnel` as
+/// `tunnel` — so both halves are spelled out.
+///
+/// A kind absent from this table is not navigable: its module container
+/// reports `no entry`, even when the parser types the stanza. The
+/// `every_parsed_kind_is_projected_or_listed` test holds that deliberate,
+/// pinning the parsed-but-unprojected kinds against the committed fixtures.
+///
+/// Ordering is by module, then the order each module's kinds are listed in
+/// its container.
+const KINDS: &[(&str, &str)] = &[
+    // ltm — the core load-balancing objects the cookbook and common queries
+    // walk. The long-tail LTM kinds the Rust model carries no typed struct
+    // for are simply absent.
+    ("ltm virtual", "virtual"),
+    ("ltm virtual-address", "virtual-address"),
+    ("ltm pool", "pool"),
+    ("ltm node", "node"),
+    ("ltm rule", "rule"),
+    ("ltm profile", "profile"),
+    ("ltm monitor", "monitor"),
+    ("ltm persistence", "persistence"),
+    ("ltm snatpool", "snatpool"),
+    ("ltm policy", "policy"),
+    ("ltm data-group", "data-group"),
+    ("ltm snat-translation", "snat-translation"),
+    // net — the L2/L3 underlay the LTM tier sits on. `net self` / `net vlan`
+    // / `net route-domain` are what a self-IP or VLAN-binding audit walks.
+    ("net route", "route"),
+    ("net vlan", "vlan"),
+    ("net self", "self"),
+    ("net route-domain", "route-domain"),
+    ("net port-list", "port-list"),
+    ("net interface", "interface"),
+    ("net dns-resolver", "dns-resolver"),
+    ("net tunnels tunnel", "tunnel"),
+    ("net stp", "stp"),
+    // sys — the filestore kinds carry the cert metadata `x509_from_config` /
+    // `ucs_cert` project. `dns` / `ntp` / `snmp` / `global-settings` are TMSH
+    // singletons: they parse with an empty full-path, so they hold exactly
+    // one entry each and are read by streaming (`.sys.dns[]`).
+    ("sys dns", "dns"),
+    ("sys ntp", "ntp"),
+    ("sys snmp", "snmp"),
+    ("sys global-settings", "global-settings"),
+    ("sys provision", "provision"),
+    ("sys folder", "folder"),
+    ("sys file ssl-cert", "file-ssl-cert"),
+    ("sys file ssl-key", "file-ssl-key"),
+    ("sys management-route", "management-route"),
+    // cm — `device` + `device-group` are the HA topology an estate report
+    // joins on; `cert` / `key` are the device-trust key material, carrying
+    // the same cert metadata fields as `sys file ssl-cert`.
+    ("cm cert", "cert"),
+    ("cm key", "key"),
+    ("cm device", "device"),
+    ("cm device-group", "device-group"),
+    ("cm traffic-group", "traffic-group"),
+    ("cm trust-domain", "trust-domain"),
+    ("cm ha-group", "ha-group"),
+    // gtm — a GTM (DNS) tier fronts one or more LTM tiers: a `gtm server`'s
+    // `virtual-servers` destinations are the downstream LTM virtual
+    // addresses, which is how a report links a GTM to the LTMs it balances.
+    ("gtm datacenter", "datacenter"),
+    ("gtm server", "server"),
+    ("gtm pool", "pool"),
+    ("gtm wideip", "wideip"),
+    ("gtm listener", "listener"),
+    // apm — an access-policy's `start-item` / `items[]` deref into
+    // `policy-item`, and an item's `agents[]` into `policy agent`, so a
+    // policy walk resolves in one chain.
+    ("apm policy access-policy", "access-policy"),
+    ("apm policy policy-item", "policy-item"),
+    ("apm policy agent", "policy-agent"),
+    ("apm policy customization-source", "customization-source"),
+    ("apm oauth db-instance", "oauth-db-instance"),
     (
-        "nat-destination-translation",
-        "security nat destination-translation",
-    ),
-];
-
-/// `(label, tmsh_kind)` for the `net` kinds the projection covers — the L2/L3
-/// underlay the LTM tier sits on. `net self` / `net vlan` / `net route-domain`
-/// are what a self-IP or VLAN-binding audit walks, and `virtual.vlans[]` /
-/// `self.vlan` path-refs deref into `net vlan` so `.net.self[].vlan.tag`
-/// resolves the whole chain.
-const NET_KINDS: &[(&str, &str)] = &[
-    ("route", "net route"),
-    ("vlan", "net vlan"),
-    ("self", "net self"),
-    ("route-domain", "net route-domain"),
-    ("port-list", "net port-list"),
-    ("interface", "net interface"),
-    ("dns-resolver", "net dns-resolver"),
-    ("tunnel", "net tunnels tunnel"),
-    ("stp", "net stp"),
-];
-
-/// `(label, tmsh_kind)` for the `sys` kinds the projection covers. The
-/// filestore kinds (`file-ssl-cert` / `file-ssl-key`) carry the cert metadata
-/// `x509_from_config` / `ucs_cert` project, and are the entry point for every
-/// cert-expiry audit. `dns` / `ntp` / `snmp` / `global-settings` are TMSH
-/// singletons: they parse with an empty full-path, so they hold exactly one
-/// entry each and are read by streaming (`.sys.dns[]`).
-const SYS_KINDS: &[(&str, &str)] = &[
-    ("dns", "sys dns"),
-    ("ntp", "sys ntp"),
-    ("snmp", "sys snmp"),
-    ("global-settings", "sys global-settings"),
-    ("provision", "sys provision"),
-    ("folder", "sys folder"),
-    ("file-ssl-cert", "sys file ssl-cert"),
-    ("file-ssl-key", "sys file ssl-key"),
-    ("management-route", "sys management-route"),
-];
-
-/// `(label, tmsh_kind)` for the `cm` (device-cluster) kinds. `cm device` +
-/// `cm device-group` are the HA topology an estate report joins on; `cm cert`
-/// / `cm key` are the device-trust key material, carrying the same cert
-/// metadata fields as `sys file ssl-cert`.
-const CM_KINDS: &[(&str, &str)] = &[
-    ("cert", "cm cert"),
-    ("key", "cm key"),
-    ("device", "cm device"),
-    ("device-group", "cm device-group"),
-    ("traffic-group", "cm traffic-group"),
-    ("trust-domain", "cm trust-domain"),
-    ("ha-group", "cm ha-group"),
-];
-
-/// `(label, tmsh_kind)` for the APM kinds. An `apm policy access-policy`'s
-/// `start-item` / `items[]` deref into `apm policy policy-item`, and an item's
-/// `agents[]` into `apm policy agent`, so a policy walk
-/// (`.apm["access-policy"][].items[].caption`) resolves in one chain.
-const APM_KINDS: &[(&str, &str)] = &[
-    ("access-policy", "apm policy access-policy"),
-    ("policy-item", "apm policy policy-item"),
-    ("policy-agent", "apm policy agent"),
-    ("customization-source", "apm policy customization-source"),
-    ("oauth-db-instance", "apm oauth db-instance"),
-    (
-        "ssh-security-config",
         "apm ephemeral-auth ssh-security-config",
+        "ssh-security-config",
     ),
-    ("default-report", "apm report default-report"),
+    ("apm report default-report", "default-report"),
+    // security — the AFM firewall + NAT posture alongside the LTM/GTM estate.
+    ("security firewall policy", "firewall-policy"),
+    ("security firewall rule-list", "firewall-rule-list"),
+    ("security firewall address-list", "firewall-address-list"),
+    ("security firewall port-list", "firewall-port-list"),
+    ("security nat policy", "nat-policy"),
+    ("security nat source-translation", "nat-source-translation"),
+    (
+        "security nat destination-translation",
+        "nat-destination-translation",
+    ),
 ];
 
-/// Every covered kind table, in module order. Iterated by the per-module entry
-/// builder and the kind/label lookups.
-const KIND_TABLES: &[&[(&str, &str)]] = &[
-    LTM_KINDS,
-    NET_KINDS,
-    SYS_KINDS,
-    CM_KINDS,
-    GTM_KINDS,
-    APM_KINDS,
-    SECURITY_KINDS,
-];
-
-/// The `(label, tmsh_kind)` table for a module, or empty for an uncovered one.
-fn module_kinds(module: &str) -> &'static [(&'static str, &'static str)] {
-    match module {
-        "ltm" => LTM_KINDS,
-        "net" => NET_KINDS,
-        "sys" => SYS_KINDS,
-        "cm" => CM_KINDS,
-        "gtm" => GTM_KINDS,
-        "apm" => APM_KINDS,
-        "security" => SECURITY_KINDS,
-        _ => &[],
-    }
+/// The `(label, tmsh_kind)` pairs a module container exposes, in table order.
+///
+/// A kind belongs to the module its TMSH kind starts with, so the module list
+/// follows from [`KINDS`] rather than a second table that can drift from it.
+fn module_kinds(module: &str) -> impl Iterator<Item = (&'static str, &'static str)> + '_ {
+    KINDS.iter().filter_map(move |(kind, label)| {
+        kind.strip_prefix(module)
+            .and_then(|rest| rest.strip_prefix(' '))
+            .map(|_| (*label, *kind))
+    })
 }
 
-/// The set of leaf object kinds, restricted to the covered subset. Used by
+/// Every projected kind as `(tmsh_kind, label)`, for the docs gate that holds
+/// `--help-dsl`'s MODULES section to this table.
+#[cfg(test)]
+pub(crate) fn documented_kind_labels() -> impl Iterator<Item = (&'static str, &'static str)> {
+    KINDS.iter().copied()
+}
+
+/// Whether *kind* is a projected leaf object kind. Used by
 /// `Container.is_object_kind`.
 fn is_object_kind_alias(kind: &str) -> bool {
-    KIND_TABLES
-        .iter()
-        .any(|table| table.iter().any(|(_, k)| *k == kind))
+    KINDS.iter().any(|(k, _)| *k == kind)
 }
 
 /// Map a kind to its label (for `PathRef` container navigation).
 fn kind_to_label(kind: &str) -> Option<&'static str> {
-    KIND_TABLES
+    KINDS
         .iter()
-        .flat_map(|table| table.iter())
-        .find(|(_, k)| *k == kind)
-        .map(|(label, _)| *label)
+        .find(|(k, _)| *k == kind)
+        .map(|(_, label)| *label)
 }
 
 // Entry building
@@ -380,8 +357,8 @@ fn build_entries(container: &Container) -> IndexMap<String, Value> {
         let mut out = IndexMap::new();
         for (label, tmsh_kind) in module_kinds(&container.kind) {
             out.insert(
-                (*label).to_owned(),
-                Value::Container(Container::new(*tmsh_kind, Rc::clone(root))),
+                label.to_owned(),
+                Value::Container(Container::new(tmsh_kind, Rc::clone(root))),
             );
         }
         return out;
@@ -2543,4 +2520,216 @@ pub fn resolve_pathref(reference: &PathRef, root: &Rc<Root>) -> Option<Rc<Object
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{KINDS, placed_kind};
+    use std::collections::BTreeSet;
+    use tcl_bigip::parser::parse_bigip_conf;
+
+    /// The committed configs the coverage gate reads. Between them they carry
+    /// every module the parser types, so a kind the model gains without a
+    /// projection shows up here.
+    const FIXTURES: &[(&str, &str)] = &[
+        (
+            "bigip.conf",
+            include_str!("../../../samples/bigip/bigip.conf"),
+        ),
+        (
+            "bigip_base.conf",
+            include_str!("../../../samples/bigip/bigip_base.conf"),
+        ),
+        (
+            "ltm.conf",
+            include_str!("../../../samples/for_f5_query/ltm.conf"),
+        ),
+        (
+            "gtm.conf",
+            include_str!("../../../samples/for_f5_query/gtm.conf"),
+        ),
+        (
+            "apm.conf",
+            include_str!("../../../samples/for_f5_query/apm.conf"),
+        ),
+        (
+            "lab_localhost.conf",
+            include_str!("../../../samples/for_f5_query/sysadmin/lab_localhost.conf"),
+        ),
+        (
+            "lab_platform.conf",
+            include_str!("../../../samples/for_f5_query/sysadmin/lab_platform.conf"),
+        ),
+        (
+            "tier1-ltm-ha.conf",
+            include_str!("../../../samples/for_f5_query/multitier/tier1-ltm-ha.conf"),
+        ),
+        (
+            "tier3-reaggregator.conf",
+            include_str!("../../../samples/for_f5_query/multitier/tier3-reaggregator.conf"),
+        ),
+        (
+            "device-01.bigip.conf",
+            include_str!("../../../rust/bigip-report-gen/python/tests/data/device-01.bigip.conf"),
+        ),
+        (
+            "tier2-c05-ltm-ha.conf",
+            include_str!("../../../samples/for_f5_query/multitier/tier2-c05-ltm-ha.conf"),
+        ),
+        (
+            "graph_pilot.conf",
+            include_str!("../../../rust/tcl-bigip/tests/fixtures/graph_pilot.conf"),
+        ),
+    ];
+
+    /// `BigipConfig` tables the parser fills with a typed struct that the DSL
+    /// deliberately does not project, as the committed fixtures exercise them.
+    /// Each entry is a kind an operator cannot navigate to, so adding one is a
+    /// decision; the gate below fails when a fixture grows a typed kind that is
+    /// neither projected nor listed here.
+    ///
+    /// Most are singletons or long-tail settings with little query value.
+    /// `apm_policy_customization_group` is the notable exception — APM policy
+    /// agents name one in their `customization-group`, which the projection
+    /// keeps as a path string precisely because this kind is not navigable.
+    const UNPROJECTED_TABLES: &[&str] = &[
+        "analytics_global_settings",
+        "apm_aaa_localdb",
+        "apm_epsec_epsec_package",
+        "apm_policy_customization_group",
+        "apm_profile_access",
+        "apm_profile_connectivity",
+        "apm_resource_leasepool",
+        "apm_resource_network_access",
+        "apm_resource_webtop",
+        "asm_policies",
+        "auth_apm_auths",
+        "auth_partitions",
+        "auth_password_policy",
+        "auth_radius",
+        "auth_radius_servers",
+        "auth_remote_user",
+        "auth_source",
+        "auth_users",
+        "ilx_global_settings",
+        "ltm_auth_radius_servers",
+        "ltm_classification_auto_update_settings",
+        "ltm_default_node_monitor",
+        "net_ipsec_ike_daemon",
+        "net_self_allow",
+        "pem_gs_analytics",
+        "pem_gs_gx",
+        "pem_gs_policy",
+        "security_bot_defense_profiles",
+        "security_dos_ipv6_ext_hdr",
+        "security_dos_profiles",
+        "security_dos_udp_portlists",
+        "security_firewall_config_change_log",
+        "security_pi_compliance_maps",
+        "security_pi_compliance_objects",
+        "security_scrubber_profiles",
+        "sys_compatibility_level",
+        "sys_diags_ihealth",
+        "sys_ecm_cloud_provider",
+        "sys_management_ovsdb",
+        "sys_software_update",
+        "wom_endpoint_discovery",
+    ];
+
+    /// Kinds in `KINDS` that no committed fixture carries, so the gate below
+    /// cannot confirm their `placed_kind` arm exists. Each is a hole in fixture
+    /// coverage rather than a decision; shrinking this list is how the gate
+    /// gets stronger.
+    const FIXTURE_UNCOVERED_KINDS: &[&str] = &[
+        "apm ephemeral-auth ssh-security-config",
+        "apm oauth db-instance",
+        "gtm listener",
+        "security nat destination-translation",
+        "security nat policy",
+        "security nat source-translation",
+    ];
+
+    /// Every kind the projection claims to cover must be reachable: a kind in
+    /// `KINDS` that `placed_kind` never returns is dead weight, and a kind
+    /// `placed_kind` returns that is missing from `KINDS` is an object the
+    /// parser types but no container exposes — the failure mode that kept
+    /// `cm ha-group` out of the DSL while the model parsed it.
+    #[test]
+    fn every_parsed_kind_is_projected_or_listed() {
+        let mut projected: BTreeSet<&str> = BTreeSet::new();
+        let mut unprojected: BTreeSet<&str> = BTreeSet::new();
+        for (name, source) in FIXTURES {
+            let config = parse_bigip_conf(source, "Common");
+            for placed in &config.objects {
+                match placed_kind(placed) {
+                    Some(kind) => {
+                        assert!(
+                            KINDS.iter().any(|(k, _)| *k == kind),
+                            "{name}: parser produced {kind:?}, which no module container exposes"
+                        );
+                        projected.insert(kind);
+                    }
+                    None => {
+                        unprojected.insert(placed.table_name);
+                    }
+                }
+            }
+        }
+        let listed: BTreeSet<&str> = UNPROJECTED_TABLES.iter().copied().collect();
+        let unlisted: Vec<&&str> = unprojected.difference(&listed).collect();
+        assert!(
+            unlisted.is_empty(),
+            "the parser types these kinds but the DSL projects none of them; \
+             add each to KINDS with a label, or record it in UNPROJECTED_TABLES: {unlisted:?}"
+        );
+        let stale: Vec<&&str> = listed.difference(&unprojected).collect();
+        assert!(
+            stale.is_empty(),
+            "UNPROJECTED_TABLES lists tables no fixture produces any more: {stale:?}"
+        );
+        // The reverse direction: a row added to `KINDS` whose `placed_kind`
+        // arm is missing exposes a module container that can never select an
+        // object. Nothing else catches that, so require every row to be either
+        // reached from a fixture or recorded as one the fixtures do not carry.
+        let uncovered: BTreeSet<&str> = FIXTURE_UNCOVERED_KINDS.iter().copied().collect();
+        let unreachable: Vec<&str> = KINDS
+            .iter()
+            .map(|(kind, _)| *kind)
+            .filter(|kind| !projected.contains(kind) && !uncovered.contains(kind))
+            .collect();
+        assert!(
+            unreachable.is_empty(),
+            "these kinds are in KINDS but no fixture ever projected one, so the \
+             module container exposes a label that can never select an object; \
+             add the `placed_kind` arm, or add fixture coverage, or record it in \
+             FIXTURE_UNCOVERED_KINDS: {unreachable:?}"
+        );
+        let now_covered: Vec<&&str> = FIXTURE_UNCOVERED_KINDS
+            .iter()
+            .filter(|kind| projected.contains(**kind))
+            .collect();
+        assert!(
+            now_covered.is_empty(),
+            "FIXTURE_UNCOVERED_KINDS lists kinds the fixtures now do project; \
+             drop them: {now_covered:?}"
+        );
+    }
+
+    /// Labels are the DSL's identifiers, so they must be unique within a
+    /// module; kinds are `PathRef` targets, so they must be unique outright.
+    #[test]
+    fn kinds_and_labels_are_unambiguous() {
+        let mut kinds = BTreeSet::new();
+        for (kind, _) in KINDS {
+            assert!(kinds.insert(*kind), "duplicate kind {kind:?} in KINDS");
+        }
+        let mut module_labels = BTreeSet::new();
+        for (kind, label) in KINDS {
+            let module = kind.split(' ').next().unwrap_or_default();
+            assert!(
+                module_labels.insert((module, *label)),
+                "duplicate label {label:?} in module {module:?}"
+            );
+        }
+    }
 }

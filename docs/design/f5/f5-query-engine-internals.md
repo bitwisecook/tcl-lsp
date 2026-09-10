@@ -404,9 +404,9 @@ objects the query actually touches.
                   │ .virtual                                 │
                   ▼                                          │
         ┌─────────────────────┐                              │
-        │ ltm virtual         │  module_kinds("ltm")         │
-        │ Container           │   → LTM_KINDS, which pairs   │
-        │ kind = "ltm virtual"│     ("virtual","ltm virtual")│
+        │ ltm virtual         │  module_kinds("ltm") filters │
+        │ Container           │   KINDS to the rows whose    │
+        │ kind = "ltm virtual"│   kind starts "ltm "         │
         └─────────┬───────────┘                              │
                   │ ["/Common/web_vs"]                       │
                   ▼                                          │
@@ -419,16 +419,43 @@ objects the query actually touches.
         └─────────────────────┘                              │
 ```
 
-`module_kinds` is the module → kind dispatch: a `match` on the module name
-returning one of the `LTM_KINDS` / `NET_KINDS` / `SYS_KINDS` / `CM_KINDS` /
-`GTM_KINDS` / `APM_KINDS` / `SECURITY_KINDS` static `(label, tmsh_kind)`
-tables, empty for an uncovered module (`pem`, `auth`, `vcmp`, `cli`,
-`api-protection`, `asm`, `ilx`, `wom`, `analytics`).
-`is_object_kind_alias` and `kind_to_label` scan `KIND_TABLES` (the slice of
-all seven) for the kind-label vocabulary. `project_fields` is the per-kind
-field dispatch — a `match` on `(kind, ModelObject)` reaching a
-`project_<kind>` function per kind, so adding a kind is a compile-checked
-edit and a kind/model mismatch cannot compile.
+`KINDS` is the single `(tmsh_kind, label)` table of everything the DSL
+exposes. A kind belongs to the module its TMSH kind starts with, so
+`module_kinds` is a filter over `KINDS` rather than a second table per
+module, and a module with no rows (`pem`, `auth`, `vcmp`, `cli`,
+`api-protection`, `asm`, `ilx`, `wom`, `analytics`) is uncovered by
+construction. `is_object_kind_alias` and `kind_to_label` look the kind up in
+the same table. The label is spelled out beside the kind because it is not
+derivable from it — `apm policy access-policy` is reached as
+`access-policy`, `net tunnels tunnel` as `tunnel`.
+
+`project_fields` is the per-kind field dispatch — a `match` on
+`(kind, ModelObject)` reaching a `project_<kind>` function per kind, so
+adding a kind is a compile-checked edit and a kind/model mismatch cannot
+compile.
+
+Three gates hold the table to its neighbours, because none of these
+agreements is enforced by the type system:
+
+| Gate | Holds |
+|---|---|
+| `projection::tests::every_parsed_kind_is_projected_or_listed` | Both directions. Every kind the parser types across the committed fixtures is either in `KINDS` or recorded in `UNPROJECTED_TABLES`; and every row of `KINDS` is reached by a fixture or recorded in `FIXTURE_UNCOVERED_KINDS`. The first catches a typed kind the DSL silently omits, the second a row whose `placed_kind` arm is missing — a label that can never select an object. |
+| `grammar::tests::modules_section_documents_every_projected_kind` | `--help-dsl`'s MODULES prose names every label in `KINDS`, scoped to that kind's own module block: labels are only unique within a module, so a global search would let `ltm`'s ``pool`` vouch for a missing `gtm` one. |
+| `registry_refs::projection_pathref_targets_agree_with_the_registry` | Every `PathRef` target the projection produces agrees with `tcl-registry`'s reference edges, or is recorded in `ACCEPTED_DIVERGENCE` with a reason. Waivers are checked in both directions too: one the registry has since started confirming, or whose property now aims elsewhere, fails as stale rather than lingering to excuse a future regression. |
+
+Each gate is only as wide as the committed fixtures: a kind no fixture
+carries is never projected, and an empty list-valued reference materialises no
+`PathRef` to check. `FIXTURE_UNCOVERED_KINDS` names the kinds in the first
+category, and the reference gate prints the waivers in the second rather than
+silently counting them as checked.
+
+The last gate checks rather than drives: the registry carries reference data
+for a minority of the properties the projection covers, so its edges cannot
+yet be the source of the expected-kind strings. `ACCEPTED_DIVERGENCE` is the
+inventory of that shortfall — registry gaps, kinds absent from the registry
+catalogue, and the few edges where the registry contradicts TMSH. Each entry
+removed from it is a property the two layers agree on; when it empties, the
+targets can come from the registry directly.
 
 #### `Container`
 
