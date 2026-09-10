@@ -129,7 +129,8 @@ use tower_lsp_server::ls_types::{
     MarkupContent, MarkupKind, MessageType, OneOf, OptionalVersionedTextDocumentIdentifier,
     ParameterInformation, ParameterLabel, Position, PositionEncodingKind, PrepareRenameResponse,
     Range, ReferenceParams, Registration, RelatedFullDocumentDiagnosticReport,
-    RelatedUnchangedDocumentDiagnosticReport, RenameFilesParams, RenameOptions, RenameParams,
+    RelatedUnchangedDocumentDiagnosticReport, RelativePattern, RenameFilesParams, RenameOptions,
+    RenameParams,
     SelectionRange, SelectionRangeParams, SelectionRangeProviderCapability,
     SemanticTokens as LspSemanticTokens, SemanticTokensDelta, SemanticTokensDeltaParams,
     SemanticTokensEdit, SemanticTokensFullDeltaResult, SemanticTokensFullOptions,
@@ -7487,6 +7488,9 @@ pub struct Backend {
     /// collections and renders every diagnostic twice.  Editors that
     /// only understand push (no pull capability) keep receiving the push.
     client_supports_pull_diagnostics: std::sync::atomic::AtomicBool,
+    /// Snapshot of [`client_supports_relative_watch_patterns`], read by
+    /// [`Backend::refresh_external_pack_watchers`] long after `initialize`.
+    client_supports_relative_watch_patterns: std::sync::atomic::AtomicBool,
     /// Per-URI cache of the last semantic-token stream we served — its
     /// `resultId` and the packed integer data.  Lets
     /// `textDocument/semanticTokens/full/delta` answer with a minimal
@@ -8832,6 +8836,7 @@ impl Backend {
             closed_diag_gen: Arc::new(Mutex::new(HashMap::new())),
             closed_diag_order: Arc::new(Mutex::new(VecDeque::new())),
             client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
+            client_supports_relative_watch_patterns: std::sync::atomic::AtomicBool::new(false),
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
             semantic_tokens_refresh_asked: Arc::new(Mutex::new(HashMap::new())),
             workspace_class_analyses: Arc::new(Mutex::new(HashMap::new())),
@@ -12619,6 +12624,7 @@ impl Backend {
             db_project: _,
             db_config: _,
             client_supports_pull_diagnostics: _,
+            client_supports_relative_watch_patterns: _,
             class_factory_generation: _,
             semantic_tokens_refresh_pending: _,
             warm_task: _,
@@ -21305,18 +21311,34 @@ impl Backend {
                 .iter()
                 .any(|root| path.starts_with(root))
         };
-        let mut globs: Vec<String> = roots
+        // Each watch is a base directory plus a pattern under it, because
+        // that is the only shape a client can honour for a directory outside
+        // the workspace (`RelativePattern`, LSP 3.17). The joined spelling is
+        // still what the change-detection below compares.
+        let mut watches: Vec<(PathBuf, String)> = roots
             .iter()
             .filter(|path| !inside_workspace(path))
             .filter_map(|path| {
-                let text = path.to_str()?;
                 // A settings entry may name one file or a directory to scan;
                 // discovery accepts both, so the watch has to cover both.
-                Some(if tcl_spectcl::discovery::is_pack_file(path) {
-                    text.to_owned()
+                if tcl_spectcl::discovery::is_pack_file(path) {
+                    let parent = path.parent()?;
+                    let name = path.file_name()?.to_str()?;
+                    Some((parent.to_path_buf(), name.to_owned()))
                 } else {
-                    format!("{}/**/*.tclspec", text.trim_end_matches('/'))
-                })
+                    Some((path.clone(), "**/*.tclspec".to_owned()))
+                }
+            })
+            .collect();
+        watches.sort();
+        watches.dedup();
+        let mut globs: Vec<String> = watches
+            .iter()
+            .filter_map(|(base, pattern)| {
+                Some(format!(
+                    "{}/{pattern}",
+                    base.to_str()?.trim_end_matches('/')
+                ))
             })
             .collect();
         globs.sort();
@@ -21343,17 +21365,45 @@ impl Backend {
         if globs.is_empty() {
             return;
         }
+        // Without `relativePatternSupport` there is no spelling for "watch
+        // this directory outside the workspace": a bare absolute pattern is
+        // matched against the workspace instead, which costs such a client
+        // one watch descriptor per project directory rather than declining.
+        // The packs are still discovered and loaded at startup; only the live
+        // reload on an external edit is lost, which is what a client that
+        // declines the registration gets anyway.
+        if !self
+            .client_supports_relative_watch_patterns
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            self.client
+                .log_message(
+                    MessageType::LOG,
+                    format!(
+                        "external spec-pack watchers not registered: client has no \
+                         workspace.didChangeWatchedFiles.relativePatternSupport ({} root(s))",
+                        globs.len()
+                    ),
+                )
+                .await;
+            return;
+        }
 
         let all_kinds = Some(WatchKind::Create | WatchKind::Change | WatchKind::Delete);
         let registration = Registration {
             id: REGISTRATION_ID.to_owned(),
             method: METHOD.to_owned(),
             register_options: serde_json::to_value(DidChangeWatchedFilesRegistrationOptions {
-                watchers: globs
+                watchers: watches
                     .iter()
-                    .map(|glob| FileSystemWatcher {
-                        glob_pattern: GlobPattern::String(glob.clone()),
-                        kind: all_kinds,
+                    .filter_map(|(base, pattern)| {
+                        Some(FileSystemWatcher {
+                            glob_pattern: GlobPattern::Relative(RelativePattern {
+                                base_uri: OneOf::Right(Uri::from_file_path(base)?),
+                                pattern: pattern.clone(),
+                            }),
+                            kind: all_kinds,
+                        })
                     })
                     .collect(),
             })
@@ -22976,6 +23026,10 @@ impl LanguageServer for Backend {
         let _ = client_supports_pull_diagnostics(&params);
         self.client_supports_pull_diagnostics
             .store(false, std::sync::atomic::Ordering::Relaxed);
+        self.client_supports_relative_watch_patterns.store(
+            client_supports_relative_watch_patterns(&params),
+            std::sync::atomic::Ordering::Relaxed,
+        );
         let position_encoding = negotiate_position_encoding(&params);
         if client_lacks_utf16_support(&params) {
             // The client advertised position encodings without UTF-16. The
@@ -30380,6 +30434,27 @@ fn client_supports_pull_diagnostics(params: &InitializeParams) -> bool {
         .is_some()
 }
 
+/// Whether the client can match a watch pattern against a base URI
+/// (`workspace.didChangeWatchedFiles.relativePatternSupport`, LSP 3.17).
+///
+/// This decides whether the server may watch a pack directory that sits
+/// *outside* every workspace folder. A client without it has no way to be
+/// told "watch that other directory": handed a bare absolute pattern, eglot
+/// walks the whole project instead, adding one file-notify watch per
+/// directory, and on a real repository dies with `File watching not
+/// possible, no file descriptor left` (kqueue spends a descriptor per watch,
+/// so macOS hits the ceiling first). An absolute pattern is not portably
+/// declinable, so [`Backend::refresh_external_pack_watchers`] sends none.
+fn client_supports_relative_watch_patterns(params: &InitializeParams) -> bool {
+    params
+        .capabilities
+        .workspace
+        .as_ref()
+        .and_then(|w| w.did_change_watched_files.as_ref())
+        .and_then(|w| w.relative_pattern_support)
+        .unwrap_or(false)
+}
+
 /// The `workspace/foldingRange/refresh` server→client request (LSP 3.18).
 ///
 /// `ls-types` 0.0.6 predates this method, so it is declared locally to be sent
@@ -32691,6 +32766,49 @@ mod tests {
             ..InitializeParams::default()
         };
         assert!(client_supports_pull_diagnostics(&pull_params));
+    }
+
+    #[test]
+    fn relative_watch_pattern_capability_detection() {
+        use tower_lsp_server::ls_types::{
+            ClientCapabilities, DidChangeWatchedFilesClientCapabilities,
+            WorkspaceClientCapabilities,
+        };
+        let params_with = |support: Option<bool>| InitializeParams {
+            capabilities: ClientCapabilities {
+                workspace: Some(WorkspaceClientCapabilities {
+                    did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
+                        relative_pattern_support: support,
+                        ..DidChangeWatchedFilesClientCapabilities::default()
+                    }),
+                    ..WorkspaceClientCapabilities::default()
+                }),
+                ..ClientCapabilities::default()
+            },
+            ..InitializeParams::default()
+        };
+        // Only an explicit `true` earns an external-pack watcher: handed a
+        // bare absolute pattern instead, a client without relative patterns
+        // matches it against the workspace and watches the whole project.
+        assert!(client_supports_relative_watch_patterns(&params_with(Some(
+            true
+        ))));
+        assert!(!client_supports_relative_watch_patterns(&params_with(Some(
+            false
+        ))));
+        // Field absent, `didChangeWatchedFiles` absent, and no `workspace`
+        // capability at all all mean "cannot express a base URI".
+        assert!(!client_supports_relative_watch_patterns(&params_with(None)));
+        assert!(!client_supports_relative_watch_patterns(&InitializeParams {
+            capabilities: ClientCapabilities {
+                workspace: Some(WorkspaceClientCapabilities::default()),
+                ..ClientCapabilities::default()
+            },
+            ..InitializeParams::default()
+        }));
+        assert!(!client_supports_relative_watch_patterns(
+            &InitializeParams::default()
+        ));
     }
 
     #[test]
@@ -35769,6 +35887,7 @@ mod tests {
             closed_diag_gen: Arc::new(Mutex::new(HashMap::new())),
             closed_diag_order: Arc::new(Mutex::new(VecDeque::new())),
             client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
+            client_supports_relative_watch_patterns: std::sync::atomic::AtomicBool::new(false),
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
             semantic_tokens_refresh_asked: Arc::new(Mutex::new(HashMap::new())),
             workspace_class_analyses: Arc::new(Mutex::new(HashMap::new())),
