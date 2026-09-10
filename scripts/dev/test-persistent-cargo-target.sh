@@ -9,8 +9,26 @@
 set -euo pipefail
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
+# The helper is a Linux Tank-runner artefact: it serialises on flock, reads
+# GNU stat fields, and proves an open descriptor through /proc. Say which
+# primitive is missing and stop, rather than reporting a contract failure the
+# host was never able to test. CI runs this gate on Linux.
+for primitive in flock stat; do
+    command -v "$primitive" >/dev/null 2>&1 || {
+        echo "persistent Cargo target contract: skipped — $primitive is not installed on this host" >&2
+        exit 0
+    }
+done
+if ! stat -c '%u' -- "$SCRIPT_DIR" >/dev/null 2>&1 || [ ! -d /proc/self/fd ]; then
+    echo "persistent Cargo target contract: skipped — needs GNU stat and /proc (Linux)" >&2
+    exit 0
+fi
 HELPER=$SCRIPT_DIR/persistent-cargo-target.sh
-ROOT=$(mktemp -d /tmp/tcl-lsp-persistent-target.XXXXXX)
+# The helper rejects a symlinked path component, so hand it the canonical
+# temp root — /tmp is a symlink to /private/tmp on macOS.
+ROOT=$(mktemp -d "${TMPDIR:-/tmp}/tcl-lsp-persistent-target.XXXXXX")
+ROOT=$(CDPATH= cd -- "$ROOT" && pwd -P)
 trap 'rm -rf -- "$ROOT"' EXIT HUP INT TERM
 mkdir -m 700 "$ROOT/work-a" "$ROOT/work-b"
 TARGET_ROOT=$ROOT/targets
