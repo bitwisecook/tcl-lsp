@@ -1292,7 +1292,7 @@ jobs:
           fetch-depth: 1
 
       - name: Verify canonical Rust homes
-        if: needs.channel.outputs.rust_tests_changed == 'true' && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
+        if: needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
         shell: bash
         run: |
           set -euo pipefail
@@ -1315,7 +1315,7 @@ jobs:
       # The action installs the current stable and wires up the Swatinem cache
       # (keyed per job, so the concurrent cargo jobs don't race on save).
       - name: Set up Rust
-        if: needs.channel.outputs.rust_tests_changed == 'true' && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
+        if: needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
         uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
@@ -1333,7 +1333,7 @@ jobs:
       # that registrations with different absolute workspace paths share them.
       - name: Set up sccache
         id: sccache
-        if: needs.channel.outputs.rust_tests_changed == 'true' && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
+        if: needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
         continue-on-error: true
         uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
         with:
@@ -1345,7 +1345,7 @@ jobs:
       # Do not export the wrapper until both action setup and the installed
       # binary have succeeded; Cargo then falls back to rustc automatically.
       - name: Enable sccache when available
-        if: needs.channel.outputs.rust_tests_changed == 'true' && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
+        if: needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
         shell: bash
         env:
           SCCACHE_SETUP_OUTCOME: ${{ steps.sccache.outcome }}
@@ -1361,8 +1361,14 @@ jobs:
       # Tank is serialised by the job-level concurrency group, so this target
       # is safe to retain per runner registration.  Hosted overflow never
       # touches the root and keeps Cargo's ordinary ephemeral target.
+      #
+      # Every step here carries the same tag/already-green exclusion as the
+      # nextest step below: on an already-green tag the job stays in the graph
+      # (so the release producers keep their ancestor) but must do no work at
+      # all. Preparing the Tank target enforces a 20 GiB floor, which failed
+      # the first v2.2.5 re-tag for a shard that was never going to run a test.
       - name: Prepare persistent Tank Cargo target
-        if: needs.channel.outputs.rust_tests_changed == 'true' && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5') && env.RUNNER_MODE == 'tank'
+        if: needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5') && env.RUNNER_MODE == 'tank'
         shell: bash
         run: |
           registration="${TCL_LSP_TANK_REGISTRATION_ID:-${RUNNER_NAME:-}}"
@@ -1370,7 +1376,7 @@ jobs:
           printf 'CARGO_TARGET_DIR=%s\n' "$target" >> "$GITHUB_ENV"
 
       - name: Install cargo-nextest
-        if: needs.channel.outputs.rust_tests_changed == 'true' && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
+        if: needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
         uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
         with:
           tool: nextest@0.9.143
@@ -1457,7 +1463,7 @@ jobs:
       # Setup is intentionally skipped when the root Rust-test closure is
       # unaffected, so sccache is unavailable on those required no-op runs.
       - name: Report sccache statistics
-        if: always() && needs.channel.outputs.rust_tests_changed == 'true' && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
+        if: always() && needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
         shell: bash
         run: |
           if ! command -v sccache >/dev/null 2>&1; then
