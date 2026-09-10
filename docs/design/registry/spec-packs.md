@@ -523,6 +523,18 @@ message. See [W139](../../kcs/codes/kcs-diagnostic-w139-retired-at-resolved-vers
   host did not mount. See
   [contracts/lsp-source-store.md](../contracts/lsp-source-store.md), "The
   virtual spec-pack mount".
+- **Live reload of a pack outside the workspace needs a 3.17 client.** The
+  session-wide watcher registration uses workspace-relative patterns, which a
+  client matches only inside its workspace folders, so the user tier and any
+  absolute `tclLsp.specPacks` entry get their own registration keyed on the
+  pack directory as a `RelativePattern` base URI. A client that does not
+  advertise `workspace.didChangeWatchedFiles.relativePatternSupport` gets no
+  such registration at all: a bare absolute pattern is not a portable way to
+  say "watch that other directory" — the client matches it against the
+  workspace instead and pays one watch per project directory, which is fatal
+  where each watch costs a file descriptor (eglot on kqueue). Those packs are
+  still discovered and loaded at startup; only the live reload on an external
+  edit is lost, exactly as for a client that declines the registration.
 - **Compiled-pack cache in the OS cache directory**
   (`$XDG_CACHE_HOME/tcl-lsp/spectcl/` and platform equivalents): a pack's
   evaluated snapshot is written keyed by `EvalSnapshotKey` — a

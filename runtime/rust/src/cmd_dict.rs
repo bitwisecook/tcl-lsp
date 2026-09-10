@@ -1347,17 +1347,27 @@ mod tests {
     /// `dict set d {*}[lrepeat N k] v` pipeline, unguarded `dict_path_set`
     /// overflowed the native stack (SIGABRT) between depth 3000-3600 on
     /// `cargo test`'s per-test default stack. 3800 is past that crash range.
-    /// It is deliberately not much larger: constructing this deep a dict also
-    /// builds a linked chain of that many nested `TclObj` dicts, and freeing
-    /// that chain recursively (this runtime's refcounted `TclObj` drop,
-    /// entirely unrelated to `dict_path_set`/`dict_path_unset` and out of
-    /// scope for this fix) is itself unguarded and was independently observed
-    /// to overflow the same stack between depth 4200-4300 — noted here for
-    /// whoever triages that separately, matching this sweep's note about
-    /// `self_reachable`'s distinct algorithmic-complexity issue in
-    /// `cmd_oo.rs`. The assertion is that a deep `dict set`/`dict unset`
-    /// completes (`Code::Ok`) at all, not what the resulting (huge) dict
-    /// string is.
+    ///
+    /// Reading the result also forces the whole nest's string rep, which was
+    /// a second, independent recursion of the same shape: a dict value that
+    /// is itself a dict reached `dict_update_string` again through
+    /// `bytes_of`, one native frame per level. That overflowed between depth
+    /// 3400-3600 on macOS/aarch64 — inside this test's range, so the test
+    /// caught it there while passing on the wider Linux frames.
+    /// `dict::generate_nested_string_reps` now writes the nest deepest-first
+    /// on an explicit stack, so this test covers both.
+    ///
+    /// The depth is deliberately not much larger: constructing this deep a
+    /// dict also builds a linked chain of that many nested `TclObj` dicts,
+    /// and freeing that chain recursively (this runtime's refcounted
+    /// `TclObj` drop, entirely unrelated to `dict_path_set`/`dict_path_unset`
+    /// and to the string rep, and out of scope here) is itself unguarded and
+    /// was independently observed to overflow the same stack between depth
+    /// 4200-4300 — noted here for whoever triages that separately, matching
+    /// this sweep's note about `self_reachable`'s distinct
+    /// algorithmic-complexity issue in `cmd_oo.rs`. The assertion is that a
+    /// deep `dict set`/`dict unset` completes (`Code::Ok`) at all, not what
+    /// the resulting (huge) dict string is.
     #[test]
     fn deeply_nested_dict_path_set_and_unset_survive() {
         const DEPTH: usize = 3800;

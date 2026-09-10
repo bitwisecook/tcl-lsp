@@ -165,6 +165,65 @@ extern "C" fn dict_dup(src: *mut TclObj, dup: *mut TclObj) {
 }
 
 extern "C" fn dict_update_string(obj: *mut TclObj) {
+    // SAFETY: every nested dict is given its string rep first, so the
+    // single-level generation below reads them rather than re-entering here.
+    unsafe {
+        generate_nested_string_reps(obj);
+        write_dict_string_rep(obj);
+    }
+}
+
+/// Whether `obj` is a dict that would have to generate a string rep.
+fn needs_dict_string_rep(obj: *mut TclObj) -> bool {
+    obj::obj_type_ptr(obj) == &TCL_DICT_TYPE && !obj::has_string_rep(obj)
+}
+
+/// Give every dict nested inside `root` a string rep, deepest first.
+///
+/// A dict value that is itself a dict makes `write_dict_string_rep` reach it
+/// through `bytes_of`, which re-enters this type's update-string proc — one
+/// native frame per level. The nesting depth is attacker-controlled (`dict
+/// set d {*}[lrepeat N k] v` builds a chain N deep through `{*}` argument
+/// expansion), so the walk is an explicit stack rather than recursion, which
+/// removes the crash class instead of merely bounding it — the same shape,
+/// and for the same reason, as `dict_path_set` in `cmd_dict`.
+///
+/// Values are acyclic: a dict is only ever built from values that already
+/// exist, so no entry can reach its own container.
+///
+/// # Safety
+/// `root` must be a live dict object, as must every object it holds.
+unsafe fn generate_nested_string_reps(root: *mut TclObj) {
+    // (object, children already pushed) — post-order, so a dict is written
+    // only once every dict below it has its string rep.
+    let mut stack: Vec<(*mut TclObj, bool)> = vec![(root, false)];
+    while let Some((current, expanded)) = stack.pop() {
+        if expanded {
+            if current != root {
+                // SAFETY: `current` is a live dict reached from `root`, and
+                // every dict below it has been written already.
+                unsafe { write_dict_string_rep(current) };
+            }
+            continue;
+        }
+        stack.push((current, true));
+        // SAFETY: `current` carries the dict internal rep.
+        for &(k, v) in unsafe { dict_ref(current) }.entries.iter() {
+            for entry in [k, v] {
+                if needs_dict_string_rep(entry) {
+                    stack.push((entry, false));
+                }
+            }
+        }
+    }
+}
+
+/// Write `key value key value …` for one dict, reading its entries' existing
+/// string reps.
+///
+/// # Safety
+/// `obj` must be a live dict object.
+unsafe fn write_dict_string_rep(obj: *mut TclObj) {
     // SAFETY: regenerate `key value key value …` with list-element quoting.
     unsafe {
         let mut buf: Vec<u8> = Vec::new();

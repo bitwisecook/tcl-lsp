@@ -36,6 +36,23 @@ require_job() {
     printf '%s\n' "$block"
 }
 
+# BSD sed needs `a\`'s text on a following line and has no `\n` in a
+# replacement, so the mutations below insert through awk instead — the
+# contract has to run on the macOS release laptop as well as on CI.
+insert_after() {
+    awk -v line="$1" -v text="$2" '
+        { print }
+        $0 == line { print text }
+    ' "$3"
+}
+
+insert_after_prefix() {
+    awk -v prefix="$1" -v text="$2" '
+        { print }
+        index($0, prefix) == 1 { print text }
+    ' "$3"
+}
+
 needs_value() {
     printf '%s\n' "$1" | sed -n 's/^    needs: //p'
 }
@@ -310,38 +327,38 @@ if [ "${PR_GATE_CONTRACT_NEGATIVE:-true}" = true ]; then
 
     # Job-level skip: a skipped worker would make the required result vacuous.
     candidate=$tmp/job-skip.yml
-    sed '/^  rust-check:$/a\    if: false' "$WORKFLOW" > "$candidate"
+    insert_after '  rust-check:' '    if: false' "$WORKFLOW" > "$candidate"
     expect_rejected rust-check-job-skip "$candidate"
 
     candidate=$tmp/rust-check-job-continue-on-error.yml
-    sed '/^  rust-check:$/a\    continue-on-error: true' \
+    insert_after '  rust-check:' '    continue-on-error: true' \
         "$WORKFLOW" > "$candidate"
     expect_rejected rust-check-job-continue-on-error "$candidate"
 
     for prerequisite in channel spectcl-compat web-frontends; do
         candidate=$tmp/$prerequisite-job-continue-on-error.yml
-        sed "/^  $prerequisite:\$/a\\    continue-on-error: true" \
+        insert_after "  $prerequisite:" '    continue-on-error: true' \
             "$WORKFLOW" > "$candidate"
         expect_rejected "$prerequisite-job-continue-on-error" "$candidate"
     done
 
     candidate=$tmp/channel-step-continue-on-error.yml
-    sed '/^      - name: Classify changed paths$/a\        continue-on-error: true' \
-        "$WORKFLOW" > "$candidate"
+    insert_after '      - name: Classify changed paths' \
+        '        continue-on-error: true' "$WORKFLOW" > "$candidate"
     expect_rejected channel-step-continue-on-error "$candidate"
 
     candidate=$tmp/spectcl-gate-continue-on-error.yml
-    sed '/^      - name: Run exact SpecTcl 1.x + 2.0 + real-Tcl compatibility gate$/a\        continue-on-error: true' \
-        "$WORKFLOW" > "$candidate"
+    insert_after '      - name: Run exact SpecTcl 1.x + 2.0 + real-Tcl compatibility gate' \
+        '        continue-on-error: true' "$WORKFLOW" > "$candidate"
     expect_rejected spectcl-gate-continue-on-error "$candidate"
 
     candidate=$tmp/web-frontends-step-continue-on-error.yml
-    sed '/^      - name: Shared report front-end (typecheck + lint + asset drift)$/a\        continue-on-error: true' \
-        "$WORKFLOW" > "$candidate"
+    insert_after '      - name: Shared report front-end (typecheck + lint + asset drift)' \
+        '        continue-on-error: true' "$WORKFLOW" > "$candidate"
     expect_rejected web-frontends-step-continue-on-error "$candidate"
 
     candidate=$tmp/channel-step-skip.yml
-    sed '/^      - name: Classify changed paths$/a\        if: false' \
+    insert_after '      - name: Classify changed paths' '        if: false' \
         "$WORKFLOW" > "$candidate"
     expect_rejected channel-step-skip "$candidate"
 
@@ -380,26 +397,26 @@ if [ "${PR_GATE_CONTRACT_NEGATIVE:-true}" = true ]; then
     # Duplicate YAML keys are parser-dependent; an exact safe guard followed
     # by a second condition must not satisfy the structural contract.
     candidate=$tmp/duplicate-aggregate-condition.yml
-    sed '/^    if: \${{ always() }}$/a\    if: false' \
+    insert_after '    if: ${{ always() }}' '    if: false' \
         "$WORKFLOW" > "$candidate"
     expect_rejected duplicate-aggregate-condition "$candidate"
 
     # Step-level skip: the job-level always() guard is insufficient if the
     # only fail-closed step can be skipped.
     candidate=$tmp/conditional-aggregate-step.yml
-    sed '/^      - name: Propagate prerequisite gate failures$/a\        if: false' \
-        "$WORKFLOW" > "$candidate"
+    insert_after '      - name: Propagate prerequisite gate failures' \
+        '        if: false' "$WORKFLOW" > "$candidate"
     expect_rejected conditional-aggregate-step "$candidate"
 
     # Neither the aggregate step nor its job may turn a failing prerequisite
     # into a successful required status.
     candidate=$tmp/aggregate-step-continue-on-error.yml
-    sed '/^      - name: Propagate prerequisite gate failures$/a\        continue-on-error: true' \
-        "$WORKFLOW" > "$candidate"
+    insert_after '      - name: Propagate prerequisite gate failures' \
+        '        continue-on-error: true' "$WORKFLOW" > "$candidate"
     expect_rejected aggregate-step-continue-on-error "$candidate"
 
     candidate=$tmp/aggregate-job-continue-on-error.yml
-    sed '/^  pr-gate:$/a\    continue-on-error: true' \
+    insert_after '  pr-gate:' '    continue-on-error: true' \
         "$WORKFLOW" > "$candidate"
     expect_rejected aggregate-job-continue-on-error "$candidate"
 
@@ -410,20 +427,26 @@ if [ "${PR_GATE_CONTRACT_NEGATIVE:-true}" = true ]; then
     expect_rejected weakened-tag-gate "$candidate"
 
     candidate=$tmp/rust-check-step-continue-on-error.yml
-    sed '/^      - name: Run fast CI gate (format + Clippy + generated-file drift)$/a\        continue-on-error: true' \
-        "$WORKFLOW" > "$candidate"
+    insert_after '      - name: Run fast CI gate (format + Clippy + generated-file drift)' \
+        '        continue-on-error: true' "$WORKFLOW" > "$candidate"
     expect_rejected rust-check-step-continue-on-error "$candidate"
 
     candidate=$tmp/duplicate-rust-check-step-condition.yml
-    sed "/^        if: needs.channel.outputs.prerelease != 'true'/a\\        if: false" \
-        "$WORKFLOW" > "$candidate"
+    insert_after_prefix "        if: needs.channel.outputs.prerelease != 'true'" \
+        '        if: false' "$WORKFLOW" > "$candidate"
     expect_rejected duplicate-rust-check-step-condition "$candidate"
 
     # Comment decoy in place of the worker command: only the operative named
     # step may satisfy the make-rust-check contract.
     candidate=$tmp/commented-worker.yml
-    sed 's/^        run: make rust-check$/        # run: make rust-check\n        run: true/' \
-        "$WORKFLOW" > "$candidate"
+    awk '
+        $0 == "        run: make rust-check" {
+            print "        # run: make rust-check"
+            print "        run: true"
+            next
+        }
+        { print }
+    ' "$WORKFLOW" > "$candidate"
     expect_rejected commented-worker-command "$candidate"
 
     # Comment decoy and unconditional success: preserving the expected result
