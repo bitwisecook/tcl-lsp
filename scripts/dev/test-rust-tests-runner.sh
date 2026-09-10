@@ -262,7 +262,12 @@ END {
     need(values[shard_job ".env.SCCACHE_GHA_ENABLED"] == "true", "Rust shards must enable GHA sccache")
 
     changed = "needs.channel.outputs.rust_tests_changed == '\''true'\''"
-    active = changed " && (needs.channel.outputs.already_green != '\''true'\'' || matrix.shard == '\''1/5'\'')"
+    # On an already-green tag the shard job stays in the graph so the release
+    # producers keep their ancestor, but every step must no-op: preparing the
+    # Tank target alone enforces a 20 GiB free-space floor, which failed a
+    # v2.2.5 re-tag for a shard that was never going to run a test.
+    not_green_tag = " && !(startsWith(github.ref, '\''refs/tags/'\'') && needs.channel.outputs.already_green == '\''true'\'')"
+    active = changed not_green_tag " && (needs.channel.outputs.already_green != '\''true'\'' || matrix.shard == '\''1/5'\'')"
     preflight = step(shard_job, "name", "Verify canonical Rust homes")
     need(preflight >= 0 && values[shard_job ".steps." preflight ".if"] == active, "canonical-home preflight must be path- and warm-path-gated")
     contains(shard_job ".steps." preflight ".run", "test ! -L \"$root\"", "canonical-home preflight must reject a symlinked root")
@@ -416,7 +421,7 @@ esac
 # For an already-green merge push, the matrix remains allocated but only shard
 # 1 may warm the cache; shards 2–5 must skip every expensive setup/report step.
 require_path_gate_count "        if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'" 2
-require_path_gate_count "        if: needs.channel.outputs.rust_tests_changed == 'true' && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')" 5
+require_path_gate_count "        if: needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')" 5
 require_path_gate_count "        if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')" 1
 case "$(cat "$WORKFLOW")" in
     *'if [ "$rust_tests_changed" = "true" ]; then
