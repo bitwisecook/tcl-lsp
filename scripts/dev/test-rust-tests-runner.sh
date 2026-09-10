@@ -188,7 +188,12 @@ END {
     doctest_job = "jobs.rust-tests-doctest"
     server_job = "jobs.build-tcl-lsp-server"
     need(values[shard_job ".name"] == "rust-tests-shard (${{ matrix.shard }})", "Rust shards must have an explicit matrix job name")
-    need(values[shard_job ".if"] == "${{ needs.channel.outputs.rust_tests_changed == '\''true'\'' && !(startsWith(github.ref, '\''refs/tags/'\'') && needs.channel.outputs.already_green == '\''true'\'') }}", "unaffected changes and already-green tags must skip the shard matrix")
+    # An already-green *tag* must not skip the matrix at job level: a skipped
+    # ancestor propagates through the needs graph and takes create-release and
+    # every release producer with it (v2.2.5 tagged, reported success, and
+    # published nothing). A tag forces rust_tests_changed true, so the job
+    # stays in the graph there and step-skips its work instead.
+    need(values[shard_job ".if"] == "${{ needs.channel.outputs.rust_tests_changed == '\''true'\'' }}", "unaffected changes must skip the shard matrix, and an already-green tag must not")
     need(values_seen[shard_job ".runs-on"], "rust-tests-shard must define runs-on")
     need(values_seen[aggregate_job ".needs"], "rust-tests aggregate must define needs")
     tank_jobs = 0
@@ -393,8 +398,13 @@ case "$(cat "$WORKFLOW")" in
     *) echo "fork, Dependabot, policy-change, and manual-dispatch routing must stay outside the mutable selector" >&2; exit 1 ;;
 esac
 
+# The aggregate must not absorb a skipped shard on a tag. It did, which is how
+# v2.2.5 reported success while create-release and every release producer were
+# skipped out of the graph; the tag path now has no skip to absorb, and this
+# job fails closed if one reappears. IS_TAG/ALREADY_GREEN stay in the env for
+# the diagnostic line.
 case "$aggregate" in
-    *'if: ${{ always() }}'*'needs: [channel, rust-tests-shard, rust-tests-doctest]'*'SHARDS_RESULT'*'DOCTEST_RESULT'*'RUST_TESTS_CHANGED'*'ALREADY_GREEN'*'IS_TAG'*'if [ "$SHARDS_RESULT" = success ] && [ "$DOCTEST_RESULT" = success ]'*'"$SHARDS_RESULT" = skipped'*'"$DOCTEST_RESULT" = skipped'*'"$RUST_TESTS_CHANGED" != true'*'"$IS_TAG" = true'*'"$ALREADY_GREEN" = true'*) ;;
+    *'if: ${{ always() }}'*'needs: [channel, rust-tests-shard, rust-tests-doctest]'*'SHARDS_RESULT'*'DOCTEST_RESULT'*'RUST_TESTS_CHANGED'*'ALREADY_GREEN'*'IS_TAG'*'if [ "$SHARDS_RESULT" = success ] && [ "$DOCTEST_RESULT" = success ]'*'"$SHARDS_RESULT" = skipped'*'"$DOCTEST_RESULT" = skipped'*'"$RUST_TESTS_CHANGED" != true'*) ;;
     *) echo "rust-tests aggregate must always run and fail closed over every shard plus doctests" >&2; exit 1 ;;
 esac
 case "$aggregate" in
