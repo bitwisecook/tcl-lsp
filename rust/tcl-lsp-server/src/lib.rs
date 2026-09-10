@@ -130,8 +130,7 @@ use tower_lsp_server::ls_types::{
     ParameterInformation, ParameterLabel, Position, PositionEncodingKind, PrepareRenameResponse,
     Range, ReferenceParams, Registration, RelatedFullDocumentDiagnosticReport,
     RelatedUnchangedDocumentDiagnosticReport, RelativePattern, RenameFilesParams, RenameOptions,
-    RenameParams,
-    SelectionRange, SelectionRangeParams, SelectionRangeProviderCapability,
+    RenameParams, SelectionRange, SelectionRangeParams, SelectionRangeProviderCapability,
     SemanticTokens as LspSemanticTokens, SemanticTokensDelta, SemanticTokensDeltaParams,
     SemanticTokensEdit, SemanticTokensFullDeltaResult, SemanticTokensFullOptions,
     SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams, SemanticTokensRangeParams,
@@ -32793,19 +32792,21 @@ mod tests {
         assert!(client_supports_relative_watch_patterns(&params_with(Some(
             true
         ))));
-        assert!(!client_supports_relative_watch_patterns(&params_with(Some(
-            false
-        ))));
+        assert!(!client_supports_relative_watch_patterns(&params_with(
+            Some(false)
+        )));
         // Field absent, `didChangeWatchedFiles` absent, and no `workspace`
         // capability at all all mean "cannot express a base URI".
         assert!(!client_supports_relative_watch_patterns(&params_with(None)));
-        assert!(!client_supports_relative_watch_patterns(&InitializeParams {
-            capabilities: ClientCapabilities {
-                workspace: Some(WorkspaceClientCapabilities::default()),
-                ..ClientCapabilities::default()
-            },
-            ..InitializeParams::default()
-        }));
+        assert!(!client_supports_relative_watch_patterns(
+            &InitializeParams {
+                capabilities: ClientCapabilities {
+                    workspace: Some(WorkspaceClientCapabilities::default()),
+                    ..ClientCapabilities::default()
+                },
+                ..InitializeParams::default()
+            }
+        ));
         assert!(!client_supports_relative_watch_patterns(
             &InitializeParams::default()
         ));
