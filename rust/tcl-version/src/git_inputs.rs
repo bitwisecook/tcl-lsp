@@ -118,10 +118,14 @@ mod tests {
                 "tcl-version-git-inputs-{}-{nanos}-{serial}",
                 std::process::id()
             ));
-            let primary = root.join("primary");
-            let linked = root.join("linked");
 
             std::fs::create_dir_all(&root).expect("create temporary repository root");
+            // `git_path` canonicalizes, and some platforms hand out a symlinked
+            // temporary directory (macOS `/var` -> `/private/var`). Canonicalize
+            // the root so expectations compare against the same real paths.
+            let root = root.canonicalize().expect("canonicalize temporary root");
+            let primary = root.join("primary");
+            let linked = root.join("linked");
             git(&root, &["init", "--initial-branch=base", path(&primary)]);
             git(&primary, &["config", "user.name", "tcl-version test"]);
             git(
