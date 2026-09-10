@@ -271,6 +271,23 @@ case "$rust_job" in
     *'if: always() && needs.channel.outputs.rust_tests_changed == '\''true'\'''*'sccache --show-stats'*) ;;
     *) fail "sccache statistics must be skipped when Rust setup is skipped" ;;
 esac
+# Neither Rust test job may skip at *job* level on a tag. A tag forces
+# rust_tests_changed true, so the only way to skip one there is an explicit
+# tag/already-green clause — and a skipped ancestor propagates through the
+# needs graph, which is what took create-release and every release producer
+# down on v2.2.5 while the run still reported success.
+for job in rust-tests-shard rust-tests-doctest; do
+    job_condition=$(awk -v want="  $job:" '
+        $0 == want { in_job = 1; next }
+        in_job && /^  [A-Za-z0-9_-]+:/ { exit }
+        in_job && /^    if:/ { print; exit }
+    ' "$WORKFLOW")
+    case "$job_condition" in
+        *already_green*|*refs/tags/*)
+            fail "$job must not skip at job level on a tag (release graph)" ;;
+    esac
+done
+
 doctest_job=$(awk '
     /^  rust-tests-doctest:/ { in_job = 1 }
     in_job && /^  [A-Za-z0-9_-]+:/ && $1 != "rust-tests-doctest:" { exit }
@@ -278,7 +295,7 @@ doctest_job=$(awk '
 ' "$WORKFLOW")
 [ -n "$doctest_job" ] || fail "ci.yml must define rust-tests-doctest"
 case "$doctest_job" in
-    *"if: \${{ needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') }}"*'needs: [channel]'*'runs-on: ubuntu-26.04'*"if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'"*'cargo test --workspace --all-features --doc --no-fail-fast'*) ;;
+    *"if: \${{ needs.channel.outputs.rust_tests_changed == 'true' }}"*'needs: [channel]'*'runs-on: ubuntu-26.04'*"if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'"*'cargo test --workspace --all-features --doc --no-fail-fast'*) ;;
     *) fail "doctests must be independently hosted and retain changed-path/exact-green step gates" ;;
 esac
 

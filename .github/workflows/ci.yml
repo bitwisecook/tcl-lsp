@@ -1206,9 +1206,14 @@ jobs:
   # `--all-features` workspace run costs no coverage.
   rust-tests-shard:
     name: rust-tests-shard (${{ matrix.shard }})
-    # Unaffected changes and already-green tags retain the aggregate status
-    # without allocating five test runners.
-    if: ${{ needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') }}
+    # Unaffected changes retain the aggregate status without allocating five
+    # test runners. An already-green *tag* must not skip here: a tag forces
+    # rust_tests_changed true, so this job stays in the graph and step-skips
+    # its work below. Skipping it at job level instead took `create-release`
+    # and every release producer down with it on v2.2.5 — a skipped ancestor
+    # propagates through the needs graph, which is why the header bans
+    # job-level skips on the tag path.
+    if: ${{ needs.channel.outputs.rust_tests_changed == 'true' }}
     # Typically ~155s on the 16-core self-hosted box when healthy; if this
     # job blows past ~5 min, suspect a runaway test before suspecting the box
     # or the cache. Not the workflow's critical path: the three archived
@@ -1493,10 +1498,12 @@ jobs:
   # It remains a step-gated job so the stable aggregate context is preserved
   # for unrelated changes, docs-only changes, and already-green revisions.
   rust-tests-doctest:
-    # Match the shard matrix's job-level no-op rules. The stable aggregate is
-    # the required context and accepts this skipped result only when the
-    # channel facts prove that no test command was required.
-    if: ${{ needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') }}
+    # Match the shard matrix's no-op rules. The stable aggregate is the
+    # required context and accepts this skipped result only when the channel
+    # facts prove that no test command was required — and a tag never proves
+    # that, so this job stays in the graph on the release path and step-skips
+    # its work instead (see the shard matrix's note).
+    if: ${{ needs.channel.outputs.rust_tests_changed == 'true' }}
     needs: [channel]
     runs-on: ubuntu-26.04
     steps:
@@ -1543,10 +1550,12 @@ jobs:
           if [ "$SHARDS_RESULT" = success ] && [ "$DOCTEST_RESULT" = success ]; then
             exit 0
           fi
-          if [ "$SHARDS_RESULT" = skipped ] && [ "$DOCTEST_RESULT" = skipped ] && {
-            [ "$RUST_TESTS_CHANGED" != true ] ||
-            { [ "$IS_TAG" = true ] && [ "$ALREADY_GREEN" = true ]; };
-          }; then
+          # A tag forces rust_tests_changed true, so this branch cannot absorb
+          # a skip on the release path: if the shards ever skip at job level
+          # there again, the tag run fails here rather than reporting success
+          # and silently producing no release (v2.2.5).
+          if [ "$SHARDS_RESULT" = skipped ] && [ "$DOCTEST_RESULT" = skipped ] &&
+            [ "$RUST_TESTS_CHANGED" != true ]; then
             echo 'Rust test shards and doctests were intentionally skipped by the channel decision'
             exit 0
           fi
