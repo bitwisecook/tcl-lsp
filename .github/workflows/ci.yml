@@ -428,7 +428,7 @@ jobs:
       # rust-toolchain.toml pins the channel (stable); the action installs it
       # plus fmt/clippy and wires up Swatinem cache.
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           components: clippy, rustfmt
@@ -485,7 +485,7 @@ jobs:
         run: scripts/dev/prepare-homebrew-ci.sh
 
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           components: clippy, rustfmt
@@ -535,7 +535,7 @@ jobs:
 
       - name: Set up Rust
         if: env.RUN_EXT == 'true'
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           cache-key: build-tcl-lsp-server
@@ -636,7 +636,7 @@ jobs:
       # the least reliable cache.
       - name: Set up Rust
         if: env.RUN_EXT == 'true'
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           cache-key: test-ext
@@ -815,7 +815,7 @@ jobs:
       # the least reliable cache.
       - name: Set up Rust
         if: env.RUN_EXT == 'true'
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           cache-key: test-ext
@@ -1032,7 +1032,7 @@ jobs:
       # worth running.  Its own cache key keeps the release/LTO link warm.
       - name: Set up Rust
         if: env.RUN_EXT_WEB == 'true'
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           target: wasm32-unknown-unknown
@@ -1041,7 +1041,7 @@ jobs:
 
       - name: Install wasm-bindgen CLI
         if: env.RUN_EXT_WEB == 'true'
-        uses: taiki-e/install-action@84f5ac3124727fb3d284d4d22ee9ab3654fd09a6 # v2.87.7
+        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
         with:
           tool: wasm-bindgen-cli@0.2.128
 
@@ -1311,7 +1311,7 @@ jobs:
       # (keyed per job, so the concurrent cargo jobs don't race on save).
       - name: Set up Rust
         if: needs.channel.outputs.rust_tests_changed == 'true' && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           cache-key: rust-tests-v2
@@ -1366,7 +1366,7 @@ jobs:
 
       - name: Install cargo-nextest
         if: needs.channel.outputs.rust_tests_changed == 'true' && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
-        uses: taiki-e/install-action@84f5ac3124727fb3d284d4d22ee9ab3654fd09a6 # v2.87.7
+        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
         with:
           tool: nextest@0.9.143
 
@@ -1506,7 +1506,7 @@ jobs:
 
       - name: Set up Rust
         if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           cache-key: rust-tests-doctest-v1
@@ -1620,7 +1620,7 @@ jobs:
 
       - name: Set up Rust
         if: needs.channel.outputs.spectcl_compat_changed == 'true' && needs.channel.outputs.already_green != 'true'
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           cache-key: spectcl-compat
@@ -1682,7 +1682,7 @@ jobs:
           fetch-depth: 1
 
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           # This job builds only the heavy crates + their deps, so it gets its
@@ -1690,7 +1690,7 @@ jobs:
           cache-key: rust-tests-heavy
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@84f5ac3124727fb3d284d4d22ee9ab3654fd09a6 # v2.87.7
+        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
         with:
           tool: nextest@0.9.143
 
@@ -1754,7 +1754,7 @@ jobs:
 
       - name: Set up Rust
         if: needs.channel.outputs.runtime_rust_changed == 'true' && needs.channel.outputs.already_green != 'true'
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           # A separate cargo workspace with its own lockfile and its own
@@ -1818,7 +1818,7 @@ jobs:
           fetch-depth: 1
 
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           # The wasm32 std is a job-specific dependency, so this job keeps its
@@ -1833,7 +1833,7 @@ jobs:
       # under test drift without a commit.
       - name: Install the wasmtime CLI
         if: needs.channel.outputs.docs_only != 'true'
-        uses: taiki-e/install-action@84f5ac3124727fb3d284d4d22ee9ab3654fd09a6 # v2.87.7
+        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
         with:
           tool: wasmtime@48.0.1
 
@@ -1914,7 +1914,7 @@ jobs:
 
       - name: Set up Rust
         if: env.RUN_LSP_WASM == 'true'
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           target: wasm32-unknown-unknown
@@ -1923,7 +1923,7 @@ jobs:
 
       - name: Install wasm-bindgen CLI
         if: env.RUN_LSP_WASM == 'true'
-        uses: taiki-e/install-action@84f5ac3124727fb3d284d4d22ee9ab3654fd09a6 # v2.87.7
+        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
         with:
           tool: wasm-bindgen-cli@0.2.128
 
@@ -1989,7 +1989,7 @@ jobs:
 
       - name: Set up Rust
         if: env.RUN_LSP_WASI == 'true' || env.RELEASE_WASI == 'true'
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           target: wasm32-wasip1
@@ -2003,7 +2003,7 @@ jobs:
       # (RELEASE_WASI without RUN_LSP_WASI) never downloads it.
       - name: Install the wasmtime CLI
         if: env.RUN_LSP_WASI == 'true'
-        uses: taiki-e/install-action@84f5ac3124727fb3d284d4d22ee9ab3654fd09a6 # v2.87.7
+        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
         with:
           tool: wasmtime@48.0.1
 
@@ -2145,7 +2145,7 @@ jobs:
 
       - name: Set up Rust
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           cache-key: lsp-e2e
@@ -2158,7 +2158,7 @@ jobs:
 
       - name: Install cargo-nextest
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
-        uses: taiki-e/install-action@84f5ac3124727fb3d284d4d22ee9ab3654fd09a6 # v2.87.7
+        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
         with:
           # Archive/list/execute must use the exact same nextest format.
           tool: nextest@0.9.143
@@ -2306,14 +2306,14 @@ jobs:
           fetch-depth: 1
 
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && needs.channel.outputs.already_green != 'true'
         with:
           toolchain: stable
           cache-key: lsp-e2e
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@84f5ac3124727fb3d284d4d22ee9ab3654fd09a6 # v2.87.7
+        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && needs.channel.outputs.already_green != 'true'
         with:
           # Keep the machine-readable partition proof and the runner on the
@@ -2467,7 +2467,7 @@ jobs:
           fetch-depth: 1
 
       - name: Install cargo-deny
-        uses: taiki-e/install-action@84f5ac3124727fb3d284d4d22ee9ab3654fd09a6 # v2.87.7
+        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
         with:
           tool: cargo-deny@0.20.2
 
@@ -2507,7 +2507,7 @@ jobs:
       # Needed by maturin to build the native `_engine` extension module.
       - name: Set up Rust
         if: env.RUN_PY == 'true'
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           cache-key: python-engine
@@ -2823,7 +2823,7 @@ jobs:
         run: scripts/dev/prepare-homebrew-ci.sh
 
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           # Keep registry caching, but never restore compiled target trees here.
@@ -3142,7 +3142,7 @@ jobs:
       # *that*, not to the newest release, so cargo refuses the workspace's
       # `rust-version`. Install the current stable explicitly.
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           cache-key: build-vsix
@@ -3150,7 +3150,7 @@ jobs:
       # The VSIX embeds the spec studio, whose real LSP worker is built from
       # Rust to wasm32 and post-processed with the version matching its lockfile.
       - name: Install wasm-bindgen CLI
-        uses: taiki-e/install-action@84f5ac3124727fb3d284d4d22ee9ab3654fd09a6 # v2.87.7
+        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
         with:
           tool: wasm-bindgen-cli@0.2.128
 
@@ -3301,7 +3301,7 @@ jobs:
       # *that*, not to the newest release, so cargo refuses the workspace's
       # `rust-version`. Install the current stable explicitly.
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           cache-key: build-claude-skills
@@ -3345,7 +3345,7 @@ jobs:
           merge-multiple: true
 
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           cache-key: build-jetbrains
@@ -3353,12 +3353,12 @@ jobs:
       # The JetBrains plugin embeds the same spec studio as the VSIX. Keep the
       # CLI pinned to the wasm-bindgen crate version in the standalone lockfile.
       - name: Install wasm-bindgen CLI
-        uses: taiki-e/install-action@84f5ac3124727fb3d284d4d22ee9ab3654fd09a6 # v2.87.7
+        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
         with:
           tool: wasm-bindgen-cli@0.2.128
 
       - name: Set up Java 17
-        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
           java-version: 17
@@ -3519,7 +3519,7 @@ jobs:
         # actions-rust-lang/setup-rust-toolchain wraps swatinem/rust-cache
         # so we get cargo registry / target caching for free — meaningful
         # speedup vs the bare dtolnay/rust-toolchain action.
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           target: wasm32-wasip2
