@@ -229,7 +229,7 @@ jobs:
         run: rustup target add wasm32-unknown-unknown
 
       - name: Install wasm-pack + wasm-bindgen-cli
-        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
+        uses: taiki-e/install-action@fa23953489c080190314742a9b907f8e97c6767c # v2.87.10
         with:
           # wasm-bindgen-cli must match the wasm-bindgen crate pinned in
           # rust/bigip-report-gen/wasm/Cargo.toml.
