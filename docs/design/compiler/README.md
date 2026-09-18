@@ -99,8 +99,8 @@ User-facing compiler troubleshooting and how-tos live in
 - [registry-consumer-contracts.md](registry-consumer-contracts.md) —
   **proposal** companion: the description, identity, and backing contracts
   under which the registry and `.tclspec` packs can drive the analyser,
-  both code generators, and both runtimes; the four rulings still open,
-  each stated as a proposed ruling; the three descriptors the analyser
+  both code generators, and both runtimes; the four decided rulings the
+  build takes as settled; the three descriptors the analyser
   lacks — clause grammar, member effect, and option effect over a closed
   axis catalogue — behind one derived query per axis; the four rungs of a
   pack claim reaching emitted code, with the site claim and pack fact stamp

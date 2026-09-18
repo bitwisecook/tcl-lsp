@@ -81,7 +81,7 @@ passes, and ownership matrices.
 - [registry-consumer-contracts.md](compiler/registry-consumer-contracts.md)
   — **proposal** companion: the description, identity, and backing contracts
   under which the registry can drive the analyser, codegen, and the
-  runtimes — the four rulings still open, the three descriptors the
+  runtimes — the four decided rulings, the three descriptors the
   analyser lacks (clause grammar, member effect, option effect) behind one
   derived query per axis, the four rungs of a pack claim reaching emitted
   code with the site claim and pack fact stamp each rung records, and the

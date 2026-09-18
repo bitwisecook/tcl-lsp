@@ -49,4 +49,7 @@ checkpoint compiling.
 
 ## In flight
 
-None.
+- [consumer-contracts.md](consumer-contracts.md) — step 1 of
+  [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
+  § *Build order*: the four rulings taken as decided, and the documents whose
+  stated rule they replace repaired. Documents only.

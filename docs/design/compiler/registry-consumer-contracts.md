@@ -17,9 +17,11 @@ loaded pack's facts are authoritative for analysis and optimisation as
 soon as they are loaded, and the direct, expression, and private-pack
 slices proceed without deciding anything here.
 
-> **Status — a proposal.** Every identifier, count, and file path on this
-> page was checked against the tree. The proposed vocabulary names nothing
-> in the workspace:
+> **Status — decided rulings, proposed vocabulary.** The five rulings —
+> the four in § *Rulings* and the narrower one in § *The two hook bodies
+> that remain* — are the owner's decisions, and the build takes them as
+> settled. Every identifier, count, and file path on this page was checked
+> against the tree. The proposed vocabulary names nothing in the workspace:
 >
 > - **Clause grammar** — `ClauseGrammarSpec`, `ClauseRow`,
 >   `ClauseRowShape`, `ClauseSlot`, `HandlerMatch`, `ClauseTiming`,
@@ -117,19 +119,20 @@ cannot say*, [../runtime/c-extension-shim.md](../runtime/c-extension-shim.md)
 analysis, with no widen-only tier and no provenance cap (the rulings in
 [value-transfers.md](value-transfers.md) § *Rulings*).
 
-## Rulings still open
+## Rulings
 
-Four questions belong to the owner rather than to the design. Each is
-stated below as a **proposed ruling**: the recommended decision, the
-rationale, the consequences — which documents and which code predicates
-change — and what stands instead if the owner decides the other way. None
-of them blocks the analyser slices, and each is independently landable. A
-fifth, narrower one sits with the hook body it concerns, in
-§ *The two hook bodies that remain*.
+Four questions belong to the owner rather than to the design, and the owner
+has decided all four. Each is stated below as a **ruling**: the decision,
+the rationale, and the consequences — which documents and which code
+predicates change. The build takes them as settled, and step 1 of
+§ *Build order* repairs the documents that state the rule a ruling
+replaces. None of them blocks the analyser slices, and each is
+independently landable. A fifth, narrower one sits with the hook body it
+concerns, in § *The two hook bodies that remain*.
 
-### Proposed ruling — the shipped catalogues are generated from Rust
+### Ruling — the shipped catalogues are generated from Rust
 
-**Recommendation.** The shipped code-generation catalogues — the intrinsic
+**Ruling.** The shipped code-generation catalogues — the intrinsic
 table, the per-command runtime-backing classification, and the ABI
 descriptor table in `rust/tcl-runtime-api/src/codegen_abi.rs` — are
 generated from the Rust registry by an `xtask` build task. There is no
@@ -165,18 +168,13 @@ backend. Code predicates: `command_backing`'s four classification lists
 become rows of the `runtime_backing` fact, and its registration scan
 becomes a registry query that `tcl-vm` asks too.
 
-**If the owner decides the other way** and a pack-to-Rust backend
-returns, every rung above zero gains a build-time admission step: the
-generated Rust carries the source pack's content hash and vocabulary
-version, the per-tier capability gate moves from load time to build time,
-and the equivalence gate in
-[../registry/spec-packs.md](../registry/spec-packs.md) grows a second
-direction — compiled-from-pack equals hand-written — that it does not
-have today.
+**Decided with the build.** Step 1 of § *Build order* states the
+separation in [command-registry.md](command-registry.md) § *Authoring a
+spec without Rust*, and step 7 lands the generator.
 
-### Proposed ruling — trust gates execution, not authority
+### Ruling — trust gates execution, not authority
 
-**Recommendation.** Two things are separated. *Authority* is settled by the
+**Ruling.** Two things are separated. *Authority* is settled by the
 interface contract's ruling 3: a loaded workspace pack's declarative facts
 are believed, with no widen-only tier and no provenance cap, whatever the
 editor's trust state. *Execution* is gated: in a workspace the editor has
@@ -228,18 +226,14 @@ the setting is gated, the workspace tier is not* records the split, and
 § *6.4 Trust and provenance* keeps the security floor as it is — the floor
 was never tier-keyed and does not become so.
 
-**If the owner decides the other way** and the sandbox alone suffices,
-`WorkspaceTrust` is still plumbed and still collapses the two predicates,
-but it is consumed by exactly one rule: an untrusted workspace's pack may
-not `-override` a compiled command name, declare a `dialect` block, or
-claim a reserved environment name — the E-R2 refusals the loader already
-implements for the Spec Studio tier. Every hook body keeps running under
-the sandbox and the budget, and this page's derived-query layer gains no
-dormant-hook state.
+**Decided with the build.** Step 1 of § *Build order* records the split in
+[../registry/spec-packs.md](../registry/spec-packs.md) § *Workspace trust:
+the setting is gated, the workspace tier is not*, and step 3 plumbs
+`WorkspaceTrust` and gates the hook bodies on it.
 
-### Proposed ruling — a stub sidecar is a workspace-authored fact
+### Ruling — a stub sidecar is a workspace-authored fact
 
-**Recommendation.** A stub declaration is the same class of fact as a
+**Ruling.** A stub declaration is the same class of fact as a
 pack's, so the authority ruling applies to it unchanged: once ingested, a
 stub's declarations are inputs to analysis on the same footing as a
 shipped spec. [../contracts/dialect-stubs.md](../contracts/dialect-stubs.md)
@@ -277,17 +271,14 @@ predicates: the union in `DocumentCommandSurface`, the flag drop in
 sidecar ingests at — which becomes a provenance label for explanation, not
 a precision class.
 
-**If the owner decides the other way** and stubs are a different class
-from packs, the widen-only rule stays, the flags are still consumed but
-only in the widening direction — `-pure` may add a purity fact and never
-remove one, `-barrier` may add a barrier and never remove one — and
-[../contracts/dialect-stubs.md](../contracts/dialect-stubs.md) states the
-asymmetry with its reason, so an author reading both pages learns why the
-sidecar is weaker than the pack.
+**Decided with the build.** Step 1 of § *Build order* states nearest-wins
+in [../contracts/dialect-stubs.md](../contracts/dialect-stubs.md)
+§ *Stubs are declarations*, and step 3 consumes the six flags on their
+catalogue fields.
 
-### Proposed ruling — one C header, two hosts
+### Ruling — one C header, two hosts
 
-**Recommendation.** The authored, API-compatible `tcl.h` of
+**Ruling.** The authored, API-compatible `tcl.h` of
 [../runtime/c-extension-abi.md](../runtime/c-extension-abi.md) is *the* C
 hosting contract, and `rust/tcl-cshim` stays as its native host: the shim
 keeps its role — `Interp<E: Engine>`, the engine interface's second
@@ -350,15 +341,11 @@ interface's narrowing of `TCL_BREAK` / `TCL_CONTINUE` to errors and
 `TCL_RETURN` to `TCL_OK` is corrected before a hosted extension can
 exercise the conservative default this page states for it.
 
-**If the owner decides the other way** and the shim's header wins, the
-authored `tcl.h` is withdrawn, `capi.rs`'s exports are re-pointed at
-`tclshim.h`'s opaque-handle discipline and its marshalling table, every
-extension needs the one source change the header demands plus more for
-each API the header lacks, and the `dltest` corpus becomes a
-compile-refusal list rather than a conformance corpus. The WASM leg then
-hosts exactly the extensions whose source the header's subset compiles,
-and the ABI's measured GOT and libc findings are retained only as evidence
-that the subset is the binding constraint.
+**Decided with the build.** Step 1 of § *Build order* states the one
+contract in [../runtime/c-extension-shim.md](../runtime/c-extension-shim.md)
+§ *The implemented subset* and
+[../runtime/c-extension-abi.md](../runtime/c-extension-abi.md) § 7, and
+step 10 retargets the shim onto the authored header in the order above.
 
 ## The analyser: the description contract
 
@@ -939,8 +926,8 @@ analyser:
   and `rust/tcl-spectcl/src/loader.rs`'s
   `native_hook_tables_cover_their_catalogues` keeps the native table
   honest.
-- **A state-transition resolver** emitting alias facts only. Its
-  contract: it receives `InvocationArguments` and returns
+- **A state-transition resolver** emitting alias and namespace facts only.
+  Its contract: it receives `InvocationArguments` and returns
   `StateTransitions`; it may emit `VariableCellAliasTransition` facts and
   `NamespaceTransition` facts, and no `CommandBindingTransition`,
   `InterpreterTransition`, `ObjectDispatchTransition`, or
@@ -953,25 +940,22 @@ analyser:
   `rust/tcl-spectcl/src/loader.rs`, which reads the `composition` row,
   drops `argument_shape`, `resolver`, `widen`, `covers`, and `commit` with
   a notice, and records in its own comment that "the resolver in
-  particular is reference-only by design". So it is a **proposed
-  ruling**. *Recommended*, because the alias family is the one whose
-  answer is a pure function of literal words, its consumer — the generic
-  scope-alias application — is already generic, and refusing it leaves a
-  vendor `upvar`-alike unauthorable while `frame_effect`, the same fact in
-  descriptor form, is authorable already. *Consequences*:
+  particular is reference-only by design". So it is a **ruling**, narrower
+  than the four in § *Rulings* and decided with them. *The reason*: the
+  alias family is the one whose answer is a pure function of literal
+  words, its consumer — the generic scope-alias application — is already
+  generic, and refusing it leaves a vendor `upvar`-alike unauthorable
+  while `frame_effect`, the same fact in descriptor form, is authorable
+  already. *Consequences*:
   [../registry/spec-packs.md](../registry/spec-packs.md) § *What a pack
   still cannot say* moves the `state_transitions` resolver from documented
-  vocabulary the loader does not read to readable for one family, alias
-  facts only; the loader's drop list loses `resolver` and the four plain
-  rows beside it, which is what lets the `state_transitions` `GAPS` row
-  become the resolver alone; and `rust/tcl-registry/src/pack_hooks.rs`
+  vocabulary the loader does not read to readable for the alias and
+  namespace families; the loader's drop list loses `resolver` and the four
+  plain rows beside it, which is what lets the `state_transitions` `GAPS`
+  row become the resolver alone; and `rust/tcl-registry/src/pack_hooks.rs`
   gains the family with its slot table, under
-  `native_hook_tables_cover_their_catalogues`. *The other way*: the
-  resolver stays native-only, the descriptor form
-  (`StateTransitionDescriptor` with its `StateTransitionOperandLayout`) is
-  the whole authorable surface, a grammar the descriptor cannot spell is a
-  contribution candidate rather than a pack fact, and only one hook body
-  remains on this page instead of two.
+  `native_hook_tables_cover_their_catalogues`. Step 1 of § *Build order*
+  states it in the pack document.
 
 ### The studio round-trip for `semantic_operation`
 
@@ -1526,7 +1510,7 @@ and applied at registration:
 - **The strong sense is not SpecTcl.** The intrinsic table, the
   command-backing classification, and the ABI descriptor table in
   `rust/tcl-runtime-api/src/codegen_abi.rs` are generated from the Rust
-  registry by the build task — the first proposed ruling above, and the
+  registry by the build task — the first ruling above, and the
   direction [wasm-native-lowering-plan.md](wasm-native-lowering-plan.md)
   § *4. Runtime ABI* already takes with its shared `CodegenAbiImportId`
   descriptor table.
@@ -1752,18 +1736,18 @@ flowchart LR
   `TCL_RETURN` to `TCL_OK`; that narrowing is corrected — the interface
   carries the completion code the host command returned — before a hosted
   extension can exercise the default, and the correction is part of the
-  fourth proposed ruling's WASM-leg order.
+  fourth ruling's WASM-leg order.
 - **Describe from three sources**, each with its own provenance: a
   mechanical scan of C source, blind to methods registered through the OO C
   API and to ensembles built in C; a sandboxed probe under the package
   manager's opt-in policy; and, for a host that loads an extension
   in-process, a bridge from the shim's `Loaded` report to the declared
   surface. A stub's purity and mutation flags are workspace-authored facts
-  honoured as declared under the third proposed ruling, and a declared
+  honoured as declared under the third ruling, and a declared
   fact narrows the default axis by axis.
 - **Run** natively through `rust/tcl-cshim` under a host opt-in `load`
   bridge, and under WASM through the same authored header once the seam in
-  the fourth proposed ruling's order is closed, with the syntax-only
+  the fourth ruling's order is closed, with the syntax-only
   `wasm32-wasi` check the shim document mentions turned into a CI gate that
   compiles the test extension.
 - **Evaluate through a C command never natively**, because C code cannot
@@ -1783,7 +1767,7 @@ and design-doc updates. None of them gates the value-axis slices in the
 migration plan; steps 2 and 4 are the shortest route to the owner's goal
 and come before any runtime guard work.
 
-1. Take the four proposed rulings, and repair the documents the work
+1. Take the four rulings, and repair the documents the work
    builds on: [command-registry.md](command-registry.md) § *Authoring a
    spec without Rust* (the studio's `.rs` export is a contribution aid,
    not a backend), [../contracts/dialect-stubs.md](../contracts/dialect-stubs.md)
@@ -1888,7 +1872,7 @@ and come before any runtime guard work.
 - [lowering-dispatch.md](lowering-dispatch.md), [wasm-native-lowering-plan.md](wasm-native-lowering-plan.md), [semantic-aot-optimisation.md](semantic-aot-optimisation.md) — how codegen consumes the registry and the proofs it must not skip
 - [../contracts/vm-compiled-artifact-provenance.md](../contracts/vm-compiled-artifact-provenance.md) — the identities an artefact carries today
 - [../contracts/command-spec-studio.md](../contracts/command-spec-studio.md) — the four-surface parity rule every new descriptor must satisfy
-- [../contracts/dialect-stubs.md](../contracts/dialect-stubs.md) — the stub contract the third proposed ruling changes
+- [../contracts/dialect-stubs.md](../contracts/dialect-stubs.md) — the stub contract the third ruling changes
 - [../registry/spec-packs.md](../registry/spec-packs.md), [../registry/dialect-and-package-registry-redesign.md](../registry/dialect-and-package-registry-redesign.md), [../registry/dialect-profile-model.md](../registry/dialect-profile-model.md) — the DSL, the environment model, and the profile
 - [../runtime/c-extension-shim.md](../runtime/c-extension-shim.md), [../runtime/c-extension-abi.md](../runtime/c-extension-abi.md), [../runtime/c-api-ownership-contract.md](../runtime/c-api-ownership-contract.md), [../runtime/family-b-routing.md](../runtime/family-b-routing.md) — the two C hosts, the per-export ownership categories, and the shared-core rule
 - [../tclpkg/architecture.md](../tclpkg/architecture.md), [../tclpkg/security.md](../tclpkg/security.md) — what a package is to the package manager
