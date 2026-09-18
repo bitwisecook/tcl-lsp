@@ -1547,8 +1547,8 @@ mod policy_tests {
         assert!(directives.hit(FILE_SUPPRESS_KEY, DiagCode::W111));
         assert!(!directives.hit(FILE_SUPPRESS_KEY, DiagCode::W112));
         assert!(directives.hit(3, DiagCode::W210));
-        // `puts $b` starts at byte 44 — line 3.
-        assert_eq!(directives.line_of(Span::new(44, 51)), 3);
+        // `puts $b` starts at byte 51 — line 3.
+        assert_eq!(directives.line_of(Span::new(51, 58)), 3);
         // The analyser's own map is the same shape.
         let analysis = analyser::Analyser::new().analyse(text, "tcl9.0");
         let from_analysis = Directives::from_analysis(&analysis, text);
@@ -1557,29 +1557,29 @@ mod policy_tests {
         // No text at all: nothing hits, and every span is on line 0.
         let none = Directives::none();
         assert!(!none.hit(0, DiagCode::W210));
-        assert_eq!(none.line_of(Span::new(44, 51)), 0);
+        assert_eq!(none.line_of(Span::new(51, 58)), 0);
     }
 
     #[test]
     fn directives_answer_inline_before_file_and_skip_inline_for_whole_file_codes() {
         let text = "# tcl-lsp: disable=W112\n# noqa\nset x 1   \nputs $y\n";
         let directives = Directives::scan(text, crate::profile_for_dialect("tcl9.0"));
-        // `set x 1   ` is line 2, bytes 32..42; `puts $y` is line 3.
+        // `set x 1   ` is line 2, bytes 31..41; `puts $y` is line 3, 42..49.
         assert_eq!(
-            directives.reason_for(DiagCode::W210, Span::new(32, 42)),
+            directives.reason_for(DiagCode::W210, Span::new(31, 41)),
             Some(Reason::InlineDirective { line: 2 })
         );
         // Both directives cover W112 on line 2; the inline one is reported.
         assert_eq!(
-            directives.reason_for(DiagCode::W112, Span::new(39, 42)),
+            directives.reason_for(DiagCode::W112, Span::new(38, 41)),
             Some(Reason::InlineDirective { line: 2 })
         );
         assert_eq!(
-            directives.reason_for(DiagCode::W112, Span::new(43, 50)),
+            directives.reason_for(DiagCode::W112, Span::new(42, 49)),
             Some(Reason::FileDirective)
         );
         assert_eq!(
-            directives.reason_for(DiagCode::W210, Span::new(43, 50)),
+            directives.reason_for(DiagCode::W210, Span::new(42, 49)),
             None
         );
         // A whole-file code ignores the inline bucket and honours the file one.
