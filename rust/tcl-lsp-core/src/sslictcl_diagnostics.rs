@@ -24,9 +24,10 @@
 //! published `SSLIC1xxx` code and a byte [`Span`] into the document. Those
 //! are exactly the facts an editor squiggle needs, so this module is a
 //! projection and nothing more — it maps one loader diagnostic to one
-//! [`analyser::Diagnostic`], the type every other whole-file finding in this
-//! crate already speaks, and lets the server's existing span lift give it a
-//! UTF-16-correct range.
+//! [`Finding`], the shape every producer hands the policy step, and lets
+//! the adapters' span lift give it a UTF-16-correct range. It applies no
+//! policy: the disabled set and the directives reach these codes through
+//! [`crate::diagnostic_policy::apply`] like every other code.
 //!
 //! Nothing here names a declaration. The vocabulary lives in
 //! `tcl_sslictcl::vocabulary` (for the loader) and in the `sslictcl` registry
@@ -35,15 +36,13 @@
 //!
 //! [`DslDiagnostic`]: tcl_sslictcl::dsl::DslDiagnostic
 //! [`Span`]: tcl_lexer::Span
-//! [`analyser::Diagnostic`]: tcl_compiler::analyser::Diagnostic
 
-use std::collections::{HashMap, HashSet};
-use std::hash::BuildHasher;
-
-use tcl_compiler::analyser::{Diagnostic, Severity, line_suppressed};
-use tcl_core_types::DiagCode;
+use tcl_compiler::analyser::Diagnostic;
+use tcl_core_types::{DiagCode, Severity};
 use tcl_dialect::DialectProfile;
 use tcl_sslictcl::dsl::{DslSeverity, load_with_diagnostics};
+
+use crate::diagnostic_policy::{Finding, Producer};
 
 /// The authoring surface package the `sslictcl` environment carries.
 ///
@@ -67,42 +66,28 @@ pub fn applies_to(dialect: &DialectProfile) -> bool {
         .contains(&SURFACE_PACKAGE)
 }
 
-/// Every loader diagnostic `source` produces, as analyser diagnostics.
+/// Every loader diagnostic `source` produces, as findings.
 ///
-/// `disabled` is the resolved `tclLsp.diagnostics.<CODE> = false` set and
-/// `suppressed` the analyser's `# noqa` / `# tcl-lsp: disable=…` map, applied
-/// with the same contract every other code obeys: a `"*"` entry suppresses
-/// everything, and the file-level bucket applies document-wide.
-///
-/// The caller decides *whether* to ask ([`applies_to`]); this function assumes
-/// the document is a `.sslictcl` one and does not re-check.
+/// Nothing is filtered: the caller decides *whether* to ask
+/// ([`applies_to`]), and the policy step decides what shows. This function
+/// assumes the document is a `.sslictcl` one and does not re-check.
 #[must_use]
-pub fn diagnostics<H: BuildHasher, I: BuildHasher, J: BuildHasher>(
-    source: &str,
-    disabled: &HashSet<String, J>,
-    suppressed: &HashMap<i32, HashSet<String, I>, H>,
-) -> Vec<Diagnostic> {
-    let line_index = tcl_lexer::LineIndex::new_lsp(source);
+pub fn diagnostics(source: &str) -> Vec<Finding> {
     load_with_diagnostics(source)
         .diagnostics
         .into_iter()
-        .filter(|d| !disabled.contains(d.code.as_str()))
-        .filter(|d| {
-            let line = i32::try_from(line_index.position_at_utf16(d.range.start(), source).line)
-                .unwrap_or(i32::MAX);
-            !line_suppressed(d.code.as_str(), line, suppressed)
-        })
-        .map(|d| {
-            Diagnostic::new(
-                d.code,
-                d.range,
-                d.message,
-                match d.severity {
-                    DslSeverity::Error => Severity::Error,
-                    DslSeverity::Warning => Severity::Warning,
-                    DslSeverity::Hint => Severity::Hint,
-                },
-            )
+        .map(|d| Finding {
+            code: d.code,
+            span: d.range,
+            severity: match d.severity {
+                DslSeverity::Error => Severity::Error,
+                DslSeverity::Warning => Severity::Warning,
+                DslSeverity::Hint => Severity::Hint,
+            },
+            message: d.message,
+            fixes: Vec::new(),
+            data: None,
+            producer: Producer::SslicTcl,
         })
         .collect()
 }
@@ -127,14 +112,19 @@ pub fn diagnostics<H: BuildHasher, I: BuildHasher, J: BuildHasher>(
 /// style codes are unaffected.
 ///
 /// This is a **dialect** policy — it names no declaration, and it holds for
-/// every word in the document rather than a list of them.
+/// every word in the document rather than a list of them. The policy step
+/// reads it as the dialect's overlap entry
+/// ([`crate::diagnostic_policy::dialect_overlaps`]): the loader owns each
+/// code document-wide, whether or not it emitted a finding of its own.
 pub const SUPERSEDED_ANALYSER_CODES: &[DiagCode] = &[DiagCode::W123];
 
 /// Drop the analyser diagnostics [`SUPERSEDED_ANALYSER_CODES`] names.
 ///
 /// Applied by a caller that has already established [`applies_to`], on the
 /// analyser's set for the document, before it is lifted or read for
-/// quick-fixes.
+/// quick-fixes. The server's publish paths and the CLI still call it; the
+/// overlap entry is the same rule as data, and this function retires when
+/// those adapters read the report instead.
 pub fn supersede_analyser_diagnostics(diagnostics: &mut Vec<Diagnostic>) {
     diagnostics.retain(|d| !SUPERSEDED_ANALYSER_CODES.contains(&d.code));
 }
@@ -143,7 +133,6 @@ pub fn supersede_analyser_diagnostics(diagnostics: &mut Vec<Diagnostic>) {
 mod tests {
     use super::*;
     use crate::profile_for_dialect;
-    use tcl_compiler::analyser::FILE_SUPPRESS_KEY;
 
     const THREE_ERRORS: &str = "sslictcl 1\n\
                                 endpoint /Common/a {\n\
@@ -156,14 +145,10 @@ mod tests {
                                 }\n";
 
     fn codes(source: &str) -> Vec<String> {
-        diagnostics(
-            source,
-            &HashSet::<String, std::hash::RandomState>::new(),
-            &HashMap::<i32, HashSet<String>, std::hash::RandomState>::new(),
-        )
-        .into_iter()
-        .map(|d| d.code.as_str().to_owned())
-        .collect()
+        diagnostics(source)
+            .into_iter()
+            .map(|d| d.code.as_str().to_owned())
+            .collect()
     }
 
     #[test]
@@ -187,31 +172,39 @@ mod tests {
     }
 
     #[test]
-    fn a_disabled_code_is_dropped_and_the_others_kept() {
-        let disabled: HashSet<String> = ["SSLIC1009".to_owned()].into_iter().collect();
-        let kept: Vec<String> = diagnostics(
-            THREE_ERRORS,
-            &disabled,
-            &HashMap::<i32, HashSet<String>, std::hash::RandomState>::new(),
-        )
-        .into_iter()
-        .map(|d| d.code.as_str().to_owned())
-        .collect();
-        assert!(!kept.contains(&"SSLIC1009".to_owned()), "{kept:?}");
-        assert!(kept.contains(&"SSLIC1007".to_owned()), "{kept:?}");
-    }
-
-    #[test]
-    fn a_file_directive_suppresses_document_wide() {
-        let mut suppressed: HashMap<i32, HashSet<String>> = HashMap::new();
-        suppressed.insert(FILE_SUPPRESS_KEY, ["*".to_owned()].into_iter().collect());
+    fn every_finding_carries_the_loader_span_and_the_sslictcl_producer() {
+        use crate::diagnostic_policy::{Directives, Policy, PolicyLayer, Reason, apply};
+        let findings = diagnostics(THREE_ERRORS);
+        assert!(findings.iter().all(|f| f.producer == Producer::SslicTcl));
         assert!(
-            diagnostics(
-                THREE_ERRORS,
-                &HashSet::<String, std::hash::RandomState>::new(),
-                &suppressed,
-            )
-            .is_empty()
+            findings
+                .iter()
+                .all(|f| f.fixes.is_empty() && f.data.is_none())
+        );
+        let span = findings
+            .iter()
+            .find(|f| f.code == DiagCode::Sslic1009)
+            .expect("the out-of-domain value is reported")
+            .span;
+        assert_eq!(
+            &THREE_ERRORS[span.start() as usize..span.end() as usize],
+            "maybe"
+        );
+        // Nothing is filtered here; the policy step does that.
+        let disabled: std::collections::HashSet<String> =
+            std::iter::once("SSLIC1009".to_owned()).collect();
+        let report = apply(
+            findings,
+            &Policy::from_disabled_set(&disabled, PolicyLayer::Editor, Directives::none()),
+        );
+        assert_eq!(
+            report.reason_for(DiagCode::Sslic1009, span),
+            Some(Reason::Disabled(PolicyLayer::Editor))
+        );
+        assert!(
+            report
+                .shown()
+                .any(|s| s.finding.code == DiagCode::Sslic1007)
         );
     }
 
@@ -244,11 +237,7 @@ mod tests {
     #[test]
     fn severities_follow_the_loader() {
         let notice = "sslictcl 1\nunknown-declaration {a b}\n";
-        let lifted = diagnostics(
-            notice,
-            &HashSet::<String, std::hash::RandomState>::new(),
-            &HashMap::<i32, HashSet<String>, std::hash::RandomState>::new(),
-        );
+        let lifted = diagnostics(notice);
         let hint = lifted
             .iter()
             .find(|d| d.code.as_str() == "SSLIC1101")

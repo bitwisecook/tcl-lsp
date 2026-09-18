@@ -1108,6 +1108,92 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     description: "SslicTcl `predicate` body is retained but never evaluated in vocabulary 1.",
     defaultEnabled: true,
   },
+  {
+    code: "XC100",
+    section: "xc",
+    description:
+      "iRule command maps directly to an XC construct (an origin pool, a catalogued command mapping).",
+    defaultEnabled: true,
+  },
+  {
+    code: "XC101",
+    section: "xc",
+    description:
+      "iRule routing decision maps to an XC L7 route — path or host matching, a redirect, or a direct response.",
+    defaultEnabled: true,
+  },
+  {
+    code: "XC102",
+    section: "xc",
+    description:
+      "iRule condition or response maps to an XC service policy rule — match criteria, method matching, or a deny.",
+    defaultEnabled: true,
+  },
+  {
+    code: "XC103",
+    section: "xc",
+    description: "HTTP header operation maps to an XC request or response header action.",
+    defaultEnabled: true,
+  },
+  {
+    code: "XC105",
+    section: "xc",
+    description:
+      "Data-group (`class`) match maps to XC service policy rules — each entry may need its own rule.",
+    defaultEnabled: true,
+  },
+  {
+    code: "XC106",
+    section: "xc",
+    description: "`ASM::disable` maps to an XC WAF exclusion rule.",
+    defaultEnabled: true,
+  },
+  {
+    code: "XC107",
+    section: "xc",
+    description: "`ASM::enable` needs no XC action — the App Firewall is enabled by default.",
+    defaultEnabled: true,
+  },
+  {
+    code: "XC200",
+    section: "xc",
+    description: "`switch` on a dynamic value — the XC match criteria need manual configuration.",
+    defaultEnabled: true,
+  },
+  {
+    code: "XC201",
+    section: "xc",
+    description:
+      "Event handler has no XC equivalent — an L4 or non-HTTP event the static translation cannot express.",
+    defaultEnabled: true,
+  },
+  {
+    code: "XC203",
+    section: "xc",
+    description:
+      "Complex condition could not be mapped to XC match criteria automatically — review it manually.",
+    defaultEnabled: true,
+  },
+  {
+    code: "XC250",
+    section: "xc",
+    description:
+      "Event maps to a separate XC feature (Rate Limiting, Bot Defence, …) rather than a route or policy.",
+    defaultEnabled: true,
+  },
+  {
+    code: "XC300",
+    section: "xc",
+    description:
+      "Command creates dynamic or procedural behaviour with no XC equivalent — consider App Stack.",
+    defaultEnabled: true,
+  },
+  {
+    code: "XC301",
+    section: "xc",
+    description: "L4 or protocol-specific command with no XC equivalent — consider App Stack.",
+    defaultEnabled: true,
+  },
 ];
 
 export const OPTIMISATIONS: OptimisationDef[] = [
@@ -1286,6 +1372,7 @@ export const SECTION_TITLES: Record<string, string> = {
   bigip: "Diagnostics — BIG-IP Configuration",
   sslictcl: "Diagnostics — SslicTcl",
   tclpkg: "Diagnostics — Package Manager",
+  xc: "Diagnostics — XC Translation",
 };
 
 export const SECTION_ORDER: string[] = [
@@ -1300,4 +1387,5 @@ export const SECTION_ORDER: string[] = [
   "bigip",
   "sslictcl",
   "tclpkg",
+  "xc",
 ];

@@ -42,9 +42,12 @@ eval $cmd   ;# noqa: *     — suppress every code on this line
 The analyser builds the suppression map (`AnalysisResult::suppressed_lines:
 HashMap<i32, HashSet<String>>`, `rust/tcl-compiler/src/analyser/types.rs`) —
 inline `# noqa` per line, a top-of-file `# tcl-lsp: disable=…` in the `-1`
-bucket — and every lift applies it (`line_suppressed` in the server; the same
-contract in `tcl_lsp_core::source_style`). Codes disabled with
-`tclLsp.diagnostics.<CODE> = false` are filtered at the same point.
+bucket — and every lift applies it (`line_suppressed` in the server's
+analyser and compiler lifts; `tcl_lsp_core::diagnostic_policy::apply` for
+the style, byte-integrity and SslicTcl findings). Codes disabled with
+`tclLsp.diagnostics.<CODE> = false` are filtered at the same point. The
+policy step is where every lift is heading:
+[diagnostic-policy.md](diagnostic-policy.md).
 
 ### Grouped optimisations
 

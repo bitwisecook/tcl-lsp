@@ -8936,8 +8936,378 @@
         }
       },
       {
+        "title": "Diagnostics — XC Translation",
+        "order": 21,
+        "properties": {
+          "tclLsp.diagnostics.XC100": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**XC100:** iRule command maps directly to an XC construct (an origin pool, a catalogued command mapping).",
+            "order": 0
+          },
+          "tclLsp.diagnosticSeverity.XC100": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **XC100:** iRule command maps directly to an XC construct (an origin pool, a catalogued command mapping).",
+            "order": 0
+          },
+          "tclLsp.diagnostics.XC101": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**XC101:** iRule routing decision maps to an XC L7 route — path or host matching, a redirect, or a direct response.",
+            "order": 1
+          },
+          "tclLsp.diagnosticSeverity.XC101": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **XC101:** iRule routing decision maps to an XC L7 route — path or host matching, a redirect, or a direct response.",
+            "order": 1
+          },
+          "tclLsp.diagnostics.XC102": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**XC102:** iRule condition or response maps to an XC service policy rule — match criteria, method matching, or a deny.",
+            "order": 2
+          },
+          "tclLsp.diagnosticSeverity.XC102": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **XC102:** iRule condition or response maps to an XC service policy rule — match criteria, method matching, or a deny.",
+            "order": 2
+          },
+          "tclLsp.diagnostics.XC103": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**XC103:** HTTP header operation maps to an XC request or response header action.",
+            "order": 3
+          },
+          "tclLsp.diagnosticSeverity.XC103": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **XC103:** HTTP header operation maps to an XC request or response header action.",
+            "order": 3
+          },
+          "tclLsp.diagnostics.XC105": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**XC105:** Data-group (`class`) match maps to XC service policy rules — each entry may need its own rule.",
+            "order": 4
+          },
+          "tclLsp.diagnosticSeverity.XC105": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **XC105:** Data-group (`class`) match maps to XC service policy rules — each entry may need its own rule.",
+            "order": 4
+          },
+          "tclLsp.diagnostics.XC106": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**XC106:** `ASM::disable` maps to an XC WAF exclusion rule.",
+            "order": 5
+          },
+          "tclLsp.diagnosticSeverity.XC106": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **XC106:** `ASM::disable` maps to an XC WAF exclusion rule.",
+            "order": 5
+          },
+          "tclLsp.diagnostics.XC107": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**XC107:** `ASM::enable` needs no XC action — the App Firewall is enabled by default.",
+            "order": 6
+          },
+          "tclLsp.diagnosticSeverity.XC107": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **XC107:** `ASM::enable` needs no XC action — the App Firewall is enabled by default.",
+            "order": 6
+          },
+          "tclLsp.diagnostics.XC200": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**XC200:** `switch` on a dynamic value — the XC match criteria need manual configuration.",
+            "order": 7
+          },
+          "tclLsp.diagnosticSeverity.XC200": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **XC200:** `switch` on a dynamic value — the XC match criteria need manual configuration.",
+            "order": 7
+          },
+          "tclLsp.diagnostics.XC201": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**XC201:** Event handler has no XC equivalent — an L4 or non-HTTP event the static translation cannot express.",
+            "order": 8
+          },
+          "tclLsp.diagnosticSeverity.XC201": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **XC201:** Event handler has no XC equivalent — an L4 or non-HTTP event the static translation cannot express.",
+            "order": 8
+          },
+          "tclLsp.diagnostics.XC203": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**XC203:** Complex condition could not be mapped to XC match criteria automatically — review it manually.",
+            "order": 9
+          },
+          "tclLsp.diagnosticSeverity.XC203": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **XC203:** Complex condition could not be mapped to XC match criteria automatically — review it manually.",
+            "order": 9
+          },
+          "tclLsp.diagnostics.XC250": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**XC250:** Event maps to a separate XC feature (Rate Limiting, Bot Defence, …) rather than a route or policy.",
+            "order": 10
+          },
+          "tclLsp.diagnosticSeverity.XC250": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **XC250:** Event maps to a separate XC feature (Rate Limiting, Bot Defence, …) rather than a route or policy.",
+            "order": 10
+          },
+          "tclLsp.diagnostics.XC300": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**XC300:** Command creates dynamic or procedural behaviour with no XC equivalent — consider App Stack.",
+            "order": 11
+          },
+          "tclLsp.diagnosticSeverity.XC300": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **XC300:** Command creates dynamic or procedural behaviour with no XC equivalent — consider App Stack.",
+            "order": 11
+          },
+          "tclLsp.diagnostics.XC301": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**XC301:** L4 or protocol-specific command with no XC equivalent — consider App Stack.",
+            "order": 12
+          },
+          "tclLsp.diagnosticSeverity.XC301": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **XC301:** L4 or protocol-specific command with no XC equivalent — consider App Stack.",
+            "order": 12
+          }
+        }
+      },
+      {
         "title": "Optimiser",
-        "order": 20,
+        "order": 22,
         "properties": {
           "tclLsp.optimiser.enabled": {
             "scope": "resource",

@@ -171,6 +171,10 @@ symptom with several possible causes worth telling apart. See rule 13 in
   literal from its call sites, which indirect calls (`$cmd args`, callback
   prefixes, `eval`) count as call sites too, and why adding one of them
   makes the folded diagnostics disappear.
+- [kcs-qa-where-is-diagnostic-policy-applied.md](kcs-qa-where-is-diagnostic-policy-applied.md)
+  — the one policy step below every surface that decides whether a
+  diagnostic is shown, hidden, or relabelled, the order its reasons apply
+  in, and where a new rule goes.
 
 ## How-Tos
 

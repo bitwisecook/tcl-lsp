@@ -29,7 +29,9 @@
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
 
-pub mod config_ini;
+/// The INI parse and the three-layer merge, shared with every surface
+/// through `tcl-lsp-core`.
+pub use tcl_lsp_core::config_ini;
 /// The exit watchdog that backstops `Server::serve` returning promptly once
 /// the session is over. Native only: it wraps `tokio::io::Stdin` and hard
 /// exits the process, neither of which apply to a browser worker.
@@ -60,7 +62,9 @@ use futures_util::future::FutureExt;
 use sha2::{Digest, Sha256};
 use tcl_compiler::compiler_checks::DiagCode;
 
-use tcl_compiler::analyser::{Analyser, AnalysisResult, NonAsciiMode, line_suppressed};
+use tcl_compiler::analyser::{
+    Analyser, AnalysisResult, FILE_SUPPRESS_KEY, NonAsciiMode, line_suppressed,
+};
 use tcl_lsp_core::bigip as core_bigip;
 use tcl_lsp_core::call_hierarchy as core_call_hierarchy;
 use tcl_lsp_core::code_actions as core_code_actions;
@@ -69,8 +73,10 @@ use tcl_lsp_core::completion::{
     self as core_completion, CompletionItem as CoreCompletionItem,
     CompletionKind as CoreCompletionKind,
 };
+use tcl_lsp_core::config_ini::{default_disabled_set, settings_disabled_diagnostics};
 use tcl_lsp_core::declaration as core_declaration;
 use tcl_lsp_core::definition::{self as core_definition, LspRange as CoreLspRange};
+use tcl_lsp_core::diagnostic_policy as core_policy;
 use tcl_lsp_core::document_links as core_document_links;
 use tcl_lsp_core::document_symbols::{self as core_symbols, SymbolKind as CoreSymbolKind};
 use tcl_lsp_core::file_ops as core_file_ops;
@@ -27280,113 +27286,35 @@ fn settings_non_ascii_mode(settings: &serde_json::Value) -> Option<NonAsciiMode>
         .map(parse_non_ascii_mode)
 }
 
-/// Extract the disabled diagnostic codes from a settings payload — the
-/// `tclLsp.diagnostics.<CODE>` booleans whose value is `false`. Accepts
-/// the nested object (`{"tclLsp":{"diagnostics":{"W001":false}}}`) and
-/// the flat-dotted (`{"tclLsp.diagnostics.W001":false}`) shapes. Returns
-/// `None` when no diagnostics config is present (so the caller leaves the
-/// current set untouched).
-fn settings_disabled_diagnostics(settings: &serde_json::Value) -> Option<HashSet<String>> {
-    // Every resolution starts from the opt-in default-off set; a `false` value
-    // disables a code and a `true` value *enables* one (removing it from the
-    // set, so a default-off code like W242 can be turned on). Mirrors
-    // `server/settings.py`'s `new_disabled = set(default_disabled())` + per-code
-    // add/discard.
-    if let Some(map) = settings
-        .get("tclLsp")
-        .and_then(|v| v.get("diagnostics"))
-        .and_then(serde_json::Value::as_object)
-    {
-        let mut set = default_disabled_set();
-        for (code, v) in map {
-            match v.as_bool() {
-                Some(false) => {
-                    set.insert(code.clone());
-                }
-                Some(true) => {
-                    set.remove(code);
-                }
-                None => {}
-            }
-        }
-        return Some(set);
-    }
-    let obj = settings.as_object()?;
-    let mut set = default_disabled_set();
-    let mut found = false;
-    for (k, v) in obj {
-        if let Some(code) = k.strip_prefix("tclLsp.diagnostics.") {
-            found = true;
-            match v.as_bool() {
-                Some(false) => {
-                    set.insert(code.to_owned());
-                }
-                Some(true) => {
-                    set.remove(code);
-                }
-                None => {}
-            }
-        }
-    }
-    found.then_some(set)
-}
-
-/// Map a `tclLsp.diagnosticSeverity.<CODE>` config value to an LSP severity
-/// (case-insensitive). `"error"`, `"warning"`, `"information"` / `"info"`, and
-/// `"hint"` select the matching [`DiagnosticSeverity`]; anything else —
-/// including `"default"` and `""` — yields `None`, meaning "no override" (the
-/// analyser's emitted severity stands).
-fn parse_severity_value(s: &str) -> Option<tower_lsp_server::ls_types::DiagnosticSeverity> {
+/// The wire severity for a shared [`tcl_core_types::Severity`], as every
+/// lift publishes it: `Hint` and `Suggestion` both render as `HINT`.
+fn lsp_severity(
+    severity: tcl_core_types::Severity,
+) -> tower_lsp_server::ls_types::DiagnosticSeverity {
     use tower_lsp_server::ls_types::DiagnosticSeverity;
-    if s.eq_ignore_ascii_case("error") {
-        Some(DiagnosticSeverity::ERROR)
-    } else if s.eq_ignore_ascii_case("warning") {
-        Some(DiagnosticSeverity::WARNING)
-    } else if s.eq_ignore_ascii_case("information") || s.eq_ignore_ascii_case("info") {
-        Some(DiagnosticSeverity::INFORMATION)
-    } else if s.eq_ignore_ascii_case("hint") {
-        Some(DiagnosticSeverity::HINT)
-    } else {
-        None
+    match severity {
+        tcl_core_types::Severity::Error => DiagnosticSeverity::ERROR,
+        tcl_core_types::Severity::Warning => DiagnosticSeverity::WARNING,
+        tcl_core_types::Severity::Info => DiagnosticSeverity::INFORMATION,
+        tcl_core_types::Severity::Hint | tcl_core_types::Severity::Suggestion => {
+            DiagnosticSeverity::HINT
+        }
     }
 }
 
-/// Parse per-code LSP severity overrides from a `tclLsp` settings payload,
-/// accepting the nested object (`{"tclLsp":{"diagnosticSeverity":{"W211":"warning"}}}`)
-/// and the flat-dotted (`{"tclLsp.diagnosticSeverity.W211":"warning"}`) shapes.
-/// Returns `Some(map)` (possibly empty) when the section is present in either
-/// shape, else `None` (so the caller leaves the current map untouched). Entries
-/// whose value is not a recognised severity string ([`parse_severity_value`])
-/// are skipped, so the analyser's emitted severity stands for them. Mirrors
-/// [`settings_disabled_diagnostics`].
+/// The LSP-typed view of [`config_ini::settings_severity_overrides`]: the
+/// same parse of the nested and flat-dotted `tclLsp.diagnosticSeverity`
+/// shapes, with each severity mapped to the wire `DiagnosticSeverity` the
+/// publish path relabels with ([`apply_severity_overrides`]).
 fn settings_severity_overrides(
     settings: &serde_json::Value,
 ) -> Option<std::collections::HashMap<String, tower_lsp_server::ls_types::DiagnosticSeverity>> {
-    if let Some(map) = settings
-        .get("tclLsp")
-        .and_then(|v| v.get("diagnosticSeverity"))
-        .and_then(serde_json::Value::as_object)
-    {
-        let mut overrides = HashMap::new();
-        for (code, v) in map {
-            if let Some(severity) = v.as_str().and_then(parse_severity_value) {
-                overrides.insert(code.clone(), severity);
-            }
-        }
-        return Some(overrides);
-    }
-    let obj = settings.as_object()?;
-    let mut overrides = HashMap::new();
-    let mut found = false;
-    for (k, v) in obj {
-        if let Some(code) = k.strip_prefix("tclLsp.diagnosticSeverity.") {
-            found = true;
-            if let Some(severity) = v.as_str().and_then(parse_severity_value) {
-                overrides.insert(code.to_owned(), severity);
-            }
-        }
-    }
-    found.then_some(overrides)
+    config_ini::settings_severity_overrides(settings).map(|overrides| {
+        overrides
+            .into_iter()
+            .map(|(code, severity)| (code, lsp_severity(severity)))
+            .collect()
+    })
 }
 
 /// Parse one folder's resolved `tclLsp` config object into a [`FolderConfig`]
@@ -27915,18 +27843,6 @@ fn lift_span(source: &str, line_index: &tcl_lexer::LineIndex, span: tcl_lexer::S
     }
 }
 
-/// Diagnostic codes that are *default-off* (opt-in) in the editor catalogue.
-/// They are seeded into the resolved disabled-diagnostics set so the analyser
-/// suppresses them by default, and `tclLsp.diagnostics.<CODE>: true` removes a
-/// code from the disabled set to enable it.
-const DEFAULT_OFF_CODES: &[&str] = &["W242"];
-
-/// A fresh disabled-diagnostics set seeded with the opt-in [`DEFAULT_OFF_CODES`]
-/// — the starting point every resolution builds on.
-fn default_disabled_set() -> HashSet<String> {
-    DEFAULT_OFF_CODES.iter().map(|c| (*c).to_owned()).collect()
-}
-
 /// Default BIG-IP partition assumed when a config carries no explicit
 /// one.
 const BIGIP_DEFAULT_PARTITION: &str = "Common";
@@ -27978,10 +27894,10 @@ fn lift_xc_diagnostics(
     use tower_lsp_server::ls_types::{DiagnosticSeverity, NumberOrString};
     f5_xc::get_xc_diagnostics(source)
         .into_iter()
-        .filter(|d| !disabled.contains(&d.code))
+        .filter(|d| !disabled.contains(d.code.as_str()))
         .filter(|d| {
             !line_suppressed(
-                &d.code,
+                d.code.as_str(),
                 i32::try_from(d.range.start.line).unwrap_or(i32::MAX),
                 suppressed,
             )
@@ -28001,7 +27917,7 @@ fn lift_xc_diagnostics(
                 f5_xc::XcSeverity::Hint => DiagnosticSeverity::HINT,
                 f5_xc::XcSeverity::Info => DiagnosticSeverity::INFORMATION,
             }),
-            code: Some(NumberOrString::String(d.code.clone())),
+            code: Some(NumberOrString::String(d.code.to_string())),
             code_description: None,
             source: Some("tcl-lsp".to_string()),
             message: d.message,
@@ -29421,13 +29337,13 @@ fn w120_required_package(d: &tcl_compiler::analyser::Diagnostic) -> Option<&str>
         .map(str::trim)
 }
 
-/// Append the `SslicTcl` loader's `SSLIC1xxx` findings to a document's report.
+/// Append the `SslicTcl` loader's `SSLIC1xxx` findings for a `.sslictcl`
+/// document, under the same disabled set and directives as every other code.
 ///
 /// Shared by the push and pull paths, which differ only in the text the loader
 /// reads: the push path hands it the lone-`\r`-normalised form (byte-for-byte
 /// the same length, so offsets still index `text`), the pull path already has
-/// one. Lifted through [`lift_analyser_diagnostics`] because the loader speaks
-/// the analyser's diagnostic type.
+/// one. The projection filters nothing; the policy step decides.
 fn extend_with_sslictcl_diagnostics(
     diagnostics: &mut Vec<tower_lsp_server::ls_types::Diagnostic>,
     text: &str,
@@ -29435,11 +29351,67 @@ fn extend_with_sslictcl_diagnostics(
     disabled: &HashSet<String>,
     suppressed: &std::collections::HashMap<i32, HashSet<String>>,
 ) {
-    diagnostics.extend(lift_analyser_diagnostics(
-        text,
-        &tcl_lsp_core::sslictcl_diagnostics::diagnostics(loader_text, disabled, suppressed),
-        suppressed,
-    ));
+    let report = core_policy::apply(
+        tcl_lsp_core::sslictcl_diagnostics::diagnostics(loader_text),
+        &transitional_policy(
+            disabled,
+            core_policy::Directives::new(suppressed.clone(), text),
+        ),
+    );
+    diagnostics.extend(lift_shown_findings(text, &report));
+}
+
+/// The policy the lifts hand to `apply` until the LSP adapter lands
+/// (`docs/design/compiler/diagnostic-policy.md` § Slices, 4): the resolved
+/// disabled set — already seeded with the default-off codes and merged
+/// across the three configuration layers, hence recorded as the editor
+/// layer — and the analyser's directive map. Every other step still runs
+/// where it always has: abstention, tags and severity overrides in
+/// [`finalise_diagnostics`], the optimiser gates in
+/// [`lift_compiler_diagnostics`], the W110 / O120 overlap in
+/// [`suppress_duplicate_o120`].
+fn transitional_policy(
+    disabled: &HashSet<String>,
+    directives: core_policy::Directives,
+) -> core_policy::Policy {
+    core_policy::Policy::from_disabled_set(disabled, core_policy::PolicyLayer::Editor, directives)
+}
+
+/// Lift the shown findings of `report` to the wire shape, exactly as
+/// [`lift_analyser_diagnostics`] lifts an analyser diagnostic: the span
+/// through [`lift_span`], the severity through [`lsp_severity`], no tag and
+/// no payload (both are [`finalise_diagnostics`]'s).
+fn lift_shown_findings(
+    text: &str,
+    report: &core_policy::Report,
+) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+    let line_index = tcl_lexer::LineIndex::new_lsp(text);
+    report
+        .shown()
+        .map(|shown| tower_lsp_server::ls_types::Diagnostic {
+            range: lift_span(text, &line_index, shown.finding.span),
+            severity: Some(lsp_severity(shown.severity)),
+            code: Some(tower_lsp_server::ls_types::NumberOrString::String(
+                shown.finding.code.to_string(),
+            )),
+            code_description: None,
+            source: Some("tcl-lsp".to_string()),
+            message: shown.finding.message.clone(),
+            related_information: None,
+            tags: None,
+            data: None,
+        })
+        .collect()
+}
+
+/// The style-pass records whose findings `report` shows, in the pass's own
+/// order — the records keep the exact LSP ranges the pass computed, which
+/// [`lift_style_diagnostics`] publishes as they are.
+fn shown_style_records(
+    report: &core_policy::Report,
+    records: Vec<tcl_lsp_core::source_style::StyleDiagnostic>,
+) -> Vec<tcl_lsp_core::source_style::StyleDiagnostic> {
+    report.shown_items(records)
 }
 
 /// Drop the analyser diagnostics an inline `# noqa` or a top-of-file
@@ -29672,13 +29644,14 @@ fn apply_severity_overrides(
 /// source-text checks (no analyser / compiler unit needed); see
 /// `tcl_lsp_core::source_style` and `tcl_lsp_core::source_decode`.
 ///
-/// `suppressed` is the analyser's `suppressed_lines` map — it
-/// carries both inline `# noqa` line suppressions and the
-/// file-level (`-1`) `# tcl-lsp: disable=…` directive set, so the
-/// style pass honours the same suppression the analyser diagnostics
-/// do.  The checks run with default settings (line length 120,
-/// expected line ending `\n`); there is no per-check feature-config
-/// surface.
+/// The pass filters nothing. `suppressed` is the analyser's
+/// `suppressed_lines` map — inline `# noqa` lines and the file-level (`-1`)
+/// `# tcl-lsp: disable=…` bucket — and `user_disabled` the resolved
+/// `tclLsp.diagnostics.<CODE> = false` set; both reach the style codes
+/// through the policy step, where W107, W109 and W118 are the whole-file
+/// codes an inline directive never touches. The checks run with default
+/// settings (line length 120, expected line ending `\n`); there is no
+/// per-check feature-config surface.
 ///
 /// `decode_report` is present only when the bytes currently on disk lossily
 /// decode to exactly the buffer sent in `didOpen`. An unsaved LSP buffer has no
@@ -29694,24 +29667,27 @@ fn lift_source_style_diagnostics(
 ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
     use tcl_lsp_core::source_style::{DEFAULT_LINE_ENDING, style_diagnostics};
 
-    // The file-level (`-1`) directive bucket doubles as a per-code
-    // disabled set (mirrors how the Rust analyser folds a
-    // `# tcl-lsp: disable=…` directive into both `suppressed_lines`
-    // and its internal `disabled_diagnostics`); union it with the
-    // user's `tclLsp.diagnostics.<CODE> = false` settings so W111 /
-    // W112 / W115 / W118 can be turned off from the editor.
-    let mut disabled = suppressed.get(&-1).cloned().unwrap_or_default();
-    disabled.extend(user_disabled.iter().cloned());
-
-    lift_style_diagnostics(style_diagnostics(
+    let records = style_diagnostics(
         text,
         line_length,
         DEFAULT_LINE_ENDING,
-        &disabled,
-        suppressed,
         decode_report,
         dialect,
-    ))
+    );
+    let line_index = tcl_lexer::LineIndex::new_lsp(text);
+    let findings = records
+        .iter()
+        .cloned()
+        .map(|d| core_policy::Finding::from_style(d, text, &line_index))
+        .collect();
+    let report = core_policy::apply(
+        findings,
+        &transitional_policy(
+            user_disabled,
+            core_policy::Directives::new(suppressed.clone(), text),
+        ),
+    );
+    lift_style_diagnostics(shown_style_records(&report, records))
 }
 
 /// Lift source-style records into the LSP wire type.
@@ -29765,13 +29741,26 @@ fn lift_f5_source_integrity_diagnostics(
     user_disabled: &std::collections::HashSet<String>,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
-    let mut disabled = tcl_compiler::analyser::utils::parse_file_suppression(text);
-    disabled.extend(user_disabled.iter().cloned());
-    let encoding = tcl_lsp_core::source_decode::encoding_integrity_diagnostics(text, decode_report)
-        .into_iter()
-        .filter(|d| !disabled.contains("*") && !disabled.contains(d.code))
+    let records = tcl_lsp_core::source_decode::encoding_integrity_diagnostics(text, decode_report);
+    let line_index = tcl_lexer::LineIndex::new_lsp(text);
+    let findings = records
+        .iter()
+        .cloned()
+        .map(|d| core_policy::Finding::from_style(d, text, &line_index))
         .collect();
-    let mut diagnostics = lift_style_diagnostics(encoding);
+    // These document families never run the Tcl analyser, so the top-of-file
+    // directive is parsed here and handed to the policy step as the file
+    // bucket; W107 and W109 are whole-file codes, so no inline scan is needed.
+    let mut lines = std::collections::HashMap::new();
+    let file_codes = tcl_compiler::analyser::utils::parse_file_suppression(text);
+    if !file_codes.is_empty() {
+        lines.insert(FILE_SUPPRESS_KEY, file_codes);
+    }
+    let report = core_policy::apply(
+        findings,
+        &transitional_policy(user_disabled, core_policy::Directives::new(lines, text)),
+    );
+    let mut diagnostics = lift_style_diagnostics(shown_style_records(&report, records));
     let bidi =
         tcl_compiler::analyser::filtered_bidi_control_diagnostics(text, user_disabled, dialect);
     // `filtered_bidi_control_diagnostics` has already applied the `# noqa` /
@@ -32288,32 +32277,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn default_off_codes_are_seeded_into_the_disabled_set() {
-        // The opt-in default-off codes (e.g. W242) start in the resolved
-        // disabled set, so the analyser suppresses them by default.
-        assert!(default_disabled_set().contains("W242"));
-        // An empty config keeps the default-off seed.
-        let none = settings_disabled_diagnostics(&serde_json::json!({}));
-        assert!(none.is_none(), "no diagnostics section ⇒ inherit default");
-        // A `false` for some other code keeps W242 disabled too.
-        let with_false = settings_disabled_diagnostics(
-            &serde_json::json!({ "tclLsp": { "diagnostics": { "W111": false } } }),
-        )
-        .expect("set");
-        assert!(with_false.contains("W242"), "W242 stays default-off");
-        assert!(with_false.contains("W111"));
-        // `tclLsp.diagnostics.W242: true` enables it (removes from disabled).
-        let enabled = settings_disabled_diagnostics(
-            &serde_json::json!({ "tclLsp": { "diagnostics": { "W242": true } } }),
-        )
-        .expect("set");
-        assert!(
-            !enabled.contains("W242"),
-            "W242 enabled via config: {enabled:?}"
-        );
-    }
-
     #[tokio::test]
     async fn default_off_w242_hidden_by_default_enableable_via_config() {
         // End-to-end: a default-off W242 is not published by default, but
@@ -32607,22 +32570,6 @@ mod tests {
             o.full,
             Some(SemanticTokensFullOptions::Delta { delta: Some(true) })
         ));
-    }
-
-    #[test]
-    fn settings_disabled_diagnostics_nested_and_flat() {
-        let nested = serde_json::json!({
-            "tclLsp": {"diagnostics": {"W001": true, "W108": false, "W111": false}}
-        });
-        let got = settings_disabled_diagnostics(&nested).unwrap();
-        assert!(got.contains("W108") && got.contains("W111") && !got.contains("W001"));
-        let flat = serde_json::json!({
-            "tclLsp.diagnostics.W210": false, "tclLsp.diagnostics.W211": true
-        });
-        let got = settings_disabled_diagnostics(&flat).unwrap();
-        assert!(got.contains("W210") && !got.contains("W211"));
-        // No diagnostics config -> None (leave current set untouched).
-        assert!(settings_disabled_diagnostics(&serde_json::json!({"x": 1})).is_none());
     }
 
     #[test]

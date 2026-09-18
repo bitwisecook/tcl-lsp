@@ -26,7 +26,7 @@ The merge is per-key inside each section: a higher layer that sets
 readability` from a lower layer.
 
 Implementation: `config_ini::merge_settings`
-(`rust/tcl-lsp-server/src/config_ini.rs`) deep-merges the three layers, later
+(`rust/tcl-lsp-core/src/config_ini.rs`) deep-merges the three layers, later
 winning, sections merged key by key. Each file layer is parsed by
 `settings_from_ini` into the same JSON shape the editor's
 `workspace/configuration` payload has, so `Backend::apply_global_config`

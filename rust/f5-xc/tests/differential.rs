@@ -50,7 +50,7 @@ fn summarise(source: &str) -> Value {
     origin_pool_names.sort();
 
     let diags = get_xc_diagnostics(source);
-    let mut diag_codes: Vec<String> = diags.iter().map(|d| d.code.clone()).collect();
+    let mut diag_codes: Vec<String> = diags.iter().map(|d| d.code.to_string()).collect();
     diag_codes.sort();
     let mut diag_messages: Vec<String> = diags.iter().map(|d| d.message.clone()).collect();
     diag_messages.sort();

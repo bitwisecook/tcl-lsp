@@ -321,7 +321,7 @@ max_files = 6000
 
 | Concern | Where |
 |---|---|
-| INI parsing, layer sections, deep merge | `rust/tcl-lsp-server/src/config_ini.rs` — `settings_from_ini`, `Layer`, `merge_settings` |
+| INI parsing, layer sections, deep merge | `rust/tcl-lsp-core/src/config_ini.rs` — `settings_from_ini`, `Layer`, `merge_settings` |
 | Config-path resolution | `rust/tcl-lsp-core/src/tcl_install.rs` — `user_config_path`, `project_config_path`, `config_path_for`, `library_paths_from_ini` |
 | Layer application | `rust/tcl-lsp-server/src/lib.rs` — `Backend::apply_global_config`, and the folder-scoped overlay `Backend::resolved_feature_toggles` |
 | Effective-config query | `rust/tcl-lsp-server/src/lib.rs` — `get_effective_config_command` |

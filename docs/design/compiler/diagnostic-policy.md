@@ -23,15 +23,18 @@ can read. [diagnostics-integration.md](diagnostics-integration.md) and
 aggregation and the two tiers inside the server; this page is the layer
 below both of them.
 
-> **Status — a proposal, not a description of what is built.** The proposed
-> vocabulary is `tcl_lsp_core::diagnostic_policy` with `Finding`,
-> `Producer`, `Fix`, `FindingData`, `Severity`, `Outcome`, `Reason`,
-> `PolicyLayer`, `CodeDecision`, `Overlap`, `OverlapOwner`, `OverlapScope`,
+> **Status — being built, slice by slice.** The vocabulary is
+> `tcl_lsp_core::diagnostic_policy` with `Finding`, `Producer`, `Fix`,
+> `FindingData`, `Severity`, `Outcome`, `Reason`, `PolicyLayer`,
+> `CodeDecision`, `Overlap`, `OverlapOwner`, `OverlapScope`,
 > `OptimiserPolicy`, `Directives`, `Policy`, `Report` and `apply`; the
 > relocated `tcl_lsp_core::config_ini`; the `--show-suppressed` CLI flag;
-> and the `suppressed` array on an MCP diagnostic payload. None of those
-> names anything in the workspace, and every Rust shape below is a sketch of
-> the data a step needs, not a compilable signature. Every *existing*
+> and the `suppressed` array on an MCP diagnostic payload. A slice marked
+> *built* in § Slices exists in the tree, and the module's own docs are the
+> compilable form of the shapes it covers; every other Rust shape below is
+> a sketch of the data a step needs, not a compilable signature. Until the
+> adapter slices land, § Today still describes the observed surface
+> behaviour except where a paragraph says otherwise. Every *existing*
 > identifier and path cited here was checked against the tree at the head of
 > `rust`, and the surface behaviour in § Today was observed with `tcl diag`,
 > `tcl opt` and the `tcl-mcp` tools at that revision.
@@ -114,8 +117,10 @@ inline `# noqa` silences is therefore offered there and nowhere else.
 
 W107, W109 and W118 are never line-suppressed on any surface. That is
 deliberate and stays: they are whole-file verdicts, so an inline
-directive has no line to attach to, and only the disabled set gates them
-(`style_diagnostics` in `rust/tcl-lsp-core/src/source_style.rs`).
+directive has no line to attach to, and only the file directive and the
+disabled set gate them (`WHOLE_FILE_CODES` in
+`rust/tcl-lsp-core/src/diagnostic_policy.rs`, since slice 3; the style
+pass no longer decides it).
 
 ### Where each step lives
 
@@ -134,9 +139,12 @@ the shimmer switch and the optimiser profile into two sets). The fast tier
 (`publish_fast_tier`), the deep push (`refine_and_lift_diagnostics`) and
 the pull provider (`analysed_diagnostics_for`) each assemble the list in
 their own body; `tcl-lsp.optimiseDocument`
-(`optimise_document_command`) assembles none.
-`rust/tcl-lsp-server/src/config_ini.rs` parses and merges the three
-configuration layers.
+(`optimise_document_command`) assembles none. Since slice 2 the INI parse,
+the three-layer merge, `DEFAULT_OFF_CODES`, `default_disabled_set`,
+`settings_disabled_diagnostics`, `settings_severity_overrides` and
+`parse_severity_value` live in `rust/tcl-lsp-core/src/config_ini.rs`; the
+server re-exports the module, keeps `read_ini_layer`, and keeps an
+LSP-typed `settings_severity_overrides` over the shared parse.
 
 **tcl-lsp-db** — `rust/tcl-lsp-db/src/lib.rs`: `file_analysis` and
 `file_analysis_incremental` bake the disabled set into
@@ -160,12 +168,15 @@ suppression map.
 profile-to-disabled construction and calls
 `optimise_source_multipass_filtered` directly.
 
-**tcl-lsp-core** — `source_style::style_diagnostics` and
-`sslictcl_diagnostics::diagnostics` each apply the disabled set and the
-suppression map themselves; `source_decode::encoding_integrity_diagnostics`
-is filtered by whichever closure its caller wrote;
-`code_actions::check_diagnostic_actions` applies the disabled set and the
-directives for the compiler-check family.
+**tcl-lsp-core** — since slice 3, `source_style::style_diagnostics` and
+`sslictcl_diagnostics::diagnostics` filter nothing, and no caller of
+`source_decode::encoding_integrity_diagnostics` filters its output with a
+closure of its own: the server's style, SslicTcl and F5-integrity lifts
+and the CLI's style, SslicTcl and abstention rows hand those findings to
+`diagnostic_policy::apply` under `Policy::from_disabled_set` — their
+already-flat disabled set plus the analyser's directive map — and render
+what it shows. `code_actions::check_diagnostic_actions` still applies the
+disabled set and the directives for the compiler-check family.
 
 **tcl-compiler** — `rust/tcl-compiler/src/analyser/utils.rs`:
 `line_suppressed`, `parse_noqa_marker`, `parse_file_suppression`,
@@ -325,16 +336,19 @@ type, which is why `Producer` and the type are separate axes.
 | `f5_xc::XcDiagnostic` | `rust/f5-xc/src/diagnostics.rs` | conversion on the XC side: `tcl-lsp-core` does not depend on `f5-xc`, and must not, so `f5-xc` gains the conversion and the shared crate stays below it |
 | `tcl_bigip::validator::ConfigDiagnostic` | `rust/tcl-bigip/src/validator.rs` | conversion in `tcl-lsp-core`, which already depends on `tcl-bigip`; its inclusive range end is normalised here rather than at each lift |
 
-Two of those carry a `String` code rather than a `DiagCode`:
-`XcDiagnostic::code` and `ConfigDiagnostic::code`. `BIGIP6xxx` and
-`IAPP7xxx` are in the catalogue and parse; **`XC100`–`XC301` are not**,
-and neither is an XC section on `DiagSection`. Slice 1 therefore adds the
-XC family to the `diagnostic_codes!` table in
-`rust/tcl-core-types/src/diag_code.rs` before the conversion can exist:
-`Finding::code` is a `DiagCode` because one code space is what makes the
-disabled set, the severity overrides, the tag table and the overlap table
-one mechanism each, and an unparseable code is a conversion failure rather
-than a value that silently skips every table.
+One of those carries a `String` code rather than a `DiagCode`:
+`ConfigDiagnostic::code`, whose `TryFrom` conversion fails on a spelling
+the catalogue lacks. `XcDiagnostic::code` and `StyleDiagnostic::code` were
+strings too; slice 1 typed both as `DiagCode` and gave `XcDiagnostic` the
+byte span its range was resolved from, so their conversions are total.
+`XC100`–`XC301` joined the `diagnostic_codes!` table in
+`rust/tcl-core-types/src/diag_code.rs` in the same slice, with their own
+`DiagSection::Xc` — thirteen codes, the set the translator emits rather
+than a contiguous range. `Finding::code` is a `DiagCode` because one code
+space is what makes the disabled set, the severity overrides, the tag
+table and the overlap table one mechanism each, and an unparseable code
+is a conversion failure rather than a value that silently skips every
+table.
 
 ### The outcome
 
@@ -513,10 +527,10 @@ the recorded reason depends on it. The first reason that fires wins:
 
 ## Configuration
 
-The INI parse and the three-layer merge move down from
-`rust/tcl-lsp-server/src/config_ini.rs` into `tcl_lsp_core::config_ini`,
-beside the policy step, so the CLI and the MCP tools resolve the same
-layers. The whole module moves: `Layer` with `Layer::top_section`,
+The INI parse and the three-layer merge moved down from
+`rust/tcl-lsp-server/src/config_ini.rs` into `tcl_lsp_core::config_ini`
+(slice 2), beside the policy step, so the CLI and the MCP tools can resolve
+the same layers. The whole module moved: `Layer` with `Layer::top_section`,
 `settings_from_ini` and the `insert_*` helpers it delegates to
 (`insert_diagnostics`, `insert_diagnostic_severity`, `insert_optimiser`,
 `insert_formatting`, `insert_packages`, `insert_workspace_scan`,
@@ -528,17 +542,23 @@ the shape this design exists to remove. `rust/tcl-lsp-server/src/lib.rs`
 keeps `read_ini_layer` (it holds the `vfs::SourceStore`) and the
 `Backend::apply_global_config` path that applies a merged layer.
 
-Four pieces of policy resolution move with it, from
+Four pieces of policy resolution moved with it, from
 `rust/tcl-lsp-server/src/lib.rs`: `DEFAULT_OFF_CODES` and
 `default_disabled_set`, `settings_disabled_diagnostics` (the nested and
 flat-dotted shapes, and the `true` / `false` per-code tri-state),
 `settings_severity_overrides` with `parse_severity_value`, and the
 optimiser resolution `resolved_analysis_settings` performs over
-`profile_to_disabled`. A `Policy` builder in `tcl-lsp-core` takes the
-merged JSON, the resolved dialect, the decode report and the directives,
-and produces one `Policy`; the server's per-folder resolution stays in the
-server, because longest-prefix matching over workspace folders is an LSP
-concept the CLI has no counterpart for.
+`profile_to_disabled`. `PolicyBuilder` in `tcl-lsp-core` takes the
+configuration **layers one at a time, lowest first** (`layer(PolicyLayer,
+&json)`), rather than the merged JSON: only the unmerged layers can name
+the layer that decided a code, which is what `Disabled(PolicyLayer)` and
+the per-code tri-state need. It also takes the resolved dialect, the decode
+report and the directives, and produces one `Policy`. A key a higher layer
+sets to an unusable value (a non-boolean toggle, an unknown severity) resets
+the lower layers' decision, which is what per-key merge-then-parse did.
+The server's per-folder resolution stays in the server, because
+longest-prefix matching over workspace folders is an LSP concept the CLI
+has no counterpart for.
 
 **The invocation layer.** A surface's own flags occupy the editor layer's
 slot in the precedence order, under the project file and over the global
@@ -637,24 +657,24 @@ unbraced expression, and policy decides both independently: disabling
 W100 does not silence O111, and the optimiser gate reaches O111 in the
 one place it reaches every other O-code.
 
-**The style pass stops applying the map.**
+**The style pass stopped applying the map** (slice 3).
 `source_style::style_diagnostics` keeps its checks, its line
-normalisation and its W118-reads-the-real-terminators rule, and loses its
+normalisation and its W118-reads-the-real-terminators rule, and lost its
 `disabled` and `suppressed` parameters and the `enabled` /
 `push_line_suppressed` closures. The "W107, W109 and W118 are not
-line-suppressed" rule moves into the policy step as a property of those
-codes, where it can be stated once instead of living in one pass's
+line-suppressed" rule is `WHOLE_FILE_CODES` in the policy step, a
+property of those codes stated once instead of living in one pass's
 control flow.
 
-**The SslicTcl projection stops applying the map.**
-`sslictcl_diagnostics::diagnostics` loses its `disabled` and `suppressed`
-parameters and returns every loader finding.
-`SUPERSEDED_ANALYSER_CODES` becomes the dialect's
+**The SslicTcl projection stopped applying the map** (slice 3).
+`sslictcl_diagnostics::diagnostics` lost its `disabled` and `suppressed`
+parameters and returns every loader finding, as `Finding`s.
+`SUPERSEDED_ANALYSER_CODES` is read as the dialect's
 `Overlap { owner: Producer(SslicTcl), superseded: W123, scope: Document }`
-entry, and
-`supersede_analyser_diagnostics` goes away: the supersession is then
-visible as `Reason::Overlap` on a W123 rather than as a silently missing
-finding.
+entry by `dialect_overlaps`; `supersede_analyser_diagnostics` goes away
+with the adapters that still call it (slices 4 and 5), and the
+supersession is then visible as `Reason::Overlap` on a W123 rather than
+as a silently missing finding.
 
 **The XC lift and the F5 integrity lift stop filtering.**
 `lift_xc_diagnostics` and `lift_f5_source_integrity_diagnostics` become
@@ -707,17 +727,20 @@ table, and the LSP adapter's pass over it is what they turn into.
    except the XC one in `rust/f5-xc/src/diagnostics.rs`. `XC100`–`XC301`
    join the `diagnostic_codes!` table in
    `rust/tcl-core-types/src/diag_code.rs` first, with their own
-   `DiagSection`. Nothing calls the module yet.
+   `DiagSection`. Nothing calls the module yet. *Built.*
 2. **Move the INI parse and the three-layer merge**
    `rust/tcl-lsp-server/src/config_ini.rs` →
    `rust/tcl-lsp-core/src/config_ini.rs`, with `DEFAULT_OFF_CODES`,
    `default_disabled_set`, `settings_disabled_diagnostics`,
    `settings_severity_overrides` and `parse_severity_value` from
-   `rust/tcl-lsp-server/src/lib.rs`. Add the `Policy` builder.
+   `rust/tcl-lsp-server/src/lib.rs`. Add the `Policy` builder. *Built.*
 3. **`apply`.** The step order above, in `tcl-lsp-core`. Producers stop
    applying policy themselves: `source_style::style_diagnostics`,
    `sslictcl_diagnostics::diagnostics`,
-   `source_decode::encoding_integrity_diagnostics`'s callers.
+   `source_decode::encoding_integrity_diagnostics`'s callers. *Built* —
+   the callers on the server and the CLI hand those findings to `apply`
+   under `Policy::from_disabled_set`, which keeps each surface's
+   behaviour until its adapter slice replaces it.
 4. **Server: the LSP adapter.** `publish_fast_tier`,
    `refine_and_lift_diagnostics` and `analysed_diagnostics_for` in
    `rust/tcl-lsp-server/src/lib.rs` each call one function; the lifts,
@@ -798,9 +821,14 @@ table, and the LSP adapter's pass over it is what they turn into.
   `refine_and_lift_diagnostics`, `analysed_diagnostics_for`,
   `published_analyser_diagnostics`, `check_actions`,
   `optimise_document_command`
-- `rust/tcl-lsp-server/src/config_ini.rs` — `Layer`,
+- `rust/tcl-lsp-core/src/config_ini.rs` — `Layer`,
   `settings_from_ini`, `insert_diagnostics`,
-  `insert_diagnostic_severity`, `insert_optimiser`, `merge_settings`
+  `insert_diagnostic_severity`, `insert_optimiser`, `merge_settings`,
+  `DEFAULT_OFF_CODES`, `default_disabled_set`,
+  `settings_disabled_diagnostics`, `settings_severity_overrides`,
+  `parse_severity_value`
+- `rust/tcl-lsp-core/src/diagnostic_policy.rs` — `Finding`, `Report`,
+  `Policy`, `PolicyBuilder`, `Directives`, `dialect_overlaps`
 - `rust/tcl-lsp-db/src/lib.rs` — `file_analysis`,
   `file_analysis_incremental`, `compiler_check_diagnostics`,
   `compiler_check_diagnostics_uncached`, `CompilerDiagnostics`,

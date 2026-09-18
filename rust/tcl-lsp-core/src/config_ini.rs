@@ -16,22 +16,32 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! INI config-file parsing for the server's configuration system.
+//! INI config-file parsing and the three-layer merge, shared by every
+//! surface that reads configuration.
 //!
 //! Settings are read from three layers, lowest to highest precedence:
 //!
 //! 1. the global user config — `config.ini`, `[global]` section
-//!    (platform-native location, see [`crate::core_tcl_install::user_config_path`]),
-//! 2. the editor's `workspace/configuration` payload,
+//!    (platform-native location, see [`crate::tcl_install::user_config_path`]),
+//! 2. the editor's `workspace/configuration` payload, or a surface's own
+//!    flags in that slot,
 //! 3. the per-workspace project config — `.tcl-lsp.ini`, `[project]` section.
 //!
 //! [`settings_from_ini`] parses one INI file into the *same* JSON shape the
-//! editor delivers a `tclLsp` section as, so the existing
-//! [`Backend::apply_global_config`](crate::Backend) applies a file layer
-//! exactly as it applies the editor layer. [`merge_settings`] deep-merges the
-//! layers (later wins, sections merged key-by-key).
+//! editor delivers a `tclLsp` section as, so the server's
+//! `Backend::apply_global_config` applies a file layer exactly as it applies
+//! the editor layer. [`merge_settings`] deep-merges the layers (later wins,
+//! sections merged key-by-key). The four readers of the diagnostics policy
+//! keys — [`settings_disabled_diagnostics`] over the [`DEFAULT_OFF_CODES`]
+//! seed, and [`settings_severity_overrides`] over [`parse_severity_value`] —
+//! live here too, so the policy step ([`crate::diagnostic_policy`]) and the
+//! server read one parse. The contract is
+//! `docs/design/contracts/config-precedence.md`.
+
+use std::collections::{HashMap, HashSet};
 
 use serde_json::{Map, Value};
+use tcl_core_types::{DiagCode, Severity};
 
 /// Which precedence layer a file occupies, selecting its top-level section.
 /// A `[global]` section in a project file (or `[project]` in the global file)
@@ -159,8 +169,8 @@ fn parse_bool(value: &str) -> Option<bool> {
 }
 
 /// Parse one INI file's `content` into the `tclLsp`-section JSON shape the
-/// editor delivers (so [`Backend::apply_global_config`](crate::Backend) can
-/// apply it). `layer` selects the `[global]` vs `[project]` top-level section.
+/// editor delivers (so the server's `Backend::apply_global_config` can apply
+/// it). `layer` selects the `[global]` vs `[project]` top-level section.
 ///
 /// Mirrors `shared/user_config.py::get_all_settings`. Only keys actually
 /// present are emitted, so absent settings keep their built-in defaults.
@@ -454,8 +464,8 @@ fn insert_diagnostics(sections: &[Section], out: &mut Map<String, Value>) {
 }
 
 /// `[diagnosticSeverity]`: each `CODE = severity` entry → a `diagnosticSeverity`
-/// object of `{CODE: "severity"}`, the nested shape the server's
-/// `settings_severity_overrides` parses. The severity strings are passed
+/// object of `{CODE: "severity"}`, the nested shape
+/// [`settings_severity_overrides`] parses. The severity strings are passed
 /// through verbatim; that parser validates them (case-insensitive `error` /
 /// `warning` / `information` / `info` / `hint`) and skips any it does not
 /// recognise, so an unknown value here simply leaves the code's emitted
@@ -578,6 +588,132 @@ pub fn merge_settings(low: &Value, high: &Value) -> Value {
         // A non-object high layer (or low not an object) replaces.
         _ => high.clone(),
     }
+}
+
+/// Diagnostic codes that are *default-off* (opt-in) in the catalogue: the
+/// seed of every disabled-set resolution, so an opt-in code is suppressed
+/// until `tclLsp.diagnostics.<CODE> = true` turns it on. A code-table
+/// concern rather than a policy-step constant — the table's `default_on`
+/// column declares the set, and `default_off_codes_match_the_catalogue`
+/// pins this list to it.
+pub const DEFAULT_OFF_CODES: &[DiagCode] = &[DiagCode::W242];
+
+/// A fresh disabled-diagnostics set seeded with [`DEFAULT_OFF_CODES`] — the
+/// starting point every flat resolution builds on.
+#[must_use]
+pub fn default_disabled_set() -> HashSet<String> {
+    DEFAULT_OFF_CODES
+        .iter()
+        .map(|c| c.as_str().to_owned())
+        .collect()
+}
+
+/// Extract the disabled diagnostic codes from a settings payload — the
+/// `tclLsp.diagnostics.<CODE>` booleans whose value is `false`. Accepts
+/// the nested object (`{"tclLsp":{"diagnostics":{"W001":false}}}`) and
+/// the flat-dotted (`{"tclLsp.diagnostics.W001":false}`) shapes. Returns
+/// `None` when no diagnostics config is present (so the caller leaves the
+/// current set untouched).
+///
+/// Every resolution starts from the opt-in [`DEFAULT_OFF_CODES`] seed; a
+/// `false` value disables a code and a `true` value *enables* one (removing
+/// it from the set, so a default-off code like W242 can be turned on).
+#[must_use]
+pub fn settings_disabled_diagnostics(settings: &Value) -> Option<HashSet<String>> {
+    if let Some(map) = settings
+        .get("tclLsp")
+        .and_then(|v| v.get("diagnostics"))
+        .and_then(Value::as_object)
+    {
+        let mut set = default_disabled_set();
+        for (code, v) in map {
+            match v.as_bool() {
+                Some(false) => {
+                    set.insert(code.clone());
+                }
+                Some(true) => {
+                    set.remove(code);
+                }
+                None => {}
+            }
+        }
+        return Some(set);
+    }
+    let obj = settings.as_object()?;
+    let mut set = default_disabled_set();
+    let mut found = false;
+    for (k, v) in obj {
+        if let Some(code) = k.strip_prefix("tclLsp.diagnostics.") {
+            found = true;
+            match v.as_bool() {
+                Some(false) => {
+                    set.insert(code.to_owned());
+                }
+                Some(true) => {
+                    set.remove(code);
+                }
+                None => {}
+            }
+        }
+    }
+    found.then_some(set)
+}
+
+/// Map a `tclLsp.diagnosticSeverity.<CODE>` config value to a severity
+/// (case-insensitive). `"error"`, `"warning"`, `"information"` / `"info"`,
+/// and `"hint"` select the matching [`Severity`]; anything else — including
+/// `"default"` and `""` — yields `None`, meaning "no override" (the
+/// producer's emitted severity stands).
+#[must_use]
+pub fn parse_severity_value(s: &str) -> Option<Severity> {
+    if s.eq_ignore_ascii_case("error") {
+        Some(Severity::Error)
+    } else if s.eq_ignore_ascii_case("warning") {
+        Some(Severity::Warning)
+    } else if s.eq_ignore_ascii_case("information") || s.eq_ignore_ascii_case("info") {
+        Some(Severity::Info)
+    } else if s.eq_ignore_ascii_case("hint") {
+        Some(Severity::Hint)
+    } else {
+        None
+    }
+}
+
+/// Parse per-code severity overrides from a `tclLsp` settings payload,
+/// accepting the nested object (`{"tclLsp":{"diagnosticSeverity":{"W211":"warning"}}}`)
+/// and the flat-dotted (`{"tclLsp.diagnosticSeverity.W211":"warning"}`) shapes.
+/// Returns `Some(map)` (possibly empty) when the section is present in either
+/// shape, else `None` (so the caller leaves the current map untouched). Entries
+/// whose value is not a recognised severity string ([`parse_severity_value`])
+/// are skipped, so the producer's emitted severity stands for them. Mirrors
+/// [`settings_disabled_diagnostics`].
+#[must_use]
+pub fn settings_severity_overrides(settings: &Value) -> Option<HashMap<String, Severity>> {
+    if let Some(map) = settings
+        .get("tclLsp")
+        .and_then(|v| v.get("diagnosticSeverity"))
+        .and_then(Value::as_object)
+    {
+        let mut overrides = HashMap::new();
+        for (code, v) in map {
+            if let Some(severity) = v.as_str().and_then(parse_severity_value) {
+                overrides.insert(code.clone(), severity);
+            }
+        }
+        return Some(overrides);
+    }
+    let obj = settings.as_object()?;
+    let mut overrides = HashMap::new();
+    let mut found = false;
+    for (k, v) in obj {
+        if let Some(code) = k.strip_prefix("tclLsp.diagnosticSeverity.") {
+            found = true;
+            if let Some(severity) = v.as_str().and_then(parse_severity_value) {
+                overrides.insert(code.to_owned(), severity);
+            }
+        }
+    }
+    found.then_some(overrides)
 }
 
 #[cfg(test)]

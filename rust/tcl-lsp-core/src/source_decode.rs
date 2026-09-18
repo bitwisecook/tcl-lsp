@@ -87,6 +87,8 @@
 //!   is left to W108.  Only a NUL *density in the raw bytes* consistent with
 //!   UTF-16 trips W109.
 
+use tcl_core_types::DiagCode;
+
 use crate::definition::{LspRange, utf16_len};
 use crate::source_style::{StyleDiagnostic, StyleSeverity};
 
@@ -410,7 +412,7 @@ fn range_at(text: &str, offset: usize, ch_len: usize) -> LspRange {
 /// let (text, report) = decode_source(b"puts \xed\xa0\x80\n");
 /// let diags = encoding_integrity_diagnostics(&text, Some(&report));
 /// assert_eq!(diags.len(), 1);
-/// assert_eq!(diags[0].code, "W107");
+/// assert_eq!(diags[0].code.as_str(), "W107");
 /// assert!(diags[0].message.contains("byte offset 5"));
 /// assert!(diags[0].message.contains("lone surrogate"));
 /// ```
@@ -441,7 +443,7 @@ pub fn encoding_integrity_diagnostics(
                 kind.label()
             ),
             severity: StyleSeverity::Warning,
-            code: "W109",
+            code: DiagCode::W109,
             fix: None,
         });
         // A file that is not UTF-8 at all will also be full of ill-formed
@@ -470,7 +472,7 @@ pub fn encoding_integrity_diagnostics(
                 plural,
             ),
             severity: StyleSeverity::Warning,
-            code: "W107",
+            code: DiagCode::W107,
             fix: None,
         });
     }

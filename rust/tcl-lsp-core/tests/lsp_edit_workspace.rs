@@ -69,6 +69,8 @@
 use std::collections::{HashMap, HashSet};
 
 use tcl_compiler::analyser::{Analyser, AnalysisResult};
+use tcl_lexer::LineIndex;
+use tcl_lsp_core::diagnostic_policy::{Directives, Finding, Policy, PolicyLayer, apply};
 use tcl_lsp_core::minify::{minify_tcl, minify_tcl_aggressive, minify_tcl_compact};
 use tcl_lsp_core::snippets::SnippetContext;
 use tcl_lsp_core::snippets::snippet_completions;
@@ -114,15 +116,6 @@ fn start_line(source: &str, sym: &IndexedWorkspaceSymbol) -> u32 {
     tcl_lexer::LineIndex::new(source)
         .position_at_utf16(sym.name_span.start(), source)
         .line
-}
-
-/// Empty disabled-set / suppression-map for the `style_diagnostics`
-/// orchestrator (the generic `BuildHasher` slots take the std defaults).
-fn no_disable() -> HashSet<String> {
-    HashSet::new()
-}
-fn no_suppress() -> HashMap<i32, HashSet<String>> {
-    HashMap::new()
 }
 
 // workspace_symbols
@@ -699,7 +692,7 @@ fn style_w111_flags_overlong_line_only_past_the_limit() {
     let long = "x".repeat(121);
     let diags = check_line_length(&long, DEFAULT_LINE_LENGTH);
     assert_eq!(diags.len(), 1, "{diags:?}");
-    assert_eq!(diags[0].code, "W111");
+    assert_eq!(diags[0].code.as_str(), "W111");
     assert_eq!(diags[0].severity, StyleSeverity::Warning);
     // end_character is end-exclusive (one past the last covered column): a
     // 121-char line covers columns 0..=120, so end is 121 (issue 186).
@@ -719,7 +712,7 @@ fn style_w112_flags_trailing_whitespace_with_remove_fix() {
     let diags = check_trailing_whitespace(src);
     assert_eq!(diags.len(), 1, "{diags:?}");
     let d = &diags[0];
-    assert_eq!(d.code, "W112");
+    assert_eq!(d.code.as_str(), "W112");
     assert_eq!(d.severity, StyleSeverity::Hint);
     // The flagged span covers exactly the trailing run: columns 7, 8, 9
     // as an end-exclusive range 7..10 (issue 186).
@@ -744,7 +737,7 @@ fn style_w112_does_not_flag_clean_lines_or_crlf() {
 fn style_w118_flags_unexpected_line_endings() {
     let diags = check_line_endings("a\r\nb\r\n", "\n");
     assert_eq!(diags.len(), 1, "{diags:?}");
-    assert_eq!(diags[0].code, "W118");
+    assert_eq!(diags[0].code.as_str(), "W118");
     assert_eq!(
         diags[0].message,
         "File uses CRLF line endings (2); expected LF"
@@ -762,7 +755,7 @@ fn style_w115_flags_comment_continuation_with_perline_fix() {
     let diags = check_comment_continuation(src);
     assert_eq!(diags.len(), 1, "{diags:?}");
     let d = &diags[0];
-    assert_eq!(d.code, "W115");
+    assert_eq!(d.code.as_str(), "W115");
     assert_eq!(d.range.start_line, 0);
     assert_eq!(d.range.end_line, 1);
     let fix = d.fix.as_ref().expect("W115 carries a per-line-comment fix");
@@ -774,37 +767,40 @@ fn style_w115_flags_comment_continuation_with_perline_fix() {
 }
 
 #[test]
-fn style_orchestrator_merges_checks_and_respects_disabled_set() {
+fn style_orchestrator_merges_checks_and_policy_hides_a_disabled_code() {
     // A document with a long line AND trailing whitespace produces both
-    // codes; disabling W112 drops only that one.
+    // codes; the pass filters nothing, and a disabled set reaches it through
+    // the policy step.
     let src = format!("{}   \nset y 2", "q".repeat(125));
     let all = style_diagnostics(
         &src,
         DEFAULT_LINE_LENGTH,
         DEFAULT_LINE_ENDING,
-        &no_disable(),
-        &no_suppress(),
         None,
         tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
     );
-    let codes: HashSet<&str> = all.iter().map(|d| d.code).collect();
+    let codes: HashSet<&str> = all.iter().map(|d| d.code.as_str()).collect();
     assert!(codes.contains("W111"), "{all:?}");
     assert!(codes.contains("W112"), "{all:?}");
 
-    let mut disabled = no_disable();
-    disabled.insert("W112".to_string());
-    let filtered = style_diagnostics(
-        &src,
-        DEFAULT_LINE_LENGTH,
-        DEFAULT_LINE_ENDING,
-        &disabled,
-        &no_suppress(),
-        None,
-        tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+    let line_index = LineIndex::new_lsp(&src);
+    let findings = all
+        .iter()
+        .cloned()
+        .map(|d| Finding::from_style(d, &src, &line_index))
+        .collect();
+    let disabled: HashSet<String> = std::iter::once("W112".to_owned()).collect();
+    let report = apply(
+        findings,
+        &Policy::from_disabled_set(&disabled, PolicyLayer::Editor, Directives::none()),
     );
-    assert!(filtered.iter().all(|d| d.code != "W112"), "{filtered:?}");
+    let filtered = report.shown_items(all);
     assert!(
-        filtered.iter().any(|d| d.code == "W111"),
+        filtered.iter().all(|d| d.code.as_str() != "W112"),
+        "{filtered:?}"
+    );
+    assert!(
+        filtered.iter().any(|d| d.code.as_str() == "W111"),
         "W111 still fires"
     );
 }
@@ -813,23 +809,34 @@ fn style_orchestrator_merges_checks_and_respects_disabled_set() {
 fn style_orchestrator_honours_line_suppression_for_line_codes() {
     // A `*` suppression recorded against line 0 hides the line-0 W112, but a
     // file-level W118 (not line-suppressible) still fires.
-    let mut suppressed = no_suppress();
+    let src = "set x 1   \r\n";
+    let mut suppressed: HashMap<i32, HashSet<String>> = HashMap::new();
     suppressed.insert(0, std::iter::once("*".to_string()).collect());
-    let diags = style_diagnostics(
-        "set x 1   \r\n",
+    let all = style_diagnostics(
+        src,
         DEFAULT_LINE_LENGTH,
         DEFAULT_LINE_ENDING,
-        &no_disable(),
-        &suppressed,
         None,
         tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
     );
+    let line_index = LineIndex::new_lsp(src);
+    let findings = all
+        .iter()
+        .cloned()
+        .map(|d| Finding::from_style(d, src, &line_index))
+        .collect();
+    let policy = Policy {
+        directives: Directives::new(suppressed, src),
+        ..Policy::default()
+    };
+    let report = apply(findings, &policy);
+    let diags = report.shown_items(all);
     assert!(
-        diags.iter().all(|d| d.code != "W112"),
+        diags.iter().all(|d| d.code.as_str() != "W112"),
         "line W112 suppressed: {diags:?}"
     );
     assert!(
-        diags.iter().any(|d| d.code == "W118"),
+        diags.iter().any(|d| d.code.as_str() == "W118"),
         "file-level W118 not line-suppressed: {diags:?}"
     );
 }

@@ -1508,14 +1508,14 @@ independent of the span, an optional adapter payload, and which producer
 emitted it. A producer emits findings and reads no policy: it filters
 nothing and never chooses the severity that is displayed, and when it
 skips its own calculation for a disabled code the policy step still
-records the decision. Proposed as `Finding` in
-`tcl_lsp_core::diagnostic_policy`.
+records the decision. `Finding` in `tcl_lsp_core::diagnostic_policy`, with
+a conversion from every producer type in the tree.
 
 See also: [Diagnostic policy § The finding](design/compiler/diagnostic-policy.md#the-finding).
 
 ### Diagnostic policy
 
-The proposed single value holding every decision that can hide or relabel
+The single value holding every decision that can hide or relabel
 a [finding](#finding): whether this file reports at all, whether byte
 evidence forces abstention, the resolved per-code decision with the scope
 layer that won it, the severity overrides, the optimiser master switch and
@@ -1523,21 +1523,22 @@ profile, the shimmer switch, the overlap owners, and the directive facts
 the front end supplies. One pure `apply` over it is what every
 surface calls, so the editor, the CLI, the MCP tools, the code-action
 provider and `tcl opt` hold no second copy of any step and parity between
-them is a property of the code. Proposed as `Policy` in
-`tcl_lsp_core::diagnostic_policy`.
+them is a property of the code. `Policy` in
+`tcl_lsp_core::diagnostic_policy`, built by `PolicyBuilder` from the
+configuration layers, lowest first.
 
 See also: [Diagnostic policy § The policy](design/compiler/diagnostic-policy.md#the-policy),
 [Diagnostic report](#diagnostic-report).
 
 ### Diagnostic report
 
-The proposed output of applying a [diagnostic policy](#diagnostic-policy):
+The output of applying a [diagnostic policy](#diagnostic-policy):
 every [finding](#finding) paired with its outcome — shown, with the
 resolved severity and LSP tag, or suppressed, with the reason that
 suppressed it. Nothing is deleted, so "why is this code not firing" has
 one answer any surface can read, and the pairs keep the producers' order,
 so two surfaces given the same findings and the same policy produce the
-same report. Proposed as `Report` in `tcl_lsp_core::diagnostic_policy`.
+same report. `Report` in `tcl_lsp_core::diagnostic_policy`.
 
 See also: [Diagnostic policy § The outcome](design/compiler/diagnostic-policy.md#the-outcome).
 

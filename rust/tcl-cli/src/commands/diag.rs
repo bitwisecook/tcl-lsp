@@ -28,13 +28,14 @@ use serde::Serialize;
 use tcl_cli_support::{
     InputDocument, OutputTarget, read_input_documents, registry_for_dialect, write_text_output,
 };
-use tcl_compiler::analyser::{Analyser, Severity, line_suppressed};
+use tcl_compiler::analyser::{Analyser, FILE_SUPPRESS_KEY, Severity, line_suppressed};
 use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
 use tcl_compiler::compiler_checks::run_all_checks;
 use tcl_compiler::unit_scope::CallSiteEvidence;
 use tcl_lexer::LineIndex;
+use tcl_lsp_core::diagnostic_policy::{Directives, Finding, Policy, PolicyLayer, apply};
 use tcl_lsp_core::source_style::{
-    DEFAULT_LINE_ENDING, DEFAULT_LINE_LENGTH, StyleSeverity, style_diagnostics,
+    DEFAULT_LINE_ENDING, DEFAULT_LINE_LENGTH, StyleDiagnostic, StyleSeverity, style_diagnostics,
 };
 
 use crate::cli::{DiagArgs, InputArgs};
@@ -215,7 +216,7 @@ fn document_proc_names(
 }
 
 /// Append the `SslicTcl` loader's own `SSLIC1xxx` findings, the same
-/// projection the server publishes.
+/// projection the server publishes, under the same policy.
 ///
 /// It reads the same normalised `source` and maps through the same
 /// `line_index` as every other code here, rather than normalising separately
@@ -227,16 +228,48 @@ fn push_sslictcl_rows(
     disabled: &HashSet<String>,
     suppressed_lines: &std::collections::HashMap<i32, HashSet<String>>,
 ) {
-    for d in tcl_lsp_core::sslictcl_diagnostics::diagnostics(source, disabled, suppressed_lines) {
-        let pos = line_index.position_at_utf16(d.span.start(), source);
+    let report = apply(
+        tcl_lsp_core::sslictcl_diagnostics::diagnostics(source),
+        &transitional_policy(disabled, Directives::new(suppressed_lines.clone(), source)),
+    );
+    for shown in report.shown() {
+        let pos = line_index.position_at_utf16(shown.finding.span.start(), source);
         rows.push(Row {
             line: pos.line + 1,
             column: pos.character.get() + 1,
-            severity: d.severity,
-            code: d.code.to_string(),
-            message: d.message,
+            severity: shown.severity,
+            code: shown.finding.code.to_string(),
+            message: shown.finding.message.clone(),
         });
     }
+}
+
+/// The policy the rows hand to `apply` until the CLI adapter lands
+/// (`docs/design/compiler/diagnostic-policy.md` § Slices, 5): the
+/// `--disable` / `--enable` set with the file directive folded in, recorded
+/// as the invocation layer, and the directive map. The project and global
+/// configuration layers, the default-off seed and the overlap table are
+/// still what they are on this surface today — absent.
+fn transitional_policy(disabled: &HashSet<String>, directives: Directives) -> Policy {
+    Policy::from_disabled_set(disabled, PolicyLayer::Invocation, directives)
+}
+
+/// The style-pass records whose findings the policy step shows, for
+/// `document`, under `disabled` and `directives`.
+fn shown_style_records(
+    document: &InputDocument,
+    records: Vec<StyleDiagnostic>,
+    disabled: &HashSet<String>,
+    directives: Directives,
+) -> Vec<StyleDiagnostic> {
+    let line_index = LineIndex::new_lsp(&document.source);
+    let findings = records
+        .iter()
+        .cloned()
+        .map(|d| Finding::from_style(d, &document.source, &line_index))
+        .collect();
+    let report = apply(findings, &transitional_policy(disabled, directives));
+    report.shown_items(records)
 }
 
 /// Collect every diagnostic the editor surfaces for one document: the analyser's
@@ -271,14 +304,13 @@ fn collect_rows(
     // unions the analyser's file-level bucket into its own disabled set. The
     // analyser folds the same directive into its internal set for its own
     // codes; the passes below it need it explicitly.
+    let file_codes = tcl_compiler::analyser::utils::parse_file_suppression(source);
     let mut disabled = disabled.clone();
-    disabled.extend(tcl_compiler::analyser::utils::parse_file_suppression(
-        source,
-    ));
+    disabled.extend(file_codes.iter().cloned());
     let disabled = &disabled;
 
     if document.abstains_on_encoding() {
-        return abstained_rows(document, disabled);
+        return abstained_rows(document, disabled, file_codes);
     }
 
     // One compilation unit for both consumers, built with whatever cross-file
@@ -406,23 +438,34 @@ fn collect_rows(
 /// Everything derived from the decoded text would be about decoding artefacts
 /// rather than about the user's code, pointing at positions the file does not
 /// have. One accurate finding beats a three-line UTF-16 iRule's 87 wrong ones.
-fn abstained_rows(document: &InputDocument, disabled: &HashSet<String>) -> Vec<Row> {
-    // `*` is the "every code" spelling a `# tcl-lsp: disable=*` directive
-    // records, and it governs this family as it governs every other — the same
-    // gate `source_style::style_diagnostics` applies to these codes on the
-    // path this one stands in for.
-    let enabled = |code: &str| !disabled.contains("*") && !disabled.contains(code);
-    document
-        .encoding_diagnostics()
-        .into_iter()
-        .filter(|d| enabled(d.code))
-        .map(style_row)
-        .collect()
+///
+/// The analyser never ran, so `file_codes` — the top-of-file directive as
+/// `collect_rows` parsed it, `*` included — is handed to the policy step as
+/// the file bucket, which governs this family as it governs every other.
+fn abstained_rows(
+    document: &InputDocument,
+    disabled: &HashSet<String>,
+    file_codes: HashSet<String>,
+) -> Vec<Row> {
+    let mut lines = std::collections::HashMap::new();
+    if !file_codes.is_empty() {
+        lines.insert(FILE_SUPPRESS_KEY, file_codes);
+    }
+    let directives = Directives::new(lines, &document.source);
+    shown_style_records(
+        document,
+        document.encoding_diagnostics(),
+        disabled,
+        directives,
+    )
+    .into_iter()
+    .map(style_row)
+    .collect()
 }
 
 /// The source-text findings for `document`: W111 line length, W112 trailing
 /// whitespace, W115 comment continuation, W118 line endings, and the
-/// byte-backed W107 / W109 integrity checks.
+/// byte-backed W107 / W109 integrity checks, under the policy step.
 ///
 /// Reads `document.source` — the bytes as read, not the analysis form — because
 /// W118 is the one lint whose subject *is* the line terminators; the pass
@@ -435,18 +478,18 @@ fn style_rows(
     disabled: &HashSet<String>,
     suppressed: &std::collections::HashMap<i32, HashSet<String>>,
 ) -> Vec<Row> {
-    style_diagnostics(
+    let records = style_diagnostics(
         &document.source,
         DEFAULT_LINE_LENGTH,
         DEFAULT_LINE_ENDING,
-        disabled,
-        suppressed,
         Some(&document.decode),
         dialect,
-    )
-    .into_iter()
-    .map(style_row)
-    .collect()
+    );
+    let directives = Directives::new(suppressed.clone(), &document.source);
+    shown_style_records(document, records, disabled, directives)
+        .into_iter()
+        .map(style_row)
+        .collect()
 }
 
 /// One source-text finding as a [`Row`], resolving its 0-based position to the
@@ -459,7 +502,7 @@ fn style_row(d: tcl_lsp_core::source_style::StyleDiagnostic) -> Row {
             StyleSeverity::Warning => Severity::Warning,
             StyleSeverity::Hint => Severity::Hint,
         },
-        code: d.code.to_owned(),
+        code: d.code.to_string(),
         message: d.message,
     }
 }

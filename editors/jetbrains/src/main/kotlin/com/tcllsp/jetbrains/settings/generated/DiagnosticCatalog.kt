@@ -205,6 +205,19 @@ object DiagnosticCatalog {
         DiagnosticDef("SSLIC1101", "sslictcl", "SSLIC1101: SslicTcl unknown declaration preserved as an extension", true),
         DiagnosticDef("SSLIC1102", "sslictcl", "SSLIC1102: SslicTcl document vocabulary is newer than this buil...", true),
         DiagnosticDef("SSLIC1103", "sslictcl", "SSLIC1103: SslicTcl predicate body is retained but never evalua...", true),
+        DiagnosticDef("XC100", "xc", "XC100: iRule command maps directly to an XC construct (an o...", true),
+        DiagnosticDef("XC101", "xc", "XC101: iRule routing decision maps to an XC L7 route", true),
+        DiagnosticDef("XC102", "xc", "XC102: iRule condition or response maps to an XC service po...", true),
+        DiagnosticDef("XC103", "xc", "XC103: HTTP header operation maps to an XC request or respo...", true),
+        DiagnosticDef("XC105", "xc", "XC105: Data-group (class) match maps to XC service policy r...", true),
+        DiagnosticDef("XC106", "xc", "XC106: ASM::disable maps to an XC WAF exclusion rule", true),
+        DiagnosticDef("XC107", "xc", "XC107: ASM::enable needs no XC action", true),
+        DiagnosticDef("XC200", "xc", "XC200: switch on a dynamic value", true),
+        DiagnosticDef("XC201", "xc", "XC201: Event handler has no XC equivalent", true),
+        DiagnosticDef("XC203", "xc", "XC203: Complex condition could not be mapped to XC match cr...", true),
+        DiagnosticDef("XC250", "xc", "XC250: Event maps to a separate XC feature (Rate Limiting, ...", true),
+        DiagnosticDef("XC300", "xc", "XC300: Command creates dynamic or procedural behaviour with...", true),
+        DiagnosticDef("XC301", "xc", "XC301: L4 or protocol-specific command with no XC equivalent", true),
     )
 
     val optimisations: List<OptimisationDef> = listOf(
@@ -253,6 +266,7 @@ object DiagnosticCatalog {
         "bigip" to "Diagnostics — BIG-IP Configuration",
         "sslictcl" to "Diagnostics — SslicTcl",
         "tclpkg" to "Diagnostics — Package Manager",
+        "xc" to "Diagnostics — XC Translation",
     )
 
     val sectionOrder: List<String> = listOf(
@@ -267,5 +281,6 @@ object DiagnosticCatalog {
         "bigip",
         "sslictcl",
         "tclpkg",
+        "xc",
     )
 }

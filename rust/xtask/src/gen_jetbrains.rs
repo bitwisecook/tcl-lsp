@@ -61,6 +61,7 @@ const SECTIONS: &[(&str, &str)] = &[
     ("bigip", "Diagnostics — BIG-IP Configuration"),
     ("sslictcl", "Diagnostics — SslicTcl"),
     ("tclpkg", "Diagnostics — Package Manager"),
+    ("xc", "Diagnostics — XC Translation"),
 ];
 
 /// The sort rank of a section key (its index in [`SECTIONS`]).

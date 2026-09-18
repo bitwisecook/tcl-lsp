@@ -200,3 +200,16 @@
 | W132 | tclpkg | tclpkg.lock integrity mismatch — CAS hash differs from lockfile. | ✓ |
 | W133 | tclpkg | tclpkg.tcl directive not permitted in safe mode. | ✓ |
 | W134 | tclpkg | Package resolved but no pkgIndex.tcl found — 'package require' will fail at runtime. | ✓ |
+| XC100 | xc | iRule command maps directly to an XC construct (an origin pool, a catalogued command mapping). | ✓ |
+| XC101 | xc | iRule routing decision maps to an XC L7 route — path or host matching, a redirect, or a direct response. | ✓ |
+| XC102 | xc | iRule condition or response maps to an XC service policy rule — match criteria, method matching, or a deny. | ✓ |
+| XC103 | xc | HTTP header operation maps to an XC request or response header action. | ✓ |
+| XC105 | xc | Data-group (`class`) match maps to XC service policy rules — each entry may need its own rule. | ✓ |
+| XC106 | xc | `ASM::disable` maps to an XC WAF exclusion rule. | ✓ |
+| XC107 | xc | `ASM::enable` needs no XC action — the App Firewall is enabled by default. | ✓ |
+| XC200 | xc | `switch` on a dynamic value — the XC match criteria need manual configuration. | ✓ |
+| XC201 | xc | Event handler has no XC equivalent — an L4 or non-HTTP event the static translation cannot express. | ✓ |
+| XC203 | xc | Complex condition could not be mapped to XC match criteria automatically — review it manually. | ✓ |
+| XC250 | xc | Event maps to a separate XC feature (Rate Limiting, Bot Defence, …) rather than a route or policy. | ✓ |
+| XC300 | xc | Command creates dynamic or procedural behaviour with no XC equivalent — consider App Stack. | ✓ |
+| XC301 | xc | L4 or protocol-specific command with no XC equivalent — consider App Stack. | ✓ |

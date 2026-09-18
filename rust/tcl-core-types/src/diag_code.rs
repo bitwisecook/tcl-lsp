@@ -93,6 +93,8 @@ pub enum DiagSection {
     Sslic,
     /// `tclpkg` package-manager diagnostics.
     Tclpkg,
+    /// F5 Distributed Cloud (XC) translatability notes for iRules.
+    Xc,
 }
 
 impl DiagSection {
@@ -114,6 +116,7 @@ impl DiagSection {
             Self::Bigip => "bigip",
             Self::Sslic => "sslictcl",
             Self::Tclpkg => "tclpkg",
+            Self::Xc => "xc",
         }
     }
 }
@@ -469,6 +472,24 @@ diagnostic_codes! {
     Sslic1101 => "SSLIC1101", diag(Sslic, true, "SslicTcl unknown declaration preserved as an extension.");
     Sslic1102 => "SSLIC1102", diag(Sslic, true, "SslicTcl document vocabulary is newer than this build supports; unknown declarations are preserved.");
     Sslic1103 => "SSLIC1103", diag(Sslic, true, "SslicTcl `predicate` body is retained but never evaluated in vocabulary 1.");
+    // The XC translatability family the `f5-xc` translator emits on an iRule
+    // (`XcDiagnostic`). `XC1xx` marks a construct with a direct XC equivalent,
+    // `XC2xx` one that needs manual XC configuration, and `XC3xx` one with no
+    // XC equivalent at all. The family only fires when `xcDiagnostics` is
+    // enabled; each code is then an ordinary user-configurable diagnostic.
+    Xc100 => "XC100", diag(Xc, true, "iRule command maps directly to an XC construct (an origin pool, a catalogued command mapping).");
+    Xc101 => "XC101", diag(Xc, true, "iRule routing decision maps to an XC L7 route — path or host matching, a redirect, or a direct response.");
+    Xc102 => "XC102", diag(Xc, true, "iRule condition or response maps to an XC service policy rule — match criteria, method matching, or a deny.");
+    Xc103 => "XC103", diag(Xc, true, "HTTP header operation maps to an XC request or response header action.");
+    Xc105 => "XC105", diag(Xc, true, "Data-group (`class`) match maps to XC service policy rules — each entry may need its own rule.");
+    Xc106 => "XC106", diag(Xc, true, "`ASM::disable` maps to an XC WAF exclusion rule.");
+    Xc107 => "XC107", diag(Xc, true, "`ASM::enable` needs no XC action — the App Firewall is enabled by default.");
+    Xc200 => "XC200", diag(Xc, true, "`switch` on a dynamic value — the XC match criteria need manual configuration.");
+    Xc201 => "XC201", diag(Xc, true, "Event handler has no XC equivalent — an L4 or non-HTTP event the static translation cannot express.");
+    Xc203 => "XC203", diag(Xc, true, "Complex condition could not be mapped to XC match criteria automatically — review it manually.");
+    Xc250 => "XC250", diag(Xc, true, "Event maps to a separate XC feature (Rate Limiting, Bot Defence, …) rather than a route or policy.");
+    Xc300 => "XC300", diag(Xc, true, "Command creates dynamic or procedural behaviour with no XC equivalent — consider App Stack.");
+    Xc301 => "XC301", diag(Xc, true, "L4 or protocol-specific command with no XC equivalent — consider App Stack.");
     Irule4001 => "IRULE4001", diag(IrulesVariable, true, "Write to `static::` variable outside `RULE_INIT`.");
     Irule4002 => "IRULE4002", diag(IrulesVariable, true, "Generic `static::` variable name — collision likely across iRules.");
     Irule4003 => "IRULE4003", diag(IrulesVariable, true, "Variable scoping concern across events.");
@@ -1120,8 +1141,30 @@ mod tests {
             (Bigip, "bigip"),
             (Sslic, "sslictcl"),
             (Tclpkg, "tclpkg"),
+            (Xc, "xc"),
         ] {
             assert_eq!(section.as_str(), key);
+        }
+    }
+
+    #[test]
+    fn xc_codes_are_user_configurable_and_untagged() {
+        // The XC family is gated by the `xcDiagnostics` switch and then
+        // toggled per code like any other diagnostic, so it is neither
+        // internal nor reserved, and a translatability note is never faded
+        // or struck through.
+        let xc = DiagCode::ALL
+            .iter()
+            .copied()
+            .filter(|c| c.diag_section() == Some(DiagSection::Xc));
+        assert_eq!(xc.clone().count(), 13);
+        for code in xc {
+            assert!(code.as_str().starts_with("XC"), "{code}");
+            assert!(!code.is_internal(), "{code} must be user-configurable");
+            assert!(!code.is_reserved(), "{code} has a producer in f5-xc");
+            assert!(code.default_on(), "{code} is on within its family switch");
+            assert_eq!(code.lsp_tag(), None, "{code} carries no tag");
+            assert_eq!(code.family(), DiagFamily::Warning);
         }
     }
 
@@ -1203,13 +1246,13 @@ mod tests {
     /// Tiny `no_std` set for the uniqueness test (avoids pulling in std).
     mod heapless_set {
         pub struct Set {
-            items: [&'static str; 256],
+            items: [&'static str; 512],
             len: usize,
         }
         impl Set {
             pub const fn new() -> Self {
                 Self {
-                    items: [""; 256],
+                    items: [""; 512],
                     len: 0,
                 }
             }

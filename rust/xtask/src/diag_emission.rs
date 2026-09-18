@@ -57,11 +57,13 @@ use tcl_core_types::DiagCode;
 /// for at least one construction per non-internal, non-reserved code. Most
 /// codes are constructed in `tcl-compiler` (the analyser / compiler-checks /
 /// optimiser); a handful (`W111`/`W112`/`W115`/`W118`, the pure-text style
-/// checks) are built directly in `tcl-lsp-core::source_style`, and a couple
-/// (e.g. `O111`, paired onto `W100` at publish time) are synthesised by hand
-/// in the LSP server rather than going through `DiagCode` construction at
-/// all.
+/// checks) are built directly in `tcl-lsp-core::source_style`, the `XC`
+/// translatability family is written as its wire spelling onto each
+/// `TranslationItem` in `f5-xc`, and a couple (e.g. `O111`, paired onto
+/// `W100` at publish time) are synthesised by hand in the LSP server rather
+/// than going through `DiagCode` construction at all.
 const SEARCH_ROOTS: &[&str] = &[
+    "rust/f5-xc/src",
     "rust/tcl-bigip/src",
     "rust/tcl-compiler/src",
     "rust/tcl-lsp-core/src",

@@ -561,27 +561,20 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
 
     // (3) Pure-text checks — the style lints plus the byte-backed W107 / W109
     // encoding-integrity set. W305 was already collected from the canonical
-    // analyser producer in (1). No suppression / user-disabled set, since the
-    // sweep wants every firing regardless of what a hypothetical editor config
-    // would silence. Native documents carry the byte-level decode report and
-    // therefore produce encoding findings at full precision.
+    // analyser producer in (1). The pass applies no policy, which is what the
+    // sweep wants: every firing regardless of what a hypothetical editor
+    // config would silence. Native documents carry the byte-level decode
+    // report and therefore produce encoding findings at full precision.
     // Extracted RST blocks use a faithful empty report because their offsets no
     // longer refer to the containing file's byte stream.
-    let no_disabled: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let no_suppressed: std::collections::HashMap<i32, std::collections::HashSet<String>> =
-        std::collections::HashMap::new();
     for d in style_diagnostics(
         &doc.input.source,
         DEFAULT_LINE_LENGTH,
         DEFAULT_LINE_ENDING,
-        &no_disabled,
-        &no_suppressed,
         Some(&doc.input.decode),
         tcl_lsp_core::profile_for_dialect(dialect),
     ) {
-        let Ok(code) = DiagCode::from_str(d.code) else {
-            continue;
-        };
+        let code = d.code;
         if !wanted.contains(&code) {
             continue;
         }

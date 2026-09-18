@@ -26,7 +26,7 @@ use super::*;
 
 /// Codes present in `diags`, in order.
 fn codes(diags: &[StyleDiagnostic]) -> Vec<&str> {
-    diags.iter().map(|d| d.code).collect()
+    diags.iter().map(|d| d.code.as_str()).collect()
 }
 
 /// The full byte → diagnostics pipeline, the way a file-reading caller sees it.

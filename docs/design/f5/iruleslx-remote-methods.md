@@ -288,7 +288,7 @@ registration.
 - `rust/tcl-irules/src/ilx.rs` — the Tcl walk and the JavaScript scanner.
 - `rust/tcl-lsp-core/src/ilx_navigation.rs` — workspace association,
   definition / hover / references.
-- `rust/tcl-lsp-server/src/config_ini.rs` — the `[iruleslx.*]` INI sections.
+- `rust/tcl-lsp-core/src/config_ini.rs` — the `[iruleslx.*]` INI sections.
 - `editors/vscode/src/ilxReferences.ts` — the client-side JavaScript
   reference provider.
 - `rust/tcl-lsp-server/tests/e2e/issue1707_ilx_methods.rs` — the end-to-end

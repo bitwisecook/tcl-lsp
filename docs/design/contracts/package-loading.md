@@ -361,7 +361,7 @@ per-dialect spec packs, never as name-matching in a consumer (see
   `refine_workspace_w120`, `compute_inherited_requires`,
   `w120_inheritance_config`, `scan_workspace_folders`,
   `build_package_resolver`.
-- `tcl-lsp-server/src/config_ini.rs` — `settings_from_ini` (`entryPoints`,
+- `tcl-lsp-core/src/config_ini.rs` — `settings_from_ini` (`entryPoints`,
   `libraryPaths`, `[packages.provides]`).
 - `tcl-compiler/src/analyser/state.rs` — `Analyser::with_package_provides`,
   `expand_implied_package_requires`, `implied_package_requires`.

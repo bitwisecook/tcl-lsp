@@ -397,6 +397,21 @@ class TclLspSettingsPanel {
     private val diagSSLIC1101 = JBCheckBox("SSLIC1101: SslicTcl unknown declaration preserved as an extension")
     private val diagSSLIC1102 = JBCheckBox("SSLIC1102: SslicTcl document vocabulary is newer than this buil...")
     private val diagSSLIC1103 = JBCheckBox("SSLIC1103: SslicTcl predicate body is retained but never evalua...")
+
+    // Diagnostics — XC Translation
+    private val diagXC100 = JBCheckBox("XC100: iRule command maps directly to an XC construct (an o...")
+    private val diagXC101 = JBCheckBox("XC101: iRule routing decision maps to an XC L7 route")
+    private val diagXC102 = JBCheckBox("XC102: iRule condition or response maps to an XC service po...")
+    private val diagXC103 = JBCheckBox("XC103: HTTP header operation maps to an XC request or respo...")
+    private val diagXC105 = JBCheckBox("XC105: Data-group (class) match maps to XC service policy r...")
+    private val diagXC106 = JBCheckBox("XC106: ASM::disable maps to an XC WAF exclusion rule")
+    private val diagXC107 = JBCheckBox("XC107: ASM::enable needs no XC action")
+    private val diagXC200 = JBCheckBox("XC200: switch on a dynamic value")
+    private val diagXC201 = JBCheckBox("XC201: Event handler has no XC equivalent")
+    private val diagXC203 = JBCheckBox("XC203: Complex condition could not be mapped to XC match cr...")
+    private val diagXC250 = JBCheckBox("XC250: Event maps to a separate XC feature (Rate Limiting, ...")
+    private val diagXC300 = JBCheckBox("XC300: Command creates dynamic or procedural behaviour with...")
+    private val diagXC301 = JBCheckBox("XC301: L4 or protocol-specific command with no XC equivalent")
     // @generated:diag-checkboxes:end
 
     // XC Diagnostics
@@ -658,6 +673,17 @@ class TclLspSettingsPanel {
                     diagSSLIC1001, diagSSLIC1002, diagSSLIC1003, diagSSLIC1004, diagSSLIC1005, diagSSLIC1006,
                     diagSSLIC1007, diagSSLIC1008, diagSSLIC1009, diagSSLIC1010, diagSSLIC1011, diagSSLIC1012,
                     diagSSLIC1101, diagSSLIC1102, diagSSLIC1103,
+                ),
+            ),
+        )
+
+        builder.addComponent(TitledSeparator("Diagnostics — XC Translation"))
+        builder.addComponent(
+            ReflowingGrid(
+                listOf(
+                    diagXC100, diagXC101, diagXC102, diagXC103, diagXC105, diagXC106,
+                    diagXC107, diagXC200, diagXC201, diagXC203, diagXC250, diagXC300,
+                    diagXC301,
                 ),
             ),
         )
@@ -961,6 +987,19 @@ class TclLspSettingsPanel {
             diagSSLIC1101.isSelected != s.diagnosticSSLIC1101 ||
             diagSSLIC1102.isSelected != s.diagnosticSSLIC1102 ||
             diagSSLIC1103.isSelected != s.diagnosticSSLIC1103 ||
+            diagXC100.isSelected != s.diagnosticXC100 ||
+            diagXC101.isSelected != s.diagnosticXC101 ||
+            diagXC102.isSelected != s.diagnosticXC102 ||
+            diagXC103.isSelected != s.diagnosticXC103 ||
+            diagXC105.isSelected != s.diagnosticXC105 ||
+            diagXC106.isSelected != s.diagnosticXC106 ||
+            diagXC107.isSelected != s.diagnosticXC107 ||
+            diagXC200.isSelected != s.diagnosticXC200 ||
+            diagXC201.isSelected != s.diagnosticXC201 ||
+            diagXC203.isSelected != s.diagnosticXC203 ||
+            diagXC250.isSelected != s.diagnosticXC250 ||
+            diagXC300.isSelected != s.diagnosticXC300 ||
+            diagXC301.isSelected != s.diagnosticXC301 ||
             // @generated:diag-dirty:end
             // XC Diagnostics
             xcDiagnosticsEnabled.isSelected != s.xcDiagnosticsEnabled ||
@@ -1256,6 +1295,19 @@ class TclLspSettingsPanel {
         s.diagnosticSSLIC1101 = diagSSLIC1101.isSelected
         s.diagnosticSSLIC1102 = diagSSLIC1102.isSelected
         s.diagnosticSSLIC1103 = diagSSLIC1103.isSelected
+        s.diagnosticXC100 = diagXC100.isSelected
+        s.diagnosticXC101 = diagXC101.isSelected
+        s.diagnosticXC102 = diagXC102.isSelected
+        s.diagnosticXC103 = diagXC103.isSelected
+        s.diagnosticXC105 = diagXC105.isSelected
+        s.diagnosticXC106 = diagXC106.isSelected
+        s.diagnosticXC107 = diagXC107.isSelected
+        s.diagnosticXC200 = diagXC200.isSelected
+        s.diagnosticXC201 = diagXC201.isSelected
+        s.diagnosticXC203 = diagXC203.isSelected
+        s.diagnosticXC250 = diagXC250.isSelected
+        s.diagnosticXC300 = diagXC300.isSelected
+        s.diagnosticXC301 = diagXC301.isSelected
         // @generated:diag-apply:end
         s.xcDiagnosticsEnabled = xcDiagnosticsEnabled.isSelected
 
@@ -1596,6 +1648,19 @@ class TclLspSettingsPanel {
         diagSSLIC1101.isSelected = s.diagnosticSSLIC1101
         diagSSLIC1102.isSelected = s.diagnosticSSLIC1102
         diagSSLIC1103.isSelected = s.diagnosticSSLIC1103
+        diagXC100.isSelected = s.diagnosticXC100
+        diagXC101.isSelected = s.diagnosticXC101
+        diagXC102.isSelected = s.diagnosticXC102
+        diagXC103.isSelected = s.diagnosticXC103
+        diagXC105.isSelected = s.diagnosticXC105
+        diagXC106.isSelected = s.diagnosticXC106
+        diagXC107.isSelected = s.diagnosticXC107
+        diagXC200.isSelected = s.diagnosticXC200
+        diagXC201.isSelected = s.diagnosticXC201
+        diagXC203.isSelected = s.diagnosticXC203
+        diagXC250.isSelected = s.diagnosticXC250
+        diagXC300.isSelected = s.diagnosticXC300
+        diagXC301.isSelected = s.diagnosticXC301
         // @generated:diag-reset:end
         xcDiagnosticsEnabled.isSelected = s.xcDiagnosticsEnabled
 

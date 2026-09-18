@@ -53,3 +53,8 @@ checkpoint compiling.
   [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
   § *Build order*: the four rulings taken as decided, and the documents whose
   stated rule they replace repaired. Documents only.
+- [diagnostic-policy.md](diagnostic-policy.md) — slices 1 to 3 of
+  [diagnostic-policy.md](../compiler/diagnostic-policy.md) § *Slices*: the
+  finding, the conversions and the report; the relocated `config_ini` and
+  the `Policy` builder; `apply`, with the producers that stop applying
+  policy themselves. Every surface keeps today's behaviour.
