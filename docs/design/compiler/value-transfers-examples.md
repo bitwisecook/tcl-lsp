@@ -42,7 +42,7 @@ interface contract removes.
 
 ## What running the corpus found
 
-Running the programs exposed nine defects in today's tree. Each is an
+Running the programs exposed sixteen defects in today's tree. Each is an
 issue, and each is a contract point:
 
 | Issue | Program | Contract point |
@@ -57,6 +57,12 @@ issue, and each is a contract point:
 | [#2057](https://github.com/bitwisecook/tcl-lsp/issues/2057) | W242 warns about a `while` loop O112 removes as never running | W240–W242 consume the branch fact instead of the condition's text |
 | [#2118](https://github.com/bitwisecook/tcl-lsp/issues/2118) | O122 converts a `walk` whose non-tail self-call sits inside a braced `expr`; the plain spelling gets O121 | a gate on source text reads the call through the expression owner's bridge |
 | [#2132](https://github.com/bitwisecook/tcl-lsp/issues/2132) | W211 and O126 delete `set x 1` although `[info exists x]` reads it, and O108 deletes the pair behind `[info exists b]`; the optimised procedure prints nothing where the original prints `yes` | an existence read is a use of the binding, and a store is removable only when no value read and no existence read of its version remains |
+| [#2133](https://github.com/bitwisecook/tcl-lsp/issues/2133) | S100 reports `x` merging string and int at the join after `if {$c} { unset x }`, where no path gives `x` a string | an unset-killed phi arm carries no representation; the existence rung names it `Unbound` and the shimmer verdict is computed over the bound arms only |
+| [#2134](https://github.com/bitwisecook/tcl-lsp/issues/2134) | O100 rewrites `upvar 1 $name v` inside `bump` to `upvar 1 n v` from its one call site, so `bump m` now increments `n` | a proc-level transfer summary keeps a `Name` parameter's binding per call site; a callee body is rewritten only under a proven closed call set |
+| [#2141](https://github.com/bitwisecook/tcl-lsp/issues/2141) | O102 forwards `1` into `puts $x` past the `[incr x]` nested in `expr {$x + [incr x] + $x}`; the optimised program prints `1` where tclsh prints `2` | a nested invocation inside a braced expression word is a statement in the expression's left-to-right order: the ordered evaluation state makes its write visible |
+| [#2142](https://github.com/bitwisecook/tcl-lsp/issues/2142) | W210 on `return $f` after `try {error boom} finally {set f 1}` with `f` bound before the statement, and O109 deletes the `finally` store | a completion path neither kills nor hides the definitions that reach it; a `finally` body runs on every path |
+| [#2143](https://github.com/bitwisecook/tcl-lsp/issues/2143) | the `::port` child a `subst -nocommands` factory materialises has no span, so its W214 is anchored at line 1, column 1 and the call to it is W123 | a materialised child carries the span of the factory call that produced it: the template-word plan gives the materialisation its provenance |
+| [#2144](https://github.com/bitwisecook/tcl-lsp/issues/2144) | O109 deletes `set a old` ahead of `catch {lassign {new second} a b}` under `tcl8.4`, where `lassign` does not exist and tclsh prints `old` | a write attributed to a command the profile does not have is not a write: the storage outcome is release-aware |
 
 ## Optimisations
 
@@ -534,7 +540,7 @@ that laziness is the one part of the ordered state the tool already has.
 ```tcl
 set x 1
 puts [expr {$x + [incr x] + $x}]   ;# today: not folded
-puts $x                            ;# today: O102 forwards 1, where the value is 2
+puts $x                            ;# today: O102 forwards 1, where the value is 2 (#2141)
 ```
 
 ```tcl
@@ -655,7 +661,7 @@ supplies them, not the finite-set lift.
 
 ```tcl
 proc bump {name} {
-    upvar 1 $name v        ;# today: O100 rewrites this to `upvar 1 n v`
+    upvar 1 $name v        ;# today: O100 rewrites this to `upvar 1 n v` (#2134)
     incr v
 }
 set n 1
@@ -985,7 +991,7 @@ proc r {} {
 proc s {c} {
     set x 1
     if {$c} { unset x }
-    puts $x                ;# today: S100 "merges string and int at control-flow join", beside its W210
+    puts $x                ;# today: S100 "merges string and int at control-flow join", beside its W210 (#2133)
 }
 ```
 
@@ -1017,7 +1023,7 @@ path, so the store is read and stays.
 ```tcl
 set a old
 array set b {k keep}
-catch {lassign {new second} a b} m   ;# today: W220 on `set a old`, and O109 deletes it
+catch {lassign {new second} a b} m   ;# today: W220 on `set a old`, and O109 deletes it (#2144 under 8.4)
 puts "$a $m"
 ```
 
@@ -1032,7 +1038,7 @@ the release that has no `lassign` at all declines instead.
 
 ```tcl
 proc p {} {
-    set f 0                ;# today: W220, and O109 deletes it
+    set f 0                ;# today: W220, and O109 deletes it (#2142)
     try {
         error boom
     } finally {
@@ -1126,7 +1132,7 @@ puts $greeting
 proc Configure {name default description} {
     proc $name {x} [subst -nocommands {return $default}]
 }
-Configure port 8080 {the port}       ;# today: W214 on `x` of proc `::port`, the materialised child
+Configure port 8080 {the port}       ;# today: W214 on `x` of proc `::port`, the materialised child (#2143)
 ```
 
 `subst -nocommands {hello $name}` is `hello world` and `port ignored` is
