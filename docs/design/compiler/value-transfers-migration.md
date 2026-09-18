@@ -18,7 +18,7 @@ waiving a site in the gate, and before claiming a command is migrated.
 
 The sweeps were read at `16ba98010505f67484a3f1c90e087539bf4919d8` and
 every identifier cited on the three pages was re-checked at the branch's
-merge with `rust` (`f02f327f58edffb0511c2062618ca9ddcec62443`). Four sweeps
+merge with `rust` (`3b5eba8aed44b8faec026aa7fdbe79c266948711`). Four sweeps
 read each site in context — the compiler's own passes; the analyser with
 lowering and CFG construction; the diagnostic and analysis passes outside
 it; and every language-server, tooling, and dialect crate — and classified
@@ -395,9 +395,13 @@ each is a consumer of the interface once it exists:
 - **Value-copy tracking.** `analyser/param_traits.rs` tracks `set n $p` as a
   copy and invalidates it on `incr` / `append` / `lappend` — a two-command
   approximation of the transfer.
-- **Substitution folders.** `lowering/mod.rs` folds `[subst -nocommands
-  {…}]` and `set var {literal}` into the const map; `specialise_factories.rs`
-  extracts the same `subst` template.
+- **Substitution folders.** `lowering/mod.rs` folds a `subst` call whose
+  registry answer is exactly commands-off into the const map, beside
+  `set var {literal}`; `specialise_factories.rs` extracts the same template
+  through the same answer. Both read the kinds through
+  `substitutions_performed` and take the final argument as the operand;
+  what stays private is the template walk itself, which the template-word
+  plan in the interface contract owns.
 - **Path folders.** `auto_path_eval.rs` folds `file dirname` /
   `normalize` / `join` and `info script`; `tcl-lsp-core`'s
   `document_links.rs` and `package_resolver.rs` each carry a private
@@ -433,6 +437,7 @@ migrations can be planned per axis rather than per file.
 | `arg_roles` / `arg_role_resolver` / `assigns_variable_at` | ~55 | `rust/tcl-cli/src/commands/minimize.rs`'s `var_target_positions`, a verbatim reimplementation of the role axis for eight commands and wrong for `dict update`, `binary scan`, `regexp -inline`, `scan`, and `foreach`; the W230–W232 index family in `analyser/bounds_checks.rs`; `place_bridge.rs` and `var_scoping.rs` asking for `global` / `variable` / `trace` positions by name |
 | `definition_body` / `MemberKind` | ~32 | `analyser/oo.rs`'s eleven-arm `apply_oo_subcommand` keyword switch and its snit / itcl member tables; `ir.rs`'s `MethodKind::from_str_lossy`; the `constructor` / `destructor` literals spread across ten `tcl-lsp-core` providers |
 | `traits` | ~41 | `var_escape/info_subcommands.rs`'s thirty-two hand-maintained `info` subcommand names, live through `var_escape/helpers.rs`, beside two consumers that already ask `INTROSPECTS_BY_NAME` / `CURRENT_FRAME_INTROSPECTION`; `unset` recognised by name in three diagnostics beside `irules_event_checks.rs`'s correct `DESTROYS_VARIABLE` query; `lowering/mod.rs`'s `WORD_DISQUALIFIERS` body-cache gate; `tcl-syntax`'s default `head == "when"` predicate |
+| `substitution_resolver` / `substitutions_performed` | 3 | W102 (`analyser/diagnostics/security.rs`), the two template folders, and extract-proc's literal cut and same-frame regions (`rust/tcl-lsp-core/src/refactor/`) already ask the registry; what remains is the dynamic-name barrier in `dynamic_names.rs` and the `inner_head_performs_substitution` gate reading only the trait, and `push_substituted_commands` re-walking a braced template for the bracket regions the answer does not carry |
 | `case_list` / clause grammar | ~30 | five independent `switch` parsers (`analyser/diagnostics/security.rs`, `analyser/recovery.rs`, `analyser/diagnostics/usage.rs`, `lowering/structured.rs`, `analyser/commands.rs`) where the segmenter's `flatten_case_list_clauses` and the registry's `CaseMatchMode` already exist; `then` / `elseif` / `else` and `on` / `trap` / `finally` walked by keyword in `lowering/structured.rs`, `signature_scan/walker.rs` (twice), `tcl-lsp-core`'s refactors, and `tcl-mcp`'s `datagroup.rs`; `TryHandler::kind` as a `String` re-matched in `executable_ir.rs` |
 | `return_type` / `format_string_type` / `pattern_type` | ~12 | `type_infer.rs`'s forty-five-name math-function return-type table, a duplicate of `tcl_syntax::expr::mathfunc`; `scan_predicate.rs`'s conversion classes as strings; `analyser/diagnostics/usage.rs` mapping `binary format` / `binary scan` to a format-string index by name |
 | `special_vars` | ~15 | `static::` spelled in six places; `args` in fourteen; `auto_path`, `auto_index`, `$dir` |

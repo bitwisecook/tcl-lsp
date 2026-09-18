@@ -183,6 +183,16 @@ interface contract names.
   state-transition resolver emitting alias facts only. The second reverses
   the loader's current position that a `state_transitions` resolver is
   reference-only, and needs a ruling.
+- A native resolver over a command's own option table has a declarative
+  form. `substitution_resolver` (`rust/tcl-registry/src/substitution.rs`)
+  is excluded from `.tclspec` as a computed answer over `subst`'s switches;
+  the declaration that replaces it is per option: each switch names the
+  substitution kind it disables or, in the Tcl 9.1 positive family,
+  selects, and the registry derives the per-call answer generically, with
+  an unreadable call falling to the generic computed-option rule. That is
+  the shape `option_relations` and the `switch` case-list spec already
+  take, and it keeps Rust and `.tclspec` declaring the same thing with no
+  per-command function.
 - The mechanism is a derived-query layer. The interface contract proposes
   one resolved invocation with axis queries over it for the value axis;
   this page generalises that shape to effects, scope effects, clause

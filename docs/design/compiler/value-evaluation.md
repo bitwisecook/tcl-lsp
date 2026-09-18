@@ -330,12 +330,14 @@ it cannot make the computation pure. The route contract:
   implementation identity, the target semantics it supports (release,
   character model, numeral grammar, regexp features, binary representation,
   platform behaviour, completion), the inputs it reads (which operands
-  exactly, which target values), its context dependencies (`tcl_profile`,
-  the implementation identity), and its budget. A resolver that cannot
+  exactly, which target values), its context dependencies (the target
+  profile, the implementation identity), and its budget. A resolver that cannot
   represent "pure, but no evaluator" is corrected by the fourth route
   state, not by making purity double as executable backing.
-- **The engine is release-pinned.** `Engine::set_release`, or a
-  profile-taking constructor, since the VM already supports both.
+- **The engine is release-pinned.** `Engine::set_release` wraps
+  `Interp::set_dialect_profile` in `rust/tcl-vm/src/interp.rs`, which
+  already pins the interpreter to one `DialectProfile`; the wrapper adds
+  only the release identity the memo key carries.
 - **Provisioning is a pinned path.** A real package implementation
   reaches the engine because it was embedded with the pack or installed
   under the established package policy, never because a workspace file was

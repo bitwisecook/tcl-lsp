@@ -197,6 +197,12 @@ word kinds and argument offsets, and handle instance invocations. The
 value axis is a projection of that resolution, not a second
 command/subcommand/form resolver: a `value_transfer_for_call(&[&str])`
 over bare strings would drop the evidence the resolver already retains.
+`substitution_resolver` in `rust/tcl-registry/src/substitution.rs`, the
+newest of the string-keyed resolvers beside `arg_role_resolver` and
+`pattern_arg_resolver`, shows the cost: `subst $opt {hello $name}` answers
+every kind even where the lattice proves `opt` is `-novariables`, because
+a bare string carries no proof. The same contract over
+`AnalysisInputs::operand` answers exactly.
 There is one argument coordinate system — the resolved invocation's operand
 indices — with an explicit mapping back to source words and to lowered
 storage places. `Statement::Incr { name, amount, .. }` projects to the
@@ -362,6 +368,7 @@ Registry-owned plans, by example:
 | `regexp P S A B` | the shared regexp command core over our engine; return the count or captures and per-target write or preserve outcomes | direct engine call, no engine setup |
 | a private Tcl helper | resolve its declared implementation and dependencies; invoke with structured arguments | bounded engine, when explicitly declared |
 | `dict with D BODY` | describe the key binding and the reconciliation around a generic body-analysis operation | structural plan; concrete execution only for a fully supported closed case |
+| `subst -novariables {T}` | read the switch operands through the registry's substitution answer; describe the template word: the kinds that run, the `[…]` regions inside a braced template that execute in the caller's frame, and the `$name` reads that remain | structural plan; the direct route materialises the template only when every read it keeps is proven |
 
 The API succeeds when a command spec chooses these plans while the consumer
 stays unchanged. Descriptors stay small and declarative for the common
@@ -963,6 +970,16 @@ not replaced, under five rules:
    result or edit from an old source or context revision is not attached to
    the current document; canonical relative spans are rebased by the
    source-mapping owner, never guessed by consumers.
+6. **Policy has one owner below every surface.** Suppression directives,
+   disabled codes across the documented scopes, default-off seeding,
+   severity overrides, the optimiser switch and profile, overlap
+   precedence, and encoding abstention are applied once, by a function
+   every surface calls, and a suppressed finding stays in the report with
+   its reason. Today each surface assembles its own subset: the server's
+   publish paths, `tcl diag`, `tcl opt`, the MCP tools, and the code-action
+   lifter differ on which steps they apply, which is the parity gap #2089
+   tracks. The `# noqa` directive has one parser and one predicate; the
+   pipeline around them is the remaining half.
 
 Three producers move onto the interface in the first slices:
 
@@ -1026,7 +1043,7 @@ count is unknown.
 | Existence and aliases | define, preserve, unbind, may-write; escape and alias descriptions | place identity, reaching definitions, exceptional state, joins | storage and alias epochs; trace, `uplevel`, and unknown effects |
 | Range and partial value | bounds, lengths, prefixes, or typed residual operations with prerequisites | abstract interpretation, widening, bounded residual representation | operand range and shape facts, arithmetic profile, effects |
 | Effects and completion | reads and writes, observable operations, possible error, return, break, continue, yield | control flow, sequencing, deletion and motion proofs | resolved implementation, callback and body summaries, traces, state |
-| Taint and provenance | source, sink, and transform relationships; encoding and normalisation kind | the flow lattice, provenance paths, context-specific sink checks | operand flow, unknown effects, sanitiser identity, dialect |
+| Taint and provenance | source, sink, and transform relationships, with the call shapes that qualify a transform (`taint_transform_when`); encoding and normalisation kind | the flow lattice, provenance paths, context-specific sink checks | operand flow, unknown effects, sanitiser identity, dialect |
 | Intrep and sharing | guaranteed construction and conversion; alias and share relationships | shimmer, use-site, and mutation-copy analysis | value provenance, representation transitions, escape and share facts |
 | Protocol and resource state | typed domain events (collect and release, HTTP commit, widget ownership) | the domain state machine and path joins | event and body flow, command meaning, the referenced resource world |
 | Interprocedural summary | a declared external summary, or an analysable body with its contract | the call graph, recursive fixed point, context limits, dependencies | body, callee and binding set, captured and global state, pack revision |

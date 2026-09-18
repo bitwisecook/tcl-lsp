@@ -13,7 +13,7 @@ set, and its programs are the fixed witnesses the slices in
 > **Status.** Every "today" line below is an observation, not an
 > assertion: each program was run through `tcl diag FILE --json` and
 > `tcl opt FILE --profile full` (a single optimiser pass) built from `rust`
-> at `f02f327`, with `--dialect irules`, `tcl8.5`, or `tcl8.4` where the
+> at `3b5eba8a`, with `--dialect irules`, `tcl8.5`, or `tcl8.4` where the
 > example says so, and through Tcl 9.0.4 for ground truth. Every "under the
 > contracts" line is the proposal. The declarations in the last section are
 > proposed spellings, not loader syntax.
@@ -37,7 +37,7 @@ interface contract removes.
 
 ## What running the corpus found
 
-Running the programs exposed eight defects in today's tree. Each is an
+Running the programs exposed nine defects in today's tree. Each is an
 issue, and each is a contract point:
 
 | Issue | Program | Contract point |
@@ -50,6 +50,7 @@ issue, and each is a contract point:
 | [#2055](https://github.com/bitwisecook/tcl-lsp/issues/2055) | IRULE3101 flags `set p /a; HTTP::path $p` | a diagnostic reads the same value the optimiser forwards |
 | [#2056](https://github.com/bitwisecook/tcl-lsp/issues/2056) | IRULE1201 counts an `HTTP::respond` in a branch I230 proves dead | applied reachability is one fact with many consumers |
 | [#2057](https://github.com/bitwisecook/tcl-lsp/issues/2057) | W242 warns about a `while` loop O112 removes as never running | W240–W242 consume the branch fact instead of the condition's text |
+| [#2118](https://github.com/bitwisecook/tcl-lsp/issues/2118) | O122 converts a `walk` whose non-tail self-call sits inside a braced `expr`; the plain spelling gets O121 | a gate on source text reads the call through the expression owner's bridge |
 
 ## Optimisations
 
@@ -388,9 +389,14 @@ Unchanged; W110 is not an edit certificate.
 ### O121, O122, O123 · recursion
 
 ```tcl
+proc walk {node acc} {
+  if {$node eq ""} { return $acc }
+  set acc [combine $acc [walk [left $node] {}]]   ;# the non-tail self-call holds O122 off
+  return [walk [right $node] $acc]                ;# today: O121 rewrites to tailcall
+}
 proc fact {n acc} {
   if {$n <= 1} { return $acc }
-  return [fact [expr {$n-1}] [expr {$n*$acc}]]   ;# today: O121 rewrites to tailcall
+  return [fact [expr {$n-1}] [expr {$n*$acc}]]   ;# today: O122 converts to a while loop — a bracketed argument is one argument
 }
 proc countdown {n} {
     if {$n <= 1} { return 1 } else { countdown [expr {$n - 1}] }   ;# today: O122 converts to a while loop
@@ -400,7 +406,18 @@ proc fact2 {n} {
 }
 ```
 
-Unchanged.
+```tcl
+proc walk {node acc} {
+  if {$node eq ""} { return $acc }
+  set acc [expr {$acc + [walk [left $node] 0]}]   ;# today: O122 converts (#2118) — the self-call inside a braced expr escapes the gate the plain spelling trips
+  return [walk [right $node] $acc]
+}
+```
+
+Unchanged: the tail-call passes read no values. The gate that chooses
+between O121 and O122 is a decision on source text, and #2118 is its
+spelling dependence; the expression owner's script bridge is the fix, not
+this design.
 
 ### O124 · unused iRule procs
 
@@ -693,6 +710,33 @@ Under the contracts the computed heads resolve: `unknownCmd` gets W123,
 `puts` suppresses W307, `distance` gets W308, and a computed head is never
 rename-safe.
 
+### W102 · `subst` on a computed operand
+
+```tcl
+subst $x                             ;# today: W102 — any [cmd] and $var in the string will be evaluated; add -nocommands -novariables
+subst -nocommands $x                 ;# today: W102 — any $var; add -novariables
+subst -nocommands -novariables $x    ;# today: nothing — only backslashes run
+set opt -novariables
+subst $opt {hello $name}             ;# today: nothing — the operand is the braced literal; the computed word is a switch
+subst -backslashes $tmpl             ;# today (tcl9.1): nothing — the positive family names the only kind that runs
+subst -commands $x                   ;# today (tcl9.1): W102 — any [cmd]; no switch advice, since the families cannot be combined
+```
+
+```tcl
+set opt -novariables
+subst $opt $x                        ;# today: W102 naming every kind and no switch advice — the computed switch word makes the call unreadable
+```
+
+Today the check asks `CommandRegistry::substitutions_performed` for the
+kinds a call runs and discovers its advice by asking what each declared
+option would do to the call (#2100). What it cannot do is read `$opt`: a
+computed switch word makes the call unreadable, so the answer is every
+kind. Under the contracts the same resolver reads the proven operand, so
+the second program narrows to `$var` exactly as the literal spelling does,
+and the template-word plan gives extract-proc, the dynamic-name barrier,
+and the two `subst -nocommands` folders one fact instead of a bracket walk
+each.
+
 ### S100, S101, S102, S103, S110 · representation
 
 ```tcl
@@ -865,7 +909,7 @@ while {$go} { puts "forever" }    ;# today: W242 and O101 folds the condition �
 
 Under the contracts W240 and W241 consume the branch fact I230 uses.
 
-### W127, W137, W138, W141, W145, W146, W147, W152, W200 · literal-only option and value checks
+### W127, W137, W138, W141, W145, W146, W147, W152, W200, W202 · literal-only option and value checks
 
 ```tcl
 when HTTP_RESPONSE priority 5 { HTTP::version "2.0" }   ;# today (irules): W127
@@ -877,6 +921,7 @@ trace add variable ::config(port) {read rename write} logChange   ;# today: W146
 set l [lsort -increasing -decreasing {b a}]              ;# today: W147
 ::bibtex::parse -command handle -recordcommand rec       ;# today: W152 (and W147)
 set data [binary format iu 42]                           ;# today (tcl8.4): W200
+set data [binary format n 42]                            ;# today (tcl8.4): W202
 ```
 
 ```tcl
@@ -888,6 +933,7 @@ set sub l; puts [string $sub $s]                                ;# today: nothin
 set ops {read rename write}; trace add variable ::config(port) $ops logChange   ;# today: nothing — while O100 propagates the list
 set o -decreasing; set l [lsort -increasing $o {b a}]           ;# today: nothing
 set fmt iu; set data [binary format $fmt 42]                    ;# today (tcl8.4): nothing — while O102 forwards iu
+set fmt n; set data [binary format $fmt 42]                     ;# today (tcl8.4): nothing — while O102 forwards n
 ```
 
 Under the contracts each check feeds the exact lattice value through its
@@ -1275,6 +1321,48 @@ subcommand with {
     arg 0 -role VarWrite
     arg end -role Body
     semantics -native core.dict_with         ;# bind keys · body · write back
+}
+```
+
+### `subst`: which substitutions a call runs
+
+Today `subst_.rs` declares `substitution_resolver:
+Some(crate::substitution::subst_substitutions)` beside
+`Traits::PERFORMS_SUBSTITUTION`; the resolver reads both switch families
+over bare strings and answers every kind for a call it cannot read. W102,
+the two template folders, and extract-proc consume it through
+`CommandRegistry::substitutions_performed`, and the studio excludes the
+field from `.tclspec` as a computed native answer. The proposed form keeps
+the answer and moves it onto proven operands as one template-word plan,
+declared per option rather than as a function.
+
+```rust,ignore
+// today, rust/tcl-registry/src/commands/tcl/subst_.rs
+traits: Traits::TAINT_SINK | Traits::IS_UNESCAPE | Traits::PERFORMS_SUBSTITUTION,
+substitution_resolver: Some(crate::substitution::subst_substitutions),
+
+// proposed: the same answer over proven operands, as one template-word plan
+fn structure_subst(input: &dyn AnalysisInputs) -> PlanAnswer {
+    let kinds = substitution_kinds(input);   // each switch operand's proven value; a computed switch stays every kind
+    PlanAnswer::TemplateWord {
+        operand: OPERAND_ARG,                // the final argument
+        kinds,
+        script_regions: kinds.commands.then(|| bracket_regions(input, OPERAND_ARG)),   // caller-frame scripts inside a braced template
+        reads: kinds.variables.then(|| variable_reads(input, OPERAND_ARG)),
+    }
+}
+```
+
+```tcl
+command subst {
+    arity 1..
+    option -nobackslashes -disables backslashes
+    option -nocommands    -disables commands
+    option -novariables   -disables variables
+    option -backslashes   -selects backslashes -introduced 9.1   ;# the positive family; mixing families is the error the registry reports
+    option -commands      -selects commands    -introduced 9.1
+    option -variables     -selects variables   -introduced 9.1
+    semantics -native core.subst_template     ;# the template-word plan, derived from the option rows
 }
 ```
 
