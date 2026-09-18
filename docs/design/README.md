@@ -53,26 +53,36 @@ passes, and ownership matrices.
 - [example-walkthroughs.md](compiler/example-walkthroughs.md) — full pipeline
   traces for progressively complex Tcl scripts.
 - [value-transfers.md](compiler/value-transfers.md) — **proposal** for the
-  registry's value axis (issue #1943): the consumer interface contract under
-  which the registry owns what an invocation computes and writes and the
-  analyser owns the generic operations that apply it, with the rulings,
-  the answer protocol, the three permissions, and branch facts.
+  registry's value axis (issue #1943): the complete consumer interface
+  contract under which the registry owns what an invocation computes and
+  writes and the analyser owns the generic operations that apply it — the
+  rulings, the answer protocol of result plus ordered storage outcomes, the
+  three permissions, the existence rung, completion paths, predicate
+  refinement as edge facts, the ordered evaluation state, proc-level
+  transfer summaries, and bounded-loop enumeration.
 - [value-evaluation.md](compiler/value-evaluation.md) — **proposal**: the
   evaluation contract behind that interface — the direct, expression, and
-  declared-implementation routes, the shared cores and adapters, the regexp
-  owner, the bounded engine, one analysis context, budgets, and authoring.
+  declared-implementation routes, the shared cores behind `ConstOps` with
+  their admissibility axes, the regexp owner, the bounded engine, one
+  analysis context and one memo, budgets and cancellation, target
+  semantics, and the `.tclspec` authoring grammar as row shapes.
 - [value-transfers-examples.md](compiler/value-transfers-examples.md) —
   **proposal**: one program per optimisation and diagnostic the value axis
   touches, with the tool's observed behaviour today and the declarations
   behind each example in the Rust registry and in `.tclspec`.
 - [value-transfers-migration.md](compiler/value-transfers-migration.md) —
-  **proposal**: the migration plan — the inventory of hand-written command
-  knowledge, the delivery slices, what changes for every pass and
-  diagnostic, the drift gate, and validation.
+  **proposal**: the migration plan — the versioned inventory of
+  hand-written command knowledge, the delivery slices with their exit
+  criteria, what changes for every analysis, optimisation, and diagnostic,
+  the third-party tiers, the drift gate, and the validation matrix.
 - [registry-consumer-contracts.md](compiler/registry-consumer-contracts.md)
   — **proposal** companion: the description, identity, and backing contracts
   under which the registry can drive the analyser, codegen, and the
-  runtimes, with the dialect, package, and C-extension follow-ons.
+  runtimes — the four rulings still open, the three descriptors the
+  analyser lacks (clause grammar, member effect, option effect) behind one
+  derived query per axis, the four rungs of a pack claim reaching emitted
+  code with the site claim and pack fact stamp each rung records, and the
+  dialect, package, and C-extension follow-ons.
 - [value-transfers-review.md](compiler/value-transfers-review.md) — review
   of the value-transfer and consumer-contract proposals: registry-owned
   specialisation, shared expression/regexp evaluation, correctness findings,

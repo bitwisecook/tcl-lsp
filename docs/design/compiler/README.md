@@ -68,17 +68,22 @@ User-facing compiler troubleshooting and how-tos live in
 - [constant-folding-type-inference.md](constant-folding-type-inference.md)
   — SCCP and type lattice.
 - [value-transfers.md](value-transfers.md) — **proposal** for the
-  registry's value axis (issue #1943): the consumer interface contract —
-  the ownership boundary, one invocation and one analysis context, the
-  answer protocol of result plus ordered storage outcomes, the three
-  permissions, the lift over the lattice, `expr` as the first client,
-  branch facts, and diagnostics as consumers of facts.
+  registry's value axis (issue #1943): the complete consumer interface
+  contract — the ownership boundary, one invocation and one analysis
+  context, the answer protocol of result plus ordered storage outcomes
+  indexed by completion path, the three permissions, the lift over the
+  lattice, the existence rung, the template-word plan, the ordered
+  evaluation state behind `expr` as the first client, branch facts with
+  predicate refinement as edge facts, bounded-loop enumeration,
+  proc-level transfer summaries, and diagnostics as consumers of facts.
 - [value-evaluation.md](value-evaluation.md) — **proposal**: the evaluation
-  contract — the direct route over the shared cores through `ConstOps` and
-  its adapters, the shared expression engine, the regexp owner with typed
-  precision, the declared-implementation route in the bounded engine with
-  per-evaluation state, one memo under one context, budgets and
-  cancellation, target semantics, and the SpecTcl authoring sketches.
+  contract — the direct route over the shared cores through `ConstOps`, its
+  adapters and the closed admissibility axis set, the shared expression
+  engine, the regexp owner with typed precision, the
+  declared-implementation route in the bounded engine with per-evaluation
+  state, one memo under one context with the evaluator generation, budgets
+  and cancellation, target semantics, and the `.tclspec` authoring grammar
+  stated as row shapes per statement, block, option flag and body verb.
 - [value-transfers-examples.md](value-transfers-examples.md) —
   **proposal**: worked examples — one program per optimisation and
   diagnostic code the value axis touches, each with the tool's observed
@@ -87,15 +92,20 @@ User-facing compiler troubleshooting and how-tos live in
   written in the Rust command registry and in a `.tclspec` pack.
 - [value-transfers-migration.md](value-transfers-migration.md) —
   **proposal**: the migration plan — the versioned inventory of hand-written
-  command knowledge, the seven delivery slices with exit criteria, what
+  command knowledge, the delivery slices with their exit criteria, what
   changes for every analysis, optimisation, and diagnostic, the third-party
   tiers, the drift gate, and the validation matrix.
 - [registry-consumer-contracts.md](registry-consumer-contracts.md) —
   **proposal** companion: the description, identity, and backing contracts
   under which the registry and `.tclspec` packs can drive the analyser,
-  both code generators, and both runtimes; the four rungs of a pack claim
-  reaching emitted code; the dialect, package, and C-extension follow-ons;
-  and the rulings still open.
+  both code generators, and both runtimes; the four rulings still open,
+  each stated as a proposed ruling; the three descriptors the analyser
+  lacks — clause grammar, member effect, and option effect over a closed
+  axis catalogue — behind one derived query per axis; the four rungs of a
+  pack claim reaching emitted code, with the site claim and pack fact stamp
+  each rung records and its admission check; `RuntimeBacking` and the
+  identity kind codegen chooses from it; and the dialect, package, and
+  C-extension follow-ons.
 - [value-transfers-review.md](value-transfers-review.md) — review of those
   proposals against registry-owned specialisation, with shared expression
   and regexp evaluation, analysis/diagnostic separation, correctness findings,

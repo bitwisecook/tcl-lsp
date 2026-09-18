@@ -29,7 +29,7 @@ flowchart LR
 
 ## Alphabetic index
 
-[AST](#ast) · [Barrier](#barrier) · [Basic block](#basic-block) · [C extension shim](#c-extension-shim) · [Call-site evidence](#call-site-evidence) · [CFG](#cfg) · [Codegen](#codegen) · [Codegen optimisation pass](#codegen-optimisation-pass) · [Command walk](#command-walk) · [CommandSpec](#commandspec) · [Compilation unit](#compilation-unit) · [Compiled artefact](#compiled-artefact) · [Concrete syntax tree (CST) / red-green tree](#concrete-syntax-tree-cst--red-green-tree) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [dialect](#dialect) · [Dispatch-stability proof](#dispatch-stability-proof) · [Dominance frontier](#dominance-frontier) · [Dominator / idom](#dominator--idom) · [Escape tag](#escape-tag) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [Guard identity](#guard-identity) · [ICIP](#icip) · [InstCombine](#instcombine) · [Interpreter domain](#interpreter-domain) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Lifecycle (registry)](#lifecycle-registry) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Memory-SSA](#memory-ssa) · [Native proc entry](#native-proc-entry) · [Object handle](#object-handle) · [ObjectClassSpec](#objectclassspec) · [Pattern recognition](#pattern-recognition) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [Requirement straddle](#requirement-straddle) · [Runtime backing](#runtime-backing) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail position](#tail-position) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Trace](#trace) · [Type inference](#type-inference) · [Unit linkage](#unit-linkage) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [Value transfer](#value-transfer) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis) · [Version floor](#version-floor) · [World-state contents lattice](#world-state-contents-lattice)
+[Admissibility](#admissibility) · [AST](#ast) · [Barrier](#barrier) · [Basic block](#basic-block) · [C extension shim](#c-extension-shim) · [Call-site evidence](#call-site-evidence) · [CFG](#cfg) · [Clause grammar](#clause-grammar) · [Codegen](#codegen) · [Codegen optimisation pass](#codegen-optimisation-pass) · [Command walk](#command-walk) · [CommandSpec](#commandspec) · [Compilation unit](#compilation-unit) · [Compiled artefact](#compiled-artefact) · [Completion path](#completion-path) · [Concrete syntax tree (CST) / red-green tree](#concrete-syntax-tree-cst--red-green-tree) · [Constant folding](#constant-folding) · [CSE](#cse) · [Data-flow graph](#data-flow-graph) · [DCE](#dce) · [Def-use chains](#def-use-chains) · [Diagnostic policy](#diagnostic-policy) · [Diagnostic report](#diagnostic-report) · [dialect](#dialect) · [Dispatch-stability proof](#dispatch-stability-proof) · [Dominance frontier](#dominance-frontier) · [Dominator / idom](#dominator--idom) · [Edge refinement](#edge-refinement) · [Escape tag](#escape-tag) · [Evaluator generation](#evaluator-generation) · [Evaluator route](#evaluator-route) · [Existence](#existence) · [Finding](#finding) · [FormSpec](#formspec) · [Frame-only var](#frame-only-var) · [GVN](#gvn) · [Guard identity](#guard-identity) · [ICIP](#icip) · [InstCombine](#instcombine) · [Interpreter domain](#interpreter-domain) · [IPA](#ipa) · [IR](#ir) · [Lattice](#lattice) · [LCP](#lcp) · [Lexing](#lexing) · [LICM](#licm) · [Lifecycle (registry)](#lifecycle-registry) · [Liveness](#liveness) · [Lowering](#lowering) · [LVT](#lvt) · [Member effect](#member-effect) · [Memory-SSA](#memory-ssa) · [Native proc entry](#native-proc-entry) · [Object handle](#object-handle) · [ObjectClassSpec](#objectclassspec) · [Option effect](#option-effect) · [Pattern recognition](#pattern-recognition) · [Phi node (φ)](#phi-node-φ) · [Rendered-value properties](#rendered-value-properties) · [Requirement straddle](#requirement-straddle) · [Runtime backing](#runtime-backing) · [salsa](#salsa) · [SCCP](#sccp) · [Shimmer](#shimmer) · [Side-effects](#side-effects) · [Site claim and pack fact stamp](#site-claim-and-pack-fact-stamp) · [Source edge](#source-edge) · [Special variable](#special-variable) · [SSA](#ssa) · [SSA value key](#ssa-value-key) · [Strength reduction](#strength-reduction) · [SubCommand](#subcommand) · [Symbol-definer command](#symbol-definer-command) · [Tail position](#tail-position) · [Tail-call optimisation](#tail-call-optimisation) · [Taint analysis](#taint-analysis) · [Taint colour](#taint-colour) · [Taint sink](#taint-sink) · [Taint source](#taint-source) · [Template word](#template-word) · [Trace](#trace) · [Transfer summary](#transfer-summary) · [Type inference](#type-inference) · [Unit linkage](#unit-linkage) · [Unused procs elimination](#unused-procs-elimination) · [Value provenance](#value-provenance) · [Value transfer](#value-transfer) · [ValueOps](#valueops) · [Var-escape analysis](#var-escape-analysis) · [Version floor](#version-floor) · [World-state contents lattice](#world-state-contents-lattice)
 
 ---
 
@@ -296,6 +296,36 @@ state), each with its own arity and side-effect classification.  See
 
 See also: [Command registry](design/compiler/command-registry.md).
 
+### Clause grammar
+
+The proposed registry descriptor for the word grammar of a clause chain —
+`if` / `elseif` / `else`, `try` / `on` / `trap` / `finally`, `for`,
+`while`, the `foreach` family, `catch` — naming each clause's keyword,
+its slots and their argument roles, when its body runs, its lifecycle, and
+how many clauses one call selects. It gives locations and grammar and
+nothing executable: first-match dispatch, list iteration, and completion
+belong to the [value-transfer](#value-transfer) interface's structural
+plan, declared beside it and never inferred from the slots. Proposed as
+`ClauseGrammarSpec` on `CommandSpec`, read through one derived
+`clause_plan` query so no consumer walks clause keywords itself.
+
+See also: [Registry consumer contracts § The clause-grammar descriptor](design/compiler/registry-consumer-contracts.md#the-clause-grammar-descriptor).
+
+### Option effect
+
+The proposed declaration on an option row of what the option's presence
+does to the call: it disables or selects a value on a closed axis
+(substitution kind, pattern language, case sensitivity, selection mode),
+suppresses a role the command's own layout would otherwise assign, changes
+how many trailing words the option scan reserves, or ends option parsing.
+Options over one axis share a family whose base says whether a selection
+also turns the other values off, and one derived `option_effects` query
+answers for a resolved call, in place of the two native resolvers that
+read a command's own option table today. Proposed as `OptionEffect` on
+`OptionSpec`.
+
+See also: [Registry consumer contracts § Options with semantic effects](design/compiler/registry-consumer-contracts.md#options-with-semantic-effects).
+
 ### Lifecycle (registry)
 
 The `introduced` / `deprecated` / `retired` triple every gateable registry
@@ -361,6 +391,20 @@ handle's method options resolve through the registry.  See `ObjectClassSpec`
 in `tcl_registry::spec`.
 
 See also: [Command registry](design/compiler/command-registry.md).
+
+### Member effect
+
+The proposed declaration of what one member word of a definition body
+does: a callable member with its receiver side, its lifecycle role, and
+its name, parameter, and body slots; a dispatch redirect; a state
+declaration with its scope; a contribution to an ancestry or interposition
+slot; a visibility change; or a retraction. The vocabulary is closed and
+family-neutral — no variant names `TclOO`, snit, or itcl — and
+`MemberKind` stays the layout fact beside it. Proposed as `MemberEffect`
+on `MemberSpec`, read through one derived `member_rows` query.
+
+See also: [Registry consumer contracts § The member-effect descriptor](design/compiler/registry-consumer-contracts.md#the-member-effect-descriptor),
+[ObjectClassSpec](#objectclassspec).
 
 ### Symbol-definer command
 
@@ -694,8 +738,107 @@ route (a shared core, the shared expression engine, or a declared
 implementation in the bounded engine), never inferred from purity. Not yet
 implemented.
 
-See also: [Value transfers](design/compiler/value-transfers.md), [Value evaluation](design/compiler/value-evaluation.md), [Worked examples](design/compiler/value-transfers-examples.md), [Value-transfer migration](design/compiler/value-transfers-migration.md), [Registry consumer contracts](design/compiler/registry-consumer-contracts.md), and
+See also: [Value transfers](design/compiler/value-transfers.md), [Value evaluation](design/compiler/value-evaluation.md), [Worked examples](design/compiler/value-transfers-examples.md), [Value-transfer migration](design/compiler/value-transfers-migration.md), [Registry consumer contracts](design/compiler/registry-consumer-contracts.md), [Diagnostic policy](design/compiler/diagnostic-policy.md), and
 [Constant folding](#constant-folding).
+
+### Completion path
+
+One way a proposed [value transfer](#value-transfer) lets an invocation
+complete: normally, with a completion code (`return`, `break`, `continue`,
+a numeric `-code`), or with an error after a known prefix of its ordered
+stores. Storage outcomes are indexed by completion path, and the prefix
+rule fixes what an error edge leaves behind: the outcome says how many of
+the ordered stores ran, and every target after that index is preserved.
+Proposed as `CompletionPath`, alongside the `CompletionProtocol` that says
+how a body's completion becomes the command's.
+
+See also: [Value transfers § `catch`, `try`, and completion](design/compiler/value-transfers.md#catch-try-and-completion).
+
+### Existence
+
+The proposed third lattice rung: a flow-sensitive bound/unbound fact per
+storage place and per SSA version of its binding, with `Pending` as the
+bottom, `Unbound`, `Bound` carrying the binding kind of a proven scalar or
+array, and `MayBound` as the top. The solver owns it and storage outcomes
+feed it — a write binds, a preserve leaves the fact alone, an unbind
+clears it, a may-write joins with the prior fact — so W210, W211, W213,
+I230, O101, O108, and O109 read one fact inside the fixed point rather
+than whole-body scans and a post-pass `[info exists]` fold. Proposed as
+`Existence`, with an `ExistenceTransfer` per
+[completion path](#completion-path).
+
+See also: [Value transfers § Existence](design/compiler/value-transfers.md#existence),
+[Lattice](#lattice).
+
+### Edge refinement
+
+A proposed fact that holds for one SSA version on one CFG edge and in the
+blocks that edge's target dominates, without a new definition: what a
+taken comparison, `in` test, `string is` test, existence guard, or
+`switch` arm proves about its operand. The condition's `Selection`
+transfer produces it and it names the domain it refines, so `$x eq "a"`
+yields an exact value on the true edge while `$x == 1` yields a range
+point and a numeric type and never the string. Proposed as
+`EdgeRefinement`, generalising the existing existence-guard narrowing.
+
+See also: [Value transfers § Predicate refinement](design/compiler/value-transfers.md#predicate-refinement).
+
+### Template word
+
+The final argument of a substituting command, which the command reads
+through itself instead of receiving already substituted — `subst {hello
+$name}` reads `name` out of a braced word every other command treats as
+literal text. The proposed
+plan is the one fact its consumers share: which substitution kinds run,
+from the switch operands the analysis proves; whether the word is braced,
+and so whether its `$name` and `[…]` source text is readable at all; and
+the script regions, variable reads, and backslash escapes in template
+order. Proposed as `TemplateWordPlan`, for W102, the two template folders,
+extract-proc, and the dynamic-name barrier.
+
+See also: [Value transfers § The template-word plan](design/compiler/value-transfers.md#the-template-word-plan).
+
+### Evaluator route
+
+The declared way an exact answer for one invocation is computed: a direct
+registry-owned function over the shared cores, the shared expression
+engine under a named language profile, a declared implementation run in
+the bounded engine, or a declared absence that classifies the command and
+evaluates nothing. The route is resolved with the binding and the selected
+form and is always declared — purity classifies a command but never
+supplies an evaluator, a cost bound, or its dependencies — and a route
+that cannot support the requested target semantics declines instead of
+answering under a default. Proposed as `EvalRoute`, whose implementation
+identity and revision enter every memo key.
+
+See also: [Value evaluation § Three routes, declared on the spec](design/compiler/value-evaluation.md#three-routes-declared-on-the-spec).
+
+### Admissibility
+
+The proposed proof that the target profile answers every release axis an
+evaluation reads, before it runs. `Needs` is the closed set of those axes
+— numeral and index grammar, the character model and indexing unit, the
+integer tower, `binary` fields, `format` verbs, `string is` classes,
+regexp features, list rendering, dict order, collation, byte strings,
+source encoding, the platform, and the wall clock — and `ConstOps` is the
+value model a direct-route core is handed once `admit` proves them, so an
+ambiguous axis is a typed decline rather than a guess. `PLATFORM` and
+`WALL_CLOCK` are never satisfiable, which keeps a clock- or host-reading
+core off the route by construction instead of by a whitelist.
+
+See also: [Value evaluation § The admissibility set](design/compiler/value-evaluation.md#the-admissibility-set).
+
+### Evaluator generation
+
+The proposed counter in the analysis context that changes whenever the set
+or the health of a thread's evaluators changes — an engine host installed
+or cleared, a hook quarantined. It enters every memo key once, so a worker
+with no host and a worker with one never share an entry and an otherwise
+identical query cannot silently change its answer. Proposed as
+`EvaluatorGeneration`.
+
+See also: [Value evaluation § The evaluator generation](design/compiler/value-evaluation.md#the-evaluator-generation),
+[salsa](#salsa).
 
 ### Def-use chains
 
@@ -931,6 +1074,21 @@ flowchart LR
 > instead of re-analysing the callee.
 
 See also: [Interprocedural analysis](design/compiler/interprocedural-analysis.md).
+KCS tag: `ipa`.
+
+### Transfer summary
+
+The proposed caller-visible transfer of one procedure: which caller places
+its name arguments denote and what happens to each in order, the places
+outside its frame it may write, its result shape, its completion domain,
+and its effect footprint. It is derived from the callee's own analysis
+over the seedless lattice — parameters `Overdefined`, no call-site seeds —
+so it holds for every caller, while a value exact only under a seed
+belongs to the argument-sensitive re-run instead. One summary per
+procedure, context-insensitive, composed bottom-up over the call graph
+beside [`ProcSummary`](#ipa); proposed as `TransferSummary`.
+
+See also: [Value transfers § Proc-level transfer summaries](design/compiler/value-transfers.md#proc-level-transfer-summaries).
 KCS tag: `ipa`.
 
 ### Guard identity
@@ -1341,6 +1499,48 @@ header injection, SSRF).  Classified by `classify_sink()` in
 See also: [Taint analysis](design/compiler/taint-analysis.md).
 KCS tag: `taint`.
 
+### Finding
+
+One producer's diagnostic before any policy is applied: its code as the
+one catalogue spells it, its span in the analysis form of the text, the
+producer's default severity, its message, fixes whose ranges are
+independent of the span, an optional adapter payload, and which producer
+emitted it. A producer emits findings and reads no policy: it filters
+nothing and never chooses the severity that is displayed, and when it
+skips its own calculation for a disabled code the policy step still
+records the decision. Proposed as `Finding` in
+`tcl_lsp_core::diagnostic_policy`.
+
+See also: [Diagnostic policy § The finding](design/compiler/diagnostic-policy.md#the-finding).
+
+### Diagnostic policy
+
+The proposed single value holding every decision that can hide or relabel
+a [finding](#finding): whether this file reports at all, whether byte
+evidence forces abstention, the resolved per-code decision with the scope
+layer that won it, the severity overrides, the optimiser master switch and
+profile, the shimmer switch, the overlap owners, and the directive facts
+the front end supplies. One pure `apply` over it is what every
+surface calls, so the editor, the CLI, the MCP tools, the code-action
+provider and `tcl opt` hold no second copy of any step and parity between
+them is a property of the code. Proposed as `Policy` in
+`tcl_lsp_core::diagnostic_policy`.
+
+See also: [Diagnostic policy § The policy](design/compiler/diagnostic-policy.md#the-policy),
+[Diagnostic report](#diagnostic-report).
+
+### Diagnostic report
+
+The proposed output of applying a [diagnostic policy](#diagnostic-policy):
+every [finding](#finding) paired with its outcome — shown, with the
+resolved severity and LSP tag, or suppressed, with the reason that
+suppressed it. Nothing is deleted, so "why is this code not firing" has
+one answer any surface can read, and the pairs keep the producers' order,
+so two surfaces given the same findings and the same policy produce the
+same report. Proposed as `Report` in `tcl_lsp_core::diagnostic_policy`.
+
+See also: [Diagnostic policy § The outcome](design/compiler/diagnostic-policy.md#the-outcome).
+
 ---
 
 ## Phase 8 — Bytecode codegen
@@ -1488,13 +1688,36 @@ See also: [The C Tcl extension shim](design/runtime/c-extension-shim.md).
 ### Runtime backing
 
 The proposed per-command registry fact naming how a described command's
-executable behaviour arrives at run time: a shipped builtin with a
-[guard identity](#guard-identity), a Tcl body with its source, a
-host-registered native command, or nothing. Code generation would choose
-from it which identity the compiled artefact records — a procedure binding,
-a command binding, or none — so that the runtime can attest the claim at
-admission or fall back to generic dispatch. See
-[Registry consumer contracts](design/compiler/registry-consumer-contracts.md).
+executable behaviour arrives at run time, in four variants: a shipped
+builtin attested by its registry identity; a Tcl body, with the source its
+text comes from — a path into the package's own installed source, or text
+carried in the pack, which is reported at load and turns its sites plain on
+the first mismatch; a command the host registered natively, a shimmed C
+command or an embedder's own handler, attested by a
+[guard identity](#guard-identity) and never by a procedure definition; or
+nothing that executes the command in the target runtime. Code generation
+chooses from it which identity the compiled artefact records — a command
+binding, a procedure binding, a guard, or none — so the runtime can attest
+the claim at admission or fall back to generic dispatch. See
+[Registry consumer contracts § What the artefact records per rung](design/compiler/registry-consumer-contracts.md#what-the-artefact-records-per-rung).
+
+KCS tag: `codegen`.
+
+### Site claim and pack fact stamp
+
+The proposed record one specialised call site carries in a compiled
+artefact, with the codegen rung as the variant: generic dispatch claims
+nothing; a pack-facts site records the facts its specialisation rests on;
+an alias site adds the command binding identity the VM's alias hop
+resolves; a reference-body site adds the procedure binding and the
+[runtime backing](#runtime-backing); and a shipped-implementation site
+adds the backing with the identity kind codegen chooses from it. The stamp
+is which pack facts a site rests on — the pack name, its content hash, the
+vocabulary version, the registry overlay generation, and the evaluator
+revision behind any declared implementation — so a changed pack
+invalidates the artefact instead of silently changing its meaning.
+Proposed as `SiteClaim` and `PackFactStamp`. See
+[Registry consumer contracts § What the artefact records per rung](design/compiler/registry-consumer-contracts.md#what-the-artefact-records-per-rung).
 
 KCS tag: `codegen`.
 
