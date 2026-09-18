@@ -640,12 +640,10 @@ impl Directives {
     }
 }
 
-/// Every decision that can hide or relabel a finding, resolved once for one
-/// document. Nothing here changes what a producer computes: a setting that
-/// does (`genericVariablePatterns`, the non-ASCII mode, the style line
-/// length) is a producer input and stays on the producers' arguments.
-#[derive(Debug, Clone)]
-pub struct Policy {
+/// The document-level gates: whether this file reports at all, and whether
+/// its bytes force abstention.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DocumentGates {
     /// `features.diagnostics` for this file's folder.
     pub reporting: bool,
     /// Whether `diagnostics.exclude` matches this file.
@@ -653,6 +651,27 @@ pub struct Policy {
     /// Byte evidence, through [`should_abstain`]: the codes that survive it
     /// are the integrity set, never a guess from whether W109 is displayed.
     pub abstain: bool,
+}
+
+impl Default for DocumentGates {
+    /// Everything reports; nothing is excluded or abstains.
+    fn default() -> Self {
+        Self {
+            reporting: true,
+            excluded: false,
+            abstain: false,
+        }
+    }
+}
+
+/// Every decision that can hide or relabel a finding, resolved once for one
+/// document. Nothing here changes what a producer computes: a setting that
+/// does (`genericVariablePatterns`, the non-ASCII mode, the style line
+/// length) is a producer input and stays on the producers' arguments.
+#[derive(Debug, Clone)]
+pub struct Policy {
+    /// The document-level gates.
+    pub document: DocumentGates,
     /// The resolved per-code decision and the layer that won it. A code
     /// absent from the map is enabled unless it is in `default_off`.
     pub codes: BTreeMap<DiagCode, CodeDecision>,
@@ -679,9 +698,7 @@ impl Default for Policy {
     /// overlaps stand.
     fn default() -> Self {
         Self {
-            reporting: true,
-            excluded: false,
-            abstain: false,
+            document: DocumentGates::default(),
             codes: BTreeMap::new(),
             default_off: DEFAULT_OFF_CODES,
             severity_overrides: BTreeMap::new(),
@@ -911,11 +928,13 @@ impl PolicyBuilder {
         }
 
         Policy {
-            reporting: self
-                .reporting
-                .unwrap_or_else(|| reporting.as_ref().and_then(Value::as_bool).unwrap_or(true)),
-            excluded: self.excluded,
-            abstain: self.abstain,
+            document: DocumentGates {
+                reporting: self
+                    .reporting
+                    .unwrap_or_else(|| reporting.as_ref().and_then(Value::as_bool).unwrap_or(true)),
+                excluded: self.excluded,
+                abstain: self.abstain,
+            },
             codes,
             default_off: DEFAULT_OFF_CODES,
             severity_overrides,
@@ -1046,13 +1065,13 @@ pub fn apply(findings: Vec<Finding>, policy: &Policy) -> Report {
 
 /// Steps 1 to 5 of [`apply`] for one finding: the first reason that fires.
 fn own_reason(finding: &Finding, policy: &Policy) -> Option<Reason> {
-    if !policy.reporting {
+    if !policy.document.reporting {
         return Some(Reason::ReportingOff);
     }
-    if policy.excluded {
+    if policy.document.excluded {
         return Some(Reason::Excluded);
     }
-    if policy.abstain && !ABSTENTION_SURVIVORS.contains(&finding.code) {
+    if policy.document.abstain && !ABSTENTION_SURVIVORS.contains(&finding.code) {
         return Some(Reason::EncodingAbstention);
     }
     if let Some(reason) = policy.directives.reason_for(finding.code, finding.span) {
@@ -1490,9 +1509,9 @@ mod policy_tests {
             .excluded(true)
             .build();
         assert!(!policy.shimmer);
-        assert!(!policy.reporting);
-        assert!(policy.excluded);
-        assert!(!policy.abstain);
+        assert!(!policy.document.reporting);
+        assert!(policy.document.excluded);
+        assert!(!policy.document.abstain);
         // The caller's own answer for `features.diagnostics` wins.
         let policy = PolicyBuilder::new()
             .layer(
@@ -1501,16 +1520,28 @@ mod policy_tests {
             )
             .reporting(true)
             .build();
-        assert!(policy.reporting);
+        assert!(policy.document.reporting);
     }
 
     #[test]
     fn the_decode_report_drives_abstention() {
         let (_, report) = crate::source_decode::decode_source(&[0xFF, 0xFE, b'p', 0, b'u', 0]);
-        assert!(PolicyBuilder::new().decode(Some(&report)).build().abstain);
+        assert!(
+            PolicyBuilder::new()
+                .decode(Some(&report))
+                .build()
+                .document
+                .abstain
+        );
         let (_, clean) = crate::source_decode::decode_source(b"puts ok\n");
-        assert!(!PolicyBuilder::new().decode(Some(&clean)).build().abstain);
-        assert!(!PolicyBuilder::new().decode(None).build().abstain);
+        assert!(
+            !PolicyBuilder::new()
+                .decode(Some(&clean))
+                .build()
+                .document
+                .abstain
+        );
+        assert!(!PolicyBuilder::new().decode(None).build().document.abstain);
     }
 
     #[test]
@@ -1635,7 +1666,8 @@ mod policy_tests {
         assert!(policy.default_off.is_empty());
         assert!(policy.optimiser.enabled && policy.optimiser.disabled.is_empty());
         assert!(policy.overlaps.is_empty());
-        assert!(policy.reporting && !policy.excluded && !policy.abstain && policy.shimmer);
+        assert_eq!(policy.document, DocumentGates::default());
+        assert!(policy.shimmer);
     }
 }
 
@@ -1680,8 +1712,11 @@ mod apply_tests {
             analyser(DiagCode::E002, 4, 8),
         ];
         let off = Policy {
-            reporting: false,
-            excluded: true,
+            document: DocumentGates {
+                reporting: false,
+                excluded: true,
+                abstain: false,
+            },
             ..Policy::default()
         };
         let report = apply(findings.clone(), &off);
@@ -1692,7 +1727,10 @@ mod apply_tests {
                 .all(|(_, o)| *o == Outcome::Suppressed(Reason::ReportingOff))
         );
         let excluded = Policy {
-            excluded: true,
+            document: DocumentGates {
+                excluded: true,
+                ..DocumentGates::default()
+            },
             ..Policy::default()
         };
         let report = apply(findings, &excluded);
@@ -1714,7 +1752,10 @@ mod apply_tests {
             analyser(DiagCode::W210, 7, 10),
         ];
         let policy = Policy {
-            abstain: true,
+            document: DocumentGates {
+                abstain: true,
+                ..DocumentGates::default()
+            },
             directives: Directives::scan(text, tcl9()),
             ..Policy::default()
         };

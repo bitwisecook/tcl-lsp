@@ -69,6 +69,11 @@ The existing end-to-end suites on the three surfaces are the parity gate.
   page's own `OverlapOwner` enum already says so.
 - **`Report` exposes `outcome_for` beside `reason_for`**, so "absent" and
   "shown" are distinguishable; the page names only `reason_for`.
+- **`Policy::document` groups `reporting`, `excluded` and `abstain`** as a
+  `DocumentGates` value. The page's sketch has them as three direct
+  fields; with `shimmer` that is four `bool`s on one struct, which
+  `clippy::pedantic` refuses and the repository allows no new `#[allow]`
+  for. The step order is unchanged.
 - **A compiler-check `replacement` becomes a same-span `Fix`** titled with
   the message and classified `FixSafety::RequiresReview`, because the check
   proved nothing more; `category` is dropped as the page says.
@@ -190,21 +195,22 @@ state. Then the shared disk filled (`ENOSPC` inside `target/`) while the
 `tcl-lsp-core` lib suite and the server suites were building, and the
 lane stopped building as instructed.
 
-So the commit that lands this file carries all three slices, verified as
-above and no further. **Not run on the final state**: the `tcl-lsp-core`
-lib suite (`config_ini`, `policy_tests`, `apply_tests`, the style and
-SslicTcl unit tests — one borrow error in the SslicTcl test was fixed by
-reading after the build died), the server's unit and e2e suites, the CLI
-suite (`tcl diag` parity: `diag_honours_noqa_directives_the_way_the_editor_does`,
-`diag_honours_a_file_directive_on_an_abstaining_document`, the style-row
-and `SSLIC` tests), the MCP suite, and clippy. The next agent runs, in
-this order, before anything else: `cargo check --workspace`; `cargo test
--p tcl-lsp-core --lib`; `cargo test -p tcl-lsp-server --lib lift_`,
-`settings_`, `sslictcl`, `xc_diagnostics`; `cargo test -p tcl-cli --test
-cli diag`; `cargo test -p tcl-mcp`; `cargo clippy -p tcl-lsp-core -p
-tcl-lsp-server -p tcl-cli -p xtask -p f5-xc --all-targets -- -D
-warnings`; then the catalogue gates listed above. A parity failure on the
-server or CLI is a defect in a shim in `lift_source_style_diagnostics`,
-`extend_with_sslictcl_diagnostics`, `lift_f5_source_integrity_diagnostics`,
-`style_rows`, `push_sslictcl_rows` or `abstained_rows`, not in the
-producers.
+So the commit that lands the three slices (`5fa79406`) carries them
+verified as above and no further; the disk was cleared afterwards and the
+rest ran on that state plus the two follow-up commits: `cargo check
+--workspace` green; `cargo test -p tcl-lsp-core --lib` (2302, including
+`config_ini`, `policy_tests` and `apply_tests`) and `--test
+lsp_edit_workspace` (37); the server's `lift_*`, `settings_*`,
+`default_off_w242`, `xc_diagnostics`, `config_precedence`,
+`apply_global_config` and `sslictcl` unit tests; the server e2e subsets
+`noqa` (6), `severity` (5), `sslictcl` (15), `optimiser_disable` (1),
+`xc_` (5) and `style` (5); the whole CLI suite (25, with
+`diag_honours_noqa_directives_the_way_the_editor_does`,
+`diag_honours_a_file_directive_on_an_abstaining_document`, the style-row,
+W118 and `SSLIC` tests); the MCP suite (81); `f5-xc` and `tcl-core-types`;
+`xtask` except `value_transfers::tests::the_enforced_tier_is_clean_or_waived`,
+which is the `value-transfers` lane's own uncommitted test; `cargo clippy
+--all-targets --no-deps -- -D warnings` on `tcl-lsp-core`,
+`tcl-lsp-server`, `tcl-cli`, `xtask`, `f5-xc` and `tcl-core-types`
+(`--no-deps` because the other lane's in-flight `tcl-compiler` fails
+pedantic on its own); and every catalogue gate plus `kcs-index-links`.
