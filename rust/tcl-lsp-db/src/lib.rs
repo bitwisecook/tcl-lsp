@@ -3807,6 +3807,74 @@ mod tests {
         assert!(body_cache_eligible(" set y 2 "));
     }
 
+    /// Standalone analysis and the memoised editor path run through the
+    /// same immutable context: on program (3) of the value-transfer contract
+    /// and the `incr` / `append` / `lappend` / `string range` witnesses, the
+    /// per-procedure lattice the memoised `function_lattice` query builds is
+    /// the lattice a direct build computes, value for value, under a release
+    /// that names its grammar and under one that does not.
+    #[test]
+    fn direct_and_memoised_lattices_agree_on_the_cell_update_witnesses() {
+        const SRC: &str = "proc p {} {\n    set n 1\n    incr n\n    incr n 2\n    set s hello\n    append s { world}\n    set l {}\n    lappend l a b\n    lappend l {c d}\n    set z 010\n    incr z\n    set big 9223372036854775807\n    incr big\n    set r [string range abcdefghijkl 010 end]\n    set x 10\n    foreach a {1 2} { incr x $a }\n    return $n\n}\n\
+                           proc q {} {\n    set acc {}\n    foreach {a b} {1 10 2 20} { incr acc [expr {$b / $a}] }\n    return $acc\n}\n";
+        for dialect in ["tcl8.6", "tcl9.0", "f5-irules"] {
+            let db = TclDatabase::default();
+            let cfg_key = lexer_cfg_key(&db, dialect);
+            let file = SourceFile::new(&db, SRC.to_owned(), dialect.to_owned(), None);
+            let memoised = compilation_unit(&db, file, cfg_key);
+            let registry = db.registry(dialect);
+            let direct = CompilationUnit::build_with_options(
+                SRC,
+                unit_build_options(
+                    &db,
+                    file,
+                    cfg_key,
+                    registry,
+                    None,
+                    &declared_command_surface(&db, file),
+                ),
+            );
+            for qname in ["::p", "::q"] {
+                let lattice_of = |unit: &CompilationUnit| {
+                    let fu = unit.procedures.get(qname).expect(qname);
+                    let mut values: Vec<(String, u32, String)> = fu
+                        .sccp
+                        .values
+                        .iter()
+                        .map(|((sym, ver), value)| {
+                            (fu.ssa.var_name(*sym).to_owned(), *ver, format!("{value:?}"))
+                        })
+                        .collect();
+                    values.sort();
+                    values
+                };
+                let want = lattice_of(&direct);
+                assert_eq!(lattice_of(&memoised), want, "{dialect}: {qname}");
+                assert!(
+                    want.iter()
+                        .any(|(name, _, value)| name == "n" && value.contains("Int(4)")),
+                    "{dialect}: program (3) folds to 4 on both paths: {want:?}"
+                );
+                if qname == "::p" {
+                    let z = want
+                        .iter()
+                        .filter(|(name, _, _)| name == "z")
+                        .map(|(_, _, value)| value.as_str())
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    match dialect {
+                        "tcl8.6" => assert!(z.contains("Int(9)"), "{dialect}: {z}"),
+                        "tcl9.0" => assert!(z.contains("Int(11)"), "{dialect}: {z}"),
+                        _ => assert!(
+                            !z.contains("Int(9)") && !z.contains("Int(11)"),
+                            "{dialect}: {z}"
+                        ),
+                    }
+                }
+            }
+        }
+    }
+
     #[test]
     fn compiler_check_o122_tailrec_memo_matches_uncached() {
         // An impure (side-effecting) tail-recursive proc fires O122

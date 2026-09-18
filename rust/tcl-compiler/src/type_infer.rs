@@ -1746,6 +1746,7 @@ mod tests {
 
     fn empty_sccp(f: &Function, blocks: &[&str]) -> SccpResult {
         SccpResult {
+            explanations: Vec::new(),
             values: HashMap::new(),
             executable_blocks: blocks
                 .iter()

@@ -237,20 +237,17 @@ fn fold_index(args: &[&str]) -> Option<String> {
 }
 
 /// `string range string first last`.  ASCII-restricted.
-fn fold_range(args: &[&str]) -> Option<String> {
-    let [s, first_s, last_s] = args else {
-        return None;
-    };
-    let s = *s;
-    if !s.is_ascii() {
-        return None;
-    }
-    let first = parse_index(first_s, s.len())?;
-    let last = parse_index(last_s, s.len())?;
-    match clamp_range(first, last, s.len()) {
-        Some((lo, hi)) => Some(s[lo..=hi].to_owned()),
-        None => Some(String::new()),
-    }
+/// `string range string first last` — the declared direct route run over
+/// literal words: the shared core under `version`'s grammar, or under the
+/// answer every release gives when the caller names none.
+fn fold_range(args: &[&str], version: Option<TclVersion>) -> Option<String> {
+    crate::value_transfer::evaluate_literal(
+        &crate::value_transfer::builtins::STRING_RANGE,
+        "string",
+        Some("range"),
+        args,
+        version,
+    )
 }
 
 /// `string replace string first last ?newString?`.  ASCII-restricted.
@@ -1376,7 +1373,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "string range string first last",
         pure: true,
         return_type: Some(TclType::String),
-        const_fold: Some(fold_range),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STRING_RANGE),
+        const_fold_versioned: Some(fold_range),
         arg_types: &[
             (
                 0,

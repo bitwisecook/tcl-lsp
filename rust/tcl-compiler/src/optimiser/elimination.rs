@@ -1741,6 +1741,30 @@ mod tests {
         );
     }
 
+    /// A cell update nested in a substitution reads its target before
+    /// writing it, so the store feeding it is never dead: `set n 1; set
+    /// result [incr n]; puts $n` prints 2 and keeps `set n 1` (#2050).
+    #[test]
+    fn store_read_by_a_nested_cell_update_is_not_dead() {
+        for src in [
+            "set n 1\nset result [incr n]\nputs $n",
+            "set n 1\nset result [incr n]\nputs $result",
+            "set l {a}\nset r [lappend l b]\nputs $r",
+            "set s x\nputs [append s y]",
+        ] {
+            let opts = run_pass(src);
+            assert!(
+                !opts
+                    .iter()
+                    .any(|o| o.code == DiagCode::O109 || o.code == DiagCode::O126),
+                "{src:?}: the nested cell update reads the store, got {opts:?}",
+            );
+        }
+        // The control: a store nothing reads is still dead.
+        let opts = run_pass("set n 1\nset n 2\nputs $n");
+        assert!(opts.iter().any(|o| o.code == DiagCode::O109), "{opts:?}");
+    }
+
     #[test]
     fn qualified_global_write_is_not_a_dead_store() {
         // `set ::counter 42` inside a proc is a global write

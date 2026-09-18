@@ -26,6 +26,8 @@
 
 use std::collections::HashMap;
 
+use tcl_registry::CommandRegistry;
+
 use crate::expr_ast::{ExprNode, expr_text};
 use crate::ir::{IfClause, Script, Statement, SwitchArm, SwitchMode};
 use crate::naming::normalise_var_name;
@@ -65,26 +67,37 @@ impl StaticValue {
 /// constant value.
 pub type StaticEnv = HashMap<String, StaticValue>;
 
+/// What a simulation evaluates under: the fold policy for its expressions
+/// and the registry whose declared routes evaluate its cell updates.
+#[derive(Clone, Copy)]
+pub struct LoopSemantics<'a> {
+    /// The expression fold policy.
+    pub policy: FoldPolicy,
+    /// The registry the cell updates resolve against.
+    pub registry: &'a CommandRegistry,
+}
+
 fn env_as_tcl_env(env: &StaticEnv) -> Env {
     env.iter()
         .map(|(k, v)| (k.clone(), v.to_env_value()))
         .collect()
 }
 
-/// Parse a literal text as [`StaticValue`]. Prefers integer,
-/// then `true`/`false`, then string fallback.
+/// Parse a literal text as [`StaticValue`]: an integer under the one
+/// value-ingress rule (`ExactValue::from_literal` — the canonical spelling
+/// round-trips, so `010` and `+5` stay text for the release's numeral
+/// grammar to read), then `true`/`false`, then the exact text.
 #[must_use]
 pub fn parse_literal_value(text: &str) -> StaticValue {
-    let stripped = text.trim();
-    if let Ok(i) = stripped.parse::<i64>() {
+    if let Some(i) = tcl_registry::value_transfer::ExactValue::from_literal(text).as_int() {
         return StaticValue::Int(i);
     }
-    match stripped.to_ascii_lowercase().as_str() {
+    match text.trim().to_ascii_lowercase().as_str() {
         "true" => return StaticValue::Bool(true),
         "false" => return StaticValue::Bool(false),
         _ => {}
     }
-    StaticValue::Str(stripped.to_owned())
+    StaticValue::Str(text.to_owned())
 }
 
 /// Evaluate an expression string under `env`.
@@ -200,7 +213,8 @@ fn resolve_switch_pattern(pattern: &str) -> String {
 /// Returns `true` when the statement is in the supported subset;
 /// `false` when it should abort the whole summarisation (call,
 /// barrier, unhandled structured form, etc.).
-fn exec_statement(stmt: &Statement, env: &mut StaticEnv, policy: FoldPolicy) -> bool {
+fn exec_statement(stmt: &Statement, env: &mut StaticEnv, semantics: LoopSemantics<'_>) -> bool {
+    let policy = semantics.policy;
     match stmt {
         Statement::AssignConst { name, value, .. } => {
             env.insert(name.clone(), parse_literal_value(value));
@@ -229,53 +243,36 @@ fn exec_statement(stmt: &Statement, env: &mut StaticEnv, policy: FoldPolicy) -> 
             env.insert(name.clone(), parse_literal_value(value));
             true
         }
-        Statement::Incr { name, amount, .. } => {
-            let base = env.get(name).cloned();
-            let Some(StaticValue::Int(b)) = base else {
-                return false;
-            };
-            let amt: i64 = match amount.as_deref() {
-                None => 1,
-                Some(text) => {
-                    let t = text.trim();
-                    if let Ok(i) = t.parse::<i64>() {
-                        i
-                    } else if let Some(var) = simple_var_ref(t) {
-                        match env.get(&var) {
-                            Some(StaticValue::Int(i)) => *i,
-                            Some(StaticValue::Bool(b)) => i64::from(*b),
-                            _ => return false,
-                        }
-                    } else {
-                        return false;
-                    }
-                }
-            };
-            let Some(sum) = b.checked_add(amt) else {
-                return false;
-            };
-            env.insert(name.clone(), StaticValue::Int(sum));
-            true
-        }
+        // The typed cell update: the registry's declared route evaluates
+        // it over the environment, under the same target semantics as the
+        // lattice — one increment model, not a second one here.
+        Statement::Incr { name, amount, .. } => crate::value_transfer::exec_cell_update_in_env(
+            semantics.registry,
+            policy.dialect,
+            "incr",
+            name,
+            amount.as_deref(),
+            env,
+        ),
         Statement::If {
             clauses, else_body, ..
-        } => exec_if(clauses, else_body.as_ref(), env, policy),
+        } => exec_if(clauses, else_body.as_ref(), env, semantics),
         Statement::Switch {
             subject,
             arms,
             default_body,
             mode,
             ..
-        } => exec_switch(subject, arms, default_body.as_ref(), *mode, env, policy),
+        } => exec_switch(subject, arms, default_body.as_ref(), *mode, env, semantics),
         // Calls, barriers, returns, loops (other than the
         // top-level summarised `for`) — out of supported subset.
         _ => false,
     }
 }
 
-fn exec_script(script: &Script, env: &mut StaticEnv, policy: FoldPolicy) -> bool {
+fn exec_script(script: &Script, env: &mut StaticEnv, semantics: LoopSemantics<'_>) -> bool {
     for stmt in &script.statements {
-        if !exec_statement(stmt, env, policy) {
+        if !exec_statement(stmt, env, semantics) {
             return false;
         }
     }
@@ -286,19 +283,20 @@ fn exec_if(
     clauses: &[IfClause],
     else_body: Option<&Script>,
     env: &mut StaticEnv,
-    policy: FoldPolicy,
+    semantics: LoopSemantics<'_>,
 ) -> bool {
+    let policy = semantics.policy;
     for clause in clauses {
         let Some(cond) = evaluate_expr_with_constants(&clause.condition, env, policy) else {
             return false;
         };
         if cond != 0 {
-            return exec_script(&clause.body, env, policy);
+            return exec_script(&clause.body, env, semantics);
         }
     }
     match else_body {
         None => true,
-        Some(body) => exec_script(body, env, policy),
+        Some(body) => exec_script(body, env, semantics),
     }
 }
 
@@ -308,7 +306,7 @@ fn exec_switch(
     default_body: Option<&Script>,
     _mode: SwitchMode,
     env: &mut StaticEnv,
-    policy: FoldPolicy,
+    semantics: LoopSemantics<'_>,
 ) -> bool {
     let Some(subject_value) = resolve_switch_subject(subject, env) else {
         return false;
@@ -330,7 +328,7 @@ fn exec_switch(
     let body = selected_body.or(default_body);
     match body {
         None => true,
-        Some(b) => exec_script(b, env, policy),
+        Some(b) => exec_script(b, env, semantics),
     }
 }
 
@@ -348,11 +346,12 @@ pub fn summarise_static_for(
     body: &Script,
     initial_constants: &StaticEnv,
     max_iterations: u64,
-    policy: FoldPolicy,
+    semantics: LoopSemantics<'_>,
 ) -> Option<StaticEnv> {
     let mut env: StaticEnv = initial_constants.clone();
+    let policy = semantics.policy;
 
-    if !exec_script(init, &mut env, policy) {
+    if !exec_script(init, &mut env, semantics) {
         return None;
     }
     let mut iterations: u64 = 0;
@@ -365,10 +364,10 @@ pub fn summarise_static_for(
         if iterations > max_iterations {
             return None;
         }
-        if !exec_script(body, &mut env, policy) {
+        if !exec_script(body, &mut env, semantics) {
             return None;
         }
-        if !exec_script(next_script, &mut env, policy) {
+        if !exec_script(next_script, &mut env, semantics) {
             return None;
         }
     }
@@ -383,7 +382,7 @@ pub fn summarise_for_statement(
     stmt: &Statement,
     initial_constants: &StaticEnv,
     max_iterations: u64,
-    policy: FoldPolicy,
+    semantics: LoopSemantics<'_>,
 ) -> Option<StaticEnv> {
     let Statement::For {
         init,
@@ -403,7 +402,7 @@ pub fn summarise_for_statement(
         body,
         initial_constants,
         max_iterations,
-        policy,
+        semantics,
     )
 }
 
@@ -412,6 +411,10 @@ mod tests {
     use super::*;
     use crate::expr_parser::parse_expr;
     use tcl_lexer::Span;
+
+    fn registry() -> CommandRegistry {
+        CommandRegistry::build_default()
+    }
 
     fn sp() -> Span {
         Span::new(0, 0)
@@ -447,6 +450,61 @@ mod tests {
             amount: amount.map(String::from),
             safe_on_uninit: false,
         }
+    }
+
+    /// The simulator's `incr` is the registry's route: a leading-zero
+    /// counter reads as octal up to 8.6 and decimal from 9.0, and a profile
+    /// naming no release cannot simulate it at all.
+    #[test]
+    fn simulated_incr_reads_the_counter_under_the_release() {
+        let for_stmt = Statement::For {
+            span: sp(),
+            init: script_of(vec![assign_const("i", "010")]),
+            init_span: sp(),
+            condition: parse_expr("$i < 20", None),
+            condition_span: sp(),
+            next: script_of(vec![incr("i", None)]),
+            next_span: sp(),
+            body: empty_script(),
+            body_span: sp(),
+            raw_args: Vec::new(),
+            raw_tokens: None,
+            condition_base: None,
+        };
+        let under = |dialect: &str| {
+            let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+            summarise_for_statement(
+                &for_stmt,
+                &StaticEnv::new(),
+                100,
+                LoopSemantics {
+                    policy: FoldPolicy::from_registry(registry),
+                    registry,
+                },
+            )
+            .map(|env| env.get("i").cloned())
+        };
+        assert_eq!(under("tcl8.6"), Some(Some(StaticValue::Int(20))));
+        assert_eq!(under("tcl9.0"), Some(Some(StaticValue::Int(20))));
+        assert_eq!(
+            under("f5-irules"),
+            None,
+            "no release: the counter is ambiguous"
+        );
+    }
+
+    /// The literal ingress is the one rule: a leading-zero or signed
+    /// numeral stays text for the release's grammar to read, and nothing
+    /// is trimmed.
+    #[test]
+    fn parse_literal_value_keeps_release_dependent_spellings_as_text() {
+        assert_eq!(parse_literal_value("42"), StaticValue::Int(42));
+        assert_eq!(parse_literal_value("-7"), StaticValue::Int(-7));
+        assert_eq!(parse_literal_value("010"), StaticValue::Str("010".into()));
+        assert_eq!(parse_literal_value("+5"), StaticValue::Str("+5".into()));
+        assert_eq!(parse_literal_value(" 5"), StaticValue::Str(" 5".into()));
+        assert_eq!(parse_literal_value("true"), StaticValue::Bool(true));
+        assert_eq!(parse_literal_value(" a "), StaticValue::Str(" a ".into()));
     }
 
     // saturating_f64_to_i64
@@ -511,7 +569,10 @@ mod tests {
             &body,
             &StaticEnv::new(),
             1000,
-            FoldPolicy::default(),
+            LoopSemantics {
+                policy: FoldPolicy::default(),
+                registry: &registry(),
+            },
         )
         .expect("summarised");
         assert_eq!(env.get("i"), Some(&StaticValue::Int(5)));
@@ -531,7 +592,10 @@ mod tests {
             &body,
             &StaticEnv::new(),
             1000,
-            FoldPolicy::default(),
+            LoopSemantics {
+                policy: FoldPolicy::default(),
+                registry: &registry(),
+            },
         )
         .expect("summarised");
         assert_eq!(env.get("total"), Some(&StaticValue::Int(3)));
@@ -551,7 +615,10 @@ mod tests {
             &body,
             &StaticEnv::new(),
             100,
-            FoldPolicy::default(),
+            LoopSemantics {
+                policy: FoldPolicy::default(),
+                registry: &registry(),
+            },
         );
         assert!(result.is_none(), "should exceed the 100-iter cap");
     }
@@ -582,7 +649,10 @@ mod tests {
                 &body,
                 &StaticEnv::new(),
                 1000,
-                FoldPolicy::default()
+                LoopSemantics {
+                    policy: FoldPolicy::default(),
+                    registry: &registry()
+                }
             )
             .is_none()
         );
@@ -641,7 +711,10 @@ mod tests {
             &body,
             &StaticEnv::new(),
             1000,
-            FoldPolicy::default(),
+            LoopSemantics {
+                policy: FoldPolicy::default(),
+                registry: &registry(),
+            },
         )
         .expect("summarised");
         assert_eq!(env.get("i"), Some(&StaticValue::Int(3)));
@@ -662,7 +735,10 @@ mod tests {
             &body,
             &StaticEnv::new(),
             1000,
-            FoldPolicy::default(),
+            LoopSemantics {
+                policy: FoldPolicy::default(),
+                registry: &registry(),
+            },
         )
         .expect("summarised");
         assert_eq!(env.get("v"), Some(&StaticValue::Int(1)));
@@ -682,7 +758,10 @@ mod tests {
             &body,
             &StaticEnv::new(),
             1000,
-            FoldPolicy::default(),
+            LoopSemantics {
+                policy: FoldPolicy::default(),
+                registry: &registry(),
+            },
         );
         assert!(result.is_none(), "unresolvable switch subject should bail");
     }
@@ -703,8 +782,16 @@ mod tests {
             raw_tokens: None,
             condition_base: None,
         };
-        let env = summarise_for_statement(&for_stmt, &StaticEnv::new(), 100, FoldPolicy::default())
-            .expect("summarised");
+        let env = summarise_for_statement(
+            &for_stmt,
+            &StaticEnv::new(),
+            100,
+            LoopSemantics {
+                policy: FoldPolicy::default(),
+                registry: &registry(),
+            },
+        )
+        .expect("summarised");
         assert_eq!(env.get("i"), Some(&StaticValue::Int(2)));
     }
 

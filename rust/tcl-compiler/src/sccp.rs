@@ -202,6 +202,10 @@ pub struct SccpResult {
     pub executable_edges: HashSet<(BlockId, BlockId)>,
     /// Constant branches detected during propagation.
     pub constant_branches: Vec<ConstantBranch>,
+    /// Per statement, the value-transfer route the resolved invocation
+    /// declared and how it answered at the fixed point — what the
+    /// Explorer's `sccp` view renders beside the lattice.
+    pub explanations: Vec<crate::value_transfer::RouteExplanation>,
 }
 
 /// Sparse Conditional Constant Propagation driver.
@@ -470,6 +474,7 @@ pub fn sccp_with_builtin_folds(
                     values: &values,
                     policy,
                     grammar,
+                    registry: trace.registry,
                 };
                 if sccp_process_terminator(
                     *bn,
@@ -494,8 +499,11 @@ pub fn sccp_with_builtin_folds(
         &values,
         &executable_blocks,
         &order,
-        policy,
-        grammar,
+        BranchFold {
+            policy,
+            grammar,
+            registry: trace.registry,
+        },
     );
 
     SccpResult {
@@ -503,6 +511,7 @@ pub fn sccp_with_builtin_folds(
         executable_blocks,
         executable_edges,
         constant_branches,
+        explanations: driver.take_explanations(),
     }
 }
 
@@ -773,6 +782,8 @@ struct TerminatorInputs<'a> {
     /// The document's lexer grammar — the branch condition's `Raw` operand
     /// texts are re-read under it when their variables are collected.
     grammar: tcl_dialect::LexerGrammar,
+    /// The registry the bounded-loop simulator resolves against.
+    registry: &'a CommandRegistry,
 }
 
 /// Process a block's terminator: mark the matching outgoing edges
@@ -791,6 +802,7 @@ fn sccp_process_terminator(
         values,
         policy,
         grammar,
+        registry,
     } = *inputs;
     let mut changed = false;
     let Some(block) = cfg.blocks.get(&bn) else {
@@ -826,7 +838,11 @@ fn sccp_process_terminator(
                 ssa_block,
                 condition,
                 values,
-                BranchFold { policy, grammar },
+                BranchFold {
+                    policy,
+                    grammar,
+                    registry,
+                },
             );
             let targets: Vec<BlockId> = match decision {
                 Some(true) => vec![*true_target],
@@ -884,8 +900,7 @@ fn collect_constant_branches(
     values: &HashMap<ValueKey, LatticeValue>,
     executable_blocks: &HashSet<BlockId>,
     order: &[BlockId],
-    policy: FoldPolicy,
-    grammar: tcl_dialect::LexerGrammar,
+    fold: BranchFold<'_>,
 ) -> Vec<ConstantBranch> {
     let mut constant_branches: Vec<ConstantBranch> = Vec::new();
     for bn in order {
@@ -908,15 +923,7 @@ fn collect_constant_branches(
         let Some(ssa_block) = ssa.blocks.get(bn) else {
             continue;
         };
-        let decision = branch_decision(
-            cfg,
-            ssa,
-            *bn,
-            ssa_block,
-            condition,
-            values,
-            BranchFold { policy, grammar },
-        );
+        let decision = branch_decision(cfg, ssa, *bn, ssa_block, condition, values, fold);
         let cond_text = crate::expr_ast::expr_text(condition);
         let (true_name, false_name) = (
             cfg.block_name(*true_target).to_owned(),
@@ -1352,6 +1359,19 @@ fn evaluate_def_under<S: std::hash::BuildHasher>(
     ssa: &SsaFunction,
     driver: &LatticeDriver<'_>,
 ) -> LatticeValue {
+    driver.explaining(Some(stmt_ssa.statement.span()));
+    let value = evaluate_def_dispatch(stmt_ssa, values, ssa, driver);
+    driver.explaining(None);
+    value
+}
+
+/// The typed dispatch of [`evaluate_def_under`].
+fn evaluate_def_dispatch<S: std::hash::BuildHasher>(
+    stmt_ssa: &SsaStatement,
+    values: &HashMap<ValueKey, LatticeValue, S>,
+    ssa: &SsaFunction,
+    driver: &LatticeDriver<'_>,
+) -> LatticeValue {
     match &stmt_ssa.statement {
         Statement::AssignConst { value, .. } => LatticeValue::Const(parse_literal_value(value)),
         Statement::AssignExpr { expr, .. } => {
@@ -1419,9 +1439,12 @@ fn resolve_simple_var_ref<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher
 /// (`grammar`). Bundled so the fold entry points stay inside clippy's
 /// argument budget and neither fact can be threaded without the other.
 #[derive(Clone, Copy)]
-struct BranchFold {
+struct BranchFold<'a> {
     policy: FoldPolicy,
     grammar: tcl_dialect::LexerGrammar,
+    /// The registry the bounded-loop simulator resolves its cell updates
+    /// against.
+    registry: &'a CommandRegistry,
 }
 
 fn branch_decision(
@@ -1431,10 +1454,14 @@ fn branch_decision(
     ssa_block: &crate::ssa::SsaBlock,
     condition: &ExprNode,
     values: &HashMap<ValueKey, LatticeValue>,
-    fold: BranchFold,
+    fold: BranchFold<'_>,
 ) -> Option<bool> {
-    let BranchFold { policy, grammar } = fold;
-    loop_summary_decision(cfg, ssa, bn, condition, values, policy)
+    let BranchFold {
+        policy,
+        grammar,
+        registry,
+    } = fold;
+    loop_summary_decision(cfg, ssa, bn, condition, values, policy, registry)
         .or_else(|| evaluate_branch(ssa_block, condition, values, policy, ssa, grammar))
 }
 
@@ -1461,6 +1488,7 @@ fn loop_summary_decision(
     condition: &ExprNode,
     values: &HashMap<ValueKey, LatticeValue>,
     policy: FoldPolicy,
+    registry: &CommandRegistry,
 ) -> Option<bool> {
     let node = cfg.loop_nodes.get(&bn)?;
     let start_ssa = ssa.blocks.get(&node.entry_block)?;
@@ -1474,7 +1502,7 @@ fn loop_summary_decision(
         &node.for_stmt,
         &start_env,
         crate::static_loops::DEFAULT_MAX_STATIC_LOOP_ITERS,
-        policy,
+        crate::static_loops::LoopSemantics { policy, registry },
     )?;
     let v = crate::static_loops::evaluate_expr_with_constants(condition, &summarised, policy)?;
     Some(v != 0)
@@ -2544,6 +2572,318 @@ mod tests {
         assert_eq!(
             evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Overdefined
+        );
+    }
+
+    /// A `Call` whose resolved plan is a cell update, in the shape the
+    /// lowering gives `append` / `lappend`: the target is the first
+    /// argument, a def, and a read of its own prior version.
+    fn cell_update_call(
+        ssa: &mut SsaFunction,
+        command: &str,
+        args: &[&str],
+        old_ver: u32,
+        new_ver: u32,
+    ) -> SsaStatement {
+        let target = ssa.intern_var(args[0]);
+        let mut uses = HashMap::new();
+        uses.insert(target, old_ver);
+        let mut defs = HashMap::new();
+        defs.insert(target, new_ver);
+        SsaStatement {
+            statement: Statement::Call {
+                span: Span::new(0, 0),
+                command: command.into(),
+                canonical_command: None,
+                args: args.iter().map(|a| (*a).to_owned()).collect(),
+                defs: vec![args[0].to_owned()],
+                reads: Vec::new(),
+                reads_own_defs: true,
+                safe_on_uninit: true,
+                tokens: None,
+                foreach_groups: None,
+            },
+            uses,
+            defs,
+            may_defs: std::collections::HashSet::new(),
+            quoted_uses: std::collections::HashSet::new(),
+            name_only_uses: std::collections::HashSet::new(),
+        }
+    }
+
+    fn folds_for(dialect: &str) -> BuiltinFoldInputs<'static> {
+        use std::sync::OnceLock;
+        static MUTATIONS: OnceLock<crate::command_binding::ModuleCommandMutations> =
+            OnceLock::new();
+        let environment = tcl_registry::model::ingress::resolve_environment(dialect);
+        BuiltinFoldInputs {
+            registry: tcl_registry::model::ingress::static_context_for(dialect).commands(),
+            mutations: MUTATIONS.get_or_init(Default::default),
+            dialect: Some(environment.analyser_profile()),
+            defining_class: None,
+        }
+    }
+
+    /// `append s " world"` over `s@1 = hello`: the registry's cell append
+    /// writes `hello world`, byte-exact, and the def takes the store.
+    #[test]
+    fn evaluate_def_append_call_folds_through_the_cell_update() {
+        let mut ssa = bare_ssa();
+        let stmt = cell_update_call(&mut ssa, "append", &["s", " world", "!"], 1, 2);
+        let s = ssa.var_symbol("s").unwrap();
+        let mut values = HashMap::new();
+        values.insert(
+            (s, 1),
+            LatticeValue::Const(ConstValue::String("hello".into())),
+        );
+        assert_eq!(
+            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            LatticeValue::Const(ConstValue::String("hello world!".into()))
+        );
+    }
+
+    /// `append s $p` reads the piece from the lattice, exactly: `set p
+    /// { again}` keeps its leading space (#2052).
+    #[test]
+    fn evaluate_def_append_var_piece_reads_the_lattice_exactly() {
+        let mut ssa = bare_ssa();
+        let mut stmt = cell_update_call(&mut ssa, "append", &["s", "$p"], 1, 2);
+        let s = ssa.var_symbol("s").unwrap();
+        let p = ssa.intern_var("p");
+        stmt.uses.insert(p, 1);
+        let mut values = HashMap::new();
+        values.insert(
+            (s, 1),
+            LatticeValue::Const(ConstValue::String("hello".into())),
+        );
+        values.insert(
+            (p, 1),
+            LatticeValue::Const(ConstValue::String(" again".into())),
+        );
+        assert_eq!(
+            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            LatticeValue::Const(ConstValue::String("hello again".into()))
+        );
+    }
+
+    /// `lappend l c {d e}` over `l@1 = a b`: the list append renders
+    /// canonically; over a value that is not a list it is the program's
+    /// error, so the def widens.
+    #[test]
+    fn evaluate_def_lappend_call_renders_the_canonical_list() {
+        let mut ssa = bare_ssa();
+        let stmt = cell_update_call(&mut ssa, "lappend", &["l", "c", "d e"], 1, 2);
+        let l = ssa.var_symbol("l").unwrap();
+        let mut values = HashMap::new();
+        values.insert(
+            (l, 1),
+            LatticeValue::Const(ConstValue::String("a b".into())),
+        );
+        assert_eq!(
+            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            LatticeValue::Const(ConstValue::String("a b c {d e}".into()))
+        );
+        values.insert((l, 1), LatticeValue::Const(ConstValue::String("{".into())));
+        assert_eq!(
+            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            LatticeValue::Overdefined
+        );
+        // An unknown prior stays pending, never a manufactured empty list.
+        assert_eq!(
+            evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
+            LatticeValue::Unknown
+        );
+    }
+
+    /// A generic call with a def but no declared plan keeps the
+    /// conservative answer.
+    #[test]
+    fn evaluate_def_call_without_a_plan_widens() {
+        let mut ssa = bare_ssa();
+        let stmt = cell_update_call(&mut ssa, "gets", &["chan", "line"], 1, 2);
+        let chan = ssa.var_symbol("chan").unwrap();
+        let mut values = HashMap::new();
+        values.insert(
+            (chan, 1),
+            LatticeValue::Const(ConstValue::String("stdin".into())),
+        );
+        assert_eq!(
+            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            LatticeValue::Overdefined
+        );
+    }
+
+    /// The correlated finite-set limit: one finite input evaluates per
+    /// member; two distinct finite inputs decline; two reads of one SSA
+    /// value are one distinct input.
+    #[test]
+    fn evaluate_def_incr_lifts_over_one_finite_input() {
+        let mut ssa = bare_ssa();
+        let stmt = incr_stmt(&mut ssa, "x", Some("10"), 1, 2);
+        let x = ssa.var_symbol("x").unwrap();
+        let mut values = HashMap::new();
+        values.insert(
+            (x, 1),
+            LatticeValue::ConstSet(vec![ConstValue::Int(1), ConstValue::Int(2)]),
+        );
+        assert_eq!(
+            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            LatticeValue::ConstSet(vec![ConstValue::Int(11), ConstValue::Int(12)])
+        );
+
+        let mut ssa = bare_ssa();
+        let mut stmt = incr_stmt(&mut ssa, "x", Some("$a"), 1, 2);
+        let x = ssa.var_symbol("x").unwrap();
+        let a = ssa.intern_var("a");
+        stmt.uses.insert(a, 1);
+        let mut values = HashMap::new();
+        values.insert(
+            (x, 1),
+            LatticeValue::ConstSet(vec![ConstValue::Int(1), ConstValue::Int(2)]),
+        );
+        values.insert(
+            (a, 1),
+            LatticeValue::ConstSet(vec![ConstValue::Int(10), ConstValue::Int(20)]),
+        );
+        assert_eq!(
+            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            LatticeValue::Overdefined,
+            "two distinct finite inputs are correlated"
+        );
+        // `incr x $x`: the step reads the target's own version.
+        let mut ssa = bare_ssa();
+        let stmt = incr_stmt(&mut ssa, "x", Some("$x"), 1, 2);
+        let x = ssa.var_symbol("x").unwrap();
+        let mut values = HashMap::new();
+        values.insert(
+            (x, 1),
+            LatticeValue::ConstSet(vec![ConstValue::Int(1), ConstValue::Int(2)]),
+        );
+        assert_eq!(
+            evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
+            LatticeValue::ConstSet(vec![ConstValue::Int(2), ConstValue::Int(4)])
+        );
+    }
+
+    /// The release rules reach the lattice through the registry's route:
+    /// a leading-zero base reads as octal up to 8.6 and decimal from 9.0,
+    /// and declines under a profile naming no release; past the wide
+    /// boundary 8.5 onward widens, 8.4 and an unnamed release decline.
+    #[test]
+    fn evaluate_def_incr_reads_the_base_under_the_targets_release() {
+        let mut ssa = bare_ssa();
+        let stmt = incr_stmt(&mut ssa, "x", None, 1, 2);
+        let x = ssa.var_symbol("x").unwrap();
+        let under = |dialect: &str, base: LatticeValue| {
+            let folds = folds_for(dialect);
+            let mut values = HashMap::new();
+            values.insert((x, 1), base);
+            evaluate_def_with_folds(
+                &stmt,
+                &values,
+                &ssa,
+                FoldPolicy::from_registry(folds.registry),
+                Some(folds),
+            )
+        };
+        let zero = || LatticeValue::Const(ConstValue::String("010".into()));
+        assert_eq!(
+            under("tcl8.4", zero()),
+            LatticeValue::Const(ConstValue::Int(9))
+        );
+        assert_eq!(
+            under("tcl8.6", zero()),
+            LatticeValue::Const(ConstValue::Int(9))
+        );
+        assert_eq!(
+            under("tcl9.0", zero()),
+            LatticeValue::Const(ConstValue::Int(11))
+        );
+        assert_eq!(under("f5-irules", zero()), LatticeValue::Overdefined);
+
+        let max = || LatticeValue::Const(ConstValue::Int(i64::MAX));
+        assert_eq!(
+            under("tcl8.6", max()),
+            LatticeValue::Const(ConstValue::String("9223372036854775808".into()))
+        );
+        assert_eq!(under("tcl8.4", max()), LatticeValue::Overdefined);
+        assert_eq!(under("f5-irules", max()), LatticeValue::Overdefined);
+        let mut values = HashMap::new();
+        // A whitespace-padded step is an integer in every release.
+        let padded = incr_stmt(&mut ssa, "x", Some(" 5"), 1, 2);
+        values.insert((x, 1), LatticeValue::Const(ConstValue::Int(1)));
+        assert_eq!(
+            evaluate_def(&padded, &values, &ssa, FoldPolicy::default()),
+            LatticeValue::Const(ConstValue::Int(6))
+        );
+    }
+
+    /// `[string range …]` in value position runs the registry's route: the
+    /// index numerals read under the target's grammar.
+    #[test]
+    fn evaluate_def_assign_value_folds_string_range_under_the_release() {
+        let mut ssa = bare_ssa();
+        let stmt = assign_value_stmt(&mut ssa, "s", "[string range abcdefghijkl 010 end]", 1);
+        let under = |dialect: &str| {
+            let folds = folds_for(dialect);
+            evaluate_def_with_folds(
+                &stmt,
+                &HashMap::new(),
+                &ssa,
+                FoldPolicy::from_registry(folds.registry),
+                Some(folds),
+            )
+        };
+        assert_eq!(
+            under("tcl8.6"),
+            LatticeValue::Const(ConstValue::String("ijkl".into()))
+        );
+        assert_eq!(
+            under("tcl9.0"),
+            LatticeValue::Const(ConstValue::String("kl".into()))
+        );
+        assert_eq!(under("f5-irules"), LatticeValue::Overdefined);
+        let plain = assign_value_stmt(&mut ssa, "t", "[string range { a } 0 end]", 1);
+        assert_eq!(
+            evaluate_def(&plain, &HashMap::new(), &ssa, FoldPolicy::default()),
+            LatticeValue::Const(ConstValue::String(" a ".into()))
+        );
+    }
+
+    /// The run records each statement's route and answer for the
+    /// Explorer, at the fixed point.
+    #[test]
+    fn sccp_records_a_route_explanation_per_statement() {
+        let registry = registry();
+        let cu = crate::compilation_unit::CompilationUnit::build_for(
+            "proc p {} {\n    set n 1\n    incr n\n    append s x\n    set r [string range abc 0 1]\n    return $n\n}\n",
+            &registry,
+            false,
+        );
+        let fu = cu.procedures.get("::p").expect("proc");
+        let explained: Vec<(String, String)> = fu
+            .sccp
+            .explanations
+            .iter()
+            .map(|e| (e.command.clone(), e.answer.clone()))
+            .collect();
+        assert!(
+            explained.contains(&("incr".to_owned(), "evaluated".to_owned())),
+            "{explained:?}"
+        );
+        assert!(
+            explained
+                .iter()
+                .any(|(command, answer)| command == "append" && answer != "evaluated"),
+            "an append over an unbound cell is pending or declined: {explained:?}"
+        );
+        assert!(
+            fu.sccp
+                .explanations
+                .iter()
+                .any(|e| e.command == "string" && e.route.starts_with("direct string-range")),
+            "{:?}",
+            fu.sccp.explanations
         );
     }
 

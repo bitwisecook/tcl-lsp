@@ -761,10 +761,7 @@ generated inventory's route *owner* column is the same fact read from
 | `expr` argument assembly — braced versus quoted operand binding ahead of the shared engine | `rust/tcl-compiler/src/value_transfer.rs`, `expression_route` | `EvalRoute::Expression` | slice 3 — registry-owned argument assembly with the lazy input services | none needed: the route is a typed family, not a command; listed so the assembly's move is tracked |
 | the loop header's per-element `ConstSet` transfer over a literal, lattice, or folded list | `rust/tcl-compiler/src/value_transfer.rs`, `evaluate_call` | `PlanAnswer::Iterate` from the explicit `foreach` / `lmap` declaration | slice 5 — the iteration plan's binders over the source layout; slice 12 — the exact exit state | none needed: generic over the plan |
 | the `unset` fold's name set, from each call's existence transfer | `rust/tcl-compiler/src/value_transfer.rs`, `unbound_names`; `sccp::scan_defined_and_unbound` | `TransferAnswer::Existence` from the `DESTROYS_VARIABLE` derivation | slice 8 — the existence rung deletes `scan_defined_and_unbound` and `existence_constant_branches` | none needed |
-| the increment's slice-one arithmetic: canonical integer base and step, `checked_add`, no widening, no release rule | `rust/tcl-registry/src/value_transfer/cell_update.rs` | registry-owned (`NativeEvalId::CellIncrement`) | slice 2 — `numeric_core::tcl_incr` over `ConstOps` with `NUMERAL_GRAMMAR` and `INT_TOWER` | not a compiler handler; listed because its rules are provisional |
-| `static_loops::parse_literal_value` and the simulator's own `Incr` arm | `rust/tcl-compiler/src/static_loops.rs` | typed `Statement::Incr` | slice 12 — `LoopEnumeration` over exact values | the typed arm is shape, not a name; no waiver |
-| `intervals::transfer`'s `Incr` arm | `rust/tcl-compiler/src/intervals.rs` | typed `Statement::Incr` | slice 2 — `RangeModel::IntegerAdd` | no waiver |
-| `chain_fold`'s `set` / `append` / `lappend` classifier | `rust/tcl-compiler/src/optimiser/chain_fold.rs` | command names | slice 2 — the resolved cell update | `value-transfer-ok: dataflow` at the `match` |
+| `static_loops::parse_literal_value` — the simulator's literal ingress, aligned with the one round-trip rule but still its own copy; its `Incr` arm now runs the registry's route | `rust/tcl-compiler/src/static_loops.rs` | typed `Statement::Incr` | slice 12 — `LoopEnumeration` over exact values | the typed arm is shape, not a name; no waiver |
 
 The mutation-fact-free shared lattice keeps its pre-slice trust rule:
 with no whole-module `ModuleCommandMutations` in hand it trusts every
@@ -792,13 +789,11 @@ which waives the sites by axis.
 | File | Sites | Reviewed by |
 |---|---|---|
 | `rust/tcl-cli/src/commands/minimize.rs` | 1 | the `arg_roles` axis — `var_target_positions`, a reimplementation of the role axis for eight commands |
-| `rust/tcl-compiler/src/analyser/bounds_checks.rs` | 9 | slice 12 — W240–W242 read the iteration plan's bound and step; the W230–W232 index family is `arg_roles` debt |
 | `rust/tcl-compiler/src/analyser/class_lattice.rs` | 3 | the `definition_body` axis — `oo::objdefine`, `oo::copy`, and `info` by name |
 | `rust/tcl-compiler/src/analyser/commands.rs` | 1 | the `case_list` axis — the orphaned-keyword parent table (`else` / `elseif` / `then`, `on` / `trap` / `finally`) |
 | `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` | 4 | slice 5 retires the `regexp` / `scan` no-match prover; slice 8 the `unset` scans |
 | `rust/tcl-compiler/src/analyser/diagnostics/helpers.rs` | 6 | slice 5 — the `dict with` / `dict update` key harvest; the `unset` and binder checks follow with slices 8 and 13 |
 | `rust/tcl-compiler/src/analyser/diagnostics/security.rs` | 2 | the `return_type` axis — a `pattern_type` conditional on `-regexp` absorbs the `switch`-specific ReDoS scan |
-| `rust/tcl-compiler/src/analyser/diagnostics/usage.rs` | 3 | slice 2 — the `append` usage check reads the resolved cell update; the `fconfigure` / `chan configure` option scan is `options` debt |
 | `rust/tcl-compiler/src/analyser/diagnostics/validity.rs` | 2 | the `traits` axis — `unset` beside the `DESTROYS_VARIABLE` query, `matchclass` by its lifecycle field |
 | `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs` | 3 | slice 5 — the container harvesters for W307 / W308 read structured writes |
 | `rust/tcl-compiler/src/analyser/irules_event_checks.rs` | 7 | slice 12 — the loop-bound reader; the `static::`, `log`, and `global` checks are `special_vars` / `side_effects` debt |
@@ -816,15 +811,14 @@ which waives the sites by axis.
 | `rust/tcl-compiler/src/irules_checks.rs` | 3 | the `side_effects` axis — `drop` / `reject` / `discard`, `DNS::return`, `event disable all` |
 | `rust/tcl-compiler/src/lowering/mod.rs` | 2 | the `frame_effect` axis — the `namespace` body and TclOO's `self` |
 | `rust/tcl-compiler/src/lowering/structured.rs` | 2 | the `native_lowering` axis — `dict for` / `dict map` lowering by subcommand |
-| `rust/tcl-compiler/src/optimiser/chain_fold.rs` | 1 | slice 2 — the resolved cell update replaces the `set` / `append` / `lappend` classifier (the handler row above) |
-| `rust/tcl-compiler/src/optimiser/end_offset.rs` | 1 | slice 2 — O128's length-position table becomes the index positions of the `string range` / `lindex` routes |
+| `rust/tcl-compiler/src/optimiser/end_offset.rs` | 1 | the `arg_roles` axis — O128's length-position table is the index-argument role the registry does not carry yet, the same debt as the W230–W232 family |
 | `rust/tcl-compiler/src/place_bridge.rs` | 2 | the `arg_roles` axis — `namespace upvar` positions by name |
 | `rust/tcl-compiler/src/shimmer/commit.rs` | 1 | slice 3 — the expression route names the lifted `expr` |
 | `rust/tcl-compiler/src/shimmer/thunking.rs` | 1 | the `native_lowering` axis — a thunked `break` |
 | `rust/tcl-compiler/src/specialise_factories.rs` | 1 | the `definition_body` axis — `proc` as the definer |
 | `rust/tcl-compiler/src/ssa.rs` | 1 | the `arg_roles` axis — `trace add variable` positions by name |
 | `rust/tcl-compiler/src/uri_split.rs` | 6 | slice 7 — the direct routes for `split`, `string first`, and `string match` replace the private URI evaluator |
-| `rust/tcl-compiler/src/var_escape/handlers.rs` | 2 | slice 2 — deleted, not migrated: the typed path supersedes it (§ *What the inventory changes in the plan*) |
+| `rust/tcl-compiler/src/var_escape/handlers.rs` | 2 | the `arg_roles` and `traits` axes — `namespace upvar`'s positions and `info exists` by name; the walker still calls the file, so it is reviewed, not deleted |
 | `rust/tcl-compiler/src/var_escape/helpers.rs` | 1 | the `traits` axis — `info exists` beside `INTROSPECTS_BY_NAME` |
 | `rust/tcl-compiler/src/var_escape/slot_resolution.rs` | 6 | slice 13 — `info level` / `frame` and the `trace` subcommands read the frame-effect and trace facts |
 | `rust/tcl-compiler/src/var_scoping.rs` | 1 | the `arg_roles` axis — `namespace upvar` positions by name |
@@ -832,7 +826,7 @@ which waives the sites by axis.
 | `rust/tcl-irules/src/lib.rs` | 1 | the `options` axis — the `class match` / `class search` option scan ahead of the data-group reference |
 | `rust/tcl-lsp-core/src/document_links.rs` | 2 | slice 5 lands the editor consumers; the `speclib` / `include` rows are the pack grammar, an `irreducible` waiver at review |
 | `rust/tcl-lsp-core/src/oo_body.rs` | 1 | the `definition_body` axis — `oo::define` / `oo::objdefine` by name |
-| `rust/tcl-mcp/src/irule_gen.rs` | 5 | slice 2 — the `set` / `incr` recognisers behind the CMP-sensitivity facts read the resolved cell update; `table` and the terminal-action table are `side_effects` debt |
+| `rust/tcl-mcp/src/irule_gen.rs` | 5 | slice 7 — the `set` / `incr` recognisers behind the CMP-sensitivity facts read the resolved cell update once the tooling crates are this lane's to edit; `table` and the terminal-action table are `side_effects` debt |
 | `rust/tcl-mcp/src/irule_test.rs` | 2 | the `side_effects` axis — the `pool` / `node` sinks and the terminal-action table, where every listed command carries a `TaintColour` |
 | `rust/tcl-sslictcl/src/bin/sslictcl-data.rs` | 4 | irreducible — the tool's own CLI verbs (`testssl-to-dsl`, `check-trust`, `compile-trust`), not Tcl commands; a file waiver at review |
 

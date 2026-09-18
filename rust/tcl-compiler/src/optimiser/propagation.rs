@@ -1618,6 +1618,7 @@ fn evaluate_proc_with_constants(
         policy,
         ctx.dialect
             .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar),
+        registry,
     )
 }
 
@@ -1698,6 +1699,7 @@ fn resolve_return_constant(
     result: &crate::sccp::SccpResult,
     policy: FoldPolicy,
     grammar: tcl_dialect::LexerGrammar,
+    registry: &tcl_registry::CommandRegistry,
 ) -> Option<ConstValue> {
     use crate::cfg::Terminator;
     let preds = fu.cfg.predecessors();
@@ -1716,7 +1718,7 @@ fn resolve_return_constant(
                 policy,
                 grammar,
             )?,
-            None => resolve_fallthrough_value(fu, *bn, result, &preds, policy, grammar)?,
+            None => resolve_fallthrough_value(fu, *bn, result, &preds, policy, grammar, registry)?,
             Some(_) => continue, // Goto / Branch — not an exit point
         };
         match &found {
@@ -1759,6 +1761,7 @@ fn resolve_fallthrough_value(
     >,
     policy: FoldPolicy,
     grammar: tcl_dialect::LexerGrammar,
+    registry: &tcl_registry::CommandRegistry,
 ) -> Option<ConstValue> {
     let mut executable_preds = preds
         .get(&bn)
@@ -1771,18 +1774,19 @@ fn resolve_fallthrough_value(
     }
     let block = fu.cfg.blocks.get(pred)?;
     let last = block.statements.last()?;
-    fold_tail_statement_under_lattice(fu, *pred, last, result, policy, grammar)
+    fold_tail_statement_under_lattice(fu, *pred, last, result, policy, grammar, registry)
 }
 
 /// Resolve the value Tcl's "result of the last executed command" rule
 /// leaves behind when `stmt` is the last statement of a block that falls
 /// through to the function's implicit exit — a trailing `set` / `incr`
 /// implicitly returns exactly like `return $name` would (Tcl's `set` and
-/// `incr` both return the value they just assigned), and a trailing bare
-/// `expr` implicitly returns exactly like `return [expr {…}]` would.
-/// `None` for any other statement shape (a bare command call whose own
-/// result this analysis doesn't track, …) — the caller simply won't fold
-/// that path, never mis-folds it.
+/// `incr` both return the value they just assigned), a trailing call whose
+/// resolved plan is a cell update (`append`, `lappend`) returns the cell's
+/// new value the same way, and a trailing bare `expr` implicitly returns
+/// exactly like `return [expr {…}]` would. `None` for any other statement
+/// shape (a bare command call whose own result this analysis doesn't
+/// track, …) — the caller simply won't fold that path, never mis-folds it.
 fn fold_tail_statement_under_lattice(
     fu: &FunctionUnit,
     bn: crate::cfg::BlockId,
@@ -1790,6 +1794,7 @@ fn fold_tail_statement_under_lattice(
     result: &crate::sccp::SccpResult,
     policy: FoldPolicy,
     grammar: tcl_dialect::LexerGrammar,
+    registry: &tcl_registry::CommandRegistry,
 ) -> Option<ConstValue> {
     match stmt {
         Statement::ExprEval { expr, .. } => {
@@ -1799,6 +1804,20 @@ fn fold_tail_statement_under_lattice(
         | Statement::AssignExpr { name, .. }
         | Statement::AssignValue { name, .. }
         | Statement::Incr { name, .. } => fold_var_ref_under_lattice(fu, bn, name, result),
+        // A cell update's result is the value it wrote: the registry's
+        // declared plan names the target, and the lattice at the block's
+        // exit holds what it wrote.
+        Statement::Call {
+            command,
+            canonical_command,
+            args,
+            ..
+        } => {
+            let head = canonical_command.as_deref().unwrap_or(command);
+            let (_, target) = crate::value_transfer::resolved_cell_update(registry, head, args)?;
+            let name = args.get(target.0)?;
+            fold_var_ref_under_lattice(fu, bn, name, result)
+        }
         _ => None,
     }
 }

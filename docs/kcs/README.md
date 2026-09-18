@@ -336,6 +336,11 @@ under [`compiler/`](compiler/README.md).
   which variables it writes: the registry's three-state `semantics`
   declaration, what is derived from a descriptor, and why no command name
   belongs in the compiler for it.
+- [kcs-qa-why-does-a-constant-fold-depend-on-the-dialect.md](compiler/kcs-qa-why-does-a-constant-fold-depend-on-the-dialect.md)
+  — why `incr` of `010` or `string range … 010 end` folds to one value
+  under Tcl 8.6, another under 9.0, and not at all under a vendor dialect:
+  the direct route runs the shared core under the target's release, and a
+  profile naming no release gets only the answer every release gives.
 
 ## Diagnostics and optimisations (per-code pages)
 

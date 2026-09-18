@@ -6141,6 +6141,7 @@ mod tests {
 
     fn simple_sccp(blocks: &[BlockId]) -> SccpResult {
         SccpResult {
+            explanations: Vec::new(),
             values: HashMap::new(),
             executable_blocks: blocks.iter().copied().collect(),
             executable_edges: HashSet::new(),

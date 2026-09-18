@@ -921,6 +921,10 @@ impl CommandWord {
 #[derive(Debug, Default)]
 pub(crate) struct VariableWriteEffects {
     pub names: Vec<String>,
+    /// The written names a read-modify-write command reads first
+    /// (`[incr n]`, `[lappend l x]`): a cell update's read is a use of the
+    /// prior value by construction, so the store feeding it is never dead.
+    pub read_before_written: Vec<String>,
     pub opaque: bool,
 }
 
@@ -943,7 +947,17 @@ pub(crate) fn variable_write_effects_from_commands(
         let projection = registry
             .variable_write_projection(InvocationWords::structured(head.invocation_word(), &args));
         out.opaque |= projection.opaque_variable_frame;
+        let reads_before_write = head
+            .literal()
+            .and_then(|name| registry.get(name.strip_prefix("::").unwrap_or(name)))
+            .is_some_and(|spec| {
+                spec.traits
+                    .contains(tcl_registry::Traits::READS_BEFORE_WRITE)
+            });
         for name in projection.literal_names {
+            if reads_before_write && !out.read_before_written.contains(&name) {
+                out.read_before_written.push(name.clone());
+            }
             if !out.names.contains(&name) {
                 out.names.push(name);
             }

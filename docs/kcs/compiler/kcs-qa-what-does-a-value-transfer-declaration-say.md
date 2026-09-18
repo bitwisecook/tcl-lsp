@@ -38,13 +38,14 @@ evaluated with ordered storage outcomes — is applied to the definition.
 `cargo xtask value-transfers` fails if one returns.
 
 Two facts are separate columns in `docs/generated/value-transfers.md`:
-whether a descriptor exists and whether its route is *enabled*. `incr`
-carries a derived cell update with an enabled direct route; `append` and
-`lappend` carry the same descriptor with no route yet, so their values stay
-unknown until the slice that adds one. A few shipped folds (`list`,
-`format`, `llength`, `string length`, `expr`) declare a route the compiler
-still implements; `NativeEvalId::owner` says so, and the migration plan's
-ledger names each with the slice that retires it.
+whether a descriptor exists and whether its route is *enabled*. `incr`,
+`append`, and `lappend` carry a derived cell update with an enabled direct
+route — the runtime's own value computation over the compile-time value
+model (`ConstOps`), under the target's release semantics — and `string
+range` declares one. A few shipped folds (`list`, `format`, `llength`,
+`string length`, `expr`) declare a route the compiler still implements;
+`NativeEvalId::owner` says so, and the migration plan's ledger names each
+with the slice that retires it.
 
 To give a new command a value: declare it on the spec (or add the
 descriptor the derivation reads), add its route to the pinned set in

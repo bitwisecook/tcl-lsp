@@ -568,6 +568,7 @@ mod tests {
 
         let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
+            explanations: Vec::new(),
             values: HashMap::new(),
             executable_blocks: id_set(&cfg, &["entry", "t"]),
             executable_edges: HashSet::default(),
@@ -625,6 +626,7 @@ mod tests {
 
         let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
+            explanations: Vec::new(),
             values: HashMap::new(),
             executable_blocks: id_set(&cfg, &["entry", "e"]),
             executable_edges: HashSet::default(),
@@ -676,6 +678,7 @@ mod tests {
 
         let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
+            explanations: Vec::new(),
             values: HashMap::new(),
             executable_blocks: id_set(&cfg, &["entry", "e"]),
             executable_edges: HashSet::default(),
@@ -724,6 +727,7 @@ mod tests {
 
         let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
+            explanations: Vec::new(),
             values: HashMap::new(),
             executable_blocks: id_set(&cfg, &["entry", "mid", "inner_else"]),
             executable_edges: HashSet::default(),
@@ -802,6 +806,7 @@ mod tests {
             LatticeValue::ConstSet(vec![ConstValue::Int(0), ConstValue::Int(1)]),
         );
         let sccp = SccpResult {
+            explanations: Vec::new(),
             values,
             executable_blocks: id_set(&cfg, &["entry", "mid", "t", "e"]),
             executable_edges: HashSet::default(),
@@ -856,6 +861,7 @@ mod tests {
         let mut values: HashMap<(Symbol, u32), LatticeValue> = HashMap::new();
         values.insert((x, 1), LatticeValue::Overdefined);
         let sccp = SccpResult {
+            explanations: Vec::new(),
             values,
             executable_blocks: id_set(&cfg, &["entry", "t", "e"]),
             executable_edges: HashSet::default(),
@@ -890,6 +896,7 @@ mod tests {
 
         let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
+            explanations: Vec::new(),
             values: HashMap::new(),
             executable_blocks: id_set(&cfg, &["entry", "t"]),
             executable_edges: HashSet::default(),
@@ -937,6 +944,7 @@ mod tests {
 
         let ssa = make_ssa(&cfg);
         let sccp = SccpResult {
+            explanations: Vec::new(),
             values: HashMap::new(),
             executable_blocks: id_set(&cfg, &["switch_probe_0", "arm_a"]),
             executable_edges: HashSet::default(),

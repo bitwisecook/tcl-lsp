@@ -144,6 +144,32 @@ pub enum Axis {
     Availability(SpecSurface),
 }
 
+impl Axis {
+    /// Stable spelling for the Explorer and the inventory.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::NumeralGrammar => "numeral-grammar",
+            Self::IndexGrammar => "index-grammar",
+            Self::CharacterModel => "character-model",
+            Self::CharIndexing => "char-indexing",
+            Self::IntTower => "int-tower",
+            Self::BinaryFields => "binary-fields",
+            Self::FormatVerbs => "format-verbs",
+            Self::StringClasses => "string-classes",
+            Self::RegexpFeatures => "regexp-features",
+            Self::ListRendering => "list-rendering",
+            Self::DictOrder => "dict-order",
+            Self::Collation => "collation",
+            Self::ByteStrings => "byte-strings",
+            Self::SourceEncoding => "source-encoding",
+            Self::Platform => "platform",
+            Self::WallClock => "wall-clock",
+            Self::Availability(_) => "availability",
+        }
+    }
+}
+
 /// Why an answer is not exact. Each group names the lane of the lift
 /// diagram in the interface contract that records it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

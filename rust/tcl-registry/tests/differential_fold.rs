@@ -469,3 +469,135 @@ fn format_folds_match_tcl9() {
     // `check_matrix` asserts every fold that fires matches tclsh9.0.
     check_matrix(&tclsh, &reg, FORMATS);
 }
+
+/// The storage-outcome witnesses of the direct route, per release found on
+/// `PATH`: `incr`, `append`, and `lappend` through the registry's cell
+/// update and `string range` through its route, each under the release's
+/// profile, against the real `tclsh`. When the route answers it must match;
+/// when `tclsh` raises the route must decline; a decline where `tclsh`
+/// answers is allowed (an unfolded value is never wrong).
+#[test]
+fn storage_outcome_witnesses_match_every_release_on_path() {
+    use tcl_registry::value_transfer::{
+        Budget, EvalAnswer, ExactValue, ExactValueOrUnavailable, LiteralInputs, resolve_semantics,
+    };
+
+    let reg = CommandRegistry::build_default();
+    let mut releases = 0usize;
+    for version in tcl_dialect::TclVersion::ALL {
+        let Some(tclsh) = find_tclsh(version.version_string()) else {
+            continue;
+        };
+        releases += 1;
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name());
+        // The route's answer for `cmd var values…` with `var` holding `prior`.
+        let route = |command: &str, prior: &str, values: &[&str]| -> Option<String> {
+            let spec = reg.get(command).expect(command);
+            let semantics = resolve_semantics(spec, None, None);
+            let semantics = semantics.semantics().expect("a cell update");
+            let mut args = vec!["v"];
+            args.extend_from_slice(values);
+            let inputs = LiteralInputs::new(command, None, &args, profile)
+                .with_prior("v", ExactValue::from_literal(prior));
+            match semantics.evaluate(&inputs, &mut Budget::evaluation()) {
+                EvalAnswer::Evaluated(outcome) => match outcome.result {
+                    ExactValueOrUnavailable::Exact(value) => String::from_utf8(value.bytes).ok(),
+                    ExactValueOrUnavailable::Unavailable(_) => None,
+                },
+                EvalAnswer::Pending | EvalAnswer::Declined(_) => None,
+            }
+        };
+        let oracle = |command: &str, prior: &str, values: &[&str]| -> Option<String> {
+            let mut script = format!("set v {{{prior}}}; {command} v");
+            for value in values {
+                script.push_str(&format!(" {{{value}}}"));
+            }
+            script.push_str("; puts -nonewline $v");
+            match run_tcl(&tclsh, &script)? {
+                (true, out) => Some(out),
+                (false, _) => None,
+            }
+        };
+        let cases: &[(&str, &str, &[&str])] = &[
+            ("incr", "5", &[]),
+            ("incr", "3", &["10"]),
+            ("incr", "10", &["-2"]),
+            ("incr", "010", &[]),
+            ("incr", "1", &[" 5"]),
+            ("incr", "9223372036854775807", &[]),
+            ("incr", "1_000", &[]),
+            ("incr", "0x10", &["1"]),
+            ("incr", "abc", &[]),
+            ("incr", "1", &["2.5"]),
+            ("append", "foo", &["bar", " baz"]),
+            ("append", " a ", &["b"]),
+            ("append", "", &["x"]),
+            ("lappend", "a b", &["c", "d e"]),
+            ("lappend", "", &["c"]),
+            ("lappend", "{", &["v"]),
+            ("lappend", "a", &["{", "b"]),
+        ];
+        let mut agreed = 0usize;
+        for &(command, prior, values) in cases {
+            let want = oracle(command, prior, values);
+            let got = route(command, prior, values);
+            match (want, got) {
+                (Some(want), Some(got)) => {
+                    assert_eq!(
+                        got,
+                        want,
+                        "tclsh{}: {command} over {prior:?} with {values:?}",
+                        version.version_string()
+                    );
+                    agreed += 1;
+                }
+                (None, Some(got)) => panic!(
+                    "tclsh{} raises on {command} over {prior:?} with {values:?}, the route answered {got:?}",
+                    version.version_string()
+                ),
+                (_, None) => {}
+            }
+        }
+        assert!(
+            agreed >= 8,
+            "tclsh{}: only {agreed} witnesses agreed",
+            version.version_string()
+        );
+
+        let range = reg
+            .get("string")
+            .expect("string")
+            .subcommand("range")
+            .expect("range");
+        let range_cases: &[[&str; 3]] = &[
+            ["hello", "1", "3"],
+            ["abcdefghijkl", "010", "end"],
+            ["abcdefghijkl", "3", "6"],
+            ["abcdef", "-2", "2"],
+            ["abc", "end-1", "end"],
+            ["abc", "3", "1"],
+            ["abcdefghijkl", "0x2", "end-010"],
+            [" a ", "0", "end"],
+        ];
+        for case in range_cases {
+            let want = tcl_value(&tclsh, &tcl_command("string", Some("range"), case));
+            let got = range.run_const_fold(case, Some(version));
+            match (want, got) {
+                (Some(want), Some(got)) => assert_eq!(
+                    got,
+                    want,
+                    "tclsh{}: string range {case:?}",
+                    version.version_string()
+                ),
+                (None, Some(got)) => panic!(
+                    "tclsh{} raises on string range {case:?}, the fold answered {got:?}",
+                    version.version_string()
+                ),
+                (_, None) => {}
+            }
+        }
+    }
+    if releases == 0 {
+        eprintln!("no tclsh on PATH: the storage-outcome witnesses were not exercised");
+    }
+}

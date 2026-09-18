@@ -637,6 +637,7 @@ pub(crate) fn list_index_diagnostics(
     numbers: tcl_dialect::NumberSyntax,
     rules: tcl_syntax::word_rules::WordValueRules,
 ) -> Vec<Diagnostic> {
+    // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
     if !matches!(cmd_name, "lindex" | "lrange" | "lreplace")
         || args.len() < 2
         || arg_tokens.len() < 2
@@ -655,11 +656,13 @@ pub(crate) fn list_index_diagnostics(
         .unwrap_or(i64::MAX);
 
     if cmd_name == "lindex" {
+        // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
         return lindex_diagnostics(args, arg_tokens, length, numbers);
     }
 
     // lrange / lreplace: a (first, last) pair that resolves to an empty
     // slice.
+    // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
     if args.len() < 3 || arg_tokens.len() < 3 || (cmd_name == "lrange" && args.len() != 3) {
         return Vec::new();
     }
@@ -682,6 +685,7 @@ pub(crate) fn list_index_diagnostics(
         return Vec::new();
     }
     let verb = if cmd_name == "lrange" {
+        // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
         "lrange slice is empty".to_string()
     } else if lo_index < 0 && hi_index < 0 {
         "lreplace prepends instead of replacing (both indices resolve before the list)".to_string()
@@ -751,6 +755,7 @@ pub(crate) fn lset_index_diagnostics(
     lexer_config: tcl_lexer::LexerConfig,
     numbers: tcl_dialect::NumberSyntax,
 ) -> Vec<Diagnostic> {
+    // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
     if cmd_name != "lset" || args.len() < 3 || arg_tokens.len() < 3 {
         return Vec::new();
     }
@@ -824,9 +829,12 @@ pub(crate) fn lset_index_diagnostics(
 ///
 /// Structural, not textual.  The walk segments the document, descends the
 /// braced word that *contains* the `lset` one level at a time, and takes the
-/// length from the last literal assignment to `var_name` in the innermost
-/// script the `lset` shares.  Descending resets the accumulator: a `set` in an
-/// enclosing (or sibling) script is never trusted for a nested `lset`.
+/// value from the last literal assignment to `var_name` in the innermost
+/// script the `lset` shares, carried through every cell update on it whose
+/// resolved route evaluates over literal words (`lappend xs a b c` after
+/// `set xs {}` leaves three elements, #2054).  Descending resets the
+/// accumulator: a `set` in an enclosing (or sibling) script is never trusted
+/// for a nested `lset`; a write the walk cannot evaluate forgets the value.
 ///
 /// What that buys over a byte scan:
 ///
@@ -850,9 +858,13 @@ fn infer_list_length_from_recent_set(
     }
     let registry = registry
         .unwrap_or_else(|| tcl_registry::model::ingress::static_context_for("tcl8.6").commands());
+    let rules = tcl_syntax::word_rules::WordValueRules::of_profile(registry.profile());
+    let length_of = |value: &str| {
+        i64::try_from(crate::tcl_expr_eval::split_tcl_list(value, rules).len()).unwrap_or(i64::MAX)
+    };
     let mut script: &str = source;
     let mut base: u32 = 0;
-    let mut best: Option<i64> = None;
+    let mut best: Option<String> = None;
     for _ in 0..MAX_SCOPE_DESCENT.0 {
         best = None;
         let mut inner: Option<(&str, u32)> = None;
@@ -874,8 +886,12 @@ fn infer_list_length_from_recent_set(
                     .and_then(|tok| super::scope::inner_of(source, *tok));
                 break;
             }
-            if let Some(length) = literal_list_assignment(registry, &cmd, var_name) {
-                best = Some(length);
+            if let Some(value) = literal_list_assignment(registry, &cmd, var_name) {
+                best = Some(value);
+            } else if let Some(updated) =
+                cell_update_assignment(registry, &cmd, var_name, best.as_deref())
+            {
+                best = updated;
             }
         }
         match inner {
@@ -883,17 +899,70 @@ fn infer_list_length_from_recent_set(
                 script = text;
                 base = text_base;
             }
-            None => return best,
+            None => return best.as_deref().map(length_of),
         }
     }
-    best
+    best.as_deref().map(length_of)
+}
+
+/// The value `cmd` leaves in `var_name` when `cmd` is a cell update on it
+/// and the registry's route evaluates over its literal words from
+/// `current`, as `Some(Some(value))`; `Some(None)` when `cmd` writes
+/// `var_name` but the walk cannot evaluate it (a dynamic word, an unknown
+/// prior); `None` when `cmd` does not write `var_name` at all.
+fn cell_update_assignment(
+    registry: &tcl_registry::CommandRegistry,
+    cmd: &SegmentedCommand,
+    var_name: &str,
+    current: Option<&str>,
+) -> Option<Option<String>> {
+    use tcl_registry::value_transfer::{EvalAnswer, ExactValue, LiteralInputs, StoreOutcome};
+    let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
+    let args = cmd.args();
+    let (_, target) = crate::value_transfer::resolved_cell_update(registry, head, args)?;
+    if args.get(target.0).map(String::as_str) != Some(var_name) {
+        return None;
+    }
+    let literal = cmd.args().iter().enumerate().all(|(index, _)| {
+        matches!(
+            cmd.arg_tokens().get(index).map(|tok| tok.kind),
+            Some(TokenType::Str | TokenType::Esc)
+        ) && cmd.arg_single_token().get(index) == Some(&true)
+    });
+    let Some(current) = current.filter(|_| literal) else {
+        return Some(None);
+    };
+    let texts: Vec<&str> = args.iter().map(String::as_str).collect();
+    let spec = registry.get(head)?;
+    let semantics = tcl_registry::value_transfer::resolve_semantics(spec, None, None);
+    let semantics = semantics.semantics()?;
+    let inputs = LiteralInputs::new(head, None, &texts, registry.profile())
+        .with_prior(var_name, ExactValue::text(current));
+    let value = match semantics.evaluate(
+        &inputs,
+        &mut tcl_registry::value_transfer::Budget::evaluation(),
+    ) {
+        EvalAnswer::Evaluated(outcome) => {
+            outcome
+                .ordered_stores
+                .into_iter()
+                .find_map(|store| match store {
+                    StoreOutcome::Write { target: t, value } if t.0 == target => {
+                        String::from_utf8(value.bytes).ok()
+                    }
+                    _ => None,
+                })
+        }
+        EvalAnswer::Pending | EvalAnswer::Declined(_) => None,
+    };
+    Some(value)
 }
 
 /// Native-stack safety net for [`infer_list_length_from_recent_set`]'s
 /// descent through nested braced bodies.
 const MAX_SCOPE_DESCENT: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
 
-/// The literal list length `cmd` assigns to `var_name`, or `None`.
+/// The literal list value `cmd` assigns to `var_name`, or `None`.
 ///
 /// Registry-driven throughout: which argument is written comes from
 /// [`tcl_registry::ArgRole::VarWrite`] (so `set`, `variable`, and any
@@ -911,10 +980,7 @@ fn literal_list_assignment(
     registry: &tcl_registry::CommandRegistry,
     cmd: &SegmentedCommand,
     var_name: &str,
-) -> Option<i64> {
-    // The registry carries the environment's profile, so the assigned list
-    // divides under the document's own list grammar.
-    let rules = tcl_syntax::word_rules::WordValueRules::of_profile(registry.profile());
+) -> Option<String> {
     let head = cmd.name().strip_prefix("::").unwrap_or(cmd.name());
     let spec = registry.get(head)?;
     if spec.traits.intersects(
@@ -936,10 +1002,7 @@ fn literal_list_assignment(
     {
         return None;
     }
-    let value = cmd.args().get(value_index)?;
-    Some(
-        i64::try_from(crate::tcl_expr_eval::split_tcl_list(value, rules).len()).unwrap_or(i64::MAX),
-    )
+    cmd.args().get(value_index).cloned()
 }
 
 /// True when a `(first, last)` index pair resolves to a provably-empty
@@ -965,6 +1028,7 @@ pub(crate) fn string_index_diagnostics(
     arg_tokens: &[Token],
     numbers: tcl_dialect::NumberSyntax,
 ) -> Vec<Diagnostic> {
+    // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
     if cmd_name != "string" || args.len() < 2 {
         return Vec::new();
     }
@@ -998,6 +1062,7 @@ pub(crate) fn string_index_diagnostics(
     };
 
     if sub == "index" || sub == "insert" {
+        // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
         return string_single_index(sub, args, arg_tokens, str_len, numbers);
     }
     string_pair_index(sub, args, arg_tokens, str_len, numbers)
@@ -1029,6 +1094,7 @@ fn string_single_index(
     }
     // `string insert` clamps other overshoots; only `string index`
     // flags an in-bounds miss.
+    // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
     if sub == "index"
         && let Some(len) = str_len
         && let Some(resolved) = resolve_index(stripped, len, numbers)
@@ -1065,6 +1131,7 @@ fn string_pair_index(
         return Vec::new();
     }
     let verb = if sub == "range" {
+        // value-transfer-ok: arg_roles — the W230–W232 index positions await an index-argument role on the registry
         "slice is empty"
     } else {
         "replace is a no-op"
@@ -1573,6 +1640,43 @@ mod tests {
         assert_eq!(idx_codes("lrange {a b c} 2 0\n"), vec!["W230"]); // clamped first>last
         assert_eq!(idx_codes("lreplace {a b c} 5 7 X\n"), vec!["W230"]);
         assert!(idx_codes("lrange {a b c} 0 1\n").is_empty());
+    }
+
+    /// The length W231 checks against is the list's value after every cell
+    /// update on it the walk can evaluate: `lappend xs a b c` after `set xs
+    /// {}` leaves three elements (#2054).
+    #[test]
+    fn w231_length_follows_the_cell_updates() {
+        assert!(code_msgs("set xs {}\nlappend xs a b c\nlset xs 2 X\n", "W231").is_empty());
+        let m = code_msgs("set xs {}\nlappend xs a b c\nlset xs 5 Y\n", "W231");
+        assert_eq!(m.len(), 1, "{m:?}");
+        assert!(m[0].contains("(list has 3 elements)"), "{}", m[0]);
+        assert!(
+            code_msgs(
+                "set xs {}\nlappend xs a\nlappend xs {b c} d\nlset xs 3 X\n",
+                "W231"
+            )
+            .is_empty()
+        );
+        let m = code_msgs(
+            "set xs {}\nlappend xs a\nlappend xs {b c} d\nlset xs 4 X\n",
+            "W231",
+        );
+        assert!(
+            m.len() == 1 && m[0].contains("(list has 3 elements)"),
+            "{m:?}"
+        );
+        // A write the walk cannot evaluate forgets the length rather than
+        // reporting against a stale one.
+        assert!(code_msgs("set xs {a b}\nlappend xs $v\nlset xs 9 X\n", "W231").is_empty());
+        assert!(code_msgs("set xs {a b}\nappend xs $v\nlset xs 9 X\n", "W231").is_empty());
+        // A string append changes the list too: `a b` then `append xs c`
+        // is `a bc`, two elements.
+        let m = code_msgs("set xs {a b}\nappend xs c\nlset xs 5 X\n", "W231");
+        assert!(
+            m.len() == 1 && m[0].contains("(list has 2 elements)"),
+            "{m:?}"
+        );
     }
 
     #[test]

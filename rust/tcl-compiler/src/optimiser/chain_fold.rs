@@ -45,7 +45,12 @@
 //!   subsumed: a read between writes would be a non-write statement and
 //!   ends the run).
 //! - Every value word must be a static literal (`Esc`/`Str` single-token
-//!   word); a `$var` / `[cmd]` operand ends the run.
+//!   word), or a `$var` word the function's lattice proves constant at that
+//!   statement — the chain then folds through the lattice value (`set s
+//!   hello; set p again; append s $p` folds to `helloagain`); a `[cmd]`
+//!   operand or an unproven `$var` ends the run.
+//! - Which call extends the string and which the list is the registry's
+//!   declaration — the resolved cell update — not a command's spelling.
 //! - The variable must not **escape** (be aliased via
 //!   `global`/`upvar`/`variable` or be under a `trace`) and must not be a
 //!   cross-event iRules state variable — folding would drop a trace
@@ -54,15 +59,17 @@
 //! These gates make the fold conservative (it can miss a chain a
 //! flow-sensitive pass would fold) but never unsound.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use tcl_core_types::DiagCode;
 
 use tcl_lexer::TokenType;
 use tcl_registry::CommandRegistry;
+use tcl_registry::native_lowering::CellUpdate;
 
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{Script, Statement};
 use crate::naming::normalise_var_name;
+use crate::ssa::SsaStatement;
 use crate::var_observability::analyse_var_observability;
 
 use super::helpers::literals::render_static_string_word;
@@ -93,7 +100,13 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         .unwrap_or_else(|| tcl_registry::default_registry());
     if !cu.top_level.dynamic_barrier_blocks_value_motion() {
         let top_protected = protected_vars(&cu.top_level, &cross, registry);
-        fold_script(ctx, &cu.ir_module.top_level, &top_protected, 0);
+        let lattice = FunctionLattice::of(&cu.top_level);
+        let chains = Chains {
+            registry,
+            lattice: &lattice,
+            protected: &top_protected,
+        };
+        fold_script(ctx, &cu.ir_module.top_level, chains, 0);
     }
     for (qname, proc) in &cu.ir_module.procedures {
         let fu = cu.procedures.get(qname);
@@ -104,7 +117,67 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             continue;
         }
         let protected = fu.map_or_else(|| cross.clone(), |fu| protected_vars(fu, &cross, registry));
-        fold_script(ctx, &proc.body, &protected, 0);
+        let lattice = fu.map(FunctionLattice::of).unwrap_or_default();
+        let chains = Chains {
+            registry,
+            lattice: &lattice,
+            protected: &protected,
+        };
+        fold_script(ctx, &proc.body, chains, 0);
+    }
+}
+
+/// What one function's chains fold under: the registry that says which
+/// call is a cell update, the function's lattice for a `$var` value word,
+/// and the variables no chain may touch.
+#[derive(Clone, Copy)]
+struct Chains<'a> {
+    registry: &'a CommandRegistry,
+    lattice: &'a FunctionLattice<'a>,
+    protected: &'a HashSet<String>,
+}
+
+/// A function's SSA statements by span, over its shared lattice, so a
+/// `$var` value word resolves to the constant the lattice proves at that
+/// statement.
+#[derive(Default)]
+struct FunctionLattice<'a> {
+    unit: Option<&'a FunctionUnit>,
+    statements: HashMap<(u32, u32), &'a SsaStatement>,
+}
+
+impl<'a> FunctionLattice<'a> {
+    fn of(unit: &'a FunctionUnit) -> Self {
+        // A synthetic call the CFG builder emitted beside a host statement
+        // shares the host's span; the host is the statement the chain reads.
+        let statements = unit
+            .ssa
+            .blocks
+            .values()
+            .flat_map(|block| block.statements.iter())
+            .filter(|stmt| {
+                !matches!(
+                    &stmt.statement,
+                    Statement::Call { tokens: Some(tokens), .. } if tokens.synthetic.is_some()
+                )
+            })
+            .map(|stmt| {
+                let span = stmt.statement.span();
+                ((span.start(), span.end()), stmt)
+            })
+            .collect();
+        Self {
+            unit: Some(unit),
+            statements,
+        }
+    }
+
+    /// The constant `name` holds at the statement spanning `span`, when
+    /// the lattice proves one.
+    fn constant_at(&self, span: tcl_lexer::Span, name: &str) -> Option<String> {
+        let unit = self.unit?;
+        let stmt = self.statements.get(&(span.start(), span.end()))?;
+        crate::value_transfer::lattice_const_text(name, &stmt.uses, &unit.sccp.values, &unit.ssa)
     }
 }
 
@@ -125,19 +198,14 @@ fn protected_vars(
 /// chain never crosses a control-flow boundary, so each body is folded
 /// independently). `depth` is the nesting level of `script` — see
 /// [`super::MAX_OPTIMISER_WALK_DEPTH`].
-fn fold_script(
-    ctx: &mut PassContext<'_>,
-    script: &Script,
-    protected: &HashSet<String>,
-    depth: u32,
-) {
+fn fold_script(ctx: &mut PassContext<'_>, script: &Script, chains: Chains<'_>, depth: u32) {
     if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
         return;
     }
     let stmts = &script.statements;
     let mut i = 0;
     while i < stmts.len() {
-        if let Some(consumed) = try_fold_chain_at(ctx, stmts, i, protected) {
+        if let Some(consumed) = try_fold_chain_at(ctx, stmts, i, chains) {
             i += consumed;
         } else {
             i += 1;
@@ -149,34 +217,34 @@ fn fold_script(
                 clauses, else_body, ..
             } => {
                 for c in clauses {
-                    fold_script(ctx, &c.body, protected, depth + 1);
+                    fold_script(ctx, &c.body, chains, depth + 1);
                 }
                 if let Some(b) = else_body {
-                    fold_script(ctx, b, protected, depth + 1);
+                    fold_script(ctx, b, chains, depth + 1);
                 }
             }
             Statement::For {
                 init, next, body, ..
             } => {
-                fold_script(ctx, init, protected, depth + 1);
-                fold_script(ctx, next, protected, depth + 1);
-                fold_script(ctx, body, protected, depth + 1);
+                fold_script(ctx, init, chains, depth + 1);
+                fold_script(ctx, next, chains, depth + 1);
+                fold_script(ctx, body, chains, depth + 1);
             }
             Statement::While { body, .. }
             | Statement::Catch { body, .. }
-            | Statement::Foreach { body, .. } => fold_script(ctx, body, protected, depth + 1),
+            | Statement::Foreach { body, .. } => fold_script(ctx, body, chains, depth + 1),
             Statement::Try {
                 body,
                 handlers,
                 finally_body,
                 ..
             } => {
-                fold_script(ctx, body, protected, depth + 1);
+                fold_script(ctx, body, chains, depth + 1);
                 for h in handlers {
-                    fold_script(ctx, &h.body, protected, depth + 1);
+                    fold_script(ctx, &h.body, chains, depth + 1);
                 }
                 if let Some(fb) = finally_body {
-                    fold_script(ctx, fb, protected, depth + 1);
+                    fold_script(ctx, fb, chains, depth + 1);
                 }
             }
             Statement::Switch {
@@ -184,11 +252,11 @@ fn fold_script(
             } => {
                 for a in arms {
                     if let Some(b) = &a.body {
-                        fold_script(ctx, b, protected, depth + 1);
+                        fold_script(ctx, b, chains, depth + 1);
                     }
                 }
                 if let Some(b) = default_body {
-                    fold_script(ctx, b, protected, depth + 1);
+                    fold_script(ctx, b, chains, depth + 1);
                 }
             }
             _ => {}
@@ -223,7 +291,7 @@ fn write_var(w: &Write) -> &str {
 
 /// Classify `stmt` as a static write, or `None` for anything else
 /// (dynamic operand, other command, control flow).
-fn classify_write(stmt: &Statement) -> Option<Write> {
+fn classify_write(stmt: &Statement, chains: Chains<'_>) -> Option<Write> {
     match stmt {
         Statement::AssignConst { name, value, .. } => Some(Write::Set {
             var: normalise_var_name(name).to_owned(),
@@ -253,17 +321,25 @@ fn classify_write(stmt: &Statement) -> Option<Write> {
                 value: value.clone(),
             })
         }
-        // No membership guard here: the fold's per-command semantics below
-        // (`set` resets the chain, `append` extends the string, `lappend`
-        // extends the list) ARE the dispatch — any other command falls out
-        // of the final match.
+        // Which call extends the string and which the list is the
+        // registry's declaration: the resolved cell update, on the chain's
+        // shape (the variable first). A `set` anchors a chain only as the
+        // typed assignments above.
         Statement::Call {
+            span,
             command,
+            canonical_command,
             args,
             tokens,
             ..
         } => {
             let tokens = tokens.as_ref()?;
+            let head = canonical_command.as_deref().unwrap_or(command);
+            let (operation, target) =
+                crate::value_transfer::resolved_cell_update(chains.registry, head, args)?;
+            if target.0 != 0 {
+                return None;
+            }
             // Value words are argv index `vararg + 1 ..` (argv[0] is the
             // command, argv[1] is the variable).
             let var_word = args.first()?.clone();
@@ -274,27 +350,32 @@ fn classify_write(stmt: &Statement) -> Option<Write> {
                 let argv_idx = j + 2; // skip command + variable
                 let kind = tokens.argv_kinds.get(argv_idx)?;
                 let single = tokens.single_token_word.get(argv_idx).copied()?;
-                if !single || !matches!(kind, TokenType::Esc | TokenType::Str) {
+                if single && matches!(kind, TokenType::Esc | TokenType::Str) {
+                    values.push(val.clone());
+                } else if let Some(name) = crate::static_loops::simple_var_ref(val) {
+                    // A `$var` piece folds through the lattice value the
+                    // function proves at this statement; an unproven one
+                    // ends the run.
+                    values.push(chains.lattice.constant_at(*span, &name)?);
+                } else {
                     return None;
                 }
-                values.push(val.clone());
             }
-            match command.as_str() {
-                "set" if values.len() == 1 => Some(Write::Set {
-                    var,
-                    value: values.into_iter().next().unwrap(),
-                }),
-                "append" if !values.is_empty() => Some(Write::Append {
+            if values.is_empty() {
+                return None;
+            }
+            match operation {
+                CellUpdate::Append => Some(Write::Append {
                     var,
                     word: var_word,
                     pieces: values,
                 }),
-                "lappend" if !values.is_empty() => Some(Write::Lappend {
+                CellUpdate::ListAppend => Some(Write::Lappend {
                     var,
                     word: var_word,
                     elements: values,
                 }),
-                _ => None,
+                CellUpdate::Increment => None,
             }
         }
         _ => None,
@@ -308,9 +389,9 @@ fn try_fold_chain_at(
     ctx: &mut PassContext<'_>,
     stmts: &[Statement],
     start: usize,
-    protected: &HashSet<String>,
+    chains: Chains<'_>,
 ) -> Option<usize> {
-    let Write::Set { var, value } = classify_write(&stmts[start])? else {
+    let Write::Set { var, value } = classify_write(&stmts[start], chains)? else {
         return None;
     };
 
@@ -321,7 +402,7 @@ fn try_fold_chain_at(
 
     let mut j = start + 1;
     while j < stmts.len() {
-        match classify_write(&stmts[j]) {
+        match classify_write(&stmts[j], chains) {
             Some(Write::Append {
                 var: v,
                 word,
@@ -372,8 +453,8 @@ fn try_fold_chain_at(
     // `populate_variable_trace_facts`), so a `::`-qualified chain target is
     // checked under that canonical spelling too.
     if writes.len() < 2
-        || protected.contains(&var)
-        || protected.contains(var.trim_start_matches("::"))
+        || chains.protected.contains(&var)
+        || chains.protected.contains(var.trim_start_matches("::"))
     {
         return None;
     }
@@ -571,6 +652,41 @@ mod tests {
             apply("set l {}\nlappend l {a b}\nlappend l c"),
             "set l {{a b} c}"
         );
+    }
+
+    /// A `$var` piece the lattice proves constant folds through the value
+    /// at that statement: the non-consecutive chain of the migration plan's
+    /// O104 witness, and its exact-value twin (#2052).
+    #[test]
+    fn var_piece_proven_by_the_lattice_folds_the_chain() {
+        let out = apply("set s hello\nset p again\nappend s $p\nputs $s\n");
+        assert_eq!(out, "set p again\nset s helloagain\nputs $s\n");
+        let out = apply("set s hello\nset p { again}\nappend s $p\nputs $s\n");
+        assert!(
+            out.contains("hello again") && !out.contains("append"),
+            "the leading space is kept: {out:?}"
+        );
+        let out = apply("set l {}\nset e {b c}\nlappend l a $e\nputs $l\n");
+        assert_eq!(out, "set e {b c}\nset l {a {b c}}\nputs $l\n");
+    }
+
+    /// An unproven `$var` piece still ends the run.
+    #[test]
+    fn unproven_var_piece_ends_the_run() {
+        let src = "set s hello\nappend s $p\nappend s x\nputs $s\n";
+        let opts = run_pass(src);
+        assert!(
+            !opts.iter().any(|o| o.code == DiagCode::O104),
+            "an unproven `$p` cannot be folded: {opts:?}"
+        );
+    }
+
+    /// The write chain is classified by the resolved cell update, so the
+    /// qualified spelling of the same command extends it too.
+    #[test]
+    fn qualified_spelling_of_the_cell_update_extends_the_chain() {
+        let out = apply("set s foo\n::append s bar\nputs $s\n");
+        assert_eq!(out, "set s foobar\nputs $s\n");
     }
 
     #[test]

@@ -40,11 +40,14 @@
 pub mod answers;
 pub mod builtins;
 pub mod cell_update;
+pub mod const_ops;
 pub mod context;
 pub mod declaration;
 pub mod decline;
 pub mod inputs;
 pub mod iteration;
+pub mod lift;
+pub mod literal;
 pub mod route;
 pub mod unbind;
 
@@ -57,6 +60,7 @@ pub use answers::{
     SelectionContract, SelectionFact, StoreOutcome, TaintTransfer, TemplateWordPlan,
     TransferAnswer, TypeFacts, ValueShape, VariableRead,
 };
+pub use const_ops::{ConstOps, ConstValue, Needs, Representation, TargetSemantics, WorkUnits};
 pub use context::{AnalysisContext, BindingEvidence, BindingIdentity, Budget};
 pub use declaration::{
     DeclarationScope, DerivedSemantics, ResolvedSemantics, SemanticsDeclaration, SemanticsOrigin,
@@ -68,6 +72,8 @@ pub use inputs::{
     InvocationLayout, NestedPolicy, OperandId, OperandView, PlaceKind, PlaceRef,
     ResolvedInvocationView, TargetId, ValueIdentity, WordPart, WordStructure,
 };
+pub use lift::{LiftedAnswer, PinnedInputs, evaluate_lifted, finite_inputs};
+pub use literal::{LiteralInputs, evaluate_literal};
 pub use route::{EvalRoute, EvaluatorCapability, EvaluatorOwner, LanguageProfileId, NativeEvalId};
 
 /// What a registry-owned specialisation supplies for one invocation.

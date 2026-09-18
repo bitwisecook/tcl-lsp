@@ -642,6 +642,14 @@ fn seed_const<S: std::hash::BuildHasher>(
 }
 
 /// Interval produced by `stmt` for its def `name`.
+///
+/// The typed cell update is the registry's `CellReadModifyWrite(Increment)`
+/// descriptor by construction, and the domain consumes that descriptor's
+/// model of the operation ([`tcl_registry::value_transfer::RangeModel`]):
+/// an `IntegerAdd` is the interval sum of the cell and the amount — a
+/// canonical literal, or the interval a `$var` amount holds — and any other
+/// model is `TOP`. The domain interprets the operation; it never runs the
+/// evaluator.
 #[must_use]
 fn transfer(
     stmt: &crate::ir::Statement,
@@ -651,19 +659,34 @@ fn transfer(
     numbers: NumberSyntax,
 ) -> Interval {
     use crate::ir::Statement;
+    use tcl_registry::native_lowering::CellUpdate;
+    use tcl_registry::value_transfer::RangeModel;
     match stmt {
         Statement::AssignConst { value, .. } => const_int_from_value(value).map_or(TOP, constant),
         Statement::AssignExpr { expr, .. } => eval_expr(expr, env, numbers),
         Statement::Incr { amount, .. } => {
-            let mut base = env.get(name).copied().unwrap_or(old);
-            if base.is_bottom() {
-                base = TOP;
+            let operands = 1 + usize::from(amount.is_some());
+            match crate::value_transfer::cell_update_range_model(CellUpdate::Increment, operands) {
+                Some(RangeModel::IntegerAdd) => {
+                    let mut base = env.get(name).copied().unwrap_or(old);
+                    if base.is_bottom() {
+                        base = TOP;
+                    }
+                    let amt = match amount {
+                        None => constant(1),
+                        Some(a) => const_int_from_value(a).map_or_else(
+                            || {
+                                crate::static_loops::simple_var_ref(a)
+                                    .and_then(|var| env.get(&var).copied())
+                                    .unwrap_or(TOP)
+                            },
+                            constant,
+                        ),
+                    };
+                    add(base, amt)
+                }
+                _ => TOP,
             }
-            let amt = match amount {
-                None => constant(1),
-                Some(a) => const_int_from_value(a).map_or(TOP, constant),
-            };
-            add(base, amt)
         }
         _ => TOP,
     }
@@ -1309,6 +1332,38 @@ mod tests {
                 hi: Some(i64::MIN)
             })
         );
+    }
+
+    /// The increment's interval is the registry's `IntegerAdd` over the
+    /// cell and the amount, and a `$var` amount contributes the interval
+    /// it holds.
+    #[test]
+    fn incr_adds_the_interval_of_a_var_amount() {
+        use crate::compilation_unit::CompilationUnit;
+        use tcl_registry::model::ingress::static_context_for;
+        let registry = static_context_for("tcl8.6").commands();
+        let cu = CompilationUnit::build_for(
+            "proc f {} { set n 3\n set x 5\n incr x $n\n return $x }",
+            registry,
+            false,
+        );
+        let fu = cu.procedures.get("::f").expect("proc");
+        let intervals = compute_intervals_with(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.sccp.values,
+            numbers_for_dialect(Some(
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            )),
+        );
+        let x = fu.ssa.var_symbol("x").expect("x");
+        let last = intervals
+            .iter()
+            .filter(|((sym, _), _)| *sym == x)
+            .max_by_key(|((_, ver), _)| *ver)
+            .map(|(_, interval)| *interval)
+            .expect("x has an interval");
+        assert_eq!(last, constant(8));
     }
 
     #[test]

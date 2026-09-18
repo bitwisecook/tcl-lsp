@@ -1617,7 +1617,9 @@ pub fn serialise_dominators(result: &ExplorerResult) -> Value {
 
 /// Serialise the complete SCCP lattice and executable CFG facts. The SSA CFG
 /// tab intentionally keeps a compact annotation; this view is the durable
-/// proof surface for constants, reachability, and executable edges.
+/// proof surface for constants, reachability, executable edges, and — per
+/// statement — the value-transfer route the resolved invocation declared
+/// and how it answered.
 #[must_use]
 pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     Value::Array(
@@ -1670,6 +1672,18 @@ pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> 
                         "range": branch.span.map(|span| range_dict(span, li, source)),
                     }))
                     .collect();
+                let routes: Vec<Value> = snap
+                    .unit
+                    .sccp
+                    .explanations
+                    .iter()
+                    .map(|explanation| json!({
+                        "command": explanation.command,
+                        "route": explanation.route,
+                        "answer": explanation.answer,
+                        "range": range_dict(explanation.span, li, source),
+                    }))
+                    .collect();
                 json!({
                     "name": snap.name,
                     "kind": snap.kind.as_str(),
@@ -1677,6 +1691,7 @@ pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> 
                     "executableBlocks": executable_blocks,
                     "executableEdges": executable_edges,
                     "constantBranches": branches,
+                    "routes": routes,
                 })
             })
             .collect(),
@@ -4091,6 +4106,37 @@ mod tests {
         assert!(top["findings"].is_array());
         // The Rust interval analysis emits no divide-by-zero findings.
         assert_eq!(top["divzero"], json!([]));
+    }
+
+    /// The SCCP view carries each statement's value-transfer route and its
+    /// answer at the fixed point, beside the lattice.
+    #[test]
+    fn sccp_reports_each_statements_route_and_answer() {
+        let result = run_pipeline(
+            "proc p {} {\n    set n 1\n    incr n\n    set s [string range abc 0 1]\n    return $n\n}\n",
+            "tcl8.6",
+        );
+        let sccp = serialise_result(&result)["sccp"].clone();
+        let proc_view = sccp
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|f| f["name"] == "::p")
+            .expect("the procedure's view");
+        let routes = proc_view["routes"].as_array().expect("routes");
+        let incr = routes
+            .iter()
+            .find(|r| r["command"] == "incr")
+            .expect("the incr route");
+        assert_eq!(incr["route"], "direct cell-increment (registry)");
+        assert_eq!(incr["answer"], "evaluated");
+        assert_eq!(incr["range"]["startLine"], 2);
+        let range = routes
+            .iter()
+            .find(|r| r["command"] == "string")
+            .expect("the string range route");
+        assert_eq!(range["route"], "direct string-range (registry)");
+        assert_eq!(range["answer"], "evaluated");
     }
 
     #[test]

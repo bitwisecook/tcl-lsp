@@ -30,6 +30,11 @@ contract. This index does not duplicate that contract.
   subcommand, or form; what the constant-propagation driver reads from it;
   which descriptors derive one; and the two separate columns — descriptor
   present, route enabled — the generated inventory keeps.
+- [kcs-qa-why-does-a-constant-fold-depend-on-the-dialect.md](kcs-qa-why-does-a-constant-fold-depend-on-the-dialect.md)
+  — the direct route's release rules: leading-zero numerals, index
+  numerals, the integer tower, and non-ASCII operands answer per release,
+  and a profile naming none gets the unanimous answer or a recorded
+  decline the Explorer's `sccp` view shows.
 
 ## See also
 

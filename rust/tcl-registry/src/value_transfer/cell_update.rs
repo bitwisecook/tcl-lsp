@@ -20,14 +20,18 @@
 //! [`NativeLowering::CellReadModifyWrite`](crate::native_lowering::NativeLowering):
 //! one place, read then written; the possible failure is the operation's.
 //!
-//! The increment has a registry-owned direct route. It is the slice-one
-//! arithmetic — an integer base and an integer step, canonically spelled,
-//! added without widening — and declines everything else; the release
-//! rules (`010` by numeral grammar, the 8.4 overflow) arrive with the shared
-//! numeric owner in slice two. The append and list-append updates carry the
-//! descriptor and no route yet.
+//! All three operations have a registry-owned direct route, and each is
+//! the value computation the runtime adapters call — `ValueOps::int_add`,
+//! `var::append_bytes`, `var::lappend_value` — over [`ConstOps`], with the
+//! lattice write as the compile-time store. The release rules are the
+//! adapter's: the increment's base and step are read under the target's
+//! numeral grammar (`010` is 9 up to 8.6 and 11 from 9.0), an overflow
+//! widens from 8.5 and declines under 8.4 or an unnamed release, and a
+//! list append over a value that is not a list is the program's error,
+//! which is never a value.
 
 use tcl_dialect::model::SpecSurface;
+use tcl_syntax::value::ValueOps;
 
 use crate::completion::{CompletionCode, CompletionCodeDomain};
 use crate::native_lowering::CellUpdate;
@@ -39,15 +43,17 @@ use super::answers::{
     ExactValueOrUnavailable, ExistenceOutcome, ExistenceTransfer, InvocationOutcome, PlanAnswer,
     RangeModel, RouteIdentity, StoreOutcome, TransferAnswer, TypeFacts,
 };
+use super::const_ops::{ConstOps, ConstValue, Needs};
 use super::context::Budget;
-use super::decline::{DeclineReason, NoRouteReason};
+use super::decline::DeclineReason;
 use super::inputs::{AnalysisInputs, FactDomain, FactView, OperandId, TargetId};
 use super::route::{EvalRoute, NativeEvalId};
 
 const NORMAL: &[CompletionCode] = &[CompletionCode::Ok];
 
-/// The revision of the registry-owned increment implementation.
-const INCREMENT_REVISION: u64 = 1;
+/// The revision of the registry-owned cell-update evaluators: 2 is the
+/// shared cores over `ConstOps`; 1 was the slice-one checked arithmetic.
+const REVISION: u64 = 2;
 
 /// The derived cell read-modify-write specialisation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,6 +78,26 @@ impl CellUpdateSemantics {
         }
     }
 
+    /// The release axes the operation's core reads.
+    #[must_use]
+    pub const fn needs(self) -> Needs {
+        match self.update {
+            CellUpdate::Increment => Needs::NUMERAL_GRAMMAR.union(Needs::INT_TOWER),
+            CellUpdate::Append => Needs::NONE,
+            CellUpdate::ListAppend => Needs::LIST_RENDERING,
+        }
+    }
+
+    /// The catalogued evaluator.
+    #[must_use]
+    pub const fn evaluator(self) -> NativeEvalId {
+        match self.update {
+            CellUpdate::Increment => NativeEvalId::CellIncrement,
+            CellUpdate::Append => NativeEvalId::CellAppend,
+            CellUpdate::ListAppend => NativeEvalId::CellListAppend,
+        }
+    }
+
     /// Whether `operands` post-head words are a shape the operation takes.
     const fn accepts(self, operands: usize) -> bool {
         match self.update {
@@ -88,24 +114,21 @@ impl CellUpdateSemantics {
         }
     }
 
-    /// An integer read from the value domain, or why the operation cannot
-    /// use it.
-    fn integer_input(view: FactView) -> Result<i64, EvalAnswer> {
+    /// An exact input, or the answer that stands in for one that is not.
+    /// A finite set that reaches the evaluator is one the driver's lift
+    /// could not pin — the lift pins exactly one distinct finite value per
+    /// evaluation — so it is the correlated case.
+    fn exact_input(view: FactView) -> Result<ExactValue, EvalAnswer> {
         match view {
             FactView::Pending => Err(EvalAnswer::Pending),
-            FactView::Exact(value, _) => value
-                .as_int()
-                .ok_or(EvalAnswer::Declined(DeclineReason::WrongRepresentation)),
-            // Per-member evaluation over a finite set is in force from the
-            // slice that evaluates over lattice inputs with the correlated
-            // finite-set limit; until then a set declines.
-            FactView::Finite(..) => Err(EvalAnswer::Declined(DeclineReason::Unsupported)),
+            FactView::Exact(value, _) => Ok(value),
+            FactView::Finite(..) => Err(EvalAnswer::Declined(DeclineReason::CorrelatedSets)),
             FactView::Domain(_) => Err(EvalAnswer::Declined(DeclineReason::MalformedAnswer)),
             FactView::Top(reason) => Err(EvalAnswer::Declined(reason)),
         }
     }
 
-    fn evaluate_increment(self, input: &dyn AnalysisInputs) -> EvalAnswer {
+    fn evaluate_update(self, input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
         let operands = input.invocation().operands.len();
         if !self.accepts(operands) {
             return EvalAnswer::Declined(DeclineReason::Unsupported);
@@ -114,25 +137,46 @@ impl CellUpdateSemantics {
             Ok(place) => place,
             Err(reason) => return EvalAnswer::Declined(reason),
         };
-        let old = match Self::integer_input(input.prior_store(&place, FactDomain::ExactValue)) {
-            Ok(old) => old,
+        let prior = match Self::exact_input(input.prior_store(&place, FactDomain::ExactValue)) {
+            Ok(prior) => prior,
             Err(answer) => return answer,
         };
-        let step = if operands == 2 {
-            match Self::integer_input(input.operand(OperandId(1), FactDomain::ExactValue)) {
-                Ok(step) => step,
+        let mut values = Vec::with_capacity(operands.saturating_sub(1));
+        for index in 1..operands {
+            match Self::exact_input(input.operand(OperandId(index), FactDomain::ExactValue)) {
+                Ok(value) => values.push(ConstValue::from_exact(&value)),
                 Err(answer) => return answer,
             }
-        } else {
-            1
+        }
+        let mut ops = match ConstOps::admit(input.context(), budget, self.needs()) {
+            Ok(ops) => ops,
+            Err(reason) => return EvalAnswer::Declined(reason),
         };
-        // Widening past the wide boundary is the numeric owner's release
-        // rule (8.5 onwards widens, 8.4 raises); until it lands the overflow
-        // declines rather than guessing either.
-        let Some(new) = old.checked_add(step) else {
-            return EvalAnswer::Declined(DeclineReason::Unsupported);
+        let target = *ops.target();
+        let current = ConstValue::from_exact(&prior);
+        let computed = match self.update {
+            CellUpdate::Increment => {
+                let step = values
+                    .first()
+                    .cloned()
+                    .unwrap_or_else(|| ConstValue::int(1));
+                ops.int_add(Some(&current), &step)
+                    .map_err(|error| ops.decline_value(&error))
+            }
+            CellUpdate::Append => Ok(tcl_cmd_core::var::append_bytes(
+                &mut ops,
+                Some(current),
+                &values,
+            )),
+            CellUpdate::ListAppend => {
+                tcl_cmd_core::var::lappend_value(&mut ops, Some(current), &values)
+                    .map_err(|error| ops.decline(&error))
+            }
         };
-        let value = ExactValue::int(new);
+        let value = match computed.and_then(|value| ops.take(value)) {
+            Ok(value) => value,
+            Err(reason) => return EvalAnswer::Declined(reason),
+        };
         EvalAnswer::Evaluated(Box::new(InvocationOutcome {
             completion: CompletionOutcome::Normal,
             result: ExactValueOrUnavailable::Exact(value.clone()),
@@ -145,8 +189,13 @@ impl CellUpdateSemantics {
                 route: Some(RouteIdentity {
                     route: self.route(),
                     implementation: self.identity(),
-                    revision: INCREMENT_REVISION,
+                    revision: REVISION,
                 }),
+                numerals: match self.update {
+                    CellUpdate::Increment => target.numerals,
+                    CellUpdate::Append | CellUpdate::ListAppend => None,
+                },
+                release: target.release,
                 ..DependencyEvidence::default()
             },
         }))
@@ -163,13 +212,8 @@ impl CommandSemantics for CellUpdateSemantics {
     }
 
     fn route(&self) -> EvalRoute {
-        match self.update {
-            CellUpdate::Increment => EvalRoute::Direct {
-                id: NativeEvalId::CellIncrement,
-            },
-            CellUpdate::Append | CellUpdate::ListAppend => EvalRoute::None {
-                reason: NoRouteReason::Unauthored,
-            },
+        EvalRoute::Direct {
+            id: self.evaluator(),
         }
     }
 
@@ -210,13 +254,7 @@ impl CommandSemantics for CellUpdateSemantics {
         }
     }
 
-    fn evaluate(&self, input: &dyn AnalysisInputs, _budget: &mut Budget) -> EvalAnswer {
-        match self.update {
-            CellUpdate::Increment => self.evaluate_increment(input),
-            CellUpdate::Append | CellUpdate::ListAppend => match self.route() {
-                EvalRoute::None { reason } => EvalAnswer::Declined(DeclineReason::NoRoute(reason)),
-                _ => EvalAnswer::Declined(DeclineReason::Unsupported),
-            },
-        }
+    fn evaluate(&self, input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
+        self.evaluate_update(input, budget)
     }
 }

@@ -35,15 +35,17 @@ use tcl_registry::native_lowering::{CellUpdate, NativeLowering};
 use tcl_registry::spec::{CommandSpec, SubCommand};
 use tcl_registry::types::VarWriteTyping;
 use tcl_registry::value_transfer::{
-    AnalysisContext, AnalysisInputs, BodyRegion, Budget, CommandSemantics, DeclarationScope,
-    DeclineReason, DerivedSemantics, EvalAnswer, EvalRoute, EvaluationState, EvaluatorOwner,
-    ExactValue, ExactValueOrUnavailable, FactDomain, FactView, InvocationLayout, NativeEvalId,
-    NoRouteReason, OperandId, OperandView, PlaceRef, PlanAnswer, ResolvedInvocationView,
-    ResolvedSemantics, SemanticsDeclaration, SemanticsOrigin, StoreOutcome, TargetId,
-    TransferAnswer, WordStructure, resolve_semantics,
+    AnalysisContext, AnalysisInputs, Axis, BodyRegion, Budget, CommandSemantics, ConstOps,
+    ConstValue, DeclarationScope, DeclineReason, DerivedSemantics, EvalAnswer, EvalRoute,
+    EvaluationState, EvaluatorOwner, ExactValue, ExactValueOrUnavailable, FactDomain, FactView,
+    InvocationLayout, LiftedAnswer, NativeEvalId, Needs, NoRouteReason, NumericValue, OperandId,
+    OperandView, PlaceRef, PlanAnswer, ResolvedInvocationView, ResolvedSemantics,
+    SemanticsDeclaration, SemanticsOrigin, StoreOutcome, TargetId, TransferAnswer, ValueIdentity,
+    WordStructure, evaluate_lifted, resolve_semantics,
 };
 use tcl_registry::value_transfer::{BindingIdentity, ExistenceOutcome, IterableKind};
 use tcl_registry::{ArgRole, CommandRegistry, InvocationWordKind, Traits};
+use tcl_syntax::value::ValueOps as _;
 
 const LOADABLE_DIALECTS: &[&str] = &[
     "tcl8.4",
@@ -217,28 +219,18 @@ fn a_cell_read_modify_write_descriptor_derives_the_same_cell_update() {
 /// the increment has a registry-owned direct route; append and list-append
 /// carry the descriptor and no route.
 #[test]
-fn only_the_increment_has_an_enabled_route() {
+fn every_cell_update_has_a_registry_owned_route() {
     let reg = CommandRegistry::build_default();
     let route = |name: &str| resolve_semantics(reg.get(name).expect(name), None, None).route();
-    assert_eq!(
-        route("incr"),
-        Some(EvalRoute::Direct {
-            id: NativeEvalId::CellIncrement
-        })
-    );
-    assert_eq!(
-        NativeEvalId::CellIncrement.owner(),
-        EvaluatorOwner::Registry
-    );
-    for name in ["append", "lappend"] {
-        assert_eq!(
-            route(name),
-            Some(EvalRoute::None {
-                reason: NoRouteReason::Unauthored
-            }),
-            "{name}"
-        );
+    for (name, id) in [
+        ("incr", NativeEvalId::CellIncrement),
+        ("append", NativeEvalId::CellAppend),
+        ("lappend", NativeEvalId::CellListAppend),
+    ] {
+        assert_eq!(route(name), Some(EvalRoute::Direct { id }), "{name}");
+        assert_eq!(id.owner(), EvaluatorOwner::Registry, "{name}");
     }
+    assert_eq!(NativeEvalId::StringRange.owner(), EvaluatorOwner::Registry);
 }
 
 /// `ElementsOf` states a type relationship and `LOOP_LIST_HEADER` a CFG
@@ -366,7 +358,7 @@ fn abstention_exists_at_command_subcommand_and_form_scope() {
 /// step, return the new value and one write of it to the target — and
 /// decline, never guess, on a pending, non-integer, or set-valued input.
 #[test]
-fn the_increment_route_evaluates_the_slice_one_arithmetic() {
+fn the_increment_route_runs_the_shared_core_under_the_target_semantics() {
     let cell = resolve_semantics(
         CommandRegistry::build_default().get("incr").expect("incr"),
         None,
@@ -375,16 +367,88 @@ fn the_increment_route_evaluates_the_slice_one_arithmetic() {
     let cell = cell.semantics().expect("derived");
     let mut budget = Budget::unbounded();
 
-    let evaluate = |old: FactView, amount: Option<&'static str>| {
+    let evaluate_under = |dialect: Option<&str>, old: FactView, amount: Option<&'static str>| {
         let mut operands = vec![literal("n", Some(ArgRole::VarWrite))];
         if let Some(amount) = amount {
             operands.push(literal(amount, None));
         }
         let mut inputs = TestInputs::new("incr", operands);
         inputs.prior.insert("n".to_owned(), old);
-        cell.evaluate(&inputs, &mut Budget::unbounded())
+        inputs.context =
+            AnalysisContext::detached(dialect.and_then(tcl_dialect::DialectProfile::find));
+        cell.evaluate(&inputs, &mut Budget::evaluation())
     };
+    let evaluate = |old: FactView, amount: Option<&'static str>| evaluate_under(None, old, amount);
     let exact = |i: i64| FactView::Exact(ExactValue::int(i), None);
+    let text = |t: &str| FactView::Exact(ExactValue::text(t), None);
+    let result_of = |answer: EvalAnswer| match answer {
+        EvalAnswer::Evaluated(outcome) => match outcome.result {
+            ExactValueOrUnavailable::Exact(value) => Ok(value),
+            ExactValueOrUnavailable::Unavailable(_) => panic!("unavailable"),
+        },
+        EvalAnswer::Declined(reason) => Err(reason),
+        EvalAnswer::Pending => panic!("pending"),
+    };
+
+    // The release rules are the adapter's: a leading zero reads as octal up
+    // to 8.6 and decimal from 9.0, and a profile naming no release declines.
+    assert_eq!(
+        result_of(evaluate_under(Some("tcl8.6"), text("010"), None)),
+        Ok(ExactValue::int(9))
+    );
+    assert_eq!(
+        result_of(evaluate_under(Some("tcl8.4"), text("010"), None)),
+        Ok(ExactValue::int(9))
+    );
+    assert_eq!(
+        result_of(evaluate_under(Some("tcl9.0"), text("010"), None)),
+        Ok(ExactValue::int(11))
+    );
+    assert_eq!(
+        result_of(evaluate(text("010"), None)),
+        Err(DeclineReason::ReleaseAmbiguous(Axis::NumeralGrammar))
+    );
+    assert_eq!(
+        result_of(evaluate_under(Some("f5-irules"), text("010"), None)),
+        Err(DeclineReason::ReleaseAmbiguous(Axis::NumeralGrammar))
+    );
+    // A whitespace-padded step is an integer in every release (tclsh 8.4,
+    // 8.6, 9.0: `set x 1; incr x " 5"` is 6).
+    assert_eq!(
+        result_of(evaluate(exact(1), Some(" 5"))),
+        Ok(ExactValue::int(6))
+    );
+    // Past the wide boundary 8.5 onward widens; 8.4 prints a value the
+    // model does not compute; a profile naming no release cannot say.
+    for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let value = result_of(evaluate_under(Some(dialect), exact(i64::MAX), None)).expect(dialect);
+        assert_eq!(value.bytes, b"9223372036854775808", "{dialect}");
+        assert_eq!(value.numeric, None, "{dialect}");
+    }
+    assert_eq!(
+        result_of(evaluate_under(Some("tcl8.4"), exact(i64::MAX), None)),
+        Err(DeclineReason::WrongRepresentation)
+    );
+    assert_eq!(
+        result_of(evaluate(exact(i64::MAX), None)),
+        Err(DeclineReason::ReleaseAmbiguous(Axis::IntTower))
+    );
+    // The evidence names the route and the release the answer depended on.
+    match evaluate_under(Some("tcl8.6"), exact(1), None) {
+        EvalAnswer::Evaluated(outcome) => {
+            assert_eq!(
+                outcome.evidence.release,
+                Some(tcl_dialect::TclVersion::V8_6)
+            );
+            assert_eq!(
+                outcome.evidence.route.map(|r| r.route),
+                Some(EvalRoute::Direct {
+                    id: NativeEvalId::CellIncrement
+                })
+            );
+        }
+        other => panic!("{other:?}"),
+    }
 
     match evaluate(exact(5), None) {
         EvalAnswer::Evaluated(outcome) => {
@@ -423,15 +487,16 @@ fn the_increment_route_evaluates_the_slice_one_arithmetic() {
         evaluate(exact(1), Some("2.5")),
         EvalAnswer::Declined(DeclineReason::WrongRepresentation)
     );
-    // A leading-zero step is release-dependent and stays text at the
-    // ingress, so it declines rather than folding either release's answer.
+    // A finite set that reaches the evaluator is one the lift did not pin.
     assert_eq!(
-        evaluate(exact(1), Some("010")),
-        EvalAnswer::Declined(DeclineReason::WrongRepresentation)
-    );
-    assert_eq!(
-        evaluate(exact(i64::MAX), None),
-        EvalAnswer::Declined(DeclineReason::Unsupported)
+        evaluate(
+            FactView::Finite(
+                vec![ExactValue::int(1), ExactValue::int(2)],
+                Some(ValueIdentity(7))
+            ),
+            None
+        ),
+        EvalAnswer::Declined(DeclineReason::CorrelatedSets)
     );
     // The type transfer names the result and the target as integers.
     let inputs = TestInputs::new("incr", vec![literal("n", Some(ArgRole::VarWrite))]);
@@ -572,16 +637,17 @@ fn route_stamps_match_the_pinned_set() {
         }
     }
     let expected: BTreeSet<(String, &'static str)> = [
-        ("append", "none:unauthored"),
+        ("append", "direct:cell-append"),
         ("expr", "expression:tcl.expr"),
         ("foreach", "none:unauthored"),
         ("format", "direct:format-template"),
         ("incr", "direct:cell-increment"),
-        ("lappend", "none:unauthored"),
+        ("lappend", "direct:cell-list-append"),
         ("list", "direct:list-of-args"),
         ("llength", "direct:list-length"),
         ("lmap", "none:unauthored"),
         ("string length", "direct:string-length"),
+        ("string range", "direct:string-range"),
         ("unset", "none:unauthored"),
     ]
     .into_iter()
@@ -599,6 +665,9 @@ fn route_label(route: EvalRoute) -> &'static str {
     match route {
         EvalRoute::Direct { id } => match id {
             NativeEvalId::CellIncrement => "direct:cell-increment",
+            NativeEvalId::CellAppend => "direct:cell-append",
+            NativeEvalId::CellListAppend => "direct:cell-list-append",
+            NativeEvalId::StringRange => "direct:string-range",
             NativeEvalId::ListOfArgs => "direct:list-of-args",
             NativeEvalId::FormatTemplate => "direct:format-template",
             NativeEvalId::ListLength => "direct:list-length",
@@ -613,4 +682,348 @@ fn route_label(route: EvalRoute) -> &'static str {
             NoRouteReason::Callback => "none:callback",
         },
     }
+}
+
+fn evaluated(
+    answer: EvalAnswer,
+) -> Result<Box<tcl_registry::value_transfer::InvocationOutcome>, DeclineReason> {
+    match answer {
+        EvalAnswer::Evaluated(outcome) => Ok(outcome),
+        EvalAnswer::Declined(reason) => Err(reason),
+        EvalAnswer::Pending => panic!("pending"),
+    }
+}
+
+/// `append` and `lappend` are the runtime adapters' value computations —
+/// `var::append_bytes` and `var::lappend_value` — with the lattice write as
+/// the store: byte-exact, list-rendered canonically, and a list append over
+/// a value that is not a list is the program's error, never a value.
+#[test]
+fn append_and_list_append_run_the_shared_cores() {
+    let reg = CommandRegistry::build_default();
+    let evaluate = |command: &'static str, prior: FactView, values: &[&'static str]| {
+        let cell = resolve_semantics(reg.get(command).expect(command), None, None);
+        let cell = cell.semantics().expect("derived");
+        let mut operands = vec![literal("v", Some(ArgRole::VarWrite))];
+        operands.extend(values.iter().map(|value| literal(value, None)));
+        let mut inputs = TestInputs::new(command, operands);
+        inputs.prior.insert("v".to_owned(), prior);
+        evaluated(cell.evaluate(&inputs, &mut Budget::evaluation()))
+    };
+    let text = |t: &str| FactView::Exact(ExactValue::text(t), None);
+
+    let outcome = evaluate("append", text("foo"), &["bar", " baz"]).expect("appends");
+    assert_eq!(
+        outcome.result,
+        ExactValueOrUnavailable::Exact(ExactValue {
+            bytes: b"foobar baz".to_vec(),
+            numeric: None,
+            representation: tcl_registry::value_transfer::RepresentationEvidence::Constructed(
+                tcl_registry::TclType::String
+            ),
+        })
+    );
+    assert_eq!(outcome.ordered_stores.len(), 1);
+    assert_eq!(outcome.types.result, Some(tcl_registry::TclType::String));
+    let padded = evaluate("append", text(" a "), &["b"]).expect("exact bytes");
+    assert!(matches!(padded.result, ExactValueOrUnavailable::Exact(ref v) if v.bytes == b" a b"));
+    let numeric = evaluate("append", text("4"), &["2"]).expect("appends digits");
+    assert!(
+        matches!(numeric.result, ExactValueOrUnavailable::Exact(ref v) if v.bytes == b"42" && v.numeric == Some(NumericValue::Int(42)))
+    );
+
+    let outcome = evaluate("lappend", text("a b"), &["c", "d e"]).expect("appends elements");
+    assert!(
+        matches!(outcome.result, ExactValueOrUnavailable::Exact(ref v) if v.bytes == b"a b c {d e}")
+    );
+    assert_eq!(outcome.types.result, Some(tcl_registry::TclType::List));
+    let outcome = evaluate("lappend", text(""), &["c"]).expect("appends to the empty list");
+    assert!(matches!(outcome.result, ExactValueOrUnavailable::Exact(ref v) if v.bytes == b"c"));
+    assert_eq!(
+        evaluate("lappend", text("{"), &["v"]),
+        Err(DeclineReason::WrongRepresentation),
+        "`lappend` over `{{` raises `unmatched open brace in list`"
+    );
+    assert!(matches!(
+        evaluate("lappend", FactView::Pending, &["v"]),
+        Err(_) | Ok(_)
+    ));
+    let mut inputs = TestInputs::new(
+        "lappend",
+        vec![literal("v", Some(ArgRole::VarWrite)), literal("x", None)],
+    );
+    inputs.prior.insert("v".to_owned(), FactView::Pending);
+    let cell = resolve_semantics(reg.get("lappend").expect("lappend"), None, None);
+    assert_eq!(
+        cell.semantics()
+            .expect("derived")
+            .evaluate(&inputs, &mut Budget::evaluation()),
+        EvalAnswer::Pending
+    );
+}
+
+/// `string range` on the direct route: the shared core, with the index
+/// numerals pre-resolved under the target's grammar and a non-ASCII operand
+/// admitted only where the target decodes source as UTF-8. The shipped
+/// `const_fold` is the same evaluator.
+#[test]
+fn string_range_runs_the_shared_core_with_the_index_grammar() {
+    use tcl_registry::value_transfer::builtins::STRING_RANGE;
+    let evaluate = |dialect: Option<&str>, args: [&'static str; 3]| {
+        let mut inputs = TestInputs::new(
+            "string",
+            vec![
+                literal("range", None),
+                literal(args[0], None),
+                literal(args[1], None),
+                literal(args[2], None),
+            ],
+        );
+        inputs.context =
+            AnalysisContext::detached(dialect.and_then(tcl_dialect::DialectProfile::find));
+        evaluated(STRING_RANGE.evaluate(&inputs, &mut Budget::evaluation())).map(|outcome| {
+            match outcome.result {
+                ExactValueOrUnavailable::Exact(value) => String::from_utf8(value.bytes).unwrap(),
+                ExactValueOrUnavailable::Unavailable(_) => panic!("unavailable"),
+            }
+        })
+    };
+    assert_eq!(evaluate(None, ["hello", "1", "3"]).as_deref(), Ok("ell"));
+    assert_eq!(evaluate(None, [" a ", "0", "end"]).as_deref(), Ok(" a "));
+    assert_eq!(evaluate(None, ["abcdef", "-2", "2"]).as_deref(), Ok("abc"));
+    assert_eq!(evaluate(None, ["abc", "end-1", "end"]).as_deref(), Ok("bc"));
+    assert_eq!(evaluate(None, ["abc", "3", "1"]).as_deref(), Ok(""));
+    // tclsh 8.4, 8.5, 8.6: `ijkl`; tclsh 9.0, 9.1: `kl`.
+    assert_eq!(
+        evaluate(Some("tcl8.6"), ["abcdefghijkl", "010", "end"]).as_deref(),
+        Ok("ijkl")
+    );
+    assert_eq!(
+        evaluate(Some("tcl9.0"), ["abcdefghijkl", "010", "end"]).as_deref(),
+        Ok("kl")
+    );
+    assert_eq!(
+        evaluate(None, ["abcdefghijkl", "010", "end"]),
+        Err(DeclineReason::ReleaseAmbiguous(Axis::IndexGrammar))
+    );
+    assert_eq!(
+        evaluate(None, ["abc", "x", "1"]),
+        Err(DeclineReason::WrongRepresentation)
+    );
+    assert_eq!(
+        evaluate(Some("tcl9.0"), ["café", "0", "2"]).as_deref(),
+        Ok("caf")
+    );
+    assert_eq!(
+        evaluate(Some("tcl9.0"), ["café", "3", "3"]).as_deref(),
+        Ok("é")
+    );
+    for dialect in [None, Some("tcl8.6")] {
+        assert_eq!(
+            evaluate(dialect, ["café", "0", "2"]),
+            Err(DeclineReason::ReleaseAmbiguous(Axis::SourceEncoding)),
+            "{dialect:?}"
+        );
+    }
+
+    let reg = CommandRegistry::build_default();
+    let range = reg
+        .get("string")
+        .expect("string")
+        .subcommand("range")
+        .expect("range");
+    assert!(matches!(
+        range.semantics,
+        SemanticsDeclaration::Declared(semantics) if semantics.route() == EvalRoute::Direct { id: NativeEvalId::StringRange }
+    ));
+    assert_eq!(
+        range.run_const_fold(&["hello", "1", "3"], None).as_deref(),
+        Some("ell")
+    );
+    assert_eq!(
+        range
+            .run_const_fold(
+                &["abcdefghijkl", "010", "end"],
+                Some(tcl_dialect::TclVersion::V9_0)
+            )
+            .as_deref(),
+        Some("kl")
+    );
+    assert_eq!(
+        range
+            .run_const_fold(
+                &["abcdefghijkl", "010", "end"],
+                Some(tcl_dialect::TclVersion::V8_6)
+            )
+            .as_deref(),
+        Some("ijkl")
+    );
+    assert_eq!(
+        range.run_const_fold(&["abcdefghijkl", "010", "end"], None),
+        None
+    );
+    assert_eq!(range.run_const_fold(&["café", "0", "2"], None), None);
+}
+
+/// The correlated finite-set limit: exactly one distinct SSA value among an
+/// invocation's inputs may be finite, and it is evaluated per member; two
+/// distinct finite inputs decline as correlated, and two reads of one
+/// identity are one distinct value.
+#[test]
+fn the_lift_evaluates_per_member_over_one_finite_input() {
+    let reg = CommandRegistry::build_default();
+    let cell = resolve_semantics(reg.get("incr").expect("incr"), None, None);
+    let cell = cell.semantics().expect("derived");
+    let set = |identity: u64, members: &[i64]| {
+        FactView::Finite(
+            members.iter().map(|i| ExactValue::int(*i)).collect(),
+            Some(ValueIdentity(identity)),
+        )
+    };
+    let results = |answer: LiftedAnswer| match answer {
+        LiftedAnswer::Evaluated(outcomes) => Ok(outcomes
+            .into_iter()
+            .map(|outcome| match outcome.result {
+                ExactValueOrUnavailable::Exact(value) => value.as_int().expect("an integer"),
+                ExactValueOrUnavailable::Unavailable(_) => panic!("unavailable"),
+            })
+            .collect::<Vec<_>>()),
+        LiftedAnswer::Declined(reason) => Err(reason),
+        LiftedAnswer::Pending => panic!("pending"),
+    };
+
+    // One finite input: the prior value of the target.
+    let mut inputs = TestInputs::new(
+        "incr",
+        vec![literal("x", Some(ArgRole::VarWrite)), literal("10", None)],
+    );
+    inputs.prior.insert("x".to_owned(), set(1, &[1, 2]));
+    assert_eq!(
+        results(evaluate_lifted(
+            cell,
+            &inputs,
+            &mut Budget::evaluation(),
+            32
+        )),
+        Ok(vec![11, 12])
+    );
+    // Two distinct finite inputs: the target's prior and the step.
+    let mut inputs = TestInputs::new(
+        "incr",
+        vec![literal("x", Some(ArgRole::VarWrite)), literal("$a", None)],
+    );
+    inputs.prior.insert("x".to_owned(), set(1, &[1, 2]));
+    inputs.operands.insert(1, set(2, &[1, 2]));
+    assert_eq!(
+        results(evaluate_lifted(
+            cell,
+            &inputs,
+            &mut Budget::evaluation(),
+            32
+        )),
+        Err(DeclineReason::CorrelatedSets)
+    );
+    // The same identity read twice is one distinct value: `incr x $x`.
+    let mut inputs = TestInputs::new(
+        "incr",
+        vec![literal("x", Some(ArgRole::VarWrite)), literal("$x", None)],
+    );
+    inputs.prior.insert("x".to_owned(), set(1, &[1, 2]));
+    inputs.operands.insert(1, set(1, &[1, 2]));
+    assert_eq!(
+        results(evaluate_lifted(
+            cell,
+            &inputs,
+            &mut Budget::evaluation(),
+            32
+        )),
+        Ok(vec![2, 4])
+    );
+    // The member cap is a precision limit.
+    let mut inputs = TestInputs::new("incr", vec![literal("x", Some(ArgRole::VarWrite))]);
+    inputs.prior.insert("x".to_owned(), set(1, &[1, 2, 3]));
+    assert_eq!(
+        results(evaluate_lifted(cell, &inputs, &mut Budget::evaluation(), 2)),
+        Err(DeclineReason::TooManyMembers)
+    );
+    // No finite input evaluates once.
+    let mut inputs = TestInputs::new("incr", vec![literal("x", Some(ArgRole::VarWrite))]);
+    inputs
+        .prior
+        .insert("x".to_owned(), FactView::Exact(ExactValue::int(4), None));
+    assert_eq!(
+        results(evaluate_lifted(
+            cell,
+            &inputs,
+            &mut Budget::evaluation(),
+            32
+        )),
+        Ok(vec![5])
+    );
+}
+
+/// Every core a registry-owned direct route calls reads only axes the
+/// route admits: under an empty admissibility set each poisons the run,
+/// except the byte append, which reads nothing release-dependent.
+#[test]
+fn the_cores_the_routes_call_read_only_admitted_axes() {
+    let context = AnalysisContext::detached(None);
+    let closed = |ops: ConstOps<'_>| ops.take(ConstValue::int(0)).err();
+
+    let mut budget = Budget::evaluation();
+    let mut ops = ConstOps::admit(&context, &mut budget, Needs::NONE).expect("admits");
+    let _ = ops.int_add(Some(&ConstValue::int(1)), &ConstValue::int(1));
+    assert_eq!(
+        closed(ops),
+        Some(DeclineReason::MalformedAnswer),
+        "incr's core"
+    );
+
+    let mut budget = Budget::evaluation();
+    let mut ops = ConstOps::admit(&context, &mut budget, Needs::NONE).expect("admits");
+    let _ = tcl_cmd_core::var::lappend_value(
+        &mut ops,
+        Some(ConstValue::text("a")),
+        &[ConstValue::text("b")],
+    );
+    assert_eq!(
+        closed(ops),
+        Some(DeclineReason::MalformedAnswer),
+        "lappend's core"
+    );
+
+    let mut budget = Budget::evaluation();
+    let mut ops = ConstOps::admit(&context, &mut budget, Needs::NONE).expect("admits");
+    let _ = ops.index(&ConstValue::text("1"), 3);
+    assert_eq!(
+        closed(ops),
+        Some(DeclineReason::MalformedAnswer),
+        "string range's index"
+    );
+
+    let mut budget = Budget::evaluation();
+    let mut ops = ConstOps::admit(&context, &mut budget, Needs::NONE).expect("admits");
+    let _ = tcl_cmd_core::var::append_bytes(
+        &mut ops,
+        Some(ConstValue::text("a")),
+        &[ConstValue::text("b")],
+    );
+    assert_eq!(closed(ops), None, "append's core reads no axis");
+
+    let increment = resolve_semantics(
+        CommandRegistry::build_default().get("incr").expect("incr"),
+        None,
+        None,
+    );
+    let DerivedSemantics::CellUpdate(cell) = (match increment {
+        ResolvedSemantics::Derived(derived) => derived,
+        other => panic!("{other:?}"),
+    }) else {
+        panic!("a cell update")
+    };
+    assert_eq!(cell.needs(), Needs::NUMERAL_GRAMMAR | Needs::INT_TOWER);
+    assert_eq!(
+        tcl_registry::value_transfer::builtins::StringRangeSemantics::NEEDS,
+        Needs::INDEX_GRAMMAR | Needs::CHAR_INDEXING | Needs::SOURCE_ENCODING
+    );
 }

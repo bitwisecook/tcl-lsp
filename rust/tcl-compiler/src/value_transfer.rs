@@ -37,24 +37,26 @@
 //! services — and its registry-owned argument assembly lands with the
 //! expression slice.
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::cell::{Cell, RefCell};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use rustc_hash::FxHashSet;
 use tcl_dialect::StringCharacterModel;
-use tcl_lexer::{LexerConfig, TokenType};
+use tcl_lexer::{LexerConfig, Span, TokenType};
 use tcl_registry::value_transfer::{
     AnalysisContext, AnalysisInputs, AnalysisTier, BindingIdentity, BodyRegion, Budget,
     DeclineReason, EvalAnswer, EvalRoute, EvaluationState, EvaluatorOwner, ExactValue,
     ExactValueOrUnavailable, ExistenceOutcome, FactDomain, FactView, InvocationLayout,
-    IterableKind, NativeEvalId, NumericValue, OperandId, OperandView, PlaceKind, PlaceRef,
-    PlanAnswer, ResolvedInvocationView, StoreOutcome, TransferAnswer, ValueIdentity, WordStructure,
+    InvocationOutcome, IterableKind, LiftedAnswer, NativeEvalId, NumericValue, OperandId,
+    OperandView, PlaceKind, PlaceRef, PlanAnswer, ResolvedInvocationView, StoreOutcome, TargetId,
+    TransferAnswer, ValueIdentity, WordStructure, evaluate_lifted,
 };
 use tcl_registry::{
     ArgRole, CommandRegistry, InvocationWord, InvocationWordKind, InvocationWords,
     ResolvedInvocation,
 };
 
-use crate::analyses::{ConstValue, LatticeValue};
+use crate::analyses::{ConstValue, LatticeValue, MAX_CONSTSET_SIZE};
 use crate::cfg::Function as CfgFunction;
 use crate::codegen::helpers::split_list_values;
 use crate::command_binding::CommandTrustSnapshot;
@@ -108,15 +110,113 @@ impl AnalysisContextKey {
     }
 }
 
+/// One statement's route and answer, as the Explorer's `sccp` view shows
+/// it: which route the resolved invocation declared, and whether it
+/// evaluated, declined with which reason, or is still pending.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RouteExplanation {
+    /// The statement's span.
+    pub span: Span,
+    /// The resolved command.
+    pub command: String,
+    /// The declared route, or why there is none.
+    pub route: String,
+    /// The answer on the last solver pass over the statement.
+    pub answer: String,
+}
+
 /// The driver's per-run state: the registry the unit resolves against, the
-/// whole-module trust fact when the caller holds one, the fold policy, and
-/// the analysis context every answer is memoised under.
+/// whole-module trust fact when the caller holds one, the fold policy, the
+/// analysis context every answer is memoised under, and the route
+/// explanations the run records for the statement it is evaluating.
 pub(crate) struct LatticeDriver<'a> {
     registry: &'a CommandRegistry,
     folds: Option<BuiltinFoldInputs<'a>>,
     policy: FoldPolicy,
     context: AnalysisContext,
     lexer_config: LexerConfig,
+    /// The statement being evaluated, when the solver said which.
+    explaining: Cell<Option<Span>>,
+    /// The last explanation recorded per statement.
+    explanations: RefCell<BTreeMap<(u32, u32), RouteExplanation>>,
+}
+
+/// The lattice value of one member-wise evaluation: the values `pick`
+/// selects from each outcome, one constant or a finite set of them, and
+/// `Overdefined` when any outcome has none.
+fn lattice_of_outcomes(
+    outcomes: &[Box<InvocationOutcome>],
+    pick: impl Fn(&InvocationOutcome) -> Option<&ExactValue>,
+) -> LatticeValue {
+    let mut consts: Vec<ConstValue> = Vec::with_capacity(outcomes.len());
+    for outcome in outcomes {
+        let Some(value) = pick(outcome) else {
+            return LatticeValue::Overdefined;
+        };
+        let LatticeValue::Const(c) = exact_to_lattice(value) else {
+            return LatticeValue::Overdefined;
+        };
+        if !consts.contains(&c) {
+            consts.push(c);
+        }
+    }
+    match consts.len() {
+        0 => LatticeValue::Overdefined,
+        1 => LatticeValue::Const(consts.pop().unwrap()),
+        _ => LatticeValue::constset(consts),
+    }
+}
+
+/// The value an outcome writes to `target`, when it writes one.
+fn written_value(outcome: &InvocationOutcome, target: TargetId) -> Option<&ExactValue> {
+    outcome.ordered_stores.iter().find_map(|store| match store {
+        StoreOutcome::Write { target: t, value } if *t == target => Some(value),
+        _ => None,
+    })
+}
+
+/// The route's spelling for an explanation.
+fn route_label(route: Option<EvalRoute>) -> String {
+    match route {
+        None => "no semantics".to_owned(),
+        Some(EvalRoute::Direct { id }) => match id.owner() {
+            EvaluatorOwner::Registry => format!("direct {} (registry)", id.as_str()),
+            EvaluatorOwner::Transitional { retires_in_slice } => format!(
+                "direct {} (compiler, transitional until slice {retires_in_slice})",
+                id.as_str()
+            ),
+        },
+        Some(EvalRoute::Expression { language }) => format!("expression {}", language.as_str()),
+        Some(EvalRoute::Implementation(capability)) => {
+            format!("implementation {}", capability.identity)
+        }
+        Some(EvalRoute::None { reason }) => format!("none ({})", reason.as_str()),
+    }
+}
+
+/// The decline's spelling for an explanation, payload included.
+fn reason_label(reason: DeclineReason) -> String {
+    match reason {
+        DeclineReason::ReleaseAmbiguous(axis) => {
+            format!("{}: {}", reason.as_str(), axis.as_str())
+        }
+        DeclineReason::NoRoute(why) => format!("{}: {}", reason.as_str(), why.as_str()),
+        DeclineReason::Unavailable(tier) => format!("{}: {}", reason.as_str(), tier.as_str()),
+        DeclineReason::Budget(limit) => format!("{}: {limit:?}", reason.as_str()),
+        other => other.as_str().to_owned(),
+    }
+}
+
+/// The lifted answer's spelling for an explanation.
+fn answer_label(answer: &LiftedAnswer) -> String {
+    match answer {
+        LiftedAnswer::Pending => "pending".to_owned(),
+        LiftedAnswer::Declined(reason) => format!("declined: {}", reason_label(*reason)),
+        LiftedAnswer::Evaluated(outcomes) if outcomes.len() == 1 => "evaluated".to_owned(),
+        LiftedAnswer::Evaluated(outcomes) => {
+            format!("evaluated per member ({} members)", outcomes.len())
+        }
+    }
 }
 
 impl<'a> LatticeDriver<'a> {
@@ -152,7 +252,45 @@ impl<'a> LatticeDriver<'a> {
             policy,
             context,
             lexer_config: LexerConfig::for_profile(profile),
+            explaining: Cell::new(None),
+            explanations: RefCell::new(BTreeMap::new()),
         }
+    }
+
+    /// The statement the solver is about to evaluate, so the answers below
+    /// are recorded against it; `None` between statements.
+    pub(crate) fn explaining(&self, span: Option<Span>) {
+        self.explaining.set(span);
+    }
+
+    /// Record `command`'s route and `answer` for the statement being
+    /// evaluated. The last pass over a statement wins, so the record is the
+    /// fixed point's.
+    fn explain(&self, command: &str, route: Option<EvalRoute>, answer: String) {
+        let Some(span) = self.explaining.get() else {
+            return;
+        };
+        self.explanations.borrow_mut().insert(
+            (span.start(), span.end()),
+            RouteExplanation {
+                span,
+                command: command.to_owned(),
+                route: route_label(route),
+                answer,
+            },
+        );
+    }
+
+    /// Every explanation the run recorded, in statement order.
+    pub(crate) fn take_explanations(&self) -> Vec<RouteExplanation> {
+        std::mem::take(&mut *self.explanations.borrow_mut())
+            .into_values()
+            .collect()
+    }
+
+    /// The per-evaluation budget a route runs under.
+    fn budget() -> Budget {
+        Budget::evaluation()
     }
 
     /// A driver for a statement evaluated outside a run: the fold inputs'
@@ -236,38 +374,53 @@ impl<'a> LatticeDriver<'a> {
             values,
             ssa,
         };
-        let PlanAnswer::CellReadModifyWrite { target, .. } = semantics.structure(&inputs) else {
+        self.cell_update_def(HEAD, semantics, &inputs)
+    }
+
+    /// The lattice value a resolved cell update writes to its target:
+    /// the registry's evaluator over the lattice inputs, lifted over one
+    /// finite input, on the route the registry owns.
+    fn cell_update_def(
+        &self,
+        head: &str,
+        semantics: &dyn tcl_registry::value_transfer::CommandSemantics,
+        inputs: &dyn AnalysisInputs,
+    ) -> LatticeValue {
+        let PlanAnswer::CellReadModifyWrite { target, .. } = semantics.structure(inputs) else {
+            self.explain(
+                head,
+                Some(semantics.route()),
+                "no cell update for this shape".to_owned(),
+            );
             return LatticeValue::Overdefined;
         };
-        let answer = match semantics.route() {
-            EvalRoute::Direct { id } if id.owner() == EvaluatorOwner::Registry => {
-                semantics.evaluate(&inputs, &mut Budget::unbounded())
-            }
-            _ => return LatticeValue::Overdefined,
-        };
+        let route = semantics.route();
+        if !matches!(route, EvalRoute::Direct { id } if id.owner() == EvaluatorOwner::Registry) {
+            self.explain(
+                head,
+                Some(route),
+                "not evaluated: the route is not registry-owned".to_owned(),
+            );
+            return LatticeValue::Overdefined;
+        }
+        let answer = evaluate_lifted(semantics, inputs, &mut Self::budget(), MAX_CONSTSET_SIZE);
+        self.explain(head, Some(route), answer_label(&answer));
         match answer {
-            EvalAnswer::Pending => LatticeValue::Unknown,
-            EvalAnswer::Declined(_) => LatticeValue::Overdefined,
-            EvalAnswer::Evaluated(outcome) => outcome
-                .ordered_stores
-                .iter()
-                .find_map(|store| match store {
-                    StoreOutcome::Write { target: t, value } if *t == target => {
-                        Some(exact_to_lattice(value))
-                    }
-                    _ => None,
-                })
-                .unwrap_or(LatticeValue::Overdefined),
+            LiftedAnswer::Pending => LatticeValue::Unknown,
+            LiftedAnswer::Declined(_) => LatticeValue::Overdefined,
+            LiftedAnswer::Evaluated(outcomes) => {
+                lattice_of_outcomes(&outcomes, |outcome| written_value(outcome, target))
+            }
         }
     }
 
-    /// A `Call` statement's defs. Only the synthetic loop header the CFG
-    /// builder emits — the one `Call` shape carrying `foreach_groups` —
-    /// has a declared structure the solver applies: the iteration plan's
-    /// single list binder takes the set of the list's elements. Every
-    /// other call keeps the conservative answer; a typed operation that
-    /// reaches SCCP as a generic call did so because its lowering refused
-    /// the typed node, and the solver refuses it too.
+    /// A `Call` statement's defs. Two call shapes have a declared structure
+    /// the solver applies: the synthetic loop header the CFG builder emits
+    /// — the one `Call` carrying `foreach_groups` — whose iteration plan's
+    /// single list binder takes the set of the list's elements, and a call
+    /// whose resolved plan is a cell read-modify-write (`append`,
+    /// `lappend`), whose target takes the registry's evaluated store. Every
+    /// other call keeps the conservative answer.
     pub(crate) fn evaluate_call<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         &self,
         stmt_ssa: &SsaStatement,
@@ -278,7 +431,7 @@ impl<'a> LatticeDriver<'a> {
         let Statement::Call {
             args,
             defs,
-            foreach_groups: Some(_),
+            foreach_groups,
             ..
         } = &stmt_ssa.statement
         else {
@@ -286,6 +439,7 @@ impl<'a> LatticeDriver<'a> {
         };
         let head = stmt_ssa.statement.canonical_command_or_source();
         if !self.trusted(head) {
+            self.explain(head, None, "declined: rebinding-suspected".to_owned());
             return LatticeValue::Overdefined;
         }
         let texts: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -294,8 +448,20 @@ impl<'a> LatticeDriver<'a> {
             return LatticeValue::Overdefined;
         };
         let Some(semantics) = resolved.semantics.value.semantics() else {
+            self.explain(head, None, "declined: no-semantics".to_owned());
             return LatticeValue::Overdefined;
         };
+        if foreach_groups.is_none() {
+            let view = view_of(&resolved, &texts, &words, InvocationLayout::Source);
+            let inputs = LatticeInputs {
+                driver: self,
+                view,
+                uses,
+                values,
+                ssa,
+            };
+            return self.cell_update_def(head, semantics, &inputs);
+        }
         let view = view_of(
             &resolved,
             &texts,
@@ -438,31 +604,75 @@ impl<'a> LatticeDriver<'a> {
             values,
             ssa,
         };
-        match semantics.route() {
+        let route = semantics.route();
+        match route {
             EvalRoute::Direct { id } => match id.owner() {
                 EvaluatorOwner::Transitional { .. } => {
-                    self.transitional_direct(id, value, rest, uses, values, ssa)
+                    let folded = self.transitional_direct(id, value, rest, uses, values, ssa);
+                    self.explain(
+                        head,
+                        Some(route),
+                        if folded.is_some() {
+                            "evaluated"
+                        } else {
+                            "declined: unsupported"
+                        }
+                        .to_owned(),
+                    );
+                    folded
                 }
                 EvaluatorOwner::Registry => {
-                    match semantics.evaluate(&inputs, &mut Budget::unbounded()) {
-                        // In value position a nested invocation runs under
-                        // the effect-free policy: an outcome with stores
-                        // has no definition to land on here.
-                        EvalAnswer::Evaluated(outcome) if !outcome.has_stores() => {
-                            match outcome.result {
-                                ExactValueOrUnavailable::Exact(value) => {
-                                    Some(exact_to_lattice(&value))
+                    let answer =
+                        evaluate_lifted(semantics, &inputs, &mut Self::budget(), MAX_CONSTSET_SIZE);
+                    // In value position a nested invocation runs under the
+                    // effect-free policy: an outcome with stores has no
+                    // definition to land on here.
+                    let folded = match &answer {
+                        LiftedAnswer::Evaluated(outcomes)
+                            if outcomes.iter().all(|outcome| !outcome.has_stores()) =>
+                        {
+                            Some(lattice_of_outcomes(outcomes, |outcome| {
+                                match &outcome.result {
+                                    ExactValueOrUnavailable::Exact(value) => Some(value),
+                                    ExactValueOrUnavailable::Unavailable(_) => None,
                                 }
-                                ExactValueOrUnavailable::Unavailable(_) => None,
-                            }
+                            }))
+                            .filter(|folded| *folded != LatticeValue::Overdefined)
                         }
-                        EvalAnswer::Pending => Some(LatticeValue::Unknown),
-                        EvalAnswer::Evaluated(_) | EvalAnswer::Declined(_) => None,
-                    }
+                        LiftedAnswer::Pending => Some(LatticeValue::Unknown),
+                        LiftedAnswer::Evaluated(_) | LiftedAnswer::Declined(_) => None,
+                    };
+                    self.explain(
+                        head,
+                        Some(route),
+                        match (&answer, &folded) {
+                            (LiftedAnswer::Evaluated(_), None) => {
+                                "not substituted: the outcome writes storage".to_owned()
+                            }
+                            _ => answer_label(&answer),
+                        },
+                    );
+                    folded
                 }
             },
-            EvalRoute::Expression { .. } => self.expression_route(rest, uses, values, ssa),
-            EvalRoute::Implementation(_) | EvalRoute::None { .. } => None,
+            EvalRoute::Expression { .. } => {
+                let folded = self.expression_route(rest, uses, values, ssa);
+                self.explain(
+                    head,
+                    Some(route),
+                    if folded.is_some() {
+                        "evaluated"
+                    } else {
+                        "declined: unsupported"
+                    }
+                    .to_owned(),
+                );
+                folded
+            }
+            EvalRoute::Implementation(_) | EvalRoute::None { .. } => {
+                self.explain(head, Some(route), "declined: no-route".to_owned());
+                None
+            }
         }
     }
 
@@ -535,7 +745,11 @@ impl<'a> LatticeDriver<'a> {
                 let len = i64::try_from(count).unwrap_or(i64::MAX);
                 Some(LatticeValue::Const(ConstValue::Int(len)))
             }
-            NativeEvalId::CellIncrement => None,
+            // Registry-owned: never a transitional handler.
+            NativeEvalId::CellIncrement
+            | NativeEvalId::CellAppend
+            | NativeEvalId::CellListAppend
+            | NativeEvalId::StringRange => None,
         }
     }
 
@@ -790,6 +1004,225 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> AnalysisInputs
 
     fn context(&self) -> &AnalysisContext {
         &self.driver.context
+    }
+}
+
+/// The bounded-loop simulator's cell update: `command name ?amount?`
+/// resolved through `registry` and evaluated by the registry's declared
+/// route over `env`, the simulator's constant environment. The written
+/// value replaces the target's entry; a decline leaves `env` untouched and
+/// answers `false`, which ends the simulation.
+pub(crate) fn exec_cell_update_in_env(
+    registry: &CommandRegistry,
+    profile: Option<&'static tcl_dialect::DialectProfile>,
+    command: &str,
+    name: &str,
+    amount: Option<&str>,
+    env: &mut crate::static_loops::StaticEnv,
+) -> bool {
+    let texts: Vec<&str> = std::iter::once(name).chain(amount).collect();
+    let words: Vec<InvocationWord<'_>> = std::iter::once(InvocationWord::Literal(name))
+        .chain(amount.map(word_of))
+        .collect();
+    let Some(resolved) = registry
+        .resolve_structured_invocation(
+            InvocationWords::structured(InvocationWord::Literal(command), &words),
+            registry.own_surface_query(),
+        )
+        .resolved()
+    else {
+        return false;
+    };
+    let Some(semantics) = resolved.semantics.value.semantics() else {
+        return false;
+    };
+    let context = AnalysisContext::detached(profile);
+    let inputs = EnvInputs {
+        view: view_of(&resolved, &texts, &words, InvocationLayout::Source),
+        env,
+        context: &context,
+    };
+    let PlanAnswer::CellReadModifyWrite { target, .. } = semantics.structure(&inputs) else {
+        return false;
+    };
+    let route = semantics.route();
+    if !matches!(route, EvalRoute::Direct { id } if id.owner() == EvaluatorOwner::Registry) {
+        return false;
+    }
+    let (place, value) = match semantics.evaluate(&inputs, &mut Budget::evaluation()) {
+        EvalAnswer::Evaluated(outcome) => {
+            match (inputs.place(target.0), written_value(&outcome, target)) {
+                (Ok(place), Some(value)) => (place, static_of_exact(value)),
+                _ => return false,
+            }
+        }
+        EvalAnswer::Pending | EvalAnswer::Declined(_) => return false,
+    };
+    env.insert(place.name, value);
+    true
+}
+
+/// The cell update a `head args…` call resolves to under `registry`, when
+/// its declared plan is one: the operation and its target operand. The one
+/// question every consumer of the write-chain shape asks (the chain fold,
+/// the `append` usage check, the list-length walk), answered from the
+/// registry's declaration rather than a command's spelling.
+pub(crate) fn resolved_cell_update(
+    registry: &CommandRegistry,
+    head: &str,
+    args: &[String],
+) -> Option<(tcl_registry::native_lowering::CellUpdate, OperandId)> {
+    let texts: Vec<&str> = args.iter().map(String::as_str).collect();
+    let words: Vec<InvocationWord<'_>> = texts.iter().copied().map(word_of).collect();
+    let resolved = registry
+        .resolve_structured_invocation(
+            InvocationWords::structured(InvocationWord::Literal(head), &words),
+            registry.own_surface_query(),
+        )
+        .resolved()?;
+    let semantics = resolved.semantics.value.semantics()?;
+    let context = AnalysisContext::detached(registry.profile());
+    let inputs = StructureInputs {
+        view: view_of(&resolved, &texts, &words, InvocationLayout::Source),
+        context: &context,
+    };
+    match semantics.structure(&inputs) {
+        PlanAnswer::CellReadModifyWrite {
+            target, operation, ..
+        } => Some((operation, target.0)),
+        _ => None,
+    }
+}
+
+/// The interval domain's model of a typed cell update with `operands`
+/// post-head words: the registry-described operation the domain
+/// interprets, from the specialisation the descriptor derives — the typed
+/// IR node is that descriptor by construction, so no invocation is
+/// resolved and no command is named.
+pub(crate) fn cell_update_range_model(
+    update: tcl_registry::native_lowering::CellUpdate,
+    operands: usize,
+) -> Option<tcl_registry::value_transfer::RangeModel> {
+    use tcl_registry::value_transfer::{CommandSemantics as _, LiteralInputs};
+    let semantics = tcl_registry::value_transfer::cell_update::CellUpdateSemantics {
+        update,
+        creates_absent: None,
+    };
+    let args: Vec<&str> = std::iter::repeat_n("", operands).collect();
+    let inputs = LiteralInputs::new("", None, &args, None);
+    match semantics.transfer(FactDomain::Range, &inputs, &mut Budget::evaluation()) {
+        TransferAnswer::Range(model) => Some(model),
+        _ => None,
+    }
+}
+
+/// A simulator value from an exact value: the classification when it has
+/// one, else the exact text.
+fn static_of_exact(value: &ExactValue) -> crate::static_loops::StaticValue {
+    use crate::static_loops::StaticValue;
+    match value.numeric {
+        Some(NumericValue::Int(i)) => StaticValue::Int(i),
+        Some(NumericValue::Float(f)) => StaticValue::Float(f),
+        Some(NumericValue::Bool(b)) => StaticValue::Bool(b),
+        None => StaticValue::Str(String::from_utf8_lossy(&value.bytes).into_owned()),
+    }
+}
+
+/// An exact value from a simulator value: the value's canonical text with
+/// its classification.
+fn exact_of_static(value: &crate::static_loops::StaticValue) -> ExactValue {
+    use crate::static_loops::StaticValue;
+    match value {
+        StaticValue::Int(i) => ExactValue::int(*i),
+        StaticValue::Float(f) => ExactValue {
+            bytes: f.to_string().into_bytes(),
+            numeric: Some(NumericValue::Float(*f)),
+            representation: tcl_registry::value_transfer::RepresentationEvidence::Unknown,
+        },
+        StaticValue::Bool(b) => ExactValue {
+            bytes: (if *b { "1" } else { "0" }).as_bytes().to_vec(),
+            numeric: Some(NumericValue::Bool(*b)),
+            representation: tcl_registry::value_transfer::RepresentationEvidence::Unknown,
+        },
+        StaticValue::Str(s) => ExactValue::text(s.clone()),
+    }
+}
+
+/// The analyser's inputs over the bounded-loop simulator's constant
+/// environment: a literal word is exact, a `$var` word is the environment's
+/// value, and a place's prior value is its entry.
+struct EnvInputs<'a> {
+    view: ResolvedInvocationView<'a>,
+    env: &'a crate::static_loops::StaticEnv,
+    context: &'a AnalysisContext,
+}
+
+impl AnalysisInputs for EnvInputs<'_> {
+    fn invocation(&self) -> &ResolvedInvocationView<'_> {
+        &self.view
+    }
+
+    fn operand(&self, id: OperandId, domain: FactDomain) -> FactView {
+        if domain != FactDomain::ExactValue {
+            return FactView::Top(DeclineReason::Unavailable(AnalysisTier::Fast));
+        }
+        let Some(operand) = self.view.operand(id) else {
+            return FactView::Top(DeclineReason::NotExact);
+        };
+        if let Some(name) = simple_var_ref_name(operand.text) {
+            return self.variable(name, domain);
+        }
+        if operand.text.contains('$') || operand.text.contains('[') {
+            return FactView::Top(DeclineReason::NotExact);
+        }
+        FactView::Exact(ExactValue::from_literal(operand.text), None)
+    }
+
+    fn place(&self, id: OperandId) -> Result<PlaceRef, DeclineReason> {
+        let text = self
+            .view
+            .operand(id)
+            .map(|operand| operand.text)
+            .ok_or(DeclineReason::NotExact)?;
+        if text.contains('$') || text.contains('[') {
+            return Err(DeclineReason::DynamicName);
+        }
+        Ok(place_named(crate::naming::normalise_var_name(text)))
+    }
+
+    fn variable(&self, name: &str, domain: FactDomain) -> FactView {
+        if domain != FactDomain::ExactValue {
+            return FactView::Top(DeclineReason::Unavailable(AnalysisTier::Fast));
+        }
+        self.env
+            .get(name)
+            .map_or(FactView::Top(DeclineReason::NotExact), |value| {
+                FactView::Exact(exact_of_static(value), None)
+            })
+    }
+
+    fn prior_store(&self, place: &PlaceRef, domain: FactDomain) -> FactView {
+        self.variable(&place.name, domain)
+    }
+
+    fn word_structure(&self, _id: OperandId) -> Result<WordStructure, DeclineReason> {
+        Err(DeclineReason::Unsupported)
+    }
+
+    fn body(&self, _id: OperandId) -> Result<BodyRegion, DeclineReason> {
+        Err(DeclineReason::Unsupported)
+    }
+
+    fn nested(&self, _script: &str, _state: &mut EvaluationState) -> EvalAnswer {
+        EvalAnswer::Declined(DeclineReason::Unsupported)
+    }
+
+    fn math_function(&self, _name: &str) -> Result<BindingIdentity, DeclineReason> {
+        Err(DeclineReason::Unsupported)
+    }
+
+    fn context(&self) -> &AnalysisContext {
+        self.context
     }
 }
 

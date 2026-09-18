@@ -564,6 +564,29 @@ fn build_sccp(d: &Value) -> Vec<ViewNode> {
                 Some("blue"),
             ));
         }
+        for route in arr(f, "routes") {
+            let answer = s(route, "answer");
+            let colour = if answer.starts_with("evaluated") {
+                "green"
+            } else if answer.starts_with("pending") {
+                "yellow"
+            } else {
+                "magenta"
+            };
+            children.push(ViewNode::leaf(
+                format!("route {}: {}", s(route, "command"), s(route, "route")),
+                vec![
+                    det("answer", answer),
+                    det(
+                        "line",
+                        route["range"]["startLine"]
+                            .as_u64()
+                            .map_or_else(|| "?".to_owned(), |line| (line + 1).to_string()),
+                    ),
+                ],
+                Some(colour),
+            ));
+        }
         out.push(ViewNode::branch(
             format!("function {}", s(f, "name")),
             Vec::new(),

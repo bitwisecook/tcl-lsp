@@ -108,9 +108,18 @@ pub struct EvaluatorCapability {
 /// plan's ledger lists it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum NativeEvalId {
-    /// The cell increment behind `incr`: read the cell, add, write it back,
-    /// return the new value.
+    /// The cell increment behind `incr`: read the cell, add under the
+    /// target's integer tower, write it back, return the new value.
     CellIncrement,
+    /// The cell append behind `append`: read the cell, append the values'
+    /// bytes, write it back, return the new value.
+    CellAppend,
+    /// The cell list-append behind `lappend`: read the cell as a list,
+    /// append the values as elements, write it back, return the new value.
+    CellListAppend,
+    /// `string range string first last`: the shared string core, with the
+    /// index numerals pre-resolved under the target's grammar.
+    StringRange,
     /// `list ?arg …?`: the arguments as one canonical list.
     ListOfArgs,
     /// `format template ?arg …?`: the rendered template.
@@ -126,6 +135,9 @@ impl NativeEvalId {
     /// Every catalogued evaluator, in catalogue order.
     pub const ALL: &'static [Self] = &[
         Self::CellIncrement,
+        Self::CellAppend,
+        Self::CellListAppend,
+        Self::StringRange,
         Self::ListOfArgs,
         Self::FormatTemplate,
         Self::ListLength,
@@ -137,6 +149,9 @@ impl NativeEvalId {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::CellIncrement => "cell-increment",
+            Self::CellAppend => "cell-append",
+            Self::CellListAppend => "cell-list-append",
+            Self::StringRange => "string-range",
             Self::ListOfArgs => "list-of-args",
             Self::FormatTemplate => "format-template",
             Self::ListLength => "list-length",
@@ -148,7 +163,9 @@ impl NativeEvalId {
     #[must_use]
     pub const fn owner(self) -> EvaluatorOwner {
         match self {
-            Self::CellIncrement => EvaluatorOwner::Registry,
+            Self::CellIncrement | Self::CellAppend | Self::CellListAppend | Self::StringRange => {
+                EvaluatorOwner::Registry
+            }
             Self::ListOfArgs | Self::FormatTemplate | Self::ListLength | Self::StringLength => {
                 EvaluatorOwner::Transitional {
                     retires_in_slice: 2,

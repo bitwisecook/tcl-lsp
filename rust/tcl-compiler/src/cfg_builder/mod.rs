@@ -622,8 +622,14 @@ impl<'a> CfgBuilder<'a> {
         let direct_opaque_barrier = self.opaque_call_barrier(&stmt);
 
         // 3. Embedded-substitution extras: walk text for
-        //    `[upvar_proc arg]` / `[global_write_proc arg]` substitutions.
-        let (embedded_extras, embedded_opaque_global) = self.embedded_subst_extras(&stmt);
+        //    `[upvar_proc arg]` / `[global_write_proc arg]` substitutions,
+        //    and the var-mutating builtins whose target the substitution
+        //    reads before writing (`[incr n]`).
+        let EmbeddedExtras {
+            defs: embedded_extras,
+            reads: embedded_reads,
+            opaque_global: embedded_opaque_global,
+        } = self.embedded_subst_extras(&stmt);
 
         if direct_extras.is_empty() && embedded_extras.is_empty() && !embedded_opaque_global {
             return match direct_opaque_barrier {
@@ -650,8 +656,10 @@ impl<'a> CfgBuilder<'a> {
             )),
         });
 
-        // 3. Merge into the host statement when it's a Call.
-        if let Statement::Call { defs, .. } = &mut stmt {
+        // 3. Merge into the host statement when it's a Call. An embedded
+        //    cell update's target is read before it is written, so the
+        //    prior definition stays live (#2050).
+        if let Statement::Call { defs, reads, .. } = &mut stmt {
             for d in direct_extras {
                 if !defs.contains(&d) {
                     defs.push(d);
@@ -660,6 +668,11 @@ impl<'a> CfgBuilder<'a> {
             for d in embedded_extras {
                 if !defs.contains(&d) {
                     defs.push(d);
+                }
+            }
+            for r in embedded_reads {
+                if !reads.contains(&r) {
+                    reads.push(r);
                 }
             }
             let mut out = Vec::new();
@@ -676,7 +689,10 @@ impl<'a> CfgBuilder<'a> {
         // 4. Non-Call host (e.g. AssignValue) with embedded extras —
         //    emit a synthetic `<upvar-invalidate>` Call before the
         //    host so the affected vars are invalidated in
-        //    program order.
+        //    program order. The names an embedded cell update reads
+        //    before writing (`set result [incr n]` reads `n`) are its
+        //    reads: a cell update's read is an SSA use by construction,
+        //    so the store feeding it is never dead (#2050).
         let mut out = Vec::new();
         if let Some(barrier) = opaque_barrier {
             out.push(barrier);
@@ -688,7 +704,7 @@ impl<'a> CfgBuilder<'a> {
                 canonical_command: None,
                 args: Vec::new(),
                 defs: embedded_extras,
-                reads: Vec::new(),
+                reads: embedded_reads,
                 reads_own_defs: false,
                 safe_on_uninit: false,
                 tokens: Some(crate::ir::CommandTokens::marker(
@@ -806,9 +822,10 @@ impl<'a> CfgBuilder<'a> {
 
     /// The embedded-substitution half of [`Self::upvar_invalidated`]: the
     /// caller-side defs contributed by `[…]` substitutions in the
-    /// statement's argument words (or an assignment's value), plus whether
+    /// statement's argument words (or an assignment's value), the names
+    /// among them an embedded read-modify-write reads first, and whether
     /// any embedded callee runs an unreadable script at the global frame.
-    fn embedded_subst_extras(&self, stmt: &Statement) -> (Vec<String>, bool) {
+    fn embedded_subst_extras(&self, stmt: &Statement) -> EmbeddedExtras {
         let embedded = crate::ir_helpers::evaluated_command_substitutions(stmt, self.registry);
         let mut embedded_extras: Vec<String> = Vec::new();
         let mut embedded_opaque_global = embedded.opaque;
@@ -841,7 +858,11 @@ impl<'a> CfgBuilder<'a> {
                 embedded_extras.push(d);
             }
         }
-        (embedded_extras, embedded_opaque_global)
+        EmbeddedExtras {
+            defs: embedded_extras,
+            reads: writes.read_before_written,
+            opaque_global: embedded_opaque_global,
+        }
     }
 
     fn upvar_effects_from_commands(
@@ -1384,7 +1405,11 @@ impl<'a> CfgBuilder<'a> {
     ) {
         self.record_caller_frame_barrier(stmt);
         self.record_alias_observed(stmt);
-        let (extras, opaque) = self.embedded_subst_extras(stmt);
+        let EmbeddedExtras {
+            defs: extras,
+            reads,
+            opaque_global: opaque,
+        } = self.embedded_subst_extras(stmt);
         if opaque {
             self.block_mut(current).statements.push(Statement::Barrier {
                 span: stmt.span(),
@@ -1404,7 +1429,7 @@ impl<'a> CfgBuilder<'a> {
                 canonical_command: None,
                 args: Vec::new(),
                 defs: extras,
-                reads: Vec::new(),
+                reads,
                 reads_own_defs: false,
                 safe_on_uninit: false,
                 tokens: Some(crate::ir::CommandTokens::marker(
@@ -2329,6 +2354,15 @@ pub(crate) fn build_cfg_function_with_prepared_context(
 }
 
 /// Test seam for building one method with an explicitly supplied context.
+/// What the `[…]` substitutions of one statement contribute to the caller
+/// frame: the names they define, the names among them they read first,
+/// and whether an embedded callee's frame effect cannot be enumerated.
+struct EmbeddedExtras {
+    defs: Vec<String>,
+    reads: Vec<String>,
+    opaque_global: bool,
+}
+
 #[cfg(test)]
 #[allow(clippy::too_many_arguments)]
 fn build_cfg_method_function_with_upvars(

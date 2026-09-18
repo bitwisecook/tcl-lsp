@@ -27,7 +27,7 @@ use std::time::Duration;
 
 use tcl_dialect::{DialectProfile, LexerGrammar};
 
-use super::decline::AnalysisTier;
+use super::decline::{AnalysisTier, BudgetLimit, DeclineReason};
 
 /// A command binding the analysed program uses: the spelling, the namespace
 /// it resolves in, and the registry identity expected there. The
@@ -132,8 +132,93 @@ pub struct Budget {
 }
 
 impl Budget {
-    /// A budget no route can exhaust: the slice-one baseline, before the
-    /// routes that charge land.
+    /// The work one evaluation may spend: a million elementary steps, a
+    /// few milliseconds of native work on the machines the acceptance
+    /// suite runs on.
+    pub const EVALUATION_WORK: u64 = 1_000_000;
+    /// The bytes one evaluation may allocate or publish: the bounded
+    /// host's per-value cap.
+    pub const EVALUATION_BYTES: usize = 16 * 1024 * 1024;
+    /// The nesting depth one evaluation may reach.
+    pub const EVALUATION_DEPTH: u32 = 64;
+
+    /// The per-evaluation budget a route runs under: the evaluation
+    /// contract's defaults, with the request and iteration ceilings above
+    /// it still unbounded until the slices that charge them.
+    #[must_use]
+    pub fn evaluation() -> Self {
+        Self {
+            fuel: Self::EVALUATION_WORK,
+            depth: Self::EVALUATION_DEPTH,
+            result_bytes: Self::EVALUATION_BYTES,
+            allocation_bytes: Self::EVALUATION_BYTES,
+            request_remaining: Duration::MAX,
+            cancelled: AtomicBool::new(false),
+        }
+    }
+
+    /// Charge `units` of work.
+    ///
+    /// # Errors
+    ///
+    /// `Budget(Fuel)` once the work is spent, `Budget(Cancelled)` once the
+    /// request is cancelled; the budget stays exhausted afterwards.
+    pub fn charge_work(&mut self, units: u64) -> Result<(), DeclineReason> {
+        if self.is_cancelled() {
+            return Err(DeclineReason::Budget(BudgetLimit::Cancelled));
+        }
+        match self.fuel.checked_sub(units) {
+            Some(left) => {
+                self.fuel = left;
+                Ok(())
+            }
+            None => {
+                self.fuel = 0;
+                Err(DeclineReason::Budget(BudgetLimit::Fuel))
+            }
+        }
+    }
+
+    /// Charge `bytes` of allocation, before the allocation happens.
+    ///
+    /// # Errors
+    ///
+    /// `Budget(AllocationBytes)` once the bound is reached.
+    pub fn charge_allocation(&mut self, bytes: u64) -> Result<(), DeclineReason> {
+        Self::charge_bytes(
+            &mut self.allocation_bytes,
+            bytes,
+            BudgetLimit::AllocationBytes,
+        )
+    }
+
+    /// Charge `bytes` of published result.
+    ///
+    /// # Errors
+    ///
+    /// `Budget(ResultBytes)` once the bound is reached.
+    pub fn charge_result(&mut self, bytes: u64) -> Result<(), DeclineReason> {
+        Self::charge_bytes(&mut self.result_bytes, bytes, BudgetLimit::ResultBytes)
+    }
+
+    fn charge_bytes(left: &mut usize, bytes: u64, limit: BudgetLimit) -> Result<(), DeclineReason> {
+        match usize::try_from(bytes)
+            .ok()
+            .and_then(|bytes| left.checked_sub(bytes))
+        {
+            Some(remaining) => {
+                *left = remaining;
+                Ok(())
+            }
+            None => {
+                *left = 0;
+                Err(DeclineReason::Budget(limit))
+            }
+        }
+    }
+
+    /// A budget no route can exhaust, for a caller that bounds the work
+    /// some other way.
     #[must_use]
     pub fn unbounded() -> Self {
         Self {

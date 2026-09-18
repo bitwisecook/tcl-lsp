@@ -323,7 +323,7 @@ Every command, subcommand, and declaring form, resolved through the value-transf
 | `WS::response version` | subcommand | f5-irules | none | — | — | no | — | pure, no route | — |
 | `^` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
 | `after info` | subcommand | bpf, cadence-eda-tcl, expect, f5-iapps, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
-| `append` | command | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | derived · `cell-update:append` | none (unauthored) | — | no | `VarWrite@0`, `assigns_variable_at 0` | descriptor without a route | — |
+| `append` | command | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | derived · `cell-update:append` | direct `cell-append` | registry | yes | `VarWrite@0`, `assigns_variable_at 0` | — | — |
 | `append_to_collection` | command | cadence-eda-tcl, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, synopsys-eda-tcl, xilinx-eda-tcl | none | — | — | no | `VarWrite@0` | writes a variable, no semantics | slice 4 — the `.tclspec` `semantics` spelling; the pack declares the collection update |
 | `array default` | subcommand | bpf, spectcl, sslictcl, tcl9.0, tcl9.1, tk | none | — | — | no | `VarWrite@1` | writes a variable, no semantics | slice 8 — the absent-cell release rule reads the array's default |
 | `array set` | subcommand | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | `VarWrite@0` | writes a variable, no semantics | slice 5 — the multi-element structured write |
@@ -552,7 +552,7 @@ Every command, subcommand, and declaring form, resolved through the value-transf
 | `json::many-json2dict` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
 | `json::string2json` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
 | `json::validate` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
-| `lappend` | command | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | derived · `cell-update:list-append` | none (unauthored) | — | no | `VarWrite@0`, `assigns_variable_at 0` | descriptor without a route | — |
+| `lappend` | command | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | derived · `cell-update:list-append` | direct `cell-list-append` | registry | yes | `VarWrite@0`, `assigns_variable_at 0` | — | — |
 | `lassign` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | `VarWrite` (resolver) | writes a variable, no semantics | slice 5 — the destructuring write with duplicate targets resolved to places |
 | `le` | command | bpf, spectcl, sslictcl, tcl9.0, tcl9.1, tk | none | — | — | no | — | pure, no route | — |
 | `ledit` | command | bpf, spectcl, sslictcl, tcl9.0, tcl9.1, tk | none | — | — | no | `VarWrite@0`, `assigns_variable_at 0` | writes a variable, no semantics | slice 2 — the list cell update over `ConstOps` |
@@ -736,7 +736,7 @@ Every command, subcommand, and declaring form, resolved through the value-transf
 | `string length` | subcommand | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (subcommand) · `string-length` | direct `string-length` | compiler, transitional until slice 2 | yes | — | — | — |
 | `string map` | subcommand | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
 | `string match` | subcommand | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
-| `string range` | subcommand | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
+| `string range` | subcommand | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (subcommand) · `string-range` | direct `string-range` | registry | yes | — | — | — |
 | `string repeat` | subcommand | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
 | `string replace` | subcommand | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
 | `string reverse` | subcommand | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
@@ -1129,28 +1129,31 @@ Every reviewed site the source lint found, with the waiver that names the axis i
 
 | Axis | Site | Waiver | Reason |
 |---|---|---|---|
-| dataflow | `rust/tcl-compiler/src/value_transfer.rs:489` | site | the transitional direct evaluators |
-| dataflow | `rust/tcl-compiler/src/value_transfer.rs:497` | site | the transitional direct evaluators |
-| dataflow | `rust/tcl-compiler/src/value_transfer.rs:507` | site | the transitional direct evaluators |
-| dataflow | `rust/tcl-compiler/src/value_transfer.rs:531` | site | the transitional direct evaluators |
-| dataflow | `rust/tcl-compiler/src/value_transfer.rs:538` | site | the transitional direct evaluators |
+| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:641` | site | the W230–W232 index positions await an index-argument role on the registry |
+| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:666` | site | the W230–W232 index positions await an index-argument role on the registry |
+| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:759` | site | the W230–W232 index positions await an index-argument role on the registry |
+| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1032` | site | the W230–W232 index positions await an index-argument role on the registry |
+| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1098` | site | the W230–W232 index positions await an index-argument role on the registry |
+| dataflow | `rust/tcl-compiler/src/value_transfer.rs:699` | site | the transitional direct evaluators |
+| dataflow | `rust/tcl-compiler/src/value_transfer.rs:707` | site | the transitional direct evaluators |
+| dataflow | `rust/tcl-compiler/src/value_transfer.rs:717` | site | the transitional direct evaluators |
+| dataflow | `rust/tcl-compiler/src/value_transfer.rs:741` | site | the transitional direct evaluators |
+| dataflow | `rust/tcl-compiler/src/value_transfer.rs:752` | site | the transitional direct evaluators |
 
 ## The ratchet
 
-The files the gate holds clean, with every site waived or gone: `rust/tcl-compiler/src/command_binding.rs`, `rust/tcl-compiler/src/compilation_unit.rs`, `rust/tcl-compiler/src/dataflow_graph.rs`, `rust/tcl-compiler/src/lib.rs`, `rust/tcl-compiler/src/optimiser/propagation.rs`, `rust/tcl-compiler/src/sccp.rs`, `rust/tcl-compiler/src/shimmer/mod.rs`, `rust/tcl-compiler/src/value_transfer.rs`.
+The files the gate holds clean, with every site waived or gone: `rust/tcl-compiler/src/analyser/bounds_checks.rs`, `rust/tcl-compiler/src/analyser/diagnostics/usage.rs`, `rust/tcl-compiler/src/cfg_builder/mod.rs`, `rust/tcl-compiler/src/command_binding.rs`, `rust/tcl-compiler/src/compilation_unit.rs`, `rust/tcl-compiler/src/dataflow_graph.rs`, `rust/tcl-compiler/src/intervals.rs`, `rust/tcl-compiler/src/ir_helpers.rs`, `rust/tcl-compiler/src/lib.rs`, `rust/tcl-compiler/src/optimiser/chain_fold.rs`, `rust/tcl-compiler/src/optimiser/propagation.rs`, `rust/tcl-compiler/src/sccp.rs`, `rust/tcl-compiler/src/shimmer/mod.rs`, `rust/tcl-compiler/src/static_loops.rs`, `rust/tcl-compiler/src/value_transfer.rs`.
 
 Every other scanned file with an unwaived recogniser-shaped site, and its count, which is the pin in `rust/xtask/src/value_transfers.rs`. The count may only fall: a slice lowers the pin beside the review that removes or waives the file's sites, and the ledger in `docs/design/compiler/value-transfers-migration.md` names that slice or axis migration.
 
 | File | Unwaived sites |
 |---|---|
 | `rust/tcl-cli/src/commands/minimize.rs` | 1 |
-| `rust/tcl-compiler/src/analyser/bounds_checks.rs` | 9 |
 | `rust/tcl-compiler/src/analyser/class_lattice.rs` | 3 |
 | `rust/tcl-compiler/src/analyser/commands.rs` | 1 |
 | `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` | 4 |
 | `rust/tcl-compiler/src/analyser/diagnostics/helpers.rs` | 6 |
 | `rust/tcl-compiler/src/analyser/diagnostics/security.rs` | 2 |
-| `rust/tcl-compiler/src/analyser/diagnostics/usage.rs` | 3 |
 | `rust/tcl-compiler/src/analyser/diagnostics/validity.rs` | 2 |
 | `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs` | 3 |
 | `rust/tcl-compiler/src/analyser/irules_event_checks.rs` | 7 |
@@ -1168,7 +1171,6 @@ Every other scanned file with an unwaived recogniser-shaped site, and its count,
 | `rust/tcl-compiler/src/irules_checks.rs` | 3 |
 | `rust/tcl-compiler/src/lowering/mod.rs` | 2 |
 | `rust/tcl-compiler/src/lowering/structured.rs` | 2 |
-| `rust/tcl-compiler/src/optimiser/chain_fold.rs` | 1 |
 | `rust/tcl-compiler/src/optimiser/end_offset.rs` | 1 |
 | `rust/tcl-compiler/src/place_bridge.rs` | 2 |
 | `rust/tcl-compiler/src/shimmer/commit.rs` | 1 |

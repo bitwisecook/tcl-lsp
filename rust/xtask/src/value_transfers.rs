@@ -98,13 +98,20 @@ const LINT_ROOTS: &[&str] = &[
 /// or gone. Slice 1 touched each of these; a slice adds the files it
 /// touches, and a file never leaves the list.
 const CLEAN_FILES: &[&str] = &[
+    "rust/tcl-compiler/src/analyser/bounds_checks.rs",
+    "rust/tcl-compiler/src/analyser/diagnostics/usage.rs",
+    "rust/tcl-compiler/src/cfg_builder/mod.rs",
     "rust/tcl-compiler/src/command_binding.rs",
     "rust/tcl-compiler/src/compilation_unit.rs",
     "rust/tcl-compiler/src/dataflow_graph.rs",
+    "rust/tcl-compiler/src/intervals.rs",
+    "rust/tcl-compiler/src/ir_helpers.rs",
     "rust/tcl-compiler/src/lib.rs",
+    "rust/tcl-compiler/src/optimiser/chain_fold.rs",
     "rust/tcl-compiler/src/optimiser/propagation.rs",
     "rust/tcl-compiler/src/sccp.rs",
     "rust/tcl-compiler/src/shimmer/mod.rs",
+    "rust/tcl-compiler/src/static_loops.rs",
     "rust/tcl-compiler/src/value_transfer.rs",
 ];
 
@@ -117,13 +124,11 @@ const CLEAN_FILES: &[&str] = &[
 /// new file is reviewed there.
 const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-cli/src/commands/minimize.rs", 1),
-    ("rust/tcl-compiler/src/analyser/bounds_checks.rs", 9),
     ("rust/tcl-compiler/src/analyser/class_lattice.rs", 3),
     ("rust/tcl-compiler/src/analyser/commands.rs", 1),
     ("rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs", 4),
     ("rust/tcl-compiler/src/analyser/diagnostics/helpers.rs", 6),
     ("rust/tcl-compiler/src/analyser/diagnostics/security.rs", 2),
-    ("rust/tcl-compiler/src/analyser/diagnostics/usage.rs", 3),
     ("rust/tcl-compiler/src/analyser/diagnostics/validity.rs", 2),
     (
         "rust/tcl-compiler/src/analyser/diagnostics/var_command.rs",
@@ -144,7 +149,6 @@ const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-compiler/src/irules_checks.rs", 3),
     ("rust/tcl-compiler/src/lowering/mod.rs", 2),
     ("rust/tcl-compiler/src/lowering/structured.rs", 2),
-    ("rust/tcl-compiler/src/optimiser/chain_fold.rs", 1),
     ("rust/tcl-compiler/src/optimiser/end_offset.rs", 1),
     ("rust/tcl-compiler/src/place_bridge.rs", 2),
     ("rust/tcl-compiler/src/shimmer/commit.rs", 1),
