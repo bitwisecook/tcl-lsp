@@ -79,6 +79,13 @@ passes, and ownership matrices.
   analysis/diagnostic separation, adversarial attacks, partial reduction,
   an exhaustive code ledger, Rust/SpecTcl examples, EDA/BPF integration,
   and delivery order.
+- [diagnostic-policy.md](compiler/diagnostic-policy.md) — **proposal** for
+  one diagnostic policy owner below every surface (issue #2089): typed
+  producers, one `Policy` holding the five documented suppression scopes,
+  default-off seeding, severity overrides, the optimiser and shimmer
+  switches, overlap precedence and encoding abstention, one `apply` that
+  keeps a suppressed finding with its reason, and thin adapters for the
+  editor, the CLI, the MCP tools, code actions and `tcl opt`.
 
 ## contracts/
 

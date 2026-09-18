@@ -214,6 +214,14 @@ User-facing compiler troubleshooting and how-tos live in
   ownership, typed finding contracts, and overlap rules.
 - [diagnostics-integration.md](diagnostics-integration.md) — aggregation
   and suppression policy boundary.
+- [diagnostic-policy.md](diagnostic-policy.md) — **proposal** for one
+  diagnostic policy owner below every surface (issue #2089): the four
+  stages from typed producers through one `apply` to thin adapters, the
+  policy value covering the five documented suppression scopes,
+  default-off seeding, severity overrides, the optimiser and shimmer
+  switches, overlap precedence and encoding abstention, what each of the
+  editor, CLI, MCP, code-action and `tcl opt` surfaces applies today, and
+  the ten delivery slices.
 - [async-diagnostics-tiering.md](async-diagnostics-tiering.md) —
   fast/deep tiering and cancellation expectations.
 

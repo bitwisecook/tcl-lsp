@@ -52,6 +52,9 @@ code-family mapping and suppression semantics seen by LSP clients.
 
 ## Related
 
+- [diagnostic-policy.md](diagnostic-policy.md) — the proposal to move the
+  policy step below every surface, so the rules above hold for the CLI,
+  the MCP tools and the code actions as well as the LSP boundary
 - [downstream-pass-contracts.md](downstream-pass-contracts.md)
 - [async-diagnostics-tiering.md](async-diagnostics-tiering.md)
 - [compilation-unit-contracts.md](compilation-unit-contracts.md)
