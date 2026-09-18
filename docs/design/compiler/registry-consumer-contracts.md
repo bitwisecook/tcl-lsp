@@ -35,8 +35,8 @@ slices proceed without deciding anything here.
 > - **The derived-query layer** — `RegistryQueries` with the queries
 >   `clause_plan`, `member_rows`, `option_effects`, `template_plan`,
 >   `case_invocation`, `frame_effect`, `arg_roles`, `pattern_args`,
->   `return_type`, and `effects`, plus `CallWords`, `TemplateWordPlan`,
->   and `ResolvedEffects`.
+>   `return_type`, and `effects`, plus `CallWords` and
+>   `ResolvedEffects`.
 > - **Identity and backing** — `SiteClaim`, `PackFactStamp`,
 >   `RuntimeBacking` with the `runtime_backing` field, `BodySource`,
 >   `IdentityKind`, `CodegenCapability`, `ArtefactIdentityManifest`, and
@@ -44,9 +44,11 @@ slices proceed without deciding anything here.
 > - **Packages and trust** — `SpecDirective`, `DependencyTier`,
 >   `WorkspaceTrust`, and the `tcl spec test` verb.
 >
-> `AnalysisContext`, `AnalysisInputs`, `PlanAnswer`, `OperandId`, and
-> `EvalAnswer` are [value-transfers.md](value-transfers.md)'s proposed
-> names, used here as that page spells them. Nothing on this page is a
+> `AnalysisContext`, `AnalysisInputs`, `PlanAnswer`, `OperandId`,
+> `TemplateWordPlan`, and `EvalAnswer` are
+> [value-transfers.md](value-transfers.md)'s proposed names, used here as
+> that page spells them; its `HandlerPlan` carries this page's
+> `HandlerMatch` per `try` handler. Nothing on this page is a
 > prerequisite of the consumer interface, the direct or expression routes,
 > or the private-pack slice in
 > [value-transfers-migration.md](value-transfers-migration.md).
@@ -589,7 +591,8 @@ selected by a condition or a handler pattern, never by a match mode.
 `clauses` / `else_body` and `Statement::Try`'s `handlers` / `finally_body`
 from the plan; `TryHandler::kind` stops being a `String` re-matched in
 `rust/tcl-compiler/src/executable_ir.rs` and becomes the row's
-`HandlerMatch`; `handle_try_command` in `analyser/handlers.rs` walks the
+`HandlerMatch`, which the interface contract's `HandlerPlan` carries per
+handler; `handle_try_command` in `analyser/handlers.rs` walks the
 plan's clauses and reads each one's `timing` instead of asking
 `Traits::BRANCH_SELECTED_BODY` and then matching `finally`;
 `orphaned_keyword_parent` in `analyser/commands.rs` becomes a lookup of
@@ -1175,7 +1178,7 @@ command subst {
                           -family positive -introduced 9.1
     option_conflict {-nobackslashes -nocommands -novariables} \
                     {-backslashes -commands -variables}
-    semantics -native core.subst_template
+    semantics -native subst::semantics
 }
 ```
 

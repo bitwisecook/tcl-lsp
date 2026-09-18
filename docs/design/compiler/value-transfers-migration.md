@@ -17,10 +17,15 @@ waiving a site in the gate, and before claiming a command is migrated.
 ## The inventory's revision and scope
 
 The sweeps were read at `16ba98010505f67484a3f1c90e087539bf4919d8` and
-every identifier cited on the three pages was re-checked at the branch's
-merge with `rust` (`3b5eba8aed44b8faec026aa7fdbe79c266948711`), including
-the consumer lists of the rungs in slices 8–13 and the sites those rungs
-retire; the counts themselves were not re-swept, so a row changes only
+every identifier cited on the six pages — this plan,
+[value-transfers.md](value-transfers.md),
+[value-evaluation.md](value-evaluation.md),
+[value-transfers-examples.md](value-transfers-examples.md),
+[registry-consumer-contracts.md](registry-consumer-contracts.md), and
+[diagnostic-policy.md](diagnostic-policy.md) — was re-checked at the
+branch's merge with `rust`
+(`3b5eba8aed44b8faec026aa7fdbe79c266948711`), including the consumer
+lists of the rungs in slices 8–13 and the sites those rungs retire; the counts themselves were not re-swept, so a row changes only
 where a named site's owner changes. Four sweeps read each site in context
 — the compiler's own passes; the analyser with lowering and CFG
 construction; the diagnostic and analysis passes outside it; and every
@@ -288,8 +293,8 @@ semantic type and shape per value, distinct from representation evidence.
 | `rendered_properties.rs` | may/must string-content flags | reads reachability | a computed constant gives exact flags; none required |
 | `representation_plan.rs` | representation obligations | — | consumes representation evidence, never `TclType` alone, for byte-array values |
 | `tcl_expr_eval.rs` | expression evaluation under `FoldPolicy` | the evaluator | full value result; lazy `var` / `command` / `call` services; `rand` / `srand` stay the one name check |
-| `word_subst.rs` | nested `[cmd …]` lift | `"expr"` check for the lifted form | the lift feeds nested-word folding; the check moves to the `EXPR_CONCATENATES_ARGS` trait, as `end_offset.rs` already resolves `expr` |
-| `subst_nocommands.rs` | `[subst -nocommands]` evaluation | its own const map | reads the lattice through `lookup_var`, and from slice 5 consumes the template-word plan's `reads` and `escapes` instead of scanning the template again; it is the materialisation for the commands-off case |
+| `word_subst.rs` | nested `[cmd …]` lift | `"expr"` check for the lifted form | the lift feeds nested-word folding; the check moves to the `EXPR_CONCATENATES_ARGS` trait, as `optimiser/end_offset.rs` already resolves `expr` |
+| `subst_nocommands.rs` | `[subst -nocommands]` evaluation | its own const map | reads the `const_map` its two callers pass — lowering's const map from `eval_subst_nocommands_body`, the factory bindings from `specialise_factories.rs` — and from slice 5 consumes the template-word plan's `reads` and `escapes` instead of scanning the template again; it is the materialisation for the commands-off case |
 | `static_loops.rs` | post-loop environment for a bounded `for` | its own `StaticValue` lattice and `Incr` arm, `parse_literal_value`, and `resolve_switch_subject`; `exec_switch` ignores the mode | becomes `LoopEnumeration` (slice 12): `exec_statement` applies each statement's registry-owned `evaluate` over exact values with existence, `exec_switch` consumes the `Selection` fact, the three private helpers are gone, and the cap is a `Budget` decline that publishes nothing |
 | `loops.rs` | the natural-loop forest | reads reachability | none |
 | `dynamic_names.rs` | the name-blindness barrier | a gate; `template_word_is_substituted` reads only the trait, and a dynamic write or destroy blinds the whole function | every transfer still runs under it; from slice 5 it reads `dynamic && kinds.variables` and `script_regions` from the template-word plan, so `subst -novariables $t` stops blinding every read, and from slice 8 the barrier is flow-sensitive in the existence domain: a dynamic write turns every `Unbound` place `MayBound` from that statement on, a dynamic destroy every `Bound` place |
@@ -329,7 +334,7 @@ and a diagnostic is never that proof.
 | O102 | `propagation.rs` `run_load_forwarding` | def-use chains, `UseKind::Operand`, `is_externally_mutable`, `TraceInputs`; never `values` | unchanged — a literal load is a literal load |
 | O103 | `propagation.rs` two shapes | `ProcSummary`, `trusts_proc_binding`, `evaluate_proc_with_constants` | the argument-sensitive path folds string-building callees at once; the summary path after `summarise_returns` reads a lattice under the staged fixed point; slice 13's `TransferSummary` gives the re-run its `Name`-parameter seeds and the caller the callee's outcomes, so `[rec 4]` folds and `bump n` decides |
 | O104, O130 | `chain_fold.rs` | none — textual and literal-only; an unrelated statement between the writes is tolerated, the chain must start at a literal `set`, and a propagated operand is not folded in the same pass | the classifier dispatches on the resolved cell update instead of three names; lattice-constant operands and a chain starting at an absent cell fold through the value at the last write; coercion, traces, errors, and the implicit result are preserved |
-| O105, O106 | `gvn.rs` | reachability | unchanged; same value is not same observable computation |
+| O105, O106 | `rust/tcl-compiler/src/gvn.rs` | reachability | unchanged; same value is not same observable computation |
 | O107 | `elimination.rs` | `executable_blocks` | more arms decide; applied reachability only, never a selection fact |
 | O108 | `elimination.rs` ADCE | def-use, `assignment_safe_to_delete_with_effect`; an existence read is not a use, so the pair behind `[info exists b]` is deleted | a cell update in statement position is removable only under the totality proof of permission 3: old value proven well-formed, place proven bound, no trace; a direct-route pure command in statement position likewise; an unbind statement is never removed; from slice 8 an existence read of a version keeps its store |
 | O109, O126 | `elimination.rs`, `manager.rs` coupling | def-use, twelve guards | guard 2 generalises; `collect_rmw_hidden_reads` shrinks because the read is an SSA use; slice 8 adds the existence read as a use, so the #2132 store and the `incr n` behind `[info exists n]` stay; slice 9 makes a read inside a braced `expr` a use of the version it reads; slice 10 makes a store ahead of a partial write dead only when the prefix rule proves it |
@@ -356,7 +361,7 @@ view shows `folded_types`, decline reasons, and loss-of-exactness evidence.
 
 ## Every diagnostic, and what changes for it
 
-The catalogue has 197 diagnostic codes (`docs/generated/diagnostic_codes.md`);
+The catalogue has 198 diagnostic codes (`docs/generated/diagnostic_codes.md`);
 most are syntax, scope, version, dialect, or protocol facts with no
 constant input. The rows below are the ones with a constant relationship;
 [value-transfers-examples.md](value-transfers-examples.md) has a program
@@ -393,7 +398,7 @@ for each, with the tool's observed behaviour today.
 | W230, W232 (syntactic half) | `has_subst` / `!is_literal_index` | `set l {a b c}; lindex $l 9` through a computed container length |
 | W102 | a computed switch word makes the call unreadable, so `substitutions_performed` answers `SubstitutionKinds::ALL` and the narrowing advice names every kind | `set opt -novariables; subst $opt {hello $name}` narrows to `$var` exactly as the literal spelling does, from the template-word plan's `kinds` (slice 5) |
 | W240–W242 | "intentionally shallow" literal condition text; `bounds_checks.rs` seeds from `set v INT` and `incr v ?INT?` read as text, so `set i $start` disables the check | `set n 0; while {$n} {…}` through the branch fact, and the iteration plan's bound and step in place of the text scan (slice 12) |
-| W200, W138 | literal format strings | a computed `format` / `binary format` template |
+| W138, W200, W202 | literal format strings | a computed `format` / `binary format` template |
 | IRULE4004 | `value.contains('$') \|\| value.contains('[')` | a `set x [string range CONST 0 3]` in a per-request event becomes hoistable |
 
 ### Blast radius, and what keeps each family sound
@@ -439,7 +444,7 @@ report-side TLS grade policy is a centralisation boundary of its own.
 
 | Tier | Dataflow | Another axis | Irreducible | Shape heuristic |
 |---|---|---|---|---|
-| `rust/tcl-compiler/src/sccp.rs`, `optimiser/` (the table above) | 7 | 3 | — | — |
+| `rust/tcl-compiler/src/sccp.rs`, `optimiser/` — the first nine rows of the table above, counted per name-keyed site; the typed `Statement::Incr` arms are not sites, and that table's `static_loops.rs`, `intervals.rs`, `interval_bounds.rs`, `[list …]`-evaluator, and `analyser/` rows count in the two rows below | 7 | 3 | — | — |
 | `rust/tcl-compiler/src/analyser/`, `lowering/`, `cfg_builder/` | 28 | 151 | 24 | 41 |
 | the other compiler passes (`taint.rs`, `irules_checks.rs`, `var_escape/`, `shimmer/`, `interval_bounds.rs`, …) | 17 | 107 | 20 | 19 |
 | `tcl-lsp-core`, `tcl-mcp`, `tcl-cli`, `tcl-diagram`, `tcl-irules`, `tcl-irule-test`, `tcl-bigip`, `tcl-sslictcl`, `tcl-syntax` | 10 | 89 | 17 | 10 |
@@ -523,10 +528,10 @@ migrations can be planned per axis rather than per file.
 | `options` (`OptionSpec::value_word_count`, `ResolvedTerminator`, `option_placement`) | ~72 | at least twenty private `--` / `-nocase` / `-encoding` / `-start` / `-nocomplain` scans; `analyser/handlers.rs`'s bare `o == "-command"` pre-scan thirty lines above the same file's correct `OptionSpec::matches` loop; `analyser/recovery.rs` knowing `-matchvar` / `-indexvar` but not `-exact` / `-glob` / `-regexp` / `-nocase` |
 | `arg_roles` / `arg_role_resolver` / `assigns_variable_at` | ~55 | `rust/tcl-cli/src/commands/minimize.rs`'s `var_target_positions`, a verbatim reimplementation of the role axis for eight commands and wrong for `dict update`, `binary scan`, `regexp -inline`, `scan`, and `foreach`; the W230–W232 index family in `analyser/bounds_checks.rs`; `place_bridge.rs` and `var_scoping.rs` asking for `global` / `variable` / `trace` positions by name |
 | `definition_body` / `MemberKind` | ~32 | `analyser/oo.rs`'s eleven-arm `apply_oo_subcommand` keyword switch and its snit / itcl member tables; `ir.rs`'s `MethodKind::from_str_lossy`; the `constructor` / `destructor` literals spread across ten `tcl-lsp-core` providers |
-| `traits` | ~41 | `var_escape/info_subcommands.rs`'s thirty-two hand-maintained `info` subcommand names, live through `var_escape/helpers.rs`, beside two consumers that already ask `INTROSPECTS_BY_NAME` / `CURRENT_FRAME_INTROSPECTION`; `unset` recognised by name in three diagnostics beside `irules_event_checks.rs`'s correct `DESTROYS_VARIABLE` query; `lowering/mod.rs`'s `WORD_DISQUALIFIERS` body-cache gate; `tcl-syntax`'s default `head == "when"` predicate |
+| `traits` | ~41 | `var_escape/info_subcommands.rs`'s hand-maintained `info` subcommand names, live through `var_escape/helpers.rs`, beside two consumers that already ask `INTROSPECTS_BY_NAME` / `CURRENT_FRAME_INTROSPECTION`; `unset` recognised by name in three diagnostics beside `irules_event_checks.rs`'s correct `DESTROYS_VARIABLE` query; `lowering/mod.rs`'s `WORD_DISQUALIFIERS` body-cache gate; `tcl-syntax`'s default `head == "when"` predicate |
 | `substitution_resolver` / `substitutions_performed` | 3 | W102 (`analyser/diagnostics/security.rs`), the two template folders, and extract-proc's literal cut and same-frame regions (`rust/tcl-lsp-core/src/refactor/`) already ask the registry; what remains is the dynamic-name barrier in `dynamic_names.rs` and the `inner_head_performs_substitution` gate reading only the trait, and `push_substituted_commands` re-walking a braced template for the bracket regions the answer does not carry — all three are what `TemplateWordPlan`'s `dynamic`, `kinds`, and `script_regions` retire in slice 5 |
 | `case_list` / clause grammar | ~30 | five independent `switch` parsers (`analyser/diagnostics/security.rs`, `analyser/recovery.rs`, `analyser/diagnostics/usage.rs`, `lowering/structured.rs`, `analyser/commands.rs`) where the segmenter's `flatten_case_list_clauses` and the registry's `CaseMatchMode` already exist; `then` / `elseif` / `else` and `on` / `trap` / `finally` walked by keyword in `lowering/structured.rs`, `signature_scan/walker.rs` (twice), `tcl-lsp-core`'s refactors, and `tcl-mcp`'s `datagroup.rs`; `TryHandler::kind` as a `String` re-matched in `executable_ir.rs` |
-| `return_type` / `format_string_type` / `pattern_type` | ~12 | `type_infer.rs`'s forty-five-name math-function return-type table, a duplicate of `tcl_syntax::expr::mathfunc`; `scan_predicate.rs`'s conversion classes as strings; `analyser/diagnostics/usage.rs` mapping `binary format` / `binary scan` to a format-string index by name |
+| `return_type` / `format_string_type` / `pattern_type` | ~12 | `type_infer.rs`'s math-function return-type table (`expr_call_type`), a duplicate of `tcl_syntax::expr::mathfunc`; `scan_predicate.rs`'s conversion classes as strings; `analyser/diagnostics/usage.rs` mapping `binary format` / `binary scan` to a format-string index by name |
 | `special_vars` | ~15 | `static::` spelled in six places; `args` in fourteen; `auto_path`, `auto_index`, `$dir` |
 | `events` / `profiles` / `lifecycle` | ~14 | `tcl-mcp`'s `irule_gen.rs` rebuilding `HTTP_EVENTS` / `SSL_EVENTS` / `HOT_EVENTS` and `infer_profiles` beside a `code_actions.rs` that already reads `EventRequires.implied_profiles`; `RULE_INIT` as the init phase in four diagnostics |
 | `side_effects` / `world_effects` / `taint_*` | ~18 | `irules_checks.rs`'s `drop` / `reject` / `discard` and `DNS::return` sets; `tcl-mcp`'s `SECURITY_ACTIONS` / `ROUTING_ACTIONS` / `TAINTED_REFS` where every listed command already carries a `TaintColour`; `tcl-diagram`'s `is_terminal`; the sanitiser bodies `tcl-lsp-core`'s code actions inject by diagnostic code |
@@ -593,8 +598,8 @@ string; and `tcl-irule-test` guessing a profile's type from its name.
 ## Third-party commands
 
 At the inventory revision the registry described about 2,200 commands
-across its packs; 17 command modules carried a fold — 16 in the core `tcl`
-pack and one in the `spectcl` pack that describes the DSL itself. Counting
+across its packs; 16 command modules carried a fold, all in the core
+`tcl` pack. Counting
 a module "pure-ish" when it declares `pure: true`, `Traits::PURE`,
 `CSE_CANDIDATE`, or `ReferentiallyTransparent`:
 
@@ -639,10 +644,12 @@ purity — the inventory makes such under-declared specs visible.
 **Tier 2 — a declared implementation.** For a command implemented in Tcl,
 or one whose pack is already SpecTcl, the author declares the
 implementation route: a body that *calls the real command* inside the
-bounded engine, with its inputs, dependencies, and budget, proven by the
-pack's corpus gate. The EDA packs are already `.tclspec`, so a vendor
-helper that is pure (`get_property` is not; a string-formatting utility is)
-is authorable; most of what EDA scripts gain is the transfer on `lappend
+bounded engine, with its inputs, dependencies, and budget; a pack the
+project ships proves the body against the real command through the
+`tclsh` differential, and a workspace author's declaration is
+authoritative as loaded (ruling 3). The EDA packs are already
+`.tclspec`, so a vendor helper that is pure (`get_property` is not; a
+string-formatting utility is) is authorable; most of what EDA scripts gain is the transfer on `lappend
 opts …` chains and `switch $tool {…}` on a constant, which needs no pack
 change, and vendor iteration follows its own declared protocol. tcllib's
 Rust specs are the biggest candidate set once they move to SpecTcl:
@@ -661,11 +668,11 @@ package because a file was opened.
 needs no spec: the argument-sensitive O103 path re-runs SCCP on the callee
 under the call's constants, so every specialisation the callee's body uses
 evaluates through it (`proc pad {s} {append s "!!"; return $s}` folds
-`[pad hi]` to `hi!!` once `append` has a route). A future *transfer
-summary* — deriving a cell update for a proc whose body is `upvar 1 $name
-v; lappend v …` — would let callers apply it without re-running the
-callee, and is what the `spec-author` inference proposes as a declared
-implementation when the library is packaged.
+`[pad hi]` to `hi!!` once `append` has a route). The interface contract's
+*transfer summary* (slice 13) — a `Name` parameter's ordered outcomes for
+a proc whose body is `upvar 1 $name v; lappend v …` — lets callers apply
+it without re-running the callee, and is what the `spec-author` inference
+proposes as a declared implementation when the library is packaged.
 
 What no tier reaches, by rule: anything reading versioned world state or
 volatile sources (`clock`, `pid`, `RESOLV::lookup`, `class match` on a data
@@ -677,7 +684,7 @@ are cross-event state and escape.
 ## The drift gate and the generated inventory
 
 One `cargo xtask value-transfers` command, in the `make xtask-check`
-family, with three halves in the shape of its neighbours:
+family, with three parts in the shape of its neighbours:
 
 1. **A source lint**, after `number-drift` and `segmentation-drift`: a Tcl
    command or subcommand name used to *recognise an invocation* — as the

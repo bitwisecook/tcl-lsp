@@ -37,8 +37,10 @@ same three roles — and it sits in the section where its consumers' codes
 already live.
 
 Where the optimiser and a diagnostic disagree today on the same program,
-the example says so: that disagreement is the four-evaluator problem the
-interface contract removes.
+the example says so: that disagreement is the four-consumer problem the
+migration plan's diagram draws — the shared lattice, the optimiser re-run,
+the analyser's constant store, and codegen each evaluating on their own —
+and the one the interface contract removes.
 
 ## What running the corpus found
 
@@ -283,7 +285,7 @@ presentation, and it reads the optimiser's own enablement to decide
 whether to run. Under the contracts O111 is a producer over the
 unbraced-expression fact, emitting at the same span for every unbraced
 expression, and policy decides the two codes independently: disabling
-W100 does not silence O111 — the ruling
+W100 does not silence O111 — the rule
 [diagnostic-policy.md](diagnostic-policy.md) § *Producers that change*
 states.
 
@@ -850,6 +852,10 @@ when CLIENT_ACCEPTED {
 }
 ```
 
+Under the contracts the mask is the exact value the cell update proves,
+so W121 reads the computed string as it reads a literal one, at the set
+and at the use, anchored by the same literal-substring rule as W124.
+
 ### W233 · division by a provably zero divisor
 
 ```tcl
@@ -862,6 +868,10 @@ proc p {x} {
     return [expr {$x / $z}]    ;# today: no W233 — the optimiser folds z to 0, the diagnostic lattice does not
 }
 ```
+
+Under the contracts `z` is the exact value the direct route proves for
+`string range`, the interval domain seeds the point `[0, 0]` from it, and
+W233 reports the division from the same lattice the optimiser folds.
 
 ### W230, W231, W232 · constant index out of range
 
@@ -1401,13 +1411,13 @@ mod incr {
     impl CommandSemantics for Semantics {
         /// Derived from `CellReadModifyWrite(Increment)`: one place, read
         /// then written; the possible failure is the operation's. The
-        /// helper fills `PlanAnswer::CellUpdate`'s `target`, `operation`,
+        /// helper fills `PlanAnswer::CellReadModifyWrite`'s `target`, `operation`,
         /// `amount`, and `creates_absent` — the last from
         /// `safe_on_uninit`, which is 8.5 onwards for `incr`.
         fn structure(&self, input: &dyn AnalysisInputs) -> PlanAnswer {
             cell_update_plan(input, CellUpdate::Increment)
         }
-        fn transfer(&self, domain: FactDomain, input: &dyn AnalysisInputs) -> TransferAnswer {
+        fn transfer(&self, domain: FactDomain, input: &dyn AnalysisInputs, _: &mut Budget) -> TransferAnswer {
             let target = incr_form(input.invocation())?.declared_target();
             match domain {
                 FactDomain::Type => TransferAnswer::Type(TypeFacts {
@@ -1509,9 +1519,10 @@ fn evaluate(input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
     // Step 4 of the adapter protocol: the index operands are pre-resolved
     // under the admitted grammar, because the core's own `index::resolve`
     // reads the ambient one and `010` differs from 9.0. `char_len` is the
-    // seam method `ConstOps` overrides, and it poisons the run rather than
-    // guessing when the character models disagree.
-    let len = ops.char_len(&s)?;
+    // seam method `ConstOps` overrides: it returns a plain `usize` and
+    // poisons the run, for `take` to report, rather than guessing when the
+    // character models disagree.
+    let len = ops.char_len(&s);
     let (first, last) = (ops.index(&first, len)?, ops.index(&last, len)?);
     let value = tcl_cmd_core::string::range(&mut ops, &s, &first, &last).map_err(decline)?;
     exact_result(ops.take(value)?, TypeFacts { result: Some(TclType::String), per_target: vec![], shapes: vec![] })
@@ -1621,14 +1632,19 @@ fn evaluate_regexp(input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswe
     match tcl_cmd_core::regex::regexp::<_, AreEngine>(&mut ops, &args).map_err(decline)? {
         RegexpResult::Count { count, assign: Some(values) } => {
             // The core answers `(var-name, value)` pairs; the names resolve
-            // to the plan's validated targets, in call order.
+            // to the plan's validated targets, in call order. `take` closes
+            // the run over the result, and only then do the stores' values
+            // convert to `ExactValue`s.
+            let result = ops.new_int(count);
+            let result = ops.take(result)?;
             let stores = form.targets().zip(values)
-                .map(|(t, (_, v))| StoreOutcome::Write { target: t, value: v }).collect();
-            exact_outcome(count, stores, TypeFacts { result: Some(TclType::Int), per_target: vec![], shapes: vec![] })
+                .map(|(t, (_, v))| StoreOutcome::Write { target: t, value: v.into() }).collect();
+            exact_outcome(result, stores, TypeFacts { result: Some(TclType::Int), per_target: vec![], shapes: vec![] })
         }
         RegexpResult::Count { count, assign: None } => {   // no match: every target preserved
+            let result = ops.new_int(count);
             let stores = form.targets().map(|t| StoreOutcome::Preserve { target: t }).collect();
-            exact_outcome(count, stores, TypeFacts { result: Some(TclType::Int), per_target: vec![], shapes: vec![] })
+            exact_outcome(ops.take(result)?, stores, TypeFacts { result: Some(TclType::Int), per_target: vec![], shapes: vec![] })
         }
         RegexpResult::Inline(list) =>
             exact_result(ops.take(list)?, TypeFacts { result: Some(TclType::List), per_target: vec![], shapes: vec![] }),
@@ -1651,15 +1667,15 @@ fn evaluate_scan(input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer 
     let out = tcl_cmd_core::scan::scan_match(&subj, &fmt);
     // Converted targets are written in order; the rest are preserved (`scan {12 nope} {%d %d} a b`).
     let stores = targets.iter().enumerate().map(|(i, t)| match out.values.get(i).and_then(Option::as_ref) {
-        Some(Scanned::Int(n)) => StoreOutcome::Write { target: *t, value: ops.new_int(*n) },
-        Some(Scanned::Double(d)) => StoreOutcome::Write { target: *t, value: ops.new_double(*d) },
-        Some(Scanned::Str(s)) => StoreOutcome::Write { target: *t, value: ops.new_str(s) },
+        Some(Scanned::Int(n)) => StoreOutcome::Write { target: *t, value: ops.new_int(*n).into() },
+        Some(Scanned::Double(d)) => StoreOutcome::Write { target: *t, value: ops.new_double(*d).into() },
+        Some(Scanned::Str(s)) => StoreOutcome::Write { target: *t, value: ops.new_str(s).into() },
         None => StoreOutcome::Preserve { target: *t },
     }).collect();
-    let count = i64::try_from(out.nconv).map_err(decline)?;
+    let count = ops.new_int(i64::try_from(out.nconv).map_err(decline)?);
     // `%d` and `%s` differ per target, and `Scanned` is the per-conversion
-    // discriminant the types come from.
-    exact_outcome(count, stores, TypeFacts {
+    // discriminant the types come from; `take` closes the run first.
+    exact_outcome(ops.take(count)?, stores, TypeFacts {
         result: Some(TclType::Int),
         per_target: scanned_types(&targets, &out.values),
         shapes: vec![],
@@ -1678,13 +1694,13 @@ fn evaluate_lassign(input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnsw
     let stores = targets.iter().enumerate().map(|(i, t)| StoreOutcome::Write {
         target: *t,
         // A missing element binds the empty string.
-        value: values.get(i).cloned().unwrap_or_else(|| ops.new_str("")),
+        value: values.get(i).cloned().unwrap_or_else(|| ops.new_str("")).into(),
     }).collect();
     // The leftover elements are the command's result, rendered by the one
     // list owner: `list::list(ops, args: &[O::Value]) -> O::Value`.
     let rest = tcl_cmd_core::list::list(&mut ops, &values[targets.len().min(values.len())..]);
-    // `take` is the single ingress: it declines everything the run poisoned
-    // and hands back `ExactValue`s for the result and every store.
+    // `take` closes the run over the result and declines everything the
+    // run poisoned; the stores' `ConstValue`s convert losslessly once it has.
     exact_outcome(ops.take(rest)?, stores,
         TypeFacts { result: Some(TclType::List), per_target: vec![], shapes: vec![] })
 }
@@ -1752,21 +1768,26 @@ impl CommandSemantics for SwitchSemantics {
     fn structure(&self, input: &dyn AnalysisInputs) -> PlanAnswer {
         case_list_plan(input, &CaseListSpec::SWITCH)      // arms, bodies, fall-through, default: locations and grammar
     }
-    fn transfer(&self, domain: FactDomain, input: &dyn AnalysisInputs) -> TransferAnswer {
+    fn transfer(&self, domain: FactDomain, input: &dyn AnalysisInputs, budget: &mut Budget) -> TransferAnswer {
         if domain != FactDomain::Selection { return TransferAnswer::Generic; }
-        let subject = input.operand(SUBJECT, FactDomain::ExactValue);
+        // The subject and the arms come from the structural plan above; the
+        // option words from the resolved invocation's view.
+        let PlanAnswer::CaseList { subject, arms, .. } = case_list_plan(input, &CaseListSpec::SWITCH) else {
+            return TransferAnswer::Generic;
+        };
+        let subject = input.operand(subject, FactDomain::ExactValue);
         // `-nocase` arrives in 8.5 and the core's exact `-nocase` match is
         // ASCII-only, so the options need both axes admitted.
         let mut ops = ConstOps::admit(input.context(), budget, Needs::REGEXP_FEATURES | Needs::COLLATION)?;
-        let options = tcl_cmd_core::switch::parse_options(&mut ops, input.option_words()).map_err(decline)?;
+        let options = tcl_cmd_core::switch::parse_options(&mut ops, input.invocation().option_words()).map_err(decline)?;
         // `select::<O, E, V>(ops, opts, value, patterns) -> Selection<V>`, over
-        // the arms' patterns: one selected-edge fact per member of a finite
-        // subject, joined; a pattern that cannot be evaluated keeps the error
-        // possibility.
-        let patterns = input.arm_patterns();
-        selection_fact(subject.members().map(|s| {
+        // the arms' exact patterns: one selected-edge fact per member of a
+        // finite subject, joined; a pattern that cannot be evaluated keeps
+        // the error possibility.
+        let patterns = exact_operands(input, arms.iter().map(|(pattern, _)| *pattern))?;
+        selection_fact(subject, |s| {
             tcl_cmd_core::switch::select::<_, AreEngine, _>(&mut ops, &options, s, &patterns)
-        }))
+        })
     }
     fn evaluate(&self, _: &dyn AnalysisInputs, _: &mut Budget) -> EvalAnswer { EvalAnswer::Declined(DeclineReason::NotAValue) }
 }
@@ -1894,16 +1915,33 @@ fn structure_subst(input: &dyn AnalysisInputs) -> PlanAnswer {
 ```tcl
 command subst {
     arity 1..
-    option -nobackslashes -disables backslashes
-    option -nocommands    -disables commands
-    option -novariables   -disables variables
-    option -backslashes   -selects backslashes -introduced 9.1   ;# the positive family; mixing families is the error the registry reports
-    option -commands      -selects commands    -introduced 9.1
-    option -variables     -selects variables   -introduced 9.1
-    semantics -native subst::semantics        ;# the template-word plan, derived from the option rows
+    reserved_trailing_words 1
+    option_effect_family negated { base all-on  combine accumulate }
+    option_effect_family positive { base all-off combine accumulate \
+                                    -introduced 9.1 }
+    option -nobackslashes -effect {disables substitution backslashes} \
+                          -family negated
+    option -nocommands    -effect {disables substitution commands} \
+                          -family negated
+    option -novariables   -effect {disables substitution variables} \
+                          -family negated
+    option -backslashes   -effect {selects substitution backslashes} \
+                          -family positive -introduced 9.1
+    option -commands      -effect {selects substitution commands} \
+                          -family positive -introduced 9.1
+    option -variables     -effect {selects substitution variables} \
+                          -family positive -introduced 9.1
+    option_conflict {-nobackslashes -nocommands -novariables} \
+                    {-backslashes -commands -variables}
+    semantics -native subst::semantics
 }
 ```
 
+The option rows are the option-effect descriptor of
+[registry-consumer-contracts.md](registry-consumer-contracts.md)
+§ *Options with semantic effects* — the two families, their bases, and
+the conflict the registry reports — and the `semantics` row names the
+shipped template-word plan that reads them.
 `-introduced` is the row's own release gate, so a profile that does not
 reach 9.1 treats the positive family as the completion fact it is — the
 call errors — and a profile spanning both sides of 9.1 makes the plan

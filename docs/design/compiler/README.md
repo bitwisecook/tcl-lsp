@@ -86,10 +86,11 @@ User-facing compiler troubleshooting and how-tos live in
   stated as row shapes per statement, block, option flag and body verb.
 - [value-transfers-examples.md](value-transfers-examples.md) —
   **proposal**: worked examples — one program per optimisation and
-  diagnostic code the value axis touches and per designed rung, each with the tool's observed
-  behaviour today and what the contracts change, the defects running the
-  corpus exposed, and the declarations behind the examples as they would be
-  written in the Rust command registry and in a `.tclspec` pack.
+  diagnostic code the value axis touches and per designed rung, each with
+  the tool's observed behaviour today and what the contracts change, the
+  defects running the corpus exposed, and the declarations behind the
+  examples as they would be written in the Rust command registry and in a
+  `.tclspec` pack.
 - [value-transfers-migration.md](value-transfers-migration.md) —
   **proposal**: the migration plan — the versioned inventory of hand-written
   command knowledge, the delivery slices with their exit criteria, what

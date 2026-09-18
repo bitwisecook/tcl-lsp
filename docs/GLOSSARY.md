@@ -735,8 +735,8 @@ prove operands, resolve places, validate the answer, and join it into the
 [SCCP](#sccp) lattice. A known result authorises propagation, never the
 deletion of the producing operation. Computed through a declared evaluator
 route (a shared core, the shared expression engine, or a declared
-implementation in the bounded engine), never inferred from purity. Not yet
-implemented.
+implementation in the bounded engine), never inferred from purity.
+Proposed; nothing in the tree implements it.
 
 See also: [Value transfers](design/compiler/value-transfers.md), [Value evaluation](design/compiler/value-evaluation.md), [Worked examples](design/compiler/value-transfers-examples.md), [Value-transfer migration](design/compiler/value-transfers-migration.md), [Registry consumer contracts](design/compiler/registry-consumer-contracts.md), [Diagnostic policy](design/compiler/diagnostic-policy.md), and
 [Constant folding](#constant-folding).
@@ -762,9 +762,9 @@ bottom, `Unbound`, `Bound` carrying the binding kind of a proven scalar or
 array, and `MayBound` as the top. The solver owns it and storage outcomes
 feed it — a write binds, a preserve leaves the fact alone, an unbind
 clears it, a may-write joins with the prior fact — so W210, W211, W213,
-I230, O101, O108, and O109 read one fact inside the fixed point rather
-than whole-body scans and a post-pass `[info exists]` fold. Proposed as
-`Existence`, with an `ExistenceTransfer` per
+W214, I230, O101, O108, O109, and S100 read one fact inside the fixed
+point rather than whole-body scans and a post-pass `[info exists]` fold.
+Proposed as `Existence`, with an `ExistenceTransfer` per
 [completion path](#completion-path).
 
 See also: [Value transfers § Existence](design/compiler/value-transfers.md#existence),

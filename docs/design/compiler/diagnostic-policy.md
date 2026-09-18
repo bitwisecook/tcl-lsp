@@ -295,9 +295,10 @@ pub enum FindingData {
 
 `Severity` is the shared five-value ladder the analyser and the compiler
 checks already agree on — `Error`, `Warning`, `Info`, `Hint`, `Suggestion`
-— and the tree's four narrower severity enums map into it on conversion:
-`tcl_compiler::analyser::Severity` and
-`tcl_compiler::compiler_checks::Severity` one to one;
+— which `tcl_compiler::analyser::Severity` and
+`tcl_compiler::compiler_checks::Severity` both re-export from
+`tcl_core_types::Severity` and carry over unchanged; the tree's three
+narrower severity enums map into it on conversion:
 `source_style::StyleSeverity` as `Warning` / `Hint`;
 `f5_xc::XcSeverity` as `Hint` / `Info`;
 `tcl_bigip::validator::DiagSeverity` as `Warning` / `Hint`. Naming an LSP

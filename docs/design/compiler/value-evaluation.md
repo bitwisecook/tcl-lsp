@@ -32,9 +32,10 @@ and before promising that two implementations agree.
 > `-expression` / `-implementation` / `-host`, the `inputs` / `depends` /
 > `budget` / `body` rows, the option flags `-evaluate` /
 > `-evaluate-reason`, the body verbs `write` and `preserve`, and DSL
-> vocabulary 2.2. None of those name anything in the workspace. The
-> reason names `NoRoute`, `ReleaseAmbiguous`, and `NotText` are proposed
-> variants of the interface contract's `DeclineReason`, which it owns.
+> vocabulary 2.2. None of those name anything in the workspace.
+> `DeclineReason` and every variant of it — `NoRoute`, `ReleaseAmbiguous`,
+> and `NotText` included — are the interface contract's; this page defines
+> the payloads `NoRouteReason` and `Axis` that two of them carry.
 > The existing identifiers cited here were checked against the tree at
 > the revision named in
 > [value-transfers-migration.md](value-transfers-migration.md).
@@ -96,6 +97,23 @@ enum EvalRoute {
     /// Declared absence: classification only. The driver answers
     /// `Declined(NoRoute)` without consulting purity.
     None { reason: NoRouteReason },
+}
+
+/// Why a specialisation has no route: the payload of the interface
+/// contract's `DeclineReason::NoRoute`, and the "none" column of the
+/// migration plan's generated inventory.
+enum NoRouteReason {
+    /// `evaluate none`: the author abstained at this scope.
+    Declared,
+    /// No evaluator is authored for the form — the state of most pure
+    /// commands today.
+    Unauthored,
+    /// The form or option is outside what the route models
+    /// (`regexp -about`).
+    FormUnsupported,
+    /// The form runs a callback (`regsub -command`, a `-command`
+    /// comparison), which needs a declared route of its own.
+    Callback,
 }
 ```
 
@@ -249,12 +267,17 @@ The answer shapes this page hands back — `EvalAnswer`,
 `DependencyEvidence`, `TargetId`, `OperandId`, `AnalysisInputs`,
 `AnalysisContext`, and `DeclineReason` — are the interface contract's and
 are defined in [value-transfers.md](value-transfers.md) § *The interface*.
-What this page contributes to them is the reason set: `NoRoute`,
-`ReleaseAmbiguous(Axis)`, `NotText`, and the regexp owner's
-`PrecisionDecline`, each of which is a `DeclineReason` the driver records
-rather than a second answer kind. The `Budget` an evaluator is handed is
-that page's request-level handle; `tcl_engine_api::Budget` is the engine's
-own caps, and the two are named apart wherever both appear.
+What this page contributes to them is the payloads two reasons carry —
+`NoRouteReason` behind `NoRoute` and `Axis` behind `ReleaseAmbiguous` —
+and the mapping of the regexp owner's `PrecisionDecline` onto reasons the
+interface contract already names: `FuelExhausted`, `DepthExhausted`, and
+`ApproximateCapture` are `Approximate`; `FormUnsupported` is
+`Unsupported`; `Cancelled` is `Budget`; and `PatternError` is the call's
+error completion, never a value. None of them is a second answer kind.
+The `Budget` an evaluator is handed is that page's handle, the route's
+view of one `EvaluationBudget` (§ *The three nested budgets*);
+`tcl_engine_api::Budget` is the engine's own caps, and the two are named
+apart wherever both appear.
 
 ### The `ConstOps` type
 
@@ -268,8 +291,10 @@ struct ConstOps<'ctx> {
     target: TargetSemantics,
     /// What `admit` was asked for. Every core call is checked against it.
     admitted: Needs,
-    /// The evaluation's slice of the request budget.
-    budget: &'ctx mut EvaluationBudget,
+    /// The evaluation's slice of the request budget: the interface
+    /// contract's `Budget` handle, which is one `EvaluationBudget` as a
+    /// route sees it (§ *The three nested budgets*).
+    budget: &'ctx mut Budget,
     /// The first fault any core or seam method recorded. Once set, `take`
     /// declines whatever value it is handed.
     fault: Option<DeclineReason>,
@@ -344,6 +369,20 @@ axis, and the axis's owner in the tree decides each bit:
 | `PLATFORM` | host facts a platform-backed core reads | `tcl_cmd_core::platform`, `tcl_cmd_core::channel` |
 | `WALL_CLOCK` | a clock, locale, or timezone read | `tcl_cmd_core::clock` |
 
+```rust,ignore
+/// The axis two answers differed on: the payload of the interface
+/// contract's `DeclineReason::ReleaseAmbiguous`. One variant per `Needs`
+/// bit, in CamelCase (`CharacterModel` for `CHAR_MODEL`, and so on), plus
+/// the availability of a command, form, or option that the profile's
+/// releases do not all have.
+enum Axis {
+    NumeralGrammar, IndexGrammar, CharacterModel, CharIndexing, IntTower,
+    BinaryFields, FormatVerbs, StringClasses, RegexpFeatures, ListRendering,
+    DictOrder, Collation, ByteStrings, SourceEncoding, Platform, WallClock,
+    Availability(SpecSurface),
+}
+```
+
 `SOURCE_ENCODING` is an axis because the same bytes are a different value
 by release. A file whose bytes are `set s "<C3 89>"` followed by
 `puts [string length $s]` prints **2** on `tclsh8.4`, `tclsh8.5`, and
@@ -373,7 +412,7 @@ impl<'ctx> ConstOps<'ctx> {
     /// runtime failure are one kind of answer.
     fn admit(
         ctx: &'ctx AnalysisContext,
-        budget: &'ctx mut EvaluationBudget,
+        budget: &'ctx mut Budget,
         needs: Needs,
     ) -> Result<Self, DeclineReason>;
 
@@ -426,6 +465,12 @@ The protocol, in order, and every step is mandatory:
    core returned, so a `char_len` that could not decide cannot leak a zero
    into the lattice.
 
+A `ConstValue` converts to an `ExactValue` without loss — the bytes and
+the representation evidence carry over, and the numeric classification is
+derived — so once `take` has closed the run over the result, the values
+of the ordered stores convert directly; a poisoned run never reaches that
+conversion, because `take` has already declined.
+
 A core call outside `admitted` is a programming error, not a decline:
 `debug_assert` catches it in development, and
 `direct_route_needs_match_their_cores` calls every catalogued direct
@@ -446,13 +491,13 @@ once. "Charge" is in `WorkUnits` (§ *Budgets and cancellation*).
 | `string::word_bound` | `INDEX_GRAMMAR`, `CHAR_INDEXING` | as above | as above | 1 per input byte |
 | `string::reverse` | `CHAR_INDEXING` | scalar reversal against code-unit reversal | a value the character models disagree on | 1 per byte both ways |
 | `string::repeat` | none | none | a negative or non-integer count (`string repeat ab -1` is the empty string on every release, and is not a decline); an output past the charge | `len × count`, charged first |
-| `string::compare`, `string::equal` (`CompareMode`) | `COLLATION`, `CHAR_MODEL` | the `-length` argument is a character count; `-nocase` folding | a `-length` the models disagree on | 1 per compared byte |
+| `string::compare` (`CompareMode::{Equal, Compare}`) | `COLLATION`, `CHAR_MODEL` | the `-length` argument is a character count; `-nocase` folding | a `-length` the models disagree on | 1 per compared byte |
 | `string::string_match` | `COLLATION` | `-nocase` folding | — | 1 per pattern × subject step |
 | `string::map` | `COLLATION` | `-nocase` folding | — | 1 per input byte × map size |
 | `string::case_convert` (`CaseMode`, `simple_upper` / `simple_lower` / `simple_title` / `simple_title_rest`) | `COLLATION`, `CHAR_MODEL` | the optional `first` / `last` are character indices; the case tables | a first/last pair the models disagree on | 1 per byte |
 | `string::replace`, `string::insert` | `INDEX_GRAMMAR`, `CHAR_INDEXING` | index grammar | a malformed index | 1 per byte both ways |
 | `string::first`, `string::last` | `INDEX_GRAMMAR`, `CHAR_INDEXING` | the optional start index | a malformed index | 1 per compared byte |
-| `string::trim`, `trimleft`, `trimright` (through `trim_dispatch`) | none | none | — | 1 per trimmed byte |
+| `string::trim`, whose `left` and `right` flags are `trimleft` and `trimright` | none | none | — | 1 per trimmed byte |
 | `string::cat` | none | none | an output past the charge | 1 per output byte, charged first |
 | `index::resolve`, `resolve_with`, `resolve_opt`, `resolve_opt_with`, `encodable`, `bad_index` | `INDEX_GRAMMAR` | measured on a 12-element list `a`…`l`: `lindex $l 010` is `i` up to 8.6 and `k` from 9.0, `lindex $l end-010` is `d` up to 8.6 and `b` from 9.0, `lindex $l 1_0` and `lindex $l 0d1` are `bad index` up to 8.6 and `k` and `b` from 9.0, while `lindex $l 0x2` is `c` on every release | disagreement with no named release | 1 |
 | `index::drill` | `INDEX_GRAMMAR`, `LIST_RENDERING` | as above | a non-list step, an out-of-range step | 1 per path step |
@@ -672,7 +717,7 @@ How it travels, one layer at a time:
 A consumer that needs only match existence uses a separately certified
 exact-existence result, which is a different claim with its own
 certification and is not derivable from this enum; capture consumers need
-exact captures. This delivery declines the whole result on any
+exact captures. The route declines the whole result on any
 approximation. This is a contract change for existing regexp consumers,
 with focused compatibility tests, and it precedes any widening of
 regexp-derived constants or branch pruning.
@@ -906,9 +951,9 @@ struct EvaluatorCapability {
     /// or of the provisioned file. `PackRuntime` already carries the
     /// pack's `content_hash`, `dsl_version`, and name.
     identity: ImplementationIdentity,
-    /// Where it runs. `BoundedTcl` is the only value this delivery
-    /// admits; the variant exists so a second host is a declaration
-    /// rather than a reinterpretation of the first.
+    /// Where it runs. `BoundedTcl` is the only host word; the variant
+    /// exists so a second host is a declaration rather than a
+    /// reinterpretation of the first.
     host: HostKind,
     /// The target semantics it supports, as the same `Needs` bits the
     /// direct route admits. An axis absent here is an axis the evaluator
@@ -929,9 +974,9 @@ struct EvaluatorCapability {
     /// This is `tcl_engine_api::Budget`, the engine's caps — not the
     /// interface contract's `Budget` handle the evaluator is passed.
     budget: tcl_engine_api::Budget,
-    /// Which completion kinds it models. Normal only, in this delivery;
-    /// an implementation that raises is a decline, never a completion
-    /// fact.
+    /// Which completion kinds it models. Normal only: an implementation
+    /// that raises is a decline, never a completion fact, under the DSL's
+    /// `Error means abstain` rule.
     completion: CompletionSupport,
 }
 
@@ -1111,7 +1156,7 @@ the hash is the bucket rather than the proof.
 
 A stale memo is an invalidation defect, not something an optimiser re-run
 repairs. A second run is justified only by additional explicit assumptions
-— a proven `TclOO` frame (`defining_class`), which the shared lattice never
+— a proven `TclOO` frame (`oo_defining_class`), which the shared lattice never
 has — and is keyed as that different context.
 
 ### The evaluator generation
@@ -1296,7 +1341,7 @@ and declines the rest.
 | regexp features and limits | supported through `AreEngine` with `RegexpPrecision`; declines `-about`, `regsub -command`, every `PrecisionDecline`, and a non-ASCII `-nocase` exact pattern (the core folds with `eq_ignore_ascii_case`) | supported only where an operand is already an exact value; the engine itself has no regexp operator | evidence: a body's `regexp` reaches the same engine and the same precision result | declines |
 | binary representation (`BINARY_FIELDS`, `BYTE_STRINGS`) | supported: `specifier_min_version` and `signedness_available` gate the field grammar, and `ConstValue` is byte-exact with `Representation` as separate evidence | declines: the expression engine has no byte-array rung | evidence: the engine's own value model; a `binary` result crosses the boundary as bytes or declines | declines |
 | platform behaviour (`PLATFORM`) | declines always: `PLATFORM` is never satisfiable, so `platform::exec` and `platform::pwd` are unreachable by construction | declines | declines: the host denies ambient files, network, clock, and randomness | declines |
-| completion semantics | supported for the normal path only; an error is a decline, and the concrete shapes are the interface contract's `CompletionOutcome` | supported for the normal path only; a short circuit is a normal path, an error is a decline | supported for the normal path only, through `CompletionSupport`; `EngineError::Script` is a decline and `BudgetExceeded` is a distinct one | declines |
+| completion semantics | supported: the normal path from slice 2, and from slice 10 the interface contract's `CompletionOutcome::Error` under the prefix rule; before slice 10 an error is a decline | supported: the normal path, a short circuit being a normal path, and from slice 10 the exact error completion (`expr {1/0}`); before slice 10 an error is a decline | supported for the normal path only, through `CompletionSupport`; `EngineError::Script` is a decline and `BudgetExceeded` is a distinct one | declines |
 | wall clock and locale (`WALL_CLOCK`) | declines always: `clock::dispatch` requests it and it is never satisfiable | declines | declines: `after` and `clock` are off the whitelist | declines |
 
 ### What "consistent" can mean
@@ -1364,8 +1409,14 @@ fn evaluate(input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
     let target = form.declared_target();
     let old = input.prior_store(target.place(), FactDomain::ExactValue);
     let step = form.increment_or_exact_default("1");
-    let outcome = numeric_core::tcl_incr(old, step, input.context(), budget)?;
-    exact_outcome(outcome.completion, outcome.result, outcome.ordered_stores)
+    let out = numeric_core::tcl_incr(old, step, input.context(), budget)?;
+    EvalAnswer::Evaluated(InvocationOutcome {
+        completion: CompletionOutcome::Normal,
+        result: ExactValueOrUnavailable::Exact(out.value.clone()),
+        ordered_stores: vec![StoreOutcome::Write { target, value: out.value }],
+        types: TypeFacts { result: Some(TclType::Int), per_target: vec![(target, TclType::Int)], shapes: vec![] },
+        evidence: input.context().binding_evidence(),
+    })
 }
 ```
 
@@ -1401,7 +1452,7 @@ CommandSpec {
 
 fn evaluate(input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
     let expression = expr_arguments::prepare(input.invocation())?;
-    let ops = ProvenTclExprOps::new(input, budget);
+    let ops = ProvenTclExprOps::new(input, budget, NestedPolicy::EffectFreeOnly);
     shared_expr_engine::evaluate(expression, ops)
 }
 ```
@@ -1417,8 +1468,10 @@ command expr {
 
 `ProvenTclExprOps` adapts the existing `ExprOps` contract: resolve a
 variable when reached; evaluate a supported command or math function only
-when reached; retain ordering and completion. The result is a Tcl value,
-not necessarily a number. Braced and concatenated or unbraced arguments
+when reached; retain ordering and completion. Its `NestedPolicy` is
+`EffectFreeOnly` in slice 3 and `LocalWrites` from slice 9, the two
+states of the interface contract's ordered evaluation state. The result
+is a Tcl value, not necessarily a number. Braced and concatenated or unbraced arguments
 have different evaluation stages — with `a` set to `alpha` and `b` to
 `beta`, `expr {$a == $b}` is 0 on every release while `expr "$a == $b"`
 raises `syntax error in expression "alpha == beta": variable references
@@ -1432,9 +1485,9 @@ into the evidence and the cache key.
 # Proposed declaration; no diagnostic codes, no compiler callback IDs.
 command regexp {
     semantics -native regexp::semantics
-    evaluate -direct regexp::evaluate
-    facts -native regexp::facts
-    option -about -evaluate none -evaluate-reason form_unsupported
+    evaluate  -direct regexp::evaluate
+    facts     -native regexp::facts
+    option -about -evaluate none -evaluate-reason form_unsupported   ;# the core refuses it
 }
 ```
 
@@ -1467,13 +1520,11 @@ command tenant::label {
         inputs {arg 0 exact}
         depends {tcl_profile implementation_identity}
         budget {-commands 2000 -wall-clock 20 -value-bytes 65536}
-        body {name} {
-            return [string cat "tenant:" $name]
-        }
+        body {name} { fold [string cat "tenant:" $name] }
     }
     facts {
         result -string_segments {{constant "tenant:"} {operand 0}}
-        taint -result_from {arg 0}
+        taint  -result_from {arg 0}
     }
 }
 ```
@@ -1526,7 +1577,7 @@ because a route belongs to a *form* and not to a flag:
 | flag | operands | meaning | from |
 |---|---|---|---|
 | `-evaluate none` | — | when this option is present the selected form has no evaluator, and the route declines | 2.2 |
-| `-evaluate-reason WORD` | one word from the decline vocabulary | which decline the driver records (`form_unsupported`, `callback`, `release_ambiguous`) | 2.2 |
+| `-evaluate-reason WORD` | one word from the decline vocabulary | which decline the driver records: `form_unsupported` and `callback` are `NoRoute` with that `NoRouteReason`; `release_ambiguous` is `ReleaseAmbiguous` on the option's availability axis | 2.2 |
 
 Those two flags are what `regexp -about` and `regsub -command` need, and
 they are the whole of the option-level vocabulary. Anything richer — an
@@ -1687,9 +1738,10 @@ against the library's real behaviour.
 
 ## Where each part lands
 
-Every part of this contract lands in one of the seven slices
-[value-transfers-migration.md](value-transfers-migration.md) numbers; none
-of it needs an eighth.
+Every part of this contract lands in one of slices 1–7 of the thirteen
+[value-transfers-migration.md](value-transfers-migration.md) numbers;
+slices 8–13 land the rungs the interface contract states and take no part
+from this page.
 
 | This page's part | Slice | What the slice already names |
 |---|---|---|

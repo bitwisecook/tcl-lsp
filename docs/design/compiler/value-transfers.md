@@ -28,7 +28,7 @@ C-extension contracts, none of which this one waits for.
 > `TargetId`, `FactView`, `FactDomain`, `DomainFact`, `WordStructure`,
 > `BodyRegion`, `EvaluationState`, `NestedPolicy`, `PlanAnswer`,
 > `Binder`, `BodyPlan`, `Reconcile`, `CompletionProtocol`,
-> `HandlerMatch`, `IterationPlan`, `IterableKind`, `ExitRule`,
+> `HandlerPlan`, `IterationPlan`, `IterableKind`, `ExitRule`,
 > `SelectionContract`, `TemplateWordPlan`, `ScriptRegion`,
 > `VariableRead`, `TransferAnswer`, `ExistenceTransfer`,
 > `CompletionPath`, `ExistenceOutcome`, `Existence`, `BindingKind`,
@@ -37,8 +37,9 @@ C-extension contracts, none of which this one waits for.
 > `StoreOutcome`, `ExactValue`, `ExactValueOrUnavailable`,
 > `RepresentationEvidence`, `ValueShape`, `TypeFacts`, `FactBounds`,
 > `DependencyEvidence`, `RouteIdentity`, `AnalysisContext`, `Budget`,
-> `BudgetLimit`, `AnalysisTier`, `DeclineReason` — and the section-local
-> shapes `EdgeRefinement`, `TransferSummary`, `ParamRole`, and
+> `BudgetLimit`, `AnalysisTier`, `DeclineReason` (whose `Axis` and
+> `NoRouteReason` payloads the evaluation page defines) — and the
+> section-local shapes `EdgeRefinement`, `TransferSummary`, `ParamRole`, and
 > `LoopEnumeration`, with the migration plan's `folded_types` side map,
 > name nothing in the workspace today; every Rust shape
 > on this page is a sketch of capabilities and answer shapes, not
@@ -92,7 +93,9 @@ These are the owner's decisions, and every section below fits inside them.
 ## The four motivating programs
 
 Each of these is legal, common Tcl. What the compiler knows about it today
-depends on which of seven independent constant evaluators happens to be
+depends on which of the tree's independent constant evaluators —
+[value-transfers-migration.md](value-transfers-migration.md) § *Where
+per-command knowledge lives today* inventories them — happens to be
 asked, and the answer is different for each consumer.
 
 ```tcl
@@ -405,8 +408,10 @@ trait CommandSemantics {
     /// declared structural effects — consumed at construction time.
     fn structure(&self, input: &dyn AnalysisInputs) -> PlanAnswer;
     /// The abstract transfer for one fact domain: a delta the owning
-    /// solver validates and applies.
-    fn transfer(&self, domain: FactDomain, input: &dyn AnalysisInputs) -> TransferAnswer;
+    /// solver validates and applies. A transfer that evaluates — the
+    /// `Selection` fact of a case list — charges the same budget as
+    /// `evaluate`.
+    fn transfer(&self, domain: FactDomain, input: &dyn AnalysisInputs, budget: &mut Budget) -> TransferAnswer;
     /// The exact evaluation over the declared route, under a budget.
     fn evaluate(&self, input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer;
 }
@@ -419,7 +424,7 @@ enum PlanAnswer {
     /// `NativeLowering::CellReadModifyWrite`. Consumed by the solver's
     /// cell transfer, `chain_fold`, `static_loops`, `intervals`, and the
     /// removability and hidden-read rules in `elimination.rs`.
-    CellUpdate {
+    CellReadModifyWrite {
         target: TargetId,
         operation: CellUpdate,
         amount: Option<OperandId>,
@@ -686,9 +691,13 @@ enum DeclineReason {
     /// would need it stays silent.
     Unavailable(AnalysisTier),
     // step 1 · resolve
-    /// No declaration, an explicit abstention, or a pure command with
-    /// no route (`NoRoute` on the evaluation page).
+    /// No structural or transfer declaration, or an explicit abstention
+    /// (`semantics none`).
     NoSemantics,
+    /// A declared `EvalRoute::None`: the specialisation classifies the
+    /// command and evaluates nothing, and the evaluation page's
+    /// `NoRouteReason` says why.
+    NoRoute(NoRouteReason),
     /// Binding validity: the head, a nested command, or a math function
     /// is renamed, aliased, redefined, or in an opaque namespace.
     RebindingSuspected,
@@ -708,12 +717,6 @@ enum DeclineReason {
     /// Duplicate or aliased targets, an array-element base write, or a
     /// trace-visible target: a precision limit, not a soundness rule.
     OverlappingTargets,
-    /// The operation needs a bound place and existence is not proven,
-    /// or no release in the profile completes normally on an absent one.
-    UnboundPlace,
-    /// The prior value has the wrong shape for the operation: the
-    /// program errors at run time, and an error is never a value.
-    WrongRepresentation,
     // step 4 · finite sets
     /// More than one distinct SSA value is a set.
     CorrelatedSets,
@@ -722,11 +725,22 @@ enum DeclineReason {
     // step 5 · evaluate
     /// The route does not model this form, option, or operation.
     Unsupported,
+    /// The operation needs a bound place and existence is not proven,
+    /// or no release in the profile completes normally on an absent one.
+    UnboundPlace,
+    /// The prior value has the wrong shape for the operation: the
+    /// program errors at run time, and an error is never a value.
+    WrongRepresentation,
+    /// The value's bytes are not text where a core needs a string
+    /// (`ConstOps::as_str` on the evaluation page); never U+FFFD.
+    NotText,
     /// A nested substitution's effects reach an observed input and the
     /// ordered evaluation state cannot own them (§ `expr`).
     StatefulNested,
-    /// The answers differ between the profile's releases.
-    ReleaseAmbiguous,
+    /// The answers differ between the profile's releases on one axis:
+    /// `Axis` is the evaluation page's name for one `Needs` bit or for
+    /// the availability of a command, form, or option.
+    ReleaseAmbiguous(Axis),
     /// Fuel, depth, bytes before allocation, the request budget, or
     /// cancellation — distinct from `Unsupported`, never a negative.
     Budget(BudgetLimit),
@@ -900,11 +914,12 @@ flowchart LR
     S6["6 · validate<br/>cardinality · indices · overlap ·<br/>permitted effects · limits"]
     S7["7 · join<br/>result · ordered stores · types · evidence;<br/>never re-narrow a widened place"]
     S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7
-    S1 -. NoSemantics · RebindingSuspected · NotAValue .-> W
+    S1 -. NoSemantics · NoRoute · RebindingSuspected · NotAValue .-> W
     S2 -. NotExact · EscapingPlace · TracedPlace · DynamicName .-> W
-    S2 -. OverlappingTargets · UnboundPlace · WrongRepresentation .-> W
+    S2 -. OverlappingTargets .-> W
     S4 -. CorrelatedSets · TooManyMembers .-> W
-    S5 -. Unsupported · StatefulNested · ReleaseAmbiguous · Budget .-> W
+    S5 -. Unsupported · UnboundPlace · WrongRepresentation · NotText .-> W
+    S5 -. StatefulNested · ReleaseAmbiguous · Budget .-> W
     S5 -. Approximate · Cycle · Transient .-> W
     S6 -. MalformedAnswer .-> W
     W["decline lane<br/>affected defs → Overdefined<br/>reason recorded with the fact"]
@@ -1100,12 +1115,14 @@ and every specialisation inherits them:
 | a required input is pending | the solver | pending |
 | a word is not an exact value at this use (multi-token, `{*}`, unresolvable variable, JimTcl `$(…)`) | the driver | decline (`NotExact`) |
 | the head's binding is suspect: renamed, aliased to an unknown target, redefined, or in an opaque namespace (`ModuleCommandMutations::trusts`, `trusts_proc_binding`, `redefined_procedures`, `opaque_namespaces`) | binding validity — not an author-trust check | decline (`RebindingSuspected`); a consumer with no whole-module view uses `distrust_all()` |
+| the invocation has no semantics declaration, or declares a route of none (`evaluate none`) | the resolver, at step 1 | decline (`NoSemantics`, or `NoRoute` with the evaluation page's `NoRouteReason`); the generic conservative transfer applies, and a declared plan or transfer still answers its own domain |
 | the place is `::`-qualified, escaping, or the function has a dynamic trace (`is_externally_mutable` over the `var_observability` escaping set) | the solver, before any transfer runs | the def is `Overdefined` and no transfer re-narrows it (`EscapingPlace`) |
 | the place is named in `Module::traced_variables` (`TraceInputs`) | the solver | same (`TracedPlace`) |
 | the target is an array-element base write, or the targets overlap, or a target is trace-visible | the driver | decline (`OverlappingTargets`), stated as a precision limit |
 | a dynamic key (`incr a($i)`) | `DynamicNameBarrier` | decline (`DynamicName`), not pending: the miss is permanent and `join(prev, Unknown) = prev` would launder a stale element constant |
 | the prior value has the wrong intrep for the operation, or the place is unbound and the release's uninitialised behaviour is not proven | the evaluator | decline (`WrongRepresentation`, `UnboundPlace`) — the program errors at run time, and an error is never a value; the error is a completion fact (§ `catch`, `try`, and completion) |
-| the answer differs between target releases and the profile names none | the evaluator, comparing all relevant semantic cases | decline (`ReleaseAmbiguous`: `NumberSyntax::unanimous`, `StringCharacterModel`, the leading-zero numeral rule) |
+| the answer differs between target releases and the profile names none | the evaluator, comparing all relevant semantic cases | decline (`ReleaseAmbiguous`, naming the axis: `NumberSyntax::unanimous`, `StringCharacterModel`, the leading-zero numeral rule) |
+| a core needs a string and the value's bytes are not text | the evaluator (`ConstOps::as_str`) | decline (`NotText`), never a U+FFFD substitution |
 | a nested substitution writes a place the ordered evaluation state cannot own (§ `expr`: the first demanding client) | the expression route | decline (`StatefulNested`) |
 | the command has structure but no value (`switch`; a body command asked for a result it does not have) | the specialisation | decline (`NotAValue`); the structural plan and the other domains still answer |
 | a nested query would demand the query being computed | the driver | decline (`Cycle`), never a depth cap that makes the answer meaningful |
@@ -1159,7 +1176,9 @@ dict with d {incr a; set result done}
   cell is created and the result is the amount), while `append` and
   `lappend` create it in every release. The uninitialised case therefore
   needs an existence proof and, for `incr`, the selected release; no old
-  value is manufactured from bottom. § Existence owns the proof.
+  value is manufactured from bottom. § Existence owns the proof, and the
+  route — step 5 of the lift — is what declines with `UnboundPlace` when
+  the proof is absent; the input step never manufactures one.
 - **An interpreter error is not an atomic rollback.** With `a` a scalar
   and `b` an array, `catch {lassign {new second} a b}` fails with code 1
   and leaves `a` equal to `new`. A transfer that declines on error and
@@ -1176,7 +1195,8 @@ dict with d {incr a; set result done}
 
 Existence is the third lattice rung: a flow-sensitive bound/unbound fact
 per place, owned by the solver, fed by storage outcomes, and consumed by
-W210, W211, W213, O108, O109, I230, and O101. Today the fact is two
+W210, W211, W213, W214, O108, O109, I230, O101, and S100. Today the fact
+is two
 whole-body scans — `scan_defined_and_unset` in `sccp.rs` collects every
 assigned name and every name a literal `unset` names, recognising `unset`
 by its spelling — and `existence_constant_branches` folds `[info exists
@@ -1479,7 +1499,7 @@ Each consumer reads the fields it needs and nothing else:
 | W102 | `kinds`, `dynamic`, and the narrowing advice from the option rows | asking the bare-string resolver, so a proven switch word narrows the message |
 | `eval_subst_nocommands_body`, `extract_subst_nocommands_template` | `kinds == SUBST_NOCOMMANDS_KINDS`, `braced`, `reads` — every read must be in the const map — and `escapes` | re-segmenting the `[subst …]` text and matching the head `subst` by spelling |
 | extract-proc's literal cut and same-frame regions | `kinds.variables` to keep or cut the braced word; `script_regions` as the same-frame regions | `push_substituted_commands`' own `[` walk over the braced word |
-| the dynamic-name barrier | `dynamic && kinds.variables` to set `reads`; `script_regions` for the region scan | reading only `PERFORMS_SUBSTITUTION`, so `subst -novariables $t` no longer blinds every read |
+| the dynamic-name barrier | `dynamic && kinds.variables` to set `reads`; `script_regions` for the region scan | reading only `PERFORMS_SUBSTITUTION`, so `subst -novariables $t` stops blinding every read |
 
 The direct route materialises a template only when the plan is closed:
 every read is proven, every script region evaluates through a declared
@@ -1874,9 +1894,25 @@ enum CompletionProtocol {
     /// `try`: the first handler whose `on CODE` or `trap PATTERN` matches
     /// the body's completion runs with the message and options bound;
     /// a `-` handler shares the next body; `finally` runs on every path.
-    Handlers { handlers: Vec<HandlerMatch>, finally: Option<OperandId> },
+    Handlers { handlers: Vec<HandlerPlan>, finally: Option<OperandId> },
+}
+
+/// One `try` handler: how its pattern word selects it, the pattern
+/// operand, the message and options binders, and the body — `None` for
+/// a `-` handler that shares the next body.
+struct HandlerPlan {
+    matches: HandlerMatch,
+    pattern: OperandId,
+    binders: Vec<Binder>,
+    body: Option<OperandId>,
 }
 ```
+
+`HandlerPlan::matches` is the clause-grammar descriptor's `HandlerMatch`
+([registry-consumer-contracts.md](registry-consumer-contracts.md)
+§ *The clause-grammar descriptor*): whether the pattern selects by
+completion code (`on`) or by `-errorcode` prefix (`trap`), stated once
+for the grammar and read here per handler.
 
 **Write order across the error edge — the prefix rule.** An outcome's
 `ordered_stores` are in execution order, and `Error { written, .. }` says
@@ -2171,7 +2207,7 @@ analyses; compiler checks emit a protocol-independent `Diagnostic`;
 `CompilerDiagnostics` retains checks and optimisation findings
 independently of display-time gates; the server's lifts convert spans and
 severities and apply tags and overrides. Those boundaries are strengthened,
-not replaced, under five rules:
+not replaced, under six rules:
 
 1. **Display policy cannot change semantic truth.** Disabling W210, W100,
    I230, or the optimiser presentation must not change values, storage or
