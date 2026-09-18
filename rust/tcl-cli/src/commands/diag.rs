@@ -19,26 +19,28 @@
 //! Diagnostic verbs: `diag` / `lint` (identical) and `validate`.
 //!
 //! Drive the analyser in `tcl-compiler`. Unlike the transform verbs, these
-//! analyse each input
-//! document separately (a per-file loop).
+//! analyse each input document separately (a per-file loop), each under its
+//! own policy (`docs/design/compiler/diagnostic-policy.md` § Adapters): the
+//! rows are the report's shown findings, and this verb decides nothing.
 
+use core::str::FromStr as _;
 use std::collections::HashSet;
 
 use serde::Serialize;
 use tcl_cli_support::{
     InputDocument, OutputTarget, read_input_documents, registry_for_dialect, write_text_output,
 };
-use tcl_compiler::analyser::{Analyser, FILE_SUPPRESS_KEY, Severity, line_suppressed};
+use tcl_compiler::analyser::{Analyser, Severity};
 use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
-use tcl_compiler::compiler_checks::run_all_checks;
+use tcl_compiler::compiler_checks::{DiagCode, run_all_checks};
 use tcl_compiler::unit_scope::CallSiteEvidence;
 use tcl_lexer::LineIndex;
-use tcl_lsp_core::diagnostic_policy::{Directives, Finding, Policy, PolicyLayer, apply};
-use tcl_lsp_core::source_style::{
-    DEFAULT_LINE_ENDING, DEFAULT_LINE_LENGTH, StyleDiagnostic, StyleSeverity, style_diagnostics,
-};
+use tcl_lsp_core::diagnostic_policy::{Directives, Finding, Policy, PolicyBuilder, Report};
+use tcl_lsp_core::diagnostic_report::{DocumentSource, SourcePass, document_report};
+use tcl_lsp_core::source_style::DEFAULT_LINE_LENGTH;
 
 use crate::cli::{DiagArgs, InputArgs};
+use crate::commands::policy::{ConfigLayers, invocation_layer};
 
 /// One diagnostic in the `diag` report (fields are emitted in a fixed order).
 #[derive(Serialize)]
@@ -93,29 +95,6 @@ fn is_problem(severity: Severity) -> bool {
     matches!(severity, Severity::Error | Severity::Warning)
 }
 
-/// Build the disabled-code set from `--disable` / `--enable` (comma-separated,
-/// upper-cased), mirroring `_resolve_disabled_diagnostics` sans config file.
-fn resolve_disabled(disable: &[String], enable: &[String]) -> HashSet<String> {
-    let mut set = HashSet::new();
-    for raw in disable {
-        for code in raw.split(',') {
-            let code = code.trim();
-            if !code.is_empty() {
-                set.insert(code.to_ascii_uppercase());
-            }
-        }
-    }
-    for raw in enable {
-        for code in raw.split(',') {
-            let code = code.trim();
-            if !code.is_empty() {
-                set.remove(&code.to_ascii_uppercase());
-            }
-        }
-    }
-    set
-}
-
 /// Render one diagnostic text line (the
 /// inline `diag` format): `label:line:col: severity<7> code<8> message`.
 fn format_line(
@@ -128,16 +107,6 @@ fn format_line(
 ) -> String {
     let code = if code.is_empty() { "-" } else { code };
     format!("{file}:{line}:{column}: {severity:<7} {code:<8} {message}")
-}
-
-/// The `suppressed_lines` key for a 0-based source line.
-///
-/// The analyser keys that map with `i32` (line `-1` is the file-wide
-/// directive), so a `u32` line has to be narrowed. Saturating rather than
-/// panicking: a line number that far out cannot be a key in the map, so it
-/// simply never matches.
-fn line_of(line: u32) -> i32 {
-    i32::try_from(line).unwrap_or(i32::MAX)
 }
 
 /// One collected diagnostic, pre-resolved to a 1-based line / column.
@@ -215,103 +184,69 @@ fn document_proc_names(
     .collect()
 }
 
-/// Append the `SslicTcl` loader's own `SSLIC1xxx` findings, the same
-/// projection the server publishes, under the same policy.
-///
-/// It reads the same normalised `source` and maps through the same
-/// `line_index` as every other code here, rather than normalising separately
-/// for itself while every other code reads the raw form.
-fn push_sslictcl_rows(
-    rows: &mut Vec<Row>,
-    source: &str,
-    line_index: &LineIndex,
-    disabled: &HashSet<String>,
-    suppressed_lines: &std::collections::HashMap<i32, HashSet<String>>,
-) {
-    let report = apply(
-        tcl_lsp_core::sslictcl_diagnostics::diagnostics(source),
-        &transitional_policy(disabled, Directives::new(suppressed_lines.clone(), source)),
-    );
-    for shown in report.shown() {
-        let pos = line_index.position_at_utf16(shown.finding.span.start(), source);
-        rows.push(Row {
-            line: pos.line + 1,
-            column: pos.character.get() + 1,
-            severity: shown.severity,
-            code: shown.finding.code.to_string(),
-            message: shown.finding.message.clone(),
-        });
-    }
-}
-
-/// The policy the rows hand to `apply` until the CLI adapter lands
-/// (`docs/design/compiler/diagnostic-policy.md` § Slices, 5): the
-/// `--disable` / `--enable` set with the file directive folded in, recorded
-/// as the invocation layer, and the directive map. The project and global
-/// configuration layers, the default-off seed and the overlap table are
-/// still what they are on this surface today — absent.
-fn transitional_policy(disabled: &HashSet<String>, directives: Directives) -> Policy {
-    Policy::from_disabled_set(disabled, PolicyLayer::Invocation, directives)
-}
-
-/// The style-pass records whose findings the policy step shows, for
-/// `document`, under `disabled` and `directives`.
-fn shown_style_records(
-    document: &InputDocument,
-    records: Vec<StyleDiagnostic>,
-    disabled: &HashSet<String>,
-    directives: Directives,
-) -> Vec<StyleDiagnostic> {
-    let line_index = LineIndex::new_lsp(&document.source);
-    let findings = records
-        .iter()
-        .cloned()
-        .map(|d| Finding::from_style(d, &document.source, &line_index))
-        .collect();
-    let report = apply(findings, &transitional_policy(disabled, directives));
-    report.shown_items(records)
-}
-
-/// Collect every diagnostic the editor surfaces for one document: the analyser's
-/// syntactic / semantic checks, the compiler-checks pass (shimmer `S1xx`, taint
-/// `T1xx` / `W2xx`, iRules data-flow), and the source-text pass (`W111` line
-/// length, `W112` trailing whitespace, `W115` comment continuation, `W118` line
-/// endings, plus the byte-backed `W107` / `W109` integrity checks). Mirrors the
-/// server's `lift_analyser_diagnostics` + `lift_compiler_diagnostics` +
-/// `lift_source_style_diagnostics` concatenation so the CLI and the editor
+/// Every diagnostic the editor surfaces for one document, as rows: the
+/// analyser's syntactic / semantic checks, the compiler-checks pass (shimmer
+/// `S1xx`, taint `T1xx` / `W2xx`, iRules data-flow) and — the report's own —
+/// the source-text pass (`W111` line length, `W112` trailing whitespace,
+/// `W115` comment continuation, `W118` line endings, plus the byte-backed
+/// `W107` / `W109` integrity checks) and, for a `.sslictcl` document, the
+/// loader's `SSLIC1xxx` findings; all under the document's policy from
+/// `layers` and its own directives. The same producer set and the same
+/// policy step the server's publish paths take, so the CLI and the editor
 /// report the same set. Optimiser `O1xx` rewrites are the domain of the
-/// `optimise` verb, so they are dropped here — the same split the server draws
-/// with its optimiser toggle. Rows come back in a deterministic
-/// `(line, column, code)` order; `disabled` removes `--disable`d codes.
+/// `optimise` verb — see [`diag_policy`]. Rows come back in a deterministic
+/// `(line, column, code)` order.
 fn collect_rows(
     document: &InputDocument,
     dialect: &'static tcl_dialect::DialectProfile,
-    disabled: &HashSet<String>,
+    layers: &ConfigLayers,
     external_call_sites: Option<&CallSiteEvidence>,
 ) -> Vec<Row> {
     // The *analysis* form of the document, not the bytes on disk — see
     // `InputDocument::analysis_source`. `LineIndex` is built over it too:
     // `LineIndex::new(normalise_lone_cr(t))` is byte-identical to
     // `LineIndex::new_lsp(t)`, so the lexer's line model and the client's
-    // coincide.
+    // coincide, and a span from either text resolves to the same position.
     let source = document.analysis_source();
     let source = source.as_ref();
     let line_index = LineIndex::new(source);
-    let mut rows: Vec<Row> = Vec::new();
+    let base = layers
+        .builder_for(document.path.as_deref())
+        .decode(Some(&document.decode))
+        .dialect(dialect);
 
-    // A file-level `# tcl-lsp: disable=…` directive silences a code for every
-    // pass, so it joins the `--disable` set the way the server's style lift
-    // unions the analyser's file-level bucket into its own disabled set. The
-    // analyser folds the same directive into its internal set for its own
-    // codes; the passes below it need it explicitly.
-    let file_codes = tcl_compiler::analyser::utils::parse_file_suppression(source);
-    let mut disabled = disabled.clone();
-    disabled.extend(file_codes.iter().cloned());
-    let disabled = &disabled;
-
+    // A document whose bytes are not UTF-8 text: everything derived from the
+    // decoded text would be about decoding artefacts rather than about the
+    // user's code, pointing at positions the file does not have, so the
+    // analyser never runs. The report carries what the bytes themselves
+    // justify — the integrity codes and W305, the codes the editor's
+    // abstention keeps — under the directives scanned from the text.
     if document.abstains_on_encoding() {
-        return abstained_rows(document, disabled, file_codes);
+        let policy = diag_policy(base.directives(Directives::scan(&document.source, dialect)));
+        let doc = DocumentSource {
+            text: &document.source,
+            analysis_text: source,
+            decode: Some(&document.decode),
+            dialect,
+            pass: SourcePass::IntegrityOnly,
+        };
+        return rows_of(
+            &document_report(&doc, Vec::new(), &policy),
+            source,
+            &line_index,
+        );
     }
+
+    // The analyser's production-time skip: the codes the policy hides by a
+    // configuration layer or the default-off seed, which it need not compute
+    // (`docs/design/compiler/diagnostic-policy.md` § Producers that change)
+    // — the same seeded set the editor's `file_analysis` passes. Declared to
+    // the report below, so a gap is explained rather than read as clean.
+    let skip: HashSet<String> = diag_policy(base.clone())
+        .production_skip()
+        .iter()
+        .map(ToString::to_string)
+        .collect();
 
     // One compilation unit for both consumers, built with whatever cross-file
     // call-site evidence the caller gathered.  The analyser's
@@ -345,42 +280,19 @@ fn collect_rows(
         },
     ));
 
-    let mut analyser = Analyser::new()
+    let mut analyser = Analyser::with_disabled_diagnostics(skip.clone())
         .with_file_path(file_path)
         .with_pack_overlay(tcl_cli_support::spec_pack_key(dialect.name));
     analyser.set_cu_override(std::sync::Arc::clone(&analysis_cu));
     let result = analyser.analyse(source, dialect.name);
-    // A `.sslictcl` document is never evaluated, so the loader — not the
-    // analyser — owns the verdict on an unrecognised word. The server draws the
-    // same line in `refine_and_lift_diagnostics`; the two surfaces must report
-    // the same set.
-    let sslictcl = tcl_lsp_core::sslictcl_diagnostics::applies_to(dialect);
-    for d in &result.diagnostics {
-        if disabled.contains(d.code.as_str()) {
-            continue;
-        }
-        if sslictcl
-            && tcl_lsp_core::sslictcl_diagnostics::SUPERSEDED_ANALYSER_CODES.contains(&d.code)
-        {
-            continue;
-        }
-        let pos = line_index.position_at_utf16(d.span.start(), source);
-        // Inline `# noqa` / top-of-file `# tcl-lsp: disable=…` suppression: the
-        // analyser records `suppressed_lines` without filtering by it, so the
-        // surface rendering a finding applies the contract. `pos.line` is the
-        // 0-based line the map is keyed by (`Row` adds the 1 for display).
-        if line_suppressed(d.code.as_str(), line_of(pos.line), &result.suppressed_lines) {
-            continue;
-        }
-        rows.push(Row {
-            line: pos.line + 1,
-            column: pos.character.get() + 1,
-            severity: d.severity,
-            code: d.code.to_string(),
-            message: d.message.clone(),
-        });
-    }
+    let policy = diag_policy(base.directives(Directives::from_analysis(&result, source)));
 
+    let mut produced: Vec<Finding> = result
+        .diagnostics
+        .iter()
+        .cloned()
+        .map(Finding::from)
+        .collect();
     // Compiler-checks pass — the same `run_all_checks` set the server lifts via
     // `compiler_check_diagnostics`. Built once per document; `diag` is a batch
     // verb, not latency-sensitive.
@@ -388,129 +300,71 @@ fn collect_rows(
     // which is what the analyser tail above builds under too — so the unit
     // is always reused, exactly as the server's shared `compilation_unit`
     // query shares it for every environment.
-    let cu = analysis_cu.as_ref();
-    let dialect_opt = Some(dialect);
-    for d in run_all_checks(cu, &registry, dialect_opt) {
-        if d.code.is_optimisation() || disabled.contains(d.code.as_str()) {
-            continue;
-        }
-        let pos = line_index.position_at_utf16(d.span.start(), source);
-        // Same suppression the server's `lift_compiler_diagnostics` applies to
-        // this family.
-        if line_suppressed(d.code.as_str(), line_of(pos.line), &result.suppressed_lines) {
-            continue;
-        }
-        rows.push(Row {
-            line: pos.line + 1,
-            column: pos.character.get() + 1,
-            severity: d.severity,
-            code: d.code.to_string(),
-            message: d.message,
-        });
-    }
+    produced.extend(
+        run_all_checks(analysis_cu.as_ref(), &registry, Some(dialect))
+            .into_iter()
+            .map(Finding::from),
+    );
 
-    if sslictcl {
-        push_sslictcl_rows(
-            &mut rows,
-            source,
-            &line_index,
-            disabled,
-            &result.suppressed_lines,
-        );
-    }
-
-    rows.extend(style_rows(
-        document,
+    // The style pass reads `document.source` — the bytes as read, not the
+    // analysis form — because W118 is the one lint whose subject *is* the
+    // line terminators; the loader reads the analysis form. The line length
+    // and expected ending are the server's defaults: the CLI has no
+    // per-document style settings to resolve.
+    let doc = DocumentSource {
+        text: &document.source,
+        analysis_text: source,
+        decode: Some(&document.decode),
         dialect,
-        disabled,
-        &result.suppressed_lines,
-    ));
+        pass: SourcePass::Tcl {
+            line_length: DEFAULT_LINE_LENGTH,
+        },
+    };
+    let mut report = document_report(&doc, produced, &policy);
+    report.declare_skipped(
+        skip.iter().filter_map(|code| DiagCode::from_str(code).ok()),
+        &policy,
+    );
+    rows_of(&report, source, &line_index)
+}
 
+/// This verb's policy over `builder`: the optimiser off, because the
+/// rewrites are the `optimise` verb's — every O-code the checks pass emits is
+/// then an `OptimiserOff` suppression in the report rather than a finding
+/// that silently never existed.
+fn diag_policy(builder: PolicyBuilder) -> Policy {
+    let mut policy = builder.build();
+    policy.optimiser.enabled = false;
+    policy
+}
+
+/// The shown findings of `report` as rows — 1-based line and column from
+/// `line_index`, the resolved severity — in the deterministic
+/// `(line, column, code)` order.
+fn rows_of(report: &Report, source: &str, line_index: &LineIndex) -> Vec<Row> {
+    let mut rows: Vec<Row> = report
+        .shown()
+        .map(|shown| {
+            let pos = line_index.position_at_utf16(shown.finding.span.start(), source);
+            Row {
+                line: pos.line + 1,
+                column: pos.character.get() + 1,
+                severity: shown.severity,
+                code: shown.finding.code.to_string(),
+                message: shown.finding.message.clone(),
+            }
+        })
+        .collect();
     rows.sort_by(|a, b| {
         (a.line, a.column, a.code.as_str()).cmp(&(b.line, b.column, b.code.as_str()))
     });
     rows
 }
 
-/// The only findings a document whose bytes are not UTF-8 text may carry: the
-/// byte-backed W107 / W109 integrity codes.
-///
-/// Everything derived from the decoded text would be about decoding artefacts
-/// rather than about the user's code, pointing at positions the file does not
-/// have. One accurate finding beats a three-line UTF-16 iRule's 87 wrong ones.
-///
-/// The analyser never ran, so `file_codes` — the top-of-file directive as
-/// `collect_rows` parsed it, `*` included — is handed to the policy step as
-/// the file bucket, which governs this family as it governs every other.
-fn abstained_rows(
-    document: &InputDocument,
-    disabled: &HashSet<String>,
-    file_codes: HashSet<String>,
-) -> Vec<Row> {
-    let mut lines = std::collections::HashMap::new();
-    if !file_codes.is_empty() {
-        lines.insert(FILE_SUPPRESS_KEY, file_codes);
-    }
-    let directives = Directives::new(lines, &document.source);
-    shown_style_records(
-        document,
-        document.encoding_diagnostics(),
-        disabled,
-        directives,
-    )
-    .into_iter()
-    .map(style_row)
-    .collect()
-}
-
-/// The source-text findings for `document`: W111 line length, W112 trailing
-/// whitespace, W115 comment continuation, W118 line endings, and the
-/// byte-backed W107 / W109 integrity checks, under the policy step.
-///
-/// Reads `document.source` — the bytes as read, not the analysis form — because
-/// W118 is the one lint whose subject *is* the line terminators; the pass
-/// normalises internally for the line-oriented lints, so their line numbers
-/// still key `suppressed`. The line length and expected ending are the
-/// server's defaults: the CLI has no per-document style settings to resolve.
-fn style_rows(
-    document: &InputDocument,
-    dialect: &'static tcl_dialect::DialectProfile,
-    disabled: &HashSet<String>,
-    suppressed: &std::collections::HashMap<i32, HashSet<String>>,
-) -> Vec<Row> {
-    let records = style_diagnostics(
-        &document.source,
-        DEFAULT_LINE_LENGTH,
-        DEFAULT_LINE_ENDING,
-        Some(&document.decode),
-        dialect,
-    );
-    let directives = Directives::new(suppressed.clone(), &document.source);
-    shown_style_records(document, records, disabled, directives)
-        .into_iter()
-        .map(style_row)
-        .collect()
-}
-
-/// One source-text finding as a [`Row`], resolving its 0-based position to the
-/// 1-based line / column every other row carries.
-fn style_row(d: tcl_lsp_core::source_style::StyleDiagnostic) -> Row {
-    Row {
-        line: d.range.start_line + 1,
-        column: d.range.start_character + 1,
-        severity: match d.severity {
-            StyleSeverity::Warning => Severity::Warning,
-            StyleSeverity::Hint => Severity::Hint,
-        },
-        code: d.code.to_string(),
-        message: d.message,
-    }
-}
-
 /// `tcl diag` / `tcl lint` — report every diagnostic across all inputs.
 pub fn run_diag(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
-    let disabled = resolve_disabled(&diag.disable, &diag.enable);
+    let layers = ConfigLayers::new(invocation_layer(&diag.disable, &diag.enable, "diagnostics"));
 
     let mut report: Vec<FileReport> = Vec::with_capacity(documents.len());
     let mut problem_count = 0usize;
@@ -524,7 +378,7 @@ pub fn run_diag(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
         let slice = evidence
             .as_ref()
             .map(|all| all.slice_for(declared.iter().map(String::as_str)));
-        let rows = collect_rows(document, dialect, &disabled, slice.as_ref());
+        let rows = collect_rows(document, dialect, &layers, slice.as_ref());
         let mut items = Vec::with_capacity(rows.len());
         for r in rows {
             diagnostic_count += 1;
@@ -576,7 +430,7 @@ pub fn run_diag(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
 /// `tcl validate` — error-severity diagnostics only, fail-fast exit code.
 pub fn run_validate(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
-    let disabled = resolve_disabled(&diag.disable, &diag.enable);
+    let layers = ConfigLayers::new(invocation_layer(&diag.disable, &diag.enable, "diagnostics"));
 
     let mut errors: Vec<ValidateError> = Vec::new();
     let explicit_dialect = input.dialect_profile()?;
@@ -587,7 +441,7 @@ pub fn run_validate(input: &InputArgs, diag: &DiagArgs) -> anyhow::Result<u8> {
         let slice = evidence
             .as_ref()
             .map(|all| all.slice_for(declared.iter().map(String::as_str)));
-        for r in collect_rows(document, dialect, &disabled, slice.as_ref()) {
+        for r in collect_rows(document, dialect, &layers, slice.as_ref()) {
             if r.severity == Severity::Error {
                 errors.push(ValidateError {
                     file: document.label.clone(),

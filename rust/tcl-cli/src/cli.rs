@@ -469,10 +469,13 @@ pub enum Command {
         #[arg(long, default_value = "full", value_name = "PROFILE",
               value_parser = ["off", "readability", "standard", "full", "aggressive"])]
         profile: String,
-        /// Disable specific optimisation codes (repeatable).
+        /// Disable optimisation codes (comma-separated, repeatable) on top of the
+        /// profile. With --profile this is the invocation layer: over the
+        /// global config.ini, under an input file's own .tcl-lsp.ini.
         #[arg(long = "disable", value_name = "CODE")]
         disable: Vec<String>,
-        /// Enable specific optimisation codes (repeatable).
+        /// Enable optimisation codes the profile turns off (comma-separated,
+        /// repeatable).
         #[arg(long = "enable", value_name = "CODE")]
         enable: Vec<String>,
         #[command(flatten)]
@@ -780,10 +783,14 @@ pub struct DiagArgs {
     /// Emit diagnostics as JSON.
     #[arg(long)]
     pub json: bool,
-    /// Disable specific diagnostic codes (repeatable).
+    /// Disable diagnostic codes (comma-separated, repeatable). The flags are
+    /// the invocation layer: over the global config.ini, under an input
+    /// file's own .tcl-lsp.ini; inline `# noqa` and top-of-file directives
+    /// win over all three.
     #[arg(long = "disable", value_name = "CODE")]
     pub disable: Vec<String>,
-    /// Enable specific diagnostic codes (repeatable).
+    /// Enable diagnostic codes (comma-separated, repeatable), including a
+    /// default-off code such as W242.
     #[arg(long = "enable", value_name = "CODE")]
     pub enable: Vec<String>,
 }

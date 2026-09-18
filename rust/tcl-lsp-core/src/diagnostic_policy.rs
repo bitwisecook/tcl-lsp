@@ -358,14 +358,48 @@ pub struct Shown<'a> {
     pub tag: Option<DiagTag>,
 }
 
-/// Every finding paired with its outcome, in the producers' order.
+/// Every finding paired with its outcome, in the producers' order, and the
+/// codes a producer declared it left uncomputed.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct Report(pub Vec<(Finding, Outcome)>);
+pub struct Report {
+    outcomes: Vec<(Finding, Outcome)>,
+    /// A producer's declared production-time skip, with the policy's reason
+    /// for each code — so a gap where nothing was produced is explained
+    /// rather than read as "clean" (`docs/design/compiler/diagnostic-policy.md`
+    /// § Producers that change).
+    skipped: BTreeMap<DiagCode, Reason>,
+}
 
 impl Report {
+    /// The report over `outcomes`, with nothing declared skipped.
+    #[must_use]
+    pub fn new(outcomes: Vec<(Finding, Outcome)>) -> Self {
+        Self {
+            outcomes,
+            skipped: BTreeMap::new(),
+        }
+    }
+
+    /// Record that a producer skipped computing `codes`, each with the reason
+    /// `policy` gives for the code. A code the policy would show is not
+    /// recorded: there is nothing to explain a skip of it with, and a
+    /// truth-table row over the producer is what catches that mismatch.
+    pub fn declare_skipped(&mut self, codes: impl IntoIterator<Item = DiagCode>, policy: &Policy) {
+        for code in codes {
+            if let Some(reason) = policy.code_reason(code) {
+                self.skipped.insert(code, reason);
+            }
+        }
+    }
+
+    /// The declared skips, by code.
+    pub fn skipped(&self) -> impl Iterator<Item = (DiagCode, Reason)> + '_ {
+        self.skipped.iter().map(|(code, reason)| (*code, *reason))
+    }
+
     /// The findings that show, with their resolved severity and tag.
     pub fn shown(&self) -> impl Iterator<Item = Shown<'_>> {
-        self.0
+        self.outcomes
             .iter()
             .filter_map(|(finding, outcome)| match outcome {
                 Outcome::Shown { severity, tag } => Some(Shown {
@@ -379,7 +413,7 @@ impl Report {
 
     /// The findings that do not show, each with its reason.
     pub fn suppressed(&self) -> impl Iterator<Item = (&Finding, Reason)> {
-        self.0
+        self.outcomes
             .iter()
             .filter_map(|(finding, outcome)| match outcome {
                 Outcome::Suppressed(reason) => Some((finding, *reason)),
@@ -390,31 +424,33 @@ impl Report {
     /// The outcome recorded for the first finding of `code` at `span`.
     #[must_use]
     pub fn outcome_for(&self, code: DiagCode, span: Span) -> Option<Outcome> {
-        self.0
+        self.outcomes
             .iter()
             .find(|(finding, _)| finding.code == code && finding.span == span)
             .map(|(_, outcome)| *outcome)
     }
 
-    /// Why the first finding of `code` at `span` is hidden — `None` when it
-    /// shows or is absent.
+    /// Why the first finding of `code` at `span` is hidden, or — when no
+    /// finding of `code` exists at all — why the producer skipped the code;
+    /// `None` when the finding shows or nothing explains its absence.
     #[must_use]
     pub fn reason_for(&self, code: DiagCode, span: Span) -> Option<Reason> {
-        match self.outcome_for(code, span)? {
-            Outcome::Suppressed(reason) => Some(reason),
-            Outcome::Shown { .. } => None,
+        match self.outcome_for(code, span) {
+            Some(Outcome::Suppressed(reason)) => Some(reason),
+            Some(Outcome::Shown { .. }) => None,
+            None => self.skipped.get(&code).copied(),
         }
     }
 
     /// `items`, one per finding in the producers' order, kept where the
-    /// finding shows — for an adapter that still renders a producer's own
-    /// record (the style pass's LSP ranges, say) while the policy step
-    /// decides over the converted findings. [`apply`] is order-stable and
-    /// keeps every finding, which is what makes the pairing sound.
+    /// finding shows — for a caller that keeps a producer's own record beside
+    /// the converted finding (the optimiser's rewrite record, say) and needs
+    /// the shown subset of those. [`apply`] is order-stable and keeps every
+    /// finding, which is what makes the pairing sound.
     #[must_use]
     pub fn shown_items<T>(&self, items: Vec<T>) -> Vec<T> {
-        debug_assert_eq!(items.len(), self.0.len(), "one item per finding");
-        self.0
+        debug_assert_eq!(items.len(), self.outcomes.len(), "one item per finding");
+        self.outcomes
             .iter()
             .zip(items)
             .filter_map(|((_, outcome), item)| {
@@ -425,19 +461,30 @@ impl Report {
 
     /// Every pair, in the producers' order.
     pub fn iter(&self) -> impl Iterator<Item = &(Finding, Outcome)> {
-        self.0.iter()
+        self.outcomes.iter()
+    }
+
+    /// Every pair, in the producers' order, as a slice.
+    #[must_use]
+    pub fn outcomes(&self) -> &[(Finding, Outcome)] {
+        &self.outcomes
+    }
+
+    /// Append `pairs` the caller decided itself, keeping the producers' order.
+    pub fn extend(&mut self, pairs: impl IntoIterator<Item = (Finding, Outcome)>) {
+        self.outcomes.extend(pairs);
     }
 
     /// How many findings the report holds, shown or not.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.outcomes.len()
     }
 
     /// Whether the report holds no finding at all.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.outcomes.is_empty()
     }
 }
 
@@ -711,6 +758,75 @@ impl Default for Policy {
 }
 
 impl Policy {
+    /// The policy under which every finding shows: no seed, no configured
+    /// code, every optimisation on, no overlap, no directive.
+    ///
+    /// For a host that renders a producer's raw set and says so — a test
+    /// host, or a surface that has not yet resolved its layers. It is not a
+    /// way for an adapter to skip the policy step: an adapter reads a
+    /// report, and what it renders is whatever that report shows.
+    #[must_use]
+    pub fn unrestricted() -> Self {
+        Self {
+            default_off: &[],
+            optimiser: OptimiserPolicy::all_on(),
+            overlaps: Vec::new(),
+            ..Self::default()
+        }
+    }
+
+    /// Steps 4 and 5 of [`apply`] for `code` alone — the per-code decision
+    /// and the family gates — without the document gates or the directives,
+    /// which need a finding to attach to. This is the reason a producer's
+    /// declared skip is recorded with, and what [`Self::production_skip`] is
+    /// built from.
+    #[must_use]
+    pub fn code_reason(&self, code: DiagCode) -> Option<Reason> {
+        match self.codes.get(&code) {
+            Some(CodeDecision {
+                enabled: false,
+                layer,
+            }) => return Some(Reason::Disabled(*layer)),
+            Some(CodeDecision { enabled: true, .. }) => {}
+            None => {
+                if self.default_off.contains(&code) {
+                    return Some(Reason::DefaultOff);
+                }
+            }
+        }
+        if code.is_optimisation() {
+            if !self.optimiser.enabled {
+                return Some(Reason::OptimiserOff);
+            }
+            if self.optimiser.disabled.contains(&code) {
+                return Some(Reason::OptimiserProfile {
+                    profile: self.optimiser.profile,
+                });
+            }
+        }
+        if !self.shimmer && code.diag_section() == Some(DiagSection::Shimmer) {
+            return Some(Reason::ShimmerOff);
+        }
+        None
+    }
+
+    /// The codes a producer may leave uncomputed: every catalogued code this
+    /// policy hides by its per-code decision or a family gate, whatever the
+    /// finding. Rule 2's permitted saving
+    /// (`docs/design/compiler/diagnostic-policy.md` § Producers that change)
+    /// — the analyser's `with_disabled_diagnostics` set on every surface —
+    /// and what the caller declares back through [`Report::declare_skipped`].
+    /// The directives are not in it: the analyser reads those itself, and a
+    /// line-scoped one cannot skip a whole code.
+    #[must_use]
+    pub fn production_skip(&self) -> BTreeSet<DiagCode> {
+        DiagCode::ALL
+            .iter()
+            .copied()
+            .filter(|code| self.code_reason(*code).is_some())
+            .collect()
+    }
+
     /// A policy over one already-resolved disabled set recorded at `layer`,
     /// plus `directives`, with every other step open: no seed (a resolved
     /// set already carries [`DEFAULT_OFF_CODES`]), no severity override,
@@ -1041,7 +1157,7 @@ pub fn apply(findings: Vec<Finding>, policy: &Policy) -> Report {
             }
         }
     }
-    Report(
+    Report::new(
         findings
             .into_iter()
             .zip(reasons)
@@ -1077,32 +1193,7 @@ fn own_reason(finding: &Finding, policy: &Policy) -> Option<Reason> {
     if let Some(reason) = policy.directives.reason_for(finding.code, finding.span) {
         return Some(reason);
     }
-    match policy.codes.get(&finding.code) {
-        Some(CodeDecision {
-            enabled: false,
-            layer,
-        }) => return Some(Reason::Disabled(*layer)),
-        Some(CodeDecision { enabled: true, .. }) => {}
-        None => {
-            if policy.default_off.contains(&finding.code) {
-                return Some(Reason::DefaultOff);
-            }
-        }
-    }
-    if finding.code.is_optimisation() {
-        if !policy.optimiser.enabled {
-            return Some(Reason::OptimiserOff);
-        }
-        if policy.optimiser.disabled.contains(&finding.code) {
-            return Some(Reason::OptimiserProfile {
-                profile: policy.optimiser.profile,
-            });
-        }
-    }
-    if !policy.shimmer && finding.code.diag_section() == Some(DiagSection::Shimmer) {
-        return Some(Reason::ShimmerOff);
-    }
-    None
+    policy.code_reason(finding.code)
 }
 
 #[cfg(test)]
@@ -1268,7 +1359,7 @@ mod tests {
 
     #[test]
     fn report_views_split_shown_from_suppressed_and_keep_order() {
-        let report = Report(vec![
+        let report = Report::new(vec![
             (
                 finding(DiagCode::W210, Span::new(0, 1)),
                 Outcome::Shown {
@@ -2128,5 +2219,76 @@ mod apply_tests {
         let report = apply(findings, &Policy::default());
         let got: Vec<DiagCode> = report.iter().map(|(f, _)| f.code).collect();
         assert_eq!(got, expected);
+    }
+
+    #[test]
+    fn code_reason_is_the_per_code_decision_and_the_family_gates() {
+        let mut policy = Policy::default();
+        assert_eq!(policy.code_reason(DiagCode::W210), None);
+        assert_eq!(policy.code_reason(DiagCode::W242), Some(Reason::DefaultOff));
+        policy.codes.insert(
+            DiagCode::W210,
+            CodeDecision {
+                enabled: false,
+                layer: PolicyLayer::Project,
+            },
+        );
+        assert_eq!(
+            policy.code_reason(DiagCode::W210),
+            Some(Reason::Disabled(PolicyLayer::Project))
+        );
+        policy.optimiser.enabled = false;
+        assert_eq!(
+            policy.code_reason(DiagCode::O100),
+            Some(Reason::OptimiserOff)
+        );
+        policy.shimmer = false;
+        assert_eq!(policy.code_reason(DiagCode::S100), Some(Reason::ShimmerOff));
+    }
+
+    #[test]
+    fn production_skip_is_every_code_the_policy_hides_without_a_finding() {
+        let mut policy = Policy::default();
+        policy.codes.insert(
+            DiagCode::W210,
+            CodeDecision {
+                enabled: false,
+                layer: PolicyLayer::Global,
+            },
+        );
+        let skip = policy.production_skip();
+        assert!(skip.contains(&DiagCode::W210));
+        assert!(
+            skip.contains(&DiagCode::W242),
+            "the default-off seed is skipped"
+        );
+        assert!(!skip.contains(&DiagCode::W100));
+        // The default readability profile hides the non-readability rewrites.
+        assert!(skip.contains(&DiagCode::O107));
+        assert!(!skip.contains(&DiagCode::O120));
+    }
+
+    #[test]
+    fn a_declared_skip_explains_a_code_no_finding_carries() {
+        let mut policy = Policy::default();
+        policy.codes.insert(
+            DiagCode::W210,
+            CodeDecision {
+                enabled: false,
+                layer: PolicyLayer::Invocation,
+            },
+        );
+        let mut report = apply(Vec::new(), &policy);
+        report.declare_skipped([DiagCode::W210, DiagCode::W100], &policy);
+        assert_eq!(
+            report.reason_for(DiagCode::W210, Span::new(0, 1)),
+            Some(Reason::Disabled(PolicyLayer::Invocation))
+        );
+        assert_eq!(
+            report.reason_for(DiagCode::W100, Span::new(0, 1)),
+            None,
+            "a code the policy would show has no skip to declare"
+        );
+        assert_eq!(report.skipped().count(), 1);
     }
 }

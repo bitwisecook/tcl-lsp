@@ -41,8 +41,8 @@ pub mod spec_import;
 
 pub use highlight::{highlight_ansi, highlight_html};
 pub use input::{
-    CliError, InputDocument, combine_sources, combined_effective_dialect, read_input_documents,
-    resolve_dialect,
+    CliError, InputDocument, combine_sources, combine_texts, combined_effective_dialect,
+    read_input_documents, resolve_dialect,
 };
 pub use output::{
     OutputTarget, ensure_ascii, expand_tabs, resolve_use_colour, write_binary_output,

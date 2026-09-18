@@ -62,9 +62,7 @@ use futures_util::future::FutureExt;
 use sha2::{Digest, Sha256};
 use tcl_compiler::compiler_checks::DiagCode;
 
-use tcl_compiler::analyser::{
-    Analyser, AnalysisResult, FILE_SUPPRESS_KEY, NonAsciiMode, line_suppressed,
-};
+use tcl_compiler::analyser::{Analyser, AnalysisResult, NonAsciiMode};
 use tcl_lsp_core::bigip as core_bigip;
 use tcl_lsp_core::call_hierarchy as core_call_hierarchy;
 use tcl_lsp_core::code_actions as core_code_actions;
@@ -77,6 +75,7 @@ use tcl_lsp_core::config_ini::{default_disabled_set, settings_disabled_diagnosti
 use tcl_lsp_core::declaration as core_declaration;
 use tcl_lsp_core::definition::{self as core_definition, LspRange as CoreLspRange};
 use tcl_lsp_core::diagnostic_policy as core_policy;
+use tcl_lsp_core::diagnostic_report as core_report;
 use tcl_lsp_core::document_links as core_document_links;
 use tcl_lsp_core::document_symbols::{self as core_symbols, SymbolKind as CoreSymbolKind};
 use tcl_lsp_core::file_ops as core_file_ops;
@@ -3307,8 +3306,6 @@ struct DiagToggles {
     /// publishes an empty set (clearing squiggles) instead of analysing,
     /// exactly as the master switch does.
     excluded: bool,
-    /// `tclLsp.optimiser.enabled`: gates the optimiser/perf-hint diagnostics.
-    optimiser_enabled: bool,
     /// The `xcDiagnostics` / `crossFileResolution` pair — see [`XcToggles`].
     xc: XcToggles,
 }
@@ -3323,11 +3320,13 @@ struct DiagInputs {
     client: Client,
     diagnostic_publisher: Arc<DiagnosticPublisher>,
     registry: Arc<CommandRegistry>,
+    /// The analyser's production-time skip for this document's folder (see
+    /// [`LiftInputs::disabled`]).
     disabled: HashSet<String>,
-    /// `tclLsp.diagnosticSeverity.<CODE>` per-code LSP severity overrides,
-    /// resolved for this document's folder. Applied as a display-side re-label
-    /// to the lifted diagnostics; empty ⇒ no overrides.
-    severity_overrides: HashMap<String, tower_lsp_server::ls_types::DiagnosticSeverity>,
+    /// The configuration layers this document's folder resolves its policy
+    /// from — every decision that hides or relabels a finding is built from
+    /// these by [`document_policy`], per run.
+    policy_layers: PolicyLayers,
     /// `tclLsp.extraCommands` — names treated as known by W123.
     extra_commands: HashSet<String>,
     /// `tclLsp.diagnostics.genericVariablePatterns` — IRULE4002 generic-name
@@ -3340,7 +3339,6 @@ struct DiagInputs {
     /// formatter's `tclLsp.formatting.lineLength`.
     style_line_length: u32,
     non_ascii_mode: NonAsciiMode,
-    opt_disabled: HashSet<String>,
     documents: Arc<DocumentStore>,
     /// Open-document diagnostic workers, used to invalidate only consumers of
     /// workspace facts changed by this publication.
@@ -3975,9 +3973,9 @@ async fn run_diagnostics_f5_dialect(
         .decode_report
         .is_some_and(|r| r.requires_abstention());
     // A non-text byte signature makes every parser/model verdict untrustworthy.
-    // Skip the validator entirely rather than computing diagnostics that the
-    // report-driven abstention below would then discard.
-    let mut diags = if encoding_abstains {
+    // Skip the validator entirely rather than computing findings the policy
+    // step's abstention would then hide.
+    let produced = if encoding_abstains {
         Vec::new()
     } else {
         f5_dialect_diagnostics(
@@ -3985,20 +3983,23 @@ async fn run_diagnostics_f5_dialect(
             analysis_text,
             inputs.dialect,
             language_id,
-            inputs.disabled,
             delivery.documents,
             delivery.store.as_ref(),
         )
         .await
         .unwrap_or_default()
     };
-    diags.extend(lift_f5_source_integrity_diagnostics(
-        inputs.text,
-        inputs.decode_report.as_ref(),
+    let diags = f5_model_report(
+        &F5ModelDocument {
+            text: inputs.text,
+            analysis_text,
+            decode_report: inputs.decode_report.as_ref(),
+            dialect: inputs.dialect,
+        },
+        inputs.policy_layers,
         inputs.disabled,
-        inputs.dialect,
-    ));
-    finalise_diagnostics(&mut diags, inputs.severity_overrides, encoding_abstains);
+        produced,
+    );
     // Publish only when this version is still current (the same revision
     // guard the analyser path applies before publishing), and keep the
     // pull-diagnostic cache in lock-step so `textDocument/diagnostic`
@@ -5663,9 +5664,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         decode_report,
         dialect: tcl_lsp_core::profile_for_dialect(&dialect),
         disabled: &inputs.disabled,
-        severity_overrides: &inputs.severity_overrides,
-        opt_disabled: &inputs.opt_disabled,
-        optimiser_enabled: toggles.optimiser_enabled,
+        policy_layers: &inputs.policy_layers,
         style_line_length: inputs.style_line_length,
         xc_diagnostics: toggles.xc.xc_diagnostics,
     };
@@ -6054,26 +6053,29 @@ async fn publish_fast_tier(
     let text = lift_inputs.text.to_owned();
     let disabled = lift_inputs.disabled.clone();
     let decode_report = lift_inputs.decode_report;
-    let severity_overrides = lift_inputs.severity_overrides.clone();
+    let policy_layers = lift_inputs.policy_layers.clone();
     let style_line_length = lift_inputs.style_line_length;
-    let dialect = lift_inputs.dialect.to_owned();
+    let dialect = lift_inputs.dialect;
     let lifted = crate::rt::spawn_blocking(move || {
-        let mut diagnostics =
-            lift_analyser_diagnostics(&text, &fast, &analysis_lifts.suppressed_lines);
-        diagnostics.extend(lift_source_style_diagnostics(
-            &text,
+        let policy = document_policy(
+            &policy_layers,
             decode_report.as_ref(),
-            &analysis_lifts.suppressed_lines,
-            &disabled,
-            style_line_length as usize,
             dialect,
-        ));
-        finalise_diagnostics(
-            &mut diagnostics,
-            &severity_overrides,
-            decode_report.is_some_and(|r| r.requires_abstention()),
+            core_policy::Directives::from_analysis(&analysis_lifts, &text),
         );
-        diagnostics
+        let analysis_text = tcl_lexer::normalise_lone_cr(&text);
+        let doc = core_report::DocumentSource {
+            text: &text,
+            analysis_text: &analysis_text,
+            decode: decode_report.as_ref(),
+            dialect,
+            pass: core_report::SourcePass::Tcl {
+                line_length: style_line_length as usize,
+            },
+        };
+        let mut report = core_report::document_report(&doc, analyser_findings(&fast), &policy);
+        report.declare_skipped(skipped_codes(&disabled), &policy);
+        lift_report(&text, &report)
     })
     .await;
     if let Ok(diagnostics) = lifted {
@@ -6083,20 +6085,168 @@ async fn publish_fast_tier(
     }
 }
 
+/// The three configuration layers one scope resolves its diagnostic policy
+/// from, lowest first: the user's global `config.ini`, the editor's
+/// `workspace/configuration` payload, and the project's `.tcl-lsp.ini`.
+///
+/// Kept unmerged, because only the unmerged layers can name the layer that
+/// decided a code (`docs/design/compiler/diagnostic-policy.md`
+/// § Configuration). The session holds one set; a configured workspace
+/// folder holds its own ([`FolderConfig::policy_layers`]), and longest-prefix
+/// matching over folders — the one LSP-specific part of the resolution —
+/// picks between them ([`Backend::resolved_policy_layers`]).
+#[derive(Clone, Debug, Default)]
+struct PolicyLayers {
+    global: serde_json::Value,
+    editor: serde_json::Value,
+    project: serde_json::Value,
+}
+
+impl PolicyLayers {
+    /// A builder with the three layers applied, lowest first.
+    fn builder(&self) -> core_policy::PolicyBuilder {
+        core_policy::PolicyBuilder::new()
+            .layer(core_policy::PolicyLayer::Global, &self.global)
+            .layer(core_policy::PolicyLayer::Editor, &self.editor)
+            .layer(core_policy::PolicyLayer::Project, &self.project)
+    }
+
+    /// The analyser's production-time skip under these layers, as the salsa
+    /// `AnalyserConfig` spells it.
+    fn production_skip(&self) -> HashSet<String> {
+        self.builder()
+            .build()
+            .production_skip()
+            .iter()
+            .map(ToString::to_string)
+            .collect()
+    }
+}
+
+/// The policy one document's report is decided under: `layers` plus the
+/// document facts — the byte evidence, the dialect's overlap table and the
+/// directives. Reporting is on and the file is not excluded, because the
+/// diagnostics pipeline settles both before it produces anything
+/// (`run_diagnostics_master_off`, `run_diagnostics_excluded`).
+fn document_policy(
+    layers: &PolicyLayers,
+    decode_report: Option<&tcl_lsp_core::source_decode::DecodeReport>,
+    dialect: &'static tcl_dialect::DialectProfile,
+    directives: core_policy::Directives,
+) -> core_policy::Policy {
+    layers
+        .builder()
+        .reporting(true)
+        .decode(decode_report)
+        .dialect(dialect)
+        .directives(directives)
+        .build()
+}
+
+/// The LSP adapter (`docs/design/compiler/diagnostic-policy.md` § Adapters):
+/// the report's shown findings on the wire, and nothing else. A `Span`
+/// becomes a UTF-16 `Range` through [`lift_span`], the resolved severity
+/// goes through [`lsp_severity`], the tag the code table declares becomes
+/// `Diagnostic.tags`, and an actionable [`core_policy::FindingData::Rewrite`]
+/// becomes the `data` payload (`replacement`, `startOffset`, `endOffset`) an
+/// editor applies — never for a `hint_only` rewrite, whose span covers the
+/// whole consuming statement. Nothing here decides anything, and nothing
+/// here may: the three publish paths, the pull provider and the F5 report
+/// are one call each on this function.
+fn lift_report(
+    text: &str,
+    report: &core_policy::Report,
+) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+    use tower_lsp_server::ls_types::{DiagnosticTag, NumberOrString};
+    let line_index = tcl_lexer::LineIndex::new_lsp(text);
+    report
+        .shown()
+        .map(|shown| {
+            let finding = shown.finding;
+            let data = match &finding.data {
+                Some(core_policy::FindingData::Rewrite {
+                    replacement,
+                    hint_only: false,
+                    ..
+                }) if !replacement.is_empty() => Some(serde_json::json!({
+                    "replacement": replacement,
+                    "startOffset": finding.span.start(),
+                    "endOffset": finding.span.end(),
+                })),
+                _ => None,
+            };
+            tower_lsp_server::ls_types::Diagnostic {
+                range: lift_span(text, &line_index, finding.span),
+                severity: Some(lsp_severity(shown.severity)),
+                code: Some(NumberOrString::String(finding.code.to_string())),
+                code_description: None,
+                source: Some("tcl-lsp".to_string()),
+                message: finding.message.clone(),
+                related_information: None,
+                tags: shown.tag.map(|tag| {
+                    vec![match tag {
+                        tcl_core_types::DiagTag::Unnecessary => DiagnosticTag::UNNECESSARY,
+                        tcl_core_types::DiagTag::Deprecated => DiagnosticTag::DEPRECATED,
+                    }]
+                }),
+                data,
+            }
+        })
+        .collect()
+}
+
+/// The findings of the analyser's own family: `diagnostics` converted, in
+/// order — a conversion, nothing more.
+fn analyser_findings(
+    diagnostics: &[tcl_compiler::analyser::Diagnostic],
+) -> Vec<core_policy::Finding> {
+    diagnostics
+        .iter()
+        .cloned()
+        .map(core_policy::Finding::from)
+        .collect()
+}
+
+/// The compiler-checks pipeline's findings and the optimiser's, in the
+/// order the lifts always published them: checks first, then rewrites.
+fn compiler_findings(diags: &tcl_lsp_db::CompilerDiagnostics) -> Vec<core_policy::Finding> {
+    diags
+        .checks
+        .iter()
+        .cloned()
+        .map(core_policy::Finding::from)
+        .chain(
+            diags
+                .optimisations
+                .iter()
+                .cloned()
+                .map(core_policy::Finding::from),
+        )
+        .collect()
+}
+
+/// The opt-in `f5-xc` XC100–XC301 translatability findings for an
+/// `f5-irules` document — a conversion; the policy step decides what shows.
+fn xc_findings(source: &str) -> Vec<core_policy::Finding> {
+    f5_xc::get_xc_diagnostics(source)
+        .into_iter()
+        .map(core_policy::Finding::from)
+        .collect()
+}
+
 /// The document-style toggles + buffer the diagnostic lifts read; borrows for
 /// one `run_diagnostics_core` call.
 struct LiftInputs<'a> {
     text: &'a str,
     decode_report: Option<tcl_lsp_core::source_decode::DecodeReport>,
     dialect: &'static tcl_dialect::DialectProfile,
+    /// The analyser's production-time skip — the codes it may leave
+    /// uncomputed (`docs/design/compiler/diagnostic-policy.md` § Producers
+    /// that change), declared to the report. Never a presentation filter:
+    /// what the document shows is the policy step's decision alone.
     disabled: &'a HashSet<String>,
-    /// `tclLsp.diagnosticSeverity.<CODE>` per-code LSP severity overrides,
-    /// applied as a display-side re-label once the lift completes; empty ⇒
-    /// no overrides (see [`apply_severity_overrides`]).
-    severity_overrides:
-        &'a std::collections::HashMap<String, tower_lsp_server::ls_types::DiagnosticSeverity>,
-    opt_disabled: &'a HashSet<String>,
-    optimiser_enabled: bool,
+    /// The configuration layers the document's policy is built from.
+    policy_layers: &'a PolicyLayers,
     style_line_length: u32,
     xc_diagnostics: bool,
 }
@@ -6132,9 +6282,56 @@ struct RefinementInputs<'a> {
 struct F5PullInputs<'a> {
     profile: &'static tcl_dialect::DialectProfile,
     disabled: &'a HashSet<String>,
-    severity_overrides:
-        &'a std::collections::HashMap<String, tower_lsp_server::ls_types::DiagnosticSeverity>,
+    policy_layers: &'a PolicyLayers,
     decode_report: Option<tcl_lsp_core::source_decode::DecodeReport>,
+}
+
+/// The buffers and facts of a non-Tcl F5 model document, for
+/// [`f5_model_report`].
+struct F5ModelDocument<'a> {
+    text: &'a str,
+    analysis_text: &'a str,
+    decode_report: Option<&'a tcl_lsp_core::source_decode::DecodeReport>,
+    dialect: &'static tcl_dialect::DialectProfile,
+}
+
+/// The report of a non-Tcl F5 model document — BIG-IP configuration or iApp
+/// APL — on the wire: the validator's findings plus the byte-integrity codes
+/// and W305, under the document's policy. These families never run the Tcl
+/// analyser, so the directives are scanned here rather than read off an
+/// analysis; `disabled` is declared as the validators' skip.
+fn f5_model_report(
+    doc: &F5ModelDocument<'_>,
+    layers: &PolicyLayers,
+    disabled: &HashSet<String>,
+    produced: Vec<core_policy::Finding>,
+) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+    let policy = document_policy(
+        layers,
+        doc.decode_report,
+        doc.dialect,
+        core_policy::Directives::scan(doc.text, doc.dialect),
+    );
+    let source = core_report::DocumentSource {
+        text: doc.text,
+        analysis_text: doc.analysis_text,
+        decode: doc.decode_report,
+        dialect: doc.dialect,
+        pass: core_report::SourcePass::IntegrityOnly,
+    };
+    let mut report = core_report::document_report(&source, produced, &policy);
+    report.declare_skipped(skipped_codes(disabled), &policy);
+    lift_report(doc.text, &report)
+}
+
+/// The catalogued codes of a producer's skip set, for
+/// [`core_policy::Report::declare_skipped`].
+fn skipped_codes(disabled: &HashSet<String>) -> Vec<DiagCode> {
+    use core::str::FromStr as _;
+    disabled
+        .iter()
+        .filter_map(|code| DiagCode::from_str(code).ok())
+        .collect()
 }
 
 /// The document-local settings shared by every pull-diagnostic workspace
@@ -6159,15 +6356,6 @@ async fn refine_and_lift_diagnostics(
     refinement: &RefinementInputs<'_>,
     inputs: &LiftInputs<'_>,
 ) -> Result<Vec<tower_lsp_server::ls_types::Diagnostic>, crate::rt::JoinError> {
-    // A `.sslictcl` document is never evaluated, so its unrecognised words are
-    // unknown *declarations* the loader reports (`SSLIC1101` / `SSLIC1007`),
-    // not unknown commands. Drop the superseded analyser verdicts before the
-    // refinements that would otherwise chase them (the pull path and code
-    // actions do the same in `published_analyser_diagnostics`).
-    let mut analyser_diags = analyser_diags;
-    if tcl_lsp_core::sslictcl_diagnostics::applies_to(inputs.dialect) {
-        tcl_lsp_core::sslictcl_diagnostics::supersede_analyser_diagnostics(&mut analyser_diags);
-    }
     // Refine the analyser's single-file W120 against the workspace package
     // database and the requires inherited from entry points / `source`
     // ancestors (shared with the pull path via `refine_workspace_w120`).
@@ -6217,74 +6405,47 @@ async fn refine_and_lift_diagnostics(
     let lift_text = inputs.text.to_owned();
     let disabled = inputs.disabled.clone();
     let decode_report = inputs.decode_report;
-    let severity_overrides = inputs.severity_overrides.clone();
-    let opt_disabled = inputs.opt_disabled.clone();
-    let optimiser_enabled = inputs.optimiser_enabled;
+    let policy_layers = inputs.policy_layers.clone();
     let style_line_length = inputs.style_line_length;
-    let dialect = inputs.dialect.to_owned();
+    let dialect = inputs.dialect;
     let xc_for_irules = inputs.xc_diagnostics && inputs.dialect.is_irules();
-    // SslicTcl documents carry a second whole-file validator, exactly as the
-    // F5 dialects do: the `.sslictcl` loader. Resolved from the profile here
-    // rather than inside the worker so the closure captures a plain `bool`.
-    let sslictcl = tcl_lsp_core::sslictcl_diagnostics::applies_to(inputs.dialect);
     let compiler_diags = Arc::clone(compiler_diags);
     crate::rt::spawn_blocking(move || {
+        let policy = document_policy(
+            &policy_layers,
+            decode_report.as_ref(),
+            dialect,
+            core_policy::Directives::from_analysis(&analysis_lifts, &lift_text),
+        );
         // `analyser_diags` includes opt-in callback checks when enabled; direct
         // cross-file verdicts have already been settled by the workspace index.
-        let mut diagnostics = lift_analyser_diagnostics(
-            &lift_text,
-            &analyser_diags,
-            &analysis_lifts.suppressed_lines,
-        );
-        append_brace_expr_perf_hints(&mut diagnostics, optimiser_enabled, &opt_disabled);
-        diagnostics.extend(lift_compiler_diagnostics(
-            &lift_text,
-            &compiler_diags,
-            optimiser_enabled,
-            &opt_disabled,
-            &disabled,
-            &analysis_lifts.suppressed_lines,
-        ));
-        suppress_duplicate_o120(&mut diagnostics);
-        diagnostics.extend(lift_source_style_diagnostics(
-            &lift_text,
-            decode_report.as_ref(),
-            &analysis_lifts.suppressed_lines,
-            &disabled,
-            style_line_length as usize,
-            dialect,
-        ));
-        // Opt-in: append the XC100-301 translatability diagnostics
-        // for `f5-irules` documents when `xcDiagnostics` is enabled.
+        // The compiler checks and the optimiser's rewrites follow, then — opt-in
+        // — the XC100-301 translatability findings for `f5-irules` documents
+        // when `xcDiagnostics` is enabled. The source-style pass and, for a
+        // `.sslictcl` document, the loader's findings are the report's own.
+        let mut produced = analyser_findings(&analyser_diags);
+        produced.extend(compiler_findings(&compiler_diags));
         if xc_for_irules {
-            diagnostics.extend(lift_xc_diagnostics(
-                &lift_text,
-                &disabled,
-                &analysis_lifts.suppressed_lines,
-            ));
+            produced.extend(xc_findings(&lift_text));
         }
-        // Routed by dialect: a `.sslictcl` document's `SSLIC1xxx` loader
-        // findings are ordinary document diagnostics (mirrored on the pull
-        // path in `full_diagnostics_for`). The loader parses the *analysis*
-        // form — a lone `\r` terminates a command for `tclsh` — while the
-        // spans lift against the client's buffer, which the rewrite leaves
-        // byte-for-byte the same length.
-        if sslictcl {
-            let loader_text = tcl_lexer::normalise_lone_cr(&lift_text);
-            extend_with_sslictcl_diagnostics(
-                &mut diagnostics,
-                &lift_text,
-                &loader_text,
-                &disabled,
-                &analysis_lifts.suppressed_lines,
-            );
-        }
-        finalise_diagnostics(
-            &mut diagnostics,
-            &severity_overrides,
-            decode_report.is_some_and(|r| r.requires_abstention()),
-        );
-        diagnostics
+        // The `SslicTcl` loader parses the *analysis* form — a lone `\r`
+        // terminates a command for `tclsh` — while the spans lift against the
+        // client's buffer, which the rewrite leaves byte-for-byte the same
+        // length.
+        let analysis_text = tcl_lexer::normalise_lone_cr(&lift_text);
+        let doc = core_report::DocumentSource {
+            text: &lift_text,
+            analysis_text: &analysis_text,
+            decode: decode_report.as_ref(),
+            dialect,
+            pass: core_report::SourcePass::Tcl {
+                line_length: style_line_length as usize,
+            },
+        };
+        let report = core_report::document_report(&doc, produced, &policy);
+        let mut report = core_report::with_brace_expr_hints(report, &policy);
+        report.declare_skipped(skipped_codes(&disabled), &policy);
+        lift_report(&lift_text, &report)
     })
     .await
 }
@@ -7169,12 +7330,11 @@ pub struct Backend {
     /// patterns).  The process-global fallback; a folder whose merged config
     /// sets the key overrides it via [`FolderConfig::diagnostics_exclude`].
     diagnostics_exclude: Mutex<Vec<String>>,
-    /// Per-code LSP severity overrides (`tclLsp.diagnosticSeverity.<CODE>`).
-    /// A purely display-side re-labelling applied to the lifted diagnostics
-    /// after analysis: a listed code is published at the chosen severity,
-    /// leaving its range / message / code untouched. Empty ⇒ no overrides
-    /// (the analyser's emitted severity stands).
-    severity_overrides: Mutex<HashMap<String, tower_lsp_server::ls_types::DiagnosticSeverity>>,
+    /// The session's configuration layers — the global `config.ini`, the
+    /// editor's `tclLsp` settings and the primary root's `.tcl-lsp.ini` —
+    /// that a document's diagnostic policy is built from when its folder has
+    /// no layers of its own ([`FolderConfig::policy_layers`]).
+    policy_layers: Mutex<PolicyLayers>,
     /// Cross-document proc / class definition index, maintained
     /// incrementally as documents open / change / close.  Lets
     /// completion enumerate procs from sibling files.
@@ -7418,11 +7578,6 @@ pub struct Backend {
     /// [`tcl_compiler::optimiser::profiles::DEFAULT_EDITOR_PROFILE`]
     /// (`readability`).
     optimiser_profile: Mutex<tcl_compiler::optimiser::profiles::OptimisationProfile>,
-    /// Per-code optimiser overrides (`tclLsp.optimiser.<CODE>` = bool): a code
-    /// mapped to `true` is force-*enabled* (removed from the profile's disabled
-    /// set), `false` is force-*disabled* (added). Layered on top of the
-    /// profile-derived set.
-    optimiser_code_overrides: Mutex<HashMap<String, bool>>,
     /// Resolved formatter line length (`tclLsp.formatting.lineLength`).
     /// Surfaced by `getEffectiveConfig`; default 80.
     line_length: Mutex<u32>,
@@ -8296,14 +8451,13 @@ struct FolderConfig {
     dialect: Option<String>,
     feature_toggles: FeatureToggles,
     disabled_diagnostics: Option<HashSet<String>>,
-    /// `tclLsp.diagnosticSeverity` per-code LSP severity overrides; `None`
-    /// inherits the process-global map (`Some`, possibly empty, when the
-    /// folder's config sets the section in either shape).
-    severity_overrides: Option<HashMap<String, tower_lsp_server::ls_types::DiagnosticSeverity>>,
+    /// The folder's own configuration layers — the global `config.ini`, the
+    /// folder-scoped editor settings and the folder's `.tcl-lsp.ini` — that
+    /// its documents' policies are built from. `None` for a folder parsed
+    /// from a merged payload alone (a test seam), which resolves under the
+    /// session's layers.
+    policy_layers: Option<PolicyLayers>,
     non_ascii_mode: Option<NonAsciiMode>,
-    optimiser_enabled: Option<bool>,
-    optimiser_profile: Option<tcl_compiler::optimiser::profiles::OptimisationProfile>,
-    optimiser_code_overrides: HashMap<String, bool>,
     line_length: Option<u32>,
     /// `tclLsp.formatting` section override for the formatter; `None` inherits
     /// the global formatting settings.
@@ -8795,7 +8949,7 @@ impl Backend {
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(default_disabled_set()),
             diagnostics_exclude: Mutex::new(Vec::new()),
-            severity_overrides: Mutex::new(HashMap::new()),
+            policy_layers: Mutex::new(PolicyLayers::default()),
             workspace_index: Arc::new(TrackedRwLock::new("workspace_index", new_workspace_index())),
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
             recovery_names: Arc::new(Mutex::new(RecoveryNameCache::default())),
@@ -8828,7 +8982,6 @@ impl Backend {
             edit_barrier_stall_reported: std::sync::atomic::AtomicU64::new(u64::MAX),
             shimmer_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
-            optimiser_code_overrides: Mutex::new(HashMap::new()),
             line_length: Mutex::new(80),
             style_line_length: Mutex::new(120),
             db: Arc::new(TrackedMutex::new("db", db)),
@@ -11057,8 +11210,12 @@ impl Backend {
         if let Some(disabled) = settings_disabled_diagnostics(opts) {
             *self.disabled_diagnostics.lock().await = disabled;
         }
-        if let Some(overrides) = settings_severity_overrides(opts) {
-            *self.severity_overrides.lock().await = overrides;
+        // The same payload is the editor layer of the session's policy until
+        // the first `workspace/configuration` pull replaces it.
+        {
+            let mut layers = self.policy_layers.lock().await;
+            layers.editor =
+                config_ini::merge_settings(&layers.editor, &normalize_config_payload(opts));
         }
     }
 
@@ -12594,7 +12751,7 @@ impl Backend {
             non_ascii_mode: _,
             disabled_diagnostics: _,
             diagnostics_exclude: _,
-            severity_overrides: _,
+            policy_layers: _,
             package_resolver: _,
             recovery_names: _,
             workspace_scan_gate: _,
@@ -12622,7 +12779,6 @@ impl Backend {
             edit_barrier_stall_reported: _,
             shimmer_enabled: _,
             optimiser_profile: _,
-            optimiser_code_overrides: _,
             line_length: _,
             style_line_length: _,
             db: _,
@@ -16703,19 +16859,34 @@ impl Backend {
             .unwrap_or("full")
             .to_owned();
         let registry = self.registry_for_dialect(&doc.dialect).await;
+        let layers = self.resolved_policy_layers(&uri).await;
         let text = doc.text.clone();
         let dialect = doc.dialect.clone();
         let value = crate::rt::spawn_blocking(move || {
             tcl_spectcl::hooks::ensure_thread_host();
             let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
-            let (source, opts) = if profile == "full" {
-                tcl_compiler::optimiser::optimise_source_multipass(&text, &registry, dialect_opt, 5)
-            } else {
-                let opts =
-                    tcl_compiler::optimiser::optimise_with_dialect(&text, &registry, dialect_opt);
-                let applied = tcl_compiler::optimiser::apply_optimisations(&text, &opts);
-                (applied, opts)
-            };
+            // The command's `profile` argument is its invocation layer over the
+            // folder's configuration, so the editor's optimiser switch, its
+            // per-code set and the document's directives reach a rewrite
+            // exactly as they reach a squiggle. `"full"` iterates to a
+            // fixpoint, as this command always has; the others are one pass.
+            let policy = layers
+                .builder()
+                .layer(
+                    core_policy::PolicyLayer::Invocation,
+                    &serde_json::json!({ "optimiser": { "profile": profile } }),
+                )
+                .dialect(tcl_lsp_core::profile_for_dialect(&dialect))
+                .build();
+            let iterations = if profile == "full" { 5 } else { 1 };
+            let optimised = core_report::optimise_under_policy(
+                &text,
+                &registry,
+                dialect_opt,
+                iterations,
+                &policy,
+            );
+            let (source, opts) = (optimised.text, optimised.applied);
             let line_index = tcl_lexer::LineIndex::new_lsp(&text);
             let items: Vec<serde_json::Value> = opts
                 .iter()
@@ -18352,6 +18523,13 @@ impl Backend {
         collapse_inlay_alias(&mut primary_project);
         let global_editor = config_ini::merge_settings(&global_ini, &cfg);
         let merged = config_ini::merge_settings(&global_editor, &primary_project);
+        // The unmerged layers are what the diagnostic policy is built from —
+        // only they can name the layer that decided a code.
+        *self.policy_layers.lock().await = PolicyLayers {
+            global: global_ini.clone(),
+            editor: cfg.clone(),
+            project: primary_project.clone(),
+        };
         self.apply_global_config_with_signature_fallback(&merged, &global_editor)
             .await;
         // Per-folder editor configuration: VS Code resolves `tclLsp` settings
@@ -18385,7 +18563,18 @@ impl Backend {
                             &config_ini::merge_settings(&global_ini, &editor_cfg),
                             &project,
                         );
-                        parse_folder_config(&merged).map(|fc| (folder, fc))
+                        parse_folder_config(&merged).map(|mut fc| {
+                            let layers = PolicyLayers {
+                                global: global_ini.clone(),
+                                editor: editor_cfg,
+                                project,
+                            };
+                            // The analyser's skip and the policy come from the
+                            // same layers, so the report can explain every gap.
+                            fc.disabled_diagnostics = Some(layers.production_skip());
+                            fc.policy_layers = Some(layers);
+                            (folder, fc)
+                        })
                     })
                     .collect();
                 self.apply_folder_configs(parsed).await;
@@ -18546,6 +18735,10 @@ impl Backend {
     // A long but flat sequence of independent `tclLsp.*` knob applications.
     #[cfg(test)]
     async fn apply_global_config(&self, cfg: &serde_json::Value) {
+        *self.policy_layers.lock().await = PolicyLayers {
+            editor: cfg.clone(),
+            ..PolicyLayers::default()
+        };
         self.apply_global_config_with_signature_fallback(cfg, cfg)
             .await;
     }
@@ -18744,26 +18937,6 @@ impl Backend {
             *self.optimiser_profile.lock().await =
                 tcl_compiler::optimiser::profiles::OptimisationProfile::parse(profile);
         }
-        // Per-code overrides: any `optimiser.<CODE>` boolean other than the
-        // `enabled` / `profile` keys force-enables (true) or force-disables
-        // (false) that O-code on top of the profile.  The pulled `optimiser`
-        // section is *authoritative* — rebuild the map from scratch so a code
-        // whose override was cleared (the setting reverted to its default)
-        // reverts to the profile default instead of retaining the last value.
-        // Merging (insert-only) would leak a one-off `optimiser.O100 = true`
-        // into every later document once the override is removed.
-        if let Some(opt) = cfg.get("optimiser").and_then(serde_json::Value::as_object) {
-            let mut overrides = self.optimiser_code_overrides.lock().await;
-            overrides.clear();
-            for (key, val) in opt {
-                if key == "enabled" || key == "profile" {
-                    continue;
-                }
-                if let Some(b) = val.as_bool() {
-                    overrides.insert(key.clone(), b);
-                }
-            }
-        }
     }
 
     /// The formatter / style-width / default-dialect knobs.
@@ -18892,9 +19065,6 @@ impl Backend {
         }
         if let Some(disabled) = settings_disabled_diagnostics(&wrapped) {
             *self.disabled_diagnostics.lock().await = disabled;
-        }
-        if let Some(overrides) = settings_severity_overrides(&wrapped) {
-            *self.severity_overrides.lock().await = overrides;
         }
     }
 
@@ -19298,16 +19468,18 @@ impl Backend {
         (disabled, mode)
     }
 
-    /// Resolve the diagnostics-affecting settings for `uri`: a per-folder editor
+    /// Resolve the analyser-affecting settings for `uri`: a per-folder editor
     /// config (longest-prefix match) overrides the process-global fields
     /// field-by-field; unset folder fields inherit the global value.  Returns
-    /// `(disabled_diagnostics, non_ascii_mode, optimiser_enabled,
-    /// optimiser_disabled_codes)`.  In a single-root workspace (no per-folder
-    /// configs) this is exactly the global state.
-    async fn resolved_analysis_settings(
-        &self,
-        uri: &Uri,
-    ) -> (HashSet<String>, NonAsciiMode, bool, HashSet<String>) {
+    /// `(disabled_diagnostics, non_ascii_mode)` — the analyser's
+    /// production-time skip and its W108 mode.  In a single-root workspace
+    /// (no per-folder configs) this is exactly the global state.
+    ///
+    /// The presentation decisions — which codes show, at what severity, under
+    /// which optimiser profile — are not resolved here: they are the
+    /// document's [`core_policy::Policy`], built from
+    /// [`Self::resolved_policy_layers`].
+    async fn resolved_analysis_settings(&self, uri: &Uri) -> (HashSet<String>, NonAsciiMode) {
         let folder = {
             let configs = self.folder_configs.lock().await;
             longest_folder_match(&configs, uri).cloned()
@@ -19332,54 +19504,25 @@ impl Backend {
             Some(m) => m,
             None => *self.non_ascii_mode.lock().await,
         };
-        let optimiser_enabled = match folder.as_ref().and_then(|f| f.optimiser_enabled) {
-            Some(b) => b,
-            None => *self.optimiser_enabled.lock().await,
-        };
-        let profile = match folder.as_ref().and_then(|f| f.optimiser_profile) {
-            Some(p) => p,
-            None => *self.optimiser_profile.lock().await,
-        };
-        let mut opt_disabled: HashSet<String> =
-            tcl_compiler::optimiser::profiles::profile_to_disabled(profile)
-                .into_iter()
-                .map(str::to_owned)
-                .collect();
-        // Global per-code overrides first, then the folder's (folder wins).
-        for (code, enabled) in self.optimiser_code_overrides.lock().await.iter() {
-            if *enabled {
-                opt_disabled.remove(code);
-            } else {
-                opt_disabled.insert(code.clone());
-            }
-        }
-        if let Some(f) = folder.as_ref() {
-            for (code, enabled) in &f.optimiser_code_overrides {
-                if *enabled {
-                    opt_disabled.remove(code);
-                } else {
-                    opt_disabled.insert(code.clone());
-                }
-            }
-        }
-        (disabled, non_ascii_mode, optimiser_enabled, opt_disabled)
+        (disabled, non_ascii_mode)
     }
 
-    /// Resolve the per-code severity overrides for `uri`: the longest-matching
-    /// folder's `tclLsp.diagnosticSeverity` map when set, else the process-global
-    /// map. Mirrors the `disabled_diagnostics` resolution in
-    /// [`Self::resolved_analysis_settings`].
-    async fn resolved_severity_overrides(
-        &self,
-        uri: &Uri,
-    ) -> std::collections::HashMap<String, tower_lsp_server::ls_types::DiagnosticSeverity> {
+    /// The configuration layers `uri`'s document resolves its policy from:
+    /// the longest-matching workspace folder's own three layers when the
+    /// folder has been configured, else the session's.
+    ///
+    /// Longest-prefix matching over workspace folders is the LSP concept the
+    /// other surfaces have no counterpart for, which is why this resolution
+    /// lives here and the layering itself lives in
+    /// [`core_policy::PolicyBuilder`].
+    async fn resolved_policy_layers(&self, uri: &Uri) -> PolicyLayers {
         let folder = {
             let configs = self.folder_configs.lock().await;
-            longest_folder_match(&configs, uri).cloned()
+            longest_folder_match(&configs, uri).and_then(|f| f.policy_layers.clone())
         };
-        match folder.and_then(|f| f.severity_overrides) {
-            Some(m) => m,
-            None => self.severity_overrides.lock().await.clone(),
+        match folder {
+            Some(layers) => layers,
+            None => self.policy_layers.lock().await.clone(),
         }
     }
 
@@ -19793,9 +19936,8 @@ impl Backend {
         uri: &Uri,
         dialect: &'static tcl_dialect::DialectProfile,
     ) -> DiagInputs {
-        let (disabled, non_ascii_mode, optimiser_enabled, opt_disabled) =
-            self.resolved_analysis_settings(uri).await;
-        let severity_overrides = self.resolved_severity_overrides(uri).await;
+        let (disabled, non_ascii_mode) = self.resolved_analysis_settings(uri).await;
+        let policy_layers = self.resolved_policy_layers(uri).await;
         let registry = self.registry_for_dialect(dialect.name).await;
         let xc_diagnostics = self.xc_diagnostics_enabled(uri).await;
         let cross_file_resolution = self.cross_file_resolution_enabled(uri).await;
@@ -19814,12 +19956,11 @@ impl Backend {
             diagnostic_publisher: Arc::clone(&self.diagnostic_publisher),
             registry,
             disabled,
-            severity_overrides,
+            policy_layers,
             extra_commands,
             generic_variable_patterns,
             style_line_length,
             non_ascii_mode,
-            opt_disabled,
             documents: Arc::clone(&self.documents),
             diag_slots: Arc::clone(&self.diag_slots),
             workspace_index: Arc::clone(&self.workspace_index),
@@ -19842,7 +19983,6 @@ impl Backend {
             toggles: DiagToggles {
                 diagnostics_enabled,
                 excluded,
-                optimiser_enabled,
                 xc: XcToggles {
                     xc_diagnostics,
                     cross_file_resolution,
@@ -20136,7 +20276,7 @@ impl Backend {
         let encoding_abstains = inputs
             .decode_report
             .is_some_and(|report| report.requires_abstention());
-        let mut diagnostics = if encoding_abstains {
+        let produced = if encoding_abstains {
             Vec::new()
         } else {
             f5_dialect_diagnostics(
@@ -20144,25 +20284,23 @@ impl Backend {
                 analysis_text,
                 inputs.profile,
                 language_id,
-                inputs.disabled,
                 &self.documents,
                 self.store.as_ref(),
             )
             .await
             .unwrap_or_default()
         };
-        diagnostics.extend(lift_f5_source_integrity_diagnostics(
-            text,
-            inputs.decode_report.as_ref(),
+        f5_model_report(
+            &F5ModelDocument {
+                text,
+                analysis_text,
+                decode_report: inputs.decode_report.as_ref(),
+                dialect: inputs.profile,
+            },
+            inputs.policy_layers,
             inputs.disabled,
-            inputs.profile,
-        ));
-        finalise_diagnostics(
-            &mut diagnostics,
-            inputs.severity_overrides,
-            encoding_abstains,
-        );
-        diagnostics
+            produced,
+        )
     }
 
     /// The pull path's whole report for `uri` — the analysed set, unioned with
@@ -20201,8 +20339,8 @@ impl Backend {
         if self.diagnostics_excluded(uri).await {
             return Vec::new();
         }
-        let (disabled, _non_ascii_mode, optimiser_enabled, opt_disabled) =
-            self.resolved_analysis_settings(uri).await;
+        let (disabled, _non_ascii_mode) = self.resolved_analysis_settings(uri).await;
+        let policy_layers = self.resolved_policy_layers(uri).await;
         // Resolve the document's dialect once for the whole report rather than
         // at each provider call below.
         let profile = tcl_lsp_core::profile_for_dialect(&dialect);
@@ -20215,7 +20353,6 @@ impl Backend {
                 .filter(|doc| doc.text.as_ref() == text.as_ref())
                 .and_then(|doc| doc.decode_report)
         };
-        let severity_overrides = self.resolved_severity_overrides(uri).await;
         // `text` is the client's exact buffer and `analysis_text` its analysis
         // form (lone `\r` → `\n`), exactly as `run_diagnostics_core` splits
         // them on the push path: the parser sees the script `tclsh` would, the
@@ -20241,7 +20378,7 @@ impl Backend {
                     &F5PullInputs {
                         profile,
                         disabled: &disabled,
-                        severity_overrides: &severity_overrides,
+                        policy_layers: &policy_layers,
                         decode_report,
                     },
                 )
@@ -20259,9 +20396,6 @@ impl Backend {
         // XC100-301 translatability lints — independent toggle, f5-irules only.
         let xc_on = self.xc_diagnostics_enabled(uri).await;
         let xc_for_irules = tcl_lsp_core::profile_for_dialect(&dialect).is_irules() && xc_on;
-        // The push path's SslicTcl branch, mirrored: a pull-mode editor gets
-        // the same `SSLIC1xxx` loader findings a pushed report carries.
-        let sslictcl = tcl_lsp_core::sslictcl_diagnostics::applies_to(profile);
         // Cross-file resolution + the workspace W120 / W123 refinements,
         // matching the push path — and shared verbatim with
         // `textDocument/codeAction`, which lifts its quick-fixes from this
@@ -20271,48 +20405,31 @@ impl Backend {
             .await;
         let style_line_length = self.resolved_style_line_length(uri).await;
         crate::rt::spawn_blocking(move || {
-            let suppressed = &analysis.suppressed_lines;
-            let mut diagnostics =
-                lift_analyser_diagnostics(&analysis_text, &analyser_diags, suppressed);
-            append_brace_expr_perf_hints(&mut diagnostics, optimiser_enabled, &opt_disabled);
-            diagnostics.extend(lift_compiler_diagnostics(
-                &analysis_text,
-                &compiler_diags,
-                optimiser_enabled,
-                &opt_disabled,
-                &disabled,
-                suppressed,
-            ));
-            suppress_duplicate_o120(&mut diagnostics);
-            diagnostics.extend(lift_source_style_diagnostics(
-                &text,
+            let policy = document_policy(
+                &policy_layers,
                 decode_report.as_ref(),
-                suppressed,
-                &disabled,
-                style_line_length as usize,
                 profile,
-            ));
-            // Opt-in: XC100-301 translatability diagnostics for
-            // `f5-irules` documents when `xcDiagnostics` is enabled (mirrors
-            // the push path).
-            if xc_for_irules {
-                diagnostics.extend(lift_xc_diagnostics(&analysis_text, &disabled, suppressed));
-            }
-            if sslictcl {
-                extend_with_sslictcl_diagnostics(
-                    &mut diagnostics,
-                    &analysis_text,
-                    &analysis_text,
-                    &disabled,
-                    suppressed,
-                );
-            }
-            finalise_diagnostics(
-                &mut diagnostics,
-                &severity_overrides,
-                decode_report.is_some_and(|r| r.requires_abstention()),
+                core_policy::Directives::from_analysis(&analysis, &analysis_text),
             );
-            diagnostics
+            // The push path's producer set, in the push path's order.
+            let mut produced = analyser_findings(&analyser_diags);
+            produced.extend(compiler_findings(&compiler_diags));
+            if xc_for_irules {
+                produced.extend(xc_findings(&analysis_text));
+            }
+            let doc = core_report::DocumentSource {
+                text: &text,
+                analysis_text: &analysis_text,
+                decode: decode_report.as_ref(),
+                dialect: profile,
+                pass: core_report::SourcePass::Tcl {
+                    line_length: style_line_length as usize,
+                },
+            };
+            let report = core_report::document_report(&doc, produced, &policy);
+            let mut report = core_report::with_brace_expr_hints(report, &policy);
+            report.declare_skipped(skipped_codes(&disabled), &policy);
+            lift_report(&text, &report)
         })
         .await
         .unwrap_or_default()
@@ -20447,14 +20564,10 @@ impl Backend {
             ),
             None => analysis.diagnostics.clone(),
         };
-        // The push path's `refine_and_lift_diagnostics` supersession, mirrored:
-        // in a never-evaluated `.sslictcl` document the loader owns the verdict
-        // on an unrecognised word, so neither a pulled report nor a code action
-        // may offer the analyser's unknown-command guess over one.
-        let mut analyser_diags = analyser_diags;
-        if tcl_lsp_core::sslictcl_diagnostics::applies_to(dialect) {
-            tcl_lsp_core::sslictcl_diagnostics::supersede_analyser_diagnostics(&mut analyser_diags);
-        }
+        // In a never-evaluated `.sslictcl` document the loader owns the
+        // verdict on an unrecognised word; that is the dialect's overlap
+        // entry, and the policy step applies it to the analyser's W123 when
+        // this set is decided — a pulled report and a code action alike.
         self.refine_pull_analyser_diagnostics(
             uri,
             analyser_diags,
@@ -22859,10 +22972,6 @@ struct DialectActionInputs<'a> {
     dialect: &'static tcl_dialect::DialectProfile,
     analysis: &'a tcl_compiler::analyser::AnalysisResult,
     registry: &'a tcl_registry::CommandRegistry,
-    /// The codes `tclLsp.diagnostics.<CODE> = false` turns off, which the
-    /// compiler-check actions filter by alongside the analysis's own
-    /// `# noqa` map.
-    disabled: &'a std::collections::HashSet<String>,
     /// The diagnostics the editor is currently showing on the document — the
     /// channel a notice published outside the analyser pipeline arrives on.
     context_diags: &'a [core_code_actions::ContextDiagnostic],
@@ -22899,28 +23008,6 @@ fn push_context_code_actions(
         source,
         context_diags,
     ));
-}
-
-/// The compiler-check quick-fixes: the iRules control-flow fixes (IRULE5002
-/// unguarded drop / IRULE5004 `DNS::return`) plus the shimmer-family
-/// noqa-suppress action (S100/S101/S102/S110).
-///
-/// Every dialect's checks are lowered here, not just iRules' — a plain-Tcl
-/// document's checks simply carry no IRULE-family fixes. A check the document
-/// disables or already silences with a `# noqa` contributes nothing.
-fn check_actions(
-    source: &str,
-    range: core_definition::LspRange,
-    checks: &tcl_lsp_db::CompilerDiagnostics,
-    inputs: &DialectActionInputs<'_>,
-) -> Vec<core_code_actions::CodeAction> {
-    core_code_actions::check_diagnostic_actions(
-        source,
-        range,
-        &checks.checks,
-        inputs.disabled,
-        &inputs.analysis.suppressed_lines,
-    )
 }
 
 impl Backend {
@@ -23384,8 +23471,12 @@ impl LanguageServer for Backend {
         if let Some(disabled) = settings_disabled_diagnostics(&params.settings) {
             *self.disabled_diagnostics.lock().await = disabled;
         }
-        if let Some(overrides) = settings_severity_overrides(&params.settings) {
-            *self.severity_overrides.lock().await = overrides;
+        {
+            let mut layers = self.policy_layers.lock().await;
+            layers.editor = config_ini::merge_settings(
+                &layers.editor,
+                &normalize_config_payload(&params.settings),
+            );
         }
         // The three writes above land immediately, ahead of the coalesced
         // re-pull below, so they retire the scheduler's cached inputs on their
@@ -25558,13 +25649,16 @@ impl LanguageServer for Backend {
         // path resolves for this document (folder overrides included) — so the
         // compiler-checks code-action path does not re-surface a quick-fix for
         // a diagnostic the user disabled.
-        let (disabled_codes, ..) = self.resolved_analysis_settings(&uri).await;
+        let (disabled_codes, _) = self.resolved_analysis_settings(&uri).await;
+        let policy_layers = self.resolved_policy_layers(&uri).await;
         // The analyser diagnostics this document actually publishes.  Code
         // actions lift their quick-fixes from this set, never from the
         // analyser's raw one, so a W123 the workspace refinements decided to
         // suppress can never leave a "did you mean…?" rewrite behind
-        // when the diagnostic itself is gone.
-        let mut published = self
+        // when the diagnostic itself is gone. What the document *shows* of
+        // it is the policy step's decision, taken below with the compiler
+        // checks and the optimiser's rewrites in the same report.
+        let published = self
             .published_analyser_diagnostics(
                 &uri,
                 &analysis,
@@ -25573,12 +25667,6 @@ impl LanguageServer for Backend {
                 &disabled_codes,
             )
             .await;
-        // …minus the ones an inline `# noqa` or a file-level directive
-        // silences, which the publish paths drop in
-        // `lift_analyser_diagnostics`. Same reasoning as the refinements
-        // above: a diagnostic the document does not show must not leave its
-        // quick-fix behind in the lightbulb.
-        retain_unsuppressed_diagnostics(&doc.text, &mut published, &analysis.suppressed_lines);
         // Lift the request-context diagnostics (the editor sends the ones it
         // currently shows) so context-driven quick-fixes — e.g. the iRules
         // taint encode-wrap fixes — can act on them even when the analyser
@@ -25612,13 +25700,37 @@ impl LanguageServer for Backend {
                 uri: &uri_key,
                 oracle: exports.as_ref(),
             };
-            // `program` decides what an inlined call reaches; `published`
+            let dialect_profile = tcl_lsp_core::profile_for_dialect(&dialect);
+            // One report for the whole lightbulb: the published analyser set,
+            // the compiler checks and the optimiser's rewrites under the
+            // document's policy. A fix is offered for a finding the report
+            // shows and for no other. Same standalone-unit caveat as the
+            // pull-diagnostics path for the checks: without the project's
+            // evidence a quick-fix could offer to delete a branch the project
+            // proves reachable, hence `evidence`.
+            let checks = tcl_lsp_db::compiler_check_diagnostics_uncached(
+                &doc.text,
+                &registry,
+                &dialect,
+                generic_patterns.as_deref(),
+                evidence.as_deref(),
+            );
+            let policy = document_policy(
+                &policy_layers,
+                doc.decode_report.as_ref(),
+                dialect_profile,
+                core_policy::Directives::from_analysis(&analysis, &doc.text),
+            );
+            let mut produced = analyser_findings(&published);
+            produced.extend(compiler_findings(&checks));
+            let report = core_policy::apply(produced, &policy);
+            // `program` decides what an inlined call reaches; `report`
             // decides what this document shows.
             let mut actions = core_code_actions::code_actions_in_program(
                 &doc.text,
                 range,
                 Some(&analysis),
-                &published,
+                &report,
                 Some(program),
                 docstring_style,
             );
@@ -25633,21 +25745,12 @@ impl LanguageServer for Backend {
             );
             let dialect_inputs = DialectActionInputs {
                 uri: &uri_str,
-                dialect: tcl_lsp_core::profile_for_dialect(&dialect),
+                dialect: dialect_profile,
                 analysis: &analysis,
                 registry: &registry,
-                disabled: &disabled_codes,
                 context_diags: &context_diags,
             };
             push_dialect_code_actions(&mut actions, &doc.text, range, &dialect_inputs);
-            let checks = tcl_lsp_db::compiler_check_diagnostics_uncached(
-                &doc.text,
-                &registry,
-                &dialect,
-                generic_patterns.as_deref(),
-                evidence.as_deref(),
-            );
-            actions.extend(check_actions(&doc.text, range, &checks, &dialect_inputs));
             actions
         })
         .await
@@ -27302,49 +27405,11 @@ fn lsp_severity(
     }
 }
 
-/// The LSP-typed view of [`config_ini::settings_severity_overrides`]: the
-/// same parse of the nested and flat-dotted `tclLsp.diagnosticSeverity`
-/// shapes, with each severity mapped to the wire `DiagnosticSeverity` the
-/// publish path relabels with ([`apply_severity_overrides`]).
-fn settings_severity_overrides(
-    settings: &serde_json::Value,
-) -> Option<std::collections::HashMap<String, tower_lsp_server::ls_types::DiagnosticSeverity>> {
-    config_ini::settings_severity_overrides(settings).map(|overrides| {
-        overrides
-            .into_iter()
-            .map(|(code, severity)| (code, lsp_severity(severity)))
-            .collect()
-    })
-}
-
 /// Parse one folder's resolved `tclLsp` config object into a [`FolderConfig`]
 /// of overrides.  Keys absent from the object stay `None` / empty so the
 /// resolver inherits the process-global value.  Returns `None` when `cfg` is
 /// not a JSON object (the folder pull returned nothing usable).  Mirrors the
 /// key handling of [`Backend::pull_and_apply_config`]'s global pull.
-/// Parse the `optimiser` section of a folder config: enable flag, profile, and
-/// the per-`O-code` boolean overrides.
-fn parse_folder_optimiser(obj: &serde_json::Map<String, serde_json::Value>, fc: &mut FolderConfig) {
-    let Some(opt) = obj.get("optimiser").and_then(serde_json::Value::as_object) else {
-        return;
-    };
-    if let Some(b) = opt.get("enabled").and_then(serde_json::Value::as_bool) {
-        fc.optimiser_enabled = Some(b);
-    }
-    if let Some(p) = opt.get("profile").and_then(serde_json::Value::as_str) {
-        fc.optimiser_profile =
-            Some(tcl_compiler::optimiser::profiles::OptimisationProfile::parse(p));
-    }
-    for (key, val) in opt {
-        if key == "enabled" || key == "profile" {
-            continue;
-        }
-        if let Some(b) = val.as_bool() {
-            fc.optimiser_code_overrides.insert(key.clone(), b);
-        }
-    }
-}
-
 /// Parse the formatter line length, the whole `formatting` section, and the
 /// `style.lineLength` (W111) threshold of a folder config.
 fn parse_folder_formatting(
@@ -27470,7 +27535,6 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
     {
         fc.feature_toggles.set_flag("xcDiagnostics", flag);
     }
-    parse_folder_optimiser(obj, &mut fc);
     if let Some(b) = obj
         .get("shimmer")
         .and_then(|s| s.get("enabled"))
@@ -27554,7 +27618,6 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
     let wrapped = serde_json::json!({ "tclLsp": cfg });
     fc.non_ascii_mode = settings_non_ascii_mode(&wrapped);
     fc.disabled_diagnostics = settings_disabled_diagnostics(&wrapped);
-    fc.severity_overrides = settings_severity_overrides(&wrapped);
     Some(fc)
 }
 
@@ -27847,101 +27910,29 @@ fn lift_span(source: &str, line_index: &tcl_lexer::LineIndex, span: tcl_lexer::S
 /// one.
 const BIGIP_DEFAULT_PARTITION: &str = "Common";
 
-/// Lift a [`tcl_bigip::validator::ConfigDiagnostic`] (the output of the
-/// BIG-IP config / iApp model-level validators) to the LSP wire shape.
-/// A `tcl_bigip` [`tcl_bigip::Range`] carries
-/// UTF-16 columns (LSP convention) with an **inclusive** end, so the LSP
-/// end column is `end.character + 1`.
-fn lift_config_diagnostic(
-    d: &tcl_bigip::validator::ConfigDiagnostic,
-) -> tower_lsp_server::ls_types::Diagnostic {
-    use tower_lsp_server::ls_types::{DiagnosticSeverity, NumberOrString};
-    tower_lsp_server::ls_types::Diagnostic {
-        range: Range {
-            start: Position {
-                line: d.range.start.line,
-                character: d.range.start.character,
-            },
-            end: Position {
-                line: d.range.end.line,
-                character: d.range.end.character + 1,
-            },
-        },
-        severity: Some(match d.severity {
-            tcl_bigip::validator::DiagSeverity::Warning => DiagnosticSeverity::WARNING,
-            tcl_bigip::validator::DiagSeverity::Hint => DiagnosticSeverity::HINT,
-        }),
-        code: Some(NumberOrString::String(d.code.clone())),
-        code_description: None,
-        source: Some("tcl-lsp".to_string()),
-        message: d.message.clone(),
-        related_information: None,
-        tags: None,
-        data: None,
-    }
-}
-
-/// Opt-in: lift the `f5-xc` XC100-301 translatability
-/// diagnostics into LSP diagnostics for an `f5-irules` document. Codes the editor disabled
-/// (`tclLsp.diagnostics.<CODE> = false`) are filtered, and the same `# noqa`
-/// / file-level suppression the analyser honours is applied. `XcSeverity`
-/// maps `Hint` → `HINT` and `Info` → `INFORMATION`.
-fn lift_xc_diagnostics(
-    source: &str,
-    disabled: &HashSet<String>,
-    suppressed: &std::collections::HashMap<i32, HashSet<String>>,
-) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
-    use tower_lsp_server::ls_types::{DiagnosticSeverity, NumberOrString};
-    f5_xc::get_xc_diagnostics(source)
-        .into_iter()
-        .filter(|d| !disabled.contains(d.code.as_str()))
-        .filter(|d| {
-            !line_suppressed(
-                d.code.as_str(),
-                i32::try_from(d.range.start.line).unwrap_or(i32::MAX),
-                suppressed,
-            )
-        })
-        .map(|d| tower_lsp_server::ls_types::Diagnostic {
-            range: Range {
-                start: Position {
-                    line: d.range.start.line,
-                    character: d.range.start.character,
-                },
-                end: Position {
-                    line: d.range.end.line,
-                    character: d.range.end.character,
-                },
-            },
-            severity: Some(match d.severity {
-                f5_xc::XcSeverity::Hint => DiagnosticSeverity::HINT,
-                f5_xc::XcSeverity::Info => DiagnosticSeverity::INFORMATION,
-            }),
-            code: Some(NumberOrString::String(d.code.to_string())),
-            code_description: None,
-            source: Some("tcl-lsp".to_string()),
-            message: d.message,
-            related_information: None,
-            tags: None,
-            data: None,
-        })
+/// The BIG-IP config / iApp model validators' output as findings. A
+/// [`tcl_bigip::validator::ConfigDiagnostic`] carries an **inclusive** end
+/// offset; the conversion makes it exclusive, as every other producer's is.
+/// A spelling the catalogue lacks is a conversion failure and is dropped.
+fn model_findings(
+    diagnostics: &[tcl_bigip::validator::ConfigDiagnostic],
+) -> Vec<core_policy::Finding> {
+    diagnostics
+        .iter()
+        .filter_map(|d| core_policy::Finding::try_from(d).ok())
         .collect()
 }
 
-/// BIG-IP config diagnostics (`BIGIP6001`–
+/// BIG-IP config findings (`BIGIP6001`–
 /// `BIGIP6012`).  BIG-IP `.conf` text is not Tcl source — it has its own
 /// model-level validator
-/// ([`tcl_bigip::validator::validate_bigip_source`]).  Codes the
-/// editor disabled via `tclLsp.diagnostics.<CODE> = false` are filtered.
-fn bigip_config_diagnostics(
-    text: &str,
-    disabled: &HashSet<String>,
-) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
-    tcl_bigip::validator::validate_bigip_source(text, BIGIP_DEFAULT_PARTITION)
-        .into_iter()
-        .filter(|d| !disabled.contains(&d.code))
-        .map(|d| lift_config_diagnostic(&d))
-        .collect()
+/// ([`tcl_bigip::validator::validate_bigip_source`]). A conversion; the
+/// policy step decides what shows.
+fn bigip_config_findings(text: &str) -> Vec<core_policy::Finding> {
+    model_findings(&tcl_bigip::validator::validate_bigip_source(
+        text,
+        BIGIP_DEFAULT_PARTITION,
+    ))
 }
 
 /// iApp APL presentation diagnostics
@@ -27950,21 +27941,16 @@ fn bigip_config_diagnostics(
 /// `$::section__field` references, and lifts the validator output.  The
 /// validator is gated on the `f5-iapps` dialect (we only reach here for
 /// APL sources, so the gate is always satisfied — see [`is_apl_source`]).
-fn apl_presentation_diagnostics(
+fn apl_presentation_findings(
     text: &str,
     impl_var_refs: Option<&[tcl_bigip::apl::IappVarRef]>,
-    disabled: &HashSet<String>,
-) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+) -> Vec<core_policy::Finding> {
     let model = tcl_bigip::apl::parse_apl(text);
-    tcl_bigip::apl::validate_iapp_presentation(
+    model_findings(&tcl_bigip::apl::validate_iapp_presentation(
         &model,
         impl_var_refs,
         tcl_lsp_core::profile_for_dialect(IAPPS_DIALECT),
-    )
-    .into_iter()
-    .filter(|d| !disabled.contains(&d.code))
-    .map(|d| lift_config_diagnostic(&d))
-    .collect()
+    ))
 }
 
 /// Whether `uri` (with its editor `language_id`) is an iApp APL
@@ -28079,25 +28065,23 @@ async fn f5_dialect_diagnostics(
     text: &str,
     dialect: &'static tcl_dialect::DialectProfile,
     language_id: &str,
-    disabled: &HashSet<String>,
     documents: &DocumentStore,
     store: &dyn vfs::SourceStore,
-) -> Option<Vec<tower_lsp_server::ls_types::Diagnostic>> {
+) -> Option<Vec<core_policy::Finding>> {
     if Backend::is_bigip_dialect(dialect.name) {
-        let (t, dis) = (text.to_owned(), disabled.clone());
-        let diags = crate::rt::spawn_blocking(move || bigip_config_diagnostics(&t, &dis))
+        let t = text.to_owned();
+        let diags = crate::rt::spawn_blocking(move || bigip_config_findings(&t))
             .await
             .unwrap_or_default();
         return Some(diags);
     }
     if is_apl_source(uri, language_id) {
         let impl_refs = find_sibling_impl_vars(uri, documents, store).await;
-        let (t, dis) = (text.to_owned(), disabled.clone());
-        let diags = crate::rt::spawn_blocking(move || {
-            apl_presentation_diagnostics(&t, impl_refs.as_deref(), &dis)
-        })
-        .await
-        .unwrap_or_default();
+        let t = text.to_owned();
+        let diags =
+            crate::rt::spawn_blocking(move || apl_presentation_findings(&t, impl_refs.as_deref()))
+                .await
+                .unwrap_or_default();
         return Some(diags);
     }
     None
@@ -29337,605 +29321,6 @@ fn w120_required_package(d: &tcl_compiler::analyser::Diagnostic) -> Option<&str>
         .map(str::trim)
 }
 
-/// Append the `SslicTcl` loader's `SSLIC1xxx` findings for a `.sslictcl`
-/// document, under the same disabled set and directives as every other code.
-///
-/// Shared by the push and pull paths, which differ only in the text the loader
-/// reads: the push path hands it the lone-`\r`-normalised form (byte-for-byte
-/// the same length, so offsets still index `text`), the pull path already has
-/// one. The projection filters nothing; the policy step decides.
-fn extend_with_sslictcl_diagnostics(
-    diagnostics: &mut Vec<tower_lsp_server::ls_types::Diagnostic>,
-    text: &str,
-    loader_text: &str,
-    disabled: &HashSet<String>,
-    suppressed: &std::collections::HashMap<i32, HashSet<String>>,
-) {
-    let report = core_policy::apply(
-        tcl_lsp_core::sslictcl_diagnostics::diagnostics(loader_text),
-        &transitional_policy(
-            disabled,
-            core_policy::Directives::new(suppressed.clone(), text),
-        ),
-    );
-    diagnostics.extend(lift_shown_findings(text, &report));
-}
-
-/// The policy the lifts hand to `apply` until the LSP adapter lands
-/// (`docs/design/compiler/diagnostic-policy.md` § Slices, 4): the resolved
-/// disabled set — already seeded with the default-off codes and merged
-/// across the three configuration layers, hence recorded as the editor
-/// layer — and the analyser's directive map. Every other step still runs
-/// where it always has: abstention, tags and severity overrides in
-/// [`finalise_diagnostics`], the optimiser gates in
-/// [`lift_compiler_diagnostics`], the W110 / O120 overlap in
-/// [`suppress_duplicate_o120`].
-fn transitional_policy(
-    disabled: &HashSet<String>,
-    directives: core_policy::Directives,
-) -> core_policy::Policy {
-    core_policy::Policy::from_disabled_set(disabled, core_policy::PolicyLayer::Editor, directives)
-}
-
-/// Lift the shown findings of `report` to the wire shape, exactly as
-/// [`lift_analyser_diagnostics`] lifts an analyser diagnostic: the span
-/// through [`lift_span`], the severity through [`lsp_severity`], no tag and
-/// no payload (both are [`finalise_diagnostics`]'s).
-fn lift_shown_findings(
-    text: &str,
-    report: &core_policy::Report,
-) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
-    let line_index = tcl_lexer::LineIndex::new_lsp(text);
-    report
-        .shown()
-        .map(|shown| tower_lsp_server::ls_types::Diagnostic {
-            range: lift_span(text, &line_index, shown.finding.span),
-            severity: Some(lsp_severity(shown.severity)),
-            code: Some(tower_lsp_server::ls_types::NumberOrString::String(
-                shown.finding.code.to_string(),
-            )),
-            code_description: None,
-            source: Some("tcl-lsp".to_string()),
-            message: shown.finding.message.clone(),
-            related_information: None,
-            tags: None,
-            data: None,
-        })
-        .collect()
-}
-
-/// The style-pass records whose findings `report` shows, in the pass's own
-/// order — the records keep the exact LSP ranges the pass computed, which
-/// [`lift_style_diagnostics`] publishes as they are.
-fn shown_style_records(
-    report: &core_policy::Report,
-    records: Vec<tcl_lsp_core::source_style::StyleDiagnostic>,
-) -> Vec<tcl_lsp_core::source_style::StyleDiagnostic> {
-    report.shown_items(records)
-}
-
-/// Drop the analyser diagnostics an inline `# noqa` or a top-of-file
-/// `# tcl-lsp: disable=…` directive silences, in place.
-///
-/// The publish paths apply the same contract while lifting (see
-/// [`lift_analyser_diagnostics`]); this is for the consumer that reads the
-/// analyser's set *without* lifting it — `textDocument/codeAction`, which must
-/// not offer a quick-fix for a diagnostic the document does not show.
-fn retain_unsuppressed_diagnostics(
-    text: &str,
-    diagnostics: &mut Vec<tcl_compiler::analyser::Diagnostic>,
-    suppressed: &std::collections::HashMap<i32, HashSet<String>>,
-) {
-    if suppressed.is_empty() {
-        return;
-    }
-    let line_index = tcl_lexer::LineIndex::new_lsp(text);
-    diagnostics.retain(|d| {
-        let line =
-            i32::try_from(lift_span(text, &line_index, d.span).start.line).unwrap_or(i32::MAX);
-        !line_suppressed(d.code.as_str(), line, suppressed)
-    });
-}
-
-/// Lift the analyser's own diagnostics (the `E` / `W` / `H` / `I` families)
-/// into LSP diagnostics, dropping the ones an inline `# noqa` or a
-/// top-of-file `# tcl-lsp: disable=…` directive silences.
-///
-/// `suppressed` is the analyser's `suppressed_lines` map. The analyser
-/// *records* the map but never filters with it, so the suppression has to be
-/// applied here — exactly as `lift_compiler_diagnostics` does for the
-/// compiler-check and optimiser families, and through the same shared
-/// `line_suppressed` contract, so `# noqa: W210` means in the editor what
-/// `docs/kcs/kcs-howto-suppress-diagnostics.md` says it means (and what
-/// `tcl diag` reports for the same file).
-fn lift_analyser_diagnostics(
-    text: &str,
-    diagnostics: &[tcl_compiler::analyser::Diagnostic],
-    suppressed: &std::collections::HashMap<i32, HashSet<String>>,
-) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
-    let line_index = tcl_lexer::LineIndex::new_lsp(text);
-    // A default-off code is filtered at the analyser through its seeded disabled
-    // set (`default_disabled_set` / `settings_disabled_diagnostics`), never here:
-    // a publish-time code filter would defeat `tclLsp.diagnostics.<CODE>: true`,
-    // which exists to turn an opt-in code back on.
-    diagnostics
-        .iter()
-        .cloned()
-        .filter_map(|d| {
-            let range = lift_span(text, &line_index, d.span);
-            let line = i32::try_from(range.start.line).unwrap_or(i32::MAX);
-            if line_suppressed(d.code.as_str(), line, suppressed) {
-                return None;
-            }
-            Some(tower_lsp_server::ls_types::Diagnostic {
-                range,
-                severity: Some(match d.severity {
-                    tcl_compiler::analyser::Severity::Error => {
-                        tower_lsp_server::ls_types::DiagnosticSeverity::ERROR
-                    }
-                    tcl_compiler::analyser::Severity::Warning => {
-                        tower_lsp_server::ls_types::DiagnosticSeverity::WARNING
-                    }
-                    tcl_compiler::analyser::Severity::Info => {
-                        tower_lsp_server::ls_types::DiagnosticSeverity::INFORMATION
-                    }
-                    tcl_compiler::analyser::Severity::Hint
-                    | tcl_compiler::analyser::Severity::Suggestion => {
-                        tower_lsp_server::ls_types::DiagnosticSeverity::HINT
-                    }
-                }),
-                code: Some(tower_lsp_server::ls_types::NumberOrString::String(
-                    d.code.to_string(),
-                )),
-                code_description: None,
-                source: Some("tcl-lsp".to_string()),
-                message: d.message,
-                related_information: None,
-                tags: None,
-                data: None,
-            })
-        })
-        .collect()
-}
-
-/// Append the O111 "brace expression performance" hint next to every W100
-/// (unbraced-expression) diagnostic: when the optimiser is enabled and O111
-/// is not disabled, each W100 gets a paired `Information` hint at the same
-/// range suggesting the user brace the expression for bytecode compilation.
-fn append_brace_expr_perf_hints(
-    diagnostics: &mut Vec<tower_lsp_server::ls_types::Diagnostic>,
-    optimiser_enabled: bool,
-    opt_disabled: &std::collections::HashSet<String>,
-) {
-    use tower_lsp_server::ls_types::{Diagnostic, DiagnosticSeverity, NumberOrString};
-    if !optimiser_enabled || opt_disabled.contains("O111") {
-        return;
-    }
-    let hints: Vec<Diagnostic> = diagnostics
-        .iter()
-        .filter(|d| matches!(&d.code, Some(NumberOrString::String(c)) if c == "W100"))
-        .map(|w100| Diagnostic {
-            range: w100.range,
-            severity: Some(DiagnosticSeverity::INFORMATION),
-            code: Some(NumberOrString::String("O111".to_string())),
-            code_description: None,
-            source: Some("tcl-lsp".to_string()),
-            message: "Brace expression text (for example, `expr {...}` / `if {...}`) to pass \
-                      a single static argument, enabling bytecode compilation and avoiding \
-                      per-evaluation substitution/parsing overhead."
-                .to_string(),
-            related_information: None,
-            tags: None,
-            data: None,
-        })
-        .collect();
-    diagnostics.extend(hints);
-}
-
-/// Finalise a lifted diagnostic set for publication: attach the LSP
-/// `DiagnosticTag`s the code table declares, then apply the user's severity
-/// overrides.
-///
-/// Every path that publishes diagnostics — the fast tier, the deep push, and
-/// the pull provider — goes through this one call, which is what makes the
-/// three agree on tags without each remembering to ask for them.  Order
-/// matters only in that tags are attached from the code, so a severity
-/// override changes how loud a diagnostic is and never what it is tagged as.
-fn finalise_diagnostics(
-    diagnostics: &mut Vec<tower_lsp_server::ls_types::Diagnostic>,
-    overrides: &std::collections::HashMap<String, tower_lsp_server::ls_types::DiagnosticSeverity>,
-    encoding_abstains: bool,
-) {
-    apply_encoding_abstention(diagnostics, encoding_abstains);
-    apply_diagnostic_tags(diagnostics);
-    apply_severity_overrides(diagnostics, overrides);
-}
-
-/// Abstain from everything but source-integrity findings when the byte decode
-/// report proves that the document is not UTF-8 text.
-///
-/// Analysed regardless, a three-line UTF-16 iRule publishes dozens of
-/// diagnostics — `E102`s about braces that are really NUL bytes, `W108`s about
-/// characters that are half of a UTF-16 code unit, `W123`s about commands whose
-/// names are interleaved with NULs.  Every one of them is a statement about
-/// decoding artefacts rather than
-/// about the user's code, and each is *wrong* in the specific sense that
-/// matters: it points at a position that does not correspond to anything in
-/// the file.  Publishing one accurate finding and stopping is the honest
-/// answer.
-///
-/// This is driven by byte evidence rather than the displayed W109 diagnostic.
-/// Disabling W109 can hide the explanation, but it cannot make analysis of the
-/// same malformed bytes sound. The source-integrity codes survive when enabled.
-///
-/// Applied here, at the one point every publish path funnels through, so the
-/// fast tier, the deep push and the pull provider cannot disagree about it.
-fn apply_encoding_abstention(
-    diagnostics: &mut Vec<tower_lsp_server::ls_types::Diagnostic>,
-    encoding_abstains: bool,
-) {
-    use tower_lsp_server::ls_types::NumberOrString;
-    let code_of = |d: &tower_lsp_server::ls_types::Diagnostic| match &d.code {
-        Some(NumberOrString::String(c)) => Some(c.clone()),
-        _ => None,
-    };
-    if !encoding_abstains {
-        return;
-    }
-    diagnostics.retain(|d| matches!(code_of(d).as_deref(), Some("W107" | "W109" | "W305")));
-}
-
-/// Attach `Diagnostic.tags` from the diagnostic-code table.
-///
-/// The mapping lives in `tcl_core_types::DiagCode::lsp_tag` — declared next to
-/// each code, alongside its section and description — so tagging a diagnostic
-/// is a table edit and this function never changes.  In particular the
-/// *deprecated-command* diagnostics get their strikethrough because the code
-/// they carry is tagged, and which commands are deprecated is registry data;
-/// there is no command-name list here or anywhere else in the server.
-///
-/// A code the table does not tag keeps `tags: None` rather than an empty
-/// array: an empty `tags` is legal LSP but tells a client nothing.
-fn apply_diagnostic_tags(diagnostics: &mut [tower_lsp_server::ls_types::Diagnostic]) {
-    use core::str::FromStr as _;
-    use tower_lsp_server::ls_types::{DiagnosticTag, NumberOrString};
-    for d in diagnostics.iter_mut() {
-        let Some(NumberOrString::String(code)) = &d.code else {
-            continue;
-        };
-        let Some(tag) = tcl_core_types::DiagCode::from_str(code)
-            .ok()
-            .and_then(tcl_core_types::DiagCode::lsp_tag)
-        else {
-            continue;
-        };
-        d.tags = Some(vec![match tag {
-            tcl_core_types::DiagTag::Unnecessary => DiagnosticTag::UNNECESSARY,
-            tcl_core_types::DiagTag::Deprecated => DiagnosticTag::DEPRECATED,
-        }]);
-    }
-}
-
-/// Apply user severity overrides (`tclLsp.diagnosticSeverity.<CODE>`) to the
-/// lifted diagnostics: a code present in `overrides` is re-published at the
-/// chosen [`DiagnosticSeverity`], leaving its range/message/code untouched.
-/// A no-op when `overrides` is empty (the common case), so the hot path pays
-/// nothing. The analyser's emitted severity stands for any code not listed.
-fn apply_severity_overrides(
-    diagnostics: &mut [tower_lsp_server::ls_types::Diagnostic],
-    overrides: &std::collections::HashMap<String, tower_lsp_server::ls_types::DiagnosticSeverity>,
-) {
-    use tower_lsp_server::ls_types::NumberOrString;
-    if overrides.is_empty() {
-        return;
-    }
-    for d in diagnostics.iter_mut() {
-        if let Some(NumberOrString::String(code)) = &d.code
-            && let Some(&severity) = overrides.get(code)
-        {
-            d.severity = Some(severity);
-        }
-    }
-}
-
-/// Lift the source-text pass (W111 line length, W112 trailing whitespace,
-/// W115 comment continuation, W118 line endings, plus the byte-backed W107 /
-/// W109 encoding-integrity checks) into LSP diagnostics. These are pure
-/// source-text checks (no analyser / compiler unit needed); see
-/// `tcl_lsp_core::source_style` and `tcl_lsp_core::source_decode`.
-///
-/// The pass filters nothing. `suppressed` is the analyser's
-/// `suppressed_lines` map — inline `# noqa` lines and the file-level (`-1`)
-/// `# tcl-lsp: disable=…` bucket — and `user_disabled` the resolved
-/// `tclLsp.diagnostics.<CODE> = false` set; both reach the style codes
-/// through the policy step, where W107, W109 and W118 are the whole-file
-/// codes an inline directive never touches. The checks run with default
-/// settings (line length 120, expected line ending `\n`); there is no
-/// per-check feature-config surface.
-///
-/// `decode_report` is present only when the bytes currently on disk lossily
-/// decode to exactly the buffer sent in `didOpen`. An unsaved LSP buffer has no
-/// byte evidence, so W107/W109 abstain rather than infer a decode failure from
-/// valid Unicode text such as a literal `U+FFFD`.
-fn lift_source_style_diagnostics(
-    text: &str,
-    decode_report: Option<&tcl_lsp_core::source_decode::DecodeReport>,
-    suppressed: &std::collections::HashMap<i32, std::collections::HashSet<String>>,
-    user_disabled: &std::collections::HashSet<String>,
-    line_length: usize,
-    dialect: &'static tcl_dialect::DialectProfile,
-) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
-    use tcl_lsp_core::source_style::{DEFAULT_LINE_ENDING, style_diagnostics};
-
-    let records = style_diagnostics(
-        text,
-        line_length,
-        DEFAULT_LINE_ENDING,
-        decode_report,
-        dialect,
-    );
-    let line_index = tcl_lexer::LineIndex::new_lsp(text);
-    let findings = records
-        .iter()
-        .cloned()
-        .map(|d| core_policy::Finding::from_style(d, text, &line_index))
-        .collect();
-    let report = core_policy::apply(
-        findings,
-        &transitional_policy(
-            user_disabled,
-            core_policy::Directives::new(suppressed.clone(), text),
-        ),
-    );
-    lift_style_diagnostics(shown_style_records(&report, records))
-}
-
-/// Lift source-style records into the LSP wire type.
-///
-/// Kept separate from the style pass so the non-Tcl F5 adapters can append the
-/// shared byte-integrity findings without running Tcl-specific style checks.
-fn lift_style_diagnostics(
-    diagnostics: Vec<tcl_lsp_core::source_style::StyleDiagnostic>,
-) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
-    use tcl_lsp_core::source_style::StyleSeverity;
-    use tower_lsp_server::ls_types::{DiagnosticSeverity, NumberOrString};
-
-    diagnostics
-        .into_iter()
-        .map(|d| tower_lsp_server::ls_types::Diagnostic {
-            range: Range {
-                start: Position {
-                    line: d.range.start_line,
-                    character: d.range.start_character,
-                },
-                end: Position {
-                    line: d.range.end_line,
-                    character: d.range.end_character,
-                },
-            },
-            severity: Some(match d.severity {
-                StyleSeverity::Warning => DiagnosticSeverity::WARNING,
-                StyleSeverity::Hint => DiagnosticSeverity::HINT,
-            }),
-            code: Some(NumberOrString::String(d.code.to_string())),
-            code_description: None,
-            source: Some("tcl-lsp".to_string()),
-            message: d.message,
-            related_information: None,
-            tags: None,
-            data: None,
-        })
-        .collect()
-}
-
-/// Source-integrity findings shared by BIG-IP configuration and iApp APL.
-///
-/// Those document families bypass the Tcl analyser for their model validators,
-/// so W107/W109 are lifted directly from byte evidence and W305 is taken from
-/// the compiler's canonical whole-source producer. This is deliberately not
-/// the full Tcl style pass: W111/W112/W115/W118 have separate syntax-policy
-/// questions, while source integrity applies to every text language.
-fn lift_f5_source_integrity_diagnostics(
-    text: &str,
-    decode_report: Option<&tcl_lsp_core::source_decode::DecodeReport>,
-    user_disabled: &std::collections::HashSet<String>,
-    dialect: &'static tcl_dialect::DialectProfile,
-) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
-    let records = tcl_lsp_core::source_decode::encoding_integrity_diagnostics(text, decode_report);
-    let line_index = tcl_lexer::LineIndex::new_lsp(text);
-    let findings = records
-        .iter()
-        .cloned()
-        .map(|d| core_policy::Finding::from_style(d, text, &line_index))
-        .collect();
-    // These document families never run the Tcl analyser, so the top-of-file
-    // directive is parsed here and handed to the policy step as the file
-    // bucket; W107 and W109 are whole-file codes, so no inline scan is needed.
-    let mut lines = std::collections::HashMap::new();
-    let file_codes = tcl_compiler::analyser::utils::parse_file_suppression(text);
-    if !file_codes.is_empty() {
-        lines.insert(FILE_SUPPRESS_KEY, file_codes);
-    }
-    let report = core_policy::apply(
-        findings,
-        &transitional_policy(user_disabled, core_policy::Directives::new(lines, text)),
-    );
-    let mut diagnostics = lift_style_diagnostics(shown_style_records(&report, records));
-    let bidi =
-        tcl_compiler::analyser::filtered_bidi_control_diagnostics(text, user_disabled, dialect);
-    // `filtered_bidi_control_diagnostics` has already applied the `# noqa` /
-    // file-directive contract against the map it parses for itself (these
-    // document families never run the Tcl analyser, so there is no
-    // `suppressed_lines` to thread), hence the empty map here.
-    diagnostics.extend(lift_analyser_diagnostics(
-        text,
-        &bidi,
-        &std::collections::HashMap::new(),
-    ));
-    diagnostics
-}
-
-/// Lift the compiler-checks pipeline (GVN redundancies,
-/// shimmer / thunking, taint W2xx / T1xx, iRules control-flow
-/// IRULE1xxx-5xxx, SCCP constant branches) **and** the optimiser
-/// O-codes into LSP diagnostics.
-///
-/// `diags` arrives already computed: the `compiler_check_diagnostics`
-/// query builds the compilation unit once and runs both the checks and
-/// the optimiser over it, so this function lowers nothing — it filters
-/// (master switch, per-code disables, inline suppressions) and lifts the
-/// survivors into LSP shape.
-fn lift_compiler_diagnostics(
-    text: &str,
-    diags: &tcl_lsp_db::CompilerDiagnostics,
-    optimiser_enabled: bool,
-    disabled_optimisations: &std::collections::HashSet<String>,
-    disabled_diagnostics: &std::collections::HashSet<String>,
-    suppressed_lines: &std::collections::HashMap<i32, HashSet<String>>,
-) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
-    use tcl_compiler::compiler_checks::Severity as CheckSeverity;
-    use tower_lsp_server::ls_types::{DiagnosticSeverity, NumberOrString};
-
-    let line_index = tcl_lexer::LineIndex::new_lsp(text);
-    let mut out: Vec<tower_lsp_server::ls_types::Diagnostic> = Vec::new();
-
-    // Compiler checks: GVN / shimmer / thunking / taint / iRules-flow / SCCP,
-    // all keyed off a single interprocedurally-summarised compilation unit whose
-    // per-procedure lattices are memoised by the salsa-native `function_lattice`
-    // query (so an unchanged procedure is built once and reused across edits
-    // *and* shared with the analyser tail).  The unit is built by the
-    // `compiler_check_diagnostics` query; here we only filter + lift.
-    // An optimiser O-code (`O1xx`) is gated by the `tclLsp.optimiser.enabled`
-    // master switch and the profile + per-code `disabled_optimisations` set,
-    // wherever it is emitted (some — e.g. the constant-branch `O100` — come
-    // from `run_all_checks` rather than `optimise_with_dialect`).
-    let optimiser_suppressed = |code: DiagCode| {
-        code.is_optimisation()
-            && (!optimiser_enabled || disabled_optimisations.contains(code.as_str()))
-    };
-    for d in &diags.checks {
-        let d = d.clone();
-        if optimiser_suppressed(d.code) {
-            continue;
-        }
-        // Per-check feature toggle (`tclLsp.diagnostics.<CODE> = false`).
-        // The analyser bakes the disabled set into its own build; the
-        // compiler-checks (S1xx shimmer, T1xx / W2xx taint, IRULE1xxx-5xxx flow,
-        // GVN, SCCP constant-branch) come through this separate lift, so the
-        // toggle is applied here too.
-        if disabled_diagnostics.contains(d.code.as_str()) {
-            continue;
-        }
-        let range = lift_span(text, &line_index, d.span);
-        // Inline `# noqa` / top-of-file suppression, through the same shared
-        // contract `lift_analyser_diagnostics` applies to the analyser families.
-        let start_line = i32::try_from(range.start.line).unwrap_or(i32::MAX);
-        if line_suppressed(d.code.as_str(), start_line, suppressed_lines) {
-            continue;
-        }
-        out.push(tower_lsp_server::ls_types::Diagnostic {
-            range,
-            severity: Some(match d.severity {
-                CheckSeverity::Error => DiagnosticSeverity::ERROR,
-                CheckSeverity::Warning => DiagnosticSeverity::WARNING,
-                CheckSeverity::Info => DiagnosticSeverity::INFORMATION,
-                CheckSeverity::Hint | CheckSeverity::Suggestion => DiagnosticSeverity::HINT,
-            }),
-            code: Some(NumberOrString::String(d.code.to_string())),
-            code_description: None,
-            source: Some("tcl-lsp".to_string()),
-            message: d.message,
-            related_information: None,
-            tags: None,
-            data: None,
-        });
-    }
-
-    // Optimiser O-codes — actionable + hint-only rewrites, surfaced
-    // as HINT-severity suggestions (the editor renders the code-action
-    // fix from the diagnostic). The
-    // `tclLsp.optimiser.enabled=false` master switch suppresses the whole
-    // block.
-    for o in diags
-        .optimisations
-        .iter()
-        .filter(|_| optimiser_enabled)
-        .cloned()
-    {
-        // Profile + per-code gate: the active profile disables whole O-code
-        // categories (the default `readability` profile surfaces only
-        // readability rewrites) and per-code `tclLsp.optimiser.O1xx=false`
-        // overrides add to that.
-        if disabled_optimisations.contains(o.code.as_str()) {
-            continue;
-        }
-        let range = lift_span(text, &line_index, o.span);
-        // Inline `# noqa` / top-of-file suppression, as in the `.checks` loop.
-        let start_line = i32::try_from(range.start.line).unwrap_or(i32::MAX);
-        if line_suppressed(o.code.as_str(), start_line, suppressed_lines) {
-            continue;
-        }
-        // Surface the fold/rewrite text as the quick-fix `data.replacement`, so
-        // editors and the e2e battery can apply the suggested replacement.
-        // Never for a `hint_only` optimisation: its span covers the whole
-        // consuming statement (there is no precise sub-span to target), so
-        // splicing `replacement` in at `[startOffset, endOffset)` would
-        // replace the entire statement with a bare fragment — e.g. an O102
-        // hint on `set v [expr {$a * 2}]` carries replacement `"5"` and
-        // would corrupt the statement into the standalone literal `5` if
-        // ever applied. A hint-only diagnostic is informational only; it
-        // must never advertise an auto-apply payload.
-        let data = (!o.hint_only && !o.replacement.is_empty()).then(|| {
-            serde_json::json!({
-                "replacement": o.replacement,
-                "startOffset": o.span.start(),
-                "endOffset": o.span.end(),
-            })
-        });
-        out.push(tower_lsp_server::ls_types::Diagnostic {
-            range,
-            severity: Some(DiagnosticSeverity::HINT),
-            code: Some(NumberOrString::String(o.code.to_string())),
-            code_description: None,
-            source: Some("tcl-lsp".to_string()),
-            message: o.message,
-            related_information: None,
-            tags: None,
-            data,
-        });
-    }
-
-    out
-}
-
-/// Keep one user-facing squiggle when the analyser's W110 and optimiser's
-/// O120 identify the same string-comparison operator.  W110 owns this case at
-/// the LSP boundary: it is the semantics-aware analyser warning and is the
-/// diagnostic used by the safe-fix path.  O120 is still published when W110
-/// is absent (for optimiser-only callers and when the analyser has been
-/// disabled), and distinct ranges are never coalesced.
-fn suppress_duplicate_o120(diagnostics: &mut Vec<tower_lsp_server::ls_types::Diagnostic>) {
-    let w110_ranges: Vec<_> = diagnostics
-        .iter()
-        .filter(|d| {
-            matches!(
-                d.code.as_ref(),
-                Some(tower_lsp_server::ls_types::NumberOrString::String(code)) if code == "W110"
-            )
-        })
-        .map(|d| d.range)
-        .collect();
-    if w110_ranges.is_empty() {
-        return;
-    }
-    diagnostics.retain(|d| {
-        !(matches!(
-            d.code.as_ref(),
-            Some(tower_lsp_server::ls_types::NumberOrString::String(code)) if code == "O120"
-        ) && w110_ranges.contains(&d.range))
-    });
-}
-
 /// Build an empty `DocumentDiagnosticReportResult` for callers
 /// that hit a no-document or no-analysis path.
 fn empty_diagnostic_report() -> DocumentDiagnosticReportResult {
@@ -30797,8 +30182,8 @@ fn lift_folding_range(r: tcl_lsp_core::folding::FoldingRange) -> FoldingRange {
 mod tests {
     use super::*;
     use tower_lsp_server::ls_types::{
-        Diagnostic, DiagnosticSeverity, NumberOrString, PartialResultParams, Range,
-        ReferenceContext, TextDocumentIdentifier, WorkDoneProgressParams,
+        PartialResultParams, Range, ReferenceContext, TextDocumentIdentifier,
+        WorkDoneProgressParams,
     };
 
     /// `bounded_client_request` must turn a request that never resolves into
@@ -30901,44 +30286,6 @@ mod tests {
             starts_worker,
             "an edit after clean-slot retirement must start a diagnostics worker"
         );
-    }
-
-    fn lifted_diag(code: &str, range: Range) -> Diagnostic {
-        Diagnostic {
-            range,
-            severity: Some(DiagnosticSeverity::WARNING),
-            code: Some(NumberOrString::String(code.to_owned())),
-            code_description: None,
-            source: Some("test".to_owned()),
-            message: code.to_owned(),
-            related_information: None,
-            tags: None,
-            data: None,
-        }
-    }
-
-    #[test]
-    fn duplicate_o120_is_removed_only_for_matching_w110_range() {
-        let same = Range::new(Position::new(1, 2), Position::new(1, 4));
-        let other = Range::new(Position::new(3, 0), Position::new(3, 2));
-        let mut diagnostics = vec![
-            lifted_diag("W110", same),
-            lifted_diag("O120", same),
-            lifted_diag("O120", other),
-        ];
-        suppress_duplicate_o120(&mut diagnostics);
-        let codes: Vec<_> = diagnostics
-            .iter()
-            .filter_map(|d| match d.code.as_ref() {
-                Some(NumberOrString::String(code)) => Some(code.as_str()),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(codes, ["W110", "O120"]);
-
-        let mut optimiser_only = vec![lifted_diag("O120", same)];
-        suppress_duplicate_o120(&mut optimiser_only);
-        assert_eq!(optimiser_only.len(), 1, "O120 survives without W110");
     }
 
     /// A throwaway directory under the system temp dir, removed on drop.
@@ -32313,28 +31660,43 @@ mod tests {
         );
     }
 
+    /// A policy with every optimisation on and nothing configured — what the
+    /// old lifts took as `optimiser_enabled = true` and empty sets.
+    fn open_policy() -> core_policy::Policy {
+        let mut policy = core_policy::PolicyBuilder::new().build();
+        policy.optimiser = core_policy::OptimiserPolicy::all_on();
+        policy
+    }
+
+    /// The wire set of `src`'s compiler checks and rewrites under `policy`,
+    /// through the one report path every publish path takes.
+    fn lifted_compiler_set(
+        src: &str,
+        registry: &CommandRegistry,
+        dialect: &str,
+        policy: &core_policy::Policy,
+    ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+        let diags =
+            tcl_lsp_db::compiler_check_diagnostics_uncached(src, registry, dialect, None, None);
+        lift_report(src, &core_policy::apply(compiler_findings(&diags), policy))
+    }
+
+    fn has_code(diags: &[tower_lsp_server::ls_types::Diagnostic], code: &str) -> bool {
+        diags.iter().any(|d| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == code))
+    }
+
     /// The constant-true `if` is folded by SCCP and surfaced
     /// as an `O100` constant-branch diagnostic from `run_all_checks`.
     /// The base analyser never emits it, so a non-empty result with an
-    /// O-code proves `lift_compiler_diagnostics` carries the compiler-
-    /// check pipeline's output into the published diagnostic set.
+    /// O-code proves the compiler-check pipeline's output reaches the
+    /// published diagnostic set.
     #[test]
-    fn lift_compiler_diagnostics_surfaces_compiler_check_codes() {
+    fn the_report_surfaces_compiler_check_codes() {
         let registry = CommandRegistry::build_default();
         let src = "if {1} { set x 1 } else { set y 2 }\n";
-        let diags = lift_compiler_diagnostics(
-            src,
-            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "", None, None),
-            true,
-            &std::collections::HashSet::new(),
-            &std::collections::HashSet::new(),
-            &std::collections::HashMap::new(),
-        );
+        let diags = lifted_compiler_set(src, &registry, "", &open_policy());
         assert!(
-            diags.iter().any(|d| matches!(
-                &d.code,
-                Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "O100"
-            )),
+            has_code(&diags, "O100"),
             "expected an O100 constant-branch diagnostic, got: {:?}",
             diags.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
         );
@@ -32343,67 +31705,42 @@ mod tests {
     }
 
     #[test]
-    fn lift_compiler_diagnostics_honours_optimiser_master_switch_and_per_code() {
+    fn the_report_honours_the_optimiser_master_switch_and_per_code_set() {
         let registry = CommandRegistry::build_default();
         let src = "if {1} { set x 1 } else { set y 2 }\n";
-        let is_o100 = |d: &tower_lsp_server::ls_types::Diagnostic| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "O100");
         // Master switch off: no optimiser O-codes at all (compiler checks still run).
-        let off = lift_compiler_diagnostics(
-            src,
-            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "", None, None),
-            false,
-            &std::collections::HashSet::new(),
-            &std::collections::HashSet::new(),
-            &std::collections::HashMap::new(),
-        );
+        let mut off = open_policy();
+        off.optimiser.enabled = false;
+        let diags = lifted_compiler_set(src, &registry, "", &off);
         assert!(
-            !off.iter().any(is_o100),
+            !has_code(&diags, "O100"),
             "O100 must be suppressed when the optimiser master switch is off: {:?}",
-            off.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
+            diags.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
         );
         // Per-code disable: O100 specifically suppressed even with the optimiser on.
-        let mut disabled = std::collections::HashSet::new();
-        disabled.insert("O100".to_string());
-        let per_code = lift_compiler_diagnostics(
-            src,
-            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "", None, None),
-            true,
-            &disabled,
-            &std::collections::HashSet::new(),
-            &std::collections::HashMap::new(),
-        );
+        let mut per_code = open_policy();
+        per_code.optimiser.disabled.insert(DiagCode::O100);
+        let diags = lifted_compiler_set(src, &registry, "", &per_code);
         assert!(
-            !per_code.iter().any(is_o100),
+            !has_code(&diags, "O100"),
             "O100 must be suppressed when disabled per-code: {:?}",
-            per_code.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
+            diags.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
         );
     }
 
     /// An iRules taint flow (`HTTP::uri` → `HTTP::respond`) is an
     /// IRULE3001 the base analyser does not emit; the dialect-aware
-    /// registry path must surface it through `lift_compiler_diagnostics`.
+    /// registry path must surface it through the report.
     #[test]
-    fn lift_compiler_diagnostics_surfaces_irules_taint_flow() {
+    fn the_report_surfaces_irules_taint_flow() {
         let registry = tcl_registry::model::ingress::static_context_for_profile(
             tcl_dialect::DialectProfile::irules(),
         )
         .commands();
         let src = "set u [HTTP::uri]\nHTTP::respond 200 content $u\n";
-        let cdiags =
-            tcl_lsp_db::compiler_check_diagnostics_uncached(src, registry, "f5-irules", None, None);
-        let diags = lift_compiler_diagnostics(
-            src,
-            &cdiags,
-            true,
-            &std::collections::HashSet::new(),
-            &std::collections::HashSet::new(),
-            &std::collections::HashMap::new(),
-        );
+        let diags = lifted_compiler_set(src, registry, "f5-irules", &open_policy());
         assert!(
-            diags.iter().any(|d| matches!(
-                &d.code,
-                Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "IRULE3001"
-            )),
+            has_code(&diags, "IRULE3001"),
             "expected IRULE3001, got: {:?}",
             diags.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
         );
@@ -32411,234 +31748,143 @@ mod tests {
 
     /// A per-check feature toggle (`tclLsp.diagnostics.<CODE> = false`)
     /// must suppress a compiler-*check* code — not just the analyser families.
-    /// IRULE3001 comes through the compiler-checks lift, so disabling it via the
-    /// `disabled_diagnostics` set must drop it from the published set while
-    /// leaving other codes untouched.
     #[test]
-    fn lift_compiler_diagnostics_honours_per_check_disable() {
+    fn the_report_honours_a_per_check_disable() {
         let registry = tcl_registry::model::ingress::static_context_for_profile(
             tcl_dialect::DialectProfile::irules(),
         )
         .commands();
         let src = "set u [HTTP::uri]\nHTTP::respond 200 content $u\n";
-        let cdiags =
-            tcl_lsp_db::compiler_check_diagnostics_uncached(src, registry, "f5-irules", None, None);
-        let is_irule3001 = |d: &tower_lsp_server::ls_types::Diagnostic| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "IRULE3001");
-        // Baseline: IRULE3001 is present with no disabled codes.
-        let baseline = lift_compiler_diagnostics(
-            src,
-            &cdiags,
-            true,
-            &std::collections::HashSet::new(),
-            &std::collections::HashSet::new(),
-            &std::collections::HashMap::new(),
-        );
+        let baseline = lifted_compiler_set(src, registry, "f5-irules", &open_policy());
         assert!(
-            baseline.iter().any(is_irule3001),
+            has_code(&baseline, "IRULE3001"),
             "expected IRULE3001 baseline"
         );
-        // Disable IRULE3001 via the per-check toggle: it must disappear.
-        let mut disabled_diagnostics = std::collections::HashSet::new();
-        disabled_diagnostics.insert("IRULE3001".to_string());
-        let filtered = lift_compiler_diagnostics(
-            src,
-            &cdiags,
-            true,
-            &std::collections::HashSet::new(),
-            &disabled_diagnostics,
-            &std::collections::HashMap::new(),
-        );
+        let mut policy = core_policy::PolicyBuilder::new()
+            .layer(
+                core_policy::PolicyLayer::Editor,
+                &serde_json::json!({ "diagnostics": { "IRULE3001": false } }),
+            )
+            .build();
+        policy.optimiser = core_policy::OptimiserPolicy::all_on();
+        let filtered = lifted_compiler_set(src, registry, "f5-irules", &policy);
         assert!(
-            !filtered.iter().any(is_irule3001),
+            !has_code(&filtered, "IRULE3001"),
             "IRULE3001 must be suppressed when disabled per-check: {:?}",
             filtered.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
         );
     }
 
     /// `# noqa: S100` on the line before the shimmering command must suppress
-    /// it through the live compiler-checks lift, which carries the directive
-    /// for every code in that family (S1xx shimmer, T1xx taint,
-    /// IRULE1xxx-5xxx, O1xx, GVN, SCCP).
+    /// it through the report, which carries the directive for every code in
+    /// that family (S1xx shimmer, T1xx taint, IRULE1xxx-5xxx, O1xx, GVN, SCCP).
     #[test]
-    fn lift_compiler_diagnostics_honours_inline_noqa_suppression() {
+    fn the_report_honours_an_inline_noqa_on_a_compiler_check() {
         let registry = CommandRegistry::build_default();
-        let src = "set x hello\nincr x\n";
-        let is_s100 = |d: &tower_lsp_server::ls_types::Diagnostic| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "S100");
+        let baseline = lifted_compiler_set("set x hello\nincr x\n", &registry, "", &open_policy());
+        assert!(has_code(&baseline, "S100"), "expected S100 baseline");
 
-        // Baseline: S100 fires with no suppression.
-        let baseline = lift_compiler_diagnostics(
-            src,
-            &tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "", None, None),
-            true,
-            &std::collections::HashSet::new(),
-            &std::collections::HashSet::new(),
-            &std::collections::HashMap::new(),
-        );
-        assert!(baseline.iter().any(is_s100), "expected S100 baseline");
-
-        // `# noqa: S100` on the line before `incr x` suppresses it.
-        let suppressed_src = "set x hello\n# noqa: S100\nincr x\n";
-        let suppressed_lines = Analyser::new()
-            .analyse(suppressed_src, "tcl8.6")
-            .suppressed_lines
-            .clone();
-        let filtered = lift_compiler_diagnostics(
-            suppressed_src,
-            &tcl_lsp_db::compiler_check_diagnostics_uncached(
-                suppressed_src,
-                &registry,
-                "",
-                None,
-                None,
-            ),
-            true,
-            &std::collections::HashSet::new(),
-            &std::collections::HashSet::new(),
-            &suppressed_lines,
-        );
+        let with_directives = |src: &str| {
+            let analysis = Analyser::new().analyse(src, "tcl8.6");
+            let mut policy = core_policy::PolicyBuilder::new()
+                .directives(core_policy::Directives::from_analysis(&analysis, src))
+                .build();
+            policy.optimiser = core_policy::OptimiserPolicy::all_on();
+            lifted_compiler_set(src, &registry, "", &policy)
+        };
+        let filtered = with_directives("set x hello\n# noqa: S100\nincr x\n");
         assert!(
-            !filtered.iter().any(is_s100),
+            !has_code(&filtered, "S100"),
             "S100 must be suppressed by a preceding '# noqa: S100', got: {:?}",
             filtered.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
         );
-
         // TN control: a `# noqa` for an unrelated code must not incidentally
         // suppress S100.
-        let unrelated_src = "set x hello\n# noqa: W999\nincr x\n";
-        let unrelated_suppressed = Analyser::new()
-            .analyse(unrelated_src, "tcl8.6")
-            .suppressed_lines
-            .clone();
-        let unfiltered = lift_compiler_diagnostics(
-            unrelated_src,
-            &tcl_lsp_db::compiler_check_diagnostics_uncached(
-                unrelated_src,
-                &registry,
-                "",
-                None,
-                None,
-            ),
-            true,
-            &std::collections::HashSet::new(),
-            &std::collections::HashSet::new(),
-            &unrelated_suppressed,
-        );
+        let unfiltered = with_directives("set x hello\n# noqa: W999\nincr x\n");
         assert!(
-            unfiltered.iter().any(is_s100),
-            "S100 must still fire when the preceding noqa names an unrelated code: {:?}",
-            unfiltered
+            has_code(&unfiltered, "S100"),
+            "an unrelated '# noqa: W999' must not suppress S100"
+        );
+    }
+
+    /// W110 owns the string-comparison site it shares with O120: the report
+    /// keeps one squiggle where the two coincide and both where they do not.
+    #[test]
+    fn the_report_keeps_one_squiggle_where_w110_and_o120_coincide() {
+        use tcl_lexer::Span;
+        let finding =
+            |code: DiagCode, span: Span, producer: core_policy::Producer| core_policy::Finding {
+                code,
+                span,
+                severity: tcl_core_types::Severity::Warning,
+                message: code.to_string(),
+                fixes: Vec::new(),
+                data: None,
+                producer,
+            };
+        let same = Span::new(2, 4);
+        let other = Span::new(10, 12);
+        let policy = open_policy();
+        let report = core_policy::apply(
+            vec![
+                finding(DiagCode::W110, same, core_policy::Producer::Analyser),
+                finding(DiagCode::O120, same, core_policy::Producer::Optimiser),
+                finding(DiagCode::O120, other, core_policy::Producer::Optimiser),
+            ],
+            &policy,
+        );
+        let codes: Vec<String> = report.shown().map(|s| s.finding.code.to_string()).collect();
+        assert_eq!(codes, ["W110", "O120"]);
+        let alone = core_policy::apply(
+            vec![finding(
+                DiagCode::O120,
+                same,
+                core_policy::Producer::Optimiser,
+            )],
+            &policy,
+        );
+        assert_eq!(alone.shown().count(), 1, "O120 survives without W110");
+    }
+
+    /// `tclLsp.diagnosticSeverity.<CODE>` relabels a shown finding on the
+    /// wire and leaves every other code at the producer's severity.
+    #[test]
+    fn the_report_relabels_a_code_the_editor_layer_overrides() {
+        let text = "set x 1   \nputs $y\n";
+        let layers = PolicyLayers {
+            editor: serde_json::json!({ "diagnosticSeverity": { "W112": "error" } }),
+            ..PolicyLayers::default()
+        };
+        let dialect = tcl_lsp_core::profile_for_dialect("tcl9.0");
+        let policy = document_policy(&layers, None, dialect, core_policy::Directives::none());
+        let doc = core_report::DocumentSource {
+            text,
+            analysis_text: text,
+            decode: None,
+            dialect,
+            pass: core_report::SourcePass::Tcl {
+                line_length: tcl_lsp_core::source_style::DEFAULT_LINE_LENGTH,
+            },
+        };
+        let analysis = Analyser::new().analyse(text, "tcl9.0");
+        let report =
+            core_report::document_report(&doc, analyser_findings(&analysis.diagnostics), &policy);
+        let diags = lift_report(text, &report);
+        let severity_of = |code: &str| {
+            diags
                 .iter()
-                .map(|d| d.code.clone())
-                .collect::<Vec<_>>(),
-        );
-    }
-
-    fn pos(line: u32, character: u32) -> Position {
-        Position { line, character }
-    }
-
-    #[test]
-    fn parse_non_ascii_mode_maps_settings() {
-        assert_eq!(parse_non_ascii_mode("off"), NonAsciiMode::Off);
-        assert_eq!(parse_non_ascii_mode("strict"), NonAsciiMode::Strict);
+                .find(|d| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == code))
+                .and_then(|d| d.severity)
+        };
         assert_eq!(
-            parse_non_ascii_mode("confusables"),
-            NonAsciiMode::Confusables
+            severity_of("W112"),
+            Some(tower_lsp_server::ls_types::DiagnosticSeverity::ERROR)
         );
-        assert_eq!(parse_non_ascii_mode("common"), NonAsciiMode::Common);
-        assert_eq!(parse_non_ascii_mode("bogus"), NonAsciiMode::Default);
-    }
-
-    #[test]
-    fn settings_non_ascii_mode_nested_and_flat() {
-        let nested = serde_json::json!({"tclLsp": {"style": {"nonAscii": "common"}}});
-        assert_eq!(settings_non_ascii_mode(&nested), Some(NonAsciiMode::Common));
-        let flat = serde_json::json!({"tclLsp.style.nonAscii": "off"});
-        assert_eq!(settings_non_ascii_mode(&flat), Some(NonAsciiMode::Off));
-        let none = serde_json::json!({"tclLsp": {"dialect": "tcl9.0"}});
-        assert_eq!(settings_non_ascii_mode(&none), None);
-    }
-
-    #[test]
-    fn semantic_tokens_capability_advertises_delta_and_range() {
-        use tower_lsp_server::ls_types::SemanticTokensServerCapabilities as Cap;
-        let Cap::SemanticTokensOptions(o) = semantic_tokens_capability() else {
-            panic!("expected SemanticTokensOptions");
-        };
-        assert_eq!(o.range, Some(true));
-        assert!(matches!(
-            o.full,
-            Some(SemanticTokensFullOptions::Delta { delta: Some(true) })
-        ));
-    }
-
-    #[test]
-    fn settings_severity_overrides_nested_and_flat() {
-        use tower_lsp_server::ls_types::DiagnosticSeverity;
-        // Nested shape: recognised values map (case-insensitively); "default"
-        // and unknown values mean "no override" and are skipped.
-        let nested = serde_json::json!({
-            "tclLsp": {"diagnosticSeverity": {
-                "W211": "warning",
-                "W220": "Error",
-                "W210": "info",
-                "W214": "default",
-                "W111": "loud",
-            }}
-        });
-        let got = settings_severity_overrides(&nested).unwrap();
-        assert_eq!(got.get("W211"), Some(&DiagnosticSeverity::WARNING));
-        assert_eq!(got.get("W220"), Some(&DiagnosticSeverity::ERROR));
-        assert_eq!(got.get("W210"), Some(&DiagnosticSeverity::INFORMATION));
-        assert!(!got.contains_key("W214"), "'default' must not override");
-        assert!(!got.contains_key("W111"), "unknown value must be skipped");
-        // Flat-dotted shape.
-        let flat = serde_json::json!({
-            "tclLsp.diagnosticSeverity.W211": "hint",
-            "tclLsp.diagnosticSeverity.S100": "warning",
-        });
-        let got = settings_severity_overrides(&flat).unwrap();
-        assert_eq!(got.get("W211"), Some(&DiagnosticSeverity::HINT));
-        assert_eq!(got.get("S100"), Some(&DiagnosticSeverity::WARNING));
-        // No diagnosticSeverity section -> None (leave current map untouched);
-        // an explicit empty section -> Some(empty) (clear all overrides).
-        assert!(settings_severity_overrides(&serde_json::json!({"x": 1})).is_none());
-        let cleared =
-            settings_severity_overrides(&serde_json::json!({"tclLsp": {"diagnosticSeverity": {}}}))
-                .unwrap();
-        assert!(cleared.is_empty());
-    }
-
-    #[test]
-    fn apply_severity_overrides_relabels_only_listed_codes() {
-        use tower_lsp_server::ls_types::{
-            Diagnostic, DiagnosticSeverity, NumberOrString, Position, Range,
-        };
-        let mk = |code: &str, sev: DiagnosticSeverity| Diagnostic {
-            range: Range::new(Position::new(0, 0), Position::new(0, 1)),
-            severity: Some(sev),
-            code: Some(NumberOrString::String(code.to_owned())),
-            code_description: None,
-            source: Some("tcl-lsp".to_owned()),
-            message: String::new(),
-            related_information: None,
-            tags: None,
-            data: None,
-        };
-        let mut diags = vec![
-            mk("W211", DiagnosticSeverity::HINT),
-            mk("W220", DiagnosticSeverity::HINT),
-        ];
-        let overrides =
-            std::collections::HashMap::from([("W211".to_owned(), DiagnosticSeverity::WARNING)]);
-        apply_severity_overrides(&mut diags, &overrides);
-        assert_eq!(diags[0].severity, Some(DiagnosticSeverity::WARNING));
-        // A code not in the map keeps its emitted severity.
-        assert_eq!(diags[1].severity, Some(DiagnosticSeverity::HINT));
-        // An empty map is a no-op.
-        let before = diags.clone();
-        apply_severity_overrides(&mut diags, &std::collections::HashMap::new());
-        assert_eq!(diags, before);
+        assert_eq!(
+            severity_of("W210"),
+            Some(tower_lsp_server::ls_types::DiagnosticSeverity::WARNING),
+            "an unlisted code keeps the producer's severity"
+        );
     }
 
     #[test]
@@ -33885,31 +33131,38 @@ mod tests {
         );
     }
 
+    fn pos(line: u32, character: u32) -> Position {
+        Position { line, character }
+    }
+
+    /// The wire set of the source-style pass over `src` under `policy`.
+    fn lifted_style_set(
+        src: &str,
+        policy: &core_policy::Policy,
+    ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+        let doc = core_report::DocumentSource {
+            text: src,
+            analysis_text: src,
+            decode: None,
+            dialect: tcl_lsp_core::profile_for_dialect("tcl9.0"),
+            pass: core_report::SourcePass::Tcl {
+                line_length: tcl_lsp_core::source_style::DEFAULT_LINE_LENGTH,
+            },
+        };
+        lift_report(src, &core_report::document_report(&doc, Vec::new(), policy))
+    }
+
     /// The source-style pass must reach the
     /// published set.  A long line + trailing whitespace + CRLF
     /// endings exercise W111 / W112 / W118 — none of which the
     /// analyser or compiler-check pipelines emit — so a non-empty
-    /// result with those codes proves `lift_source_style_diagnostics`
-    /// is wired in.
+    /// result with those codes proves the report runs the pass.
     #[test]
-    fn lift_source_style_diagnostics_surfaces_style_codes() {
+    fn the_report_surfaces_style_codes() {
         let long = "x".repeat(130);
         let src = format!("{long}  \r\nputs ok\r\n");
-        let diags = lift_source_style_diagnostics(
-            &src,
-            None,
-            &std::collections::HashMap::new(),
-            &std::collections::HashSet::new(),
-            tcl_lsp_core::source_style::DEFAULT_LINE_LENGTH,
-            tcl_lsp_core::profile_for_dialect("tcl9.0"),
-        );
-        let codes: Vec<String> = diags
-            .iter()
-            .filter_map(|d| match &d.code {
-                Some(tower_lsp_server::ls_types::NumberOrString::String(c)) => Some(c.clone()),
-                _ => None,
-            })
-            .collect();
+        let diags = lifted_style_set(&src, &core_policy::PolicyBuilder::new().build());
+        let codes = diag_codes(&diags);
         for want in ["W111", "W112", "W118"] {
             assert!(
                 codes.iter().any(|c| c == want),
@@ -33924,27 +33177,16 @@ mod tests {
     /// W111 from the lifted style set while leaving the other style
     /// codes intact.
     #[test]
-    fn lift_source_style_diagnostics_honours_file_suppression() {
+    fn the_report_honours_a_file_directive_on_the_style_pass() {
         let long = "y".repeat(130);
         let src = format!("{long}  \n");
         let mut suppressed: std::collections::HashMap<i32, std::collections::HashSet<String>> =
             std::collections::HashMap::new();
         suppressed.insert(-1, std::iter::once("W111".to_string()).collect());
-        let diags = lift_source_style_diagnostics(
-            &src,
-            None,
-            &suppressed,
-            &std::collections::HashSet::new(),
-            tcl_lsp_core::source_style::DEFAULT_LINE_LENGTH,
-            tcl_lsp_core::profile_for_dialect("tcl9.0"),
-        );
-        let codes: Vec<String> = diags
-            .iter()
-            .filter_map(|d| match &d.code {
-                Some(tower_lsp_server::ls_types::NumberOrString::String(c)) => Some(c.clone()),
-                _ => None,
-            })
-            .collect();
+        let policy = core_policy::PolicyBuilder::new()
+            .directives(core_policy::Directives::new(suppressed, &src))
+            .build();
+        let codes = diag_codes(&lifted_style_set(&src, &policy));
         assert!(
             !codes.iter().any(|c| c == "W111"),
             "W111 should be suppressed"
@@ -33965,50 +33207,82 @@ mod tests {
             .collect()
     }
 
+    /// The F5 model report of `src` under an editor layer, with no bytes.
+    fn f5_model_set(
+        src: &str,
+        dialect: &str,
+        editor: serde_json::Value,
+        produced: Vec<core_policy::Finding>,
+    ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+        let layers = PolicyLayers {
+            editor,
+            ..PolicyLayers::default()
+        };
+        f5_model_report(
+            &F5ModelDocument {
+                text: src,
+                analysis_text: src,
+                decode_report: None,
+                dialect: tcl_lsp_core::profile_for_dialect(dialect),
+            },
+            &layers,
+            &HashSet::new(),
+            produced,
+        )
+    }
+
     /// A BIG-IP config that references a pool not defined in the config
-    /// surfaces `BIGIP6002` through the validator-lift, tagged `tcl-lsp`.
+    /// surfaces `BIGIP6002` through the validator's findings and the F5
+    /// report, tagged `tcl-lsp`.
     #[test]
-    fn bigip_config_diagnostics_surfaces_codes() {
+    fn bigip_config_findings_surface_codes() {
         let src =
             "ltm rule /Common/r {\n  when HTTP_REQUEST {\n    pool /Common/no_such_pool\n  }\n}\n";
-        let diags = bigip_config_diagnostics(src, &HashSet::new());
+        let findings = bigip_config_findings(src);
+        assert!(
+            findings.iter().any(|f| f.code == DiagCode::Bigip6002),
+            "expected BIGIP6002, got: {findings:?}",
+        );
+        let diags = f5_model_set(src, "f5-bigip", serde_json::json!({}), findings);
         let codes = diag_codes(&diags);
         assert!(
             codes.iter().any(|c| c == "BIGIP6002"),
-            "expected BIGIP6002, got: {codes:?}",
+            "expected BIGIP6002 on the wire, got: {codes:?}",
         );
         assert!(diags.iter().all(|d| d.source.as_deref() == Some("tcl-lsp")));
     }
 
     /// A disabled BIG-IP code (`tclLsp.diagnostics.BIGIP6002 = false`) is
-    /// filtered from the lifted set.
+    /// hidden by the report.
     #[test]
-    fn bigip_config_diagnostics_honours_disabled() {
+    fn the_f5_report_honours_a_disabled_model_code() {
         let src =
             "ltm rule /Common/r {\n  when HTTP_REQUEST {\n    pool /Common/no_such_pool\n  }\n}\n";
-        let disabled: HashSet<String> = std::iter::once("BIGIP6002".to_owned()).collect();
-        let codes = diag_codes(&bigip_config_diagnostics(src, &disabled));
+        let codes = diag_codes(&f5_model_set(
+            src,
+            "f5-bigip",
+            serde_json::json!({ "diagnostics": { "BIGIP6002": false } }),
+            bigip_config_findings(src),
+        ));
         assert!(
             !codes.iter().any(|c| c == "BIGIP6002"),
-            "BIGIP6002 should be filtered, got: {codes:?}",
+            "BIGIP6002 should be hidden, got: {codes:?}",
         );
     }
 
     /// An iApp APL presentation field never referenced by the (cross-file)
     /// implementation surfaces `IAPP7002`.
     #[test]
-    fn apl_presentation_diagnostics_surfaces_codes() {
+    fn apl_presentation_findings_surface_codes() {
         let refs = tcl_bigip::apl::extract_iapp_var_refs("set x $::basic__addr");
-        let diags = apl_presentation_diagnostics(
-            "section basic {\n  string addr\n  string port\n}\n",
-            Some(&refs),
-            &HashSet::new(),
-        );
-        let codes = diag_codes(&diags);
+        let src = "section basic {\n  string addr\n  string port\n}\n";
+        let findings = apl_presentation_findings(src, Some(&refs));
         assert!(
-            codes.iter().any(|c| c == "IAPP7002"),
-            "expected IAPP7002 for the unreferenced 'port' field, got: {codes:?}",
+            findings.iter().any(|f| f.code.as_str() == "IAPP7002"),
+            "expected IAPP7002 for the unreferenced 'port' field, got: {findings:?}",
         );
+        let diags = f5_model_set(src, "f5-iapps", serde_json::json!({}), findings);
+        assert!(diag_codes(&diags).iter().any(|c| c == "IAPP7002"));
         assert!(diags.iter().all(|d| d.source.as_deref() == Some("tcl-lsp")));
     }
 
@@ -34027,32 +33301,37 @@ mod tests {
         assert!(!is_apl_source(&plain, "tcl"));
     }
 
-    /// A `tcl_bigip` validator range carries an *inclusive* end column; the
-    /// LSP lift makes it exclusive (`end.character + 1`).
+    /// A `tcl_bigip` validator range carries an *inclusive* end; the
+    /// conversion to a finding makes it exclusive, so the wire range ends
+    /// one past the last character.
     #[test]
-    fn lift_config_diagnostic_makes_end_exclusive() {
-        let pos = tcl_bigip::Position {
-            line: 3,
-            character: 5,
-            offset: 0,
-        };
-        let end = tcl_bigip::Position {
-            line: 3,
-            character: 9,
-            offset: 0,
+    fn a_model_finding_lifts_with_an_exclusive_end() {
+        let src = "ltm rule /Common/r {\n  x\n}\n";
+        // `x` is byte 23: line 1, character 2.
+        let at_x = tcl_bigip::Position {
+            line: 1,
+            character: 2,
+            offset: 23,
         };
         let d = tcl_bigip::validator::ConfigDiagnostic {
             code: "BIGIP6002".to_owned(),
             message: "x".to_owned(),
             severity: tcl_bigip::validator::DiagSeverity::Warning,
             subject: tcl_bigip::validator::ConfigDiagnosticSubject::IRule,
-            range: tcl_bigip::Range { start: pos, end },
+            range: tcl_bigip::Range {
+                start: at_x,
+                end: at_x,
+            },
         };
-        let lifted = lift_config_diagnostic(&d);
-        assert_eq!(lifted.range.start.line, 3);
-        assert_eq!(lifted.range.start.character, 5);
-        assert_eq!(lifted.range.end.line, 3);
-        assert_eq!(lifted.range.end.character, 10);
+        let diags = f5_model_set(src, "f5-bigip", serde_json::json!({}), model_findings(&[d]));
+        let lifted = diags
+            .iter()
+            .find(|d| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "BIGIP6002"))
+            .expect("the model finding is shown");
+        assert_eq!(lifted.range.start.line, 1);
+        assert_eq!(lifted.range.start.character, 2);
+        assert_eq!(lifted.range.end.line, 1);
+        assert_eq!(lifted.range.end.character, 3);
         assert_eq!(
             lifted.severity,
             Some(tower_lsp_server::ls_types::DiagnosticSeverity::WARNING)
@@ -34139,30 +33418,29 @@ mod tests {
             .collect();
         let (text, report) = tcl_lsp_core::source_decode::decode_source(&bytes);
         assert!(report.requires_abstention());
-        let disabled = ["W109".to_owned()].into_iter().collect();
-        let mut diagnostics = vec![tower_lsp_server::ls_types::Diagnostic {
-            range: Range::default(),
-            severity: Some(tower_lsp_server::ls_types::DiagnosticSeverity::WARNING),
-            code: Some(tower_lsp_server::ls_types::NumberOrString::String(
-                "BIGIP6002".to_owned(),
-            )),
-            code_description: None,
-            source: Some("tcl-lsp".to_owned()),
+        let derived = core_policy::Finding {
+            code: DiagCode::Bigip6002,
+            span: tcl_lexer::Span::new(0, 1),
+            severity: tcl_core_types::Severity::Warning,
             message: "derived from mis-decoded bytes".to_owned(),
-            related_information: None,
-            tags: None,
+            fixes: Vec::new(),
             data: None,
-        }];
-        diagnostics.extend(lift_f5_source_integrity_diagnostics(
-            &text,
-            Some(&report),
-            &disabled,
-            tcl_lsp_core::profile_for_dialect("f5-tmsh"),
-        ));
-        finalise_diagnostics(
-            &mut diagnostics,
-            &std::collections::HashMap::new(),
-            report.requires_abstention(),
+            producer: core_policy::Producer::BigipModel,
+        };
+        let layers = PolicyLayers {
+            editor: serde_json::json!({ "diagnostics": { "W109": false } }),
+            ..PolicyLayers::default()
+        };
+        let diagnostics = f5_model_report(
+            &F5ModelDocument {
+                text: &text,
+                analysis_text: &text,
+                decode_report: Some(&report),
+                dialect: tcl_lsp_core::profile_for_dialect("f5-tmsh"),
+            },
+            &layers,
+            &HashSet::new(),
+            vec![derived],
         );
         assert!(
             diagnostics.is_empty(),
@@ -34170,13 +33448,15 @@ mod tests {
         );
     }
 
-    /// `lift_xc_diagnostics` surfaces the XC translatability codes for an
-    /// iRule and filters those the editor disabled.
+    /// `xc_findings` surfaces the XC translatability codes for an iRule, and
+    /// the report hides those the editor disabled.
     #[test]
-    fn lift_xc_diagnostics_surfaces_and_filters_codes() {
+    fn xc_findings_surface_and_the_report_filters_codes() {
         let src = "when HTTP_REQUEST {\n    pool my_pool\n}";
-        let no_suppress = std::collections::HashMap::new();
-        let diags = lift_xc_diagnostics(src, &HashSet::new(), &no_suppress);
+        let diags = lift_report(
+            src,
+            &core_policy::apply(xc_findings(src), &core_policy::PolicyBuilder::new().build()),
+        );
         let codes = diag_codes(&diags);
         assert!(
             codes.iter().any(|c| c == "XC100"),
@@ -34185,8 +33465,13 @@ mod tests {
         assert!(diags.iter().all(|d| d.source.as_deref() == Some("tcl-lsp")));
 
         // Disabling XC100 drops it from the lifted set.
-        let disabled: HashSet<String> = std::iter::once("XC100".to_owned()).collect();
-        let filtered = lift_xc_diagnostics(src, &disabled, &no_suppress);
+        let policy = core_policy::PolicyBuilder::new()
+            .layer(
+                core_policy::PolicyLayer::Editor,
+                &serde_json::json!({ "diagnostics": { "XC100": false } }),
+            )
+            .build();
+        let filtered = lift_report(src, &core_policy::apply(xc_findings(src), &policy));
         assert!(
             !diag_codes(&filtered).iter().any(|c| c == "XC100"),
             "XC100 should be filtered when disabled",
@@ -35789,7 +35074,7 @@ mod tests {
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(default_disabled_set()),
             diagnostics_exclude: Mutex::new(Vec::new()),
-            severity_overrides: Mutex::new(HashMap::new()),
+            policy_layers: Mutex::new(PolicyLayers::default()),
             workspace_index: Arc::new(TrackedRwLock::new("workspace_index", new_workspace_index())),
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
             recovery_names: Arc::new(Mutex::new(RecoveryNameCache::default())),
@@ -35822,7 +35107,6 @@ mod tests {
             edit_barrier_stall_reported: std::sync::atomic::AtomicU64::new(u64::MAX),
             shimmer_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
-            optimiser_code_overrides: Mutex::new(HashMap::new()),
             line_length: Mutex::new(80),
             style_line_length: Mutex::new(120),
             db: Arc::new(TrackedMutex::new("db", db)),
@@ -38100,9 +37384,9 @@ mod tests {
             "xcDiagnostics section flag should map onto the toggle",
         );
         assert!(!*backend.optimiser_enabled.lock().await);
-        assert_eq!(
-            backend.optimiser_code_overrides.lock().await.get("O100"),
-            Some(&false),
+        let policy = backend.policy_layers.lock().await.builder().build();
+        assert!(
+            policy.optimiser.disabled.contains(&DiagCode::O100),
             "optimiser.O100=false should record a force-disable override",
         );
         assert_eq!(*backend.line_length.lock().await, 120);
@@ -38609,8 +37893,9 @@ proc p {} {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn resolved_analysis_settings_falls_back_to_global_defaults() {
         // With no folder config registered, every knob resolves from the
-        // backend's global state, and the optimiser per-code overrides are
-        // folded into the profile's disabled set.
+        // backend's global state, and the session's layers decide the
+        // optimiser: the master switch and the per-code override both land in
+        // the policy.
         let backend = test_backend();
         backend
             .disabled_diagnostics
@@ -38618,24 +37903,26 @@ proc p {} {
             .await
             .insert("W211".to_owned());
         *backend.non_ascii_mode.lock().await = NonAsciiMode::Strict;
-        *backend.optimiser_enabled.lock().await = false;
         backend
-            .optimiser_code_overrides
-            .lock()
-            .await
-            .insert("O100".to_owned(), false);
+            .apply_global_config(&serde_json::json!({
+                "optimiser": { "enabled": false, "O100": false }
+            }))
+            .await;
         let uri = Uri::from_str("file:///settings.tcl").unwrap();
-        let (disabled, non_ascii, opt_enabled, opt_disabled) =
-            backend.resolved_analysis_settings(&uri).await;
+        let (disabled, non_ascii) = backend.resolved_analysis_settings(&uri).await;
         assert!(
             disabled.contains("W211"),
             "global disabled set should apply"
         );
         assert_eq!(non_ascii, NonAsciiMode::Strict);
-        assert!(!opt_enabled, "global optimiser switch should apply");
+        let policy = backend.resolved_policy_layers(&uri).await.builder().build();
         assert!(
-            opt_disabled.contains("O100"),
-            "a force-disable per-code override should land in opt_disabled",
+            !policy.optimiser.enabled,
+            "global optimiser switch should apply"
+        );
+        assert!(
+            policy.optimiser.disabled.contains(&DiagCode::O100),
+            "a force-disable per-code override should land in the policy",
         );
     }
 
@@ -38645,31 +37932,26 @@ proc p {} {
         // the same full set as the push path — analyser + compiler/optimiser +
         // source-style — so editors on the pull path don't lose O-codes.
         let backend = test_backend();
-        *backend.optimiser_profile.lock().await =
-            tcl_compiler::optimiser::profiles::OptimisationProfile::Full;
+        backend
+            .apply_global_config(&serde_json::json!({ "optimiser": { "profile": "full" } }))
+            .await;
         let uri = Uri::from_str("file:///pull.tcl").unwrap();
         let src = "if {1} { set x 1 } else { set y 2 }\n";
         let full = backend
             .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
             .await;
-        let analyser_only = {
-            let mut a = Analyser::new();
-            let analysis = a.analyse(src, "tcl8.6").clone();
-            lift_analyser_diagnostics(src, &analysis.diagnostics, &analysis.suppressed_lines)
-        };
-        let has_o100 = |ds: &[tower_lsp_server::ls_types::Diagnostic]| {
-            ds.iter().any(|d| {
-                matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "O100")
-            })
-        };
         assert!(
-            has_o100(&full),
+            has_code(&full, "O100"),
             "pull diagnostics must include the optimiser O100, got {:?}",
             full.iter().map(|d| d.code.clone()).collect::<Vec<_>>(),
         );
+        let analysis = Analyser::new().analyse(src, "tcl8.6");
         assert!(
-            !has_o100(&analyser_only),
-            "the analyser-only path should not emit O100 (sanity)",
+            !analysis
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::O100),
+            "the analyser alone should not emit O100 (sanity)",
         );
     }
 
@@ -39580,7 +38862,7 @@ proc p {} {
                     FolderConfig {
                         // `Inherit` is the default; set another field so the
                         // folder still parses as a real (non-empty) override.
-                        optimiser_enabled: Some(true),
+                        style_line_length: Some(120),
                         ..FolderConfig::default()
                     },
                 ),
@@ -44403,8 +43685,11 @@ proc p {} {
                 .latest_inputs
                 .as_ref()
                 .expect("a scheduled slot carries its inputs")
-                .toggles
-                .optimiser_enabled
+                .policy_layers
+                .builder()
+                .build()
+                .optimiser
+                .enabled
         };
 
         // The first edit primes the cache, exactly as a keystroke does.
@@ -44492,7 +43777,8 @@ proc p {} {
 
         // The apply half: the switch is now off and the epoch has moved, while
         // the parked resolve still holds a snapshot that says it is on.
-        *backend.optimiser_enabled.lock().await = false;
+        backend.policy_layers.lock().await.editor =
+            serde_json::json!({ "optimiser": { "enabled": false } });
         backend.invalidate_diag_inputs();
         let epoch_after_apply = backend.diag_inputs_epoch();
 
@@ -44509,7 +43795,7 @@ proc p {} {
             .as_ref()
             .expect("a scheduled slot carries its inputs");
         assert!(
-            !inputs.toggles.optimiser_enabled,
+            !inputs.policy_layers.builder().build().optimiser.enabled,
             "a snapshot read across the apply must be discarded and re-read, not \
              committed — publishing it republishes the O-codes the user just disabled",
         );
@@ -44542,7 +43828,8 @@ proc p {} {
 
         // What the faster scheduler committed: the optimiser off, under an
         // epoch later than anything a resolve starting now could read.
-        *backend.optimiser_enabled.lock().await = false;
+        backend.policy_layers.lock().await.editor =
+            serde_json::json!({ "optimiser": { "enabled": false } });
         backend.invalidate_diag_inputs();
         backend
             .schedule_diagnostics(uri.clone(), "tcl8.6".to_owned())
@@ -44556,8 +43843,11 @@ proc p {} {
                     .latest_inputs
                     .as_ref()
                     .expect("inputs")
-                    .toggles
-                    .optimiser_enabled,
+                    .policy_layers
+                    .builder()
+                    .build()
+                    .optimiser
+                    .enabled,
                 "the newer snapshot must start out with the optimiser off",
             );
             slot.inputs_epoch = newer_epoch;
@@ -44566,7 +43856,8 @@ proc p {} {
         // The slower resolve now lands. It reads the configuration as it stands
         // — which the test moves back to "enabled", so an overwrite is visible —
         // and stamps it with today's epoch, which is behind the slot's.
-        *backend.optimiser_enabled.lock().await = true;
+        backend.policy_layers.lock().await.editor =
+            serde_json::json!({ "optimiser": { "enabled": true } });
         backend
             .schedule_diagnostics(uri.clone(), "tcl8.6".to_owned())
             .await;
@@ -44578,8 +43869,11 @@ proc p {} {
                 .latest_inputs
                 .as_ref()
                 .expect("inputs")
-                .toggles
-                .optimiser_enabled,
+                .policy_layers
+                .builder()
+                .build()
+                .optimiser
+                .enabled,
             "a resolve stamped behind the slot must not overwrite the newer snapshot",
         );
         assert_eq!(

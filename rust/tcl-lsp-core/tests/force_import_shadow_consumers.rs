@@ -52,6 +52,21 @@ use tcl_lsp_core::definition::{CallResolution, LspRange, ProgramExports};
 use tcl_lsp_core::workspace_index::{NamespaceExportSnapshot, WorkspaceIndex};
 use tcl_registry::CommandRegistry;
 
+/// The analyser's diagnostics as a report that shows every one of them — a
+/// host with no configuration, which is what this test stands in for.
+fn report_of(analysis: &AnalysisResult) -> tcl_lsp_core::diagnostic_policy::Report {
+    use tcl_lsp_core::diagnostic_policy::{Finding, Policy, apply};
+    apply(
+        analysis
+            .diagnostics
+            .iter()
+            .cloned()
+            .map(Finding::from)
+            .collect(),
+        &Policy::unrestricted(),
+    )
+}
+
 /// The document every test resolves against — identical in both directions.
 const MAIN: &str = "namespace eval src {\n    proc helper {alpha beta} { puts \"SRC/$alpha/$beta\" }\n    proc other {} { puts O }\n    namespace export other\n}\nproc helper {args} { puts LOCAL }\nnamespace import -force ::src::*\nhelper 1 2\n";
 
@@ -312,7 +327,7 @@ fn code_actions_offer_the_reached_body_for_inlining() {
             MAIN,
             cursor,
             Some(analysis),
-            &analysis.diagnostics,
+            &report_of(analysis),
             Some(program(exports)),
             tcl_lsp_core::formatting::DocstringStyle::Preceding,
         )
@@ -451,7 +466,7 @@ fn the_legacy_entry_points_still_equal_the_document_only_program_view() {
             MAIN,
             cursor,
             Some(&analysis),
-            &analysis.diagnostics
+            &report_of(&analysis)
         )
         .into_iter()
         .map(|a| a.title)
@@ -460,7 +475,7 @@ fn the_legacy_entry_points_still_equal_the_document_only_program_view() {
             MAIN,
             cursor,
             Some(&analysis),
-            &analysis.diagnostics,
+            &report_of(&analysis),
             None,
             tcl_lsp_core::formatting::DocstringStyle::Preceding
         )

@@ -25,10 +25,16 @@
 use std::collections::HashSet;
 
 use serde_json::{Map, Value, json};
-use tcl_compiler::analyser::{Analyser, AnalysisResult, Diagnostic};
+use tcl_compiler::analyser::{Analyser, AnalysisResult};
+use tcl_compiler::compiler_checks::DiagCode;
 use tcl_dialect::DialectProfile;
 use tcl_lexer::{LexerConfig, LineIndex, SourceMap, Span, Utf16Col};
+use tcl_lsp_core::config_ini;
 use tcl_lsp_core::definition::LspRange;
+use tcl_lsp_core::diagnostic_policy::{
+    Directives, Finding, Policy, PolicyBuilder, PolicyLayer, Report, Shown, apply,
+};
+use tcl_lsp_core::diagnostic_report::optimise_under_policy;
 use tcl_registry::CommandRegistry;
 use tcl_registry::events::EventRegistry;
 use tcl_registry::profiles::ProfileRegistry;
@@ -152,7 +158,95 @@ fn refactoring_json(source: &str, r: &tcl_lsp_core::refactor::Refactoring) -> Va
     })
 }
 
-/// Analyse `source` under `dialect` (fresh analyser per call, like the facades).
+/// The configuration layers one tool call resolves its policy under
+/// (`docs/design/compiler/diagnostic-policy.md` § Configuration): the user's
+/// global `config.ini`, and the call's `disable` / `enable` (and `profile`)
+/// arguments as its invocation layer in the editor layer's slot. An MCP
+/// `source` string has no path, so there is no project layer at all.
+struct PolicyInputs {
+    global: Value,
+    invocation: Value,
+}
+
+impl PolicyInputs {
+    /// The layers for a call with `args`, over `section` (`diagnostics` for
+    /// the diagnostics tools, `optimiser` for `optimize`).
+    fn for_call(args: &Value, section: &str) -> Self {
+        Self {
+            global: config_ini::global_layer(),
+            invocation: invocation_layer(args, section),
+        }
+    }
+
+    /// A builder with the layers applied, lowest first.
+    fn builder(&self) -> PolicyBuilder {
+        PolicyBuilder::new()
+            .layer(PolicyLayer::Global, &self.global)
+            .layer(PolicyLayer::Invocation, &self.invocation)
+    }
+}
+
+/// The `disable` / `enable` arguments (comma-separated codes) as one settings
+/// layer over `section`, plus `profile` under `optimiser`. A later `enable`
+/// turns a code back on, which is what reaches a default-off code such as
+/// W242.
+fn invocation_layer(args: &Value, section: &str) -> Value {
+    let mut codes = Map::new();
+    for (key, on) in [("disable", false), ("enable", true)] {
+        for code in arg_str(args, key).split(',') {
+            let code = code.trim();
+            if !code.is_empty() {
+                codes.insert(code.to_ascii_uppercase(), Value::Bool(on));
+            }
+        }
+    }
+    if section == "optimiser" {
+        let profile = arg_str(args, "profile");
+        codes.insert(
+            "profile".to_owned(),
+            json!(if profile.is_empty() { "full" } else { profile }),
+        );
+    }
+    let mut layer = Map::new();
+    layer.insert(section.to_owned(), Value::Object(codes));
+    Value::Object(layer)
+}
+
+/// One analysis and the policy its findings are decided under.
+struct Analysed {
+    analysis: AnalysisResult,
+    policy: Policy,
+    /// The analyser's declared production-time skip.
+    skipped: Vec<DiagCode>,
+}
+
+impl Analysed {
+    /// The analyser's own findings under the policy — what `analyze`,
+    /// `validate`, `review` and `find-legacy` render.
+    fn report(&self) -> Report {
+        self.report_with(Vec::new())
+    }
+
+    /// The analyser's findings plus `more` — another producer's, converted —
+    /// under the same policy.
+    fn report_with(&self, more: Vec<Finding>) -> Report {
+        let mut produced: Vec<Finding> = self
+            .analysis
+            .diagnostics
+            .iter()
+            .cloned()
+            .map(Finding::from)
+            .collect();
+        produced.extend(more);
+        let mut report = apply(produced, &self.policy);
+        report.declare_skipped(self.skipped.iter().copied(), &self.policy);
+        report
+    }
+}
+
+/// Analyse `source` under `dialect` (fresh analyser per call, like the facades)
+/// for a tool that reads the analysis's facts — symbols, scopes, docstrings —
+/// and reports no diagnostic. A diagnostics tool uses [`analyse_under`].
 ///
 /// [`registry`] first, then the overlay key it built: the analyser resolves its
 /// own registry from the dialect profile, so without the key it would miss the
@@ -162,6 +256,37 @@ fn analyse(source: &str, dialect: &str) -> AnalysisResult {
     Analyser::new()
         .with_pack_overlay(tcl_spectcl::bundled::packs().key)
         .analyse(source, dialect)
+}
+
+/// [`analyse`] for a diagnostics tool: the analyser runs with the policy
+/// `inputs` resolve — its production-time skip is the seeded default-off set
+/// and the codes a layer turned off, exactly as the editor's `file_analysis`
+/// passes it — and its findings are decided under the analysis's own
+/// directives.
+fn analyse_under(source: &str, dialect: &str, inputs: &PolicyInputs) -> Analysed {
+    let _ = registry(dialect);
+    let profile = crate::environment::profile_for_dialect(dialect);
+    let skipped: Vec<DiagCode> = inputs
+        .builder()
+        .dialect(profile)
+        .build()
+        .production_skip()
+        .into_iter()
+        .collect();
+    let analysis =
+        Analyser::with_disabled_diagnostics(skipped.iter().map(ToString::to_string).collect())
+            .with_pack_overlay(tcl_spectcl::bundled::packs().key)
+            .analyse(source, dialect);
+    let policy = inputs
+        .builder()
+        .dialect(profile)
+        .directives(Directives::from_analysis(&analysis, source))
+        .build();
+    Analysed {
+        analysis,
+        policy,
+        skipped,
+    }
 }
 
 /// `"true"`/`"1"`/`"yes"` (case-insensitive) or a JSON `true` — else `false`.
@@ -194,13 +319,15 @@ fn lsp_range_json(r: &LspRange) -> Value {
     })
 }
 
-/// Serialise one analyser diagnostic to `{code, severity, message, range,
-/// category, fixes?}` (the `_facade_diagnostic_to_dict` wire shape).
-fn diag_to_json(d: &Diagnostic, sm: &SourceMap<'_>) -> Value {
+/// Serialise one shown finding to `{code, severity, message, range,
+/// category, fixes?}` (the `_facade_diagnostic_to_dict` wire shape), at the
+/// severity the policy resolved.
+fn diag_to_json(shown: &Shown<'_>, sm: &SourceMap<'_>) -> Value {
+    let d = shown.finding;
     let code = d.code.as_str();
     let mut obj = json!({
         "code": code,
-        "severity": d.severity.as_str(),
+        "severity": shown.severity.as_str(),
         "message": d.message,
         "range": byte_range(sm, d.span),
         "category": crate::diag_meta::meta().categorise(code),
@@ -415,8 +542,15 @@ fn format_source(args: &Value) -> Value {
 }
 
 fn optimize(args: &Value) -> Value {
-    use tcl_compiler::optimiser::optimise_source_multipass_filtered;
-    use tcl_compiler::optimiser::profiles::{OptimisationProfile, profile_to_disabled};
+    optimize_with(args, &PolicyInputs::for_call(args, "optimiser"))
+}
+
+/// [`optimize`] under `inputs`: the rewrites the policy shows are applied,
+/// on every pass, so a `# noqa`, a file-wide directive or a code the profile
+/// or a layer turned off keeps a rewrite off exactly as it keeps a squiggle
+/// off (`docs/design/compiler/diagnostic-policy.md` § Adapters).
+fn optimize_with(args: &Value, inputs: &PolicyInputs) -> Value {
+    use tcl_compiler::optimiser::profiles::OptimisationProfile;
 
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
@@ -424,17 +558,16 @@ fn optimize(args: &Value) -> Value {
         let p = arg_str(args, "profile");
         if p.is_empty() { "full" } else { p }
     });
-    let disabled: std::collections::HashSet<String> = profile_to_disabled(profile)
-        .into_iter()
-        .map(str::to_owned)
-        .collect();
-    let (optimised, opts, iterations) = optimise_source_multipass_filtered(
+    let dialect_profile = crate::environment::profile_for_dialect(&dialect);
+    let policy = inputs.builder().dialect(dialect_profile).build();
+    let optimised = optimise_under_policy(
         source,
         &registry(&dialect),
-        Some(crate::environment::profile_for_dialect(&dialect)),
+        Some(dialect_profile),
         profile.max_iterations(),
-        &disabled,
+        &policy,
     );
+    let (optimised, opts, iterations) = (optimised.text, optimised.applied, optimised.iterations);
 
     let line_index = LineIndex::new(source);
     let pos = |offset: u32| {
@@ -564,16 +697,23 @@ fn brace_expr(args: &Value) -> Value {
 
 // ── Diagnostics tools ─────────────────────────────────────────────────
 
+// Each diagnostics tool reads the report's shown set and keeps its own
+// grouping — the `diag_meta` categories, the security / taint / thread
+// split, the convertible-code table — which is presentation and stays here
+// (`docs/design/compiler/diagnostic-policy.md` § Adapters). The `_with`
+// forms take the layers explicitly, so a test can resolve under layers of
+// its own rather than under the machine's `config.ini`.
+
 fn analyze(args: &Value) -> Value {
+    analyze_with(args, &PolicyInputs::for_call(args, "diagnostics"))
+}
+
+fn analyze_with(args: &Value, inputs: &PolicyInputs) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let analysis = analyse(source, &dialect);
+    let report = analyse_under(source, &dialect, inputs).report();
     let sm = SourceMap::new(source);
-    let diagnostics: Vec<Value> = analysis
-        .diagnostics
-        .iter()
-        .map(|d| diag_to_json(d, &sm))
-        .collect();
+    let diagnostics: Vec<Value> = report.shown().map(|d| diag_to_json(&d, &sm)).collect();
     let symbols: Vec<Value> = tcl_lsp_core::document_symbols::document_symbols(
         source,
         tcl_lsp_core::profile_for_dialect(&dialect),
@@ -582,8 +722,8 @@ fn analyze(args: &Value) -> Value {
     .map(doc_symbol_to_json)
     .collect();
     json!({
+        "diagnostic_count": diagnostics.len(),
         "diagnostics": diagnostics,
-        "diagnostic_count": analysis.diagnostics.len(),
         "symbols": symbols,
         "events": detect_events(source),
         "event_order": event_order_list(source),
@@ -591,38 +731,44 @@ fn analyze(args: &Value) -> Value {
 }
 
 fn validate(args: &Value) -> Value {
+    validate_with(args, &PolicyInputs::for_call(args, "diagnostics"))
+}
+
+fn validate_with(args: &Value, inputs: &PolicyInputs) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let analysis = analyse(source, &dialect);
+    let report = analyse_under(source, &dialect, inputs).report();
     let sm = SourceMap::new(source);
     let meta = crate::diag_meta::meta();
     let mut categories = Map::new();
     for (key, label) in &meta.category_order {
-        let items: Vec<Value> = analysis
-            .diagnostics
-            .iter()
-            .filter(|d| meta.categorise(d.code.as_str()) == key)
-            .map(|d| diag_to_json(d, &sm))
+        let items: Vec<Value> = report
+            .shown()
+            .filter(|d| meta.categorise(d.finding.code.as_str()) == key)
+            .map(|d| diag_to_json(&d, &sm))
             .collect();
         if !items.is_empty() {
             categories.insert(key.clone(), json!({ "label": label, "items": items }));
         }
     }
-    json!({ "categories": Value::Object(categories), "total": analysis.diagnostics.len() })
+    json!({ "categories": Value::Object(categories), "total": report.shown().count() })
 }
 
 fn review(args: &Value) -> Value {
+    review_with(args, &PolicyInputs::for_call(args, "diagnostics"))
+}
+
+fn review_with(args: &Value, inputs: &PolicyInputs) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let analysis = analyse(source, &dialect);
+    let report = analyse_under(source, &dialect, inputs).report();
     let sm = SourceMap::new(source);
     let meta = crate::diag_meta::meta();
     let filt = |set: &std::collections::HashSet<String>| -> Vec<Value> {
-        analysis
-            .diagnostics
-            .iter()
-            .filter(|d| set.contains(d.code.as_str()))
-            .map(|d| diag_to_json(d, &sm))
+        report
+            .shown()
+            .filter(|d| set.contains(d.finding.code.as_str()))
+            .map(|d| diag_to_json(&d, &sm))
             .collect()
     };
     let security = filt(&meta.security_codes);
@@ -633,20 +779,23 @@ fn review(args: &Value) -> Value {
 }
 
 fn find_legacy(args: &Value) -> Value {
+    find_legacy_with(args, &PolicyInputs::for_call(args, "diagnostics"))
+}
+
+fn find_legacy_with(args: &Value, inputs: &PolicyInputs) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let analysis = analyse(source, &dialect);
+    let report = analyse_under(source, &dialect, inputs).report();
     let sm = SourceMap::new(source);
     // Shared with `tcl-cli`'s `find-legacy` verb (`tcl_cli::CONVERTIBLE_CODES`/
     // `conversion_for`) rather than a second hand-duplicated copy of the same
     // 6-code table.
-    let patterns: Vec<Value> = analysis
-        .diagnostics
-        .iter()
-        .filter(|d| tcl_cli::CONVERTIBLE_CODES.contains(&d.code.as_str()))
+    let patterns: Vec<Value> = report
+        .shown()
+        .filter(|d| tcl_cli::CONVERTIBLE_CODES.contains(&d.finding.code.as_str()))
         .map(|d| {
-            let mut obj = diag_to_json(d, &sm);
-            let conversion = tcl_cli::conversion_for(d.code.as_str());
+            let mut obj = diag_to_json(&d, &sm);
+            let conversion = tcl_cli::conversion_for(d.finding.code.as_str());
             obj.as_object_mut()
                 .expect("json object")
                 .insert("conversion".to_owned(), json!(conversion));
@@ -956,9 +1105,21 @@ fn rename(args: &Value) -> Value {
 }
 
 fn code_actions(args: &Value) -> Value {
+    code_actions_with(args, &PolicyInputs::for_call(args, "diagnostics"))
+}
+
+/// [`code_actions`] under `inputs`: one report over the analyser's
+/// findings, the compiler checks and the optimiser's rewrites, so a fix is
+/// offered for a finding the document shows and for no other — and a shown
+/// rewrite is an offerable action, not only a diagnostic payload.
+fn code_actions_with(args: &Value, inputs: &PolicyInputs) -> Value {
+    use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
+    use tcl_compiler::compiler_checks::run_all_checks;
+    use tcl_compiler::optimiser::optimise_with_dialect;
+
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let analysis = analyse(source, &dialect);
+    let analysed = analyse_under(source, &dialect, inputs);
     let range = LspRange {
         start_line: arg_u32(args, "start_line"),
         start_character: arg_u32(args, "start_character"),
@@ -966,12 +1127,38 @@ fn code_actions(args: &Value) -> Value {
         end_character: arg_u32(args, "end_character"),
     };
     // The MCP tool analyses one standalone source string with no workspace
-    // behind it, so the analyser's own diagnostics *are* the published set.
+    // behind it, so the analyser's own findings are the published set; the
+    // compiler checks and the rewrites join them under the same policy,
+    // built over the same unit `tcl diag` builds.
+    let registry = registry(&dialect);
+    let profile = crate::environment::profile_for_dialect(&dialect);
+    let declared = tcl_compiler::analyser::utils::document_declared_surface(source, None, &dialect);
+    let cu = CompilationUnit::build_with_options(
+        source,
+        UnitBuildOptions {
+            registry: &registry,
+            defer_top_level: false,
+            config: LexerConfig::for_profile(Some(profile)),
+            dialect: Some(profile),
+            external_call_sites: None,
+            declared_commands: Some(&declared),
+        },
+    );
+    let mut more: Vec<Finding> = run_all_checks(&cu, &registry, Some(profile))
+        .into_iter()
+        .map(Finding::from)
+        .collect();
+    more.extend(
+        optimise_with_dialect(source, &registry, Some(profile))
+            .into_iter()
+            .map(Finding::from),
+    );
+    let report = analysed.report_with(more);
     let actions: Vec<Value> = tcl_lsp_core::code_actions::code_actions(
         source,
         range,
-        Some(&analysis),
-        &analysis.diagnostics,
+        Some(&analysed.analysis),
+        &report,
     )
     .iter()
         .map(|a| {
@@ -1355,6 +1542,28 @@ fn dialect_schema(desc: &str) -> Value {
 }
 
 const SRC: Param = ("source", "string", "Tcl or iRules source code");
+const DISABLE: Param = (
+    "disable",
+    "string",
+    "Comma-separated diagnostic codes to turn off for this call — the invocation \
+     layer, over the user's global config.ini",
+);
+const ENABLE: Param = (
+    "enable",
+    "string",
+    "Comma-separated diagnostic codes to turn on for this call, including a \
+     default-off code such as W242",
+);
+const OPT_DISABLE: Param = (
+    "disable",
+    "string",
+    "Comma-separated optimisation codes to turn off on top of the profile",
+);
+const OPT_ENABLE: Param = (
+    "enable",
+    "string",
+    "Comma-separated optimisation codes to turn on that the profile turns off",
+);
 const DIALECT: Param = (
     DIALECT_PARAM,
     "string",
@@ -1480,7 +1689,10 @@ const TOOLS: &[ToolDef] = &[
     },
     ToolDef {
         name: "optimize",
-        description: "Find optimisation opportunities and produce rewritten source.",
+        description: "Find optimisation opportunities and produce rewritten source. Only the \
+                      rewrites the source's policy shows are applied: a `# noqa` on a command, a \
+                      top-of-file `# tcl-lsp: disable=`, the profile and the global config.ini \
+                      keep a rewrite off exactly as they keep a diagnostic off.",
         params: &[
             SRC,
             DIALECT,
@@ -1489,6 +1701,8 @@ const TOOLS: &[ToolDef] = &[
                 "string",
                 "off | readability | standard | full | aggressive",
             ),
+            OPT_DISABLE,
+            OPT_ENABLE,
         ],
         required: &["source"],
         handler: optimize,
@@ -1531,29 +1745,34 @@ const TOOLS: &[ToolDef] = &[
     },
     ToolDef {
         name: "analyze",
-        description: "Full analysis: diagnostics (+category), document symbols, detected events, and event firing order.",
-        params: &[SRC, DIALECT],
+        description: "Full analysis: diagnostics (+category), document symbols, detected events, and event firing order. \
+                      Diagnostics are the source's shown set — inline `# noqa`, top-of-file `# tcl-lsp: disable=`, \
+                      the global config.ini and the call's disable/enable arguments all apply, as in the editor.",
+        params: &[SRC, DIALECT, DISABLE, ENABLE],
         required: &["source"],
         handler: analyze,
     },
     ToolDef {
         name: "validate",
-        description: "Diagnostics grouped by category (security, taint, thread-safety, control-flow, performance, style, …).",
-        params: &[SRC, DIALECT],
+        description: "Diagnostics grouped by category (security, taint, thread-safety, control-flow, performance, style, …), \
+                      from the source's shown set (directives, the global config.ini and disable/enable apply).",
+        params: &[SRC, DIALECT, DISABLE, ENABLE],
         required: &["source"],
         handler: validate,
     },
     ToolDef {
         name: "review",
-        description: "Security, taint, and thread-safety diagnostics for a focused review.",
-        params: &[SRC, DIALECT],
+        description: "Security, taint, and thread-safety diagnostics for a focused review, from the source's shown set \
+                      (directives, the global config.ini and disable/enable apply).",
+        params: &[SRC, DIALECT, DISABLE, ENABLE],
         required: &["source"],
         handler: review,
     },
     ToolDef {
         name: "find-legacy",
-        description: "Auto-convertible legacy patterns with a modernisation hint per finding.",
-        params: &[SRC, DIALECT],
+        description: "Auto-convertible legacy patterns with a modernisation hint per finding, from the source's shown set \
+                      (directives, the global config.ini and disable/enable apply).",
+        params: &[SRC, DIALECT, DISABLE, ENABLE],
         required: &["source"],
         handler: find_legacy,
     },
@@ -1632,8 +1851,11 @@ const TOOLS: &[ToolDef] = &[
     },
     ToolDef {
         name: "code_actions",
-        description: "Code actions (quick-fixes + refactors) for a selection range.",
-        params: &[SRC, START_LINE, START_CHAR, END_LINE, END_CHAR, DIALECT],
+        description: "Code actions (quick-fixes + refactors) for a selection range: a fix for every finding the source \
+                      shows — analyser, compiler-check and optimiser rewrite alike — and for no other.",
+        params: &[
+            SRC, START_LINE, START_CHAR, END_LINE, END_CHAR, DIALECT, DISABLE, ENABLE,
+        ],
         required: &[
             "source",
             "start_line",

@@ -54,6 +54,7 @@ pub mod declaration;
 pub mod declaration_outline;
 pub mod definition;
 pub mod diagnostic_policy;
+pub mod diagnostic_report;
 pub mod document_floor;
 pub mod document_links;
 pub mod document_symbols;

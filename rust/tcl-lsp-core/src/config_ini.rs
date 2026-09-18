@@ -39,6 +39,7 @@
 //! `docs/design/contracts/config-precedence.md`.
 
 use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 
 use serde_json::{Map, Value};
 use tcl_core_types::{DiagCode, Severity};
@@ -597,6 +598,74 @@ pub fn merge_settings(low: &Value, high: &Value) -> Value {
 /// column declares the set, and `default_off_codes_match_the_catalogue`
 /// pins this list to it.
 pub const DEFAULT_OFF_CODES: &[DiagCode] = &[DiagCode::W242];
+
+/// How many directories above an input file's own the project-file walk
+/// climbs before giving up — the bound `tcl pkg`'s manifest walk uses.
+const PROJECT_WALK_LIMIT: usize = 20;
+
+/// The user's global `config.ini` as a `[global]` settings layer — an empty
+/// object when there is no such file, so the layer contributes nothing.
+///
+/// The global layer is [`crate::tcl_install::user_config_path`] on every
+/// surface (`docs/design/compiler/diagnostic-policy.md` § Configuration);
+/// the server reads the same file through its own source store.
+#[must_use]
+pub fn global_layer() -> Value {
+    crate::tcl_install::user_config_path()
+        .and_then(|path| read_layer(&path, Layer::Global))
+        .unwrap_or_else(|| Value::Object(serde_json::Map::new()))
+}
+
+/// The nearest `.tcl-lsp.ini` at or above `path`'s own directory, as a
+/// `[project]` settings layer, with the directory it was found in.
+///
+/// Per input document, not per process: `tcl diag a/x.tcl b/y.tcl` can span
+/// two projects and resolve each under its own layer. `None` when no
+/// ancestor within [`PROJECT_WALK_LIMIT`] holds the file — a document with
+/// no path (`--source`, stdin, an MCP `source` string) has no project layer
+/// at all, and the process's working directory is never a substitute.
+#[must_use]
+pub fn project_layer_for(path: &Path) -> Option<(PathBuf, Value)> {
+    let root = project_root_for(path)?;
+    Some((root.clone(), project_layer_at(&root)?))
+}
+
+/// The `.tcl-lsp.ini` in `root` as a `[project]` settings layer; `None` when
+/// it is missing or unreadable.
+#[must_use]
+pub fn project_layer_at(root: &Path) -> Option<Value> {
+    read_layer(
+        &crate::tcl_install::project_config_path(root),
+        Layer::Project,
+    )
+}
+
+/// The directory holding the nearest `.tcl-lsp.ini` at or above `path`'s
+/// own directory, within [`PROJECT_WALK_LIMIT`].
+#[must_use]
+pub fn project_root_for(path: &Path) -> Option<PathBuf> {
+    let start = path.parent()?;
+    let start = start.canonicalize().unwrap_or_else(|_| start.to_path_buf());
+    let mut current = start;
+    for _ in 0..PROJECT_WALK_LIMIT {
+        if crate::tcl_install::project_config_path(&current).is_file() {
+            return Some(current);
+        }
+        match current.parent() {
+            Some(parent) if parent != current => current = parent.to_path_buf(),
+            _ => break,
+        }
+    }
+    None
+}
+
+/// Read the INI file at `path` into the editor-shape `tclLsp` settings JSON
+/// for `layer`; `None` when it is missing or unreadable.
+fn read_layer(path: &Path, layer: Layer) -> Option<Value> {
+    std::fs::read_to_string(path)
+        .ok()
+        .map(|content| settings_from_ini(&content, layer))
+}
 
 /// A fresh disabled-diagnostics set seeded with [`DEFAULT_OFF_CODES`] — the
 /// starting point every flat resolution builds on.

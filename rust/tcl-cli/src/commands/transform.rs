@@ -24,7 +24,7 @@ use std::path::Path;
 
 use anyhow::Context;
 use tcl_cli_support::{
-    OutputTarget, combine_sources, combined_effective_dialect, read_input_documents,
+    OutputTarget, combine_sources, combine_texts, combined_effective_dialect, read_input_documents,
     registry_for_dialect, write_highlighted_output, write_text_output,
 };
 use tcl_lsp_core::formatting::{FormatterConfig, IndentStyle, formatting_with};
@@ -33,12 +33,12 @@ use tcl_lsp_core::minify::{
     unminify_error,
 };
 
-use std::collections::HashSet;
-
-use tcl_compiler::optimiser::optimise_source_multipass_filtered;
-use tcl_compiler::optimiser::profiles::{OptimisationProfile, profile_to_disabled};
+use tcl_compiler::optimiser::profiles::OptimisationProfile;
+use tcl_lsp_core::diagnostic_policy::Directives;
+use tcl_lsp_core::diagnostic_report::optimise_under_policy;
 
 use crate::cli::{ColourArgs, InputArgs};
+use crate::commands::policy::{ConfigLayers, invocation_layer};
 
 /// Default tab-expansion width used on stdout (the CLI default).
 const DEFAULT_TAB_WIDTH: usize = 4;
@@ -109,6 +109,14 @@ pub fn run_format(
 ///
 /// Profile semantics: `full` (the default) is a single
 /// pass; only `aggressive` runs multi-pass to a fixpoint (max 5 iterations).
+///
+/// A rewrite is a finding like any other (`docs/design/compiler/diagnostic-policy.md`
+/// § Adapters): only the rewrites the document's policy shows are applied,
+/// so a `# noqa` on the command, a file-wide `# tcl-lsp: disable=*`, a code
+/// the profile or a configuration layer turned off, mean to a rewrite what
+/// they mean to a squiggle. `--profile`, `--disable` and `--enable` are the
+/// verb's invocation layer; the global `config.ini` and each input file's
+/// own project `.tcl-lsp.ini` are the others.
 pub fn run_opt(
     input: &InputArgs,
     profile: &str,
@@ -118,45 +126,60 @@ pub fn run_opt(
 ) -> anyhow::Result<u8> {
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
-    let source = combine_sources(&documents);
     let registry = registry_for_dialect(dialect.name);
 
     let profile = OptimisationProfile::parse(profile);
-    let mut disabled: HashSet<String> = profile_to_disabled(profile)
-        .into_iter()
-        .map(str::to_owned)
-        .collect();
-    for raw in disable {
-        for code in raw.split(',') {
-            let code = code.trim();
-            if !code.is_empty() {
-                disabled.insert(code.to_ascii_uppercase());
-            }
-        }
-    }
-    for raw in enable {
-        for code in raw.split(',') {
-            let code = code.trim();
-            if !code.is_empty() {
-                disabled.remove(&code.to_ascii_uppercase());
-            }
-        }
-    }
+    let mut invocation = invocation_layer(disable, enable, "optimiser");
+    invocation["optimiser"]["profile"] = serde_json::Value::String(profile.name().to_owned());
+    let layers = ConfigLayers::new(invocation);
 
-    // Profile spec (`profile_spec`): only `aggressive` is multi-pass (max 5 iters);
-    // every other profile (including `full`) is a single pass. Both honour the
-    // disabled set on every pass (matching `optimise_source_multipass(disabled=…)`).
-    let (optimised, optimisations, _iterations) = optimise_source_multipass_filtered(
-        &source,
-        &registry,
-        Some(dialect),
-        profile.max_iterations(),
-        &disabled,
-    );
+    // Several inputs fold into one text only when their policies agree: one
+    // project layer for all of them and no directive in any of them — a
+    // top-of-file directive is the top of *its* file, not of a combined text
+    // (issue #2062). Otherwise each document is optimised under its own
+    // policy and the outputs are joined exactly as the inputs would have
+    // been.
+    let one_text = layers.share_one_project(documents.iter().map(|d| d.path.as_deref()))
+        && documents
+            .iter()
+            .all(|d| Directives::scan(&d.source, dialect).lines().is_empty());
+    let (optimised, optimisations) = if one_text {
+        let policy = layers
+            .builder_for(documents.first().and_then(|d| d.path.as_deref()))
+            .dialect(dialect)
+            .build();
+        let out = optimise_under_policy(
+            &combine_sources(&documents),
+            &registry,
+            Some(dialect),
+            profile.max_iterations(),
+            &policy,
+        );
+        (out.text, out.applied)
+    } else {
+        let mut texts = Vec::with_capacity(documents.len());
+        let mut applied = Vec::new();
+        for document in &documents {
+            let policy = layers
+                .builder_for(document.path.as_deref())
+                .dialect(dialect)
+                .build();
+            let out = optimise_under_policy(
+                &document.source,
+                &registry,
+                Some(dialect),
+                profile.max_iterations(),
+                &policy,
+            );
+            texts.push(out.text);
+            applied.extend(out.applied);
+        }
+        (combine_texts(texts.iter().map(String::as_str)), applied)
+    };
 
     let target = OutputTarget::from_arg(input.output.as_deref());
     let mut rendered = optimised;
-    // On stdout a comment block summarising the rewrites is appended.
+    // On stdout a comment block summarising the rewrites *applied* is appended.
     if target.is_stdout() && !optimisations.is_empty() {
         let mut lines = vec![
             "\n\n# -------------".to_owned(),

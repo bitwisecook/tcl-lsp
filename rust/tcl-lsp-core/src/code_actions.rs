@@ -69,17 +69,15 @@
 //! * Cross-document refactors (move to file, split namespace)
 //!   are not supported.
 
-use std::collections::{HashMap, HashSet};
-use std::hash::BuildHasher;
-
 use rustc_hash::FxHashSet;
-use tcl_compiler::analyser::{AnalysisResult, line_suppressed};
+use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::compiler_checks::DiagCode;
 use tcl_dialect::model::{Family, SurfaceLayer};
 use tcl_lexer::{LineIndex, Utf16Col};
 use tcl_registry::events::{DataCollectionAction, EventRegistry};
 
 use crate::definition::{LspRange, utf16_col_to_char_col};
+use crate::diagnostic_policy::{Finding, FindingData, Fix, Report};
 
 /// LSP code-action kind.  Maps to the dotted strings the editor / e2e
 /// `only` filter use (`quickfix`, `refactor.extract`, …).
@@ -212,18 +210,17 @@ pub fn retarget_newlines(actions: &mut [CodeAction], line_ending: &str) {
     }
 }
 
-/// Lift every [`tcl_compiler::analyser::CodeFix`] carried by a
-/// diagnostic into a quick-fix [`CodeAction`] — one action per fix,
-/// with the fix's own `(span, new_text)` as a single-edit workspace
-/// edit.  The title is the fix's `description`, falling back to the
-/// (truncated) diagnostic message when the emitter supplied none.
+/// Lift every [`Fix`] a shown finding carries into a quick-fix
+/// [`CodeAction`] — one action per fix, with the fix's own `(span, new_text)`
+/// as a single-edit workspace edit.  The title is the fix's `description`,
+/// falling back to the (truncated) finding message when the emitter supplied
+/// none.
 ///
-/// The analyser (`AnalysisResult.diagnostics`) and the compiler-checks
-/// pass (`run_all_checks`) share one `CodeFix` type, so both
-/// fixes-bearing diagnostic families lift through this helper.
+/// The analyser and the compiler-checks pass share one fix shape, so both
+/// fixes-bearing families lift through this helper.
 fn lift_fixes(
     actions: &mut Vec<CodeAction>,
-    fixes: &[tcl_compiler::analyser::CodeFix],
+    fixes: &[Fix],
     diag_message: &str,
     source: &str,
     line_index: &LineIndex,
@@ -259,25 +256,25 @@ fn lift_fixes(
 }
 
 /// `refactor.rewrite` — "Brace expr for safety and performance".  Offered
-/// whenever the request range touches a line carrying an unbraced-expr (W100)
-/// diagnostic, which corresponds to the `expr` command at the cursor.
+/// whenever the request range touches a line carrying a *shown* unbraced-expr
+/// (W100) finding, which corresponds to the `expr` command at the cursor.
 /// Keyed on *line* overlap rather than the
-/// diagnostic's argument span so it is available with the cursor on the `expr`
+/// finding's argument span so it is available with the cursor on the `expr`
 /// keyword itself (VS Code invokes refactors at the caret, e.g. column 0), not
-/// only over the arguments.  Reuses the diagnostic's own brace-wrapping fix, so
+/// only over the arguments.  Reuses the finding's own brace-wrapping fix, so
 /// `expr $a + $b` rewrites to `expr {$a + $b}`.
 fn push_brace_expr_refactors(
     actions: &mut Vec<CodeAction>,
     source: &str,
     range: LspRange,
-    diagnostics: &[tcl_compiler::analyser::Diagnostic],
+    report: &Report,
     line_index: &LineIndex,
 ) {
-    for diag in diagnostics {
-        if diag.code != DiagCode::W100 {
+    for shown in report.shown() {
+        if shown.finding.code != DiagCode::W100 {
             continue;
         }
-        let Some(fix) = diag.fixes.first() else {
+        let Some(fix) = shown.finding.fixes.first() else {
             continue;
         };
         let fix_start = line_index.position_at_utf16(fix.span.start(), source);
@@ -304,6 +301,43 @@ fn push_brace_expr_refactors(
     }
 }
 
+/// The optimiser rewrite a shown finding carries, as a quick-fix: the
+/// finding's span replaced by its `replacement`, titled with the finding's
+/// message.  A `hint_only` rewrite — whose span covers the consuming
+/// statement rather than a precise sub-span — is informational and never
+/// offered, exactly as it never rides a published diagnostic's payload.
+fn rewrite_action(finding: &Finding, source: &str, line_index: &LineIndex) -> Option<CodeAction> {
+    let Some(FindingData::Rewrite {
+        replacement,
+        hint_only: false,
+        ..
+    }) = &finding.data
+    else {
+        return None;
+    };
+    if replacement.is_empty() {
+        return None;
+    }
+    let start = line_index.position_at_utf16(finding.span.start(), source);
+    let end = line_index.position_at_utf16(finding.span.end(), source);
+    Some(CodeAction {
+        title: finding.message.clone(),
+        edits: vec![crate::rename::TextEdit {
+            range: LspRange {
+                start_line: start.line,
+                start_character: start.character.get(),
+                end_line: end.line,
+                end_character: end.character.get(),
+            },
+            new_text: replacement.clone(),
+        }],
+        kind: ActionKind::QuickFix,
+        command: None,
+        data_group_definition: None,
+        disabled: None,
+    })
+}
+
 /// Compute code actions for `range` in `source`.
 ///
 /// `analysis`, when `Some`, is the analyser result the caller
@@ -311,15 +345,14 @@ fn push_brace_expr_refactors(
 /// (preserves the stub call shape for callers that haven't
 /// yet plumbed analysis through).
 ///
-/// `diagnostics` is the **published** diagnostic set — the one the host has
-/// decided this document actually shows, after whatever workspace refinement
-/// it applies (the LSP server's package / auto-load / cross-file W120 and W123
-/// passes).  It is a separate argument from `analysis` precisely because it is
-/// *not* `analysis.diagnostics`: reading the analyser's raw set here is what
-/// let the server offer a "did you mean 'ni'?" rewrite over a cross-file
-/// `Pi()` call whose diagnostic it had already suppressed.
-/// A host with no workspace knowledge passes `&analysis.diagnostics`, which is
-/// then the same set by definition.
+/// `report` is the document's findings under its policy
+/// (`docs/design/compiler/diagnostic-policy.md` § Adapters): a fix is lifted
+/// from a finding the report **shows** and from no other, whichever producer
+/// emitted it — the analyser, the compiler checks, or the optimiser, whose
+/// shown rewrites are offered as quick-fixes here.  Reading a producer's raw
+/// set instead is what let a host offer a "did you mean 'ni'?" rewrite over
+/// a cross-file `Pi()` call whose diagnostic it had already suppressed, and
+/// what let the MCP tool offer a fix an inline `# noqa` silences.
 ///
 /// The "Generate docstring" source action is offered at the
 /// [`crate::formatting::DocstringStyle::Preceding`] placement — the only
@@ -332,13 +365,13 @@ pub fn code_actions(
     source: &str,
     range: LspRange,
     analysis: Option<&AnalysisResult>,
-    diagnostics: &[tcl_compiler::analyser::Diagnostic],
+    report: &Report,
 ) -> Vec<CodeAction> {
     code_actions_in_program(
         source,
         range,
         analysis,
-        diagnostics,
+        report,
         None,
         crate::formatting::DocstringStyle::Preceding,
     )
@@ -352,9 +385,9 @@ pub fn code_actions(
 /// `namespace export` lives in another file decides whether inlining the
 /// local same-named proc is a refactor or a behaviour change.
 ///
-/// `diagnostics` carries the same published-set meaning as in [`code_actions`]:
-/// the two arguments answer different questions — `program` decides what a call
-/// *reaches*, `diagnostics` decides what the document is *showing* — so a host
+/// `report` carries the same meaning as in [`code_actions`]: the two
+/// arguments answer different questions — `program` decides what a call
+/// *reaches*, `report` decides what the document is *showing* — so a host
 /// with a workspace index needs to supply both.
 ///
 /// `docstring_style` is the resolved `tclLsp.formatting.docstringStyle`
@@ -366,7 +399,7 @@ pub fn code_actions_in_program(
     source: &str,
     range: LspRange,
     analysis: Option<&AnalysisResult>,
-    diagnostics: &[tcl_compiler::analyser::Diagnostic],
+    report: &Report,
     program: Option<crate::definition::ProgramExports<'_>>,
     docstring_style: crate::formatting::DocstringStyle,
 ) -> Vec<CodeAction> {
@@ -376,11 +409,12 @@ pub fn code_actions_in_program(
     let line_index = LineIndex::new(source);
     let mut actions = Vec::new();
 
-    push_brace_expr_refactors(&mut actions, source, range, diagnostics, &line_index);
+    push_brace_expr_refactors(&mut actions, source, range, report, &line_index);
 
-    for diag in diagnostics {
-        let diag_start = line_index.position_at_utf16(diag.span.start(), source);
-        let diag_end = line_index.position_at_utf16(diag.span.end(), source);
+    for shown in report.shown() {
+        let finding = shown.finding;
+        let diag_start = line_index.position_at_utf16(finding.span.start(), source);
+        let diag_end = line_index.position_at_utf16(finding.span.end(), source);
         let diag_range = LspRange {
             start_line: diag_start.line,
             start_character: diag_start.character.get(),
@@ -391,9 +425,9 @@ pub fn code_actions_in_program(
             continue;
         }
         // W302's catch-result-variable quick-fixes are carried on the
-        // diagnostic, like W213's and W120's below.  Synthesising them here
-        // from the diagnostic's *end* position would use the end of the
-        // `catch` **word** — the diagnostic anchors at the command head, not
+        // finding, like W213's and W120's.  Synthesising them here
+        // from the finding's *end* position would use the end of the
+        // `catch` **word** — the finding anchors at the command head, not
         // at the body — so the inserted word would land before
         // the body and turn `catch {error oops}` into
         // `catch result {error oops}`, i.e. a catch of the script `result`
@@ -402,17 +436,30 @@ pub fn code_actions_in_program(
         // and `lift_fixes` below surfaces it unchanged.
         //
         // W213's `Add '-nocomplain' to unset` quick-fix is carried on the
-        // diagnostic itself (the analyser knows the exact `unset` keyword span
-        // and narrows the diagnostic to the offending variable word), so it is
+        // finding itself (the analyser knows the exact `unset` keyword span
+        // and narrows the finding to the offending variable word), so it is
         // surfaced by the generic `lift_fixes` path rather than re-derived
         // here from the span.
+        //
+        // The compiler checks' fixes (the iRules control-flow insertions,
+        // taint-family rewrites, the W201 `file join` rewrite among them)
+        // lift through the same call: the checks and the analyser are
+        // disjoint families, so no fix is offered twice.
         lift_fixes(
             &mut actions,
-            &diag.fixes,
-            &diag.message,
+            &finding.fixes,
+            &finding.message,
             source,
             &line_index,
         );
+        if is_shimmer_family(finding.code)
+            && let Some(action) = build_shimmer_noqa_suppress_action(source, finding, &line_index)
+        {
+            actions.push(action);
+        }
+        if let Some(action) = rewrite_action(finding, source, &line_index) {
+            actions.push(action);
+        }
     }
 
     // Range-based refactors / source actions that don't depend on a diagnostic.
@@ -527,75 +574,6 @@ pub fn bigip_code_actions(source: &str, range: LspRange, uri: &str) -> Vec<CodeA
 /// overlaps `range` into `CodeAction`s, plus the synthetic shimmer-family
 /// "Suppress" action (see [`build_shimmer_noqa_suppress_action`]).
 ///
-/// The analyser-driven [`code_actions`] above only sees
-/// `AnalysisResult.diagnostics`; the compiler checks surfaced through
-/// `run_all_checks` are a disjoint set, so lifting their fixes here carries no
-/// risk of double-offering an analyser fix.  Several check constructors
-/// populate `fixes` (the iRules control-flow insertions, taint-family
-/// rewrites, and the W201 `file join` rewrite among them) and new ones may
-/// join — this lift is generic over whatever the checks carry, never a
-/// per-constructor special case.
-///
-/// The caller passes the `run_all_checks` output
-/// (e.g. `CompilerDiagnostics::checks`).
-///
-/// `disabled` is the resolved per-check toggle set
-/// (`tclLsp.diagnostics.<CODE> = false`) and `suppressed` the analyser's
-/// `# noqa` / `# tcl-lsp: disable=…` map.  A check silenced by either has no
-/// diagnostic in the published set, so its quick-fix must not be offered
-/// either — otherwise the lightbulb re-surfaces a hidden warning, and a
-/// shimmer code would offer to add a second `# noqa` above the one already
-/// silencing it.  The analyser path bakes the disabled set into its build and
-/// has its suppression applied by the caller; this path is fed the raw
-/// `run_all_checks` output, so it applies both filters here.
-#[must_use]
-pub fn check_diagnostic_actions<S: std::hash::BuildHasher, H: BuildHasher, I: BuildHasher>(
-    source: &str,
-    range: LspRange,
-    checks: &[tcl_compiler::compiler_checks::Diagnostic],
-    disabled: &std::collections::HashSet<String, S>,
-    suppressed: &HashMap<i32, HashSet<String, I>, H>,
-) -> Vec<CodeAction> {
-    let line_index = LineIndex::new(source);
-    let mut actions = Vec::new();
-    for diag in checks {
-        if disabled.contains(diag.code.as_str()) {
-            continue;
-        }
-        let diag_start = line_index.position_at_utf16(diag.span.start(), source);
-        if line_suppressed(
-            diag.code.as_str(),
-            i32::try_from(diag_start.line).unwrap_or(i32::MAX),
-            suppressed,
-        ) {
-            continue;
-        }
-        let diag_end = line_index.position_at_utf16(diag.span.end(), source);
-        let diag_range = LspRange {
-            start_line: diag_start.line,
-            start_character: diag_start.character.get(),
-            end_line: diag_end.line,
-            end_character: diag_end.character.get(),
-        };
-        if !ranges_overlap(diag_range, range) {
-            continue;
-        }
-        lift_fixes(
-            &mut actions,
-            &diag.fixes,
-            &diag.message,
-            source,
-            &line_index,
-        );
-        if is_shimmer_family(diag.code)
-            && let Some(action) = build_shimmer_noqa_suppress_action(source, diag, &line_index)
-        {
-            actions.push(action);
-        }
-    }
-    actions
-}
-
 /// True for the shimmer diagnostic family (S100/S101/S102 — performance
 /// intrep-conversion; S103 — shared-value copy-on-write; S110 —
 /// byte-array-corruption correctness), the set
@@ -625,10 +603,10 @@ fn is_shimmer_family(code: DiagCode) -> bool {
 /// source line (defensive; `LineIndex` is built from the same `source`).
 fn build_shimmer_noqa_suppress_action(
     source: &str,
-    diag: &tcl_compiler::compiler_checks::Diagnostic,
+    finding: &Finding,
     line_index: &LineIndex,
 ) -> Option<CodeAction> {
-    let line = line_index.line_at(diag.span.start());
+    let line = line_index.line_at(finding.span.start());
     let line_start = line_index.line_start(line);
     let line_text = source.get(line_start as usize..)?.lines().next()?;
     let indent: String = line_text
@@ -643,10 +621,10 @@ fn build_shimmer_noqa_suppress_action(
         end_character: pos.character.get(),
     };
     Some(CodeAction {
-        title: format!("Suppress {} with a noqa comment", diag.code.as_str()),
+        title: format!("Suppress {} with a noqa comment", finding.code.as_str()),
         edits: vec![crate::rename::TextEdit {
             range: insertion,
-            new_text: format!("{indent}# noqa: {}\n", diag.code.as_str()),
+            new_text: format!("{indent}# noqa: {}\n", finding.code.as_str()),
         }],
         kind: ActionKind::QuickFix,
         command: None,
@@ -2519,9 +2497,50 @@ fn taint_quickfix(source: &str, d: &ContextDiagnostic) -> Vec<CodeAction> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::{HashMap, HashSet};
+
     use super::*;
+    use crate::diagnostic_policy::{Directives, Policy, PolicyBuilder, PolicyLayer, apply};
     use tcl_compiler::analyser::{Analyser, AnalysisResult, CodeFix, Diagnostic};
     use tcl_lexer::Span;
+
+    /// The analyser's diagnostics as a report that shows every one of them —
+    /// a host with no workspace and no configuration, which is what these
+    /// tests stand in for.
+    fn report_of(diagnostics: &[Diagnostic]) -> Report {
+        let findings = diagnostics.iter().cloned().map(Finding::from).collect();
+        apply(findings, &Policy::unrestricted())
+    }
+
+    /// The compiler-check quick-fixes for `checks` under an editor layer that
+    /// turns `disabled` off and the analyser's `suppressed` map, through the
+    /// one report path every action takes. `source` is analysed as plain Tcl
+    /// so the range-based refactors run too; only the quick-fixes come back.
+    fn check_actions(
+        source: &str,
+        range: LspRange,
+        checks: &[tcl_compiler::compiler_checks::Diagnostic],
+        disabled: &HashSet<String>,
+        suppressed: &HashMap<i32, HashSet<String>>,
+    ) -> Vec<CodeAction> {
+        let mut layer = serde_json::Map::new();
+        for code in disabled {
+            layer.insert(code.clone(), serde_json::Value::Bool(false));
+        }
+        let policy = PolicyBuilder::new()
+            .layer(
+                PolicyLayer::Editor,
+                &serde_json::json!({ "diagnostics": serde_json::Value::Object(layer) }),
+            )
+            .directives(Directives::new(suppressed.clone(), source))
+            .build();
+        let report = apply(checks.iter().cloned().map(Finding::from).collect(), &policy);
+        let analysis = analyse(source);
+        code_actions(source, range, Some(&analysis), &report)
+            .into_iter()
+            .filter(|a| a.kind == ActionKind::QuickFix)
+            .collect()
+    }
 
     fn whole_document_range(source: &str) -> LspRange {
         let line_count = source.lines().count().max(1);
@@ -2535,7 +2554,15 @@ mod tests {
 
     #[test]
     fn empty_actions_when_analysis_is_none() {
-        assert!(code_actions("set x 1\n", whole_document_range("set x 1\n"), None, &[]).is_empty());
+        assert!(
+            code_actions(
+                "set x 1\n",
+                whole_document_range("set x 1\n"),
+                None,
+                &Report::default()
+            )
+            .is_empty()
+        );
     }
 
     #[test]
@@ -2560,7 +2587,7 @@ mod tests {
             "set x 1\n",
             whole_document_range("set x 1\n"),
             Some(&r),
-            &r.diagnostics,
+            &report_of(&r.diagnostics),
         );
         let qf: Vec<&CodeAction> = actions
             .iter()
@@ -2595,7 +2622,9 @@ mod tests {
             end_line: 99,
             end_character: 10,
         };
-        assert!(code_actions("set x 1\n", far_range, Some(&r), &r.diagnostics).is_empty());
+        assert!(
+            code_actions("set x 1\n", far_range, Some(&r), &report_of(&r.diagnostics)).is_empty()
+        );
     }
 
     #[test]
@@ -2617,7 +2646,7 @@ mod tests {
             "set x 1\n",
             whole_document_range("set x 1\n"),
             Some(&r),
-            &r.diagnostics,
+            &report_of(&r.diagnostics),
         );
         let qf: Vec<&CodeAction> = actions
             .iter()
@@ -2637,7 +2666,7 @@ mod tests {
             "set x 1\nputs $x\n",
             whole_document_range("set x 1\nputs $x\n"),
             Some(&analysis),
-            &analysis.diagnostics,
+            &report_of(&analysis.diagnostics),
         );
         // No diagnostic fixes → no quick-fix actions (range-based refactors
         // like extract-proc may still be offered for the selection).
@@ -2674,7 +2703,7 @@ mod tests {
             "set x 1\n",
             whole_document_range("set x 1\n"),
             Some(&r),
-            &r.diagnostics,
+            &report_of(&r.diagnostics),
         );
         let titles: Vec<&str> = actions
             .iter()
@@ -2704,7 +2733,7 @@ mod tests {
             src,
             line_range(call_line),
             Some(&analysis),
-            &analysis.diagnostics,
+            &report_of(&analysis.diagnostics),
         );
         let action = actions
             .iter()
@@ -2764,7 +2793,7 @@ mod tests {
             src,
             whole_document_range(src),
             Some(&analysis),
-            &analysis.diagnostics,
+            &report_of(&analysis.diagnostics),
         );
         let nocomplain = actions
             .iter()
@@ -2792,7 +2821,7 @@ mod tests {
             src,
             whole_document_range(src),
             Some(&analysis),
-            &analysis.diagnostics,
+            &report_of(&analysis.diagnostics),
         );
         let act = actions
             .iter()
@@ -2856,7 +2885,7 @@ mod tests {
             src,
             whole_document_range(src),
             Some(&analysis),
-            &analysis.diagnostics,
+            &report_of(&analysis.diagnostics),
         )
         .into_iter()
         .filter(|action| action.title.starts_with("Add catch"))
@@ -2951,7 +2980,7 @@ mod tests {
             src,
             whole_document_range(src),
             Some(&analysis),
-            &analysis.diagnostics,
+            &report_of(&analysis.diagnostics),
         );
         let add = actions
             .iter()
@@ -3132,7 +3161,17 @@ mod tests {
         // No analysis, no evidence — the provider declines rather than
         // falling back to scanning the text.
         let registry = tcl_registry::CommandRegistry::build_default();
-        assert!(package_require_actions("http::foo\n", at(0, 2), &registry, None, &[]).is_empty());
+        assert!(
+            package_require_actions(
+                "http::foo
+",
+                at(0, 2),
+                &registry,
+                None,
+                &[]
+            )
+            .is_empty()
+        );
     }
 
     #[test]
@@ -3216,7 +3255,7 @@ mod tests {
         );
 
         let none_disabled = std::collections::HashSet::new();
-        let actions = check_diagnostic_actions(
+        let actions = check_actions(
             src,
             whole_document_range(src),
             &checks,
@@ -3245,7 +3284,7 @@ mod tests {
         let src = "set x 1\n";
         let none_disabled = std::collections::HashSet::new();
         assert!(
-            check_diagnostic_actions(
+            check_actions(
                 src,
                 whole_document_range(src),
                 &[],
@@ -3280,7 +3319,7 @@ mod tests {
 
         let mut disabled = std::collections::HashSet::new();
         disabled.insert("IRULE5002".to_string());
-        let actions = check_diagnostic_actions(
+        let actions = check_actions(
             src,
             whole_document_range(src),
             &checks,
@@ -3318,7 +3357,7 @@ mod tests {
             .suppressed_lines
             .clone();
 
-        let actions = check_diagnostic_actions(
+        let actions = check_actions(
             src,
             whole_document_range(src),
             &checks,
@@ -3355,7 +3394,7 @@ mod tests {
         );
 
         let none_disabled = std::collections::HashSet::new();
-        let actions = check_diagnostic_actions(
+        let actions = check_actions(
             src,
             whole_document_range(src),
             &checks,
@@ -3401,7 +3440,7 @@ mod tests {
         assert!(checks.iter().any(|d| d.code == DiagCode::S100));
 
         let none_disabled = std::collections::HashSet::new();
-        let actions = check_diagnostic_actions(
+        let actions = check_actions(
             src,
             whole_document_range(src),
             &checks,
@@ -3429,7 +3468,7 @@ mod tests {
 
         let mut disabled = std::collections::HashSet::new();
         disabled.insert("S100".to_string());
-        let actions = check_diagnostic_actions(
+        let actions = check_actions(
             src,
             whole_document_range(src),
             &checks,
@@ -3460,7 +3499,12 @@ mod tests {
             end_line: 0,
             end_character: 27,
         };
-        let actions = code_actions(src, range, Some(&analysis), &analysis.diagnostics);
+        let actions = code_actions(
+            src,
+            range,
+            Some(&analysis),
+            &report_of(&analysis.diagnostics),
+        );
         assert!(
             actions.iter().any(|a| {
                 a.kind == ActionKind::RefactorExtract && a.title.to_lowercase().contains("variable")
@@ -3481,7 +3525,7 @@ mod tests {
                 src,
                 whole_document_range(src),
                 Some(&analysis),
-                &analysis.diagnostics,
+                &report_of(&analysis.diagnostics),
             );
             assert!(
                 !actions
@@ -3505,7 +3549,12 @@ mod tests {
             end_line: 0,
             end_character: 16,
         };
-        let mut actions = code_actions(src, range, Some(&analysis), &analysis.diagnostics);
+        let mut actions = code_actions(
+            src,
+            range,
+            Some(&analysis),
+            &report_of(&analysis.diagnostics),
+        );
         assert!(
             actions
                 .iter()
@@ -3564,7 +3613,12 @@ mod tests {
             end_line: 0,
             end_character: 0,
         };
-        let actions = code_actions(src, cursor, Some(&analysis), &analysis.diagnostics);
+        let actions = code_actions(
+            src,
+            cursor,
+            Some(&analysis),
+            &report_of(&analysis.diagnostics),
+        );
         assert!(
             actions
                 .iter()
@@ -3590,7 +3644,12 @@ mod tests {
             end_line: 2,
             end_character: 8,
         };
-        let actions = code_actions(src, cursor, Some(&analysis), &analysis.diagnostics);
+        let actions = code_actions(
+            src,
+            cursor,
+            Some(&analysis),
+            &report_of(&analysis.diagnostics),
+        );
         assert!(
             actions
                 .iter()
@@ -3609,7 +3668,12 @@ mod tests {
             end_line: 0,
             end_character: 0,
         };
-        let actions = code_actions(src, cursor, Some(&analysis), &analysis.diagnostics);
+        let actions = code_actions(
+            src,
+            cursor,
+            Some(&analysis),
+            &report_of(&analysis.diagnostics),
+        );
         let dg = actions
             .iter()
             .find(|a| a.title.to_lowercase().contains("data-group"))

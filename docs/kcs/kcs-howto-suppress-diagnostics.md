@@ -123,6 +123,16 @@ document they appear in. Project, editor, and global config can both
 turn codes off and turn them back on — a project config that enables
 a code overrules an editor or global config that disables it.
 
+The same five scopes, in the same order, govern the `tcl` CLI's
+`diag` / `lint` / `validate` / `opt` verbs and the MCP tools: the global
+file is read on every surface, a file on disk reads the nearest
+`.tcl-lsp.ini` above it, and the verb's `--disable` / `--enable` flags —
+the tools' `disable` / `enable` arguments — take the editor layer's
+place. An inline `--source` or an MCP `source` string has no project
+layer. A `# noqa` keeps an optimiser rewrite off (`tcl opt`, the
+`optimize` tool, the editor's *Optimise document* command) exactly as it
+keeps a squiggle off.
+
 ### Which codes can I disable?
 
 Every code the server emits has a page under

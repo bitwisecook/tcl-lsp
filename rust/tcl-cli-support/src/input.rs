@@ -448,9 +448,17 @@ pub fn read_input_documents(
 /// `_combine_sources`).
 #[must_use]
 pub fn combine_sources(documents: &[InputDocument]) -> String {
-    documents
-        .iter()
-        .map(|d| d.source.trim_end_matches('\n'))
+    combine_texts(documents.iter().map(|d| d.source.as_str()))
+}
+
+/// [`combine_sources`] over texts a verb already transformed one by one —
+/// the same trailing-newline strip and blank-line join, so a per-document
+/// run renders exactly as a combined one.
+#[must_use]
+pub fn combine_texts<'a>(texts: impl IntoIterator<Item = &'a str>) -> String {
+    texts
+        .into_iter()
+        .map(|text| text.trim_end_matches('\n'))
         .collect::<Vec<_>>()
         .join("\n\n")
 }
