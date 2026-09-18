@@ -31,6 +31,11 @@ Each code has up to three programs:
 - **must stay sound** — a rewrite or finding that a naive transfer would
   get wrong, and the rule that prevents it.
 
+An entry whose title ends in *rung* is one of the designed rungs rather
+than a single code — its programs are the ones its consumers share, in the
+same three roles — and it sits in the section where its consumers' codes
+already live.
+
 Where the optimiser and a diagnostic disagree today on the same program,
 the example says so: that disagreement is the four-evaluator problem the
 interface contract removes.
@@ -51,6 +56,7 @@ issue, and each is a contract point:
 | [#2056](https://github.com/bitwisecook/tcl-lsp/issues/2056) | IRULE1201 counts an `HTTP::respond` in a branch I230 proves dead | applied reachability is one fact with many consumers |
 | [#2057](https://github.com/bitwisecook/tcl-lsp/issues/2057) | W242 warns about a `while` loop O112 removes as never running | W240–W242 consume the branch fact instead of the condition's text |
 | [#2118](https://github.com/bitwisecook/tcl-lsp/issues/2118) | O122 converts a `walk` whose non-tail self-call sits inside a braced `expr`; the plain spelling gets O121 | a gate on source text reads the call through the expression owner's bridge |
+| [#2132](https://github.com/bitwisecook/tcl-lsp/issues/2132) | W211 and O126 delete `set x 1` although `[info exists x]` reads it, and O108 deletes the pair behind `[info exists b]`; the optimised procedure prints nothing where the original prints `yes` | an existence read is a use of the binding, and a store is removable only when no value read and no existence read of its version remains |
 
 ## Optimisations
 
@@ -267,8 +273,13 @@ set y [expr $x + 1]        ;# today: W100; O111 is never emitted by the CLI
 
 O111 is produced in the language server from the already-lifted W100
 (`append_brace_expr_perf_hints`), so it depends on W100 surviving
-presentation. Under the contracts both consume the unbraced-expression
-fact, or the product encodes one rule-group policy.
+presentation, and it reads the optimiser's own enablement to decide
+whether to run. Under the contracts O111 is a producer over the
+unbraced-expression fact, emitting at the same span for every unbraced
+expression, and policy decides the two codes independently: disabling
+W100 does not silence O111 — the ruling
+[diagnostic-policy.md](diagnostic-policy.md) § *Producers that change*
+states.
 
 ### O112 · eliminate constant-condition compounds
 
@@ -426,7 +437,8 @@ proc legacy {} { return 1 }   ;# today (--dialect irules): O124
 when HTTP_REQUEST { pool main }
 ```
 
-Unchanged; a reachability-aware call graph is a follow-on.
+Unchanged; whether a call is reachable is `ProcSummary::calls`' question
+on the call-graph axis, and no value fact answers it.
 
 ### O125 · sink assignments into a decision block
 
@@ -507,6 +519,194 @@ puts $l
 Under the contracts the initial cell's existence is a fact (absent, so
 `lappend` creates it), and the chain folds from `lappend l a`.
 
+### The ordered evaluation state · rung
+
+```tcl
+set x 1
+puts [expr {0 && [incr x]}]   ;# today: O101 folds the expression to 0 and O109 deletes the store
+puts $x                       ;# today: O102 forwards 1 — and 1 is right
+```
+
+The program prints `0` and `1` in every release, optimised or not: the
+right operand of `0 &&` is never reached, so the increment never runs, and
+that laziness is the one part of the ordered state the tool already has.
+
+```tcl
+set x 1
+puts [expr {$x + [incr x] + $x}]   ;# today: not folded
+puts $x                            ;# today: O102 forwards 1, where the value is 2
+```
+
+```tcl
+set x 1
+puts [expr {$x + [set x 10] + $x}]   ;# today: not folded
+puts $x                              ;# today: O102 forwards 1, where the value is 10
+```
+
+The first is `5` then `2` and the second `21` then `10` in every release,
+so both rewrites change the output: the nested `[incr x]` and `[set x 10]`
+are writes the forwarding never sees. Under the contracts they are the
+invocation's ordered stores — a read through the `variable` service
+consults the state's `writes` first, so `$x` after `[incr x]` is `2`, the
+expression folds to `5`, and the store the following `puts` forwards is
+the nested one's.
+
+```tcl
+proc p {} {
+    set n 1                ;# today: O109 deletes it — its only read sits inside the braced expr
+    set r [expr {$n + [incr n]}]
+    return $r
+}
+proc q {} {
+    set n 1                ;# today: W211 "set but never used", and O126 deletes it
+    set r [expr {[incr n] + [incr n]}]
+    return $r
+}
+```
+
+`p` is `3` and `q` is `5` in every release. Optimised, `p` raises
+`can't read "n": no such variable` in every release, and `q` raises it
+under 8.4 and answers `3` from 8.5, where the absent cell is created. This
+is the shape the comment on #2050 names: the read is inside a braced
+`expr`, so neither the dead-store guard nor the unused-variable check sees
+it. Under the contracts a read reached through the expression route is an
+SSA use of the version it reads, `LocalWrites` is the policy that admits
+the nested increments at all, and an error inside the expression ends the
+evaluation with the writes so far.
+
+### Bounded-loop enumeration · rung
+
+```tcl
+for {set i 0} {$i < 5} {incr i} {}
+if {$i == 5} { puts five } else { puts other }   ;# today: O101 folds the condition and O107 removes the else
+```
+
+```tcl
+set t 0
+for {set i 0} {$i < 4} {incr i} { incr t $i }
+if {$t == 6} { puts six } else { puts other }    ;# today: O101 and O107 — the accumulator survives the simulation
+```
+
+Both decide today through `summarise_for_statement` and
+`loop_summary_decision`, and `tcl diag` reports no I230 for either: the
+optimiser and the diagnostic disagree on the same program, which is what
+one fact for every consumer removes.
+
+```tcl
+for {set i 0} {$i < 10} {incr i} { if {$i == 3} break }
+if {$i == 3} { puts three } else { puts other }   ;# today: nothing — the simulation has no break
+```
+
+```tcl
+foreach x {} {}
+puts $x                    ;# today: nothing — the zero-iteration path is not a binding fact
+```
+
+`i` is `3` and `puts $x` raises `can't read "x": no such variable` in
+every release. Under the contracts `break` is a completion code the
+iteration plan absorbs and the exit state is published on the exit edge,
+so the branch decides; the binders of a zero-iteration `foreach` stay
+unbound, so the existence rung gives the read its W210.
+
+```tcl
+set n 0
+for {set i 0} {$i < 3} {incr i} { set i [expr {$i + 1}] ; incr n }
+if {$i == 4} { puts four } else { puts other }   ;# today: O114, then O101 and O107 decide it true
+```
+
+`i` is `4` and `n` is `2` in every release, which is what the tool answers
+today: a body that writes the loop variable is enumerated, not modelled.
+Under the contracts that stays true by construction, because every
+statement of the body applies its own registry-owned `evaluate` over the
+enumeration's state.
+
+### The correlated finite-set limit · rung
+
+```tcl
+set r 0
+foreach a {1 2} { set r [expr {$a * $a}] }
+if {$r == 4} { puts four } else { puts other }   ;# today: nothing — the set does not reach the expression
+```
+
+`r` is `4` in every release. Under the contracts `a` is one distinct SSA
+value with the finite set `{1, 2}`, so per-member evaluation answers
+`{1, 4}` — never `{1, 2, 4}` — and the loop's exit state decides the
+branch.
+
+```tcl
+set x 0
+foreach {a b} {1 10 2 20} { incr x [expr {$b / $a}] }
+if {$x == 20} { puts twenty } else { puts other }   ;# today: nothing
+set y 0
+foreach {a b} {1 20 2 10} { incr y [expr {$b / $a}] }
+if {$y == 25} { puts twentyfive } else { puts other }   ;# today: nothing — the mirror of the line above
+```
+
+`x` is `20` and `y` is `25` in every release. The two loops give `a` the
+set `{1, 2}` and `b` the set `{10, 20}` either way, so no reading of the
+sets alone can separate them: pairing members by position answers
+`{10, 10}` for both, and the cartesian product `{5, 10, 20}` is sound for
+both and exact for neither. Under the contracts two distinct finite inputs
+decline with `CorrelatedSets` and the definitions widen; only ordered
+enumeration answers `20` and `25`, and it is the loop's enumeration that
+supplies them, not the finite-set lift.
+
+### Proc-level transfer summaries · rung
+
+```tcl
+proc bump {name} {
+    upvar 1 $name v        ;# today: O100 rewrites this to `upvar 1 n v`
+    incr v
+}
+set n 1
+bump n
+if {$n == 2} { puts two } else { puts other }   ;# today: nothing — the callee's write is invisible here
+```
+
+`n` is `2` in every release. The rewrite is the callee body specialised to
+one call site: correct only while that call stays the only one, which no
+fact on the procedure records. A second caller in the same unit already
+suppresses it — `bump n; bump other` leaves the body alone — but a caller
+in another unit, behind a computed head, or through a rename is not
+visible at all.
+
+```tcl
+proc reset {name} { upvar 1 $name v ; unset v }   ;# today: O100 specialises this body too
+set m 1
+reset m
+puts [info exists m]       ;# today: nothing — the callee's unbind is invisible
+proc g {} { set ::counter 5 }
+g
+puts $::counter            ;# today: nothing — the callee's global write is invisible
+proc rec {n} {
+    if {$n <= 0} { return 0 }
+    return [expr {$n + [rec [expr {$n - 1}]]}]
+}
+puts [rec 4]               ;# today: O123 hint only — the recursive call is not folded
+```
+
+`info exists m` is `0`, `::counter` is `5`, and `rec 4` is `10` in every
+release. Under the contracts the `Name` parameter carries the callee's
+outcomes to the caller's place, so `reset m` unbinds `m` and the existence
+read answers `0`; `globals` carries `set ::counter 5`; and the
+argument-sensitive O103 path re-runs the callee under the call's seeds,
+which is what folds `[rec 4]`.
+
+```tcl
+proc bump {name} { upvar 1 $name v ; incr v }
+set n 1
+bump n
+set other 10
+bump other
+puts "$n $other"           ;# today: nothing — two call sites, and the body is left alone
+```
+
+`2 11` in every release. Under the contracts one context-insensitive
+summary per procedure is what both call sites apply, so the caller's
+places are updated without specialising the callee to either of them, and
+`bump absent` keeps its release split — an error under 8.4, `1` with
+`absent` bound from 8.5.
+
 ## Diagnostics
 
 ### I230 · constant branch condition
@@ -546,6 +746,69 @@ switch -glob -- $x { a* { puts A } b* { puts B } }           ;# today: O112 fire
 Under the contracts the whole-variable `Raw` case decides in the CFG, and
 the opaque `-glob` form gets a selection fact from `tcl_cmd_core::switch`
 that I231, O112, and the analyser consume together.
+
+### Predicate refinement · rung
+
+```tcl
+proc p {} {
+    if {![info exists x]} { set x 0 }
+    puts $x                ;# today: no W210 — the negated existence guard narrows the read's block
+}
+```
+
+The existence guard is the precedent: `collect_existence_guards` refines
+by dominance, for one domain and one condition shape.
+
+```tcl
+proc p {x} {
+    if {$x eq "a"} {
+        if {$x eq "b"} { puts both }   ;# today: nothing — the outer test does not narrow x
+    }
+}
+proc q {x} {
+    switch -- $x {
+        a { return [string length $x] }
+        default { return 0 }
+    }
+}                          ;# today: nothing — the arm does not narrow x
+proc r {x} {
+    if {[string is integer $x]} { return [expr {$x + 1}] }   ;# today: nothing — the class is not a type fact
+    return 0
+}
+proc s {x} {
+    if {$x in {a b c}} {
+        if {$x eq "d"} { puts no }     ;# today: nothing — the set is not a lattice value
+    }
+}
+```
+
+Under the contracts each test publishes an `EdgeRefinement` on its true
+edge: `p`'s inner condition decides false, so I230 and O112 fire on it;
+`q`'s arm entry holds `x` as `a`, so `[string length $x]` folds to `1`;
+`r`'s true edge carries the class as a `Type` fact and never a value;
+`s`'s true edge carries the finite set `{a b c}`, so the inner test
+decides false. `s` is 8.5 onwards, where the `in` operator exists —
+`$x in {a b c}` is a syntax error under 8.4 — as is the `-nocase` row of
+the per-shape table.
+
+```tcl
+proc p {x} {
+    if {$x == 1} { return [string length $x] }   ;# today: nothing
+    return no
+}
+proc q {x} {
+    if {$x == 8} { return $x }
+    return no
+}
+```
+
+`p 1.0` is `3` in every release and `q 08` is `no` under 8.4, 8.5, and 8.6
+and `08` under 9.0 and 9.1. Under the contracts a numeric `==` refines the
+`Range` domain to a point and the `Type` domain to numeric and never the
+`ExactValue` domain — that is why `==` is not `eq` — the leading-zero
+release split is a decision about which edge is taken and not about the
+string, and an externally mutable place (`is_externally_mutable`) is never
+refined at all.
 
 ### W124 · invalid IP literal
 
@@ -665,8 +928,127 @@ set z 1
 ```
 
 Under the contracts W211 and W214 read applied reachability, unbind
-outcomes give W213 read-after-`unset` precision later, and W220's false
-positive on a preserved target (#2051) goes.
+outcomes give W213 its read-after-`unset` precision (the existence rung
+below), and W220's false positive on a preserved target (#2051) goes.
+
+### Existence · rung
+
+```tcl
+proc p {} {
+    if {[info exists x]} { puts $x }   ;# today: I230 "always false"; O101 folds the condition to 0
+}
+proc q {} {
+    if {[info exists x]} { puts ok }
+    puts $x                ;# today: W210 — a read outside the guard still reports
+}
+proc r {a} {
+    if {[info exists a]} { puts yes } else { puts no }   ;# today: I230 "always true", O101, and W214
+}
+```
+
+The whole-body scan already decides a name no statement assigns and a
+parameter every call binds: `r 1` is `yes` in every release, and the
+guarded read in `p` draws no W210, which is the guard narrowing
+`collect_existence_guards` applies by dominance.
+
+```tcl
+proc p {} {
+    set x 1
+    unset x
+    if {[info exists x]} { puts yes } else { puts no }   ;# today: nothing
+}
+```
+
+`p` is `no` in every release, and nothing decides the condition:
+`scan_defined_and_unset` collects `x` as assigned somewhere in the body,
+and `existence_constant_branches` abstains for every assigned name rather
+than reason about an unset-and-remake shape. Under the contracts the
+unbind is a storage outcome, so the fact at the condition is `Unbound`, `[info exists x]`
+answers `0` through the expression route's `nested` service, and the
+condition decides inside the fixed point, so the dead arm leaves
+`executable_blocks` instead of needing a post-pass.
+
+```tcl
+proc p {} {
+    set x 1                ;# today: W211, and O126 deletes the store (#2132)
+    if {[info exists x]} { puts yes }
+}
+proc q {} {
+    incr n                 ;# today: O109 deletes the increment
+    if {[info exists n]} { puts yes }
+}
+proc r {} {
+    set a 1                ;# today: O108 deletes this store once the next one goes
+    set b [expr {$a + 1}]  ;# today: W211, and O126 deletes it although [info exists b] reads it
+    if {[info exists b]} { puts yes }
+}
+proc s {c} {
+    set x 1
+    if {$c} { unset x }
+    puts $x                ;# today: S100 "merges string and int at control-flow join", beside its W210
+}
+```
+
+`p` and `r` print `yes` in every release and print nothing once optimised;
+`q` is the absent-cell split — `can't read "n": no such variable` under
+8.4, `yes` from 8.5 — and prints nothing once optimised under every
+release. Under the contracts an existence read is a use of the binding, so
+none of those stores is removable while one remains and an unbind
+statement is never removed at all; W213 reads the same fact, so an `unset`
+of an `Unbound` place is definite and of a `MayBound` place is "may not
+exist"; and an unbound version is not a typed value, so `s`'s phi is not a
+representation merge and S100 is silent on it.
+
+### Completion paths · rung
+
+```tcl
+proc p {} {
+    set a before           ;# today: W220 "never read", and O109 deletes it
+    if {[catch {regexp {(x)(y)} zz a b} m]} { puts $m }
+    puts $a
+}
+```
+
+`p` is `before` in every release, and the optimised procedure raises
+`can't read "a": no such variable`: the #2051 shape through `catch`. Under
+the contracts the no-match outcome preserves both targets on the normal
+path, so the store is read and stays.
+
+```tcl
+set a old
+array set b {k keep}
+catch {lassign {new second} a b} m   ;# today: W220 on `set a old`, and O109 deletes it
+puts "$a $m"
+```
+
+The `catch` is `1` from 8.5 with `a` equal to `new` and the message
+`can't set "b": variable is array`, because `lassign` wrote `a` before it
+failed on `b`; under 8.4 it is `1` with `a` still `old` and the message
+`invalid command name "lassign"`. So today's deletion is sound from 8.5
+and a miscompile under an 8.4 profile, for a reason no consumer states.
+Under the contracts the outcome is `Error { written: 1, … }` and the
+prefix rule is what proves the store dead — `written` is the proof, and
+the release that has no `lassign` at all declines instead.
+
+```tcl
+proc p {} {
+    set f 0                ;# today: W220, and O109 deletes it
+    try {
+        error boom
+    } finally {
+        set f 1            ;# today: O107 deletes it as unreachable
+    }
+    return $f              ;# today: W210, and O100 folds it to `return 0`
+}
+```
+
+`p` raises `boom` from 8.6 and `invalid command name "try"` under 8.4 and
+8.5. Both W210 and O107 are wrong about the same fact and sound only by
+accident: `f` is bound before the `try`, and `finally` runs on every path,
+so the read can never be of an unset `f` and the `finally` body is never
+unreachable. Under the contracts the `Handlers` protocol gives `finally`
+its edge from every completion path, `f` is `Bound(Scalar)` at the return,
+and the store is dead only because nothing reads it.
 
 ### W126 · non-channel value in channel position
 
@@ -736,6 +1118,31 @@ the second program narrows to `$var` exactly as the literal spelling does,
 and the template-word plan gives extract-proc, the dynamic-name barrier,
 and the two `subst -nocommands` folders one fact instead of a bracket walk
 each.
+
+```tcl
+set name world
+set greeting [subst -nocommands {hello $name}]   ;# today: nothing — the fold reaches lowering's const map
+puts $greeting
+proc Configure {name default description} {
+    proc $name {x} [subst -nocommands {return $default}]
+}
+Configure port 8080 {the port}       ;# today: W214 on `x` of proc `::port`, the materialised child
+```
+
+`subst -nocommands {hello $name}` is `hello world` and `port ignored` is
+`8080` in every release, and the W214 is the whole of the materialisation
+a CLI surface shows: the proc it names exists nowhere in the source, and
+the finding is anchored at line 1 because the child has no span of its
+own, which is the no-fabricated-span rule's case to answer. Both
+folders read `kinds`, `braced`, `reads`, and `escapes` from the plan under
+the contracts, instead of re-segmenting the `[subst …]` text and matching
+the head `subst` by spelling, and a computed switch word answers every
+kind, which is not `SUBST_NOCOMMANDS_KINDS`, so the shape is refused
+exactly as it is today. Extract-proc's literal cut reports nothing at all
+from the command line, so the contract is its only statement: it reads
+`kinds.variables` to decide whether a braced template is literal text it
+may keep whole or a word whose `reads` become holes, and `script_regions`
+for the regions that run in the caller's frame.
 
 ### S100, S101, S102, S103, S110 · representation
 
@@ -987,14 +1394,24 @@ mod incr {
 
     impl CommandSemantics for Semantics {
         /// Derived from `CellReadModifyWrite(Increment)`: one place, read
-        /// then written; the possible failure is the operation's.
+        /// then written; the possible failure is the operation's. The
+        /// helper fills `PlanAnswer::CellUpdate`'s `target`, `operation`,
+        /// `amount`, and `creates_absent` — the last from
+        /// `safe_on_uninit`, which is 8.5 onwards for `incr`.
         fn structure(&self, input: &dyn AnalysisInputs) -> PlanAnswer {
             cell_update_plan(input, CellUpdate::Increment)
         }
         fn transfer(&self, domain: FactDomain, input: &dyn AnalysisInputs) -> TransferAnswer {
+            let target = incr_form(input.invocation())?.declared_target();
             match domain {
-                FactDomain::Type => type_answer(TclType::Int, per_target![TclType::Int]),
-                FactDomain::Range => range::integer_add(input),   // the abstract model, not the evaluator
+                FactDomain::Type => TransferAnswer::Type(TypeFacts {
+                    result: Some(TclType::Int),
+                    per_target: vec![(target, TclType::Int)],
+                    shapes: vec![],
+                }),
+                // The registry-described operation, which the interval
+                // domain interprets; never the evaluator on an interval.
+                FactDomain::Range => TransferAnswer::Range(RangeModel::IntegerAdd),
                 _ => TransferAnswer::Generic,
             }
         }
@@ -1003,14 +1420,21 @@ mod incr {
             let target = form.declared_target();
             let old = input.prior_store(target.place(), FactDomain::ExactValue);
             let step = form.increment_or_exact_default("1");
-            // The shared numeric owner under the profile: 8.4 declines past
-            // the wide boundary, 8.5+ widens, `010` differs by release.
+            // `numeric_core::tcl_incr` is a proposed core: `ValueOps::int_add`
+            // over `ConstOps` plus `tcl_syntax::number::parse` for the
+            // release's numerals and the existence check. 8.4 raises past the
+            // wide boundary, 8.5 onwards widens, and `010` differs by release,
+            // so the wrapper needs `Needs::NUMERAL_GRAMMAR | Needs::INT_TOWER`.
             let out = numeric_core::tcl_incr(old, step, input.context(), budget)?;
             EvalAnswer::Evaluated(InvocationOutcome {
                 completion: CompletionOutcome::Normal,
-                result: out.value.clone().into(),
+                result: ExactValueOrUnavailable::Exact(out.value.clone()),
                 ordered_stores: vec![StoreOutcome::Write { target, value: out.value }],
-                types: TypeFacts::int(),
+                types: TypeFacts {
+                    result: Some(TclType::Int),
+                    per_target: vec![(target, TclType::Int)],
+                    shapes: vec![],
+                },
                 evidence: input.context().binding_evidence(),
             })
         }
@@ -1019,16 +1443,20 @@ mod incr {
 ```
 
 Proposed, in `.tclspec`, for the shipped command and for a pack command
-that reuses the same operation by name:
+that reuses the same operation by name. Every `-native` and `-direct` id
+is `SCOPE::FIELD` — the spec scope the field hangs off, then the field's
+own DSL keyword — resolved through that field's catalogue table;
+`-expression` names a language profile instead, and `-implementation`
+names an implementation identity:
 
 ```tcl
 command incr {
     arity 1..2
     arg 0 -role VarWrite
     return_type Int
-    semantics -native core.incr        ;# the read-modify-write plan
-    evaluate  -direct core.incr        ;# the shared numeric owner
-    facts     -native core.incr        ;# Int result and Int target
+    semantics -native incr::semantics   ;# the read-modify-write plan
+    evaluate  -direct incr::evaluate    ;# the shared numeric owner
+    facts     -native incr::facts       ;# Int result and Int target
 }
 
 command counter::bump {
@@ -1036,8 +1464,8 @@ command counter::bump {
     arg 0 -role VarWrite
     traits {READS_BEFORE_WRITE FIRST_ARG_VARNAME}
     return_type Int
-    semantics -native core.incr        ;# same operation, same evaluator: no body runs
-    evaluate  -direct core.incr
+    semantics -native incr::semantics   ;# same operation, same evaluator: no body runs
+    evaluate  -direct incr::evaluate
 }
 ```
 
@@ -1069,19 +1497,37 @@ Proposed, in Rust:
 ```rust,ignore
 fn evaluate(input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
     let [s, first, last] = exact_operands(input, [0, 1, 2])?;
-    // Admissibility before the core: the character model and the index
+    // Admissibility before the core: the addressing unit and the index
     // numeral grammar must be unanimous when the profile names no release.
-    let mut ops = ConstOps::admit(input.context(), Needs::CHAR_MODEL | Needs::INDEX_GRAMMAR)?;
+    let mut ops = ConstOps::admit(input.context(), budget, Needs::INDEX_GRAMMAR | Needs::CHAR_INDEXING)?;
+    // Step 4 of the adapter protocol: the index operands are pre-resolved
+    // under the admitted grammar, because the core's own `index::resolve`
+    // reads the ambient one and `010` differs from 9.0. `char_len` is the
+    // seam method `ConstOps` overrides, and it poisons the run rather than
+    // guessing when the character models disagree.
+    let len = ops.char_len(&s)?;
+    let (first, last) = (ops.index(&first, len)?, ops.index(&last, len)?);
     let value = tcl_cmd_core::string::range(&mut ops, &s, &first, &last).map_err(decline)?;
-    exact_result(ops.take(value), TypeFacts::string())
+    exact_result(ops.take(value)?, TypeFacts { result: Some(TclType::String), per_target: vec![], shapes: vec![] })
 }
 
 fn evaluate_binary_format(input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
-    let words = exact_operands_from(input, 0)?;
-    let mut ops = ConstOps::admit(input.context(), Needs::BINARY_SIGNEDNESS)?;
-    budget.charge_bytes(tcl_cmd_core::binary::format_size_bound(&words)?)?;   // bound before allocation
-    let bytes = tcl_cmd_core::binary::format(&mut ops, &words).map_err(decline)?;
-    exact_result(ops.take(bytes), TypeFacts::byte_array())               // representation evidence, not a string type
+    let [fmt, rest @ ..] = exact_operands_from(input, 0)?;
+    let mut ops = ConstOps::admit(input.context(), budget, Needs::BINARY_FIELDS | Needs::BYTE_STRINGS)?;
+    // `format_size_bound` is a proposed core beside `binary::format`: the
+    // charge cannot be derived from `binary::specifiers` alone, because
+    // `a`, `A`, and `x` take explicit counts.
+    ops.charge_bytes(tcl_cmd_core::binary::format_size_bound(&fmt, &rest)?)?;
+    // The real signature takes the format and the argument bytes, and owns
+    // no value model: `format(fmt: &[u8], args: &[&[u8]]) -> Result<Vec<u8>, CmdError>`.
+    let args: Vec<&[u8]> = rest.iter().map(|v| v.bytes.as_slice()).collect();
+    let bytes = tcl_cmd_core::binary::format(&fmt.bytes, &args).map_err(decline)?;
+    // The result's type is `ByteArray` and its representation evidence says
+    // the byte array was constructed, not coerced: two facts, not one.
+    exact_result(
+        ops.take(ConstValue { bytes: bytes.into(), repr: Representation::ByteArray })?,
+        TypeFacts { result: Some(TclType::ByteArray), per_target: vec![], shapes: vec![] },
+    )
 }
 ```
 
@@ -1092,16 +1538,16 @@ subcommand range {
     arity 3
     pure
     return_type String
-    semantics -native core.string_range
-    evaluate  -direct core.string_range
+    semantics -native string::range::semantics
+    evaluate  -direct string::range::evaluate
 }
 
 subcommand format {
     arity 1..
     pure
     return_type ByteArray
-    semantics -native core.binary_format
-    evaluate  -direct core.binary_format
+    semantics -native binary::format::semantics
+    evaluate  -direct binary::format::evaluate
     facts { result -representation byte_array }
 }
 ```
@@ -1135,9 +1581,9 @@ Proposed, in `.tclspec`:
 command expr {
     arity 1..
     arg 0 -role Expr
-    semantics -native core.expr_arguments
-    evaluate  -expression tcl.expr
-    facts     -native core.expr_facts
+    semantics -native expr::semantics    ;# the argument-assembly plan
+    evaluate  -expression tcl.expr       ;# the language profile, not a catalogue id
+    facts     -native expr::facts
 }
 ```
 
@@ -1156,44 +1602,85 @@ Proposed, in Rust:
 fn evaluate_regexp(input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
     let form = regexp_form(input.invocation())?;           // flags resolved once
     let [pattern, subject] = exact_operands(input, form.pattern_and_subject())?;
-    let mut ops = ConstOps::admit(input.context(), Needs::CHAR_MODEL)?;
-    // The shared command core over our engine; the typed precision result
-    // declines on fuel or depth exhaustion and on an approximate capture.
-    match tcl_cmd_core::regex::regexp::<_, AreEngine>(&mut ops, &form.args(&pattern, &subject), budget)? {
+    let mut ops = ConstOps::admit(
+        input.context(), budget,
+        Needs::REGEXP_FEATURES | Needs::CHAR_INDEXING | Needs::BYTE_STRINGS,
+    )?;
+    // The shared command core over our engine, which takes the command's
+    // arguments without the command name and charges the engine's fuel to
+    // the adapter's budget: `regexp::<O, E>(ops, args: &[&[u8]])`. The typed
+    // precision result declines on fuel or depth exhaustion and on an
+    // approximate capture.
+    let args = form.arg_bytes(&pattern, &subject);
+    match tcl_cmd_core::regex::regexp::<_, AreEngine>(&mut ops, &args).map_err(decline)? {
         RegexpResult::Count { count, assign: Some(values) } => {
+            // The core answers `(var-name, value)` pairs; the names resolve
+            // to the plan's validated targets, in call order.
             let stores = form.targets().zip(values)
-                .map(|(t, v)| StoreOutcome::Write { target: t, value: v }).collect();
-            exact_outcome(count, stores, TypeFacts::int())
+                .map(|(t, (_, v))| StoreOutcome::Write { target: t, value: v }).collect();
+            exact_outcome(count, stores, TypeFacts { result: Some(TclType::Int), per_target: vec![], shapes: vec![] })
         }
         RegexpResult::Count { count, assign: None } => {   // no match: every target preserved
             let stores = form.targets().map(|t| StoreOutcome::Preserve { target: t }).collect();
-            exact_outcome(count, stores, TypeFacts::int())
+            exact_outcome(count, stores, TypeFacts { result: Some(TclType::Int), per_target: vec![], shapes: vec![] })
         }
-        RegexpResult::Inline(list) => exact_result(list, TypeFacts::list()),
+        RegexpResult::Inline(list) =>
+            exact_result(ops.take(list)?, TypeFacts { result: Some(TclType::List), per_target: vec![], shapes: vec![] }),
     }
 }
 
 fn evaluate_scan(input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
     let [subject, format] = exact_operands(input, [0, 1])?;
-    let parsed = tcl_cmd_core::scan::parse_format(&format)?;      // the format's own owner
-    let (count, converted) = tcl_cmd_core::scan::convert(&subject, &parsed, input.context())?;
+    let mut ops = ConstOps::admit(input.context(), budget, Needs::NUMERAL_GRAMMAR | Needs::CHAR_MODEL)?;
+    let targets: Vec<_> = scan_targets(input).collect();
+    let subj: Vec<char> = ops.as_str(&subject).chars().collect();
+    let fmt: Vec<char> = ops.as_str(&format).chars().collect();
+    // The format's own owner: `validate_format(fmt: &[char], num_vars: usize)`
+    // answers the conversion count or the message the command reports.
+    tcl_cmd_core::scan::validate_format(&fmt, targets.len()).map_err(decline)?;
+    // `scan_match(input: &[char], fmt: &[char]) -> ScanOutcome`, whose
+    // `values` are the per-conversion `Scanned` results in order — `None`
+    // for a conversion that failed — and whose `nconv` is the count the
+    // variable form returns.
+    let out = tcl_cmd_core::scan::scan_match(&subj, &fmt);
     // Converted targets are written in order; the rest are preserved (`scan {12 nope} {%d %d} a b`).
-    let stores = scan_targets(input).enumerate().map(|(i, t)| match converted.get(i) {
-        Some(v) => StoreOutcome::Write { target: t, value: v.clone() },
-        None => StoreOutcome::Preserve { target: t },
+    let stores = targets.iter().enumerate().map(|(i, t)| match out.values.get(i).and_then(Option::as_ref) {
+        Some(Scanned::Int(n)) => StoreOutcome::Write { target: *t, value: ops.new_int(*n) },
+        Some(Scanned::Double(d)) => StoreOutcome::Write { target: *t, value: ops.new_double(*d) },
+        Some(Scanned::Str(s)) => StoreOutcome::Write { target: *t, value: ops.new_str(s) },
+        None => StoreOutcome::Preserve { target: *t },
     }).collect();
-    exact_outcome(count, stores, TypeFacts::per_target(parsed.types()))   // %d and %s differ per target
+    let count = i64::try_from(out.nconv).map_err(decline)?;
+    // `%d` and `%s` differ per target, and `Scanned` is the per-conversion
+    // discriminant the types come from.
+    exact_outcome(count, stores, TypeFacts {
+        result: Some(TclType::Int),
+        per_target: scanned_types(&targets, &out.values),
+        shapes: vec![],
+    })
 }
 
 fn evaluate_lassign(input: &dyn AnalysisInputs, budget: &mut Budget) -> EvalAnswer {
     let list = exact_operand(input, 0)?;
-    let items = tcl_syntax::list::split_list(&list).map_err(decline)?;
+    let mut ops = ConstOps::admit(input.context(), budget, Needs::LIST_RENDERING)?;
+    // `split_list(s: &str) -> Result<Vec<Cow<'_, str>>, ListError>`: the one
+    // list grammar, whose `ListError` carries the canonical message.
+    let items = tcl_syntax::list::split_list(ops.as_str(&list)).map_err(decline)?;
     // Targets resolve to places first, so `lassign … a a` writes `a` twice in order.
     let targets: Vec<_> = lassign_targets(input).collect();
+    let values: Vec<ConstValue> = items.iter().map(|e| ops.new_str(e)).collect();
     let stores = targets.iter().enumerate().map(|(i, t)| StoreOutcome::Write {
-        target: *t, value: items.get(i).cloned().unwrap_or_default(),   // a missing element binds ""
+        target: *t,
+        // A missing element binds the empty string.
+        value: values.get(i).cloned().unwrap_or_else(|| ops.new_str("")),
     }).collect();
-    exact_outcome(join_list(&items[targets.len().min(items.len())..]), stores, TypeFacts::list())
+    // The leftover elements are the command's result, rendered by the one
+    // list owner: `list::list(ops, args: &[O::Value]) -> O::Value`.
+    let rest = tcl_cmd_core::list::list(&mut ops, &values[targets.len().min(values.len())..]);
+    // `take` is the single ingress: it declines everything the run poisoned
+    // and hands back `ExactValue`s for the result and every store.
+    exact_outcome(ops.take(rest)?, stores,
+        TypeFacts { result: Some(TclType::List), per_target: vec![], shapes: vec![] })
 }
 ```
 
@@ -1202,9 +1689,10 @@ with an authored evaluator that must say *preserve* itself:
 
 ```tcl
 command regexp {
-    semantics -native core.regexp_forms
-    evaluate  -direct core.regexp
-    facts     -native core.regexp_facts
+    semantics -native regexp::semantics
+    evaluate  -direct regexp::evaluate
+    facts     -native regexp::facts
+    option -about -evaluate none -evaluate-reason form_unsupported   ;# the core refuses it
 }
 
 command kv::split3 {
@@ -1219,11 +1707,13 @@ command kv::split3 {
     evaluate -implementation kv.split3.v1 -host bounded_tcl {
         inputs {arg 0 exact}
         depends {tcl_profile implementation_identity}
+        budget {-commands 2000 -wall-clock 20 -value-bytes 65536}
         body {s} {
             set parts [split $s :]
             if {[llength $parts] != 3} {
-                preserve 1; preserve 2; preserve 3   ;# silence would be a decline, not a preserve
+                preserve 1; preserve 2; preserve 3   ;# silence on a declared target is a decline, not a preserve
                 fold 0
+                return
             }
             lassign $parts a b c
             write 1 $a; write 2 $b; write 3 $c
@@ -1232,6 +1722,12 @@ command kv::split3 {
     }
 }
 ```
+
+The body's three verbs are the whole protocol: `fold` states the result,
+`write` and `preserve` state one outcome each, in call order, and a body
+that says nothing about a declared target declines the whole answer — so
+the no-match path spells all three `preserve`s out, and `spectcl_check`
+reports a body that is silent on one of them.
 
 ### `switch`: selection semantics as data plus one declared contract
 
@@ -1253,10 +1749,18 @@ impl CommandSemantics for SwitchSemantics {
     fn transfer(&self, domain: FactDomain, input: &dyn AnalysisInputs) -> TransferAnswer {
         if domain != FactDomain::Selection { return TransferAnswer::Generic; }
         let subject = input.operand(SUBJECT, FactDomain::ExactValue);
-        let options = tcl_cmd_core::switch::parse_options(&mut ConstOps::admit(input.context(), Needs::CHAR_MODEL)?, input.option_words())?;
-        // One selected-edge fact per member of a finite subject, joined;
-        // a pattern that cannot be evaluated keeps the error possibility.
-        selection_fact(subject.members().map(|s| tcl_cmd_core::switch::select::<_, AreEngine, _>(&options, s, input.arms())))
+        // `-nocase` arrives in 8.5 and the core's exact `-nocase` match is
+        // ASCII-only, so the options need both axes admitted.
+        let mut ops = ConstOps::admit(input.context(), budget, Needs::REGEXP_FEATURES | Needs::COLLATION)?;
+        let options = tcl_cmd_core::switch::parse_options(&mut ops, input.option_words()).map_err(decline)?;
+        // `select::<O, E, V>(ops, opts, value, patterns) -> Selection<V>`, over
+        // the arms' patterns: one selected-edge fact per member of a finite
+        // subject, joined; a pattern that cannot be evaluated keeps the error
+        // possibility.
+        let patterns = input.arm_patterns();
+        selection_fact(subject.members().map(|s| {
+            tcl_cmd_core::switch::select::<_, AreEngine, _>(&mut ops, &options, s, &patterns)
+        }))
     }
     fn evaluate(&self, _: &dyn AnalysisInputs, _: &mut Budget) -> EvalAnswer { EvalAnswer::Declined(DeclineReason::NotAValue) }
 }
@@ -1277,9 +1781,13 @@ command vendor::dispatch {
         fallthrough_body -
         keyword_patterns {default} -final-only
     }
-    semantics -native core.switch_selection   ;# ordered first match, fall-through, final default
+    semantics -native switch::semantics   ;# ordered first match, fall-through, final default
 }
 ```
+
+The id is the shipped `switch` specialisation's, which is the point: the
+vendor command declares that it selects the way `switch` selects, and no
+consumer learns a second command name.
 
 ### `unset`, `dict with`: unbind, and a structural plan
 
@@ -1294,14 +1802,24 @@ plan, and the key binding a projection of a constant dict.
 // unset: derived, no evaluator body
 fn evaluate_unset(input: &dyn AnalysisInputs, _: &mut Budget) -> EvalAnswer {
     let stores = unset_targets(input).map(|t| StoreOutcome::Unbind { target: t }).collect();
-    exact_outcome(ExactValue::empty(), stores, TypeFacts::string())   // `unset` of an unbound place is an error, not a value: the driver declines unless existence is proven
+    // `unset` of an unbound place is an error, not a value: the driver
+    // declines with `UnboundPlace` unless existence is proven, and the
+    // `-nocomplain` form has no error in its completion domain at all.
+    exact_outcome(
+        ExactValue::empty(),
+        stores,
+        TypeFacts { result: Some(TclType::String), per_target: vec![], shapes: vec![] },
+    )
 }
 
 // dict with: bind, body, reconcile
 fn structure_dict_with(input: &dyn AnalysisInputs) -> PlanAnswer {
     PlanAnswer::Body {
-        binders: KeyBinding::from_dict_operand(input, DICT_ARG),   // the projection of a constant dict, when known
-        body: BodyPlan::enclosing_scope(BODY_ARG),
+        // One `Binder` per key, with `BindingKind` from the value: the
+        // projection of a constant dict, when the dict is known.
+        binders: dict_key_binders(input, DICT_ARG),
+        // The body runs in the enclosing frame, which is `Relative(0)`.
+        body: BodyPlan { body: BODY_ARG, frame: FrameLevel::Relative(0) },
         reconcile: Reconcile::WriteBackKeys(DICT_ARG),
         completion: CompletionProtocol::TclBody,
     }
@@ -1312,15 +1830,15 @@ fn structure_dict_with(input: &dyn AnalysisInputs) -> PlanAnswer {
 command unset {
     arity 0..
     traits {DESTROYS_VARIABLE}
-    arg_role_resolver -native core.unset_roles
-    semantics -native core.unset             ;# unbind outcomes, derived from the trait
+    arg_role_resolver -native unset::arg_role_resolver
+    semantics -native unset::semantics        ;# unbind outcomes, derived from the trait
 }
 
 subcommand with {
     arity 2..
     arg 0 -role VarWrite
     arg end -role Body
-    semantics -native core.dict_with         ;# bind keys · body · write back
+    semantics -native dict::with::semantics   ;# bind keys · body · write back
 }
 ```
 
@@ -1343,13 +1861,27 @@ substitution_resolver: Some(crate::substitution::subst_substitutions),
 
 // proposed: the same answer over proven operands, as one template-word plan
 fn structure_subst(input: &dyn AnalysisInputs) -> PlanAnswer {
-    let kinds = substitution_kinds(input);   // each switch operand's proven value; a computed switch stays every kind
-    PlanAnswer::TemplateWord {
-        operand: OPERAND_ARG,                // the final argument
+    // Each switch operand's proven value, joined per member for a
+    // `ConstSet`; a computed switch with no proven value stays
+    // `SubstitutionKinds::ALL`, as the bare-string resolver answers today.
+    let kinds = substitution_kinds(input);
+    // `word_structure` is the only reader of the template's source text:
+    // braced or not, with its literal runs, `$name` reads, `[…]` regions,
+    // and backslash escapes with spans.
+    let word = input.word_structure(OPERAND_ARG);
+    PlanAnswer::TemplateWord(TemplateWordPlan {
+        operand: OPERAND_ARG,                // the final argument; every earlier word is a switch
         kinds,
-        script_regions: kinds.commands.then(|| bracket_regions(input, OPERAND_ARG)),   // caller-frame scripts inside a braced template
-        reads: kinds.variables.then(|| variable_reads(input, OPERAND_ARG)),
-    }
+        braced: word.braced,
+        // Any other word reached the command already substituted once.
+        dynamic: !word.braced,
+        // Caller-frame scripts inside a braced template, in template order.
+        script_regions: if kinds.commands { word.script_regions() } else { vec![] },
+        // A read inside a script region belongs to that region and
+        // substitutes even when `kinds.variables` is off.
+        reads: if kinds.variables { word.reads_outside_regions() } else { vec![] },
+        escapes: if kinds.backslashes { word.escapes() } else { vec![] },
+    })
 }
 ```
 
@@ -1362,9 +1894,15 @@ command subst {
     option -backslashes   -selects backslashes -introduced 9.1   ;# the positive family; mixing families is the error the registry reports
     option -commands      -selects commands    -introduced 9.1
     option -variables     -selects variables   -introduced 9.1
-    semantics -native core.subst_template     ;# the template-word plan, derived from the option rows
+    semantics -native subst::semantics        ;# the template-word plan, derived from the option rows
 }
 ```
+
+`-introduced` is the row's own release gate, so a profile that does not
+reach 9.1 treats the positive family as the completion fact it is — the
+call errors — and a profile spanning both sides of 9.1 makes the plan
+decline with `ReleaseAmbiguous`, which returns W102 to every kind exactly
+as an unreadable call does.
 
 ### A vendor loop and a private command in a workspace pack
 
@@ -1403,7 +1941,8 @@ command tenant::label {
     evaluate -implementation tenant.label.v1 -host bounded_tcl {
         inputs {arg 0 exact}
         depends {tcl_profile implementation_identity}
-        body {name} { return [string cat "tenant:" $name] }
+        budget {-commands 2000 -wall-clock 20 -value-bytes 65536}
+        body {name} { fold [string cat "tenant:" $name] }
     }
     facts {
         result -string_segments {{constant "tenant:"} {operand 0}}
@@ -1423,6 +1962,7 @@ implementation identity still decide when the model applies.
 - [value-transfers.md](value-transfers.md) — the consumer interface contract these programs exercise
 - [value-evaluation.md](value-evaluation.md) — the routes the declarations name
 - [value-transfers-migration.md](value-transfers-migration.md) — the slices and the tables these examples index
-- [registry-consumer-contracts.md](registry-consumer-contracts.md) — the other axes and the follow-ons
+- [diagnostic-policy.md](diagnostic-policy.md) — the one findings pipeline the O111 and W100 rows answer to
+- [registry-consumer-contracts.md](registry-consumer-contracts.md) — the other axes these programs touch and do not own
 - [../spec-dsl-examples/README.md](../spec-dsl-examples/README.md), [../spec-dsl-examples/string.tclspec](../spec-dsl-examples/string.tclspec), [../spec-dsl-examples/switch.tclspec](../spec-dsl-examples/switch.tclspec) — today's authorable spellings
 - [compiler design index](README.md), [design docs index](../README.md)
