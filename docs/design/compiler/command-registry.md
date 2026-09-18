@@ -1753,7 +1753,20 @@ The [Command Spec Studio](../contracts/command-spec-studio.md) is the other
 non-Rust route today: a browser front-end over this registry that browses
 the live command surface, edits every field described above, and exports
 the pack it builds as drop-in `.rs` modules — one per command, with the
-`mod.rs` that collects them — or as a stub. Each field carries
+`mod.rs` that collects them — or as a stub. That `.rs` export
+(`rust/tcl-spec-studio/src/render_rs.rs`) is a **contribution aid**, not a
+backend: its output is a draft a human reviews into the tree, and there is
+no ahead-of-time `.tclspec` → `.rs` path. The shipped code-generation
+catalogues — the intrinsic table, the per-command runtime-backing
+classification, and the ABI descriptor table — are generated from this Rust
+registry by an `xtask` build task, and a pack names a member of a closed
+catalogue without ever adding one
+([registry-consumer-contracts.md](registry-consumer-contracts.md)
+§ *Rulings*). The backing gate today reads `runtime/rust`'s
+`register_builtin` and `register_spec_builtin` calls as source text and
+carries its residue in four committed lists
+(`rust/xtask/src/command_backing.rs`); step 7 of that page's § *Build
+order* makes those lists rows of a registry query. Each field carries
 a plain-language explanation written for Tcl developers with a worked Tcl
 example of that field, and a Reference tab searches the whole vocabulary —
 every field, trait, argument role, and taint colour, each with its own.

@@ -211,10 +211,25 @@ slot, no completion codes:
 
 ## The implemented subset
 
-Every declaration in `include/tclshim.h` is implemented — the header is
-honest by rule. What is in it is the argument-handling core the spec-author
-skill's evidence patterns name, plus what Tcl's own `dltest/pkga.c` and
-`pkgb.c` need to compile:
+**One header, two hosts.** The authored, API-compatible `tcl.h` of
+[c-extension-abi.md](c-extension-abi.md) is *the* C hosting contract, and
+this shim is its native host beside the WASM one, so one extension source
+compiles for both legs. The shim's exports are a documented subset of that
+header: a declaration it does not implement is absent from the header
+rather than opaque, which keeps the header honest by rule, and `Tcl_Obj`
+carries the ABI's declared layout (§ 4.2) rather than an opaque handle of
+the shim's own. The `TCL_SHIM_TCL_MAJOR=8` size switch belongs to the
+authored header, which needs it for the same reason.
+
+The shim today declares its own header, `include/tclshim.h`, with an opaque
+`Tcl_Obj`, and the tree contains no authored `tcl.h`; step 10 of
+[../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
+§ *Build order* retargets the shim onto the authored header with its CI
+gate.
+
+The subset is the argument-handling core the spec-author skill's evidence
+patterns name, plus what Tcl's own `dltest/pkga.c` and `pkgb.c` need to
+compile:
 
 | group | functions |
 |---|---|
@@ -240,17 +255,20 @@ Three header conventions carry the C-side mangling:
   `Tcl_Size` and inline wrappers for the three functions that write a size
   through a pointer — the same device Tcl 9's header uses for its own
   compatibility mode.
-- **`Tcl_Obj` is opaque.** An extension that reaches into `objPtr->bytes`
-  or `objPtr->refCount` directly does not compile against the shim; that
-  is the one source change the header can demand, and the compiler reports
-  it.
+- **`Tcl_Obj` carries the declared layout.** The type an extension sees is
+  the ABI's § 4.2 layout rather than an opaque handle, so an extension that
+  reaches into `objPtr->bytes` or `objPtr->refCount` compiles unchanged;
+  `rust/tcl-cshim/src/obj.rs` is the shim's side of it. `tclshim.h` today
+  declares `Tcl_Obj` opaque, so that extension is the one source change the
+  shim's own header demands, and the compiler reports it.
 
 An extension that needs string building (`Tcl_AppendToObj`,
 `Tcl_ObjPrintf`, `Tcl_NewByteArrayObj`), the dict API, variables
-(`Tcl_SetVar2Ex`, `Tcl_ObjSetVar2` — which the interface has no variable
-door for) or evaluation (`Tcl_EvalObjEx`, which needs the engine reachable
-*during* an invocation) does not compile against the shim. The header
-extends only with what it implements.
+(`Tcl_SetVar2Ex`, `Tcl_ObjSetVar2`) or evaluation (`Tcl_EvalObjEx`) is
+outside the implemented subset: the engine interface has no variable door
+and no in-invocation eval door, and those two doors are what the shim's
+side of the retargeting needs. A declaration outside the subset is absent
+from the shim's leg of the header rather than present and unimplemented.
 
 ## Testing
 
@@ -277,12 +295,16 @@ Windows included, runs it. The smoke tier has one test in each file.
 
 ## Out of scope
 
-Not shimmed: `Tcl_Channel` and the I/O API; the event loop and notifier (`Tcl_DoOneEvent`, `Tcl_CreateFileHandler`,
-timers); threads (`Tcl_CreateThread`, mutexes, thread-specific data);
-`Tcl_Eval*` (an interface question first, see above); and **stubs-table
-binary compatibility** with real `libtcl` builds — the shim is linked, not
-loaded against a stub table, so an extension is recompiled against
-`tclshim.h`, never dropped in as an existing `.so`/`.dll`.
+Not shimmed, and so absent from the shim's leg of the header:
+`Tcl_Channel` and the I/O API; the event loop and notifier
+(`Tcl_DoOneEvent`, `Tcl_CreateFileHandler`, timers); threads
+(`Tcl_CreateThread`, mutexes, thread-specific data); and `Tcl_Eval*` (an
+interface question first, see above). What the authored header covers
+across both hosts is its own scope list, [c-extension-abi.md](c-extension-abi.md)
+§ 7. **Stubs-table binary compatibility** with real `libtcl` builds is out
+of scope for both legs — the shim is linked, not loaded against a stub
+table, so an extension is recompiled from source, never dropped in as an
+existing `.so`/`.dll`.
 
 ## Files
 

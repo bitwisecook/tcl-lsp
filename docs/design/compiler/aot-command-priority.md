@@ -251,7 +251,7 @@ dispatch backing is [`docs/generated/wasm-command-backing.md`](../../generated/w
 |---|---|---|
 | Needs a real channel or filesystem (WASI-only; `BrowserHost` has none today) | `puts` (non-default channel), `open`/`close`/`read`/`gets`/`eof`/`flush`/`fconfigure`/`seek`, `file exists`/`delete`/`mkdir`/`copy`/`rename`, `glob`, `cd`, `pwd` | Yes, once targeting WASI; no, for a bare browser until host wiring lands |
 | Needs the package/library system and the `MemFs` stdlib seed | `source`, `package require`/`provide`/`ifneeded` | Partially — `WasiHost` already seeds `MemFs`; `BrowserHost` does not yet (wasm-target-surfaces.md §3) |
-| Explicit "not supported under the WASM runtime" stub on both hosts | `exec`, `socket`, `load`/`unload`, `fileevent`, `fcopy` | No — no sandboxed meaning, not a missing feature |
+| Explicit "not supported under the WASM runtime" stub on both hosts | `exec`, `socket`, `load`/`unload`, `fileevent`, `fcopy` | No for `exec`, `socket`, `fileevent`, and `fcopy` — no sandboxed meaning, not a missing feature. `load` is host work rather than compiler work: a C extension is recompiled against the authored `tcl.h` and hosted through a host opt-in `load` bridge, never binary-loaded ([../runtime/c-extension-abi.md](../runtime/c-extension-abi.md), step 10 of [registry-consumer-contracts.md](registry-consumer-contracts.md) § *Build order*) |
 | Compiles but is not functionally correct on the browser target | `after`/`vwait`/event loop (no real sleep primitive), `clock` (epoch-0 stub on both hosts) | No — needs a JS-side host import (clock, and an async/shared-memory sleep primitive), not compiler work |
 
 ## Related

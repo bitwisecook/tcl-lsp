@@ -282,8 +282,20 @@ deliberate divergences; everything else matches C per the parity suites.
    `next`/`self` commands' existing rule), slightly looser than C's
    `FRAME_IS_METHOD` — a plain proc *called from* a method still counts.
    Opcode and command surfaces agree with each other.
-5. **`startCommand`** is inert (its length/cmd-count operands are carried for
-   disassembly parity; the VM needs no interp-epoch recheck).
+5. **`startCommand`** is the VM's command-boundary recheck, where C's is an
+   interp `compileEpoch` compare. When the frame's `command_epoch` differs
+   from the interpreter's `trace_deopt_epoch` at a real source boundary, the
+   arm asks `function_command_bindings_match` — every
+   `CommandBindingIdentity` and `ProcedureBindingIdentity` the function
+   carries, re-resolved — and stamps the frame when they all still hold. A
+   binding that fails to match, or an active step trace, replays that one
+   command: its source text is compiled plain and the frame resumes at the
+   instruction's continuation label. Its length/cmd-count operands are
+   carried for disassembly parity. Binding provenance and intrinsic guard
+   eligibility stay separate mechanisms — the guard table is what
+   `bump_cmd_epoch` clears
+   ([../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
+   § *Codegen and the registry today*).
 6. **`arrayExistsImm`/`arrayExistsStk` skip C's `TclCheckArrayTraces`** — the
    VM records `array` trace ops but fires only read/write/unset traces
    anywhere, so the opcodes stay consistent with the VM's `array exists`.

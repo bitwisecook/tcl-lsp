@@ -270,6 +270,21 @@ direct-ABI model there is no live stub table, so:
 
 ## 7. Header scope
 
+**One header, two hosts.** The authored `tcl.h` is *the* C hosting
+contract, and it has two hosts: the WASM leg this document specifies, and
+the native leg `rust/tcl-cshim` provides — `Interp<E: Engine>`, the engine
+interface's second consumer, trusted host code loaded only through
+`Interp::load_static`
+([c-extension-shim.md](c-extension-shim.md)). One extension source
+compiles for both, each host implements the subset it can, and a
+declaration a host does not implement is absent from that host's leg
+rather than present and failing. `rust/tcl-cshim/tests/pkga_e2e.rs`'s
+expectations, captured against Tcl 9.0.4's own `tcl.h`, are the shared
+conformance vectors. The shim today compiles extensions against its own
+`include/tclshim.h`; step 10 of
+[../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
+§ *Build order* retargets it onto the authored header.
+
 Source of truth for "what the API surface must cover": the 25-extension survey.
 **~85–90% of real extensions are public-`tcl.h`-only.**
 

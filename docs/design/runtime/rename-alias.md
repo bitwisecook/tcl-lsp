@@ -195,14 +195,26 @@ but about the move itself, and there are exactly three cases:
 
 ### 3.5 Invalidation
 
-Nothing to invalidate.  Resolution is a live `BTreeMap` walk on every
-dispatch — there is no per-namespace command-reference epoch, no
+Nothing to invalidate for *resolution*.  It is a live `BTreeMap` walk on
+every dispatch — there is no per-namespace command-reference epoch, no
 resolver cache, and no proc-lookup LRU in this runtime, so a rename is
 observable on the very next resolve with no bookkeeping.  The one
 cache-shaped structure that does exist is the command-FQN ⇆ `CommandId`
 arena (`InterpState::cmd_arena`), and it is a name interner, not a
 binding cache: ids map to FQNs, and the FQN is re-resolved when a
 `dispatch_id` invokes it.
+
+A rename does invalidate the *compiled* command environment, which is a
+different mechanism.  Both halves — `move_bound_command` and
+`delete_bound_command` — call `invalidate_command_environment`, which
+clears the intrinsic guard table (`guarded_commands`) and invalidates the
+`CommandEnvironment`, `Namespace`, and `UnknownHandling` guard domains, so
+no compiled fast path survives a rename.  A compiled artefact's binding
+identities are a third mechanism again: they are re-resolved at admission
+rather than cached, so a rename changes what they resolve to and not
+whether they are checked
+([../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
+§ *Codegen and the registry today*).
 
 ## 4. ``interp alias``
 

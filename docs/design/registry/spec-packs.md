@@ -632,21 +632,40 @@ workspace with no setting at all. It cannot name anything outside the
 folder the user opened, so it is the same class of content as the `.tcl`
 files the analyser already reads.
 
-What makes that safe is the sandbox, not trust: a pack's executable
-surface is its evaluation and its hook bodies, both pure words-to-data on
-a closed command whitelist (no `open`, `exec`, `source`, or `socket`),
-each pack gets its own engine, and every invocation runs under a command
-count and wall-clock budget with `catch_unwind` and
-quarantine-on-first-crash around it. A workspace pack can make the editor
+Trust gates *execution*, not *authority*, and the two are separated.
+**Authority** is the interface contract's ruling 3
+([../compiler/value-transfers.md](../compiler/value-transfers.md)
+§ *Rulings*): a loaded workspace pack's well-formed declarative facts are
+believed, with no widen-only tier and no provenance cap, whatever the
+editor's trust state. **Execution** is gated: in a workspace the editor has
+not marked trusted, no pack hook body runs — `const_fold`,
+`arg_role_resolver`, `constraints`, and every other family abstains exactly
+as a declared-but-unbound hook does, and each dormant hook is reported on
+the pack file. Pack *evaluation* stays ungated, because its only input is
+the pack itself, it runs once per `EvalSnapshotKey` under the budget, and
+the frozen snapshot is what carries the declarative facts authority
+protects. The trust state arrives from the LSP client as one input,
+`WorkspaceTrust`; a client that does not report it is treated as trusted.
+The loader today maps every workspace pack to
+`Provenance::WorkspaceTrusted` and the hook host runs a body under the
+sandbox whatever the workspace's trust state; step 3 of
+[../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
+§ *Build order* plumbs the input and gates the bodies.
+
+What makes the ungated evaluation safe is the sandbox, not trust: a pack's
+executable surface is its evaluation and its hook bodies, both pure
+words-to-data on a closed command whitelist (no `open`, `exec`, `source`,
+or `socket`), each pack gets its own engine, and every invocation runs
+under a command count and wall-clock budget with `catch_unwind` and
+quarantine-on-first-crash around it — the containment a hook body runs
+under wherever it runs. A workspace pack can make the editor
 say something wrong about the workspace's own code; it cannot reach the
 machine. Two further floors hold regardless of tier: an override can never
 weaken a shipped spec's security facts (`tcl-registry::security_floor`
 unions set-valued facts and keeps single-valued ones — the I6 invariant),
 and the workspace and Spec Studio tiers cannot `-override` a compiled
 command name, declare a `dialect` block, or claim a reserved `environment`
-name (refused at registration, with the provenance named). If a hook family
-ever gains ambient authority, the workspace tier has to become trust-gated
-in the same breath.
+name (refused at registration, with the provenance named).
 
 ## Authoring rules for SpecTcl 2.0 (design E)
 
@@ -823,9 +842,18 @@ the form and the Pack DSL pane as projections of it; the contract is
 
 Behaviour that is not a pure words→data function stays native: commands
 needing new lowering/codegen/analyser specialisations are contribution
-candidates. The `state_transitions` and `world_effects` block rows are
-documented vocabulary the loader does not yet read (dropped with a
-notice), a library-defined completion code scoped to one command's body
+candidates. A `state_transitions` **resolver** is readable for two
+families and no more: it may emit `VariableCellAliasTransition` and
+`NamespaceTransition` facts, and no `CommandBindingTransition`,
+`InterpreterTransition`, `ObjectDispatchTransition`, or `TraceTransition`
+fact, because those four decide binding and realm identity — the
+compiler's own proof
+([../compiler/registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
+§ *The two hook bodies that remain*). The loader today reads the
+`composition` row of a `state_transitions` block and drops `resolver`
+beside `argument_shape`, `widen`, `covers`, and `commit` with a notice.
+The `world_effects` block rows stay documented vocabulary the loader does
+not read, a library-defined completion code scoped to one command's body
 has no spelling, and a method-scoped taint sink is a registry change
 rather than a DSL one — the register is in
 [`spec-dsl-examples/README.md`](../spec-dsl-examples/README.md), "Known

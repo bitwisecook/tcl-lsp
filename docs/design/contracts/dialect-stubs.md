@@ -80,19 +80,24 @@ Wrap in `?...?` to mark as optional: `?-filter?`, `?count:value?`.
 ### Flags
 
 The trailing flag set is parsed into the analyser-side `StubFlags` bitflags
-(`analyser/types.rs`). It is recorded and never read: no consumer asks a
-stub for a flag, so ingestion deliberately does not carry the set onto the
-declaration — a fact comes back with the consumer that needs it. The
-recognised words are:
+(`analyser/types.rs`). Each flag is a declared behavioural fact about the
+command, and it lands on the field its catalogue counterpart uses, so a
+stubbed command reads the way a catalogued one does. The recognised words
+are:
 
-| Flag | Meaning |
-|---|---|
-| `-barrier` | creates a dynamic barrier |
-| `-loop` | has a loop body |
-| `-pure` | no side effects |
-| `-mutator` | mutates its target |
-| `-unsafe` | unsafe in a safe interpreter |
-| `-scope_alias` | creates a scope alias |
+| Flag | Meaning | Catalogue field |
+|---|---|---|
+| `-barrier` | creates a dynamic barrier | `Traits::CREATES_DYNAMIC_BARRIER` |
+| `-loop` | has a loop body | `Traits::HAS_LOOP_BODY` |
+| `-pure` | no side effects | `Traits::PURE` |
+| `-mutator` | mutates its target | a declared `SideEffect` write |
+| `-unsafe` | unsafe in a safe interpreter | `Traits::UNSAFE` with `Traits::SAFE_INTERP_HIDDEN` |
+| `-scope_alias` | creates a scope alias | `Traits::CREATES_SCOPE_ALIAS` |
+
+`StubCommandDef::to_declared_command` today does not carry the set onto the
+declaration, so a user who writes `-pure` gets nothing from it; step 3 of
+[registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
+§ *Build order* gives the six flags their consumers.
 
 ## Expression stubs
 
@@ -136,7 +141,8 @@ parallel one:
   `VersionAxisId::document()` axis, and whose predicate is `None`.
 - The declaration carries its **provenance**: `Provenance::Document` for an
   inline block, `Provenance::WorkspaceUntrusted` for a `.tcl.stubs` sidecar —
-  the two lowest trust classes.
+  a label for explanation, binding selection, and invalidation, not a
+  precision class.
 - `build_declared_surface` collects them into the document's
   `DeclaredSurface`, rebuilt on each `analyse()` call and held on the
   (single-threaded) analyser.
@@ -156,10 +162,18 @@ Two properties are load-bearing:
   takes the number of words the call supplies and fills optional slots left
   to right: `{?table? row:var}` invoked as `fetch out` writes index 0, and a
   call with fewer words than the declaration requires maps to nothing.
-- **A declaration widens, never narrows.** `DocumentCommandSurface`'s role
-  lookup unions the catalogue's answer with the document's — the
-  untrusted-tier rule read literally: a declaration may improve assistance and
-  can never weaken a shipped analysis fact.
+- **A declaration answers where it speaks — nearest-wins.** A stub is a
+  workspace-authored fact, so it is an input to analysis on the same footing
+  as a shipped spec
+  ([value-transfers.md](../compiler/value-transfers.md) § *Rulings*,
+  ruling 3): the document's own declaration answers for the command it
+  declares, and the catalogue answers everywhere else. `security_floor`'s
+  monotone merge (invariant I6) still holds over it, because that floor is a
+  security contract rather than a precision cap.
+  `DocumentCommandSurface`'s role lookup today unions the catalogue's answer
+  with the document's; step 3 of
+  [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
+  § *Build order* resolves it nearest-wins.
 
 The declared surface is what feeds parameter-trait inference, role lookup, and
 command-resolution for stubbed commands. Cache invalidation rides the ordinary
@@ -190,8 +204,9 @@ lowering asked.
   `DECLARES_NAMESPACE`, or an absolutely-spelled name word) belongs to the
   body unit that owns it; walking it here would invent an edge to a
   same-named proc in the caller's namespace (issues #977 / #980).
-  `DocumentCommandSurface::command_prefixes` widens the callback positions
-  the same scan reads, so a declared `command_prefix` word names an edge too
+  `DocumentCommandSurface::command_prefixes` carries the declared callback
+  positions into the same scan, so a declared `command_prefix` word names an
+  edge too
   — at `AppendedArity::Unknown`, since a declaration states a position and
   no count.
 - **The call-site scan** (`unit_scope`) resolves a call's `CommandPrefix`,
