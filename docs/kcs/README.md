@@ -40,6 +40,11 @@ symptom with several possible causes worth telling apart. See rule 13 in
 
 ## Issues
 
+- [kcs-issue-the-value-transfers-gate-reports-a-command-name.md](kcs-issue-the-value-transfers-gate-reports-a-command-name.md)
+  — `cargo xtask value-transfers` fails on a line that recognises a Tcl
+  command by name in a file it holds clean, on a ratcheted file whose
+  count of such lines rose, on an unclassified variable-writing command,
+  or on a stale inventory, and what each message asks for.
 - [kcs-issue-lsp-features-are-missing.md](kcs-issue-lsp-features-are-missing.md)
   — squiggles, hovers, and completions do not appear in VS Code and
   you want to know whether the Tcl Language Server started at all.
@@ -326,6 +331,11 @@ under [`compiler/`](compiler/README.md).
   compile time now that SpecTcl packs can load at runtime, and what that
   means for W002/W123 and any consumer that memoises "is this command
   known".
+- [kcs-qa-what-does-a-value-transfer-declaration-say.md](compiler/kcs-qa-what-does-a-value-transfer-declaration-say.md)
+  — where the constant-propagation pass learns what a command computes and
+  which variables it writes: the registry's three-state `semantics`
+  declaration, what is derived from a descriptor, and why no command name
+  belongs in the compiler for it.
 
 ## Diagnostics and optimisations (per-code pages)
 

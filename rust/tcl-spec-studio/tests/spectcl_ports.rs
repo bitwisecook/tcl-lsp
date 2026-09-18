@@ -96,7 +96,15 @@ const PORTS: &[Port] = &[
         commands: &[PortedCommand {
             name: "foreach",
             dialect: "tcl9.1",
-            unequal: NONE,
+            unequal: &[(
+                "__unrenderable",
+                "the shipped spec declares its value-transfer `semantics` (the \
+                 explicit iteration declaration of \
+                 `docs/design/compiler/value-transfers.md`); SpecTcl has no \
+                 surface for it until slice 4 of the migration lands the \
+                 spelling, so it stays on the unrenderable list and the port \
+                 does not transcribe it. Every field the port does carry matches",
+            )],
             unequal_subcommand: NO_SUBS,
             subcommand_subset: ALL_SUBS,
         }],

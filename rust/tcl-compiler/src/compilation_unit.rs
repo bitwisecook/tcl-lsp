@@ -130,6 +130,14 @@ pub struct LatticeRequest<'a> {
     /// every cached lattice, not just the procedure whose body carries the
     /// `trace` call.
     pub traced_variables: &'a [String],
+    /// The analysis context's memo identity for the module — the
+    /// command-binding evidence, the registry and overlay generations, the
+    /// tier, and the evaluator revision — so the value-transfer driver's
+    /// answers are keyed by every fact that can change them
+    /// (`docs/design/compiler/value-transfers.md` § *One invocation, one
+    /// context*). Folded into the memo key like `traced_variables`: a
+    /// `rename` anywhere in the module re-keys every procedure's lattice.
+    pub analysis_context: &'a crate::value_transfer::AnalysisContextKey,
     /// [`crate::ir::Module::has_dynamic_variable_trace`] — `true` when a
     /// variable-trace install/remove call targets a non-literal name
     /// anywhere in the module, which SCCP must treat as "every variable is
@@ -373,6 +381,19 @@ pub struct ModuleTraceFacts<'a> {
     pub has_dynamic_variable_trace: bool,
 }
 
+/// The whole-module facts a per-procedure build runs under: the variable
+/// traces and the analysis context every value-transfer answer is keyed
+/// on. One value per module, shared by every memoised request; the context
+/// joins [`ModuleTraceFacts`] once every constructor of that struct carries
+/// it.
+#[derive(Debug, Clone, Copy)]
+pub struct ModuleAnalysisFacts<'a> {
+    /// The module's variable-trace facts.
+    pub trace: ModuleTraceFacts<'a>,
+    /// The module's analysis context.
+    pub analysis_context: &'a crate::value_transfer::AnalysisContextKey,
+}
+
 /// The two document-level facts a unit build always reads together: the
 /// command registry (which carries the document's profile and specs) and
 /// the lexer config its text is re-read under. Carried as one value so the
@@ -412,6 +433,10 @@ struct FunctionBuildInputs<'a> {
     extra_global_escaping: &'a HashSet<String>,
     /// Whole-module variable-trace facts.
     trace_facts: ModuleTraceFacts<'a>,
+    /// The analysis context's memo identity — the module's command-binding
+    /// evidence and the registry, tier, and evaluator generations — when the
+    /// caller carries one; the value-transfer driver runs detached otherwise.
+    analysis_context: Option<&'a crate::value_transfer::AnalysisContextKey>,
     /// Names auto-bound to out-of-frame *object* storage on entry — a
     /// `TclOO` method body's [`crate::ir::MethodDef::instance_vars`].  `None`
     /// for procs, lambdas, and the top level, none of which have any.  The
@@ -530,6 +555,45 @@ impl FunctionUnit {
                 known_classes,
                 extra_global_escaping: &no_extra_escaping,
                 trace_facts,
+                analysis_context: None,
+                object_state: None,
+                initial_global: false,
+            },
+        )
+    }
+
+    /// [`Self::build_with_param_constants_and_classes`] under the module's
+    /// analysis context: the per-procedure path of a unit build and of the
+    /// memoised lattice, whose key carries the same context.
+    #[must_use]
+    pub fn build_with_param_constants_and_classes_under(
+        name: impl Into<String>,
+        cfg: CfgFunction,
+        params: &[String],
+        dialect: UnitDialect<'_>,
+        param_constants: Option<
+            &std::collections::HashMap<
+                (String, crate::ssa::Version),
+                crate::analyses::LatticeValue,
+            >,
+        >,
+        known_classes: &HashSet<String>,
+        facts: ModuleAnalysisFacts<'_>,
+    ) -> Self {
+        let no_extra_escaping = HashSet::new();
+        let UnitDialect { registry, config } = dialect;
+        Self::build_full(
+            name,
+            cfg,
+            FunctionBuildInputs {
+                config,
+                params,
+                registry,
+                param_constants,
+                known_classes,
+                extra_global_escaping: &no_extra_escaping,
+                trace_facts: facts.trace,
+                analysis_context: Some(facts.analysis_context),
                 object_state: None,
                 initial_global: false,
             },
@@ -561,6 +625,7 @@ impl FunctionUnit {
                 known_classes,
                 extra_global_escaping,
                 trace_facts,
+                analysis_context: None,
                 object_state: None,
                 initial_global: true,
             },
@@ -601,6 +666,7 @@ impl FunctionUnit {
                 known_classes,
                 extra_global_escaping: &no_extra_escaping,
                 trace_facts,
+                analysis_context: None,
                 object_state: Some(&facts.instance_vars),
                 initial_global: false,
             },
@@ -634,6 +700,7 @@ impl FunctionUnit {
             known_classes,
             extra_global_escaping,
             trace_facts,
+            analysis_context,
             object_state,
             initial_global,
         } = inputs;
@@ -688,6 +755,7 @@ impl FunctionUnit {
                 has_dynamic_variable_trace: trace_facts.has_dynamic_variable_trace
                     || dynamic_names.writes
                     || dynamic_names.destroys,
+                analysis_context,
             },
         );
         // Surface `[info exists X]` / `[array exists X]`
@@ -1211,6 +1279,8 @@ struct ProcedureBuildContext<'a> {
     known_classes: &'a [String],
     traced_variable_names: &'a [String],
     trace_facts: ModuleTraceFacts<'a>,
+    /// The module's analysis context key, shared by every procedure.
+    analysis_context: &'a crate::value_transfer::AnalysisContextKey,
     /// Procedures whose CFG has module-derived instance-option writes. Their
     /// annotated CFG cannot be reconstructed from the body-only lattice memo.
     tainted_global_writes: &'a HashMap<String, HashSet<String>>,
@@ -1313,6 +1383,7 @@ fn build_procedure_units(
                     param_constants: &encoded_pc,
                     known_classes: ctx.known_classes,
                     traced_variables: ctx.traced_variable_names,
+                    analysis_context: ctx.analysis_context,
                     has_dynamic_variable_trace: ctx.ir_module.has_dynamic_variable_trace,
                 });
                 // Rebase the offset-0 memo result to the procedure's real
@@ -1326,7 +1397,7 @@ fn build_procedure_units(
             _ => None,
         };
         let mut fu = memoised.unwrap_or_else(|| {
-            FunctionUnit::build_with_param_constants_and_classes(
+            FunctionUnit::build_with_param_constants_and_classes_under(
                 qname,
                 cfg.clone(),
                 params,
@@ -1336,7 +1407,10 @@ fn build_procedure_units(
                 },
                 param_constants.as_ref(),
                 ctx.known_class_set,
-                ctx.trace_facts,
+                ModuleAnalysisFacts {
+                    trace: ctx.trace_facts,
+                    analysis_context: ctx.analysis_context,
+                },
             )
         });
         // A memoised unit carries an offset-0 executable sidecar. Rebuild the
@@ -1571,6 +1645,10 @@ impl CompilationUnit {
             lower_and_build_cfg(source, options, body_cache);
         let (command_mutations, proc_binding_trust) =
             prepared_command_trust(&ir_module, registry, &prepared_cfg_context);
+        // The module's analysis context: one value every per-procedure
+        // lattice in this build — memoised or not — is keyed and run under.
+        let analysis_context =
+            crate::value_transfer::AnalysisContextKey::for_module(&command_mutations);
         // Module-wide upvar/param context — the CFG-determining context a
         // procedure body is rebuilt under.  Computed once and shared by every
         // memoised request, the methods/body-units below, and the call-site
@@ -1625,22 +1703,14 @@ impl CompilationUnit {
                 known_classes: &known_classes,
                 traced_variable_names: &traced_variable_names,
                 trace_facts,
+                analysis_context: &analysis_context,
                 tainted_global_writes: &tainted_global_writes,
             },
             cache,
             options.config,
         );
         let mut procedures = built.procedures;
-        let methods = Self::build_method_units(
-            &ir_module,
-            &extra_callers,
-            &known_class_set,
-            registry,
-            trace_facts,
-            semantic_context,
-            options.config,
-        );
-        let body_units = Self::build_body_units(
+        let (methods, body_units) = Self::build_extra_units(
             &ir_module,
             &extra_callers,
             &known_class_set,
@@ -1671,6 +1741,38 @@ impl CompilationUnit {
             },
             declared_commands: options.declared_commands.cloned().unwrap_or_default(),
         }
+    }
+
+    /// The method and body units the call-site scan's extra caller contexts
+    /// build beside the procedures.
+    fn build_extra_units(
+        ir_module: &IrModule,
+        extra_callers: &[crate::unit_scope::ExtraCallSiteScanContext],
+        known_class_set: &HashSet<String>,
+        registry: &CommandRegistry,
+        trace_facts: ModuleTraceFacts<'_>,
+        semantic_context: Option<SemanticContext>,
+        config: tcl_lexer::LexerConfig,
+    ) -> (HashMap<String, FunctionUnit>, HashMap<String, FunctionUnit>) {
+        let methods = Self::build_method_units(
+            ir_module,
+            extra_callers,
+            known_class_set,
+            registry,
+            trace_facts,
+            semantic_context,
+            config,
+        );
+        let body_units = Self::build_body_units(
+            ir_module,
+            extra_callers,
+            known_class_set,
+            registry,
+            trace_facts,
+            semantic_context,
+            config,
+        );
+        (methods, body_units)
     }
 
     /// Lower `TclOO` method bodies (populated in `ir_module.methods` by

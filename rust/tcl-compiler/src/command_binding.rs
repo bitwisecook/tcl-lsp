@@ -3724,6 +3724,19 @@ pub struct CommandTrustSnapshot {
 }
 
 impl CommandTrustSnapshot {
+    /// The registry-neutral evidence this snapshot carries into the value
+    /// transfer's analysis context: the rebound builtins, the redefined
+    /// procedures, the dynamic flag, and the opaque namespaces.
+    #[must_use]
+    pub fn binding_evidence(&self) -> tcl_registry::value_transfer::BindingEvidence {
+        tcl_registry::value_transfer::BindingEvidence {
+            untrusted_builtins: self.untrusted_builtins.clone(),
+            rebound: self.rebound.clone(),
+            dynamic: self.dynamic,
+            opaque_namespaces: self.opaque_namespaces.clone(),
+        }
+    }
+
     /// Rebuild the queryable summary this snapshot was taken from.
     #[must_use]
     pub fn to_mutations(&self) -> ModuleCommandMutations {

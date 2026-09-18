@@ -249,6 +249,12 @@ fn resolve_invocation_semantics<'r>(
             subcommand: sub.and_then(|sub| sub.dispatch_dependencies),
             form: form.and_then(|form| form.dispatch_dependencies),
         },
+        value: crate::value_transfer::declaration::resolve_semantics_scoped(
+            spec,
+            sub,
+            form,
+            inherit_command,
+        ),
         literal_argument_validator: form
             .and_then(|form| form.literal_argument_validator)
             .or(sub.and_then(|sub| sub.literal_argument_validator))
@@ -605,6 +611,13 @@ pub struct InvocationSemantics<'r> {
     pub dispatch_dependencies: ResolvedDispatchDependencies,
     /// Registry-selected relationship/content validator for literal arguments.
     pub literal_argument_validator: Option<LiteralArgumentValidator>,
+    /// The value-transfer declaration state, resolved with the selected
+    /// subcommand and form: the innermost explicit declaration or
+    /// abstention, or the specialisation derived from a descriptor stating
+    /// the same operation (`docs/design/compiler/value-transfers.md`). The
+    /// value axis is a projection of this resolution, never a second
+    /// resolver.
+    pub value: crate::value_transfer::ResolvedSemantics,
 }
 
 /// A command invocation resolved to target-neutral registry semantics.

@@ -49,6 +49,13 @@ checkpoint compiling.
 
 ## In flight
 
+- [value-transfers.md](value-transfers.md) — slice 1 of
+  [value-transfers-migration.md](../compiler/value-transfers-migration.md)
+  § *The slices*: the interface shapes in the registry, the exact value
+  ingress, the corrected derivation, the analysis context in
+  `FnLatticeKey`, the SCCP dispatcher behind the interface, the ledger of
+  transitional handlers, and the `cargo xtask value-transfers` gate.
+  Behaviour-preserving on every existing test.
 - [consumer-contracts.md](consumer-contracts.md) — step 1 of
   [registry-consumer-contracts.md](../compiler/registry-consumer-contracts.md)
   § *Build order*: the four rulings taken as decided, and the documents whose

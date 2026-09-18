@@ -1669,6 +1669,20 @@ pub struct CfgContext<'db> {
 /// reuse is what frees both, and it only reclaims `Durability::LOW` slots
 /// interned inside a tracked query.  See the crate docs' "The interned garbage
 /// collector is load-bearing"; pinned by `tests/interned_gc.rs`.
+/// The value-transfer analysis context of one module, interned once per
+/// distinct value so a per-procedure [`FnLatticeKey`] carries an id rather
+/// than the context's fields: every procedure of a module shares it, an edit
+/// that changes no binding evidence re-interns nothing, and the per-revision
+/// key stays as small as before the context joined it (the memory-growth
+/// plateau `tests/memory_growth.rs` pins).
+#[salsa::interned]
+pub struct ValueTransferContext<'db> {
+    /// The context's hashable identity, as the compiler computes it per
+    /// module.
+    #[returns(ref)]
+    pub key: tcl_compiler::value_transfer::AnalysisContextKey,
+}
+
 #[salsa::interned]
 pub struct FnLatticeKey<'db> {
     #[returns(ref)]
@@ -1717,6 +1731,15 @@ pub struct FnLatticeKey<'db> {
     /// dynamically replaceable command spelling into builtin-only CFG edges.
     #[returns(copy)]
     pub plain_command_dispatch: bool,
+    /// The analysis context every value-transfer answer in the body is
+    /// keyed under (`docs/design/compiler/value-transfers.md` § *One
+    /// invocation, one context*): the module's command-binding evidence, the
+    /// registry and overlay generations, the tier, and the evaluator
+    /// revision. A whole-module fact folded into the key like
+    /// `traced_variables`, so a `rename` anywhere in the file re-keys every
+    /// procedure's lattice — the sensitivity the design asks for.
+    #[returns(copy)]
+    pub analysis_context: ValueTransferContext<'db>,
 }
 
 /// Memoised offset-0 baseline lattice (CFG → SSA → def-use → SCCP → type →
@@ -1769,14 +1792,17 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
         has_dynamic_variable_trace: key.has_dynamic_variable_trace(db),
     };
     Arc::new(
-        FunctionUnit::build_with_param_constants_and_classes(
+        FunctionUnit::build_with_param_constants_and_classes_under(
             key.qname(db),
             cfg,
             key.params(db),
             tcl_compiler::compilation_unit::UnitDialect { registry, config },
             param_constants.as_ref(),
             &known_classes,
-            trace_facts,
+            tcl_compiler::compilation_unit::ModuleAnalysisFacts {
+                trace: trace_facts,
+                analysis_context: key.analysis_context(db).key(db),
+            },
         )
         .with_semantic_analysis(
             registry,
@@ -1963,6 +1989,7 @@ fn build_unit_with_keys<'db>(
             req.traced_variables.to_vec(),
             req.has_dynamic_variable_trace,
             req.plain_command_dispatch,
+            ValueTransferContext::new(db, req.analysis_context.clone()),
         );
         lattice_keys.insert(req.qname.to_owned(), key);
         // The memo stores the unit at **offset 0** and the builder rebases the
@@ -3925,6 +3952,10 @@ mod tests {
                 Vec::new(),
                 false,
                 false,
+                ValueTransferContext::new(
+                    &db,
+                    tcl_compiler::value_transfer::AnalysisContextKey::detached(),
+                ),
             )
         };
 

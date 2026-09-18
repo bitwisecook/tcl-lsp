@@ -127,6 +127,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             registry,
             traced_variables: &cu.ir_module.traced_variables,
             has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+            analysis_context: None,
         };
         run_load_forwarding(ctx, &cu.top_level, &top_level_extra_escaping, trace);
         for fu in cu.procedures.values() {
@@ -1078,6 +1079,7 @@ fn oo_method_constants(
             registry,
             traced_variables: &cu.ir_module.traced_variables,
             has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+            analysis_context: None,
         },
         Some(crate::sccp::BuiltinFoldInputs {
             registry,
@@ -1387,6 +1389,7 @@ fn constants_with_builtin_folds(
             registry,
             traced_variables: &cu.ir_module.traced_variables,
             has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
+            analysis_context: None,
         },
         Some(crate::sccp::BuiltinFoldInputs {
             registry,
@@ -1606,6 +1609,7 @@ fn evaluate_proc_with_constants(
             registry,
             traced_variables,
             has_dynamic_variable_trace,
+            analysis_context: None,
         },
     );
     resolve_return_constant(

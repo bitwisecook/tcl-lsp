@@ -107,6 +107,7 @@ pub fn spec() -> CommandSpec {
             },
         )],
         lowering_hook: Some(crate::hooks::LoweringHookId::Lmap),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::iteration::LMAP),
         return_type: Some(TclType::List),
         var_write_typing: VarWriteTyping::ElementsOf { container_arg: 0 },
         hover: Some(HoverSnippet {

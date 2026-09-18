@@ -31,6 +31,12 @@ code-family mapping and suppression semantics seen by LSP clients.
    reconstruct lines and columns during aggregation.
 5. **One owner per overlap.** Where two producers flag the same site, one is
    canonical at the LSP boundary — W110 over O120 (`suppress_duplicate_o120`).
+6. **Values come from the lattice, not from a diagnostic.** A producer that
+   needs what a command computes reads the shared `FunctionUnit` lattice,
+   which the registry's value-transfer declarations feed
+   ([value-transfers.md](value-transfers.md)); it never re-derives a
+   command's value by name, and a disabled rule never withholds a lattice
+   fact from another.
 
 ## Failure modes
 

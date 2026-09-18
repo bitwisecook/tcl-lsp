@@ -25,6 +25,11 @@ contract. This index does not duplicate that contract.
   time; the (profile, overlay-key) identity, the lookup-only rule and its
   fallback, workspace scope versus the per-document overlay path, and what
   that means for W002/W123 and other command-existence facts.
+- [kcs-qa-what-does-a-value-transfer-declaration-say.md](kcs-qa-what-does-a-value-transfer-declaration-say.md)
+  — the registry's three-state `semantics` declaration on a command,
+  subcommand, or form; what the constant-propagation driver reads from it;
+  which descriptors derive one; and the two separate columns — descriptor
+  present, route enabled — the generated inventory keeps.
 
 ## See also
 

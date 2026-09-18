@@ -1262,6 +1262,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::Int),
         const_fold: Some(fold_length),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STRING_LENGTH),
         // `Tcl_GetCharLength` installs the `tclStringType` intrep
         // (`SetStringFromAny`), replacing a List/Dict/Int/… rep —
         // tclsh-verified (`set i 5; incr i; string length $i` leaves `i` a

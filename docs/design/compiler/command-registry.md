@@ -441,6 +441,7 @@ only names which one applies. `rust/tcl-registry/src/hooks.rs` declares them.
 | `codegen_hook` | `Option<CodegenHookId>` | `None` | Bytecode specialisation for the `TclVM` emitter |
 | `inline_codegen_hook` | `Option<InlineCodegenHookId>` | `None` | Inline (value-position `[cmd …]` / catch-body) bytecode specialisation hook, dispatched by `tcl_compiler::codegen::{cmd_subst,control_flow}` |
 | `analyser_hook` | `Option<AnalyserHookId>` | `None` | Per-command handler family in the analyser's central dispatch |
+| `semantics` | `SemanticsDeclaration` | `Inherited` | The value-transfer specialisation at this scope — `Declared(&dyn CommandSemantics)`, `Declined` (an explicit abstention that stops inheritance and derivation), or `Inherited`, which derives from a descriptor stating the same operation (a cell read-modify-write, `DESTROYS_VARIABLE`). Also on `SubCommand` and `CommandForm`; the innermost declaration wins. [value-transfers.md](value-transfers.md) |
 | `semantic_operation` | `Option<SemanticOperationId>` | `None` | Target-neutral operation identity selected before backend dispatch |
 | `bpf_op` | `Option<&'static BpfOpSpec>` | `None` | Typed BPF-Tcl lowering descriptor |
 | `const_fold` | `Option<ConstFoldFn>` | `None` | Compile-time folder returning the command's constant result |

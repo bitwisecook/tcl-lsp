@@ -433,6 +433,15 @@ beside the lowering hook or intrinsic it mirrors; unset means the generic \
 argv invocation through runtime dispatch.",
     ),
     (
+        "semantics",
+        "Compiler internals: the value-transfer specialisation the analyser \
+asks about an invocation — what it computes, which variables it writes, and \
+the evaluator route that computes it — or an explicit abstention. Unset \
+inherits the enclosing scope's declaration, or derives one from a descriptor \
+that states the same operation (a cell read-modify-write, a destroyed \
+variable). The pack spellings for it are still to come; leave it unset.",
+    ),
+    (
         "analyser_hook",
         "Compiler internals: routes the command to a hand-written analyser \
 family (`proc`, `foreach`, `package require`, …) for behaviour the \

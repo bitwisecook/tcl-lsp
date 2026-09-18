@@ -245,6 +245,7 @@ pub const CLUSTERS: &[Cluster] = &[
             "codegen_hook",
             "inline_codegen_hook",
             "native_lowering",
+            "semantics",
             "analyser_hook",
             "bpf_op",
             "cfg_rewrite_name",

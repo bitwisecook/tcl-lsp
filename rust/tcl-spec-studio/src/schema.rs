@@ -784,6 +784,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Which native code shape the executable-IR lowering gives this command; stamped beside the lowering hook or intrinsic it mirrors. Unset is the generic argv invocation.",
     ),
     f(
+        "semantics",
+        "Value-transfer declaration",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "SemanticsDeclaration::Declared(&value_transfer::builtins::LIST_LENGTH)",
+        },
+        "The value-transfer specialisation declared at command scope — what an invocation computes, which storage it writes, and the route that computes it — or an explicit abstention (`Declined`). Unset inherits, or derives from a descriptor stating the same operation.",
+    ),
+    f(
         "analyser_hook",
         "Analyser hook",
         HOOKS,
@@ -1664,6 +1673,15 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
             optional: true,
         },
         "Value-position emitter, overriding the command's when this subcommand matches.",
+    ),
+    f(
+        "semantics",
+        "Value-transfer declaration",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "SemanticsDeclaration::Declared(&value_transfer::builtins::STRING_LENGTH)",
+        },
+        "The value-transfer specialisation declared for this subcommand, overriding the command's, or an explicit abstention that stops the command's from applying here.",
     ),
     f(
         "analyser_hook",

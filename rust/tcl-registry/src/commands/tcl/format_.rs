@@ -594,6 +594,9 @@ pub fn spec() -> CommandSpec {
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
         const_fold_versioned: Some(fold_format),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::FORMAT_TEMPLATE,
+        ),
         hover: Some(HoverSnippet {
             summary: "Format a string in the style of C's sprintf.",
             synopsis: &["format formatString ?arg arg ...?"],

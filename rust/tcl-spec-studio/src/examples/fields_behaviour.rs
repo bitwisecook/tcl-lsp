@@ -368,6 +368,27 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
         },
     ),
     (
+        "semantics",
+        Example {
+            code: "incr count
+set n [llength $items]
+append log $line",
+            focuses: &[
+                focus(0, "incr", "a derived cell update with a direct route"),
+                focus(
+                    1,
+                    "[llength $items]",
+                    "a declared direct route in value position",
+                ),
+                focus(
+                    2,
+                    "append",
+                    "a derived cell update whose route is not yet enabled",
+                ),
+            ],
+        },
+    ),
+    (
         "analyser_hook",
         Example {
             code: "package require Tk\nproc show {w} { pack $w }",

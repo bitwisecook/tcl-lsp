@@ -362,6 +362,7 @@ fn xtask_dispatches(main: &str, command: &str) -> bool {
         "gen-editor-extensions" => "GenEditorExtensions",
         "owner-resolution" => "OwnerResolution",
         "sslictcl-data" => "SslictclData",
+        "value-transfers" => "ValueTransfers",
         _ => return false,
     };
     let prefix = format!("Command::{variant}");

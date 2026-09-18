@@ -54,6 +54,7 @@ use crate::symbol_def::SymbolDef;
 use crate::taint::{SetterConstraint, TaintColour, TaintTransformCondition};
 use crate::traits::Traits;
 use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
+use crate::value_transfer::SemanticsDeclaration;
 use crate::world_effect::WorldEffectDescriptor;
 use tcl_dialect::model::SpecSurface;
 use tcl_dialect::model::SurfaceQuery;
@@ -1574,6 +1575,19 @@ pub struct CommandSpec {
     /// it through [`Self::native_lowering`].
     pub native_lowering: Option<crate::native_lowering::NativeLowering>,
 
+    /// The value-transfer specialisation declared at command scope — what an
+    /// invocation computes, which storage it writes, and the evaluator route
+    /// that computes it (`docs/design/compiler/value-transfers.md`).
+    /// Three states: [`SemanticsDeclaration::Inherited`] says nothing here,
+    /// so a subcommand or form declaration applies or, failing one, a
+    /// specialisation is derived from a descriptor stating the same
+    /// operation ([`Self::native_lowering`]'s cell read-modify-write, the
+    /// `DESTROYS_VARIABLE` trait); [`SemanticsDeclaration::Declared`] names a
+    /// registry-owned specialisation; [`SemanticsDeclaration::Declined`]
+    /// abstains explicitly, stopping inheritance and derivation. Consumers
+    /// read it through the resolved invocation, never by command name.
+    pub semantics: SemanticsDeclaration,
+
     /// Analyser handler-family hook ID — picks the per-command
     /// handler in the analyser's central dispatch
     /// (`tcl_compiler::analyser`). `None` means the analyser has no
@@ -2329,6 +2343,7 @@ impl CommandSpec {
         codegen_hook: None,
         inline_codegen_hook: None,
         native_lowering: None,
+        semantics: SemanticsDeclaration::Inherited,
         analyser_hook: None,
         command_table_effect: None,
         side_effects: &[],
@@ -3270,6 +3285,12 @@ pub struct SubCommand {
     /// `dict for`).
     pub analyser_hook: Option<AnalyserHookId>,
 
+    /// The value-transfer specialisation declared at subcommand scope. See
+    /// [`CommandSpec::semantics`]; a declaration here overrides the
+    /// command's, and an explicit abstention stops the command's from
+    /// applying to this subcommand.
+    pub semantics: SemanticsDeclaration,
+
     /// Command-table mutation descriptor.
     /// See [`CommandSpec::command_table_effect`]. Overrides the
     /// parent's when the call resolves to this subcommand
@@ -3642,6 +3663,7 @@ impl SubCommand {
         codegen_hook: None,
         inline_codegen_hook: None,
         analyser_hook: None,
+        semantics: SemanticsDeclaration::Inherited,
         command_table_effect: None,
         options: &[],
         option_relations: &[],

@@ -1107,6 +1107,10 @@ fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
             .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
     );
     d.insert(
+        "semantics".into(),
+        lost.expr("semantics", !sub.semantics.is_inherited()),
+    );
+    d.insert(
         "analyser_hook".into(),
         sub.analyser_hook
             .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
@@ -1426,6 +1430,10 @@ fn command_identity(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert(
         "native_lowering".into(),
         lost.expr("native_lowering", spec.native_lowering.is_some()),
+    );
+    d.insert(
+        "semantics".into(),
+        lost.expr("semantics", !spec.semantics.is_inherited()),
     );
     d.insert(
         "clause_shape_check".into(),

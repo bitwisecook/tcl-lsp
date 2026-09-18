@@ -115,6 +115,7 @@ pub mod taint;
 pub mod tk_geometry;
 pub mod traits;
 pub mod types;
+pub mod value_transfer;
 pub mod version;
 pub mod version_range;
 pub mod world_effect;
@@ -226,6 +227,7 @@ pub mod prelude {
     };
     pub use crate::traits::Traits;
     pub use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
+    pub use crate::value_transfer::SemanticsDeclaration;
     pub use crate::world_effect::{
         CallbackEffect, CallbackKinds, EffectAccessMode, Reentrancy, StaticEffectAccess,
         StaticEffectFootprint, StaticInterpreterScope, StaticNamespaceScope, StaticSubjectScope,

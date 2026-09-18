@@ -53,6 +53,9 @@
 //!   `tcl_dialect::scan_expr_number`.
 //! - `owner-resolution` — verify that the shared semantic-owner contract
 //!   resolves to live source files and drift gates.
+//! - `value-transfers` — flag a command recognised by name on the value axis
+//!   outside the registry, and generate or verify the value-transfer
+//!   inventory (`docs/generated/value-transfers.md`).
 //! - `segmentation-drift` — flag a hand-rolled Tcl command-terminator scan
 //!   or a private `Sep`/`Eol` word-start state machine outside the command /
 //!   word boundary owners, and verify the owner/scanner corpus differential
@@ -104,6 +107,7 @@ mod sslictcl_data;
 mod tcltest_sweep;
 mod tzdata_bundle;
 mod util;
+mod value_transfers;
 mod version;
 mod workflow_sync;
 
@@ -365,6 +369,17 @@ enum Command {
     #[command(name = "owner-resolution")]
     OwnerResolution,
 
+    /// Flag a command recognised by name on the value axis, and generate or
+    /// verify the registry's value-transfer inventory
+    /// (`docs/generated/value-transfers.md`).
+    #[command(name = "value-transfers")]
+    ValueTransfers {
+        /// Verify the committed inventory instead of rewriting it; exit
+        /// non-zero on drift, an unwaived site, or an unclassified gap.
+        #[arg(long)]
+        check: bool,
+    },
+
     /// Regenerate — or, with `--check`, verify — the golden snapshots of
     /// every shipped `.tclspec`. The gate that a loader change cannot
     /// silently alter what a shipped pack means.
@@ -491,6 +506,7 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::RetiredApiGate { check } => Ok(retired_api_gate::run(check)),
         Command::RuntimeStdlib => runtime_stdlib::run(),
         Command::OwnerResolution => owner_resolution::run(),
+        Command::ValueTransfers { check } => value_transfers::run(check),
         Command::PackGoldens { check } => Ok(pack_goldens::run(check)),
         Command::SslictclData {
             operation,

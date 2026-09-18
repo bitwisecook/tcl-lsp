@@ -34,6 +34,7 @@ and LSP conversion.
   `find_partial_redundancies_for_function`
 - `rust/tcl-compiler/src/irules_checks.rs`
 - `rust/tcl-compiler/src/value_shapes.rs`, `var_refs.rs`
+- `rust/tcl-compiler/src/value_transfer.rs` — the constant a pass reads from the lattice came through the registry's `CommandSemantics` declaration for the resolved invocation, never a pass-local command arm; a pass that needs a command's value asks the lattice, and a command that needs a value declares it in `tcl-registry` ([value-transfers.md](value-transfers.md))
 - `rust/tcl-lsp-db/src/lib.rs` — `compiler_check_diagnostics` (aggregation)
 - `rust/tcl-lsp-server/src/lib.rs` — `lift_compiler_diagnostics`
   (suppression and conversion)

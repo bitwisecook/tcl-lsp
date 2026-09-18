@@ -26,8 +26,8 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use rustc_hash::FxHashSet;
-use tcl_dialect::StringCharacterModel;
 use tcl_registry::CommandRegistry;
+use tcl_registry::value_transfer::ExactValue;
 
 use crate::analyses::{ConstValue, LatticeValue, MAX_CONSTSET_SIZE};
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
@@ -36,6 +36,7 @@ use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
 use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey};
 use crate::tcl_expr_eval::{Env, EnvValue, FoldPolicy, TclValue, eval_tcl_expr_with_policy};
+use crate::value_transfer::{AnalysisContextKey, LatticeDriver};
 
 // Public aliases
 
@@ -312,6 +313,11 @@ pub struct TraceInputs<'a> {
     /// such subcommand targets a non-literal (dynamic) name, in which case
     /// *every* variable is potentially traced.
     pub has_dynamic_variable_trace: bool,
+    /// The analysis context's memo identity for this run — the registry
+    /// and overlay generations, the module's command-binding evidence, the
+    /// tier, and the evaluator revision — when the caller carries one; a
+    /// caller with no module view passes `None` and runs detached.
+    pub analysis_context: Option<&'a AnalysisContextKey>,
 }
 
 /// Like [`sccp`] but additionally forces every name in `extra_escaping` to
@@ -401,6 +407,10 @@ pub fn sccp_with_builtin_folds(
         .escaping_var_names();
     escaping.extend(extra_escaping.iter().cloned());
     escaping.extend(trace.traced_variables.iter().cloned());
+    // Every command-specific answer below comes from the registry's
+    // declaration for the resolved invocation, through one driver whose
+    // context is this run's identity.
+    let driver = LatticeDriver::new(trace, folds, policy, &escaping);
 
     let mut executable_blocks: HashSet<BlockId> = HashSet::new();
     let mut executable_edges: HashSet<(BlockId, BlockId)> = HashSet::new();
@@ -449,9 +459,8 @@ pub fn sccp_with_builtin_folds(
                     ssa_block,
                     ssa,
                     &escaping,
-                    policy,
                     trace.has_dynamic_variable_trace,
-                    folds,
+                    &driver,
                 );
 
                 // Terminator.
@@ -661,9 +670,8 @@ fn sccp_process_statements(
     ssa_block: &crate::ssa::SsaBlock,
     ssa: &SsaFunction,
     escaping: &HashSet<String>,
-    policy: FoldPolicy,
     has_dynamic_variable_trace: bool,
-    folds: Option<BuiltinFoldInputs<'_>>,
+    driver: &LatticeDriver<'_>,
 ) -> bool {
     let mut changed = false;
     for stmt_ssa in &ssa_block.statements {
@@ -741,15 +749,12 @@ fn sccp_process_statements(
                                 .get(&(var, *prev_ver))
                                 .cloned()
                                 .unwrap_or(LatticeValue::Overdefined);
-                            join(
-                                &prev,
-                                &evaluate_def_with_folds(stmt_ssa, &*values, ssa, policy, folds),
-                            )
+                            join(&prev, &evaluate_def_under(stmt_ssa, &*values, ssa, driver))
                         }
                         None => LatticeValue::Overdefined,
                     }
                 } else {
-                    evaluate_def_with_folds(stmt_ssa, &*values, ssa, policy, folds)
+                    evaluate_def_under(stmt_ssa, &*values, ssa, driver)
                 };
             if set_value(values, (var, *ver), &val) {
                 changed = true;
@@ -940,14 +945,18 @@ fn collect_constant_branches(
     constant_branches
 }
 
-/// Every variable name the function assigns, and every name it `unset`s by
-/// literal — the two whole-body facts [`existence_constant_branches`] folds
-/// against.  A `Call`'s `defs` cover the commands that define a name without
-/// an assignment statement (`global` / `variable` / `upvar`, `regexp -inline`
-/// match vars, …).
-fn scan_defined_and_unset(cfg: &CfgFunction) -> (FxHashSet<String>, FxHashSet<&str>) {
+/// Every variable name the function assigns, and every name a call unbinds
+/// by literal — the two whole-body facts [`existence_constant_branches`]
+/// folds against. A `Call`'s `defs` cover the commands that define a name
+/// without an assignment statement (`global` / `variable` / `upvar`,
+/// `regexp -inline` match vars, …); the unbind fact is each call's resolved
+/// existence transfer ([`crate::value_transfer::unbound_names`]), so no
+/// command is recognised by its spelling here.
+fn scan_defined_and_unbound(
+    cfg: &CfgFunction,
+    registry: &tcl_registry::CommandRegistry,
+) -> (FxHashSet<String>, FxHashSet<String>) {
     let mut defined: FxHashSet<String> = FxHashSet::default();
-    let mut unset: FxHashSet<&str> = FxHashSet::default();
     for block in cfg.blocks.values() {
         for stmt in &block.statements {
             match stmt {
@@ -960,24 +969,16 @@ fn scan_defined_and_unset(cfg: &CfgFunction) -> (FxHashSet<String>, FxHashSet<&s
                         defined.insert(n.to_string());
                     }
                 }
-                Statement::Call {
-                    command,
-                    args,
-                    defs,
-                    ..
-                } => {
+                Statement::Call { defs, .. } => {
                     for d in defs {
                         defined.insert(d.clone());
-                    }
-                    if command == "unset" {
-                        unset.extend(args.iter().map(String::as_str));
                     }
                 }
                 _ => {}
             }
         }
     }
-    (defined, unset)
+    (defined, crate::value_transfer::unbound_names(cfg, registry))
 }
 
 /// The entry facts one function frame contributes to the existence fold
@@ -1124,7 +1125,7 @@ pub fn existence_constant_branches(
     }) {
         return out;
     }
-    let (defined, unset) = scan_defined_and_unset(cfg);
+    let (defined, unset) = scan_defined_and_unbound(cfg, registry);
     // Locals bound to out-of-frame storage (`global` / `variable` / `upvar` /
     // `namespace upvar`): whether such a name exists depends on the *linked*
     // variable, which this function cannot see, so its existence query must
@@ -1307,9 +1308,12 @@ pub fn existence_constant_branches(
 /// Evaluate the lattice value produced by an SSA statement's
 /// defs.
 ///
-/// Focused subset: constant-assignment, expression-assignment via
-/// the expression evaluator, and a conservative `Overdefined` fallback
-/// for everything else.
+/// Focused subset: constant-assignment, expression-assignment via the
+/// expression evaluator, the registry-declared value transfer of a typed
+/// cell update, a synthetic loop header, or a command substitution, and a
+/// conservative `Overdefined` fallback for everything else. Commands
+/// resolve against the process-wide default registry; a run over a unit's
+/// own registry goes through [`sccp_with_builtin_folds`].
 #[must_use]
 pub fn evaluate_def<S: std::hash::BuildHasher>(
     stmt_ssa: &SsaStatement,
@@ -1321,9 +1325,10 @@ pub fn evaluate_def<S: std::hash::BuildHasher>(
 }
 
 /// [`evaluate_def`] with an optional registry builtin-fold context: when
-/// `folds` is supplied, an `AssignValue` command-substitution
-/// RHS additionally consults the registry `const_fold` engine — see
-/// [`BuiltinFoldInputs`]. `None` is byte-identical to [`evaluate_def`].
+/// `folds` is supplied, an `AssignValue` command-substitution RHS
+/// additionally consults the registry `const_fold` engine — see
+/// [`BuiltinFoldInputs`] — and every resolved head answers to the
+/// whole-module trust fact. `None` is byte-identical to [`evaluate_def`].
 #[must_use]
 pub fn evaluate_def_with_folds<S: std::hash::BuildHasher>(
     stmt_ssa: &SsaStatement,
@@ -1332,124 +1337,36 @@ pub fn evaluate_def_with_folds<S: std::hash::BuildHasher>(
     policy: FoldPolicy,
     folds: Option<BuiltinFoldInputs<'_>>,
 ) -> LatticeValue {
+    let driver = LatticeDriver::detached(folds, policy);
+    evaluate_def_under(stmt_ssa, values, ssa, &driver)
+}
+
+/// [`evaluate_def_with_folds`] under one run's driver: the statement is
+/// dispatched by its typed shape, and every command-specific answer comes
+/// from the registry's declaration for the resolved invocation
+/// (`docs/design/compiler/value-transfers.md`). No command is recognised
+/// by its spelling here.
+fn evaluate_def_under<S: std::hash::BuildHasher>(
+    stmt_ssa: &SsaStatement,
+    values: &HashMap<ValueKey, LatticeValue, S>,
+    ssa: &SsaFunction,
+    driver: &LatticeDriver<'_>,
+) -> LatticeValue {
     match &stmt_ssa.statement {
         Statement::AssignConst { value, .. } => LatticeValue::Const(parse_literal_value(value)),
         Statement::AssignExpr { expr, .. } => {
             let env = env_from_uses(&stmt_ssa.uses, values, ssa);
-            match eval_tcl_expr_with_policy(expr, &env, policy) {
+            match eval_tcl_expr_with_policy(expr, &env, driver.policy()) {
                 Some(v) => LatticeValue::Const(tcl_value_to_const(v)),
                 None => LatticeValue::Overdefined,
             }
         }
         Statement::AssignValue { value, .. } => {
-            // Fold when the RHS is either a plain literal
-            // (no command substitution), a simple `$var` that
-            // resolves to a lattice Const, or a `[cmd args...]`
-            // that try_fold_cmd_subst (or, under `folds`, the registry
-            // const-fold engine) recognises.
-            fold_assign_value(value, &stmt_ssa.uses, values, ssa, policy, folds)
+            fold_assign_value(value, &stmt_ssa.uses, values, ssa, driver)
         }
-        Statement::Call {
-            command,
-            args,
-            defs,
-            ..
-        } if matches!(command.as_str(), "foreach" | "lmap")
-            && defs.len() == 1
-            && args.len() == 1 =>
-        {
-            // `foreach v LIST` / `lmap v LIST` folds the
-            // iteration variable to the CONSTSET of elements when
-            // LIST is a literal, resolves to a Const(String)
-            // through the lattice, or is a command substitution
-            // (`[list a b c]`, `[format …]`) that folds to a
-            // constant list. Multi-variable and multi-list
-            // foreaches are left as Overdefined.
-            let elements = extract_foreach_elements(&args[0], policy.word_rules)
-                .or_else(|| {
-                    resolve_foreach_list_via_lattice(
-                        &args[0],
-                        &stmt_ssa.uses,
-                        values,
-                        ssa,
-                        policy.word_rules,
-                    )
-                })
-                .or_else(|| {
-                    // `foreach v [list a b c]` — fold the command substitution
-                    // to a constant list string, then split into elements.
-                    let arg = args[0].trim();
-                    if arg.starts_with('[')
-                        && arg.ends_with(']')
-                        && let Some(LatticeValue::Const(ConstValue::String(s))) =
-                            try_fold_cmd_subst(arg, &stmt_ssa.uses, values, ssa, policy, folds)
-                    {
-                        return Some(split_list_values(&s, policy.word_rules));
-                    }
-                    None
-                });
-            match elements {
-                Some(items) if items.is_empty() => LatticeValue::Overdefined,
-                Some(items) => {
-                    let consts: Vec<ConstValue> =
-                        items.iter().map(|s| parse_literal_value(s)).collect();
-                    if consts.len() == 1 {
-                        LatticeValue::Const(consts.into_iter().next().unwrap())
-                    } else {
-                        LatticeValue::constset(consts)
-                    }
-                }
-                None => LatticeValue::Overdefined,
-            }
-        }
+        Statement::Call { .. } => driver.evaluate_call(stmt_ssa, values, ssa, &stmt_ssa.uses),
         Statement::Incr { name, amount, .. } => {
-            // Track `incr NAME ?AMOUNT?` through the lattice
-            // when the current value of NAME is a single Const(Int)
-            // and AMOUNT is either absent (defaults to 1), a decimal
-            // integer literal, or a simple `$var` reference that
-            // resolves to Const(Int) via `uses`.
-            // A dynamic-key target (`incr a($i)`) never interns a symbol —
-            // that miss is permanent, so it must widen: returning Unknown
-            // would launder a fanned element's stale constant through
-            // `join(prev, Unknown) = prev`.
-            let Some(sym) = ssa.var_symbol(crate::naming::element_var_name(name)) else {
-                return LatticeValue::Overdefined;
-            };
-            let ver = stmt_ssa.uses.get(&sym).copied().unwrap_or(0);
-            let base = values
-                .get(&(sym, ver))
-                .cloned()
-                .unwrap_or(LatticeValue::Unknown);
-            let base_int = match &base {
-                LatticeValue::Const(ConstValue::Int(i)) => *i,
-                LatticeValue::Unknown => return LatticeValue::Unknown,
-                // Overdefined or a non-integer Const widens.
-                _ => return LatticeValue::Overdefined,
-            };
-            let amt = match amount.as_deref() {
-                None => 1,
-                Some(text) => {
-                    let trimmed = text.trim();
-                    if let Ok(v) = trimmed.parse::<i64>() {
-                        v
-                    } else if let Some(amount) =
-                        resolve_simple_var_ref(trimmed, &stmt_ssa.uses, values, ssa)
-                    {
-                        match amount {
-                            LatticeValue::Const(ConstValue::Int(i)) => i,
-                            LatticeValue::Unknown => return LatticeValue::Unknown,
-                            _ => return LatticeValue::Overdefined,
-                        }
-                    } else {
-                        return LatticeValue::Overdefined;
-                    }
-                }
-            };
-            base_int
-                .checked_add(amt)
-                .map_or(LatticeValue::Overdefined, |v| {
-                    LatticeValue::Const(ConstValue::Int(v))
-                })
+            driver.evaluate_incr(name, amount.as_deref(), &stmt_ssa.uses, values, ssa)
         }
         _ => LatticeValue::Overdefined,
     }
@@ -1608,7 +1525,7 @@ pub fn evaluate_branch<S: std::hash::BuildHasher>(
 /// and the current lattice. Only entries whose lattice value is
 /// a single [`LatticeValue::Const`] are bound; anything else
 /// leaves the variable unbound so the evaluator returns `None`.
-fn env_from_uses<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+pub(crate) fn env_from_uses<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     uses: &HashMap<Symbol, crate::ssa::Version, S1>,
     values: &HashMap<ValueKey, LatticeValue, S2>,
     ssa: &SsaFunction,
@@ -1627,7 +1544,7 @@ fn env_from_uses<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
 /// `expr "…"`, where Tcl substitutes the variable's value textually before
 /// parsing: a non-numeric value becomes an invalid bareword, so leaving it
 /// unbound makes the fold bail (matching Tcl's runtime error).
-fn env_from_uses_numeric<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+pub(crate) fn env_from_uses_numeric<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     uses: &HashMap<Symbol, crate::ssa::Version, S1>,
     values: &HashMap<ValueKey, LatticeValue, S2>,
     ssa: &SsaFunction,
@@ -1749,11 +1666,13 @@ where
 /// Fold the RHS of an `AssignValue` statement to a lattice value.
 ///
 /// Covers three tiers:
-/// 1. **Plain literal** — no `$` / `[` → `Const(parse_literal_value)`.
+/// 1. **Plain literal** — no `$` / `[` → `Const(parse_literal_value)`, the
+///    text kept exactly: a value is a value, not a source token to trim.
 /// 2. **Simple var reference** `$x` / `${x}` → lattice lookup.
-/// 3. **Command substitution** `[cmd args…]` → delegate to
-///    [`try_fold_cmd_subst`], then (when `folds` is supplied) to the
-///    registry const-fold engine ([`BuiltinFoldInputs`]).
+/// 3. **Command substitution** `[cmd args…]` → the resolved command's
+///    declared route through the value-transfer driver
+///    ([`crate::value_transfer`]), then — when the driver holds the trust
+///    fact — the registry const-fold engine ([`BuiltinFoldInputs`]).
 ///
 /// Anything else widens to `Overdefined`.
 fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
@@ -1761,310 +1680,40 @@ fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     uses: &HashMap<Symbol, crate::ssa::Version, S1>,
     values: &HashMap<ValueKey, LatticeValue, S2>,
     ssa: &SsaFunction,
-    policy: FoldPolicy,
-    folds: Option<BuiltinFoldInputs<'_>>,
+    driver: &LatticeDriver<'_>,
 ) -> LatticeValue {
-    let stripped = value.trim();
     // Plain literal.
-    if !stripped.contains('$') && !stripped.contains('[') {
-        return LatticeValue::Const(parse_literal_value(stripped));
+    if !value.contains('$') && !value.contains('[') {
+        return LatticeValue::Const(parse_literal_value(value));
     }
     // Simple var reference.
-    if let Some(resolved) = resolve_simple_var_ref(stripped, uses, values, ssa) {
+    if let Some(resolved) = resolve_simple_var_ref(value, uses, values, ssa) {
         return resolved;
     }
     // Command substitution.
-    if stripped.starts_with('[') && stripped.ends_with(']') {
-        if let Some(lv) = try_fold_cmd_subst(stripped, uses, values, ssa, policy, folds) {
-            return lv;
-        }
-        // Registry const-fold fallback: the fold's `$var`
-        // words resolve at this statement's use versions, so a folded
-        // value re-enters the lattice and downstream statements see it —
-        // the multi-hop chain the hardcoded arms above cannot close.
-        // Checked AFTER them so single-hop results stay byte-identical.
-        if let Some(f) = folds {
-            let trusts = |name: &str| f.mutations.trusts(name);
-            let lookup = |name: &str| lattice_const_text(name, uses, values, ssa);
-            if let Some(folded) = (crate::const_subst::ConstSubstCtx {
-                registry: f.registry,
-                resolution_namespace: "::",
-                version: f
-                    .dialect
-                    .and_then(tcl_dialect::DialectProfile::const_fold_version),
-                defining_class: f.defining_class,
-                trusts: &trusts,
-                lookup_var: &lookup,
-            })
-            .fold_cmd_subst(&stripped[1..stripped.len() - 1])
-            {
-                return LatticeValue::Const(parse_literal_value(&folded));
-            }
-        }
+    if value.starts_with('[')
+        && value.ends_with(']')
+        && let Some(lv) = driver.fold_cmd_subst(value, uses, values, ssa)
+    {
+        return lv;
     }
     LatticeValue::Overdefined
 }
 
-/// Resolve `name` to the textual form of its lattice constant at this
-/// statement's use version, or `None` when it is not a single `Const` —
-/// the variable-lookup the registry const-fold engine runs under (see
-/// [`fold_assign_value`]).
-fn lattice_const_text<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
-    name: &str,
-    uses: &HashMap<Symbol, crate::ssa::Version, S1>,
-    values: &HashMap<ValueKey, LatticeValue, S2>,
-    ssa: &SsaFunction,
-) -> Option<String> {
-    let sym = ssa.var_symbol(name)?;
-    let ver = uses.get(&sym)?;
-    match values.get(&(sym, *ver))? {
-        LatticeValue::Const(ConstValue::String(s)) => Some(s.clone()),
-        LatticeValue::Const(ConstValue::Int(i)) => Some(i.to_string()),
-        LatticeValue::Const(ConstValue::Bool(b)) => Some(if *b { "1" } else { "0" }.to_owned()),
-        LatticeValue::Const(ConstValue::Float(f)) => Some(f.to_string()),
-        _ => None,
-    }
-}
-
-/// Try to constant-fold a `[cmd args…]` command substitution.
-///
-/// Recognised forms:
-/// - `[list arg1 arg2 …]` with all-literal args → folded list text.
-/// - `[llength {a b c}]` / `[llength "a b c"]` → integer element count.
-/// - `[string length "text"]` → integer character count.
-/// - `[expr {EXPR}]` — parses the inner expression and folds it
-///   under the current lattice (bridges to the expression evaluator).
-///
-/// Returns `None` for anything else so callers widen to
-/// Overdefined.
-/// Resolve a single command operand to its constant string value: a literal
-/// word (optionally brace/quote wrapped), or a pure `$var` / `${var}` whose
-/// SCCP lattice value is a constant. Returns `None` for anything that isn't a
-/// compile-time constant (array refs, command substitutions, unknown vars),
-/// so the caller skips folding.
-fn resolve_const_string<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
-    arg: &str,
-    uses: &HashMap<Symbol, crate::ssa::Version, S1>,
-    values: &HashMap<ValueKey, LatticeValue, S2>,
-    ssa: &SsaFunction,
-) -> Option<String> {
-    let arg = arg.trim();
-    if let Some(rest) = arg.strip_prefix('$') {
-        // `$name` or `${name}` — reject compound refs (array element,
-        // nested substitution, multiple words).
-        let name = rest
-            .strip_prefix('{')
-            .and_then(|r| r.strip_suffix('}'))
-            .unwrap_or(rest);
-        if name.is_empty()
-            || name.contains(|c: char| {
-                c.is_whitespace() || c == '(' || c == '[' || c == '$' || c == '"'
-            })
-        {
-            return None;
-        }
-        let sym = ssa.var_symbol(name)?;
-        let ver = uses.get(&sym)?;
-        return match values.get(&(sym, *ver))? {
-            LatticeValue::Const(ConstValue::String(s)) => Some(s.clone()),
-            LatticeValue::Const(ConstValue::Int(i)) => Some(i.to_string()),
-            LatticeValue::Const(ConstValue::Bool(b)) => Some(if *b { "1" } else { "0" }.to_owned()),
-            LatticeValue::Const(ConstValue::Float(f)) => Some(f.to_string()),
-            _ => None,
-        };
-    }
-    // A literal word with no interpolation or command substitution.
-    if !arg.contains('$') && !arg.contains('[') {
-        return Some(strip_one_level(arg).to_owned());
-    }
-    None
-}
-
-// The per-command fold arms below (`list` / `format` / `llength` / `string
-// length` / `expr`) are name-keyed on purpose: each arm IS that command's
-// fold semantics (what a constant call evaluates to), not a membership
-// test a registry trait could answer — the same irreducible-fold rationale
-// as `chain_fold`'s per-command arms.
-fn try_fold_cmd_subst<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
-    value: &str,
-    uses: &HashMap<Symbol, crate::ssa::Version, S1>,
-    values: &HashMap<ValueKey, LatticeValue, S2>,
-    ssa: &SsaFunction,
-    policy: FoldPolicy,
-    folds: Option<BuiltinFoldInputs<'_>>,
-) -> Option<LatticeValue> {
-    // Each arm below *is* a builtin's semantics, so it may only run while
-    // that name still denotes the builtin: after `rename list mylist` or a
-    // shadowing `proc format …` anywhere in the unit, `[list a 1 a 2]` is a
-    // call to something else entirely. This is the same trust fact the
-    // registry-driven engine below consults; these arms run ahead of it, so
-    // they must ask for themselves.
-    //
-    // `folds == None` is the mutation-fact-free shared per-unit lattice (see
-    // [`BuiltinFoldInputs`]), which no rewrite lands from: the optimiser
-    // re-runs SCCP *with* the fact before propagating a command-substitution
-    // assignment, and that run is the one whose constants reach codegen.
-    let trusted = |name: &str| folds.is_none_or(|f| f.mutations.trusts(name));
-
-    // `[list ...]` — reuse the codegen fold.
-    if trusted("list")
-        && let Some(folded) = crate::codegen::helpers::fold_list_cmd(value, policy.word_rules)
-    {
-        return Some(LatticeValue::Const(ConstValue::String(folded)));
-    }
-    // `[format "..." args…]` with literal args.
-    // The document's escape grammar, from the same resolved profile the rest
-    // of the policy's axes come from. A caller with no dialect keeps the 9.0
-    // default, which is what `FoldPolicy::numbers` documents for its own axis
-    // — the fold stays available, it just stops guessing once a dialect is
-    // known.
-    let escapes = policy
-        .dialect
-        .map_or_else(tcl_dialect::EscapeSyntax::default, |profile| {
-            profile.grammar.escapes
-        });
-    if trusted("format")
-        && let Some(folded) = crate::codegen::helpers::try_format_fold(value, escapes)
-    {
-        return Some(LatticeValue::Const(ConstValue::String(folded)));
-    }
-
-    let inner = value.strip_prefix('[')?.strip_suffix(']')?;
-    let (cmd, rest) = split_head(inner);
-    if !trusted(cmd) {
-        return None;
-    }
-
-    // `[llength LIST]` with a literal or lattice-resolvable list.
-    if cmd == "llength" {
-        let arg = rest?.trim();
-        // Unlike `foreach`'s `list_arg` (already delimiter-stripped by the
-        // segmenter), `arg` here is raw source text straight out of the
-        // `[...]` command substitution, so it still carries its own
-        // `{…}`/`"…"` wrapping that `extract_foreach_elements` does not
-        // strip — peel exactly one level before splitting.
-        if let Some(elements) = extract_foreach_elements(strip_one_level(arg), policy.word_rules) {
-            let n = i64::try_from(elements.len()).unwrap_or(i64::MAX);
-            return Some(LatticeValue::Const(ConstValue::Int(n)));
-        }
-        if let Some(items) =
-            resolve_foreach_list_via_lattice(arg, uses, values, ssa, policy.word_rules)
-        {
-            let n = i64::try_from(items.len()).unwrap_or(i64::MAX);
-            return Some(LatticeValue::Const(ConstValue::Int(n)));
-        }
-        return None;
-    }
-
-    // `[string length OPERAND]` where OPERAND resolves to a constant
-    // string — a literal word, or a `$var` whose lattice value is known.
-    // (Counting the chars of the *unresolved* operand text would mis-fold
-    // `string length $s` to the length of "$s".)
-    if cmd == "string" {
-        if let Some(after_cmd) = rest {
-            let (sub, sub_rest) = split_head(after_cmd.trim());
-            if sub == "length"
-                && let Some(raw) = sub_rest
-                && let Some(s) = resolve_const_string(raw.trim(), uses, values, ssa)
-            {
-                // `string length` counts UTF-16 code units on Tcl 8 and
-                // Unicode scalars on Tcl 9, so the fold uses the selected
-                // dialect's model. With no selected release the count survives
-                // only where both models agree, which is every string with no
-                // supplementary character.
-                let count = StringCharacterModel::count_for(policy.characters, &s)?;
-                let len = i64::try_from(count).unwrap_or(i64::MAX);
-                return Some(LatticeValue::Const(ConstValue::Int(len)));
-            }
-        }
-        return None;
-    }
-
-    // `[expr {EXPR}]` — parse + fold under the current lattice.
-    if cmd == "expr" {
-        let arg = rest?.trim();
-        // Braced (`expr {…}`) vs quoted / bare (`expr "…"`, `expr …`) changes
-        // the substitution model. In a braced expr the `$var` references are
-        // resolved by *expr* itself, so a string-valued var is a valid string
-        // operand (`expr {$a == $b}` with a="alpha" → string compare → 0). In
-        // a quoted / bare expr Tcl substitutes the variable *values* textually
-        // *before* parsing, so a non-numeric value becomes an invalid bareword
-        // and the whole expr errors at runtime (`expr "$a == $b"` →
-        // `expr "alpha == beta"` → `invalid bareword "alpha"`). Folding that
-        // to `0` would turn an erroring program into a silent value.
-        //
-        // Numeric values survive textual substitution as valid expr tokens,
-        // so for the non-braced form restrict the env to numeric constants:
-        // a string-valued var is then left unbound and the fold bails,
-        // matching Tcl.
-        let braced = arg.starts_with('{');
-        let expr_text = strip_one_level(arg);
-        let expr = crate::expr_parser::parse_expr_for_profile(expr_text, policy.dialect);
-        let env = if braced {
-            env_from_uses(uses, values, ssa)
-        } else {
-            env_from_uses_numeric(uses, values, ssa)
-        };
-        return eval_tcl_expr_with_policy(&expr, &env, policy)
-            .map(|v| LatticeValue::Const(tcl_value_to_const(v)));
-    }
-
-    None
-}
-
-/// Split a command-substitution body into `(head_word, rest)`.
-/// `rest` is `None` if the body is a single word, otherwise the
-/// remaining text with the leading whitespace stripped.
-fn split_head(text: &str) -> (&str, Option<&str>) {
-    let trimmed = text.trim_start();
-    let end = trimmed.find(char::is_whitespace).unwrap_or(trimmed.len());
-    let head = &trimmed[..end];
-    if end >= trimmed.len() {
-        return (head, None);
-    }
-    let rest = trimmed[end..].trim_start();
-    if rest.is_empty() {
-        (head, None)
-    } else {
-        (head, Some(rest))
-    }
-}
-
-/// Strip one level of `{…}` or `"…"` wrapping, returning the
-/// inside trimmed.
-fn strip_one_level(text: &str) -> &str {
-    if text.len() >= 2 {
-        let bytes = text.as_bytes();
-        if (bytes[0] == b'{' && bytes[text.len() - 1] == b'}')
-            || (bytes[0] == b'"' && bytes[text.len() - 1] == b'"')
-        {
-            return text[1..text.len() - 1].trim();
-        }
-    }
-    text
-}
-
-/// Parse a literal text as a [`ConstValue`]: prefers integer, then string fallback.
-///
-/// Only collapses to [`ConstValue::Int`] when the canonical integer text
-/// round-trips (`str(int(s)) == s`).  A leading-zero literal such as `"08"` or
-/// `"010"` parses as 8 / 10 but does *not* round-trip, so it is kept as a
-/// string — preserving the identity SCCP needs to compare it correctly under
-/// each dialect's leading-zero rule (octal in tcl8.x, decimal in tcl9.0).
-/// Likewise `"+5"` / `"-0"` are kept as strings (they don't round-trip).
+/// The value ingress for a literal: the text kept exactly, classified as
+/// [`ConstValue::Int`] only when the canonical integer spelling round-trips
+/// (`str(int(s)) == s`). A leading-zero literal such as `"08"` or `"010"`
+/// parses as 8 / 10 but does not round-trip, so it stays a string —
+/// preserving the identity SCCP needs to compare it correctly under each
+/// dialect's leading-zero rule (octal in tcl8.x, decimal in tcl9.0);
+/// `"+5"` and `"-0"` are kept as strings for the same reason. Nothing is
+/// trimmed: `set p { again}` holds ` again`, and a rewrite that reads the
+/// lattice sees the space (#2052). The classification rule is the
+/// registry's ([`ExactValue::from_literal`]); this is its lattice
+/// projection.
 #[must_use]
 pub fn parse_literal_value(text: &str) -> ConstValue {
-    let stripped = text.trim();
-    // Decimal integer grammar `[+-]?[0-9]+`.
-    let digits = stripped.strip_prefix(['+', '-']).unwrap_or(stripped);
-    let is_decimal_int = !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit());
-    if is_decimal_int
-        && let Ok(i) = stripped.parse::<i64>()
-        && i.to_string() == stripped
-    {
-        return ConstValue::Int(i);
-    }
-    ConstValue::String(stripped.to_owned())
+    crate::value_transfer::exact_to_const(&ExactValue::from_literal(text))
 }
 
 #[cfg(test)]
@@ -2094,6 +1743,7 @@ mod tests {
                 registry: &registry(),
                 traced_variables: &BTreeSet::new(),
                 has_dynamic_variable_trace: false,
+                analysis_context: None,
             },
         )
     }
@@ -2489,9 +2139,8 @@ mod tests {
             &block,
             &ssa,
             &escaping,
-            FoldPolicy::default(),
             false,
-            None
+            &LatticeDriver::detached(None, FoldPolicy::default()),
         ));
         assert_eq!(
             values.get(&(x, 2)),
@@ -2934,7 +2583,10 @@ mod tests {
                 reads_own_defs: false,
                 safe_on_uninit: false,
                 tokens: None,
-                foreach_groups: None,
+                // The CFG builder marks the synthetic loop header it emits
+                // with its iterator-group sizes; the driver keys the header
+                // layout on that typed fact, never on the command's name.
+                foreach_groups: Some(vec![1]),
             },
             uses: HashMap::new(),
             defs,
@@ -3052,7 +2704,7 @@ mod tests {
 
     #[test]
     fn evaluate_def_foreach_list_cmd_subst_folds_constset() {
-        // `foreach v [list a b c]` folds through `try_fold_cmd_subst` to the
+        // `foreach v [list a b c]` folds through the declared `list` route to the
         // same element CONSTSET as the braced-literal form.
         let mut ssa = bare_ssa();
         let stmt = foreach_stmt(&mut ssa, "v", "[list a b c]", 1);
@@ -3473,21 +3125,6 @@ mod tests {
             evaluate_def(&stmt, &values, &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(3))
         );
-    }
-
-    #[test]
-    fn split_head_basic() {
-        assert_eq!(split_head("cmd arg1 arg2"), ("cmd", Some("arg1 arg2")));
-        assert_eq!(split_head("  cmd"), ("cmd", None));
-        assert_eq!(split_head(""), ("", None));
-    }
-
-    #[test]
-    fn strip_one_level_braces_and_quotes() {
-        assert_eq!(strip_one_level("{abc}"), "abc");
-        assert_eq!(strip_one_level("\"abc\""), "abc");
-        assert_eq!(strip_one_level("bare"), "bare");
-        assert_eq!(strip_one_level("{}"), "");
     }
 
     #[test]

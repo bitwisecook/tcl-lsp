@@ -338,6 +338,16 @@ pub const GAPS: &[Gap] = &[
         spelling: "",
         kind: GapKind::Excluded,
     },
+    // The value-transfer declaration names a registry-owned specialisation
+    // or abstains. Its pack spellings — `semantics` / `evaluate` / `facts` —
+    // land with the private-command slice of the value-transfer migration
+    // (`docs/design/compiler/value-transfers-migration.md`); until then a
+    // pack inherits or derives it, and the renderer has nothing to write.
+    Gap {
+        key: "semantics",
+        spelling: "",
+        kind: GapKind::Excluded,
+    },
 ];
 
 /// The [`Gap`] for `key`, if the renderer cannot carry it.
