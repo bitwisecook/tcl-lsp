@@ -427,7 +427,7 @@ declare_traits! {
     /// command-prefix extraction to what they find, which keeps
     /// `[namespace code [list X]]`, `[namespace code {X a}]`, and
     /// `[namespace code X]` all resolving through one rule and no
-    /// command name in the walker (issue #923 idx 92).
+    /// command name in the walker.
     WrapsCommandPrefix => WRAPS_COMMAND_PREFIX, Callbacks, "wraps a script into a command prefix";
 
     // Safety
@@ -463,7 +463,7 @@ declare_traits! {
     /// The metaclasses all share one `definition_body` grammar, so this is a
     /// per-command fact rather than a grammar flag — it replaces the
     /// `metaclass == "oo::configurable"` spelling test the method-resolution
-    /// scan used to make (issue #1275).
+    /// scan would otherwise make.
     ConfiguresByProperty => CONFIGURES_BY_PROPERTY, Objects, "answers `configure`/`cget` from declared properties";
     /// A metaclass whose manufactured classes cannot themselves manufacture
     /// instances. Tcl 9.0's `oo::abstract` unexports every manufacturer from
@@ -807,7 +807,7 @@ declare_traits! {
     /// `link` is deliberately outside all three. `link` *creates* bareword
     /// commands in the object's namespace (`link {alias method}`), so those
     /// barewords are per-class data — not language keywords — and no
-    /// consumer may treat `link` itself as a dispatch site (issue #1026).
+    /// consumer may treat `link` itself as a dispatch site.
     ///
     /// A dialect that gained or lost `my` would propagate through this
     /// spec's `dialects` mask, so consumers query the registry rather than
@@ -907,7 +907,7 @@ declare_traits! {
     /// re-exposed (`interp expose`) or reached via
     /// `interp invokehidden`; the analyser's safe-context walk
     /// consults this flag generically — no command name appears in
-    /// the consumer (issue #945 fault 7).
+    /// the consumer.
     SafeInterpHidden => SAFE_INTERP_HIDDEN, Security, "hidden in a safe interpreter";
 
     /// Declares the enclosing file to be a loadable **package**, so the
@@ -916,7 +916,7 @@ declare_traits! {
     /// interprocedural call-site seed (`tcl_compiler::unit_scope`) refuses
     /// to treat a file's visible call sites as the complete caller set once
     /// this appears, because no project enumeration bounds a consumer in
-    /// another checkout (issue #977).
+    /// another checkout.
     ProvidesPackage => PROVIDES_PACKAGE, Packages, "declares this file a loadable package";
 
     /// Pulls another compilation unit's script into *this* interpreter, so
@@ -924,14 +924,14 @@ declare_traits! {
     /// `source`, `load`, `package require`, `auto_load`, `auto_import`.  A
     /// weaker signal than [`Traits::PROVIDES_PACKAGE`]: the loaded unit is
     /// normally a file the host's project already contains, so real
-    /// cross-file evidence can cover it (issue #977).
+    /// cross-file evidence can cover it.
     LoadsExternalUnit => LOADS_EXTERNAL_UNIT, Packages, "runs another unit's script in this interpreter";
 
     /// Publishes a command name for another unit to import or dispatch
     /// through — `namespace export`, `namespace ensemble create` /
     /// `configure`.  Like [`Traits::PROVIDES_PACKAGE`], it marks the file's
     /// commands as an API surface whose callers the file does not contain
-    /// and no enumeration bounds (issue #977).
+    /// and no enumeration bounds.
     ExportsCommand => EXPORTS_COMMAND, Packages, "publishes a command name for another unit";
 
     /// The interpreter's fallback for a command word that resolves to
@@ -945,7 +945,7 @@ declare_traits! {
     /// consults this trait so it can enumerate those dispatches as real
     /// call sites of a module's own handler instead of seeing only its
     /// direct callers — a coincidentally-uniform set of which would
-    /// otherwise fold a genuinely runtime-varying parameter (issue #1044).
+    /// otherwise fold a genuinely runtime-varying parameter.
     /// Carried by the spec so no consumer spells the name `unknown`.
     ///
     /// Global only: a namespace-local `proc unknown` is *not* the handler
@@ -994,8 +994,8 @@ declare_traits! {
     /// loop variable takes a different concrete value each time round, so
     /// exactly the commands carrying this trait have to be re-dispatched
     /// per element to see the whole set of names the loop installs —
-    /// `foreach t {A B} { oo::define $t { … } }` extends both `A` and `B`
-    /// (issue #923 idx 55/86).  Every *other* command in the body keeps the
+    /// `foreach t {A B} { oo::define $t { … } }` extends both `A` and `B`.
+    /// Every *other* command in the body keeps the
     /// single evaluation the ordinary walk gave it, so the simulation
     /// cannot duplicate diagnostics or scope entries.
     ///
@@ -1016,8 +1016,8 @@ declare_traits! {
     /// `namespace path` — neither of which is reachable from anywhere
     /// else. tclsh 9.0.4 at the top level: `link foo` / `my foo` /
     /// `next` / `nextto` / `self` / `classvariable v` every one raises
-    /// `invalid command name`, and `info commands ::link` is empty
-    /// (issue #1026). tclsh 8.6.14 agrees for the four it has, and an
+    /// `invalid command name`, and `info commands ::link` is empty.
+    /// tclsh 8.6.14 agrees for the four it has, and an
     /// `apply` lambda written *inside* a method body loses the context
     /// too (`invalid command name "link"`), because `apply` runs its body
     /// in the global namespace.
@@ -1048,7 +1048,7 @@ declare_traits! {
     /// `TARGET`). The analyser's class-body walk consults this trait to
     /// find the calls that populate `ClassDef::linked_members`, so the
     /// keyword is registry data rather than a `texts[0] == "link"` literal
-    /// in the walker (issue #1026).
+    /// in the walker.
     ///
     /// Deliberately *not* one of the three `TclOO` dispatch traits: `link`
     /// creates dispatching barewords, it does not dispatch — see
@@ -1099,7 +1099,7 @@ declare_traits! {
     /// [`crate::arg_role::ArgRole::NamespaceName`] word names — it brings
     /// the namespace into existence if it does not already exist, and its
     /// name word is therefore a *definition* site go-to-definition answers
-    /// with (issue #1088).
+    /// with.
     ///
     /// `namespace eval` is the only carrier, and the oracle is why.  On
     /// tclsh 9.0.4 and 8.6.16, byte-identically: two `namespace eval ::a
@@ -1124,7 +1124,7 @@ declare_traits! {
     /// A trait rather than a name list in the analyser because the set is
     /// open: a `ttk::` megawidget or a vendor Tk fork can ship another
     /// manager, and its spec should join generic geometry analysis without an
-    /// analyser edit (issue #1390).
+    /// analyser edit.
     TkGeometryManager => TK_GEOMETRY_MANAGER, Objects, "a Tk geometry manager";
 
     /// The command **stores** its script argument instead of running it —
@@ -1146,7 +1146,7 @@ declare_traits! {
     /// proof that this call completes?" reads *this* flag: unset means the
     /// body may run here, which is the safe answer for every command that
     /// has not declared otherwise. Inferring dormancy from what a command
-    /// *lacks* let the computed-metaclass walk (issue #1571) claim a class
+    /// *lacks* let the computed-metaclass walk claim a class
     /// created after `uplevel 1 $script`, a script that can abort before the
     /// creation is ever reached.
     ///

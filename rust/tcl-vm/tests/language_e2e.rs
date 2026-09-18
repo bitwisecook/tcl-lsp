@@ -92,8 +92,8 @@ fn for_loop_output() {
 /// Regression: a `while` whose condition is a *bare command substitution*
 /// (not an inlinable expression) falls back to the runtime `while` builtin.
 /// The braced `{cond}` / `{body}` words must be pushed verbatim so the builtin
-/// re-evaluates the condition each iteration; previously the condition's
-/// command substitution was evaluated *once* at the call site, freezing the
+/// re-evaluates the condition each iteration; evaluating the condition's
+/// command substitution *once* at the call site instead would freeze the
 /// loop into an infinite spin.
 #[test]
 fn while_command_subst_condition_reevaluates() {
@@ -350,12 +350,12 @@ fn exit_is_not_catchable() {
     assert_eq!(out, "", "catch does not swallow exit");
 }
 
-/// Issue #1458 — a **zero-length array name** is a legal array reference.
+/// A **zero-length array name** is a legal array reference.
 /// `TclObjLookupVarEx` (`tclVar.c(9.0.4):683-686`) treats a name as an array
 /// element whenever it is longer than one byte, ends in `)`, and contains a
 /// `(` — the `(` is allowed at offset 0, so `(x)` is element `x` of the array
-/// named `""`. The VM's splitter required a non-empty base, so every such
-/// reference was silently demoted to an ordinary scalar.
+/// named `""`. A splitter that requires a non-empty base would silently
+/// demote every such reference to an ordinary scalar.
 ///
 /// Every vector below is byte-checked against `tclsh8.6.16` and `tclsh9.0.4`
 /// (`array get` output is `lsort`ed because Tcl does not promise hash order).
@@ -417,7 +417,7 @@ fn zero_length_array_name_is_an_array_element() {
     assert_eq!(out, "1\n0\n");
 }
 
-/// Issue #1458's companion guard: the element-reference rule also decides what
+/// A companion guard: the element-reference rule also decides what
 /// the **link** commands may name.
 ///
 /// A link (`upvar`, `global`, `variable`) always binds a *scalar* cell, so C
@@ -553,7 +553,8 @@ fn global_at_top_level_does_not_rebind_an_existing_cell() {
 
 /// A qualified name's **parent namespace is resolved before** the element-name
 /// guard, so a missing namespace is reported as such rather than as an element
-/// error (closes a slice of #1588; the `upvar` surface of that issue remains).
+/// error. `upvar`'s own parent-namespace surface is separate and uncovered
+/// here.
 ///
 /// C reports the message name **as written**, but `errorCode` is
 /// `TCL LOOKUP VARNAME <base>` — array syntax is stripped from that detail.

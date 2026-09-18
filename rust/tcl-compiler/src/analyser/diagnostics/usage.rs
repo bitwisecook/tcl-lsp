@@ -158,7 +158,10 @@ Use braces: {{ \u{2026} }}"
             return;
         };
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let mut indices = registry.arg_indices_for_role(
+        // The document's surface, not the bare catalogue: a declared
+        // `cond:expr` word is an expression operand, so an unbraced one
+        // draws W100 exactly as a registry command's does.
+        let mut indices = self.command_surface(registry).arg_indices_for_role(
             cmd_name,
             &arg_strs,
             tcl_registry::arg_role::ArgRole::Expr,
@@ -290,8 +293,7 @@ Use braces: {{ \u{2026} }}"
                     // Per-instance: `expr 1 + 2` → `expr {1 + 2}` reaches `expr`
                     // with the same string, but `expr $a + $b` → `expr {$a + $b}`
                     // stops `$a` being substituted before `expr` parses it, which
-                    // is a real behaviour change when `$a` holds expression text
-                    // (issue #1195).
+                    // is a real behaviour change when `$a` holds expression text.
                     safety: super::helpers::brace_wrap_fix_safety(text, has_sub),
                 }]),
         );
@@ -350,62 +352,128 @@ Use braces: {{ \u{2026} }}"
         }
     }
 
-    /// W200: a `u` / `s` modifier on a `binary format` / `binary
-    /// scan` integer specifier requires Tcl 8.5+ (TIP 275). Sites are
-    /// buffered and decided post-walk against the effective Tcl version
-    /// (§6 argument-DSL rung) — the old hardcoded dialect list wrongly
+    /// W200/W202: version gates on a literal `binary` template.
+    ///
+    /// Site selection is entirely registry-driven: the head's effective
+    /// command identity resolves through the binding realm (so
+    /// `::binary` is the builtin, and a `proc binary` / `rename` /
+    /// `interp alias` that takes the name over is not), then the
+    /// registry's `FormatType::Binary` metadata names which argument is
+    /// the template. No `cmd_name == "binary"` guard and no hardcoded
+    /// `format`/`scan` argument positions.
+    ///
+    /// The field grammar itself comes from the binary owner
+    /// (`tcl_cmd_core::binary::specifiers`), parsed with the suffix
+    /// admitted so the gate — not the parse — decides; sites are
+    /// buffered and settled post-walk against the effective Tcl version
+    /// (§6 argument-DSL rung).
+    ///
+    /// W200 is the `u` suffix (TIP 275, Tcl 8.5). W202 is a field
+    /// letter that does not exist on the target at all (`t n m r R q
+    /// Q`, also 8.5); its floor comes from
+    /// `tcl_cmd_core::binary::specifier_min_version`. They are separate
+    /// codes because the fixes differ: a suffix can be dropped, an
+    /// absent letter needs a different field.
+    ///
+    /// One site per code per template: every field shares the template
+    /// token's span, so several gated fields give one squiggle each,
+    /// not one per field. The old hardcoded dialect list wrongly
     /// included f5-iapps, whose host embeds a real Tcl 8.5.13 where the
-    /// modifiers work.
-    pub(in crate::analyser) fn emit_w200_binary_format_modifiers(
+    /// suffix works.
+    pub(in crate::analyser) fn emit_binary_field_version_gates(
         &mut self,
         cmd_name: &str,
+        cmd_tok: tcl_lexer::Token,
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
+        arg_single: &[bool],
     ) {
-        if cmd_name != "binary" || args.is_empty() {
+        let Some(registry) = self.registry.as_deref() else {
+            return;
+        };
+        // The effective command identity, exactly as the semantic-token
+        // and inlay-hint walks resolve it: a rebound or
+        // shadowed spelling is not this builtin, and `::binary` is.
+        let resolved = self
+            .head_identities
+            .resolve(cmd_name, cmd_tok.span.start())
+            .spec_name();
+        if resolved.is_empty() {
             return;
         }
-        let fmt_idx = match args[0].as_str() {
-            "format" if args.len() >= 2 => 1,
-            "scan" if args.len() >= 3 => 2,
-            _ => return,
-        };
-        let Some(fmt_tok) = arg_tokens.get(fmt_idx) else {
-            return;
-        };
-        let fmt = args[fmt_idx].as_bytes();
-        let mut i = 0;
-        while i < fmt.len() {
-            if fmt[i].is_ascii_whitespace() {
-                i += 1;
+        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+        for found in registry.format_string_args(resolved, &arg_strs) {
+            if found.kind != tcl_registry::patterns::FormatType::Binary {
                 continue;
             }
-            while i < fmt.len() && fmt[i].is_ascii_digit() {
-                i += 1;
+            let (Some(fmt), Some(fmt_tok)) = (args.get(found.index), arg_tokens.get(found.index))
+            else {
+                continue;
+            };
+            if !Self::is_literal_template(fmt_tok, arg_single.get(found.index).copied()) {
+                continue;
             }
-            if i >= fmt.len() {
-                break;
-            }
-            let spec = fmt[i];
-            i += 1;
-            if BINARY_INT_SPECIFIERS.contains(&spec)
-                && i < fmt.len()
-                && (fmt[i] == b'u' || fmt[i] == b's')
+            self.push_binary_field_gates(fmt.as_bytes(), fmt_tok.span);
+        }
+    }
+
+    /// Whether a template word is written text the scanner may read.
+    ///
+    /// A word is literal only when it is a *single* token that is not a
+    /// substitution. Both halves matter: `$fmt` is one `Var` token, and
+    /// `"a$fmt"` is several tokens whose representative is an ordinary
+    /// `Esc` — indistinguishable from the literal `q` by kind alone. In
+    /// either case the runtime template is unknown, and reading the
+    /// source text would scan the *variable name*: `$fmt` carries the
+    /// field letters `f`, `m` and `t`, and `$au` reads as a field plus a
+    /// gated `u` suffix.
+    fn is_literal_template(tok: &tcl_lexer::Token, single: Option<bool>) -> bool {
+        single == Some(true)
+            && !matches!(
+                tok.kind,
+                tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+            )
+    }
+
+    /// Buffer the W200/W202 gate sites for one literal template.
+    fn push_binary_field_gates(&mut self, fmt: &[u8], span: tcl_lexer::Span) {
+        let fields = tcl_cmd_core::binary::specifiers(fmt, true);
+        if fields.iter().any(|f| f.modifier == Some(b'u')) {
+            self.dsl_gate_sites.push(super::version_gate::DslGateSite {
+                span,
+                code: DiagCode::W200,
+                what: "unsigned modifier 'u' on binary format specifier".to_string(),
+                min: tcl_dialect::TclVersion::V8_5,
+            });
+        }
+
+        // Gated field letters, deduped and reported in template order so
+        // the message is stable regardless of how often each appears.
+        let mut gated: Vec<(u8, tcl_dialect::TclVersion)> = Vec::new();
+        for f in &fields {
+            if let Some(min) = tcl_cmd_core::binary::specifier_min_version(f.letter)
+                && !gated.iter().any(|(l, _)| *l == f.letter)
             {
-                let modifier = fmt[i] as char;
-                self.dsl_gate_sites.push(super::version_gate::DslGateSite {
-                    span: fmt_tok.span,
-                    code: DiagCode::W200,
-                    what: format!(
-                        "signed/unsigned modifier '{modifier}' on binary format specifier"
-                    ),
-                    min: tcl_dialect::TclVersion::V8_5,
-                });
-                i += 1;
+                gated.push((f.letter, min));
             }
-            if i < fmt.len() && fmt[i] == b'*' {
-                i += 1;
-            }
+        }
+        if let Some(min) = gated.iter().map(|(_, m)| *m).max() {
+            let letters = gated
+                .iter()
+                .map(|(l, _)| format!("'{}'", char::from(*l)))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let noun = if gated.len() == 1 {
+                "binary field specifier"
+            } else {
+                "binary field specifiers"
+            };
+            self.dsl_gate_sites.push(super::version_gate::DslGateSite {
+                span,
+                code: DiagCode::W202,
+                what: format!("{noun} {letters}"),
+                min,
+            });
         }
     }
 
@@ -468,7 +536,7 @@ Use braces: {{ \u{2026} }}"
     /// `args` / `arg_tokens` exclude the command name (the command word
     /// is not scanned).  Operates in the default **confusables** mode
     /// (→ **strict** for F5 iRules / iApps); the `common` mode — which
-    /// needs Unicode general-category data Rust std lacks — is not yet
+    /// needs Unicode general-category data Rust std lacks — is not
     /// implemented.  One diagnostic per offending character, with an
     /// ASCII-replacement fix when one is known.
     pub(in crate::analyser) fn emit_w108_non_ascii(&mut self, arg_tokens: &[tcl_lexer::Token]) {
@@ -540,7 +608,7 @@ Use braces: {{ \u{2026} }}"
                 // Skipping them here is what stops one character producing two
                 // codes; see `confusables_table::BIDI_CONTROLS` for the exact
                 // set, and for why directional *marks* and zero-width
-                // characters deliberately stay with W108. Issue #1326.
+                // characters deliberately stay with W108.
                 if super::super::confusables_table::is_bidi_control(ch) {
                     continue;
                 }
@@ -831,9 +899,9 @@ Use braces: {{ \u{2026} }}"
     /// command that declares them (`set`, `incr`, `append`, `lappend`, `unset`,
     /// `info exists`, `vwait`, `catch`, `scan`, `regexp`/`regsub` captures,
     /// `dict with`/`update`, `array set`, `lassign`, …) is covered without a
-    /// hand-maintained list — the two previous lists (`name_arg_indices` and
-    /// `w216_varname_word_indices`) had drifted, each missing what the other
-    /// had. The one structural exception is `upvar`: its frame-linking
+    /// hand-maintained list, which drifts: separate lists for the W212 and
+    /// W216 positions each end up missing what the other has.  The one
+    /// structural exception is `upvar`: its frame-linking
     /// semantics are modelled by the registry's repeated layout, and only its
     /// *local*-name slots are name positions — a computed `$remote` in an
     /// other-var slot is a legitimate indirect link.
@@ -1007,7 +1075,7 @@ Use braces: {{ \u{2026} }}"
                         let corrected = build_w216_replacement(name, inner);
                         // The `}` closing a `${…}` word is the owner
                         // family's call, not `span.end() + 1` — that
-                        // overshoots the degenerate `${}` (issue #1423).
+                        // overshoots the degenerate `${}`.
                         let span = tcl_lexer::word_span_at(&self.source, t1.span);
                         let message = format!(
                             "`${{{name}({inner})}}` does not substitute `{inner}` \
@@ -1477,10 +1545,6 @@ pub(super) fn is_benign_unicode(ch: char) -> bool {
     )
 }
 
-/// Integer format specifiers for `binary format` / `binary scan` that
-/// accept the Tcl 8.5+ `u` / `s` modifier.
-const BINARY_INT_SPECIFIERS: &[u8] = b"csSiInTwWmrR";
-
 /// Mask-octet values that can appear in a contiguous subnet mask.
 const VALID_MASK_OCTETS: &[u32] = &[0, 128, 192, 224, 240, 248, 252, 254, 255];
 
@@ -1595,7 +1659,7 @@ pub(super) fn first_nested_expr(slice: &str) -> Option<(usize, usize)> {
     // therefore redundant.  An `[expr …]` nested inside another command
     // substitution's arguments — e.g. `if {[myCmd [expr {1+1}]]}` — is a fresh
     // command-argument context, not an expression context, so it must NOT be
-    // flagged (issue #726).
+    // flagged.
     let mut depth: i32 = 0;
     let mut open = 0;
     while open < len {
@@ -1725,13 +1789,11 @@ fn single_braced_group(body: &str) -> Option<&str> {
 /// The word-form `expr` operators whose verdict a nested `expr`'s numeric
 /// normalisation can influence — string equality (`eq`/`ne`), string
 /// ordering (`lt`/`le`/`gt`/`ge`, TIP 461), and list membership (`in`/`ni`).
-/// Derived from `tcl_syntax::expr::operators` (issue #983's unification):
-/// every `BinOp` whose mathop shape is a string-only `BoolChain`/`NeBinary`,
-/// or `Membership` — rather than a hand-typed 4-entry list that used to
-/// miss `lt`/`le`/`gt`/`ge` entirely, a real gap since those four share
-/// exactly the same numeric-normalisation risk `eq`/`ne` already guarded
-/// against (`{[expr {$x}] lt "007"}` could have its verdict silently
-/// flipped by W114's unwrap fix the same way `==`'s can).
+/// Derived from `tcl_syntax::expr::operators`: every `BinOp` whose mathop
+/// shape is a string-only `BoolChain`/`NeBinary`, or `Membership`.  A
+/// hand-typed list misses `lt`/`le`/`gt`/`ge`, which carry exactly the same
+/// numeric-normalisation risk as `eq`/`ne` (`{[expr {$x}] lt "007"}` can have
+/// its verdict silently flipped by W114's unwrap fix the same way `==`'s can).
 fn string_comparison_op_spellings() -> &'static [&'static str] {
     use tcl_syntax::expr::operators::{ALL_BIN_OPS, OperatorShape};
     static OPS: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
@@ -1834,7 +1896,7 @@ fn walk_string_eq_ne(
     found: &mut Vec<(BinOp, Option<u32>)>,
     depth: u32,
 ) {
-    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // Native-stack safety net: walks the `ExprNode` tree, one
     // native frame per level. Past the cap, stop descending — a collector
     // that returns the `==`/`!=`-against-string findings gathered so far is
     // the safe fallback (occurrences buried deeper than the cap go
@@ -1876,13 +1938,13 @@ fn walk_string_eq_ne(
 /// leaves' offsets (`end` inclusive — the expr lexer's convention).
 /// `None` when a `Raw` child makes the extent unknowable.
 fn node_extent(node: &ExprNode) -> Option<(u32, u32)> {
-    // Entry point: the top of an expression tree is nesting depth 0 (issue
-    // #996 — the recursion cap lives in [`node_extent_at`]).
+    // Entry point: the top of an expression tree is nesting depth 0 (the
+    // recursion cap lives in [`node_extent_at`]).
     node_extent_at(node, 0)
 }
 
 fn node_extent_at(node: &ExprNode, depth: u32) -> Option<(u32, u32)> {
-    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // Native-stack safety net: walks the `ExprNode` tree, one
     // native frame per level. Past the cap, report an unknowable extent
     // (`None`) — the same conservative answer this function already returns
     // for a `Raw` child, so callers fall back to a coarser span rather than
@@ -1934,13 +1996,13 @@ fn op_offset_between(text: &str, left: &ExprNode, right: &ExprNode, op: BinOp) -
 /// Count the total number of `==`/`!=` operators in the expression
 /// tree.
 fn count_eq_ne_ops(node: &ExprNode) -> usize {
-    // Entry point: the top of an expression tree is nesting depth 0 (issue
-    // #996 — the recursion cap lives in [`count_eq_ne_ops_at`]).
+    // Entry point: the top of an expression tree is nesting depth 0 (the
+    // recursion cap lives in [`count_eq_ne_ops_at`]).
     count_eq_ne_ops_at(node, 0)
 }
 
 fn count_eq_ne_ops_at(node: &ExprNode, depth: u32) -> usize {
-    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // Native-stack safety net: walks the `ExprNode` tree, one
     // native frame per level. Past the cap, stop counting (return 0 for the
     // deeper sub-tree) — a conservative under-count only reachable past 256
     // levels of expression nesting; never a crash.
@@ -2029,13 +2091,13 @@ mod issue996_tests {
     use super::*;
     use crate::expr_ast::UnaryOp;
 
-    /// Regression coverage for issue #996: `walk_string_eq_ne`, `node_extent`
-    /// and `count_eq_ne_ops` each recurse once per `ExprNode` level with no
-    /// depth cap before this fix (`walk_string_eq_ne` also drives
-    /// `node_extent` via `op_offset_between`). A tree built directly is
-    /// unbounded (the Pratt parser caps its own output at 256) and
-    /// empirically overflowed the native stack (SIGABRT) in the low thousands
-    /// of levels on a 2 MiB thread. 3000 is past that crash range and past
+    /// Depth coverage: `walk_string_eq_ne`, `node_extent` and
+    /// `count_eq_ne_ops` each recurse once per `ExprNode` level
+    /// (`walk_string_eq_ne` also drives `node_extent` via
+    /// `op_offset_between`), so without a depth cap they overflow the native
+    /// stack (SIGABRT) in the low thousands of levels on a 2 MiB thread.  A
+    /// tree built directly is unbounded (the Pratt parser caps its own output
+    /// at 256); 3000 is past that crash range and past
     /// `MAX_EXPR_NODE_DEPTH` (256); the assertion is that each returns at all.
     #[test]
     fn deeply_nested_eq_ne_walks_survive() {

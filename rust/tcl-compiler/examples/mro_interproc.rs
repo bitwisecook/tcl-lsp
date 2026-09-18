@@ -17,8 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `mro_interproc` — measure the *ceiling* of interprocedural object→class
-//! flow, the lever the class-lattice experiment identified but never
-//! quantified.
+//! flow.
 //!
 //! The FULL resolver abstains on 81 % of `$obj method` sites, 60 % of them
 //! `unknown` — receivers that arrive as a proc/method parameter, a class
@@ -372,14 +371,14 @@ fn build_proc_registry(
 
 /// Container element-typing map (corpus-wide, source-level): `container_name`
 /// → set of element classes. Built by scanning source for the idiomatic
-/// population statements — robust to IR lowering / analysis guarding that hid
-/// these from a CFG walk:
+/// population statements — robust to IR lowering and analysis guarding, which
+/// hide these from a CFG walk:
 ///   lappend  CONTAINER … [Class new …]
 ///   dict set CONTAINER key [Class new …]
 ///   dict append CONTAINER key [Class new …]
 ///   set CONTAINER [list [Class new …] …]
 /// An element `[Class new]` names the class directly; `$v` elements would
-/// need element flow (out of scope for this ceiling — noted).
+/// need element flow, which this ceiling does not model.
 fn build_coll_elem(
     units: &[FileUnit],
     merged: &HashMap<String, ClassDef>,
@@ -660,7 +659,6 @@ fn print_report(
     param_class: &ParamClass,
     ceiling_by_hop: &[usize],
 ) {
-    // ---- report ----
     println!("# mro_interproc — interprocedural object→class ceiling");
     println!("files={} merged_classes={}", units.len(), merged.len());
     print_coll_elem_debug(coll_elem);

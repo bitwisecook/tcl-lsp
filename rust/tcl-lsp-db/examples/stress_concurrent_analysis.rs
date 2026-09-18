@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Direct-infrastructure concurrency stress test for the salsa query database
-//! — issue #829 robustness suite, "no LSP front end" half.
+//! — the "no LSP front end" half of the cancellation robustness suite.
 //!
 //! Hammers [`TclDatabase`] exactly the way `tcl-lsp-server` does (one writer
 //! thread repeatedly calling `SourceFile::set_text`, many reader threads each
@@ -28,7 +28,7 @@
 //! writer's `set_text` must never deadlock behind a reader, a reader must
 //! never observe a torn/inconsistent result, and neither side may panic.
 //!
-//! Every #829 fix in this crate — routing `semantic_tokens` through the
+//! Every cancellation fix in this crate — routing `semantic_tokens` through the
 //! cancellable `file_analysis_incremental` instead of the uncancellable
 //! `file_analysis`, and the server-side fast-path race — depends on this
 //! contract holding under real contention, not just in the single-threaded
@@ -241,8 +241,8 @@ fn reader_loop(
         let snapshot = db_handle.lock().expect("db mutex poisoned").clone();
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             salsa::Cancelled::catch(|| {
-                // Alternate between the two salsa queries every #829 fix
-                // routes through the same cancellable incremental analysis,
+                // Alternate between the two salsa queries that
+                // route through the same cancellable incremental analysis,
                 // mirroring the mix of `semanticTokens/full` and diagnostics
                 // requests a real editing session sends concurrently.
                 if local_iters.is_multiple_of(2) {
@@ -293,8 +293,8 @@ fn reader_loop(
 /// `Backend::db_set_source` goes through on every `didChange`. If any reader
 /// were holding a clone across a query in a way that violates salsa's
 /// cancellation contract, `set_text` would hang rather than return promptly,
-/// and this loop would blow past `timeout` — the exact deadlock issue #829's
-/// fix must prevent, so a timeout dumps the last successfully-written
+/// and this loop would blow past `timeout` — the exact deadlock this crate
+/// must prevent, so a timeout dumps the last successfully-written
 /// revision as a reproduction bundle before returning. Returns the number of
 /// writes actually completed.
 fn writer_loop(

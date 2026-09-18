@@ -382,7 +382,7 @@ fn rewrite_binding_scope(stmt: &Statement, rename: &HashMap<String, String>) -> 
                     vars: it.vars.iter().map(|v| rename_local(v, rename)).collect(),
                     // A brace-quoted value word substitutes nothing, so a
                     // `$v` inside it is literal text and must survive
-                    // inlining unrewritten (issue #1260).
+                    // inlining unrewritten.
                     list_arg: if it.list_braced {
                         it.list_arg.clone()
                     } else {
@@ -604,13 +604,13 @@ fn split_array(name: &str) -> (&str, &str) {
 /// Walk an [`ExprNode`] tree and return a clone with `rename` applied to
 /// every [`ExprNode::Var`] name.
 fn rewrite_expr(node: &ExprNode, rename: &HashMap<String, String>) -> ExprNode {
-    // Public entry: the top of an expression tree is nesting depth 0 (issue
-    // #996 — the recursion cap lives in [`rewrite_expr_at`]).
+    // Public entry: the top of an expression tree is nesting depth 0; the
+    // recursion cap lives in [`rewrite_expr_at`].
     rewrite_expr_at(node, rename, 0)
 }
 
 fn rewrite_expr_at(node: &ExprNode, rename: &HashMap<String, String>, depth: u32) -> ExprNode {
-    // Native-stack safety net (issue #996): this both walks the input tree
+    // Native-stack safety net: this both walks the input tree
     // and constructs a renamed clone, one native frame per level. Past the
     // cap, pass the node through *unchanged* (a full `clone`) — this stops
     // transforming deeper vars but preserves the tree's structure intact
@@ -703,12 +703,11 @@ mod tests {
             .collect()
     }
 
-    /// Regression coverage for issue #996: `rewrite_expr` recurses once per
-    /// `ExprNode` level — walking the input *and* constructing a renamed
-    /// clone — with no depth cap before this fix. A tree built directly is
-    /// unbounded (the Pratt parser caps its own output at 256) and
-    /// empirically overflowed the native stack (SIGABRT) in the low thousands
-    /// of levels on a 2 MiB thread. 3000 is past that crash range and past
+    /// `rewrite_expr` recurses once per `ExprNode` level — walking the input
+    /// *and* constructing a renamed clone — so it needs a depth cap. A tree
+    /// built directly is unbounded (the Pratt parser caps its own output at
+    /// 256) and uncapped overflows the native stack (SIGABRT) in the low
+    /// thousands of levels on a 2 MiB thread. 3000 is past that crash range and past
     /// `MAX_EXPR_NODE_DEPTH` (256); the assertion is that it returns a tree
     /// (past the cap it passes the sub-tree through unchanged rather than
     /// truncating or panicking).

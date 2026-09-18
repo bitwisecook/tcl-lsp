@@ -17,10 +17,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! End-to-end coverage for the call-site resolution seam shared by
-//! `textDocument/definition` and `textDocument/hover` — issues #1137
-//! (command-position gate + the `::oo::Helpers` cross-file path), #1133
-//! (an already-resolved indirect head must beat a same-named decoy), and
-//! the document-tier providers of #1140 that answer the same questions.
+//! `textDocument/definition` and `textDocument/hover`: the command-position
+//! gate and the `::oo::Helpers` cross-file path; an already-resolved
+//! indirect head that must beat a same-named decoy; and the document-tier
+//! providers that answer the same questions.
 //!
 //! The unifying property under test is **self-consistency**: every provider
 //! in one response must agree about what a given span names, and none may
@@ -32,7 +32,7 @@ use serde_json::Value;
 
 use crate::common::{Lsp, unique_uri};
 
-/// The corpus shape from issue #1137 idx 50, reduced to its mechanism: an
+/// The corpus shape reduced to its mechanism: an
 /// argument word that happens to share a proc's name, beside a real call
 /// head. `dump` is data; tclsh never looks it up as a command.
 const ARGUMENT_DECOY: &str = concat!(
@@ -43,7 +43,7 @@ const ARGUMENT_DECOY: &str = concat!(
     "}\n",
 );
 
-/// Issue #1133: a constant-dominated indirect head beside a same-named decoy.
+/// A constant-dominated indirect head beside a same-named decoy.
 const INDIRECT_HEAD: &str = concat!(
     "namespace eval ::tc { proc setdef {a} { return $a } }\n",
     "namespace eval ::other { proc setdef {b c} { return $b } }\n",
@@ -93,9 +93,9 @@ fn hover_text(result: &Value) -> String {
 
 #[test]
 fn definition_abstains_on_an_argument_that_shares_a_procs_name() {
-    // FP guard — issue #1137 idx 50. Before the command-position gate the
-    // final text-scan fallback resolved `dump` onto `proc ::dump`, an answer
-    // no run of the program could produce.
+    // FP guard: without the command-position gate the
+    // final text-scan fallback would resolve `dump` onto `proc ::dump`, an
+    // answer no run of the program could produce.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, ARGUMENT_DECOY);
@@ -138,8 +138,8 @@ fn definition_and_hover_still_answer_the_real_head_beside_it() {
 
 #[test]
 fn definition_prefers_a_resolved_indirect_head_over_a_same_named_decoy() {
-    // TP — issue #1133. The analyser settles `${ns}::setdef` to
-    // `::tc::setdef`; the provider used to ignore that and answer with
+    // TP: the analyser settles `${ns}::setdef` to
+    // `::tc::setdef`; the provider must not ignore that and answer with
     // `::other::setdef`, which the call can never reach.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
@@ -166,7 +166,7 @@ fn hover_agrees_with_definition_on_the_indirect_head() {
 
 #[test]
 fn a_bare_helper_call_in_a_method_body_resolves_across_files() {
-    // TP — issue #1137 idx 51, the ticklecharts layout: the helper is
+    // TP: the ticklecharts layout: the helper is
     // installed into `::oo::Helpers` in one file and called bare from a
     // method body in another. A method body's `namespace path` is
     // unconditionally `::oo::Helpers` (tclsh 8.6.16 / 9.0.4), so this is a
@@ -212,11 +212,10 @@ fn a_bare_helper_call_in_a_method_body_resolves_across_files() {
         "the bare `callback` call must reach ::oo::Helpers::callback in utils.tcl: {result}",
     );
 
-    // The reverse direction of the same edge, which the issue #923 audit
-    // reported separately: find-references started from the helper's own
-    // declaration must reach the method-body call site in the other file.
-    // The two providers have to agree — a definition that resolves while
-    // references does not is exactly the inconsistency the audit found.
+    // The reverse direction of the same edge: find-references started from
+    // the helper's own declaration must reach the method-body call site in
+    // the other file. The two providers have to agree — a definition that
+    // resolves while references does not is a real inconsistency.
     let utils_uri = format!("file://{}", root.join("utils.tcl").to_string_lossy());
     lsp.open_ready(
         &utils_uri,
@@ -240,9 +239,10 @@ fn a_bare_helper_call_in_a_method_body_resolves_across_files() {
 
 #[test]
 fn document_symbol_homes_a_qualified_proc_where_hover_says_it_lives() {
-    // Issue #1140 idx 67 — the outline used to contradict hover inside the
-    // very same session: hover said `::pix::svg::parse`, the outline showed
-    // a bare top-level `parse` disconnected from the `pix > svg` tree.
+    // The outline must not contradict hover inside the
+    // very same session: hover says `::pix::svg::parse`, so the outline
+    // must not show a bare top-level `parse` disconnected from the `pix >
+    // svg` tree.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let text = concat!(
@@ -279,9 +279,9 @@ fn document_symbol_homes_a_qualified_proc_where_hover_says_it_lives() {
 
 #[test]
 fn document_link_never_fabricates_a_target_for_a_computed_source_path() {
-    // Issue #1140 idx 41 — the provider percent-encoded the raw unevaluated
-    // Tcl text and joined it onto the workspace directory, yielding a
-    // syntactically valid but semantically bogus `file://` URI.
+    // The provider must not percent-encode the raw unevaluated
+    // Tcl text and join it onto the workspace directory, which would yield
+    // a syntactically valid but semantically bogus `file://` URI.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(

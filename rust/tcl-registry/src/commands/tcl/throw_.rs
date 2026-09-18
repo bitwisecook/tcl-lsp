@@ -71,12 +71,12 @@ pub fn spec() -> CommandSpec {
         // it never touches `vm` for evaluation (`let _ = vm;`) and has no
         // eval fallback of any kind, exactly like the structurally
         // identical `cmd_error`. Genuinely opens no call frame of its own,
-        // so it belongs on the audited `FRAMELESS_RUNTIME` allow-list
-        // alongside `error`/`return` (the
+        // so it belongs on the `FRAMELESS_RUNTIME` allow-list alongside
+        // `error`/`return`, which the
         // `frameless_runtime_covers_the_audited_allow_list` test in
-        // `tcl-registry/src/registry.rs`, updated to match). Still
-        // correctly excluded from `CommandRegistry::is_splice_safe` by its
-        // own `TERMINATES_BLOCK` trait, the same way `error` is.
+        // `tcl-registry/src/registry.rs` pins. Still correctly excluded
+        // from `CommandRegistry::is_splice_safe` by its own
+        // `TERMINATES_BLOCK` trait, the same way `error` is.
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD

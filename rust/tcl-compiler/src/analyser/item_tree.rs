@@ -18,12 +18,12 @@
 
 //! Item tree — offset-stable structural view of a file's declarations.
 //!
-//! The foundation of per-item incremental analysis (slice 1 of the plan in
-//! `docs/design/rust/incremental-analysis.md`). Splits a file into *items*
+//! The foundation of per-item incremental analysis
+//! (`docs/design/rust/incremental-analysis.md`). Splits a file into *items*
 //! (procs, classes, methods, namespaces, aliases, ensembles) whose identity is
 //! a **stable name + kind**, never a source position — so inserting blank lines
 //! above a proc leaves its [`ItemId`] unchanged and a later memoised
-//! `item_analysis` (slice 3) is a cache hit.
+//! `item_analysis` is a cache hit.
 //!
 //! ## Firewall shape
 //!
@@ -35,18 +35,18 @@
 //!   body-only edit leaves every signature equal, so `FileDecls` is unchanged
 //!   and salsa early-cutoff fires on the dependent cross-item queries.
 //!
-//! ## Correctness anchor (slice 1)
+//! ## Correctness anchor
 //!
 //! Reproducing the analyser's namespace-aware item detection with a *separate*
 //! walker is exactly the work the design backs with the differential fuzzer +
 //! full-rebuild fallback (see the experiments doc: `signature_scan` already
 //! diverges from `analyse` on dynamic `${…}` names and body-nested procs). So
-//! slice 1 builds the item tree from the **authoritative [`AnalysisResult`]**
-//! the analyser already produces from the CST — it therefore *cannot* diverge
-//! from `analyse`. The [`FileDecls`] corpus gate (`tcl-lsp-db`'s
-//! `file_decls_corpus` test) is the permanent guard that protects the swap to a
-//! cheap, independent CST extractor in slices 2–3, where it becomes
-//! load-bearing alongside the fuzzer.
+//! the item tree is built from the **authoritative [`AnalysisResult`]** the
+//! analyser already produces from the CST — it therefore *cannot* diverge from
+//! `analyse`. The [`FileDecls`] corpus gate (`tcl-lsp-db`'s
+//! `file_decls_corpus` test) is the permanent guard that would protect a swap
+//! to a cheap, independent CST extractor, where it becomes load-bearing
+//! alongside the fuzzer.
 
 use std::collections::{BTreeSet, HashSet};
 
@@ -118,9 +118,9 @@ pub struct ItemSig {
     ///
     /// Carried on the signature — not just on the analyser record — because
     /// the *cross-file* arity table is built from `ItemSig` alone. Without it,
-    /// `proc p [makeargs] {…}` reached the cross-file check as a proc with an
-    /// empty parameter list, i.e. "takes no arguments", and every call to it
-    /// from another file drew a false `E003` (issue #1107).
+    /// `proc p [makeargs] {…}` would reach the cross-file check as a proc with
+    /// an empty parameter list, i.e. "takes no arguments", and every call to it
+    /// from another file would draw a false `E003`.
     pub params_computed: bool,
     /// Source span of the name token (`Span::new(0, 0)` when the analyser
     /// record carries no name span — e.g. aliases / ensembles).
@@ -147,7 +147,7 @@ pub struct ItemTree {
     pub items: Vec<Item>,
     /// The user-defined `TclOO` **class factories** this file declares, keyed
     /// by qualified name — what the workspace merges so *another* file's walk
-    /// can classify `Meta create Name …` (issue #1276).
+    /// can classify `Meta create Name …`.
     ///
     /// It rides on the item tree because that is already a structure-level,
     /// per-file, memoised product of the same walk: publishing the factories
@@ -210,7 +210,7 @@ fn collect_namespaces(scope: &Scope, prefix: &str, out: &mut BTreeSet<String>) {
 impl ItemTree {
     /// Build the item tree from the authoritative [`AnalysisResult`] plus the
     /// analyser's `ensemble_namespaces` set (which lives on the `Analyser`, not
-    /// the result). See the module docs for why slice 1 anchors to `analyse`.
+    /// the result). See the module docs for why the tree anchors to `analyse`.
     #[must_use]
     pub fn from_analysis(result: &AnalysisResult, ensembles: &HashSet<String>) -> Self {
         let mut items: Vec<Item> = Vec::new();
@@ -436,8 +436,8 @@ mod tests {
     #[test]
     fn body_nested_proc_is_an_item() {
         // The analyser records procs defined inside proc bodies; the item tree
-        // must too (E1: a body edit adding/removing a nested def is a signature
-        // change).
+        // must too: a body edit adding or removing a nested definition is a
+        // signature change.
         let (_, decls) = build("proc outer {} { proc ::inner {} {} }");
         assert!(decls.procs.contains("::outer"));
         assert!(decls.procs.contains("::inner"));
@@ -467,8 +467,9 @@ mod tests {
     #[test]
     fn file_decls_match_analysis_decl_sets() {
         // The contract the corpus gate enforces at scale: file_decls equals the
-        // analyser's own decl maps. True by construction in slice 1; the guard
-        // bites when slices 2–3 swap in an independent extractor.
+        // analyser's own decl maps. True by construction while the tree is built
+        // from `AnalysisResult`; the guard bites if an independent extractor is
+        // swapped in.
         let src = "proc p {} {}\noo::class create K {}\nnamespace eval z { namespace ensemble create\n proc q {} {} }";
         let mut a = Analyser::new();
         let result = a.analyse(src, "tcl8.6");

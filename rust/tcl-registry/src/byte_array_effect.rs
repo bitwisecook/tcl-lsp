@@ -353,10 +353,10 @@ mod tests {
     }
 
     /// Drift guard: the registry-derived S110 source / encoder / re-binarifier
-    /// / append-style sets must match the behaviour the compiler pass used to
-    /// hardcode by name. Scans **every** spec and subcommand in the default
-    /// registry so a stray stamping elsewhere fails here, not in a shimmer
-    /// regression.
+    /// / append-style sets must match the same commands a hardcoded-by-name
+    /// compiler check would flag. Scans **every** spec and subcommand in the
+    /// default registry so a stray stamping elsewhere fails here, not in a
+    /// shimmer regression.
     #[test]
     fn s110_registry_sets_match_legacy_hardcoded_behaviour() {
         let reg = CommandRegistry::build_default();

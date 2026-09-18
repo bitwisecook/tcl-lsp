@@ -43,6 +43,13 @@ T100 covers two related taint-into-evaluation hazards:
    `matches_regex` forms) never coerces, so T100 does not fire for
    it — `expr {$data eq "admin"}` is not a T100 hazard.
 
+   For the same reason `switch` never raises T100 on its arms.
+   `switch`, in every mode it has (`--`/`-exact`, `-glob`,
+   `-regexp`), compares its subject as text — Tcl gives it no
+   numeric-matching option — so `switch -- $cmd {status {…} version
+   {…}}` on a tainted `$cmd` carries no coercion hazard and is not
+   flagged.
+
 The same code (T100) covers both because the underlying defence is
 identical: validate / pin the value's shape *before* it reaches the
 expression.  The emitted diagnostic message names the specific

@@ -34,7 +34,7 @@ snit::type Cat {
 Cat c
 $c
 
-# TP (issue #1200): a bare TclOO object command produced by command
+# TP: a bare TclOO object command produced by command
 # substitution fails "wrong # args" before any method lookup - same
 # zero-word dispatch failure as `$o` above, through a `[...]` head.
 [Dog new]
@@ -42,7 +42,7 @@ $c
 # TN: with a method word the substitution-head dispatch is clean.
 [Dog new] bark
 
-# TP (issues #1143 / #1200): a handle returned by a `$var`-dispatched
+# TP: a handle returned by a `$var`-dispatched
 # method and captured into a variable is typed through the object-type
 # lattice. Rooted method-body heads keep that fact independent of TclOO's
 # runtime-selected receiver namespace; `$b bark` stays clean and `$b` is E001.

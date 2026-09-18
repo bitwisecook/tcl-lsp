@@ -19,13 +19,13 @@
 //! **The `expr` operator set follows the emulated release, however the
 //! expression reaches the engine.**
 //!
-//! `expr` has two entry points and they used to apply opposite dialect
-//! discipline (issue #1435). A braced body codegen could specialise compiled to
+//! `expr` has two entry points, and applying opposite dialect discipline to
+//! them is a real hazard. A braced body codegen could specialise compiled to
 //! an opcode — `Op::from_binop` is total over `BinOp`, so `**`, `in`/`ni` and
-//! the TIP-461 string-ordering operators always got one — and the emulating VM
-//! executed it whatever release it was pretending to be. The same source
-//! reaching the interpreted `exprStk` path was validated against the release's
-//! own operator table first and rejected.
+//! the TIP-461 string-ordering operators always get one — and the emulating VM
+//! would execute it whatever release it was pretending to be, while the same
+//! source reaching the interpreted `exprStk` path is validated against the
+//! release's own operator table first and rejected.
 //!
 //! That split is invisible until the two forms are compared: both return a
 //! well-typed value, one of them from an operator the release cannot parse. The
@@ -272,10 +272,10 @@ fn expr_operator_set_follows_the_compiled_release() {
     }
 }
 
-/// The core of issue #1435: a source-identical `expr` must not get two
+/// A source-identical `expr` must not get two
 /// different release disciplines depending only on whether codegen could inline
 /// it. The interpreted path has always validated against the release's operator
-/// table; this asserts the compiled one now reaches the same verdict.
+/// table; this asserts the compiled one reaches the same verdict.
 #[test]
 fn compiled_and_interpreted_expr_agree_on_every_release() {
     for v in VECTORS {

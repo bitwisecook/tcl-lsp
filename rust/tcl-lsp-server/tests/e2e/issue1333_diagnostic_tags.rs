@@ -16,13 +16,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Issue #1333 — `DiagnosticTag` on the wire, and issue #1326's encoding
-//! codes on the wire.
+//! `DiagnosticTag` on the wire, including for the encoding-integrity codes.
 //!
 //! These assert on the **raw `publishDiagnostics` payload**, deliberately.
-//! Every diagnostic here already fired before the fix; a test that only
-//! checked the `code` would have passed against the broken server. The `tags`
-//! array is the whole point, so the `tags` array is what is asserted.
+//! Every diagnostic here fires regardless of whether `tags` is populated, so
+//! a test that only checked the `code` would pass even with `tags` missing
+//! entirely. The `tags` array is the whole point, so the `tags` array is
+//! what is asserted.
 
 use crate::common::{Lsp, unique_uri};
 

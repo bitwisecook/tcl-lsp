@@ -708,8 +708,8 @@ mod tests {
 
     #[test]
     fn static_passthrough_with_return_rejected() {
-        // Splicing a `return` into the caller would return the CALLER's
-        // proc; the erased passthrough boundary used to absorb it.
+        // Splicing a `return` into the caller would return from the CALLER's
+        // proc, since the erased passthrough boundary no longer absorbs it.
         let m = lower_to_ir("proc run {} { uplevel 1 {return 5} }", &reg());
         assert!(detect_static_passthrough(&m, &reg()).is_empty());
     }

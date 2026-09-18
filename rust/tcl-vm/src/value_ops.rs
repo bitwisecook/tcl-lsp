@@ -38,8 +38,8 @@ use crate::value::Value;
 /// `incr` / `dict incr` addition over the same integer tower `expr` uses: a
 /// sum past `i64` promotes to `i128` (e.g. `incr` at `i64::MAX` yields
 /// `9223372036854775808`), and one past `i128` promotes to an
-/// **arbitrary-precision bignum** rather than erroring — matching tclsh
-/// (). A free function so the
+/// **arbitrary-precision bignum** rather than erroring — matching tclsh.
+/// A free function so the
 /// `dict incr` paths (command and `DICT_INCR_IMM` opcode) share it without
 /// needing the [`ValueOps`] receiver.
 pub(crate) fn int_add(a: Option<&Value>, b: &Value) -> Result<Value, ValueError> {

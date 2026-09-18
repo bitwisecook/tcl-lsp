@@ -13,8 +13,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Oracle-pinned coverage for the r3-numeric-tower lane (#1428, #1382,
-//! #1432, #1581) on the bytecode VM.
+//! Oracle-pinned coverage for the numeric tower on the bytecode VM.
 //!
 //! Every expectation was read verbatim out of `tclsh9.0` (9.0.4) — and, where
 //! the releases agree, `tclsh8.6` (8.6.16) — with the sheet
@@ -156,11 +155,9 @@ fn both(body: &str, want: &str) {
     assert_eq!(probe_dynamic(body), want, "expr $e where e = {body}");
 }
 
-// ---------------------------------------------------------------------------
-// #1428 — `0 ** -1` is C's domain error, not a division by zero; the two
+// `0 ** -1` is C's domain error, not a division by zero; the two
 // refusals `number_tower::int_pow` merges are told apart by the adopter, and
 // both engines stamp the `-errorcode` C stamps.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn zero_to_a_negative_power_is_a_domain_error_not_divide_by_zero() {
@@ -238,10 +235,8 @@ fn shift_edges_match_the_oracle() {
     );
 }
 
-// ---------------------------------------------------------------------------
-// #1382 — `entier`/`int`/`wide`/`round` on a float outside the wide range,
+// `entier`/`int`/`wide`/`round` on a float outside the wide range,
 // and `int()`'s release axis.
-// ---------------------------------------------------------------------------
 
 /// Assert `expr {body}` evaluates to `want` at `version`, in both the braced
 /// (const-foldable) and the dynamic form.
@@ -337,13 +332,11 @@ const E1E300: &str = "1000000000000000052504760255204420248704468581108159154915
 /// tclsh `expr {isqrt(1e300)}` (151 digits).
 const ISQRT_1E300: &str = "1000000000000000026252380127602209779758503108492371458359424883684651414333812736380124287612629691547944630047071980611862607399628869272326975124240";
 
-// ---------------------------------------------------------------------------
-// #1432 — `rand`/`srand` through the shared generator.
-// ---------------------------------------------------------------------------
+// `rand`/`srand` through the shared generator.
 
-/// The VM used to divide by `RAND_IM` where C multiplies by `1.0/RAND_IM`,
-/// giving `0.0019644186841158285` for `srand(251)` where tclsh (and the WASM
-/// runtime) say `0.001964418684115828`. Both engines now call the one shared
+/// Dividing by `RAND_IM` where C multiplies by `1.0/RAND_IM` would give
+/// `0.0019644186841158285` for `srand(251)` where tclsh (and the WASM
+/// runtime) say `0.001964418684115828`. Both engines call the one shared
 /// generator.
 #[test]
 fn srand_reproduces_cs_reciprocal_multiply_scaling() {
@@ -401,9 +394,7 @@ fn both_at_raw(body: &str, want: &str, version: tcl_dialect::TclVersion) {
     );
 }
 
-// ---------------------------------------------------------------------------
-// #1581 — the expr/mathfunc error taxonomy on the VM.
-// ---------------------------------------------------------------------------
+// The expr/mathfunc error taxonomy on the VM.
 
 #[test]
 fn an_infinity_in_an_integer_conversion_is_ioverflow() {

@@ -27,13 +27,16 @@
 //!   deterministic projections. The `--enable-probes` gating error is also
 //!   byte-for-byte.
 //! - **Faithful-but-not-golden**: the live network probes (`dns`, `rev_dns`,
-//!   `ping`, `portping`, `traceroute`, `socket_get`, `tls_handshake`, the
-//!   `url_*` HTTP family). These do real I/O with a stable, documented
-//!   structure / output shape, but are not asserted byte-for-byte against
-//!   live results (the test env has no reliable network).
+//!   `ping`, `portping`, `traceroute`, `socket_get`, `tls_handshake`). These do
+//!   real I/O with a stable, documented structure / output shape, but are not
+//!   asserted byte-for-byte against live results (the test env has no
+//!   reliable network). The `url_*` HTTP family is registered but not yet
+//!   implemented — it returns the same result shape with an explanatory
+//!   `error` field rather than making a request.
 //!
-//! Every network probe is gated by `ctx.probes_enabled` (the `--enable-probes`
-//! flag). The pure x509 helpers are NOT gated.
+//! Every network probe other than `dns` / `rev_dns` (benign name resolution)
+//! is gated by `ctx.probes_enabled` (the `--enable-probes` flag). The pure
+//! x509 helpers are NOT gated.
 
 #[cfg(feature = "probes")]
 use std::io::{Read as _, Write as _};
@@ -1211,11 +1214,8 @@ fn bi_cert_load(args: &[Value]) -> Result<Value, QueryError> {
 fn bi_ucs_cert(args: &[Value], ctx: &mut EvalContext) -> Result<Value, QueryError> {
     let Value::ObjectRef(obj) = &args[0] else {
         return Err(QueryError::builtin(
-            "ucs_cert: expects a projected `sys file ssl-cert` / `cm cert` \
-             object. The query projection builds objects for the ltm, gtm and \
-             security kinds only, and an `--input-json` stanza arrives as a \
-             plain object, so nothing can supply one: this builtin is not \
-             reachable from `f5 query` until those kinds are projected",
+            "ucs_cert: expects a sys file ssl-cert / cm cert object (pipe through \
+             .sys[\"file-ssl-cert\"][] or .cm.cert[] first)",
         ));
     };
     let full_path = obj.full_path.clone();

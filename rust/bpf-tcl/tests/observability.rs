@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The userspace event channel end to end (issue #1204): a producer encodes
+//! The userspace event channel end to end: a producer encodes
 //! typed records against a schema-generated ABI, a bounded ring buffer transports
 //! them with loss accounting under back-pressure, and a structured consumer
 //! renders each record as JSON — the shape a tracepoint/observability family will

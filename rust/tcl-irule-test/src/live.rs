@@ -80,8 +80,8 @@ impl std::error::Error for SessionError {}
 
 /// The `CompileService` the VM uses to compile the orchestrator Tcl and any
 /// runtime `eval` / command substitution: the real Rust compiler pipeline,
-/// built from the iRules profile (issue #1462) so everything the harness
-/// compiles — the framework and the iRule under test alike — parses under
+/// built from the iRules profile so everything the harness compiles — the
+/// framework and the iRule under test alike — parses under
 /// the TMM's genuine Tcl 8.4.6 grammar: no TIP-157 `{*}` expansion, the 8.x
 /// first-close `${…}` rule, and the iRules-only `}{` ghost word separator.
 type Svc = BytecodeCompileService;
@@ -121,16 +121,15 @@ impl LiveSession {
         }
         let output = Rc::new(RefCell::new(Vec::new()));
         let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&output))));
-        // The iRules profile is resolved once and drives both halves
-        // (issue #1462): the compiler parses under the TMM's 8.4.6 grammar
-        // (`Svc::for_profile`), and the VM runs the release that profile
-        // pins (dialect-profile model §5.4). The VM's availability gate is
-        // the plain tcl8.4 profile rather than the bare-IRULES vendor mask:
-        // the orchestrator is host Tcl, not sandboxed iRule code — it needs
-        // `source`/`file`/`exec` (which the TMM sandbox bans) while still
-        // losing the 8.5+ surface (`dict`/`lassign`/…, issue #1463), which
-        // compat84.tcl then polyfills; the TMM sandbox itself is emulated in
-        // Tcl by tmm_shim.tcl.
+        // The iRules profile is resolved once and drives both halves: the
+        // compiler parses under the TMM's 8.4.6 grammar (`Svc::for_profile`),
+        // and the VM runs the release that profile pins. The VM's
+        // availability gate is the plain tcl8.4 profile rather than the
+        // bare-IRULES vendor mask: the orchestrator is host Tcl, not
+        // sandboxed iRule code — it needs `source`/`file`/`exec` (which the
+        // TMM sandbox bans) while still losing the 8.5+ surface
+        // (`dict`/`lassign`/…), which compat84.tcl then polyfills; the TMM
+        // sandbox itself is emulated in Tcl by tmm_shim.tcl.
         let profile = DialectProfile::irules();
         vm.set_dialect_profile(profile);
         assert!(
@@ -742,8 +741,8 @@ mod tests {
         }
     }
 
-    /// Issues #1462/#1463 on the harness itself, sharing one session for the
-    /// bootstrap cost like the suites above.
+    /// Verifies the harness's own dialect and availability-gate behaviour,
+    /// sharing one session for the bootstrap cost like the suites above.
     ///
     /// The harness VM now really is an 8.4 surface: the 8.5+ builtins
     /// (`dict`, `lassign`, `lrepeat`, `lreverse`) are hidden by the

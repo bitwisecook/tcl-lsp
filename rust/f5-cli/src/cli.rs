@@ -88,7 +88,7 @@ impl PassphraseArgs {
 }
 
 /// F5 unit master-key (`f5mku`) source flags shared by `encrypt-secrets` /
-/// `decrypt-secrets` (the `_add_key_args` group
+/// `decrypt-secrets`.
 #[derive(Debug, Default, Args)]
 pub struct MasterKeyArgs {
     /// base64 unit master key (the value `f5mku -K` prints on the device).

@@ -1,4 +1,4 @@
-# Issue #969 follow-up: a call site embedded inside a `catch { ... }` body
+# A call site embedded inside a `catch { ... }` body
 # is a real caller with a differing argument, but `catch`'s body is an
 # ArgRole::Body argument of the builtin `catch` (never a user proc), so a
 # flat, one-level call-site scan resolves `catch`, finds no matching proc,

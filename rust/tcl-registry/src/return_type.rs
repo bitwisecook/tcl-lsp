@@ -34,7 +34,7 @@
 //!
 //! Every algorithm may answer `None`, meaning the result's intrep is unknown
 //! for that call, and every consumer already handles that. A confidently wrong
-//! type is what issue #1720 was, so an algorithm names a type only where the
+//! type is the hazard this guards against, so an algorithm names a type only where the
 //! intrep is *guaranteed*. Three things make it not guaranteed:
 //!
 //! * **The value is the caller's.** `lsearch -inline` hands back an element
@@ -87,8 +87,8 @@ pub(crate) fn resolve(
 ///
 /// `-inline` returns the matched substrings, which is a list *when something
 /// matched*: `regexp -inline z a` is a pure string on tclsh 9.0.4. So the
-/// answer is "not the int a bare `regexp` returns", which is what #1720
-/// needed, without claiming a list intrep that only a match produces.
+/// answer is "not the int a bare `regexp` returns", without claiming a
+/// list intrep that only a match produces.
 ///
 /// Everything else is the 0/1 flag, or the count under `-all`.
 fn regexp(spec: &CommandSpec, args: &[&str]) -> Option<TclType> {
@@ -188,7 +188,7 @@ fn pid(spec: &CommandSpec, args: &[&str]) -> Option<TclType> {
 /// can be `-inline` at run time: `set mode -inline; regexp $mode {.+} $x`
 /// really does return the matched substrings. Reading the visible words alone
 /// would type that call `Int` and let `is_sanitiser` launder attacker-derived
-/// text — the #1720 mistake, reached through substitution.
+/// text — a mistake reached through substitution.
 ///
 /// A `--` in the consumed run settles it: everything after is positional
 /// whatever it looks like, which is exactly why W304 tells authors to write
@@ -225,7 +225,7 @@ mod tests {
             .return_type_for_call(args)
     }
 
-    /// Issue #1720. The headline: `regexp -inline` is not the int a bare
+    /// `regexp -inline` is not the int a bare
     /// `regexp` returns, so iterating its result draws no shimmer warning.
     /// It is not typed `List` either — `regexp -inline z a` is a *pure
     /// string* on tclsh 9.0.4, only a match builds a list.

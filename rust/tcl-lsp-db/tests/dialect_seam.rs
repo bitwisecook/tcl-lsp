@@ -41,9 +41,6 @@
 //! - `folding::folding_ranges` reads `dialect.grammar` for the lexer config and
 //!   `dialect.name` for the analyser, so an `expect` pattern arm folds only
 //!   under the `expect` profile.
-//!
-//! Every case was mutation-verified by pinning its call site to
-//! `profile_for_dialect("tcl")` and confirming the test fails.
 
 use tcl_lsp_db::{
     AnalyserConfig, Project, SourceFile, TclDatabase, folding_ranges, semantic_tokens,

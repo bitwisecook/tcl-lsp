@@ -255,9 +255,9 @@ fn split_interpolation_segments(
             i += 1;
             // ``${var}`` form — the name starts just past the `${`, and its
             // closer comes from the shared owner under this document's release
-            // rule. Reading it with a fixed first-`}` scan resolved a
+            // rule. Reading it with a fixed first-`}` scan would resolve a
             // *different* variable than the one the lexer spanned, and the
-            // folded string is written back into a diagnostic (issue #1604).
+            // folded string is written back into a diagnostic.
             if i < bytes.len() && bytes[i] == b'{' {
                 i += 1;
                 let tcl_lexer::BracedVarEnd::Closed(close) =
@@ -362,7 +362,7 @@ pub(crate) fn fold_interpolation_set(
 /// constant-string lattice (e.g. `Analyser::lookup_const_string`) rather
 /// than the SCCP `ConstSet` map — short-circuits to `None` on the first
 /// unresolvable variable, same rejection rules as
-/// [`split_interpolation_segments`] (issue #923 idx 3).
+/// [`split_interpolation_segments`].
 #[must_use]
 pub(crate) fn fold_interpolation_single(
     word: &str,
@@ -603,7 +603,7 @@ mod tests {
         );
     }
 
-    /// Issue #1604 — the `${…}` closer comes from the shared owner, so the
+    /// The `${…}` closer comes from the shared owner, so the
     /// variable the fold resolves is the one the lexer spanned.
     #[test]
     fn fold_interpolation_braced_close_rule_follows_the_release() {

@@ -103,8 +103,8 @@ fn parse_corpus() -> Vec<Case> {
 
 /// Cases that depend on `tcltest` scaffolding the VM does not implement
 /// (inter-test setup state, custom constraints, helper procs, `binary`/
-/// `encoding`/`interp` features) — not regex-engine behaviour. Each is here
-/// with a reason after manual triage.
+/// `encoding`/`interp` features) — not regex-engine behaviour. Each carries a
+/// documented reason.
 fn skip_reason(c: &Case) -> Option<&'static str> {
     // Cases guarded by a constraint we cannot evaluate (locale, knownBug,
     // build-specific) — the engine is not what is under test.

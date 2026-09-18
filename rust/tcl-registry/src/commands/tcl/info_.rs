@@ -401,7 +401,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         surface: Some(SpecSurface::TCL86_PLUS),
         // `info class` is itself an ensemble: the word after `class` selects a
-        // CLASS INTROSPECTION operation (issue #798).
+        // CLASS INTROSPECTION operation.
         sub_subcommands: INFO_CLASS_SUBS,
         ..SubCommand::DEFAULT
     },
@@ -443,7 +443,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // navigable reference that asserts nothing about existence (an
         // absent name returns an empty list).  The analyser's probe
         // recorder abstains on any word with glob metacharacters, so a
-        // real pattern contributes no reference (issue #945 fault 9).
+        // real pattern contributes no reference.
         arg_roles: &[(0, ArgRole::CommandNameProbe)],
         ..SubCommand::DEFAULT
     },
@@ -631,7 +631,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         surface: Some(SpecSurface::TCL86_PLUS),
         // `info object` is itself an ensemble: the word after `object` selects
-        // an OBJECT INTROSPECTION operation (issue #798).
+        // an OBJECT INTROSPECTION operation.
         sub_subcommands: INFO_OBJECT_SUBS,
         ..SubCommand::DEFAULT
     },

@@ -46,7 +46,7 @@ const DEFAULT_TAB_WIDTH: usize = 4;
 /// The `tcl format` formatter configuration for `dialect`, with the CLI's
 /// style overrides applied.
 ///
-/// The resolved dialect is the formatter's whole dialect story (issue #1465):
+/// The resolved dialect is the formatter's whole dialect story:
 /// its lexer grammar (so, e.g., an iRule's `}{` parses as two words and is
 /// re-emitted as `} {`), the release its rewrite candidates are filtered
 /// against, and the forward range those rewrites must stay correct across all
@@ -322,8 +322,8 @@ mod tests {
     use super::format_config;
 
     /// `tcl format` must resolve the document's dialect onto the formatter,
-    /// not format everything as modern Tcl (issue #1465). `}{` is the
-    /// discriminator: TMM parses it as two words, stock Tcl does not.
+    /// not format everything as modern Tcl. `}{` is the discriminator: TMM
+    /// parses it as two words, stock Tcl does not.
     #[test]
     fn the_resolved_dialect_reaches_the_formatter() {
         let irules = format_config("f5-irules", None, None, None);

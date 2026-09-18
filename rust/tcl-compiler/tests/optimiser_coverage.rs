@@ -519,9 +519,9 @@ fn o102_abbreviated_trace_add_variable_blocks_forward() {
     // type word, so `trace add var x read h` installs the same variable
     // trace as the full `variable` spelling (tclsh 8.6.14: prints "read
     // trace fired" then "5"). The registry's `arg_role_resolver` for
-    // `trace add`/`remove` previously hand-matched the literal word
-    // `"variable"` only, so this abbreviated form recorded no
-    // `traced_variables` fact and still forwarded to `puts 5`.
+    // `trace add`/`remove` must not hand-match only the literal word
+    // `"variable"`: doing so would record no `traced_variables` fact for
+    // this abbreviated form and still forward to `puts 5`.
     let src = "proc onread {name1 name2 op} {\n    puts \"read trace fired\"\n}\ntrace add var x read onread\nset x 5\nputs $x\n";
     assert!(opt_absent(src, TCL, "O102"));
     assert!(optimised(src, TCL).contains("puts $x"));
@@ -563,16 +563,15 @@ fn o102_sub_interpreter_isolation_no_longer_over_blocked() {
     // the master's `x` (tclsh: prints `99` inside the slave block, then
     // `5` for the master, unaffected) — and `interp eval` with a named
     // (non-self) target is not a `Statement::Barrier`/`UpFrame`, so
-    // `has_intervening_barrier` correctly does not gate on it. Was
-    // previously a documented "conservative gap" only because an older
-    // revision of `run_load_forwarding` blocked on *any* impure
-    // intervening call, not just a real frame-crossing barrier — see
+    // `has_intervening_barrier` correctly does not gate on it.
+    // `run_load_forwarding` must gate on a real frame-crossing barrier,
+    // not decline unconditionally on any impure intervening call — see
     // `o102_side_effecting_intervening_call_is_still_forwarded` for the
     // general case this generalises. The nested literal body's own `$x`
     // reference (lexically inside the slave's script, a separate
     // namespace) still only earns a hint (not a precise applicable
     // rewrite), so the source is unchanged either way — this test only
-    // locks in that O102 no longer *unconditionally* declines here.
+    // locks in that O102 does not unconditionally decline here.
     let src = "set x 5\ninterp create slave\ninterp eval slave {\n    set x 99\n    puts $x\n}\nputs $x\n";
     assert!(opt_fires(src, TCL, "O102"));
     assert!(optimised(src, TCL).contains("puts $x"));
@@ -591,7 +590,7 @@ fn o102_upvar_aliased_variable_blocks_forward() {
 
 #[test]
 fn o102_upvar_dynamic_local_alias_blocks_forward() {
-    // TP (issue #1165): `upvar 1 x $dst` has a dynamic *local* side, so the
+    // TP: `upvar 1 x $dst` has a dynamic *local* side, so the
     // per-local alias maps cannot key it — but the caller-side name is the
     // literal `x`, and the callee really does rewrite it. tclsh 9.0.4:
     // prints `2`, so folding the later `$x` read to the stale `1` would be
@@ -606,7 +605,7 @@ fn o102_upvar_dynamic_local_alias_blocks_forward() {
 
 #[test]
 fn o102_upvar_dynamic_local_alias_param_source_blocks_forward() {
-    // TP (issue #1165): `upvar 1 $name $dst` — both the caller-side name
+    // TP: `upvar 1 $name $dst` — both the caller-side name
     // (the value of `name`) and the local key are call-site data, but the
     // caller-side name IS resolvable from the argument. tclsh 9.0.4:
     // prints `9`.
@@ -620,7 +619,7 @@ fn o102_upvar_dynamic_local_alias_param_source_blocks_forward() {
 
 #[test]
 fn o102_upvar_dynamic_local_alias_does_not_block_unrelated_forward() {
-    // FP guard (issue #1165): the widening is per-name — an unrelated
+    // FP guard: the widening is per-name — an unrelated
     // local `y` in the same caller must still forward. tclsh 9.0.4: prints
     // `5` then `2`.
     let src = "proc p {dst} {\n    upvar 1 x $dst\n    set $dst 2\n}\nproc c4 {} {\n    set x 1\n    set y 5\n    p x\n    puts $y\n    puts $x\n}\nc4\n";
@@ -637,7 +636,7 @@ fn o102_upvar_dynamic_local_alias_does_not_block_unrelated_forward() {
 
 #[test]
 fn o102_upvar_zero_dynamic_local_is_callee_own_frame_and_still_forwards() {
-    // TN (issue #1165): `upvar 0 own $dst` aliases the *callee's own*
+    // TN: `upvar 0 own $dst` aliases the *callee's own*
     // frame — no caller effect, so the caller's constant still forwards.
     // tclsh 9.0.4: prints `3` (the caller's x is untouched).
     let src = "proc q {dst} {\n    upvar 0 own $dst\n    set $dst 7\n}\nproc c2 {} {\n    set x 3\n    q alias\n    puts $x\n}\nc2\n";
@@ -691,11 +690,10 @@ fn o102_unregistered_proc_call_between_def_and_use_still_forwards() {
 
 #[test]
 fn o102_uplevel_hash_zero_in_called_proc_kills_the_stale_global() {
-    // TP (issue #1198) — the formerly known-wrong gap, now fixed: `uplevel
-    // #0 {set x 99}` inside a *called* proc rewrites the caller-visible
-    // global, so the earlier literal must not forward across the call.
-    // tclsh 9.0.3/9.0.4: prints `99`; the optimiser used to (incorrectly)
-    // emit `puts 5`. The callee's global-frame write is now part of its
+    // TP: `uplevel #0 {set x 99}` inside a *called* proc rewrites the
+    // caller-visible global, so the earlier literal must not forward
+    // across the call. tclsh 9.0.3/9.0.4: prints `99`; emitting `puts 5`
+    // would be wrong. The callee's global-frame write is part of its
     // `GlobalWriteInfo` summary and widens the call site's defs.
     let src = "proc setter {} {\n    uplevel #0 {\n        set x 99\n    }\n}\nset x 5\nsetter\nputs $x\n";
     let out = optimised(src, TCL);
@@ -708,7 +706,7 @@ fn o102_uplevel_hash_zero_in_called_proc_kills_the_stale_global() {
 
 #[test]
 fn o102_uplevel_hash_zero_list_built_script_kills_the_stale_global() {
-    // TP (issue #1198) — the list-built spelling: `uplevel #0 [list set k
+    // TP — the list-built spelling: `uplevel #0 [list set k
     // 77]` names its command and target statically. tclsh 9.0.4: prints
     // `77`.
     let src = "proc s3 {} {\n    uplevel #0 [list set k 77]\n}\nset k 5\ns3\nputs $k\n";
@@ -738,7 +736,7 @@ fn o102_alias_to_uplevel_uses_its_prepended_caller_level() {
 
 #[test]
 fn o102_uplevel_hash_zero_through_a_call_chain_kills_the_stale_global() {
-    // TP (issue #1198) — nested call chain: `outer` calls `setter`; the
+    // TP — nested call chain: `outer` calls `setter`; the
     // global-frame write is transitive through the direct-call closure.
     // tclsh 9.0.4: prints `99`.
     let src = "proc setter {} {\n    uplevel #0 {\n        set g2 99\n    }\n}\nproc outer {} {\n    setter\n}\nset g2 5\nouter\nputs $g2\n";
@@ -751,7 +749,7 @@ fn o102_uplevel_hash_zero_through_a_call_chain_kills_the_stale_global() {
 
 #[test]
 fn o102_uplevel_hash_zero_dynamic_script_widens_every_global() {
-    // TP (issue #1198) — `uplevel #0 $body` is an unreadable script at the
+    // TP — `uplevel #0 $body` is an unreadable script at the
     // global frame: no name is enumerable, so the call site must widen to
     // an opaque barrier. tclsh 9.0.4: prints `42`.
     let src = "proc s2 {body} {\n    uplevel #0 $body\n}\nset h 5\ns2 {set h 42}\nputs $h\n";
@@ -764,7 +762,7 @@ fn o102_uplevel_hash_zero_dynamic_script_widens_every_global() {
 
 #[test]
 fn o102_uplevel_hash_zero_embedded_substitution_widens_too() {
-    // TP (issue #1198) — the same callee reached through a command
+    // TP — the same callee reached through a command
     // substitution (`set y [s2 …]`) instead of a bare statement.
     let src =
         "proc s2 {body} {\n    uplevel #0 $body\n}\nset h 5\nset y [s2 {set h 42}]\nputs $h\n";
@@ -777,7 +775,7 @@ fn o102_uplevel_hash_zero_embedded_substitution_widens_too() {
 
 #[test]
 fn o102_uplevel_hash_zero_unrelated_global_still_forwards() {
-    // FP guard (issue #1198) — a *literal* global-frame write is per-name:
+    // FP guard — a *literal* global-frame write is per-name:
     // `setter` writes only `x`, so the untouched `y` still forwards.
     // tclsh 9.0.4: prints `7` then `99`.
     let src = "proc setter {} {\n    uplevel #0 {\n        set x 99\n    }\n}\nset x 5\nset y 7\nsetter\nputs $y\nputs $x\n";
@@ -791,7 +789,7 @@ fn o102_uplevel_hash_zero_unrelated_global_still_forwards() {
 
 #[test]
 fn o102_uplevel_hash_zero_non_writing_script_still_forwards() {
-    // TN (issue #1198) — a global-frame script that writes no variable
+    // TN — a global-frame script that writes no variable
     // (`uplevel #0 [list puts hi]`) has no global effect at all, so the
     // caller's constant still forwards. tclsh 9.0.4: prints `hi` then `5`.
     let src = "proc shout {} {\n    uplevel #0 [list puts hi]\n}\nset x 5\nshout\nputs $x\n";
@@ -845,11 +843,11 @@ fn o112_constant_branch_elimination_blocks_on_variable_trace() {
     // permanently silencing the trace. tclsh: prints "trace fired" then
     // "yes" on every run — the `if` must stay a real runtime check so the
     // trace keeps firing.
-    // Note: the `else` body's *contents* (`puts no`) used to be lost
-    // regardless — see `o107_dead_code_elimination_of_unreachable_branch`
-    // below, which now also asserts they survive (SCCP itself is
-    // trace-safe, so every trace-blind consumer inherits correctness). This
-    // test only asserts O112 itself does not collapse the `if` structure.
+    // Note: the `else` body's *contents* (`puts no`) must not be lost
+    // either — see `o107_dead_code_elimination_of_unreachable_branch`
+    // below, which asserts they survive (SCCP itself is trace-safe, so
+    // every trace-blind consumer inherits correctness). This test only
+    // asserts O112 itself does not collapse the `if` structure.
     let src = "proc onread {name1 name2 op} {\n    puts \"trace fired\"\n}\nproc setup {} {\n    trace add variable ::x read onread\n}\nset x 1\nsetup\nif {$x} {\n    puts yes\n} else {\n    puts no\n}\n";
     assert!(opt_absent(src, TCL, "O112"));
     assert!(optimised(src, TCL).contains("if {$x}"));
@@ -857,19 +855,20 @@ fn o112_constant_branch_elimination_blocks_on_variable_trace() {
 
 #[test]
 fn o107_dead_code_elimination_of_unreachable_branch() {
-    // Regression: `elimination.rs`'s O107 "unreachable code" deletion is a
+    // `elimination.rs`'s O107 "unreachable code" deletion is a
     // consumer of SCCP's `executable_blocks`/`constant_branches` facts, same
-    // as `propagation`/`branch_folding`/`structure_elimination` above. It
-    // used to independently rediscover the "provably unreachable" `else`
-    // body (once O112 stopped collapsing the `if` structure itself) and
-    // delete its *contents* on a later pass, silently losing the same
-    // trace-firing behaviour through a different code path. Now that SCCP's
-    // own dataflow (`rust/tcl-compiler/src/sccp.rs`) treats a read of a
-    // traced/aliased variable as `Overdefined` — via the whole-module
-    // `Module::traced_variables` fact, which also catches a trace installed
-    // by a *called* proc like this — every consumer inherits correctness
-    // for free: `if {$x}` is no longer provably constant, so O107 must not
-    // fire and both arms survive. tclsh: prints "trace fired" then "yes" —
+    // as `propagation`/`branch_folding`/`structure_elimination` above. A
+    // consumer that independently rediscovers the "provably unreachable"
+    // `else` body (once O112 stops collapsing the `if` structure itself)
+    // and deletes its *contents* on a later pass would silently lose the
+    // same trace-firing behaviour through a different code path. SCCP's
+    // own dataflow (`rust/tcl-compiler/src/sccp.rs`) must instead treat a
+    // read of a traced/aliased variable as `Overdefined` — via the
+    // whole-module `Module::traced_variables` fact, which also catches a
+    // trace installed by a *called* proc like this — so every consumer
+    // inherits correctness for free: `if {$x}` is not provably constant,
+    // so O107 must not fire and both arms survive. tclsh: prints "trace
+    // fired" then "yes" —
     // the `else` body never runs, but it must still be present in the
     // rewritten source since the compiler cannot prove that statically.
     let src = "proc onread {name1 name2 op} {\n    puts \"trace fired\"\n}\nproc setup {} {\n    trace add variable ::x read onread\n}\nset x 1\nsetup\nif {$x} {\n    puts yes\n} else {\n    puts no\n}\n";
@@ -1269,10 +1268,9 @@ fn o110_self_comparison_tautologies() {
     assert!(optimised("set v [expr {$x < $x}]", TCL).contains("set v 0"));
     assert!(optimised("set v [expr {$x > $x}]", TCL).contains("set v 0"));
 
-    // FIXED (was a miscompile, issue #1437): the *reflexive* rows are wrong for
-    // a NaN operand — tclsh proves `set x NaN; expr {$x == $x}` ⇒ 0 and
-    // `expr {$x != $x}` ⇒ 1, the opposite of the fold. So they no longer fire on
-    // an untyped $x…
+    // The *reflexive* rows are wrong for a NaN operand — tclsh proves
+    // `set x NaN; expr {$x == $x}` ⇒ 0 and `expr {$x != $x}` ⇒ 1, the
+    // opposite of the fold. So they must not fire on an untyped $x…
     for src in [
         "set v [expr {$x == $x}]",
         "set v [expr {$x != $x}]",
@@ -1324,9 +1322,9 @@ fn o110_unary_and_not_inversions() {
     assert!(optimised("set v [expr {!($a == $b)}]", TCL).contains("$a != $b"));
     assert!(optimised("set v [expr {!($a != $b)}]", TCL).contains("$a == $b"));
 
-    // FIXED (was a miscompile, issue #1437): the ordered four are NOT their own
-    // negations on a NaN operand — tclsh proves `set a NaN; expr {!($a < 1)}` ⇒ 1
-    // while `expr {$a >= 1}` ⇒ 0. Untyped operands are left as written…
+    // The ordered four are NOT their own negations on a NaN operand —
+    // tclsh proves `set a NaN; expr {!($a < 1)}` ⇒ 1 while `expr {$a >= 1}`
+    // ⇒ 0. Untyped operands must be left as written…
     for src in [
         "set v [expr {!($a < $b)}]",
         "set v [expr {!($a >= $b)}]",
@@ -1370,7 +1368,7 @@ fn o110_de_morgan() {
     assert!(optimised("set v [expr {!($a || $b)}]", TCL).contains("!$a && !$b"));
     // De Morgan itself still distributes over the chain; the `$a == $b` half
     // inverts, while the ordered `$c < $d` half keeps its `!` because neither
-    // operand is proved non-NaN (issue #1437).
+    // operand is proved non-NaN.
     assert!(
         optimised("set v [expr {!($a == $b && $c < $d)}]", TCL).contains("$a != $b || !($c < $d)")
     );
@@ -1669,8 +1667,8 @@ fn o117_strlen_zero_check() {
 
 #[test]
 fn o118_lindex_folding() {
-    // tclsh-verified each fold result.  Since issue #1134 the registry
-    // fold also enters the SCCP lattice, so the `$x` read downstream
+    // tclsh-verified each fold result.  The registry fold also enters the
+    // SCCP lattice, so the `$x` read downstream
     // propagates too (`puts $x` → `puts a`) — semantically identical
     // (tclsh: both print `a`), one hop further folded.
     assert_eq!(
@@ -1711,8 +1709,8 @@ fn o118_lindex_folding() {
     // over-cautious no-op.
     assert_eq!(
         optimised("set x [lindex {{a b} c} 0]\nputs $x", TCL),
-        // tclsh: [lindex {{a b} c} 0] == "a b"; the lattice fold (#1134)
-        // then propagates the read as the brace-quoted single word, which
+        // tclsh: [lindex {{a b} c} 0] == "a b"; the lattice fold then
+        // propagates the read as the brace-quoted single word, which
         // prints identically (`puts {a b}` == `puts $x` == "a b").
         "set x {a b}\nputs {a b}"
     );
@@ -1821,7 +1819,7 @@ fn demorgan_logic_via_o110() {
 fn invert_logic_via_o110() {
     // The inversion logic surfaces as the `!(...)` O110 rewrite. tclsh-swept.
     assert!(optimised("set v [expr {!($a == $b)}]", TCL).contains("$a != $b"));
-    // The ordered rows need both operands proved non-NaN (issue #1437).
+    // The ordered rows need both operands proved non-NaN.
     assert!(optimised(&int_x("set v [expr {!($x < 1)}]"), TCL).contains("$x >= 1"));
     assert!(optimised(&int_x("set v [expr {!($x >= 1)}]"), TCL).contains("$x < 1"));
     assert!(optimised("set v [expr {!($a && $b)}]", TCL).contains("!$a || !$b"));
@@ -1835,15 +1833,12 @@ fn invert_logic_via_o110() {
     assert!(optimised("if {!!$x} { puts yes }", TCL).contains("if {$x}"));
 }
 
-/// The `!(x <cmp> y)` inversion used to be a local 8-arm match covering only
-/// `==`/`!=`/`<`/`>=`/`>`/`<=`/`eq`/`ne`, missing the TIP 461 string-ordering
-/// four (`lt`/`le`/`gt`/`ge`) and list membership (`in`/`ni`) entirely — a
-/// missed simplification, not a correctness bug, since the negation identity
-/// holds for both (a total order for `lt`/etc., a direct definitional
-/// negation for `in`/`ni`) exactly like it does for the forms already
-/// covered. Now derived from `BinOp::inverse()`
-/// (`tcl_syntax::expr::operators`, issue #983's unification), which covers
-/// all fourteen comparison operators.
+/// The `!(x <cmp> y)` inversion is derived from `BinOp::inverse()`
+/// (`tcl_syntax::expr::operators`), which covers all fourteen comparison
+/// operators: `==`/`!=`/`<`/`>=`/`>`/`<=`/`eq`/`ne`, the TIP 461
+/// string-ordering four (`lt`/`le`/`gt`/`ge`), and list membership
+/// (`in`/`ni`). The negation identity holds across all of them alike (a
+/// total order for `lt`/etc., a direct definitional negation for `in`/`ni`).
 #[test]
 fn invert_logic_covers_tip461_and_membership_operators() {
     const TCL9: &str = "tcl9.0";

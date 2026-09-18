@@ -32,7 +32,7 @@
 # Usage:  scripts/release/ovsx_publish.sh [TAG] [VSIX...]
 #         TAG   defaults to the tag in $GITHUB_REF (refs/tags/<TAG>).  Kept
 #               as an argument for parity with vsce_publish.sh, but this
-#               script no longer reads it: the channel isn't decided here
+#               script does not read it: the channel isn't decided here
 #               (see below).
 #         VSIX  defaults to every *.vsix under dist/ (downloaded and
 #               checksum-verified by the workflow before this runs): the

@@ -463,8 +463,7 @@ fn expr_ceil_floor_are_double() {
     // tclsh proves ceil/floor return a *double* (N.0), NOT an integer:
     //   expr {ceil(3.14)}  -> 4.0   string is integer 4.0 -> 0, is double -> 1
     //   expr {floor(3.7)}  -> 3.0   string is integer 3.0 -> 0, is double -> 1
-    // (This regression-guards the type_infer fix that moved ceil/floor out of
-    // the integer-returning group.)
+    // ceil/floor must stay out of the integer-returning group in type_infer.
     assert_eq!(
         tcl_type("set x 3.14\nset z [expr {ceil($x)}]", "z"),
         TclType::Double

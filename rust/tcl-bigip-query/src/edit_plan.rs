@@ -499,7 +499,7 @@ fn splice_edits(source: &str, ops: &[&EditOp], uri: &str) -> Result<String, Quer
 ///
 /// `depth` is the nesting level of this call (0 at the top); past
 /// [`MAX_VALUE_WALK_DEPTH`] this returns [`QueryError::Edit`] instead of
-/// descending into another nested list (issue #996) — silently truncating
+/// descending into another nested list — silently truncating
 /// the rendered SCF output here would corrupt the spliced source, so an
 /// error is the only sound fallback.
 ///
@@ -804,9 +804,9 @@ mod recursion_tests {
             .expect("worker thread did not panic / overflow")
     }
 
-    /// Regression coverage for issue #996: `format_value` recurses once per
+    /// Regression coverage: `format_value` recurses once per
     /// nested `List` level when rendering an assignment value for SCF
-    /// splicing, with no depth cap before this fix — reachable via a
+    /// splicing, so it needs a depth cap — reachable via a
     /// `setpath`/`=`-style edit whose right-hand side is a deeply nested
     /// list value. 5000 is comfortably past `MAX_VALUE_WALK_DEPTH` (64);
     /// silently truncating rendered SCF output would corrupt the spliced

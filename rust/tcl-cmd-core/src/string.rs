@@ -126,7 +126,7 @@ pub fn compare<O: ValueOps>(
         return Err(CmdError::wrong_args(&usage));
     }
 
-    // A deliberate non-`OptionTable` site (#1607): C's `StringCmpOpts`
+    // A deliberate non-`OptionTable` site: C's `StringCmpOpts`
     // hand-rolls `strncmp(…, length > 1)` instead of calling
     // `Tcl_GetIndexFromObj`, so `""` and a lone `-` are `bad`, never
     // `ambiguous`, and a one-character word never abbreviates. Routing this

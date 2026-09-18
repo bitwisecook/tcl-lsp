@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Private, undocumented `::tcl::` implementation namespaces (issue #988).
+//! Private, undocumented `::tcl::` implementation namespaces.
 //!
 //! Real Tcl backs a handful of built-in ensemble commands with a private
 //! sub-namespace under `::tcl::` — `dict create` is implemented by
@@ -70,8 +70,7 @@ pub struct PrivateTclNamespace {
 }
 
 /// The 11 private `::tcl::` ensemble-backing sub-namespaces, confirmed
-/// against real Tcl (8.4.20 through 9.1b0 C source, and live tclsh 8.6/9.0)
-/// while investigating issue #988.
+/// against real Tcl (8.4.20 through 9.1b0 C source, and live tclsh 8.6/9.0).
 ///
 /// Every entry but `chan` is [`TailRule::Whole`]: nothing public is
 /// published under `::tcl::dict`, `::tcl::string`, `::tcl::clock`, and the

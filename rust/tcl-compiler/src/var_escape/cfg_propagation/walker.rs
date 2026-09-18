@@ -355,9 +355,8 @@ fn is_eval_block(tokens: Option<&CommandTokens>, registry: &tcl_registry::Comman
         })
 }
 
-/// Tree-walk variant used inside literal `eval` bodies. The
-/// statements aren't part of the enclosing SSA, so we tag every
-/// name escape at the caller's current version (via *defs* /
+/// Handle the assign / incr arms of the tree walk.  Returns `true` when
+/// *stmt* matched.
 fn tree_assign_or_incr(
     stmt: &Statement,
     state: &mut CfgState,
@@ -529,6 +528,9 @@ fn tree_structural(
     }
 }
 
+/// Tree walk used inside literal `eval` and `catch` bodies: every name the
+/// statements touch escapes.  Those statements aren't part of the enclosing
+/// SSA, so each escape is tagged at the caller's current version from *defs*.
 pub(crate) fn escape_every_name_touched_tree(
     stmts: &[Statement],
     state: &mut CfgState,
@@ -685,8 +687,7 @@ fn handle_statement(
     if handle_stmt_assign_or_incr(stmt, state, defs) {
         return;
     }
-    // Structured statements: recurse via the tree walker.  Closure
-    // wraps to avoid duplicating the arm patterns.
+    // Structured statements: recurse via the tree walker.
     match stmt {
         Statement::Return { value, expr, .. } => {
             if let Some(v) = value {

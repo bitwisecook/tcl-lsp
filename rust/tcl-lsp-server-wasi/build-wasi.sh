@@ -32,7 +32,7 @@ mkdir -p "$dist"
 
 # Every analysis stack's budget — the wasip1 twin of `main.rs`'s
 # WORKER_STACK_SIZE and of the browser build's STACK_SIZE, load-bearing for the
-# same reason (issue #996).
+# same reason.
 #
 # The analyser's `analyse_body` recursion and the CFG builder's `lower_script`
 # recursion each cap their nesting depth, but a cap on the *number* of frames

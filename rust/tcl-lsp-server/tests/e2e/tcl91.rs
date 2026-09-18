@@ -52,8 +52,6 @@ fn complete_cmd(lsp: &mut Lsp, dialect: &str, partial: &str) -> BTreeSet<String>
     labels(&lsp.completion(&uri, 1, u32::try_from(partial.len()).unwrap()))
 }
 
-// -- TestTcl91Completion -------------------------------------------------
-
 #[test]
 fn unicode_and_timer_offered_in_91() {
     // doc/unicode.n, doc/timer.n — both are new commands in 9.1.
@@ -91,8 +89,8 @@ fn commands_90_still_offered_in_91() {
     assert!(complete_cmd(&mut lsp, "tcl9.1", "lseq").contains("lseq"));
 }
 
-// `oo::Helpers::link` version-gating (issue #923, Codex review on PR
-// #1020): a genuine core TclOO builtin only since 9.0 (confirmed against
+// `oo::Helpers::link` version-gating: a genuine core TclOO builtin only
+// since 9.0 (confirmed against
 // tclsh 9.0.4 — no package needed); under 8.6/8.7 it exists only via the
 // Tcllib `ooutil` package (confirmed against tclsh 8.6.14 — bare `link`
 // with no `package require` is `invalid command name "link"`).
@@ -142,7 +140,7 @@ fn link_stays_silent_in_86_once_ooutil_is_required() {
     );
 }
 
-// The whole `oo::Helpers` family is method-context-scoped (issue #1026).
+// The whole `oo::Helpers` family is method-context-scoped.
 //
 // tclsh 9.0.4 at the top level answers `invalid command name` for every one
 // of `link` / `my` / `next` / `nextto` / `self` / `classvariable`, and
@@ -151,14 +149,14 @@ fn link_stays_silent_in_86_once_ooutil_is_required() {
 // `… my` answers `::oo::ObjN::my`, an object-namespace command rather than
 // a helper). tclsh 8.6.14 agrees for the four members it ships.
 
-/// The `# tcl-dialect: tcl9.0` document the repro in issue #1026 uses.
+/// The `# tcl-dialect: tcl9.0` document the repro below uses.
 fn scoped_family_doc(body: &str) -> String {
     format!("# tcl-dialect: tcl9.0\n{body}")
 }
 
 #[test]
 fn top_level_link_draws_w123() {
-    // Issue #1026's own repro: `link foo` at the top level under tcl9.0.
+    // `link foo` at the top level under tcl9.0.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(&uri, &scoped_family_doc("link foo\n"));
@@ -273,8 +271,8 @@ fn the_qualified_oo_helpers_spelling_resolves_at_the_top_level() {
     );
 }
 
-// `callback` / `mymethod` version gating (issue #923 audit, `ticklecharts`
-// idx 51): both are genuine core `::oo::Helpers` members from 9.0 onward and
+// `callback` / `mymethod` version gating (the `ticklecharts` idiom): both
+// are genuine core `::oo::Helpers` members from 9.0 onward and
 // exist nowhere in 8.6 core, so a bare call inside a method body must be
 // silent on 9.0 and reported on 8.6.
 //
@@ -418,7 +416,6 @@ fn classvariable_in_86_asks_for_ooutil_rather_than_being_unknown() {
     );
 }
 
-// -- TestTcl91Operators --------------------------------------------------
 // doc/expr.n — the `lt`/`le`/`gt`/`ge` string operators (TIP 461) are 9.0+.
 
 #[test]
@@ -453,7 +450,7 @@ fn ge_operator_flags_w003_in_86() {
     assert!(codes(&diags).contains("W003"));
 }
 
-// -- Codex review of PR #1084 ------------------------------------------------
+// Multiple registry specs under one command name, disambiguated by dialect.
 
 /// Whether any completion item labelled `label` is a **built-in** — i.e. came
 /// from the registry rather than from a user `proc` of the same name.
@@ -608,9 +605,9 @@ fn class_init_body_does_not_hover_a_method_only_helper() {
 }
 
 /// Tcllib's `ooutil` installs a real `::oo::Helpers::link` under 8.6/8.7, so
-/// the **qualified** spelling needs the same package gating its bare twin has
-/// (Codex review of PR #1084). Without the second spec the fully qualified
-/// call was unknown on exactly the dialect where a user must reach for it.
+/// the **qualified** spelling needs the same package gating its bare twin
+/// has. Without the second spec the fully qualified call would be unknown
+/// on exactly the dialect where a user must reach for it.
 #[test]
 fn qualified_link_resolves_in_86_once_ooutil_is_required() {
     let mut lsp = Lsp::tcl();
@@ -649,9 +646,10 @@ fn qualified_link_needs_the_ooutil_require_in_86() {
 
 /// A Tcl 9 buffer must describe the **core** `link`, not the Tcllib one.
 ///
-/// `link` has two specs under one name; the completion item used to take its
-/// `detail` / `documentation` from whichever the by-name lookup returned
-/// first, so a `tcl9.0` document showed `tcllib (ooutil)` for a core command.
+/// `link` has two specs under one name; the completion item must not take
+/// its `detail` / `documentation` from whichever the by-name lookup returns
+/// first, or a `tcl9.0` document would show `tcllib (ooutil)` for a core
+/// command.
 #[test]
 fn a_tcl90_buffer_describes_the_core_link_not_the_tcllib_one() {
     let mut lsp = Lsp::tcl();

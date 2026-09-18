@@ -19,11 +19,10 @@
 //! Drift tests for the analyser-hook and command-table-effect stamps.
 //!
 //! The analyser's central dispatch and the command-table consumers
-//! (`command_binding`, the lowerer's alias table) retired their
-//! per-command name guards in favour of these registry stamps.  These
-//! tests pin the stamped sets to exactly the former guard lists, so a
-//! stamp cannot silently appear, vanish, or move without this file
-//! changing alongside it.
+//! (`command_binding`, the lowerer's alias table) consult these registry
+//! stamps instead of hardcoded per-command name checks.  These tests pin
+//! the stamped sets exactly, so a stamp cannot silently appear, vanish,
+//! or move without this file changing alongside it.
 
 use std::collections::BTreeSet;
 use tcl_registry::hooks::AnalyserHookId;
@@ -82,8 +81,8 @@ fn full_registry() -> CommandRegistry {
     reg
 }
 
-/// The analyser-hook stamps, pinned to the former per-handler
-/// command-name guard list of
+/// The analyser-hook stamps that replace the per-handler
+/// command-name checks in
 /// `tcl_compiler::analyser::commands::dispatch_command_handlers`.
 /// Keys are `(command, subcommand)`; a command-level stamp has an
 /// empty subcommand.
@@ -114,7 +113,7 @@ fn analyser_hook_stamps_match_the_former_guard_list() {
         ("namespace", "export", H::NamespaceExport),
         // The removal half of the import edge's lifecycle: `namespace forget`
         // takes an imported alias away again, so a bare call after it stops
-        // resolving (issue #1103).
+        // resolving.
         ("namespace", "forget", H::NamespaceForget),
         // `inscope` shares the namespace-eval handler: same `[subcmd, ns,
         // body]` shape, body analysed in the named namespace's scope.
@@ -149,10 +148,10 @@ fn analyser_hook_stamps_match_the_former_guard_list() {
         ("dict", "for", H::DictFor),
         ("dict", "update", H::DictUpdate),
         ("dict", "with", H::DictWith),
-        // The standalone `::tcl::dict::*` spellings (issue #923 idx 105) now
-        // carry each subcommand's own analyser hook too (Codex review, PR
-        // #1020), so `::tcl::dict::for {k v} $d {…}` is analysed like `dict
-        // for` — landing as a *command-level* stamp on the qualified spec.
+        // The standalone `::tcl::dict::*` spellings carry each subcommand's
+        // own analyser hook too, so `::tcl::dict::for {k v} $d {…}` is
+        // analysed like `dict for` — landing as a *command-level* stamp on
+        // the qualified spec.
         ("::tcl::dict::for", "", H::DictFor),
         ("::tcl::dict::update", "", H::DictUpdate),
         ("::tcl::dict::with", "", H::DictWith),
@@ -162,7 +161,7 @@ fn analyser_hook_stamps_match_the_former_guard_list() {
         // `interp eval CHILD SCRIPT` — the child interpreter's script is
         // analysed in an isolated scope (handle_interp_eval_command).
         ("interp", "eval", H::InterpEval),
-        // The interpreter model (issue #945 fault 8): lifecycle and
+        // The interpreter model: lifecycle and
         // command-visibility subcommands stamp their own hooks so the
         // analyser tracks child-interp existence, temporal identity
         // (delete/recreate epochs), and safe-interp hide/expose state
@@ -174,22 +173,20 @@ fn analyser_hook_stamps_match_the_former_guard_list() {
         ("rename", "", H::Rename),
         ("oo::define", "", H::OoDefine),
         ("oo::objdefine", "", H::OoObjdefine),
-        // No former per-handler guard — `tcl::OptProc` (the `opt`
-        // package's automatic-option-parsing proc definer) never had a
-        // hook at all until issue #923 idx 90 added one, so `all_procs`
-        // kept the stub's `{}`-arity `ProcDef` for every real
-        // redefinition.
+        // `tcl::OptProc` (the `opt` package's automatic-option-parsing proc
+        // definer) has its own hook, so `all_procs` sees each real
+        // redefinition's actual arity rather than the stub's `{}`-arity
+        // `ProcDef`.
         ("tcl::OptProc", "", H::OptProc),
         // handle_package_command matched `args[0]` require / provide.
         ("package", "require", H::PackageRequire),
         ("package", "provide", H::PackageProvide),
         // `package ifneeded` registers an arbitrary load script; the
         // package-derived load order reads its presence as "the
-        // statements this require runs are not static" (issue #1279).
+        // statements this require runs are not static".
         ("package", "ifneeded", H::PackageIfneeded),
-        // Post-dates the former guard list: `package prefer latest` raises
-        // the interpreter's selection mode, which provider selection reads
-        // at the require's own offset (issue #1126).
+        // `package prefer latest` raises the interpreter's selection mode,
+        // which provider selection reads at the require's own offset.
         ("package", "prefer", H::PackagePrefer),
         ("source", "", H::Source),
         ("append", "", H::Append),
@@ -277,16 +274,15 @@ fn analyser_hook_stamps_are_disjoint_from_definer_families() {
     }
 }
 
-/// The command-table transition declarations, pinned to the former name
-/// matches in `tcl_compiler::command_binding::stmt_gen` (proc / rename /
-/// interp) and `tcl_compiler::alias`'s retired detectors (interp alias /
-/// rename).
+/// The command-table transition declarations that
+/// `tcl_compiler::command_binding::stmt_gen` and `tcl_compiler::alias`
+/// consult for `proc` / `rename` / `interp alias` / `interp eval`.
 ///
-/// Centralisation ledger C8: `proc`, `rename` and `interp alias` name the
-/// stock descriptors directly and no longer stamp the coarse
-/// `command_table_effect` selector beside them; a pack-authored spec that
-/// can only write the selector resolves to the same stock descriptor. Both
-/// routes are pinned here through the one consumer door.
+/// `proc`, `rename` and `interp alias` name the stock descriptors
+/// directly, without stamping the coarse `command_table_effect` selector
+/// beside them; a pack-authored spec that can only write the selector
+/// resolves to the same stock descriptor. Both routes are pinned here
+/// through the one consumer door.
 #[test]
 fn command_table_transitions_match_the_former_name_matches() {
     use tcl_registry::{CommandBindingTransition, InvocationWord, InvocationWords};
@@ -324,9 +320,9 @@ fn command_table_transitions_match_the_former_name_matches() {
         bindings(&reg, "interp", &["alias", "", "myfmt", "", "format"]).as_slice(),
         [CommandBindingTransition::Alias { .. }]
     ));
-    // No former name match — `tcl::OptProc` genuinely defines a procedure
-    // (issue #923 idx 90), same as `proc` itself. It reaches the same
-    // vocabulary through the `command_table_effect` selector.
+    // `tcl::OptProc` genuinely defines a procedure, same as `proc` itself,
+    // and reaches the same vocabulary through the `command_table_effect`
+    // selector.
     assert!(matches!(
         bindings(&reg, "tcl::OptProc", &["greet", "", ""]).as_slice(),
         [CommandBindingTransition::Define { .. }]
@@ -338,8 +334,8 @@ fn command_table_transitions_match_the_former_name_matches() {
     // subcommand at all.
     assert!(bindings(&reg, "interp", &["aliases"]).is_empty());
     assert!(bindings(&reg, "interp", &[]).is_empty());
-    // A `::`-qualified head states the same transitions as the bare one
-    // (issue #1185): C Tcl resolves the explicitly global spelling to the
+    // A `::`-qualified head states the same transitions as the bare one:
+    // C Tcl resolves the explicitly global spelling to the
     // same command, so `::rename format ::origfmt` / `::interp alias {}
     // myfmt {} format` / `::proc ::greet {} {…}` really do mutate the
     // command table — verified byte-identical on tclsh 9.0.4 and 8.6.16.

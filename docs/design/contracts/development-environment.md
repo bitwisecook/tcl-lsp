@@ -54,7 +54,7 @@ upstream than `tcl.tk` / SourceForge on every cold session. The hook exports
 |---|---|
 | Rust channel | `rust-toolchain.toml`; `Cargo.toml` `rust-version` |
 | Node.js minimum | `.github/workflows/ci.yml` `node-version`; `NODE_MIN_MAJOR` in `ensure-test-deps.sh` |
-| Tcl / Tk patchlevels and source tags | `rust/tcl-dialect/data/reference-toolchains.tsv` (the fetch skill and host installer consume it) |
+| Tcl / Tk patchlevels and source tags | `rust/tcl-dialect/data/reference-toolchains.tsv` (the fetch skill, host installer, and `tcl docker` source-build layers consume it) |
 | Wasmtime, Binaryen, wasi-sdk, tcllib (remote) | variables at the top of `.claude/hooks/session-start.sh` |
 | Wasmtime, wasi-sdk, tcllib (laptop) | variables near the top of `scripts/dev/ensure-test-deps.sh` |
 
@@ -76,7 +76,7 @@ sharing `CARGO_HOME` is fine are in
 
 | Target | Purpose |
 |---|---|
-| `make rust-check` | Rust PR gate: fmt + clippy + xtask drift gates (mirrors CI `pr-gate`) |
+| `make rust-check` | Rust fast worker: fmt + clippy + xtask drift gates (aggregated by CI `pr-gate`) |
 | `make prep-pr` | pre-push gate: format + codegen + lint/typecheck + smoke |
 | `make check-all` | lint + typecheck across TypeScript, Rust, Python |
 | `make smoke`, `make smoke-p P=<crate>` | the smoke tier |

@@ -90,7 +90,7 @@ fn registry_codegen_hook(
     args: &[String],
 ) -> Option<(CodegenHookId, tcl_runtime_api::CommandBindingIdentity)> {
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    // The registry's own point (issues #1462/#1463): a
+    // The registry's own point: a
     // profile-built registry suppresses the specialised emission of a
     // command its release does not have, keeping it on the generic invoke
     // where the runtime's availability gate can reject it.
@@ -1030,7 +1030,7 @@ mod tests {
         assert!(!try_bytecoded(&mut ctx, "array", &args, &mut used));
     }
 
-    // -- lrange / linsert / lset --
+    // Lrange / linsert / lset.
 
     #[test]
     fn lrange_constant_indices() {
@@ -1110,7 +1110,7 @@ mod tests {
         assert!(!try_bytecoded(&mut ctx, "lset", &args, &mut used));
     }
 
-    // -- dict subcommands --
+    // Dict subcommands.
 
     #[test]
     fn dict_set_proc_uses_dict_set_opcode() {
@@ -1213,7 +1213,7 @@ mod tests {
         assert!(!ops.contains(&Op::DICT_SET));
     }
 
-    // -- append / lappend statement-position specialisations --
+    // Append / lappend statement-position specialisations.
 
     #[test]
     fn append_scalar_single_uses_append_scalar1() {
@@ -1359,7 +1359,7 @@ mod tests {
         );
     }
 
-    // -- unset statement-position specialisation --
+    // Unset statement-position specialisation.
 
     #[test]
     fn unset_scalar_uses_unset_scalar() {
@@ -1472,7 +1472,7 @@ mod tests {
         );
     }
 
-    // -- tailcall statement-position specialisation --
+    // Tailcall statement-position specialisation.
 
     #[test]
     fn tailcall_pushes_literal_prefix_then_args() {
@@ -1523,7 +1523,7 @@ mod tests {
         );
     }
 
-    // -- concat statement-position specialisation --
+    // Concat statement-position specialisation.
 
     #[test]
     fn concat_all_literal_folds() {
@@ -1602,7 +1602,7 @@ mod tests {
         );
     }
 
-    // -- global / upvar statement-position specialisation --
+    // Global / upvar statement-position specialisation.
 
     #[test]
     fn global_single_uses_nsupvar() {

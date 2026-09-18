@@ -3,7 +3,7 @@
 # Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Regenerate the encoding-hazard probe matrix (issue #1326).
+"""Regenerate the encoding-hazard probe matrix.
 
 Nineteen cases, each wrapping a byte-identical iRule body so results are
 directly comparable, plus an ASCII control.  The cases cover four families:
@@ -17,8 +17,9 @@ directly comparable, plus an ASCII control.  The cases cover four families:
   overrides/embeddings/isolates (Trojan Source), zero-width joiners,
   homoglyphs;
 * **non-findings, kept as regression guards** — a leading UTF-8 BOM and Tcl
-  ``\\u`` escapes, both of which are *correct* to leave alone (see the issue's
-  "Method" section).
+  ``\\u`` escapes, both of which are *correct* to leave alone: a BOM is
+  ordinary leading data, and a ``\\u`` escape lives in plain ASCII source
+  text, so neither is an encoding hazard.
 
 The files are written as **raw bytes** — several of them are deliberately not
 valid UTF-8 and cannot be produced by a text-mode writer.  They are committed

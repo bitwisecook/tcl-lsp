@@ -276,12 +276,10 @@ SHA-256 hash (BIG-IP's TMSH surface).
 - `x509_from_config(cert)` — project a value carrying BIG-IP cert
   metadata fields (`subject`, `issuer`, `fingerprint`,
   `subject_alternative_name`, `serial_number`, `key_size`,
-  `version`, …) into the same dict shape.  The DSL projects only
-  `ltm`, `gtm`, and `security` (see
-  [`dsl.md`](dsl.md) § *Tree shape*), so a `sys file ssl-cert` or
-  `cm cert` stanza is not reachable as an object today — feed this
-  builtin a value you built yourself, or read the PEM off disk with
-  `cert_load`.
+  `version`, …) into the same dict shape.  Pipe it a
+  `sys file ssl-cert` or `cm cert` object
+  (`.sys["file-ssl-cert"][]` / `.cm.cert[]`), a value you built
+  yourself, or reach for `cert_load` to read the PEM off disk.
 - `tls_handshake(host, port).peer_cert` — capture during a live
   TLS handshake.
 - `url_get(url).peer_cert` — always `null`: the live HTTP request

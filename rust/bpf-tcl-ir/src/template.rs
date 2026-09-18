@@ -25,7 +25,7 @@
 //! `loop`, and runs *before* unrolling and field expansion so a template body
 //! may itself contain loops and profile field commands.
 //!
-//! Templates share the handler's local namespace (no hygiene in v1): a param
+//! Templates share the handler's local namespace (no hygiene): a param
 //! `key` becomes a local `key`, so a handler local of the same name is
 //! overwritten by the expansion.
 
@@ -254,7 +254,7 @@ fn expand_use(
 }
 
 /// Parse `key=value` words into `(key, value)` pairs; the value must be an
-/// integer literal (the DSL's only binding type in v1).
+/// integer literal (the DSL's only binding type).
 fn parse_bindings(
     words: &[String],
     span: Span,

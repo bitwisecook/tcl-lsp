@@ -56,9 +56,10 @@ proc main {} {
 ```
 
 After this, `db_eval` stops being reported as an unknown command and its
-`script` argument is marked script-shaped rather than an opaque string. The
-call graph does not follow it: `tcl callgraph` still reports no edge from
-`::main` to `::on_row`.
+`script` argument is analysed as a Tcl script rather than an opaque string:
+the commands inside it resolve, and `tcl callgraph` reports the edge
+`::main → ::on_row`, so a proc called only from inside the script is not
+dead code.
 
 ### Sidecar stubs file (whole workspace)
 
@@ -95,16 +96,45 @@ Declaring the same command twice keeps the last declaration.
 
 Argument roles (after the `:`):
 
-| Role       | Meaning                                                |
-|------------|--------------------------------------------------------|
-| `body`     | Tcl script body — recursively analysed                 |
-| `expr`     | Expression (expr sub-language)                         |
-| `var`      | Variable name written by the command                   |
-| `var_read` | Variable name read without modification                |
-| `name`     | Symbolic name (proc name, namespace name)              |
-| `pattern`  | Pattern or regex                                       |
-| `channel`  | Channel identifier                                     |
-| `value`    | Generic value (default when no role is specified)      |
+| Role             | Meaning                                              |
+|------------------|------------------------------------------------------|
+| `body`           | Tcl script body — recursively analysed               |
+| `expr`           | Expression (expr sub-language)                       |
+| `var`            | Variable name written by the command                 |
+| `var_read`       | Variable name read without modification              |
+| `name`           | Symbolic name (proc name, namespace name)            |
+| `pattern`        | Pattern or regex                                     |
+| `channel`        | Channel identifier                                   |
+| `command_prefix` | A command prefix the command invokes as a callback   |
+| `value`          | Generic value (default when no role is specified)    |
+
+A declared role reaches the analysis through the same path a shipped command
+spec's does, so the two behave alike:
+
+- `body` — the word is analysed as a script. Its commands resolve (an unknown
+  one inside it draws its own hint), and the procedures it calls become
+  outgoing edges of the enclosing proc in the call graph.
+- `expr` — the word is an expression, so it draws the expression diagnostics
+  (an unbraced operand is a double-substitution risk, `W100`), and a
+  `[cmd …]` substituted inside it is a call even when the operand is braced.
+- `command_prefix` — the word names a proc the command calls back, so that
+  proc is an edge of the caller and is not dead code.
+- `var` — the word names a variable the command writes, so it is defined from
+  that call onwards and reading it afterwards is not "read before it is set"
+  (`W210`).
+
+A `body` or `command_prefix` word also counts as a *caller*: a proc called
+from inside a declared script, or named by a declared callback, may be handed
+anything at run time, so its parameters are not folded to the literal the
+file's other call sites happen to agree on.
+
+Roles follow the call, not the declaration text. An optional slot the call
+leaves out shifts every role after it, so `stub fetch {?table? row:var}`
+called as `fetch out` writes `out`.
+
+One exception: a body that would run somewhere other than the calling frame
+and namespace is analysed on its own terms, so it never contributes an edge
+to a same-named proc in the caller's namespace.
 
 An argument wrapped in `?...?` is optional. A role that is not in this table
 throws the whole declaration away, so check your spelling if a stub seems to
@@ -147,6 +177,13 @@ an operator when you leave it out.
 
 - Run `tcl diag <file>` and confirm the `W123 Unknown command` hint on the
   stubbed command is gone.
+- Run `tcl callgraph <file>` and check that the procs the stubbed command
+  reaches — called from inside a `body` argument, named by a
+  `command_prefix` argument, or substituted inside an `expr` argument —
+  appear as outgoing edges from the caller.
+- Run `tcl diag <file>` and check that a variable the stub declares `var` no
+  longer draws `W210 Variable '…' is read before it is set` where the
+  command writes it.
 - Open the file in your editor and confirm the stubbed command no longer
   raises the "unresolved command" hint.
 - For a sidecar, confirm the filename matches the dialect the file is

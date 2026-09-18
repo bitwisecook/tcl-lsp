@@ -146,7 +146,7 @@ pub fn irules_event_executable_closure(
 
 /// One registry-declared edge from a reachable command to an event it raises.
 ///
-/// The single owner of the command-to-event relation (issue #1708): every
+/// The single owner of the command-to-event relation: every
 /// consumer that wants cross-event reachability, a diagram edge, or a
 /// data-flow path reads this rather than growing its own table of command
 /// names. The edge exists because the registry says the *form* raises the

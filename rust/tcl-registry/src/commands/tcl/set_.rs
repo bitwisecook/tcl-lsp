@@ -113,7 +113,7 @@ pub fn spec() -> CommandSpec {
         // `NAME` ends up holding an object handle.  Registry data so the
         // object-handle scan resolves the layout for `::set` and a provable
         // static alias/rename of `set` exactly as for the bare spelling,
-        // instead of matching the word `set` (issue #1185).
+        // instead of matching the word `set`.
         binds_handle: Some(&crate::handle_binding::SET_BINDS_HANDLE),
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet {

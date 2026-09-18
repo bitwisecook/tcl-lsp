@@ -2222,7 +2222,13 @@ fn create_fixture(mut next_root: impl FnMut() -> PathBuf) -> Result<Fixture> {
     loop {
         let root = next_root();
         match fs::create_dir(&root) {
-            Ok(()) => return Ok(Fixture { root }),
+            // Cargo reports canonical paths, and the temp directory reaches us
+            // through a symlink on macOS (/var -> /private/var), so canonicalise
+            // the root here or every strip_prefix against it misses.
+            Ok(()) => {
+                let root = fs::canonicalize(&root).unwrap_or(root);
+                return Ok(Fixture { root });
+            }
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(error) => {
                 return Err(error)
@@ -2487,7 +2493,7 @@ host_only = []
         "e/src/lib.rs",
         concat!(
             "#[test]\nfn ",
-            "smoke_dependency() { assert!(f::normal_is_enabled()); assert_eq!(std::env::var(\"CARGO_PKG_NAME\").as_deref(), Ok(\"e\")); assert_eq!(std::env::var(\"CARGO_PKG_VERSION\").as_deref(), Ok(\"0.1.0\")); assert_eq!(std::env::var(\"CARGO_PKG_DESCRIPTION\").as_deref(), Ok(\"\")); assert_eq!(std::env::var(\"CARGO_MANIFEST_LINKS\").as_deref(), Ok(\"inherited\")); assert!(std::path::Path::new(&std::env::var(\"CARGO_MANIFEST_DIR\").unwrap()).ends_with(\"e\")); assert!(std::path::Path::new(&std::env::var(\"CARGO_MANIFEST_PATH\").unwrap()).ends_with(std::path::Path::new(\"e/Cargo.toml\"))); assert_eq!(std::env::var(\"TCL_LSP_BUILD_ENV\").as_deref(), Ok(\"owned\")); let out_dir = std::env::var(\"OUT_DIR\").unwrap(); assert!(out_dir.replace(char::from(92), \"/\").contains(\"/build/e-\")); let variable = if cfg!(windows) { \"PATH\" } else if cfg!(target_os = \"macos\") { \"DYLD_FALLBACK_LIBRARY_PATH\" } else { \"LD_LIBRARY_PATH\" }; let paths = std::env::split_paths(&std::env::var_os(variable).unwrap()).collect::<Vec<_>>(); assert!(paths.iter().any(|path| path == &std::path::Path::new(&out_dir).join(\"native\"))); assert!(paths.iter().any(|path| path.ends_with(\"shared-native\"))); assert!(!paths.iter().any(|path| path.ends_with(\"outside-native\"))); assert!(paths.iter().any(|path| { let path = path.to_string_lossy().replace(char::from(92), \"/\"); path.contains(\"/build/f-\") && path.ends_with(\"/out/native\") })); assert!(paths.iter().any(|path| { let path = path.to_string_lossy().replace(char::from(92), \"/\"); path.contains(\"/build/r-\") && path.ends_with(\"/out/build-only-native\") })); assert!(paths.iter().any(|path| path == std::path::Path::new(&std::env::var(\"TCL_LSP_EXPECTED_SYSROOT_LIB\").unwrap()))); if let Some(record) = std::env::var_os(\"TCL_LSP_RECORD_CARGO_PATH\") { let text = paths.iter().map(|path| path.to_string_lossy()).collect::<Vec<_>>().join(\"\\n\"); std::fs::write(record, text).unwrap(); } if !cfg!(windows) { assert_eq!(std::env::var(\"TCL_LSP_SMOKE_RUNNER\").as_deref(), Ok(\"used\")); } }\n\n",
+            "smoke_dependency() { assert!(f::normal_is_enabled()); assert_eq!(std::env::var(\"CARGO_PKG_NAME\").as_deref(), Ok(\"e\")); assert_eq!(std::env::var(\"CARGO_PKG_VERSION\").as_deref(), Ok(\"0.1.0\")); assert_eq!(std::env::var(\"CARGO_PKG_DESCRIPTION\").as_deref(), Ok(\"\")); assert_eq!(std::env::var(\"CARGO_MANIFEST_LINKS\").as_deref(), Ok(\"inherited\")); assert!(std::path::Path::new(&std::env::var(\"CARGO_MANIFEST_DIR\").unwrap()).ends_with(\"e\")); assert!(std::path::Path::new(&std::env::var(\"CARGO_MANIFEST_PATH\").unwrap()).ends_with(std::path::Path::new(\"e/Cargo.toml\"))); assert_eq!(std::env::var(\"TCL_LSP_BUILD_ENV\").as_deref(), Ok(\"owned\")); let out_dir = std::env::var(\"OUT_DIR\").unwrap(); assert!(out_dir.replace(char::from(92), \"/\").contains(\"/build/e-\")); let variable = if cfg!(windows) { \"PATH\" } else if cfg!(target_os = \"macos\") { \"DYLD_FALLBACK_LIBRARY_PATH\" } else { \"LD_LIBRARY_PATH\" }; let paths = std::env::split_paths(&std::env::var_os(variable).unwrap()).collect::<Vec<_>>(); assert!(paths.iter().any(|path| path == &std::path::Path::new(&out_dir).join(\"native\"))); assert!(paths.iter().any(|path| path.ends_with(\"shared-native\"))); assert!(!paths.iter().any(|path| path.ends_with(\"outside-native\"))); assert!(paths.iter().any(|path| { let path = path.to_string_lossy().replace(char::from(92), \"/\"); path.contains(\"/build/f-\") && path.ends_with(\"/out/native\") })); assert!(paths.iter().any(|path| { let path = path.to_string_lossy().replace(char::from(92), \"/\"); path.contains(\"/build/r-\") && path.ends_with(\"/out/build-only-native\") })); assert!(paths.iter().any(|path| path == std::path::Path::new(&std::env::var(\"TCL_LSP_EXPECTED_SYSROOT_LIB\").unwrap()))); if let Some(record) = std::env::var_os(\"TCL_LSP_RECORD_CARGO_PATH\") { let text = paths.iter().map(|path| path.to_string_lossy()).collect::<Vec<_>>().join(\"\\n\"); std::fs::write(record, text).unwrap(); } if !cfg!(windows) && !cfg!(target_os = \"macos\") { assert_eq!(std::env::var(\"TCL_LSP_SMOKE_RUNNER\").as_deref(), Ok(\"used\")); } }\n\n",
             "#[test]\nfn long_smoke_dependency() { panic!(\"deep test must not run\"); }\n\n",
             "#[test]\nfn deep() { panic!(\"deep test must not run\"); }\n",
         ),
@@ -3408,16 +3414,26 @@ fn cargo_fixture_self_test_inner() -> Result<()> {
         fixture.write(relative, contents)?;
     }
     let host = rustc_host(&fixture.root)?;
-    let runner = if cfg!(windows) {
-        vec!["cmd", "/C"]
+    // macOS purges every DYLD_* variable when it execs an Apple-signed binary,
+    // and a Cargo runner is always one, so the harness could never hand the
+    // dynamic library path through a runner to the test on this platform. Run
+    // the fixture without one there and cover the runner leg on the platforms
+    // where it is observable; the runner itself is Cargo's, not ours.
+    let runner = if cfg!(target_os = "macos") {
+        None
+    } else if cfg!(windows) {
+        Some(vec!["cmd", "/C"])
     } else {
-        vec!["env", "TCL_LSP_SMOKE_RUNNER=used"]
+        Some(vec!["env", "TCL_LSP_SMOKE_RUNNER=used"])
     };
     let rustc_config = rustc_probe_config(&fixture)?;
+    let runner_config = match &runner {
+        Some(runner) => format!("runner = {}\n", serde_json::to_string(runner)?),
+        None => String::new(),
+    };
     let config = format!(
-        "[build]\n{rustc_config}\n[target.{}]\nrunner = {}\n",
+        "[build]\n{rustc_config}\n[target.{}]\n{runner_config}",
         serde_json::to_string(&host)?,
-        serde_json::to_string(&runner)?,
     );
     fixture.write(".cargo/config.toml", &config)?;
     let mut lock = Command::new("cargo");
@@ -3425,7 +3441,7 @@ fn cargo_fixture_self_test_inner() -> Result<()> {
         .current_dir(&fixture.root);
     command_output(&mut lock)?;
     let runtime = cargo_runtime(&fixture.root)?;
-    if runtime.target != host || runtime.runner.is_none() {
+    if runtime.target != host || runtime.runner.is_none() != runner.is_none() {
         bail!("Cargo target-runner resolution self-test failed");
     }
     let (package_roots, package_environments, targets) =

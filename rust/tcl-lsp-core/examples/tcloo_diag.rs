@@ -5,8 +5,7 @@
 // measures *how many* object-dispatch sites resolve, this one asks *why the rest
 // don't*: for every UNRESOLVED `$var method …` receiver, it categorises how the
 // receiver variable is bound across the compilation unit.  The category
-// histogram tells us which typing edge would move the needle next — the
-// experiment that decides what Phase 2/3 should actually build.
+// histogram says which typing edge would move the needle next.
 //
 //   cargo run --release -p tcl-lsp-core --example tcloo_diag -- <dir|file>...
 //

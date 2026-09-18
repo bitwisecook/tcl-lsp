@@ -32,7 +32,7 @@ fn names(cmds: &[SegmentedCommand]) -> Vec<&str> {
     cmds.iter().map(SegmentedCommand::name).collect()
 }
 
-// -- Basic segmentation --
+// Basic segmentation
 
 #[test]
 fn single_command() {
@@ -120,7 +120,7 @@ fn normal_commands_are_not_partial() {
     assert!(cmds.iter().all(|c| !c.is_partial));
 }
 
-// -- Error recovery --
+// Error recovery
 
 fn unclosed_source() -> String {
     // An unclosed proc brace that consumes to EOF, then valid commands.
@@ -170,7 +170,7 @@ fn recovered_commands_have_correct_names() {
     assert!(recovered.contains(&"set"));
 }
 
-// -- Word shapes --
+// Word shapes
 
 #[test]
 fn braced_word_is_single_token() {
@@ -189,14 +189,14 @@ fn expansion_marker_recorded() {
     assert!(cmds[0].expand_word.is_some(), "{{*}} expansion recorded");
 }
 
-// -- N5: the F5 `if` else/elseif lookahead across a single newline --
+// The F5 `if` else/elseif lookahead across a single newline.
 //
 // `docs/design/f5/bigip-irule-parser-measurements.md` §2 N5 (measured on TMM in
 // a cli script reproducing the parser): `else` / `elseif` are a *separate*
 // lookahead performed by `if` itself — picked up across a single newline,
 // but NOT across a blank line, where they fall back to being an unknown
-// command (`undefined procedure: else`). A trunk fact, gated on the F5
-// grammar (the same `brace_line_continuation` axis the §2 N-rules ride).
+// command (`undefined procedure: else`). Gated on the F5 grammar (the same
+// `brace_line_continuation` axis the §2 N-rules ride).
 
 fn segment_f5(src: &str) -> Vec<SegmentedCommand> {
     tcl_compiler::segmenter::segment_commands_with_offset_and_config(
@@ -225,7 +225,7 @@ fn n5_elseif_chain_across_single_newlines_belongs_to_the_if() {
 #[test]
 fn n5_else_across_a_blank_line_stays_a_standalone_command() {
     // §2 N5: not across a blank line — `undefined procedure: else` on TMM,
-    // so the segmentation stays exactly as stock.
+    // so the segmentation stays as it is in standard Tcl.
     let cmds = segment_f5("if {0} {set a 1}\n\nelse {set a 2}");
     assert_eq!(names(&cmds), ["if", "else"]);
 }

@@ -457,7 +457,7 @@ impl OptionValue {
 
     /// A single value consumed **purely as a boolean** —
     /// [`ArgRole::Boolean`], the first-class registry answer to "is this word
-    /// a boolean" (issue #1256).
+    /// a boolean".
     ///
     /// The value set is left open on purpose: Tcl accepts every spelling
     /// [`crate::abbrev::boolean_table`] resolves, *including unique prefixes*
@@ -669,7 +669,7 @@ impl OptionSpec {
     /// Whether the option's value is consumed **purely as a boolean**, so
     /// every accepted spelling of the same truth value is interchangeable.
     ///
-    /// Reads the declared [`ArgRole::Boolean`] fact (issue #1256) — never
+    /// Reads the declared [`ArgRole::Boolean`] fact — never
     /// inferred from the value set, which only ever covered the handful of
     /// options that happened to enumerate `true`/`false` and missed every
     /// option declared with an open value or a bare hint.

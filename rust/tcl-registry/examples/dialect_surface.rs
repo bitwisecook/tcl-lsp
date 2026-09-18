@@ -19,8 +19,8 @@
 //! Resolved command surface per dialect profile.
 //!
 //! Emits one `profile<TAB>command` line for every command that resolves
-//! (is available) under each catalog [`DialectProfile`], profiles in
-//! catalog order and commands sorted within each. This is the differential
+//! (is available) under each catalogue [`DialectProfile`], profiles in
+//! catalogue order and commands sorted within each. This is the differential
 //! guard for availability-preserving refactors (e.g. the EDA-as-packages
 //! migration): capture it before a change, re-run after, and diff — the
 //! surface must be identical except where a change is intended.

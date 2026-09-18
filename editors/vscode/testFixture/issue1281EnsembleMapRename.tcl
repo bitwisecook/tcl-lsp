@@ -1,4 +1,4 @@
-# Issue #1281 — the ensemble `-map` key is an arbitrary name with no required
+# The ensemble `-map` key is an arbitrary name with no required
 # relationship to its target's tail, so renaming `::app::widget::Show` must
 # rewrite the declaration and the `-map` value but leave the dispatch word
 # `show` alone.

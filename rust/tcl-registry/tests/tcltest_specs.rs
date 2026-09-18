@@ -118,7 +118,7 @@ fn tcltest_and_harness_commands_are_never_in_irules_or_iapps() {
 
 #[test]
 fn test_command_declares_a_symbol_definer() {
-    // Issue #790: `tcltest::test` binds a navigable definition name (arg 0)
+    // `tcltest::test` binds a navigable definition name (arg 0)
     // with its description at arg 1, filed under the `Test` outline category —
     // and this must be *registry data* the analyser / symbol providers read,
     // not a command-name check baked into the compiler.

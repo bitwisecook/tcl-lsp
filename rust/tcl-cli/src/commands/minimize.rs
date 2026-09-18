@@ -402,7 +402,7 @@ pub fn run_minimize(input: &InputArgs, no_rename: bool, json: bool) -> anyhow::R
         return Ok(1);
     }
 
-    // Honour the shared `-o/--output FILE` flag (default stdout), issue 196.
+    // Honour the shared `-o/--output FILE` flag (default stdout).
     let target = OutputTarget::from_arg(input.output.as_deref());
     if json {
         write_text_output(

@@ -589,7 +589,7 @@ pub fn spec() -> CommandSpec {
         // The family of this command's format string; the
         // `ArgRole::FormatString` role above locates the word. Together
         // they are the whole registry answer, so the LSP's format
-        // highlighting and inlay hints name no command (#1185).
+        // highlighting and inlay hints name no command.
         format_string_type: Some(FormatType::Sprintf),
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
@@ -683,7 +683,7 @@ mod tests {
         // `format_d_value_is_version_aware`.
         assert_eq!(f(&["%d", "2147483647"]).as_deref(), Some("2147483647"));
         assert_eq!(f(&["%d", "-2147483648"]).as_deref(), Some("-2147483648"));
-        // `0x`/`0o`/`0b` prefixes bail (a further follow-up).
+        // `0x`/`0o`/`0b` prefixes bail.
         assert_eq!(f(&["%d", "0x10"]), None);
         // %u (the version-specific value-interp is in
         // `format_unsigned_value_is_version_aware`; `f` runs under 9.0).

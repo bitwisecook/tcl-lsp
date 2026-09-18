@@ -58,15 +58,13 @@
 //! difference in the release's numeral grammar: 8.6 and 9.0 select *different
 //! frames* for `010` (8 up vs 10 up), and one errors where the other succeeds
 //! for `08`, `0d1` and `1_0`.  See [`FrameLevel::parse_for`] for the pinned
-//! matrix.  This module previously claimed the grammar was invariant, on the
-//! strength of a 20-spelling matrix that happened to contain no divergent
-//! spelling and a call chain too shallow to distinguish a parse failure from an
-//! out-of-range level — C reports `bad level` for both.
+//! matrix.  A small sample can hide this: a 20-spelling matrix that
+//! happens to contain no divergent spelling, plus a call chain too shallow
+//! to distinguish a parse failure from an out-of-range level (C reports
+//! `bad level` for both), can look invariant when it is not.
 //!
 //! For the presence rule's two divergent classes and their transcripts, see
-//! [`FrameLevelWord::LeadingProbe`] ([issue #1069][]).
-//!
-//! [issue #1069]: https://github.com/bitwisecook/tcl-lsp/issues/1069
+//! [`FrameLevelWord::LeadingProbe`].
 
 use tcl_dialect::{NumberSyntax, TclVersion};
 use tcl_syntax::number::ParseFlags;
@@ -355,8 +353,8 @@ pub enum FrameLevelWord {
     /// diverge between releases — `TclObjGetFrame` was reworked in 9.0.  Two
     /// classes differ; both are hard errors under both interpreters, so no
     /// *working* script is shaped differently, but the registry records the
-    /// fact rather than asserting one release's answer for all
-    /// ([issue #1069][]).  `uplevel W {oops}`, tclsh 9.0.4 vs 8.6.14:
+    /// fact rather than asserting one release's answer for all.
+    /// `uplevel W {oops}`, tclsh 9.0.4 vs 8.6.14:
     ///
     /// | `W` | 9.0.4 | 8.6.14 | consumed as level |
     /// |---|---|---|---|
@@ -369,8 +367,6 @@ pub enum FrameLevelWord {
     ///
     /// [`FrameLevel::word_could_be_level`] is that table; with no version in
     /// hand it answers the *shared* rows only.
-    ///
-    /// [issue #1069]: https://github.com/bitwisecook/tcl-lsp/issues/1069
     LeadingProbe,
 }
 

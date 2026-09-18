@@ -754,8 +754,8 @@ fn ir_eval_dynamic_body_is_pessimistic() {
 
 #[test]
 fn ir_eval_multiword_body_escapes_through_the_joined_script() {
-    // Pin (#1051): `handle_eval` joins a multi-word `eval` with single spaces
-    // before scanning, exactly as `Tcl_ConcatObj` does at run time, so a `$x`
+    // `handle_eval` joins a multi-word `eval` with single spaces before
+    // scanning, exactly as `Tcl_ConcatObj` does at run time, so a `$x`
     // buried in a trailing word still escapes.
     //
     // tclsh8.6.14 / tclsh9.0.4: `set x l2; eval set $x hello; puts $l2`

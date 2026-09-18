@@ -271,9 +271,29 @@ pub fn settings_from_ini(content: &str, layer: Layer) -> Value {
         out.insert("style".to_owned(), Value::Object(style));
     }
 
+    insert_workspace_scan(&sections, &mut out);
+
     insert_iruleslx(&sections, &mut out);
 
     Value::Object(out)
+}
+
+/// `[workspaceScan]` — the on-disk workspace scan's file budget.
+///
+/// `max_files` bounds how many Tcl files the start-up scan reads and indexes
+/// across every workspace folder, so a pathologically large tree cannot stall
+/// start-up. Open documents are indexed regardless of it. Accepts the INI
+/// `snake_case` spelling and the editor's camelCase key, so exported settings
+/// paste back unchanged (the same courtesy `[signatureHelp]` extends).
+fn insert_workspace_scan(sections: &[Section], out: &mut Map<String, Value>) {
+    if let Some(max) = section_value(sections, "workspaceScan", "max_files")
+        .or_else(|| section_value(sections, "workspaceScan", "maxFiles"))
+        .and_then(|v| v.trim().parse::<u64>().ok())
+    {
+        let mut scan = Map::new();
+        scan.insert("maxFiles".to_owned(), Value::from(max));
+        out.insert("workspaceScan".to_owned(), Value::Object(scan));
+    }
 }
 
 /// `[packages]` / `[packages.provides]` — how the modelled interpreter loads

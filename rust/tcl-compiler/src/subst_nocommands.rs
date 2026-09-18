@@ -58,8 +58,8 @@ use std::hash::BuildHasher;
 /// entry.
 ///
 /// The `${…}` scan below is deliberately **not** threaded through
-/// [`tcl_lexer::braced_var_name_end`], and that is not the issue-#1604 gap it
-/// resembles. The two release rules can only disagree about a name containing
+/// [`tcl_lexer::braced_var_name_end`], and that is sound here. The two release
+/// rules can only disagree about a name containing
 /// `{`, `}`, or `\` — and [`is_complex_var_name`] refuses every one of those
 /// (`is_name_byte` is alphanumerics and `_`), so both readings decline the
 /// same templates at the same offsets. A mutation pinning this scan to

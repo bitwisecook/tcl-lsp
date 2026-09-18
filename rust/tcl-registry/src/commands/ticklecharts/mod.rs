@@ -29,9 +29,9 @@
 //!
 //! This pack models the class factories via [`ObjectClassSpec`] and the chart
 //! object's methods with their most-used options, so `$chart Xaxis -name …`
-//! resolves its switches through the registry (issue #748).  It is deliberately
+//! resolves its switches through the registry.  It is deliberately
 //! **staged**: the axis methods and the common series/global switches are
-//! covered; the full per-series option tables are a follow-up best produced by
+//! covered; the full per-series option tables are best produced by
 //! generating from the ticklecharts `setdef` source rather than by hand.  A
 //! method whose options are not yet modelled still resolves as a method call —
 //! its `-option value` pairs fall through to the generic option highlighting.

@@ -16,16 +16,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! CI-run bounded-growth regression test for issue #1035 (promoted from the
-//! manual `examples/edit_memory.rs` profiling harness).
+//! CI-run bounded-growth regression test guarding the query database against
+//! unbounded per-edit memory growth.
 //!
-//! #1035's root cause was `mathop_generated::specs()` /
-//! `mathfunc_generated::specs()` each `Box::leak`ing a fresh set of
-//! `&'static` strings on *every* registry rebuild — and a registry rebuild
-//! happens on every keystroke via `file_analysis_incremental`/
-//! `compiler_check_diagnostics`'s downstream compiler/optimiser paths. The
-//! fix ([`tcl_registry`]'s `OnceLock` memoisation) turned that from an
-//! unbounded per-edit leak into a one-off cost.
+//! The hazard: `mathop_generated::specs()` / `mathfunc_generated::specs()`
+//! each `Box::leak`ing a fresh set of `&'static` strings on *every* registry
+//! rebuild — and a registry rebuild happens on every keystroke via
+//! `file_analysis_incremental`/`compiler_check_diagnostics`'s downstream
+//! compiler/optimiser paths. [`tcl_registry`]'s `OnceLock` memoisation keeps
+//! that a one-off cost rather than an unbounded per-edit leak.
 //!
 //! This workspace forbids `unsafe` code (`unsafe_code = "forbid"` — see
 //! `Cargo.toml`), which rules out a hand-rolled counting `GlobalAlloc`. The
@@ -38,17 +37,16 @@
 //! ## What this test does and does not cover
 //!
 //! `memory_usage` accounts for memory the **query database owns**. It is
-//! structurally blind to heap that nothing owns — which is exactly what
-//! #1035's own root cause was: `Box::leak`ed `&'static` strings belong to
-//! no salsa ingredient, so a reverted fix would leak ~500 KiB per edit and
-//! this figure would not move at all. That class is pinned directly, by
-//! pointer identity, in `tcl-registry`'s
+//! structurally blind to heap that nothing owns: a `Box::leak`ed `&'static`
+//! string belongs to no salsa ingredient, so a reverted fix here would leak
+//! ~500 KiB per edit and this figure would not move at all. That class is
+//! pinned directly, by pointer identity, in `tcl-registry`'s
 //! `commands::tcl::mathop_generated::tests::specs_are_built_once_and_never_releaked`
 //! and its `mathfunc_generated` twin: two `specs()` calls must hand back
 //! the *same* allocations, which equal-but-freshly-leaked strings would
-//! fail. Those two tests are the #1035 regression guard; this one covers
-//! the complementary, database-owned growth they cannot see, plus a coarse
-//! resident-set companion (Linux only) that sees both.
+//! fail. Those two tests guard the `Box::leak` class directly; this one
+//! covers the complementary, database-owned growth they cannot see, plus a
+//! coarse resident-set companion (Linux only) that sees both.
 //!
 //! ## Shape of the assertion
 //!
@@ -93,8 +91,8 @@ fn total_salsa_retained_bytes(db: &TclDatabase) -> u64 {
 ///
 /// A companion, not the primary measure: it needs no allocator
 /// introspection, so unlike [`total_salsa_retained_bytes`] it *does* see
-/// heap the query database does not own — the `Box::leak` class #1035 was.
-/// It is coarse, so the bound it carries is deliberately loose.
+/// heap the query database does not own, a `Box::leak`ed `&'static` string
+/// among them. It is coarse, so the bound it carries is deliberately loose.
 fn rss_kib() -> Option<u64> {
     if !cfg!(target_os = "linux") {
         return None;
@@ -276,15 +274,14 @@ fn edit_session_memory_growth_plateaus() {
     // Warm-up (q1) populates the lazily-built caches; the steady state is
     // what every later edit should cost. A constant *linear* leak keeps all
     // four quartiles equal, so comparing the late window against warm-up
-    // rejects it however small the per-edit amount — the previous
-    // `q4 <= q2 * 4` form did not, because such a leak inflates q2 exactly
-    // as much as q4.
+    // rejects it however small the per-edit amount — a naive `q4 <= q2 * 4`
+    // form would not, because such a leak inflates q2 exactly as much as q4.
     //
     // Measured on this workspace over 10 consecutive runs, byte-identical
     // every time: q1 = 904 bytes, q2 = q3 = q4 = 0. The bound below
     // therefore keeps ~4 KiB of headroom over a zero steady state while
     // catching any leak above roughly 100 bytes per edit — three orders of
-    // magnitude under #1035's own ~500 KiB per edit.
+    // magnitude under the ~500 KiB per edit the `Box::leak` hazard produces.
     let late_window = q3 + q4;
     let late_edits = u64::from(quartile) * 2;
     // A quarter of warm-up, with a small absolute floor so a healthy zero
@@ -302,7 +299,7 @@ fn edit_session_memory_growth_plateaus() {
 
     // Companion: the same plateau in resident set size, which — unlike the
     // salsa figure — also sees heap nothing owns, so it is the half of the
-    // measurement that could catch a reverted #1035 directly. Coarse and
+    // measurement that could catch a reverted fix directly. Coarse and
     // platform-dependent, hence Linux-gated with a deliberately loose
     // bound: measured late-window growth over 10 runs was 0-32 KiB, and
     // 8 MiB still catches any leak above ~200 KiB per edit.

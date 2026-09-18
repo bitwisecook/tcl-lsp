@@ -24,11 +24,11 @@
 //! which program types its verdicts are compatible with.  The BPF-Tcl
 //! front-end (`bpf-tcl-ir`) dispatches on this descriptor — never on the
 //! command name — so the registry, lowering, capability policy, and generated
-//! documentation cannot drift (issue #1202).
+//! documentation cannot drift.
 //!
 //! The same module carries the [`BpfEventSpec`] table: the BPF-native event
-//! space `when <EVENT> …` resolves against (issue #1204's registry-described
-//! events).  Each event pairs a name and aliases with its program type, ELF
+//! space `when <EVENT> …` resolves against — the registry-described
+//! events.  Each event pairs a name and aliases with its program type, ELF
 //! section convention, verdict set, and default verdict.
 
 /// Effect classification for a BPF-Tcl operation.  Consumed by the
@@ -97,7 +97,7 @@ pub enum BpfScalarWidth {
 /// A verdict family member.
 ///
 /// Every variant except [`BpfVerdictKind::Next`] is **terminal**: it ends the
-/// handler and, under handler composition (issue #1204), stops the chain. `Next`
+/// handler and, under handler composition, stops the chain. `Next`
 /// is the sole **non-terminal** outcome — an explicit "continue to the next
 /// handler" that the composition model recognises (see
 /// [`BpfVerdictKind::is_terminal`]).
@@ -309,8 +309,8 @@ pub enum BpfEventProgType {
 
 /// How far the compiler backend supports an event today. Every event is fully
 /// *described* by its schema; a [`BpfCodegen::Ready`] event additionally lowers
-/// to a compiled program. All six current events are `Ready` (issue #1203's
-/// XDP/socket-filter targets, issue #1310's TC/cgroup targets); the
+/// to a compiled program. All six current events are `Ready` (the
+/// XDP/socket-filter and TC/cgroup targets); the
 /// `Described`-but-not-`Ready` state stays in the model for a future event
 /// whose schema lands before its codegen does — the front-end then resolves
 /// the schema and reports a precise "described, codegen pending" diagnostic
@@ -634,10 +634,9 @@ const CGROUP_PARAM: &[BpfAttachParam] = &[BpfAttachParam {
 }];
 
 /// Every BPF event the framework recognises, in documentation order. All six
-/// are codegen-ready: `SOCKET_FILTER`/`XDP` (issue #1203), then
-/// `TC_INGRESS`/`TC_EGRESS`/`CGROUP_CONNECT4`/`CGROUP_BIND4` (issue #1310's
-/// `SCHED_CLS`/`CGROUP_SOCK_ADDR` lowering, completing issue #1204's event
-/// framework).
+/// are codegen-ready: `SOCKET_FILTER`/`XDP`, then
+/// `TC_INGRESS`/`TC_EGRESS`/`CGROUP_CONNECT4`/`CGROUP_BIND4` through
+/// `SCHED_CLS`/`CGROUP_SOCK_ADDR` lowering.
 pub const BPF_EVENTS: &[BpfEventSpec] = &[
     BpfEventSpec {
         name: "SOCKET_FILTER",
@@ -879,9 +878,9 @@ mod tests {
 
     #[test]
     fn tc_and_cgroup_events_are_schema_described_and_codegen_ready() {
-        // Issue #1204: TC ingress/egress and cgroup connect/bind exist as typed
-        // registry contracts, resolvable by name/alias. Issue #1310: their
-        // codegen (SCHED_CLS / CGROUP_SOCK_ADDR) is now implemented too.
+        // TC ingress/egress and cgroup connect/bind exist as typed
+        // registry contracts, resolvable by name/alias, with SCHED_CLS /
+        // CGROUP_SOCK_ADDR codegen implemented.
         for name in ["TC_INGRESS", "TC_EGRESS", "CGROUP_CONNECT4", "CGROUP_BIND4"] {
             let e = lookup_bpf_event(name).unwrap_or_else(|| panic!("{name} missing"));
             assert_eq!(
@@ -928,9 +927,9 @@ mod tests {
 
     #[test]
     fn codegen_ready_events_are_every_described_event() {
-        // Issue #1310: TC and cgroup codegen (SCHED_CLS / CGROUP_SOCK_ADDR
-        // lowering) landed, so every registry-described event is now
-        // codegen-ready — this list grows only when a new event is added,
+        // Every registry-described event is codegen-ready (SCHED_CLS /
+        // CGROUP_SOCK_ADDR lowering covers TC and cgroup) — this list
+        // grows only when a new event is added,
         // not by dropping an existing one back to `Described`.
         assert_eq!(
             codegen_ready_event_names(),

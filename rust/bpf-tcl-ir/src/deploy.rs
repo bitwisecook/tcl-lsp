@@ -23,7 +23,7 @@
 //! resolves to an eBPF program type via the same table the event space uses, so
 //! the attach is validated against the program(s) it would govern: it must
 //! match at least one `when` block's type, and there is at most one `attach`
-//! per file (v1).
+//! per file.
 //!
 //! The result is pure metadata hung off [`crate::ir::BpfProgramDecl::attach`]
 //! for a future ELF/loader — codegen ignores it.

@@ -30,7 +30,7 @@
 //! value→value function here — the adapter only maps the result/error onto its
 //! protocol.
 //!
-//! Semantics verified against tclsh 9.0.
+//! Semantics follow tclsh 9.0.
 
 // The sorted binary search and stride/index arithmetic mirror C's `isize`/`usize`
 // index math (each cast is range-checked by the surrounding logic — list lengths
@@ -589,8 +589,6 @@ fn subindex_obj<O: ValueOps>(
     ops.new_list(out)
 }
 
-// index-path helpers
-
 /// Split an `-index` argument (a Tcl list) into its component specs.
 fn split_index(arg: &[u8]) -> Result<Vec<Vec<u8>>, LsearchError> {
     let s = str_opt(arg).ok_or_else(|| bad_index(arg))?;
@@ -648,8 +646,7 @@ mod tests {
 
     #[test]
     fn split_index_parses_list_specs() {
-        // `lsearch -index {…}` splits a Tcl list into component specs
-        // (cmd-core lsearch.rs had no unit coverage).
+        // `lsearch -index {…}` splits a Tcl list into component specs.
         assert_eq!(
             split_ok(b"0 1 2"),
             vec![b"0".to_vec(), b"1".to_vec(), b"2".to_vec()]

@@ -222,7 +222,7 @@ fn shallow_value_serialises_normally() {
 }
 
 /// The `add` builtin sums integers with `checked_add`: an overflow is a clean
-/// builtin error, never a debug panic / release wrap (issue 193).
+/// builtin error, never a debug panic / release wrap.
 #[test]
 fn add_builtin_integer_overflow_returns_error() {
     let err = eval_err("[9223372036854775807, 1] | add").expect("add overflow must error");
@@ -231,7 +231,7 @@ fn add_builtin_integer_overflow_returns_error() {
 }
 
 /// `range` whose stride steps past the i64 boundary terminates cleanly rather
-/// than overflow-panicking on `cur += step` (issue 193).
+/// than overflow-panicking on `cur += step`.
 #[test]
 fn range_stepping_past_i64_max_does_not_panic() {
     let program =
@@ -243,8 +243,7 @@ fn range_stepping_past_i64_max_does_not_panic() {
     assert_eq!(out.len(), 1, "range produces a single stream value");
 }
 
-/// Unary negation of `i64::MIN` is a clean error, not an overflow panic
-/// (issue 193).
+/// Unary negation of `i64::MIN` is a clean error, not an overflow panic.
 #[test]
 fn unary_negation_of_i64_min_returns_error() {
     let program = parse_query("- .").expect("parses");

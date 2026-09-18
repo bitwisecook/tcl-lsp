@@ -28,12 +28,14 @@ use serde::Serialize;
 use tcl_cli_support::{
     InputDocument, OutputTarget, read_input_documents, registry_for_dialect, write_text_output,
 };
-use tcl_compiler::analyser::{Analyser, Severity};
+use tcl_compiler::analyser::{Analyser, Severity, line_suppressed};
 use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
 use tcl_compiler::compiler_checks::run_all_checks;
 use tcl_compiler::unit_scope::CallSiteEvidence;
 use tcl_lexer::LineIndex;
-use tcl_lsp_core::source_style::StyleSeverity;
+use tcl_lsp_core::source_style::{
+    DEFAULT_LINE_ENDING, DEFAULT_LINE_LENGTH, StyleSeverity, style_diagnostics,
+};
 
 use crate::cli::{DiagArgs, InputArgs};
 
@@ -127,6 +129,16 @@ fn format_line(
     format!("{file}:{line}:{column}: {severity:<7} {code:<8} {message}")
 }
 
+/// The `suppressed_lines` key for a 0-based source line.
+///
+/// The analyser keys that map with `i32` (line `-1` is the file-wide
+/// directive), so a `u32` line has to be narrowed. Saturating rather than
+/// panicking: a line number that far out cannot be a key in the map, so it
+/// simply never matches.
+fn line_of(line: u32) -> i32 {
+    i32::try_from(line).unwrap_or(i32::MAX)
+}
+
 /// One collected diagnostic, pre-resolved to a 1-based line / column.
 struct Row {
     line: u32,
@@ -137,13 +149,13 @@ struct Row {
 }
 
 /// Cross-file call-site evidence across every input document, plus the
-/// project-wide procedure-name set the scan resolved against (issue #977).
+/// project-wide procedure-name set the scan resolved against.
 ///
 /// `tcl diag a.tcl b.tcl` is a multi-file compilation just as much as the
 /// editor's workspace is: without this, `a.tcl` would fold a parameter that
 /// `b.tcl` calls with a different literal.  `None` for a single input — one
-/// file is not a project, and asserting a closed world from it would be the
-/// very claim issue #977 is about.
+/// file is not a project, and asserting a closed world from it would be
+/// wrong.
 fn cross_file_call_site_evidence(
     documents: &[InputDocument],
     dialect_override: Option<&'static tcl_dialect::DialectProfile>,
@@ -165,9 +177,20 @@ fn cross_file_call_site_evidence(
     let mut merged = CallSiteEvidence::default();
     for document in documents {
         let dialect = document.effective_dialect(dialect_override);
+        let source = document.analysis_source();
+        let file_path = document.path.as_deref().map(|p| p.display().to_string());
+        // Each file's call sites are read on its *own* command surface: a
+        // stub declared there names the callbacks and script bodies this scan
+        // must credit, exactly as the catalogue does for a shipped command.
+        let declared = tcl_compiler::analyser::utils::document_declared_surface(
+            &source,
+            file_path.as_deref(),
+            dialect.name,
+        );
         merged.merge_from(&tcl_compiler::unit_scope::scan_source_call_sites(
-            &document.analysis_source(),
+            &source,
             &registry_for_dialect(dialect.name),
+            Some(&declared),
             dialect,
             &known,
             &reach,
@@ -191,13 +214,41 @@ fn document_proc_names(
     .collect()
 }
 
+/// Append the `SslicTcl` loader's own `SSLIC1xxx` findings, the same
+/// projection the server publishes.
+///
+/// It reads the same normalised `source` and maps through the same
+/// `line_index` as every other code here, rather than normalising separately
+/// for itself while every other code reads the raw form.
+fn push_sslictcl_rows(
+    rows: &mut Vec<Row>,
+    source: &str,
+    line_index: &LineIndex,
+    disabled: &HashSet<String>,
+    suppressed_lines: &std::collections::HashMap<i32, HashSet<String>>,
+) {
+    for d in tcl_lsp_core::sslictcl_diagnostics::diagnostics(source, disabled, suppressed_lines) {
+        let pos = line_index.position_at_utf16(d.span.start(), source);
+        rows.push(Row {
+            line: pos.line + 1,
+            column: pos.character.get() + 1,
+            severity: d.severity,
+            code: d.code.to_string(),
+            message: d.message,
+        });
+    }
+}
+
 /// Collect every diagnostic the editor surfaces for one document: the analyser's
-/// syntactic / semantic checks plus the compiler-checks pass (shimmer `S1xx`,
-/// taint `T1xx` / `W2xx`, iRules data-flow). Mirrors the server's
-/// `lift_analyser_diagnostics` + `lift_compiler_diagnostics` concatenation so the
-/// CLI and the editor report the same set. Optimiser `O1xx` rewrites are the
-/// domain of the `optimise` verb, so they are dropped here — the same split the
-/// server draws with its optimiser toggle. Rows come back in a deterministic
+/// syntactic / semantic checks, the compiler-checks pass (shimmer `S1xx`, taint
+/// `T1xx` / `W2xx`, iRules data-flow), and the source-text pass (`W111` line
+/// length, `W112` trailing whitespace, `W115` comment continuation, `W118` line
+/// endings, plus the byte-backed `W107` / `W109` integrity checks). Mirrors the
+/// server's `lift_analyser_diagnostics` + `lift_compiler_diagnostics` +
+/// `lift_source_style_diagnostics` concatenation so the CLI and the editor
+/// report the same set. Optimiser `O1xx` rewrites are the domain of the
+/// `optimise` verb, so they are dropped here — the same split the server draws
+/// with its optimiser toggle. Rows come back in a deterministic
 /// `(line, column, code)` order; `disabled` removes `--disable`d codes.
 fn collect_rows(
     document: &InputDocument,
@@ -209,47 +260,47 @@ fn collect_rows(
     // `InputDocument::analysis_source`. `LineIndex` is built over it too:
     // `LineIndex::new(normalise_lone_cr(t))` is byte-identical to
     // `LineIndex::new_lsp(t)`, so the lexer's line model and the client's
-    // coincide (issue #1799).
+    // coincide.
     let source = document.analysis_source();
     let source = source.as_ref();
     let line_index = LineIndex::new(source);
     let mut rows: Vec<Row> = Vec::new();
 
-    // Byte-backed source integrity first (issue #1326): W107 / W109 say whether
-    // the text below is the file on disk at all, so they belong ahead of
-    // anything derived from it. W305 comes from the analyser below. When the
-    // file is not UTF-8 text, the byte-backed diagnostics are all we report —
-    // abstaining is the honest answer, and it is what turns a
-    // three-line UTF-16 iRule from 87 nonsense findings into one accurate one.
-    for d in document.encoding_diagnostics() {
-        if disabled.contains(d.code) {
-            continue;
-        }
-        rows.push(Row {
-            line: d.range.start_line + 1,
-            column: d.range.start_character + 1,
-            severity: match d.severity {
-                StyleSeverity::Warning => Severity::Warning,
-                StyleSeverity::Hint => Severity::Hint,
-            },
-            code: d.code.to_owned(),
-            message: d.message,
-        });
-    }
+    // A file-level `# tcl-lsp: disable=…` directive silences a code for every
+    // pass, so it joins the `--disable` set the way the server's style lift
+    // unions the analyser's file-level bucket into its own disabled set. The
+    // analyser folds the same directive into its internal set for its own
+    // codes; the passes below it need it explicitly.
+    let mut disabled = disabled.clone();
+    disabled.extend(tcl_compiler::analyser::utils::parse_file_suppression(
+        source,
+    ));
+    let disabled = &disabled;
+
     if document.abstains_on_encoding() {
-        return rows;
+        return abstained_rows(document, disabled);
     }
 
     // One compilation unit for both consumers, built with whatever cross-file
-    // call-site evidence the caller gathered (issue #977).  The analyser's
+    // call-site evidence the caller gathered.  The analyser's
     // CFG/SSA tail would otherwise build its **own** unit — with no evidence —
     // and its I230 / I231 constant-branch findings would disagree with the
     // compiler-checks pass below.  The document's own environment grammar
     // matches what `emit_cfg_ssa_diagnostics` builds for itself, mirroring the
-    // server's `set_cu_override` seam in `tcl_lsp_db::analyse_per_item_with`
-    // (redesign §11.4 row E1: it used to be `LexerConfig::default()` on all
-    // four hosts — agreeing, but wrong for every non-9.x dialect).
+    // server's `set_cu_override` seam in `tcl_lsp_db::analyse_per_item_with`.
+    // Falling back to `LexerConfig::default()` on all four hosts would make
+    // them agree, but wrongly, for every non-9.x dialect.
     let registry = registry_for_dialect(dialect.name);
+    let file_path = document.path.as_deref().map(|p| p.display().to_string());
+    // The document's own stub declarations, ingested exactly as the analyser
+    // does — the unit supplied through the `cu_override` seam must declare
+    // what the analyser's own unit would, or a stubbed command's argument
+    // roles would reach one of the two and not the other.
+    let declared = tcl_compiler::analyser::utils::document_declared_surface(
+        source,
+        file_path.as_deref(),
+        dialect.name,
+    );
     let analysis_cu = std::sync::Arc::new(CompilationUnit::build_with_options(
         source,
         UnitBuildOptions {
@@ -258,10 +309,10 @@ fn collect_rows(
             config: tcl_lexer::LexerConfig::for_profile(Some(dialect)),
             dialect: Some(dialect),
             external_call_sites,
+            declared_commands: Some(&declared),
         },
     ));
 
-    let file_path = document.path.as_deref().map(|p| p.display().to_string());
     let mut analyser = Analyser::new()
         .with_file_path(file_path)
         .with_pack_overlay(tcl_cli_support::spec_pack_key(dialect.name));
@@ -282,6 +333,13 @@ fn collect_rows(
             continue;
         }
         let pos = line_index.position_at_utf16(d.span.start(), source);
+        // Inline `# noqa` / top-of-file `# tcl-lsp: disable=…` suppression: the
+        // analyser records `suppressed_lines` without filtering by it, so the
+        // surface rendering a finding applies the contract. `pos.line` is the
+        // 0-based line the map is keyed by (`Row` adds the 1 for display).
+        if line_suppressed(d.code.as_str(), line_of(pos.line), &result.suppressed_lines) {
+            continue;
+        }
         rows.push(Row {
             line: pos.line + 1,
             column: pos.character.get() + 1,
@@ -295,9 +353,9 @@ fn collect_rows(
     // `compiler_check_diagnostics`. Built once per document; `diag` is a batch
     // verb, not latency-sensitive.
     // The checks pass lowers under the document's own environment grammar,
-    // which is now what the analyser tail above built under too — so the unit
+    // which is what the analyser tail above builds under too — so the unit
     // is always reused, exactly as the server's shared `compilation_unit`
-    // query now shares for every environment (redesign §11.4 row E1).
+    // query shares it for every environment.
     let cu = analysis_cu.as_ref();
     let dialect_opt = Some(dialect);
     for d in run_all_checks(cu, &registry, dialect_opt) {
@@ -305,6 +363,11 @@ fn collect_rows(
             continue;
         }
         let pos = line_index.position_at_utf16(d.span.start(), source);
+        // Same suppression the server's `lift_compiler_diagnostics` applies to
+        // this family.
+        if line_suppressed(d.code.as_str(), line_of(pos.line), &result.suppressed_lines) {
+            continue;
+        }
         rows.push(Row {
             line: pos.line + 1,
             column: pos.character.get() + 1,
@@ -314,32 +377,91 @@ fn collect_rows(
         });
     }
 
-    // The `SslicTcl` loader's own `SSLIC1xxx` findings, the same projection the
-    // server publishes. It reads the same normalised `source` and maps through
-    // the same `line_index` as every other code here — the loader used to
-    // normalise for itself (#1794), which was correct but left every other code
-    // on the raw form.
     if sslictcl {
-        for d in tcl_lsp_core::sslictcl_diagnostics::diagnostics(
+        push_sslictcl_rows(
+            &mut rows,
             source,
+            &line_index,
             disabled,
             &result.suppressed_lines,
-        ) {
-            let pos = line_index.position_at_utf16(d.span.start(), source);
-            rows.push(Row {
-                line: pos.line + 1,
-                column: pos.character.get() + 1,
-                severity: d.severity,
-                code: d.code.to_string(),
-                message: d.message,
-            });
-        }
+        );
     }
+
+    rows.extend(style_rows(
+        document,
+        dialect,
+        disabled,
+        &result.suppressed_lines,
+    ));
 
     rows.sort_by(|a, b| {
         (a.line, a.column, a.code.as_str()).cmp(&(b.line, b.column, b.code.as_str()))
     });
     rows
+}
+
+/// The only findings a document whose bytes are not UTF-8 text may carry: the
+/// byte-backed W107 / W109 integrity codes.
+///
+/// Everything derived from the decoded text would be about decoding artefacts
+/// rather than about the user's code, pointing at positions the file does not
+/// have. One accurate finding beats a three-line UTF-16 iRule's 87 wrong ones.
+fn abstained_rows(document: &InputDocument, disabled: &HashSet<String>) -> Vec<Row> {
+    // `*` is the "every code" spelling a `# tcl-lsp: disable=*` directive
+    // records, and it governs this family as it governs every other — the same
+    // gate `source_style::style_diagnostics` applies to these codes on the
+    // path this one stands in for.
+    let enabled = |code: &str| !disabled.contains("*") && !disabled.contains(code);
+    document
+        .encoding_diagnostics()
+        .into_iter()
+        .filter(|d| enabled(d.code))
+        .map(style_row)
+        .collect()
+}
+
+/// The source-text findings for `document`: W111 line length, W112 trailing
+/// whitespace, W115 comment continuation, W118 line endings, and the
+/// byte-backed W107 / W109 integrity checks.
+///
+/// Reads `document.source` — the bytes as read, not the analysis form — because
+/// W118 is the one lint whose subject *is* the line terminators; the pass
+/// normalises internally for the line-oriented lints, so their line numbers
+/// still key `suppressed`. The line length and expected ending are the
+/// server's defaults: the CLI has no per-document style settings to resolve.
+fn style_rows(
+    document: &InputDocument,
+    dialect: &'static tcl_dialect::DialectProfile,
+    disabled: &HashSet<String>,
+    suppressed: &std::collections::HashMap<i32, HashSet<String>>,
+) -> Vec<Row> {
+    style_diagnostics(
+        &document.source,
+        DEFAULT_LINE_LENGTH,
+        DEFAULT_LINE_ENDING,
+        disabled,
+        suppressed,
+        Some(&document.decode),
+        dialect,
+    )
+    .into_iter()
+    .map(style_row)
+    .collect()
+}
+
+/// One source-text finding as a [`Row`], resolving its 0-based position to the
+/// 1-based line / column every other row carries.
+fn style_row(d: tcl_lsp_core::source_style::StyleDiagnostic) -> Row {
+    Row {
+        line: d.range.start_line + 1,
+        column: d.range.start_character + 1,
+        severity: match d.severity {
+            StyleSeverity::Warning => Severity::Warning,
+            StyleSeverity::Hint => Severity::Hint,
+        },
+        code: d.code.to_owned(),
+        message: d.message,
+    }
 }
 
 /// `tcl diag` / `tcl lint` — report every diagnostic across all inputs.

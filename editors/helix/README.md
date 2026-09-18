@@ -120,7 +120,7 @@ indent = { tab-width = 4, unit = "    " }
 language-servers = ["tcl-lsp"]
 auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
 
-# EDA tooling. The file types are the ones the dialect catalog owns; a vendor
+# EDA tooling. The file types are the ones the dialect catalogue owns; a vendor
 # script saved as plain `.tcl` still needs a `# tcl-dialect:` comment or the
 # `dialect` setting, since `.tcl` itself names no vendor.
 [[language]]

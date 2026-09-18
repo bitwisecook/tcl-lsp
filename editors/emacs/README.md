@@ -32,7 +32,7 @@ Add to your `init.el`:
 (define-derived-mode f5-tmsh-mode   tcl-mode "tmsh")
 (define-derived-mode expect-mode    tcl-mode "Expect")
 
-;; The extensions each profile owns in the dialect catalog.
+;; The extensions each profile owns in the dialect catalogue.
 (add-to-list 'auto-mode-alist '("\\.irul\\(es?\\)?\\'" . f5-irules-mode)) ; .irul / .irule / .irules
 (add-to-list 'auto-mode-alist '("\\.\\(iapp\\|iappimpl\\|impl\\)\\'" . f5-iapps-mode))
 (add-to-list 'auto-mode-alist '("\\.apl\\'"            . f5-iapps-mode)) ; the iApp presentation language
@@ -107,7 +107,7 @@ generated; this README is prose beside it.
 ### Eglot semantic-tokens highlighting goes stale until file reload
 
 **Symptoms:** after making edits, syntax highlighting becomes wrong —
-identifiers show colors that don't match their actual token type, or
+identifiers show colours that don't match their actual token type, or
 highlighting visibly degrades the more you edit. Saving (`C-x C-s`)
 does not fix it. Reverting the buffer (`M-x revert-buffer`) or closing
 and reopening the file does fix it.

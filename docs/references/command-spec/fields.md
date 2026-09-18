@@ -413,7 +413,7 @@ Separates *when* a script runs from `body_kind`, which says only which frame it 
 
 *nested OptionArg field* — User-controlled callback substitutions that must be treated as taint sources.
 
-Lists only callback substitutions whose bytes are externally controlled. For Tk validation, `%P`, `%s`, and `%S` carry editable text; for key bindings, `%A` and `%K` carry the typed character or keysym. Do not declare widget paths, indices, validation actions, or reasons (`%W`, `%i`, `%d`, `%V`) here: those are framework metadata, not taint sources. The callback must be deferred; dynamic script construction remains intentionally unanalyzed. In SpecTcl, write an option's `-callback-taint-inputs {%P %S}` or the positional `callback_taint_inputs {{INDEX {%A %K}}}` table.
+Lists only callback substitutions whose bytes are externally controlled. For Tk validation, `%P`, `%s`, and `%S` carry editable text; for key bindings, `%A` and `%K` carry the typed character or keysym. Do not declare widget paths, indices, validation actions, or reasons (`%W`, `%i`, `%d`, `%V`) here: those are framework metadata, not taint sources. The callback must be deferred; dynamic script construction remains intentionally unanalysed. In SpecTcl, write an option's `-callback-taint-inputs {%P %S}` or the positional `callback_taint_inputs {{INDEX {%A %K}}}` table.
 
 ## Behaviour
 
@@ -613,7 +613,7 @@ How attacker-influenced data flows through the command: whether it is a source (
 
 *command and subcommand* — User-controlled substitutions injected into deferred positional callback arguments.
 
-Lists only callback substitutions whose bytes are externally controlled. For Tk validation, `%P`, `%s`, and `%S` carry editable text; for key bindings, `%A` and `%K` carry the typed character or keysym. Do not declare widget paths, indices, validation actions, or reasons (`%W`, `%i`, `%d`, `%V`) here: those are framework metadata, not taint sources. The callback must be deferred; dynamic script construction remains intentionally unanalyzed. In SpecTcl, write an option's `-callback-taint-inputs {%P %S}` or the positional `callback_taint_inputs {{INDEX {%A %K}}}` table.
+Lists only callback substitutions whose bytes are externally controlled. For Tk validation, `%P`, `%s`, and `%S` carry editable text; for key bindings, `%A` and `%K` carry the typed character or keysym. Do not declare widget paths, indices, validation actions, or reasons (`%W`, `%i`, `%d`, `%V`) here: those are framework metadata, not taint sources. The callback must be deferred; dynamic script construction remains intentionally unanalysed. In SpecTcl, write an option's `-callback-taint-inputs {%P %S}` or the positional `callback_taint_inputs {{INDEX {%A %K}}}` table.
 
 ### `taint_output_sink` — Output-sink code
 
@@ -662,6 +662,12 @@ Declares the command's *result* as attacker-influenced — the way `HTTP::header
 *command and subcommand* — Colour bits the command adds to a tainted value it returns.
 
 Declares the command a *sanitiser* or encoder: the colours it adds to a value passing through. An HTML-escaper adds `HTML_ESCAPED`; `file join` adds path colours; a validator that proves "this is an IP address" adds `IP_ADDRESS`. A sink that requires a given colour then accepts the cleaned value — this is how "escaped before output" is recognised.
+
+### `taint_transform_when` — Transform condition
+
+*command and subcommand* — Argument-shape proof a call must pass before the transform colour is claimed.
+
+For a command whose sanitising effect comes from the *literal it was given* rather than from the command itself: the argument-shape proof a call must pass before the transform colour is claimed. `string map` with a mapping that deletes CR and LF proves `CRLF_FREE`; the same command with any other mapping proves nothing, so the colour is claimed per call, not per command.
 
 ### `taint_double_encode_colour` — Double-encode colour
 
@@ -766,6 +772,12 @@ The dynamic sibling of the command-prefix positions: a hook for when *which* wor
 *command and subcommand* — Callback assigning SameInvocation, Deferred, or ReferenceOnly to executable positions from the actual argument list.
 
 The dynamic sibling of per-option `script_timing`: use it when the same executable position runs now in one invocation shape but is stored in another, as with `send -async`. It emits an exact index plus `SameInvocation`, `Deferred`, or `ReferenceOnly`; the index must already be a `Body`, `LambdaLiteral`, or `CommandPrefix`. Silence leaves the option timing or command-level compatibility fallback in force. In SpecTcl the body calls `timing IDX SameInvocation|Deferred|ReferenceOnly`.
+
+### `substitution_resolver` — Substitution resolver
+
+*command only* — Callback reporting which of backslash, command and variable substitution this call runs over its own argument text, for a PERFORMS_SUBSTITUTION command whose switches change the answer. Absent means every kind on every call.
+
+The per-call sibling of the `PERFORMS_SUBSTITUTION` trait: use it when switches decide *which* of backslash, command and variable substitution the call runs over its own argument, as with `subst -novariables`. The trait alone tells a consumer only that some substitution happens, which is not enough to answer "does this argument read a variable?". Silence means every kind on every call, and a call the resolver cannot read must answer every kind — assuming a substitution does not happen is what loses a real read.
 
 ### `command_forms` — Invocation refinements
 
@@ -1497,6 +1509,14 @@ The registry's behavioural vocabulary — one flag per fact a consumer might nee
 | `TK_GEOMETRY_MANAGER` | a Tk geometry manager |
 | `DEFERS_BODY` | stores its script argument instead of running it; unset means the body is treated as executed |
 | `DEFINITION_BODY_MEMBER_ONLY` | legal only inside a definition body that declares it as a member |
+
+### Transform conditions
+
+The argument-shape proofs a command can require before its taint transform colour is claimed. A command whose sanitising effect comes from the literal it was given — `string map` with a mapping that deletes CR and LF — earns its colour call by call, not once for the command.
+
+| Value | Meaning |
+|---|---|
+| `MappingDeletesCrlf` | the call's braced mapping provably deletes every CR and LF (`string map`) |
 
 ### Value types
 

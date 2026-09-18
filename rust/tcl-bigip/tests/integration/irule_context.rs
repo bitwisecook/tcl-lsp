@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! iRule context regressions that require the executable inventory.
+//! Tests for iRule context resolution that require the executable inventory.
 
 use tcl_bigip::irule_context::build_irule_context;
 use tcl_bigip::model::ModelObject;

@@ -29,8 +29,6 @@ use crate::common::helpers::*;
 use crate::common::{Lsp, unique_uri};
 use std::time::Duration;
 
-// -- TestProcReferences --------------------------------------------------
-
 #[test]
 fn find_proc_definition_and_calls() {
     let mut lsp = Lsp::tcl();
@@ -60,11 +58,11 @@ fn find_indented_proc_call() {
     assert!(start_lines(&lsp.references(&uri, 0, 6, true)).contains(&1));
 }
 
-/// idx=9 (differential-audit main wave, high severity): a cursor placed
+/// A cursor placed
 /// directly on a variable's own bareword declaration/write token (a proc
 /// parameter, or a `catch script name` result-var reusing an existing
-/// variable) previously returned zero references, even though the same
-/// query from any `$name` read of the same variable resolved the full set.
+/// variable) must return the full reference set, the same as the same
+/// query from any `$name` read of the same variable.
 #[test]
 fn find_references_from_proc_param_bareword_declaration() {
     let mut lsp = Lsp::tcl();
@@ -91,12 +89,10 @@ fn find_references_from_catch_resultvar_bareword_include_the_original_declaratio
     );
 }
 
-/// Issue #923 idx 48 — the two declaring tokens the finding actually named,
-/// which the e2e tier covered only by proxy (a proc parameter, a `catch`
-/// result variable): a `set` left-hand side and a `foreach` loop variable.
-/// The query anchored on the bare declaring word must return exactly what the
-/// same query anchored on a `$name` read returns; anything less is the
-/// asymmetry the finding reported.
+/// Two more declaring tokens, beyond the proc parameter and `catch` result
+/// variable above: a `set` left-hand side and a `foreach` loop variable.
+/// The query anchored on the bare declaring word must return exactly what
+/// the same query anchored on a `$name` read returns.
 ///
 /// Oracle — tclsh 8.6.16 and 9.0.4: `set y 10; puts $y; puts $y` prints
 /// `10` twice, so all three tokens name one cell.
@@ -123,7 +119,7 @@ fn find_references_from_a_set_lhs_bareword_matches_the_read_anchored_query() {
     );
 }
 
-/// The `foreach` loop-variable half of idx 48, in the shape `etsb.tcl` writes:
+/// The `foreach` loop-variable half, in the shape `etsb.tcl` writes:
 /// the loop variable is declared bare and then read through `${cmd}` inside a
 /// `subst`ed proc body and a trace's `[list …]` prefix.
 ///
@@ -177,12 +173,12 @@ fn find_proc_call_in_nested_braced_body() {
     assert!(start_lines(&lsp.references(&uri, 0, 6, true)).contains(&2));
 }
 
-/// idx=61 (differential-audit main wave, critical severity): `if {$cond}
+/// `if {$cond}
 /// mymod::foo` — an unbraced (bareword) if-body — is a legitimate,
 /// statically-known zero-arg call, exactly like a braced `{ mymod::foo }`
-/// body. `dispatch_body_arguments` previously only ever recursed a *braced*
-/// body into `command_invocations`, so this call site was invisible to
-/// `references` while `definition`/`hover` still resolved it fine (they
+/// body. `dispatch_body_arguments` must recurse an unbraced body into
+/// `command_invocations` too, or this call site is invisible to
+/// `references` while `definition`/`hover` still resolve it fine (they
 /// walk independently off the cursor token).
 #[test]
 fn find_unbraced_if_body_bareword_call_site() {
@@ -197,10 +193,10 @@ fn find_unbraced_if_body_bareword_call_site() {
     );
 }
 
-/// Same root cause, the finding's other confirmed shape: `uplevel 1
+/// The same hazard: `uplevel 1
 /// mymod::qux` (unbraced). `handle_uplevel_command` only special-cases a
 /// braced body and otherwise falls through to the same generic
-/// `ArgRole::Body` dispatch this fix covers.
+/// `ArgRole::Body` dispatch.
 #[test]
 fn find_unbraced_uplevel_body_bareword_call_site() {
     let mut lsp = Lsp::tcl();
@@ -230,11 +226,11 @@ fn qualified_calls_do_not_cross_namespace() {
     assert!(!lines.contains(&9), "{lines:?}");
 }
 
-// -- Issue #923: fully-qualified / relative names in namespaces nested
-// two or more levels deep. Regression coverage over the full JSON-RPC
-// protocol (not just the tcl-lsp-core unit-test harness) for a bug where a
-// bareword call from inside a namespace nested 2+ levels deep was resolved
-// as if it were at the top level and never matched its own proc.
+// Fully-qualified / relative names in namespaces nested
+// two or more levels deep, over the full JSON-RPC protocol (not just the
+// tcl-lsp-core unit-test harness): a bareword call from inside a namespace
+// nested 2+ levels deep must resolve to its own proc, not one at the top
+// level.
 
 #[test]
 fn find_qualified_proc_call_in_two_level_nested_namespace() {
@@ -317,8 +313,6 @@ fn qualified_calls_do_not_cross_two_level_nested_namespace() {
     assert!(lines_cd.contains(&8), "{lines_cd:?}");
 }
 
-// -- TestVariableReferences ----------------------------------------------
-
 #[test]
 fn find_var_refs() {
     let mut lsp = Lsp::tcl();
@@ -381,8 +375,6 @@ fn var_refs_respect_shadowing_local_target() {
     assert_eq!(s, expected);
 }
 
-// -- TestClassSuperclassMixinReferences ----------------------------------
-
 #[test]
 fn superclass_and_mixin_references() {
     let mut lsp = Lsp::tcl();
@@ -415,21 +407,22 @@ fn references_object_variable_unify_across_methods() {
     );
 }
 
-/// idx 32 (differential-audit main audit wave, high severity): a `TclOO`
+/// A `TclOO`
 /// class body with TWO separate `variable` statements (the real corpus
 /// shape — `georgtree_tclopt`'s `::tclopt::Mpfit` declares `variable funct
-/// m ftol ...` then, separately, `variable Pars`). The analyser's
-/// per-statement handler assigned `class_def.variables = sub_args.to_vec()`
-/// instead of accumulating, so the second statement silently discarded
-/// every name the first one declared — only the names in the LAST
-/// `variable` statement stayed resolvable, even though tclsh9.0 proves
-/// both statements' names are simultaneously live instance variables.
+/// m ftol ...` then, separately, `variable Pars`) needs its per-statement
+/// handler to accumulate names across statements rather than assign
+/// `class_def.variables = sub_args.to_vec()` per statement — that would
+/// let the second statement silently discard every name the first one
+/// declared, leaving only the names in the LAST `variable` statement
+/// resolvable, even though tclsh 9.0 proves both statements' names are
+/// simultaneously live instance variables.
 #[test]
 fn references_reach_instance_variable_declared_in_a_non_last_variable_statement() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    // line 1: variable funct (the FIRST, previously-discarded statement);
-    // line 2: variable Pars (the LAST, previously-surviving statement);
+    // line 1: variable funct (from the first `variable` statement);
+    // line 2: variable Pars (from the second `variable` statement);
     // line 3: `$funct`/`$Pars` both used in `run`.
     let src = "oo::class create Mpfit {\n    variable funct\n    variable Pars\n    method run {} { return [list $Pars $funct] }\n}\n";
     lsp.open_ready(&uri, src);
@@ -502,15 +495,15 @@ fn references_do_not_cross_between_unrelated_proc_and_mathfunc_override() {
     );
 }
 
-/// idx 68 (differential-audit main audit wave, high severity, pix corpus):
-/// reduces the real `isEqual`/`tolComp` shape from nico-robert/pix's
+/// Reduces the real `isEqual`/`tolComp` shape from nico-robert/pix's
 /// `test/data_b64.test` — a proc aliases a top-level cell via `global`, and a
 /// caller overrides it via a plain `set ::name` before invoking the proc.
 /// tclsh proves `tolComp` (via `global`) and `::tolComp` (the caller's
-/// `set`) are the identical storage cell; previously, Find-References from
-/// either side reached only its own half, so Rename (which shares the same
-/// helper) would silently decouple the two, leaving the caller's override
-/// unreachable and `isEqual` falling back to its hardcoded default.
+/// `set`) are the identical storage cell, so Find-References from
+/// either side must reach both halves — otherwise Rename (which shares the
+/// same helper) would silently decouple the two, leaving the caller's
+/// override unreachable and `isEqual` falling back to its hardcoded
+/// default.
 #[test]
 fn references_unify_a_procs_global_alias_with_the_callers_canonical_set() {
     let mut lsp = Lsp::tcl();
@@ -534,17 +527,15 @@ fn references_unify_a_procs_global_alias_with_the_callers_canonical_set() {
     );
 }
 
-/// idx 71 (differential-audit main audit wave, high severity, pix corpus):
-/// reduces nico-robert/pix's `test_context.test` (`source [file join [file
+/// Reduces nico-robert/pix's `test_context.test` (`source [file join [file
 /// dirname [info script]] data_b64.test]`, then calls `isEqual` bare) to a
-/// literal-`source` control shape — the finding's own control repro proved
-/// the identical bug reproduces with a trivial `source lib.tcl`, no
-/// `[info script]` at all. `main.tcl` sources `lib.tcl` (which declares
-/// `helper`) and calls `helper` itself; `main.tcl` has no local declaration
-/// of `helper` to anchor `cross_document_references`'s exclusion of the
-/// current document on, so the call under the cursor — in the very
-/// document the query was issued from — was previously dropped entirely,
-/// returning only `lib.tcl`'s declaration.
+/// literal-`source` control shape — a trivial `source lib.tcl`, no
+/// `[info script]`, reproduces the identical shape. `main.tcl` sources
+/// `lib.tcl` (which declares `helper`) and calls `helper` itself;
+/// `main.tcl` has no local declaration of `helper` to anchor
+/// `cross_document_references`'s exclusion of the current document on, so
+/// the call under the cursor — in the very document the query was issued
+/// from — must not be dropped, returning only `lib.tcl`'s declaration.
 #[test]
 fn references_reach_the_current_documents_own_call_when_it_has_no_local_declaration() {
     let mut lsp = Lsp::tcl();
@@ -563,11 +554,11 @@ fn references_reach_the_current_documents_own_call_when_it_has_no_local_declarat
     assert_eq!(lines.len(), 2, "{lines:?}");
 }
 
-/// idx 21 (differential-audit main audit wave): `interp alias {} sayHi {}
+/// `interp alias {} sayHi {}
 /// greet` makes every `[sayHi]` a real call site of `greet` — tclsh 9.0.4
 /// and 8.6.16 both execute `greet`'s body twice for the two calls below.
-/// Find-references never consulted the alias table, so a user asking whether
-/// `greet` was safe to delete was told it had no callers.
+/// Find-references must consult the alias table, or a user asking whether
+/// `greet` was safe to delete would be told it had no callers.
 #[test]
 fn references_include_call_sites_spelled_through_an_alias() {
     let mut lsp = Lsp::tcl();
@@ -604,8 +595,7 @@ fn references_from_an_alias_call_site_offer_the_targets_sites() {
     );
 }
 
-/// idx 89 (differential-audit): the query direction that was still wrong
-/// after go-to-definition was fixed — from the SHADOWED original proc's own
+/// The query direction from the SHADOWED original proc's own
 /// declaration.
 ///
 /// Oracle, byte-identical on tclsh 9.0.4 and 8.6.16: the script prints
@@ -660,7 +650,7 @@ fn references_include_call_sites_spelled_through_a_punctuation_alias() {
     );
 }
 
-/// The idx 89 document, shared by the tests above.  Line 2 declares the proc
+/// The document shared by the tests above.  Line 2 declares the proc
 /// the alias on line 4 displaces; line 5 is the call that really runs
 /// `::tk::spinbox`.
 const ALIAS_SHADOW_SRC: &str = concat!(
@@ -672,7 +662,7 @@ const ALIAS_SHADOW_SRC: &str = concat!(
     "::ttk::spinbox .sb -from 0 -to 100\n",
 );
 
-/// idx 92 (differential-audit main audit wave): the `[namespace code [list
+/// The `[namespace code [list
 /// ProcName]]` callback wrapper Tk's own `library/fontchooser.tcl` uses ten
 /// times. tclsh 9.0.4 and 8.6.16 both report the installed trace as
 /// `{write {::namespace inscope ::demo Tracer}}` and really dispatch
@@ -694,15 +684,15 @@ fn references_reach_a_namespace_code_list_wrapped_callback() {
     );
 }
 
-/// idx 63 (differential-audit main audit wave, high severity): a `my
+/// A `my
 /// methodName` call written inside a `switch` arm body is a genuine,
-/// statically-known call site (tclsh9.0/8.6-verified) — the real corpus
+/// statically-known call site (tclsh 9.0/8.6-verified) — the real corpus
 /// shape (`ticklecharts::chart`'s `Add` dispatcher: `switch ... {
 /// barSeries { my AddBarSeries {*}$args } ... }`). `scan_my_method_region`'s
-/// `[...]`-substitution recursion never reached a switch arm's braced body
-/// (it isn't a command substitution), so this was invisible to
+/// `[...]`-substitution recursion must reach a switch arm's braced body too
+/// (it isn't a command substitution), or this is invisible to
 /// find-references even though go-to-definition (an independent
-/// cursor-token walk) already resolved it.
+/// cursor-token walk) already resolves it.
 #[test]
 fn references_reach_a_my_dispatch_call_inside_a_switch_arm() {
     let mut lsp = Lsp::tcl();
@@ -721,10 +711,10 @@ fn references_reach_a_my_dispatch_call_inside_a_switch_arm() {
     );
 }
 
-/// Issue #1108: a registry `VarRead`-role name word is a use site.  A variable
+/// A registry `VarRead`-role name word is a use site.  A variable
 /// is read by more than `$name` — tclsh 9.0.4 / 8.6.16 both print `1` for
 /// `proc f {} {set m 1; puts [set m]; puts [info exists m]}; f`, so both bare
-/// `m` words really do read the cell.  Find References reported neither.
+/// `m` words really do read the cell.  Find References must report both.
 #[test]
 fn references_reach_a_var_read_role_name_word() {
     let mut lsp = Lsp::tcl();
@@ -752,11 +742,11 @@ fn references_reach_a_var_read_role_name_word() {
     }
 }
 
-/// Issue #1138 idx 102: `::tk::SourceLibFile`'s `$file` read lives inside a
+/// `::tk::SourceLibFile`'s `$file` read lives inside a
 /// `[list …]`-built `namespace eval` body.  The `[…]` is evaluated in the
 /// proc's own frame before `namespace eval` enters `::`, so the read is an
-/// ordinary use of the parameter — but the namespace scope had claimed those
-/// bytes, and find-references answered nothing.
+/// ordinary use of the parameter, even though the namespace scope claims
+/// those bytes — find-references must not answer nothing.
 #[test]
 fn references_reach_a_parameter_read_inside_a_list_built_namespace_body() {
     let mut lsp = Lsp::tcl();
@@ -777,7 +767,7 @@ fn references_reach_a_parameter_read_inside_a_list_built_namespace_body() {
     );
 }
 
-/// Issue #1132: `set ns [namespace qualifiers ::tc::X]` folds through the
+/// `set ns [namespace qualifiers ::tc::X]` folds through the
 /// analyser's constant lattice (the registry `const_fold` engine), so the
 /// `${ns}::setdef` head resolves and find-references reaches the indirect
 /// call site — the ticklecharts navigation chain's `set`-RHS hop.
@@ -817,7 +807,7 @@ fn references_do_not_reach_the_indirect_site_when_the_head_is_renamed() {
     );
 }
 
-// Issue #1116 item 1 — find-references over the two-file `-force` shadow.
+// Find-references over the two-file `-force` shadow.
 //
 // The importing document is byte-identical in both tests; only the presence of
 // `namespace eval ::src {namespace export helper}` in a sibling file differs,
@@ -892,21 +882,19 @@ fn the_unshadowed_call_references_the_local_proc_when_nothing_exports_it() {
     );
 }
 
-/// Issue #923 differential-audit finding idx 85 — the audit's exact shape:
 /// `namespace ensemble create -map` inside a proc declared with a
 /// fully-qualified name at top level, with no enclosing `namespace eval`, so
 /// the ensemble homes to `::app::widget`.
 ///
-/// Oracle (tclsh 8.6.16 and 9.0.4, identical): the script prints `shown` then
+/// tclsh 8.6.16 and 9.0.4 agree: the script prints `shown` then
 /// `configured:-x 1`, so `::app::widget show` really does dispatch to
 /// `::app::widget::Show`, statically determinable from the `-map` literal.
 ///
-/// Go-to-definition and hover answered this correctly all along — they
-/// resolve on demand against the finished analysis. Find-references
-/// enumerates *recorded* invocations, and the live server (which always
-/// analyses incrementally, deferring proc bodies) never recorded one for the
-/// dispatch site, so both reference directions silently under-reported. This
-/// drives the same surface the audit did, and pins that the two directions
+/// Go-to-definition and hover resolve on demand against the finished
+/// analysis. Find-references enumerates *recorded* invocations, and the
+/// live server (which always analyses incrementally, deferring proc
+/// bodies) must record one for the dispatch site, or both reference
+/// directions silently under-report. This pins that the two directions
 /// agree.
 #[test]
 fn ensemble_dispatch_call_sites_are_found_from_both_directions_923_idx85() {
@@ -996,13 +984,13 @@ fn a_dynamically_mapped_ensemble_dispatch_is_not_attributed_923_idx85() {
     );
 }
 
-/// Issue #923 differential-audit finding idx 27 — a `.test` file that is
+/// A `.test` file that is
 /// never opened in the editor and is reached only through a dynamic
-/// `glob`+`source` loop the analyser correctly abstains on. `.test` had been
-/// missing from the Tcl source-extension set, so the background workspace
-/// scan never indexed it and its call sites were invisible.
+/// `glob`+`source` loop the analyser correctly abstains on must still be
+/// indexed: `.test` is part of the Tcl source-extension set, so the
+/// background workspace scan indexes it and its call sites are visible.
 ///
-/// Oracle (tclsh 9.0.4): `source lib.tcl; cd test; source all_codeCoverage.tcl`
+/// tclsh 9.0.4: `source lib.tcl; cd test; source all_codeCoverage.tcl`
 /// prints `hello from greet` — the `.test` file's bare `greet` call really
 /// runs. Committed coverage stops at `collect_tcl_files` / `is_tcl_source`,
 /// one layer below the references handler; this drives the whole pipeline.

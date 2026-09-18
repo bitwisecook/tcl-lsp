@@ -27,15 +27,16 @@ description: |
 
   No marketplace tokens are involved.  The action only uses GitHub's
   built-in OIDC + `github.token` to attach signed assets to the GitHub
-  Release the matching tag created — marketplace publishing remains a
-  local-only operation per the no-tokens-in-CI invariant.
+  Release the matching tag created.  The marketplace publish jobs are
+  separate and reach their credentials only through a protected,
+  approval-gated `environment:`.
 
 inputs:
   artefact-glob:
     description: |
       Glob (relative to the workspace root) pointing at the artefact to
-      sign + upload.  Must match exactly one file; if your zipapp embeds
-      a version string the glob can use `*`, e.g. `build/f5-*.pyz`.
+      sign + upload.  Must match exactly one file; a version-stamped
+      name can use `*`, e.g. `build/tcl-lsp-claude-skills-*.zip`.
     required: true
   artefact-name:
     description: |

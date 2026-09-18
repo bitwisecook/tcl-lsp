@@ -235,8 +235,8 @@ fn literal_catch_executes_complete_prefix_before_later_parse_error() {
 
 #[test]
 fn nested_try_executes_complete_phase_prefix_before_later_parse_error() {
-    // The specialized try body reaches its handler only after the complete
-    // prefix ran; the specialized handler likewise runs its complete prefix
+    // The specialised try body reaches its handler only after the complete
+    // prefix ran; the specialised handler likewise runs its complete prefix
     // before its malformed tail escapes to the enclosing catch.
     // tclsh 9.0.4: `0 1 {BODY:missing "}` / `1 1 {missing "}`
     assert_eq!(
@@ -577,7 +577,7 @@ fn try_dash_fallthrough() {
     );
 }
 
-/// Issue #1607: `try`'s handler-type word is a `Tcl_GetIndexFromObj(…,
+/// `try`'s handler-type word is a `Tcl_GetIndexFromObj(…,
 /// "handler type", 0)` table, so the three types abbreviate and the empty word
 /// — a prefix of all three — is `ambiguous handler type ""`, not `bad`.
 ///
@@ -1054,21 +1054,21 @@ fn foreach_runtime_variants() {
     );
 }
 
-/// Issue #1572 — a **braced** list word is a literal in every direction.
+/// A **braced** list word is a literal in every direction.
 /// `TclFindElement`'s brace semantics keep `$` and `[…]` inert both for the
 /// word itself and for any braced element inside it, so the compiled
-/// `foreach` header must push it verbatim. It used to push an ordinary
-/// literal, and the VM's `subst_word` then ran the substitution at loop
-/// entry: `foreach e {{a[b]c} x}` raised `invalid command name "b"`.
+/// `foreach` header must push it verbatim. Pushing an ordinary literal
+/// instead, with the VM's `subst_word` running the substitution at loop
+/// entry, would raise `invalid command name "b"` for `foreach e {{a[b]c} x}`.
 ///
 /// Every expectation below is byte-exact against real tclsh 8.6.16 and 9.0.4
 /// (the answers are identical at both, the rule is unchanged across the
 /// releases).
 #[test]
 fn braced_foreach_list_word_is_never_substituted() {
-    // The filed repro: a braced *element* inside the braced list word.
+    // A braced *element* inside the braced list word.
     assert_eq!(run("foreach e {{a[b]c} x} { puts $e }").2, "a[b]c\nx\n");
-    // Broader than filed: a bare `[…]` directly in the braced list word is
+    // A bare `[…]` directly in the braced list word is
     // equally inert — braces protect the whole word, not just its elements.
     assert_eq!(run("foreach e {a[b]c x} { puts $e }").2, "a[b]c\nx\n");
     // `$` and a literal backslash sequence likewise.
@@ -1094,7 +1094,7 @@ fn braced_foreach_list_word_is_never_substituted() {
     );
 }
 
-/// The other half of #1572's contract: a list word that is *not* braced must
+/// The other half of that contract: a list word that is *not* braced must
 /// still substitute. Flipping the new guard on unconditionally would silence
 /// the bug by breaking these, so they are asserted beside it.
 #[test]
@@ -1120,7 +1120,7 @@ fn unbraced_foreach_list_word_still_substitutes() {
 
 /// A direct nested iterator routes the outer literal `foreach` through the
 /// runtime command boundary. That gives the inner loop a fresh activation;
-/// inlining both loops into one CFG used to leave only the final outer item.
+/// inlining both loops into one CFG would leave only the final outer item.
 #[test]
 fn nested_foreach_preserves_every_outer_iteration() {
     // tclsh 8.6 / 9.0: `a:HTTP TCP|b:HTTP TCP|c:HTTP TCP`
@@ -1349,7 +1349,7 @@ fn switch_no_match_returns_empty() {
 /// `switch` options abbreviate like tclsh (`Tcl_GetIndexFromObj`, flags 0):
 /// `-gl`/`-e`/`-noc` resolve to their options in both the direct form (the
 /// compiler bails to the runtime for a non-exact option word) and the
-/// runtime-dispatch form. Probed tclsh 8.6.14 (S4.2).
+/// runtime-dispatch form. Probed tclsh 8.6.14.
 #[test]
 fn switch_option_abbreviation() {
     // tclsh: `switch -gl -- abc {a* {concat ia}}` → `ia`.
@@ -1652,10 +1652,10 @@ fn control_runtime_condition_parse_error() {
     );
 }
 
-// Former VM-vs-tclsh divergences: each now asserts the correct tclsh behaviour
-// and passes, guarding the fix against regression.
+// The VM must not diverge from tclsh on the following, each asserting the
+// correct tclsh behaviour.
 
-/// BUG (`Vm::set_var`, surfaced via `cmd_try`'s `bind_handler_vars`): binding a
+/// `Vm::set_var`, via `cmd_try`'s `bind_handler_vars`: binding a
 /// `try` handler's result/options variable into an *array element whose base is
 /// a scalar* (`x(y)` while `x` is a scalar) should fail with
 /// `can't set "x(y)": variable isn't array` (C's `handlerFailed` → the bind
@@ -1678,7 +1678,7 @@ fn try_handler_var_bind_array_on_scalar_should_fail() {
     assert_eq!(msg, "can't set \"x(y)\": variable isn't array");
 }
 
-// Native-stack safety (issue #996) — the runtime `if`/`while`/`for` fallback
+// Native-stack safety: the runtime `if`/`while`/`for` fallback
 // (this file) recurses on the host stack via `Vm::eval_source` when driven
 // through a computed command name (`set c if; $c ...`, defeating the
 // compiled fast path — see this file's module doc comment). Confirmed
@@ -1714,11 +1714,10 @@ fn shallow_dynamic_if_still_runs() {
 /// `CONTROL_FALLBACK_DEPTH_LIMIT` is scoped to `cmd_control.rs`'s runtime
 /// fallback specifically (see that constant's doc comment) — ordinary
 /// nested `[…]` command substitution, unrelated to this file's fallback
-/// commands, must not be affected by it. An earlier version of this fix
-/// capped `Vm::eval_source` itself (the shared mechanism command
-/// substitution also uses) and broke exactly this: 45 real nested
-/// substitutions is far more than any realistic iRule needs, comfortably
-/// past what the earlier, wrongly-scoped fix would have allowed, and
+/// commands, must not be affected by it. Capping `Vm::eval_source` itself
+/// (the shared mechanism command substitution also uses) would break exactly
+/// this: 45 real nested substitutions is far more than any realistic iRule
+/// needs, comfortably past what a low, uniform cap would allow, and
 /// nowhere near where pure substitution recursion actually becomes
 /// dangerous (empirically safe to at least depth 1000 on a 2 MiB thread).
 #[test]

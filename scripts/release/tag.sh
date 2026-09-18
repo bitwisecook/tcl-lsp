@@ -17,7 +17,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# release.sh — create and push the annotated release tag.
+# tag.sh — create and push the annotated release tag.
 #
 # Usage:  scripts/release/tag.sh X.Y.Z
 #         make release-tag V=X.Y.Z

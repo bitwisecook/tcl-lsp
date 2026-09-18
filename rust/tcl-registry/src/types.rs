@@ -136,7 +136,7 @@ impl TclType {
 /// *elements*; `scan` / `regexp` / `binary scan` return a match/convert
 /// *count* yet write parsed pieces; `gets chan line` returns the character
 /// count yet writes the *line*.  Broadcasting the return type onto those
-/// targets is the S100 / W126 false-positive source (issue #867): a `lassign`
+/// targets is the S100 / W126 false-positive source: a `lassign`
 /// target wrongly typed `List`, a `regexp` capture wrongly typed `Int`.
 ///
 /// The compiler's type-inference pass reads this per command / subcommand so
@@ -178,7 +178,7 @@ pub enum VarWriteTyping {
 
 /// How a command's *result value* relates to container element structure —
 /// the registry fact behind per-element type inference
-/// (`docs/design/compiler/type-tracking.md`, P3). Read by the compiler's
+/// (`docs/design/compiler/type-tracking.md`). Read by the compiler's
 /// type-propagation pass; never keyed on command names in the compiler.
 ///
 /// Faithful to the runtime: container elements are shared `Tcl_Obj`s, so a
@@ -240,7 +240,7 @@ pub enum VarElementsEffect {
     /// argument's intrep only on the missing-key fast path). What does
     /// survive is an object's *dispatch identity* — the objref text — so
     /// only object-class facts flow into the value bound (the
-    /// collection-of-objects pattern, issue #797); every other shape
+    /// collection-of-objects pattern); every other shape
     /// contributes nothing.
     ExtendsDictValuesByName {
         /// 0-based index of the first appended value word.

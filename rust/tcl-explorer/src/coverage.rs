@@ -190,6 +190,7 @@ pub fn assert_durable_field_inventory(unit: &CompilationUnit) {
         interproc: _interproc,
         connection_scope: _connection_scope,
         caller_scope: _caller_scope,
+        declared_commands: _declared_commands,
     } = unit;
 }
 

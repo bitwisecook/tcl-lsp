@@ -24,8 +24,8 @@
  * evaluator runs a Tcl program on the bytecode VM, and the two things that can
  * only fail on that target — reaching a host clock that is not there, and
  * arming a budget nothing can measure — both compile perfectly and then trap
- * or hang at run time (issue #1661 is exactly that failure mode one layer
- * up). So this loads two fixture packs through the *shipped* wasm exports:
+ * or hang at run time. So this loads two fixture packs through the *shipped*
+ * wasm exports:
  *
  *   1. `fixtures/canonical.tclspec` — literal registration calls only. The
  *      browser must browse it exactly as the native loader does, and must not

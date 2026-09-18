@@ -550,8 +550,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // 8.6.16, 9.0.4 and 9.1b0 alike, so the body cannot stop control
         // reaching the next statement. Without this the analyser reads the
         // absent trait as "runs now" and the callback inventory reports the
-        // script as same-invocation while `fileevent`'s is deferred — the
-        // disagreement issue #1706's coverage audit found. The registry's
+        // script as same-invocation while `fileevent`'s is deferred — a
+        // disagreement a coverage audit surfaced. The registry's
         // own `BODY_RUNS_NOW` sweep missed it because its probe leads never
         // select an ensemble's `event` subcommand.
         traits: Traits::DEFERS_BODY,

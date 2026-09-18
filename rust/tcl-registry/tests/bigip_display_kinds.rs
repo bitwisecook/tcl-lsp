@@ -22,8 +22,7 @@
 //!
 //! Both exact `(module, object_type)` matches (`"ltm rule"`, `"net vlan"`, …)
 //! and family fan-outs (`"ltm monitor"`, `"ltm profile"`, …) must match the
-//! golden exactly — the registry-data regeneration brought the
-//! fan-out kind sets fully in sync.
+//! golden exactly, including the fan-out kind sets.
 
 use tcl_registry::bigip::default_registry;
 

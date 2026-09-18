@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Multi-folder workspace tests for issue #230.  Verifies VS Code accepts
+// Multi-folder workspace tests.  Verifies VS Code accepts
 // folder-level tclLsp.* settings (no "This setting cannot be applied in
 // this workspace" warning) and that the language server applies them
 // per-folder when formatting files in each folder.
@@ -44,8 +44,8 @@ interface EffectiveConfig {
  * pulled and applied for every folder, by polling the
  * ``tcl-lsp.getEffectiveConfig`` command until each folder's resolved
  * dialect matches the value the fixture's ``.vscode/settings.json``
- * configured.  Replaces a brittle ``setTimeout(3000)`` that masked the
- * race issue #407 caught in real-world use.
+ * configured.  Replaces a brittle ``setTimeout(3000)`` that could mask a
+ * real per-folder configuration race in real-world use.
  */
 async function waitForConfigSettled(
   expected: Record<string, string>,
@@ -86,8 +86,8 @@ suite("Multi-folder workspace configuration (#230)", () => {
     // registered the server-advertised commands, so always await that promise.
     await ext.activate();
     // Poll the server for its resolved per-folder dialect rather than
-    // sleeping on wall-clock time -- the previous setTimeout(3000) masked
-    // the race that issue #407 actually reports.
+    // sleeping on wall-clock time -- a fixed sleep could mask a real
+    // per-folder configuration race.
     await waitForConfigSettled({ "proj-a": "tcl8.4", "proj-b": "f5-irules" });
   });
 
@@ -234,7 +234,7 @@ suite("Multi-folder workspace configuration (#230)", () => {
     );
   });
 
-  // Per-folder dialect (issue #407) — VS Code must accept the
+  // Per-folder dialect — VS Code must accept the
   // ``tclLsp.dialect`` setting at the folder scope and the language
   // server must apply it per-document rather than using a single
   // process-wide dialect.
@@ -272,7 +272,7 @@ suite("Multi-folder workspace configuration (#230)", () => {
     // The source must carry **no** in-file dialect signal.  The server's
     // resolution order is: explicit ``languageId`` > in-source detection
     // (``# tcl-dialect:`` directive, shebang, ``package require Tcl``, content
-    // signatures) > per-folder override > session default (issue #805).  A
+    // signatures) > per-folder override > session default.  A
     // body of ``when EVENT { … }`` handlers *is* an iRules content signature,
     // so such a source resolves to ``f5-irules`` in **both** folders and proves
     // nothing about the folder override.
@@ -465,8 +465,8 @@ suite("Multi-folder workspace configuration (#230)", () => {
 
   test("tcl-lsp.getEffectiveConfig reports the resolved per-folder dialect", async () => {
     // Sanity check the helper the suite setup uses -- if this regresses
-    // the rest of the suite will hit the 3-second-wait situation issue
-    // #407 reports, just by a different path.
+    // the rest of the suite will hit the same 3-second-wait situation,
+    // just by a different path.
     const folderA = vscode.workspace.workspaceFolders!.find((f) => f.name === "proj-a")!;
     const folderB = vscode.workspace.workspaceFolders!.find((f) => f.name === "proj-b")!;
 
@@ -488,7 +488,7 @@ suite("Multi-folder workspace configuration (#230)", () => {
   });
 });
 
-// Race-detection harness for issue #407: when a per-folder dialect
+// Race-detection harness: when a per-folder dialect
 // arrives *after* a document's first analyse the cached AnalysisResult
 // keeps its stale dialect-baked W002 / W108 / W123 diagnostics.  Direct
 // startup-race reproduction would need a fresh VS Code process per test

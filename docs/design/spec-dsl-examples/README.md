@@ -368,11 +368,11 @@ leading dot. `-name` is the extension's human-readable name for editor
 pickers (`Unified Power Format`); `-dialect` must name a canonical dialect
 profile, and routes files of that extension to the profile in dialect
 detection's extension tier — a loaded pack is the source of truth for its
-own extensions, consulted ahead of the `DialectProfile` catalog's own
+own extensions, consulted ahead of the `DialectProfile` catalogue's own
 per-profile extension declarations, which remain as the no-packs
 fallback. Bundled packs' rows also feed `cargo xtask
 gen-editor-extensions`, which generates the editors' registered
-extension/language lists from the catalog plus the packs — so a bundled
+extension/language lists from the catalogue plus the packs — so a bundled
 pack's extension ships in every editor without hand-editing a manifest.
 A `-dialect` that names no profile keeps
 the row and drops only the routing, with a notice. Both statements are
@@ -1201,6 +1201,7 @@ schema order. "excluded" rows carry the reason.
 | `taint_interp_eval_subcommands` | `taint_interp_eval_subcommands {NAME …}` |  |
 | `taint_source` | `taint_source {COLOUR …}` |  |
 | `taint_transform` | `taint_transform {COLOUR …}` |  |
+| `taint_transform_when` | `taint_transform_when MappingDeletesCrlf` | the argument-shape proof a call must pass before `taint_transform` is claimed; absent = always claimed |
 | `taint_double_encode_colour` | `taint_double_encode_colour {COLOUR …}` |  |
 | `taint_sink_safe_colour` | `taint_sink_safe_colour {COLOUR …}` |  |
 | `taint_sink_gate` | `taint_sink_gate {words ctx} { … }` \| `-native ID` | emitter verbs `sink-applies` / `sink-suppressed`; no call = **applies** |
@@ -1295,6 +1296,7 @@ schema order. "excluded" rows carry the reason.
 | `arg_values_accept_prefix` | `arg_values_accept_prefix ?yes\|no?` |  |
 | `body_arg_implicit_args` | `body_arg_implicit_args N` |  |
 | `taint_transform` | `taint_transform {COLOUR …}` |  |
+| `taint_transform_when` | `taint_transform_when MappingDeletesCrlf` | the argument-shape proof a call must pass before `taint_transform` is claimed; absent = always claimed |
 | `taint_double_encode_colour` | `taint_double_encode_colour {COLOUR …}` |  |
 | `taint_output_sink` | `taint_output_sink CODE` |  |
 | `credential_arg` | `credential_arg N` | **verbatim coordinates**: the W310 consumer counts the subcommand word itself as index 0, unlike every other per-index subcommand field — see the `HTTP::header` fidelity note |

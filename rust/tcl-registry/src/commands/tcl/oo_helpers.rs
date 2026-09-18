@@ -59,7 +59,7 @@
 //! stay 9.0-only here too.
 //!
 //! `link` therefore needs the **same two entries** its bare twin has, not
-//! one (Codex review of PR #1084): Tcllib's `ooutil` installs a real
+//! one: Tcllib's `ooutil` installs a real
 //! `::oo::Helpers::link` under 8.6/8.7, so a document that says
 //! `package require oo::util` may legitimately write the qualified spelling
 //! and must get completion, hover, and no `W123`. Deriving only from the
@@ -72,7 +72,7 @@
 //! `ooutil.tcl:27` define `proc ::oo::Helpers::mymethod` and
 //! `proc ::oo::Helpers::classvariable` respectively — while `callback`
 //! (9.0 alias of `mymethod`) has a single core entry, because no Tcllib
-//! package provides that spelling (issue #923 audit, `ticklecharts` idx 51).
+//! package provides that spelling (`ticklecharts` idx 51).
 use crate::prelude::*;
 
 /// The bare specs whose `oo::Helpers::…` spelling is also a real,
@@ -219,8 +219,7 @@ mod tests {
     /// `ooutil` installs one — so the qualified spelling needs the same
     /// two-entry treatment the bare word has, and the `ooutil` entry must
     /// keep the package gate that makes W120 fire without the
-    /// `package require` and stay silent with it (Codex review of PR
-    /// #1084).
+    /// `package require` and stay silent with it.
     #[test]
     fn qualified_link_has_both_a_core_90_and_an_ooutil_86_entry() {
         let links: Vec<CommandSpec> = qualified_specs()

@@ -27,9 +27,8 @@
 #     (2.1.x, 2.3.x, …) and an EVEN minor is a STABLE release
 #     (2.0.x, 2.2.x, …).  The 2.x line ships its alphas on 2.1.x and
 #     promotes to the stable 2.2.0 when it is ready.
-#   * The 1.x line predates this convention and is ALWAYS stable — it
-#     stays the default "latest" release / Marketplace channel for
-#     everyone who has not opted into pre-releases.
+#     An even-minor 2.x release is the default install for everyone who
+#     has not opted into pre-releases.
 #
 # This single decision drives every pre-release switch in the release
 # pipeline so CI, the Makefile, and tag.sh never disagree:

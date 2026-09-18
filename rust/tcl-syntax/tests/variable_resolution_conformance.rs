@@ -21,10 +21,9 @@
 //! real tclsh on the machine, exactly the observable its column for that
 //! release names.
 //!
-//! This is the data-and-pin phase of the variable domain: no analyser or VM
-//! consumer is wired to these rows yet, so the interpreter matrix is the
-//! only gate that can catch a wrong transcription — which is precisely why
-//! it runs every row against every available release.
+//! No analyser or VM consumer reads these rows, so the interpreter matrix is
+//! the only gate that can catch a wrong transcription — which is precisely
+//! why it runs every row against every available release.
 
 mod support;
 
@@ -66,9 +65,8 @@ fn vectors_match_real_tclsh() {
     }
 }
 
-/// A row with no release-tagged column must mean the same thing on every
-/// release, and a tagged one must actually differ — a tagged row that is
-/// uniform is a row someone tagged by mistake.
+/// A tagged row must actually differ across the ladder — a tagged row that
+/// is uniform is a row someone tagged by mistake.
 #[test]
 fn tagging_matches_whether_the_releases_disagree() {
     for vector in vectors() {

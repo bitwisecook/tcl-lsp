@@ -62,8 +62,9 @@ pub fn preview(text: &str, limit: usize) -> String {
 /// [`tcl_lexer::word_span_at`] family's question, not the explorer's: an
 /// empty `{}` / `[]` / `""` already ends *on* its closer and must never be
 /// widened, while a word whose last inner byte happens to be a closer
-/// (`{$x eq {}}`) still needs widening (issue #1423). Re-deriving that here
-/// was one of six independent copies of the same arithmetic.
+/// (`{$x eq {}}`) still needs widening. This is the single shared
+/// implementation of that arithmetic, rather than re-deriving it at each
+/// call site.
 fn widened_inclusive_end(span: Span, source: &str) -> u32 {
     tcl_lexer::word_span_at(source, span)
         .end()
@@ -396,7 +397,7 @@ mod tests {
 
     #[test]
     fn inclusive_end_widens_a_word_ending_in_a_nested_empty_pair() {
-        // Issue #1423: `{$x eq {}}` already ends in a `}` — the inner
+        // `{$x eq {}}` already ends in a `}` — the inner
         // pair's — and still needs its own closer.
         let source = "while {$x eq {}} {}";
         assert_eq!(widened_inclusive_end(Span::new(6, 15), source), 15);
@@ -405,8 +406,9 @@ mod tests {
 
     #[test]
     fn inclusive_end_widens_a_braced_variable_word() {
-        // `${x}` — the `Var` token span excludes the closing `}`, so the
-        // explorer used to report a range one byte short of the word.
+        // `${x}` — the `Var` token span excludes the closing `}`, so without
+        // widening the explorer would report a range one byte short of the
+        // word.
         assert_eq!(widened_inclusive_end(Span::new(0, 3), "${x}"), 3);
         // `${}` is the degenerate empty name: already whole.
         assert_eq!(widened_inclusive_end(Span::new(0, 3), "${}}"), 2);

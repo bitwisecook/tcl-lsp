@@ -288,7 +288,7 @@ mod tests {
 
     #[test]
     fn error_text_differs_but_folded_to_match_by_default() {
-        // Issue #1313: in the default mode, two engines that both error but
+        // In the default mode, two engines that both error but
         // disagree on the message text are a Match — wording legitimately
         // differs between independent implementations.
         let a = ran_with_stderr("", "wrong # args: should be \"foo x\"", true);

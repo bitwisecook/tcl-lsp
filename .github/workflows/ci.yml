@@ -85,7 +85,7 @@ jobs:
   #                        has the identical Git tree, and whose PR run is
   #                        green within 24 h. The release-tag fallback covers
   #                        the race where the rust push run has not completed
-  #                        yet (issue #1913).
+  #                        yet.
   #                    The 24 h bound stops the skip compounding into stale
   #                    territory: the floating `stable` toolchain and the
   #                    advisory database both move under an unchanged tree, so
@@ -121,8 +121,8 @@ jobs:
   #                    those tests, and `wasm-real-link` builds and links the
   #                    crate without running a single one of them, so before
   #                    this flag existed a standalone-runtime semantic
-  #                    regression could land with every partition green
-  #                    (issue #1768).  The closure lives in
+  #                    regression could land with every partition green.
+  #                    The closure lives in
   #                    scripts/dev/runtime-rust-path.sh and is gated against
   #                    the committed lockfile by
   #                    scripts/dev/test-runtime-rust-paths.sh, so it cannot
@@ -135,8 +135,7 @@ jobs:
   #                    pull request resolved their dependency trees at all, and
   #                    the only workflow that does (github-pages.yml) runs on
   #                    push to `rust`, never on a PR.  A broken bump therefore
-  #                    merged green and took the Pages deploy down afterwards
-  #                    (#1867 and #1868, fixed in #1884 and #1889).
+  #                    merged green and took the Pages deploy down afterwards.
   #   runner_policy_changed — the self-hosted runner policy, dependency-update
   #                    policy, or the scheduling contract test changed. Such
   #                    PRs prove themselves on an isolated GitHub-hosted runner;
@@ -410,50 +409,17 @@ jobs:
           echo "runner=$runner" >> "$GITHUB_OUTPUT"
           echo "broad Rust runner: $runner"
 
-  # Fast PR gate.  Runs on every PR and every push.  Covers the Rust fast
-  # checks through the central `make rust-check` contract: root and standalone
-  # crate formatting/Clippy plus generated-file drift gates. The test surface
-  # runs
-  # concurrently in `rust-tests-shard` (with its `rust-tests` aggregate),
-  # `rust-tests-heavy`, `lsp-e2e`, `cargo-deny`, `test-ext` and `python` — all
-  # on every PR and push. See AGENTS.md for the
-  # local gates (`make check-all`, plus the heavier suites) agents must run
-  # before pushing / opening a PR.
-  pr-gate:
-    # Rust-side fast gate (fmt / clippy / generated-file drift).  For
-    # pre-release (odd-minor 2.x) tags the gate WORK is skipped at the step
-    # level (below), but the job still runs and reports success.  This is
-    # deliberate: skipping the whole job would transitively skip create-release
-    # and every build/publish job (GitHub's success() propagates a skipped
-    # ancestor through the needs graph).  Those tags are cut from `rust` and
-    # gated by the cargo jobs instead.  Runs in full for PRs, rust pushes,
-    # stable tags.
-    # `pr-gate` is already a required status on `rust`. Run even when a needed
-    # job failed, then fail explicitly below: Actions otherwise skips a job
-    # whose dependency failed, and a skipped required check does not propagate
-    # the SpecTcl or front-end failure as a red `pr-gate` verdict.
-    #
-    # `web-frontends` rides the same route for the same reason: it is not
-    # itself a required status, so on its own it would go red without
-    # blocking anything — which is precisely the merge this whole job exists
-    # to stop. It is Node-only and finishes in well under a minute, so it
-    # costs the gate nothing to wait for.
-    if: ${{ always() }}
-    needs: [channel, spectcl-compat, web-frontends]
+  # Fast PR gate. Runs on every PR and every push. The Rust work is an
+  # independent worker after `channel`, so it overlaps SpecTcl and front-end
+  # prerequisites instead of waiting behind them. The stable `pr-gate` status
+  # below remains the required aggregate context.
+  rust-check:
+    # There is deliberately no job-level path or tag skip here. The worker
+    # must report a real result for every graph shape; only its unchanged,
+    # pre-release, and already-green work is step-gated below.
+    needs: [channel]
     runs-on: ubuntu-26.04
     steps:
-      - name: Propagate prerequisite gate failures
-        env:
-          CHANNEL_RESULT: ${{ needs.channel.result }}
-          SPECTCL_COMPAT_RESULT: ${{ needs.spectcl-compat.result }}
-          WEB_FRONTENDS_RESULT: ${{ needs.web-frontends.result }}
-        run: |
-          if [ "$CHANNEL_RESULT" != success ] || [ "$SPECTCL_COMPAT_RESULT" != success ] \
-            || [ "$WEB_FRONTENDS_RESULT" != success ]; then
-            echo "channel=$CHANNEL_RESULT spectcl-compat=$SPECTCL_COMPAT_RESULT web-frontends=$WEB_FRONTENDS_RESULT" >&2
-            exit 1
-          fi
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
@@ -462,19 +428,39 @@ jobs:
       # rust-toolchain.toml pins the channel (stable); the action installs it
       # plus fmt/clippy and wires up Swatinem cache.
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           components: clippy, rustfmt
 
       - name: Run fast CI gate (format + Clippy + generated-file drift)
-        # Skipped for pre-release (rust-line) tags and for tags whose SHA is
-        # already green; job still succeeds so the release graph stays
-        # unbroken.  Deliberately NOT skipped on already-green merge pushes:
-        # this job's clippy cache is the base-branch fallback every PR run
-        # restores from, so pushes to rust keep it warm.
+        # Preserve the prior step-level semantics exactly: pre-release tags
+        # and already-green tags report success without repeating this work.
+        # Already-green merge pushes still run to warm the base-branch cache.
         if: needs.channel.outputs.prerelease != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
         run: make rust-check
+
+  # `pr-gate` is the required status on `rust`. It must run even when a needed
+  # job failed: Actions otherwise skips a dependent job, and a skipped required
+  # check would not propagate the SpecTcl or front-end failure. Keep all four
+  # results explicit so the aggregate can never become a vacuous success.
+  pr-gate:
+    if: ${{ always() }}
+    needs: [channel, rust-check, spectcl-compat, web-frontends]
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Propagate prerequisite gate failures
+        env:
+          CHANNEL_RESULT: ${{ needs.channel.result }}
+          RUST_CHECK_RESULT: ${{ needs.rust-check.result }}
+          SPECTCL_COMPAT_RESULT: ${{ needs.spectcl-compat.result }}
+          WEB_FRONTENDS_RESULT: ${{ needs.web-frontends.result }}
+        run: |
+          if [ "$CHANNEL_RESULT" != success ] || [ "$RUST_CHECK_RESULT" != success ] \
+            || [ "$SPECTCL_COMPAT_RESULT" != success ] || [ "$WEB_FRONTENDS_RESULT" != success ]; then
+            echo "channel=$CHANNEL_RESULT rust-check=$RUST_CHECK_RESULT spectcl-compat=$SPECTCL_COMPAT_RESULT web-frontends=$WEB_FRONTENDS_RESULT" >&2
+            exit 1
+          fi
 
   # Apple clang deliberately omits the WebAssembly backend. Exercise the
   # complete standalone-crate gate on a stock macOS runner whenever its owned
@@ -494,12 +480,12 @@ jobs:
 
       # The hosted image can retain the unused, untrusted aws/tap. The Rust
       # setup action installs bash through Homebrew, which inspects configured
-      # taps and emits an annotation before doing any Rust work (issue #1684).
+      # taps and emits an annotation before doing any Rust work.
       - name: Remove unused runner Homebrew tap
         run: scripts/dev/prepare-homebrew-ci.sh
 
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           components: clippy, rustfmt
@@ -549,7 +535,7 @@ jobs:
 
       - name: Set up Rust
         if: env.RUN_EXT == 'true'
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           cache-key: build-tcl-lsp-server
@@ -650,7 +636,7 @@ jobs:
       # the least reliable cache.
       - name: Set up Rust
         if: env.RUN_EXT == 'true'
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           cache-key: test-ext
@@ -829,7 +815,7 @@ jobs:
       # the least reliable cache.
       - name: Set up Rust
         if: env.RUN_EXT == 'true'
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           cache-key: test-ext
@@ -1046,7 +1032,7 @@ jobs:
       # worth running.  Its own cache key keeps the release/LTO link warm.
       - name: Set up Rust
         if: env.RUN_EXT_WEB == 'true'
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           target: wasm32-unknown-unknown
@@ -1055,7 +1041,7 @@ jobs:
 
       - name: Install wasm-bindgen CLI
         if: env.RUN_EXT_WEB == 'true'
-        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
+        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
         with:
           tool: wasm-bindgen-cli@0.2.128
 
@@ -1179,7 +1165,7 @@ jobs:
   #   wasm-real-link    the real whole-program WASM link, with the only CI
   #                     install of wasmtime / wasm32-wasip1 / wasi-sdk /
   #                     libtommath and `TCL_REQUIRE_WASM_LINK=1` so a missing
-  #                     one fails instead of skipping (issue #1542).  NOT yet
+  #                     one fails instead of skipping.  NOT yet
   #                     wired into `create-release`'s `needs`, deliberately: it
   #                     downloads a wasi-sdk release asset, and a transient
   #                     404/timeout there must not be able to block a release.
@@ -1206,12 +1192,12 @@ jobs:
   #
   # Each nextest consumer keeps the exact whole-workspace/all-features resolver
   # graph, links every lib/bin unit harness, and links only its assigned
-  # integration-test targets. Run 34289762415 showed that direct hash shards
-  # spent 3m34–3m51 compiling/linking all 319 binaries before each 3m30–4m26
-  # test partition. A local exact-tree prototype linked/listed the 50 common
-  # unit harnesses in 1m47 on a cold target and added 64 assigned integration
-  # targets in 7.46s; its 4,568-test shard executed in 94.8s. The committed
-  # binary map came from that run's complete timings. The aggregate checks it
+  # integration-test targets. Measured: direct hash shards spent 3m34–3m51
+  # compiling/linking all 319 binaries before each 3m30–4m26 test partition.
+  # A local exact-tree prototype linked/listed the 50 common unit harnesses
+  # in 1m47 on a cold target and added 64 assigned integration targets in
+  # 7.46s; its 4,568-test shard executed in 94.8s. The committed binary map
+  # came from that measurement's complete timings. The aggregate checks it
   # against locked Cargo metadata and proves that every non-ignored testcase is
   # selected exactly once, so target drift or a bad filter fails closed.
   #
@@ -1220,20 +1206,22 @@ jobs:
   # `--all-features` workspace run costs no coverage.
   rust-tests-shard:
     name: rust-tests-shard (${{ matrix.shard }})
-    # Unaffected changes and already-green tags retain the aggregate status
-    # without allocating five test runners.
-    if: ${{ needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') }}
-    # Historically the longest pole (155s on the 16-core self-hosted box when
-    # healthy — a 2026-08 regression to 16 min turned out to be two oversized
-    # `tcl-compiler` per_item tests, since fixed; if this job blows past ~5
-    # min again, suspect a runaway test before suspecting the box or the
-    # cache).  No longer the longest pole: the three archived `lsp-e2e`
-    # consumers now overlap their test pools instead of one unsharded run
-    # carrying the full suite.  Note that neither is the workflow's critical
-    # path — the
-    # `build-tcl-lsp-server` -> `test-ext` chain is, finishing 40-80s after
-    # `lsp-e2e` does, so shortening the test jobs cuts cost and the local
-    # `make test-rust` loop rather than PR turnaround.
+    # Unaffected changes retain the aggregate status without allocating five
+    # test runners. An already-green *tag* must not skip here: a tag forces
+    # rust_tests_changed true, so this job stays in the graph and step-skips
+    # its work below. Skipping it at job level instead took `create-release`
+    # and every release producer down with it on v2.2.5 — a skipped ancestor
+    # propagates through the needs graph, which is why the header bans
+    # job-level skips on the tag path.
+    if: ${{ needs.channel.outputs.rust_tests_changed == 'true' }}
+    # Typically ~155s on the 16-core self-hosted box when healthy; if this
+    # job blows past ~5 min, suspect a runaway test before suspecting the box
+    # or the cache. Not the workflow's critical path: the three archived
+    # `lsp-e2e` consumers overlap their test pools instead of one unsharded
+    # run carrying the full suite, and the `build-tcl-lsp-server` ->
+    # `test-ext` chain finishes 40-80s after `lsp-e2e` does, so shortening
+    # the test jobs cuts cost and the local `make test-rust` loop rather than
+    # PR turnaround.
     #
     # It is the ONLY job routed to the self-hosted runner, and that is
     # deliberate.  `tank` is one physical host but may have multiple runner
@@ -1304,7 +1292,7 @@ jobs:
           fetch-depth: 1
 
       - name: Verify canonical Rust homes
-        if: needs.channel.outputs.rust_tests_changed == 'true' && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
+        if: needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
         shell: bash
         run: |
           set -euo pipefail
@@ -1327,8 +1315,8 @@ jobs:
       # The action installs the current stable and wires up the Swatinem cache
       # (keyed per job, so the concurrent cargo jobs don't race on save).
       - name: Set up Rust
-        if: needs.channel.outputs.rust_tests_changed == 'true' && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        if: needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           cache-key: rust-tests-v2
@@ -1345,7 +1333,7 @@ jobs:
       # that registrations with different absolute workspace paths share them.
       - name: Set up sccache
         id: sccache
-        if: needs.channel.outputs.rust_tests_changed == 'true' && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
+        if: needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
         continue-on-error: true
         uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
         with:
@@ -1357,7 +1345,7 @@ jobs:
       # Do not export the wrapper until both action setup and the installed
       # binary have succeeded; Cargo then falls back to rustc automatically.
       - name: Enable sccache when available
-        if: needs.channel.outputs.rust_tests_changed == 'true' && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
+        if: needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
         shell: bash
         env:
           SCCACHE_SETUP_OUTCOME: ${{ steps.sccache.outcome }}
@@ -1373,8 +1361,14 @@ jobs:
       # Tank is serialised by the job-level concurrency group, so this target
       # is safe to retain per runner registration.  Hosted overflow never
       # touches the root and keeps Cargo's ordinary ephemeral target.
+      #
+      # Every step here carries the same tag/already-green exclusion as the
+      # nextest step below: on an already-green tag the job stays in the graph
+      # (so the release producers keep their ancestor) but must do no work at
+      # all. Preparing the Tank target enforces a 20 GiB floor, which failed
+      # the first v2.2.5 re-tag for a shard that was never going to run a test.
       - name: Prepare persistent Tank Cargo target
-        if: needs.channel.outputs.rust_tests_changed == 'true' && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5') && env.RUNNER_MODE == 'tank'
+        if: needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5') && env.RUNNER_MODE == 'tank'
         shell: bash
         run: |
           registration="${TCL_LSP_TANK_REGISTRATION_ID:-${RUNNER_NAME:-}}"
@@ -1382,8 +1376,8 @@ jobs:
           printf 'CARGO_TARGET_DIR=%s\n' "$target" >> "$GITHUB_ENV"
 
       - name: Install cargo-nextest
-        if: needs.channel.outputs.rust_tests_changed == 'true' && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
-        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
+        if: needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
+        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
         with:
           tool: nextest@0.9.143
 
@@ -1469,7 +1463,7 @@ jobs:
       # Setup is intentionally skipped when the root Rust-test closure is
       # unaffected, so sccache is unavailable on those required no-op runs.
       - name: Report sccache statistics
-        if: always() && needs.channel.outputs.rust_tests_changed == 'true' && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
+        if: always() && needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
         shell: bash
         run: |
           if ! command -v sccache >/dev/null 2>&1; then
@@ -1510,10 +1504,12 @@ jobs:
   # It remains a step-gated job so the stable aggregate context is preserved
   # for unrelated changes, docs-only changes, and already-green revisions.
   rust-tests-doctest:
-    # Match the shard matrix's job-level no-op rules. The stable aggregate is
-    # the required context and accepts this skipped result only when the
-    # channel facts prove that no test command was required.
-    if: ${{ needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') }}
+    # Match the shard matrix's no-op rules. The stable aggregate is the
+    # required context and accepts this skipped result only when the channel
+    # facts prove that no test command was required — and a tag never proves
+    # that, so this job stays in the graph on the release path and step-skips
+    # its work instead (see the shard matrix's note).
+    if: ${{ needs.channel.outputs.rust_tests_changed == 'true' }}
     needs: [channel]
     runs-on: ubuntu-26.04
     steps:
@@ -1523,7 +1519,7 @@ jobs:
 
       - name: Set up Rust
         if: needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           cache-key: rust-tests-doctest-v1
@@ -1560,10 +1556,12 @@ jobs:
           if [ "$SHARDS_RESULT" = success ] && [ "$DOCTEST_RESULT" = success ]; then
             exit 0
           fi
-          if [ "$SHARDS_RESULT" = skipped ] && [ "$DOCTEST_RESULT" = skipped ] && {
-            [ "$RUST_TESTS_CHANGED" != true ] ||
-            { [ "$IS_TAG" = true ] && [ "$ALREADY_GREEN" = true ]; };
-          }; then
+          # A tag forces rust_tests_changed true, so this branch cannot absorb
+          # a skip on the release path: if the shards ever skip at job level
+          # there again, the tag run fails here rather than reporting success
+          # and silently producing no release (v2.2.5).
+          if [ "$SHARDS_RESULT" = skipped ] && [ "$DOCTEST_RESULT" = skipped ] &&
+            [ "$RUST_TESTS_CHANGED" != true ]; then
             echo 'Rust test shards and doctests were intentionally skipped by the channel decision'
             exit 0
           fi
@@ -1637,7 +1635,7 @@ jobs:
 
       - name: Set up Rust
         if: needs.channel.outputs.spectcl_compat_changed == 'true' && needs.channel.outputs.already_green != 'true'
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           cache-key: spectcl-compat
@@ -1699,7 +1697,7 @@ jobs:
           fetch-depth: 1
 
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           # This job builds only the heavy crates + their deps, so it gets its
@@ -1707,7 +1705,7 @@ jobs:
           cache-key: rust-tests-heavy
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
+        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
         with:
           tool: nextest@0.9.143
 
@@ -1729,7 +1727,7 @@ jobs:
           fi
           cargo nextest run $extra -p tcl-irule-test -p f5-cli -p tcl-fuzz --all-features
 
-  # The standalone `runtime/rust` unit suite (issue #1768).
+  # The standalone `runtime/rust` unit suite.
   #
   # `runtime/rust` is its own cargo workspace, deliberately excluded from the
   # root one (it needs `unsafe` over the shared linear memory, and its churn
@@ -1737,10 +1735,9 @@ jobs:
   # that `cargo test --workspace --all-features` in `rust-tests` never runs a
   # single test in it, and `wasm-real-link` compiles and LINKS the crate
   # without executing its tests either.  `pr-gate` only formats and clippies
-  # it.  So until this job existed, a standalone-runtime semantic regression
-  # could land with every required check green — which is exactly how the
-  # #1750 error-stack work would have added and changed many runtime tests
-  # that CI never ran.
+  # it.  Without this job, a standalone-runtime semantic regression could
+  # land with every required check green, since a large body of runtime
+  # tests could be added and changed without CI ever running them.
   #
   # This is an ADDITIONAL semantic gate, not a replacement: `wasm-real-link`
   # remains the real-link check, and this job never links anything.
@@ -1772,7 +1769,7 @@ jobs:
 
       - name: Set up Rust
         if: needs.channel.outputs.runtime_rust_changed == 'true' && needs.channel.outputs.already_green != 'true'
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           # A separate cargo workspace with its own lockfile and its own
@@ -1794,7 +1791,7 @@ jobs:
       # the source `runtime/rust`'s build script prints a `cargo:warning` and
       # builds with the bignum backend DISABLED, which un-registers `expr` and
       # the `::tcl::mathfunc`/`mathop` ensembles.  The suite would still be
-      # green while covering far less than it appears to (issue #1542's shape).
+      # green while covering far less than it appears to.
       # `make runtime-rust-test` passes the directory explicitly.
       - name: Fetch the Tcl 9.0.4 source (libtommath)
         if: needs.channel.outputs.runtime_rust_changed == 'true' && needs.channel.outputs.already_green != 'true'
@@ -1817,7 +1814,7 @@ jobs:
   # because before it existed the suite was permanently vacuous: every one of
   # those tests skipped-and-passed when the toolchain was absent, and no CI job
   # installed the wasmtime CLI, the `wasm32-wasip1` target, or wasi-sdk.  Eight
-  # green tests, zero real links, for the whole life of the file (issue #1542).
+  # green tests, zero real links, for the whole life of the file.
   # `TCL_REQUIRE_WASM_LINK=1` is what makes this job meaningful: with it set, a
   # missing dimension of the toolchain is a hard failure instead of a skip, so
   # the job cannot silently revert to reporting green for nothing.
@@ -1836,7 +1833,7 @@ jobs:
           fetch-depth: 1
 
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           # The wasm32 std is a job-specific dependency, so this job keeps its
@@ -1851,7 +1848,7 @@ jobs:
       # under test drift without a commit.
       - name: Install the wasmtime CLI
         if: needs.channel.outputs.docs_only != 'true'
-        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
+        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
         with:
           tool: wasmtime@48.0.1
 
@@ -1891,7 +1888,7 @@ jobs:
       # Same skip/downgrade contract as rust-tests — see the channel job header.
       # No `--no-run` downgrade: the point of this job is that the link really
       # executes, and building the test binary without running it would be
-      # exactly the vacuity #1542 is about.
+      # exactly the vacuity this job exists to prevent.
       # `wasm_tiers` rides the same gate: its sample-oracle tests return early
       # when the toolchain is absent, so anywhere but here they pass without
       # linking a single sample — the vacuity this job exists to prevent.
@@ -1914,9 +1911,9 @@ jobs:
   # The real browser LSP server: release-link the wasm-bindgen facade, verify
   # the produced module, then drive a scripted JSON-RPC session under Node.
   # This is intentionally distinct from `wasm-real-link`, which exercises the
-  # compiler's WASI runtime rather than the browser language server.  Before
-  # this job, browser-only regressions first appeared after merge in the Pages
-  # deployment (#1662).
+  # compiler's WASI runtime rather than the browser language server.  Without
+  # this job, browser-only regressions would surface only after merge, in the
+  # Pages deployment.
   lsp-server-wasm:
     needs: [channel]
     runs-on: ubuntu-26.04
@@ -1932,7 +1929,7 @@ jobs:
 
       - name: Set up Rust
         if: env.RUN_LSP_WASM == 'true'
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           target: wasm32-unknown-unknown
@@ -1941,7 +1938,7 @@ jobs:
 
       - name: Install wasm-bindgen CLI
         if: env.RUN_LSP_WASM == 'true'
-        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
+        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
         with:
           tool: wasm-bindgen-cli@0.2.128
 
@@ -2007,7 +2004,7 @@ jobs:
 
       - name: Set up Rust
         if: env.RUN_LSP_WASI == 'true' || env.RELEASE_WASI == 'true'
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           target: wasm32-wasip1
@@ -2021,7 +2018,7 @@ jobs:
       # (RELEASE_WASI without RUN_LSP_WASI) never downloads it.
       - name: Install the wasmtime CLI
         if: env.RUN_LSP_WASI == 'true'
-        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
+        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
         with:
           tool: wasmtime@48.0.1
 
@@ -2163,7 +2160,7 @@ jobs:
 
       - name: Set up Rust
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           cache-key: lsp-e2e
@@ -2176,7 +2173,7 @@ jobs:
 
       - name: Install cargo-nextest
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
-        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
+        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
         with:
           # Archive/list/execute must use the exact same nextest format.
           tool: nextest@0.9.143
@@ -2324,14 +2321,14 @@ jobs:
           fetch-depth: 1
 
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && needs.channel.outputs.already_green != 'true'
         with:
           toolchain: stable
           cache-key: lsp-e2e
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
+        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && needs.channel.outputs.already_green != 'true'
         with:
           # Keep the machine-readable partition proof and the runner on the
@@ -2485,7 +2482,7 @@ jobs:
           fetch-depth: 1
 
       - name: Install cargo-deny
-        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
+        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
         with:
           tool: cargo-deny@0.20.2
 
@@ -2525,7 +2522,7 @@ jobs:
       # Needed by maturin to build the native `_engine` extension module.
       - name: Set up Rust
         if: env.RUN_PY == 'true'
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           cache-key: python-engine
@@ -2588,13 +2585,12 @@ jobs:
         if: env.RUN_PY == 'true'
         run: make test-py-engine
 
-  # The two npm roots that are NOT `editors/vscode`.  Nothing on a pull
-  # request used to install them: every `npm ci` in this workflow is in
+  # The two npm roots that are NOT `editors/vscode`.  Nothing else on a pull
+  # request installs them: every `npm ci` in this workflow is in
   # `editors/vscode`, and the only workflow that resolves these two trees
   # (github-pages.yml) triggers on push to `rust` and on tags, never on a PR.
-  # So a dependency bump that cannot resolve passed the whole gate and only
-  # broke afterwards, on the deploy — which is exactly how #1867 and #1868
-  # landed and put three consecutive Pages runs red.
+  # Without this job, a dependency bump that cannot resolve passes the whole
+  # gate and only breaks afterwards, on the deploy.
   #
   # Node only: no Rust, no wasm, no browser, so it is cheap enough to be a
   # release prerequisite as well as a PR gate.
@@ -2649,10 +2645,10 @@ jobs:
 
       # `npm ci` and not the Make stamps' `npm install`, because only `npm ci`
       # reliably rejects the committed pair.  On a cold tree — which is what a
-      # runner always has — `npm install` resolved #1867's package.json/lockfile
-      # combination and exited 0, leaving a peer-violating tree behind; `npm ci`
-      # on the same pair fails ERESOLVE. That is the failure this job exists to
-      # catch, so it has to be the strict command.
+      # runner always has — `npm install` can resolve a peer-violating
+      # package.json/lockfile combination and exit 0, leaving a broken tree
+      # behind; `npm ci` on the same pair fails ERESOLVE. That is the failure
+      # this job exists to catch, so it has to be the strict command.
       #
       # Then record the stamps, exactly as the `test-ext` job does, so the Make
       # targets below consume this install instead of immediately running a
@@ -2836,13 +2832,13 @@ jobs:
 
       # Both Darwin legs share the hosted image's Homebrew state. Remove only
       # the unused aws/tap before Rust setup invokes `brew install bash`; never
-      # trust the tap or weaken Homebrew's trust policy (issue #1684).
+      # trust the tap or weaken Homebrew's trust policy.
       - name: Remove unused runner Homebrew tap
         if: runner.os == 'macOS'
         run: scripts/dev/prepare-homebrew-ci.sh
 
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           # Keep registry caching, but never restore compiled target trees here.
@@ -3073,9 +3069,9 @@ jobs:
   # `tcl-lsp-server` MUST be in that list.  A Zed extension is a single
   # cross-platform WASM module and cannot embed a per-platform binary, so
   # editors/zed resolves `tcl-lsp-server-<triple>[.exe]` from this release at
-  # runtime, pinned to its own tag.  Drop it and every Zed install has no server
-  # (issue #826).  The VSIX takes its copy from the build-server-matrix
-  # artifacts, not from here.
+  # runtime, pinned to its own tag.  Drop it and every Zed install has no
+  # server.  The VSIX takes its copy from the build-server-matrix artifacts,
+  # not from here.
   #
   # publish-checksums then sums + signs whatever is attached, so these assets are
   # covered automatically.
@@ -3161,7 +3157,7 @@ jobs:
       # *that*, not to the newest release, so cargo refuses the workspace's
       # `rust-version`. Install the current stable explicitly.
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           cache-key: build-vsix
@@ -3169,7 +3165,7 @@ jobs:
       # The VSIX embeds the spec studio, whose real LSP worker is built from
       # Rust to wasm32 and post-processed with the version matching its lockfile.
       - name: Install wasm-bindgen CLI
-        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
+        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
         with:
           tool: wasm-bindgen-cli@0.2.128
 
@@ -3294,8 +3290,8 @@ jobs:
 
   # ---------------------------------------------------------------------
   # build-claude-skills packages the Claude Code skills bundle, then attests
-  # and uploads it. The skills drive the native MCP server, so nothing here
-  # builds or ships the retired AI zipapp any more.
+  # and uploads it. The skills drive the native MCP server, so the bundle
+  # carries no interpreter payload.
   # ---------------------------------------------------------------------
   build-claude-skills:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -3320,7 +3316,7 @@ jobs:
       # *that*, not to the newest release, so cargo refuses the workspace's
       # `rust-version`. Install the current stable explicitly.
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           cache-key: build-claude-skills
@@ -3364,7 +3360,7 @@ jobs:
           merge-multiple: true
 
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           cache-key: build-jetbrains
@@ -3372,12 +3368,12 @@ jobs:
       # The JetBrains plugin embeds the same spec studio as the VSIX. Keep the
       # CLI pinned to the wasm-bindgen crate version in the standalone lockfile.
       - name: Install wasm-bindgen CLI
-        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
+        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
         with:
           tool: wasm-bindgen-cli@0.2.128
 
       - name: Set up Java 17
-        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
           java-version: 17
@@ -3538,7 +3534,7 @@ jobs:
         # actions-rust-lang/setup-rust-toolchain wraps swatinem/rust-cache
         # so we get cargo registry / target caching for free — meaningful
         # speedup vs the bare dtolnay/rust-toolchain action.
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           target: wasm32-wasip2
@@ -3573,7 +3569,7 @@ jobs:
   publish-checksums:
     # Decoupled from the peripheral build jobs: this step downloads and sums
     # *whatever* is attached to the release, so a peripheral build that fails
-    # (e.g. a zipapp profile, an editor package) must not block it — and must
+    # (e.g. the Zed or Claude-skills package) must not block it — and must
     # not block the Marketplace publish that depends on it.  It runs once all
     # builds have settled (success or failure — `!cancelled()` lets the `if`
     # evaluate despite a failed/​skipped need) but only requires the CORE to have
@@ -3656,10 +3652,8 @@ jobs:
   # AGENTS.md invariant, a publish secret may live in CI only when it is
   # stored this way: reachable solely by a job that targets the protected
   # Environment, which PAUSES for manual approval and can never run on a
-  # non-tag ref.  (The keyless OIDC -> Azure Entra path was rolled back
-  # after it proved unreliable against the VS Code Marketplace; the PAT is
-  # the supported mechanism, matching the stable channel from `rust`.)  Hardening
-  # choices preserved from the keyless design:
+  # non-tag ref.  The PAT is the mechanism the VS Code Marketplace supports,
+  # matching the stable channel from `rust`.  Hardening choices:
   #   * VSCE_PAT is scoped to the publish step's `env:` only, so the
   #     freshly-fetched npm code in `npm ci` never runs with the token in
   #     its environment.

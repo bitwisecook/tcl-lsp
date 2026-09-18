@@ -30,7 +30,7 @@ subcommand. All line/col arguments are **0-based**.
 | `diagnostics` | `<file>` | `SEVERITY CODE l:c-l:c message`; optimiser O-codes are INFO with quick-fix actions |
 | `format` | `<file>` | the edits the formatter would apply |
 | `hover` / `completion` / `definition` / `references` | `<file> <line> <col>` | the feature at a position |
-| `code-lens` | `<file>` | reference-count lenses, each resolved via `codeLens/resolve` as an editor would; `[inert — empty command id]` marks the clickable-broken shape (#724 / #956) |
+| `code-lens` | `<file>` | reference-count lenses, each resolved via `codeLens/resolve` as an editor would; `[inert — empty command id]` marks a lens whose command id is empty, so an editor cannot click it |
 | `code-actions` | `<file> <l> <c> <el> <ec>` | code actions in a range |
 | `optimize` | `<file>` | each rewrite and the full optimised source |
 | `symbols` | `<file>` | the document symbol hierarchy (events, procs, namespaces, variables) |
@@ -45,13 +45,23 @@ subcommand. All line/col arguments are **0-based**.
 
 `definition`, `references`, `diagnostics`, `code-actions`, `context`, `all`,
 `completion`, and `code-lens` wait for the background workspace scan
-(`--scan-timeout`, default 30 s) before proceeding; otherwise cross-file
+(`--scan-timeout`) before proceeding; otherwise cross-file
 results race the scan. A new cross-file check must call
 `client.wait_for_workspace_scan()` *before* `didOpen`. `--also-open FILE`
 (repeatable) opens companion files after that wait and before `<file>`:
 
 ```bash
 python3 .claude/skills/lsp-client/lsp_client.py --also-open lib.tcl definition consumer.tcl 3 10
+```
+
+The scan covers the workspace root — the current directory, or `--server-dir`.
+It is the slow part: this repository is ~540 indexed files, which a `--release`
+server scans in ~9 s and a `debug` one in ~65 s, so `--scan-timeout` defaults to
+30 s and 180 s respectively. Point `--server-dir` at the directory holding the
+files under test to scan less and finish sooner:
+
+```bash
+python3 .claude/skills/lsp-client/lsp_client.py --server-dir editors/vscode/testFixture diagnostics editors/vscode/testFixture/diagnostics.tcl
 ```
 
 ## When to use

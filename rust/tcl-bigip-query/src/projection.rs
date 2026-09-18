@@ -26,16 +26,18 @@
 //! materialise when navigated into, and the resulting refs are memoised on
 //! `Root.object_cache` keyed by `(kind, full_path)`.
 //!
-//! The projection covers the **core LTM kinds** the cookbook + common
-//! queries use: `ltm virtual`, `ltm virtual-address`, `ltm pool`
-//! (+ members), `ltm node`, `ltm monitor`, `ltm rule`, `ltm data-group`,
-//! `ltm persistence`, `ltm snatpool`, `ltm profile`, and `ltm policy`
-//! (+ rules / conditions / actions). Each object's top-level scalar
-//! properties get a `field_slot` (the byte range of the value half) so the
-//! edit-plan engine can rewrite a single property in place; pool members
-//! get their slots from `BigipPoolMember.field_offsets`. `stanza_slot` is
-//! populated from each object's range so `--scf` / auto output matches
-//! the canonical layout. The synthesised `ltm rule .refs` sub-object is built by
+//! Seven modules carry a projection — `ltm`, `net`, `sys`, `cm`, `gtm`,
+//! `apm`, `security` — and their `(label, tmsh_kind)` tables below are the
+//! contract for which kinds are navigable: a kind absent from a table is
+//! absent from the DSL, and the module container reports `no entry`. The
+//! remaining modules in `MODULE_NAMES` appear at the root with no kinds.
+//!
+//! Each object's top-level scalar properties get a `field_slot` (the byte
+//! range of the value half) so the edit-plan engine can rewrite a single
+//! property in place; pool members get their slots from
+//! `BigipPoolMember.field_offsets`. `stanza_slot` is populated from each
+//! object's range so `--scf` / auto output matches the canonical layout.
+//! The synthesised `ltm rule .refs` sub-object is built by
 //! `rule_refs_value`.
 
 use std::cell::RefCell;
@@ -44,13 +46,22 @@ use std::rc::Rc;
 use indexmap::IndexMap;
 use tcl_bigip::model::BigipDataGroup;
 use tcl_bigip::model::{
-    BigipGtmDatacenter, BigipGtmListener, BigipGtmPool, BigipGtmPoolMember, BigipGtmServer,
-    BigipGtmWideip, BigipMonitor, BigipNode, BigipPersistence, BigipPolicy, BigipPolicyAction,
-    BigipPolicyCondition, BigipPolicyRule, BigipPool, BigipPoolMember, BigipProfile, BigipRule,
-    BigipSecurityFirewallAddressList, BigipSecurityFirewallPolicy, BigipSecurityFirewallPortList,
-    BigipSecurityFirewallRuleList, BigipSecurityNatDestinationTranslation, BigipSecurityNatPolicy,
-    BigipSecurityNatSourceTranslation, BigipSnatPool, BigipVirtualAddress, BigipVirtualServer,
-    DataGroupType, ModelObject, ProfileType,
+    BigipApmEphemeralAuthSshSecurityConfig, BigipApmOauthDbInstance, BigipApmPolicyAccessPolicy,
+    BigipApmPolicyAgent, BigipApmPolicyCustomizationSource, BigipApmPolicyItem,
+    BigipApmReportDefaultReport, BigipCmCert, BigipCmDevice, BigipCmDeviceGroup, BigipCmHaGroup,
+    BigipCmKey, BigipCmTrafficGroup, BigipCmTrustDomain, BigipGtmDatacenter, BigipGtmListener,
+    BigipGtmPool, BigipGtmPoolMember, BigipGtmServer, BigipGtmWideip, BigipLtmSnatTranslation,
+    BigipMonitor, BigipNetDnsResolver, BigipNetInterface, BigipNetPortList, BigipNetRoute,
+    BigipNetRouteDomain, BigipNetSelf, BigipNetStp, BigipNetTunnel, BigipNetVlan, BigipNode,
+    BigipPersistence, BigipPolicy, BigipPolicyAction, BigipPolicyCondition, BigipPolicyRule,
+    BigipPool, BigipPoolMember, BigipProfile, BigipRule, BigipSecurityFirewallAddressList,
+    BigipSecurityFirewallPolicy, BigipSecurityFirewallPortList, BigipSecurityFirewallRuleList,
+    BigipSecurityNatDestinationTranslation, BigipSecurityNatPolicy,
+    BigipSecurityNatSourceTranslation, BigipSnatPool, BigipSysDns, BigipSysFileSslCert,
+    BigipSysFileSslKey, BigipSysFolder, BigipSysGlobalSettings, BigipSysManagementRoute,
+    BigipSysNtp, BigipSysNtpRestrict, BigipSysProvision, BigipSysSnmp, BigipSysSnmpDiskMonitor,
+    BigipSysSnmpProcessMonitor, BigipSysSnmpTrap, BigipSysSnmpUser, BigipVirtualAddress,
+    BigipVirtualServer, DataGroupType, ModelObject, ProfileType,
 };
 use tcl_bigip::parser::Placed;
 use tcl_bigip::value::{BigipList, ListItemValue, MonitorExpression};
@@ -191,83 +202,137 @@ const MODULE_NAMES: &[&str] = &[
     "analytics",
 ];
 
-/// `(label, tmsh_kind)` for the LTM kinds the projection covers. The
-/// order matches the tail of `_MODULE_KINDS["ltm"]`. Labels not listed
-/// here (the long-tail LTM kinds the Rust model doesn't carry) are simply
-/// absent — navigating into them yields an empty container, matching the
-/// "no entry" surface produced for a config that has no such objects.
-const LTM_KINDS: &[(&str, &str)] = &[
-    ("virtual", "ltm virtual"),
-    ("virtual-address", "ltm virtual-address"),
-    ("pool", "ltm pool"),
-    ("node", "ltm node"),
-    ("rule", "ltm rule"),
-    ("profile", "ltm profile"),
-    ("monitor", "ltm monitor"),
-    ("persistence", "ltm persistence"),
-    ("snatpool", "ltm snatpool"),
-    ("policy", "ltm policy"),
-    ("data-group", "ltm data-group"),
-];
-
-/// `(label, tmsh_kind)` for the GTM kinds the projection covers. GTM matters to
-/// the estate report because a GTM (DNS) tier fronts one or more LTM tiers: a
-/// `gtm server`'s `virtual-servers` destinations are the downstream LTM virtual
-/// addresses, which is how the report links a GTM to the LTMs it load-balances.
-const GTM_KINDS: &[(&str, &str)] = &[
-    ("datacenter", "gtm datacenter"),
-    ("server", "gtm server"),
-    ("pool", "gtm pool"),
-    ("wideip", "gtm wideip"),
-    ("listener", "gtm listener"),
-];
-
-/// `(label, tmsh_kind)` for the AFM `security` kinds the projection covers:
-/// firewall policies / rule-lists and the address-/port-lists they reference,
-/// plus the NAT policies and source/destination translations. These let the
-/// report surface the firewall + NAT posture alongside the LTM/GTM estate.
-const SECURITY_KINDS: &[(&str, &str)] = &[
-    ("firewall-policy", "security firewall policy"),
-    ("firewall-rule-list", "security firewall rule-list"),
-    ("firewall-address-list", "security firewall address-list"),
-    ("firewall-port-list", "security firewall port-list"),
-    ("nat-policy", "security nat policy"),
-    ("nat-source-translation", "security nat source-translation"),
+/// Every kind the projection covers, as `(tmsh_kind, label)`.
+///
+/// The TMSH kind is what [`placed_kind`] returns for a parsed object and what
+/// a [`PathRef`] records as its expected target; the label is the identifier
+/// its module container exposes it under (`.net["route-domain"]`). The label
+/// is not derivable from the kind — `apm policy access-policy` is reached as
+/// `access-policy`, not `policy-access-policy`, and `net tunnels tunnel` as
+/// `tunnel` — so both halves are spelled out.
+///
+/// A kind absent from this table is not navigable: its module container
+/// reports `no entry`, even when the parser types the stanza. The
+/// `every_parsed_kind_is_projected_or_listed` test holds that deliberate,
+/// pinning the parsed-but-unprojected kinds against the committed fixtures.
+///
+/// Ordering is by module, then the order each module's kinds are listed in
+/// its container.
+const KINDS: &[(&str, &str)] = &[
+    // ltm — the core load-balancing objects the cookbook and common queries
+    // walk. The long-tail LTM kinds the Rust model carries no typed struct
+    // for are simply absent.
+    ("ltm virtual", "virtual"),
+    ("ltm virtual-address", "virtual-address"),
+    ("ltm pool", "pool"),
+    ("ltm node", "node"),
+    ("ltm rule", "rule"),
+    ("ltm profile", "profile"),
+    ("ltm monitor", "monitor"),
+    ("ltm persistence", "persistence"),
+    ("ltm snatpool", "snatpool"),
+    ("ltm policy", "policy"),
+    ("ltm data-group", "data-group"),
+    ("ltm snat-translation", "snat-translation"),
+    // net — the L2/L3 underlay the LTM tier sits on. `net self` / `net vlan`
+    // / `net route-domain` are what a self-IP or VLAN-binding audit walks.
+    ("net route", "route"),
+    ("net vlan", "vlan"),
+    ("net self", "self"),
+    ("net route-domain", "route-domain"),
+    ("net port-list", "port-list"),
+    ("net interface", "interface"),
+    ("net dns-resolver", "dns-resolver"),
+    ("net tunnels tunnel", "tunnel"),
+    ("net stp", "stp"),
+    // sys — the filestore kinds carry the cert metadata `x509_from_config` /
+    // `ucs_cert` project. `dns` / `ntp` / `snmp` / `global-settings` are TMSH
+    // singletons: they parse with an empty full-path, so they hold exactly
+    // one entry each and are read by streaming (`.sys.dns[]`).
+    ("sys dns", "dns"),
+    ("sys ntp", "ntp"),
+    ("sys snmp", "snmp"),
+    ("sys global-settings", "global-settings"),
+    ("sys provision", "provision"),
+    ("sys folder", "folder"),
+    ("sys file ssl-cert", "file-ssl-cert"),
+    ("sys file ssl-key", "file-ssl-key"),
+    ("sys management-route", "management-route"),
+    // cm — `device` + `device-group` are the HA topology an estate report
+    // joins on; `cert` / `key` are the device-trust key material, carrying
+    // the same cert metadata fields as `sys file ssl-cert`.
+    ("cm cert", "cert"),
+    ("cm key", "key"),
+    ("cm device", "device"),
+    ("cm device-group", "device-group"),
+    ("cm traffic-group", "traffic-group"),
+    ("cm trust-domain", "trust-domain"),
+    ("cm ha-group", "ha-group"),
+    // gtm — a GTM (DNS) tier fronts one or more LTM tiers: a `gtm server`'s
+    // `virtual-servers` destinations are the downstream LTM virtual
+    // addresses, which is how a report links a GTM to the LTMs it balances.
+    ("gtm datacenter", "datacenter"),
+    ("gtm server", "server"),
+    ("gtm pool", "pool"),
+    ("gtm wideip", "wideip"),
+    ("gtm listener", "listener"),
+    // apm — an access-policy's `start-item` / `items[]` deref into
+    // `policy-item`, and an item's `agents[]` into `policy agent`, so a
+    // policy walk resolves in one chain.
+    ("apm policy access-policy", "access-policy"),
+    ("apm policy policy-item", "policy-item"),
+    ("apm policy agent", "policy-agent"),
+    ("apm policy customization-source", "customization-source"),
+    ("apm oauth db-instance", "oauth-db-instance"),
     (
-        "nat-destination-translation",
+        "apm ephemeral-auth ssh-security-config",
+        "ssh-security-config",
+    ),
+    ("apm report default-report", "default-report"),
+    // security — the AFM firewall + NAT posture alongside the LTM/GTM estate.
+    ("security firewall policy", "firewall-policy"),
+    ("security firewall rule-list", "firewall-rule-list"),
+    ("security firewall address-list", "firewall-address-list"),
+    ("security firewall port-list", "firewall-port-list"),
+    ("security nat policy", "nat-policy"),
+    ("security nat source-translation", "nat-source-translation"),
+    (
         "security nat destination-translation",
+        "nat-destination-translation",
     ),
 ];
 
-/// Every covered kind table, in module order. Iterated by the per-module entry
-/// builder and the kind/label lookups.
-const KIND_TABLES: &[&[(&str, &str)]] = &[LTM_KINDS, GTM_KINDS, SECURITY_KINDS];
-
-/// The `(label, tmsh_kind)` table for a module, or empty for an uncovered one.
-fn module_kinds(module: &str) -> &'static [(&'static str, &'static str)] {
-    match module {
-        "ltm" => LTM_KINDS,
-        "gtm" => GTM_KINDS,
-        "security" => SECURITY_KINDS,
-        _ => &[],
-    }
+/// The `(label, tmsh_kind)` pairs a module container exposes, in table order.
+///
+/// A kind belongs to the module its TMSH kind starts with, so the module list
+/// follows from [`KINDS`] rather than a second table that can drift from it.
+fn module_kinds(module: &str) -> impl Iterator<Item = (&'static str, &'static str)> + '_ {
+    KINDS.iter().filter_map(move |(kind, label)| {
+        kind.strip_prefix(module)
+            .and_then(|rest| rest.strip_prefix(' '))
+            .map(|_| (*label, *kind))
+    })
 }
 
-/// The set of leaf object kinds, restricted to the covered subset. Used by
+/// Every projected kind as `(tmsh_kind, label)`, for the docs gate that holds
+/// `--help-dsl`'s MODULES section to this table.
+#[cfg(test)]
+pub(crate) fn documented_kind_labels() -> impl Iterator<Item = (&'static str, &'static str)> {
+    KINDS.iter().copied()
+}
+
+/// Whether *kind* is a projected leaf object kind. Used by
 /// `Container.is_object_kind`.
 fn is_object_kind_alias(kind: &str) -> bool {
-    KIND_TABLES
-        .iter()
-        .any(|table| table.iter().any(|(_, k)| *k == kind))
+    KINDS.iter().any(|(k, _)| *k == kind)
 }
 
 /// Map a kind to its label (for `PathRef` container navigation).
 fn kind_to_label(kind: &str) -> Option<&'static str> {
-    KIND_TABLES
+    KINDS
         .iter()
-        .flat_map(|table| table.iter())
-        .find(|(_, k)| *k == kind)
-        .map(|(label, _)| *label)
+        .find(|(k, _)| *k == kind)
+        .map(|(_, label)| *label)
 }
 
 // Entry building
@@ -292,8 +357,8 @@ fn build_entries(container: &Container) -> IndexMap<String, Value> {
         let mut out = IndexMap::new();
         for (label, tmsh_kind) in module_kinds(&container.kind) {
             out.insert(
-                (*label).to_owned(),
-                Value::Container(Container::new(*tmsh_kind, Rc::clone(root))),
+                label.to_owned(),
+                Value::Container(Container::new(tmsh_kind, Rc::clone(root))),
             );
         }
         return out;
@@ -329,6 +394,41 @@ fn placed_kind(placed: &Placed) -> Option<&'static str> {
         ModelObject::SnatPool(_) => Some("ltm snatpool"),
         ModelObject::Policy(_) => Some("ltm policy"),
         ModelObject::DataGroup(_) => Some("ltm data-group"),
+        ModelObject::LtmSnatTranslation(_) => Some("ltm snat-translation"),
+        ModelObject::NetRoute(_) => Some("net route"),
+        ModelObject::NetVlan(_) => Some("net vlan"),
+        ModelObject::NetSelf(_) => Some("net self"),
+        ModelObject::NetRouteDomain(_) => Some("net route-domain"),
+        ModelObject::NetPortList(_) => Some("net port-list"),
+        ModelObject::NetInterface(_) => Some("net interface"),
+        ModelObject::NetDnsResolver(_) => Some("net dns-resolver"),
+        ModelObject::NetTunnel(_) => Some("net tunnels tunnel"),
+        ModelObject::NetStp(_) => Some("net stp"),
+        ModelObject::SysDns(_) => Some("sys dns"),
+        ModelObject::SysNtp(_) => Some("sys ntp"),
+        ModelObject::SysSnmp(_) => Some("sys snmp"),
+        ModelObject::SysGlobalSettings(_) => Some("sys global-settings"),
+        ModelObject::SysProvision(_) => Some("sys provision"),
+        ModelObject::SysFolder(_) => Some("sys folder"),
+        ModelObject::SysFileSslCert(_) => Some("sys file ssl-cert"),
+        ModelObject::SysFileSslKey(_) => Some("sys file ssl-key"),
+        ModelObject::SysManagementRoute(_) => Some("sys management-route"),
+        ModelObject::CmCert(_) => Some("cm cert"),
+        ModelObject::CmKey(_) => Some("cm key"),
+        ModelObject::CmDevice(_) => Some("cm device"),
+        ModelObject::CmDeviceGroup(_) => Some("cm device-group"),
+        ModelObject::CmTrafficGroup(_) => Some("cm traffic-group"),
+        ModelObject::CmTrustDomain(_) => Some("cm trust-domain"),
+        ModelObject::CmHaGroup(_) => Some("cm ha-group"),
+        ModelObject::ApmPolicyAccessPolicy(_) => Some("apm policy access-policy"),
+        ModelObject::ApmPolicyItem(_) => Some("apm policy policy-item"),
+        ModelObject::ApmPolicyAgent(_) => Some("apm policy agent"),
+        ModelObject::ApmPolicyCustomizationSource(_) => Some("apm policy customization-source"),
+        ModelObject::ApmOauthDbInstance(_) => Some("apm oauth db-instance"),
+        ModelObject::ApmEphemeralAuthSshSecurityConfig(_) => {
+            Some("apm ephemeral-auth ssh-security-config")
+        }
+        ModelObject::ApmReportDefaultReport(_) => Some("apm report default-report"),
         ModelObject::GtmDatacenter(_) => Some("gtm datacenter"),
         ModelObject::GtmServer(_) => Some("gtm server"),
         ModelObject::GtmPool(_) => Some("gtm pool"),
@@ -411,6 +511,39 @@ fn model_range(obj: &ModelObject) -> Option<tcl_bigip::range::Range> {
         ModelObject::SnatPool(o) => o.range,
         ModelObject::Policy(o) => o.range,
         ModelObject::DataGroup(o) => o.range,
+        ModelObject::LtmSnatTranslation(o) => o.range,
+        ModelObject::NetRoute(o) => o.range,
+        ModelObject::NetVlan(o) => o.range,
+        ModelObject::NetSelf(o) => o.range,
+        ModelObject::NetRouteDomain(o) => o.range,
+        ModelObject::NetPortList(o) => o.range,
+        ModelObject::NetInterface(o) => o.range,
+        ModelObject::NetDnsResolver(o) => o.range,
+        ModelObject::NetTunnel(o) => o.range,
+        ModelObject::NetStp(o) => o.range,
+        ModelObject::SysDns(o) => o.range,
+        ModelObject::SysNtp(o) => o.range,
+        ModelObject::SysSnmp(o) => o.range,
+        ModelObject::SysGlobalSettings(o) => o.range,
+        ModelObject::SysProvision(o) => o.range,
+        ModelObject::SysFolder(o) => o.range,
+        ModelObject::SysFileSslCert(o) => o.range,
+        ModelObject::SysFileSslKey(o) => o.range,
+        ModelObject::SysManagementRoute(o) => o.range,
+        ModelObject::CmCert(o) => o.range,
+        ModelObject::CmKey(o) => o.range,
+        ModelObject::CmDevice(o) => o.range,
+        ModelObject::CmDeviceGroup(o) => o.range,
+        ModelObject::CmTrafficGroup(o) => o.range,
+        ModelObject::CmTrustDomain(o) => o.range,
+        ModelObject::CmHaGroup(o) => o.range,
+        ModelObject::ApmPolicyAccessPolicy(o) => o.range,
+        ModelObject::ApmPolicyItem(o) => o.range,
+        ModelObject::ApmPolicyAgent(o) => o.range,
+        ModelObject::ApmPolicyCustomizationSource(o) => o.range,
+        ModelObject::ApmOauthDbInstance(o) => o.range,
+        ModelObject::ApmEphemeralAuthSshSecurityConfig(o) => o.range,
+        ModelObject::ApmReportDefaultReport(o) => o.range,
         ModelObject::GtmDatacenter(o) => o.range,
         ModelObject::GtmServer(o) => o.range,
         ModelObject::GtmPool(o) => o.range,
@@ -586,6 +719,54 @@ fn project_fields(kind: &str, obj: &ModelObject, root: &Rc<Root>) -> IndexMap<St
         ("ltm snatpool", ModelObject::SnatPool(o)) => project_snatpool(o),
         ("ltm policy", ModelObject::Policy(o)) => project_policy(o, root),
         ("ltm data-group", ModelObject::DataGroup(o)) => project_data_group(o),
+        ("ltm snat-translation", ModelObject::LtmSnatTranslation(o)) => project_snat_translation(o),
+        ("net route", ModelObject::NetRoute(o)) => project_net_route(o),
+        ("net vlan", ModelObject::NetVlan(o)) => project_net_vlan(o),
+        ("net self", ModelObject::NetSelf(o)) => project_net_self(o),
+        ("net route-domain", ModelObject::NetRouteDomain(o)) => project_net_route_domain(o),
+        ("net port-list", ModelObject::NetPortList(o)) => project_net_port_list(o),
+        ("net interface", ModelObject::NetInterface(o)) => project_net_interface(o),
+        ("net dns-resolver", ModelObject::NetDnsResolver(o)) => project_net_dns_resolver(o),
+        ("net tunnels tunnel", ModelObject::NetTunnel(o)) => project_net_tunnel(o),
+        ("net stp", ModelObject::NetStp(o)) => project_net_stp(o),
+        ("sys dns", ModelObject::SysDns(o)) => project_sys_dns(o),
+        ("sys ntp", ModelObject::SysNtp(o)) => project_sys_ntp(o),
+        ("sys snmp", ModelObject::SysSnmp(o)) => project_sys_snmp(o),
+        ("sys global-settings", ModelObject::SysGlobalSettings(o)) => {
+            project_sys_global_settings(o)
+        }
+        ("sys provision", ModelObject::SysProvision(o)) => project_sys_provision(o),
+        ("sys folder", ModelObject::SysFolder(o)) => project_sys_folder(o),
+        ("sys file ssl-cert", ModelObject::SysFileSslCert(o)) => project_sys_file_ssl_cert(o),
+        ("sys file ssl-key", ModelObject::SysFileSslKey(o)) => project_sys_file_ssl_key(o),
+        ("sys management-route", ModelObject::SysManagementRoute(o)) => {
+            project_sys_management_route(o)
+        }
+        ("cm cert", ModelObject::CmCert(o)) => project_cm_cert(o),
+        ("cm key", ModelObject::CmKey(o)) => project_cm_key(o),
+        ("cm device", ModelObject::CmDevice(o)) => project_cm_device(o),
+        ("cm device-group", ModelObject::CmDeviceGroup(o)) => project_cm_device_group(o),
+        ("cm traffic-group", ModelObject::CmTrafficGroup(o)) => project_cm_traffic_group(o),
+        ("cm trust-domain", ModelObject::CmTrustDomain(o)) => project_cm_trust_domain(o),
+        ("cm ha-group", ModelObject::CmHaGroup(o)) => project_cm_ha_group(o),
+        ("apm policy access-policy", ModelObject::ApmPolicyAccessPolicy(o)) => {
+            project_apm_access_policy(o)
+        }
+        ("apm policy policy-item", ModelObject::ApmPolicyItem(o)) => project_apm_policy_item(o),
+        ("apm policy agent", ModelObject::ApmPolicyAgent(o)) => project_apm_policy_agent(o),
+        ("apm policy customization-source", ModelObject::ApmPolicyCustomizationSource(o)) => {
+            project_apm_customization_source(o)
+        }
+        ("apm oauth db-instance", ModelObject::ApmOauthDbInstance(o)) => {
+            project_apm_oauth_db_instance(o)
+        }
+        (
+            "apm ephemeral-auth ssh-security-config",
+            ModelObject::ApmEphemeralAuthSshSecurityConfig(o),
+        ) => project_apm_ssh_security_config(o),
+        ("apm report default-report", ModelObject::ApmReportDefaultReport(o)) => {
+            project_apm_default_report(o)
+        }
         ("gtm datacenter", ModelObject::GtmDatacenter(o)) => project_gtm_datacenter(o),
         ("gtm server", ModelObject::GtmServer(o)) => project_gtm_server(o),
         ("gtm pool", ModelObject::GtmPool(o)) => project_gtm_pool(o),
@@ -648,8 +829,8 @@ fn path_ref(full_path: &str, expected_kind: &str) -> Value {
     Value::PathRef(Rc::new(PathRef::new(full_path, expected_kind)))
 }
 
-/// A list of `PathRef`s for a via-legacy ref+list field — iterate the
-/// `BigipList`'s item values as `for p in raw` does.
+/// A list of `PathRef`s over a structured `BigipList` whose items name
+/// other objects, taking each item's path-ish string as the target.
 fn path_ref_list(list: &BigipList, expected_kind: &str) -> Value {
     let mut out = Vec::with_capacity(list.items.len());
     for item in &list.items {
@@ -675,8 +856,9 @@ fn list_str_values(list: &BigipList) -> Value {
     )
 }
 
-/// The string a `ListItemValue` projects to when read as a path (iterating
-/// `item.value`, where `PathRef(full_path=p)` coerces via string conversion).
+/// The string a `ListItemValue` projects to when read as a path: `Profile`
+/// and `Persistence` items give their `path`; everything else falls back to
+/// the full display rendering.
 fn list_item_string(value: &ListItemValue) -> String {
     match value {
         ListItemValue::Str(s) => s.clone(),
@@ -712,10 +894,10 @@ fn typed_str<T: std::fmt::Display>(opt: Option<&T>) -> Value {
     Value::Str(opt.map_or_else(String::new, ToString::to_string))
 }
 
-/// Project a `monitor` field through the `MonitorExpression` pilot — parse
-/// the raw string and re-render so the JSON surface matches
-/// `MonitorExpressionSpec.project`. Empty / unparseable strings fall back
-/// to the raw text (the string is returned verbatim).
+/// Project a `monitor` field: parse the raw string as a
+/// [`MonitorExpression`] and re-render it, so `min 1 of { a b }` and its
+/// spacing variants normalise to one spelling. Empty / unparseable
+/// strings pass through verbatim.
 fn monitor_value(raw: &str) -> Value {
     if raw.trim().is_empty() {
         return Value::Str(String::new());
@@ -770,9 +952,11 @@ fn project_virtual(o: &BigipVirtualServer, _root: &Rc<Root>) -> IndexMap<String,
         .s("full-path", &o.full_path)
         .v("destination", typed_str(o.destination.as_ref()))
         .v("pool", path_ref(&o.pool, "ltm pool"))
-        // `rules` / `policies` / `vlans` pilot is via-legacy -> PathRef list.
+        // `rules` / `policies` / `vlans` name other objects, so they
+        // project as PathRefs and deref on field access.
         .v("rules", path_ref_list(&o.rules, "ltm rule"))
-        // `profiles` / `persist` pilot is a ListSpec -> structured BigipList.
+        // `profiles` / `persist` carry per-item context (a context tag, a
+        // sub-block), so they project as their rendered spelling instead.
         .v("profiles", list_str_values(&o.profiles))
         .v("persist", list_str_values(&o.persist))
         .v("policies", path_ref_list(&o.policies, "ltm policy"))
@@ -937,9 +1121,9 @@ fn member_object_ref(member: &BigipPoolMember, root: &Rc<Root>) -> Value {
         .s("connection-limit", &member.connection_limit)
         .s("rate-limit", &member.rate_limit)
         .done();
-    // Port of `_member_object_ref`'s slot wiring: each captured field offset
-    // becomes a `FieldSlot` over the value span so member properties
-    // (`address`, `description`, …) are individually editable.
+    // Each captured field offset becomes a `FieldSlot` over the value span,
+    // so member properties (`address`, `description`, …) are individually
+    // editable even though the member is not a stanza of its own.
     let mut field_slots: IndexMap<String, FieldSlot> = IndexMap::new();
     for (key, (start, end)) in &member.field_offsets {
         if let Some(raw_text) = root.source.get(*start..*end) {
@@ -1310,6 +1494,735 @@ fn str_list(values: &[String]) -> Value {
     Value::List(values.iter().map(|s| Value::Str(s.clone())).collect())
 }
 
+fn project_snat_translation(o: &BigipLtmSnatTranslation) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("address", &o.address)
+        .s("description", &o.description)
+        .v(
+            "traffic-group",
+            path_ref(&o.traffic_group, "cm traffic-group"),
+        )
+        .s("inherited-traffic-group", &o.inherited_traffic_group)
+        .s("connection-limit", &o.connection_limit)
+        .s("ip-idle-timeout", &o.ip_idle_timeout)
+        .s("tcp-idle-timeout", &o.tcp_idle_timeout)
+        .s("udp-idle-timeout", &o.udp_idle_timeout)
+        .s("state", &o.state)
+        .done()
+}
+
+// Net (L2/L3 underlay) projections
+
+fn project_net_route(o: &BigipNetRoute) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .v("network", typed_str(o.network.as_ref()))
+        .b("is-default-route", o.is_default_route)
+        .v("gw", typed_str(o.gw.as_ref()))
+        .v("pool", path_ref(&o.pool, "ltm pool"))
+        // A route's `interface` carries a VLAN or tunnel path, not a physical
+        // interface name — the same target set as `ltm virtual`'s
+        // `transparent-nexthop`, which resolves against `net vlan` too.
+        .v("interface", path_ref(&o.interface, "net vlan"))
+        .b("blackhole", o.blackhole)
+        .s("mtu", &o.mtu)
+        .s("description", &o.description)
+        .done()
+}
+
+fn project_net_vlan(o: &BigipNetVlan) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .i("tag", o.tag)
+        .v(
+            "interfaces",
+            path_ref_list_strs(&o.interfaces, "net interface"),
+        )
+        .s("description", &o.description)
+        .s("mtu", &o.mtu)
+        .s("cmp-hash", &o.cmp_hash)
+        .s("failsafe", &o.failsafe)
+        .s("failsafe-action", &o.failsafe_action)
+        .s("failsafe-timeout", &o.failsafe_timeout)
+        .s("fwd-mode", &o.fwd_mode)
+        .s("hardware-syncookie", &o.hardware_syncookie)
+        .s("learning", &o.learning)
+        .s("tag-mode", &o.tag_mode)
+        .s("virtual-wire", &o.virtual_wire)
+        .s("auto-lasthop", &o.auto_lasthop)
+        .s("source-check", &o.source_check)
+        .s("source-checking", &o.source_checking)
+        .s("syn-flood-rate-limit", &o.syn_flood_rate_limit)
+        .s("syncache-threshold", &o.syncache_threshold)
+        .s("service-policy", &o.service_policy)
+        .done()
+}
+
+fn project_net_self(o: &BigipNetSelf) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .v("address", typed_str(o.address.as_ref()))
+        .v("vlan", path_ref(&o.vlan, "net vlan"))
+        .v(
+            "traffic-group",
+            path_ref(&o.traffic_group, "cm traffic-group"),
+        )
+        .v("allow-service", str_list(&o.allow_service))
+        .s("description", &o.description)
+        .s("floating", &o.floating)
+        .s("unit", &o.unit)
+        .s("service-policy", &o.service_policy)
+        .s("fw-enforced-policy", &o.fw_enforced_policy)
+        .s("fw-staged-policy", &o.fw_staged_policy)
+        .s("inherited-traffic-group", &o.inherited_traffic_group)
+        .s("address-source", &o.address_source)
+        .done()
+}
+
+fn project_net_route_domain(o: &BigipNetRouteDomain) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .i("id", o.id)
+        .v("vlans", path_ref_list_strs(&o.vlans, "net vlan"))
+        .s("description", &o.description)
+        .v("parent", path_ref(&o.parent, "net route-domain"))
+        .s("strict", &o.strict)
+        .s("fw-enforced-policy", &o.fw_enforced_policy)
+        .s("fw-staged-policy", &o.fw_staged_policy)
+        .s("bwc-policy", &o.bwc_policy)
+        .s("connection-limit", &o.connection_limit)
+        .s("flow-eviction-policy", &o.flow_eviction_policy)
+        .v("routing-protocol", str_list(&o.routing_protocol))
+        .s("security-nat-policy", &o.security_nat_policy)
+        .s("service-policy", &o.service_policy)
+        .done()
+}
+
+fn project_net_port_list(o: &BigipNetPortList) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .v("ports", str_list(&o.ports))
+        .s("description", &o.description)
+        .done()
+}
+
+fn project_net_interface(o: &BigipNetInterface) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("mac-address", &o.mac_address)
+        .b("enabled", o.enabled)
+        .b("disabled", o.disabled)
+        .s("description", &o.description)
+        .s("bundle", &o.bundle)
+        .s("bundle-speed", &o.bundle_speed)
+        .s("lldp-admin", &o.lldp_admin)
+        .s("mtu", &o.mtu)
+        .s("flow-control", &o.flow_control)
+        .s("media-active", &o.media_active)
+        .s("media-fixed", &o.media_fixed)
+        .s("media-max", &o.media_max)
+        .s("media-sfp", &o.media_sfp)
+        .s("port-fwd-mode", &o.port_fwd_mode)
+        .s("qinq-ethertype", &o.qinq_ethertype)
+        .s("stp", &o.stp)
+        .s("stp-edge-port", &o.stp_edge_port)
+        .s("stp-link-type", &o.stp_link_type)
+        .s("stp-auto-edge-port", &o.stp_auto_edge_port)
+        .s("stp-reset", &o.stp_reset)
+        .s("sflow-poll-interval", &o.sflow_poll_interval)
+        .s("sflow-poll-interval-global", &o.sflow_poll_interval_global)
+        .s("vendor", &o.vendor)
+        .s("vendor-oui", &o.vendor_oui)
+        .s("vendor-partnum", &o.vendor_partnum)
+        .s("vendor-revision", &o.vendor_revision)
+        .s("virtual-wire", &o.virtual_wire)
+        .s("transmitter-technology", &o.transmitter_technology)
+        .s("lacp-port-priority", &o.lacp_port_priority)
+        .done()
+}
+
+fn project_net_dns_resolver(o: &BigipNetDnsResolver) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .v(
+            "route-domain",
+            path_ref(&o.route_domain, "net route-domain"),
+        )
+        .v("nameservers", str_list(&o.nameservers))
+        .v("forward-zones", str_list(&o.forward_zones))
+        .s("description", &o.description)
+        .s("cache-size", &o.cache_size)
+        .s("randomize-query-name-case", &o.randomize_query_name_case)
+        .s("use-ipv4", &o.use_ipv4)
+        .s("use-ipv6", &o.use_ipv6)
+        .s("use-tcp", &o.use_tcp)
+        .s("use-udp", &o.use_udp)
+        .s("answer-default-zones", &o.answer_default_zones)
+        .s("prefetch", &o.prefetch)
+        .s("nameserver-min-rtt", &o.nameserver_min_rtt)
+        .s("nameserver-ttl", &o.nameserver_ttl)
+        .s("outbound-msg-retry", &o.outbound_msg_retry)
+        .done()
+}
+
+fn project_net_tunnel(o: &BigipNetTunnel) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("profile", &o.profile)
+        .s("local-address", &o.local_address)
+        .s("remote-address", &o.remote_address)
+        .s("secondary-address", &o.secondary_address)
+        .v(
+            "traffic-group",
+            path_ref(&o.traffic_group, "cm traffic-group"),
+        )
+        .s("description", &o.description)
+        .s("mtu", &o.mtu)
+        .s("mode", &o.mode)
+        .s("idle-timeout", &o.idle_timeout)
+        .s("auto-lasthop", &o.auto_lasthop)
+        .s("transparent", &o.transparent)
+        .s("key", &o.key)
+        .s("use-pmtu", &o.use_pmtu)
+        .s("tos", &o.tos)
+        .done()
+}
+
+fn project_net_stp(o: &BigipNetStp) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .v(
+            "interfaces",
+            path_ref_list_strs(&o.interfaces, "net interface"),
+        )
+        .v("vlans", path_ref_list_strs(&o.vlans, "net vlan"))
+        .s("description", &o.description)
+        .s("mode", &o.mode)
+        .s("priority", &o.priority)
+        .s("external-path-cost", &o.external_path_cost)
+        .s("internal-path-cost", &o.internal_path_cost)
+        .done()
+}
+
+// Sys projections
+
+fn project_sys_dns(o: &BigipSysDns) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .v("name-servers", str_list(&o.name_servers))
+        .v("search", str_list(&o.search))
+        .done()
+}
+
+fn project_sys_ntp(o: &BigipSysNtp) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .v("servers", str_list(&o.servers))
+        .s("timezone", &o.timezone)
+        .v(
+            "restrict",
+            Value::List(o.restrict.iter().map(ntp_restrict_value).collect()),
+        )
+        .done()
+}
+
+fn ntp_restrict_value(r: &BigipSysNtpRestrict) -> Value {
+    Value::Object(
+        Fields::new()
+            .s("name", &r.name)
+            .s("address", &r.address)
+            .s("mask", &r.mask)
+            .s("default-entry", &r.default_entry)
+            .v("flags", str_list(&r.flags))
+            .s("description", &r.description)
+            .done(),
+    )
+}
+
+fn project_sys_snmp(o: &BigipSysSnmp) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .v("agent-addresses", str_list(&o.agent_addresses))
+        .v("communities", str_list(&o.communities))
+        .s("sys-contact", &o.sys_contact)
+        .s("sys-location", &o.sys_location)
+        .s("sys-services", &o.sys_services)
+        .s("trap-community", &o.trap_community)
+        .v(
+            "users",
+            Value::List(o.users.iter().map(snmp_user_value).collect()),
+        )
+        .v(
+            "traps",
+            Value::List(o.traps.iter().map(snmp_trap_value).collect()),
+        )
+        .v(
+            "process-monitors",
+            Value::List(
+                o.process_monitors
+                    .iter()
+                    .map(snmp_process_monitor_value)
+                    .collect(),
+            ),
+        )
+        .v(
+            "disk-monitors",
+            Value::List(
+                o.disk_monitors
+                    .iter()
+                    .map(snmp_disk_monitor_value)
+                    .collect(),
+            ),
+        )
+        .done()
+}
+
+fn snmp_user_value(u: &BigipSysSnmpUser) -> Value {
+    Value::Object(
+        Fields::new()
+            .s("name", &u.name)
+            .s("username", &u.username)
+            .s("security-level", &u.security_level)
+            .s("auth-protocol", &u.auth_protocol)
+            .s("privacy-protocol", &u.privacy_protocol)
+            .s("oid-subset", &u.oid_subset)
+            .s("description", &u.description)
+            .done(),
+    )
+}
+
+fn snmp_trap_value(t: &BigipSysSnmpTrap) -> Value {
+    Value::Object(
+        Fields::new()
+            .s("name", &t.name)
+            .s("host", &t.host)
+            .s("port", &t.port)
+            .s("version", &t.version)
+            .s("community", &t.community)
+            .s("security-name", &t.security_name)
+            .s("security-level", &t.security_level)
+            .s("auth-protocol", &t.auth_protocol)
+            .s("privacy-protocol", &t.privacy_protocol)
+            .s("network", &t.network)
+            .s("description", &t.description)
+            .done(),
+    )
+}
+
+fn snmp_process_monitor_value(m: &BigipSysSnmpProcessMonitor) -> Value {
+    Value::Object(
+        Fields::new()
+            .s("name", &m.name)
+            .s("process", &m.process)
+            .s("max-processes", &m.max_processes)
+            .s("min-processes", &m.min_processes)
+            .s("description", &m.description)
+            .done(),
+    )
+}
+
+fn snmp_disk_monitor_value(m: &BigipSysSnmpDiskMonitor) -> Value {
+    Value::Object(
+        Fields::new()
+            .s("name", &m.name)
+            .s("partition", &m.partition)
+            .s("min-space", &m.min_space)
+            .s("description", &m.description)
+            .done(),
+    )
+}
+
+fn project_sys_global_settings(o: &BigipSysGlobalSettings) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("hostname", &o.hostname)
+        .s("gui-setup", &o.gui_setup)
+        .s("mgmt-dhcp", &o.mgmt_dhcp)
+        .done()
+}
+
+fn project_sys_provision(o: &BigipSysProvision) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("level", &o.level)
+        .s("cpu-ratio", &o.cpu_ratio)
+        .s("memory-ratio", &o.memory_ratio)
+        .s("disk-ratio", &o.disk_ratio)
+        .done()
+}
+
+fn project_sys_folder(o: &BigipSysFolder) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .v("device-group", path_ref(&o.device_group, "cm device-group"))
+        .v(
+            "traffic-group",
+            path_ref(&o.traffic_group, "cm traffic-group"),
+        )
+        .s("hidden", &o.hidden)
+        .s("description", &o.description)
+        .s("inherited-device-group", &o.inherited_device_group)
+        .s("inherited-traffic-group", &o.inherited_traffic_group)
+        .done()
+}
+
+/// `sys file ssl-cert` — the filestore cert record.
+///
+/// The x509 metadata fields (`subject` / `issuer` / `fingerprint` /
+/// `expiration-string` / `key-type` / …) keep their TMSH spelling because
+/// `x509_from_config` reads them by that name, and `cache-path` /
+/// `source-path` are what `ucs_cert` uses to find the PEM inside a UCS.
+fn project_sys_file_ssl_cert(o: &BigipSysFileSslCert) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("source-path", &o.source_path)
+        .s("cache-path", &o.cache_path)
+        .s("revision", &o.revision)
+        .s("description", &o.description)
+        .s("issuer", &o.issuer)
+        .s("subject", &o.subject)
+        .s("subject-alternative-name", &o.subject_alternative_name)
+        .s("expiration-string", &o.expiration_string)
+        .s("expiration-date", &o.expiration_date)
+        .s("fingerprint", &o.fingerprint)
+        .s("serial-number", &o.serial_number)
+        .s("version", &o.version)
+        .s("key-size", &o.key_size)
+        .s("key-type", &o.key_type)
+        .s("certificate-key-size", &o.certificate_key_size)
+        .s("is-bundle", &o.is_bundle)
+        .v("issuer-cert", path_ref(&o.issuer_cert, "sys file ssl-cert"))
+        .v("bundle-certificates", str_list(&o.bundle_certificates))
+        .v(
+            "cert-validation-options",
+            str_list(&o.cert_validation_options),
+        )
+        .v("cert-validators", str_list(&o.cert_validators))
+        .s("checksum", &o.checksum)
+        .s("mode", &o.mode)
+        .s("size", &o.size)
+        .s("create-time", &o.create_time)
+        .s("created-by", &o.created_by)
+        .s("last-update-time", &o.last_update_time)
+        .s("updated-by", &o.updated_by)
+        .done()
+}
+
+fn project_sys_file_ssl_key(o: &BigipSysFileSslKey) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("source-path", &o.source_path)
+        .s("cache-path", &o.cache_path)
+        .s("revision", &o.revision)
+        .s("passphrase", &o.passphrase)
+        .s("description", &o.description)
+        .s("key-size", &o.key_size)
+        .s("key-type", &o.key_type)
+        .s("security-type", &o.security_type)
+        .s("checksum", &o.checksum)
+        .s("mode", &o.mode)
+        .s("size", &o.size)
+        .s("create-time", &o.create_time)
+        .s("created-by", &o.created_by)
+        .s("last-update-time", &o.last_update_time)
+        .s("updated-by", &o.updated_by)
+        .done()
+}
+
+fn project_sys_management_route(o: &BigipSysManagementRoute) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("network", &o.network)
+        .s("gateway", &o.gateway)
+        .s("mtu", &o.mtu)
+        .s("description", &o.description)
+        .done()
+}
+
+// CM (device cluster) projections
+
+/// `cm cert` — the device-trust cert. Same x509 metadata spelling as
+/// `sys file ssl-cert`, so `x509_from_config` projects either one.
+fn project_cm_cert(o: &BigipCmCert) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("source-path", &o.source_path)
+        .s("cache-path", &o.cache_path)
+        .s("system-path", &o.system_path)
+        .s("revision", &o.revision)
+        .s("issuer", &o.issuer)
+        .s("subject", &o.subject)
+        .s("subject-alternative-name", &o.subject_alternative_name)
+        .s("expiration-string", &o.expiration_string)
+        .s("expiration-date", &o.expiration_date)
+        .s("fingerprint", &o.fingerprint)
+        .s("serial-number", &o.serial_number)
+        .s("version", &o.version)
+        .s("key-type", &o.key_type)
+        .s("certificate-key-size", &o.certificate_key_size)
+        .s("is-bundle", &o.is_bundle)
+        .s("email", &o.email)
+        .s("checksum", &o.checksum)
+        .s("mode", &o.mode)
+        .s("size", &o.size)
+        .s("create-time", &o.create_time)
+        .s("created-by", &o.created_by)
+        .s("last-update-time", &o.last_update_time)
+        .s("updated-by", &o.updated_by)
+        .done()
+}
+
+fn project_cm_key(o: &BigipCmKey) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("source-path", &o.source_path)
+        .s("cache-path", &o.cache_path)
+        .s("system-path", &o.system_path)
+        .s("revision", &o.revision)
+        .s("key-size", &o.key_size)
+        .s("key-type", &o.key_type)
+        .s("security-type", &o.security_type)
+        .s("checksum", &o.checksum)
+        .s("mode", &o.mode)
+        .s("size", &o.size)
+        .s("create-time", &o.create_time)
+        .s("created-by", &o.created_by)
+        .s("last-update-time", &o.last_update_time)
+        .s("updated-by", &o.updated_by)
+        .done()
+}
+
+fn project_cm_device(o: &BigipCmDevice) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("hostname", &o.hostname)
+        .s("management-ip", &o.management_ip)
+        .s("self-device", &o.self_device)
+        .s("base-mac", &o.base_mac)
+        .s("build", &o.build)
+        .s("edition", &o.edition)
+        .s("version", &o.version)
+        .s("product", &o.product)
+        .s("platform-id", &o.platform_id)
+        .s("chassis-id", &o.chassis_id)
+        .s("marketing-name", &o.marketing_name)
+        .s("time-zone", &o.time_zone)
+        .v("cert", path_ref(&o.cert, "cm cert"))
+        .v("key", path_ref(&o.key, "cm key"))
+        .s("description", &o.description)
+        .s("comment", &o.comment)
+        .s("contact", &o.contact)
+        .s("location", &o.location)
+        .s("mirror-ip", &o.mirror_ip)
+        .s("mirror-secondary-ip", &o.mirror_secondary_ip)
+        .s("multicast-interface", &o.multicast_interface)
+        .s("multicast-ip", &o.multicast_ip)
+        .s("multicast-port", &o.multicast_port)
+        .v("unicast-address", str_list(&o.unicast_address))
+        .done()
+}
+
+fn project_cm_device_group(o: &BigipCmDeviceGroup) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("type", &o.type_)
+        .v("devices", path_ref_list_strs(&o.devices, "cm device"))
+        .s("auto-sync", &o.auto_sync)
+        .s("network-failover", &o.network_failover)
+        .s("hidden", &o.hidden)
+        .s("description", &o.description)
+        .s("save-on-auto-sync", &o.save_on_auto_sync)
+        .s("full-load-on-sync", &o.full_load_on_sync)
+        .s("asm-sync", &o.asm_sync)
+        .s(
+            "incremental-config-sync-size-max",
+            &o.incremental_config_sync_size_max,
+        )
+        .done()
+}
+
+fn project_cm_traffic_group(o: &BigipCmTrafficGroup) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("unit-id", &o.unit_id)
+        .s("description", &o.description)
+        .v("default-device", path_ref(&o.default_device, "cm device"))
+        .s("ha-load-factor", &o.ha_load_factor)
+        .v("ha-order", path_ref_list_strs(&o.ha_order, "cm device"))
+        .v("ha-group", path_ref(&o.ha_group, "cm ha-group"))
+        .s("auto-failback-enabled", &o.auto_failback_enabled)
+        .s("auto-failback-time", &o.auto_failback_time)
+        .s("mac", &o.mac)
+        .done()
+}
+
+fn project_cm_ha_group(o: &BigipCmHaGroup) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("description", &o.description)
+        .s("enabled-state", &o.enabled_state)
+        .s("active-bonus", &o.active_bonus)
+        .v("pools", path_ref_list_strs(&o.pools, "ltm pool"))
+        .v("trunks", str_list(&o.trunks))
+        .done()
+}
+
+fn project_cm_trust_domain(o: &BigipCmTrustDomain) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .v("ca-cert", path_ref(&o.ca_cert, "cm cert"))
+        .s("ca-cert-bundle", &o.ca_cert_bundle)
+        .v("ca-key", path_ref(&o.ca_key, "cm key"))
+        .v("ca-devices", path_ref_list_strs(&o.ca_devices, "cm device"))
+        .s("guid", &o.guid)
+        .s("status", &o.status)
+        .v("trust-group", path_ref(&o.trust_group, "cm device-group"))
+        .done()
+}
+
+// APM projections
+
+/// `apm policy access-policy` — the VPN / webtop policy graph's root.
+///
+/// `start-item` / `items[]` / `default-ending` are [`PathRef`]s into
+/// `apm policy policy-item`, so `.apm["access-policy"][].start-item.caption`
+/// walks the policy in one chain.
+fn project_apm_access_policy(o: &BigipApmPolicyAccessPolicy) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .v(
+            "start-item",
+            path_ref(&o.start_item, "apm policy policy-item"),
+        )
+        .v(
+            "default-ending",
+            path_ref(&o.default_ending, "apm policy policy-item"),
+        )
+        .v(
+            "items",
+            path_ref_list_strs(&o.items, "apm policy policy-item"),
+        )
+        .s("description", &o.description)
+        .done()
+}
+
+fn project_apm_policy_item(o: &BigipApmPolicyItem) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("caption", &o.caption)
+        .s("color", &o.color)
+        .s("type", &o.item_type)
+        .v("agents", path_ref_list_strs(&o.agents, "apm policy agent"))
+        .s("description", &o.description)
+        .done()
+}
+
+fn project_apm_policy_agent(o: &BigipApmPolicyAgent) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("type", &o.agent_type)
+        // `customization-group` names an `apm policy customization-group`,
+        // which has no typed model to navigate into — keep the path as text.
+        .s("customization-group", &o.customization_group)
+        .s("auth", &o.auth)
+        .s("server", &o.server)
+        .s("max-logon-attempt", &o.max_logon_attempt)
+        .s("auth-max-logon-attempt", &o.auth_max_logon_attempt)
+        .s("fetch-nested-groups", &o.fetch_nested_groups)
+        .s("fetch-primary-groups", &o.fetch_primary_groups)
+        .s("password-source", &o.password_source)
+        .s("query", &o.query)
+        .s("query-attrname", &o.query_attrname)
+        .s("query-filter", &o.query_filter)
+        .s("show-extended-error", &o.show_extended_error)
+        .s("upn", &o.upn)
+        .s("username-source", &o.username_source)
+        .s(
+            "attribute-consuming-service",
+            &o.attribute_consuming_service,
+        )
+        .s(
+            "attr-consuming-service-session-var",
+            &o.attr_consuming_service_session_var,
+        )
+        .s("hints", &o.hints)
+        .done()
+}
+
+fn project_apm_customization_source(
+    o: &BigipApmPolicyCustomizationSource,
+) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("description", &o.description)
+        .done()
+}
+
+fn project_apm_oauth_db_instance(o: &BigipApmOauthDbInstance) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("db-name", &o.db_name)
+        .s("purge-frequency", &o.purge_frequency)
+        .s("purge-time", &o.purge_time)
+        .s("description", &o.description)
+        .done()
+}
+
+fn project_apm_ssh_security_config(
+    o: &BigipApmEphemeralAuthSshSecurityConfig,
+) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .v("ciphers", str_list(&o.ciphers))
+        .v("hmacs", str_list(&o.hmacs))
+        .v("kex-methods", str_list(&o.kex_methods))
+        .v("compressions", str_list(&o.compressions))
+        .s("description", &o.description)
+        .done()
+}
+
+fn project_apm_default_report(o: &BigipApmReportDefaultReport) -> IndexMap<String, Value> {
+    Fields::new()
+        .s("name", &o.name)
+        .s("full-path", &o.full_path)
+        .s("report-name", &o.report_name)
+        .s("user", &o.user)
+        .done()
+}
+
 // GTM projections
 
 fn project_gtm_datacenter(o: &BigipGtmDatacenter) -> IndexMap<String, Value> {
@@ -1607,4 +2520,216 @@ pub fn resolve_pathref(reference: &PathRef, root: &Rc<Root>) -> Option<Rc<Object
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{KINDS, placed_kind};
+    use std::collections::BTreeSet;
+    use tcl_bigip::parser::parse_bigip_conf;
+
+    /// The committed configs the coverage gate reads. Between them they carry
+    /// every module the parser types, so a kind the model gains without a
+    /// projection shows up here.
+    const FIXTURES: &[(&str, &str)] = &[
+        (
+            "bigip.conf",
+            include_str!("../../../samples/bigip/bigip.conf"),
+        ),
+        (
+            "bigip_base.conf",
+            include_str!("../../../samples/bigip/bigip_base.conf"),
+        ),
+        (
+            "ltm.conf",
+            include_str!("../../../samples/for_f5_query/ltm.conf"),
+        ),
+        (
+            "gtm.conf",
+            include_str!("../../../samples/for_f5_query/gtm.conf"),
+        ),
+        (
+            "apm.conf",
+            include_str!("../../../samples/for_f5_query/apm.conf"),
+        ),
+        (
+            "lab_localhost.conf",
+            include_str!("../../../samples/for_f5_query/sysadmin/lab_localhost.conf"),
+        ),
+        (
+            "lab_platform.conf",
+            include_str!("../../../samples/for_f5_query/sysadmin/lab_platform.conf"),
+        ),
+        (
+            "tier1-ltm-ha.conf",
+            include_str!("../../../samples/for_f5_query/multitier/tier1-ltm-ha.conf"),
+        ),
+        (
+            "tier3-reaggregator.conf",
+            include_str!("../../../samples/for_f5_query/multitier/tier3-reaggregator.conf"),
+        ),
+        (
+            "device-01.bigip.conf",
+            include_str!("../../../rust/bigip-report-gen/python/tests/data/device-01.bigip.conf"),
+        ),
+        (
+            "tier2-c05-ltm-ha.conf",
+            include_str!("../../../samples/for_f5_query/multitier/tier2-c05-ltm-ha.conf"),
+        ),
+        (
+            "graph_pilot.conf",
+            include_str!("../../../rust/tcl-bigip/tests/fixtures/graph_pilot.conf"),
+        ),
+    ];
+
+    /// `BigipConfig` tables the parser fills with a typed struct that the DSL
+    /// deliberately does not project, as the committed fixtures exercise them.
+    /// Each entry is a kind an operator cannot navigate to, so adding one is a
+    /// decision; the gate below fails when a fixture grows a typed kind that is
+    /// neither projected nor listed here.
+    ///
+    /// Most are singletons or long-tail settings with little query value.
+    /// `apm_policy_customization_group` is the notable exception — APM policy
+    /// agents name one in their `customization-group`, which the projection
+    /// keeps as a path string precisely because this kind is not navigable.
+    const UNPROJECTED_TABLES: &[&str] = &[
+        "analytics_global_settings",
+        "apm_aaa_localdb",
+        "apm_epsec_epsec_package",
+        "apm_policy_customization_group",
+        "apm_profile_access",
+        "apm_profile_connectivity",
+        "apm_resource_leasepool",
+        "apm_resource_network_access",
+        "apm_resource_webtop",
+        "asm_policies",
+        "auth_apm_auths",
+        "auth_partitions",
+        "auth_password_policy",
+        "auth_radius",
+        "auth_radius_servers",
+        "auth_remote_user",
+        "auth_source",
+        "auth_users",
+        "ilx_global_settings",
+        "ltm_auth_radius_servers",
+        "ltm_classification_auto_update_settings",
+        "ltm_default_node_monitor",
+        "net_ipsec_ike_daemon",
+        "net_self_allow",
+        "pem_gs_analytics",
+        "pem_gs_gx",
+        "pem_gs_policy",
+        "security_bot_defense_profiles",
+        "security_dos_ipv6_ext_hdr",
+        "security_dos_profiles",
+        "security_dos_udp_portlists",
+        "security_firewall_config_change_log",
+        "security_pi_compliance_maps",
+        "security_pi_compliance_objects",
+        "security_scrubber_profiles",
+        "sys_compatibility_level",
+        "sys_diags_ihealth",
+        "sys_ecm_cloud_provider",
+        "sys_management_ovsdb",
+        "sys_software_update",
+        "wom_endpoint_discovery",
+    ];
+
+    /// Kinds in `KINDS` that no committed fixture carries, so the gate below
+    /// cannot confirm their `placed_kind` arm exists. Each is a hole in fixture
+    /// coverage rather than a decision; shrinking this list is how the gate
+    /// gets stronger.
+    const FIXTURE_UNCOVERED_KINDS: &[&str] = &[
+        "apm ephemeral-auth ssh-security-config",
+        "apm oauth db-instance",
+        "gtm listener",
+        "security nat destination-translation",
+        "security nat policy",
+        "security nat source-translation",
+    ];
+
+    /// Every kind the projection claims to cover must be reachable: a kind in
+    /// `KINDS` that `placed_kind` never returns is dead weight, and a kind
+    /// `placed_kind` returns that is missing from `KINDS` is an object the
+    /// parser types but no container exposes — the failure mode that kept
+    /// `cm ha-group` out of the DSL while the model parsed it.
+    #[test]
+    fn every_parsed_kind_is_projected_or_listed() {
+        let mut projected: BTreeSet<&str> = BTreeSet::new();
+        let mut unprojected: BTreeSet<&str> = BTreeSet::new();
+        for (name, source) in FIXTURES {
+            let config = parse_bigip_conf(source, "Common");
+            for placed in &config.objects {
+                match placed_kind(placed) {
+                    Some(kind) => {
+                        assert!(
+                            KINDS.iter().any(|(k, _)| *k == kind),
+                            "{name}: parser produced {kind:?}, which no module container exposes"
+                        );
+                        projected.insert(kind);
+                    }
+                    None => {
+                        unprojected.insert(placed.table_name);
+                    }
+                }
+            }
+        }
+        let listed: BTreeSet<&str> = UNPROJECTED_TABLES.iter().copied().collect();
+        let unlisted: Vec<&&str> = unprojected.difference(&listed).collect();
+        assert!(
+            unlisted.is_empty(),
+            "the parser types these kinds but the DSL projects none of them; \
+             add each to KINDS with a label, or record it in UNPROJECTED_TABLES: {unlisted:?}"
+        );
+        let stale: Vec<&&str> = listed.difference(&unprojected).collect();
+        assert!(
+            stale.is_empty(),
+            "UNPROJECTED_TABLES lists tables no fixture produces any more: {stale:?}"
+        );
+        // The reverse direction: a row added to `KINDS` whose `placed_kind`
+        // arm is missing exposes a module container that can never select an
+        // object. Nothing else catches that, so require every row to be either
+        // reached from a fixture or recorded as one the fixtures do not carry.
+        let uncovered: BTreeSet<&str> = FIXTURE_UNCOVERED_KINDS.iter().copied().collect();
+        let unreachable: Vec<&str> = KINDS
+            .iter()
+            .map(|(kind, _)| *kind)
+            .filter(|kind| !projected.contains(kind) && !uncovered.contains(kind))
+            .collect();
+        assert!(
+            unreachable.is_empty(),
+            "these kinds are in KINDS but no fixture ever projected one, so the \
+             module container exposes a label that can never select an object; \
+             add the `placed_kind` arm, or add fixture coverage, or record it in \
+             FIXTURE_UNCOVERED_KINDS: {unreachable:?}"
+        );
+        let now_covered: Vec<&&str> = FIXTURE_UNCOVERED_KINDS
+            .iter()
+            .filter(|kind| projected.contains(**kind))
+            .collect();
+        assert!(
+            now_covered.is_empty(),
+            "FIXTURE_UNCOVERED_KINDS lists kinds the fixtures now do project; \
+             drop them: {now_covered:?}"
+        );
+    }
+
+    /// Labels are the DSL's identifiers, so they must be unique within a
+    /// module; kinds are `PathRef` targets, so they must be unique outright.
+    #[test]
+    fn kinds_and_labels_are_unambiguous() {
+        let mut kinds = BTreeSet::new();
+        for (kind, _) in KINDS {
+            assert!(kinds.insert(*kind), "duplicate kind {kind:?} in KINDS");
+        }
+        let mut module_labels = BTreeSet::new();
+        for (kind, label) in KINDS {
+            let module = kind.split(' ').next().unwrap_or_default();
+            assert!(
+                module_labels.insert((module, *label)),
+                "duplicate label {label:?} in module {module:?}"
+            );
+        }
+    }
 }

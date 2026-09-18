@@ -45,7 +45,7 @@ pub const fn spec() -> CommandSpec {
         // Same method target as `ILX::call`, different dispatch: F5 documents
         // the delivery as "best effort", with no reply, so the descriptor
         // carries `RemoteDispatch::Notification` and hover keeps the two
-        // commands distinct (issue #1707 criterion 5).  No options are
+        // commands distinct.  No options are
         // documented for it, hence a fixed method-word index.
         remote_method: Some(&crate::remote_method::ILX_NOTIFY_METHOD),
         ..CommandSpec::DEFAULT

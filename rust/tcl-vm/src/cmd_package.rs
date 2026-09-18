@@ -280,7 +280,7 @@ fn preference_name(preference: PackagePrefer) -> &'static str {
 fn pkg_require(vm: &mut Vm, rest: &[Value], discover: bool) -> Completion<Value> {
     // `-exact NAME VERSION` is the requirement `VERSION-VERSION` — the same
     // rewrite `tclPkg.c`'s `PKG_REQUIRE` arm performs, so exactness needs no
-    // second comparison rule (issue #1090).
+    // second comparison rule.
     let exact = rest.first().is_some_and(|v| &*v.to_str() == "-exact");
     let rest = if exact { &rest[1..] } else { rest };
     let Some((name, reqs)) = rest.split_first() else {
@@ -450,9 +450,8 @@ mod tests {
     /// The pre-provided core packages follow the pinned release, so
     /// `package require Tcl 8.5` fails under a 9.x pin exactly as `tclsh9.0`
     /// fails it (`version conflict for package "Tcl": have 9.0.4, need 8.5`).
-    /// Both engines used to hardcode `9.0.4` and provide `Tcl`+`tcl`
-    /// regardless of the pin, so that require wrongly *succeeded* (ledger
-    /// row B4).
+    /// Hardcoding `9.0.4` and providing `Tcl`+`tcl` regardless of the pin
+    /// would make that require wrongly *succeed*.
     ///
     /// Measured (`package provide <name>` in a fresh `tclsh`): 8.4.20 →
     /// `Tcl` = `8.4` and no `tcl`; 8.5.19 → `Tcl` = `8.5.19`; 8.6.14 →

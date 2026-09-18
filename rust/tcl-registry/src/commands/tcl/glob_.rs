@@ -58,7 +58,7 @@ const FORMS: &[FormSpec] = &[
 /// legitimate multi-word list (e.g. `{d r}`) would otherwise be
 /// misreported as an invalid value. Stable across 8.4–9.1 — every fetched
 /// manpage documents the identical letter/word set. (The legacy macOS
-/// type/creator-code third form is deliberately not itemized here — an
+/// type/creator-code third form is deliberately not itemised here — an
 /// obsolete 4-char-or-`{macintosh ...}` shape that doesn't fit this flat
 /// enum — and is version-gated separately, in prose, on the option's own
 /// `detail`: two independent isolated fetches of the 8.4 manpage omit that

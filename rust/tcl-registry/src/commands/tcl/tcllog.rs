@@ -19,34 +19,34 @@
 //! `tclLog` — default logging hook for Tcl's library code.
 //!
 //! Genuinely undocumented, not merely unlinked: `tclLog` is absent from
-//! every version's `library.n` page (fetched and read directly, Tcl 8.4
-//! through 9.1 — that page documents `auto_execok`/`auto_import`/
-//! `auto_load`/`auto_mkindex`/`auto_mkindex_old`/`auto_qualify`/
-//! `auto_reset`/`tcl_findLibrary`/`parray`/the `tcl_*Word*` helpers, never
-//! `tclLog`), and it has no manual page of its own on any version either
-//! (`TclCmd/tclLog.html`/`.htm` 404s). The facts below instead come from
-//! `library/init.tcl` and `library/package.tcl` themselves, fetched at the
-//! `core-8-4-20`/`core-8-5-19`/`core-8-6-16`/`core-9-0-4`/`core-9-1-b0`
-//! release tags. The guarded definition — `if {[namespace which -command
-//! tclLog] eq ""} { proc tclLog {string} { catch {puts stderr $string} } }`
-//! — is byte-for-byte identical in every one of the five fetched versions,
-//! including the guard itself (so an application that predefines its own
-//! `tclLog` before `init.tcl` runs is never overridden by this default).
-//! The only textual change anywhere nearby across all five tags is a
-//! comment typo fix ("overwitten" -> "overwritten") between the 8.5.19
-//! and 8.6.16 tags — no behavioural difference. `library/package.tcl`'s
-//! calls into `tclLog` carry the same messages and the same `-verbose`
-//! gating in every one of the five tags too (only the surrounding
-//! control-flow syntax modernised, `catch`/`if` in 8.4 to `try`/`on` from
-//! 8.6 on — unrelated to `tclLog` itself): `tclPkgUnknown` (the default
-//! `package unknown` handler, registered by `init.tcl`'s `package unknown
-//! tclPkgUnknown`) unconditionally logs any unexpected error while
-//! sourcing a candidate `pkgIndex.tcl` file during `package require`, and
-//! `pkg_mkIndex` (`tclPkgMkIndex`)'s `-verbose` option routes its indexing
-//! progress output through it — matching `pkg_mkindex.rs`'s own hover
-//! text. `init.tcl`'s `unknown` handler also calls `tclLog` to record the
-//! reconstructed command text when it resolves a C-shell-style history
-//! substitution (`!!`, `!N`, `^old^new^`) before re-evaluating it.
+//! every version's `library.n` page (Tcl 8.4 through 9.1 — that page
+//! documents `auto_execok`/`auto_import`/`auto_load`/`auto_mkindex`/
+//! `auto_mkindex_old`/`auto_qualify`/`auto_reset`/`tcl_findLibrary`/
+//! `parray`/the `tcl_*Word*` helpers, never `tclLog`), and it has no manual
+//! page of its own on any version either (`TclCmd/tclLog.html`/`.htm`
+//! 404s). The facts below instead come from `library/init.tcl` and
+//! `library/package.tcl` themselves, at the `core-8-4-20`/`core-8-5-19`/
+//! `core-8-6-16`/`core-9-0-4`/`core-9-1-b0` release tags. The guarded
+//! definition — `if {[namespace which -command tclLog] eq ""} { proc
+//! tclLog {string} { catch {puts stderr $string} } }` — is byte-for-byte
+//! identical in every one of the five versions, including the guard itself
+//! (so an application that predefines its own `tclLog` before `init.tcl`
+//! runs is never overridden by this default). The only textual change
+//! anywhere nearby across all five tags is a comment typo fix ("overwitten"
+//! -> "overwritten") between the 8.5.19 and 8.6.16 tags — no behavioural
+//! difference. `library/package.tcl`'s calls into `tclLog` carry the same
+//! messages and the same `-verbose` gating in every one of the five tags
+//! too (only the surrounding control-flow syntax modernised, `catch`/`if`
+//! in 8.4 to `try`/`on` from 8.6 on — unrelated to `tclLog` itself):
+//! `tclPkgUnknown` (the default `package unknown` handler, registered by
+//! `init.tcl`'s `package unknown tclPkgUnknown`) unconditionally logs any
+//! unexpected error while sourcing a candidate `pkgIndex.tcl` file during
+//! `package require`, and `pkg_mkIndex` (`tclPkgMkIndex`)'s `-verbose`
+//! option routes its indexing progress output through it — matching
+//! `pkg_mkindex.rs`'s own hover text. `init.tcl`'s `unknown` handler also
+//! calls `tclLog` to record the reconstructed command text when it
+//! resolves a C-shell-style history substitution (`!!`, `!N`, `^old^new^`)
+//! before re-evaluating it.
 //!
 //! `surface: Some(SpecSurface::ALL_TCL)` here is a deliberate reading of
 //! the current data, not an oversight. Under the explicit-per-spec model
@@ -57,7 +57,7 @@
 //! EDA vendor shells, tmsh, iApps, BPF, and plain Tcl), each of which
 //! composes a core-version bit that `ALL_TCL` intersects. `tclLog` is not
 //! one of the K36322151 procs iRules is modelled as excluding — every
-//! *other* `init.tcl` library proc already audited (`auto_execok`,
+//! *other* `init.tcl` library proc listed here (`auto_execok`,
 //! `auto_import`, `auto_load`, `auto_mkindex`, `auto_mkindex_old`,
 //! `auto_qualify`, `auto_reset`, `bgerror`, `tcl_findLibrary`) is kept out
 //! of iRules by its own non-`IRULES` `dialects` group, and `parray.rs`
@@ -65,12 +65,11 @@
 //! `library/parray.tcl` proc. No dialect-specific override anywhere under
 //! `commands/irules`, `commands/expect`, `commands/eda_*`,
 //! `commands/iapps`, `commands/tk`, or `commands/itcl` registers a
-//! competing `tclLog` (checked by grep). Whether real iRules genuinely
-//! exposes a working `tclLog` is not independently confirmed, so
-//! `Some(SpecSurface::ALL_TCL)` — the conservative, not-yet-fully-audited
-//! value the sibling `disabled_in_irules.rs`, `tclpkgsetup.rs`, and
-//! `tclpkgunknown.rs` also carry — stands here, following the same
-//! data-over-assumption call `parray.rs` made.
+//! competing `tclLog`. Whether real iRules genuinely exposes a working
+//! `tclLog` is not confirmed, so `Some(SpecSurface::ALL_TCL)` — the
+//! conservative value the sibling `disabled_in_irules.rs`,
+//! `tclpkgsetup.rs`, and `tclpkgunknown.rs` also carry — stands here,
+//! following the same data-over-assumption call `parray.rs` made.
 
 use crate::prelude::*;
 use tcl_dialect::model::SpecSurface;

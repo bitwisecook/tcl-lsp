@@ -17,8 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The shared native-stack safety-net primitive for every recursive-descent
-//! walker in the workspace — [`RecursionLimit`] + [`RecursionGuard`]
-//! (issue #996).
+//! walker in the workspace — [`RecursionLimit`] + [`RecursionGuard`].
 //!
 //! Every stage of the pipeline that walks nested Tcl structures (the
 //! compiler's `Script`/`Statement` IR, the optimiser passes, the WASM
@@ -238,9 +237,9 @@ mod tests {
 
     /// A guard created inside a function that returns early via `?` still
     /// decrements the counter — the exact bug class a manual
-    /// increment/decrement pair is prone to (issue #996's `tcl_vm` fix
-    /// needed careful manual auditing of every early-return path for
-    /// exactly this).
+    /// increment/decrement pair is prone to, since a manual pair needs
+    /// careful auditing of every early-return path to avoid leaking a
+    /// count.
     #[test]
     fn guard_decrements_on_early_return_via_question_mark() {
         fn maybe_fails(counter: &mut u32, limit: RecursionLimit, fail: bool) -> Result<(), ()> {

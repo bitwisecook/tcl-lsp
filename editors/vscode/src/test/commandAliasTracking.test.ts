@@ -20,8 +20,7 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import { getDocUri, activate } from "./helper";
 
-// End-to-end coverage of `interp alias` COMMAND aliasing over the wire
-// (issue #923 audit idx 21 and idx 89).
+// End-to-end coverage of `interp alias` COMMAND aliasing over the wire.
 //
 // This is the command-table half of aliasing.  `aliasTracking.test.ts` covers
 // the unrelated `upvar` VARIABLE aliasing and provides no coverage here.

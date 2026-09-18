@@ -60,9 +60,8 @@ pub fn render(values: &[Value], mode: &str) -> Result<String, QueryError> {
 /// The built-in output modes (`auto` / `scf` / `raw` / `paths` / `json` /
 /// `table` / `table-lineart`) ignore *opts*. Any other *mode* falls through
 /// to the renderer registry (`mermaid` / `gantt` / `ascii-blocks`), which
-/// consumes the `--render-opt KEY=VALUE` map.'s
-/// dispatch, including the registry fall-through and the
-/// `unknown output mode: …` error for an unregistered name.
+/// consumes the `--render-opt KEY=VALUE` map; an unregistered name yields
+/// an `unknown output mode: …` error.
 ///
 /// # Errors
 ///

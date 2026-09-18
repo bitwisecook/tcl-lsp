@@ -20,7 +20,7 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import { getDocUri, activate, waitForDiagnostics } from "./helper";
 
-// Tk widget checks are keyed per interpreter (issue #923 audit idx 91), end
+// Tk widget checks are keyed per interpreter, end
 // to end in the editor.
 //
 // `interp create child` gives the child its own command table and its own

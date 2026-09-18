@@ -24,7 +24,7 @@
 //! interpreter by swapping arena-held state (`Vm::in_interp`), so it composes
 //! with every native re-entry (coroutine resume, `lsort -command`, trace/event
 //! callbacks) exactly as C Tcl's shared-C-stack, different-`Tcl_Interp*`
-//! model does (issue #946).
+//! model does.
 
 use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -62,8 +62,8 @@ use crate::frame::CallFrame;
 // both work — that is the full-capability std-backed `NativeHost`. On
 // `wasm32-unknown-unknown` there is no OS at all and `std::time::SystemTime::now`
 // *panics*, so the browser host reads the wall clock from JavaScript instead
-// (issue #1661). `runtime/rust`'s `Interp::new` has made the same split since it
-// learnt to link for wasm; this is the bytecode VM catching up.
+// (see the WASM host below). `runtime/rust`'s `Interp::new` makes the same
+// split for the same reason.
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 use crate::host_native::NativeHost as DefaultHost;
 #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
@@ -151,8 +151,7 @@ impl CommandVisibilityError {
 
 /// Native-stack safety net for `cmd_control.rs`'s runtime-command fallback
 /// (`cmd_if`/`cmd_while`/`cmd_for`/`each_loop`, reached via a computed
-/// command name or dynamic body — see that module's own doc comment) —
-/// issue #996.
+/// command name or dynamic body — see that module's own doc comment).
 ///
 /// Deliberately **not** a cap on [`Vm::eval_source`] itself: `eval_source`
 /// is also the mechanism behind ordinary `[…]` command substitution
@@ -160,8 +159,8 @@ impl CommandVisibilityError {
 /// bodies, event dispatch, `source`, and more — all of it routine, and
 /// empirically safe to at least 1000 levels of pure nested substitution on
 /// a 2 MiB thread (measured via `probe_cmdsubst_*` during investigation).
-/// An early version of this fix capped `eval_source` itself at a low,
-/// uniform threshold and broke ordinary iRule execution (nested command
+/// Capping `eval_source` itself at a low,
+/// uniform threshold would break ordinary iRule execution (nested command
 /// substitution plus a few layers of event-dispatch/orchestration
 /// scaffolding routinely needs more than a very conservative cap allows,
 /// well short of any real danger). The actual danger is narrower:
@@ -198,8 +197,7 @@ fn initial_package_prefer() -> PackagePrefer {
     PackagePrefer::Stable
 }
 
-/// Native-stack safety net for `TclOO` method dispatch (`cmd_oo.rs::run_step`)
-/// — issue #996.
+/// Native-stack safety net for `TclOO` method dispatch (`cmd_oo.rs::run_step`).
 ///
 /// Unlike ordinary proc-to-proc calls, which the trampoline
 /// ([`Tick::Call`](crate::exec)) runs without growing the *native* Rust
@@ -275,8 +273,8 @@ const DEBUG_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static> =
 ///
 /// C's table is `alias, aliases, bgerror, debug, eval, expose, hide, hidden,
 /// issafe, invokehidden, limit, marktrusted, recursionlimit`; like the
-/// `interp` ensemble's own table this engine names only what it dispatches
-/// (#1412 item 3), dropping `alias`, `aliases`, and `bgerror`.
+/// `interp` ensemble's own table this engine names only what it dispatches,
+/// dropping `alias`, `aliases`, and `bgerror`.
 pub(crate) const CHILD_OPTIONS: &[&str] = &[
     "debug",
     "eval",
@@ -299,11 +297,11 @@ pub(crate) const LIMIT_TYPES: tcl_cmd_core::prefix::OptionTable<'static> =
 /// Resolve an `interp limit` option by unambiguous prefix against `opts`,
 /// matching C's `Tcl_GetIndexFromObj` — through the one shared owner.
 ///
-/// The hand-rolled `starts_with` filter this replaced had #1443's bug verbatim:
-/// it could only ever say `bad option`, so the empty word — which is a prefix of
-/// *every* option — reported `bad option ""` where C reports
-/// `ambiguous option ""`. `OptionTable::abbreviating` owns both verdicts and the
-/// `", or"` enumeration.
+/// A naive `starts_with` prefix filter can only ever say `bad option`: the
+/// empty word is a prefix of *every* option, so it would report
+/// `bad option ""` where C reports `ambiguous option ""`.
+/// `OptionTable::abbreviating` owns both verdicts and the `", or"`
+/// enumeration.
 fn resolve_limit_opt<'a>(arg: &str, opts: &'a [&'a str]) -> Result<&'a str, String> {
     let table = tcl_cmd_core::prefix::OptionTable::abbreviating("option", opts);
     match table.index_of(arg.as_bytes()) {
@@ -494,7 +492,7 @@ fn root_hash_order() -> HashMap<NsId, tcl_cmd_core::namespace::TclStringHashOrde
 /// [`tcl_syntax::naming::key_holder_and_tail`] for the VM's **unrooted** key
 /// convention: root the key, split by the construction-inverse rule, and
 /// unroot the holder.  Distinct from the written-name colon-run split — an
-/// unrooted key can begin with `::` when a namespace is named `:` (#934), and
+/// unrooted key can begin with `::` when a namespace is named `:`, and
 /// the all-colon disambiguation differs between the rooted and unrooted
 /// grammars.
 pub(crate) fn key_holder_and_tail_unrooted(key: &str) -> (String, String) {
@@ -517,7 +515,7 @@ fn tcl_brace(s: &str) -> String {
 /// Split an `arr(key)` variable reference into `(base, key)`, or `None` for a
 /// plain scalar/array name — `TclObjLookupVarEx`'s rule, from the shared
 /// naming owner. Both halves may be empty: `(x)` is element `x` of the array
-/// named `""` (issue #1458).
+/// named `""`.
 fn elem_ref(name: &str) -> Option<(&str, &str)> {
     tcl_syntax::naming::split_element_ref(name)
 }
@@ -531,7 +529,7 @@ fn elem_ref(name: &str) -> Option<(&str, &str)> {
 /// plain nested native call with the two states swapped (C's shared C stack
 /// with a different `Tcl_Interp*`), so re-entering an interpreter that is
 /// already executing deeper on the stack is legal: its persistent state stays
-/// addressable in the arena throughout (the fix for issue #946 faults 1–2).
+/// addressable in the arena throughout.
 pub struct Vm {
     /// Process-unique identity for embedder artefacts. A reusable compiled
     /// handle belongs to the VM that compiled it; generations alone are not a
@@ -854,7 +852,7 @@ pub struct InterpState {
     /// dialect name.
     runtime_version: tcl_dialect::TclVersion,
     /// The dialect profile this VM validates its builtin command surface
-    /// against (issue #1463): [`Self::builtin_command_visible_for_surface`]
+    /// against: [`Self::builtin_command_visible_for_surface`]
     /// consults this profile's availability point, so a command the emulated
     /// release does not have (`lassign` at 8.4, `lpop` before 9.0) resolves
     /// like C Tcl — to `invalid command name`. Defaults to the permissive
@@ -1162,8 +1160,8 @@ pub struct InterpState {
     /// `if`/`while`/`foreach`/`eval`/`uplevel`/`catch`/`try`/… bodies all funnel through
     /// `eval_source`/`compile_source_cached` (their runtime builtins evaluate
     /// bodies that way), so gating the cache choice here — rather than at
-    /// each call site — makes every one of them trace-visible with one change
-    /// (issue #946 fault 3). Kept as a wholly separate map (not a mode-keyed
+    /// each call site — makes every one of them trace-visible with one change.
+    /// Kept as a wholly separate map (not a mode-keyed
     /// entry in `eval_cache`) so the two compiled forms of the same source
     /// never collide or get served to the wrong mode. Both maps are cleared
     /// when the profile changes.
@@ -1212,7 +1210,7 @@ pub struct InterpState {
     recursion_depth: usize,
     /// Native-stack safety counter for `cmd_control.rs`'s runtime-command
     /// fallback specifically — see [`CONTROL_FALLBACK_DEPTH_LIMIT`]'s doc
-    /// comment (issue #996). Deliberately a separate counter from
+    /// comment. Deliberately a separate counter from
     /// `recursion_depth`: this tracks only the current native call chain
     /// through `cmd_if`/`cmd_while`/`cmd_for`/`each_loop`, a purely
     /// stack-safety bookkeeping value with no Tcl-visible meaning, unlike
@@ -1226,8 +1224,8 @@ pub struct InterpState {
     /// invite for comparatively little benefit.
     control_fallback_depth: usize,
     /// Native-stack safety counter for `TclOO` method dispatch (`cmd_oo.rs`'s
-    /// `oo_dispatch`) — see [`OO_DISPATCH_DEPTH_LIMIT`]'s doc comment
-    /// (issue #996). A separate counter from `recursion_depth` for the same
+    /// `oo_dispatch`) — see [`OO_DISPATCH_DEPTH_LIMIT`]'s doc comment.
+    /// A separate counter from `recursion_depth` for the same
     /// reason `control_fallback_depth` is: purely stack-safety bookkeeping,
     /// no Tcl-visible meaning, not swapped on coroutine suspend/resume.
     oo_dispatch_depth: usize,
@@ -1237,7 +1235,7 @@ pub struct InterpState {
     /// full-capability [`NativeHost`](crate::host_native::NativeHost) anywhere
     /// with an operating system under it, and `host_wasm::BrowserHost` — a
     /// JavaScript wall clock and nothing else — on `wasm32-unknown-unknown`,
-    /// where the std clock is a panic rather than a syscall (issue #1661).
+    /// where the std clock is a panic rather than a syscall.
     /// [`Vm::set_host`] swaps it (e.g. for a sandboxed, WASM-posture host in
     /// capability tests). An `Rc` (not `Box`) so
     /// a command can clone a handle and pass `&dyn Host` *alongside* a `&mut Vm`
@@ -1339,8 +1337,8 @@ impl ProcedureCacheKey {
     fn from_module_entry(qname: &str, provenance: &ProcedureProvenance) -> Option<Self> {
         // Compiler module names are already-constructed rooted keys. Remove
         // exactly their root marker; never feed a constructed key back through
-        // the written-name canonicalizer, which would collapse a literal `:`
-        // namespace segment (#934).
+        // the written-name canonicaliser, which would collapse a literal `:`
+        // namespace segment.
         let entry_name = qname.strip_prefix("::")?;
         let provenance_name = provenance.name.strip_prefix("::")?;
         (entry_name == provenance_name)
@@ -1474,7 +1472,7 @@ struct VarTrace {
     /// callback removes never fires in that pass. A minted id, never reused,
     /// survives the `Vec` reshuffling a removal causes where an index would
     /// not, and identifies one *registration* where a `(ops, command)` pair
-    /// would match its own duplicates. Issue #1633 row 8.
+    /// would match its own duplicates.
     id: u64,
     /// Operations this trace fires on (`read`/`write`/`unset`/`array`).
     ops: Vec<String>,
@@ -1641,7 +1639,7 @@ impl Vm {
     pub fn set_runtime_version(&mut self, version: tcl_dialect::TclVersion) {
         // A bare release pin is the matching plain-Tcl profile: the emulated
         // release is one fact carrying both the runtime semantics and the
-        // command-surface availability point (issue #1463). The release name
+        // command-surface availability point. The release name
         // is a dialect *name*, so it resolves through the one ingress seam
         // (`crate::environment`) rather than through `by_name`.
         self.set_dialect_profile(crate::environment::profile_for_dialect(
@@ -1696,8 +1694,8 @@ impl Vm {
         tcl_syntax::number::set_runtime_syntax(self.runtime_version.number_syntax());
         self.write_release_globals();
         // `package provide Tcl` is a release fact, not an engine constant, and
-        // the pre-provided entries were written against the *previous* pin —
-        // re-derive them (ledger row B4). Guarded because the very first
+        // the pre-provided entries were written against the *previous* pin, so
+        // this re-derives them. Guarded because the very first
         // profile pin happens inside `register_builtins`, before the `package`
         // command itself is registered; that call site provides them directly.
         if self.commands.contains_key("package") {
@@ -1762,7 +1760,7 @@ impl Vm {
         if surface.is_fallback() {
             return true;
         }
-        // Both halves are per-environment generations now (ledger row B1): the
+        // Both halves are per-environment generations: the
         // store is the generation's, and the mask each side is checked under
         // is its environment's document authoring mask, which the ingress seam
         // pins equal to the profile point this read used.
@@ -1806,7 +1804,7 @@ impl Vm {
     ///
     /// Read from the same `DialectProfile::grammar` the compile path's
     /// `LexerConfig` comes from, so the interpreted `subst` engine and the
-    /// compiled word path cannot answer `${a{b}c}` differently (issue #1457).
+    /// compiled word path cannot answer `${a{b}c}` differently.
     #[must_use]
     pub(crate) fn braced_var_style(&self) -> tcl_dialect::BracedVarStyle {
         self.dialect_profile.grammar.braced_var
@@ -1870,7 +1868,7 @@ impl Vm {
 
     /// The backslash-escape grammar this VM decodes under — the pinned
     /// profile's, so a VM emulating 8.5 reads `\x4142` as `B` and one
-    /// emulating 9.0 reads it as `A42` (issue #1479).
+    /// emulating 9.0 reads it as `A42`.
     #[must_use]
     pub fn escape_syntax(&self) -> tcl_dialect::EscapeSyntax {
         self.dialect_profile.grammar.escapes
@@ -2371,13 +2369,13 @@ impl Vm {
     /// double in `(0, 1)` (`expr rand()`).
     ///
     /// The step and the scaling are the shared owner's
-    /// (`tcl_syntax::expr::rand`), not a second transcription: this used to
-    /// divide by `IM` where C multiplies by `1.0/IM`, and because
-    /// `1.0/2147483647` is not exactly representable the two disagreed by one
-    /// ulp for a dense family of seeds — visible in the result string
-    /// (`srand(251)` printed `0.0019644186841158285` instead of C's
-    /// `0.001964418684115828`, and the 145th draw of `srand(1)`'s stream
-    /// already differed). Issue #1432.
+    /// (`tcl_syntax::expr::rand`), not a second transcription: dividing by
+    /// `IM` where C multiplies by `1.0/IM` would diverge, because
+    /// `1.0/2147483647` is not exactly representable, so the two would
+    /// disagree by one ulp for a dense family of seeds — visible in the
+    /// result string (`srand(251)` printing `0.0019644186841158285` instead
+    /// of C's `0.001964418684115828`, and the 145th draw of `srand(1)`'s
+    /// stream already differing).
     pub(crate) fn rand_next(&mut self) -> f64 {
         tcl_syntax::expr::rand::next_draw(&mut self.rand_seed)
     }
@@ -2387,8 +2385,7 @@ impl Vm {
     ///
     /// The patch digit comes from [`tcl_dialect::TclVersion::patchlevel`] —
     /// the one table both this VM and `runtime/rust` read, so the two engines
-    /// cannot report different patch levels for the same emulated release
-    /// (issue #1328's centralisation finding).
+    /// cannot report different patch levels for the same emulated release.
     fn write_release_globals(&mut self) {
         self.write_scalar_raw(
             "tcl_version",
@@ -3136,7 +3133,7 @@ impl Vm {
         // The table is keyed by canonical *unrooted* keys — callers pass
         // `qualify_name` output (or an unrooted literal) verbatim.  No root
         // stripping happens here: an unrooted key can itself begin with `::`
-        // when a namespace is legitimately named `:` (#934), so a strip at
+        // when a namespace is legitimately named `:`, so a strip at
         // this boundary would corrupt it, and a rooted-form caller cannot be
         // told apart from that key textually.
         //
@@ -3363,7 +3360,7 @@ impl Vm {
         // from the emulated release's surface.  Treat it exactly like a
         // missing command here: otherwise `rename` (and `interp hide`, which
         // uses the same removal seam) can move a hidden builtin to a registry-
-        // unknown name and make it callable again (#1463).
+        // unknown name and make it callable again.
         if self
             .commands
             .get(&key)
@@ -3706,7 +3703,7 @@ impl Vm {
         };
         // The written source name qualifies in the SOURCE interp to the
         // canonical unrooted key (`interp alias {} ::a::f {} g` creates
-        // `a::f`; a raw registration would corrupt colon names, #934).
+        // `a::f`; a raw registration would corrupt colon names).
         let src_key = self.in_interp(src, |vm| {
             let src_key = vm.register_written_command(src_cmd, cmd);
             if src != target {
@@ -4070,8 +4067,7 @@ impl Vm {
     }
 
     /// Charge one command against this interp's `commands` limit, returning
-    /// the `command count limit exceeded` completion when the budget is spent
-    /// (issue #1373 finding 1: the limit was stored but never enforced).
+    /// the `command count limit exceeded` completion when the budget is spent.
     ///
     /// Called from both command funnels — the trampoline's
     /// [`dispatch_words`](crate::exec) and the native
@@ -4444,7 +4440,7 @@ impl Vm {
             }
             // C Tcl refuses command-specific compilation when the exact token
             // has an execution trace. Apply that rule at every registry/alias
-            // hop so all compiled consumers share one specialization gate.
+            // hop so all compiled consumers share one specialisation gate.
             if self.command_has_execution_trace(&CommandSidecarKey::visible(key.clone())) {
                 return false;
             }
@@ -4495,7 +4491,7 @@ impl Vm {
     /// rooted key, so remove its root marker exactly once instead of resolving
     /// it as a written name. The procedure's creation name rejects an unrelated
     /// same-source proc renamed onto the binding; matching source permits a
-    /// behavior-equivalent same-source redefinition. An execution trace always
+    /// behaviour-equivalent same-source redefinition. An execution trace always
     /// declines the optimisation because inlining erased the traced call
     /// boundary.
     fn procedure_binding_matches(
@@ -4758,7 +4754,7 @@ impl Vm {
     fn make_safe(&mut self) {
         self.bump_cmd_epoch();
         // The hide list is the registry's `Traits::SAFE_INTERP_HIDDEN` query,
-        // not a name list this engine keeps (ledger row B2): C's own set is
+        // not a name list this engine keeps: C's own set is
         // the `CmdInfo` rows lacking `CMD_IS_SAFE` plus the whole-command rows
         // of `unsafeEnsembleCommands`, and that is what the trait records.
         //
@@ -4824,7 +4820,7 @@ impl Vm {
     /// stack (C's `Tcl_EvalObjv(targetInterp, …)`), evaluate, and switch back —
     /// so a child→parent alias, a parent→child alias, or a re-entry into an
     /// interp already executing deeper on the stack is a plain nested call, its
-    /// state addressable in the arena throughout (issue #946 faults 1–2).
+    /// state addressable in the arena throughout.
     /// Errors and completion codes propagate through the ordinary return path
     /// (the target's `-errorcode`/`-errorinfo` reach the caller — tclsh-pinned).
     pub(crate) fn eval_in_interp(&mut self, id: InterpId, script: &str) -> Completion<Value> {
@@ -6180,8 +6176,8 @@ impl Vm {
         // Canonicalise the *written* relative name first, then join the
         // current namespace key with one exact separator — canonicalising the
         // concatenation would collapse a lone-colon name into the `{}` key
-        // (#934: `proc :` inside namespace `a` is `a` + `::` + `:`, distinct
-        // from `a::`, the empty-named proc).
+        // `proc :` inside namespace `a` is `a` + `::` + `:`, distinct
+        // from `a::`, the empty-named proc.
         let canonical = canonical_cmd_key(name);
         let cur = self.current_ns();
         if cur.is_empty() {
@@ -6250,10 +6246,10 @@ impl Vm {
     /// normalised to canonical form first, and the ancestor walk uses the
     /// shared separator-run-aware split ([`tcl_cmd_core::namespace`]), so a
     /// colon-run name (`a:::b`) registers `a::b` under parent `a` — never a
-    /// bogus `a:` (the old `rsplit_once("::")` drift).
+    /// bogus `a:`, which a plain `rsplit_once("::")` would produce.
     /// [`Self::declare_namespace`] for an already-canonical **key** (a
     /// construction-inverse holder): no written-name canonicalisation, which
-    /// would collapse a lone-colon segment (#934), and the parent chain walks
+    /// would collapse a lone-colon segment, and the parent chain walks
     /// the construction-inverse split for the same reason.
     pub(crate) fn declare_namespace_key(&mut self, ns_key: &str) {
         let path = tcl_syntax::naming::key_segments(ns_key);
@@ -6380,7 +6376,7 @@ impl Vm {
     }
 
     /// One retained namespace token's command entries in its Tcl hash-table
-    /// order. A rendered FQN cannot identify the entry (#1778), so the table's
+    /// order. A rendered FQN cannot identify the entry, so the table's
     /// simple-name bytes are paired with the exact namespace token before the
     /// private storage key is selected.
     fn retained_command_hash_order(
@@ -6584,7 +6580,7 @@ impl Vm {
     ) -> Result<Vec<String>, NamespaceImportError> {
         // Split the glob tail off at the last separator *run* and canonicalise
         // the qualifier — `namespace import ::src:::im*` imports from `src`
-        // (tclsh8.6-verified; the old `rsplit_once("::")` left `src:` behind).
+        // (tclsh8.6-verified; a plain `rsplit_once("::")` would leave `src:` behind).
         let pb = pattern.as_bytes();
         let glob = str_slice(tcl_cmd_core::namespace::tail(pb)).to_string();
         let source = str_slice(tcl_cmd_core::namespace::qualifiers(pb));
@@ -7184,8 +7180,8 @@ impl Vm {
             // Qualified pattern: source namespace + simple pattern on the
             // origin. Splitting at the last separator *run* keeps colon-run
             // patterns working (`namespace forget ::src:::im*` forgets from
-            // `src`, tclsh8.6-verified; the old `rsplit_once("::")` produced
-            // `src:` — and panicked outright on `:::pat`).
+            // `src`, tclsh8.6-verified; a plain `rsplit_once("::")` would produce
+            // `src:` — and panic outright on `:::pat`).
             let pb = pattern.as_bytes();
             let simple = str_slice(tcl_cmd_core::namespace::tail(pb));
             let source = str_slice(tcl_cmd_core::namespace::qualifiers(pb));
@@ -7469,7 +7465,7 @@ impl Vm {
         // Tcl destroys the variable table before the command table. Variable
         // unset callbacks see this namespace as dying but can still address
         // its cells; each cell is removed separately so later variables remain
-        // visible until their own turn. Issue #1575.
+        // visible until their own turn.
         self.teardown_namespace_variables(&canonical, id);
 
         // Delete this namespace's command table to a fixed point. A command
@@ -7524,7 +7520,7 @@ impl Vm {
         self.dying_namespaces.remove(&id);
     }
 
-    // -- deferred teardown: retaining a token for its live frames ------------
+    // Deferred teardown: retaining a token for its live frames.
 
     /// Whether a call frame is running in the namespace token.
     fn namespace_token_is_active(&self, id: NsId) -> bool {
@@ -7885,7 +7881,7 @@ impl Vm {
         self.package_prefer = PackagePrefer::Latest;
     }
 
-    // -- variable traces (`trace add|remove|info variable`) --
+    // Variable traces (`trace add|remove|info variable`)
 
     /// Resolve the stable variable cell reached by `name`. This is the identity owner
     /// for trace storage, firing, re-entrancy and destructive lifecycle paths.
@@ -7942,7 +7938,7 @@ impl Vm {
         // Under the 8.x fallback the bare name resolves to the GLOBAL
         // variable, so the trace must be keyed on the global — keying it on
         // `ns::name` here would make a write through the fallback silently
-        // miss the global's trace (issue #1328).  Shares one predicate with
+        // miss the global's trace.  Shares one predicate with
         // `locate`, so the two cannot drift.
         if self.ns_fallback_targets_global(&qualified, name) {
             return name.to_string();
@@ -7958,7 +7954,7 @@ impl Vm {
     /// but the global namespace does.  The single definition of the rule —
     /// [`Self::locate`] applies it to resolve an access, `trace_qualify`
     /// applies it to key a trace, and they must agree or a trace fires on the
-    /// wrong variable (issue #1328).
+    /// wrong variable.
     fn ns_fallback_targets_global(&self, qualified: &str, name: &str) -> bool {
         let qualified = qualified.strip_prefix("::").unwrap_or(qualified);
         let simple = tcl_syntax::naming::key_tail(qualified).to_owned();
@@ -8009,7 +8005,7 @@ impl Vm {
     /// C walks the trace list head→tail and breaks at the first match, and its
     /// head is the newest registration — so among duplicates the **newest**
     /// goes, which is observable in both the surviving firing order and
-    /// `trace info`. Our Vec is oldest-first, hence `rposition`. Issue #1440.
+    /// `trace info`. Our Vec is oldest-first, hence `rposition`.
     /// The old-style flag is deliberately not part of the match (C masks
     /// `TCL_TRACE_OLD_STYLE` out here), so either spelling removes the other's.
     pub(crate) fn remove_var_trace(&mut self, name: &str, ops: &[String], command: &str) {
@@ -8132,7 +8128,7 @@ impl Vm {
         // Removing a step-capable trace may re-enable fast (inlined)
         // compilation for procs that no longer have one active anywhere;
         // removing the last ordinary execution trace on this exact token does
-        // the same for bytecode specialized for that command.
+        // the same for bytecode specialised for that command.
         if execution && (is_step || last_execution_trace_removed) {
             self.bump_trace_deopt_epoch();
         }
@@ -8263,7 +8259,7 @@ impl Vm {
         // C prepends each new command trace (`Tcl_TraceCommand`, tclTrace.c
         // 9.0.4:1016-1018) and `CallCommandTraces` walks the list head→tail
         // (tclBasic.c:3972-3974), so the newest fires first. Our Vec pushes
-        // newest-last. Issue #1440.
+        // newest-last.
         for entry in entries.into_iter().rev() {
             if !entry.ops.iter().any(|o| o == op) {
                 continue;
@@ -8271,7 +8267,7 @@ impl Vm {
             // C's `CallCommandTraces` walks the list hanging off the token it
             // was handed (tclBasic.c 9.0.4:3972-3993) and `Tcl_UntraceCommand`
             // unlinks a record at once, so a trace an earlier callback removed
-            // does not fire in this pass (issue #1633 row 8) — but a callback
+            // does not fire in this pass — but a callback
             // that re-creates the command under this name only takes the
             // *table* entry over, leaving the dying token's list to finish
             // firing. Hence the per-entry flag rather than a table lookup.
@@ -8897,7 +8893,7 @@ impl Vm {
         // C's `VAR_TRACE_ACTIVE` belongs to the reached `Var`: the whole array
         // and every element are separate cells. A callback may therefore enter
         // a different element, while a recursive access to this exact cell is
-        // suppressed regardless of operation. Issue #1574.
+        // suppressed regardless of operation.
         let Some(cell) = located.or_else(|| {
             taken.as_ref().map_or_else(
                 || self.trace_cell(invocation.name),
@@ -8992,7 +8988,6 @@ impl Vm {
         // first and the element's own list second (`TclCallVarTraces`,
         // tclTrace.c 9.0.4: the `arrayPtr` loop at :2581 precedes the
         // `varPtr` loop at :2623) — regardless of which was registered first.
-        // Issue #1440.
         let (groups, name2) =
             self.variable_trace_groups(element_access, elem, cell, array_active, taken, op);
         for group in groups {
@@ -9288,7 +9283,7 @@ impl Vm {
     }
 
     /// Enforce the command-resolution namespace captured by the compiler.
-    /// Namespace is an executable specialization axis just like dialect and
+    /// Namespace is an executable specialisation axis just like dialect and
     /// command bindings: an unqualified command in identical source can name
     /// a different implementation in another namespace.
     pub(crate) fn validate_module_namespace(
@@ -9351,7 +9346,7 @@ impl Vm {
     /// command dispatch ([`CompileService::compile_plain_dispatch_for_profile`])
     /// or the fast compiler, per [`Self::requires_plain_command_dispatch`] —
     /// when it doesn't. This is the general recompile-on-demand mechanism
-    /// behind issue #946 fault 3: C Tcl forces a step-traced proc "out of
+    /// C Tcl needs too: it forces a step-traced proc "out of
     /// bytecode" (`DONT_COMPILE_CMDS_INLINE`) on its next entry after a
     /// step-capable trace is added anywhere, and reverts it the same way once
     /// the last one is removed. Returns `proc` unchanged when it is already
@@ -9459,7 +9454,7 @@ impl Vm {
         }
     }
 
-    // -- frames --
+    // Frames.
 
     pub(crate) fn current_level(&self) -> usize {
         self.frames.len() - 1
@@ -9470,7 +9465,7 @@ impl Vm {
     /// A proc frame carries its name; the global frame and a `namespace eval`
     /// body do not (the latter runs in the current frame and pushes none). This
     /// is the condition `Tcl_GlobalObjCmd` tests before doing anything at all —
-    /// outside a proc, `global` is a no-op (issue #1458's guard is scoped to it).
+    /// outside a proc, `global` is a no-op.
     pub(crate) fn in_proc_frame(&self) -> bool {
         self.frames.last().is_some_and(|f| f.proc_name.is_some())
     }
@@ -9587,8 +9582,8 @@ impl Vm {
     }
 
     /// Enter one level of `cmd_control.rs`'s runtime-command fallback
-    /// recursion — see [`CONTROL_FALLBACK_DEPTH_LIMIT`]'s doc comment
-    /// (issue #996). Checked before incrementing; pair with
+    /// recursion — see [`CONTROL_FALLBACK_DEPTH_LIMIT`]'s doc comment.
+    /// Checked before incrementing; pair with
     /// [`Self::exit_control_fallback`] (even on an early-error return) to
     /// keep the counter balanced.
     pub(crate) fn enter_control_fallback(&mut self) -> Result<(), Completion<Value>> {
@@ -9608,7 +9603,7 @@ impl Vm {
     }
 
     /// Enter one level of `TclOO` method-dispatch recursion — see
-    /// [`OO_DISPATCH_DEPTH_LIMIT`]'s doc comment (issue #996). Checked
+    /// [`OO_DISPATCH_DEPTH_LIMIT`]'s doc comment. Checked
     /// before incrementing; pair with [`Self::exit_oo_dispatch`] (even on
     /// an early-error return) to keep the counter balanced.
     pub(crate) fn enter_oo_dispatch(&mut self) -> Result<(), Completion<Value>> {
@@ -10577,7 +10572,7 @@ impl Vm {
     /// straight to `cleanup`, which never restores the old one
     /// (`TclPtrSetVarIdx`, `tclVar.c` 9.0.4:1913 — value in at :2023-2032,
     /// traces at :2040-2046, `cleanup:` at :2070; same shape in 8.6.16). A
-    /// cell the write created therefore survives too. Issue #1438.
+    /// cell the write created therefore survives too.
     pub fn set_var(&mut self, name: &str, value: Value) -> Result<(), Completion<Value>> {
         self.validate_var_parent(name)?;
         if self
@@ -10612,8 +10607,7 @@ impl Vm {
     /// variable already gone, a value it stores survives the unset, and the
     /// revived variable carries no traces — not even a write trace that would
     /// otherwise have fired on that store. The trace key is resolved *before*
-    /// the removal: resolution can depend on the cell still existing (issue
-    /// #1328). Issue #1633 row 10.
+    /// the removal: resolution can depend on the cell still existing.
     pub fn unset_var(&mut self, name: &str) -> bool {
         let Some(resolved) = self.resolve_var_from(name, self.current_level()) else {
             return false;
@@ -11081,7 +11075,7 @@ impl Vm {
     /// is still a defined scalar and the interp's empty object otherwise
     /// (`TclPtrSetVarIdx`, `tclVar.c` 9.0.4:2050-2065; 8.6.16:2006-2012).
     /// Named after the runtime's `Interp::store_var_result` so both engines'
-    /// read-back owners are greppable together. Issue #1633 row 1.
+    /// read-back owners are greppable together.
     pub(crate) fn store_var_result(
         &mut self,
         name: &str,
@@ -11103,7 +11097,7 @@ impl Vm {
         // elsewhere — at 8.x a callback that creates `ns::x` beside the `::x`
         // a bare name had reached through the namespace fallback, or that
         // unsets the `ns::x` the name did reach, moves the second lookup to a
-        // different variable. Measured on tclsh 8.6.16. Issue #1633 row 1.
+        // different variable. Measured on tclsh 8.6.16.
         let cell = self.resolved_cell(name);
         self.set_var(name, value)?;
         Ok(cell
@@ -11169,7 +11163,7 @@ impl Vm {
     /// from the new values alone (:2944-2957, bug 3057639). The swallowed
     /// error stays logged: tclsh 8.6.16 and 9.0.4 both leave `::errorInfo`
     /// ending in the `(read trace on "x")` frame while the `incr` succeeds.
-    /// Mirror of the runtime's `Interp::read_for_update`. Issue #1633 rows 3/4.
+    /// Mirror of the runtime's `Interp::read_for_update`.
     pub(crate) fn read_for_update(&mut self, name: &str) -> Option<Value> {
         if let Ok(value) = self.read_var_traced(name) {
             value
@@ -11214,7 +11208,7 @@ impl Vm {
         }
     }
 
-    // -- arrays (link-aware via `locate`) --
+    // Arrays (link-aware via `locate`)
 
     pub(crate) fn get_array_elem(&self, name: &str, key: &str) -> Option<Value> {
         self.get_array_elem_from(self.current_level(), name, key)
@@ -11290,7 +11284,7 @@ impl Vm {
 
     /// Write an array element, firing `write` traces afterwards. Like
     /// [`Self::set_var`], a callback error fails the command without
-    /// un-storing the element (issue #1438).
+    /// un-storing the element.
     pub(crate) fn set_array_elem(
         &mut self,
         name: &str,
@@ -11316,7 +11310,7 @@ impl Vm {
     /// 9.0 `UnsetVarStruct` recovers the element's key into `part2`
     /// (`tclVar.c` 9.0.4:2638-2642), which stops `TclCallVarTraces` splitting
     /// the spelling, so the callbacks see `name1 = a(k)`; 8.4/8.5/8.6 split it
-    /// and see `name1 = a`. Issue #1633 row 6.
+    /// and see `name1 = a`.
     pub(crate) fn array_unset_elem_spelled(&mut self, name: &str, key: &str) -> bool {
         let spelling = format!("{name}({key})");
         let active = self
@@ -11356,7 +11350,7 @@ impl Vm {
         // table, before the callbacks run. The *array's* traces stay — C leaves
         // them on the array's own `Var` — so they are still live in the walk and
         // still visible to `trace info`. The trace key is resolved while the
-        // element is still present (issue #1328).
+        // element is still present.
         let raw = match self.var_arena.get(base_id).map(crate::vars::VarCell::state) {
             Some(Local::Array(elements)) => elements.get(key).copied(),
             _ => None,
@@ -11582,7 +11576,7 @@ impl Vm {
         self.frames
             .last()
             .and_then(|f| f.proc_name.as_ref())
-            // `proc_name` is an unrooted key: construction-inverse tail (#934).
+            // `proc_name` is an unrooted key: construction-inverse tail.
             .map(|q| key_holder_and_tail_unrooted(q).1)
     }
 
@@ -11876,8 +11870,8 @@ impl Vm {
     /// *evaluates* `expr {1 + 2 # note}` as 3 where C 8.6 raises
     /// `invalid character "#"`. Closing that would mean threading the runtime
     /// version into this parse, which would also move the `lt` rejection from
-    /// `validate` to the lexer and change its pinned message — so it is left as
-    /// follow-up rather than done here.
+    /// `validate` to the lexer and change its pinned message, so this
+    /// divergence from C 8.6 stands.
     pub fn eval_expr(&mut self, src: &str) -> Result<Value, TclError> {
         self.claim_number_grammar();
         // The VM emulates exactly one release, so its expressions are parsed
@@ -11944,8 +11938,8 @@ impl Vm {
     /// [`Self::requires_plain_command_dispatch`] is true,
     /// so a step-traced proc's `if`/`while`/`foreach`/`eval`/`uplevel`/
     /// `catch`/`try`/… bodies — every one of which funnels through this
-    /// method via its runtime builtin — compile trace-visible too (issue
-    /// #946 fault 3), without each call site needing to know that.
+    /// method via its runtime builtin — compile trace-visible too,
+    /// without each call site needing to know that.
     fn compile_cached(&mut self, src: &str) -> Result<Rc<ModuleAsm>, TclError> {
         let namespace = self.current_ns().to_owned();
         self.compile_cached_in_namespace(src, &namespace)

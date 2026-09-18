@@ -371,13 +371,20 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     code: "W200",
     section: "warning",
     description:
-      "Signed/unsigned modifier on a `binary format`/`binary scan` specifier requires a newer Tcl release.",
+      "Unsigned (`u`) suffix on a `binary format`/`binary scan` field requires a newer Tcl release.",
     defaultEnabled: true,
   },
   {
     code: "W201",
     section: "warning",
     description: "Manual path concatenation — use `file join` instead.",
+    defaultEnabled: true,
+  },
+  {
+    code: "W202",
+    section: "warning",
+    description:
+      "`binary format`/`binary scan` field letter requires a newer Tcl release — `t`, `n`, `m`, `r`, `R`, `q` and `Q` arrive in Tcl 8.5.",
     defaultEnabled: true,
   },
   {

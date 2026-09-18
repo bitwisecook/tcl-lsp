@@ -121,7 +121,11 @@ fn route_match_map(route: &XCRoute) -> Map<String, Value> {
 
 fn render_origin_pool(pool: &XCOriginPool, namespace: &str) -> Value {
     json!({
-        "metadata": { "name": pool.name, "namespace": namespace },
+        "metadata": {
+            "name": crate::names::xc_object_name(&pool.name),
+            "namespace": namespace,
+            "description": crate::names::derived_from(&pool.name),
+        },
         "spec": {
             "origin_servers": [ { "public_name": { "dns_name": "example.com" } } ],
             "port": pool.port,
@@ -153,7 +157,7 @@ fn render_simple_route(route: &XCRoute) -> Value {
     if let Some(op) = &route.origin_pool {
         result.insert(
             "origin_pools".to_owned(),
-            json!([{ "pool": { "name": op.name } }]),
+            json!([{ "pool": { "name": crate::names::xc_object_name(&op.name) } }]),
         );
     }
 
@@ -309,7 +313,11 @@ fn render_waf_exclusion_rule(rule: &XCWafExclusionRule) -> Value {
 
 fn render_service_policy(policy: &XCServicePolicy, namespace: &str) -> Value {
     json!({
-        "metadata": { "name": policy.name, "namespace": namespace },
+        "metadata": {
+            "name": crate::names::xc_object_name(&policy.name),
+            "namespace": namespace,
+            "description": crate::names::GENERATED,
+        },
         "spec": {
             "algo": policy.algo,
             "rule_list": {
@@ -402,6 +410,99 @@ fn render_load_balancer(result: &XCTranslationResult, namespace: &str, name: &st
         "metadata": { "name": name, "namespace": namespace },
         "spec": Value::Object(lb_spec),
     })
+}
+
+/// One object rendered the way the F5 XC Console's configuration editor
+/// takes it: a single document, ready to paste.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConsoleObject {
+    /// ves.io object type — `origin_pool`, `service_policy`,
+    /// `http_loadbalancer` — which names the Console screen the document
+    /// belongs on.
+    pub object_type: &'static str,
+    /// The object's XC name, as the document's metadata carries it. Derived
+    /// from `source_path`, so it is not the BIG-IP spelling.
+    pub name: String,
+    /// The BIG-IP object this was derived from, as the iRule spelled it.
+    pub source_path: String,
+    /// The namespace the document is written for.
+    pub namespace: String,
+    /// The document to paste.
+    pub document: Value,
+}
+
+/// Re-envelope one rendered object as a Console document.
+///
+/// The spec is the same one [`render_json`] emits. The metadata is the
+/// `ves.io.schema.ObjectCreateMetaType` block a create takes — `name`,
+/// `namespace`, `labels`, `annotations`, `description`, `disable`, and
+/// nothing else. None of them are required, so the empty ones are written
+/// out for the reader to fill in rather than left off.
+fn console_document(rendered: &Value, name: &str, description: &str, namespace: &str) -> Value {
+    json!({
+        "metadata": {
+            "name": name,
+            "namespace": namespace,
+            "labels": {},
+            "annotations": {},
+            "description": description,
+            "disable": false,
+        },
+        "spec": rendered.get("spec").cloned().unwrap_or(Value::Null),
+    })
+}
+
+/// Render the translation as one pasteable Console document per object.
+///
+/// [`render_json`] bundles every object and the coverage summary into a
+/// single value, which is what an automated caller wants and what no
+/// Console screen accepts. This is the other half: each object on its own,
+/// shaped as the `CreateRequest` its schema defines — `{metadata, spec}`
+/// and nothing more — so it pastes into the Console's JSON editor as-is.
+#[must_use]
+pub fn render_console_objects(
+    result: &XCTranslationResult,
+    namespace: &str,
+    lb_name: &str,
+) -> Vec<ConsoleObject> {
+    let mut objects = Vec::new();
+    for pool in &result.origin_pools {
+        let rendered = render_origin_pool(pool, namespace);
+        let name = crate::names::xc_object_name(&pool.name);
+        objects.push(ConsoleObject {
+            object_type: "origin_pool",
+            source_path: pool.name.clone(),
+            document: console_document(
+                &rendered,
+                &name,
+                &crate::names::derived_from(&pool.name),
+                namespace,
+            ),
+            name,
+            namespace: namespace.to_owned(),
+        });
+    }
+    for policy in &result.service_policies {
+        let rendered = render_service_policy(policy, namespace);
+        let name = crate::names::xc_object_name(&policy.name);
+        objects.push(ConsoleObject {
+            object_type: "service_policy",
+            source_path: policy.name.clone(),
+            document: console_document(&rendered, &name, crate::names::GENERATED, namespace),
+            name,
+            namespace: namespace.to_owned(),
+        });
+    }
+    let lb = render_load_balancer(result, namespace, lb_name);
+    let lb_object_name = crate::names::xc_object_name(lb_name);
+    objects.push(ConsoleObject {
+        object_type: "http_loadbalancer",
+        source_path: lb_name.to_owned(),
+        document: console_document(&lb, &lb_object_name, crate::names::GENERATED, namespace),
+        name: lb_object_name,
+        namespace: namespace.to_owned(),
+    });
+    objects
 }
 
 /// Render an XC translation result as ves.io JSON-API objects: an object with

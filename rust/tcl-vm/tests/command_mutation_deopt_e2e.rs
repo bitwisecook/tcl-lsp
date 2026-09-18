@@ -8,7 +8,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Runtime command-mutation invalidation (#1648).
+//! Runtime command-mutation invalidation.
 //!
 //! Tcl 9.0.4 is the oracle. Its command compile epoch makes a replacement of a
 //! byte-compiled builtin visible across separately compiled proc/eval units;
@@ -2429,8 +2429,8 @@ fn argument_substitution_mutation_keeps_entered_token_then_deopts_at_next_comman
                 "string equal -nocase [mutate] X}\n",
                 "puts [p]\n",
             ),
-            // A later ordinary `string equal` currently belongs to the
-            // registry/ensemble deduplication tracked by #1607; this vector
+            // A later ordinary `string equal` belongs to the
+            // registry/ensemble deduplication; this vector
             // isolates INVOKE_REPLACE's same-invocation lookup timing.
             want: "INTERNAL_REPLACED\n",
         },

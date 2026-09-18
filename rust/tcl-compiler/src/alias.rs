@@ -26,8 +26,8 @@
 //!
 //! What a call did to the command table is registry data, stated once as
 //! [`tcl_registry::CommandBindingTransition`] facts and read through
-//! [`command_table_transitions`]. This module used to carry the *other*
-//! half of a second vocabulary: `detect_interp_alias`, `detect_rename` and
+//! [`command_table_transitions`]. This module deliberately carries no second
+//! vocabulary of its own: `detect_interp_alias`, `detect_rename` and
 //! `detect_interp_alias_delete` re-destructured `interp alias`'s and
 //! `rename`'s argument layouts here, after each consumer had dispatched on
 //! the coarse `CommandTableEffect` word — a layout the registry's own

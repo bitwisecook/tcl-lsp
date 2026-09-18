@@ -142,7 +142,7 @@ fn tool_list_result(tools: Vec<Tool>, supports_cache_hints: bool) -> ListToolsRe
 /// generous: the analyser's and CFG builder's depth-capped recursions
 /// (256 levels) need more stack than Tokio's 2 MiB worker-thread default
 /// provides, and MCP tool handlers run analysis the same way the LSP
-/// server does (issue #996).
+/// server does.
 const WORKER_STACK_SIZE: usize = 64 * 1024 * 1024;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

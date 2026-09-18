@@ -25,7 +25,7 @@
 //!
 //! ```text
 //!   hook host  (tcl-spec-hooks)     <- consumer 1: written in Rust on top
-//!   C-Tcl shim (#1372, later)       <- consumer 2: in view, not yet built
+//!   C-Tcl shim (later)              <- consumer 2: in view, not yet built
 //!  --------------- this crate ---------------
 //!   tcl-vm engine  (tcl-engine-tclvm)
 //!   Tcl->WASM codegen runtime engine (later)

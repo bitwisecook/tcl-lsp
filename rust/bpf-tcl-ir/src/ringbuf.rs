@@ -16,8 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Typed kernel→userspace event records and their ring-buffer transport
-//! (issue #1204's userspace event channel).
+//! Typed kernel→userspace event records and their ring-buffer transport.
 //!
 //! Observability events (tracepoints, kprobes, …) do not return a packet
 //! verdict; they emit **records** to userspace. This module defines a
@@ -81,7 +80,7 @@ pub struct RecordHeader {
 }
 
 impl RecordHeader {
-    /// Serialize to the fixed 16-byte little-endian header.
+    /// Serialise to the fixed 16-byte little-endian header.
     #[must_use]
     pub fn to_bytes(self) -> [u8; HEADER_LEN] {
         let mut out = [0u8; HEADER_LEN];

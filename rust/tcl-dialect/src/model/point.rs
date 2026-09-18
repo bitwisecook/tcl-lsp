@@ -21,14 +21,14 @@
 //!
 //! A [`Release`] already names its [`Family`], so a point is a release plus
 //! the build profile, and every lexical axis is a function of it
-//! ([`Self::grammar`]). That is the whole model P6 moved to: the grammar is a
-//! function of `(family, release, build)` rather than a row in a catalogue.
+//! ([`Self::grammar`]): the grammar is a function of `(family, release,
+//! build)` rather than a row in a catalogue.
 //!
 //! It exists because the two currencies layers actually carried could not say
 //! what they needed to:
 //!
 //! * **`Option<&DialectProfile>`** cannot name a dialect with no catalogue
-//!   profile. `jim` and `tk` have none — deliberately, since P6 — so every
+//!   profile. `jim` and `tk` have none — deliberately — so every
 //!   `of_profile` call answered C Tcl for a Jim document, and codegen
 //!   compiled it with 9.0 numerals and escapes.
 //! * **`Option<&str>`** (a dialect *name*) resolves only to an environment's

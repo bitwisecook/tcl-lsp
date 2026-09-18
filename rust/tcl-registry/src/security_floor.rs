@@ -22,8 +22,8 @@
 //!
 //! [`SecurityFloor`] is the fix, and it is deliberately **not** keyed on the
 //! tier. §6.4 keys its untrusted class on the editor's Workspace Trust state,
-//! which nothing on the discovery path is told (ledger O9), so a tier-keyed
-//! rule would protect nothing today; and a security fact that a *trusted*
+//! which nothing on the discovery path is told, so a tier-keyed rule would
+//! protect nothing today; and a security fact that a *trusted*
 //! pack may quietly drop is not much of a security fact. Every override, from
 //! every tier, keeps the shipped command's floor.
 //!
@@ -106,6 +106,11 @@ impl SecurityFloor {
         take_shipped(&mut spec.taint_code_sink_args, shipped.taint_code_sink_args);
         take_shipped(&mut spec.taint_source, shipped.taint_source);
         take_shipped(&mut spec.taint_transform, shipped.taint_transform);
+        // The condition travels with the colour it qualifies, so a pack
+        // cannot keep a shipped command-level `taint_transform` while dropping
+        // the proof that earns it. The floor reads `CommandSpec` fields only:
+        // the same pairing inside a `SubCommand` is not restored here.
+        take_shipped(&mut spec.taint_transform_when, shipped.taint_transform_when);
         take_shipped(
             &mut spec.taint_double_encode_colour,
             shipped.taint_double_encode_colour,
@@ -136,8 +141,8 @@ fn take_shipped<T>(target: &mut Option<T>, shipped: Option<T>) {
 /// (`Box::leak` in `tcl-spectcl/src/loader.rs`) and is bounded by the number of
 /// overrides in a workspace's packs, not by edits: a registry generation is
 /// built per pack-set key, and the merge runs once per overriding command in
-/// it. Ledger D10's generation work is what would reclaim these along with
-/// everything else the loader leaks.
+/// it. The generation-arena work tracked at redesign §11 D10 is what would
+/// reclaim these along with everything else the loader leaks.
 fn union_leaked<T: Clone + PartialEq + 'static>(
     declared: &'static [T],
     shipped: &'static [T],
@@ -176,6 +181,7 @@ pub const MERGED_FIELDS: &[&str] = &[
     "taint_interp_eval_subcommands",
     "taint_source",
     "taint_transform",
+    "taint_transform_when",
     "taint_double_encode_colour",
     "taint_sink_safe_colour",
     "taint_sink_gate",

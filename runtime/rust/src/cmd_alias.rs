@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `rename` + `interp alias` (T1.5, the rename-alias wave).
+//! `rename` + `interp alias`.
 //!
 //! Both layer on the one command resolver in [`crate::namespace`]: `rename`
 //! moves/deletes a binding in the table; `interp alias` installs a
@@ -46,7 +46,7 @@ pub fn install(interp: &mut Interp) {
     // `update` is registered by `cmd_event` (the real event loop).
 }
 
-// -- rename ----------------------------------------------------------------
+// rename
 
 /// `rename oldName newName` — move a command, or delete it when `newName` is the
 /// empty string. Any command may be renamed, builtins included — C Tcl has no
@@ -91,8 +91,8 @@ fn rename(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 /// The simple (unqualified) tail of a written command name — `::a::b` → `b`,
-/// and the empty-string `{}` command for a name ending in a separator run
-/// (#934), matching where the command table binds it.
+/// and the empty-string `{}` command for a name ending in a separator run,
+/// matching where the command table binds it.
 fn simple_tail(name: &[u8]) -> Vec<u8> {
     if tcl_syntax::naming::ends_with_separator(name) {
         return Vec::new();
@@ -111,15 +111,15 @@ fn alias_loop_error(interp: &mut Interp, simple: &[u8]) -> Code {
     interp.error_with_code(&m, b"TCL OPERATION INTERP ALIASLOOP")
 }
 
-// -- interp ----------------------------------------------------------------
+// interp
 
 /// `interp`'s subcommand words, in C table order (`options[]`, `tclInterp.c`).
 /// C resolves them with `Tcl_GetIndexFromObj(…, "option", 0)`, so `cr`
 /// abbreviates `create` and the empty word — a prefix of every entry — is
 /// `ambiguous option ""`.
 ///
-/// The table names only the subcommands this runtime dispatches (issue #1412
-/// item 3): `cancel`, `share`, and `transfer` need infrastructure it has none
+/// The table names only the subcommands this runtime dispatches: `cancel`,
+/// `share`, and `transfer` need infrastructure it has none
 /// of. `slaves` is 8.x's deprecated spelling of `children`: it still resolves
 /// (as it does in C, whose `options[]` keeps it) but
 /// [`interp_option_choices`] drops it from the 9.0 enumeration, exactly as C
@@ -190,7 +190,7 @@ pub(crate) fn resolve_interp_option(
 /// infrastructure for — no cancellation flag on eval, no channel-table
 /// sharing between interps — so, unlike `target`, implementing them is not
 /// cheap; the bad-option list below advertises only what actually dispatches
-/// here, rather than tclsh's full list (issue #1412 item 3).
+/// here, rather than tclsh's full list.
 fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args(b"interp cmd ?arg ...?");
@@ -316,7 +316,7 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// [`Interp::alias_target_path`]. `cancel`/`share`/`transfer` are the other
 /// three subcommands tclsh advertises here that this runtime does not
 /// implement; unlike `target` they need infrastructure (script cancellation,
-/// cross-interp channel sharing) this runtime has none of (issue #1412 item 3).
+/// cross-interp channel sharing) this runtime has none of.
 fn interp_target(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 4 {
         return interp.wrong_args(b"interp target path alias");
@@ -362,7 +362,8 @@ const HIDDEN_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
 
 /// `interp create ?-safe? ?--? ?path?` — create a child interpreter, returning
 /// its name (auto-generated `interpN` when omitted). `-safe` hides the
-/// host-touching commands (the Safe Base's re-aliasing is a follow-up).
+/// host-touching commands; it does not re-alias `source`/`load`/`file`
+/// through the Safe Base.
 fn interp_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // C's "weird historical rule": `-safe` is accepted anywhere before `--`
     // (`interp create a -safe` is valid), and the path is the lone non-option
@@ -625,11 +626,10 @@ fn interp_hidectl(interp: &mut Interp, argv: &[*mut TclObj], op: CommandVisibili
 ///
 /// C's `ChildInvokeHidden` (`tclInterp.c`) takes the *last* of `-global`
 /// (`::`) / `-namespace ns` given, not a mutual-exclusion refusal — passing
-/// both is legal on tclsh 8.6.16/9.0.4, the last one simply wins (issue
-/// #1412's own item 5 claimed a `cannot use -global option and -namespace
-/// option together` error exists; it does not, on either release). An
-/// unrecognized option is a hard `bad option` error rather than the previous
-/// silent skip. `-namespace`'s namespace is resolved from the **global**
+/// both is legal on tclsh 8.6.16/9.0.4, the last one simply wins; no
+/// `cannot use -global option and -namespace option together` error exists
+/// on either release. An unrecognised option is a hard `bad option` error.
+/// `-namespace`'s namespace is resolved from the **global**
 /// namespace regardless of the caller's current one, matching
 /// `TCL_GLOBAL_ONLY` (tclsh-pinned: `-namespace bar` from inside `::foo`
 /// still names `::bar`, not `::foo::bar`).
@@ -787,7 +787,7 @@ fn interp_alias(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let src = obj_bytes(argv[2]);
     let name = obj_bytes(argv[3]);
 
-    // -- alias in a child interp, delegating to the parent (this interp) -------
+    // alias in a child interp, delegating to the parent (this interp)
     if !src.is_empty() {
         if !interp.child_exists(&src) {
             let mut m = b"could not find interpreter \"".to_vec();
@@ -814,7 +814,7 @@ fn interp_alias(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return Code::Ok;
     }
 
-    // -- alias in the current interp (single-interp) --------------------------
+    // alias in the current interp (single-interp)
     // Query: `interp alias {} aliasName`.
     if argv.len() == 4 {
         return match interp.alias_info(&name) {
@@ -876,7 +876,7 @@ fn interp_aliases(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-// -- helpers ---------------------------------------------------------------
+// helpers
 
 fn only_single_interp(interp: &mut Interp) -> Code {
     interp.set_error(b"only single-interp aliases (empty interpreter paths) are supported")
@@ -916,12 +916,12 @@ mod tests {
         assert_eq!(counters::double_free_count(), 0);
     }
 
-    /// Issue #1607: the `interp` ensemble and the child-as-command dispatch
+    /// The `interp` ensemble and the child-as-command dispatch
     /// are `Tcl_GetIndexFromObj(…, "option", 0)` tables (`options[]` in
     /// `Tcl_InterpObjCmd` and `NRChildCmd`, `tclInterp.c`), so subcommands
     /// abbreviate and the empty word — a prefix of every entry — is
     /// `ambiguous option ""`. The `interp` list still names only what this
-    /// runtime dispatches (#1412 item 3); the child list is tclsh's in full.
+    /// runtime dispatches; the child list is tclsh's in full.
     ///
     /// tclsh 8.6.16 / 9.0.4 (the verdicts, not the shortened `interp` list):
     ///   interp {}       -> ambiguous option "": must be …
@@ -986,7 +986,7 @@ mod tests {
         });
     }
 
-    /// Issue #1607: `interp create`'s and `interp invokehidden`'s leading
+    /// `interp create`'s and `interp invokehidden`'s leading
     /// options are `Tcl_GetIndexFromObj(…, "option", 0)` tables
     /// (`createOptions[]` / `hiddenOptions[]`, `tclInterp.c`), so they
     /// abbreviate and the lone `-` — a prefix of every entry — is `ambiguous`.
@@ -1611,13 +1611,13 @@ mod tests {
         });
     }
 
-    /// #934 definition-direction parity: a written trailing separator names
+    /// Definition-direction parity: a written trailing separator names
     /// the empty-string `{}` command inside its full qualifier chain — for
     /// `proc`, `rename`'s NEW name, and dispatch alike (`proc x:: {} {…}`
     /// defines `::x::` and `x::` invokes it; `rename foo x::` / `rename bar
-    /// ::` rebind the `{}` command — all tclsh 8.6.16/9.0.4-pinned).
-    /// Previously the definition split dropped the empty tail, so the proc
-    /// just defined could not be invoked.
+    /// ::` rebind the `{}` command — all tclsh 8.6.16/9.0.4-pinned). The
+    /// definition split must keep the empty tail, or the proc just defined
+    /// could not be invoked.
     #[test]
     fn trailing_separator_definitions_match_resolution() {
         leak_free(|i| {

@@ -94,7 +94,7 @@ struct EffectCtx<'a> {
 }
 
 fn word_has_observable_side_effect(text: &str, effect: EffectCtx<'_>, depth: u32) -> bool {
-    // Native-stack safety net (issue #996): this recurses into nested `[cmd
+    // Native-stack safety net: this recurses into nested `[cmd
     // …]` substitutions inside a single word's raw text, a genuinely
     // unbounded axis. Past the cap, assume an observable side effect — the
     // conservative direction, so an assignment whose RHS nests deeper than we
@@ -155,8 +155,8 @@ fn word_has_observable_side_effect(text: &str, effect: EffectCtx<'_>, depth: u32
                 || interproc_pure.contains(format!("::{cmd_name}").as_str())
                 || interproc_pure.contains(cmd_name.trim_start_matches(':'));
             // The contextual self-dispatch keyword is registry data, not a
-            // name literal (issue #1050). Runtime-selected spellings already
-            // returned conservatively above.
+            // name literal. Runtime-selected spellings already returned
+            // conservatively above.
             let self_dispatch_pure = registry.method_dispatch_keyword(cmd_name)
                 == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
                 && !cmd_args.is_empty()
@@ -195,7 +195,7 @@ fn method_pure(class_qname: &str, method_name: &str, pure_methods: &HashSet<Stri
 /// if any embedded command substitution in the expression has an
 /// observable side effect.
 fn expr_has_observable_side_effect(node: &ExprNode, effect: EffectCtx<'_>, depth: u32) -> bool {
-    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // Native-stack safety net: walks the `ExprNode` tree, one
     // native frame per level. Past the cap, assume an observable side effect
     // — the conservative direction, so an expression assignment nested deeper
     // than we can walk is never wrongly deleted. (Calls into
@@ -514,13 +514,13 @@ fn emit_dead_stores_and_unused(
     proc_index: &crate::interprocedural::ProcIndex,
 ) -> HashSet<(String, u32)> {
     // A dynamic read (`[set $name]`, `subst $tmpl`) can observe *any* store,
-    // so no assignment in this function is provably dead (issue #923 audit
-    // idx 2/64).  Deleting one would change what the program prints, so the
+    // so no assignment in this function is provably dead.  Deleting one would
+    // change what the program prints, so the
     // optimiser abstains toward not folding — no O109/O126, and no ADCE seed.
     if fu.dynamic_names.reads {
         return HashSet::new();
     }
-    // Whole-module variable-trace facts (issue #1377) — the same
+    // Whole-module variable-trace facts — the same
     // canonicalised (`::`-stripped) fact SCCP and O102 consult. A write
     // trace fires its callback on every store, so no store to a traced
     // name is provably dead even when the `trace add variable` lives in a
@@ -629,7 +629,7 @@ fn emit_dead_stores_and_unused(
             continue;
         }
         // Traced anywhere in the module, under the canonical `::`-stripped
-        // spelling (issue #1377) — the store is observed by the trace
+        // spelling — the store is observed by the trace
         // callback, so it is neither dead nor unused.
         if module_traced.is_some_and(|t| t.contains(var_base.trim_start_matches("::"))) {
             continue;
@@ -657,8 +657,8 @@ fn emit_dead_stores_and_unused(
         // caller-side name is spelled in the CALLEE (`upvar 1 callervar m;
         // return $m`) or written through `uplevel` — the alias hands the
         // callee both directions, so no store to it is provably dead
-        // (issue #1193's upvar differential: deleting `set callervar 5`
-        // before a `get` that upvar-reads it broke the program).
+        // — deleting `set callervar 5` before a `get` that upvar-reads it
+        // changes the program's behaviour.
         if fu.cfg.alias_observed_vars.contains(var) || fu.cfg.alias_observed_vars.contains(var_base)
         {
             continue;
@@ -799,7 +799,7 @@ fn build_adce_consumers(fu: &FunctionUnit) -> (ConsumerMap, HashSet<(String, u32
                 // A name position consumes the value exactly as an operand
                 // does — `incr a` reads `a` — so it keeps the feeding store
                 // alive at the statement that names it. Only *rewriting*
-                // passes have to tell the two apart (issue #1934).
+                // passes have to tell the two apart.
                 UseKind::Operand | UseKind::VariableName => {
                     if let Ok(idx) = usize::try_from(use_site.statement_index) {
                         consumer_stmt_keys
@@ -942,22 +942,18 @@ fn emit_adce_reports(
     }
 }
 
-/// Scan every statement's source slice for `$var` / `${var}`
-/// references and collect the names seen. Narrow to the
-/// function's own CFG extent now that the segmenter emits
-/// absolute spans for proc bodies — so false-positive
-/// suppression across proc boundaries no longer applies.
 /// Scan a slice for `$var` and `${var}` references, inserting names
-/// into *out*.  Extracted from `collect_textual_var_references`.
+/// into *out*.  Extracted from `collect_textual_var_references`, which
+/// narrows the scan to the function's own CFG extent.
 ///
 /// `braced_var` is the document's `${…}` close rule; the closer is located by
 /// the shared owner [`tcl_lexer::braced_var_name_end`], never re-derived here.
 /// This harvest is what keeps a textually-referenced variable's def alive, so
 /// a name it fails to see is a *wrong transform*, not a missed opportunity:
 /// under the default (9.x) rule the lexer spans `${a{b}c}` as one reference to
-/// `a{b}c`, and the old first-`}` walk harvested `a{b` — a name nothing else
-/// in the pipeline uses — leaving `set {a{b}c} 1` reported as a dead store
-/// (O109) and an unused variable (W211) despite the live read (issue #1604).
+/// `a{b}c`, while a first-`}` walk harvests `a{b` — a name nothing else in
+/// the pipeline uses — leaving `set {a{b}c} 1` reported as a dead store
+/// (O109) and an unused variable (W211) despite the live read.
 fn scan_dollar_refs(
     slice: &str,
     braced_var: tcl_dialect::BracedVarStyle,
@@ -1052,7 +1048,7 @@ fn scan_set_read_refs(slice: &str, out: &mut HashSet<String>) {
         }
         // The slice can end right here — a half-typed `[set ` is an ordinary
         // intermediate state while editing, and this scan runs over partial
-        // functions (PR #1106 review, P2). There is no name word to read, so
+        // functions. There is no name word to read, so
         // the conservative answer is "this bracket contributes nothing":
         // stop rather than index off the end (nothing follows it either).
         if name_cursor >= bytes.len() {
@@ -1061,9 +1057,9 @@ fn scan_set_read_refs(slice: &str, out: &mut HashSet<String>) {
         // A **brace-quoted** name word (`[set {$n}]`, `[set {a b}]`,
         // `[set {arr($i)}]`) is Tcl's literal spelling for a name the bareword
         // scan below cannot match: the braces suppress substitution, so the
-        // content *is* the name (issue #1078).  Without this arm the read went
-        // unseen and its `set {$n} 1` was reported unused (W211) / dead (W220)
-        // where the identical plain-named script was not.
+        // content *is* the name.  Without this arm the read goes unseen and
+        // its `set {$n} 1` is reported unused (W211) / dead (W220) where the
+        // identical plain-named script is not.
         if bytes[name_cursor] == b'{' {
             let inner_start = name_cursor + 1;
             let mut depth = 1usize;
@@ -1167,7 +1163,7 @@ pub(crate) fn collect_textual_var_references(
         return HashSet::new();
     }
     // The envelope is a union of statement spans, and a statement span can land
-    // inside a multi-byte sequence (issue #1325).  This scan only harvests
+    // inside a multi-byte sequence.  This scan only harvests
     // variable *names* and is suppress-only, so widen to the enclosing `char`
     // boundaries — a superset region — rather than dropping the scan.
     while !source.is_char_boundary(start) {
@@ -1291,7 +1287,7 @@ pub(crate) fn collect_rmw_hidden_reads(
 /// `n` masked a W220 real tclsh confirms (`proc f {} {set n 1; puts [set
 /// {$n}]}` — `n` is assigned and never read; 9.0.4 / 8.6.16 alike report
 /// `can't read "$n": no such variable`, proving the read went to the other
-/// cell).  Issue #1109.
+/// cell).
 ///
 /// Everything else keeps abstaining toward silence: an `[expr {…}]` brace, a
 /// word that merely *contains* a substitution, an unresolvable head.
@@ -1554,7 +1550,7 @@ mod tests {
 
     // internal helper tests
 
-    /// Regression coverage for issue #996: `expr_has_observable_side_effect`
+    /// `expr_has_observable_side_effect`
     /// recurses once per `ExprNode` level (Tier 1A) and
     /// `word_has_observable_side_effect` once per nested `[cmd …]`
     /// substitution inside a single word's raw text (Tier 1B) — both
@@ -1622,7 +1618,7 @@ mod tests {
 
     /// Like [`run_pass`] but with `ctx.ir_module` wired the way the
     /// production entry points wire it, so the whole-module variable-trace
-    /// facts reach the O109 / O126 gate (issue #1377).
+    /// facts reach the O109 / O126 gate.
     fn run_pass_with_module(source: &str) -> Vec<Optimisation> {
         let cu = CompilationUnit::build_for(source, &registry(), false);
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
@@ -1631,7 +1627,7 @@ mod tests {
         ctx.optimisations
     }
 
-    /// Issue #1377 — the trace names `::g`, the store is spelled `g`, and
+    /// The trace names `::g`, the store is spelled `g`, and
     /// both name the same top-level global; the write trace observes
     /// `set g 1`, so it is not a dead store.
     #[test]
@@ -1644,7 +1640,7 @@ mod tests {
         );
     }
 
-    /// Issue #1377 — a dynamic trace target makes every name potentially
+    /// A dynamic trace target makes every name potentially
     /// traced, so no store anywhere in the module is provably dead.
     #[test]
     fn dynamic_trace_target_blocks_dead_stores() {
@@ -1778,7 +1774,7 @@ mod tests {
         );
         // Scoped to the payload-bearing rewrites: a hint-only O102 spans the
         // whole consuming statement and deliberately carries no replacement
-        // (issue #1934), so it cannot conflate anything.
+        // so it cannot conflate anything.
         assert!(
             opts.iter()
                 .all(|o| o.code != DiagCode::O102 || o.hint_only || o.replacement == "1"),
@@ -1883,13 +1879,13 @@ mod tests {
         );
     }
 
-    /// Issue #1604 — the textual liveness harvest reads `${…}` through the
+    /// The textual liveness harvest reads `${…}` through the
     /// shared owner, so the name it keeps alive is the one the lexer spanned.
     ///
     /// This scan is *suppress-only*: a name it fails to see lets O109 delete a
     /// live store and W211 call a read variable unused. Under the default (9.x)
     /// rule the reference names `a{b}c`; under 8.x it names `a{b` and `c}` is
-    /// ordinary word text. Oracle: `set {a{b}c} 7; subst {${a{b}c}}` is `7` on
+    /// ordinary word text: `set {a{b}c} 7; subst {${a{b}c}}` is `7` on
     /// tclsh 9.0.4 and `can't read "a{b"` on 8.6.16 (`Tcl_ParseVarName`,
     /// `tclParse.c:1315` vs `:1398`).
     #[test]
@@ -1939,18 +1935,18 @@ mod tests {
         );
     }
 
-    /// PR #1106 review, P2 — the `[set …]` name scan must survive a slice that
-    /// ends inside the command.
+    /// The `[set …]` name scan must survive a slice that ends inside the
+    /// command.
     ///
     /// A half-typed `[set ` is an ordinary intermediate state while editing,
     /// and this scan runs over *partial* functions, so the whitespace skip can
-    /// walk `name_cursor` to `bytes.len()`. Indexing there panicked, taking
-    /// down whatever optimiser / diagnostic pass was asking — a crash where a
-    /// conservative answer was wanted.
+    /// walk `name_cursor` to `bytes.len()`. Indexing there would panic, taking
+    /// down whatever optimiser / diagnostic pass was asking, where a
+    /// conservative answer is wanted.
     #[test]
     fn scan_set_read_refs_survives_truncated_input() {
         for slice in [
-            // The reported shape: the slice ends after the separator.
+            // The slice ends after the separator.
             "[set ",
             "[set  ",
             "[set\t",

@@ -18,8 +18,8 @@
 
 //! Campaign runner: generate → run both backends → compare → record.
 //!
-//! Runs over the native subprocess harness, generalised (issue #1313) to any
-//! pair of [`crate::engine::Engine`]s — not just `tclvm` / `tclsh`.
+//! Runs over the native subprocess harness, generalised to any pair of
+//! [`crate::engine::Engine`]s — not just `tclvm` / `tclsh`.
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -71,8 +71,8 @@ pub struct Backend<'a> {
     pub args: Vec<String>,
 }
 
-/// Configuration for one campaign, over any pair of engines (issue #1313 —
-/// previously hardcoded to `tclvm` subject / `tclsh` reference).
+/// Configuration for one campaign, over any pair of engines — not fixed to
+/// `tclvm` subject / `tclsh` reference.
 pub struct Campaign<'a> {
     /// Reference engine (the presumed-correct oracle for this pair).
     pub reference: Backend<'a>,
@@ -91,8 +91,7 @@ pub struct Campaign<'a> {
     pub compare_error_text: bool,
     /// Which Tcl release each engine emulates, probed once before the
     /// campaign starts. Stamped onto every finding so a version-skewed pair
-    /// can never again masquerade as a bug list (issue #1328 — see
-    /// [`crate::version`]).
+    /// can never masquerade as a bug list — see [`crate::version`].
     pub versions: crate::version::PairVersions,
 }
 

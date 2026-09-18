@@ -1,4 +1,4 @@
-# Issue #923 differential-audit finding idx 79 — an untracked receiver.
+# Differential-audit finding idx 79 — an untracked receiver.
 oo::class create Vector3d {
     variable _x _y
     constructor {args} {

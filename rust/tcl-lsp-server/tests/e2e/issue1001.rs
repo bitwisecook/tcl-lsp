@@ -16,9 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! End-to-end coverage for issue #1001, against the real, packaged native
-//! server: W129 (the Safe Base diagnostic) missing a hidden command reached
-//! only through `[...]` bracket-substitution indirection.
+//! End-to-end coverage against the real, packaged native server: W129 (the
+//! Safe Base diagnostic) missing a hidden command reached only through
+//! `[...]` bracket-substitution indirection.
 //!
 //! The unit tests in `tcl-compiler`'s `analyser::handlers::tests` module
 //! (suffixed `_1001`) exercise every indirection path exhaustively —
@@ -84,8 +84,8 @@ fn safe_interp_w129_reaches_list_quoted_hidden_command_in_command_prefix_1001() 
     );
 }
 
-/// FP guard (mirrors #954's `set data [list apply {...} value]`
-/// non-invocation case): the same list-quoting shape sitting in ordinary
+/// FP guard (the same non-invocation shape as `set data [list apply {...}
+/// value]`): the same list-quoting shape sitting in ordinary
 /// `set` data (never a `Body`/`LambdaLiteral`/`CommandPrefix` argument
 /// position) must not draw W129.
 #[test]

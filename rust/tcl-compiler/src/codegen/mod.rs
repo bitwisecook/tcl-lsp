@@ -58,7 +58,7 @@ use std::collections::{BTreeSet, HashMap};
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
 
-// -- Emission context --
+// Emission context.
 
 /// Mutable context for bytecode emission.
 ///
@@ -73,8 +73,7 @@ use tcl_registry::CommandRegistry;
 // written and read at hot-path code-emission sites. They're
 // genuinely orthogonal — folding into a bitflags type would just
 // rename `ctx.is_proc` to `ctx.flags.contains(...)` without any
-// readability or perf gain — and the emitter is a churn-sensitive
-// area. Leaving the allow.
+// readability or perf gain.
 #[allow(clippy::struct_excessive_bools)]
 pub struct CodegenCtx<'r> {
     /// The numeric-literal grammar of the release being compiled *for*.
@@ -89,7 +88,7 @@ pub struct CodegenCtx<'r> {
     ///
     /// Threaded from `IrModule::dialect` beside [`Self::numbers`], so a literal
     /// word's escapes are decoded the way the target release reads them —
-    /// `\x4142` is `B` when compiling for 8.5 and `A42` from 8.6 (issue #1479).
+    /// `\x4142` is `B` when compiling for 8.5 and `A42` from 8.6.
     /// Defaults to 9.0 for the hand-built contexts in tests.
     pub escapes: tcl_dialect::EscapeSyntax,
     /// The word-value rules of the release being compiled *for* — whether a
@@ -113,10 +112,10 @@ pub struct CodegenCtx<'r> {
     /// ends the name at the first literal `}`, making it `a{b` followed by the
     /// ordinary word text `c}`.
     ///
-    /// Before this was threaded, the two decoders hard-coded *opposite* rules —
+    /// Without it the two decoders hard-code *opposite* rules —
     /// `values::parse_simple_var_ref` the 9.x one and
-    /// `helpers::parse_subst_template` the 8.x one — so the compiled-word path
-    /// was wrong in both directions at once (issue #1568). Defaults to 9.0 for
+    /// `helpers::parse_subst_template` the 8.x one — leaving the compiled-word
+    /// path wrong in both directions at once. Defaults to 9.0 for
     /// the hand-built contexts in tests.
     pub braced_var: tcl_dialect::BracedVarStyle,
     /// The resolved profile of the release being compiled *for*, from the
@@ -139,7 +138,7 @@ pub struct CodegenCtx<'r> {
     /// body is read under and, through
     /// [`RuntimeExprSurface`](tcl_registry::expr_surface::RuntimeExprSurface),
     /// which
-    /// operators the target release's `expr` actually has (issue #1435).
+    /// operators the target release's `expr` actually has.
     /// A dialect-less compile stays distinguishable from one that named plain
     /// `tcl`: `parse_expr`'s numeral grammar follows the ambient runtime
     /// syntax for the former and the profile's for the latter.
@@ -225,8 +224,7 @@ pub struct CodegenCtx<'r> {
     /// namespace and are never rewritten to this value.
     resolution_namespace: String,
     /// Whole-module command-mutation summary — which command *names* may stop
-    /// denoting their original builtin anywhere in this compilation unit
-    /// (issue #1585).
+    /// denoting their original builtin anywhere in this compilation unit.
     ///
     /// C Tcl inline-compiles a builtin unconditionally but guards every
     /// compiled command with `INST_START_CMD`, which re-dispatches the slow
@@ -242,8 +240,8 @@ pub struct CodegenCtx<'r> {
     /// `None` means the caller supplied **no whole-module view** — the
     /// hand-built emitter contexts in unit tests and the per-function
     /// [`Backend::lower_function`](crate::codegen::backend::Backend::lower_function)
-    /// seam, which is handed one CFG and never sees the module. Those keep
-    /// the historical trust-everything behaviour;
+    /// seam, which is handed one CFG and never sees the module. Those trust
+    /// every name;
     /// [`codegen_module`](crate::codegen::codegen_module), the whole-unit
     /// entry point every production pipeline uses, always supplies the scan.
     pub command_bindings: Option<&'r crate::command_binding::ModuleCommandMutations>,
@@ -452,13 +450,13 @@ impl<'r> CodegenCtx<'r> {
     }
 
     /// Whether `name` is free of whole-unit mutation, for transforms that have
-    /// no independently replayable command boundary (issue #1585).
+    /// no independently replayable command boundary.
     ///
     /// Answers from the whole-module [`Self::command_bindings`] summary — a
     /// flow-**insensitive** scan on purpose: a `rename` buried in a proc body
     /// can fire before a call earlier in the file runs, so "no rename seen so
-    /// far" is not a sound answer. Without a module view the answer is the
-    /// historical `true`; see [`Self::command_bindings`].
+    /// far" is not a sound answer. Without a module view the answer is
+    /// `true`; see [`Self::command_bindings`].
     #[must_use]
     pub fn trusts_builtin(&self, name: &str) -> bool {
         self.command_bindings.is_none_or(|m| m.trusts(name))
@@ -682,7 +680,7 @@ impl<'r> CodegenCtx<'r> {
     /// The 1-based line of `current_span` within the module source — the line a
     /// command reports in `errorInfo` (`(procedure … line N)` / `("while" body
     /// line N)`). `0` when no span is available. A hand-built context with a
-    /// span but no source retains the historical line-one fallback.
+    /// span but no source falls back to line one.
     fn span_line(&self) -> u32 {
         match self.current_span {
             Some(sp) => self.line_at(sp.start()),

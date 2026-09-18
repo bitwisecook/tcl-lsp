@@ -30,10 +30,10 @@
 //!
 //! These assertions are structural; they cannot prove the result is valid
 //! Rust. To check that for real, render the specs into the registry and build
-//! it — the four renderer bugs this file's invariants do *not* catch (a
-//! non-const `|` in a hoisted table, a nested enum payload losing its type
-//! path, an associated function called as a method, an unmapped dialect name)
-//! were all found this way:
+//! it — this catches renderer bugs the structural invariants above cannot,
+//! such as a non-const `|` in a hoisted table, a nested enum payload losing
+//! its type path, an associated function called as a method, or an unmapped
+//! dialect name:
 //!
 //! ```text
 //! # from the repository root, with a throwaway example that calls

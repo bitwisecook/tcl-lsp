@@ -303,16 +303,14 @@ let dockOpen = true;
 /** How long a deep link's landing outline stays on the field it found. */
 const FLASH_MS = 1200;
 
-/* Drafts ---------------------------------------------------------------- */
-
+// Drafts
 /** Whether `draft` differs from the default for `field`. */
 function isSet(draft: Draft, field: FieldSchema, which: "command" | "subcommand"): boolean {
   const base = which === "subcommand" ? state.defaultSubcommand : state.defaultCommand;
   return !deepEqual(draft[field.key], base[field.key]);
 }
 
-/* Help ------------------------------------------------------------------ */
-
+// Help
 /** Long-form help text as a stack of paragraphs. */
 function helpParagraphs(text: string): HTMLElement {
   const node = el("div", { class: "helptext" });
@@ -399,8 +397,7 @@ function helpButton(panel: HTMLElement, label: string): HTMLButtonElement {
   return button;
 }
 
-/* Form ------------------------------------------------------------------ */
-
+// Form
 function buildForm(
   container: HTMLElement,
   fields: FieldSchema[],
@@ -518,8 +515,7 @@ function buildField(
   return node;
 }
 
-/* Registry browser ------------------------------------------------------ */
-
+// Registry browser
 // Packs are the top level here, not a flat alphabet. A dialect is
 // `commands/tcl/` plus whatever layers on it, and an author browsing for
 // somewhere to put a command is looking for the pack first. The decisions —
@@ -671,8 +667,7 @@ function renderList(): void {
   }
 }
 
-/* The pack store --------------------------------------------------------- */
-
+// The pack store
 // One document, many projections. Everything below either *reads* the pack
 // source to paint a surface, or *dispatches an edit* that produces a new pack
 // source — never both, and no surface keeps a copy of the truth.
@@ -1055,8 +1050,7 @@ function readPackFile(files: FileList | null): void {
   );
 }
 
-/* Live save -------------------------------------------------------------- */
-
+// Live save
 function scheduleSave(): void {
   if (saveTimer !== undefined) window.clearTimeout(saveTimer);
   saveTimer = window.setTimeout(() => {
@@ -1073,8 +1067,7 @@ function scheduleSave(): void {
   }, SAVE_MS);
 }
 
-/* Editing --------------------------------------------------------------- */
-
+// Editing
 function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
@@ -1302,8 +1295,7 @@ function renderOutputs(): void {
   renderExport();
 }
 
-/* The pack export -------------------------------------------------------- */
-
+// The pack export
 // The export is a *pack*-level view, so it is driven by the document rather
 // than by the form: an author who edits three commands and then goes to ship
 // them should not have to open each one to make its file appear.
@@ -1541,8 +1533,7 @@ function moveExportSelection(delta: number | "first" | "last"): void {
   byId(exportRowId(file.path, next)).scrollIntoView({ block: "nearest" });
 }
 
-/* Files ----------------------------------------------------------------- */
-
+// Files
 function addFile(path: string, source: string): void {
   const existing = state.files.find((file) => file.path === path);
   if (existing) existing.source = source;
@@ -1609,8 +1600,7 @@ function renderFiles(): void {
   updateIssueSize();
 }
 
-/* GitHub issue ---------------------------------------------------------- */
-
+// GitHub issue
 function issueBody(): string {
   const notes = byId<HTMLTextAreaElement>("issueNotes").value.trim();
   const parts: string[] = [
@@ -1680,8 +1670,7 @@ function openIssue(): void {
   window.open(url, "_blank", "noopener");
 }
 
-/* Package import -------------------------------------------------------- */
-
+// Package import
 /** The extensions a Tcl library is written in — what a directory pass keeps. */
 const TCL_EXTENSIONS = [".tcl", ".tm", ".test", ".itcl", ".itk"];
 
@@ -1773,10 +1762,11 @@ function addImportedToPack(): void {
   if (!state.imported.length) return;
   const { written, failed, firstWritten, patched } = writeDraftsToPack(state.imported);
   // The generated-code panes render the active draft, not the pack as a
-  // whole. Import used to write a perfectly good `.tclspec` and leave the
-  // boot-time `mycommand` placeholder active, so Rust and stub output looked
-  // as though generation had failed. Make the first successfully imported
-  // command the active pack draft while leaving the author on the Import tab.
+  // whole. Import must not leave the boot-time `mycommand` placeholder
+  // active after writing a perfectly good `.tclspec`, which would make Rust
+  // and stub output look as though generation had failed. Make the first
+  // successfully imported command the active pack draft while leaving the
+  // author on the Import tab.
   //
   // Reading it back can still fail — the store is the authority on what it
   // holds — and a throw out of a click handler leaves the page half-updated
@@ -1875,8 +1865,7 @@ function runImport(payload: { name: string; text: string }[]): void {
   );
 }
 
-/* The Test tab ----------------------------------------------------------- */
-
+// The Test tab
 // "My stuff is working" is observed, not asserted. The sample goes through the
 // wasm bench, which installs the pack into a real registry and runs the real
 // analyser over it — so nothing here decides what a word means; it only paints
@@ -2120,12 +2109,11 @@ function renderInspection(view: TestInspection): void {
   }
 }
 
-/* Open commands ---------------------------------------------------------- */
-
+// Open commands
 // Several commands open at once, one tab each — because a pack is many
 // commands and one deliverable, and every comparison, every option table
-// copied across, every subcommand checked against its sibling used to be a
-// round trip through the browser list.
+// copied across, every subcommand checked against its sibling would
+// otherwise be a round trip through the browser list.
 //
 // A tab is a *view*, never a store. `state.pack.source` is still the whole
 // model and `writeBackOpenCommand` is still the only path from a form edit to
@@ -2400,8 +2388,7 @@ function closeActiveOpenTab(): void {
   if (tab) closeOpenTab(tab.name);
 }
 
-/* Command search and history --------------------------------------------- */
-
+// Command search and history
 // `/` anywhere searches all three surfaces at once — the pack under edit, the
 // dialect's shipped packs, and the Reference vocabulary — and says which of
 // them each hit came from; the arrows walk the commands visited. Both are
@@ -2598,8 +2585,7 @@ function navigate(delta: number): void {
   openVisit(at);
 }
 
-/* Reference ------------------------------------------------------------- */
-
+// Reference
 // The Reference tab renders the registry's whole vocabulary — every spec
 // field and every catalogue (traits, argument roles, taint colours, …) with
 // its long-form help — behind one search box. Sections and rows are built
@@ -2815,8 +2801,7 @@ function openReferenceEntry(catalogueId: string, variantKey: string | null): voi
   );
 }
 
-/* The documentation dock ------------------------------------------------- */
-
+// The documentation dock
 // A persistent region that documents whatever the author is currently
 // touching. The inline `?` panels stay exactly as they were — on a narrow
 // viewport they remain the primary surface, and they are what the contract
@@ -3100,8 +3085,7 @@ function bindDock(): void {
   setDockSubject({ kind: "group", name: state.schema.groups[0] ?? "" });
 }
 
-/* URL routing ------------------------------------------------------------ */
-
+// URL routing
 // One history, not two. The visit stack (`state.history`) stays the record of
 // which commands were opened and in what order; every visit is *mirrored* as
 // one session-history entry tagged with its index. So the in-page ◀ ▶ buttons
@@ -3293,8 +3277,7 @@ function bindRouting(): void {
   });
 }
 
-/* The editor surface ---------------------------------------------------- */
-
+// The editor surface
 // Standalone Studio uses Monaco as its only editor. An IDE embedding delegates
 // these surfaces to ordinary native file tabs beside the Studio panel. Neither
 // mode exposes the hidden state textarea as an alternate editor.
@@ -3397,8 +3380,7 @@ function writeSample(sample: string): void {
   editorHost?.setSampleText(sample);
 }
 
-/* Tabs ------------------------------------------------------------------ */
-
+// Tabs
 function selectTab(name: Tab): void {
   currentTab = name;
   // Only two tabs are *views* the route vocabulary can name; the rest are
@@ -3428,8 +3410,7 @@ function selectTab(name: Tab): void {
   if (name === "test") runTest();
 }
 
-/* Boot ------------------------------------------------------------------ */
-
+// Boot
 function newCommandDraft(): Draft {
   const fresh = JSON.parse(wasm.new_command()) as Draft;
   fresh.name = "mycommand";

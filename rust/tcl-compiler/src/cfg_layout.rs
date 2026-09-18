@@ -23,8 +23,8 @@
 //! different media, but they must agree on *routing* — which edges exist
 //! and which lane each one occupies — so a reader sees the same graph
 //! everywhere. That model lives here, once, next to the CFG so the
-//! serialiser, the CLI/TUI renderers, and the planned diagram extractor
-//! all reuse it rather than each re-deriving lanes.
+//! serialiser, the CLI/TUI renderers, and the diagram extractor all reuse
+//! it rather than each re-deriving lanes.
 //!
 //! Lane assignment is shortest span first → innermost lane, greedy
 //! interval colouring over block ordinals, so every surface nests edges

@@ -52,7 +52,7 @@ static FORMAT_OPTIONS: &[OptionSpec] = &[
         name: "-format",
         // The value is the `clock` field string, not a generic value: the
         // `ArgRole::FormatString` role is what lets the LSP find it without
-        // naming `clock` (issue #1185); the *family* comes from the
+        // naming `clock`; the *family* comes from the
         // subcommand's `format_string_type`.
         value: OptionValue::Takes(OptionArg {
             role: ArgRole::FormatString,
@@ -318,10 +318,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Format a time value.",
         synopsis: "clock format timeVal ?-option value ...?",
         options: FORMAT_OPTIONS,
-        // Populates the previously-dead `format_string_type` field: the
+        // Populates the `format_string_type` field: the
         // family of this call's format string. Paired with the
         // `FormatString` / `ScanFormat` argument role that locates the
-        // word, it is the whole registry answer the LSP needs (#1185).
+        // word, it is the whole registry answer the LSP needs.
         format_string_type: Some(FormatType::Clock),
         pure: true,
         return_type: Some(TclType::String),
@@ -370,10 +370,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "clock scan inputString ?-option value ...?",
         return_type: Some(TclType::Int),
         options: SCAN_OPTIONS,
-        // Populates the previously-dead `format_string_type` field: the
+        // Populates the `format_string_type` field: the
         // family of this call's format string. Paired with the
         // `FormatString` / `ScanFormat` argument role that locates the
-        // word, it is the whole registry answer the LSP needs (#1185).
+        // word, it is the whole registry answer the LSP needs.
         format_string_type: Some(FormatType::Clock),
         ..SubCommand::VOLATILE_RESULT
     },

@@ -56,7 +56,7 @@ audit rather than merely unclassified. It records every visible:
 
 Rows whose complete semantics are identical are merged across dialect
 profiles. A difference in lifecycle, source, form, timing, arity, or taint
-produces a separate row, so dialect-dependent behavior remains explicit.
+produces a separate row, so dialect-dependent behaviour remains explicit.
 Command, subcommand, option, and form lifecycles retain their own
 package-version axis.
 

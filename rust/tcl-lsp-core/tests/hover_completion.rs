@@ -757,7 +757,7 @@ fn completion_on_empty_source_does_not_panic() {
 // completion.rs's in-crate tests; they are out of this plain-Tcl port's
 // surface.
 
-// Issue #806 — report::defstyle scoped command environment.
+// The `report::defstyle` scoped command environment.
 //
 // Inside a report::defstyle style script, the report configuration
 // methods (top/data/columns/…) are available as commands.  Hover and
@@ -975,7 +975,7 @@ fn completion_proc_scope_still_qualifies_globals_in_every_dialect_m11() {
     }
 }
 
-// Issue #1256 — completion and hover read the declared boolean argument role.
+// Completion and hover read the declared boolean argument role.
 //
 // tclsh (8.6.16 / 9.0.4): `fconfigure` / `chan configure -blocking` accepts
 // every boolean spelling and reports the canonical integer back —
@@ -1039,7 +1039,7 @@ fn hover_on_a_boolean_option_names_the_vocabulary() {
     );
 }
 
-// Issue #1610 — `namespace ensemble create` and `configure` are two different
+// `namespace ensemble create` and `configure` are two different
 // option tables, and the consumers must take the operation's own.
 //
 // Oracle, tclsh 8.6.16 and 9.0.4, byte identical:

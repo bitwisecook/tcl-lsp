@@ -161,100 +161,84 @@ PATH ACCESS
 
 MODULES
 
-  .ltm.<kind>             Local Traffic Manager kinds: ``virtual``,
-                          ``pool``, ``node``, ``rule``, ``profile``,
-                          ``monitor``, ``persistence``, ``snatpool``,
-                          ``policy``, ``data-group``.  Each
+  Seven modules carry a typed projection.  The kind lists below are
+  exhaustive: a kind that is not listed is not navigable, and
+  ``.<module>.<kind>`` raises ``no entry``.
+
+  .ltm.<kind>             Local Traffic Manager: ``virtual``,
+                          ``virtual-address``, ``pool``, ``node``,
+                          ``rule``, ``profile``, ``monitor``,
+                          ``persistence``, ``snatpool``, ``policy``,
+                          ``data-group``, ``snat-translation``.  Each
                           ``ltm policy`` exposes ``.rules[]`` with
                           nested ``.conditions[]`` and
                           ``.actions[]`` sub-objects — chained
                           access like ``.ltm.policy[].rules[]
                           .actions[].pool`` walks into the target
                           pool via a PathRef.
-  .net.<kind>             Network module: ``route``, ``vlan``,
-                          ``self``, ``route-domain``, ``port-list``,
+  .net.<kind>             Network: ``route``, ``vlan``, ``self``,
+                          ``route-domain``, ``port-list``,
                           ``interface``, ``dns-resolver``,
-                          ``tunnels-tunnel``, ``stp``.
-                          PathRefs from ``net self.vlan`` and
-                          ``net route-domain.vlans[]`` auto-deref
-                          into the target ``net vlan`` so chained
-                          access ``.net.self[].vlan.tag`` Just Works.
-
-  .sys.<kind>             System module: ``dns``, ``ntp``, ``snmp``,
+                          ``tunnel`` (``net tunnels tunnel``),
+                          ``stp``.
+                          PathRefs from ``self.vlan``,
+                          ``route-domain.vlans[]``, and
+                          ``stp.vlans[]`` auto-deref into the target
+                          ``net vlan`` so chained access
+                          ``.net.self[].vlan.tag`` Just Works.
+  .sys.<kind>             System: ``dns``, ``ntp``, ``snmp``,
                           ``global-settings`` (singletons — one entry
                           each, streamed via ``.sys.dns[]``);
                           ``provision``, ``folder``, ``file-ssl-cert``,
                           ``file-ssl-key``, ``management-route``.
-  .security.<kind>        Security module:
-                          ``firewall-port-list``,
-                          ``firewall-rule-list``,
-                          ``firewall-config-entity-id``,
-                          ``ip-intelligence-policy``,
-                          ``protocol-inspection-compliance-map``,
-                          ``protocol-inspection-compliance-objects``,
-                          ``device-id-attribute``.
+                          ``file-ssl-cert`` carries the x509 metadata
+                          ``x509_from_config`` projects, and the
+                          ``cache-path`` ``ucs_cert`` re-reads the PEM
+                          by: ``.sys["file-ssl-cert"][] | ucs_cert(.)``.
+  .cm.<kind>              Cluster Manager: ``cert``, ``key``,
+                          ``device``, ``device-group``,
+                          ``traffic-group``, ``trust-domain``,
+                          ``ha-group``.
+                          PathRefs from ``device.cert`` /
+                          ``device.key`` and ``trust-domain.ca-cert``
+                          / ``ca-key`` / ``ca-devices[]`` /
+                          ``trust-group`` auto-deref so
+                          ``.cm["trust-domain"][].trust-group.devices``
+                          walks ``trust-domain -> device-group ->
+                          devices`` in one chain.
+  .gtm.<kind>             Global Traffic Manager (DNS):
+                          ``datacenter``, ``server``, ``pool``,
+                          ``wideip``, ``listener``.  ``pool`` and
+                          ``wideip`` merge all DNS record types
+                          (``a / aaaa / cname / mx / srv / naptr``)
+                          into one container; the DNS record type is
+                          exposed as ``.record-type``.  PathRefs from
+                          ``server.datacenter`` and ``wideip.pools[]``
+                          / ``last-resort-pool`` auto-deref so chained
+                          queries like ``.gtm.wideip[].pools[].ttl``
+                          walk ``wideip -> pool -> ttl`` in one step.
   .apm.<kind>             Access Policy Manager: ``access-policy``,
                           ``policy-item``, ``policy-agent``,
                           ``customization-source``,
                           ``oauth-db-instance``,
                           ``ssh-security-config``,
                           ``default-report`` (singleton).
-                          PathRefs from ``access-policy.items[]``
-                          and ``access-policy.start-item`` auto-deref
-                          into ``policy-item`` so ``.apm.access-policy
-                          [].start-item.caption`` Just Works.
-  .cm.<kind>              Cluster Manager: ``cert``, ``key``,
-                          ``device``, ``device-group``,
-                          ``traffic-group``, ``trust-domain``.
-                          PathRefs from ``device.cert`` /
-                          ``device.key`` and ``trust-domain.ca-cert``
-                          / ``ca-key`` / ``ca-devices[]`` /
-                          ``trust-group`` auto-deref so
-                          ``.cm.trust-domain[].trust-group.devices``
-                          walks ``trust-domain → device-group →
-                          devices`` in one chain.
-  .gtm.<kind>             Global Traffic Manager (DNS):
-                          ``datacenter``, ``server``, ``pool``,
-                          ``wideip``, ``prober-pool``, ``region``,
-                          ``rule``.  ``pool`` and ``wideip`` merge
-                          all DNS record types (``a / aaaa / cname /
-                          mx / srv / naptr``) into one container; the
-                          DNS record type is exposed as
-                          ``.record-type``.  PathRefs from
-                          ``server.datacenter``,
-                          ``wideip.pools[]`` / ``last-resort-pool``,
-                          and ``prober-pool.members[]`` auto-deref
-                          so chained queries like
-                          ``.gtm.wideip[].pools[].ttl`` walk
-                          ``wideip → pool → ttl`` in one step.
-  .pem.<kind>             Policy Enforcement Manager: ``policy``,
-                          ``irule``, ``listener``,
-                          ``forwarding-endpoint``,
-                          ``interception-endpoint``,
-                          ``service-chain-endpoint``, ``profile``,
-                          ``rating-group``, plus ``global-settings-*``,
-                          ``protocol-*``, ``reporting-format-script``,
-                          ``subscriber``, ``subscriber-attribute``.
-  .auth.<kind>            Authentication: ``partition``, ``user``,
-                          ``ldap``, ``radius``, ``radius-server``,
-                          ``tacacs``, ``apm-auth``, ``cert-ldap``,
-                          plus singletons (``password``,
-                          ``password-policy``, ``source``,
-                          ``remote-role``, ``remote-user``,
-                          ``login-failures``).
-  .vcmp.<kind>            vCMP: ``guest``, ``traffic-profile``,
-                          ``virtual-disk``, ``virtual-disk-template``.
-  .cli.<kind>             CLI: ``admin-partitions``,
-                          ``alias-private``, ``alias-shared``,
-                          ``global-settings``, ``preference``,
-                          ``script``, ``transaction``, ``version``.
-  .api-protection.<kind>  API Protection: ``profile-apiprotection``,
-                          ``response``, ``server``.
-  .asm.<kind>             Application Security Manager: ``policy``.
-  .ilx.<kind>             iRulesLX: ``global-settings`` (singleton).
-  .wom.<kind>             WAN Optimization Manager (legacy):
-                          ``endpoint-discovery`` (singleton).
-  .analytics.<kind>       Analytics: ``global-settings`` (singleton).
+                          PathRefs from ``access-policy.items[]``,
+                          ``start-item`` and ``default-ending``
+                          auto-deref into ``policy-item`` so
+                          ``.apm["access-policy"][].start-item.caption``
+                          Just Works.
+  .security.<kind>        Security (AFM): ``firewall-policy``,
+                          ``firewall-rule-list``,
+                          ``firewall-address-list``,
+                          ``firewall-port-list``, ``nat-policy``,
+                          ``nat-source-translation``,
+                          ``nat-destination-translation``.
+
+  The remaining modules — ``pem``, ``auth``, ``vcmp``, ``cli``,
+  ``api-protection``, ``asm``, ``ilx``, ``wom``, ``analytics`` —
+  have no typed projection: they appear at the root but hold no
+  kinds.
 
   Any TMSH stanza the parser sees but no typed projection covers
   still lands in ``cfg.generic_objects`` with full byte ranges
@@ -340,6 +324,69 @@ pub fn format_grammar() -> String {
 #[cfg(test)]
 mod tests {
     use super::format_grammar;
+
+    /// `--help-dsl`'s MODULES section names every kind an operator can
+    /// navigate to. The set lives in `projection::KINDS`; this holds the prose
+    /// to it, so a kind added there cannot ship undocumented.
+    ///
+    /// The lookup is scoped to the module's own block, because labels are only
+    /// unique within a module: `ltm pool` and `gtm pool` are both ``pool``, so
+    /// a global search would let the LTM mention vouch for a missing GTM one.
+    #[test]
+    fn modules_section_documents_every_projected_kind() {
+        let grammar = format_grammar();
+        let modules = grammar
+            .split_once("\nMODULES\n")
+            .expect("the grammar has a MODULES section")
+            .1
+            .split_once("\nASSIGNMENT\n")
+            .expect("MODULES is followed by ASSIGNMENT")
+            .0;
+
+        // Each module's prose starts at its `  .<module>.<kind>` line and runs
+        // to the next one.
+        let mut blocks: Vec<(String, String)> = Vec::new();
+        for line in modules.lines() {
+            if let Some(rest) = line.strip_prefix("  .")
+                && let Some((module, _)) = rest.split_once(".<kind>")
+                && !module.is_empty()
+                && module.chars().all(|c| c.is_ascii_lowercase() || c == '-')
+            {
+                blocks.push((module.to_owned(), String::new()));
+            }
+            if let Some((_, body)) = blocks.last_mut() {
+                body.push_str(line);
+                body.push('\n');
+            }
+        }
+        assert!(
+            blocks.len() >= 7,
+            "expected a prose block per projected module, found {}",
+            blocks.len()
+        );
+
+        let missing: Vec<String> = crate::projection::documented_kind_labels()
+            .filter(|(kind, label)| {
+                let module = kind.split(' ').next().unwrap_or_default();
+                let documented = blocks
+                    .iter()
+                    .filter(|(m, _)| m == module)
+                    .any(|(_, body)| body.contains(&format!("``{label}``")));
+                !documented
+            })
+            .map(|(kind, label)| {
+                format!(
+                    "{kind} (as ``{label}`` under .{}.<kind>)",
+                    kind.split(' ').next().unwrap_or_default()
+                )
+            })
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "--help-dsl's MODULES section does not name these projected kinds \
+             in their own module's block: {missing:?}"
+        );
+    }
 
     #[test]
     fn grammar_is_non_empty_with_expected_header() {

@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Target version ranges, and the registry packs one spans (issue #1257).
+//! Target version ranges, and the registry packs one spans.
 //!
 //! A document is written for a release, but it may be *run* on a later one.
 //! Anything that rewrites a word whose meaning depends on a keyword table has

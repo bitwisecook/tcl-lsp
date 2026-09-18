@@ -142,7 +142,7 @@ suite("Completion", () => {
     // `link` is `oo::Helpers::link`: real Tcl 9.0 resolves it only from
     // inside a method body, and `link foo` at the top level raises
     // `invalid command name "link"` (`info commands ::link` is empty).
-    // Completion follows the same scoping (issue #1026).
+    // Completion follows the same scoping.
     //
     // The label alone cannot express that here. This workspace also defines
     // a real `proc link {arr}` (testFixture/nameVsValuePositions.tcl), and

@@ -183,7 +183,7 @@ impl EntryTable<'_> {
     }
 }
 
-/// The module's constant pool, shared with the legacy emitter.
+/// The module's constant pool, shared with the structured emitter.
 pub(super) struct ConstantPool<'a> {
     pub(super) data: &'a mut Vec<WasmData>,
     pub(super) offset: &'a mut i64,
@@ -705,7 +705,7 @@ fn argv_slots(function: &NativeFunction) -> usize {
 }
 
 impl Emitter<'_, '_> {
-    // -- instruction helpers --------------------------------------------------
+    // Instruction helpers.
 
     fn push(&mut self, op: WasmOp) {
         self.body.push(WasmInstruction::new(op));
@@ -936,7 +936,7 @@ impl Emitter<'_, '_> {
         self.frame_offset(FRAME_ARGV);
     }
 
-    // -- function body --------------------------------------------------------
+    // Function body.
 
     fn emit_body(&mut self) {
         // A script entry holds the activation the eval loop would hold for
@@ -982,7 +982,7 @@ impl Emitter<'_, '_> {
         matches!(self.function.protocol, EntryProtocol::ProcEntry)
     }
 
-    // -- structurisation ------------------------------------------------------
+    // Structurisation.
 
     fn do_tree(&mut self, block: usize) {
         if !self.emitted.insert(block) {
@@ -1091,7 +1091,7 @@ impl Emitter<'_, '_> {
         }
     }
 
-    // -- statements -----------------------------------------------------------
+    // Statements.
 
     fn emit_statement(&mut self, statement: &NativeStatement) {
         let code = self.code_local(statement.completion);
@@ -1623,7 +1623,7 @@ impl Emitter<'_, '_> {
         }
     }
 
-    // -- integer arithmetic ---------------------------------------------------
+    // Integer arithmetic.
 
     /// Native integer arithmetic on locals `a`, `b` into `d`, Tcl rounding.
     fn int_binary(&mut self, op: IntOp, a: u64, b: u64, d: u64) {

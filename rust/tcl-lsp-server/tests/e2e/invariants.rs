@@ -116,13 +116,13 @@ fn exercise_all_providers(lsp: &mut Lsp, uri: &str) -> Vec<(&'static str, Value)
     ]
 }
 
-// -- TestRangeInvariants -------------------------------------------------
+// Range well-formedness across the whole corpus.
 
 /// For one corpus entry: every Range from every provider is well-formed, and
 /// (implicitly) the server neither hangs nor errors on the input — the request
 /// helpers panic on a JSON-RPC error or time out, so reaching the end *is* the
 /// "survives and responds" assertion. Each entry is its own `#[test]` so the
-/// 15 (formerly two serial corpus loops) run in parallel.
+/// 15 corpus entries run in parallel.
 fn provider_ranges_well_formed_for(idx: usize) {
     let mut lsp = Lsp::tcl();
     let entries = corpus();
@@ -207,7 +207,7 @@ fn the_manual_tier_range_entry_is_still_the_large_document() {
     );
 }
 
-// -- TestWorkspaceEditInvariants -----------------------------------------
+// WorkspaceEdit disjointness.
 
 #[test]
 fn test_rename_edits_do_not_overlap() {
@@ -253,12 +253,10 @@ fn test_code_action_edits_do_not_overlap() {
     }
 }
 
-// -- TestRobustnessAdversarial -------------------------------------------
+// Adversarial robustness.
 
-// The former `test_server_survives_and_responds` (a second serial loop over the
-// same corpus with the same range-well-formedness check) is now covered
-// per-entry by `corpus_range_tests!` above — each entry's `#[test]` proves both
-// "ranges well-formed" and "server survives/responds" for that input.
+// Each `corpus_range_tests!` entry's `#[test]` above proves both "ranges
+// well-formed" and "server survives/responds" for that input.
 
 // Manual tier: the burst opens the 400-proc `large` document alongside three
 // hostile ones and sweeps every provider over each, which is 78-82 s of

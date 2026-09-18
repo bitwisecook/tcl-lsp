@@ -56,7 +56,7 @@ fn lambda_specs() -> Vec<CommandSpec> {
             // `DEFERS_BODY`: a lambda *constructor* — it returns a command
             // prefix, it does not run the body. tclsh 8.6.16 / 9.0.4,
             // byte-identical: `proc p {} { lambda {} {error stop}; set
-            // ::reached 1 }` sets `::reached` (issue #1672 audit).
+            // ::reached 1 }` sets `::reached`.
             traits: Traits::DEFERS_BODY,
             hover: Some(HoverSnippet {
                 summary: "Construct an anonymous procedure (a lambda term).",
@@ -117,7 +117,7 @@ fn defer_cmd(
         // *scope exit*, not here. tclsh 8.6.16 and 9.0.4, byte-identical, for
         // all three forms: with `proc p {} { defer::defer error stop; set
         // ::reached 1 }`, `::reached` is set — the statement after the
-        // registration runs (issue #1672 audit).
+        // registration runs.
         traits: Traits::DEFERS_BODY,
         hover: Some(HoverSnippet::brief(
             summary,

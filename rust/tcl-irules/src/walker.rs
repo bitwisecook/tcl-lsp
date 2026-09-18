@@ -59,7 +59,7 @@ fn category_for_kinds(kinds: &[&str]) -> IrulesObjectReferenceCategory {
 }
 
 /// Depth cap for [`walk`]'s (and [`recurse_token`]'s) recursion over nested
-/// bodies / `[…]` command substitutions — issue #996.
+/// bodies / `[…]` command substitutions.
 ///
 /// This crate is reachable from a WASM host with no stack-size guarantee
 /// (via `bigip-query-wasm`, transitively through `tcl-bigip`), so, like
@@ -189,7 +189,7 @@ pub fn extract_irules_object_references_in_closure(
     // ([`tcl_compiler::realm`]), computed once for the whole rule: a
     // reference-bearing command reached through a proven `interp alias` /
     // `rename` is still a reference, and a spelling whose binding was provably
-    // taken over is not (issue #1275).  Empty — and lookup-free — unless the
+    // taken over is not.  Empty — and lookup-free — unless the
     // rule binds something.
     let config = crate::irules_lexer_config();
     let identities =
@@ -222,8 +222,7 @@ struct WalkCtx<'a> {
     /// point ([`crate::irules_lexer_config`]) and never re-derived here.
     config: LexerConfig,
     /// The rule's statically proven command-identity facts, so every head is
-    /// resolved to the command it *is* rather than the one it is spelled as
-    /// (issue #1275).
+    /// resolved to the command it *is* rather than the one it is spelled as.
     identities: &'a tcl_compiler::realm::CommandBindingRealm,
     /// Exact segmented commands proven reachable from a valid known event.
     executable_spans: &'a HashSet<(u32, u32)>,
@@ -284,9 +283,9 @@ fn walk(
         identities,
         executable_spans,
     } = *ctx;
-    // Native-stack safety net — see `MAX_WALK_DEPTH`'s doc comment (issue
-    // #996). Past the cap, stop descending — the references collected up
-    // to this nesting level still stand.
+    // Native-stack safety net — see `MAX_WALK_DEPTH`'s doc comment. Past the
+    // cap, stop descending — the references collected up to this nesting
+    // level still stand.
     if MAX_WALK_DEPTH.exceeded(depth) {
         return;
     }
@@ -297,7 +296,7 @@ fn walk(
     for cmd in segment_commands_with_offset_and_config(slice, base, config) {
         let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
         // The head's *effective command identity*, resolved exactly as the
-        // semantic-token walk resolves it (issue #1275).  Every table and
+        // semantic-token walk resolves it.  Every table and
         // registry lookup below reads it, so `::pool`, a proven
         // `interp alias {} p {} pool`, and a `rename pool p` all find the same
         // object-reference argument, while a `pool` whose binding was provably
@@ -611,7 +610,7 @@ fn record_set_binding(
 ) {
     // The head is the *resolved* one, so `::set` and a proven alias / rename of
     // it propagate constants exactly as the bare spelling does, and a `set`
-    // whose binding was provably taken over propagates none (issue #1275).
+    // whose binding was provably taken over propagates none.
     if resolved_head != "set" || cmd.args().len() < 2 {
         return;
     }
@@ -679,8 +678,8 @@ mod tests {
         assert!(by_name.contains(&("pool".to_owned(), "/Common/web_pool".to_owned())));
     }
 
-    /// Issue #1275 — the object-reference walk must resolve a command head's
-    /// *effective identity*, not its written spelling.
+    /// The object-reference walk must resolve a command head's *effective
+    /// identity*, not its written spelling.
     ///
     /// This is not cosmetic for iRules: the reference graph is what
     /// `bigip-cleanup` decides deletions from, so a pool reached only through
@@ -848,9 +847,9 @@ mod tests {
         assert_eq!(ref_names(source), ["/Common/braced_dg"]);
     }
 
-    /// Regression coverage for issue #996: `walk`/`recurse_token`'s mutual
-    /// recursion over nested command-substitution bodies is now capped at
-    /// `MAX_WALK_DEPTH` (128). 300 nested `[…]` command substitutions is
+    /// Regression coverage: `walk`/`recurse_token`'s mutual recursion over
+    /// nested command-substitution bodies is capped at `MAX_WALK_DEPTH`
+    /// (128). 300 nested `[…]` command substitutions is
     /// comfortably past the cap; the assertion is that extraction returns
     /// at all, not what it returns.
     #[test]

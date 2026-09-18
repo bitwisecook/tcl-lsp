@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! List commands (T1.6) — `list` / `llength` / `lindex` / `lappend` / `lrange`
+//! List commands — `list` / `llength` / `lindex` / `lappend` / `lrange`
 //! / `lreverse` / `concat` / `join` / `split` / `lassign` / `lrepeat` /
 //! `linsert` / `lreplace` / `lset` / `ledit` / `lsearch` / `lsort`, over the
 //! [`crate::list`] value type.
@@ -66,7 +66,7 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"lsort", lsort);
 }
 
-// -- helpers ---------------------------------------------------------------
+// helpers
 
 /// Set the result to a list built from element objects (each retained).
 fn set_list(interp: &mut Interp, elems: &[*mut TclObj]) {
@@ -85,7 +85,7 @@ pub(crate) fn index_spec(spec: &[u8], len: usize) -> Option<isize> {
     isize::try_from(v).ok()
 }
 
-// -- commands --------------------------------------------------------------
+// commands
 
 /// `list ?arg ...?` — a list of its arguments.
 fn list_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -256,7 +256,7 @@ fn lassign(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     for (i, &var) in vars.iter().enumerate() {
         let name = obj_bytes(var);
         // `arr(a)` writes the array *element*, not a literal scalar named
-        // `arr(a)` (issue #1577) — the same `split_array_ref` + `var_set`/
+        // `arr(a)` — the same `split_array_ref` + `var_set`/
         // `var_set_elem` routing `set`/`lset` already use, so this doesn't
         // hand-roll a second name parser.
         let (base, elem) = crate::frame::split_array_ref(&name);
@@ -286,13 +286,13 @@ fn lassign(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-// -- error helpers ---------------------------------------------------------
+// error helpers
 
 fn bad_list(interp: &mut Interp, e: crate::parse::ListError) -> Code {
     interp.error_with_code(e.message(), e.error_code())
 }
 
-// -- lrepeat / linsert / lreplace / lsearch / lsort ------------------------
+// lrepeat / linsert / lreplace / lsearch / lsort
 
 /// `lrepeat count ?value ...?` — `count` copies of the value sequence.
 ///
@@ -1203,7 +1203,7 @@ mod tests {
     /// (append-7.x): the result is the variable's *post-trace* value (empty when
     /// unset, the trace's new value otherwise), matching C — and the fresh list
     /// object is not freed mid-command (the `run` helper's leak / double-free
-    /// counters guard against the use-after-free this used to be).
+    /// counters guard against a use-after-free here).
     #[test]
     fn lappend_write_trace_unset_and_rewrite() {
         // The write trace unsets the variable: result is empty, var gone.

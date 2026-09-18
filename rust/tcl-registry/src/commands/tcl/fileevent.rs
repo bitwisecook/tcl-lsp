@@ -78,7 +78,7 @@ pub fn spec() -> CommandSpec {
         // asking "can this body stop control reaching my next statement?"
         // can read it. tclsh 8.6.16 and 9.0.4, byte-identical: `proc p {} {
         // fileevent $ch readable {error stop}; set ::reached 1 }` sets
-        // `::reached` (issue #1672 audit).
+        // `::reached`.
         traits: Traits::BYTE_COMPILED.union(Traits::DEFERS_BODY),
         arity: Arity::new(2, 3),
         arg_roles: &[(0, ArgRole::Channel), (2, ArgRole::Body)],

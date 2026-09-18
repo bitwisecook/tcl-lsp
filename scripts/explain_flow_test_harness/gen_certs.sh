@@ -82,7 +82,7 @@ EOF
     done
 }
 
-# 1. Root CA -----------------------------------------------------------
+# 1. Root CA
 if [[ ! -f lab_ca.crt ]]; then
     echo "→ generating lab CA"
     "$OPENSSL" ecparam -name prime256v1 -genkey -noout -out lab_ca.key
@@ -91,7 +91,7 @@ if [[ ! -f lab_ca.crt ]]; then
         -out lab_ca.crt
 fi
 
-# 2. Valid leaf --------------------------------------------------------
+# 2. Valid leaf
 echo "→ generating valid leaf (SANs: valid.lab.test, api.lab.test, *.lab.test)"
 "$OPENSSL" ecparam -name prime256v1 -genkey -noout -out lab_server_valid.key
 _make_san_cnf valid.cnf "valid.lab.test" \
@@ -103,26 +103,22 @@ _make_san_cnf valid.cnf "valid.lab.test" \
     -out lab_server_valid.crt
 rm -f valid.csr valid.cnf
 
-# 3. Expired leaf ------------------------------------------------------
+# 3. Expired leaf
 echo "→ generating expired leaf (notAfter ~yesterday)"
 "$OPENSSL" ecparam -name prime256v1 -genkey -noout -out lab_server_expired.key
 _make_san_cnf expired.cnf "expired.lab.test" "expired.lab.test"
 "$OPENSSL" req -new -key lab_server_expired.key -config expired.cnf -out expired.csr
-# -days -1 is illegal; we use -startdate / -enddate via ca-style x509 instead.
-# Trick: set -days 1 then re-sign with -enddate clamping into the past via
-# a faketime wrapper if available; otherwise sign with -days 1 and the
-# orchestrator can fast-forward the wallclock.  Default fallback below
-# uses -days 1 plus a sleep-free trick: manually set notBefore far in
-# the past so the cert is already expired even with a normal wall clock.
+# -days -1 is illegal, so sign a normal -days 1 leaf first; below, it is
+# re-signed under a backdated wallclock when faketime is available so both
+# notBefore and notAfter land in the past. Without faketime it is kept as
+# generated and is not actually expired until the wallclock catches up.
 "$OPENSSL" x509 -req -in expired.csr \
     -CA lab_ca.crt -CAkey lab_ca.key -CAcreateserial \
     -days 1 \
     -extfile expired.cnf -extensions v3_req \
     -out lab_server_expired.crt.tmp
 
-# Re-stamp validity into the past using -set_issuer and -force-pubkey ...
-# Easiest cross-platform way: use `-set_serial` plus regenerate with
-# faketime if available.
+# Re-sign entirely under a backdated wallclock via faketime, when available.
 if command -v faketime >/dev/null 2>&1; then
     rm lab_server_expired.crt.tmp
     faketime '2020-01-01 00:00:00' \
@@ -138,7 +134,7 @@ else
 fi
 rm -f expired.csr expired.cnf
 
-# 4. Hostname-mismatch leaf -------------------------------------------
+# 4. Hostname-mismatch leaf
 echo "→ generating hostname-mismatch leaf (SAN: somewhere-else.lab.test)"
 "$OPENSSL" ecparam -name prime256v1 -genkey -noout -out lab_server_mismatch.key
 _make_san_cnf mismatch.cnf "somewhere-else.lab.test" "somewhere-else.lab.test"
@@ -149,7 +145,7 @@ _make_san_cnf mismatch.cnf "somewhere-else.lab.test" "somewhere-else.lab.test"
     -out lab_server_mismatch.crt
 rm -f mismatch.csr mismatch.cnf
 
-# 5. Self-signed leaf (no chain) --------------------------------------
+# 5. Self-signed leaf (no chain)
 echo "→ generating self-signed leaf (SAN: selfsigned.lab.test)"
 "$OPENSSL" ecparam -name prime256v1 -genkey -noout -out lab_server_selfsigned.key
 _make_san_cnf selfsigned.cnf "selfsigned.lab.test" "selfsigned.lab.test"
@@ -158,7 +154,7 @@ _make_san_cnf selfsigned.cnf "selfsigned.lab.test" "selfsigned.lab.test"
     -out lab_server_selfsigned.crt
 rm -f selfsigned.cnf
 
-# 6. Client cert (for optional mTLS) ----------------------------------
+# 6. Client cert (for optional mTLS)
 if [[ ! -f lab_client.crt ]]; then
     echo "→ generating client cert (CN=lab-client)"
     "$OPENSSL" ecparam -name prime256v1 -genkey -noout -out lab_client.key
@@ -170,7 +166,7 @@ if [[ ! -f lab_client.crt ]]; then
     rm -f client.csr
 fi
 
-# 7. Convenience bundles ----------------------------------------------
+# 7. Convenience bundles
 cat lab_server_valid.crt lab_ca.crt > lab_server_valid_chain.pem
 cat lab_server_expired.crt lab_ca.crt > lab_server_expired_chain.pem
 cat lab_server_mismatch.crt lab_ca.crt > lab_server_mismatch_chain.pem

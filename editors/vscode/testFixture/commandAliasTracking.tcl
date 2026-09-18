@@ -1,4 +1,4 @@
-# `interp alias` COMMAND aliasing (issue #923 audit idx 21 / idx 89).
+# `interp alias` COMMAND aliasing.
 #
 # Verified on tclsh 9.0.4 and 8.6.16, byte-identical:
 #   * both `[sayHi]` calls print `hi` — they really run `greet`'s body;

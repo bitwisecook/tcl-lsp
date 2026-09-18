@@ -36,8 +36,8 @@
 //! is re-tokenised with [`tcl_lexer`] and reconstructed into an ordered
 //! prefix / contained / suffix [`AttachPattern`]. A pattern with no literal
 //! anchor at all (`pool $x`, `pool [class match …]`) is `unconstrained` and
-//! matches every object of its type — the safe fall-back that reproduces the old
-//! all-or-nothing behaviour only when nothing better can be proven.
+//! matches every object of its type — the safe fall-back applied only when
+//! nothing better can be proven.
 
 use std::collections::HashMap;
 

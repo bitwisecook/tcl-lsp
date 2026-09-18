@@ -64,7 +64,7 @@ pub struct BigipConfig {
 /// `(module, object_type)` pairs whose identifier is inherently
 /// *unpartitioned* — a hardware, system-wide, or cluster-wide name that lives
 /// outside any partition — so a `/Common/` prefix would be bogus and break
-/// name lookups (issue 189).  `net interface 1.1` is the port `1.1`, not
+/// name lookups.  `net interface 1.1` is the port `1.1`, not
 /// `/Common/1.1`; `sys provision ltm` provisions the module `ltm`, not
 /// `/Common/ltm`; `cm device`/`device-group`/`traffic-group` are cluster
 /// objects keyed by (unpartitioned) device/group names.
@@ -194,6 +194,24 @@ fn dispatch_block(
     };
     use crate::model::r#gen::parsers::*;
 
+    // `apm policy agent <subtype>` is an open family — the strict header
+    // inventory only lists the subtypes the registry carries, so classify it
+    // from the generic header and keep the subtype as the agent's type.
+    if generic_module == "apm"
+        && let Some(agent_type) = generic_type.strip_prefix("policy agent ")
+    {
+        return Some(placed(
+            "apm_policy_agents",
+            generic_identifier,
+            ModelObject::ApmPolicyAgent(super::bespoke::parse_apm_policy_agent(
+                generic_identifier,
+                body,
+                agent_type,
+                range,
+            )),
+        ));
+    }
+
     let parsed = parse_header_strict(header).map(|(m, o, fp)| {
         let fp = if !fp.is_empty()
             && !fp.starts_with('/')
@@ -255,13 +273,6 @@ fn dispatch_block(
     }
 
     // Family parsers with a sub-type argument + the ltm/gtm match block.
-    if module == "apm" && object_type.starts_with("policy agent ") {
-        return Some(placed(
-            "apm_policy_agents",
-            fp,
-            ModelObject::ApmPolicyAgent(parse_bigip_apm_policy_agent(fp, body, range)),
-        ));
-    }
     if module == "gtm" && object_type.starts_with("pool ") {
         let record_type = object_type.strip_prefix("pool ").unwrap_or("");
         return Some(placed(
@@ -711,7 +722,7 @@ mod tests {
     #[test]
     fn unpartitioned_kinds_are_not_partition_prefixed() {
         // Hardware / system / cluster kinds keep their bare identifier — no
-        // bogus `/Common/` prefix that would break lookups (issue 189).
+        // bogus `/Common/` prefix that would break lookups.
         let src = "net interface 1.1 { }\n\
                    sys provision ltm { level nominal }\n\
                    cm device bigip1.local { }\n\

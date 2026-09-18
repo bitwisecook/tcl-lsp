@@ -16,13 +16,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Built-in commands (T1.4 starter set).
+//! Built-in commands.
 //!
 //! A minimal set — `set`, `incr`, `return`, `unset` — sufficient to drive the
 //! eval loop end to end and prove command substitution + variable integration.
-//! The full builtin surface (string/list/dict/expr/control-flow/proc/…) is
-//! ported incrementally in T1.5, each command (or small group) as its own gated
-//! change with its tcltest delta.
+//! The full builtin surface (string/list/dict/expr/control-flow/proc/…) lives
+//! in the sibling `cmd_*` modules, each with its own tcltest coverage.
 //!
 //! Each handler matches the [`BuiltinFn`](crate::interp::BuiltinFn) shape:
 //! `argv[0]` is the command name (Tcl's `objv` convention).
@@ -182,7 +181,7 @@ fn make_constant_error(interp: &mut Interp, name: &[u8], reason: &[u8]) -> Code 
     interp.set_error(&msg)
 }
 
-// -- set -------------------------------------------------------------------
+// set
 
 /// `set varName ?value?` — write (returns the value) or read (returns it).
 fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -234,7 +233,7 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-// -- incr ------------------------------------------------------------------
+// incr
 
 /// `incr varName ?increment?` — add (default 1) over the **numeric tower**,
 /// storing and returning the sum. Both operands must be integers; the sum
@@ -257,7 +256,7 @@ pub(crate) fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     //
     // The read goes through the read-trace chokepoint: C's `TclPtrIncrObjVar`
     // fetches with `TclPtrGetVarIdx`, so `incr x` on a read-traced `x` fires
-    // `read` and then `write` (issue #1633). A read trace that *errors* leaves
+    // `read` and then `write`. A read trace that *errors* leaves
     // the fetch NULL, which C counts as 0 — so the error is swallowed here too,
     // exactly as `lappend` does.
     let cur = interp.read_for_update(&base, elem.as_deref());
@@ -276,7 +275,7 @@ pub(crate) fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Err(e) => return interp.set_error(e.message().as_bytes()),
     };
 
-    // The protected store (#1633 row 1): a write trace that rewrites or unsets
+    // The protected store: a write trace that rewrites or unsets
     // the cell drops the store's reference to this fresh sum, so a bare
     // `set_result` would read freed memory. `cmd_var::incr_cmd` overrides this
     // command in the table, but the body must be safe on its own — a direct
@@ -323,8 +322,8 @@ pub(crate) fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let obj = obj::new_wide_int_obj(sum); // rc 0
                                           // The protected store, as the tower build's `cmd_var::incr_cmd` uses: a
                                           // write trace that rewrites or unsets the cell drops the store's reference
-                                          // to this fresh sum, and a bare `set_result` would then read freed memory
-                                          // (#1633 row 1). It also publishes the cell's post-trace value, which is
+                                          // to this fresh sum, and a bare `set_result` would then read freed memory.
+                                          // It also publishes the cell's post-trace value, which is
                                           // what C returns.
     match interp.store_var_result(&base, elem.as_deref(), obj) {
         Ok(()) => Code::Ok,
@@ -337,10 +336,10 @@ pub(crate) fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 ///
 /// C's `TclPtrIncrObjVar` fetches with `TclPtrGetVarIdx`, so `incr x` on a
 /// read-traced `x` fires `read` and then `write`, and a read trace that
-/// errors leaves the fetch NULL — which C counts as 0 (#1633, pinned in
+/// errors leaves the fetch NULL — which C counts as 0 (pinned in
 /// `tests/trace_semantics.rs`). Reaching for `var_get`/`var_get_elem`
-/// directly, as this did, skipped the read entirely: `incr` and an array
-/// element fired only their `write`.
+/// directly instead would skip the read entirely: `incr` and an array
+/// element would fire only their `write`.
 #[cfg(not(have_tommath))]
 fn read_cell(interp: &mut Interp, base: &[u8], elem: &Option<Vec<u8>>) -> Option<Vec<u8>> {
     let obj = interp.read_for_update(base, elem.as_deref())?;
@@ -358,7 +357,7 @@ fn not_integer(interp: &mut Interp, bytes: &[u8]) -> Code {
     interp.set_error(&msg)
 }
 
-// -- return ----------------------------------------------------------------
+// return
 
 /// Map a `-code` word (`ok`/`error`/`return`/`break`/`continue` or any integer)
 /// to a [`Code`]; `None` for an unrecognised spelling. A non-0..4 integer maps to
@@ -552,7 +551,7 @@ fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-// -- unset -----------------------------------------------------------------
+// unset
 
 /// `unset varName ...` — remove variables (scalars or array elements).
 fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -646,7 +645,7 @@ const SUBST_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
         &[b"-nobackslashes", b"-nocommands", b"-novariables"],
     );
 
-// -- helpers ---------------------------------------------------------------
+// helpers
 
 /// Minimal Tcl integer parse for the no-tower `incr` fallback (the tower build
 /// reads operands through `tcl_syntax::number` via `bignum`).
@@ -690,7 +689,7 @@ fn parse_i64(bytes: &[u8]) -> Option<i64> {
     Some(if neg { -acc } else { acc })
 }
 
-// -- expr ------------------------------------------------------------------
+// expr
 
 /// The interp's [`ExprCtx`](crate::expr::ExprCtx): `$var` resolves through the
 /// frame store (preserving the value's object → `$bignum` stays a bignum), and
@@ -1006,9 +1005,9 @@ fn parse_runtime_expr(
 /// the expression text came from (`TCL_EXPR_TYPE`, [`crate::expr::cache_expr`]).
 ///
 /// Without this the condition of every `if`/`while`/`for` iteration is re-lexed,
-/// re-parsed, and re-validated from its text — the runtime finding recorded as
-/// §2.6.2 of the native-lowering plan. `cached_on` is `None` where the text
-/// belongs to no single object (a multi-word `expr`), which simply re-parses.
+/// re-parsed, and re-validated from its text on every evaluation. `cached_on`
+/// is `None` where the text belongs to no single object (a multi-word
+/// `expr`), which simply re-parses.
 ///
 /// Only a *successful* parse is cached: an invalid expression must raise its
 /// error on every evaluation, and caching a failure would need the message to be
@@ -1065,10 +1064,10 @@ mod tests {
     }
 
     /// A loop's condition is parsed **once**, not once per iteration: the
-    /// parsed AST caches on the condition object as `TCL_EXPR_TYPE`. This is
-    /// the runtime finding recorded as §2.6.2 of the native-lowering plan —
-    /// `parse_runtime_expr` used to re-lex, re-parse and re-validate the
-    /// condition text on every evaluation.
+    /// parsed AST caches on the condition object as `TCL_EXPR_TYPE`. A
+    /// `parse_runtime_expr` call that re-lexed, re-parsed and re-validated
+    /// the condition text on every evaluation would cost this repeatedly on
+    /// every pass of a hot loop.
     #[cfg(have_tommath)]
     #[test]
     fn a_loop_condition_parses_once_for_the_whole_loop() {
@@ -1184,7 +1183,7 @@ mod tests {
         });
     }
 
-    /// Issue #1443 — `subst`'s option words go through the one shared
+    /// `subst`'s option words go through the one shared
     /// `tcl-cmd-core::prefix` matcher, so every miss is worded exactly as
     /// `Tcl_GetIndexFromObj` at flags `0` words it (`TclSubstOptions`,
     /// `tclCmdMZ.c:3341`): the empty word prefixes all three entries and is
@@ -1242,11 +1241,11 @@ mod tests {
     /// `missing close-brace for variable name` — **not** a name that runs to
     /// end-of-input, and not a literal `$`.
     ///
-    /// This engine used to scan the name with `.unwrap_or(len)`, silently
-    /// swallowing the rest of the template (and, for `${a\`, dropping the
-    /// backslash and succeeding where C errors). The scan now reports
-    /// [`tcl_lexer::BracedVarEnd::Unterminated`] and the eval loop raises
-    /// (issue #1457).
+    /// A `.unwrap_or(len)` scan of the name would silently swallow the rest
+    /// of the template (and, for `${a\`, drop the backslash and succeed
+    /// where C errors). The scan reports
+    /// [`tcl_lexer::BracedVarEnd::Unterminated`] instead, and the eval loop
+    /// raises.
     ///
     /// The error is raised in evaluation order, so a `[...]` earlier in the
     /// same template has already run — verified against tclsh 8.6.16 and
@@ -1288,11 +1287,11 @@ mod tests {
         });
     }
 
-    /// Issue #1443's bug repeated in `interp limit`'s option matcher (found by
-    /// the centralisation audit). The hand-rolled `starts_with` filter could
-    /// only say `bad option`, and hand-built its own `", or"` enumeration
-    /// beside the one `prefix::choice_list_bytes` owns. Both now come from
-    /// `OptionTable::abbreviating`.
+    /// A hand-rolled `starts_with` filter for `interp limit`'s option matcher
+    /// could only ever say `bad option` (never `ambiguous`), and would
+    /// hand-build its own `", or"` enumeration beside the one
+    /// `prefix::choice_list_bytes` owns. Both come from
+    /// `OptionTable::abbreviating` instead.
     ///
     /// Byte-checked against tclsh 8.6.16 and 9.0.4.
     #[test]
@@ -1322,7 +1321,7 @@ mod tests {
         });
     }
 
-    /// Issue #1607: `interp debug`'s option word is a `Tcl_GetIndexFromObj`
+    /// `interp debug`'s option word is a `Tcl_GetIndexFromObj`
     /// table whose noun is `debug option` (`debugTypes[]`, `tclInterp.c`), so
     /// `-f`/`-fr` abbreviate and the one-entry table never says `ambiguous`.
     ///
@@ -1352,7 +1351,7 @@ mod tests {
         });
     }
 
-    /// Issue #1607: `interp limit`'s type word is `Tcl_GetIndexFromObj(…,
+    /// `interp limit`'s type word is `Tcl_GetIndexFromObj(…,
     /// "limit type", 0)` (`limitTypes[]`, `tclInterp.c`), so `c`/`t`
     /// abbreviate and the empty word — a prefix of both entries — is
     /// `ambiguous`.

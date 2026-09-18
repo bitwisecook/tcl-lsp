@@ -28,11 +28,11 @@
 //!
 //! Nothing in the caller writes `dataset`, so the ordinary scope-chain walk
 //! finds no [`VarDef`](tcl_compiler::analyser::VarDef) for the `$dataset`
-//! read.  Before this module the providers then *fell through* to bareword
-//! resolution and answered with a coincidentally same-named `TclOO` **method**
+//! read.  Without this module the providers *fall through* to bareword
+//! resolution and answer with a coincidentally same-named `TclOO` **method**
 //! — a wrong-kind conflation, since Tcl's variable and command namespaces are
-//! disjoint and a `$`-led token can never denote a method (issue #923 audit
-//! idx 58).  Two fixes follow from that, and both live here:
+//! disjoint and a `$`-led token can never denote a method.  Two answers
+//! follow from that, and both live here:
 //!
 //! * **Abstain.** [`substituted_var_read_at`] answers "the cursor is on a
 //!   `$name` Tcl really substitutes", so hover / find-references can stop
@@ -55,7 +55,7 @@
 //!   no frame level at all, and only `upvar 1` (or an omitted level) reaches
 //!   the caller: `upvar 0` aliases the callee's *own* frame, `upvar #0` the
 //!   global one, `upvar 2` the caller's caller.  Trusting the trait alone
-//!   navigated a variable the frame never gains (codex review of PR #1085).
+//!   navigated a variable the frame never gains.
 //!
 //! No command name appears here: which words name variables, and which
 //! nested scripts still run in this frame, are registry- and
@@ -73,38 +73,36 @@
 //! build0           ;# → 0 — `upvar 0` aliased p0's OWN local, nothing here
 //! ```
 //!
-//! # Literal caller-frame targets (issue #1139)
+//! # Literal caller-frame targets
 //!
-//! A callee that binds a **literal** caller-side name (`upvar 1 name name`,
-//! issue #923 audit idx 22) spells that name nowhere at the call site, so
+//! A callee that binds a **literal** caller-side name (`upvar 1 name name`)
+//! spells that name nowhere at the call site, so
 //! there is no argument word to key on.  The analyser records those names
 //! per proc on
 //! [`ProcDef::caller_frame_literals`](tcl_compiler::analyser::ProcDef::caller_frame_literals),
 //! and [`caller_frame_bindings`] answers for them with the *call-head word*
 //! as the binding span — the point where the variable comes to exist in
-//! this frame.  A fully-qualified target (`upvar ::tk::FocusGrab($i) data`,
-//! idx 98) is not a caller-frame variable at all: it names one fixed global
-//! cell, which the analyser's `handle_upvar_command` now defines and links
-//! directly.
+//! this frame.  A fully-qualified target (`upvar ::tk::FocusGrab($i) data`)
+//! is not a caller-frame variable at all: it names one fixed global cell,
+//! which the analyser's `handle_upvar_command` defines and links directly.
 //!
-//! # Methods reached by `my` dispatch (issue #923 audit idx 22)
+//! # Methods reached by `my` dispatch
 //!
 //! A callee reached through `my <method>` is a method the *call* never
-//! names — but the **method-resolution order** does, mixins included, and
-//! issues #1177 / #1164 have since landed that walk.
+//! names — but the **method-resolution order** does, mixins included.
 //! [`bindings_from_self_dispatch`] therefore resolves the callee through
 //! [`crate::oo_dispatch::method_dispatch_provider`] — the single walk
-//! hover, go-to-definition, and find-references already share — and reads
-//! its frame effects from the resolved body.  That is the audit's real
-//! corpus shape: `SpiceGenTcl`'s `Utility::NameProcess` mixed into a class
+//! hover, go-to-definition, and find-references share — and reads
+//! its frame effects from the resolved body.  The corpus shape is
+//! `SpiceGenTcl`'s `Utility::NameProcess`, mixed into a class
 //! and invoked as `my NameProcess …`.
 //!
 //! # What it deliberately does not answer
 //!
 //! `next` / `nextto` dispatch to whatever follows *this* implementation in
 //! the MRO, which the call site does not name, so those reads keep the
-//! abstaining answer rather than a wrong one (the compiler-side dispatch
-//! widening of issue #1177 keeps the diagnostics honest for them).
+//! abstaining answer rather than a wrong one; the compiler-side dispatch
+//! widening keeps the diagnostics honest for them.
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::analyser::types::ProcArgTrait;
@@ -119,7 +117,7 @@ use tcl_lexer::Span;
 /// bareword (command / class-member) resolution is legitimate.  It never is
 /// for a `$`-led read: Tcl keeps variables and commands in disjoint
 /// namespaces, so `$dataset` can only ever be the variable, never a method
-/// called `dataset` (issue #923 audit idx 58).
+/// called `dataset`.
 #[must_use]
 pub(crate) fn substituted_var_read_at(
     source: &str,
@@ -146,8 +144,7 @@ pub(crate) struct CallerFrameBinding {
     pub callee: String,
     /// The callee parameter whose *value* names the variable — or `None`
     /// when the callee spells the name **literally in its own body**
-    /// (`upvar 1 name name`, issue #923 audit idx 22 / issue #1139), so no
-    /// call-site word carries it at all.
+    /// (`upvar 1 name name`), so no call-site word carries it at all.
     pub param: Option<String>,
     /// Span of the call-site word that names it — `dataset` in
     /// `gridlayoutHasDataSetObj dataset`.  This is both the creating write
@@ -265,9 +262,9 @@ pub(crate) fn caller_frame_bindings(
     // — the overwhelming majority — can answer from the already-computed
     // per-proc facts without touching the source.
     // …and a document with no call-by-name procedure can still bind a
-    // caller-frame name through a **method** reached by `my` dispatch (issue
-    // #923 audit idx 22's real corpus shape), but only when the cursor is
-    // inside a class body — which is the cheap way to ask.
+    // caller-frame name through a **method** reached by `my` dispatch, but
+    // only when the cursor is inside a class body — which is the cheap way to
+    // ask.
     if name.is_empty()
         || (!document_has_call_by_name_proc(analysis)
             && crate::definition::enclosing_class_at(analysis, cursor_off).is_none())
@@ -281,7 +278,7 @@ pub(crate) fn caller_frame_bindings(
     // Built once for the whole scan, not per command: the self-dispatch walk
     // below resolves method-body heads through it, and a `rename` or
     // `interp alias` in this document has to read the same way here as it does
-    // in every other consumer (issue #1275).
+    // in every other consumer.
     // Without a registry there is no way to know which commands mutate the
     // command table, so there is no fact to record and the shared empty map is
     // the honest answer.
@@ -317,11 +314,11 @@ struct BindingScan<'a> {
     dialect: &'static tcl_dialect::DialectProfile,
     /// The whole-program context every [`crate::definition::resolve_called_proc`]
     /// in this scan is answered in — the builtin gate and, when the host has a
-    /// workspace index, the export oracle (issue #1116 item 1).
+    /// workspace index, the export oracle.
     resolution: crate::definition::CallResolution<'a>,
     /// The document's proven command-identity facts, built once per scan and
     /// handed to every trait scan below so a rebound head resolves here the
-    /// same way it does everywhere else (issue #1275).
+    /// same way it does everywhere else.
     identities: &'a tcl_compiler::realm::CommandBindingRealm,
     namespace: String,
     name: &'a str,
@@ -404,7 +401,7 @@ fn bindings_from_call(
     if proc_def.caller_frame_params.is_empty() && proc_def.caller_frame_literals.is_empty() {
         return;
     }
-    // A literal caller-frame target (`upvar 1 name name`, issue #1139): the
+    // A literal caller-frame target (`upvar 1 name name`): the
     // callee spells the name in its own body, so the *call itself* is the
     // binding — no argument word to key on.  The command-head word stands in
     // as the binding span: it is the point where the variable comes to exist
@@ -457,9 +454,8 @@ fn bindings_from_call(
 }
 
 /// The bindings a **`TclOO` self-dispatch** call site contributes —
-/// `my NameProcess …`, the shape issue #923 audit idx 22 was actually mined
-/// from (`SpiceGenTcl`'s `Utility::NameProcess`, mixed into the class and
-/// invoked from its constructor).
+/// `my NameProcess …` (`SpiceGenTcl`'s `Utility::NameProcess`, mixed into
+/// the class and invoked from its constructor).
 ///
 /// tclsh 9.0.4 / 8.6.16, identical — the mixin's `upvar name name` really
 /// does create the *constructor's* `name`, which the constructor's own text
@@ -474,9 +470,8 @@ fn bindings_from_call(
 /// Widget new {-base 1}      → name=::oo::Obj24 …
 /// ```
 ///
-/// The callee is a method the call never names statically, which is why
-/// this was deferred when `caller_frame.rs` landed.  It no longer is: the
-/// method-resolution-order walk (issues #1177 / #1164) resolves `my m`
+/// The callee is a method the call never names statically, so the
+/// method-resolution-order walk supplies it: it resolves `my m`
 /// through mixins and superclasses, and
 /// [`crate::oo_dispatch::method_dispatch_provider`] is the *one* walk hover,
 /// go-to-definition, and find-references already share — so keying the
@@ -666,7 +661,7 @@ fn dollar_is_escaped(bytes: &[u8], at: usize) -> bool {
 /// The inertness proofs ([`crate::inert_text`]) are the same ones
 /// [`crate::definition::lookup_var_read_at`] applies, so a `$name`-shaped run
 /// inside a comment or a brace-quoted data word is not counted here either
-/// (issue #923 audit idx 24) — and a backslash-escaped `$`
+/// — and a backslash-escaped `$`
 /// ([`dollar_is_escaped`]) is no substitution at all.
 fn substituted_read_spans(
     source: &str,
@@ -901,7 +896,7 @@ oo::class create chart {
         assert!(spans[0].start() < offset_of(IDX58, "$dataset"));
     }
 
-    /// **Finding 1 (codex review of PR #1085).** The `VarRead` / `VarWrite`
+    /// **Finding 1.** The `VarRead` / `VarWrite`
     /// trait says a parameter's value is used as a variable *name* through an
     /// `upvar`; it does not say which frame the alias lands in.  Only
     /// `upvar 1` lands in the caller's, so every other level must bind
@@ -1101,7 +1096,7 @@ oo::class create chart {
         }
     }
 
-    /// The literal-target shape of issue #923 audit idx 22 / issue #1139,
+    /// The literal-target shape,
     /// proc form: the callee spells the caller-frame name in its **own**
     /// body (`upvar name name`), so no call-site word carries it.
     ///
@@ -1167,9 +1162,9 @@ proc build {} {
         }
     }
 
-    // -- `my <method>` dispatch, through a mixin (issue #923 audit idx 22) --
+    // `my <method>` dispatch, through a mixin.
 
-    /// The `SpiceGenTcl` shape the audit actually reported: the callee is a
+    /// The `SpiceGenTcl` shape: the callee is a
     /// method of a **mixin**, reached by `my NameProcess …` from a
     /// constructor that never assigns `name` itself.
     ///
@@ -1304,8 +1299,7 @@ oo::class create Derived {
     }
 
     /// TN — a `::`-qualified target names a fixed global/namespace cell,
-    /// not a caller-frame variable; the analyser's `otherVar` link owns it
-    /// (issue #923 idx 98).
+    /// not a caller-frame variable; the analyser's `otherVar` link owns it.
     #[test]
     fn a_qualified_literal_target_is_not_a_caller_frame_binding() {
         let src = "proc np {} { upvar 1 ::tk::FocusGrab(x) data; set data 1 }\n\
@@ -1361,8 +1355,8 @@ oo::class create Derived {
         }
     }
 
-    /// A `$name`-shaped run inside a comment is not a read (issue #923 idx
-    /// 24), so it must not enter the reference set.
+    /// A `$name`-shaped run inside a comment is not a read, so it must not
+    /// enter the reference set.
     #[test]
     fn a_commented_read_is_not_a_reference() {
         let src = "proc setdef {d} { upvar 1 $d dst; set dst 1 }\n\
@@ -1385,13 +1379,12 @@ oo::class create Derived {
 mod caller_frame_navigation_tests {
     use tcl_compiler::analyser::Analyser;
 
-    /// Issue #923 audit idx 98, re-measured for issue #1139: `upvar
-    /// ::tk::FocusGrab($index) data` names a fixed, fully-qualified global
-    /// cell (level-independent — tclsh-verified in the audit), so the array
+    /// `upvar ::tk::FocusGrab($index) data` names a fixed, fully-qualified
+    /// global cell (level-independent, tclsh-verified), so the array
     /// must hover, define, and cross-reference from both the `upvar`
     /// `otherVar` word and a sibling proc's `$::tk::FocusGrab($index)`
-    /// read.  Before the cell gained a `VarDef` at the `otherVar` word,
-    /// every one of these anchors answered nothing (a silent miss).
+    /// read.  Without a `VarDef` at the `otherVar` word every one of these
+    /// anchors answers nothing — a silent miss.
     ///
     /// The four references are the two spellings of the cell that this
     /// document actually binds: the `upvar` `otherVar` word and the sibling
@@ -1718,11 +1711,11 @@ proc caller {} {
         );
     }
 
-    /// Issue #1139 (idx 22's literal-target residual), provider level: a
+    /// The literal target at provider level: a
     /// callee that binds `upvar name name` creates `name` in this frame,
     /// with no call-site word to point at — hover / go-to-definition /
-    /// find-references must answer from the call itself instead of the
-    /// former silent miss.
+    /// find-references must answer from the call itself rather than
+    /// silently miss it.
     #[test]
     fn navigation_resolves_a_literal_upvar_target_to_the_creating_call() {
         let src = "\

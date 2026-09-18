@@ -1,14 +1,13 @@
 ## After: iRule uses class match against IP data-group (IPv4 + IPv6)
 when CLIENT_ACCEPTED {
     set addr [IP::client_addr]
-    if {[class match $addr equals blocked_networks]} {
+    if { [class match $addr equals addr_whitelist] } {
         drop
     }
 }
 
 ## tmsh data-group definition:
-# ltm data-group internal blocked_networks {
-#     type ip
+# ltm data-group internal addr_whitelist {
 #     records {
 #         10.0.0.0/8 { }
 #         172.16.0.0/12 { }
@@ -16,4 +15,5 @@ when CLIENT_ACCEPTED {
 #         2001:db8::/32 { }
 #         fd00::/8 { }
 #     }
+#     type ip
 # }

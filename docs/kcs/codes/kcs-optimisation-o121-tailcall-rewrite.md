@@ -22,25 +22,34 @@ What does O121 rewrite, and when does it fire?
 ## Before
 
 ```tcl
-proc fact {n acc} {
-  if {$n <= 1} { return $acc }
-  return [fact [expr {$n-1}] [expr {$n*$acc}]]
+proc walk {node acc} {
+  if {$node eq ""} { return $acc }
+  set acc [combine $acc [walk [left $node] {}]]
+  return [walk [right $node] $acc]
 }
 ```
 
 ## After
 
 ```tcl
-proc fact {n acc} {
-  if {$n <= 1} { return $acc }
-  tailcall fact [expr {$n-1}] [expr {$n*$acc}]
+proc walk {node acc} {
+  if {$node eq ""} { return $acc }
+  set acc [combine $acc [walk [left $node] {}]]
+  tailcall walk [right $node] $acc
 }
 ```
+
+The call is rewritten as written, so its arguments — including braced,
+quoted, and `{*}`-expanded words — reach the `tailcall` unchanged. The first,
+non-tail `walk` is left alone, and it is what keeps [O122](kcs-optimisation-o122-tail-recursion-to-while.md)
+away: were every self-call in tail position, O122 would convert the whole proc
+to a loop and supersede this rewrite.
 
 ## Safety conditions
 
 - Skipped when the recursive call is not in [tail position](../../GLOSSARY.md#tail-position).
 - Skipped when the call is wrapped in a `catch` or `try` block.
+- Skipped before Tcl 8.6, which has no `tailcall` (TIP 327). The O122 loop conversion still applies there.
 
 ## How to disable
 

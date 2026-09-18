@@ -210,7 +210,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Tests
 .PHONY: test test-ext test-ext-partition test-ext-multi-folder test-emacs test-jetbrains test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all print-server-targets-jetbrains
 .PHONY: xtask-check xtask-editor-extensions xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data xtask-runtime-stdlib tcltest-sweep tcltest-sweep-check xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-api-ownership
-.PHONY: xtask-workflow-sync xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-gen-tmlanguage-keywords xtask-option-registry-drift xtask-callback-inventory check-tcl-reference-toolchains check-spectcl-compat-paths check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-vscode-test-partitions check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-release-dependency-graph xtask-dialect-drift xtask-segmentation-drift
+.PHONY: xtask-workflow-sync xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-gen-tmlanguage-keywords xtask-option-registry-drift xtask-callback-inventory check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-vscode-test-partitions check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph xtask-dialect-drift xtask-segmentation-drift
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust check-rust-pr _check-rust-pr rust-deny
 .PHONY: build-report-assets build-report-pyz lint-report-ts typecheck-report-ts check-report-assets lint-spec-studio-ts typecheck-spec-studio-ts
@@ -869,7 +869,7 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 # --- Native (cargo xtask) check gates.  These need the Rust toolchain, so CI
 # runs them in the rust-tests-shard matrix and its stable rust-tests aggregate
 # (ci.yml). `xtask-check` is the CI aggregate.
-xtask-check: check-tcl-reference-toolchains check-spectcl-compat-paths check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-release-dependency-graph check-vsix-web-assets-contract xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
+xtask-check: check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph check-vsix-web-assets-contract xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
 
 check-lsp-wasi-lto: ## Verify functional WASI uses thin LTO and tags retain fat LTO
 	@bash scripts/dev/test-lsp-wasi-lto.sh
@@ -882,6 +882,10 @@ check-tcl-reference-toolchains: ## Verify pinned C Tcl patchlevels across shell 
 check-spectcl-compat-paths: ## Verify CI's SpecTcl dependency closure and central shipped-pack inventory
 	@echo "==> Checking SpecTcl compatibility path ownership"
 	@bash scripts/dev/test-spectcl-compat-paths.sh
+
+check-pr-gate-path: ## Verify the independent Rust fast worker and stable aggregate wiring (#2014)
+	@echo "==> Checking pr-gate overlap and fail-closed wiring"
+	@bash scripts/dev/test-pr-gate-path.sh
 
 check-runtime-rust-paths: ## Verify CI's standalone-runtime dependency closure and job wiring (#1768)
 	@echo "==> Checking standalone runtime CI path ownership"
@@ -935,6 +939,10 @@ check-homebrew-ci: ## Verify exact, idempotent cleanup of unused macOS runner ta
 check-sign-and-upload: ## Verify release artefact resolution, attestation pin, and permissions (#1685)
 	@echo "==> Checking release attestation action"
 	@bash scripts/release/test-sign-and-upload-action.sh
+
+check-retired-asset-names: ## Verify no retired release asset name survives anywhere in the tree
+	@echo "==> Checking retired release asset names"
+	@bash scripts/dev/test-retired-asset-names.sh
 
 check-release-dependency-graph: ## Verify release producers overlap safely without bypassing validation
 	@echo "==> Checking release dependency graph"
@@ -1096,7 +1104,7 @@ _prep-pr-smoke: smoke-vsix verify-standalone-eda
 _prep-pr-smoke-tier: smoke
 
 # Rust-side check gate (fmt + clippy + generated-file drift).  Mirrors the
-# pr-gate job in GitHub Actions (ci.yml).
+# rust-check worker behind the stable pr-gate aggregate in GitHub Actions.
 rust-check: check-rust-pr xtask-check ## Rust fmt + clippy + generated-file drift gates (mirrors the GitHub Actions PR gate)
 
 # The local pre-push gate: format + codegen + lint/typecheck + the smoke test

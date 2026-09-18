@@ -22,6 +22,33 @@ under `rust/tcl-compiler/src/optimiser/`, with GVN in `src/gvn.rs`.
   only eligible when registry purity, result stability, completion, mutable
   world state, dispatch dependencies, and trace policy are all proven.
 
+## Rewrite extents
+
+`helpers/spans.rs` owns the statement-level span arithmetic every pass shares,
+and is the only place that arithmetic lives.
+
+An IR statement span follows the lexer's inner-end convention: a statement
+whose last word is quoted, braced, or bracketed stops *on* that word's closer.
+That is correct for the analyser's `cmd.range` consumers and wrong for an
+emitted rewrite, so a pass that replays or removes a statement widens the span
+through `full_rewrite_span` first. Text replayed from an unwidened span carries
+an opener without its closer, and a removal leaves the closer behind.
+
+Two extensions then decide how much surrounding whitespace a removal takes:
+
+- `line_delete_span` takes the statement's own indentation and its trailing
+  newline, for a caller that knows the statement owns its line.
+- `statement_delete_rewrite_range` takes the whitespace and one separator
+  between two statements, bounded by where the next one starts, for a caller
+  that tracks a successor.
+
+A removal's extent is not free to grow. Rewrites that overlap are arbitrated
+against each other and the loser is dropped, whole group at a time, so widening
+one pass's removal can silently cost another pass its rewrite: extending the
+dead-store removal to the following statement's start is enough to take the
+O119 `lassign` packing with it. Change an extent only with the sample outputs
+under `samples/optimiser/` regenerated and read.
+
 The stable O-code catalogue and priorities are registry/compiler data consumed
 by these modules. Add a pass beside its Rust owner, add focused tests, and
 surface any durable result through the generic Explorer contract.

@@ -19,7 +19,7 @@
 import { ConfigurationTarget, ExtensionContext, OutputChannel, window, workspace } from "vscode";
 import { TCL_LANGUAGE_IDS } from "./languageIds";
 
-// Sticky-scroll default-model health check (issue #1122 residuals).
+// Sticky-scroll default-model health check.
 //
 // Our `configurationDefaults` block sets `editor.stickyScroll.defaultModel` to
 // `foldingProviderModel` for every contributed Tcl language id (see
@@ -314,7 +314,7 @@ function buildProductionStickyScrollContext(
 /**
  * One-time health check + repair for `editor.stickyScroll.defaultModel`,
  * called once after `client.start()`. Detects and offers a one-click fix for
- * two states of the same setting (issue #1122 residuals):
+ * two states of the same setting:
  *
  *   - Dropped defaults: our `configurationDefaults` override never landed
  *     (e.g. a third-party extension's dotted `[lang.id]` block aborted VS

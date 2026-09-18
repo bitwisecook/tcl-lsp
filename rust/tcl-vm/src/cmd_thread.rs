@@ -20,7 +20,7 @@
 //!
 //! True OS-thread parallelism *without* making [`Value`]/[`Vm`] `Send`. Tcl
 //! threading is **shared-nothing**: an interpreter is confined to one thread and
-//! values cross thread boundaries only as serialized strings. So each worker
+//! values cross thread boundaries only as serialised strings. So each worker
 //! builds *its own* `Vm` inside the spawn closure (the `Vm` never crosses a
 //! thread boundary — `!Send` is fine), and the only `Send + Sync` surface is a
 //! small [`Shared`] block held behind `Arc`: the thread registry (id → job
@@ -31,7 +31,7 @@
 //!
 //! Commands: `thread::create`/`send`/`wait`/`release`/`id`/`exists`/`names`/
 //! `errorproc`, and `tsv::{set,get,exists,unset,incr,append,lappend,keys,names}`.
-//! `thread::send` serializes a script to the target's channel and (unless
+//! `thread::send` serialises a script to the target's channel and (unless
 //! `-async`) blocks for its result. `thread::wait` is the worker's message loop.
 //!
 //! No oracle: the reference tclsh 9.0.4 is a *non-threaded* build (no `Thread`
@@ -102,7 +102,7 @@ struct Shared {
     /// `tcl --tcl-version 8.6` worker compiled for 8.6 but *ran* at 9.0 —
     /// `string is integer 08` answered true there and false in the parent.
     /// Carrying the whole profile (not a bare release) keeps the worker's
-    /// command-surface availability gate aligned too (issue #1463).
+    /// command-surface availability gate aligned too.
     dialect_profile: &'static tcl_dialect::DialectProfile,
     /// The separately overridden host command surface, when the parent runs a
     /// sandboxed dialect inside a broader Tcl interpreter.
@@ -113,7 +113,7 @@ struct Shared {
     handle_seq: AtomicU64,
     /// Live workers by thread id.
     workers: Mutex<HashMap<u64, Worker>>,
-    /// The `tsv` store: array name → key → serialized value.
+    /// The `tsv` store: array name → key → serialised value.
     tsv: Mutex<HashMap<String, HashMap<String, String>>>,
     /// `thread::mutex` handles.
     mutexes: Mutex<HashMap<String, Arc<TclMutex>>>,
@@ -1352,7 +1352,7 @@ fn cmd_tsv_names(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
-// -- helpers ---------------------------------------------------------------
+// Helpers.
 
 fn parse_id(s: &str) -> Option<u64> {
     // Accept a bare integer or the `tidNNNN` form some tools print.

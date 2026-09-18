@@ -1,4 +1,4 @@
-# W307: Non-literal command name — cannot statically analyze
+# W307: Non-literal command name — cannot statically analyse
 # Source: SpiceGenTcl/examples/ngspice/advanced/monte_carlo.tcl:107,143
 #         SpiceGenTcl/src/generalClasses.tcl:785,1777 etc.
 #         SpiceGenTcl/examples/ngspice/transient/switch_oscillator_rbc.tcl:78-85

@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! **Live environment registration** — the P2 seam the centralisation
+//! **Live environment registration** — the seam the centralisation
 //! contract's §1.1 documents: pack- or configuration-declared
 //! environments join the one [`EnvironmentRegistry`] the ingress
 //! ([`crate::model::ingress`]) resolves through, under the redesign's

@@ -16,17 +16,16 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The rename **safety gate**, end-to-end on the wire (PR C3).
+//! The rename **safety gate**, end-to-end on the wire.
 //!
 //! Three mandates, one mechanism:
 //!
-//! * issue #923 differential-audit finding **idx 79** — a member dispatched on
+//! * a member dispatched on
 //!   a receiver whose class is not tracked;
-//! * issue **#981**'s object-command residual — `CLASS create NAME` binds
+//! * the object-command residual — `CLASS create NAME` binds
 //!   `NAME` in the *creation site's* namespace, so two same-named object
 //!   commands in sibling namespaces must never cross-link;
-//! * the workspace **namespace-variable** rename tier, the rename half of the
-//!   reference set PR #1086 added.
+//! * the workspace **namespace-variable** rename tier.
 //!
 //! A refusal travels as a JSON-RPC **error** with the gate's own reason, not
 //! as a `null` result: `null` means "nothing renameable here" and lets the
@@ -55,9 +54,9 @@ fn all_texts(result: &Value) -> Vec<String> {
         .collect()
 }
 
-// -- idx 79: untracked receivers ----------------------------------------
+// Untracked receivers.
 
-// FP guard (idx 79).  nico-robert/tomato's `Vector3d.tcl` copy-constructor
+// FP guard.  nico-robert/tomato's `Vector3d.tcl` copy-constructor
 // shape: `$other` is `[lindex $args 0]`, guarded by a runtime `info object
 // isa` test, so it really is a `Vector3d` — but nothing assigns a constructor
 // result to it, so the analyser has no binding.
@@ -69,8 +68,7 @@ fn all_texts(result: &Value) -> Vec<String> {
 //                               -> `unknown method "X": must be Get, GetX, Y
 //                                   or destroy` at `"$other X"`, rc=1
 //
-// That declaration-only edit set is exactly what the server used to return.
-// It must now refuse instead.
+// That declaration-only edit set must be refused, not returned.
 #[test]
 fn fp_rename_refuses_a_member_dispatched_on_an_untracked_receiver() {
     let mut lsp = Lsp::tcl();
@@ -165,7 +163,7 @@ fn tp_rename_rewrites_the_export_list_with_the_method() {
     );
 }
 
-// -- issue #981: object commands are namespace-scoped --------------------
+// Object commands are namespace-scoped.
 
 // TN + TP.  Oracle, tclsh 9.0.4 and 8.6.16 identically:
 //
@@ -231,7 +229,7 @@ fn tn_object_command_rename_does_not_cross_namespaces() {
     );
 }
 
-// -- workspace namespace-variable tier ----------------------------------
+// Workspace namespace-variable tier.
 
 // TP: renaming `$::mypkg::version` from a *consumer* document rewrites the
 // declaring sibling's `variable version` too.
@@ -383,10 +381,11 @@ fn fp_namespace_variable_rename_refuses_beside_a_computed_variable_name() {
     );
 }
 
-// TN (issue #1093): the refusal is **per site**.  A dynamic variable name
+// TN: the refusal is **per site**.  A dynamic variable name
 // written under a *different*, statically-spelled namespace cannot name a
-// cell in `::mypkg`, so it must not block the rename — the previous gate
-// refused on any dynamic variable word anywhere in a touched document.
+// cell in `::mypkg`, so it must not block the rename — the gate must not
+// refuse merely because a dynamic variable word appears anywhere in a
+// touched document.
 //
 // tclsh-proof (8.6.14): `namespace eval ::ns {variable v 1}; namespace eval
 // ::other {}; set n {::ns::v}; set ::other::$n 99` fails with `can't set
@@ -416,9 +415,9 @@ fn tn_namespace_variable_rename_ignores_a_dynamic_name_under_another_namespace()
     );
 }
 
-// -- Codex review of PR #1091: fan-out coverage -------------------------
+// Fan-out coverage.
 
-// FP guard (finding 1, issue #1092): the hazard lives in a **pure-consumer**
+// FP guard: the hazard lives in a **pure-consumer**
 // document — one that neither defines nor extends any family class.  The
 // consumer leg of the edit collector visits it; the gate must too, or the
 // gate's guarantee is hollow: the declaration moves while `$who speak` keeps
@@ -509,13 +508,12 @@ fn fn_guard_rename_still_applies_across_tracked_consumer_documents() {
     );
 }
 
-// FP guard (issue #1099): the consumer **never constructs** the class — it is
+// FP guard: the consumer **never constructs** the class — it is
 // handed the instance through a global another file filled in — so it invokes
-// no family constructor and sat in no index table.  Both the edit collector
-// and the gate were bounded by that set, so the declaration moved while
-// `$::handle speak` kept naming a member that no longer exists.  The rename
-// leg now covers every indexed document, so the gate sees the untracked
-// receiver and refuses.
+// no family constructor and sits in no index table.  The edit collector
+// and the gate must cover every indexed document, not just ones that
+// construct the class, or the declaration moves while `$::handle speak`
+// keeps naming a member that no longer exists.
 //
 // tclsh-proof (8.6.14, the interpreter available in this container), sourcing
 // all three files in order:
@@ -687,7 +685,7 @@ fn fn_guard_namespace_variable_rename_ignores_a_computed_alias_of_another_cell()
     );
 }
 
-// -- Issue #1114: the namespace rename tier -----------------------------
+// The namespace rename tier.
 //
 // Renaming a namespace rewrites every *written* spelling of it — the
 // `namespace eval` blocks that open it, the qualified names beneath it, the
@@ -812,13 +810,13 @@ fn fp_namespace_rename_refuses_a_collision_with_an_existing_namespace() {
     );
 }
 
-// -- idx 79: the gate must hold from EVERY trigger position -------------
+// The gate must hold from EVERY trigger position.
 //
-// The declaration-anchored refusal above was the only direction covered, and
-// it is the one position a real editor's "rename symbol" gesture is *least*
-// likely to be used from.  Triggering the identical rename from the untracked
-// call site the gate exists for, or from the `export` bareword, returned a
-// live WorkspaceEdit rewriting only the declaration and the export word.
+// The declaration is the one position a real editor's "rename symbol"
+// gesture is *least* likely to be used from. Triggering the identical
+// rename from the untracked call site the gate exists for, or from the
+// `export` bareword, must refuse too — not return a live WorkspaceEdit
+// rewriting only the declaration and the export word.
 //
 // Applying that edit and running the file (tclsh 9.0.4 and 8.6.16, byte
 // identical, rc=1):
@@ -1024,8 +1022,7 @@ fn a_variable_renames_again_after_the_first_rename_was_undone() {
 /// "`::b` is already declared in this workspace" is a claim the editor cannot
 /// check. The workspace the gate reads spans every scanned folder, not the
 /// files the user has in mind, so a refusal that names no document leaves
-/// disbelief as the only available response — which is exactly where issue
-/// #1935's report, and the investigation into it, both stopped.
+/// disbelief as the only available response.
 #[test]
 fn a_refused_rename_names_the_document_it_collided_with() {
     let mut lsp = Lsp::tcl();

@@ -16,14 +16,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The document's **realm command-binding state** (redesign §4.2,
-//! centralisation ledger C4; issues #1185, #1275) — the single-realm
+//! The document's **realm command-binding state** — the single-realm
 //! `command_bindings` map of the model's `RealmState`, produced by one
 //! top-level scan and answered as [`tcl_registry::model::BindingKnowledge`]
 //! ([`CommandBindingRealm::knowledge_at`]) or as the head-word projection
 //! source-text consumers read ([`CommandBindingRealm::resolve`] /
-//! [`HeadWords`]). This retires the parallel offset-keyed head-identity
-//! table wholesale: the same facts, one vocabulary, spec-keyed.
+//! [`HeadWords`]). It is the only head-identity table: one vocabulary,
+//! spec-keyed.
 //!
 //! Tcl resolves a command by its interpreter-level *binding*, not by the
 //! spelling used to invoke it.  Three statically visible statements move that
@@ -281,19 +280,19 @@ impl CommandBindingRealm {
     }
 
     /// The realm's [`BindingKnowledge`] for `head` at byte offset `at` —
-    /// the document's facts composed over the environment (the one
-    /// `exists` oracle, centralisation R-c, for head-identity consumers):
+    /// the document's facts composed over the environment — the one `exists`
+    /// answer for head-identity consumers:
     ///
     /// - a proven import / alias / rename chain answers
     ///   [`BindingKnowledge::Must`] with its [`BindingTarget::Spec`];
     /// - a proven takeover (user `proc` shadow, unmodelled alias) answers
     ///   `Must` with a [`BindingTarget::Document`] — the command exists,
-    ///   no catalogue semantics apply, so no hook ever specialises (I4);
+    ///   no catalogue semantics apply, so no hook ever specialises;
     /// - a proven deletion answers [`BindingKnowledge::Absent`];
     /// - with no document fact the environment answers: `Must(Spec)` when
     ///   `context` provides the name, [`BindingKnowledge::Absent`] under a
-    ///   **closed world** (the guarantee iRules derives rather than
-    ///   assumes — B12 is policy over this oracle, not a second oracle),
+    ///   **closed world** (a guarantee iRules derives rather than assumes:
+    ///   world policy applies over this answer, it does not replace it),
     ///   and [`BindingKnowledge::Unknown`] otherwise (an open world can
     ///   gain commands at load time).
     #[must_use]
@@ -552,8 +551,8 @@ struct AliasFact<'a> {
 /// procedure declaration.  iRules keeps Tcl's `proc` spelling but restricts
 /// it to the shared declaration surface; a malformed or unterminated body is
 /// not executable and therefore must not poison command-head identity for the
-/// rest of the document.  Other profiles retain ordinary Tcl's historical
-/// name-only identity semantics.
+/// rest of the document.  Other profiles keep ordinary Tcl's name-only
+/// identity semantics.
 fn valid_irules_procedure_declaration(
     source: &str,
     seg: &crate::segmenter::SegmentedCommand,
@@ -743,7 +742,7 @@ fn record_proc(
 
 /// Scan `source` for `namespace import` declarations and map each bare command
 /// name they bring into the global scope to its qualified registry spec name
-/// (`test` → `tcltest::test`, issue #776).
+/// (`test` → `tcltest::test`).
 ///
 /// Recognises the two literal forms — `namespace import EXPORTING::*`
 /// (import-all) and `namespace import EXPORTING::name` (single) — matched
@@ -868,10 +867,10 @@ mod tests {
         u32::try_from(src.find('\n').map_or(src.len(), |i| i + 1)).unwrap_or(0)
     }
 
-    /// The [`BindingKnowledge`] view (the R-c oracle for head-identity
-    /// consumers): document facts answer `Must(Spec)` / `Must(Document)` /
-    /// `Absent`; with no fact the environment answers, and the world
-    /// policy (B12) decides `Absent` vs `Unknown` for an unprovided name.
+    /// The [`BindingKnowledge`] view for head-identity consumers: document
+    /// facts answer `Must(Spec)` / `Must(Document)` / `Absent`; with no fact
+    /// the environment answers, and world policy decides `Absent` vs
+    /// `Unknown` for an unprovided name.
     #[test]
     fn knowledge_composes_facts_over_the_environment() {
         let generation = tcl_registry::model::ingress::static_context_for("tcl9.0");
@@ -912,8 +911,7 @@ mod tests {
     }
 
     /// Under a closed world (`f5-irules`) an unprovided name is proved
-    /// `Absent` — the static decidability iRules derives rather than
-    /// assumes (B12 as policy over the oracle).
+    /// `Absent` — the static decidability iRules derives rather than assumes.
     #[test]
     fn a_closed_world_proves_absence() {
         let generation = tcl_registry::model::ingress::static_context_for("f5-irules");
@@ -1094,7 +1092,7 @@ mod tests {
     #[test]
     fn a_qualified_mutator_head_states_the_same_fact() {
         // C Tcl resolves `::rename` to `::rename` — the mutator's own spelling
-        // must not be a false negative either (issue #1185).
+        // must not be a false negative either.
         let src = "::rename format origfmt\n";
         let map = map_for(src);
         assert_eq!(
@@ -1118,9 +1116,9 @@ mod tests {
         assert_eq!(map.resolve("origfmt", after_all), RealmBinding::Rebound);
     }
 
-    /// Issue #1275's "chained bindings do not compose" residual.
+    /// Chained bindings compose.
     ///
-    /// tclsh oracle (8.6.16 and 9.0.4, byte-identical):
+    /// On tclsh 8.6.16 and 9.0.4 (byte-identical):
     ///
     /// ```tcl
     /// interp alias {} a {} format ; rename a b ; b %08x 42   ;# 0000002a

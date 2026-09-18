@@ -1220,7 +1220,7 @@ window.addEventListener('message', function(event) {
         }
       } finally {
         // The spinner must stop whatever the renderers did — a stuck
-        // throbber is indistinguishable from a hung compile (issue #1183).
+        // throbber is indistinguishable from a hung compile.
         $('#spinner').style.display = 'none';
         updateStatusLight();
       }
@@ -1330,7 +1330,7 @@ function updateStatusLight() {
 // Every step runs in isolation (runRenderSteps, from explorer-core.js): a
 // renderer that throws reports the failure in its own pane while the other
 // tabs still render, and renderAll itself never throws — so the caller's
-// spinner always settles (issues #1182 / #1183).
+// spinner always settles.
 function renderAll() {
   const genericViews = reconcileExplorerViews();
   return runRenderSteps([

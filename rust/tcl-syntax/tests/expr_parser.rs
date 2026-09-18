@@ -48,8 +48,6 @@ fn binop(n: &ExprNode) -> BinOp {
     }
 }
 
-// -- Literals --
-
 #[test]
 fn literals() {
     assert_eq!(lit_text(&p("42")), "42");
@@ -71,8 +69,6 @@ fn negative_integer_is_unary_neg() {
         other => panic!("expected Unary Neg, got {other:?}"),
     }
 }
-
-// -- Variables --
 
 #[test]
 fn variables() {
@@ -96,8 +92,6 @@ fn command_substitution() {
         other => panic!("expected Command, got {other:?}"),
     }
 }
-
-// -- Binary operators --
 
 #[test]
 fn binary_operator_kinds() {
@@ -133,8 +127,6 @@ fn add_operands_are_vars() {
     }
 }
 
-// -- Unary operators --
-
 #[test]
 fn unary_operator_kinds() {
     assert!(matches!(
@@ -166,8 +158,6 @@ fn unary_operator_kinds() {
         }
     ));
 }
-
-// -- Precedence (tclsh-proven structure) --
 
 #[test]
 fn mul_binds_tighter_than_add() {
@@ -275,8 +265,6 @@ fn parentheses_override_precedence() {
     }
 }
 
-// -- Ternary --
-
 #[test]
 fn ternary_structure_and_right_assoc() {
     assert!(matches!(p("$x ? 1 : 0"), ExprNode::Ternary { .. }));
@@ -288,8 +276,6 @@ fn ternary_structure_and_right_assoc() {
         other => panic!("expected Ternary, got {other:?}"),
     }
 }
-
-// -- Function calls --
 
 #[test]
 fn function_calls() {
@@ -314,15 +300,11 @@ fn function_calls() {
     }
 }
 
-// -- Fallback (Raw) --
-
 #[test]
 fn malformed_expression_is_raw() {
     // A syntax error degrades to Raw rather than panicking.
     assert!(matches!(p("@#%"), ExprNode::Raw { .. }));
 }
-
-// -- vars() extraction --
 
 #[test]
 fn vars_extraction() {
@@ -360,8 +342,6 @@ fn vars_extraction() {
     assert_eq!(tv, ["a", "b", "c"]);
 }
 
-// -- render round-trip --
-
 #[test]
 fn render_round_trips() {
     // render_expr(parse_expr(s)) re-parses to an equivalent tree.
@@ -371,8 +351,6 @@ fn render_round_trips() {
         assert_eq!(once, twice, "render not stable for {s}");
     }
 }
-
-// -- Boolean literals --
 
 #[test]
 fn boolean_literals() {
@@ -388,8 +366,6 @@ fn boolean_literals() {
         }
     ));
 }
-
-// -- Numeric literals (tclsh values: 0xFF=255, 0o17=15, 0b101=5, .5=0.5, 5.=5.0) --
 
 #[test]
 fn numeric_literal_forms() {

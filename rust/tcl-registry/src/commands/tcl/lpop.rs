@@ -103,7 +103,7 @@ pub fn spec() -> CommandSpec {
         return_type: Some(TclType::String),
         // `lpop` returns the *removed element* but leaves the variable holding
         // the shortened *list*.  Type the write as the list it always becomes,
-        // not the popped element's return type (issue #867).
+        // not the popped element's return type.
         var_write_typing: VarWriteTyping::Fixed(TclType::List),
         inferred_storage_type: Some(StorageType::List),
         side_effects: SIDE_EFFECTS,

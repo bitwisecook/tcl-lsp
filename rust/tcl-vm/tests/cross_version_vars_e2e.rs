@@ -169,7 +169,7 @@ const VECTORS: &[Vector] = &[
         want_8x: "can't read \"g\": no such variable",
         want_90: "can't read \"g\": no such variable",
     },
-    // --- issue #1328: the rule governs *relative variable resolution*, so it
+    // The rule governs *relative variable resolution*, so it
     // reaches every command that resolves a relative name, not just `append`.
     Vector {
         name: "append reaches the global in 8.x (the shape issue #1328 was filed on)",
@@ -262,7 +262,7 @@ const VECTORS: &[Vector] = &[
         want_90: "foo",
     },
     // A store returns the variable read back *after* its write traces
-    // (`TclPtrSetVarIdx`, issue #1633 row 1) — and C reads back the very `Var`
+    // (`TclPtrSetVarIdx`) — and C reads back the very `Var`
     // it wrote, not the name a second time. Only 8.x can tell the two apart,
     // because only 8.x lets a callback change which cell a bare name reaches:
     // here the write lands on `::x` through the fallback, and the callback
@@ -510,8 +510,8 @@ fn foreach_completion_vectors_match_real_tclsh() {
 /// under 8.x — an error, since the variable is named `a{b}c` — and reads
 /// `a{b}c` under 9.x.
 ///
-/// The VM's `subst` engine scanned to the first `}` unconditionally, so it gave
-/// the 8.x answer at *every* release (issue #1457). Both engines now resolve
+/// Scanning to the first `}` unconditionally would give
+/// the 8.x answer at *every* release. Both engines resolve
 /// the form through the one owner, `tcl_lexer::braced_var_name_end`.
 const BRACED_VAR_SUBST_SCRIPT: &str = concat!(
     "set {a{b}c} WORLD\n",
@@ -555,8 +555,7 @@ fn subst_braced_var_close_rule_follows_the_emulated_release() {
 }
 
 /// An unterminated `${…}` — the outcome the close rule's `Option` had no
-/// contract for, and where the two engines diverged from C and from each other
-/// (issue #1457).
+/// contract for, and where the two engines diverge from C and from each other.
 ///
 /// C raises `missing close-brace for variable name` on **both** releases, but
 /// *which* templates count as unterminated is release-specific: the 9.x nesting
@@ -651,20 +650,20 @@ fn braced_var_close_rule_matches_real_tclsh() {
     }
 }
 
-// The COMPILED-WORD `${…}` path (issue #1568)
+// The compiled-word `${…}` path
 //
 // The scripts above drive `subst`, an *interpreted* engine. These drive the
 // compiler's normalised-word round-trip instead: the segmenter re-spells a
 // `Var` token as source-like text and codegen decodes that spelling back. The
-// two paths were fixed separately because they failed differently — #1457's
-// engines hard-coded the 8.x rule at every release, while here the *encoder*
-// discarded the braced form and the *two decoders* applied opposite rules, so
-// the compiled path was wrong in both directions at once: 8.x produced the 9.x
-// answer and 9.x substituted nothing at all.
+// two paths need separate coverage because they can fail differently: the
+// interpreted engine risks hard-coding the 8.x rule at every release, while
+// here the *encoder* could discard the braced form and the *two decoders*
+// could apply opposite rules, producing errors in both directions at once —
+// 8.x giving the 9.x answer and 9.x substituting nothing at all.
 //
 // Keeping both sets in one file makes the two paths' agreement visible.
 
-/// Assignment position — `set r ${a{b}c}`, the form #1568 was filed with.
+/// Assignment position — `set r ${a{b}c}`.
 const COMPILED_BRACED_VAR_SCRIPT: &str = concat!(
     "set {a{b}c} WORLD\n",
     "if {[catch {set r ${a{b}c}} m]} { puts \"error:$m\" } else { puts \"ok:$r\" }\n",
@@ -718,9 +717,9 @@ fn compiled_braced_var_close_rule_follows_the_emulated_release() {
                 "{label} at {version:?} must use the 8.x first-close rule"
             );
         }
-        // 9.x: nested braces balance, so the whole `a{b}c` is the name. Before
-        // the fix this emitted the literal text `$a{b}c` — no substitution at
-        // all — because the segmenter had discarded the braced spelling.
+        // 9.x: nested braces balance, so the whole `a{b}c` is the name. If the
+        // segmenter discarded the braced spelling, this would emit the
+        // literal text `$a{b}c` — no substitution at all.
         for version in [TclVersion::V9_0, TclVersion::V9_1] {
             assert_eq!(
                 vm_output(script, version),
@@ -797,13 +796,14 @@ fn compiled_braced_var_close_rule_matches_real_tclsh() {
 /// compiler's two decoders: the codegen declines to decompose it, so the whole
 /// word is interned as one literal and the VM's `subst::subst_word` performs
 /// the substitution at run time. That runtime decoder is a *third* pair of
-/// `${…}` scans, and it hard-coded the 8.x first-close rule at every release
-/// just as the compile-time ones did (issue #1568).
+/// `${…}` scans, distinct from the compiler's two, so hard-coding the 8.x
+/// first-close rule at every release there would not be caught by fixing the
+/// other two.
 ///
 /// This vector exists because a mutation pass proved the compile-time fix
 /// alone was not observable here: reverting `parse_subst_template` left every
-/// test green. The gap was real — the interpolated path was still wrong at
-/// 9.x — and this is the vector that fails when it is.
+/// test green while the interpolated path was still wrong at 9.x. This is the
+/// vector that catches that.
 const COMPILED_INTERPOLATED_SCRIPT: &str = concat!(
     "set {a{b}c} WORLD\n",
     "if {[catch {puts \"pre${a{b}c}post\"} m]} { puts \"error:$m\" }\n",
@@ -870,7 +870,7 @@ fn compiled_interpolated_and_switch_paths_match_real_tclsh() {
 /// An **array index** carrying a `${…}` substitution is the route that reaches
 /// `codegen::helpers::parse_subst_template` — the compiler's *other* `${…}`
 /// decoder, the one that hard-coded the 8.x first-close rule while
-/// `parse_simple_var_ref` hard-coded the 9.x nesting rule (issue #1568).
+/// `parse_simple_var_ref` hard-coded the 9.x nesting rule.
 ///
 /// These vectors exist because a mutation pass proved the rest of the suite
 /// could not see that decoder at all: reverting it to `find('}')` left every
@@ -950,7 +950,7 @@ fn compiled_array_index_braced_var_matches_real_tclsh() {
     }
 }
 
-/// Issue #1732 — the Tcl 9 parser rejects raw brace bytes in an *array read*
+/// The Tcl 9 parser rejects raw brace bytes in an *array read*
 /// before evaluation, while Tcl 8 keeps them as key text. The assignment is
 /// deliberately outside the caught script: store-side `set a({key}) V` is an
 /// ordinary word and remains valid at every release.
@@ -972,7 +972,7 @@ fn compiled_array_index_source_mask_follows_the_emulated_release() {
     }
 }
 
-// Backslash-carrying `${…}` names (adversarial review of the #1568 fix)
+// Backslash-carrying `${…}` names
 //
 // Every vector above uses a name whose only awkward character is a brace. A
 // name carrying a **backslash** is a distinct shape, and it caught three
@@ -1106,8 +1106,8 @@ fn compiled_escaped_open_brace_key_resolves_at_every_release() {
 /// quoted name containing a backslash under its *unsubstituted source
 /// spelling* (`a\\`, 3 bytes) instead of the substituted name (`a\`, 2 bytes),
 /// so the obvious spelling would fail this test for a reason that has nothing
-/// to do with the switch gate. That is a separate defect, filed apart from
-/// #1568; `format` sidesteps it and leaves this vector testing only the gate.
+/// to do with the switch gate. That is a separate defect;
+/// `format` sidesteps it and leaves this vector testing only the gate.
 const SWITCH_SUBJECT_EIGHT_ONLY_SCRIPT: &str = concat!(
     "set n [format a%c 92]\n",
     "set $n K\n",
@@ -1365,21 +1365,22 @@ fn compiled_composite_array_key_follows_the_emulated_release() {
     }
 }
 
-// Issue #1617 — `$={name}` is the user's literal text, not a compiler marker.
+// `$={name}` is the user's literal text, not a compiler marker.
 //
-// The codegen used to decode a whole word spelt `$={name}` as an internal
-// "braced scalar" marker and compile it to `push "name"; loadStk`. Nothing in
-// this workspace has ever *produced* that spelling — the segmenter re-spells a
-// braced variable word verbatim from source — so the only words that ever
-// reached the decoder were the user's own, where `$=` is not a substitution
-// trigger in any release (`=` is not a name character; `Tcl_ParseVarName`,
-// tmp/tcl9.0.4/generic/tclParse.c). Every reach was wrong code, and because
-// producer and consumer were both release-blind in compatible ways no program
-// could tell the two halves apart — which is why mutation M3b (flip the marker
-// arm's close scan) survived the whole corpus.
+// A codegen decoder for a whole word spelt `$={name}` as an internal
+// "braced scalar" marker, compiling it to `push "name"; loadStk`, would
+// misfire here. Nothing in this workspace ever *produces* that spelling — the
+// segmenter re-spells a braced variable word verbatim from source — so the
+// only words that reach such a decoder are the user's own, where `$=` is not
+// a substitution trigger in any release (`=` is not a name character;
+// `Tcl_ParseVarName`, tmp/tcl9.0.4/generic/tclParse.c). Every such reach is
+// wrong, and because producer and consumer are both release-blind in
+// compatible ways, no program could tell the two halves apart — which is why
+// a mutation flipping the marker arm's close scan would survive the whole
+// corpus.
 //
-// These vectors pin the literal reading on each route the marker decoder sat
-// on: a command word, a `set` value, the `switch` subject (`cfg_lower`), a
+// These vectors pin the literal reading on each route a marker decoder could
+// sit on: a command word, a `set` value, the `switch` subject (`cfg_lower`), a
 // list argument, an array key, and a proc body (the LVT path).
 
 /// A bare command word.
@@ -1388,8 +1389,8 @@ const DOLLAR_EQ_WORD_SCRIPT: &str = concat!("set y hi\n", "puts $={y}\n");
 /// The value half of a `set` — `emit_value` / `emit_value_interpolated`.
 const DOLLAR_EQ_SET_VALUE_SCRIPT: &str = concat!("set y hi\n", "set z $={y}\n", "puts $z\n");
 
-/// The `switch` subject, which `cfg_builder::cfg_lower` used to promote to a
-/// `Raw` (variable-reference) operand when it parsed as the marker.
+/// The `switch` subject, which `cfg_builder::cfg_lower` would wrongly promote
+/// to a `Raw` (variable-reference) operand if it parsed as the marker.
 const DOLLAR_EQ_SWITCH_SUBJECT_SCRIPT: &str = concat!(
     "set y hi\n",
     "switch -- $={y} {\n",
@@ -1423,7 +1424,7 @@ const DOLLAR_EQ_IN_PROC_SCRIPT: &str = concat!("proc p {} { set y inner; puts $=
 // inline command substitution the argument text is the **raw source**, bare
 // `$x` and all, so a decoder that gives up on the whole word loses the
 // substitution outright: `[list $={y}$x]` yielded `{$={y}$x}` where both
-// oracles give `{$={y}X}` (#1668 review).
+// oracles give `{$={y}X}`.
 
 /// The reported repro — a literal `$=` marker-shaped run then a real `$x`,
 /// inside an inline `[list …]`.

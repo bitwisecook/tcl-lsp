@@ -35,8 +35,8 @@
 //! * Tcl compiled locals are name-addressable for the proc's whole lifetime
 //!   (`upvar` / `info locals` / `trace` / `uplevel`), so dataflow-"dead" is not
 //!   "inaccessible" — liveness-based slot reuse is semantically invalid for Tcl
-//!   locals (and tclsh never reuses LVT slots). An earlier opt-in wiring was
-//!   reverted after the differential fuzzer caught the aliasing corruption.
+//!   locals (and tclsh never reuses LVT slots); wiring it into the emitter
+//!   corrupts values through aliasing.
 //!
 //! Parameters are pinned to their incoming order (slots `0..n-1`); being live
 //! on entry they mutually interfere and never share.
@@ -202,9 +202,8 @@ fn block_use_def(
 /// is a no-op once versions are dropped, so the per-name result equals the
 /// name-collapse of an SSA-version-keyed `live_out`.
 ///
-/// Iterates a worklist in reverse-reverse-postorder (i.e. exit-first) until the
-/// fixpoint settles; on `live_in[b]` change, only `b`'s predecessors are
-/// re-enqueued.
+/// Iterates a worklist until the fixpoint settles; on `live_in[b]` change,
+/// only `b`'s predecessors are re-enqueued.
 #[must_use]
 pub fn live_out_by_name(
     cfg: &cfg::Function,
@@ -222,7 +221,8 @@ pub fn live_out_by_name(
 
     let preds = cfg.predecessors();
 
-    // Exit-first traversal order (reverse of reverse-postorder).
+    // The worklist is popped from the back, so seeding it with the reverse of
+    // reverse-postorder makes the first sweep run entry-first.
     let mut order = cfg.reverse_postorder();
     order.reverse();
 

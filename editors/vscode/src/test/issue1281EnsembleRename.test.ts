@@ -16,12 +16,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Issue #1281, editor-integration layer: an ensemble `-map` key must survive
+// An ensemble `-map` key must survive
 // a rename of the command it dispatches to, while a `-subcommands` entry —
 // which IS that command's tail — must follow it.
 //
-// This tier exists for the same reason issue #945 fault 1's does: the defect
-// is an edit that must *not* be in the set. A rename the user triggers from
+// This tier exists because the defect is an edit that must *not* be in the
+// set. A rename the user triggers from
 // the editor applies whatever comes back, unreviewed and in one keystroke, so
 // the assertion worth making through a real VS Code session is the negative
 // one — the dispatch line is absent from the entries the client would apply.

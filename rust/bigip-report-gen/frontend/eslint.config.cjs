@@ -1,10 +1,9 @@
 const tsEslint = require("@typescript-eslint/eslint-plugin");
 const tsParser = require("@typescript-eslint/parser");
 
-// Only the new, hand-written search modules are linted/type-strict. The nine
-// legacy page scripts under src/pages/ were migrated verbatim from JS (they
-// carry `// @ts-nocheck` headers + are prettier-ignored) and are cleaned up
-// incrementally, not in the restructure commit.
+// Only the hand-written search modules are linted/type-strict. Eleven of the
+// twelve page scripts under src/pages/ carry `// @ts-nocheck` headers and are
+// prettier-ignored.
 module.exports = [
   {
     ignores: ["dist/**", "public/**", "node_modules/**"],

@@ -178,6 +178,24 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
         },
     ),
     (
+        "substitution_resolver",
+        Example {
+            code: "subst {hello $name}\nsubst -novariables {hello $name}",
+            focuses: &[
+                focus(
+                    0,
+                    "$name",
+                    "the resolver reports variables on, so this reads the variable",
+                ),
+                focus(
+                    1,
+                    "$name",
+                    "-novariables turns that kind off, so this is literal text",
+                ),
+            ],
+        },
+    ),
+    (
         "callback_taint_inputs",
         Example {
             code: "entry .password -validatecommand {set proposed %P; eval $proposed}\nbind .password <Key> {set typed %A; eval $typed}",
@@ -859,6 +877,24 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
                     2,
                     "$safe",
                     "the response sink accepts the proven value without a finding",
+                ),
+            ],
+        },
+    ),
+    (
+        "taint_transform_when",
+        Example {
+            code: "puts [string map {\"\\n\" \"\" \"\\r\" \"\"} $line]\nputs [string map {a b} $line]",
+            focuses: &[
+                focus(
+                    0,
+                    "{\"\\n\" \"\" \"\\r\" \"\"}",
+                    "the mapping deletes CR and LF, so this call proves CRLF_FREE and T101 stays quiet",
+                ),
+                focus(
+                    1,
+                    "{a b}",
+                    "any other mapping proves nothing: the condition fails and T101 still reports",
                 ),
             ],
         },

@@ -136,7 +136,7 @@ impl SegmentedCommand {
 
     /// Full written span to compile or replay as this command.
     ///
-    /// [`Self::span`] preserves the analyser's historical `cmd.range`
+    /// [`Self::span`] follows the analyser's `cmd.range`
     /// convention, which deliberately leaves the final `"` of a quoted last
     /// word outside the range. Executable consumers need the whole written
     /// command instead. Build the last word's complete fragment span, then
@@ -247,7 +247,7 @@ fn word_span_source<'s>(sm: &SourceMap<'s>, tok: Token) -> Option<&'s str> {
 ///
 /// A braced `${…}` variable round-trips **verbatim from source**, because the
 /// lexer already applied the target release's `Tcl_ParseVarName` rule when it
-/// spanned the token — see the `is_braced` arm below (issue #1568).
+/// spanned the token — see the `is_braced` arm below.
 ///
 /// Bare `$arr(idx)` whose index contains a `$` or `[` substitution
 /// round-trips verbatim — wrapping in braces would disable array-
@@ -272,13 +272,12 @@ pub fn word_piece(sm: &SourceMap<'_>, tok: Token) -> String {
             }
             // A braced `${…}` word is re-spelt **verbatim from source**.
             //
-            // Issue #1568: this used to fall back to a bare `$name` spelling
-            // whenever the name contained a `}`, because it could not form an
-            // unambiguous `${…}` from the name alone. Under 9.x the lexer
-            // spans `${a{b}c}` as one `Var` whose name is `a{b}c`, so the bail
-            // produced `$a{b}c` — which no decoder recognises as a reference,
-            // leaving it to be pushed as a literal. That is the "no
-            // substitution at all under 9.x" half of the defect.
+            // Falling back to a bare `$name` spelling whenever the name
+            // contains a `}` — for want of an unambiguous `${…}` formed from
+            // the name alone — is wrong: under 9.x the lexer spans `${a{b}c}`
+            // as one `Var` whose name is `a{b}c`, so that bail produces
+            // `$a{b}c`, which no decoder recognises as a reference and which
+            // is then pushed as a literal, substituting nothing.
             //
             // Echoing the source needs no release rule of its own, which is
             // the point: the **lexer** already applied the target release's
@@ -435,7 +434,7 @@ pub fn has_exactly_one_command_with_config(source: &str, config: LexerConfig) ->
 /// the result is an off-by-one span; on a multi-byte character it is an offset
 /// inside a UTF-8 sequence, which panics the first consumer that slices the
 /// source with it — how 40 zero-width spaces in a real iRule aborted
-/// `fp-sweep` and blanked the LSP's diagnostics for the file (issue #1325).
+/// `fp-sweep` and blanked the LSP's diagnostics for the file.
 ///
 /// Truncating to the verbatim prefix keeps the walk on the contiguous braced
 /// region and drops the welded tail, which is not a script in the first place.
@@ -481,8 +480,8 @@ pub fn contiguous_prefix<'t>(source: &str, base: usize, text: &'t str) -> &'t st
 /// test for either — and it is what keeps the window (deliberately *not*
 /// byte-identical to the source) out of [`contiguous_prefix`]'s comparison.
 ///
-/// A word value that does not fill its region is the compound `{body}x` shape
-/// (issue #1325); [`contiguous_prefix`] clamps it to the braced part.
+/// A word value that does not fill its region is the compound `{body}x` shape;
+/// [`contiguous_prefix`] clamps it to the braced part.
 #[must_use]
 pub fn body_text_in_region<'t>(
     source: &str,
@@ -518,7 +517,7 @@ pub fn body_text_in_region<'t>(
 ///
 /// `source` is the document `body_tok`'s span indexes into; the split runs
 /// over [`contiguous_prefix`] of `body_text` so the rebased element spans are
-/// truthful even for a compound `{…}x` clause-list word (issue #1325).
+/// truthful even for a compound `{…}x` clause-list word.
 ///
 /// The representative token kind each element is given comes from re-lexing
 /// that element's text, so it must be read under the grammar the document was
@@ -980,18 +979,15 @@ pub fn segment_with_recovery(
 }
 
 fn segment_commands_local(source: &str, config: LexerConfig) -> Vec<SegmentedCommand> {
-    // The segmenter now derives its `SegmentedCommand`s from the canonical
-    // red-green CST (`parsing::syntax`) rather than its own token loop —
-    // the 150-line `SegmenterState` accumulator and `flush_eol_or_eof` are
-    // gone.  `build_document` reshapes the
-    // dialect-configured lexer stream into a green tree (no second parser),
-    // and `segments_from_document` derives the public `SegmentedCommand`
-    // shape from it.  Verified byte-identical, field for field, against a
-    // **frozen copy of the former token loop** (preserved as the
-    // independent oracle in `tests/differential_segment.rs`) over the
-    // edge-case table + the full Tcl 8.4/8.5/8.6/9.0 corpus.  The
-    // derivation runs in local-offset space; relocation stays the caller's
-    // job via `SegmentedCommand::shifted_by`.
+    // `SegmentedCommand`s are derived from the canonical red-green CST
+    // (`parsing::syntax`), not from a token loop of this module's own:
+    // `build_document` reshapes the dialect-configured lexer stream into a
+    // green tree (no second parser), and `segments_from_document` derives the
+    // public `SegmentedCommand` shape from it.  `tests/differential_segment.rs`
+    // holds an independent token-loop implementation and pins the two
+    // byte-identical, field for field, over the edge-case table and the full
+    // Tcl 8.4/8.5/8.6/9.0 corpus.  The derivation runs in local-offset space;
+    // relocation stays the caller's job via `SegmentedCommand::shifted_by`.
     let sm = SourceMap::new(source);
     let (document, _warnings) = crate::parsing::syntax::build::build_document(source, config);
     let segments = crate::parsing::syntax::segment::segments_from_document(document, &sm);

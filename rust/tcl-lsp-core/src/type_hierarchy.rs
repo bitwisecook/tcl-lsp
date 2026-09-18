@@ -21,8 +21,8 @@
 //! Resolves a `TclOO` class at the cursor ([`prepare`]) and walks its
 //! [`supertypes`] (direct superclasses + mixins) and [`subtypes`] (direct
 //! subclasses) via the class-hierarchy index.  Resolution is within the
-//! analysed document; cross-file super/subtypes need the workspace index
-//! (a follow-up).
+//! analysed document; cross-file super/subtypes are not resolved here — they
+//! need the workspace index.
 
 use std::collections::{HashMap, HashSet};
 
@@ -146,7 +146,7 @@ pub fn subtypes(
 /// a *globally-unique* simple-name (tail) match.  `owner` is the qualified
 /// name of the class in whose body `name` was written (`""` for a top-level /
 /// already-qualified lookup).  Mirrors how the MRO builder linked the edge,
-/// so supertype resolution no longer abstains on tails the hierarchy resolves.
+/// so supertype resolution does not abstain on tails the hierarchy resolves.
 fn resolve_class<'a>(
     name: &str,
     owner: &str,
@@ -307,8 +307,8 @@ mod tests {
     #[test]
     fn supertypes_resolve_bare_namespaced_base_owner_aware() {
         // A subclass in `::Ns` names its base bare (`Base`); the base lives at
-        // `::Ns::Base`.  Ownerless tail resolution used to abstain here; the
-        // owner-aware resolver links it the way the MRO builder did.
+        // `::Ns::Base`.  Ownerless tail resolution abstains here; the
+        // owner-aware resolver links it the way the MRO builder does.
         let src = "namespace eval Ns {\n    oo::class create Base {}\n    oo::class create Sub {\n        superclass Base\n    }\n}\n";
         let analysis = analyse(src);
         let sup = supertypes("::Ns::Sub", src, &analysis);

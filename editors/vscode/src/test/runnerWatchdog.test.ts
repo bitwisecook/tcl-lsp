@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Pure decision-function tests for the watchdog (issue #1293). `evaluateWatchdog`
+// Pure decision-function tests for the watchdog. `evaluateWatchdog`
 // does no I/O, so this file needs no `vscode` API — see `runnerWatchdog.ts`'s
 // module docs for why that matters (it must be callable, and testable, outside
 // the extension host, the same reason `signal.ts` has no `vscode` import).
@@ -87,9 +87,9 @@ suite("runnerWatchdog: evaluateWatchdog (issue #1293)", () => {
       "the ceiling is a backstop, not the primary bound — it must sit well above the " +
         "window that actually detects wedges",
     );
-    // The regression itself: the suite's own honest runtime (~190s for 846
-    // tests) must be nowhere near the ceiling. The old budget was 180s, which
-    // sat *below* it — that is issue #1293.
+    // The suite's own honest runtime (~190s for 846
+    // tests) must be nowhere near the ceiling: a budget sitting at or below
+    // the real runtime leaves no room to grow.
     assert.ok(
       DEFAULT_ABSOLUTE_CEILING_MS > 4 * 190_000,
       "the ceiling must leave a green run room to grow, not hug its current runtime",

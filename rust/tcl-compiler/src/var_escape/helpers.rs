@@ -47,8 +47,8 @@ use crate::var_escape::info_subcommands::{
 /// Memoised set of commands carrying the registry's
 /// [`Traits::FIRST_ARG_VARNAME`] trait — the commands whose first arg is
 /// the variable *name* (`set` / `incr` / `append` / `lappend` / `lset` /
-/// `unset`). Used to detect dynamic-name forms like `set $n value`. Sourced from
-/// the registry (the single source of truth); cached once because the set
+/// `unset`). Used to detect dynamic-name forms like `set $n value`. Sourced
+/// from the registry; cached once because the set
 /// is dialect-agnostic (all entries are core Tcl commands).
 fn name_first_set() -> &'static HashSet<String> {
     static SET: OnceLock<HashSet<String>> = OnceLock::new();

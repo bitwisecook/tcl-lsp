@@ -105,6 +105,59 @@ fn irules_checks(
     run_all_checks(&cu, registry, Some(profile))
 }
 
+/// The plain-Tcl compiler-checks output (`run_all_checks`) for `source`.
+fn tcl_checks(
+    source: &str,
+    registry: &tcl_registry::CommandRegistry,
+) -> Vec<tcl_compiler::compiler_checks::Diagnostic> {
+    let cu =
+        CompilationUnit::build_for(source, registry, false).with_interprocedural(registry, None);
+    run_all_checks(&cu, registry, None)
+}
+
+/// Turn a real compiler diagnostic into the `ContextDiagnostic` the LSP hands
+/// `context_diagnostic_actions`, so a quick fix is exercised against the
+/// diagnostic the analyser actually emitted rather than a hand-written stand-in.
+fn as_context_diagnostic(
+    d: &tcl_compiler::compiler_checks::Diagnostic,
+    source: &str,
+) -> ContextDiagnostic {
+    let start = d.span.start() as usize;
+    let line = u32::try_from(source[..start].matches('\n').count()).unwrap_or(0);
+    let line_start = source[..start].rfind('\n').map_or(0, |i| i + 1);
+    let column = u32::try_from(start - line_start).unwrap_or(0);
+    let width = d.span.end().saturating_sub(d.span.start());
+    ContextDiagnostic {
+        code: d.code.to_string(),
+        message: d.message.clone(),
+        range: selection(line, column, column + width),
+    }
+}
+
+/// Apply an action's edits to `source` the way an editor would — last edit
+/// first, so an earlier edit's range is still valid when it is applied.
+///
+/// Line/character are UTF-16 units in the wire protocol; every source here is
+/// ASCII, where that is the byte offset.
+fn apply(action: &CodeAction, source: &str) -> String {
+    let mut lines: Vec<String> = source.split('\n').map(str::to_owned).collect();
+    let mut edits = action.edits.clone();
+    edits.sort_by_key(|e| std::cmp::Reverse((e.range.start_line, e.range.start_character)));
+    for e in edits {
+        assert_eq!(
+            e.range.start_line, e.range.end_line,
+            "these fixes rewrite within one line: {e:?}",
+        );
+        let line = &mut lines[e.range.start_line as usize];
+        let (start, end) = (
+            e.range.start_character as usize,
+            e.range.end_character as usize,
+        );
+        line.replace_range(start..end, &e.new_text);
+    }
+    lines.join("\n")
+}
+
 /// A single-position (empty) `LspRange` at `(line, character)`.
 fn cursor(line: u32, character: u32) -> LspRange {
     LspRange {
@@ -123,6 +176,11 @@ fn selection(line: u32, start: u32, end: u32) -> LspRange {
         end_line: line,
         end_character: end,
     }
+}
+
+/// A document with no `# noqa` and no file-level directive.
+fn no_suppression() -> std::collections::HashMap<i32, std::collections::HashSet<String>> {
+    std::collections::HashMap::new()
 }
 
 /// A whole-document range (line 0..last, full width).
@@ -332,9 +390,8 @@ fn invert_comparison_flips_relational_operator() {
 
 #[test]
 fn invert_comparison_flips_tip461_string_ordering_operator() {
-    // Issue #983/#986: the hand-typed inversion list never included the
-    // 9.0+ `lt`/`le`/`gt`/`ge` word-form comparisons at all, so this quick
-    // fix silently never offered itself for one of them.
+    // An inversion list that omits the 9.0+ `lt`/`le`/`gt`/`ge` word-form
+    // comparisons never offers this quick fix for one of them.
     //
     // tclsh 9.0: `$a lt $b` ≡ `!($a ge $b)` for any string pair (a total
     // order, same identity as the numeric/`<=` case above).
@@ -417,9 +474,9 @@ fn demorgan_reverse_collapses_disjunction_of_negations() {
 
 #[test]
 fn demorgan_forward_recognises_irules_word_operators() {
-    // Adversarial-review finding: `demorgan_transform` only recognised the
-    // symbolic `&&`/`||`/`!` forms, so it silently never offered the rewrite
-    // for a selection written in iRules' word style — `!($a and $b)` (the
+    // Recognising only the symbolic `&&`/`||`/`!` forms would never offer
+    // the rewrite for a selection written in iRules' word style — `!($a and
+    // $b)` (the
     // same shape `demorgan_reverse_collapses_disjunction_of_negations`
     // above exercises symbolically) got no "Apply De Morgan's law" action
     // at all, an inconsistent gap given the sibling `invert_comparison` fix
@@ -561,7 +618,7 @@ fn inline_declines_control_flow_body() {
     // A proc whose body is a control-flow command (`return`) is NOT inlinable:
     // `return` acts on the call frame, so running it in the caller's frame
     // would return from the *caller*.  The action is surfaced greyed out with
-    // that reason rather than silently omitted (issue #1199), so a user can
+    // that reason rather than silently omitted, so a user can
     // tell "cannot be done here" from "is broken".
     let src = "proc f {} { return 1 }\nf\n";
     let analysis = analyse(src);
@@ -591,12 +648,12 @@ fn inline_declines_multi_command_body() {
     assert!(inline.edits.is_empty(), "a refusal carries no edits");
 }
 
-// FIXED: inline_proc_action no longer brace-truncates a body with a braced
-// sub-expression. It previously sliced the body with `proc_def.body_span` —
-// whose `.end()` excludes the proc's closing `}` (lexer inner-end convention) —
-// then `.trim_end_matches('}')` greedily ate the INNER expr brace, so
-// `proc double {n} { expr {$n * 2} }` inlined `double 5` to `expr {5 * 2`
-// (unparseable). It now strips a trailing `}` only when it is the unbalanced
+// `inline_proc_action` must not brace-truncate a body with a braced
+// sub-expression. Slicing the body with `proc_def.body_span` — whose `.end()`
+// excludes the proc's closing `}` (lexer inner-end convention) — and then
+// `.trim_end_matches('}')` greedily eats the INNER expr brace, so
+// `proc double {n} { expr {$n * 2} }` inlines `double 5` to `expr {5 * 2`
+// (unparseable). It strips a trailing `}` only when it is the unbalanced
 // outer brace, preserving the inner sub-expression brace.
 //
 // Proven on tclsh8.6 + tclsh9.0: info complete {expr {5 * 2}} -> 1 (complete);
@@ -683,7 +740,8 @@ fn check_actions_surface_irule5004_dns_return_fix() {
         "expected an IRULE5004 check carrying a fix; got {checks:?}",
     );
     let none_disabled = std::collections::HashSet::new();
-    let actions = check_diagnostic_actions(src, whole(src), &checks, &none_disabled);
+    let actions =
+        check_diagnostic_actions(src, whole(src), &checks, &none_disabled, &no_suppression());
     // Fix description is `Add 'return' after DNS::return`.
     let fix = find(&actions, "after DNS::return").expect("an IRULE5004 quick-fix");
     assert_eq!(fix.kind, ActionKind::QuickFix);
@@ -714,7 +772,7 @@ fn check_actions_irule5004_suppressed_when_disabled() {
     let checks = irules_checks(src, &registry);
     let mut disabled = std::collections::HashSet::new();
     disabled.insert("IRULE5004".to_string());
-    let actions = check_diagnostic_actions(src, whole(src), &checks, &disabled);
+    let actions = check_diagnostic_actions(src, whole(src), &checks, &disabled, &no_suppression());
     assert!(
         find(&actions, "after DNS::return").is_none(),
         "disabled IRULE5004 must offer no fix; got {:?}",
@@ -1276,3 +1334,110 @@ fn every_emitted_action_is_structurally_sound() {
 // inline-proc brace-completeness that exposed the BUG) are pinned to real
 // tclsh8.6 + tclsh9.0 via `scripts/dev/tclsh_check.sh` and cited at each
 // `// tclsh:` line.
+
+/// The T101 quick fix, applied and re-analysed: the diagnostic is gone.
+///
+/// A fix that leaves its own diagnostic standing is worse than no fix — the
+/// user applies it, the squiggle stays, and the advice reads as wrong. So this
+/// runs the whole loop the editor does: analyse, take the T101 the analyser
+/// really emitted, ask for its quick fix, apply the edit, analyse again.
+///
+/// tclsh 8.6.18 and 9.0.4: `string map {"\n" "" "\r" ""} "a\nb\rc"` has length
+/// 3 (`abc`), so the rewrite the fix writes really does delete both characters
+/// — the mapping's `"\n"` element is list-parsed with its backslash honoured,
+/// making the newline itself the key.
+#[test]
+fn context_t101_strip_crlf_fix_clears_its_own_diagnostic() {
+    let registry = tcl_registry::CommandRegistry::build_default();
+    let src = "set x [gets stdin]\nputs $x\n";
+
+    let before = tcl_checks(src, &registry);
+    let t101 = before
+        .iter()
+        .find(|d| d.code == DiagCode::T101)
+        .expect("puts of a tainted value raises T101");
+
+    let diag = as_context_diagnostic(t101, src);
+    let actions = context_diagnostic_actions(src, std::slice::from_ref(&diag));
+    let fix = find(&actions, "Sanitise").expect("a T101 CR/LF-stripping quick fix");
+    assert_eq!(fix.kind, ActionKind::QuickFix);
+    assert!(
+        edits_well_formed(fix) && edits_in_bounds(fix, src),
+        "{fix:?}"
+    );
+
+    let fixed = apply(fix, src);
+    assert_eq!(
+        fixed, "set x [gets stdin]\nputs [string map {\"\\n\" \"\" \"\\r\" \"\"} $x]\n",
+        "the fix wraps the tainted word in place",
+    );
+    let after = tcl_checks(&fixed, &registry);
+    assert!(
+        after.iter().all(|d| d.code != DiagCode::T101),
+        "applying the fix must clear T101, got {after:?}",
+    );
+}
+
+/// The T103 quick fix, applied and re-analysed: the diagnostic is gone.
+///
+/// The same loop an editor runs, for the other taint fix that wraps its
+/// variable in place — analyse, take the T103 the analyser really emitted, ask
+/// for its quick fix, apply both its edits, analyse again.
+///
+/// The helper the fix inserts has to *load*, not just be correct: tclsh
+/// 8.6.18 and 9.0.4 both refuse `proc regex::quote …` with `unknown
+/// namespace` unless the namespace exists, which is why the inserted text
+/// opens with `namespace eval regex {}`. With it, both releases define the
+/// proc and `regex::quote {a.b*}` yields `a\.b\*`, which matches the literal
+/// `a.b*` and not `axbb` — the metacharacters are data after the wrap, which
+/// is what makes the pattern trusted.
+///
+/// That the wrap does not then trip W306 is pinned in `tcl-compiler`'s
+/// `checks::literal_expected`, where the analyser pass W306 comes from is in
+/// scope — `run_all_checks` here sees the compiler-checks pass only.
+#[test]
+fn context_t103_regex_quote_fix_clears_its_own_diagnostic() {
+    let registry = tcl_registry::CommandRegistry::build_default();
+    let src = "set p [gets stdin]\nregexp -- $p $line\n";
+
+    let before = tcl_checks(src, &registry);
+    let t103 = before
+        .iter()
+        .find(|d| d.code == DiagCode::T103)
+        .expect("a tainted regexp pattern raises T103");
+
+    let diag = as_context_diagnostic(t103, src);
+    let actions = context_diagnostic_actions(src, std::slice::from_ref(&diag));
+    let fix = find(&actions, "regex::quote").expect("a T103 regex::quote quick fix");
+    assert_eq!(fix.kind, ActionKind::QuickFix);
+    assert!(
+        edits_well_formed(fix) && edits_in_bounds(fix, src),
+        "{fix:?}"
+    );
+
+    let fixed = apply(fix, src);
+    assert!(
+        fixed.starts_with("namespace eval regex {}\nproc regex::quote "),
+        "the inserted helper must create its namespace before the qualified \
+         proc, or it cannot load: {fixed:?}",
+    );
+    let after = tcl_checks(&fixed, &registry);
+    assert!(
+        after.iter().all(|d| d.code != DiagCode::T103),
+        "applying the fix must clear T103, got {after:?} for {fixed:?}",
+    );
+}
+
+/// The control for the test above: a `string map` that does *not* delete CR
+/// and LF leaves T101 standing, so the fix is recognised for what it proves
+/// rather than for being a `string map` at all.
+#[test]
+fn an_unrelated_string_map_does_not_clear_t101() {
+    let registry = tcl_registry::CommandRegistry::build_default();
+    let src = "set x [gets stdin]\nputs [string map {a b} $x]\n";
+    let diags = tcl_checks(src, &registry);
+    assert!(
+        diags.iter().any(|d| d.code == DiagCode::T101),
+        "a mapping that proves nothing must keep the finding, got {diags:?}",
+    );
+}

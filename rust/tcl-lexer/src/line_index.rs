@@ -91,14 +91,11 @@ pub fn normalise_lone_cr(source: &str) -> Cow<'_, str> {
 ///
 /// **Free to clone**: the backing storage is an `Arc<[u32]>`, so a clone is a
 /// reference-count bump — no allocation, no byte copy — and every clone shares
-/// one allocation.
-///
-/// It was a `Box<[u32]>` (one allocation plus a byte copy per clone) until the
-/// sharing this anticipated turned up in profiles: `tcl-lsp-server`'s
-/// `read_document` hands every in-flight LSP request its own snapshot of the
-/// open document, so `R` concurrent requests against an `L`-line document each
-/// copied `4L` bytes of line index (issue #1184). `filetypes.tcl` alone is
-/// 85,040 lines — 332 KiB of index — per request.
+/// one allocation. This matters because `tcl-lsp-server`'s `read_document`
+/// hands every in-flight LSP request its own snapshot of the open document,
+/// so `R` concurrent requests against an `L`-line document would otherwise
+/// each copy `4L` bytes of line index. `filetypes.tcl` alone is 85,040 lines
+/// — 332 KiB of index — per request.
 ///
 /// Nothing here is shared *mutably*: every mutation ([`Self::apply_edit`])
 /// builds a fresh `Vec` and replaces the handle wholesale, so an outstanding
@@ -121,10 +118,8 @@ impl LineIndex {
     /// This `\n`-only rule matches the red CST overlay's own
     /// `build_line_starts`. Keeping the rule identical across the
     /// lexer and the CST is what makes their token positions agree for
-    /// old-Mac (bare-CR) input — the position-equivalence invariant
-    /// restored upstream in #537, where a CR-counting index
-    /// reported a token after a lone CR one line below its own end (a
-    /// backwards range).
+    /// old-Mac (bare-CR) input — a CR-counting index reports a token after a
+    /// lone CR one line below its own end, a backwards range.
     ///
     /// # Panics
     ///
@@ -281,7 +276,7 @@ impl LineIndex {
     ///
     /// This is the sharing contract itself, not a debugging aid: consumers that
     /// hand one index to many concurrent readers ([`LineIndex`]'s own doc
-    /// comment, and `tcl-lsp-server`'s document snapshots — issue #1184) depend
+    /// comment, and `tcl-lsp-server`'s document snapshots) depend
     /// on a clone costing a reference-count bump, and a silent regression to a
     /// copy-per-clone is invisible to any equality-based assertion. Comparing
     /// identity is the only way to pin it.
@@ -754,9 +749,8 @@ mod tests {
 
     #[test]
     fn bare_cr_is_not_a_line_break() {
-        // A lone CR is horizontal whitespace in Tcl, not an EOL — and
-        // post-#537 main counts only `\n` in its line index, so a bare
-        // `\r` does not start a new line.
+        // A lone CR is horizontal whitespace in Tcl, not an EOL — the line
+        // index counts only `\n`, so a bare `\r` does not start a new line.
         let idx = LineIndex::new("abc\rdef");
         assert_eq!(idx.line_count(), 1);
         // The lone CR at offset 3 is itself on line 0, column 3.
@@ -969,9 +963,9 @@ mod tests {
     }
     #[test]
     fn clone_shares_one_backing_allocation() {
-        // The sharing contract (issue #1184): a clone is a reference-count
-        // bump, not a copy, so many concurrent readers of one document's index
-        // hold one allocation between them rather than one each.
+        // The sharing contract: a clone is a reference-count bump, not a
+        // copy, so many concurrent readers of one document's index hold one
+        // allocation between them rather than one each.
         let idx = LineIndex::new_lsp("a\nb\nc\n");
         let snapshots: Vec<LineIndex> = (0..32).map(|_| idx.clone()).collect();
         for snap in &snapshots {

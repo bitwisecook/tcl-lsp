@@ -64,8 +64,8 @@ fn reg_and_set(dialect: &str) -> (&'static CommandRegistry, Option<SurfaceQuery<
     // "Available under dialect D" is membership in D's *profile availability
     // point*, not the bare single dialect bit. For the additive vendor
     // dialects the mask is `(base Tcl version | vendor bit)` — e.g. expect is
-    // `TCL86 | EXPECT` — so a core command (now an explicit `ALL_TCL` surface,
-    // no longer universal `None`) resolves through the version half. Using the
+    // `TCL86 | EXPECT` — so a core command (an explicit `ALL_TCL` surface)
+    // resolves through the version half. Using the
     // bare bit here would wrongly exclude the whole Tcl core from every vendor
     // dialect.
     (
@@ -863,7 +863,7 @@ fn proc_body_is_structural() {
 /// aborts with `no namespace specified in import pattern "-force"`.
 /// `namespace export a -clear` exports both, so the flag is only ever the
 /// first word. Consumers read the limit from here rather than bounding a loop
-/// of their own (PR #1102 review finding 3).
+/// of their own.
 ///
 /// registry-metadata: `max_leading_option_words`.
 #[test]
@@ -1212,7 +1212,7 @@ fn tcloo_is_tcl86_plus() {
     assert!(r85.get_for_surface("oo::define", d85).is_none());
 }
 
-/// The iRules profile pulls in `when`, the HTTP family, the seeded AAA catalog,
+/// The iRules profile pulls in `when`, the HTTP family, the seeded AAA catalogue,
 /// the `class`/`table` generated commands, and deprecated profile commands.
 ///
 /// f5-dialect: none of these are real tclsh commands.
@@ -1277,7 +1277,7 @@ fn f5_irules_curated_signatures_are_concrete() {
 }
 
 /// The f5-iapps profile has `iapp::template` / `iapp::conf` but NOT the iRules
-/// catalog.
+/// catalogue.
 ///
 /// f5-dialect.
 #[test]
@@ -1285,7 +1285,7 @@ fn f5_iapps_profile_membership() {
     let (reg, ds) = reg_and_set("f5-iapps");
     assert!(reg.get_for_surface("iapp::template", ds).is_some());
     assert!(reg.get_for_surface("iapp::conf", ds).is_some());
-    // f5-iapps is a separate catalog from f5-irules.
+    // f5-iapps is a separate catalogue from f5-irules.
     assert!(
         reg.get_for_surface("AAA::acct_result", ds).is_none(),
         "iRules catalog must not leak into f5-iapps"
@@ -1446,7 +1446,7 @@ fn detection_target_dialects_are_known() {
     );
 }
 
-/// `available_dialects()` is the sorted catalog backing the CLI `--dialect`
+/// `available_dialects()` is the sorted catalogue backing the CLI `--dialect`
 /// choices; `KNOWN_DIALECTS` is its data. Sanity-check completeness + order.
 ///
 /// registry-metadata.
@@ -1712,7 +1712,7 @@ fn cached_dialect_registries_are_populated() {
     );
 }
 
-// Issue #806 — report package command specs + scoped-body / object model.
+// Report package command specs and scoped-body / object model.
 
 /// `report::defstyle` carries the scoped style-definition environment, with the
 /// report configuration methods and their operations as registry data.
@@ -1796,7 +1796,7 @@ fn report_report_object_class_is_modelled() {
 
 /// Every Tk/ttk widget constructor names the widget path it creates at
 /// arg 0, so a later `.w <subcommand> …` / `$w <subcommand> …` dispatch can
-/// resolve back to this same spec (issue #927:
+/// resolve back to this same spec (see
 /// `docs/design/analysis/tk-widget-instance-typing.md`).
 #[test]
 fn tk_widget_constructors_declare_creates_instance_at() {
@@ -1893,10 +1893,10 @@ fn tk_widgets_with_subcommands_self_reference_their_object_class() {
         // This is a pointer-identity check, and it is only meaningful because
         // each widget's table is a `static SUBCOMMANDS: [SubCommand; N]` that
         // both use sites reach via `&SUBCOMMANDS` — one static, one address.
-        // It used to be a `const`, whose referent has NO stable address (every
-        // use site may materialise its own copy); the assertion then passed at
-        // opt-level 0 purely by accident of codegen and failed the moment the
-        // crate was built at opt-level 2.  If you turn these tables back into
+        // A `const` table has NO stable address (every use site may
+        // materialise its own copy), which would make this assertion pass at
+        // opt-level 0 purely by accident of codegen and fail once the crate is
+        // built at opt-level 2.  If you turn these tables back into
         // `const`s, this assertion becomes a coin flip again — keep them
         // `static`.
         assert!(
@@ -2110,17 +2110,16 @@ fn interp_create_defines_command_at_its_name_argument() {
     assert_eq!(eval.defines_command_at, None);
 }
 
-// TclOO method-context keywords + the `Tcl_ConcatObj` eval family (#1050, #1051)
+// TclOO method-context keywords and the `Tcl_ConcatObj` eval family.
 
 /// The `TclOO` method-context keyword set is exactly `my` / `next` / `nextto`
 /// / `self`, and `CommandRegistry::method_dispatch_keyword` answers with the
 /// right kind for each.
 ///
-/// This is the guard for issue #1050: the consumer-visible keyword set must
+/// The consumer-visible keyword set must
 /// equal the trait-carrying specs, so a consumer can never drift from the
 /// registry by re-adding a `head == "my"` literal.  `link` is deliberately
-/// out — it *creates* per-class bareword commands rather than dispatching one
-/// (issue #1026).
+/// out — it *creates* per-class bareword commands rather than dispatching one.
 ///
 /// registry-metadata: which keyword is dispatch and which is introspection is
 /// our classification.  (`my`, `next`, `nextto`, `self`, and `link` are all
@@ -2171,7 +2170,7 @@ fn tcloo_dispatch_keyword_membership() {
     }
 }
 
-/// The method-context-scoped set (issue #1026) — which bare spellings only
+/// The method-context-scoped set — which bare spellings only
 /// resolve inside a `TclOO` method body — is exactly `callback` / `link` /
 /// `my` / `mymethod` / `next` / `nextto` / `self` / `classvariable`, and
 /// never the qualified `oo::Helpers::…` spellings.
@@ -2273,7 +2272,7 @@ fn tcloo_method_context_membership() {
 /// `link` — and only `link` — declares that it binds bareword aliases for
 /// the current object's methods, so the analyser's class-body walk finds
 /// those calls through the registry instead of a `texts[0] == "link"`
-/// literal (issue #1026).
+/// literal.
 #[test]
 fn tcloo_method_alias_binding_membership() {
     let reg = static_context_for("tcl9.0").commands();
@@ -2298,7 +2297,7 @@ fn tcloo_method_alias_binding_membership() {
 }
 
 /// **Resolving is not calling.** Every `::oo::Helpers` member needs a real
-/// method invocation; `my` does not (Codex review of PR #1084).
+/// method invocation; `my` does not.
 ///
 /// tclsh 9.0.4, inside `oo::class create ::P { initialize { … } }` — a frame
 /// with the class object's namespace current and `namespace path` =
@@ -2376,8 +2375,7 @@ fn tcloo_method_frame_membership() {
 
 /// The **qualified** `oo::Helpers::…` spelling must be gated exactly like its
 /// bare twin per dialect — same dialect availability, same package
-/// requirement — because they are the same underlying command (Codex review
-/// of PR #1084).
+/// requirement — because they are the same underlying command.
 ///
 /// The regression this pins: `oo::Helpers::link` was derived only from the
 /// 9.0 core spec, so an 8.6 document with `package require ooutil` — where
@@ -2412,7 +2410,7 @@ fn qualified_oo_helpers_spellings_track_their_bare_twin_per_dialect() {
 /// The consumer-visible keyword set equals the trait-carrying specs across
 /// every dialect a `TclOO` consumer may run under, including the F5 ones.
 ///
-/// The guard for the #1050 migration: `tcl-lsp-core`'s references,
+/// What this guards: `tcl-lsp-core`'s references,
 /// call-hierarchy, definition, hover, rename, and semantic-token providers,
 /// plus the compiler's `var_command` / `elimination` / `class_lattice` /
 /// `var_observability` passes, all resolve these words through
@@ -2588,7 +2586,7 @@ fn script_append_list_refinement_is_inscope_only() {
     }
 }
 
-// issue #923 idx 3/4 — tcllib `textutil::adjust` submodule vs the `textutil`
+// tcllib `textutil::adjust` submodule vs the `textutil`
 // umbrella package's flattened re-export aliases.
 //
 // Ground truth (tclsh 9.0.4 + real tcllib-2.0 `modules/textutil/`, verified
@@ -2720,7 +2718,7 @@ mod textutil_submodule_vs_umbrella {
         }
     }
 
-    /// Contract test (code-review follow-up on this PR): the umbrella alias
+    /// Contract test: the umbrella alias
     /// and the submodule-qualified canonical name are the *same real tcllib
     /// command* under two different call spellings, so every trait
     /// descriptor (`Traits::PURE` and any future one) must agree between
@@ -2775,8 +2773,8 @@ mod textutil_submodule_vs_umbrella {
     }
 }
 
-/// `namespace`'s namespace-name argument positions — the registry data issue
-/// #1088's navigation is driven by.  Which words name a namespace is a
+/// `namespace`'s namespace-name argument positions — the registry data
+/// navigation is driven by.  Which words name a namespace is a
 /// registry fact, so no analyser or provider matches a subcommand spelling.
 ///
 /// Oracle (tclsh 9.0.4 and 8.6.16, byte-identical): `namespace children
@@ -2886,7 +2884,7 @@ fn only_namespace_eval_declares_a_namespace() {
     assert_eq!(declarers, vec!["namespace"]);
 }
 
-// Object-handle bindings (issue #1185) — which argument of a call becomes a
+// Object-handle bindings — which argument of a call becomes a
 // handle, and of what class, is registry data rather than a walker's
 // command-name match.
 
@@ -3106,7 +3104,7 @@ fn registered_metaclass_manufacturer_surface_matches_c_tcl() {
 /// $obj varname v    -> unknown method "varname": must be destroy or probe
 /// ```
 ///
-/// That last pair is the guard for issue #1329: `my` bypasses `TclOO`'s export
+/// That last pair is the guard: `my` bypasses `TclOO`'s export
 /// filter and the object's own command does not, so a consumer diagnosing an
 /// unknown method must ask with the right `MethodReach` or it will either
 /// false-positive on the idiomatic `my variable v` or wave through the real
@@ -3308,7 +3306,7 @@ fn mqtt_payload_forms_declare_event_and_collection_contracts() {
 }
 
 /// The registry's `namespace ensemble` option tables carry exactly the names
-/// their owning utility does (issue #1610).
+/// their owning utility does.
 ///
 /// `tcl_cmd_core::ensemble::{CREATE_OPTIONS, CONFIG_OPTIONS}` is the port of
 /// `tclEnsemble.c`'s two tables and the owner of that fact; the registry rows
@@ -3362,7 +3360,7 @@ fn the_ensemble_option_tables_match_their_owning_utility() {
 }
 
 /// An operation's option table is three-valued, and `exists` needs the third
-/// state (issue #1610, Codex review).
+/// state.
 ///
 /// `Some(&[])` says "no options here" and must not fall back to the parent;
 /// `None` says nothing and must. Collapsing the two is what offered

@@ -30,9 +30,10 @@ export async function run(): Promise<void> {
   // Written unconditionally when mocha's run() callback fires (pass or fail),
   // and refreshed every couple of seconds while it runs — the same contract
   // `index.ts` gives the single-folder suite (see `runnerWatchdog.ts`). This
-  // suite used to write neither, so its own runner (`runMultiFolderTest.ts`)
-  // had no progress evidence and — worse — treated its own launch-exit
-  // timeout as success, which could silently pass a hung multi-folder run.
+  // marker is what gives the runner (`runMultiFolderTest.ts`) progress
+  // evidence; without it, the runner would have no way to distinguish a hung
+  // run from one still in progress, and could treat its own launch-exit
+  // timeout as success — silently passing a hung multi-folder run.
   const resultMarker = path.resolve(
     __dirname,
     "../../../",

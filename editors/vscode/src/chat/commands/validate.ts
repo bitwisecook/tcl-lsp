@@ -46,10 +46,11 @@ export async function handleValidate(ctx: CommandContext): Promise<vscode.ChatRe
 
   ctx.response.progress("Running LSP analysis...");
 
-  // Ensure dialect is f5-irules
+  // Ensure dialect is f5-irules.
   // Pinned as a *session override*, not a configuration push: a push is
-  // re-applied away by the next `workspace/configuration` pull, which can land
-  // at any time, so the pin's lifetime was arbitrary (issue #1217).
+  // re-applied away by the next `workspace/configuration` pull, which can
+  // land at any time, so a push's effect would last an unpredictable length
+  // of time.
   const pinnedDialect = getActiveDialect() !== "f5-irules";
   if (pinnedDialect) {
     await setSessionDialectOverride("f5-irules");

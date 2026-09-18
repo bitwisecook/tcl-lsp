@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Issue #1019 differential audit, `proc_args` group — the editor tier.
+// `proc_args` group — the editor tier.
 //
 // The findings below were verified against tclsh 9.0.4 and 8.6.16 (which
 // agree byte-for-byte) and are pinned in the Rust unit and end-to-end tiers.
@@ -203,8 +203,8 @@ suite("Issue #1019 idx 11 — a proc named after a package command", () => {
 
   test("fires neither W113 nor W120 nor an arity error (false case)", async () => {
     // The document is clean, so there is no diagnostic to wait *for*.  Waiting
-    // out a deadline with a predicate that can never hold is the anti-pattern
-    // issue #1274 is about: it costs the full deadline on every run even when
+    // out a deadline with a predicate that can never hold is an anti-pattern:
+    // it costs the full deadline on every run even when
     // the server settled in milliseconds, and it proves nothing — an empty set
     // satisfies all three negative assertions below whether analysis ran or
     // not.  The server's deep-diagnostics marker is the actual signal that the

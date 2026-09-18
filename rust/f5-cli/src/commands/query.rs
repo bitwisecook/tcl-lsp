@@ -47,9 +47,9 @@
 //! network probes (`dns` / `ping` / `http` / `tls` / x509 + `cert_load`) are
 //! gated behind `--enable-probes`.
 //! `ucs_cert` has its UCS reader wired here (read the PEM out of the archive
-//! via `read_ucs_member`, then `x509_parse`); reaching it through the DSL also
-//! needs the `sys file-ssl-cert` object projection, which the query engine does
-//! not yet surface (only the LTM kinds are projected).
+//! via `read_ucs_member`, then `x509_parse`); the DSL reaches it through the
+//! `sys file ssl-cert` / `cm cert` projections
+//! (`.sys["file-ssl-cert"][] | ucs_cert(.)`).
 
 use std::collections::BTreeMap;
 use std::io::Write as _;
@@ -312,8 +312,8 @@ fn parse_partition_bindings(
     Ok(bindings)
 }
 
-/// A parsed `--input-<kind> NAME=PATH[:hdr,…]` binding: `(name, (path,
-/// csv_headers_or_None))`. Port of `_parse_input_bindings`' return shape.
+/// A parsed `--input-<kind> NAME=PATH[:hdr,…]` binding: the `$NAME` it
+/// binds, its path, and the CSV header override when the flag carried one.
 type InputBinding = (String, (String, Option<Vec<String>>));
 
 /// Parse a `--input-<kind> NAME=PATH[:hdr,…]` flag group.
@@ -1066,8 +1066,7 @@ mod ucs_cert_tests {
 
     // The committed UCS holds a metadata-free `sys file ssl-cert` stanza plus
     // the real PEM in the filestore; `ucs_cert` must recover the cert's identity
-    // from the PEM, not the stanza. (End-to-end reachability via the query DSL
-    // additionally needs the unimplemented `sys file-ssl-cert` projection.)
+    // from the PEM, not the stanza.
     const CACHE_PATH: &str = "/config/filestore/files_d/Common_d/certificate_d/:Common:t.crt_1";
     const EXPECTED_FP: &str = "79F67B000B1E685F3B2EC336A82C37985A1175F17176D60A60CDD6DD7FE874CD";
 
@@ -1091,6 +1090,45 @@ mod ucs_cert_tests {
             fp, EXPECTED_FP,
             "ucs_cert must parse the real PEM from the filestore",
         );
+    }
+
+    /// The DSL path the `ucs_cert` error text names: navigate the UCS's
+    /// `sys file ssl-cert` projection, then re-open the PEM from the archive.
+    /// Guards the projection and the reader together — either half missing
+    /// breaks the reachable path even though both unit tests above pass.
+    #[test]
+    fn ucs_cert_reaches_cert_through_the_dsl() {
+        let fixture = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/ucs-cert-sample.ucs"
+        );
+        let pass = crate::cli::PassphraseArgs::default().to_options();
+        let (uri, src) =
+            tcl_bigip_io::read_path(fixture, false, &pass).expect("UCS reads as an SCF");
+        let opts = tcl_bigip_query::QueryOptions {
+            ucs_cert_reader: Some(make_ucs_cert_reader()),
+            ..tcl_bigip_query::QueryOptions::default()
+        };
+        let result = tcl_bigip_query::run_query(
+            r#".sys["file-ssl-cert"][] | ucs_cert(.).fingerprint_sha256"#,
+            &[(uri, src)],
+            &opts,
+        )
+        .expect("the query runs");
+        let values: Vec<&Value> = result
+            .values_per_file
+            .iter()
+            .flat_map(|(_, vs)| vs.iter())
+            .collect();
+        assert_eq!(
+            values.len(),
+            1,
+            "the UCS holds exactly one sys file ssl-cert: {values:?}"
+        );
+        let Value::Str(fp) = values[0] else {
+            panic!("fingerprint_sha256 must be a string, got {:?}", values[0]);
+        };
+        assert_eq!(fp, EXPECTED_FP);
     }
 
     #[test]

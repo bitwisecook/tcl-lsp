@@ -106,14 +106,17 @@ proc format_name {first last} {
 
 # --- Recursion transforms (O121, O122, O123) ---
 
-# O121 only: O122's loop conversion accepts this `return [factorial …]` shape
-# too, and overlap selection keeps the per-site `tailcall` rewrite instead.
-# Both are faithful; see README.md and `tail_call_loop_conversion_o122`.
+# O122: every self-call is in tail position and passes one argument per
+# parameter, so the whole proc becomes a `while {1}` loop. Overlap selection
+# prefers it over the per-site O121 `tailcall` rewrite covering the same
+# range. See README.md and `tail_call_loop_conversion_o122`.
 proc factorial {n {acc 1}} {
-    if {$n <= 1} {
-        return $acc
+    while {1} {
+        if {$n <= 1} {
+            return $acc
+        }
+        lassign [list [expr {$n - 1}] [expr {$n * $acc}]] n acc
     }
-    tailcall factorial [expr {$n - 1}] [expr {$n * $acc}]
 }
 
 # O123: non-tail recursion hint (accumulator candidate)
@@ -149,5 +152,5 @@ proc sum_list {lst} {
 # O102  Forward literal load of 'rolling' from its single reaching definition
 # O109  Eliminate dead store
 # O102  Forward literal load of 'rolling' from its single reaching definition
-# O121  Use tailcall for self-recursion in proc 'factorial'
+# O122  Convert tail-recursive 'factorial' to iterative loop
 # O123  Proc 'sum_list' is a candidate for accumulator-style rewriting

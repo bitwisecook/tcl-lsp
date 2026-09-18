@@ -73,14 +73,14 @@ use super::{Optimisation, PassContext};
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // A dynamic variable-trace target (`trace add variable $n …`) means
     // *every* name is potentially traced, so no intermediate write is
-    // provably unobserved anywhere in the module (issue #1377).
+    // provably unobserved anywhere in the module.
     if cu.ir_module.has_dynamic_variable_trace {
         return;
     }
     let mut cross = ctx.cross_event_vars.clone();
     // The whole-module trace fact stores the canonical (`::`-stripped)
     // spelling, so it also protects a chain whose target is spelled
-    // unqualified while the trace names `::var` (issue #1377) — the same
+    // unqualified while the trace names `::var` — the same
     // fact SCCP and O102 already consult.
     cross.extend(cu.ir_module.traced_variables.iter().cloned());
     // `ctx.registry` is always set by the `optimise*` entry points; a bare
@@ -99,7 +99,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         let fu = cu.procedures.get(qname);
         // A computed variable name (`set $name …`) can write the accumulator
         // mid-chain under a spelling `classify_write` cannot see, so the
-        // whole function abstains (issue #1374).
+        // whole function abstains.
         if fu.is_some_and(FunctionUnit::dynamic_barrier_blocks_value_motion) {
             continue;
         }
@@ -467,9 +467,9 @@ mod tests {
         out
     }
 
-    /// Regression coverage for issue #996: `fold_script` recurses once per
+    /// `fold_script` recurses once per
     /// nested `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch` body,
-    /// with no depth cap of its own before this fix. Transitively bounded
+    /// so it needs a depth cap of its own. Transitively bounded
     /// to `MAX_LOWER_NEST_DEPTH` (256) by the lowering pass today, so this
     /// is defence-in-depth / consistency with every other full-tree walker
     /// in this crate, not a currently-reproducible crash. 1000 levels of
@@ -637,7 +637,7 @@ mod tests {
         );
     }
 
-    /// Issue #1374 — a computed variable name between the writes can hit the
+    /// A computed variable name between the writes can hit the
     /// accumulator under a spelling `classify_write` cannot see (`f acc`
     /// returns `zzz b` in tclsh; the fold's `a b` would be a miscompile), so
     /// the whole proc abstains from O104 / O130.
@@ -652,7 +652,7 @@ mod tests {
         );
     }
 
-    /// Issue #1377 — a write trace observes every intermediate store. The
+    /// A write trace observes every intermediate store. The
     /// module fact records the trace target `::acc` canonically as `acc`, so
     /// the unqualified chain over `acc` must be protected too.
     #[test]
@@ -665,7 +665,7 @@ mod tests {
         );
     }
 
-    /// Issue #1377 — a dynamic trace target (`trace add variable $n …`)
+    /// A dynamic trace target (`trace add variable $n …`)
     /// makes every name potentially traced, so no chain folds at all.
     #[test]
     fn dynamic_trace_target_blocks_chain_fold() {

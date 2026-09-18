@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The `namespace` command (T1.5) — `eval` / `current` / `path` / `export` /
+//! The `namespace` command — `eval` / `current` / `path` / `export` /
 //! `import` / `forget` / `which`, plus the cheap introspection forms
 //! (`exists` / `parent` / `children` / `qualifiers` / `tail`).
 //!
@@ -107,7 +107,7 @@ fn namespace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-// -- current / eval / exists / parent / children ---------------------------
+// current / eval / exists / parent / children
 
 /// `namespace unknown ?handler?` — get or set the current namespace's
 /// unknown-command handler. The global namespace's default is `::unknown`; a
@@ -283,7 +283,7 @@ fn ns_which(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-// -- export / import / forget ----------------------------------------------
+// export / import / forget
 
 /// `namespace export ?-clear? ?pattern ...?` — query / append (or clear+set)
 /// the current namespace's export patterns.
@@ -506,7 +506,7 @@ fn ns_forget(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-// -- path ------------------------------------------------------------------
+// path
 
 /// `namespace path ?nsList?` — query (FQN list) or set the current ns's path.
 fn ns_path(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -542,7 +542,7 @@ fn ns_path(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-// -- helpers ---------------------------------------------------------------
+// helpers
 
 /// The `TclGetNamespaceFromObj` not-found error: a *relative* name names the
 /// current namespace context (`… not found in "::ns"`), an absolute one does not
@@ -611,9 +611,10 @@ fn drop_fresh(obj: *mut TclObj) {
 /// namespace eval    :: {puts} {a b}   → error: can not find channel named "a"
 /// ```
 ///
-/// (Twin of #1056/#1067, already fixed for the bytecode VM.) With no extra
-/// args, C takes the `objc == 3` arm and evaluates the script verbatim — no
-/// concat, so no trim and no trailing space, which the early return mirrors.
+/// (This mirrors the bytecode VM's handling of the same construct.) With no
+/// extra args, C takes the `objc == 3` arm and evaluates the script
+/// verbatim — no concat, so no trim and no trailing space, which the early
+/// return mirrors.
 fn ns_inscope(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
         return interp.wrong_args(b"namespace inscope name arg ?arg...?");
@@ -750,7 +751,7 @@ fn ns_upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-// -- ensemble --------------------------------------------------------------
+// ensemble
 
 /// `namespace ensemble create|exists ...` — the canonical `ens sub`→target
 /// redirect (the generalised `dict for`→`::tcl::dict::for` mechanism).
@@ -1078,10 +1079,11 @@ mod tests {
         assert_eq!(counters::double_free_count(), 0);
     }
 
-    /// Issue #1607: `namespace` is a `TclMakeEnsemble` command, so its
-    /// exact-then-unique-prefix scan and its whole miss sentence belong to
-    /// `tcl_cmd_core::ensemble` — both were hand-rolled here, the 19-entry
-    /// enumeration as a literal beside the table it duplicates.
+    /// `namespace` is a `TclMakeEnsemble` command, so its exact-then-unique-
+    /// prefix scan and its whole miss sentence belong to
+    /// `tcl_cmd_core::ensemble`, rather than a hand-rolled scan with the
+    /// 19-entry enumeration duplicated as a literal beside the table that
+    /// already owns it.
     ///
     /// tclsh 8.6.16 / 9.0.4:
     ///   namespace cu -> ::
@@ -1136,10 +1138,10 @@ mod tests {
         });
     }
 
-    /// `-prefixes` reads its value through the runtime's one boolean acceptor,
-    /// so every spelling `tclsh9.0` accepts here is accepted (issue #1425's
-    /// runtime half): a unique word prefix, and any number against zero. Only
-    /// the ambiguous `o` — shared by `on` and `off` — is refused.
+    /// `-prefixes` reads its value through the runtime's one boolean
+    /// acceptor, so every spelling `tclsh9.0` accepts here is accepted: a
+    /// unique word prefix, and any number against zero. Only the ambiguous
+    /// `o` — shared by `on` and `off` — is refused.
     #[test]
     fn ensemble_prefixes_accepts_every_boolean_spelling_tclsh_does() {
         leak_free(|i| {
@@ -1275,7 +1277,7 @@ mod tests {
         });
     }
 
-    /// Tcl 9.0.4 oracle vectors from issue #1584. These exercise the runtime
+    /// Vectors measured against tclsh 9.0.4. These exercise the runtime
     /// adapter through the same shared namespace grammar as the bytecode VM.
     #[test]
     fn namespace_issue_1584_oracle_vectors() {
@@ -1377,8 +1379,7 @@ mod tests {
             );
             // Now from ::app, bare `ping` resolves through the path. Its body
             // `set pinged` runs with the current namespace = ::app, so the
-            // variable lands in ::app's table (NOT global — the T1.5 var-namespace
-            // fix; before it, every unqualified `set` leaked to the global frame).
+            // variable lands in ::app's table, not the global frame.
             assert_eq!(i.eval_str(b"namespace eval app { ping yes }"), Code::Ok);
             assert_eq!(i.result_bytes(), b"yes");
             assert_eq!(i.eval_str(b"set ::app::pinged"), Code::Ok);
@@ -1459,8 +1460,8 @@ mod tests {
 
     #[test]
     fn qualifier_namespace_existing_does_not_commit_resolution() {
-        // tclsh 8.6/9.0 (PR #924): the fallback is *command*-existence-
-        // checked, not namespace-existence-checked.  `inner::p` from
+        // tclsh 8.6/9.0: the fallback is *command*-existence-checked, not
+        // namespace-existence-checked.  `inner::p` from
         // `::outer` must dispatch `::inner::p` even though the namespace
         // `::outer::inner` exists — it merely holds no `p`.
         leak_free(|i| {
@@ -1482,21 +1483,20 @@ mod tests {
     /// through this runtime's namespace tree — the anti-drift gate for
     /// `Namespaces::home_of`.
     ///
-    /// Issue #1058: this used to be skipped whenever libtommath was not
-    /// vendored, because the shared `vector_script` renderer captures the
-    /// call with `if {[catch {…} __r]} {…}` and `builtins::install` only
-    /// registers `if`/`while`/`for` under `have_tommath` — so the whole
-    /// gate reported `invalid command name "if"` on the first vector and
-    /// was ignored. That is a *capture-script* dependency, not a dispatch
-    /// one: nothing about command resolution needs the numeric tower.
+    /// `builtins::install` only registers `if`/`while`/`for` under
+    /// `have_tommath`, so capturing the call the way the shared
+    /// `vector_script` renderer normally does — `if {[catch {…} __r]} {…}`
+    /// — would report `invalid command name "if"` on the first vector when
+    /// libtommath is not vendored. That is a *capture-script* dependency,
+    /// not a dispatch one: nothing about command resolution needs the
+    /// numeric tower.
     ///
     /// So the capture is composed here from the tower-free half of the
     /// renderer (`vector_setup` + `vector_call`) with `set` and `catch`
     /// standing in for `if` — `set __r -` then `catch {set __r [call]}`
     /// leaves the dispatched name in `__r`, or `-` when the call raised,
-    /// which is exactly what the `if` form computes. The vectors now run in
-    /// **every** build of this crate, tower or no tower, and the skip is
-    /// gone.
+    /// which is exactly what the `if` form computes. This runs the vectors
+    /// in **every** build of this crate, tower or no tower.
     #[test]
     fn dispatch_matches_every_conformance_vector() {
         use tcl_syntax::naming::conformance::{vector_call, vector_setup, vectors};
@@ -1850,16 +1850,16 @@ mod tests {
         });
     }
 
-    // -- #1751: a deleted namespace is retained for its live frames ----------
+    // A deleted namespace is retained for its live frames.
     //
     // C's `Tcl_DeleteNamespace` takes the `activationCount > (nsPtr ==
     // globalNsPtr)` branch: `NS_DYING`, unlink the parent edge, and leave the
     // contents alone. `Tcl_PopCallFrame` calls the deletion again once the last
     // frame holding the token goes away.
 
-    /// The issue's headline: `namespace delete ::N` from inside `::N::p`
-    /// unpublishes the name immediately, yet the relative `q` still resolves
-    /// through the frame's own token.
+    /// `namespace delete ::N` from inside `::N::p` unpublishes the name
+    /// immediately, yet the relative `q` still resolves through the frame's
+    /// own token.
     #[test]
     fn deleting_the_running_namespace_retains_it_for_the_frame() {
         pins(
@@ -2365,7 +2365,7 @@ mod tests {
         });
     }
 
-    // -- ensembles (targets are aliases, since procs aren't available yet) -----
+    // ensembles (targets are aliases, since procs aren't available yet)
 
     #[test]
     fn ensemble_default_dispatches_to_namespace_commands() {
@@ -2431,7 +2431,7 @@ mod tests {
         });
     }
 
-    /// Tcl 9.0.4 oracle vectors from issue #1583: dict validation, callback
+    /// Vectors measured against tclsh 9.0.4: dict validation, callback
     /// prefix redispatch/reparse, and the user-facing default target name.
     #[test]
     fn ensemble_issue_1583_oracle_vectors() {
@@ -3692,19 +3692,15 @@ mod tests {
         });
     }
 
-    // -- braced defining word (issue #1058) -----------------------------------
+    // Braced defining word.
     //
-    // #1058 read the conformance gate's `invalid command name "if"` as the
-    // *braced* proc name in `proc {p} {} {…}` corrupting the command table —
-    // "the builtin `if` stops resolving after a proc is defined via a braced
-    // name word". It does not: the braces are word quoting, the parser strips
-    // them, and `define_proc` never sees them. The error was only ever the
-    // tower-gated `if` being absent from a libtommath-less build (see
-    // `dispatch_matches_every_conformance_vector`, which now runs without it).
+    // Defining a proc via a braced name word (`proc {p} {} {…}`) does not
+    // corrupt the command table: the braces are word quoting, the parser
+    // strips them, and `define_proc` never sees them.
     //
-    // These pin the real behaviour directly, in the tower-free command shapes
-    // the hypothesis was about, so the claim stays verifiable in *every* build
-    // rather than only where the numeric tower happens to be linked.
+    // These pin the real behaviour directly, in tower-free command shapes,
+    // so the claim stays verifiable in *every* build rather than only where
+    // the numeric tower happens to be linked.
 
     #[test]
     fn braced_defining_word_defines_the_unbraced_name() {
@@ -3727,11 +3723,10 @@ mod tests {
     #[test]
     fn braced_defining_word_leaves_builtin_dispatch_intact() {
         leak_free(|i| {
-            // The #1058 hypothesis in its strongest form: after defining a proc
-            // through a braced name word, *unrelated builtins* must still
-            // resolve. Only tower-free builtins are exercised so this holds in
-            // a libtommath-less build too — the exact configuration the issue
-            // was reported from.
+            // The strongest form of the claim: after defining a proc through
+            // a braced name word, *unrelated builtins* must still resolve.
+            // Only tower-free builtins are exercised so this holds in a
+            // libtommath-less build too.
             assert_eq!(i.eval_str(b"proc {p} {} { return {::p} }"), Code::Ok);
             assert_eq!(i.eval_str(b"set __x 1"), Code::Ok);
             assert_eq!(i.result_bytes(), b"1");
@@ -3768,7 +3763,7 @@ mod tests {
         });
     }
 
-    // -- namespace inscope (issue #1058's twin of #1056/#1067) -----------------
+    // namespace inscope.
     //
     // These avoid `if`/`while`/`for`/`expr` (and anything else `have_tommath`-
     // gated) entirely, so they run identically with or without the bignum
@@ -3899,12 +3894,11 @@ mod tests {
         });
     }
 
-    // -- issue regression vectors (#1442, #1446, #1453, #1463) -------------
-    // Each expectation is pinned against tclsh 8.6.16 and 9.0.4; the
+    // Each expectation below is pinned against tclsh 8.6.16 and 9.0.4; the
     // interpreter emulates 9.0 by default, so a release-axis vector says so.
 
     /// `namespace which -variable` is `Tcl_FindNamespaceVar`: namespace
-    /// variable tables only, never a call frame (#1442).
+    /// variable tables only, never a call frame.
     #[test]
     fn which_variable_never_answers_with_a_proc_local() {
         leak_free(|i| {
@@ -3928,7 +3922,7 @@ mod tests {
     }
 
     /// `namespace origin` follows `namespace import` links to their source
-    /// through the shared `TclGetOriginalCommand` core (#1442).
+    /// through the shared `TclGetOriginalCommand` core.
     #[test]
     fn origin_follows_import_chains() {
         leak_free(|i| {
@@ -3947,7 +3941,7 @@ mod tests {
     }
 
     /// Only `objv[1]` is the `-clear` / `-force` flag: the registry pins
-    /// `max_leading_option_words: Some(1)` and C tests that one word (#1446).
+    /// `max_leading_option_words: Some(1)` and C tests that one word.
     #[test]
     fn only_the_first_word_is_the_export_or_import_flag() {
         leak_free(|i| {
@@ -3979,7 +3973,7 @@ mod tests {
     }
 
     /// `namespace export -clear` empties the list before the patterns that
-    /// follow it are added (#1446).
+    /// follow it are added.
     #[test]
     fn export_clear_resets_the_pattern_list() {
         leak_free(|i| {
@@ -4004,7 +3998,7 @@ mod tests {
 
     /// The ensemble option tables come from the shared owner: `create` has no
     /// `-namespace`, both tables abbreviate, and the `namespace ensemble`
-    /// subcommand word abbreviates too (#1453).
+    /// subcommand word abbreviates too.
     #[test]
     fn ensemble_option_tables_match_c() {
         leak_free(|i| {
@@ -4038,7 +4032,7 @@ mod tests {
     }
 
     /// C's `if (objc & 1)` fires before any option word is looked at, so an
-    /// odd tail is `wrong # args`, never `bad option` (#1453).
+    /// odd tail is `wrong # args`, never `bad option`.
     #[test]
     fn ensemble_create_checks_pair_arity_first() {
         leak_free(|i| {
@@ -4058,7 +4052,7 @@ mod tests {
 
     /// `namespace ensemble configure` reads through the shared config table:
     /// `-namespace` is readable but never writable, `-command` is not in it,
-    /// and abbreviations resolve (#1453).
+    /// and abbreviations resolve.
     #[test]
     fn ensemble_configure_uses_the_config_table() {
         leak_free(|i| {
@@ -4091,7 +4085,7 @@ mod tests {
 
     /// TclOO's root object commands are engine-installed on the registry's
     /// behalf, so they follow their introducing release; a script-created
-    /// object command does not (#1463).
+    /// object command does not.
     #[test]
     fn tcloo_roots_follow_their_introducing_release() {
         leak_free(|i| {
@@ -4344,7 +4338,7 @@ mod tests {
         });
     }
 
-    /// #1613: an embedder can supply a plain string whose bytes are not UTF-8.
+    /// An embedder can supply a plain string whose bytes are not UTF-8.
     /// Drive the real `namespace` adapter with such objects rather than using a
     /// script-created byte array (whose string shimmer is valid UTF-8), so any
     /// lossy `&str` hop makes these two distinct namespace names disappear or

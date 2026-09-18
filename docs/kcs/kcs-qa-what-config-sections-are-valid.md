@@ -184,6 +184,31 @@ Style settings that affect linting but not formatting.
   non-ASCII text
   [W108](codes/kcs-diagnostic-w108-non-ascii-characters.md) flags.
 
+### `[workspaceScan]`
+
+Bounds the on-disk scan that seeds the cross-file index at start-up.
+
+- `max_files` — integer, ≥ 1, default `2000`. How many Tcl files the
+  server reads from disk across **all** workspace folders together.
+
+Files past the budget are never read, so they are missing from
+workspace symbols, cross-file go-to-definition, `package require`
+resolution and the cross-file half of W120/W123 — raise it if your
+project has more Tcl files than the budget, lower it if start-up is
+slow on a big tree or a network drive. Files you open in the editor are
+always analysed, whatever this says.
+
+```ini
+[workspaceScan]
+max_files = 6000
+```
+
+The setting applies to the whole session — one scan serves every folder
+— so it is read from the primary workspace root's merged configuration;
+a per-folder `.tcl-lsp.ini` value for a *secondary* root has no effect.
+Editors set the same thing as `tclLsp.workspaceScan.maxFiles`, and
+changing it re-runs the scan without a restart.
+
 ### `[packages]` and `[packages.provides]`
 
 How the modelled interpreter loads packages.

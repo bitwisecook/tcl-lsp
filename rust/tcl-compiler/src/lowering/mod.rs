@@ -98,14 +98,14 @@ fn proc_namespace(qname: &str) -> String {
 }
 
 /// One statically-extractable definer invocation, classified from the
-/// command's **registry spec** (issue #1172) — never a spelling match: the
+/// command's **registry spec** — never a spelling match: the
 /// definer's member grammar plus which argv words carry the definition
 /// target and the static braced body.
 ///
 /// Covers every command whose spec hangs a
 /// [`tcl_registry::definer::DefinitionBodyGrammar`] off
 /// `CommandSpec::definition_body`: the `TclOO` metaclasses (`oo::class`,
-/// `oo::configurable`, `oo::abstract`, `oo::singleton` — issue #797), the
+/// `oo::configurable`, `oo::abstract`, `oo::singleton`), the
 /// `oo::define` / `oo::objdefine` script forms, snit's `type` / `widget` /
 /// `widgetadaptor`, and itcl's `itcl::class`.  A new definer added to the
 /// registry is picked up here with no lowering change.
@@ -118,9 +118,9 @@ struct DefinerCall {
     /// Full-argv index of the static braced definition body.
     body_idx: usize,
     /// `oo::objdefine`: the target is an *object handle*, so members and
-    /// `variable` declarations are **per-object** state (oracle case K of
-    /// issue #1129: `oo::objdefine $k { variable z }` then
-    /// `my variable z; info exists z` → `0` — per-object, not per-class).
+    /// `variable` declarations are **per-object** state: after
+    /// `oo::objdefine $k { variable z }`, `my variable z; info exists z`
+    /// yields `0` — per-object, not per-class.
     /// They home under a synthetic `::@objdefine@::…` class name and never
     /// join the real class's cross-block `class_instance_vars` union.
     per_object: bool,
@@ -356,7 +356,7 @@ fn seg_word_is_static_literal(seg: &SegmentedCommand, idx: usize) -> bool {
 /// deliberately so: a **compound** literal word (`{body}x`, two literal tokens
 /// welded together) is still spelled out in the source, so a body walk that
 /// clamps it with [`crate::segmenter::body_text_in_region`] rebases honest
-/// spans (issue #1325). `{*}$n` under an expansionless grammar looks the same
+/// spans. `{*}$n` under an expansionless grammar looks the same
 /// from the representative token alone — braced, multi-token — yet its second
 /// fragment substitutes, so its value appears nowhere in the document.
 ///
@@ -403,7 +403,7 @@ fn qualify_proc_name(namespace: &str, proc_name: &str) -> String {
 /// top level — and diverge exactly when the name word is itself qualified, so
 /// the definition site and the defining namespace are different namespaces.
 ///
-/// Oracle, identical on tclsh 9.0.4 and 8.6.16 (`self class`-style
+/// Observed identically on tclsh 9.0.4 and 8.6.16 (`self class`-style
 /// introspection is not involved; this is plain `info commands` after
 /// running the outer proc):
 ///
@@ -658,7 +658,7 @@ fn eval_list_literal_body(cmd_text: &str, config: tcl_lexer::LexerConfig) -> Opt
 ///    of non-barrier commands so a nested
 ///    `if { … } { eval $x }` still trips the gate.
 ///
-/// Which word is the script is **never** re-derived here (issue #1055):
+/// Which word is the script is **never** re-derived here:
 /// [`CommandRegistry::arg_indices_for_role`] answers it, so `uplevel`'s
 /// optional-level shape is resolved by the one contract-tested
 /// `uplevel_arg_roles` resolver instead of a second, subtly different
@@ -806,8 +806,7 @@ pub(crate) enum CompileTarget {
     /// INVOKE`), never a typed statement (`AssignConst`/`Incr`/`Return`/…)
     /// or a structured control-flow block (`If`/`While`/`Foreach`/`Switch`/
     /// `Catch`/`Try`/…). Used to recompile a proc/script body so execution
-    /// traces (`enterstep`/`leavestep`) observe every command in it — the
-    /// compiler-side half of issue #946's step-trace parity fix; see
+    /// traces (`enterstep`/`leavestep`) observe every command in it; see
     /// [`tcl_runtime_api::CompileService::compile_traced`]. Never set for
     /// the primary module compile — only for a standalone "compile this body
     /// text as a script" call, so a proc's own `proc name args body`
@@ -838,8 +837,7 @@ pub struct Lowerer<'r> {
     /// Command alias table built during lowering.
     aliases: CommandAliasMap,
     /// `class qualified name -> every instance variable declared for it`,
-    /// accumulated across **all** of that class's definition blocks (issue
-    /// #1096/#1097 review, finding 1).
+    /// accumulated across **all** of that class's definition blocks.
     ///
     /// A class's state is not confined to the block that created it: `oo::class
     /// create C { method m … }` followed by `oo::define C { variable x }`
@@ -870,6 +868,12 @@ pub struct Lowerer<'r> {
     in_namespace_eval: bool,
     /// Command registry for arg-role queries.
     registry: &'r CommandRegistry,
+    /// The document's own command declarations (`# tcl-lsp: stub` blocks and
+    /// `<dialect>.tcl.stubs` sidecars), unioned with the catalogue's answer
+    /// through [`Self::command_surface`]. `None` for a document that
+    /// declares nothing, and for every non-document caller (tests, the
+    /// bytecode path).
+    declared_commands: Option<&'r tcl_registry::model::DeclaredSurface>,
     /// Per-script const-map stack. Each scope tracks
     /// proc-local variables assigned a brace-string literal so
     /// later `eval $var` / `uplevel 1 $var` calls can fold the
@@ -954,7 +958,7 @@ pub struct Lowerer<'r> {
     /// stack. Mirrors [`crate::cfg_builder::CfgBuilder`]'s `depth` field —
     /// lowering runs *before* CFG construction, so an unguarded recursion
     /// here reaches the same crash first and makes the CFG builder's own
-    /// cap moot (issue #996).
+    /// cap moot.
     nest_depth: u32,
     /// The buffer every span this lowering emits indexes into — the document
     /// text for an ordinary lowering, and the *materialised literal* while a
@@ -968,7 +972,7 @@ pub struct Lowerer<'r> {
     /// Held so the lowerer can *check* a body word's rebase against the text
     /// it claims to slice ([`crate::segmenter::body_text_in_region`] in
     /// [`Self::lower_body_from_tok`]) rather than trusting the arithmetic —
-    /// the guard the analyser has carried since issue #1325.  Empty until a
+    /// the same guard the analyser applies.  Empty until a
     /// script is lowered, which the guard reads as "nothing to compare
     /// against" and leaves every body text alone.
     source: String,
@@ -981,8 +985,8 @@ pub struct Lowerer<'r> {
 ///
 /// Deliberately *not* [`Lowerer::source`]: a word is read from the very text
 /// that was segmented into it, which is not always a slice of the enclosing
-/// buffer.  A `{body}x` word's body is clamped to the part that does map
-/// (issue #1325); an `eval $const` / `eval [list …]` body is a literal
+/// buffer.  A `{body}x` word's body is clamped to the part that does map;
+/// an `eval $const` / `eval [list …]` body is a literal
 /// materialised at lowering time and lives in a span space of its own; and
 /// the `TclOO` method extraction runs as a post-pass, after the document's
 /// span space has been restored to the (empty) enclosing one.  Reading the
@@ -1022,10 +1026,9 @@ impl WordSpace {
 /// `tcl_compiler::analyser::commands::MAX_BODY_DEPTH` — all three
 /// independently-recursive walkers over the same source cap at the same
 /// depth, so no consumer of this crate depends on one pass reaching a
-/// deeper nesting level than another. All three now read that depth from
-/// [`crate::depth_guard::MAX_SOURCE_NEST_DEPTH`], which is where the three
-/// stopped being a shared *convention* and became a shared *budget*
-/// (issue #1654).
+/// deeper nesting level than another. All three read that depth from
+/// [`crate::depth_guard::MAX_SOURCE_NEST_DEPTH`], so it is a shared
+/// *budget* rather than a shared *convention*.
 ///
 /// This walk is the one the budget is sized by: at eight Rust frames per
 /// nesting level it costs about 18.4 KiB a level, more than twice either
@@ -1033,6 +1036,24 @@ impl WordSpace {
 /// reproducer aborted on.
 const MAX_LOWER_NEST_DEPTH: tcl_core_types::RecursionLimit =
     crate::depth_guard::MAX_SOURCE_NEST_DEPTH;
+
+/// The substitutions [`crate::subst_nocommands`] performs: `[cmd]` off,
+/// `$var` and backslashes on.
+///
+/// A `subst` call the registry answers with exactly this set is one that
+/// evaluator reproduces, however the call spells it —
+/// `subst -nocommands {…}` and Tcl 9.1's `subst -variables -backslashes {…}`
+/// both land here (tclsh 9.1b0: `subst -variables -backslashes {hello
+/// $name\n[format X]}` with `name` set to `world` yields "hello world",
+/// a newline, then the untouched `[format X]`). The registry answers a call
+/// it cannot read with every kind, which is not this set, so a computed
+/// switch word folds nothing.
+pub(crate) const SUBST_NOCOMMANDS_KINDS: tcl_registry::substitution::SubstitutionKinds =
+    tcl_registry::substitution::SubstitutionKinds {
+        backslashes: true,
+        commands: false,
+        variables: true,
+    };
 
 impl<'r> Lowerer<'r> {
     /// Create a new lowerer with the default (Tcl-8.5+) lexer config.
@@ -1059,6 +1080,7 @@ impl<'r> Lowerer<'r> {
             body_unit_count: 0,
             in_namespace_eval: false,
             registry,
+            declared_commands: None,
             const_map_stack: Vec::new(),
             command_binding_site_stack: Vec::new(),
             proc_depth: 0,
@@ -1075,6 +1097,27 @@ impl<'r> Lowerer<'r> {
             source: String::new(),
             word_space: WordSpace::new("", 0),
         }
+    }
+
+    /// Install the document's own command declarations (see
+    /// [`declared_commands`](Self::declared_commands)).
+    ///
+    /// A stub declares the same kind of fact a `CommandSpec` states, so it
+    /// reaches lowering through the same argument-role query the catalogue
+    /// does — [`Self::command_surface`] — rather than a parallel table.
+    #[must_use]
+    pub fn with_declared_commands(
+        mut self,
+        declared: Option<&'r tcl_registry::model::DeclaredSurface>,
+    ) -> Self {
+        self.declared_commands = declared;
+        self
+    }
+
+    /// The command surface this document lowers against: the catalogue plus
+    /// the document's own declarations.
+    pub(crate) fn command_surface(&self) -> tcl_registry::model::DocumentCommandSurface<'_> {
+        tcl_registry::model::DocumentCommandSurface::new(self.registry, self.declared_commands)
     }
 
     /// Set the document's analysis dialect (see [`Lowerer::dialect`]).
@@ -1310,7 +1353,7 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// Run one synthesized script in a known iRules execution context.  A
+    /// Run one synthesised script in a known iRules execution context.  A
     /// materialised proc body has no source token to route through
     /// [`Self::lower_body_in_irules_context`], but it still must not treat a
     /// nested declaration as a file-level one.
@@ -1336,17 +1379,16 @@ impl<'r> Lowerer<'r> {
     /// it: the value is the brace content welded to the tail with the closing
     /// `}` dropped, so every token past the drop slides one byte left — an
     /// off-by-one span on ASCII, an offset inside a UTF-8 sequence on
-    /// anything else (issue #1325).  [`crate::segmenter::body_text_in_region`]
+    /// anything else.  [`crate::segmenter::body_text_in_region`]
     /// clamps such a value to the contiguous braced part and passes an
-    /// ordinary body through untouched; the analyser's `analyse_body` has
-    /// applied it since #1325 and this is the lowering side of the same
-    /// guard.
+    /// ordinary body through untouched; the analyser's `analyse_body`
+    /// applies it too, and this is the lowering side of the same guard.
     ///
     /// A substituting word (`$body`, `[gen]`) is left alone: its value is
     /// run-time data that no source region can be compared against, so there
     /// is nothing here to prove and clamping it would only delete text.  Such
-    /// words are the literal gates' business — they barrier rather than lower
-    /// (issue #1375).
+    /// words are the literal gates' business — they barrier rather than
+    /// lower.
     fn guarded_body_text<'t>(&self, tok: tcl_lexer::Token, text: &'t str) -> &'t str {
         if matches!(tok.kind, TokenType::Var | TokenType::Cmd) {
             return text;
@@ -1411,8 +1453,8 @@ impl<'r> Lowerer<'r> {
     /// This is the producer-side chokepoint: every statement the lowering
     /// emits passes through here, at the nesting level whose segments were
     /// cut from [`Self::source`], so a body rebase that overshoots its
-    /// document (issue #1325's compound `{body}x` word, issue #1375's
-    /// non-literal body word) fails the build's own tests instead of
+    /// document (a compound `{body}x` word, a non-literal body word)
+    /// fails the build's own tests instead of
     /// reaching a consumer.  Debug-only: the guards in
     /// [`Self::lower_body_from_tok`] and codegen's slice clamp are what keep
     /// a release build safe.
@@ -1562,12 +1604,12 @@ impl<'r> Lowerer<'r> {
     ///
     /// Registry-derived by construction: the answer is keyed on the typed
     /// [`LoweringHookId`] that [`Self::try_dispatch_structured_hook`] already
-    /// dispatches on, not on a command-name list (issue #1380 — a nine-name
-    /// list had drifted against seventeen structured hook IDs, so `lmap`,
-    /// `dict for`, `array for`, `foreachLine`, `catch`, `try`, `eval`,
-    /// `uplevel`, and `apply` all committed to their un-expanded argv).
-    /// The match is exhaustive with no wildcard arm, so a new hook ID cannot
-    /// be added without classifying it here.
+    /// dispatches on, not on a command-name list: a name list drifts against
+    /// the structured hook IDs, letting a form such as `lmap`, `dict for`,
+    /// `array for`, `foreachLine`, `catch`, `try`, `eval`, `uplevel` or
+    /// `apply` commit to its un-expanded argv.  The match is exhaustive with
+    /// no wildcard arm, so a new hook ID cannot be added without classifying
+    /// it here.
     ///
     /// The `false` arm is the non-structured group: those hooks run in
     /// [`try_lower_hook`] before this dispatcher is reached, and each already
@@ -1655,7 +1697,7 @@ impl<'r> Lowerer<'r> {
     ) -> Option<Statement> {
         let args = seg.args();
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        // Resolved at the registry's own point (issues #1462/#1463): a
+        // Resolved at the registry's own point: a
         // profile-built registry suppresses the structured
         // lowering of a command its release does not have (`lmap` at 8.4),
         // so the call flows to `lower_default` and reaches the runtime's
@@ -1669,7 +1711,7 @@ impl<'r> Lowerer<'r> {
         let hook = resolved.semantics.lowering_hook?;
         // The expansion gate lives here, keyed on the same typed hook the
         // dispatch below uses, so it can never name a different set of
-        // commands than the lowerers it protects (issue #1380).
+        // commands than the lowerers it protects.
         if Self::hook_commits_to_argv_shape(hook)
             && seg
                 .expand_word
@@ -2164,7 +2206,7 @@ impl<'r> Lowerer<'r> {
 
     /// Lower `proc name params body`.
     ///
-    /// Sequential phases:
+    /// In order:
     ///   1. Empty-simple-name barrier (`proc ::ns:: {…} {…}`).
     ///   2. Dynamic name resolution (`proc $x …` / `proc [cmd] …`).
     ///   3. Dynamic body / params check, with const-map body
@@ -2174,7 +2216,7 @@ impl<'r> Lowerer<'r> {
         let args_borrow = seg.args();
         let proc_name_initial = &args_borrow[0];
 
-        // Phase 1: empty-simple-name procs (`proc ::ns:: {args} {body}`).
+        // Empty-simple-name procs (`proc ::ns:: {args} {body}`).
         // Tcl 9 lets a trailing `::` register a command named `""` inside
         // the target namespace (`TclGetNamespaceForQualName` returns
         // `simpleName=""` rather than NULL for trailing colons on
@@ -2196,7 +2238,7 @@ impl<'r> Lowerer<'r> {
                 tokens: Some(self.cmd_tokens(seg)),
             };
         }
-        // Phase 2: dynamic proc name resolution.
+        // Resolve a dynamic proc name.
         let (proc_name_owned, args_owned, name_was_substituted) =
             match self.resolve_dynamic_proc_name(seg, args_borrow) {
                 Ok(triple) => triple,
@@ -2204,17 +2246,17 @@ impl<'r> Lowerer<'r> {
             };
         let args: &[String] = &args_owned;
         let proc_name = &proc_name_owned;
-        // Phase 3: dynamic body / params check, plus body
-        // materialisation via the const-map.
+        // Check for a dynamic body / params, materialising the body via the
+        // const-map where possible.
         let (materialised_body, body_is_dynamic, body_offset) =
             match self.check_proc_body_dynamic(seg, args, name_was_substituted) {
                 Ok(triple) => triple,
                 Err(barrier) => return *barrier,
             };
 
-        // Phase 4: lower the body (materialised, static, or empty
-        // for dynamic-with-resolved-name), register the Procedure,
-        // and emit the runtime `proc` Call.
+        // Lower the body (materialised, static, or empty for
+        // dynamic-with-resolved-name), register the Procedure, and emit the
+        // runtime `proc` Call.
         // A parameter list Tcl would reject (malformed, an overlong specifier,
         // an array-element or qualified name) creates no procedure: leave it to
         // the runtime `proc`, which raises the error, rather than registering a
@@ -2235,7 +2277,7 @@ impl<'r> Lowerer<'r> {
         // The body's own command/variable resolution namespace is the one the
         // proc is *defined in* — the qualifier prefix of its own qualified
         // name — not the lexical namespace the `proc` call was written in.
-        // See [`proc_body_namespace`] for the oracle transcript.
+        // See [`proc_body_namespace`] for the tclsh transcript.
         let body_namespace = proc_body_namespace(&qualified, namespace);
         let body_namespace: &str = &body_namespace;
         let body_text = &args[2];
@@ -2614,14 +2656,21 @@ impl<'r> Lowerer<'r> {
         })
     }
 
-    /// If *`cmd_text`* is `subst -nocommands {template}` (in any
-    /// flag order) AND every `$var` inside *template* is in the
-    /// current const-map, return the substituted string. Otherwise
-    /// `None` so the caller falls back to runtime dispatch.
+    /// If *`cmd_text`* is a `subst` call the registry says performs
+    /// [`SUBST_NOCOMMANDS_KINDS`] over a braced literal operand AND every
+    /// `$var` inside that template is in the current const-map, return the
+    /// substituted string. Otherwise `None` so the caller falls back to
+    /// runtime dispatch.
     ///
     /// Used to materialise the tcltest-style `Option` factory body
     /// at compile time when the surrounding proc has all the
     /// template vars const-tracked.
+    ///
+    /// Which substitutions the call performs is
+    /// [`tcl_registry::CommandRegistry::substitutions_performed`]'s answer,
+    /// not a switch-spelling match here: any other effect set is a call this
+    /// evaluator does not reproduce, and a call the registry cannot read — a
+    /// computed switch word — answers every kind and folds nothing.
     fn eval_subst_nocommands_body(&self, cmd_text: &str) -> Option<String> {
         use tcl_lexer::TokenType;
         let inner = segment_commands_with_offset_and_config(cmd_text, 0, self.config);
@@ -2632,42 +2681,30 @@ impl<'r> Lowerer<'r> {
         if inner_cmd.texts.is_empty() || inner_cmd.texts[0] != "subst" {
             return None;
         }
-        let argv = inner_cmd.arg_tokens();
         let texts = inner_cmd.args();
-        let single = &inner_cmd.single_token_word;
-
-        let mut saw_nocommands = false;
-        let mut template_text: Option<&str> = None;
-        for (i, tok) in argv.iter().enumerate() {
-            let text = &texts[i];
-            if text == "-nocommands" {
-                saw_nocommands = true;
-                continue;
-            }
-            if text == "-nobackslashes" || text == "-novariables" {
-                // Either flag changes the semantics our evaluator
-                // assumes — refuse.
-                return None;
-            }
-            if text.starts_with('-') {
-                return None;
-            }
-            if !single.get(i + 1).copied().unwrap_or(false) {
-                return None;
-            }
-            if tok.kind != TokenType::Str {
-                return None;
-            }
-            if template_text.is_some() {
-                // Multiple positionals — not the shape we recognise.
-                return None;
-            }
-            template_text = Some(text.as_str());
-        }
-        if !saw_nocommands {
+        let arg_refs: Vec<&str> = texts.iter().map(String::as_str).collect();
+        if self
+            .registry
+            .substitutions_performed(&inner_cmd.texts[0], &arg_refs)
+            != Some(SUBST_NOCOMMANDS_KINDS)
+        {
             return None;
         }
-        let template = template_text?;
+        // The operand is the call's final argument; only a braced literal one
+        // is a template this can substitute at compile time.
+        let idx = texts.len().checked_sub(1)?;
+        if !inner_cmd
+            .single_token_word
+            .get(idx + 1)
+            .copied()
+            .unwrap_or(false)
+        {
+            return None;
+        }
+        if inner_cmd.arg_tokens().get(idx)?.kind != TokenType::Str {
+            return None;
+        }
+        let template = texts[idx].as_str();
         if self.proc_depth == 0 {
             return None;
         }
@@ -2970,7 +3007,7 @@ impl<'r> Lowerer<'r> {
                     vars,
                     list_arg: args[2].clone(),
                     // `array for {k v} {arr} …` — a braced array-name word
-                    // is a literal name, not a substitution (issue #1260).
+                    // is a literal name, not a substitution.
                     list_braced: self.cmd_tokens(seg).arg_is_braced_literal(2),
                 }],
                 body,
@@ -2990,8 +3027,8 @@ impl<'r> Lowerer<'r> {
 
     fn lower_namespace_eval(&mut self, seg: &SegmentedCommand, namespace: &str) -> Statement {
         // The body is walked from its *written* spelling, rebased by the body
-        // word's own content offset, so the word must not substitute (issue
-        // #1375's gate).  A `$body` / `[list …]` word's value is run-time data
+        // word's own content offset, so the word must not substitute.
+        // A `$body` / `[list …]` word's value is run-time data
         // that appears nowhere in this document: rebasing its unsubstituted
         // spelling fabricates statement spans that overrun the source —
         // `namespace eval ::ns [list $o fw]` rebases the whole `[list $o fw]`
@@ -3026,8 +3063,8 @@ impl<'r> Lowerer<'r> {
         let child_ns = join_namespace(namespace, &args[1]);
         let body_tok = seg.arg_tokens()[2];
         // `namespace eval` inlines whatever literal body word it is given,
-        // including a compound `{…}x` one, so the rebase below needs the #1325
-        // guard (see [`Self::guarded_body_text`]) — both for the body itself and
+        // including a compound `{…}x` one, so the rebase below needs the
+        // clamp in [`Self::guarded_body_text`] — both for the body itself and
         // for the body unit's span derived from its length.
         let body_text = self.guarded_body_text(body_tok, &args[2]);
         let body_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
@@ -3158,11 +3195,16 @@ impl<'r> Lowerer<'r> {
         }
 
         let role_args_ref: Vec<&str> = role_args.iter().map(String::as_str).collect();
+        // The document's surface, not the bare catalogue: a `# tcl-lsp: stub`
+        // declaring `{sql script:body}` or `{table row:var}` states the same
+        // fact a `CommandSpec`'s `arg_roles` row does, so it reaches the
+        // generic call's executable words and variable definitions through
+        // the same query.
+        let surface = self.command_surface();
         let mut executable_indices =
-            self.registry
-                .arg_indices_for_role(&role_cmd, &role_args_ref, ArgRole::Body);
+            surface.arg_indices_for_role(&role_cmd, &role_args_ref, ArgRole::Body);
         for role in [ArgRole::LambdaLiteral, ArgRole::CommandPrefix] {
-            executable_indices.extend(self.registry.arg_indices_for_role(
+            executable_indices.extend(surface.arg_indices_for_role(
                 &role_cmd,
                 &role_args_ref,
                 role,
@@ -3180,12 +3222,10 @@ impl<'r> Lowerer<'r> {
             // manufacture generic Call defs for this layout.
             Vec::new()
         } else {
-            self.registry
-                .arg_indices_for_role(&role_cmd, &role_args_ref, ArgRole::VarWrite)
+            surface.arg_indices_for_role(&role_cmd, &role_args_ref, ArgRole::VarWrite)
         };
         let var_read_indices =
-            self.registry
-                .arg_indices_for_role(&role_cmd, &role_args_ref, ArgRole::VarRead);
+            surface.arg_indices_for_role(&role_cmd, &role_args_ref, ArgRole::VarRead);
         // Read-modify-write commands (`lset` / `lpop` / `ledit` — like
         // `incr` / `append` / `lappend`, which are hook-lowered) read the
         // current value of their target before rewriting it, so the prior
@@ -3226,7 +3266,7 @@ impl<'r> Lowerer<'r> {
             // A brace-quoted name word (`set {$n} 1`, `unset {$n}`) is Tcl's
             // literal spelling for a name that contains `$` / `[`: it
             // substitutes nothing, so the word's content **is** the variable
-            // name (issue #1078). The de-braced `args` text cannot show that;
+            // name. The de-braced `args` text cannot show that;
             // the word's own token kind can.
             let braced_at = |real: usize| {
                 matches!(seg.argv.get(real + 1).map(|t| t.kind), Some(TokenType::Str))
@@ -3353,7 +3393,7 @@ impl<'r> Lowerer<'r> {
                 method.instance_vars.extend(class_vars.iter().cloned());
             }
         }
-        // Retained replacement bodies (issue #1166) are scanned by the same
+        // Retained replacement bodies are scanned by the same
         // consumers, so they need the same whole-class instance-variable
         // union.
         for method in self.module.redefined_methods.values_mut().flatten() {
@@ -3479,8 +3519,8 @@ impl<'r> Lowerer<'r> {
     /// Recognise one class-body member whose registry grammar marks every
     /// argument as a class reference (`superclass A B`, `mixin M` —
     /// [`tcl_registry::definer::MemberRefKind::Class`]) and record each
-    /// literal argument as a hierarchy relation of `class_qname` (issue
-    /// #1164); a dynamic argument widens
+    /// literal argument as a hierarchy relation of `class_qname`; a dynamic
+    /// argument widens
     /// [`crate::ir::OoDefinitionEvidence::dynamic_class_relations`]
     /// instead. Returns `true` when the member was consumed here.
     fn record_class_relation_member(
@@ -3516,9 +3556,9 @@ impl<'r> Lowerer<'r> {
     /// (nameless members use synthetic names — `<constructor>`,
     /// `<destructor>`, `<typeconstructor>`).  Member recognition and
     /// argument layout come from the definer's registry grammar
-    /// ([`DefinerCall::grammar`], issue #1172), so `oo::objdefine`, snit,
-    /// and itcl bodies produce method units exactly as `oo::class create` /
-    /// `oo::define` always did — no member keyword is matched for layout.
+    /// ([`DefinerCall::grammar`]), so `oo::objdefine`, snit, and itcl bodies
+    /// produce method units exactly as `oo::class create` / `oo::define` do —
+    /// no member keyword is matched for layout.
     ///
     /// `texts` is the definer command's full per-word text array;
     /// `body_content_offset` is the absolute source offset of the first
@@ -3535,8 +3575,7 @@ impl<'r> Lowerer<'r> {
         let class_qname = if call.per_object {
             // An `oo::objdefine` receiver is usually a substitution
             // (`oo::objdefine $obj { … }`) — that is the common shape and
-            // the point of the exercise (issue #1172 item 1), so it is NOT
-            // skipped as a dynamic name.  The per-object members home under
+            // the whole point, so it is NOT skipped as a dynamic name.  The per-object members home under
             // a synthetic, unrepresentable class name keyed by the
             // receiver's written tail (mirroring the analyser's
             // `::@objdefine@::…` keying), so they never collide with a real
@@ -3551,9 +3590,8 @@ impl<'r> Lowerer<'r> {
         } else {
             // Dynamic class names can't be resolved statically — and the
             // block may (re)define methods on ANY class, so whole-module OO
-            // evidence is incomplete (issue #1166: the propagation barrier
-            // and method purity must widen rather than trust the bodies
-            // they can see).
+            // evidence is incomplete: the propagation barrier and method
+            // purity must widen rather than trust the bodies they can see.
             if target.contains('$') || target.contains('[') {
                 self.module.oo_evidence.dynamic_target = true;
                 self.module.oo_evidence.unretained_executable_roots = true;
@@ -3571,7 +3609,7 @@ impl<'r> Lowerer<'r> {
         // for `extract_oo_methods_pass`'s merge — see
         // [`Self::class_instance_vars`].  A per-object block accumulates
         // under its own synthetic key, so per-object `variable` declarations
-        // stay per-object by construction (oracle case K, issue #1129).
+        // stay per-object by construction.
         if !class_ivars.is_empty() {
             self.class_instance_vars
                 .entry(class_qname.clone())
@@ -3801,10 +3839,9 @@ impl<'r> Lowerer<'r> {
             &name_owned
         };
         // Dynamic method names / non-static bodies are left un-lowered —
-        // and recorded as an unanalysable member of the class (issue
-        // #1166): any method of the class may have been (re)defined with a
-        // body no scan can read, so per-class analysis must abstain for
-        // the whole class.
+        // and recorded as an unanalysable member of the class: any method of
+        // the class may have been (re)defined with a body no scan can read,
+        // so per-class analysis must abstain for the whole class.
         if name.contains('$') || name.contains('[') || !seg_word_is_static_braced(seg, b_idx) {
             self.module
                 .oo_unanalysed_classes
@@ -3900,7 +3937,7 @@ impl<'r> Lowerer<'r> {
         // or a duplicate in-body `method`) replaces the body at
         // runtime — we can't statically know which body a given
         // dispatch runs, so RETAIN the replacement in definition
-        // order (issue #1166): analysis consumers scan every retained
+        // order: analysis consumers scan every retained
         // body (the union over-approximates whichever is live) rather
         // than abstaining on the mere fact of redefinition.
         if self.module.methods.contains_key(&method_qname) {
@@ -4030,7 +4067,7 @@ fn declared_member_vars(
             };
         if member.all_args_var {
             // The `TclOO` `variable` slot: a leading operation word names
-            // no variable (issue #1169).
+            // no variable.
             let values = match member.slot {
                 Some(slot) => match slot.split_call(args) {
                     Some((_, values)) => values,
@@ -4157,7 +4194,7 @@ pub fn lower_script_module_for_bytecode(
 /// dialect, config)`.
 ///
 /// This is a **per-body** gate: a context-carrying sibling `proc` (or top-level
-/// `namespace eval` / OO / `when` code) no longer disqualifies the *other* bodies
+/// `namespace eval` / OO / `when` code) does not disqualify the *other* bodies
 /// in the same file. The scan is deliberately conservative — a false negative
 /// only forgoes reuse (falling back to the identical in-place lowering); a false
 /// positive would corrupt the IR — and is backstopped by the corpus differential
@@ -4280,8 +4317,8 @@ mod body_cache_eligible_tests {
         assert!(!source_may_alias_commands("set interpreter 1"));
     }
 
-    // Proves *why* `source_may_alias_commands` must guard the file (Codex #739
-    // P2): with a top-level `interp alias {} = {} expr` in scope, lowering `f`'s
+    // Proves *why* `source_may_alias_commands` must guard the file: with a
+    // top-level `interp alias {} = {} expr` in scope, lowering `f`'s
     // body through the isolated body cache (empty alias table) resolves `=` as an
     // unknown command, whereas the in-place whole-file lowering resolves it to
     // `expr` — so the module IRs differ. The db therefore must not install the
@@ -4412,6 +4449,18 @@ pub fn lower_to_ir_with_dialect(
     )
 }
 
+/// Lower `source` with an already-configured [`Lowerer`].
+///
+/// The seam a host uses when it has more to install than the fixed-argument
+/// entry points above accept — the document's own
+/// [`with_declared_commands`](Lowerer::with_declared_commands) surface, above
+/// all. Every other `lower_to_ir_*` function is this one with a `Lowerer`
+/// built for it.
+#[must_use]
+pub fn lower_to_ir_with(lowerer: Lowerer<'_>, source: &str) -> Module {
+    lower_with(lowerer, source)
+}
+
 /// Like [`lower_to_ir`] but for the bytecode/VM compile path: constructs the
 /// backend can't compile correctly (`try`, and a `foreach`/`lmap` directly
 /// nesting another) are lowered to runtime-command barriers (see
@@ -4446,7 +4495,7 @@ pub fn lower_to_ir_for_bytecode_with_dialect(
 /// lowering hook suppressed (see [`Lowerer::trace_visible`]) — every command
 /// in `source` compiles to a plain runtime dispatch, so an execution trace
 /// observes it. For recompiling a proc/script body once a step-capable
-/// execution trace targets it (issue #946); see
+/// execution trace targets it; see
 /// [`tcl_runtime_api::CompileService::compile_traced`].
 #[must_use]
 pub fn lower_to_ir_traced(source: &str, registry: &CommandRegistry) -> Module {
@@ -4455,7 +4504,7 @@ pub fn lower_to_ir_traced(source: &str, registry: &CommandRegistry) -> Module {
 
 /// Like [`lower_to_ir_traced`] but with an explicit dialect
 /// [`tcl_lexer::LexerConfig`], so a version-pinned host's traced recompiles
-/// parse under the same grammar as its ordinary compiles (issue #1462).
+/// parse under the same grammar as its ordinary compiles.
 #[must_use]
 pub fn lower_to_ir_traced_with_config(
     source: &str,
@@ -4506,7 +4555,7 @@ pub fn first_fatal_parse_error(source: &str) -> Option<String> {
 /// [`tcl_lexer::LexerConfig`], so a version-pinned host rejects exactly what
 /// its emulated release rejects — under the Tcl 8.4 grammar `{*}{a b}` is a
 /// hard `extra characters after close-brace`, which the default (8.5+) config
-/// lexes as an ordinary expansion (issue #1462).
+/// lexes as an ordinary expansion.
 #[must_use]
 pub fn first_fatal_parse_error_with_config(
     source: &str,
@@ -4521,18 +4570,16 @@ pub fn first_fatal_parse_error_with_config(
 /// The command index is what separates this from
 /// [`first_fatal_parse_error_with_config`]: C runs every command before the
 /// cut and only then raises, so a front-end that wants C's behaviour has to
-/// know where the clean prefix ends (issue #1603). The message alone cannot
-/// say.
+/// know where the clean prefix ends. The message alone cannot say.
 ///
 /// This is a thin re-export of [`tcl_lexer::first_parse_cut`] — the shared
 /// owner — and exists so `tcl-compiler`'s consumers have one import for the
 /// whole parse-error question rather than reaching past it into the lexer.
-/// Until #1810 this crate filtered the lexer's flat **warning stream**
-/// against a private list of eight message strings and took the
-/// lowest-offset hit, which disagreed with C whenever the failure was
-/// nested: `list [sfx one] [list "oops]` warned `missing close-bracket`
-/// where C reports `missing "`, and a welded close-brace (`set y {a}b`)
-/// was invisible to a warning stream entirely.
+/// The lexer's flat **warning stream** cannot answer it: filtering that
+/// stream by message and taking the lowest-offset hit disagrees with C
+/// whenever the failure is nested — `list [sfx one] [list "oops]` warns
+/// `missing close-bracket` where C reports `missing "` — and a welded
+/// close-brace (`set y {a}b`) does not appear in the warning stream at all.
 #[must_use]
 pub fn first_fatal_parse_cut(
     source: &str,
@@ -5176,19 +5223,16 @@ mod tests {
         );
     }
 
-    /// Issue #1380: the `{*}` barrier used to be a nine-name list
-    /// (`proc`/`when`/`namespace`/`if`/`switch`/`for`/`while`/`foreach`/
-    /// `foreach_in_collection`) while `try_dispatch_structured_hook` covers
-    /// seventeen typed hook IDs, so every structured form missing from the
-    /// list committed to its *un-expanded* argv — `lmap i {*}$spec {…}`
-    /// fabricated an `IRForeach` with one iterator over the literal word
-    /// `${spec}`, which is what made W210 claim a loop variable was read
-    /// before it was set.
+    /// Every structured form `try_dispatch_structured_hook` covers must
+    /// barrier on `{*}` expansion.  A form that instead commits to its
+    /// *un-expanded* argv fabricates nonsense IR — `lmap i {*}$spec {…}`
+    /// becomes an `IRForeach` with one iterator over the literal word
+    /// `${spec}`, making W210 claim a loop variable is read before it is set.
     #[test]
     fn every_argv_shaped_hook_barriers_on_expansion() {
         let reg = reg();
         for src in [
-            // Forms the old name list already covered.
+            // Forms whose argv shape is fixed by the hook.
             "foreach i {*}$spec {puts $i}",
             "if {*}$cond {puts hi}",
             "switch {*}$spec {a {puts hi}}",
@@ -5247,7 +5291,7 @@ mod tests {
     }
 
     /// The barrier reason names the command, which the compiler-explorer
-    /// `--show ir` view and the audit notes in issue #1380 both quote.
+    /// `--show ir` view quotes.
     #[test]
     fn expansion_barrier_reason_names_the_command() {
         let m = lower_to_ir("lmap i {*}$spec {puts $i}", &reg());
@@ -5353,8 +5397,8 @@ mod tests {
         // `oo::configurable create` (and `oo::abstract` / `oo::singleton`)
         // share the `METACLASS create NAME { body }` shape, so their bodies
         // must be lowered and their methods lifted like `oo::class`'s — not left
-        // as an unanalysed barrier (issue #797: a `Device` defined with
-        // `oo::configurable` otherwise had every method body skipped).
+        // as an unanalysed barrier, which would skip every method body of a
+        // class defined with `oo::configurable`.
         let src = "oo::configurable create Pin {\n\
                    \x20   property node\n\
                    \x20   method describe {} { return [my configure -node] }\n\
@@ -5396,12 +5440,11 @@ mod tests {
         );
     }
 
-    // Issue #1172: extraction is driven by the registry definer grammars,
-    // so oo::objdefine, snit, and itcl bodies produce method units too.
+    // Extraction is driven by the registry definer grammars, so
+    // oo::objdefine, snit, and itcl bodies produce method units too.
 
-    // TP (item 1): an `oo::objdefine $obj { … }` body produces per-object
-    // method units — previously no `MethodDef` existed at all, leaving the
-    // body invisible to every analysis.
+    // TP: an `oo::objdefine $obj { … }` body produces per-object method
+    // units, so the body is visible to analysis.
     #[test]
     fn objdefine_bodies_produce_per_object_method_units() {
         let src = "oo::class create C {}\n\
@@ -5426,7 +5469,7 @@ mod tests {
         );
     }
 
-    // TN (oracle case K, issue #1129): objdefine `variable` declarations are
+    // TN: objdefine `variable` declarations are
     // per-object — they must NOT pollute the real class's cross-block
     // instance-variable union.
     #[test]
@@ -5594,7 +5637,7 @@ mod tests {
     fn redefined_oo_method_retains_the_replacement_body() {
         // A method redefined by a later `oo::define` keeps the first
         // body in `methods`, and RETAINS the replacement in
-        // `redefined_methods` (issue #1166) so analysis consumers can
+        // `redefined_methods` so analysis consumers can
         // scan every body a dispatch may run instead of abstaining.
         let src = "oo::class create C {\n\
                    \x20   method m {} { return 1 }\n\
@@ -5845,8 +5888,8 @@ mod tests {
         assert!(m.procedures.contains_key("::foo"));
     }
 
-    // ---- issue #1077: a proc body homes nested definitions to the proc's
-    // *defining* namespace, not the lexical namespace of the `proc` call. ----
+    // A proc body homes nested definitions to the proc's *defining*
+    // namespace, not the lexical namespace of the `proc` call.
 
     #[test]
     fn proc_body_namespace_peels_the_names_own_qualifier() {
@@ -5861,7 +5904,7 @@ mod tests {
 
     #[test]
     fn nested_proc_homes_to_the_outer_procs_defining_namespace() {
-        // TP. Oracle (tclsh 9.0.4 and 8.6.16, identical):
+        // TP. On tclsh 9.0.4 and 8.6.16, identically:
         //   namespace eval ::a {}
         //   proc a::outer {} { proc helper {x} {return $x} }
         //   a::outer ; info commands ::a::helper   -> ::a::helper
@@ -5883,7 +5926,7 @@ mod tests {
 
     #[test]
     fn nested_proc_homing_composes_through_three_levels() {
-        // TP. Oracle: `proc g::o7 {} { proc o7b {} { proc h7 {u} … } }` →
+        // TP. On tclsh, `proc g::o7 {} { proc o7b {} { proc h7 {u} … } }` →
         // running `g::o7` then `::g::o7b` leaves `::g::h7` (never `::h7`).
         let m = lower_to_ir(
             "namespace eval ::g {}\nproc g::o7 {} { proc o7b {} { proc h7 {u} { return $u } } }\n",
@@ -5900,7 +5943,7 @@ mod tests {
 
     #[test]
     fn nested_proc_name_qualifier_beats_the_lexical_namespace_eval() {
-        // TP. Oracle: inside `namespace eval ::d`, `proc ::e::o3` still homes
+        // TP. On tclsh, inside `namespace eval ::d`, `proc ::e::o3` still homes
         // its body to `::e` — `::e::h3` exists, `::d::h3` and `::h3` do not.
         let m = lower_to_ir(
             "namespace eval ::e {}\nnamespace eval ::d {\n    proc ::e::o3 {} { proc h3 {z} { return $z } }\n}\n",
@@ -5917,8 +5960,8 @@ mod tests {
 
     #[test]
     fn unqualified_outer_proc_leaves_nested_homing_unchanged() {
-        // TN. The common shape: lexical and defining namespace agree, so the
-        // fix must be a no-op. Both at top level…
+        // TN. The common shape: lexical and defining namespace agree, so
+        // homing changes nothing. Both at top level…
         let m = lower_to_ir("proc outer {} { proc inner {} { return 1 } }\n", &reg());
         assert!(m.procedures.contains_key("::inner"));
         // …and inside a `namespace eval`, where both are `::ns`.
@@ -5935,7 +5978,7 @@ mod tests {
 
     #[test]
     fn absolutely_named_nested_proc_is_unaffected() {
-        // TN. Oracle: `proc a::outer4 {} { proc ::abs {q} … }` creates `::abs`
+        // TN. On tclsh, `proc a::outer4 {} { proc ::abs {q} … }` creates `::abs`
         // — an absolute inner name ignores the enclosing frame entirely.
         let m = lower_to_ir(
             "namespace eval ::a {}\nproc a::outer4 {} { proc ::abs {q} { return $q } }\n",
@@ -5996,9 +6039,9 @@ mod tests {
         assert_eq!(parse_var_list_names("{a", FOLD_RULES), None);
     }
 
-    // issue #1431: a formal-parameter list has two list levels, so a grouped or
-    // escaped specifier is one parameter, not one name per whitespace run. The
-    // hand-rolled splitter gave `proc p {a\ b} {}` an arity of two.
+    // A formal-parameter list has two list levels, so a grouped or escaped
+    // specifier is one parameter, not one name per whitespace run:
+    // `proc p {a\ b} {}` has arity one.
 
     /// Parameter names recorded for `::p` when `src` is lowered.
     fn proc_params(src: &str) -> Vec<String> {
@@ -6013,8 +6056,8 @@ mod tests {
     #[test]
     fn escaped_space_proc_param_is_one_parameter() {
         // tclsh 9.0: `proc p {a\ b} {}` → `info args p` is `a`, with
-        // `info default p a` yielding `b`. Only the name reaches the IR, so the
-        // arity is one — the splitter used to report two (`a\` and `b`).
+        // `info default p a` yielding `b`. Only the name reaches the IR, so
+        // the arity is one, not two (`a\` and `b`).
         assert_eq!(proc_params("proc p {a\\ b} {}"), vec!["a"]);
         // The grouped spelling decodes identically.
         assert_eq!(proc_params("proc p {{a b}} {}"), vec!["a"]);
@@ -6653,6 +6696,52 @@ mod tests {
         }
     }
 
+    /// Tcl 9.1's positive family names the same effect set `-nocommands`
+    /// leaves — variables and backslashes on, commands off — so the body
+    /// materialises the same way.
+    ///
+    /// tclsh 9.1b0, with `name` set to `world`:
+    /// `subst -variables -backslashes {hello $name\n[format X]}` → `hello
+    /// world`, a newline, then the untouched `[format X]`.
+    #[test]
+    fn proc_subst_tcl91_positive_switches_materialised() {
+        let m = lower_to_ir(
+            "proc factory {} { set name {Verbose}\n set default {0}\n proc $name {x} [subst -variables -backslashes {return $default}] }",
+            &reg(),
+        );
+        let inner = m.procedures.get("::Verbose").expect("::Verbose registered");
+        assert!(
+            !inner.body.statements.is_empty(),
+            "expected lowered body, got empty"
+        );
+        assert!(
+            !matches!(inner.body.statements[0], Statement::Barrier { .. }),
+            "expected a materialised body, got {:?}",
+            inner.body.statements
+        );
+    }
+
+    /// A computed switch word leaves the call unreadable, so the registry
+    /// answers every kind and the materialiser refuses.
+    #[test]
+    fn proc_subst_computed_switch_word_refused() {
+        let m = lower_to_ir(
+            "proc factory {opt} { set name {Verbose}\n set default {0}\n proc $name {x} [subst $opt {return $default}] }",
+            &reg(),
+        );
+        if let Some(p) = m.procedures.get("::Verbose") {
+            assert!(
+                p.body.statements.is_empty()
+                    || matches!(
+                        p.body.statements[0],
+                        Statement::Call { .. } | Statement::Barrier { .. }
+                    ),
+                "expected no materialised body, got {:?}",
+                p.body.statements
+            );
+        }
+    }
+
     #[test]
     fn proc_subst_nocommands_nobackslashes_refused() {
         // ``-nobackslashes`` flag — semantics differ from our
@@ -6782,15 +6871,15 @@ mod tests {
         assert!(!m.has_dynamic_trace);
     }
 
-    /// Regression coverage for issue #996: `walk_for_trace`'s post-lower
-    /// scan recurses once per nested `if`/`for`/`while`/`foreach`/`catch`/
-    /// `try`/`switch`/`Block`/`UpFrame` body, with no depth cap of its own
-    /// before this fix. Transitively bounded to `MAX_LOWER_NEST_DEPTH`
+    /// `walk_for_trace`'s post-lower scan recurses once per nested
+    /// `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch`/`Block`/`UpFrame`
+    /// body, with no depth cap of its own. Transitively bounded to
+    /// `MAX_LOWER_NEST_DEPTH`
     /// (256) by `lower_script`/`lower_body` (this same `lower_to_ir` call
     /// builds the `Script` `walk_for_trace` then scans), so this is
     /// defence-in-depth / consistency with every other full-tree walker in
     /// this crate, not a currently-reproducible crash. 1000 levels of
-    /// source nesting is comfortably past the new cap; the assertion is
+    /// source nesting is comfortably past the cap; the assertion is
     /// that lowering (which runs `populate_trace_facts` ->
     /// `walk_for_trace`) returns at all, not what it returns. Spawns its
     /// own big-stack thread since the lexer/CST/segmenter stages upstream
@@ -7074,7 +7163,7 @@ mod tests {
         ));
     }
 
-    /// Issue #1055 — the gate resolves `uplevel`'s script word through the
+    /// The gate resolves `uplevel`'s script word through the
     /// registry's `ArgRole::Body` resolver, not a local level-word sniff, so
     /// every documented `uplevel ?level? arg ?arg ...?` shape agrees with
     /// `uplevel_body_arg_role_skips_optional_level` in `tcl-registry`.
@@ -7133,9 +7222,9 @@ mod tests {
             &reg(),
             tcl_lexer::LexerConfig::default()
         ));
-        // The deleted local sniff accepted `-N` as a level (it stripped a
-        // leading `-` before the digit test); the registry does not, and the
-        // registry is right.  Oracle, tclsh8.6.14: with `proc -1 {args} {…}`
+        // A local level sniff that strips a leading `-` before the digit test
+        // would accept `-N` as a level; the registry does not, and the
+        // registry is right.  On tclsh 8.6.14, with `proc -1 {args} {…}`
         // defined, `uplevel -1 {set x 1}` *calls* `-1` with `set x 1` — the
         // word is the script's first word, not a level.  tclsh9.0.4 instead
         // errors `bad level "-1"`.  Under either reading the word is an
@@ -7147,7 +7236,7 @@ mod tests {
         ));
     }
 
-    /// Issue #1055, the generalisation dividend: the eval-family *subcommand*
+    /// The eval-family *subcommand*
     /// members carry `EVALUATES_CODE` / `SCRIPT_CONCATENATES_ARGS` on the
     /// subcommand, not on the `namespace` / `interp` spec.  Composing them
     /// (`invocation_traits`) plus registry-resolved body indices makes them
@@ -7672,11 +7761,10 @@ mod tests {
         })
     }
 
-    /// Issue #996: `lower_script` / `lower_body` recurse one Rust frame
-    /// group per `if` nesting level with no depth cap prior to this fix —
-    /// unlike `analyse_body` (`tcl_compiler::analyser::commands::
-    /// MAX_BODY_DEPTH`) and `cfg_builder::lower_script`
-    /// (`MAX_LOWER_DEPTH`), both already guarded. A document whose IR
+    /// `lower_script` / `lower_body` recurse one Rust frame group per `if`
+    /// nesting level, so they need the same depth cap as `analyse_body`
+    /// (`tcl_compiler::analyser::commands::MAX_BODY_DEPTH`) and
+    /// `cfg_builder::lower_script` (`MAX_LOWER_DEPTH`). A document whose IR
     /// lowering runs unguarded defeats the CFG builder's own guard
     /// downstream — the crash happens one stage earlier. Lowering 2000
     /// levels must neither hang nor overflow the stack, and must record the
@@ -7685,8 +7773,7 @@ mod tests {
     #[test]
     fn deeply_nested_if_past_max_lower_depth_barriers_not_crashes() {
         let source = nested_if_source(2000);
-        // `cargo test` runs each test on a small default-stack thread (the
-        // same undersized budget issue #996 was actually caused by) — see
+        // `cargo test` runs each test on a small default-stack thread — see
         // the identical helper's doc comment in `analyser::commands::tests`.
         let m = std::thread::Builder::new()
             .stack_size(64 * 1024 * 1024)

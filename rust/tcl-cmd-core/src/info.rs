@@ -37,8 +37,7 @@ use crate::error::CmdError;
 ///
 /// Pure (no runtime state), unlike the rest of this module. Crucially, command
 /// substitution is **not** parsed inside `{braces}` (a `[` there is literal), so
-/// `{[}` is complete — where a naive bracket counter (the VM's old `is_complete`)
-/// diverged.
+/// `{[}` is complete, where a naive bracket counter would call it incomplete.
 #[must_use]
 pub fn complete(s: &[u8]) -> bool {
     let mut stack: Vec<u8> = Vec::new(); // expected closers: `}` or `]`
@@ -221,11 +220,10 @@ fn not_a_proc(name: &str) -> CmdError {
 /// - An **unqualified** `pattern` (or none) lists the current namespace's members
 ///   glob-filtered. For `info commands` only, the global namespace's commands are
 ///   merged in when the current namespace is not global (command resolution falls
-///   back to global) — `info procs` never merges global (the C asymmetry: the
-///   runtime's old `visible_proc_names` wrongly merged it).
+///   back to global) — `info procs` never merges global. The asymmetry is C's.
 ///
-/// Results are sorted (deterministic, unlike C's hash order — matching both
-/// runtimes' prior behaviour).
+/// Results are sorted, so the listing is deterministic rather than following
+/// C's hash order.
 pub fn command_list<O, V>(ops: &mut O, pattern: Option<&V>, procs_only: bool) -> V
 where
     O: ValueOps<Value = V> + Namespaces,
@@ -432,8 +430,8 @@ where
 }
 
 /// Sort, dedupe, and glob-filter `names` by `pat` — the unqualified-listing tail
-/// shared by the `info` listing cores. Sorting is deterministic (unlike C's hash
-/// order — matching both runtimes' prior behaviour).
+/// shared by the `info` listing cores. Sorting makes the listing deterministic
+/// rather than following C's hash order.
 fn finish_unqualified(mut names: Vec<String>, pat: Option<&str>) -> Vec<String> {
     names.sort();
     names.dedup();
@@ -497,8 +495,8 @@ mod tests {
         assert!(!complete(b"set x [")); // unclosed bracket
         assert!(!complete(b"a \"")); // unclosed quote
         assert!(!complete(b"a \\")); // trailing backslash continuation
-        // `[` is literal inside braces — `{[}` is complete (the VM's old bracket
-        // counter wrongly reported it incomplete).
+        // `[` is literal inside braces, so `{[}` is complete — a plain bracket
+        // counter would report it incomplete.
         assert!(complete(b"{[}"));
         assert!(complete(b"puts {a [ b}"));
     }

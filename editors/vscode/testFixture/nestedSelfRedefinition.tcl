@@ -1,4 +1,4 @@
-# A nested, cross-namespace proc self-redefinition (issue #923 audit idx 45).
+# A nested, cross-namespace proc self-redefinition.
 #
 # The real corpus shape is nico-robert/ticklecharts: a qualified
 # `proc ticklecharts::activate` whose body declares an unqualified

@@ -145,8 +145,6 @@ fn graph_for(source: &str) -> DataFlowGraph {
 
 // Def-use chains
 
-// -- TestDefUseBasic --
-
 #[test]
 fn def_use_linear_single_use() {
     // `set x 1\nset y [expr {$x + 1}]` — x#1 has exactly one OPERAND use (read
@@ -203,8 +201,6 @@ fn def_use_total_counts() {
     assert_eq!(fu.def_use.total_uses(), 1);
 }
 
-// -- TestDefUsePhi --
-
 #[test]
 fn def_use_if_merge_creates_phi_chain() {
     // An if/else both assigning `a`, read after the merge, creates a phi def of
@@ -241,8 +237,6 @@ fn def_use_phi_incoming_edges_are_uses() {
     );
 }
 
-// -- TestDefUseTerminator --
-
 #[test]
 fn def_use_branch_condition_is_use() {
     // `set cond 1\nif {$cond} {...}` — cond#1 is read by the branch, so it is
@@ -272,8 +266,6 @@ fn def_use_while_condition_is_use() {
     );
 }
 
-// -- TestDefUseLoop --
-
 #[test]
 fn def_use_loop_phi() {
     // `set i 0\nwhile {$i < 10} {incr i}` has ≥2 defs of i (the initial store +
@@ -286,8 +278,6 @@ fn def_use_loop_phi() {
         reaching_defs(fu, "i").len()
     );
 }
-
-// -- TestDefUseProc --
 
 #[test]
 fn def_use_proc_parameters() {
@@ -308,8 +298,6 @@ fn def_use_proc_parameters() {
         DefKind::Parameter
     );
 }
-
-// -- TestDefUseResultMethods --
 
 #[test]
 fn def_use_is_dead_method() {
@@ -350,8 +338,6 @@ fn def_use_has_phi_use() {
     assert!(has_phi);
 }
 
-// -- TestDefUseNestedControlFlow --
-
 #[test]
 fn def_use_if_inside_while() {
     // Nested if-in-while gives ≥2 defs of i (init + loop phi) and ≥2 defs of x
@@ -373,8 +359,6 @@ fn def_use_foreach_loop() {
 }
 
 // The SSA data-flow graph
-
-// -- TestDataFlowGraphExtraction --
 
 #[test]
 fn dataflow_simple_linear() {
@@ -439,8 +423,6 @@ fn dataflow_phi_edges() {
     assert!(phi_edges >= 2, "expected ≥2 phi edges, got {phi_edges}");
 }
 
-// -- TestDataFlowGraphEdgeKinds --
-
 #[test]
 fn dataflow_alias_info_present() {
     // The bar alias carries non-empty local/target kinds.
@@ -503,7 +485,7 @@ fn dataflow_prebuilt_cu() {
     assert!(g.total_defs() >= 2);
 }
 
-// -- Graph-shape invariants --
+// Graph-shape invariants.
 //
 // Rendering helpers (JSON / mermaid serialisation) live in separate tooling,
 // not the `dataflow_graph` module — `DataFlowGraph` is the structural value.
@@ -550,7 +532,7 @@ fn dead_store_vars(source: &str, qname: &str) -> Vec<String> {
         .collect()
 }
 
-// -- invariants where liveness and deletability coincide --
+// Invariants where liveness and deletability coincide.
 
 #[test]
 fn dce_unused_literal_store_is_dead() {
@@ -681,7 +663,7 @@ fn dce_top_level_unused_is_dead() {
     assert!(dead.contains(&"unused".to_string()), "dead: {dead:?}");
 }
 
-// -- tests where liveness flags a store a deletion pass would keep --
+// Stores liveness reports unread that a deletion pass must nonetheless keep.
 
 #[test]
 fn dce_terminal_set_is_unread_but_implicit_return() {

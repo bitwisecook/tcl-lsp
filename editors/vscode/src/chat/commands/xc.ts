@@ -211,7 +211,7 @@ function _buildFullLlmPrompt(source: string): string {
     `Translate this F5 BIG-IP iRule to F5 Distributed Cloud (XC) configuration.\n\n` +
     `\`\`\`tcl\n${source}\n\`\`\`\n\n` +
     `Generate:\n` +
-    `1. Terraform HCL using the volterra provider (volterra_http_loadbalancer, volterra_origin_pool, volterra_service_policy)\n` +
+    `1. Terraform HCL for the F5 XC Terraform provider, whose resource types are named volterra_http_loadbalancer, volterra_origin_pool and volterra_service_policy\n` +
     `2. A coverage summary listing which constructs are translatable and which are not\n\n` +
     `For each untranslatable construct, explain why and suggest an XC alternative (e.g., App Stack, XC WAF, XC bot defence).\n\n` +
     `Map these iRule patterns:\n` +

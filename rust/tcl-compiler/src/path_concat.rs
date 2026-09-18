@@ -41,10 +41,9 @@
 //! `crate::taint` resolves it — so every spelling answers alike: a nested
 //! `[file normalize [file join $a $b]]`, the `file nor` unique-prefix
 //! abbreviation the ensemble accepts, a normalisation reaching the variable
-//! through a copy, and a `::file`-qualified call. Until issue #1391 this
-//! module instead text-matched `[file normalize $sameVar]` on a stale belief
-//! that the taint engine never set the colour, and every other spelling
-//! false-positived.
+//! through a copy, and a `::file`-qualified call. Text-matching
+//! `[file normalize $sameVar]` instead would recognise one spelling and
+//! false-positive on every other.
 
 use std::collections::{HashMap, HashSet};
 use tcl_core_types::DiagCode;
@@ -275,7 +274,7 @@ where
             // value never leaves the block unnormalised.  The question is put
             // to the taint lattice, not to the assignment's text, so it is
             // the *sanitiser* that is recognised rather than one spelling of
-            // one call to it (issue #1391).
+            // one call to it.
             let mut suppressed = false;
             for (later_idx, later) in block.statements.iter().enumerate().skip(idx + 1) {
                 if let Statement::AssignValue {
@@ -421,8 +420,8 @@ mod tests {
         assert!(build_file_join_fix("$dir/$file/").is_none());
     }
 
-    /// `file join` emits forward slashes, so a backslash-separated value
-    /// (previously split like `/`) is no longer rewritten.
+    /// `file join` emits forward slashes, so a backslash-separated value is
+    /// not rewritten.
     #[test]
     fn file_join_fix_rejects_backslash() {
         assert!(build_file_join_fix("C:\\temp\\$x").is_none());
@@ -498,7 +497,7 @@ mod tests {
     /// The suppression is the *sanitiser*, not one spelling of it: a nested
     /// normalisation, the ensemble's unique-prefix abbreviation, and the
     /// `::`-qualified call all carry `PATH_NORMALISED` on the lattice, and
-    /// each one the old text match rejected (issue #1391).
+    /// each one a text match would reject.
     #[test]
     fn file_normalize_suppression_is_spelling_independent() {
         for later in [

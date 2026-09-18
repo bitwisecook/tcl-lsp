@@ -36,8 +36,8 @@
 //!   * GENERATE — the "generate docstring stub" producer lives in
 //!     `tcl-lsp-core/src/code_actions.rs` as the PRIVATE
 //!     `docstring_actions`, reached through public `code_actions()`.
-//!     It emits a DOXYGEN-style block: a
-//!     `# @brief TODO: describe <proc>` header, then `# @param <name>`
+//!     It emits a DOXYGEN-style block: a `# @brief` header naming the
+//!     proc, then `# @param <name>`
 //!     lines with `- (default: <value>)` for defaulted params and
 //!     `- Additional arguments` for the `args` varargs sentinel.  The
 //!     PLAIN tag-style and decoration variants of the renderer are public
@@ -415,7 +415,7 @@ fn generate_stub_text(source: &str, proc_name: &str) -> Option<String> {
 
 #[test]
 fn generate_stub_basic_emits_param_line() {
-    // a one-param proc generates a `# @brief TODO: describe greet` header
+    // a one-param proc generates a `# @brief` header naming `greet`,
     // followed by a `# @param name` line (DOXYGEN output).
     let src = "proc greet {name} { puts $name }\n";
     let stub = generate_stub_text(src, "greet").expect("a generate-docstring action");
@@ -578,7 +578,7 @@ fn generate_stub_absent_when_cursor_off_declaration_line() {
     );
 }
 
-// `DocstringStyle` placement (#1314) — code_actions_in_program's
+// `DocstringStyle` placement — code_actions_in_program's
 // docstring_style parameter, the resolved `tclLsp.formatting.docstringStyle`
 // setting's actual consumer.
 

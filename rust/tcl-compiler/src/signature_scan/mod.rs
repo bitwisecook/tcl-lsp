@@ -130,7 +130,7 @@ mod tests {
 
     #[test]
     fn opt_proc_records_real_args_only_arity_not_optlists_own_words() {
-        // Issue #923 idx 90, background-scan half: this module feeds
+        // Background-scan half: this module feeds
         // cross-file arity checking (`arity::arity_of`), independently of
         // the full analyser's own `AnalyserHookId::OptProc` fix — a
         // generic `Traits::DEFINES_PROCEDURE` dispatch here would

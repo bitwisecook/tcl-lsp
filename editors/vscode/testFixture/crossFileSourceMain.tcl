@@ -1,4 +1,4 @@
-# Issue #1332 — `source` was never followed, so this file's `winfo` drew
+# `source` was never followed, so this file's `winfo` drew
 # W120 "requires package require Tk" even though the sourced file loads Tk.
 source crossFileSourceTk.tcl
 winfo exists .l

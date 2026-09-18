@@ -16,15 +16,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! End-to-end coverage for the issue #945 resolution-model follow-up:
+//! End-to-end coverage for the resolution model:
 //! flow-sensitive constant dispatch with writable provenance (faults 1–2),
 //! multi-seed source views (fault 3), `TclOO` export visibility + dispatch
 //! entry + per-object binding identity (faults 4–6), the interpreter
 //! domain model (faults 7–8), and probe references (fault 9).
 //!
 //! Rename outputs are **executed** under a real tclsh where one is
-//! available (`TCL_LSP_TCLSH`, else `PATH` probes) — the issue's
-//! validation bar is behaviour, not edit ranges.
+//! available (`TCL_LSP_TCLSH`, else `PATH` probes) — the validation bar
+//! is behaviour, not edit ranges.
 
 use serde_json::Value;
 
@@ -100,7 +100,7 @@ fn run_tclsh(script: &str) -> Option<String> {
     Some(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
-// -- faults 1–2: flow-sensitive constant dispatch with provenance --------
+// Faults 1–2: flow-sensitive constant dispatch with provenance.
 
 #[test]
 fn const_dispatch_rename_rewrites_the_defining_literal_and_executes_945() {
@@ -120,9 +120,8 @@ fn const_dispatch_rename_rewrites_the_defining_literal_and_executes_945() {
         renamed_src.contains("$cmd"),
         "the `$cmd` head is never rewritten:\n{renamed_src}"
     );
-    // The issue's validation bar: the transformed output must EXECUTE —
-    // the old edit set left `set cmd target` stale and died with
-    // `invalid command name "target"` under tclsh 9.0.4.
+    // The transformed output must EXECUTE — a stale `set cmd target` edit
+    // would die with `invalid command name "target"` under tclsh 9.0.4.
     let script = format!("{renamed_src}puts [$cmd]\n");
     if let Some(out) = run_tclsh(&script) {
         assert_eq!(out, "hi", "the dispatch still reaches the renamed proc");
@@ -131,12 +130,11 @@ fn const_dispatch_rename_rewrites_the_defining_literal_and_executes_945() {
     }
 }
 
-// Issue #1009 — the constant-`$cmd` dispatch settlement resolved through a
+// The constant-`$cmd` dispatch settlement must resolve through a
 // proc/class/alias/rename target renamed or deleted away with no later
-// re-establishment, the same root cause #973/#1006/#1007 fixed for the
-// bareword-call paths. Confirmed against tclsh 8.6.14 that a deleted
-// proc's dispatch fails "invalid command name" — the LSP must not still
-// treat the dead name as a live reference.
+// re-establishment, the same as the bareword-call paths. Confirmed against
+// tclsh 8.6.14 that a deleted proc's dispatch fails "invalid command
+// name" — the LSP must not still treat the dead name as a live reference.
 
 #[test]
 fn const_dispatch_draws_no_reference_to_a_deleted_proc_1009() {
@@ -167,18 +165,17 @@ fn const_dispatch_still_references_a_proc_reestablished_after_deletion_1009() {
     );
 }
 
-// Issue #1009, Codex PR #1014 review follow-up — two confirmed false
-// positives found in review after the original #1009/#1006/#973 fixes
-// landed:
+// Two false-positive hazards in resolving a call inside a proc/class body
+// against deletion:
 //
-// 1. `scope.rs`'s `finalise_invocation_resolutions` picked between a local
-//    and a global candidate using a *file-end-only* deletion check, so a
-//    namespaced local call textually before a later unconditional
-//    deletion wrongly lost to the global candidate.
-// 2. `fact_live_for_call` treated *any* call inside a proc/class body as
-//    automatically after every top-level deletion, drawing a spurious
-//    W123 even when the enclosing definition's own top-level invocation
-//    demonstrably ran before that deletion.
+// 1. `scope.rs`'s `finalise_invocation_resolutions` must not pick between a
+//    local and a global candidate using a *file-end-only* deletion check —
+//    that would make a namespaced local call textually before a later
+//    unconditional deletion wrongly lose to the global candidate.
+// 2. `fact_live_for_call` must not treat *any* call inside a proc/class body
+//    as automatically after every top-level deletion — that would draw a
+//    spurious W123 even when the enclosing definition's own top-level
+//    invocation demonstrably ran before that deletion.
 //
 // Both confirmed against tclsh 8.6.14 (see the unit tests alongside
 // `finalise_invocation_resolutions` and `fact_live_for_call` for the exact
@@ -188,10 +185,10 @@ fn const_dispatch_still_references_a_proc_reestablished_after_deletion_1009() {
 // own call-site resolver (`tcl-lsp-core::definition::resolve_called_proc`)
 // is a namespace-visibility check with no deletion tracking of its own, so
 // it always prefers a namespace-visible local proc regardless of a later
-// `rename` — it does not exercise `finalise_invocation_resolutions`'s fix.
-// `references` does: it matches a call site against a definition via
-// `resolved_qualified_name` (`tcl-lsp-core::references`), the exact field
-// this fix corrects.
+// `rename` — it does not exercise the `finalise_invocation_resolutions`
+// hazard above. `references` does: it matches a call site against a
+// definition via `resolved_qualified_name` (`tcl-lsp-core::references`),
+// the exact field these hazards concern.
 
 #[test]
 fn local_call_before_later_deletion_is_a_reference_to_the_local_definition_codex_1009() {
@@ -217,18 +214,17 @@ fn local_call_before_later_deletion_is_a_reference_to_the_local_definition_codex
 
 #[test]
 fn local_call_after_deletion_is_a_reference_to_the_global_definition_issue_973() {
-    // FN guard / regression: `foo::caller` is only ever invoked (line 6,
+    // FN guard: `foo::caller` is only ever invoked (line 6,
     // after `rename foo::bar {}` on line 3) — the local `bar` is genuinely
     // gone by the time the call executes, so it must be a reference to
-    // the global `bar` (line 0), not the local one (line 2). Guards
-    // against #973's original fix regressing.
+    // the global `bar` (line 0), not the local one (line 2).
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "proc bar {} { return global }\nnamespace eval foo {\n    proc bar {} { return local }\n    rename foo::bar {}\n    proc caller {} { return [bar] }\n}\nfoo::caller\n";
     lsp.open_ready(&uri, src);
     // Driven by `resolved_qualified_name` resolving to the global `::bar`:
-    // before this fix it stayed `::foo::bar`, and `invocation_references_named`
-    // would not have matched this query at all (`call_ns` ("foo") differs
+    // if it stayed `::foo::bar`, `invocation_references_named`
+    // would not match this query at all (`call_ns` ("foo") differs
     // from the global definition's own namespace ("")).
     let global_refs = start_lines(&lsp.references(&uri, 0, 5, false));
     assert!(
@@ -310,7 +306,7 @@ fn branch_joined_dispatch_definition_offers_both_targets_945() {
     }
 }
 
-// -- fault 3: multi-seed source views ------------------------------------
+// Fault 3: multi-seed source views.
 
 #[test]
 fn multi_seeded_source_declaration_unions_every_view_945() {
@@ -342,7 +338,7 @@ fn multi_seeded_source_declaration_unions_every_view_945() {
     );
 }
 
-// -- faults 4–6: TclOO visibility, dispatch entry, binding identity ------
+// Faults 4–6: TclOO visibility, dispatch entry, binding identity.
 
 #[test]
 fn unexported_method_is_not_externally_resolvable_945() {
@@ -408,7 +404,7 @@ fn per_object_methods_resolve_by_binding_identity_945() {
     assert_eq!(a_def, vec![3], "a's own override: {a_def:?}");
 }
 
-// -- faults 7–8: the interpreter domain ----------------------------------
+// Faults 7–8: the interpreter domain.
 
 #[test]
 fn safe_interp_hides_unsafe_commands_945() {
@@ -436,7 +432,7 @@ fn safe_interp_hides_unsafe_commands_945() {
     );
 }
 
-// -- fault 9: probe references -------------------------------------------
+// Fault 9: probe references.
 
 #[test]
 fn command_probe_navigates_without_asserting_existence_945() {
@@ -461,20 +457,20 @@ fn command_probe_navigates_without_asserting_existence_945() {
     );
 }
 
-// -- issue #923 idx 94: eval/uplevel argument-position indirect dispatch ----
+// Eval/uplevel argument-position indirect dispatch.
 //
 // A bare `$var` body of an `eval`/`uplevel` call (as opposed to `$var`
-// sitting at a command's own *head* position, fault 1's shape above)
+// sitting at a command's own *head* position, the fault 1 shape above)
 // dynamically evaluates $var's value as a script at runtime — the same
 // flow-sensitive constant-dispatch settlement this file already covers,
 // just reached through a different registration site
-// (`dispatch_one_body_argument`'s new `TokenType::Var` branch).
+// (`dispatch_one_body_argument`'s `TokenType::Var` branch).
 
 #[test]
 fn eval_of_a_list_computed_var_rewrites_the_defining_literal_and_executes_923_idx94() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    // The finding's own minimal repro: `set cmdD [list greetD World]; eval
+    // A minimal repro: `set cmdD [list greetD World]; eval
     // $cmdD` — real tclsh9.0/8.6-verified to print "D World".
     let src = "proc greetD {n} {puts \"D $n\"}\nset cmdD [list greetD World]\neval $cmdD\n";
     lsp.open_ready(&uri, src);
@@ -524,19 +520,18 @@ fn eval_of_a_dynamic_unresolvable_var_body_produces_no_edits_923_idx94() {
     );
 }
 
-// -- issue #923 idx 121: TclOO instance-class inference through a
-// `$var`-headed constructor -------------------------------------------
+// TclOO instance-class inference through a
+// `$var`-headed constructor.
 //
-// `record_instance_creation` / `class_from_constructor_subst` only
-// recognised a literal class-name bareword at the `new`/`create` call
-// site.  Real corpus (tcllib's `httpd/httpd.tcl:1970-1994`) instead flows
-// the class name through a single, unconditional `set` one line earlier
-// (`set class ::Derived; set obj [$class create NAME]`) — the analyser
-// never bound `obj`'s class, so hover / go-to-definition / rename on a
-// later `$obj method` call silently found nothing, exactly like the
-// `{*}$cmd` / `eval $cmd` dispatch gaps this file's fault 1 / idx 94
-// sections already cover, just for TclOO instance construction instead of
-// plain command dispatch.
+// `record_instance_creation` / `class_from_constructor_subst` must
+// recognise more than a literal class-name bareword at the `new`/`create`
+// call site.  Real corpus (tcllib's `httpd/httpd.tcl:1970-1994`) instead
+// flows the class name through a single, unconditional `set` one line
+// earlier (`set class ::Derived; set obj [$class create NAME]`) — the
+// analyser must bind `obj`'s class here too, or hover / go-to-definition /
+// rename on a later `$obj method` call silently finds nothing, exactly
+// like the `{*}$cmd` / `eval $cmd` dispatch gaps the sections above cover,
+// just for TclOO instance construction instead of plain command dispatch.
 
 #[test]
 fn hover_and_definition_resolve_a_method_through_a_var_headed_constructor_923_idx121() {

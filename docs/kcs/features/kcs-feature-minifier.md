@@ -49,7 +49,7 @@ In addition to basic minification:
 **Safety fences (all registry-declared, none keyed on command spellings):**
 
 - **Procedure names are public command identities.**  `info procs`/`info commands`, `rename`, `namespace export`, `interp alias`, `unknown`, execution traces, and callers outside the file can all observe or invoke them, so procs are renamed only under `--isolated` (you assert the script is self-contained), and even then not when any command-name-reflecting command or a computed command name (`$cmd args`) appears anywhere in the script.
-- **Array member names are data, never symbols.**  `arr(member)` keys are observable through `array get`/`array names`, traces, and serialization, so no tier ever renames them.
+- **Array member names are data, never symbols.**  `arr(member)` keys are observable through `array get`/`array names`, traces, and serialisation, so no tier ever renames them.
 - **Scopes containing a dynamic-barrier command** (`global`, `upvar`, `uplevel`, `eval`, `variable`, `trace`, `vwait`, `tkwait`, …) or a variable-name introspection (`info locals`, `info vars`, `info exists`, …) are never renamed.
 - **`upvar` / `uplevel` block every scope**: they reach a caller frame chosen at runtime, so any proc's locals may be observed by name while one exists.
 - A variable whose name is the bare target of a read-modify-write (`incr`/`append`/`lappend`/`lset`) or destroy (`unset`) command keeps its name everywhere.

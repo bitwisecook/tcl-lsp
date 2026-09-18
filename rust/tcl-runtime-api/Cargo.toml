@@ -17,7 +17,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 # Family-B runtime contract: the state-mutation protocol shared across Tcl
-# runtimes (the bytecode VM now, the runtime/rust WASM port later).
+# runtimes (the bytecode VM and the runtime/rust WASM port).
 #
 # Pure types + trait signatures over an associated `Value`, plus the
 # `CompileService` injection point for runtime `eval`. No implementations —

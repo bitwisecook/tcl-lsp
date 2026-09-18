@@ -238,10 +238,9 @@ fn highlight_into(src: &str, depth: usize, config: LexerConfig, out: &mut String
 }
 
 /// A braced `{…}` word or `[…]` command substitution: recurse into the inner
-/// script so nested commands/vars are highlighted. The lexer strips the
-/// delimiters from the token span (they arrive as the surrounding gap text), so
-/// the token text is normally already the inner script and is recursed
-/// directly; if a lexer path does keep the delimiters, strip them first.
+/// script so nested commands/vars are highlighted. The token span covers the
+/// opening delimiter, which is emitted as plain text before recursing; the
+/// closing one sits outside the span except for the degenerate empty word.
 fn recurse_wrapped(
     text: &str,
     open: char,
@@ -361,7 +360,7 @@ mod tests {
         // convention drops the outer closer). The recursion must keep the
         // inner `}` (it closes `{$b}`), not strip it as if it were the word's
         // own closer — otherwise `$b` sits in an unterminated `{$b` fragment
-        // and loses its variable highlight (issue 164).
+        // and loses its variable highlight.
         let src = "set x {a {$b}}";
         let ranges = highlight_ranges(src);
         // `$b` lives at bytes 10..12; it must be classed as a variable.

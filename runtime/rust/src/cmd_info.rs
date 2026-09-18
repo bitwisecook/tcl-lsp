@@ -548,10 +548,10 @@ mod tests {
         i.result_bytes()
     }
 
-    /// Issue #1607: `info` is a `TclMakeEnsemble` command, so both the prefix
-    /// scan and the whole miss sentence belong to `tcl_cmd_core::ensemble` —
-    /// the prefix loop and the `unknown or ambiguous subcommand "` literal
-    /// were duplicated here beside the owner's `subcommand_choices`.
+    /// `info` is a `TclMakeEnsemble` command, so both the prefix
+    /// scan and the whole miss sentence belong to `tcl_cmd_core::ensemble`,
+    /// rather than a duplicated prefix loop and `unknown or ambiguous
+    /// subcommand "` literal beside the owner's `subcommand_choices`.
     ///
     /// tclsh 9.0.4:
     ///   info {}   -> unknown or ambiguous subcommand "": must be args, body,

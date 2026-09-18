@@ -47,11 +47,8 @@ name: Deploy GitHub Pages (BIG-IP report + compiler explorer + spec studio)
 #                          multi-file dist — index.html (registry + compiler
 #                          analyser inlined as WASM), assets/ (the lazily
 #                          loaded editor chunk), lsp/ (the server worker) —
-#                          built by `make spec-studio-wasm`, which now also
-#                          builds `make lsp-server-wasm` as a prerequisite.
-#
-# This supersedes the old `pages.yml` (Python `make explorer-build-cdn`), which
-# no longer exists on the Python-free `rust` line.
+#                          built by `make spec-studio-wasm`, which builds
+#                          `make lsp-server-wasm` as a prerequisite.
 on:
   push:
     # `rust` is the active development and default line. Every
@@ -132,7 +129,7 @@ jobs:
       # Install the current stable explicitly.  `cache: false` because the
       # Swatinem cache is configured separately below.
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
           toolchain: stable
           cache: false
@@ -151,7 +148,7 @@ jobs:
         run: rustup target add wasm32-unknown-unknown
 
       - name: Install wasm-pack + wasm-bindgen-cli
-        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
+        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
         with:
           # wasm-bindgen-cli must match the wasm-bindgen crate version pinned in
           # rust/bigip-report-gen/wasm/Cargo.toml.

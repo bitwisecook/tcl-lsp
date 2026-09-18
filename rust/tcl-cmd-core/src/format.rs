@@ -136,7 +136,7 @@ fn render<O: ValueOps>(
             // (the `*` width, then the `.*` precision, then the value), leaving
             // the sequential cursor untouched; an ordinary spec consumes from the
             // running cursor `ai`. So `%2$*d` takes its width from arg 2 and its
-            // value from arg 3 (format-... ), matching tclsh.
+            // value from arg 3, matching tclsh.
             let positional = spec.arg_index.is_some();
             let mut cur = match spec.arg_index {
                 Some(n) => n
@@ -391,7 +391,8 @@ fn trim_g_exp(body: &str) -> String {
     format!("{trimmed}{exp}")
 }
 
-/// Left-pad `mag` with `0` up to `.precision` digits.
+/// Left-pad `mag` with `0` up to `.precision` digits. An explicit precision of
+/// zero renders the value zero as the empty string, as C does.
 fn apply_precision(mag: String, spec: &Spec) -> String {
     match spec.precision {
         Some(p) if mag.len() < p => format!("{}{mag}", "0".repeat(p - mag.len())),

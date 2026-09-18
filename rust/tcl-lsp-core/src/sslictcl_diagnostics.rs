@@ -40,7 +40,7 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::BuildHasher;
 
-use tcl_compiler::analyser::{Diagnostic, Severity};
+use tcl_compiler::analyser::{Diagnostic, Severity, line_suppressed};
 use tcl_core_types::DiagCode;
 use tcl_dialect::DialectProfile;
 use tcl_sslictcl::dsl::{DslSeverity, load_with_diagnostics};
@@ -51,10 +51,6 @@ use tcl_sslictcl::dsl::{DslSeverity, load_with_diagnostics};
 /// against a dialect *name*: aliases (`sslic-tcl`, `tls-sslictcl`) are folded
 /// in by resolution, exactly as the BIG-IP dispatch reads `bigip`.
 const SURFACE_PACKAGE: &str = "sslictcl";
-
-/// Sentinel line for a file-wide `# tcl-lsp: disable=…` directive in the
-/// analyser's `suppressed_lines` map.
-const FILE_SUPPRESS_KEY: i32 = -1;
 
 /// Whether documents of `dialect` are `SslicTcl` declarations — i.e. whether
 /// [`diagnostics`] applies to them.
@@ -94,7 +90,7 @@ pub fn diagnostics<H: BuildHasher, I: BuildHasher, J: BuildHasher>(
         .filter(|d| {
             let line = i32::try_from(line_index.position_at_utf16(d.range.start(), source).line)
                 .unwrap_or(i32::MAX);
-            !is_suppressed(d.code.as_str(), line, suppressed)
+            !line_suppressed(d.code.as_str(), line, suppressed)
         })
         .map(|d| {
             Diagnostic::new(
@@ -143,24 +139,11 @@ pub fn supersede_analyser_diagnostics(diagnostics: &mut Vec<Diagnostic>) {
     diagnostics.retain(|d| !SUPERSEDED_ANALYSER_CODES.contains(&d.code));
 }
 
-/// The shared `# noqa` / file-directive suppression contract.
-fn is_suppressed<H: BuildHasher, I: BuildHasher>(
-    code: &str,
-    line: i32,
-    suppressed: &HashMap<i32, HashSet<String, I>, H>,
-) -> bool {
-    let hit = |key: i32| {
-        suppressed
-            .get(&key)
-            .is_some_and(|codes| codes.contains("*") || codes.contains(code))
-    };
-    hit(FILE_SUPPRESS_KEY) || hit(line)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::profile_for_dialect;
+    use tcl_compiler::analyser::FILE_SUPPRESS_KEY;
 
     const THREE_ERRORS: &str = "sslictcl 1\n\
                                 endpoint /Common/a {\n\

@@ -16,9 +16,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Render an [`XCTranslationResult`] as Terraform HCL (volterra provider):
-//! `volterra_origin_pool`, `volterra_http_loadbalancer`, and
-//! `volterra_service_policy` resources. Hand-rolled string formatting.
+//! Render an [`XCTranslationResult`] as Terraform HCL for the F5 XC
+//! Terraform provider, published as `volterraedge/volterra`. Its resource
+//! type names carry that same spelling — `volterra_origin_pool`,
+//! `volterra_http_loadbalancer`, `volterra_service_policy` — because they
+//! are the provider's schema, not our naming. Hand-rolled string
+//! formatting.
 
 use std::fmt::Write as _;
 
@@ -198,7 +201,14 @@ fn render_origin_pool(pool: &XCOriginPool, namespace: &str) -> String {
             "resource \"volterra_origin_pool\" \"{}\" {{",
             hcl_ident(&pool.name)
         ),
-        format!("  name      = {}", quote(&pool.name)),
+        // The XC name is derived, so the BIG-IP path it came from is
+        // recorded here as a comment rather than as an argument: the
+        // provider's resource schema is not ours to assume.
+        format!("  # {}", crate::names::derived_from(&pool.name)),
+        format!(
+            "  name      = {}",
+            quote(&crate::names::xc_object_name(&pool.name))
+        ),
         format!("  namespace = {}", quote(namespace)),
         String::new(),
         "  # TODO: Configure origin servers".to_owned(),
@@ -345,7 +355,10 @@ fn render_service_policy(policy: &XCServicePolicy, namespace: &str) -> String {
             "resource \"volterra_service_policy\" {} {{",
             quote(&policy.name)
         ),
-        format!("  name      = {}", quote(&policy.name)),
+        format!(
+            "  name      = {}",
+            quote(&crate::names::xc_object_name(&policy.name))
+        ),
         format!("  namespace = {}", quote(namespace)),
         format!("  algo      = \"{}\"", policy.algo),
         String::new(),

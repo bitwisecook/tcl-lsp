@@ -16,7 +16,7 @@ use x509_parser::prelude::{X509Certificate, parse_x509_certificate};
 use x509_parser::public_key::PublicKey;
 
 /// An owned certificate projection. Raw DER is retained for path signature
-/// verification but deliberately omitted from serialized report models.
+/// verification but deliberately omitted from serialised report models.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Certificate {
     /// SHA-256 of the complete DER certificate, lowercase hexadecimal.

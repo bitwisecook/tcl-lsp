@@ -16,13 +16,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Named backend engines the differential harness can pair up (issue #1313).
+//! Named backend engines the differential harness can pair up.
 //!
-//! Before this, `tcl-fuzz` only ever compared one fixed pair: `tclvm`
-//! (subject) against `tclsh` (reference). [`Engine`] generalises "a backend
-//! the harness can run a script through" so any two engines can be paired —
-//! `runtime/rust` ↔ `tclsh`, `tclvm` ↔ `runtime/rust`, or the original
-//! `tclvm` ↔ `tclsh` — over the *same* subprocess harness (`harness.rs`).
+//! [`Engine`] generalises "a backend the harness can run a script through"
+//! so any two engines can be paired — `runtime/rust` ↔ `tclsh`, `tclvm` ↔
+//! `runtime/rust`, or `tclvm` ↔ `tclsh` — over the *same* subprocess harness
+//! (`harness.rs`).
 
 use std::path::{Path, PathBuf};
 

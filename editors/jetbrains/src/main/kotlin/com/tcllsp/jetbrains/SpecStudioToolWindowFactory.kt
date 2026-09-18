@@ -72,8 +72,8 @@ internal class SpecStudioPanel(private val project: Project) : Disposable {
      * picker change made while that is still waiting.  They are independent
      * pooled tasks with no ordering between them, so without this the initial
      * dialect could be applied *after* the newer selection and leave the sample
-     * disagreeing with the UI until the user changed it again (PR #1960
-     * review).  A pin claims a generation before it is dispatched and rechecks
+     * disagreeing with the UI until the user changed it again.  A pin claims
+     * a generation before it is dispatched and rechecks
      * it before sending, so only the newest intent reaches the server.
      */
     private val dialectPinGeneration = AtomicLong()
@@ -181,7 +181,7 @@ internal class SpecStudioPanel(private val project: Project) : Disposable {
      * highlighting, completion or hover in the very buffer the studio exists
      * to give feedback on.  The per-document override is the seam that leaves
      * every other open buffer alone, unlike the two session-global dialect
-     * commands (issue #1931).
+     * commands.
      */
     @Suppress("UnstableApiUsage")
     private fun applySampleDialect(dialect: String?) {

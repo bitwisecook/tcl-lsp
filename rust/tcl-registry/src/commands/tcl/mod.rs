@@ -209,11 +209,11 @@ pub fn tcl_command_specs() -> Vec<CommandSpec> {
     // The `tcl::mathfunc` math-function ensemble (both qualified spellings).
     specs.extend(mathfunc_generated::specs());
     // Standalone specs for `dict` subcommands that are also genuine,
-    // separately-callable `::tcl::dict::<name>` commands (issue #923 idx 105).
+    // separately-callable `::tcl::dict::<name>` commands.
     specs.extend(dict::qualified_specs());
     // Standalone specs for the `oo::Helpers` members under their qualified
     // spelling — real, separately-callable commands whose *bare* twins are
-    // method-context-only (issue #1026).
+    // method-context-only.
     specs.extend(oo_helpers::qualified_specs());
     // Simple named commands not yet implemented. (`vec!` — the spec
     // table is past clippy's stack-array size threshold.)

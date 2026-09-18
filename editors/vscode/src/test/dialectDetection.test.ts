@@ -78,7 +78,7 @@ suite("Dialect Detection", () => {
     // signal (`trace`, a real 8.0+ command present in 8.5 and matching the `tr`
     // prefix) as well as the negative, so an empty/transient completion set —
     // which trivially satisfies a bare `!includes("try")` — cannot let this
-    // pass vacuously while proving nothing about the 8.5 catalog.
+    // pass vacuously while proving nothing about the 8.5 catalogue.
     const labels = await waitForCompletions(
       uri,
       new vscode.Position(1, 2),

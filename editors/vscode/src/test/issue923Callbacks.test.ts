@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Issue #923 differential audit, findings idx 92 and idx 48, through a real
+// Differential audit, findings idx 92 and idx 48, through a real
 // VS Code session.  The analyser and native lsp_e2e suites carry the deep
 // TP/FP/TN matrices; these prove the same answers arrive over the client's own
 // providers, which is the tier both findings were missing.

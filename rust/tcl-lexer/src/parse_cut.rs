@@ -16,32 +16,30 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The one owner of **where a script stops parsing** — the *cut* (issue
-//! #1787).
+//! The one owner of **where a script stops parsing** — the *cut*.
 //!
 //! C Tcl parses a script one command at a time and evaluates each before
 //! parsing the next, so a malformed command does not erase what preceded
 //! it: `puts pre; puts "x${abc"` prints `pre` and *then* raises `missing
 //! close-brace for variable name`.  Two Rust consumers need to know where
-//! that boundary falls, and both used to work it out privately:
+//! that boundary falls:
 //!
 //! * `runtime/rust` walks the words of the command it is about to evaluate
 //!   (`parse::first_parse_error`) and defers the failure to the word that
 //!   carries it;
-//! * `tcl-compiler` filtered the [`Lexer`](crate::Lexer)'s **warning
-//!   stream** against a private list of eight message strings and took the
-//!   one with the lowest offset, so a VM front-end could turn a malformed
-//!   script into a catchable runtime error.
-//!
-//! The second answer was wrong in two measurable ways, because a warning
-//! stream is flat and C's parse is not.  For
-//! `list [sfx one] [list "oops]` the lexer warns `missing close-bracket`
-//! at the end of the script while C — which parses the bracket's own
-//! script during the outer command's parse — reports `missing "`.  For
-//! `puts $a([set q "x)` the lexer warns `missing )` at the `(` while C
-//! again reports `missing "` from inside the bracket.  And a warning
-//! stream cannot see [`WordSpan::welded_after_close`] at all, so
-//! `set y {a}b` was accepted as three words where C rejects it.
+//! * `tcl-compiler` needs the cut to turn a malformed script into a
+//!   catchable runtime error for a VM front-end, and gets it from this
+//!   module rather than filtering the [`Lexer`](crate::Lexer)'s **warning
+//!   stream** against a list of message strings and taking the one with
+//!   the lowest offset — a warning stream is flat and C's parse is not, so
+//!   that approach is wrong in two measurable ways.  For
+//!   `list [sfx one] [list "oops]` it would report `missing close-bracket`
+//!   at the end of the script, where C — which parses the bracket's own
+//!   script during the outer command's parse — reports `missing "`.  For
+//!   `puts $a([set q "x)` it would report `missing )` at the `(`, where C
+//!   again reports `missing "` from inside the bracket.  And a warning
+//!   stream cannot see [`WordSpan::welded_after_close`] at all, so
+//!   `set y {a}b` would be accepted as three words where C rejects it.
 //!
 //! # What the cut is
 //!
@@ -716,7 +714,7 @@ mod tests {
     }
 
     /// The cut is dialect-aware: `{*}` is an ordinary word under 8.4, where
-    /// `{*}{a b}` is a welded close-brace rather than an expansion (#1462).
+    /// `{*}{a b}` is a welded close-brace rather than an expansion.
     #[test]
     fn cut_follows_the_configured_dialect() {
         let script = "puts pre; foo {*}{a b}";

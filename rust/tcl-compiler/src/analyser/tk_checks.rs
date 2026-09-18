@@ -33,10 +33,10 @@
 //! decide a geometry-manager conflict, so it accumulates per-parent usage and
 //! is decided in the same flush.
 //!
-//! Two distinct questions are involved, and conflating them was issue #1188:
+//! Two distinct questions are involved, and must not be conflated:
 //!
 //! - **Is Tk active?** — the authoritative, *exact* fact: the environment
-//!   ships `Tk` **ambient** (a `wish` shell — P3's placement query), or a
+//!   ships `Tk` **ambient** (a `wish` shell — the placement query), or a
 //!   `package require Tk` that the registry's
 //!   [`PackageRequire`](tcl_registry::hooks::AnalyserHookId::PackageRequire)
 //!   hook recorded into `result.package_requires` during the walk.  This is
@@ -53,12 +53,11 @@
 //! ([`Analyser::analyse_per_item_with`]) falls back to full
 //! [`Analyser::analyse`] once Tk is **exactly** known to be active, so Tk's
 //! whole-file accumulator (which an isolated proc body cannot see) never
-//! diverges from full analysis.  Before #1188 that fallback was driven by the
-//! precheck instead — three independent substring searches for `package`,
-//! `require`, and `Tk`, matching anywhere in the file including comments,
-//! strings, and generated data — which forced a whole-file re-analysis on
-//! every keystroke for 27.7% of the tcllib corpus's source lines, ~78% of them
-//! false positives.
+//! diverges from full analysis.  Driving that fallback from the precheck
+//! instead — substring searches for `package`, `require`, and `Tk`, matching
+//! anywhere in the file including comments, strings, and generated data —
+//! forces a whole-file re-analysis on every keystroke for 27.7% of the tcllib
+//! corpus's source lines, ~78% of them false positives.
 //!
 //! ## Which interpreter's windows?
 //!
@@ -76,10 +75,10 @@
 //! (`Analyser::tk_domains`) — the same synthetic
 //! `@interp@<path>[#<epoch>]` identity the shared isolation helper
 //! `isolate_interp_eval_body` already homes a child body's procs and variables
-//! under.  Before issue #1141 they were one flat pair of file-wide fields, which
-//! produced a false TK1001 (a parent-side `pack` "conflicting" with a child-side
-//! `grid`) and a missed TK1002 (a parent created in one interpreter vouching for
-//! a child widget in another).
+//! under.  One flat pair of file-wide fields instead produces a false TK1001
+//! (a parent-side `pack` "conflicting" with a child-side `grid`) and misses a
+//! TK1002 (a parent created in one interpreter vouching for a child widget in
+//! another).
 //!
 //! Diagnostic codes:
 //!
@@ -118,9 +117,8 @@ pub(super) struct TkActiveGeometry {
     pub span: tcl_lexer::Span,
 }
 
-/// One interpreter's Tk window hierarchy as the walk models it (issue
-/// #1141) — the analyser-side mirror of C Tk's per-interpreter
-/// `TkMainInfo`.
+/// One interpreter's Tk window hierarchy as the walk models it — the
+/// analyser-side mirror of C Tk's per-interpreter `TkMainInfo`.
 ///
 /// Every interpreter that loads Tk gets a fresh `TkMainInfo` from
 /// `TkCreateMainWindow` (Tk 9.0.4 `generic/tkWindow.c`) with its own
@@ -180,8 +178,8 @@ pub(super) const TK_PACKAGE: &str = "Tk";
 ///
 /// Activation requires an ambient `Tk` placement, a statically-resolvable
 /// `package require Tk`, a `# tcl-lsp: provides Tk` directive, or a configured
-/// `[packages.provides]` edge that puts `Tk` behind another package (issue
-/// #1813).  The first three cannot exist in a source that never contains the
+/// `[packages.provides]` edge that puts `Tk` behind another package.  The
+/// first three cannot exist in a source that never contains the
 /// literal package name; the last is visible in the declaration itself rather
 /// than in the text.  So this is sound:
 /// it never returns `false` for a document that goes on to activate.  It over-approximates
@@ -234,12 +232,11 @@ fn widget_is_within(candidate: &str, ancestor: &str) -> bool {
 impl Analyser {
     /// Return `true` if `name` is a Tk widget-creation command — driven by
     /// the registry (`creates_instance_at` + `required_package == "Tk"`),
-    /// not a hand-maintained name list: the previous hardcoded
-    /// `WIDGET_COMMANDS` had already drifted from the registry (it named
-    /// `ttk::scrollbar` / `ttk::labelframe`, neither of which has ever had a
-    /// registered spec on this branch), which is exactly the class of bug a
-    /// second source of truth invites (issue #927;
-    /// `docs/design/analysis/tk-widget-instance-typing.md`).
+    /// not a hand-maintained name list: a second source of truth drifts from
+    /// the registry — a hardcoded `WIDGET_COMMANDS` naming `ttk::scrollbar` /
+    /// `ttk::labelframe`, neither of which has a registered spec, is exactly
+    /// that bug
+    /// (`docs/design/analysis/tk-widget-instance-typing.md`).
     fn is_widget_command(&self, name: &str) -> bool {
         self.registry.as_deref().is_some_and(|r| {
             r.get(name).is_some_and(|s| {
@@ -895,16 +892,16 @@ impl Analyser {
     ///   hidden in a safe interpreter is not a resolvable `package require`;
     /// - `::package require Tk` does not match either, because
     ///   `resolve_analyser_hook_call` deliberately refuses a `::`-qualified
-    ///   spelling of a bareword global command (pinned by issue #923), so no
-    ///   `package_requires` entry is recorded for it at all — a pre-existing
-    ///   false negative of the whole-file walk, not one this gate introduced.
+    ///   spelling of a bareword global command, so no `package_requires` entry
+    ///   is recorded for it at all — a false negative of the whole-file walk,
+    ///   shared by this gate rather than introduced by it.
     ///
     /// `pub(super)`: [`Analyser::analyse_per_item_with`](super::state::Analyser)
     /// consults the same fact post-walk to decide whether the incremental path
-    /// must hand off to a full analysis (issue #1188).
+    /// must hand off to a full analysis.
     /// Whether a declaration makes `Tk` available — a `# tcl-lsp: provides
     /// Tk` comment, or a configured `[packages.provides]` edge behind a
-    /// package the document requires (issue #1813).
+    /// package the document requires.
     ///
     /// The activation gate has to see this **during** the walk, not only
     /// after `expand_implied_package_requires` has recorded the declared
@@ -964,7 +961,7 @@ mod tests {
         codes(source, dialect).iter().any(|(c, _)| c == code)
     }
 
-    /// Issue #1813: a binary extension that loads Tk itself leaves no
+    /// A binary extension that loads Tk itself leaves no
     /// `package require Tk` to find, so a declared `[packages.provides]` edge
     /// is the only way the analyser can know. With one, the document is Tk —
     /// the TK checks activate and the W120 "requires `package require Tk`"
@@ -1018,7 +1015,7 @@ frame .outer.inner
         );
     }
 
-    /// Issue #1813: the same edge declared as a source comment, which travels
+    /// The same edge declared as a source comment, which travels
     /// with the file and needs no workspace configuration.
     #[test]
     fn provides_directive_activates_tk() {
@@ -1106,7 +1103,7 @@ frame .outer.inner
         assert!(codes(&whole).iter().any(|c| c == "TK1002"));
     }
 
-    /// Review follow-up: a declared edge makes a package available at the
+    /// A declared edge makes a package available at the
     /// require that loads it, and an *explicit* require for the same package
     /// further down must not erase that earlier anchor. H301 takes the
     /// minimum start per package, so losing it reports the command between
@@ -1426,12 +1423,11 @@ proc build {} {
         assert!(has(src, "tcl8.6", "TK1002"));
     }
 
-    /// Registry-driven `is_widget_command` (issue #927) must cover every
-    /// registered widget constructor, not just the handful the old
-    /// hardcoded list happened to name — proven here with a `ttk::`
-    /// constructor the old list also named, and a plain-Tk one it did too,
-    /// so this is a coverage check on the *mechanism*, not just a
-    /// re-assertion of the same case `tk1002_fires_for_missing_parent` uses.
+    /// Registry-driven `is_widget_command` must cover every registered widget
+    /// constructor, not just the handful a hand-maintained list would name —
+    /// checked here with a `ttk::` constructor and a plain-Tk one, so this is a
+    /// coverage check on the *mechanism*, not a re-assertion of the case
+    /// `tk1002_fires_for_missing_parent` uses.
     #[test]
     fn tk1002_fires_for_ttk_and_listbox_constructors() {
         assert!(has("ttk::treeview .outer.inner", "tk", "TK1002"));
@@ -1439,12 +1435,10 @@ proc build {} {
     }
 
     /// A command the registry does not recognise at all must never be
-    /// treated as a widget constructor — this is what made the old
-    /// hardcoded `WIDGET_COMMANDS` list's drift (`ttk::scrollbar` /
-    /// `ttk::labelframe`, neither ever a registered spec on this branch)
-    /// silently harmless rather than a live false-positive risk once new
-    /// checks start trusting `is_widget_command`; the registry-driven
-    /// version simply cannot drift the same way.
+    /// treated as a widget constructor.  A hardcoded list drifts — naming
+    /// `ttk::scrollbar` / `ttk::labelframe`, neither of which has a registered
+    /// spec — and becomes a live false-positive risk as soon as further checks
+    /// trust `is_widget_command`; the registry-driven version cannot.
     #[test]
     fn unknown_command_is_never_treated_as_a_widget_constructor() {
         assert!(!has("totallyMadeUpCommand .outer.inner", "tk", "TK1002"));
@@ -1458,7 +1452,7 @@ proc build {} {
         assert!(!has(src, "tcl8.6", "TK1002"));
     }
 
-    /// Issue #1141 — the analyser's Tk widget/geometry state is keyed by
+    /// The analyser's Tk widget/geometry state is keyed by
     /// interpreter domain, mirroring C Tk's per-interpreter `TkMainInfo`
     /// (`TkCreateMainWindow`, 9.0.4 `generic/tkWindow.c`: a fresh
     /// `nameTable` and a fresh `.` root per interpreter).  The interpreter
@@ -1469,7 +1463,7 @@ proc build {} {
     mod interp_domains {
         use super::{codes, has};
 
-        /// FP (the bug): a parent-side `grid` and a child-side `pack` on the
+        /// FP: a parent-side `grid` and a child-side `pack` on the
         /// same *path* are two different containers, so no conflict.
         #[test]
         fn tk1001_fp_does_not_fire_across_isolated_interps() {
@@ -1495,9 +1489,9 @@ proc build {} {
             assert!(has(src, "tk", "TK1001"));
         }
 
-        /// FN (the bug's other half): a conflict genuinely inside one child
-        /// interpreter must fire — it was previously decided against a pool
-        /// that mixed in the parent's calls.
+        /// FN: a conflict genuinely inside one child interpreter must fire —
+        /// deciding it against a pool that mixes in the parent's calls would
+        /// miss it.
         #[test]
         fn tk1001_fn_conflict_inside_one_child_body_fires() {
             let src = "interp create child\n\
@@ -1525,7 +1519,7 @@ proc build {} {
             assert!(!has(src, "tk", "TK1001"));
         }
 
-        /// FN (the bug): `.top` exists only in the child, so the parent's
+        /// FN: `.top` exists only in the child, so the parent's
         /// `.top.inner` really does have no parent.
         #[test]
         fn tk1002_fn_parent_created_only_in_child_still_missing_here() {

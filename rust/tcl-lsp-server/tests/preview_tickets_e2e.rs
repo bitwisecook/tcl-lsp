@@ -16,18 +16,18 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! End-to-end LSP tests for the analyser / definition preview regressions:
+//! End-to-end LSP tests for analyser / definition preview correctness:
 //!
-//! * #720 — `after 200 {…}` must not raise W001 (an integer time arg is not an
+//! * `after 200 {…}` must not raise W001 (an integer time arg is not an
 //!   unknown subcommand).
-//! * #726 — `if {[myCmd [expr {1+1}]]}` must not raise W114 (the nested `[expr]`
+//! * `if {[myCmd [expr {1+1}]]}` must not raise W114 (the nested `[expr]`
 //!   is a command argument, not a top-level expression context).
-//! * #727 — go-to-definition of a `TclOO` method/constructor parameter must
+//! * Go-to-definition of a `TclOO` method/constructor parameter must
 //!   resolve to the parameter *name*, not the whole method body.
-//! * #865 — a workspace file that was opened (and showed problems) must keep its
+//! * A workspace file that was opened (and showed problems) must keep its
 //!   Problems / File-Explorer badge after its editor tab closes: the server
 //!   republishes the on-disk file's diagnostics rather than clearing them.
-//! * #867 — `lassign $point x y z` writes list *elements*, so the targets must
+//! * `lassign $point x y z` writes list *elements*, so the targets must
 //!   not inherit `lassign`'s `List` return type and fire S100 in `[expr]`.
 //!
 //! Driven over real JSON-RPC against the `tower-lsp` service.
@@ -242,7 +242,7 @@ async fn after_integer_ms_is_not_flagged_w001_e2e() {
 
 #[tokio::test]
 async fn closed_on_disk_file_retains_diagnostics_badge_e2e() {
-    // #865: opening a file surfaces its problems; closing the editor tab must NOT
+    // Opening a file surfaces its problems; closing the editor tab must NOT
     // wipe them — the file is still on disk and part of the workspace, so the
     // server republishes its on-disk diagnostics so the File-Explorer badge and
     // Problems entry survive the close.
@@ -305,10 +305,10 @@ async fn nested_expr_in_command_sub_is_not_flagged_w114_e2e() {
 
 #[tokio::test]
 async fn lassign_targets_not_flagged_s100_shimmer_e2e() {
-    // Issue #867, verbatim reproducer: `lassign` destructures a list into
-    // per-element locals whose intrep is not the `List` the command returns.
-    // Pre-fix the targets were typed LIST, so the arithmetic on the last line
-    // fired S100 "variable has list intrep used in arithmetic expression".
+    // `lassign` destructures a list into per-element locals whose intrep is
+    // not the `List` the command returns. If the targets were typed LIST,
+    // the arithmetic on the last line would fire S100 "variable has list
+    // intrep used in arithmetic expression".
     let (mut reader, mut writer, server) = start_session().await;
     did_open(
         &mut writer,
@@ -333,7 +333,7 @@ async fn lassign_targets_not_flagged_s100_shimmer_e2e() {
 
 #[tokio::test]
 async fn regexp_capture_not_flagged_s100_shimmer_e2e() {
-    // Sibling of #867: a `regexp` capture holds a matched substring, not the
+    // A `regexp` capture holds a matched substring, not the
     // Int match count the command returns.  Comparing it as a string must not
     // fire S100 "numeric variable used in string comparison".
     let (mut reader, mut writer, server) = start_session().await;
@@ -858,12 +858,11 @@ async fn apply_lambda_param_definition_resolves_to_name_for_second_param_e2e() {
     server.abort();
 }
 
-/// TP — issue #923 idx 3: `rename OLD NEW` gave up entirely (treated as
-/// unconditionally dynamic, no binding recorded) whenever either argument
-/// contained `$`/`[`, even when the value was a compile-time constant.
-/// `set old ::foo_impl; rename $old ::foo` is the finding's own simplest
-/// repro; before the fix, go-to-definition on the resulting `::foo` call
-/// returned an empty result.
+/// TP: `rename OLD NEW` must not treat either argument as unconditionally
+/// dynamic (no binding recorded) just because it contains `$`/`[`, when the
+/// value is a compile-time constant. `set old ::foo_impl; rename $old
+/// ::foo` is the simplest such case; go-to-definition on the resulting
+/// `::foo` call must not return an empty result.
 #[tokio::test]
 async fn dynamic_but_resolvable_rename_definition_follows_the_move_e2e() {
     let (mut reader, mut writer, server) = start_session().await;
@@ -900,7 +899,7 @@ async fn dynamic_but_resolvable_rename_definition_follows_the_move_e2e() {
     server.abort();
 }
 
-/// TN — issue #923 idx 3 regression guard: a rename argument that is
+/// TN: a rename argument that is
 /// dynamic and genuinely unresolvable (piped through `gets`, never a
 /// tracked compile-time constant) must still abstain — no false
 /// go-to-definition claim.
@@ -934,12 +933,12 @@ async fn genuinely_dynamic_rename_still_abstains_from_definition_e2e() {
     server.abort();
 }
 
-/// FP — issue #923 idx 110: `namespace eval $ns [list namespace unknown
+/// FP: `namespace eval $ns [list namespace unknown
 /// $handler]` (the tcllib `namespacex::hook::Set` idiom) installs a
 /// per-namespace unknown-command handler, but the `[...]` body is a
-/// `Cmd`-kind token that the analyser's literal-`{...}`-only body walk
-/// never enters — so the installer used to be invisible and a call the
-/// handler chain resolves at runtime drew a false W123.
+/// `Cmd`-kind token — the analyser's body walk must not skip it just
+/// because it isn't a literal `{...}`, or a call the handler chain
+/// resolves at runtime draws a false W123.
 #[tokio::test]
 async fn list_wrapped_namespace_unknown_installer_suppresses_w123_e2e() {
     let (mut reader, mut writer, server) = start_session().await;
@@ -962,23 +961,21 @@ async fn list_wrapped_namespace_unknown_installer_suppresses_w123_e2e() {
     server.abort();
 }
 
-/// FP/TP — issue #923 idx 113: a bareword call to a sibling `TclOO`
+/// FP/TP: a bareword call to a sibling `TclOO`
 /// method/classmethod/property inside another method's body only
 /// actually dispatches when `oo::Helpers::link` exposed it that way;
-/// `lookup_class_member`/`class_member_hover_text` used to match
+/// `lookup_class_member`/`class_member_hover_text` must not match
 /// unconditionally. `link foo` (constructor) makes `foo` genuinely
 /// bareword-callable; without it, the call errors "invalid command
 /// name" in real tclsh and go-to-definition/hover must abstain, not
 /// guess.
-// Was quarantined as flaky (issue #1028, ~1/15 in CI and locally) and is now
-// deterministic again. The culprit was *not* `defined_command_names` folding
-// method names (it no longer does): it was `rename::method_target_with_access`'s
-// class-body fallback firing on **any** member-name-shaped word inside a class
-// body span — receiver-less, link-gate-less — so the un-linked bareword `foo`
-// was handed to `cross_file_method_definition`, whose answer then rode on hash
-// iteration order. That fallback now applies the same idx-113 gate the
-// in-document `definition::lookup_class_member` does: the cursor must be on the
-// member's own declaration name, or on a bareword `link` really made callable.
+// `rename::method_target_with_access`'s class-body fallback must apply the
+// same gate `definition::lookup_class_member` does: the cursor must be on
+// the member's own declaration name, or on a bareword `link` really made
+// callable. Without that gate the fallback fires on any member-name-shaped
+// word inside a class body span — receiver-less, link-gate-less — handing
+// an un-linked bareword like `foo` to `cross_file_method_definition`,
+// whose answer then depends on hash iteration order (non-deterministic).
 #[tokio::test]
 async fn class_member_bareword_call_requires_link_e2e() {
     let (mut reader, mut writer, server) = start_session().await;
@@ -1048,13 +1045,13 @@ async fn class_member_bareword_call_requires_link_e2e() {
     server.abort();
 }
 
-/// TP — issue #923 idx 9: `set VAR [interp create ...]` never bound `VAR` to
+/// TP: `set VAR [interp create ...]` must bind `VAR` to
 /// the interpreter it created, so a later dynamic `interp alias $VAR name {}
-/// target` / `interp eval $VAR { ... }` pair abstained outright — tclsh9.0-
-/// verified this idiom (a `-safe` sandbox alias-and-eval, the shape
-/// tcllib's doctools.tcl uses) actually runs and prints 42; the LSP saw a
-/// spurious "unknown command" and returned no definition location for the
-/// aliased call at all.
+/// target` / `interp eval $VAR { ... }` pair is not treated as unresolvable —
+/// tclsh 9.0 confirms this idiom (a `-safe` sandbox alias-and-eval, the
+/// shape tcllib's doctools.tcl uses) actually runs and prints 42, so a
+/// spurious "unknown command" must not suppress the definition location for
+/// the aliased call.
 #[tokio::test]
 async fn dynamic_interp_handle_alias_definition_follows_the_tracked_binding_e2e() {
     let (mut reader, mut writer, server) = start_session().await;
@@ -1092,13 +1089,13 @@ async fn dynamic_interp_handle_alias_definition_follows_the_tracked_binding_e2e(
     server.abort();
 }
 
-/// TP — issue #923 idx 120: a class's own bound command name
+/// TP: a class's own bound command name
 /// (`ActiveRecord find ...` calling its own `classmethod`, and the same
 /// call inherited by a non-overriding subclass's own command,
-/// `Table find ...`) never resolved — `receiver_instance_class` only ever
-/// recognised a `$var`/created-instance-command receiver, never a bare
-/// word naming a class directly. tclsh9.0-verified: both calls print
-/// `::ActiveRecord called with arguments: foo bar`.
+/// `Table find ...`) must resolve — `receiver_instance_class` must
+/// recognise a bare word naming a class directly, not only a
+/// `$var`/created-instance-command receiver. tclsh 9.0 confirms: both
+/// calls print `::ActiveRecord called with arguments: foo bar`.
 #[tokio::test]
 async fn classmethod_dispatch_on_class_and_inheriting_subclass_resolves_e2e() {
     let (mut reader, mut writer, server) = start_session().await;
@@ -1147,13 +1144,12 @@ async fn classmethod_dispatch_on_class_and_inheriting_subclass_resolves_e2e() {
     server.abort();
 }
 
-/// TP — issue #923 idx 120, the `self method` half of the finding: stock
+/// TP, the `self method` half: stock
 /// `TclOO`'s own spelling of a class-level method (`self method NAME ARGS
-/// BODY`) had no `apply_oo_subcommand` arm at all, so it was invisible to
-/// `class_methods`, its body was never walked, and — even once
-/// recognised — is NOT inherited by a subclass with no override the way
-/// `ooutil`'s `classmethod` is (tclsh9.0-verified: `Gadget make` raises
-/// `unknown method "make"`).
+/// BODY`) needs an `apply_oo_subcommand` arm so it is visible to
+/// `class_methods` and its body is walked. It is NOT inherited by a
+/// subclass with no override the way `ooutil`'s `classmethod` is (tclsh
+/// 9.0 confirms: `Gadget make` raises `unknown method "make"`).
 #[tokio::test]
 async fn self_method_dispatch_resolves_but_is_not_inherited_e2e() {
     let (mut reader, mut writer, server) = start_session().await;
@@ -1202,13 +1198,13 @@ async fn self_method_dispatch_resolves_but_is_not_inherited_e2e() {
     server.abort();
 }
 
-/// TP — issue #923 idx 116: `apply {{params} body ns}` runs `body` in
+/// TP: `apply {{params} body ns}` runs `body` in
 /// `ns`, not the namespace the `apply` call is lexically written inside.
-/// tclsh9.0/8.6-verified: `real::cleanup` runs, printing "real done".
-/// Before the fix, the bareword `cleanup` inside the apply body resolved
-/// to whichever same-named proc happened to be lexically nearest
-/// (`lexical::cleanup`) — a `Scope` subtree `handle_apply_command` built
-/// for `::real` was structurally unreachable by the span-containment walk.
+/// tclsh 9.0/8.6 confirm: `real::cleanup` runs, printing "real done". The
+/// bareword `cleanup` inside the apply body must resolve there too, not to
+/// whichever same-named proc happens to be lexically nearest
+/// (`lexical::cleanup`) — the `Scope` subtree `handle_apply_command` builds
+/// for `::real` must be reachable by the span-containment walk.
 #[tokio::test]
 async fn apply_namespace_override_resolves_bareword_to_the_lambdas_own_namespace_e2e() {
     let (mut reader, mut writer, server) = start_session().await;

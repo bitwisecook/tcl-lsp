@@ -35,7 +35,7 @@ pub fn spec() -> CommandSpec {
         // `DEFERS_BODY`: a method *definition* stores the body against the
         // type; it runs on dispatch, not here. tclsh 8.6.16 / 9.0.4,
         // byte-identical: a type whose method body is `error stop` defines
-        // cleanly and the next statement runs (issue #1672 audit).
+        // cleanly and the next statement runs.
         traits: Traits::DEFERS_BODY,
         hover: Some(HoverSnippet {
             summary: "Define an instance method outside a type definition body.",

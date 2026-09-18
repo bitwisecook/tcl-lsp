@@ -158,8 +158,8 @@ pub fn run_rename(
         let a = difflib::splitlines_keepends(&source);
         let b = difflib::splitlines_keepends(&applied.new_source);
         // The shared `difflib` yields the diff as a line list (each line keeps
-        // its terminator); the default unified-diff context is 3 — join the
-        // lines to reproduce the previous concatenated string.
+        // its terminator); join them into one string for output. The
+        // unified-diff context is 3 lines.
         let diff = difflib::unified_diff(&a, &b, &from, &to, 3).join("");
         write!(out, "{diff}")?;
     }

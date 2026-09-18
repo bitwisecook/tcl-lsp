@@ -19,11 +19,11 @@
 //! `console` — control the Tk debugging console window — and
 //! `consoleinterp`, the command the console interpreter uses to reach back
 //! into the interpreter it is attached to.  Both are missing from
-//! `Tcl_EvalObjEx`-style single-body forms without a `SubCommand` table, so
+//! `Tcl_EvalObjEx`-style single-body forms; without a `SubCommand` table,
 //! `console eval script` / `consoleinterp eval script` /
-//! `consoleinterp record script` previously had no declared `ArgRole::Body`
-//! argument and the semantic-token walker left `script` as an opaque string
-//! instead of recursing into it (issue #925).
+//! `consoleinterp record script` would have no declared `ArgRole::Body`
+//! argument, and the semantic-token walker would leave `script` as an
+//! opaque string instead of recursing into it.
 use crate::prelude::*;
 use tcl_dialect::model::SpecSurface;
 

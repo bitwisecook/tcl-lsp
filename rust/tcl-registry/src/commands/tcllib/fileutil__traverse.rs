@@ -16,9 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `fileutil::traverse` — the third of the redesign's named P5 hostile
-//! shapes: a `snit::type` factory whose object carries three
-//! command-prefix options and a real looping method.
+//! `fileutil::traverse` — a `snit::type` factory whose object carries
+//! three command-prefix options and a real looping method.
 //!
 //! Everything here is read from
 //! `tmp/tcllib-2.0/modules/fileutil/traverse.tcl` (package

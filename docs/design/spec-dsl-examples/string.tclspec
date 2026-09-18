@@ -137,6 +137,14 @@ if {[string first "World" $s] >= 0} {
         pure
         return_type String
 
+        # Claimed per call, not per command: `string map {a b} $x` launders
+        # nothing, so the CRLF_FREE colour is earned from the mapping the call
+        # was written with — the T101 / IRULE3003 fix `string map {"\n" ""
+        # "\r" ""}`, whose keys cover both characters and whose values
+        # reintroduce neither.
+        taint_transform {CRLF_FREE}
+        taint_transform_when MappingDeletesCrlf
+
         option -nocase -detail {Match keys without regard to case.}
 
         # Mapping: both releases take the dict path only for a *pure* dict and

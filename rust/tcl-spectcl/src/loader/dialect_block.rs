@@ -72,9 +72,10 @@ struct Axis {
 }
 
 /// The closed axis vocabulary (§6.2). Every value here is a value the
-/// lexer can actually be built with, or — for the two `jim*` values — a
-/// spelling reserved for the Jim branch, accepted and carried but not yet
-/// projectable onto a [`LexerGrammar`] (see [`PackDialect::to_grammar`]).
+/// lexer can actually be built with, including the `jim*` spellings on
+/// the `numbers` and `escapes` axes, which [`PackDialect::to_grammar`]
+/// projects onto the Jim variants of [`NumberSyntax`] and
+/// [`EscapeSyntax`].
 const AXES: &[Axis] = &[
     Axis {
         name: "expand_syntax",

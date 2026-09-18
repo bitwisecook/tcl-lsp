@@ -355,8 +355,8 @@ mod tests {
     // The fold is keyed on the *plain-return* encoding, which C emits as
     // `(code 0, level 1)` (`TclMergeReturnOptions` defaults `-level` to 1).
     // `fold_tail_return_to_done_proc` and `fold_tail_return_toplevel_noop`
-    // previously used `(0, 0)`, which encoded the old compensating-VM bug: under
-    // C semantics `(0, 0)` is a fall-through, not a return, so it must never be
+    // must not use `(0, 0)`: under C semantics that is a fall-through, not a
+    // return, so it must never be
     // what the `done` fold matches.
     #[test]
     fn fold_tail_return_to_done_proc() {

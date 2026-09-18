@@ -279,7 +279,7 @@ pub struct SpannedPart<'s> {
 /// The index parse is self-recursive with no natural bound — `$a($b($c(…)))`
 /// costs one native frame group per `(` — and is reachable from ordinary
 /// `subst` / word substitution with no special syntax, so unbounded input
-/// aborts the process with an uncatchable stack overflow (issue #996).
+/// aborts the process with an uncatchable stack overflow.
 /// Empirically that class of recursion overflowed a 256 KiB stack between
 /// depth 100-150 and a 1 MiB stack by depth 2000; `crate::lexer`'s
 /// `MAX_ARRAY_INDEX_DEPTH` measured the same construct at the token layer.
@@ -600,12 +600,12 @@ fn error_inside_unterminated_bracket(
 ///
 /// The walk is **iterative**: an unclosed `[` does not recurse, it records
 /// itself as the fallback and keeps scanning the same buffer, since everything
-/// after it is inside it. Recursing here cost one native stack frame per
-/// unmatched bracket, so a template of many `[` bytes aborted the process
-/// instead of returning a catchable error.
+/// after it is inside it. Recursing here would cost one native stack frame
+/// per unmatched bracket, so a template of many `[` bytes would abort the
+/// process instead of returning a catchable error.
 ///
 /// It is also deliberately shallow — one word level, no command splitting —
-/// because full script segmentation belongs to the boundary owner (#1786). It
+/// because full script segmentation belongs to the boundary owner. It
 /// covers the constructs whose closers are unambiguous from here and leaves
 /// the outer error for everything else.
 fn error_inside_unterminated(
@@ -1001,7 +1001,7 @@ mod tests {
         assert_eq!(parts(b"\\[a]", nine()), vec![text(b"[a]")]);
     }
 
-    /// Issue #1457's axis: `Tcl_ParseVarName`'s `${…}` close rule moved
+    /// `Tcl_ParseVarName`'s `${…}` close rule differs
     /// between the 8.x family (first literal `}`) and 9.x (brace nesting, with
     /// `\X` inert), and the difference is user-visible in the *name* read.
     #[test]
@@ -1032,8 +1032,8 @@ mod tests {
         assert_eq!(parts(b"${a{b}", eight()), vec![scalar(b"a{b")]);
     }
 
-    /// Issue #1732's axis: Tcl 9 rejects raw `{`, `"`, `(`, `}` written in an
-    /// array index; Tcl 8 passed them through. The mask applies to *source*
+    /// Tcl 9 rejects raw `{`, `"`, `(`, `}` written in an
+    /// array index; Tcl 8 passes them through. The mask applies to *source*
     /// bytes only — an escape or a substitution result is legal on both.
     #[test]
     fn array_index_source_mask_follows_the_release() {
@@ -1115,8 +1115,8 @@ mod tests {
         assert_eq!(parts(b"[a\\]b]", nine()), vec![WordPart::Command(b"a\\]b")]);
     }
 
-    /// A literal run decodes under the emulated release's escape grammar
-    /// (issue #1479): TIP 388 capped `\x` at two hex digits from 8.6 and added
+    /// A literal run decodes under the emulated release's escape grammar:
+    /// TIP 388 capped `\x` at two hex digits from 8.6 and added
     /// `\U`, so `\x4142` is `B` under 8.5 and `A42` from 8.6.
     #[test]
     fn literal_runs_decode_under_the_releases_escape_grammar() {
@@ -1166,8 +1166,8 @@ mod tests {
             decompose(b"x${y}", SubstFlags::compiled_word(), nine()),
             WordBody::Parts(vec![text(b"x"), scalar(b"y")])
         );
-        // …and the escapes of that literal run are still decoded, which is
-        // the whole of issue #1646: `string length "x\$y"` is 3, not 4.
+        // …and the escapes of that literal run are still decoded:
+        // `string length "x\$y"` is 3, not 4.
         assert_eq!(
             decompose(b"x\\$y", SubstFlags::compiled_word(), nine()),
             WordBody::Parts(vec![text(b"x$y")])
@@ -1233,7 +1233,7 @@ mod tests {
         assert_eq!(scan_var_ref(b"a$", 1, cfg), Ok(None));
     }
 
-    /// Regression coverage for issue #996: the index parse recurses once per
+    /// The index parse recurses once per
     /// `$name(index)` level, reachable from ordinary `subst` with no special
     /// syntax. The same construct overflowed a 256 KiB native stack between
     /// depth 100-150. Past `MAX_INDEX_DEPTH` the index is kept as literal

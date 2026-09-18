@@ -29,11 +29,10 @@ use tcl_lsp_core::source_style::StyleDiagnostic;
 /// Source file extensions the CLI accepts — the registry's single list, shared
 /// with the LSP server's workspace scan and the VS Code activation glob.
 ///
-/// `test` is the standard `tcltest` suite-file extension — `tcl check
-/// path/to/tests/` skipped a project's whole test suite without it, the CLI
-/// twin of the workspace-scan gap in issue #923 differential-audit findings
-/// idx 10 / idx 27. The CLI's own copy had additionally drifted from the
-/// server's by `exp` / `apl` (issue #1242).
+/// `test` is the standard `tcltest` suite-file extension — without it,
+/// `tcl check path/to/tests/` would skip a project's whole test suite,
+/// mirroring the same gap in the workspace scan. The list must also stay in
+/// sync with the server's `exp` / `apl` extensions.
 use tcl_registry::dialects::TCL_SOURCE_EXTENSIONS as SOURCE_SUFFIXES;
 
 /// Directory names skipped during recursive discovery.
@@ -77,7 +76,7 @@ pub struct InputDocument {
     /// The originating file path, if any.
     pub path: Option<PathBuf>,
     /// What the decoder had to substitute to produce [`Self::source`] from the
-    /// bytes on disk (issue #1326).
+    /// bytes on disk.
     ///
     /// [`DecodeReport::is_faithful`] holds for every document read from text
     /// the caller already had — `--source`, stdin — because there were no bytes
@@ -102,7 +101,7 @@ impl InputDocument {
     /// The server normalises at every entry point that reaches the analyser
     /// (`DocumentState::normalised_for_analysis`), and detection there runs on
     /// the normalised text. This is the CLI's one place to do the same, so a
-    /// verb gets it by asking rather than by remembering (issue #1799).
+    /// verb gets it by asking rather than by remembering.
     ///
     /// [`Self::source`] stays the bytes the caller supplied — the byte-backed
     /// encoding diagnostics describe the file on disk and must not be
@@ -128,10 +127,10 @@ impl InputDocument {
         if let Some(profile) = explicit {
             return profile;
         }
-        // T4: the `tcl8.6` invocation default stays the detector's own
-        // fallback spelling until the configured default environment
-        // lands (ledger row T4, P1) — resolving it here would change what
-        // an unstated document is analysed as.
+        // The `tcl8.6` invocation default stays the detector's own
+        // fallback spelling rather than the configured default environment:
+        // resolving it here would change what an unstated document is
+        // analysed as.
         crate::environment::profile_for_dialect(tcl_registry::dialects::detect_dialect(
             &self.analysis_source(),
             self.filename(),
@@ -201,7 +200,7 @@ pub fn combined_effective_dialect(
     documents
         .iter()
         .find_map(InputDocument::detected_dialect)
-        // T4: the hardcoded `tcl8.6` invocation default, unchanged — see
+        // The hardcoded `tcl8.6` invocation default — see
         // `InputDocument::effective_dialect`.
         .unwrap_or_else(|| crate::environment::profile_for_dialect("tcl8.6"))
 }
@@ -211,11 +210,11 @@ pub fn combined_effective_dialect(
 /// This is the CLI ingest boundary: an unrecognised spelling is an input
 /// error, never an accidental fallback to plain Tcl. Every accepted
 /// spelling — a canonical id, a registered alias (`irules` → `f5-irules`),
-/// and the set-only `tk` ingress that has no catalog profile by design —
+/// and the set-only `tk` ingress that has no catalogue profile by design —
 /// resolves through the one environment resolver
 /// ([`crate::environment::known_profile_for_dialect`]), which hands back
-/// the typed additive profile for `tk` exactly as the retired
-/// `DialectProfile::resolve_known` did.
+/// the typed additive profile for `tk` the same way it does for a catalogue
+/// profile.
 pub fn resolve_dialect(value: Option<&str>) -> Result<Option<&'static DialectProfile>, CliError> {
     value
         .map(|name| {
@@ -230,17 +229,15 @@ pub fn resolve_dialect(value: Option<&str>) -> Result<Option<&'static DialectPro
 }
 
 /// The canonical dialect names [`resolve_dialect`] accepts, comma-separated:
-/// the profile catalog plus the additive `tk` ingress, which has no catalog
+/// the profile catalogue plus the additive `tk` ingress, which has no catalogue
 /// profile by design but resolves all the same.
 fn known_dialect_names() -> String {
     DialectProfile::all()
         .iter()
         .map(|profile| profile.name)
-        // T1: the `+ tk` chain is the *payload* this row retires (ledger
-        // row T1, P1) — the environment enumeration has different
-        // contents, so re-keying it changes this user-facing list rather
-        // than refactoring it. The `tk` name itself now resolves through
-        // the seam.
+        // `tk` has no catalogue profile by design, so it is appended
+        // explicitly here rather than coming from the profile catalogue
+        // iteration above; it resolves through the same environment seam.
         .chain(std::iter::once(
             crate::environment::profile_for_dialect("tk").name,
         ))
@@ -409,10 +406,10 @@ pub fn read_input_documents(
         }
         let bytes = std::fs::read(&file_path)
             .map_err(|e| CliError::input(format!("failed to read {}: {e}", file_path.display())))?;
-        // The one byte -> text boundary for Tcl source: still a lossy decode
-        // (so a broken file is analysed rather than refused), but no longer a
-        // silent one — `decode` carries exactly what was substituted, and
-        // `encoding_diagnostics` turns it into a real finding. Issue #1326.
+        // The one byte -> text boundary for Tcl source: a lossy decode (so a
+        // broken file is analysed rather than refused), but not a silent
+        // one — `decode` carries exactly what was substituted, and
+        // `encoding_diagnostics` turns it into a real finding.
         let (source, decode) = decode_source(&bytes);
         documents.push(InputDocument {
             label: file_path.display().to_string(),

@@ -247,8 +247,8 @@ fn alias_to_user_proc_named_method_does_not_recurse_into_data() {
 
 #[test]
 fn overlapping_scopes_are_strictly_nested() {
-    // A proc-body range and a namespace-body range must be strictly nested
-    // (regression: a bad sort key could break containment).
+    // A proc-body range and a namespace-body range must be strictly
+    // nested; a bad sort key could break containment.
     let src = "namespace eval ns {\n    proc p {} {\n        set local 1\n    }\n}\n";
     let c = chain(src, 2, 12); // on `local`
     for w in c.windows(2) {

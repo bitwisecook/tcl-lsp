@@ -1,8 +1,8 @@
 ; BIG-IP configuration (tmsh) highlights for Zed.
 ;
-; Backed by `grammars/tree-sitter-bigip`. Before this, Zed's TMSH language
-; pointed at the *Tcl* grammar and shipped no query file at all, so a
-; `bigip.conf` got no highlighting and a garbage parse tree (issue #903).
+; Backed by `grammars/tree-sitter-bigip`. Without it, Zed's TMSH language
+; would point at the *Tcl* grammar and ship no query file at all, so a
+; `bigip.conf` would get no highlighting and a garbage parse tree.
 ;
 ; The captures mirror the BIG-IP semantic-token types the server emits. Where
 ; the grammar cannot be as specific as the server (a bare `/Common/x` does not

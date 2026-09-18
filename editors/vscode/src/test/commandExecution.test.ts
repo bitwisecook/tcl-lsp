@@ -21,9 +21,9 @@
  * LSP `workspace/executeCommand` actually return data from the server.
  *
  * These tests bypass the VS Code command wrappers (which may show quick-pick
- * dialogs) and call the LSP server directly via `client.sendRequest`.  This
- * catches regressions like the `@server.feature(WORKSPACE_EXECUTE_COMMAND)`
- * handler swallowing commands registered with `@server.command()`.
+ * dialogs) and call the LSP server directly via `client.sendRequest`, so a
+ * command the server does not dispatch fails here rather than silently
+ * returning nothing in the editor.
  */
 import * as assert from "assert";
 import * as vscode from "vscode";
@@ -55,7 +55,7 @@ suite("LSP Command Execution", () => {
     await activate(docUri);
   });
 
-  // -- minifyDocument (the command that was broken) ----------------------------
+  // -- minifyDocument ---------------------------------------------------------
 
   test("tcl-lsp.minifyDocument returns minified source", async () => {
     const uri = docUri.toString();
@@ -132,15 +132,15 @@ suite("LSP Command Execution", () => {
     );
   });
 
-  // -- minifyDocument semantic guarantees (issues #1192-#1194, #1197) ----------
+  // minifyDocument semantic guarantees
 
   test("minifyDocument preserves switch # arms, proc names, and array keys", async function () {
     this.timeout(scaledTimeout(30_000));
     const semUri = getDocUri("minifySemantics.tcl");
     await activate(semUri);
     // Default tier: `#` inside a braced switch case list is a PATTERN (the
-    // list grammar), never a comment — the arm must survive (issue #1197) —
-    // and no `set alias {…}` preamble may be injected (issue #1194).
+    // list grammar), never a comment — the arm must survive — and no
+    // `set alias {…}` preamble may be injected.
     const def = (await execLspCommand(
       "tcl-lsp.minifyDocument",
       semUri.toString(),
@@ -153,8 +153,7 @@ suite("LSP Command Execution", () => {
     assert.ok(def.source.includes("puts [set a]"), `name-taking read altered: ${def.source}`);
     assert.ok(!def.source.includes("subst"), `default tier must not alias: ${def.source}`);
     // Compact tier (non-isolated): proc names are public command identities
-    // (issue #1193) and array member keys are Tcl data (issue #1192) — both
-    // must survive verbatim.
+    // and array member keys are Tcl data — both must survive verbatim.
     const compact = (await execLspCommand(
       "tcl-lsp.minifyDocument",
       semUri.toString(),
@@ -313,8 +312,8 @@ suite("LSP Command Execution", () => {
   });
 
   test("tcl-lsp.optimiseDocument does not forward across a variable trace", async () => {
-    // Regression: the optimiser used to rewrite the final `puts $x` to
-    // `puts 5`, silently dropping the `trace add variable ::x read onread`
+    // The optimiser must not rewrite the final `puts $x` to `puts 5`: doing
+    // so would silently drop the `trace add variable ::x read onread`
     // handler's `puts "trace fired"` side effect (installed indirectly via
     // a called proc, not lexically between the `set` and the read). tclsh
     // prints "trace fired" then "5" for this fixture — the read of `$x`
@@ -339,11 +338,11 @@ suite("LSP Command Execution", () => {
   });
 
   test("tcl-lsp.optimiseDocument does not eliminate a branch guarded by a cross-procedural trace", async () => {
-    // Regression for O107 (unreachable-code elimination): SCCP used to have
-    // no notion of variable traces, so it proved `if {$x}` constant (`x` is
-    // `1` at every call) and O107 deleted the "unreachable" `else` body's
-    // `puts no` — silently losing the trace-firing read of `$x` through the
-    // DCE path. The trace is installed by a *called* proc (`setup`), not
+    // O107 (unreachable-code elimination) must account for variable traces:
+    // without that, SCCP proves `if {$x}` constant (`x` is `1` at every
+    // call) and O107 would delete the "unreachable" `else` body's `puts no`
+    // — silently losing the trace-firing read of `$x` through the DCE path.
+    // The trace is installed by a *called* proc (`setup`), not
     // lexically between the `set` and the `if`, so only the whole-module
     // trace fact catches it. tclsh prints "trace fired" then "yes" — the
     // `else` body never runs, but the compiler cannot prove that
@@ -380,7 +379,7 @@ suite("LSP Command Execution", () => {
   });
 
   test("tcl-lsp.fixAllSafeIssues applies only semantics-equivalent fixes", async () => {
-    // Issue #1195. Every fix the bulk pass applies must report itself as
+    // Every fix the bulk pass applies must report itself as
     // `semantics-equivalent`; the behaviour-changing ones (W100 over a
     // substituted operand, W110's `==` → `eq`) stay behind their own named
     // code actions. Asserting the class each applied fix reports is what
@@ -563,6 +562,31 @@ suite("LSP Command Execution", () => {
   test("tcl-lsp.xcTranslate handles empty source", async () => {
     const result = await execLspCommand("tcl-lsp.xcTranslate", "", "both");
     assert.strictEqual(result, null, "empty source should return null");
+  });
+
+  test("tcl-lsp.xcTranslate returns both output documents", async () => {
+    // The palette entry opens a scratch tab per document and reports the
+    // coverage, so all three fields have to come back from the server.
+    const result = (await execLspCommand(
+      "tcl-lsp.xcTranslate",
+      'when HTTP_REQUEST {\n    if { [HTTP::uri] starts_with "/api" } {\n        pool api_pool\n    }\n}\n',
+      "both",
+    )) as {
+      terraform: string;
+      json_api: Record<string, unknown>;
+      coverage_pct: number;
+      translatable_count: number;
+      items: Array<Record<string, unknown>>;
+    } | null;
+    assert.ok(result, "xcTranslate should return a result");
+    assert.ok(result.terraform.includes("volterra_origin_pool"), "should render Terraform HCL");
+    assert.ok(result.json_api, "should render the JSON API document");
+    assert.strictEqual(typeof result.coverage_pct, "number", "should report coverage");
+    assert.ok(result.translatable_count > 0, "the pool selection is translatable");
+    assert.ok(
+      result.items.some((i) => i.status === "translated"),
+      "items should be status-tagged",
+    );
   });
 
   // -- describeIruleEvent -----------------------------------------------------

@@ -163,7 +163,7 @@ fn intervals_of(fu: &FunctionUnit) -> impl Fn(&str, u32) -> Option<Interval> + '
 
 /// The loop-body block: the `true_target` of the `Branch` whose condition is a
 /// real comparison (`$i < N`/`$i < [llength …]`), i.e. the loop's exit test.
-/// (Rust lowers `for` to a rotated loop where the latch — not the synthetic
+/// (`for` lowers to a rotated loop where the latch — not the synthetic
 /// `for_header` with its constant `1` guard — carries the comparison.)
 fn loop_body_block(fu: &FunctionUnit) -> tcl_compiler::cfg::BlockId {
     fu.cfg
@@ -181,7 +181,7 @@ fn loop_body_block(fu: &FunctionUnit) -> tcl_compiler::cfg::BlockId {
 }
 
 /// Predecessor count per block — `refine_interval` requires a guarded branch
-/// target have a single entry edge before applying its constraint (issue 148).
+/// target have a single entry edge before applying its constraint.
 fn pred_counts(fu: &FunctionUnit) -> std::collections::HashMap<tcl_compiler::cfg::BlockId, usize> {
     fu.cfg
         .predecessors()
@@ -252,8 +252,8 @@ mod dynamic_lindex_out_of_range {
         // merge (two predecessors: the header false edge and the break edge)
         // must NOT refine `n` to `[5, +inf)` — doing so would fire a false
         // W230 on `lindex {a b c} $n`, since on the break path `n` may be in
-        // range (issue 148). The exit block has >1 predecessor, so the guard
-        // is not edge-dominating and must not apply.
+        // range. The exit block has >1 predecessor, so the guard is not
+        // edge-dominating and must not apply.
         let src = "proc f {} {\n\
             \x20   set n [bar]\n\
             \x20   while {$n < 5} { if {[foo]} { break } }\n\
@@ -340,8 +340,8 @@ mod nested_position_lindex {
 
     #[test]
     fn expr_embedded_in_return_fires() {
-        // The `return`-terminator path DOES reach the embedded `[lindex …]` (the
-        // partner positive that Rust *does* fire). tclsh: `lindex {a b c} 5` → "".
+        // The `return`-terminator path DOES reach the embedded `[lindex …]` —
+        // the partner positive that does fire. tclsh: `lindex {a b c} 5` → "".
         let src = "proc f {} { set i 5\n return [expr {[lindex {a b c} $i] + 1}] }";
         assert_eq!(count(src, "W230"), 1);
     }
@@ -517,7 +517,7 @@ mod divide_by_zero {
         assert_eq!(count(src, "W233"), 1);
     }
 
-    // --- laziness: dead arms must stay silent ---
+    // Laziness: dead arms must stay silent.
 
     #[test]
     fn dead_ternary_arm_div_zero_silent() {
@@ -547,7 +547,7 @@ mod divide_by_zero {
         assert_eq!(count("proc f {} { return [expr {1/0 && 1}] }", "W233"), 1);
     }
 
-    // --- laziness: a constant guard FORCES the lazy arm (guaranteed error) ---
+    // Laziness: a constant guard FORCES the lazy arm (guaranteed error).
 
     #[test]
     fn forced_and_rhs_div_zero_fires() {
@@ -707,10 +707,10 @@ mod list_expansion_length {
 
     #[test]
     fn plain_list_length_still_inferred() {
-        // Control (no expansion) → length 2 known, index 5 is OOR. This is the
-        // negative half of the bug pair and passes — it proves the W230 path is
-        // otherwise healthy and the false positive above is specific to `{*}`.
-        // tclsh: `list a b` → 2 elements; `lindex {a b} 5` → "".
+        // Control (no expansion) → length 2 known, index 5 is OOR: the W230
+        // path still fires when the length is knowable, so the silence above is
+        // specific to `{*}`. tclsh: `list a b` → 2 elements; `lindex {a b} 5`
+        // → "".
         let src = "proc g {} { set l [list a b]\n set i 5\n set x [lindex $l $i] }";
         assert_eq!(count(src, "W230"), 1);
     }
@@ -1077,7 +1077,7 @@ mod dialect_numerals {
 
     /// The same `$i < 0755` guard proves `i <= 492` for an 8.x target and
     /// `i <= 754` for a 9.0 one (tclsh8.6 `expr {0755}` → 493, tclsh9.0 → 755).
-    /// Before the dialect was threaded both read 755, so an 8.x analysis got a
+    /// A dialect-blind reader takes both as 755 and hands an 8.x analysis a
     /// range 262 wider than reality — and interval facts feed the W230–W233
     /// range diagnostics and the native-integer proof.
     #[test]

@@ -277,7 +277,7 @@ mod tests {
 
     /// Two namespaces each define a class named `Shape`, each with its own
     /// subclass.  With the cursor on `::A::Shape`, only `::A`'s subclass is an
-    /// implementation — the namespace-blind scan used to pool both namespaces'
+    /// implementation — a namespace-blind scan would pool both namespaces'
     /// subclasses together.
     fn two_namespace_shapes() -> &'static str {
         "namespace eval A {\n\

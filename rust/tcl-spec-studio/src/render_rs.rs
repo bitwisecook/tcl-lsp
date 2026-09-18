@@ -552,7 +552,7 @@ enum LifecycleLine {
 /// `lifecycle` field.
 ///
 /// `CommandSpec` / `SubCommand` declare **one** `lifecycle` field; the form
-/// edits it as independent releases and a quick-fix hook (#1210). Walking the schema and
+/// edits it as independent releases and a quick-fix hook. Walking the schema and
 /// emitting each key verbatim produced `introduced_version: Some("21.1.0"),` —
 /// a spec file that does not compile (`struct SubCommand has no field named
 /// introduced_version`), caught by rendering the registry back into itself.

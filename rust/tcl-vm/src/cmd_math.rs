@@ -80,7 +80,7 @@ fn domain_err() -> Completion<Value> {
 }
 
 /// A shared math-function refusal as a VM completion, carrying C's verbatim
-/// message and `-errorcode` (#1581): `ARITH IOVERFLOW` for an infinity
+/// message and `-errorcode`: `ARITH IOVERFLOW` for an infinity
 /// reaching an integer conversion, `TCL VALUE DOUBLE NAN` for a NaN operand,
 /// `ARITH DOMAIN` otherwise. `Abstain` cannot occur here — the VM's backend
 /// has an arbitrary-precision rung and its release is resolved — so it falls
@@ -94,9 +94,9 @@ fn math_func_err(e: tcl_syntax::expr::mathfunc::MathFuncError) -> Completion<Val
     err_with_code(message, e.error_code())
 }
 
-/// A [`num_or_nan`] failure as a completion, with C's `-errorcode`: the VM
-/// had the right message text for a NaN and an infinity but left `errorCode`
-/// as `NONE` (#1581).
+/// A [`num_or_nan`] failure as a completion, with C's `-errorcode`. A
+/// message-only completion would have the right text for a NaN and an
+/// infinity but leave `errorCode` as `NONE`.
 fn num_err(message: String) -> Completion<Value> {
     use tcl_syntax::expr::errors;
     if message == errors::NAN_MESSAGE {
@@ -176,10 +176,9 @@ fn shared_math(name: &str, args: &[Value], int_width: IntWidth) -> Completion<Va
 /// Most functions fall through to [`shared_math`], which drives
 /// `tcl_syntax::expr::mathfunc::dispatch_with_backend` — the same shared
 /// implementation `expr` itself uses. The integer conversions
-/// (`int`/`wide`/`entier`/`round`/`isqrt`) are shared arms too since
-/// #1382/#1795 gave the shared seam an exact float-to-bignum operation
-/// (`BigIntOps::from_f64_trunc`), so `int(1e300)` and `round(1e300)` keep
-/// their exact answers there.
+/// (`int`/`wide`/`entier`/`round`/`isqrt`) are shared arms too: the shared
+/// seam has an exact float-to-bignum operation (`BigIntOps::from_f64_trunc`),
+/// so `int(1e300)` and `round(1e300)` keep their exact answers there.
 ///
 /// The arms named here are the ones whose VM bodies are deliberately *not*
 /// the shared ones: `abs` takes an i128 fast path before the bignum rung,
@@ -207,7 +206,7 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.declare_namespace("tcl::mathfunc");
     // Derived from `tcl_syntax::expr::mathfunc::all()` rather than a
     // hand-typed list, exactly as `runtime/rust/src/cmd_mathfunc.rs` does
-    // (ledger row B3). The hand-typed list this replaces had gone stale by
+    // A hand-typed list would risk going stale, as it did for
     // the whole TIP 745 (Tcl 9.1) C99 batch — 21 functions the shared
     // dispatch table already implemented but that were never registered as
     // commands, so `expr {cbrt(27)}` was an error under a 9.1 pin.
@@ -309,8 +308,8 @@ fn m_srand(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // but got "1.5"` (`-errorcode TCL VALUE INTEGER`, or `TCL VALUE NUMBER`
     // for a non-number), and tclsh9.0.4 raises with an *empty* message
     // because C passes a NULL interp to the conversion there. Both engines
-    // use 8.6's wording so they agree with each other (#1432); 9.0's
-    // empty-message quirk is left to the error-taxonomy work (#1581).
+    // use 8.6's wording so they agree with each other; 9.0's
+    // empty-message quirk is not reproduced here.
     let Ok(seed) = x.as_wide() else {
         return err_with_code(
             format!("expected integer but got \"{}\"", x.to_str()),

@@ -182,7 +182,7 @@ pub(crate) fn arity(value: Arity) -> Value {
 }
 
 /// One [`tcl_registry::arity::ArityWindow`] as a draft value — the shape the
-/// signature had over one span of the owning package's releases (#1627).
+/// signature had over one span of the owning package's releases.
 pub(crate) fn arity_windows(windows: &[tcl_registry::arity::ArityWindow]) -> Value {
     Value::Array(
         windows
@@ -594,7 +594,7 @@ pub(crate) fn sub_subcommand(sub: &SubSubCommand) -> (Value, bool) {
     let mut lost = Unrecovered::default();
     // `null` — declares nothing, inherits the subcommand's table — is a
     // different draft value from `[]`, which declares that there are no
-    // options here at all (issue #1610).
+    // options here at all.
     d.insert(
         "options".into(),
         sub.options
@@ -749,7 +749,7 @@ fn handle_keyword_expr(keyword: HandleKeyword) -> String {
 ///
 /// The whole descriptor is plain data (two indices, a fieldless-payload enum,
 /// and an optional keyword), so it round-trips: `&`-borrowing a constant struct
-/// literal promotes to the `&'static` the field wants (issue #1185).
+/// literal promotes to the `&'static` the field wants.
 fn handle_binding_expr(spec: &HandleBindingSpec) -> String {
     format!(
         "Some(&HandleBindingSpec {{ name_from: {}, class_from: {}, keyword: {} }})",
@@ -768,7 +768,7 @@ fn handle_binding_expr(spec: &HandleBindingSpec) -> String {
 /// Like [`handle_binding_expr`], the whole descriptor is plain data — two
 /// fieldless-payload enums and a couple of indices — so `&`-borrowing the
 /// struct literal promotes to the `&'static` the field wants and the value
-/// round-trips through the draft (issue #1707).
+/// round-trips through the draft.
 fn remote_method_expr(role: RemoteMethodRole) -> String {
     let inner = match role {
         RemoteMethodRole::OpensHandle(spec) => format!(
@@ -1329,6 +1329,11 @@ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     );
     d.insert("taint_transform".into(), taint(sub.taint_transform));
     d.insert(
+        "taint_transform_when".into(),
+        sub.taint_transform_when
+            .map_or(Value::Null, |c| json!(catalogue::variant_name(&c))),
+    );
+    d.insert(
         "taint_double_encode_colour".into(),
         taint(sub.taint_double_encode_colour),
     );
@@ -1443,6 +1448,13 @@ fn command_identity(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         lost.expr(
             "script_timing_resolver",
             spec.script_timing_resolver.is_some(),
+        ),
+    );
+    d.insert(
+        "substitution_resolver".into(),
+        lost.expr(
+            "substitution_resolver",
+            spec.substitution_resolver.is_some(),
         ),
     );
 }
@@ -1755,6 +1767,11 @@ fn command_taint(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     );
     d.insert("taint_source".into(), taint(spec.taint_source));
     d.insert("taint_transform".into(), taint(spec.taint_transform));
+    d.insert(
+        "taint_transform_when".into(),
+        spec.taint_transform_when
+            .map_or(Value::Null, |c| json!(catalogue::variant_name(&c))),
+    );
     d.insert(
         "taint_double_encode_colour".into(),
         taint(spec.taint_double_encode_colour),

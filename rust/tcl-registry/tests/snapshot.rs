@@ -153,12 +153,11 @@ fn graph_snapshots_are_wellformed_and_deterministic() {
 
 #[test]
 fn snapshot_dialect_serialisation_covers_every_primitive_bit() {
-    // Codex review on PR #938: the hand-maintained dialect-name table
-    // missed the TMSH/BIGIP bits, so `registry-dump` reported
-    // the shared tmsh:: specs (tagged IAPPS|TMSH) as f5-iapps-only — the
-    // shape again. The serialisation now derives from
-    // `dialect_names_for_rows`, so a spec's entry must name every
-    // canonical dialect its gate carries.
+    // A hand-maintained dialect-name table risks missing bits — the
+    // TMSH/BIGIP ones once slipped through, so `registry-dump` reported
+    // the shared tmsh:: specs (tagged IAPPS|TMSH) as f5-iapps-only. The
+    // serialisation derives from `dialect_names_for_rows` instead, so a
+    // spec's entry must name every canonical dialect its gate carries.
     let reg = static_context_for("f5-tmsh").commands();
     let entry = command_entry_json(reg, "f5-tmsh", "tmsh::create")
         .expect("tmsh::create resolves under f5-tmsh")

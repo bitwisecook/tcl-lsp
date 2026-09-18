@@ -293,7 +293,7 @@ execution-context, error-routing, repeatability/cancellation, or protocol
 metadata.  It should not teach an analyser or LSP consumer a list of command
 spellings.
 
-### Normalized callback census
+### Normalised callback census
 
 The 35 machine-pinned public repositories were scanned by source/test-like
 file and content hash.  Of 3,763 files, 3,681 were unique within their corpus
@@ -347,7 +347,7 @@ before changing registry data.  Generated tcllib rows describing callbacks
 (including websocket, HTML parsing, and channel utilities) also need a
 descriptor-coverage audit rather than broad name-based inference.
 
-The normalized iRules source corpus contains 742 unique `when EVENT` handlers,
+The normalised iRules source corpus contains 742 unique `when EVENT` handlers,
 seven `clientside` blocks, six anchored `after` calls, and 16 TCP/HTTP/SSL collect
 operations that lead to later event handling.  It contains no `ILX::init`,
 `ILX::call`, or `ILX::notify` example.  Raw counts are physical-file counts:

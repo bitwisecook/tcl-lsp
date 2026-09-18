@@ -275,7 +275,7 @@ fn call_shape_rows() -> Vec<CommandSpec> {
     ]
 }
 
-/// The four E-R14 option-relation rows (redesign §11.1 O1).
+/// The four option-relation rows.
 ///
 /// Their own function because they share one shape and one flag set: a
 /// statement word, an optional subject term, a term list, and the flags every

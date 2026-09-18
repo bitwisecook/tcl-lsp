@@ -44,7 +44,7 @@ pub const fn spec() -> CommandSpec {
         }],
         // The handle this returns names one Node.js extension, and that is what
         // lets `ILX::call $handle METHOD` reach the extension's
-        // `ILXServer.addMethod("METHOD", …)` registration (issue #1707).  Only
+        // `ILXServer.addMethod("METHOD", …)` registration.  Only
         // the two-word form F5 documents ("ILX::init [plugin name] [extension
         // name]") carries the association; the undocumented one-word spelling
         // in the synopsis above says nothing about which plugin it binds, so

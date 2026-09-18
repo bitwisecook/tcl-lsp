@@ -31,8 +31,6 @@ fn hover(lsp: &mut Lsp, uri: &str, line: u32, ch: u32) -> String {
     hover_text(&lsp.hover(uri, line, ch))
 }
 
-// -- TestCommandHover ----------------------------------------------------
-
 #[test]
 fn builtin_command() {
     let mut lsp = Lsp::tcl();
@@ -123,8 +121,6 @@ fn curated_command_hover_does_not_mark_refinement_status() {
     );
 }
 
-// -- TestProcHover -------------------------------------------------------
-
 #[test]
 fn proc_signature() {
     let mut lsp = Lsp::tcl();
@@ -194,7 +190,7 @@ fn proc_no_comment_bleed() {
     assert!(!hover(&mut lsp, &uri, 5, 2).contains("internal comment"));
 }
 
-// -- Issue #1337: declaration-site proc hover ---------------------------
+// Declaration-site proc hover.
 
 /// Declaration hover must be independent of whether the proc is referenced
 /// elsewhere in the document.  Exercise the live server rather than the core
@@ -317,7 +313,6 @@ fn proc_with_defaults() {
     assert!(hover(&mut lsp, &uri, 1, 2).contains("World"));
 }
 
-// -- TestNamespaceResolutionHover ------------------------------------------
 // C Tcl resolves an unqualified command in the current namespace first, then
 // the global namespace (`Tcl_FindCommand`, `tclNamesp.c`) — never a sibling
 // namespace picked by proc-table iteration order.
@@ -367,8 +362,6 @@ fn global_call_hover_fallback_is_deterministic() {
     }
 }
 
-// -- TestVariableHover ---------------------------------------------------
-
 #[test]
 fn var_hover() {
     let mut lsp = Lsp::tcl();
@@ -405,7 +398,6 @@ fn namespace_var_hover() {
     assert!(text.contains("nsVar"), "hover: {text:?}");
 }
 
-// -- TestLeanHover -------------------------------------------------------
 // Hover shows synopsis + summary but omits snippet/examples.
 
 #[test]
@@ -444,8 +436,6 @@ fn option_hover_omits_snippet() {
     assert!(text.contains("-myaddr"), "hover: {text:?}");
     assert!(!text.contains("multi-homed"), "hover: {text:?}");
 }
-
-// -- TestFormatStringHover -----------------------------------------------
 
 #[test]
 fn sprintf_format_hover() {
@@ -600,8 +590,6 @@ fn regexp_literal_no_metachar() {
     );
 }
 
-// -- TestAliasHover ------------------------------------------------------
-
 #[test]
 fn alias_hover_shows_target() {
     let mut lsp = Lsp::tcl();
@@ -625,7 +613,7 @@ fn alias_hover_with_prepended_args() {
 
 #[test]
 fn imported_command_resolves_to_qualified_spec() {
-    // Peer of #776: a bare command imported into the global scope hovers as its
+    // A bare command imported into the global scope hovers as its
     // qualified spec — `test` after `namespace import ::tcltest::*`.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
@@ -640,7 +628,7 @@ fn imported_command_resolves_to_qualified_spec() {
     );
 }
 
-// Issue #806 — hover on a scoped report::defstyle command.
+// Hover on a scoped report::defstyle command.
 #[test]
 fn defstyle_scoped_command_hover() {
     let mut lsp = Lsp::tcl();
@@ -657,14 +645,9 @@ fn defstyle_scoped_command_hover() {
     assert!(c.contains("number of columns"), "columns hover: {c}");
 }
 
-/// idx 76 (differential-audit main audit wave, high severity, tomato
-/// corpus): the finding's own headline hypothesis — the LSP guessing the
-/// wrong class for the genuinely dynamic, `switch`-dispatched `[$obj
-/// GetType]` call — is REFUTED (the LSP correctly abstains there). Tracing
-/// it uncovered a distinct CONFIRMED gap on the exact same class: a
-/// definite, single-target `my methodName` call had no hover at all,
-/// unlike go-to-definition/find-references (already fixed by idx 52) or a
-/// `link`-exposed bareword sibling call (idx 113) — reproduces in the real
+/// A definite, single-target `my methodName` call must get hover, the
+/// same as go-to-definition/find-references and a `link`-exposed bareword
+/// sibling call — including when the class is declared via the real
 /// corpus's own two-block `oo::class create` + separate `oo::define`
 /// convention (all 9 of tomato's classes use it).
 #[test]
@@ -682,7 +665,7 @@ fn my_dispatch_hover_resolves_when_class_extended_via_separate_oo_define() {
     assert!(h.contains("geo::Plane::GetType"), "hover: {h}");
 }
 
-// -- Issue #1018: cross-document and autoload hover ----------------------
+// Cross-document and autoload hover.
 //
 // Go-to-definition, find-references, and the unknown-command diagnostic all
 // resolve a command whose `proc` lives in a sibling file. Hover was the one
@@ -841,11 +824,10 @@ fn hover_same_file_behaviour_is_unchanged_1018() {
     assert!(text.contains("greetPerson"), "same-file hover: {text:?}");
 }
 
-// -- expr math functions (issue #974 defect 1) ---------------------------
+// Expr math functions.
 
 /// A bare `sin(…)` inside `expr` renders the same registry documentation the
-/// namespace-qualified `::tcl::mathfunc::sin` spelling already did — before
-/// this it drew nothing at any column of the function word.
+/// namespace-qualified `::tcl::mathfunc::sin` spelling does.
 #[test]
 fn bare_mathfunc_call_in_expr_hovers_974() {
     let mut lsp = Lsp::tcl();
@@ -888,7 +870,7 @@ fn mathfunc_hover_does_not_fire_outside_expr_974() {
     assert!(!text.contains("math function"), "hover: {text:?}");
 }
 
-// -- inert `$var` text (issue #923 idx 24) -------------------------------
+// Inert `$var` text.
 
 /// A `$var`-shaped substring inside a comment or a brace-quoted data word is
 /// emitted verbatim by Tcl, so it must not hover as a variable.
@@ -913,7 +895,7 @@ fn inert_dollar_ref_does_not_hover_923_idx24() {
     assert!(text.to_lowercase().contains("variable"), "hover: {text:?}");
 }
 
-// -- parameter-list data words (issue #923 idx 104) ----------------------
+// Parameter-list data words.
 
 /// A parameter's default-value literal is data, not a command reference.
 #[test]
@@ -933,7 +915,7 @@ fn parameter_default_literal_does_not_hover_923_idx104() {
     assert!(text.contains("destroy"), "hover: {text:?}");
 }
 
-/// Issue #923 differential-audit findings idx 3 / idx 4 — tcllib's
+/// tcllib's
 /// `textutil::adjust` submodule. `package require textutil::adjust` followed
 /// by `namespace import textutil::adjust::*` makes bare `adjust` / `indent`
 /// callable, and they are the *three*-segment commands
@@ -941,14 +923,14 @@ fn parameter_default_literal_does_not_hover_923_idx104() {
 /// from the two-segment `textutil::adjust` / `textutil::indent` flattened
 /// aliases the umbrella `textutil` package creates.
 ///
-/// Oracle (tclsh 8.6.16 and 9.0.4, tcllib 2.0 on `auto_path`):
+/// tclsh 8.6.16 and 9.0.4 agree (tcllib 2.0 on `auto_path`):
 /// `namespace origin adjust` → `::textutil::adjust::adjust` and
 /// `namespace origin indent` → `::textutil::adjust::indent`.
 ///
-/// Coverage was split between registry-table unit tests (naming and gating)
-/// and a generic `resolve_imported_command` e2e test using `tcltest`; nothing
-/// tied the two together for this pair, so a regression in either layer's
-/// interaction would have gone unseen. The idiom is real corpus code
+/// Coverage is split between registry-table unit tests (naming and gating)
+/// and a generic `resolve_imported_command` e2e test using `tcltest`; this
+/// ties the two together for this pair, so a regression in either layer's
+/// interaction is caught. The idiom is real corpus code
 /// (`argparse.tcl` buries both inside an `if`, as here).
 #[test]
 fn a_wildcard_imported_textutil_submodule_command_hovers_qualified_923_idx3_idx4() {
@@ -984,18 +966,18 @@ fn a_wildcard_imported_textutil_submodule_command_hovers_qualified_923_idx3_idx4
     );
 }
 
-/// Issue #923 differential-audit finding idx 102, its *secondary* claim —
-/// hover on the `{file}` **parameter declaration** token must report a
+/// Hover on the `{file}` **parameter declaration** token must report a
 /// variable, never the built-in `file` command's documentation.
 ///
-/// The primary claim (the `$file` read inside the `[list source [file join
+/// The related claim (the `$file` read inside the `[list source [file join
 /// …]]` body resolving at all) is pinned by
 /// `references_reach_a_parameter_read_inside_a_list_built_namespace_body`;
-/// nothing guarded this half, which is fixed only as a by-product of the
-/// read being classified as a variable reference before any registry lookup
-/// happens — precisely the kind of thing a later refactor reintroduces.
+/// this half holds only as a consequence of the read being classified as a
+/// variable reference before any registry lookup happens — precisely the
+/// kind of thing a later refactor could reintroduce, so it is pinned here
+/// separately.
 ///
-/// Oracle (tclsh 8.6.16 and 9.0.4): the parameter genuinely drives which file
+/// tclsh 8.6.16 and 9.0.4 confirm: the parameter genuinely drives which file
 /// is sourced, so it is a variable at both ends.
 #[test]
 fn hover_on_a_parameter_named_after_a_builtin_is_a_variable_923_idx102() {

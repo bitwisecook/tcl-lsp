@@ -59,7 +59,7 @@
 //! * **`uplevel_forwarded_calls`** — `uplevel 1 [list ::worker target]`: the
 //!   constructed script *calls* another proc, so that proc's own `upvar 1`
 //!   reaches one frame further out than a plain call would — into **this**
-//!   proc's caller ([issue #1019][]).  Resolved one hop, in
+//!   proc's caller.  Resolved one hop, in
 //!   [`super::detect_upvar_procs`], where the module-wide map exists.
 //!
 //! **Opaque caller-frame effects** — the effect is real but the names are
@@ -92,7 +92,6 @@
 //! the [documented abstention direction][soundness] for every consumer of
 //! this summary.
 //!
-//! [issue #1019]: https://github.com/bitwisecook/tcl-lsp/issues/1019
 //! [soundness]: crate::dynamic_names
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -142,11 +141,11 @@ pub struct UpvarInfo {
     /// caller's frame (`uplevel 1 {set n 1}`, `uplevel 1 [list ::set n 1]`),
     /// and an `upvar` pair whose *local* side is dynamic (`upvar 1 n $dst`
     /// — the alias still targets exactly the caller's `n`, whatever local
-    /// name it lands under; issue #1165).
+    /// name it lands under).
     pub uplevel_literal_writes: BTreeSet<String>,
     /// Parameter names whose **value** names a caller-frame variable the
     /// proc may write without a nameable local alias — `upvar 1 $varName
-    /// $dst` with a dynamic local side (issue #1165). Resolved at the call
+    /// $dst` with a dynamic local side. Resolved at the call
     /// site against the actual argument passed for that parameter, exactly
     /// like [`Self::param_targets`].
     pub uplevel_param_writes: BTreeSet<String>,
@@ -177,7 +176,7 @@ pub struct UpvarInfo {
     /// structural question [`reaches_caller_frame`] asks — "can this body
     /// reach its caller's frame at all?" — where an alias nobody can name
     /// counts every bit as much as a nameable one.  The *caller-side effect*
-    /// of such a pair is carried separately (issue #1165): a literal source
+    /// of such a pair is carried separately: a literal source
     /// goes into [`Self::uplevel_literal_writes`], a `$param` source into
     /// [`Self::uplevel_param_writes`], and anything else widens through
     /// [`Self::has_unresolvable_caller_target`] — all of which `is_empty`
@@ -228,7 +227,7 @@ fn push_caller_side_def(effects: &mut CallerSideEffects, name: &str) {
 /// chain reads as a plain call chain and the outermost frame draws a false
 /// `W210` on a variable that really is assigned.
 ///
-/// Oracle (tclsh 9.0.4 and 8.6.16, identical): with
+/// On tclsh 9.0.4 and 8.6.16, identically: with
 /// `proc setUp2 {var} {uplevel 2 [list set $var 99]}`,
 /// `proc middle {} {setUp2 answer}` and
 /// `proc outer {} {middle; return $answer}`, `outer` returns `99` — `answer`
@@ -482,7 +481,7 @@ fn resolve_frame_args<'a>(
 ///
 /// The strictly structural counterpart to [`collect_upvar_targets`], which
 /// answers the richer question "*which* caller-frame names, through which
-/// local?".  Since issue #1165 every alias pair contributes to a bucket
+/// local?".  Every alias pair contributes to a bucket
 /// [`UpvarInfo::is_empty`] covers — a dynamic **source** lands in
 /// `param_targets` or sets `has_unresolvable_caller_target`, and a dynamic
 /// **local** (`upvar 1 x $dst`) files its caller-side name in the keyless
@@ -1017,8 +1016,8 @@ fn record_upvar_call(
             // carry it.  The alias is still real: record the structural
             // fact for [`reaches_caller_frame`], and classify the CALLER
             // side below so call sites still widen the right caller name
-            // (issue #1165 — before this, such a proc read as summary-empty
-            // and `p x` left the caller's `x` foldable to a stale constant;
+            // — otherwise such a proc reads as summary-empty and `p x` leaves
+            // the caller's `x` foldable to a stale constant.
             // tclsh 9.0.4 / 8.6.16: `proc p {dst} {upvar 1 x $dst; set $dst
             // 2}; proc c {} {set x 1; p x; puts $x}` prints 2).
             info.unnameable_local_aliases.insert(src.to_string());
@@ -1469,7 +1468,7 @@ fn record_nested_upframe_effects(
 ///
 /// `[list …]` is recognised through the registry's
 /// [`ReturnElements::ListOfArgs`](tcl_registry::ReturnElements) — the same
-/// fact the concat rules of #1068 read — not by matching the name `list`.
+/// fact the concat rules read — not by matching the name `list`.
 fn record_constructed_body(
     word: &str,
     registry: &CommandRegistry,
@@ -1536,7 +1535,7 @@ fn record_constructed_body(
     }
     // Not a registry command — a candidate user proc. Its own `upvar 1`
     // reaches *this* proc's caller, one frame further out than a plain call
-    // would (issue #1019), but only the module-wide pass can resolve it.
+    // would, but only the module-wide pass can resolve it.
     info.uplevel_forwarded_calls
         .push((command.clone(), cargs.to_vec()));
     true
@@ -2050,7 +2049,7 @@ mod tests {
 
     #[test]
     fn dynamic_destination_with_literal_source_still_names_the_caller_var() {
-        // Issue #1165 — `upvar 1 x $dst` aliases exactly the caller's `x`;
+        // `upvar 1 x $dst` aliases exactly the caller's `x`;
         // only the local key is dynamic.  The summary must not read as
         // empty (tclsh 9.0.4 / 8.6.16: `proc p {dst} {upvar 1 x $dst; set
         // $dst 2}; proc c {} {set x 1; p x; puts $x}` prints 2, so a call
@@ -2071,7 +2070,7 @@ mod tests {
 
     #[test]
     fn dynamic_destination_with_param_source_resolves_at_the_call_site() {
-        // Issue #1165 — `upvar 1 $name $dst`: the caller-side name is the
+        // `upvar 1 $name $dst`: the caller-side name is the
         // value passed for `name`, exactly like `param_targets`.
         let body = lower("upvar 1 $name $local");
         let info = collect_upvar_targets(&body, &["name".to_string()]);
@@ -2083,7 +2082,7 @@ mod tests {
 
     #[test]
     fn dynamic_destination_with_dynamic_source_widens() {
-        // Issue #1165 — both sides dynamic: the callee can clobber any
+        // Both sides dynamic: the callee can clobber any
         // caller variable, so the summary must widen, not stay empty.
         for src in [
             "upvar 1 [pick] $local",

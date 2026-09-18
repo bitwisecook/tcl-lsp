@@ -19,8 +19,8 @@
 //! Pure path-string helpers (`file tail`/`dirname`/`extension`/`rootname`).
 //!
 //! Byte→byte operations on `/`-separated paths. Tcl uses `/` as the separator on
-//! every platform, so these are deliberately platform-independent (the VM
-//! previously used `std::path::Path`, whose separators are OS-dependent). Pure —
+//! every platform, so these are deliberately platform-independent rather than
+//! delegating to `std::path::Path`, whose separators are OS-dependent. Pure —
 //! no [`ValueOps`], no host — so each runtime hands in the path bytes and builds
 //! its own result from the returned slice. Semantics follow `tclsh`'s
 //! `tclFileName.c`.

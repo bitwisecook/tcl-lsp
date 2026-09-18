@@ -35,8 +35,9 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// `regexp`/`regsub`) on any of the five trees — `contents.htm` for
 /// 8.4/8.5/8.6, and `index.html` (reached from `regexp.html`'s own nav link,
 /// since `contents.htm`/`.html` both 404 there) for 9.0/9.1. `re_syntax.n`
-/// (the previous, inaccurate `source` citation below) documents regexp syntax
-/// only and never mentions a `regex_quote` command or any quoting utility.
+/// documents regexp syntax only and never mentions a `regex_quote` command
+/// or any quoting utility, so the hover `source` field below is left blank
+/// rather than pointing at it.
 /// `regex::quote` is the spelling the T103 (regex-injection) quick fix
 /// actually generates and inserts
 /// (`tcl_lsp_core::code_actions::REGEX_QUOTE_PROC`); this spec — like its
@@ -44,8 +45,8 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// alternate name as the same REGEX_LITERAL-quoting idiom wherever it is
 /// called, standard Tcl or otherwise. `tcl_compiler`'s `taint_depth.rs` covers
 /// the other three spellings by name (`regexp_quote_suppresses_t103`,
-/// `regex_colon_quote_suppresses_t103`, `re_quote_suppresses_t103`) but has no
-/// test yet exercising this literal underscore-without-colon spelling.
+/// `regex_colon_quote_suppresses_t103`, `re_quote_suppresses_t103`) but has
+/// no test exercising this literal underscore-without-colon spelling.
 /// `surface: ALL_TCL` (no iRules row) is deliberate, not an oversight: iRules
 /// excludes all four spellings, and this group's omission of an iRules row is
 /// exactly what enforces that — an `ALL_TCL` surface is simply absent under

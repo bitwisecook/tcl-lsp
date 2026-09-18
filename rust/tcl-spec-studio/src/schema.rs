@@ -99,7 +99,8 @@ pub enum FieldKind {
     Options,
     /// `&'static [FormSpec]`.
     Forms,
-    /// `&'static [CommandForm]` — the per-form overlays of design Q12/D2.
+    /// `&'static [CommandForm]` — named invocation forms that override the
+    /// command's arity, roles and options.
     Refinements,
     /// `&'static [SideEffect]`.
     SideEffects,
@@ -538,6 +539,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
             hint: "Some(my_timing_resolver)",
         },
         "Callback assigning SameInvocation, Deferred, or ReferenceOnly to executable positions from the actual argument list.",
+    ),
+    f(
+        "substitution_resolver",
+        "Substitution resolver",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "Some(substitution::subst_substitutions)",
+        },
+        "Callback reporting which of backslash, command and variable substitution this call runs over its own argument text, for a PERFORMS_SUBSTITUTION command whose switches change the answer. Absent means every kind on every call.",
     ),
     f(
         "callback_taint_inputs",
@@ -1114,6 +1124,16 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
             optional: true,
         },
         "Colour bits the command adds to a tainted value it returns.",
+    ),
+    f(
+        "taint_transform_when",
+        "Transform condition",
+        TAINT,
+        FieldKind::Enum {
+            catalogue: "taintTransformCondition",
+            optional: true,
+        },
+        "Argument-shape proof a call must pass before the transform colour is claimed.",
     ),
     f(
         "taint_double_encode_colour",
@@ -1889,6 +1909,16 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Colour bits this subcommand adds to a tainted value it returns.",
     ),
     f(
+        "taint_transform_when",
+        "Transform condition",
+        TAINT,
+        FieldKind::Enum {
+            catalogue: "taintTransformCondition",
+            optional: true,
+        },
+        "Argument-shape proof a call must pass before the transform colour is claimed.",
+    ),
+    f(
         "taint_double_encode_colour",
         "Double-encode colour",
         TAINT,
@@ -2164,7 +2194,7 @@ fn custom_catalogues() -> [(&'static str, Value); 5] {
 /// The variant catalogues the form's pickers read, keyed by catalogue id.
 #[must_use]
 pub fn catalogues() -> Value {
-    let standard: [(&str, &[catalogue::Variant]); 23] = [
+    let standard: [(&str, &[catalogue::Variant]); 24] = [
         ("argRole", catalogue::ARG_ROLES),
         ("tclType", catalogue::TCL_TYPES),
         ("bodyKind", catalogue::BODY_KINDS),
@@ -2175,6 +2205,10 @@ pub fn catalogues() -> Value {
         ("byteArrayEffect", catalogue::BYTE_ARRAY_EFFECTS),
         ("commandTableEffect", catalogue::COMMAND_TABLE_EFFECTS),
         ("patternType", catalogue::PATTERN_TYPES),
+        (
+            "taintTransformCondition",
+            catalogue::TAINT_TRANSFORM_CONDITIONS,
+        ),
         ("formatType", catalogue::FORMAT_TYPES),
         ("formKind", catalogue::FORM_KINDS),
         ("definedSymbolKind", catalogue::DEFINED_SYMBOL_KINDS),

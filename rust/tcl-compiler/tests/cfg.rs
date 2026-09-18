@@ -291,9 +291,9 @@ fn for_rotation_requires_a_non_stale_constant_init() {
     // an opaque call that could touch the loop var must invalidate the stale
     // constant — otherwise a possibly-zero-iteration loop would be wrongly
     // rotated (its optimiser static-for summary and its zero-trip edge would be
-    // unsound). W210 no longer distinguishes these (a may-run loop whose body
-    // defines the var is silent after the loop, matching C Tcl — issue #756), so
-    // this pins the rotation decision directly on the CFG shape.
+    // unsound). W210 does not distinguish these (a may-run loop whose body
+    // defines the var is silent after the loop, matching C Tcl), so this pins
+    // the rotation decision directly on the CFG shape.
 
     // Guaranteed: `0 < 3` is true on entry → rotated (header carries `1`).
     assert_eq!(
@@ -409,7 +409,7 @@ fn spans_overlap(a: (usize, usize), b: (usize, usize)) -> bool {
 // false pair out of `for_header`.
 const BRANCHY: &str = "proc f {x} {\n    set total 0\n    for {set i 0} {$i < $x} {incr i} {\n        if {$i % 2 == 0} { incr total $i } else { incr total 1 }\n    }\n    return $total\n}\n";
 
-// -- assign_lanes (the routing contract) --
+// assign_lanes: the routing contract.
 
 #[test]
 fn disjoint_spans_share_lane_zero() {
@@ -478,7 +478,7 @@ fn no_two_same_lane_edges_overlap() {
     }
 }
 
-// -- build_cfg_edges --
+// build_cfg_edges.
 
 #[test]
 fn branch_kinds_and_lanes() {

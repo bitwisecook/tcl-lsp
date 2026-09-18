@@ -34,7 +34,7 @@ use crate::side_effects::EffectRegion;
 /// Depth cap shared by every `Script`/`Statement`-tree recursion in this
 /// module (`collect_instance_var_writes`; the mutually-recursive
 /// `scan_script`/`scan_statement`/`scan_control_flow_statement` trio;
-/// `script_always_returns`/`stmt_always_returns`) — issue #996.
+/// `script_always_returns`/`stmt_always_returns`).
 ///
 /// Transitively bounded today via `crate::lowering`'s
 /// `MAX_LOWER_NEST_DEPTH` (every `Script` this module walks is built by
@@ -386,9 +386,8 @@ fn is_literal_var_name(word: &str) -> bool {
 /// A Tcl procedure's `upvar 1 $param local` reaches the frame of whoever
 /// called it, so a helper defined in *another file* creates the caller's
 /// variable just as one defined here does.  C Tcl, tclsh 9.0.4 and 8.6.16
-/// (identical), for the ticklecharts layout the issue #923 audit idx 59
-/// finding was mined from — `setdef` in `utils.tcl`, the caller in
-/// `options.tcl`, tied together by a `pkgIndex.tcl`:
+/// (identical), for a ticklecharts-style layout — `setdef` in `utils.tcl`,
+/// the caller in `options.tcl`, tied together by a `pkgIndex.tcl`:
 ///
 /// ```text
 /// proc demo::setdef {d key args} { upvar 1 $d _dict; … dict set _dict … }
@@ -523,7 +522,7 @@ pub fn resolve_call_target<S: std::hash::BuildHasher>(
 /// genuinely unknown.
 ///
 /// The one place that answers this question, shared by the two consumers that
-/// need it (issue #978): this module's own call-graph builder
+/// need it: this module's own call-graph builder
 /// ([`scan_call_facts`], which records the callback as a reachability edge)
 /// and [`crate::call_site_scan`] (which records it as a call site whose
 /// arguments the runtime supplies). Fixing them independently is what let the
@@ -616,6 +615,7 @@ pub fn build_interprocedural_analysis(
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     object_types: ObjectTypeMap<'_>,
     identities: &crate::realm::CommandBindingRealm,
+    declared: Option<&tcl_registry::model::DeclaredSurface>,
 ) -> InterproceduralAnalysis {
     build_interprocedural_analysis_inner(
         ir_module,
@@ -623,6 +623,7 @@ pub fn build_interprocedural_analysis(
         dialect,
         object_types,
         identities,
+        declared,
         None,
     )
 }
@@ -637,6 +638,7 @@ pub(crate) fn build_interprocedural_analysis_with_cfg(
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     object_types: ObjectTypeMap<'_>,
     identities: &crate::realm::CommandBindingRealm,
+    declared: Option<&tcl_registry::model::DeclaredSurface>,
     cfg_module: &crate::cfg::CfgModule,
 ) -> InterproceduralAnalysis {
     build_interprocedural_analysis_inner(
@@ -645,6 +647,7 @@ pub(crate) fn build_interprocedural_analysis_with_cfg(
         dialect,
         object_types,
         identities,
+        declared,
         Some(cfg_module),
     )
 }
@@ -655,6 +658,7 @@ fn build_interprocedural_analysis_inner(
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     object_types: ObjectTypeMap<'_>,
     identities: &crate::realm::CommandBindingRealm,
+    declared: Option<&tcl_registry::model::DeclaredSurface>,
     cfg_module: Option<&crate::cfg::CfgModule>,
 ) -> InterproceduralAnalysis {
     let object_types = object_types.0;
@@ -667,6 +671,7 @@ fn build_interprocedural_analysis_inner(
         dialect,
         object_types,
         identities,
+        declared,
     );
     let transitive_calls = compute_all_transitive_calls(&known, &local);
     let pure = fixpoint_pure(&local);
@@ -692,6 +697,7 @@ fn build_interprocedural_analysis_inner(
         registry,
         dialect,
         identities,
+        declared,
         ProcFixpoints {
             pure: &pure,
             effect_reads: &effect_reads,
@@ -1060,6 +1066,7 @@ fn build_method_summaries(
     registry: &tcl_registry::CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     identities: &crate::realm::CommandBindingRealm,
+    declared: Option<&tcl_registry::model::DeclaredSurface>,
     procs: ProcFixpoints<'_>,
 ) -> HashMap<String, MethodSummary> {
     let ProcFixpoints {
@@ -1081,13 +1088,13 @@ fn build_method_summaries(
             local_pure: true,
             ..LocalFacts::default()
         };
-        // Scan the primary body, then — since the lowering retains them
-        // (issue #1166) — every replacement body of a redefined method,
-        // all into the SAME fact accumulators: the summary describes the
-        // union of every body a dispatch may run — pure only when all
-        // are, constant-return only when every body's exits agree on the
-        // one constant. This replaces the former abstain-on-redefinition
-        // kill switch with a strictly more precise, equally sound join.
+        // Scan the primary body, then — the lowering retains them — every
+        // replacement body of a redefined method, all into the SAME fact
+        // accumulators: the summary describes the union of every body a
+        // dispatch may run — pure only when all are, constant-return only
+        // when every body's exits agree on the one constant. A join rather
+        // than an abstain-on-redefinition kill switch: more precise, equally
+        // sound.
         let mut written_ivars: HashSet<String> = HashSet::new();
         let replacements = ir_module
             .redefined_methods
@@ -1102,6 +1109,7 @@ fn build_method_summaries(
                     registry,
                     dialect,
                     identities,
+                    declared,
                 },
                 &mut facts,
                 &mut written_ivars,
@@ -1192,8 +1200,7 @@ fn build_method_summaries(
 /// [`build_method_summaries`]: the local-purity / call / effect scan, the
 /// fall-through return, and the instance-variable writes. Called once for
 /// the primary [`crate::ir::MethodDef`] and once per retained replacement
-/// body (issue #1166) so the summary joins over every body a dispatch may
-/// run.
+/// body, so the summary joins over every body a dispatch may run.
 #[derive(Clone, Copy)]
 struct MethodScan<'a> {
     mqname: &'a str,
@@ -1201,6 +1208,8 @@ struct MethodScan<'a> {
     registry: &'a tcl_registry::CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     identities: &'a crate::realm::CommandBindingRealm,
+    /// The document's own command declarations — see [`ProcScan::declared`].
+    declared: Option<&'a tcl_registry::model::DeclaredSurface>,
 }
 
 fn scan_method_body_facts(
@@ -1215,6 +1224,7 @@ fn scan_method_body_facts(
         registry,
         dialect,
         identities,
+        declared,
     } = scan;
     let params: HashSet<String> = body_def.params.iter().cloned().collect();
     if matches!(
@@ -1241,6 +1251,7 @@ fn scan_method_body_facts(
         // Method bodies are not call-graph nodes; no object-type map needed.
         object_types: ObjectTypeMap::none().0,
         identities,
+        declared,
     };
     scan_script(&body_def.body, ctx, facts, 0);
     // Fall-through exit is non-constant (O103); see `scan_proc`.
@@ -1407,6 +1418,7 @@ fn scan_all_procs(
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     object_types: &HashMap<String, HashSet<String>>,
     identities: &crate::realm::CommandBindingRealm,
+    declared: Option<&tcl_registry::model::DeclaredSurface>,
 ) -> HashMap<String, LocalFacts> {
     let mut local: HashMap<String, LocalFacts> = HashMap::with_capacity(known.len());
     for (qname, proc) in &ir_module.procedures {
@@ -1420,6 +1432,7 @@ fn scan_all_procs(
                 dialect,
                 object_types,
                 identities,
+                declared,
             }),
         );
     }
@@ -1437,6 +1450,9 @@ struct ProcScan<'a> {
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     object_types: &'a HashMap<String, HashSet<String>>,
     identities: &'a crate::realm::CommandBindingRealm,
+    /// The document's own command declarations (`# tcl-lsp: stub`), unioned
+    /// with the catalogue through [`ScanCtx::surface`].
+    declared: Option<&'a tcl_registry::model::DeclaredSurface>,
 }
 
 fn compute_all_transitive_calls(
@@ -1671,6 +1687,7 @@ fn scan_proc(scan: ProcScan<'_>) -> LocalFacts {
         dialect,
         object_types,
         identities,
+        declared,
     } = scan;
     let mut facts = LocalFacts {
         local_pure: true,
@@ -1685,6 +1702,7 @@ fn scan_proc(scan: ProcScan<'_>) -> LocalFacts {
         params: &params,
         object_types,
         identities,
+        declared,
     };
     scan_script(&proc.body, ctx, &mut facts, 0);
     // If the body can fall off the end, its implicit exit returns the
@@ -1717,13 +1735,27 @@ struct ScanCtx<'a> {
     /// The document's statically proven command-identity facts
     /// ([`crate::realm`]), so a call's side-effect classification,
     /// callback-prefix layout, and body / lambda / expression recursion are
-    /// chosen by the command a head *is* rather than the one it is spelled as
-    /// (issue #1275).
+    /// chosen by the command a head *is* rather than the one it is spelled as.
     ///
     /// Read *unpositioned*: this scan walks lowered `Statement::Call`s and
     /// re-segments body text at offset 0, so no document-absolute offset
     /// exists at the point of the query.  Empty for an IR-only caller.
     identities: &'a crate::realm::CommandBindingRealm,
+    /// The document's own command declarations (`# tcl-lsp: stub` blocks and
+    /// `<dialect>.tcl.stubs` sidecars). A stub states the same kind of fact a
+    /// `CommandSpec` does, so its argument roles reach this scan through the
+    /// same query the catalogue's do — [`ScanCtx::surface`] — rather than a
+    /// second table beside `registry`. `None` for a caller with no document
+    /// (the optimiser's own unit tests).
+    declared: Option<&'a tcl_registry::model::DeclaredSurface>,
+}
+
+impl<'a> ScanCtx<'a> {
+    /// The command surface this scan resolves argument roles against: the
+    /// catalogue generation plus the document's own declarations.
+    fn surface(&self) -> tcl_registry::model::DocumentCommandSurface<'a> {
+        tcl_registry::model::DocumentCommandSurface::new(self.registry, self.declared)
+    }
 }
 
 /// `depth` is the nesting level of `script` — see
@@ -1756,7 +1788,7 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
         identities,
         ..
     } = ctx;
-    // The head's *effective command identity* (issue #1275).  Every registry
+    // The head's *effective command identity*.  Every registry
     // query below reads it, so a call through a proven `interp alias` /
     // `rename` gets the target's traits, prefixes, and effect profile, and a
     // spelling whose binding was provably taken over gets none of them.  The
@@ -1792,7 +1824,7 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
     // rejects dynamic `$cb` / bracketed heads), mirroring the reference
     // extractor's bareword guard.
     let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-    for (idx, _appended) in registry.command_prefixes(resolved, &arg_strs) {
+    for (idx, _appended) in ctx.surface().command_prefixes(resolved, &arg_strs) {
         if let Some(word) = args.get(idx).and_then(|a| command_prefix_head(registry, a))
             && is_plain_proc_name(&word)
             && let Some(target) = resolve_internal_call(&word, caller, known)
@@ -2024,6 +2056,92 @@ fn scan_call_statement(
         }
     }
     scan_call_facts(command, args, ctx, facts);
+    scan_role_code_arguments(command, args, ctx, facts);
+}
+
+/// Recurse into the code-bearing arguments of a statement that carries them
+/// as opaque words, recording the calls they make as edges of the enclosing
+/// unit.
+///
+/// A command whose script or expression argument has no dedicated lowering —
+/// `time {…}`, and every declared `script:body` / `cond:expr` — reaches the
+/// IR as a plain `Statement::Call` or `Statement::Barrier` holding its own
+/// words. A barrier makes the call's *effects* opaque; neither shape makes
+/// the code unreadable, and the procedures that code calls are exactly as
+/// reachable as those in an `eval` body, which lowering splices inline and
+/// this scan already walks. A callback proc reached only this way is live
+/// code, not a call-graph leaf.
+///
+/// [`ArgRole::Body`] words are scanned as scripts and [`ArgRole::Expr`] words
+/// for the `[cmd …]` substitutions the expression engine re-evaluates, which
+/// is what [`scan_source_for_calls`] does for the same two roles.
+/// [`ArgRole::LambdaLiteral`] stays with that scanner alone: splitting a
+/// `{params body ?ns?}` list needs the word's token, and a statement carries
+/// only its text.
+///
+/// Code that does not run in the caller's frame *and* namespace is left
+/// alone. Lowering registers those as their own body units, which the
+/// call-site scan visits under the namespace they actually target; walking
+/// one here would instead invent an edge to a same-named proc in the
+/// caller's namespace (the rule issues #977 / #980 set for the call-site
+/// evidence scan).
+///
+/// Each word starts a fresh [`MAX_BRACKET_TEXT_DEPTH`] scan (depth 0), like
+/// the `[cmd …]` substitution scans beside it: that counter bounds recursion
+/// *within* re-segmented text, and is not the statement-tree depth the caller
+/// is carrying.
+fn scan_role_code_arguments(
+    command: &str,
+    args: &[String],
+    ctx: ScanCtx<'_>,
+    facts: &mut LocalFacts,
+) {
+    use tcl_registry::prelude::Traits;
+    let surface = ctx.surface();
+    let resolved: &str = ctx.identities.resolve_unpositioned(command).spec_name();
+    let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let traits = ctx.registry.invocation_traits(resolved, &arg_strs, None);
+    if traits.intersects(
+        tcl_registry::traits::FRAME_REACH_TRAITS
+            .union(Traits::DEFINES_PROCEDURE)
+            .union(Traits::DECLARES_NAMESPACE),
+    ) {
+        return;
+    }
+    // An absolutely-spelled name / namespace word says the same thing the
+    // traits above do for the commands that carry neither: the code resolves
+    // somewhere other than here.
+    if [
+        tcl_registry::ArgRole::NamespaceName,
+        tcl_registry::ArgRole::Name,
+    ]
+    .into_iter()
+    .flat_map(|role| surface.arg_indices_for_role(resolved, &arg_strs, role))
+    .filter_map(|index| args.get(index))
+    .any(|name| name.starts_with("::"))
+    {
+        return;
+    }
+    for index in surface.arg_indices_for_role(resolved, &arg_strs, tcl_registry::ArgRole::Body) {
+        if let Some(body_text) = args.get(index) {
+            scan_source_for_calls(body_text, ctx, facts, 0);
+        }
+    }
+    for index in surface.arg_indices_for_role(resolved, &arg_strs, tcl_registry::ArgRole::Expr) {
+        if let Some(expr_text) = args.get(index) {
+            scan_value_substitutions(strip_one_brace_layer(expr_text), ctx, facts, 0);
+        }
+    }
+}
+
+/// An expression operand's inner text: `expr {…}`'s brace quoting suppresses
+/// substitution at the word level, but the expression engine re-evaluates the
+/// contents, so a `[cmd …]` inside is a real call. An unbraced operand
+/// (`[q]`, `$x`) is already its own inner text.
+fn strip_one_brace_layer(word: &str) -> &str {
+    word.strip_prefix('{')
+        .and_then(|inner| inner.strip_suffix('}'))
+        .unwrap_or(word)
 }
 
 /// `depth` is `stmt`'s own nesting level — see
@@ -2045,8 +2163,10 @@ fn scan_statement(
             // registry-declared identities.  In particular, same-invocation
             // command prefixes such as `lsort -command cb` still make `cb`
             // reachable, while deferred registrations that conservatively
-            // lower to a barrier retain their callback edge too.
+            // lower to a barrier retain their callback edge too — and neither
+            // does it erase the script its `ArgRole::Body` words carry.
             scan_call_facts(command, args, ctx, facts);
+            scan_role_code_arguments(command, args, ctx, facts);
             facts.has_barrier = true;
             facts.local_pure = false;
             facts.effect_reads |= EffectRegion::UNKNOWN_STATE;
@@ -2252,9 +2372,9 @@ fn global_alias_names(command: &str, args: &[String]) -> Option<HashSet<String>>
 /// recursion) for every `[cmd ...]` command substitution embedded
 /// in the expression.
 ///
-/// Call-graph edges and unused-proc detection used to miss proc calls
-/// embedded in control-flow predicates because the per-proc fact
-/// scanner walked statement bodies but skipped expression operands.
+/// Without it, call-graph edges and unused-proc detection miss proc calls
+/// embedded in control-flow predicates: the per-proc fact scanner walks
+/// statement bodies but not expression operands.
 /// `if {[q]} ...`, `while {[q]} ...`, and `for {init} {[q]} {next}
 /// ...` left `q` unrecorded as a callee — flagging it as dead code
 /// and missing the edge in `tcl callgraph`.
@@ -2265,7 +2385,7 @@ fn scan_expr_for_calls(
     depth: u32,
 ) {
     use crate::expr_ast::ExprNode;
-    // Native-stack safety net (issue #996): this walks the `ExprNode`
+    // Native-stack safety net: this walks the `ExprNode`
     // operator tree, one native frame per level. Past the cap, stop
     // descending — a fact collector that returns what it has recorded so far
     // is the safe fallback (call edges buried deeper than the cap are simply
@@ -2376,14 +2496,14 @@ fn scan_value_substitutions(text: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts
             && text.is_char_boundary(end)
         {
             // Thin dispatcher — carry the caller's bracket-text depth straight
-            // through; `scan_source_for_calls` enforces the cap (issue #996).
+            // through; `scan_source_for_calls` enforces the cap.
             scan_source_for_calls(&text[start..end], ctx, facts, depth);
         }
     }
 }
 
 fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts, depth: u32) {
-    // Native-stack safety net (issue #996): this recurses into `ArgRole::Body`
+    // Native-stack safety net: this recurses into `ArgRole::Body`
     // args, `apply` lambda bodies, and nested `[cmd …]` substitutions inside a
     // single word's raw text — a genuinely unbounded axis, independent of any
     // statement-tree cap (`catch {catch {catch {…}}}` / `apply {{} {apply {{}
@@ -2393,11 +2513,11 @@ fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts,
         return;
     }
     let ScanCtx {
-        registry,
         dialect,
         identities,
         ..
     } = ctx;
+    let surface = ctx.surface();
     // Scan the call graph under the
     // document dialect so `{*}` (8.4 / iRules) and `}{` (iRules) tokenise
     // the same way the rest of the analyser/lowering now does.
@@ -2413,8 +2533,8 @@ fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts,
         if name.is_empty() {
             continue;
         }
-        // The head's effective identity, for every registry role query below
-        // (issue #1275).  `scan_call_facts` resolves it again for its own
+        // The head's effective identity, for every registry role query below.
+        // `scan_call_facts` resolves it again for its own
         // queries — it is also reached from the `Statement::Call` arm, which
         // has no segmented command to hand it.
         let resolved: &str = identities.resolve_unpositioned(name).spec_name();
@@ -2424,7 +2544,7 @@ fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts,
         // BODY).  The registry resolves the role using the same
         // logic as the top-level scanner.
         let arg_strs: Vec<&str> = texts.iter().map(String::as_str).collect();
-        let body_indices = registry.arg_indices_for_role(
+        let body_indices = surface.arg_indices_for_role(
             resolved,
             &arg_strs,
             tcl_registry::arg_role::ArgRole::Body,
@@ -2439,8 +2559,8 @@ fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts,
         // is a 2-element list, not a script, so scanning it as one (like a
         // plain `Body` arg) would misread the parameter word as a call-graph
         // edge to a non-existent proc and never reach the real body's own
-        // calls at all (issue #954's call-graph sibling gap).
-        let lambda_indices = registry.arg_indices_for_role(
+        // calls at all.
+        let lambda_indices = surface.arg_indices_for_role(
             resolved,
             &arg_strs,
             tcl_registry::arg_role::ArgRole::LambdaLiteral,
@@ -2461,9 +2581,8 @@ fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts,
                 // derives its search namespace from the caller qname's own
                 // namespace prefix) resolves bare calls inside the lambda the
                 // same way Tcl itself would, instead of relative to
-                // `ctx.caller`'s enclosing namespace (codex review of #954's
-                // follow-up: an `apply {{} {helper}}` inside `::ns::f` calls
-                // `::helper`, not `::ns::helper`).
+                // `ctx.caller`'s enclosing namespace: an `apply {{} {helper}}`
+                // inside `::ns::f` calls `::helper`, not `::ns::helper`.
                 let lambda_caller = match elems
                     .namespace
                     .and_then(|ns| source.get(ns.start() as usize..ns.end() as usize))
@@ -2489,18 +2608,14 @@ fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts,
         // call buried in `return [expr {[fib …]}]` is missed, leaving the call
         // graph incomplete (which under-converged the interproc taint fixpoint
         // and panicked the diagnostic worker on the debug guard).
-        let expr_indices = registry.arg_indices_for_role(
+        let expr_indices = surface.arg_indices_for_role(
             resolved,
             &arg_strs,
             tcl_registry::arg_role::ArgRole::Expr,
         );
         for idx in expr_indices {
             if let Some(arg) = texts.get(idx) {
-                let inner = arg
-                    .strip_prefix('{')
-                    .and_then(|s| s.strip_suffix('}'))
-                    .unwrap_or(arg);
-                scan_value_substitutions(inner, ctx, facts, depth + 1);
+                scan_value_substitutions(strip_one_brace_layer(arg), ctx, facts, depth + 1);
             }
         }
         // A `[cmd …]` substitution inside a *plain* value arg also executes in
@@ -2582,7 +2697,7 @@ fn note_params_in_expr(
     depth: u32,
 ) {
     use crate::expr_ast::ExprNode;
-    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // Native-stack safety net: walks the `ExprNode` tree, one
     // native frame per level. Past the cap, stop descending — param
     // observations buried deeper than the cap are simply not recorded (a
     // param not marked `UsedInCondition` stays whatever it already was);
@@ -2738,7 +2853,7 @@ fn walk_collect_param_refs(
     depth: u32,
 ) {
     use crate::expr_ast::ExprNode;
-    // Native-stack safety net (issue #996): walks the `ExprNode` tree, one
+    // Native-stack safety net: walks the `ExprNode` tree, one
     // native frame per level. Past the cap, stop descending — this collector
     // returns the param refs gathered so far (a conservative under-count only
     // reachable past 256 levels of expression nesting); never a crash.
@@ -2943,6 +3058,7 @@ mod tests {
             Some(dialect),
             ObjectTypeMap::none(),
             crate::realm::CommandBindingRealm::none(),
+            None,
         );
         let mut calls: Vec<String> = ia
             .procedures
@@ -2953,8 +3069,8 @@ mod tests {
         calls
     }
 
-    /// Issue #978: a procedure invoked only through a `CommandPrefix`-role
-    /// callback is a real caller. The bare-word prefix already produced an
+    /// A procedure invoked only through a `CommandPrefix`-role callback is a
+    /// real caller. A bare-word prefix produces an
     /// edge; a prefix *built* by a registry-declared builder (`[list cb]`,
     /// `Traits::BUILDS_COMMAND_PREFIX`) did not — the head read as `[list`
     /// and failed the bareword guard, so a callback-only proc looked dead.
@@ -2978,7 +3094,7 @@ mod tests {
         }
     }
 
-    /// Issue #978, the reported shape: `trace add variable … command cb`.
+    /// The `trace add variable … command cb` shape.
     #[test]
     fn a_trace_callback_is_a_call_graph_edge() {
         let src = "proc cb {args} { return 0 }\n\
@@ -3054,8 +3170,7 @@ mod tests {
         assert_eq!(command_prefix_head(&registry, "[pick]"), None);
     }
 
-    /// Regression coverage for issue #996: the interprocedural call-graph
-    /// scanners recurse with no depth cap before this fix —
+    /// The interprocedural call-graph scanners each need a depth cap —
     /// `scan_expr_for_calls`, `note_params_in_expr` and
     /// `walk_collect_param_refs` once per `ExprNode` level (Tier 1A);
     /// `scan_source_for_calls` (+ its `scan_value_substitutions` helper) once
@@ -3079,6 +3194,7 @@ mod tests {
             params: &params,
             object_types: ObjectTypeMap::none().0,
             identities: crate::realm::CommandBindingRealm::none(),
+            declared: None,
         };
 
         // A 3000-deep `ExprNode` tree (nested unary `!` over `$x`).
@@ -3273,6 +3389,7 @@ mod tests {
             None,
             ObjectTypeMap::none(),
             &identities,
+            None,
         )
     }
 
@@ -3282,7 +3399,7 @@ mod tests {
         assert!(ia.procedures.is_empty());
     }
 
-    /// Issue #954's call-graph sibling gap: a proc called *inside* an
+    /// A proc called *inside* an
     /// `apply` lambda body reached through a `[…]` command substitution
     /// (`set y [apply {p {…}} $x]`) must still register as a call-graph
     /// edge. `apply`'s lambda-literal argument is `ArgRole::LambdaLiteral`,
@@ -3305,7 +3422,7 @@ mod tests {
         );
     }
 
-    /// Codex review of #954's follow-up: a lambda body's bare calls must
+    /// A lambda body's bare calls must
     /// resolve in the lambda's own namespace (the optional third `apply`
     /// element, or global when omitted) — never the enclosing procedure's
     /// namespace. `::ns::f`'s `apply {{} {helper}}` must resolve `helper` to
@@ -3398,8 +3515,7 @@ mod tests {
     fn global_alias_write_counts_as_writes_global() {
         // A bare `set g` after `global g` mutates a caller-visible
         // variable through the alias — writes_global, even though the
-        // written name is bare (previously missed: only `::`-qualified
-        // names counted).
+        // written name is bare, not `::`-qualified.
         for src in [
             "proc ::f {} { global g\nset g 5 }",
             "proc ::f {} { variable v\nset v 1 }",
@@ -3496,7 +3612,7 @@ mod tests {
 
     #[test]
     fn redefined_method_joins_over_every_retained_body() {
-        // Issue #1166: the lowering retains replacement bodies, so the
+        // The lowering retains replacement bodies, so the
         // summary is the JOIN over every body a dispatch may run —
         // pure when all bodies are pure, impure when any is.
         let ia = build(
@@ -3595,9 +3711,8 @@ mod tests {
 
     #[test]
     fn call_in_if_condition_is_recorded() {
-        // Call-graph edges and unused-proc detection used to miss proc calls
-        // embedded in `if {[q]} ...` predicates.  Verify ::q now
-        // appears in ::a's direct calls.
+        // Calls embedded in an `if {[q]} ...` predicate are call-graph edges:
+        // ::q must appear in ::a's direct calls.
         let ia = build(
             "proc ::q {} { return 1 }\n\
              proc ::a {} { if {[::q]} { puts hi } }",
@@ -3871,7 +3986,7 @@ mod tests {
         }
     }
 
-    /// Regression coverage for issue #996: `collect_instance_var_writes`
+    /// `collect_instance_var_writes`
     /// and the mutually-recursive `scan_script`/`scan_statement`/
     /// `scan_control_flow_statement` trio recurse once per nested
     /// `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch` body, with no
@@ -3909,9 +4024,9 @@ mod tests {
             .unwrap();
     }
 
-    /// Regression coverage for issue #996: `collect_instance_var_writes`
+    /// `collect_instance_var_writes`
     /// (the `TclOO` method-body instance-write scan) recurses once per
-    /// nested `if` body, with no depth cap of its own before this fix.
+    /// nested `if` body, so it needs a depth cap of its own.
     /// Same transitively-bounded-today caveat and big-stack-thread
     /// rationale as `deeply_nested_if_survives_interprocedural_scan`. 1000
     /// levels is comfortably past the new cap; the assertion is that the
@@ -3940,8 +4055,8 @@ mod tests {
             .unwrap();
     }
 
-    /// Issue #1275 — the call-graph scan must resolve a command head's
-    /// *effective identity*, not its written spelling.
+    /// The call-graph scan must resolve a command head's *effective
+    /// identity*, not its written spelling.
     ///
     /// `catch`'s argument carries `ArgRole::Body`, so the text scan descends
     /// into it and records the calls inside as reachability edges.  Whether
@@ -3952,9 +4067,9 @@ mod tests {
     /// The call sits inside a `[…]` substitution deliberately: a *statement*
     /// `catch {…}` is turned into control-flow structure by lowering long
     /// before this scan sees it, so only the value-context path exercises the
-    /// registry role query this issue is about.
+    /// registry role query in question.
     ///
-    /// tclsh oracle (8.6.16 and 9.0.4, byte-identical): `interp alias {} guard
+    /// On tclsh 8.6.16 and 9.0.4 (byte-identical): `interp alias {} guard
     /// {} catch` makes `guard` run `catch`; `rename catch guard` moves it and
     /// leaves `catch` gone; a top-level `proc catch …` takes the name over.
     fn p_calls_q(prelude: &str, head: &str) -> bool {
@@ -4009,7 +4124,7 @@ mod tests {
     }
 
     /// The side-effect classification reads the resolved head too: a call
-    /// through a proven alias is a *known* command, so it no longer forces
+    /// through a proven alias is a *known* command, so it does not force
     /// `has_unknown_calls` (which alone makes a procedure permanently impure).
     #[test]
     fn side_effect_classification_follows_an_aliased_head() {
@@ -4063,6 +4178,7 @@ mod effect_propagation_tests {
                 Some(tcl_dialect::DialectProfile::irules()),
                 ObjectTypeMap::none(),
                 crate::realm::CommandBindingRealm::none(),
+                None,
             );
             let s = ia.procedures.get("::p").expect("proc ::p in IA");
             assert!(
@@ -4080,6 +4196,7 @@ mod effect_propagation_tests {
             Some(tcl_dialect::DialectProfile::irules()),
             ObjectTypeMap::none(),
             crate::realm::CommandBindingRealm::none(),
+            None,
         );
         let s = ia.procedures.get("::q").expect("proc ::q in IA");
         assert!(

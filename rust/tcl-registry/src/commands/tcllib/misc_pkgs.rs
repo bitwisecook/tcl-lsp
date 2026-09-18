@@ -538,22 +538,22 @@ fn bibtex_parse_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
         .collect()
 }
 
-/// `bibtex::parse`'s **proven** option relations (P5, completed under E-R14).
+/// `bibtex::parse`'s option relations (E-R14).
 ///
 /// `bibtex.tcl:196-211` computes `sax` as "any of the five `-TYPEcommand`
 /// options is present" and `bg` as "`-command` is present", then raises
 /// *"The options `-command` and `-TYPEcommand` exclude each other"* when
 /// both hold.  That is five pairwise exclusions, one per SAX callback.
 ///
-/// The three rows after them are what the retired `OptionConstraint` could
-/// not say, and what E-R14's typed relation does (census gap G2's directional
-/// half, and the option-to-positional half beside it).  All three are the same
-/// site, `bibtex.tcl:213-241`:
+/// The three rows after them capture relations a plain option-conflict list
+/// cannot express: an option's relation to a positional argument, and a
+/// one-directional requirement.  All three are the same site,
+/// `bibtex.tcl:213-241`:
 ///
 /// - `-channel` present ⇒ *"Option -channel and text exclude each other"*, an
 ///   exclusion between an option and a **positional argument**;
 /// - no `-channel` ⇒ *"Option -command and text exclude each other"*, i.e.
-///   `-command` **requires** `-channel` — the directional relation P5 raised;
+///   `-command` **requires** `-channel`;
 /// - no `-channel` and no text ⇒ *"Neither -channel nor text specified"*, an
 ///   unconditional **requires-one-of** over an option and an argument.
 const BIBTEX_PARSE_RELATIONS: &[OptionRelation] = &[

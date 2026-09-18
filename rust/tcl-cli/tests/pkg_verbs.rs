@@ -518,8 +518,8 @@ fn pkg_sync_materialises_from_lockfile() {
 #[test]
 fn pkg_install_resolves_transitive_dependencies() {
     // Root -> dep -> sub, all via local path sources (no network, no tclsh).
-    // Before the resolver was wired with a provider, `sub` never appeared and
-    // `dep`'s lockfile `requires` were empty; this pins the fixed behaviour.
+    // The resolver's provider must surface transitive dependencies: `sub`
+    // appears in the lockfile and `dep`'s `requires` records it.
     let base = temp_dir("pkg-transitive");
     let cache = base.join("cache");
     let dir = base.join("proj");

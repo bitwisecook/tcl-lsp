@@ -97,7 +97,7 @@ fn directive_unknown_dialect_ignored() {
     assert_eq!(detect("# tcl-dialect: unknown\nset x 1\n"), None);
 }
 
-/// E8 (#1631 §5.1): the directive resolves through the environment
+/// E8 (§5.1): the directive resolves through the environment
 /// registry, so an environment name that is not a catalogue dialect —
 /// `tk` — resolves, and so does an alias, to its canonical id.
 #[test]
@@ -351,7 +351,7 @@ fn spectcl_is_a_catalogued_dialect() {
     }
 }
 
-// SslicTcl — `.sslictcl` TLS declarations (issue #1543).
+// SslicTcl — `.sslictcl` TLS declarations.
 
 /// The extension registration: a `.sslictcl` document opens as Tcl in the
 /// `SslicTcl` dialect with no configuration, exactly as a `.tclspec` does.
@@ -475,7 +475,7 @@ fn sslictcl_is_a_catalogued_dialect() {
     }
 }
 
-/// Extension→dialect routing derives from the `DialectProfile` catalog's
+/// Extension→dialect routing derives from the `DialectProfile` catalogue's
 /// `file_extensions` axis — every owned extension routes to its owner, and
 /// the newly catalogued routes (`.scf`, `.tmsh`, the iApp implementation
 /// spellings) work exactly like the long-standing vendor ones.
@@ -494,7 +494,7 @@ fn catalog_owned_extensions_route_to_their_dialect() {
             );
         }
     }
-    // The routes the catalog move newly opened up, spelled concretely.
+    // The routes the catalogue move newly opened up, spelled concretely.
     assert_eq!(dialect_from_extension("bigip.scf"), Some("f5-bigip"));
     assert_eq!(dialect_from_extension("deploy.tmsh"), Some("f5-tmsh"));
     assert_eq!(dialect_from_extension("app.iappimpl"), Some("f5-iapps"));

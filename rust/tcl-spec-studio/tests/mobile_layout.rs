@@ -18,27 +18,20 @@
 
 //! Pins the front-end rules the studio's phone layout depends on.
 //!
-//! Reported from an iPhone 15 Pro Max: the page rendered far wider than the
-//! screen, and typing a command name into the filter box appeared to do
-//! nothing. Both were real.
+//! A grid item's automatic minimum size is its *min-content* width, so one
+//! long unwrapped command summary in the browser list can widen a lone `1fr`
+//! track past a 430px viewport and scroll the whole page sideways, even with
+//! a breakpoint that collapses the grid to one column. `min-width: 0` on the
+//! grid children is what caps it.
 //!
-//! The width was not a missing breakpoint — the breakpoint fired and the grid
-//! did collapse to one column. A grid item's automatic minimum size is its
-//! *min-content* width, and one long unwrapped command summary in the browser
-//! list gave `.cmdlist` a min-content of 764px, so the lone `1fr` track
-//! resolved to 806px inside a 430px viewport and scrolled the whole page
-//! sideways. `min-width: 0` on the grid children is what caps it.
-//!
-//! The second was a discoverability failure: the box only ever filtered the
-//! list, and on a phone the list sits below the fold, so a typed name looked
-//! ignored. It now loads by name via an explicit button, the Enter key, and a
-//! native `<datalist>`.
+//! The command filter box only ever filters the list, and on a phone the list
+//! sits below the fold, so a typed name needs another way in: loading by name
+//! via an explicit button, the Enter key, and a native `<datalist>`.
 //!
 //! These are source-level assertions, not a rendering test — a browser check
 //! needs Playwright, which does not run in this suite. They exist so the
-//! specific rules that fix a 430px viewport cannot be dropped silently by an
-//! unrelated style edit. The measured verification (six viewports × five
-//! tabs, zero horizontal overflow) is recorded in the commit that added them.
+//! rules that keep a 430px viewport free of horizontal scroll cannot be
+//! dropped silently by an unrelated style edit.
 
 const CSS: &str = include_str!("../web/src/studio.css");
 const HTML: &str = include_str!("../web/studio.html");
@@ -90,8 +83,8 @@ fn a_phone_breakpoint_exists_below_the_tablet_one() {
 
 #[test]
 fn a_typed_command_name_can_be_loaded_without_the_list() {
-    // The reported bug: filtering was the *only* way in, and the list is below
-    // the fold on a phone. All three entry points must survive.
+    // Filtering is not the only way in — the list sits below the fold on a
+    // phone, so all three entry points must survive.
     assert!(
         HTML.contains(r#"id="loadCmd""#),
         "the Load button next to the filter box is missing"
@@ -391,11 +384,11 @@ fn the_palette_says_what_it_searched_and_where_each_hit_came_from() {
 
 /* The pack export.
  *
- * The Export tab replaced two per-command output panes with one pack-level
- * reader: a list of every file the pack produces beside the one it is showing.
- * That is a second two-column split on a page that already has one, and the
- * failure mode is the same — a long rendered path is min-content wide, and an
- * unconstrained grid item sizes its track to it. */
+ * The Export tab is a pack-level reader: a list of every file the pack
+ * produces beside the one it is showing. That is a second two-column split on
+ * a page that already has one, and the failure mode is the same — a long
+ * rendered path is min-content wide, and an unconstrained grid item sizes its
+ * track to it. */
 
 #[test]
 fn the_export_split_collapses_and_cannot_be_widened_by_a_rendered_path() {

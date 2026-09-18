@@ -521,8 +521,8 @@ mod tests {
 
     #[test]
     fn select_exact_still_matches_after_guard() {
-        // Regression guard: the empty-list early-return must not disturb normal
-        // selection. A trailing `default` and a literal hit both still work.
+        // The empty-list early-return must not disturb normal selection. A
+        // trailing `default` and a literal hit both still work.
         let mut ops = StrOps;
         let opts = exact_opts();
         let value = String::from("b");

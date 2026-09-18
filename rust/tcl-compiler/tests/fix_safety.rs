@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Quick-fix safety-classification suite (issue #1195).
+//! Quick-fix safety-classification suite.
 //!
 //! Every [`CodeFix`](tcl_compiler::analyser::CodeFix) records how much its
 //! rewrite changes behaviour.  "Fix All Safe Issues" applies only the
@@ -24,7 +24,7 @@
 //! unattended change to a user's program — which is exactly what the
 //! diagnostic-code whitelist this replaced allowed.
 //!
-//! The four coverage classes, per the issue's acceptance criteria:
+//! The four coverage classes:
 //!
 //! * **TP** — a rewrite that really is equivalent is classified so, and is
 //!   therefore bulk-applicable.
@@ -62,7 +62,7 @@ fn safety_for(src: &str, dialect: &str, code: DiagCode) -> Vec<FixSafety> {
         .collect()
 }
 
-// -- The taxonomy itself -------------------------------------------------
+// The taxonomy itself.
 
 #[test]
 fn only_the_equivalent_class_is_bulk_applicable() {
@@ -80,7 +80,7 @@ fn the_default_class_is_the_cautious_one() {
     assert!(!FixSafety::default().is_bulk_applicable());
 }
 
-// -- W100: the issue's headline case -------------------------------------
+// W100: substituted vs literal operands.
 
 #[test]
 fn fp_w100_brace_fix_over_a_substituted_operand_is_not_equivalent() {
@@ -130,7 +130,7 @@ fn fp_w100_brace_fix_over_a_backslash_bearing_operand_is_not_equivalent() {
     }
 }
 
-// -- W110: numeric vs string comparison ----------------------------------
+// W110: numeric vs string comparison.
 
 #[test]
 fn fp_w110_eq_rewrite_is_never_equivalent() {
@@ -145,7 +145,7 @@ fn fp_w110_eq_rewrite_is_never_equivalent() {
     );
 }
 
-// -- W105: unbraced code block -------------------------------------------
+// W105: unbraced code block.
 
 #[test]
 fn fp_w105_brace_fix_over_a_substituted_body_is_not_equivalent() {
@@ -157,7 +157,7 @@ fn fp_w105_brace_fix_over_a_substituted_body_is_not_equivalent() {
     );
 }
 
-// -- W120 / W213 / W304: hardening, not equivalence ----------------------
+// W120 / W213 / W304: hardening, not equivalence.
 
 #[test]
 fn fp_w213_nocomplain_fix_is_hardening() {
@@ -183,7 +183,7 @@ fn fp_w304_option_terminator_fix_is_hardening() {
     );
 }
 
-// -- "Did you mean …?" suggestions ---------------------------------------
+// "Did you mean …?" suggestions.
 
 #[test]
 fn fp_did_you_mean_suggestions_require_review() {
@@ -197,7 +197,7 @@ fn fp_did_you_mean_suggestions_require_review() {
     );
 }
 
-// -- TN: diagnostics with no fix -----------------------------------------
+// TN: diagnostics with no fix.
 
 #[test]
 fn tn_clean_source_carries_no_fixes_at_all() {
@@ -212,7 +212,7 @@ fn tn_a_diagnostic_without_a_fix_contributes_nothing() {
     assert!(classes.is_empty(), "got {classes:?}");
 }
 
-// -- FN: safe work still gets done ---------------------------------------
+// FN: safe work still gets done.
 
 #[test]
 fn fn_the_equivalent_class_is_actually_reachable() {

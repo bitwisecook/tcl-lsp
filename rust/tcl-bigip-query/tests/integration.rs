@@ -27,8 +27,9 @@
 //! The files live under `tests/integration/` — a non-target subdirectory, so
 //! cargo does not re-discover them as binaries of their own — and `#[path]`
 //! points at them, the arrangement `tcl-lsp-server/tests/e2e.rs` established.
-//! Test names are module-qualified (`renderers::…`, `output::…`), so a filter
-//! that used to name a binary now names a module and reads the same.
+//! Test names are module-qualified (`renderers::…`, `output::…`), so a
+//! `cargo test` name filter names a module here, read the same way it
+//! would name a standalone test binary.
 
 #[path = "integration/edit_plan.rs"]
 mod edit_plan;
@@ -44,6 +45,8 @@ mod graph;
 mod hardening;
 #[path = "integration/math.rs"]
 mod math;
+#[path = "integration/modules.rs"]
+mod modules;
 #[path = "integration/net.rs"]
 mod net;
 #[path = "integration/output.rs"]
@@ -54,6 +57,8 @@ mod probes;
 mod projection;
 #[path = "integration/regex_str.rs"]
 mod regex_str;
+#[path = "integration/registry_refs.rs"]
+mod registry_refs;
 #[path = "integration/renderers.rs"]
 mod renderers;
 #[path = "integration/time.rs"]

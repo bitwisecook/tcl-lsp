@@ -71,9 +71,9 @@ async function build() {
   }
 }
 
-// ---- sync built assets into the self-contained Python package --------------
-// Only the assets the template (`report.html.j2`) references are
-// synced; APM / elk-graph stay Rust-only, as they always have been.
+// Sync built assets into the self-contained Python package. Only the assets
+// the template (`report.html.j2`) references are synced here; Rust embeds the
+// same files directly via `include_str!` instead of going through this copy.
 const PY_JS = ["input", "report", "topology", "console", "certs", "secrets", "forensics", "irule-flow", "irule-format", "print", "elk-graph", "apm"];
 const PY_CSS = ["input", "report", "topology", "certs", "secrets", "forensics", "print", "apm"];
 const PY_VENDOR = [

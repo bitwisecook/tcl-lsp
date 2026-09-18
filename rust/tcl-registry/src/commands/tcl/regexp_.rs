@@ -178,11 +178,11 @@ pub fn spec() -> CommandSpec {
         // hook types it as unknown.  Either way it is not the int this
         // `return_type` names — without that, iterating a `regexp -all
         // -inline` result drew a shimmer warning claiming the list "has int
-        // intrep" (issue #1720).
+        // intrep".
         return_type_hook: Some(ReturnTypeHookId::Regexp),
         // `regexp` writes matched substrings to its capture variables while
         // returning the match *count* (or 0/1).  The captures are strings, not
-        // the count, so they must not be typed `Int` (issue #867).
+        // the count, so they must not be typed `Int`.
         var_write_typing: VarWriteTyping::Destructured,
         // Whatever the leading switch layout, a capture target requires the
         // pattern, string, and at least one matchVar.  In particular,
