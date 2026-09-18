@@ -233,6 +233,7 @@
 4	tcl-registry::spec_pack_provenance	test	tcl-registry	spec_pack_provenance
 4	tcl-registry::spectcl_pack	test	tcl-registry	spectcl_pack
 4	tcl-registry::tcltest_specs	test	tcl-registry	tcltest_specs
+4	tcl-registry::value_transfers	test	tcl-registry	value_transfers
 4	tcl-spec-studio::option_row_editing	test	tcl-spec-studio	option_row_editing
 4	tcl-spec-studio::pack_store	test	tcl-spec-studio	pack_store
 4	tcl-spec-studio::spectcl_roundtrip	test	tcl-spec-studio	spectcl_roundtrip
