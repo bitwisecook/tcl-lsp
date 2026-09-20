@@ -166,13 +166,14 @@ pub struct SubstFlags {
     /// `missing close-bracket`.
     ///
     /// False everywhere C Tcl parses source: there an unclosed bracket is a
-    /// parse error. True for the same one consumer as [`bare_var_refs`] —
-    /// `tcl-vm`'s compiled-word `PUSH` operands — because the codegen has
-    /// already decoded that word's source escapes, so the `\[` a source word
-    /// wrote to *prevent* substitution arrives here as a bare `[` with no
-    /// closer. C never reaches this state: it parsed and balanced the source
-    /// long before, so a surviving unclosed `[` in a compiled word is always
-    /// data (`expr {$ch eq "\["}`), never a parse error to re-raise.
+    /// parse error. True for the same one consumer as
+    /// [`Self::bare_var_refs`] — `tcl-vm`'s compiled-word `PUSH` operands —
+    /// because the codegen has already decoded that word's source escapes,
+    /// so the `\[` a source word wrote to *prevent* substitution arrives
+    /// here as a bare `[` with no closer. C never reaches this state: it
+    /// parsed and balanced the source long before, so a surviving unclosed
+    /// `[` in a compiled word is always data (`expr {$ch eq "\["}`), never
+    /// a parse error to re-raise.
     pub unclosed_bracket_is_data: bool,
 }
 
@@ -294,7 +295,7 @@ const MAX_INDEX_DEPTH: u32 = 64;
 /// `src` is a word's **content** (delimiters already stripped) or a `subst`
 /// template. Returns [`WordBody::Literal`] — a borrow of `src`, with no
 /// allocation at all — when no enabled substitution actually occurs. That
-/// check ([`triggers`]) is hoisted here, ahead of [`scan_parts`]'s walk, so
+/// check (`triggers`) is hoisted here, ahead of `scan_parts`'s walk, so
 /// this fast path never builds the one-element `Vec` [`decompose_spanned`]'s
 /// contract requires; see the module docs' "zero-copy" claim.
 #[must_use]

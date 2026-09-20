@@ -1419,6 +1419,18 @@ _check-rust-pr:
 # then every other crate excluded from the root workspace (Zed and the wasm32
 # cdylibs, which have their own targets and lockfiles). Skip with
 # SKIP_CHECK_RUST=1.
+#
+# Two tiers, and the difference is deliberate. Six standalone crates get the
+# full fmt + clippy treatment below, because the gate can assume their build
+# prerequisites (a rustup target it checks for first). The remaining four get
+# fmt only: bigip-report-gen/python links libpython, bigip-report-gen/wasm and
+# bigip-query-wasm need a wasm32 toolchain plus their build scripts, and
+# zed-query-check pulls a pinned tree-sitter grammar — prerequisites a lint
+# gate should not demand. rustfmt needs none of them and no build at all, so
+# the cheap half is still worth having: #2086's first failure was a rustfmt
+# diff in bigip-report-gen/python that sat unseen because NOTHING formatted it.
+# This comment used to claim the target covered every excluded crate. It did
+# not: it covered six of ten.
 check-rust: ensure-rust-deps ## Rust fmt-check + clippy on the workspace and excluded standalone crates
 	@set -eu; \
 	if [ -n "$${SKIP_CHECK_RUST:-}" ]; then \
@@ -1479,7 +1491,17 @@ check-rust: ensure-rust-deps ## Rust fmt-check + clippy on the workspace and exc
 		cd $(ROOT)rust/tcl-lsp-server-wasi; \
 		cargo fmt --all --check; \
 		cargo clippy --target wasm32-wasip1 --all-targets -- -D warnings; \
-	fi
+	fi; \
+	for manifest in \
+			rust/bigip-report-gen/python \
+			rust/bigip-report-gen/wasm \
+			rust/bigip-query-wasm \
+			rust/zed-query-check; do \
+		if [ -f "$(ROOT)$$manifest/Cargo.toml" ]; then \
+			echo "==> Checking $$manifest (fmt only — see the note above this target)"; \
+			cd $(ROOT) && cargo fmt --all --check --manifest-path "$$manifest/Cargo.toml"; \
+		fi; \
+	done
 
 # Supply-chain audit for every tracked Cargo lockfile: RustSec advisories,
 # license policy, banned/duplicate crates, and source allowlist — all four

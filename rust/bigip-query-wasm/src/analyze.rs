@@ -159,7 +159,10 @@ fn render_annotated(source: &str, findings: &[Finding]) -> String {
             .iter()
             .find(|r| r.start <= a && r.end >= b)
             .map(|r| r.class);
-        let active: Vec<&Finding> = findings.iter().filter(|f| f.start <= a && f.end >= b).collect();
+        let active: Vec<&Finding> = findings
+            .iter()
+            .filter(|f| f.start <= a && f.end >= b)
+            .collect();
 
         if !active.is_empty() {
             open_diag_span(&active, &mut out);
@@ -369,7 +372,9 @@ mod tests {
         // in an object `{"line":N,"col":…,"code":"W210",…}` the line precedes
         // the code, so search back from the W210 code to its `"line":`.
         let code_at = json.find("\"code\":\"W210\"").expect("W210 present");
-        let line_key = json[..code_at].rfind("\"line\":").expect("line before code");
+        let line_key = json[..code_at]
+            .rfind("\"line\":")
+            .expect("line before code");
         let after = &json[line_key + "\"line\":".len()..];
         let n: usize = after
             .chars()
@@ -379,7 +384,10 @@ mod tests {
             .expect("line number");
         // The `if` is on line 2 of the formatted body; the `pool $x` read is
         // below it. Collapsed-onto-if would report line 1 or 2.
-        assert!(n >= 3, "W210 reported on line {n}, looks collapsed onto the if");
+        assert!(
+            n >= 3,
+            "W210 reported on line {n}, looks collapsed onto the if"
+        );
     }
 
     #[test]
@@ -398,7 +406,10 @@ mod tests {
         // defaults its priority to 500, so omission is valid.
         let src = "when HTTP_REQUEST {\n  regexp a $uri\n}";
         let json = analyze_irule(src);
-        assert!(json.contains("IRULE2101"), "expected the regexp hint: {json}");
+        assert!(
+            json.contains("IRULE2101"),
+            "expected the regexp hint: {json}"
+        );
         assert!(json.contains("\"severity\":\"hint\""));
         assert!(json.contains("tk-event"));
     }
