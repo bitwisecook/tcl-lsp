@@ -1500,6 +1500,23 @@ impl DialectProfile {
     /// free to differ in what it did with a profile that names no release.
     #[must_use]
     pub fn character_model(&self) -> Option<StringCharacterModel> {
+        // The F5 dialects carry `runtime_base = V8_4`, so deriving straight
+        // from the release would hand them 8.4's model — which #2128 changed
+        // to `BmpCharsElseUtf8Bytes`. `CoreProfileId::character_model` in
+        // `model::family` deliberately keeps `Utf16CodeUnits` for the F5
+        // families, because that value has no measurement citation and no
+        // TMOS `string length` measurement exists to settle it (#2151).
+        //
+        // Both answers must agree, or a fold and its runtime disagree for the
+        // same profile. This arm is what keeps them in step: it mirrors
+        // `f5_core_expr_grammar`'s discriminator above, which is the other
+        // place an F5 profile declines to inherit from its `runtime_base`.
+        if matches!(
+            self.vendor_surface,
+            Some(SpecProvider::Core(Family::F5Irules) | SpecProvider::Package("tmsh" | "iapps"))
+        ) {
+            return Some(StringCharacterModel::Utf16CodeUnits);
+        }
         self.runtime_version()
             .map(TclVersion::string_character_model)
     }
@@ -2599,6 +2616,43 @@ mod tests {
         assert!(
             seen.contains(&"bigip.conf"),
             "the BIG-IP config basenames must be catalogued"
+        );
+    }
+
+    /// Codex P2 on #2157: the F5 dialects carry `runtime_base = V8_4`, so
+    /// after #2128 gave 8.4 its own character model they silently inherited
+    /// it — contradicting `model::family::CoreProfileId::character_model`,
+    /// which deliberately keeps `Utf16CodeUnits` for F5 pending a TMOS
+    /// measurement (#2151).
+    ///
+    /// The two answers must agree, or a compile-time fold and the runtime
+    /// disagree for the same profile.
+    #[test]
+    fn f5_profiles_do_not_inherit_the_tcl_8_4_character_model() {
+        use crate::StringCharacterModel;
+
+        for name in ["f5-irules", "f5-tmsh", "f5-iapps"] {
+            let profile = DialectProfile::find(name).expect("a known F5 profile");
+            assert_eq!(
+                profile.runtime_base,
+                Some(TclVersion::V8_4),
+                "{name} forks from 8.4 — that is what made this reachable",
+            );
+            assert_eq!(
+                profile.character_model(),
+                Some(StringCharacterModel::Utf16CodeUnits),
+                "{name} must not inherit 8.4's model while F5's own value is \
+                 unmeasured (#2151)",
+            );
+        }
+
+        // Plain 8.4 is unaffected: it is the release the model was measured
+        // on, so it keeps the new value.
+        assert_eq!(
+            DialectProfile::find("tcl8.4")
+                .expect("tcl8.4")
+                .character_model(),
+            Some(StringCharacterModel::BmpCharsElseUtf8Bytes),
         );
     }
 }
