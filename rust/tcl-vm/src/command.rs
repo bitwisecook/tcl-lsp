@@ -1273,7 +1273,18 @@ fn cmd_expr(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         .collect::<Vec<_>>()
         .join(" ");
     match vm.eval_expr(&joined) {
-        Ok(v) => ok(v),
+        // C's `Tcl_ExprObj` finishes with the same normalisation the compiled
+        // path gets from `INST_TRY_CVT_TO_NUMERIC`, which codegen already
+        // emits over `Statement::ExprEval`. Applying it here too makes the
+        // interpreted `expr` agree with the compiled one — without it an
+        // uncompilable `expr` handed back whatever object its last step
+        // produced, so `expr $e` for `$e` of `$h`, or of
+        // `entier($h)` where `$h` is `0x10`, answered `0x10` where every
+        // tclsh answers `16`.
+        Ok(v) => match crate::expr::cvt_to_numeric(v) {
+            Ok(nv) => ok(nv),
+            Err(e) => completion_from_tcl_error(e),
+        },
         Err(e) => completion_from_tcl_error(e),
     }
 }
