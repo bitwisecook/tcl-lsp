@@ -32,7 +32,9 @@
 //! like `expr` itself. `rand`/`srand` carry PRNG state on the interp, so they
 //! are handled here directly rather than via the pure shared dispatch.
 
-use tcl_syntax::expr::mathfunc::{try_dispatch_with_backend_int_width, IntWidth, NumValue};
+use tcl_syntax::expr::mathfunc::{
+    integer_conversion, try_dispatch_with_backend_int_width, IntWidth, IntegerConversion, NumValue,
+};
 use tcl_syntax::naming::qualifier_segments;
 
 use crate::interp::{obj_bytes, Code, Interp};
@@ -145,12 +147,16 @@ pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // `wide`/`int`/`entier` on an *integer* operand work on the object directly
     // rather than through the shared dispatch, so the result keeps the operand's
     // own string rep (tclsh: `::tcl::mathfunc::entier 0x10` is `0x10`, not
-    // `16`). `wide` — and `int` in a windowing release — still take the low 64
-    // bits (C's truncation). A *float* operand falls through to the shared
-    // dispatch, which now has its own exact bignum path.
-    if matches!(lname.as_str(), "wide" | "int" | "entier") && crate::bignum::is_integer(argv[1]) {
-        let windows = lname == "wide" || (lname == "int" && int_width == IntWidth::Windowed);
-        if windows {
+    // `16`). A *float* operand falls through to the shared dispatch, which has
+    // its own exact bignum path.
+    //
+    // Which of the three preserves and which windows is the shared owner's
+    // call, not this consumer's: `integer_conversion` carries the release
+    // axis, and `tcl-vm`'s `cmd_math` reads the same function, so the two
+    // engines cannot drift apart.
+    let conversion = integer_conversion(&lname, int_width);
+    if let Some(conversion) = conversion.filter(|_| crate::bignum::is_integer(argv[1])) {
+        if conversion == IntegerConversion::Window {
             interp.set_result(obj::new_wide_int_obj(crate::bignum::truncate_to_wide(
                 argv[1],
             )));

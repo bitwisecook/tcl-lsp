@@ -219,11 +219,12 @@ fn is_integer_value(v: &Value) -> bool {
 /// object**, so the result keeps the operand's own string rep:
 /// `::tcl::mathfunc::entier 0x10` is `0x10`, not `16` (tclsh 8.5-9.1). Routing
 /// it through the shared numeric dispatch instead rebuilds a canonical decimal
-/// and loses that rep. The release-specific *width* semantics are untouched and
-/// still come from the shared owner's [`IntWidth`] axis: `wide` always takes
-/// C's low-64-bit window, and `int` does too until 9.0 binds it to the same
-/// unbounded conversion as `entier`. A windowing conversion has to build a new
-/// integer, so only the unbounded one can preserve the object.
+/// and loses that rep. Which of the three preserves and which windows is not
+/// decided here: it is
+/// [`tcl_syntax::expr::mathfunc::integer_conversion`], the one owner both
+/// engines read, over the release's [`IntWidth`] axis. A windowing conversion
+/// has to build a new integer, so only the unbounded one can preserve the
+/// object.
 ///
 /// `None` falls through to [`shared_math`]: a float operand (which C genuinely
 /// converts, and whose exact float-to-bignum truncation lives in the shared
@@ -238,11 +239,13 @@ fn m_integer_conversion(
     args: &[Value],
     int_width: IntWidth,
 ) -> Option<Completion<Value>> {
-    let windows = match name {
-        "wide" => true,
-        "int" => int_width == IntWidth::Windowed,
-        "entier" => false,
-        _ => return None,
+    // The classification and its release axis belong to the shared expr owner,
+    // not to this consumer: `runtime/rust`'s `cmd_mathfunc` reads the same
+    // function, so a change to the policy cannot leave the two engines
+    // disagreeing.
+    let windows = match tcl_syntax::expr::mathfunc::integer_conversion(name, int_width)? {
+        tcl_syntax::expr::mathfunc::IntegerConversion::Window => true,
+        tcl_syntax::expr::mathfunc::IntegerConversion::Preserve => false,
     };
     let [x] = args else { return None };
     if !is_integer_value(x) {
