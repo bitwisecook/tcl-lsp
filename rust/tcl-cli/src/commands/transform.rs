@@ -118,9 +118,11 @@ pub fn run_format(
 /// Profile semantics: `full` (the default) is a single
 /// pass; only `aggressive` runs multi-pass to a fixpoint (max 5 iterations).
 ///
-/// Unlike `format` and `minify`, each input is optimised as its own program —
+/// Unlike `format` and `minify`, each input is *analysed* as its own program —
 /// its own dialect, its own directives, its own optimiser pass — rather than
-/// concatenated with the others first. Two files named on one command line
+/// concatenated with the others first. The rendered output is still one
+/// script, so `tcl opt src/ -o build/optimised.tcl` keeps doing what the
+/// README documents. Two files named on one command line
 /// never share a scope at run time (they are two separate `tclsh` loads), so
 /// folding a store in one across into a load in the other is simply wrong: it
 /// forwards a value the second file could never actually see, and can delete
@@ -163,12 +165,22 @@ pub fn run_opt(
     }
 
     let target = OutputTarget::from_arg(input.output.as_deref());
-    // Several inputs must read as several rewritten programs, not one blob —
-    // each section is headed with the file it came from, the same
-    // "which file is this about" contract `tcl diag` keeps for its rows. A
-    // single input keeps the pre-#2120 shape exactly (no header, no join).
+    // Per-file is the unit of *analysis*, not of output. The rendered text
+    // stays one program, joined exactly as `combine_sources` joined the
+    // inputs, because `tcl opt src/ -o build/optimised.tcl` is documented
+    // (README, `kcs-feature-tcl-verb-cli`) as optimising a tree "into one
+    // output script": a `# file:` banner in the program text would push a
+    // leading `#!` off byte zero and stop that script being executable.
+    // Which file each rewrite came from is reported in the trailing comment
+    // summary instead, where it cannot corrupt the program.
+    //
+    // Optimising each input separately and then concatenating is safe for
+    // both readings: if the files really are loaded together the result is
+    // merely conservative (cross-file folds are missed), whereas the old
+    // optimise-the-concatenation order was *unsound* when they are not.
     let multi_file = documents.len() > 1;
     let mut sections: Vec<String> = Vec::with_capacity(documents.len());
+    let mut per_file: Vec<(String, Vec<String>)> = Vec::with_capacity(documents.len());
     let mut total_rewrites = 0usize;
 
     for document in &documents {
@@ -188,39 +200,50 @@ pub fn run_opt(
             &disabled,
         );
         total_rewrites += optimisations.len();
-
-        let mut rendered = optimised;
-        // On stdout a comment block summarising the rewrites is appended.
-        if target.is_stdout() && !optimisations.is_empty() {
-            let mut lines = vec![
-                "\n\n# -------------".to_owned(),
-                format!("# optimised: {} rewrite(s)", optimisations.len()),
-            ];
-            for o in &optimisations {
-                lines.push(format!("# {}  {}", o.code, o.message));
-            }
-            rendered = format!(
-                "{}\n{}\n",
-                rendered.trim_end_matches('\n'),
-                lines.join("\n")
-            );
-        }
-
-        if multi_file {
-            rendered = format!(
-                "# file: {}\n{}",
-                document.label,
-                rendered.trim_end_matches('\n')
-            );
-        }
-        sections.push(rendered);
+        per_file.push((
+            document.label.clone(),
+            optimisations
+                .iter()
+                .map(|o| format!("# {}  {}", o.code, o.message))
+                .collect(),
+        ));
+        sections.push(optimised);
     }
 
-    let rendered = if multi_file {
-        sections.join("\n\n")
+    // A single input keeps the pre-#2120 bytes exactly — no trim, no join.
+    let mut rendered = if multi_file {
+        sections
+            .iter()
+            .map(|s| s.trim_end_matches('\n'))
+            .collect::<Vec<_>>()
+            .join("\n\n")
     } else {
         sections.into_iter().next().unwrap_or_default()
     };
+
+    // On stdout a comment block summarising the rewrites is appended. With
+    // several inputs each file's rewrites are listed under its own `# file:`
+    // line, inside the comment block.
+    if target.is_stdout() && total_rewrites > 0 {
+        let mut lines = vec![
+            "\n\n# -------------".to_owned(),
+            format!("# optimised: {total_rewrites} rewrite(s)"),
+        ];
+        for (label, entries) in &per_file {
+            if entries.is_empty() {
+                continue;
+            }
+            if multi_file {
+                lines.push(format!("# file: {label}"));
+            }
+            lines.extend(entries.iter().cloned());
+        }
+        rendered = format!(
+            "{}\n{}\n",
+            rendered.trim_end_matches('\n'),
+            lines.join("\n")
+        );
+    }
 
     // Highlighting is cosmetic styling of the rendered text, not an analysis
     // decision, so one dialect for the whole rendered block (the same

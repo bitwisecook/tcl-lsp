@@ -466,6 +466,35 @@ fn opt_leaves_a_word_operator_alone_in_plain_tcl() {
     );
 }
 
+/// Companion to #2120: fixing the cross-file fold must not change what the
+/// output *is*. README and `kcs-feature-tcl-verb-cli` document
+/// `tcl opt src/ -o build/optimised.tcl` as optimising a tree "into one
+/// output script", so the rendered text stays a program: no `# file:` banner
+/// may precede it, or a leading `#!` is pushed off byte zero and the result
+/// is no longer executable. Per-file attribution belongs in the trailing
+/// comment block, which cannot corrupt the script.
+#[test]
+fn opt_over_several_inputs_keeps_the_first_shebang_at_byte_zero() {
+    let out = String::from_utf8(run_tcl(&[
+        "opt",
+        "--source",
+        "#!/usr/bin/env tclsh\nset a [expr {1 + 1}]\nputs $a",
+        "--source",
+        "set b [expr {2 + 2}]\nputs $b",
+    ]))
+    .expect("utf-8 output");
+    assert!(
+        out.starts_with("#!/usr/bin/env tclsh"),
+        "the first input's shebang must stay at byte 0 so the bundled script \
+         is still executable: {out}"
+    );
+    // The attribution still has to be somewhere — in the comment block.
+    assert!(
+        out.contains("# optimised:"),
+        "the rewrite summary must still be reported: {out}"
+    );
+}
+
 /// Regression for #2120: `tcl opt` over several inputs used to concatenate
 /// them into one program before optimising, so a `set` in the first file
 /// could be constant-propagated into a read in the second and the first
