@@ -340,6 +340,83 @@ mod tests {
             .expect("scenario profiles");
     }
 
+    /// Run the load-time rewrite (`rewrite_irule_source`) over one source
+    /// string and return what it produced.
+    fn rewrite(s: &mut LiveSession, source: &str) -> String {
+        s.eval(&format!(
+            "::tmm::expr_ops::rewrite_irule_source {}",
+            list_element(source)
+        ))
+        .expect("rewrite_irule_source")
+    }
+
+    /// The refusal a word-form unary earns in front of a custom comparison,
+    /// and the neighbouring shapes that must keep working. Split out of the
+    /// word-boolean test above only to keep that function under clippy's
+    /// line cap; it runs in the same session.
+    fn unmeasured_unary_grouping_is_refused(s: &mut LiveSession) {
+        // A word-form unary sitting
+        // directly in front of the left operand of a custom comparison has no
+        // measured grouping. `UNARY_BP` (24) in
+        // `rust/tcl-syntax/src/expr/parser.rs` is the parser's shared default
+        // for every prefix operator, not an F5 measurement: `not` is
+        // deliberately absent from `F5_TCL_PRECEDENCE_ROWS`
+        // (`lookup("not") == None`), and
+        // `docs/design/f5/bigip-irule-parser-measurements.md` pins only
+        // `if {not 0}` (§4a `expr_and_or_not`), which exercises no binding
+        // power against `starts_with` at all. So the rewriter must refuse
+        // rather than pick `not (A starts_with B)` or `(not A) starts_with B`.
+        s.eval("set ::u /v1/users").unwrap();
+        match s.eval("expr {not $u starts_with \"/skip\"}") {
+            Err(SessionError::Eval(m)) => {
+                assert!(
+                    m.contains("unmeasured"),
+                    "the refusal must say the grouping is unmeasured: {m}"
+                );
+                assert!(
+                    m.contains("not $u starts_with"),
+                    "the refusal must name the expression: {m}"
+                );
+            }
+            other => panic!("an unmeasured `not` grouping must be refused, got {other:?}"),
+        }
+        // …and at load time too, where the source rewrite runs.
+        match s.load_irule(
+            "when HTTP_REQUEST {\n  if { not [HTTP::uri] starts_with \"/skip\" } {\n    pool api_pool\n  }\n}",
+        ) {
+            Err(SessionError::Eval(m)) => assert!(
+                m.contains("unmeasured"),
+                "the load-time refusal must say the grouping is unmeasured: {m}"
+            ),
+            other => panic!("an unmeasured `not` grouping must be refused at load, got {other:?}"),
+        }
+
+        // positive controls for that refusal — the neighbouring shapes must
+        // keep working, so the refusal is narrow and not a blanket ban.
+        assert_eq!(
+            s.eval("expr {not 0}").unwrap(),
+            "1",
+            "a bare `not` must still evaluate"
+        );
+        s.eval("set ::nx 0").unwrap();
+        s.eval("set ::ny 1").unwrap();
+        assert_eq!(
+            s.eval("expr {not $nx and $ny}").unwrap(),
+            "1",
+            "`not X and Y` is measured (`and` is 6/7, below any unary) and must still evaluate"
+        );
+        assert_eq!(
+            s.eval("expr {not ($u starts_with \"/skip\")}").unwrap(),
+            "1",
+            "parenthesising the operand names the grouping and must be accepted"
+        );
+        assert_eq!(
+            s.eval("expr {$u starts_with \"/v1\"}").unwrap(),
+            "1",
+            "the custom comparison itself must still rewrite: the machinery fires"
+        );
+    }
+
     /// Request-lifecycle scenarios: pool selection, the reject decision,
     /// direct non-HTTP event dispatch, `HTTP::respond` commitment, and the
     /// fluent `was_called_with` decision matcher.
@@ -886,11 +963,13 @@ mod tests {
         );
 
         // word_booleans_compose_with_the_string_operators: the load-time
-        // source rewrite has to handle both families in one condition.
+        // source rewrite has to handle both families in one condition. The
+        // `not` operand is parenthesised because an unparenthesised one
+        // would be the refused unmeasured grouping below.
         scenario(&mut s);
         s.eval("::orch::add_pool api_pool {10.0.1.1:8080}").unwrap();
         s.load_irule(
-            "when HTTP_REQUEST {\n  if { [HTTP::host] eq \"api.example.com\" and not [HTTP::uri] starts_with \"/skip\" } {\n    pool api_pool\n  }\n}",
+            "when HTTP_REQUEST {\n  if { [HTTP::host] eq \"api.example.com\" and not ([HTTP::uri] starts_with \"/skip\") } {\n    pool api_pool\n  }\n}",
         )
         .unwrap();
         s.run_http_request("-host api.example.com -uri /v1/users")
@@ -905,7 +984,7 @@ mod tests {
         scenario(&mut s);
         s.eval("::orch::add_pool api_pool {10.0.1.1:8080}").unwrap();
         s.load_irule(
-            "when HTTP_REQUEST {\n  if { [HTTP::host] eq \"api.example.com\" and not [HTTP::uri] starts_with \"/skip\" } {\n    pool api_pool\n  }\n}",
+            "when HTTP_REQUEST {\n  if { [HTTP::host] eq \"api.example.com\" and not ([HTTP::uri] starts_with \"/skip\") } {\n    pool api_pool\n  }\n}",
         )
         .unwrap();
         s.run_http_request("-host api.example.com -uri /skip/me")
@@ -929,6 +1008,105 @@ mod tests {
             s.eval("expr {\"a and b\" eq \"a and b\"}").unwrap(),
             "1",
             "`and` inside a quoted literal is not an operator"
+        );
+
+        unmeasured_unary_grouping_is_refused(&mut s);
+    }
+
+    /// The load-time source rewrite (`rewrite_irule_source`) must only touch
+    /// expression arguments in genuine *command* positions.
+    ///
+    /// It used to scan the raw source with `\m(if|elseif|while|expr)\s*\{`,
+    /// which cannot tell a command word from a quoted string, a braced data
+    /// literal or a comment — so it rewrote Tcl *data*. That was always wrong
+    /// but rarely reached: adding the word-form booleans put the common
+    /// English words `and` / `or` / `not` into the quick-check regexp, so
+    /// ordinary iRule text now enters the rewriter. The same regexp also
+    /// missed `for`, whose test expression is its *second* argument.
+    ///
+    /// Each negative assertion below is paired with a positive control, so a
+    /// rewriter that had simply stopped working could not pass.
+    #[test]
+    fn irule_source_rewrite_only_touches_command_positions() {
+        let mut s = LiveSession::new(&lib_dir()).expect("session");
+
+        // positive control: a real command-position condition IS rewritten.
+        let cmd_position = "when HTTP_REQUEST {\n    if {1 and 0} { pool a }\n}";
+        assert!(
+            rewrite(&mut s, cmd_position).contains("1 && 0"),
+            "the rewriter must still rewrite a genuine `if` condition"
+        );
+
+        // quoted_data_is_not_a_command: `if` inside a quoted word is data.
+        let quoted = "when HTTP_REQUEST {\n    set message \"if {1 and 0}\"\n}";
+        assert_eq!(
+            rewrite(&mut s, quoted),
+            quoted,
+            "a quoted string is data, not a command position"
+        );
+
+        // braced_data_is_not_a_command: nor is a braced literal argument to a
+        // command that takes no script there.
+        let braced = "when HTTP_REQUEST {\n    set s {expr {1 and 0}}\n}";
+        assert_eq!(
+            rewrite(&mut s, braced),
+            braced,
+            "a braced data word is not a script body"
+        );
+
+        // comments_are_not_commands.
+        let commented = "when HTTP_REQUEST {\n    # if {1 and 0} explains the rule\n    set x 1\n}";
+        assert_eq!(
+            rewrite(&mut s, commented),
+            commented,
+            "a comment is not a command position"
+        );
+
+        // for_test_is_the_second_argument: `for` reaches Tcl's builtin, whose
+        // test expression it evaluates internally, so the word operators in it
+        // must be rewritten at source level (an `::for` proc override is not
+        // an option — it breaks break/continue/return propagation, which is
+        // why `install` only wraps `::expr`).
+        let for_loop =
+            "when HTTP_REQUEST {\n    for {set i 0} {$i < 3 and $ready} {incr i} { incr n }\n}";
+        let rewritten_for = rewrite(&mut s, for_loop);
+        assert!(
+            rewritten_for.contains("$i < 3 && $ready"),
+            "`for`'s test expression must be rewritten: {rewritten_for}"
+        );
+        assert!(
+            rewritten_for.contains("{set i 0}"),
+            "`for`'s initialiser must be left alone: {rewritten_for}"
+        );
+
+        // …and end to end, over the real load path. Note what this can and
+        // cannot prove: the in-process VM compiles an iRule under the F5
+        // dialect and evaluates `if` / `while` / `for` conditions with its own
+        // expression engine, which already knows the word operators — probing
+        // the session shows `if {1 and 0}` and `if {"abc" starts_with "a"}`
+        // answering correctly even with `rewrite_irule_source` stubbed out to
+        // return its argument. So a passing pool selection here is a smoke
+        // check that the rewritten source still compiles and runs, *not*
+        // evidence that the rewrite happened; the string assertions above are
+        // what bite. The logged datum is the exception — the old regexp
+        // rewrite really did maul it, so that assertion is a live guard.
+        scenario(&mut s);
+        s.eval("::orch::add_pool api_pool {10.0.1.1:8080}").unwrap();
+        s.load_irule(
+            "when HTTP_REQUEST {\n  set ready 1\n  set n 0\n  for {set i 0} {$i < 3 and $ready} {incr i} {\n    incr n\n  }\n  set message \"if {1 and 0}\"\n  log local0. $message\n  if { $n == 3 } { pool api_pool }\n}",
+        )
+        .unwrap();
+        s.run_http_request("-host api.example.com -uri /v1/users")
+            .unwrap();
+        assert_eq!(
+            s.pool_selected().unwrap(),
+            "api_pool",
+            "the rewritten source must still compile and run its three iterations"
+        );
+        let logs = s.logs().unwrap();
+        assert!(
+            logs.contains("if {1 and 0}"),
+            "the logged datum must not have been rewritten: {logs}"
         );
     }
 
