@@ -9,16 +9,26 @@
 #   ends_with      - string suffix test
 #   equals         - string equality (case-sensitive)
 #   matches_glob   - glob-style matching (8.4 TMM extension)
+#   and / or / not - word forms of && / || / !
 #
 # These operators appear in expressions like:
 #   if { [HTTP::uri] contains "/api" } { ... }
 #   if { [HTTP::host] ends_with ".example.com" } { ... }
+#   if { [HTTP::method] eq "GET" and not [HTTP::uri] contains "/x" } { ... }
 #
 # Implementation: TMM's modified expr parser treats these as infix binary
 # operators; standard Tcl's expr cannot be extended that way.  So [expr]
 # is wrapped to pre-process its expression argument before evaluation,
 # rewriting each recognised infix operator into a function call that
 # plain Tcl can evaluate.
+#
+# The word-form booleans are the exception: they are rewritten to the
+# plain-Tcl symbols they are equivalent to, NOT to helper procs.  A proc
+# call evaluates both of its arguments before the proc body runs, which
+# would turn a short-circuiting operator into an eager one; substituting
+# && / || / ! keeps [expr]'s own short-circuiting and binding powers,
+# which is exactly what TMM has (see _gen_boolean_operators in
+# _registry_data.tcl for the authority).
 #
 # Copyright (c) 2024 tcl-lsp contributors.  MIT licence.
 
@@ -36,9 +46,31 @@ namespace eval ::tmm::expr_ops {
     # "x equals y"          -> [::tmm::expr_ops::_equals x y]
     # "x matches_regex y"   -> [::tmm::expr_ops::_matches_regex x y]
     # "x matches_glob y"    -> [::tmm::expr_ops::_matches_glob x y]
+    # "x and y"             -> x && y
+    # "x or y"              -> x || y
+    # "not x"               -> ! x
 
-    # Operator list from generated registry data (_registry_data.tcl).
+    # Operator lists from the registry data (_registry_data.tcl).
     variable _tmm_operators $_gen_operators
+
+    # Word-form boolean operators, as {word symbol ...} pairs.
+    variable _tmm_boolean_operators $_gen_boolean_operators
+
+    # Word-boundary matcher for "does this text use any TMM word operator
+    # at all".  A plain substring test would fire on the `or` inside `for`
+    # (and so route every iRule through the rewriter); \m..\M pins the
+    # token boundaries.
+    variable _tmm_operator_re "\\m([join $_gen_all_operators |])\\M"
+
+    # The plain-Tcl operator a word-form boolean is equivalent to, or ""
+    # when the token is not one.
+    proc _boolean_symbol {word} {
+        variable _tmm_boolean_operators
+        foreach {name symbol} $_tmm_boolean_operators {
+            if {$word eq $name} { return $symbol }
+        }
+        return ""
+    }
 
     # Operator implementations
 
@@ -87,16 +119,10 @@ namespace eval ::tmm::expr_ops {
 
     proc rewrite_expr {expr_str} {
         variable _tmm_operators
+        variable _tmm_operator_re
 
-        # Quick check: if no TMM operators present, return unchanged
-        set found 0
-        foreach op $_tmm_operators {
-            if {[string first $op $expr_str] >= 0} {
-                set found 1
-                break
-            }
-        }
-        if {!$found} {
+        # Quick check: if no TMM operator token is present, return unchanged
+        if {![regexp -- $_tmm_operator_re $expr_str]} {
             return $expr_str
         }
 
@@ -109,6 +135,16 @@ namespace eval ::tmm::expr_ops {
         set len [llength $tokens]
         while {$i < $len} {
             set tok [lindex $tokens $i]
+
+            # Word-form boolean: substitute the equivalent plain-Tcl
+            # operator, so [expr] supplies the short-circuiting and the
+            # binding power rather than this rewriter.
+            set sym [_boolean_symbol $tok]
+            if {$sym ne ""} {
+                lappend result $sym
+                incr i
+                continue
+            }
 
             # Check if next token is a TMM operator
             if {$i + 2 < $len} {
@@ -291,17 +327,11 @@ namespace eval ::tmm::expr_ops {
     # above (its test expression is the 2nd argument, not the 1st).
 
     proc rewrite_irule_source {source} {
-        variable _tmm_operators
+        variable _tmm_operator_re
 
-        # Quick check: if no TMM operators appear anywhere, return unchanged
-        set found 0
-        foreach op $_tmm_operators {
-            if {[string first $op $source] >= 0} {
-                set found 1
-                break
-            }
-        }
-        if {!$found} {
+        # Quick check: if no TMM operator token appears anywhere, return
+        # unchanged
+        if {![regexp -- $_tmm_operator_re $source]} {
             return $source
         }
 

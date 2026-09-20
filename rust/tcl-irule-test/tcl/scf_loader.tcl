@@ -6,6 +6,7 @@
 #   - Pool definitions (members, monitors, load-balancing mode)
 #   - Data groups (internal: string, ip, integer)
 #   - Node definitions (addresses)
+#   - SNAT pool definitions (members)
 #   - iRule source (loaded into the event handler registry)
 #   - Profile types (HTTP, TCP, SSL, DNS, etc.)
 #
@@ -28,6 +29,13 @@ namespace eval ::scf {
     # pool_path -> {members {addr:port ...} monitor lb_mode}
     variable pools
     array set pools {}
+
+    # snatpool_path -> {members {addr ...}}
+    # A virtual server's `snatpool` / `source-address-translation pool`
+    # property names one of these, so the reference has something to resolve
+    # against.
+    variable snatpools
+    array set snatpools {}
 
     # dg_path -> {type "string" records {key val ...}}
     variable data_groups
@@ -472,12 +480,15 @@ namespace eval ::scf {
     }
 
     proc _parse_snatpool {full_path body} {
-        # Parses snatpool members but does not store them anywhere yet.
+        variable snatpools
+
         set props [_parse_properties $body]
         set members [list]
         foreach {k v} $props {
             if {$k eq "members"} { set members [_parse_list_block $v] }
         }
+
+        set snatpools($full_path) [list members $members]
     }
 
     proc _parse_data_group {full_path body obj_type} {
@@ -785,6 +796,7 @@ namespace eval ::scf {
     proc reset {} {
         variable virtual_servers
         variable pools
+        variable snatpools
         variable data_groups
         variable nodes
         variable rules
@@ -792,6 +804,7 @@ namespace eval ::scf {
 
         array unset virtual_servers
         array unset pools
+        array unset snatpools
         array unset data_groups
         array unset nodes
         array unset rules
@@ -808,6 +821,11 @@ namespace eval ::scf {
     proc list_pools {} {
         variable pools
         return [array names pools]
+    }
+
+    proc list_snatpools {} {
+        variable snatpools
+        return [array names snatpools]
     }
 
     proc list_rules {} {
@@ -832,6 +850,17 @@ namespace eval ::scf {
         set resolved [_resolve_name $pool_name pools]
         if {$resolved eq ""} { return [list] }
         set info $pools($resolved)
+        foreach {k v} $info {
+            if {$k eq "members"} { return $v }
+        }
+        return [list]
+    }
+
+    proc snatpool_members {snatpool_name} {
+        variable snatpools
+        set resolved [_resolve_name $snatpool_name snatpools]
+        if {$resolved eq ""} { return [list] }
+        set info $snatpools($resolved)
         foreach {k v} $info {
             if {$k eq "members"} { return $v }
         }

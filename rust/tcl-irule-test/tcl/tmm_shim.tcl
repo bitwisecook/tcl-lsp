@@ -21,11 +21,13 @@
 #
 # Copyright (c) 2024 tcl-lsp contributors.  MIT licence.
 
-# Source generated registry data (disabled commands, post-8.4 commands, etc.)
-# See _registry_data.tcl for provenance and regeneration status.
+# Source the registry data (disabled commands, post-8.4 commands, etc.).
+# _registry_data.tcl is hand-maintained: no generator produces it, so there is
+# no command to regenerate it with.  `cargo xtask gen-irule-test-data` writes
+# only _event_data.tcl and _mock_stubs.tcl.
 set _tmm_registry_file [file join [file dirname [info script]] _registry_data.tcl]
 if {![file exists $_tmm_registry_file]} {
-    error "Missing generated file _registry_data.tcl -- run: python -m tooling.irule_test.codegen_registry_data"
+    error "Missing hand-maintained file _registry_data.tcl -- it is checked in; restore it from the repository (no generator produces it)"
 }
 source $_tmm_registry_file
 unset _tmm_registry_file
