@@ -3965,9 +3965,8 @@ async fn run_diagnostics_f5_dialect(
     {
         return None;
     }
-    let encoding_abstains = inputs
-        .decode_report
-        .is_some_and(|r| r.requires_abstention());
+    let encoding_abstains =
+        tcl_lsp_core::source_decode::should_abstain(inputs.decode_report.as_ref());
     // A non-text byte signature makes every parser/model verdict untrustworthy.
     // Skip the validator entirely rather than computing diagnostics that the
     // report-driven abstention below would then discard.
@@ -6065,7 +6064,7 @@ async fn publish_fast_tier(
         finalise_diagnostics(
             &mut diagnostics,
             &severity_overrides,
-            decode_report.is_some_and(|r| r.requires_abstention()),
+            tcl_lsp_core::source_decode::should_abstain(decode_report.as_ref()),
         );
         diagnostics
     })
@@ -6276,7 +6275,7 @@ async fn refine_and_lift_diagnostics(
         finalise_diagnostics(
             &mut diagnostics,
             &severity_overrides,
-            decode_report.is_some_and(|r| r.requires_abstention()),
+            tcl_lsp_core::source_decode::should_abstain(decode_report.as_ref()),
         );
         diagnostics
     })
@@ -20172,9 +20171,8 @@ impl Backend {
         language_id: &str,
         inputs: &F5PullInputs<'_>,
     ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
-        let encoding_abstains = inputs
-            .decode_report
-            .is_some_and(|report| report.requires_abstention());
+        let encoding_abstains =
+            tcl_lsp_core::source_decode::should_abstain(inputs.decode_report.as_ref());
         let mut diagnostics = if encoding_abstains {
             Vec::new()
         } else {
@@ -20349,7 +20347,7 @@ impl Backend {
             finalise_diagnostics(
                 &mut diagnostics,
                 &severity_overrides,
-                decode_report.is_some_and(|r| r.requires_abstention()),
+                tcl_lsp_core::source_decode::should_abstain(decode_report.as_ref()),
             );
             diagnostics
         })
