@@ -88,12 +88,29 @@ wrapper { puts $myf }                            ;# flagged: myf is never set
 ```
 
 so a read there is still reported. The exception is a name the braced word
-sets itself — that is the script's own variable whichever frame it ends up
-in, and it is not flagged:
+**binds** itself — that is the script's own variable whichever frame it ends
+up in, and it is not flagged:
 
 ```tcl
 mydefiner ::a::b {optlist} { set y 1; return $y }   ;# not flagged
 ```
+
+"Binds" is whatever the registry says binds, at any depth: an output operand
+(`ArgRole::VarWrite` — `catch … err`, `scan … out`, `lassign`, `incr`), a
+loop's own variables (`ArgRole::LoopVarList`), and either of those inside a
+nested body the registry marks as a script. All three names below are the
+body's own, in a body no `set` opens:
+
+```tcl
+test one {a test} -body {
+    foreach it $items { set last $it }
+    catch {risky} err
+    list $last $err $it                  ;# none of the three is flagged
+} -result {…}
+```
+
+Before this was registry-driven the rule read only a **top-level `set`**, so
+that body drew three warnings (issue #2117).
 
 A braced mention does still count as *use* for
 [`W211`](kcs-diagnostic-w211-variable-set-not-used.md) and

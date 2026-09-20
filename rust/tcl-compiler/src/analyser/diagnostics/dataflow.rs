@@ -2650,20 +2650,23 @@ fn find_case_mismatch<'a>(variable: &str, defined_vars: &'a HashSet<String>) -> 
 
 /// True when `stmt` is a `Statement::Barrier` whose body-role argument (an
 /// opaque script run in a separate context — `interp eval PATH { ... }`)
-/// contains a top-level `set VAR ...` for `var`.
+/// binds `var`.
 ///
 /// Such a body is never flattened into this function's CFG (its target
 /// interpreter is unknowable to static analysis), so its whole script text is
 /// scanned as one statement's value: a `$var` read and the body's own `set
 /// var` collapse onto the same `Statement::Barrier`, and the version-0
 /// def-use chain then shows a read with no visible definition. Recovering the
-/// body's own top-level assignments here is the only place that write is
-/// visible, so a plain write-then-read *inside* the body doesn't false-fire
-/// W210. Deliberately conservative — it suppresses whenever the
-/// body sets the name, a false-negative direction (a genuine read-before-set
-/// entirely within the opaque body is unreported either way, and the outer
+/// body's own bindings here is the only place that write is visible, so a
+/// plain write-then-read *inside* the body doesn't false-fire W210.
+/// Deliberately conservative — it suppresses whenever the body binds the
+/// name, a false-negative direction (a genuine read-before-set entirely
+/// within the opaque body is unreported either way, and the outer
 /// interpreter-handle vs. inner-local name clash drops that outer read too),
 /// never a new false positive.
+///
+/// [`crate::script_binds::script_binds_name`] answers what "binds" means, for
+/// this pass and for the `Statement::Call` twin in [`crate::ssa`] alike.
 fn barrier_body_locally_sets(
     stmt: Option<&crate::ir::Statement>,
     var: &str,
@@ -2679,16 +2682,15 @@ fn barrier_body_locally_sets(
         .arg_indices_for_role(command, &arg_strs, tcl_registry::ArgRole::Body)
         .into_iter()
         .filter_map(|idx| args.get(idx))
-        .flat_map(|body_text| {
-            crate::segmenter::segment_commands_with_offset_and_config(body_text, 0, config)
+        .any(|body_text| {
+            crate::script_binds::script_binds_name(
+                body_text,
+                var,
+                crate::script_binds::Ownership::BindingsOrNameReads,
+                registry,
+                config,
+            )
         })
-        .filter(|seg| seg.texts.first().map(String::as_str) == Some("set"))
-        .filter_map(|seg| {
-            seg.texts
-                .get(1)
-                .map(|w| crate::naming::normalise_var_name(w).to_owned())
-        })
-        .any(|name| name == var)
 }
 
 /// Variables this statement queries *only for

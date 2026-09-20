@@ -2031,6 +2031,7 @@ fn scan_command_words(
                 described,
                 word: arg,
                 name: &name,
+                registry,
                 config: tcl_lexer::LexerConfig::for_profile(registry.profile()),
             });
             match class {
@@ -2166,6 +2167,9 @@ struct BracedWordSite<'a> {
     word: &'a str,
     /// The name the scan found inside it.
     name: &'a str,
+    /// The registry, asked which words of the word's own commands bind a
+    /// variable — see [`crate::script_binds::script_binds_name`].
+    registry: &'a CommandRegistry,
     /// The document's lexing configuration — the word is re-segmented as a
     /// script below, and that re-read must draw the same word boundaries the
     /// document's own grammar draws.
@@ -2190,36 +2194,25 @@ struct BracedWordSite<'a> {
 ///   describe: a user proc, an unknown definer. It may be a script, and if it
 ///   is it may run in this frame — a wrapper that hands it to an
 ///   `uplevel`-ing worker does exactly that, and tclsh then errors on an
-///   unset name — so the read stands. **Unless** the word sets the name
-///   itself first: then the read is of that script's own local whichever
-///   frame it runs in, which is the shape an un-hooked definer body takes
-///   frame it runs in.
+///   unset name — so the read stands. **Unless** the word binds the name
+///   itself: then the read is of that script's own local whichever frame it
+///   runs in, which is the shape an un-hooked definer body takes.
 fn braced_word_class(site: &BracedWordSite<'_>) -> UseClass {
     if !site.braced || site.evaluated_in_frame {
         return UseClass::Substituted;
     }
-    if site.described || word_sets_name(site.word, site.name, site.config) {
+    if site.described
+        || crate::script_binds::script_binds_name(
+            site.word,
+            site.name,
+            crate::script_binds::Ownership::Bindings,
+            site.registry,
+            site.config,
+        )
+    {
         return UseClass::Quoted;
     }
     UseClass::Substituted
-}
-
-/// True when `word`, read as a script, contains a top-level `set NAME …` for
-/// `name` — so a `$name` elsewhere in the same word reads that script's own
-/// local rather than a variable of the enclosing frame.
-///
-/// The `Call` twin of the analyser's `barrier_body_locally_sets`, which
-/// recovers the same fact for an opaque `Statement::Barrier` body. Segmenting
-/// is skipped unless the word plausibly holds a `set` at all.
-fn word_sets_name(word: &str, name: &str, config: tcl_lexer::LexerConfig) -> bool {
-    if !word.contains("set") {
-        return false;
-    }
-    crate::segmenter::segment_commands_with_offset_and_config(word, 0, config)
-        .into_iter()
-        .filter(|seg| seg.texts.first().map(String::as_str) == Some("set"))
-        .filter_map(|seg| seg.texts.get(1).map(|w| normalise_var_name(w).to_owned()))
-        .any(|target| target == name)
 }
 
 /// Reads of a non-lowered (`-glob`/`-regexp`, or `-exact` with a fall-through

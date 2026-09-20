@@ -372,18 +372,36 @@ mod tests {
         assert!(opt.replacement.contains("# proc ::dead"));
     }
 
+    /// The gate accepts the profile an *alias* spelling resolves to, not just
+    /// the canonical one.
+    ///
+    /// This used to pass `DialectProfile::irules()` directly, which made it a
+    /// duplicate of `unused_proc_reported_with_o124` and left the alias path
+    /// its name promises unexercised (#2072). `find` is what a `#
+    /// tcl-dialect:` directive and a `--dialect` flag both go through, so
+    /// that is the door to knock on.
     #[test]
     fn irules_alias_dialect_accepted() {
         let source = "proc ::used {} { return 1 }\n\
                       proc ::dead {} { return 2 }\n\
                       when HTTP_REQUEST { ::used }\n";
-        let ip = ip_with(&[
-            ("::used", &[], false),
-            ("::dead", &[], false),
-            ("::when::HTTP_REQUEST", &["::used"], false),
-        ]);
-        let opts = run_pass(source, Some(tcl_dialect::DialectProfile::irules()), ip);
-        assert_eq!(opts.len(), 1);
+        for alias in ["irules", "tcl-irule"] {
+            let profile = tcl_dialect::DialectProfile::find(alias)
+                .unwrap_or_else(|| panic!("`{alias}` resolves to a profile"));
+            assert_eq!(
+                profile.name,
+                tcl_dialect::DialectProfile::irules().name,
+                "`{alias}` canonicalises to the iRules profile"
+            );
+            let ip = ip_with(&[
+                ("::used", &[], false),
+                ("::dead", &[], false),
+                ("::when::HTTP_REQUEST", &["::used"], false),
+            ]);
+            let opts = run_pass(source, Some(profile), ip);
+            assert_eq!(opts.len(), 1, "`{alias}` reaches the iRules gate");
+            assert_eq!(opts[0].code, DiagCode::O124);
+        }
     }
 
     #[test]

@@ -535,9 +535,9 @@ fn addr_only(text: &str) -> String {
 }
 
 fn extract_gtm_servers(source: &str) -> BTreeMap<String, GtmServer> {
+    // Keyed by full path, so the map's own ordering is the report's — the
+    // caller has never wanted config order (#2080).
     let mut servers: BTreeMap<String, GtmServer> = BTreeMap::new();
-    let mut order: Vec<String> = Vec::new();
-    let _ = &mut order;
     for block in extract_blocks(source) {
         let parts: Vec<&str> = block.header.split_whitespace().collect();
         if parts.len() < 3 || parts[0] != "gtm" || parts[1] != "server" {

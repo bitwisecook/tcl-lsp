@@ -873,32 +873,45 @@ pub fn version_satisfies(version: &str, requirement: &str) -> bool {
 /// [`select_package_version`] needs so a candidate is converted once for the
 /// whole requirement list.
 fn satisfies_internal(have: &[Segment<'_>], requirement: &str) -> bool {
-    use core::cmp::Ordering;
     let Some((lo, hi)) = requirement.split_once('-') else {
-        // No dash: a simple version. The requirement is padded with an alpha
-        // segment, and the candidate must be equal or greater *without* the
-        // difference landing in the major component — which is what bounds a
-        // bare `X.Y` at the next major without naming an upper bound.
-        let Some(mut req) = ParsedVersion::parse(requirement).map(|p| p.segments) else {
-            return false;
-        };
-        req.push(Segment::Alpha);
-        let (ord, is_major) = compare_internal(have, &req);
-        return ord == Ordering::Equal || (ord == Ordering::Greater && !is_major);
+        return satisfies_bare(have, requirement);
     };
     // `CheckRequirement`: at most one dash.
     if hi.contains('-') {
         return false;
     }
+    satisfies_range(have, lo, (!hi.is_empty()).then_some(hi))
+}
+
+/// The no-dash arm: a simple version. The requirement is padded with an alpha
+/// segment, and the candidate must be equal or greater *without* the
+/// difference landing in the major component — which is what bounds a bare
+/// `X.Y` at the next major without naming an upper bound.
+fn satisfies_bare(have: &[Segment<'_>], requirement: &str) -> bool {
+    use core::cmp::Ordering;
+    let Some(mut req) = ParsedVersion::parse(requirement).map(|p| p.segments) else {
+        return false;
+    };
+    req.push(Segment::Alpha);
+    let (ord, is_major) = compare_internal(have, &req);
+    ord == Ordering::Equal || (ord == Ordering::Greater && !is_major)
+}
+
+/// The `min-max` arm, taking the two bounds rather than the string that
+/// spells them — so a caller holding a window already split in two
+/// ([`version_in_any_window`]) does not have to `format!` it back together
+/// only for this to split it again.
+fn satisfies_range(have: &[Segment<'_>], lo: &str, hi: Option<&str>) -> bool {
+    use core::cmp::Ordering;
     let Some(min) = ParsedVersion::parse(lo).map(|p| p.segments) else {
         return false;
     };
-    if hi.is_empty() {
+    let Some(hi) = hi else {
         // `min-` — open-ended above.
         let mut min = min;
         min.push(Segment::Alpha);
         return compare_internal(have, &min).0 != Ordering::Less;
-    }
+    };
     let Some(max) = ParsedVersion::parse(hi).map(|p| p.segments) else {
         return false;
     };
@@ -912,6 +925,29 @@ fn satisfies_internal(have: &[Segment<'_>], requirement: &str) -> bool {
     max.push(Segment::Alpha);
     compare_internal(&min, have).0 != Ordering::Greater
         && compare_internal(have, &max).0 == Ordering::Less
+}
+
+/// Whether `version` falls in any of the half-open `windows`, each given as
+/// its `(from, until)` bounds — [`version_satisfies`] against `"from-until"`
+/// (or `"from-"` for an open window), without spelling that requirement out.
+///
+/// The spec-surface gate asks this on every registry lookup, once per
+/// authored availability row, and it used to `format!` the requirement string
+/// and re-parse `version` for each one. Both are gone: the candidate is
+/// converted once for the whole list and each bound is read where it already
+/// sits (issue #2021, where the registry's version parsing showed up in the
+/// workspace-scan profile).
+///
+/// An empty `windows` is "no window", so `false` — the "admits everything"
+/// reading belongs to the caller that knows an empty list means unrestricted.
+#[must_use]
+pub fn version_in_any_window(version: &str, windows: &[(&str, Option<&str>)]) -> bool {
+    let Some(have) = ParsedVersion::parse(version) else {
+        return false;
+    };
+    windows
+        .iter()
+        .any(|&(from, until)| satisfies_range(&have.segments, from, until))
 }
 
 /// The requirement string `package require -exact NAME VERSION` builds:

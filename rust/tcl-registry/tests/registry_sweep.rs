@@ -650,6 +650,106 @@ fn sweep_every_command_every_accessor() {
     );
 }
 
+/// Count the operand words a subcommand synopsis advertises after its
+/// `command sub` head: `(required, optional)`, or `None` when the shape is
+/// one this narrow reading declines to judge.
+///
+/// The gate below only wants the unambiguous case, so anything that cannot
+/// be read as a flat list of operand words — an ellipsis, an option-shaped
+/// word, a `?…?` group holding more than one word, a brace/bracket group —
+/// declines. Those shapes legitimately disagree with a flat arity count.
+fn synopsis_operand_counts(synopsis: &str, command: &str, sub: &str) -> Option<(u16, u16)> {
+    let head = format!("{command} {sub} ");
+    let tail = synopsis.strip_prefix(&head)?;
+    let (mut required, mut optional) = (0u16, 0u16);
+    let mut seen_optional = false;
+    for word in tail.split_whitespace() {
+        if word.contains("...")
+            || word.contains('{')
+            || word.contains('[')
+            || word.contains('|')
+            || word.starts_with('-')
+            || word.starts_with("?-")
+        {
+            return None;
+        }
+        if let Some(inner) = word.strip_prefix('?').and_then(|w| w.strip_suffix('?')) {
+            if inner.is_empty() || inner.contains('?') {
+                return None;
+            }
+            seen_optional = true;
+            optional += 1;
+        } else {
+            // A required word after an optional one is not a flat list.
+            if seen_optional {
+                return None;
+            }
+            required += 1;
+        }
+    }
+    Some((required, optional))
+}
+
+/// A subcommand's synopsis is what hover and signature help show, so a
+/// synopsis wider than the declared arity advertises a call the same spec
+/// then reports as an arity error — `DIAMETER::header length ?value?` on an
+/// `exact(0)` read-only field was the reported case (#2069). Nothing in the
+/// compiler can see this drift: the two fields are independent data.
+///
+/// The check is deliberately narrow (see `synopsis_operand_counts`): it fires
+/// only when a flat operand list cannot fit inside the declared bounds, in
+/// either direction.
+///
+/// registry-metadata: both fields are registry data.
+#[test]
+fn sweep_subcommand_synopsis_fits_declared_arity() {
+    let mut checked = 0usize;
+    for &dname in LOADABLE_DIALECTS {
+        let reg = registry_for_dialect(dname);
+        let names: Vec<String> = reg.command_names().map(ToOwned::to_owned).collect();
+        for name in &names {
+            let Some(spec) = reg.get(name) else { continue };
+            for sub in spec.subcommands {
+                if sub.synopsis.is_empty() {
+                    continue;
+                }
+                // A versioned shape is judged against the union of its
+                // windows, which the unversioned arity need not cover.
+                if !sub.arity_windows.is_empty() {
+                    continue;
+                }
+                let Some((required, optional)) =
+                    synopsis_operand_counts(sub.synopsis, spec.name, sub.name)
+                else {
+                    continue;
+                };
+                checked += 1;
+                assert!(
+                    sub.arity.accepts(required),
+                    "{dname}: `{}`'s synopsis `{}` shows {required} required operand(s), \
+                     which its arity {:?} rejects",
+                    sub.synopsis,
+                    sub.synopsis,
+                    sub.arity
+                );
+                let widest = required + optional;
+                assert!(
+                    sub.arity.accepts(widest),
+                    "{dname}: `{}` advertises up to {widest} operand(s) but its arity {:?} \
+                     rejects that count — hover offers a form the same spec reports as an \
+                     arity error",
+                    sub.synopsis,
+                    sub.arity
+                );
+            }
+        }
+    }
+    assert!(
+        checked > 200,
+        "the synopsis/arity gate unexpectedly shrank: {checked} subcommands checked"
+    );
+}
+
 /// Every spec marking its deprecated replacement as a drop-in rename
 /// (`deprecated_replacement_drop_in`) must (a) actually carry a
 /// replacement, (b) name a single bare command word — no prose like

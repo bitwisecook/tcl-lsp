@@ -150,6 +150,7 @@ pub mod representation_plan;
 pub mod scan_predicate;
 pub mod sccp;
 pub mod script_arg;
+pub(crate) mod script_binds;
 pub mod segmenter;
 pub mod semantic_analysis;
 pub mod semantic_optimisation;

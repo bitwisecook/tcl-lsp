@@ -121,11 +121,13 @@ fn skip_reason(c: &Case) -> Option<&'static str> {
     if matches!(c.name.as_str(), "regexp-4.4" | "regexp-22.5") {
         return Some("depends on inter-test setup state");
     }
-    // `regexp -about` and `regsub -command` are command-plumbing features in
-    // `tcl-cmd-core` (shared with the C-engine runtime), explicitly "not yet
-    // supported" there — not part of the ARE engine this crate provides.
-    if c.name == "regexp-20.2" || c.name.starts_with("regexp-27.") {
-        return Some("cmd-core option unimplemented (-about / regsub -command)");
+    // `regsub -command` is command plumbing in `tcl-cmd-core` (shared with the
+    // C-engine runtime): the core serves it from 9.0 via `regsub_eval`, but
+    // this runtime still calls the evaluator-less `regsub`, so the form is
+    // refused here — not part of the ARE engine this crate provides (#2124).
+    // `regexp -about` *is* served now, so `regexp-20.2` runs.
+    if c.name.starts_with("regexp-27.") {
+        return Some("runtime not yet wired to regsub_eval (-command)");
     }
     // `-start` index parsing/validation and its `-all`/`\A` interaction live in
     // the cmd-core option-parsing + match loop, not the engine.

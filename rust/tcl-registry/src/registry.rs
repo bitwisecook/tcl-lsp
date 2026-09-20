@@ -5887,13 +5887,11 @@ mod tests {
     /// registry contract.  Source-aware callers cannot run a resolver after
     /// expansion, so every emitted role must be declared here instead of
     /// assuming a particular command's fallback shape.
-    #[test]
-    fn dynamic_role_capabilities_cover_every_resolver_and_representative_output() {
+    /// Every shipped surface, not just the always-loaded Tcl, stdlib, tcllib,
+    /// Itcl, and Tk catalogue.  Resolver capability metadata is equally
+    /// load-bearing for optional dialect/package overlays.
+    fn registry_with_every_resolver_surface() -> CommandRegistry {
         let mut registry = CommandRegistry::build_default();
-        // Exercise every shipped surface, not just the always-loaded Tcl,
-        // stdlib, tcllib, Itcl, and Tk catalogue.  Resolver capability
-        // metadata is equally load-bearing for optional dialect/package
-        // overlays.
         for layer in [
             SurfaceLayer::Package("bpf"),
             SurfaceLayer::Core(Family::F5Irules, ""),
@@ -5904,6 +5902,12 @@ mod tests {
         ] {
             registry.load_surface(layer);
         }
+        registry
+    }
+
+    #[test]
+    fn dynamic_role_capabilities_cover_every_resolver_and_representative_output() {
+        let registry = registry_with_every_resolver_surface();
         let mut resolver_count = 0;
         for specs in registry.by_name.values() {
             for spec in specs {
@@ -5980,6 +5984,119 @@ mod tests {
         check_subcommand("namespace", "which", &["-variable", "name"]);
         check_subcommand("namespace", "which", &["-command", "name"]);
         check_subcommand("trace", "add", &["variable", "name", "write", "callback"]);
+    }
+
+    /// The representative rows in the sibling test are hand-picked, so a
+    /// resolver nobody thought to list stays unchecked — `control::do` emitted
+    /// `ArgRole::Expr` without declaring it for exactly that reason (#2068).
+    /// Sweep every resolver instead: feed each one the literals its own spec
+    /// knows about (option names, `arg_values` words, sibling subcommand
+    /// names), at every position of every arity up to the widest form a
+    /// resolver in this tree inspects, and require the closed capability set
+    /// to cover the result.
+    #[test]
+    fn dynamic_role_capabilities_cover_every_resolver_argument_shape() {
+        let registry = registry_with_every_resolver_surface();
+        let mut swept = 0;
+        for specs in registry.by_name.values() {
+            for spec in specs {
+                if let Some(resolver) = spec.arg_role_resolver {
+                    swept += 1;
+                    sweep_resolver(
+                        resolver,
+                        spec.arg_role_resolver_roles,
+                        &resolver_literals(spec, None),
+                        spec.name,
+                    );
+                }
+                for sub in spec.subcommands {
+                    if let Some(resolver) = sub.arg_role_resolver {
+                        swept += 1;
+                        sweep_resolver(
+                            resolver,
+                            sub.arg_role_resolver_roles,
+                            &resolver_literals(spec, Some(sub)),
+                            &format!("{} {}", spec.name, sub.name),
+                        );
+                    }
+                }
+            }
+        }
+        // The same floor the capability test asserts, so the two stay in
+        // step: a resolver added without a capability set fails there, and
+        // one whose emitted roles drift fails here.
+        assert!(swept >= 52, "the resolver catalogue unexpectedly shrank");
+    }
+
+    /// The literal words a resolver is plausibly handed: the option names and
+    /// `arg_values` of the spec it belongs to, plus its sibling subcommand
+    /// names, which discriminator-dependent resolvers (`trace add`,
+    /// `namespace which`) branch on.  Deduplicated and bounded so the sweep
+    /// stays a fast unit test.
+    fn resolver_literals(
+        spec: &'static crate::CommandSpec,
+        sub: Option<&'static crate::spec::SubCommand>,
+    ) -> Vec<&'static str> {
+        let mut out: BTreeSet<&'static str> = BTreeSet::new();
+        let collect = |options: &'static [crate::hover::OptionSpec],
+                       arg_values: &'static [(u8, &'static [crate::hover::ArgValue])],
+                       out: &mut BTreeSet<&'static str>| {
+            for option in options {
+                out.insert(option.name);
+            }
+            for (_, values) in arg_values {
+                for value in *values {
+                    out.insert(value.value);
+                }
+            }
+        };
+        collect(spec.options, spec.arg_values, &mut out);
+        if let Some(sub) = sub {
+            collect(sub.options, sub.arg_values, &mut out);
+        }
+        for sibling in spec.subcommands {
+            out.insert(sibling.name);
+        }
+        // A bare word and a lone dash stand in for "some value" and "an
+        // option-shaped word the table does not know".
+        out.insert("x");
+        out.insert("-");
+        out.into_iter().take(48).collect()
+    }
+
+    /// Call `resolver` with every one-literal substitution into an
+    /// all-placeholder argument vector, for each arity up to `MAX_WORDS`, and
+    /// assert each emitted role is declared.
+    fn sweep_resolver(
+        resolver: ArgRoleResolver,
+        declared: &[ArgRole],
+        literals: &[&'static str],
+        label: &str,
+    ) {
+        // The widest form any resolver in this tree inspects is `trace add
+        // variable name ops callback` plus a trailing word; six covers it
+        // with room to spare, and a resolver that only reads a prefix is
+        // exercised by the shorter arities in the same loop.
+        const MAX_WORDS: usize = 6;
+        let check = |args: &[&str]| {
+            for (_, role) in resolver(args) {
+                assert!(
+                    declared.contains(&role),
+                    "`{label}`'s resolver emitted {role:?} for {args:?}, outside its declared {declared:?}"
+                );
+            }
+        };
+        for len in 0..=MAX_WORDS {
+            let base = vec!["x"; len];
+            check(&base);
+            for position in 0..len {
+                for literal in literals {
+                    let mut args = base.clone();
+                    args[position] = literal;
+                    check(&args);
+                }
+            }
+        }
     }
 
     // Cross-language RPC roles.

@@ -318,9 +318,17 @@ fn based_digits(n: i64, spec: &Spec, syntax: tcl_dialect::NumberSyntax) -> Strin
     format!("{prefix}{body}")
 }
 
-/// Whether `verb` is a floating-point conversion (`e`/`E`/`f`/`F`/`g`/`G`).
+/// Whether `verb` is a floating-point conversion (`e`/`E`/`f`/`g`/`G`).
+///
+/// `F` is **not** one, despite C: tclsh8.6.18 and tclsh9.0.4 both answer
+/// `format %F 1.5` with `bad field specifier "F"`, and
+/// [`tcl_syntax::format::is_verb`] agrees. It used to be listed here anyway,
+/// which classified a `%F` as float for argument coercion and then dropped it
+/// through `render_spec`'s float arm — unreachable only because the grammar
+/// stopped it one layer earlier (#2077). This set and the renderer's arm are
+/// now the same six-letter answer minus `F`.
 fn is_float_verb(verb: u8) -> bool {
-    matches!(verb, b'e' | b'E' | b'f' | b'F' | b'g' | b'G')
+    matches!(verb, b'e' | b'E' | b'f' | b'g' | b'G')
 }
 
 /// Re-render a Rust exponent (`1.5e4` / `1.5e-4`) in C/Tcl style with an
