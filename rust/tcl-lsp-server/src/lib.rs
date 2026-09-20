@@ -16725,6 +16725,23 @@ impl Backend {
         (optimiser_enabled, set)
     }
 
+    /// How many members each optimisation group has in `opts`.
+    ///
+    /// Used to enforce all-or-nothing application: a group whose surviving
+    /// count differs from its original count has lost a member to a filter
+    /// and must not be applied at all.
+    fn group_counts(
+        opts: &[tcl_compiler::optimiser::Optimisation],
+    ) -> std::collections::HashMap<u32, usize> {
+        let mut counts: std::collections::HashMap<u32, usize> = std::collections::HashMap::new();
+        for o in opts {
+            if let Some(g) = o.group {
+                *counts.entry(g).or_default() += 1;
+            }
+        }
+        counts
+    }
+
     async fn optimise_document_command(
         &self,
         args: &[serde_json::Value],
@@ -16786,7 +16803,9 @@ impl Backend {
                         .suppressed_lines
                         .clone();
                     let line_index = tcl_lexer::LineIndex::new_lsp(current);
-                    kept.into_iter()
+                    let group_total = Backend::group_counts(&kept);
+                    let survivors: Vec<_> = kept
+                        .into_iter()
                         .filter(|o| !opt_disabled.contains(o.code.as_str()))
                         .filter(|o| {
                             let line = line_index.position_at_utf16(o.span.start(), current).line;
@@ -16795,6 +16814,26 @@ impl Backend {
                                 i32::try_from(line).unwrap_or(i32::MAX),
                                 &suppressed,
                             )
+                        })
+                        .collect();
+                    // A group's edits apply all-or-nothing, and suppression is
+                    // line-keyed, so a `# noqa` over one member of a pair that
+                    // straddles two lines would otherwise leave the *other*
+                    // member eligible — and this path applies what it admits.
+                    // For O127 that deletes the assignment without inlining it
+                    // at the use site: the same corruption #2149 describes, in
+                    // the apply path rather than the publish path. A group that
+                    // loses any member is dropped whole.
+                    //
+                    // The code-keyed filter above cannot split a group (every
+                    // member of a pair shares its `DiagCode`), so only the
+                    // line-keyed one needs this.
+                    let group_kept = Backend::group_counts(&survivors);
+                    survivors
+                        .into_iter()
+                        .filter(|o| {
+                            o.group
+                                .is_none_or(|g| group_kept.get(&g) == group_total.get(&g))
                         })
                         .collect()
                 };
@@ -33343,6 +33382,59 @@ mod tests {
             count(&out),
             0,
             "every baseline code was disabled per-code, so none may be applied: {out:?}",
+        );
+    }
+
+    /// A group's edits apply all-or-nothing, and `optimiseDocument` *applies*
+    /// what it admits — so a line-keyed `# noqa` over one member of a pair
+    /// that straddles two lines must not leave the other member eligible.
+    ///
+    /// O127's pair is an inline of the assignment at the use site plus a
+    /// delete of the original, on different lines. Admitting only the delete
+    /// removes the assignment without inlining it, which is the #2149
+    /// corruption in the apply path rather than the publish path. Codex
+    /// caught this on #2150 after the publish-path half was already fixed.
+    #[tokio::test]
+    async fn optimise_document_command_never_applies_half_a_group_issue_2149() {
+        use tcl_compiler::optimiser::profiles::OptimisationProfile;
+
+        // `# noqa` sits above the *use* site, so it covers the inline member
+        // and not the delete one line up.
+        let src = "proc p {y} {\n    set x [llength $y]\n    # noqa\n    puts $x\n}\n";
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///o2149a.tcl").unwrap();
+        register(&backend, &uri, src).await;
+        *backend.optimiser_profile.lock().await = OptimisationProfile::Aggressive;
+        let out = backend
+            .optimise_document_command(&[serde_json::json!(uri.as_str())])
+            .await
+            .expect("ok")
+            .expect("some");
+        let source = out
+            .get("source")
+            .and_then(serde_json::Value::as_str)
+            .expect("a source");
+
+        // Whatever else happens, the assignment must not vanish while the use
+        // site still reads the variable.
+        let assignment_gone = !source.contains("set x [llength $y]");
+        let use_site_remains = source.contains("puts $x");
+        assert!(
+            !(assignment_gone && use_site_remains),
+            "half the O127 group was applied — the store is gone but the read \
+             remains, which is a broken program: {source:?}",
+        );
+        let applied: Vec<String> = out["optimisations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|o| o.get("code").and_then(serde_json::Value::as_str))
+            .map(str::to_owned)
+            .collect();
+        assert!(
+            !applied.iter().any(|c| c == "O127"),
+            "the group lost a member to the directive, so none of it applies: \
+             {applied:?} / {source:?}",
         );
     }
 
