@@ -351,6 +351,23 @@ mod tests {
         );
     }
 
+    /// #2140: `docs/design/compiler/wasm-native-lowering-plan.md` § 2.5
+    /// note 4 quotes this catalogue's size to make its point — one
+    /// `execute_intrinsic` arm against the whole declared set. It said
+    /// "about twenty" while the enum held twenty-eight.
+    ///
+    /// Growing the catalogue is expected; leaving the plan quoting the old
+    /// number is not. This fails until the note is updated with it.
+    #[test]
+    fn the_intrinsic_catalogue_is_the_size_this_plan_quotes_issue_2140() {
+        assert_eq!(
+            IntrinsicId::ALL.len(),
+            28,
+            "update `docs/design/compiler/wasm-native-lowering-plan.md` \u{a7} 2.5 note 4, \
+             which quotes this count, then update this assertion"
+        );
+    }
+
     #[test]
     fn stable_ids_round_trip_without_ordinal_dependence() {
         let mut ids = std::collections::BTreeSet::new();

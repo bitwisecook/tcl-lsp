@@ -270,6 +270,32 @@ pub enum Provenance {
     Document,
 }
 
+impl Provenance {
+    /// Whether a definition of this provenance is gated by §6.4's
+    /// **untrusted** rules: its registrations may add assistance but may
+    /// never touch a reserved compiled name or a compiled dialect axis.
+    ///
+    /// This is the one place the class is decided. It was two: the
+    /// `SpecTcl` loader and the registration layer each matched the same
+    /// three variants, agreeing by maintenance rather than by
+    /// construction (#2139). Both now ask here.
+    ///
+    /// The class is a property of the **provenance**, never of the tier a
+    /// pack was discovered from. [`Provenance::WorkspaceTrusted`] and
+    /// [`Provenance::WorkspaceUntrusted`] are both reachable from a
+    /// workspace, and §6.4 keys the difference on the editor's Workspace
+    /// Trust state rather than on where the file was found — a *trusted*
+    /// workspace pack may `-override` a shipped command. Asking a tier
+    /// directly is what produced the contradiction #2139 records.
+    #[must_use]
+    pub fn is_untrusted(self) -> bool {
+        matches!(
+            self,
+            Provenance::WorkspaceUntrusted | Provenance::StudioOverride | Provenance::Document
+        )
+    }
+}
+
 /// One environment definition (§3.3) — dynamic data, held behind `Arc`,
 /// identified by `(id, generation, overlay hash)`, never by pointer.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1415,6 +1441,50 @@ mod tests {
     use crate::DialectProfile;
     use crate::KNOWN_DIALECTS;
     use crate::TclVersion;
+
+    /// #2139: one predicate owns the untrusted class, and every variant has
+    /// a stated answer.
+    ///
+    /// The inner `match` is the point: it is exhaustive, so a new
+    /// [`Provenance`] variant does not compile here until someone decides
+    /// its trust class. (The array still has to be extended by hand — the
+    /// match forces the decision, it cannot force the coverage.)
+    #[test]
+    fn provenance_states_a_trust_class_for_every_variant_issue_2139() {
+        for provenance in [
+            Provenance::BuiltIn,
+            Provenance::BundledPack,
+            Provenance::User,
+            Provenance::WorkspaceTrusted,
+            Provenance::WorkspaceUntrusted,
+            Provenance::StudioOverride,
+            Provenance::Document,
+        ] {
+            let expected = match provenance {
+                Provenance::BuiltIn
+                | Provenance::BundledPack
+                | Provenance::User
+                | Provenance::WorkspaceTrusted => false,
+                Provenance::WorkspaceUntrusted
+                | Provenance::StudioOverride
+                | Provenance::Document => true,
+            };
+            assert_eq!(
+                provenance.is_untrusted(),
+                expected,
+                "{provenance:?} changed trust class"
+            );
+        }
+    }
+
+    /// A workspace is trusted until the editor's trust state is plumbed
+    /// (ledger item O9) — the fact the `EvalOptions::tier` doc comment used
+    /// to deny.
+    #[test]
+    fn a_workspace_is_trusted_until_the_editor_says_otherwise_issue_2139() {
+        assert!(!Provenance::WorkspaceTrusted.is_untrusted());
+        assert!(Provenance::WorkspaceUntrusted.is_untrusted());
+    }
 
     #[test]
     fn every_old_name_and_alias_resolves() {

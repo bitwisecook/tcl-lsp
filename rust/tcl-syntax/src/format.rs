@@ -80,6 +80,115 @@ pub enum SizeModifier {
     Big,
 }
 
+/// The integer width an integer conversion renders through, once the size
+/// modifier and the release are both known.
+///
+/// C Tcl's rule is one rule: take the value modulo 2^width, then read those
+/// bits **signed** for `d`/`i` and **unsigned** for `u`/`x`/`X`/`o`/`b`.
+/// Measured on tclsh 8.4.20/8.5.19/8.6.18/9.0.4/9.1b0 —
+/// `format %hd 5000000000` is `-3584` and `format %hu 5000000000` is `61952`
+/// on every one of them, `format %hd 32768` is `-32768`, and
+/// `format %d 4294967296` is `4294967296` on 8.x but `0` on 9.x.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IntegerWidth {
+    /// C `short`, from an `h` modifier. 16 bits on every platform Tcl
+    /// supports, so this one needs no platform axis.
+    Short,
+    /// C `int` — Tcl 9's width for an unmodified integer conversion. 32 bits
+    /// on every platform Tcl supports.
+    Int,
+    /// 64 bits: `Tcl_WideInt`, and the unmodified width before Tcl 9.
+    Wide,
+}
+
+impl IntegerWidth {
+    /// The mask selecting this width's low bits, or `None` for the full
+    /// 64, whose mask does not fit a positive `i64`.
+    const fn low_mask(self) -> Option<i64> {
+        match self {
+            Self::Short => Some(0xFFFF),
+            Self::Int => Some(0xFFFF_FFFF),
+            Self::Wide => None,
+        }
+    }
+
+    /// The value's low bits, read as a signed integer of this width.
+    ///
+    /// Masked and sign-extended arithmetically rather than cast: a narrowing
+    /// cast is what `clippy::pedantic` rejects, and the arithmetic says what
+    /// is meant.
+    #[must_use]
+    pub fn signed(self, value: i64) -> i64 {
+        let Some(mask) = self.low_mask() else {
+            return value;
+        };
+        let sign_bit = (mask >> 1) + 1;
+        let low = value & mask;
+        if low & sign_bit == 0 {
+            low
+        } else {
+            low - mask - 1
+        }
+    }
+
+    /// The value's low bits, read as an unsigned integer of this width.
+    #[must_use]
+    pub fn unsigned(self, value: i64) -> u64 {
+        // The two's-complement bit pattern, without a sign-losing cast.
+        let bits = u64::from_ne_bytes(value.to_ne_bytes());
+        match self.low_mask() {
+            Some(mask) => bits & u64::from_ne_bytes(mask.to_ne_bytes()),
+            None => bits,
+        }
+    }
+}
+
+/// The width `size` selects for an integer conversion under `syntax`.
+///
+/// The one owner of this policy, so the renderers cannot drift apart on it.
+///
+/// **Two families are deliberately answered [`IntegerWidth::Wide`] rather than
+/// correctly**, because answering them needs facts this crate does not have:
+///
+/// * `ll` and `L` select Tcl's **bignum** path, not a 64-bit one —
+///   `format %lld 9223372036854775808` prints `9223372036854775808` where
+///   `%ld` prints `-9223372036854775808`. A renderer whose value type is
+///   `i64` has already lost the distinction before it gets here.
+/// * `l` before Tcl 9, `z` and `t` are **platform**-dependent (C `long`,
+///   `TCL_WIDE_INT_IS_LONG`, and `sizeof(void *) > sizeof(int)` respectively).
+///   `Wide` is right on LP64 and wrong on an ILP32 build; `tcl-dialect` has no
+///   platform axis to ask.
+///
+/// Both are recorded as gaps rather than guessed at; the unmodified and `h`
+/// answers below are determined on every platform Tcl supports.
+#[must_use]
+pub fn integer_width(
+    size: Option<SizeModifier>,
+    syntax: tcl_dialect::NumberSyntax,
+) -> IntegerWidth {
+    match size {
+        Some(SizeModifier::Short) => IntegerWidth::Short,
+        Some(
+            SizeModifier::Long
+            | SizeModifier::LongLong
+            | SizeModifier::IntMax
+            | SizeModifier::Size
+            | SizeModifier::Quad
+            | SizeModifier::PtrDiff
+            | SizeModifier::Big,
+        ) => IntegerWidth::Wide,
+        // Unmodified: Tcl 9 renders through C `int`, 8.x through the wide
+        // path. `NumberSyntax::Tcl90` is this module's existing discriminator
+        // for "Tcl 9 or later" (it already decides the `%#d` -> `0d` prefix);
+        // Jim keeps the pre-9 answer, since no jimsh oracle was available to
+        // establish otherwise.
+        None => match syntax {
+            tcl_dialect::NumberSyntax::Tcl90 => IntegerWidth::Int,
+            _ => IntegerWidth::Wide,
+        },
+    }
+}
+
 impl SizeModifier {
     /// Whether this modifier selects Tcl's bignum formatting path.
     #[must_use]
@@ -459,6 +568,77 @@ pub fn version_gated_uses(fmt: &str) -> Vec<VersionGatedUse> {
 
 #[cfg(test)]
 mod tests {
+    use super::{IntegerWidth, integer_width};
+    use tcl_dialect::NumberSyntax;
+
+    /// #1782: the width table, and the two readings of the truncated bits.
+    ///
+    /// Values are transcripts from real tclsh (8.4.20 / 8.5.19 / 8.6.18 /
+    /// 9.0.4 / 9.1b0), which agree on every `h` case and split only on the
+    /// unmodified width.
+    #[test]
+    fn integer_width_follows_the_modifier_and_the_release_issue_1782() {
+        // `h` is C `short` on every release — no platform axis needed.
+        for syntax in [
+            NumberSyntax::Tcl84,
+            NumberSyntax::Tcl85,
+            NumberSyntax::Tcl90,
+            NumberSyntax::Jim,
+        ] {
+            assert_eq!(
+                integer_width(Some(SizeModifier::Short), syntax),
+                IntegerWidth::Short,
+                "{syntax:?}"
+            );
+        }
+
+        // Unmodified: `int` from Tcl 9, the wide path before it. Jim keeps
+        // the pre-9 answer, since no jimsh oracle established otherwise.
+        assert_eq!(integer_width(None, NumberSyntax::Tcl84), IntegerWidth::Wide);
+        assert_eq!(integer_width(None, NumberSyntax::Tcl85), IntegerWidth::Wide);
+        assert_eq!(integer_width(None, NumberSyntax::Tcl90), IntegerWidth::Int);
+        assert_eq!(integer_width(None, NumberSyntax::Jim), IntegerWidth::Wide);
+        assert_eq!(
+            integer_width(None, NumberSyntax::Jim080),
+            IntegerWidth::Wide
+        );
+
+        // Every explicit modifier answers `Wide` today — right for `l`/`j`/`q`
+        // on LP64, a stated gap for the bignum and pointer-width families.
+        for size in [
+            SizeModifier::Long,
+            SizeModifier::LongLong,
+            SizeModifier::IntMax,
+            SizeModifier::Size,
+            SizeModifier::Quad,
+            SizeModifier::PtrDiff,
+            SizeModifier::Big,
+        ] {
+            assert_eq!(
+                integer_width(Some(size), NumberSyntax::Tcl90),
+                IntegerWidth::Wide,
+                "{size:?}"
+            );
+        }
+    }
+
+    /// The same low bits, read two ways — this is what `%hd` and `%hu`
+    /// disagreeing about 5000000000 (`-3584` against `61952`) measures.
+    #[test]
+    fn a_widths_bits_read_signed_and_unsigned_issue_1782() {
+        assert_eq!(IntegerWidth::Short.signed(5_000_000_000), -3584);
+        assert_eq!(IntegerWidth::Short.unsigned(5_000_000_000), 61952);
+        assert_eq!(IntegerWidth::Short.signed(32768), -32768);
+        assert_eq!(IntegerWidth::Short.signed(-32769), 32767);
+
+        assert_eq!(IntegerWidth::Int.signed(5_000_000_000), 705_032_704);
+        assert_eq!(IntegerWidth::Int.signed(4_294_967_296), 0);
+        assert_eq!(IntegerWidth::Int.unsigned(-1), 4_294_967_295);
+
+        assert_eq!(IntegerWidth::Wide.signed(5_000_000_000), 5_000_000_000);
+        assert_eq!(IntegerWidth::Wide.unsigned(-1), u64::MAX);
+    }
+
     use super::{
         SizeModifier, Spec, is_available, is_verb, parse_spec, parse_spec_with_limit,
         version_gated_uses,

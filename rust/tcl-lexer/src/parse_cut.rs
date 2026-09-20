@@ -29,17 +29,19 @@
 //!   carries it;
 //! * `tcl-compiler` needs the cut to turn a malformed script into a
 //!   catchable runtime error for a VM front-end, and gets it from this
-//!   module rather than filtering the [`Lexer`](crate::Lexer)'s **warning
-//!   stream** against a list of message strings and taking the one with
-//!   the lowest offset — a warning stream is flat and C's parse is not, so
+//!   module rather than filtering the [`Lexer`]'s **warning stream**
+//!   against a list of message strings and taking the one with the lowest
+//!   offset — a warning stream is flat and C's parse is not, so
 //!   that approach is wrong in two measurable ways.  For
 //!   `list [sfx one] [list "oops]` it would report `missing close-bracket`
 //!   at the end of the script, where C — which parses the bracket's own
 //!   script during the outer command's parse — reports `missing "`.  For
 //!   `puts $a([set q "x)` it would report `missing )` at the `(`, where C
 //!   again reports `missing "` from inside the bracket.  And a warning
-//!   stream cannot see [`WordSpan::welded_after_close`] at all, so
-//!   `set y {a}b` would be accepted as three words where C rejects it.
+//!   stream cannot see
+//!   [`WordSpan::welded_after_close`](crate::WordSpan::welded_after_close)
+//!   at all, so `set y {a}b` would be accepted as three words where C
+//!   rejects it.
 //!
 //! # What the cut is
 //!
@@ -53,11 +55,10 @@
 //!
 //! Nothing here is a new scanner.  Each class of failure is delegated to
 //! the primitive that already owns its spelling:
-//! [`quoted_word_close`](crate::word_parts::quoted_word_close) for
-//! `missing "` and the close-quote position,
-//! [`word_closer_offset_at`](crate::word_closer_offset_at) for an
-//! unterminated brace, [`decompose_spanned`] for everything inside a word,
-//! and [`group_commands`] for `{*}` and the welded close-brace.  This
+//! [`quoted_word_close`] for `missing "` and the close-quote position,
+//! [`word_closer_offset_at`] for an unterminated brace,
+//! [`decompose_spanned`] for everything inside a word, and
+//! [`group_commands`] for `{*}` and the welded close-brace.  This
 //! module only decides the **order** they are asked in.
 //!
 //! # Not an evaluator's parse
